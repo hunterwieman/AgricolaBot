@@ -62,6 +62,20 @@ def _update_space(state: GameState, space_id: str, **kwargs) -> GameState:
     return dataclasses.replace(state, board=new_board)
 
 
+def _new_grid_with_cell(
+    grid: tuple, row: int, col: int, cell: Cell,
+) -> tuple:
+    """Return a new 3×5 grid identical to `grid` except at (row, col), which is replaced by `cell`."""
+    new_row = tuple(
+        cell if c == col else existing
+        for c, existing in enumerate(grid[row])
+    )
+    return tuple(
+        new_row if r == row else existing_row
+        for r, existing_row in enumerate(grid)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Cross-cutting bookkeeping
 # ---------------------------------------------------------------------------
@@ -614,14 +628,8 @@ def _execute_plow(
     the first field on the farm).
     """
     p = state.players[player_idx]
-    grid = p.farmyard.grid
-    new_row = tuple(
-        Cell(cell_type=CellType.FIELD) if c == commit.col else cell
-        for c, cell in enumerate(grid[commit.row])
-    )
-    new_grid = tuple(
-        new_row if r == commit.row else row
-        for r, row in enumerate(grid)
+    new_grid = _new_grid_with_cell(
+        p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.FIELD),
     )
     new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
     new_player = dataclasses.replace(p, farmyard=new_farmyard)
