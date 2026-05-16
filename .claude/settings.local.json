@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(awk '/Worked example B/,/Worked example|---|^## /' /Users/hunterwieman/Desktop/Agricola/AgricolaBot/TASK_5.md)",
+      "Bash(python -c \"from agricola.cards.triggers import TRIGGERS, CARDS, register, TriggerEntry; print\\('imports OK'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(git add *)"
+    ]
+  }
+}
