@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitAccommodate,
     CommitBake,
     CommitBuildMajor,
+    CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
     CommitRenovate,
@@ -33,7 +34,8 @@ from agricola.constants import (
 )
 from agricola.pending import (
     PendingBakeBread,
-    PendingBuildStable,
+    PendingBuildRooms,
+    PendingBuildStables,
     PendingBuildMajor,
     PendingCattleMarket,
     PendingPigMarket,
@@ -54,6 +56,7 @@ from agricola.resolution import (
     _execute_accommodate,
     _execute_bake,
     _execute_build_major,
+    _execute_build_room,
     _execute_build_stable,
     _execute_plow,
     _execute_renovate,
@@ -147,7 +150,8 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     CommitSow:          (PendingSow,          _execute_sow,          True),
     CommitBake:         (PendingBakeBread,    _execute_bake,         True),
     CommitPlow:         (PendingPlow,         _execute_plow,         True),
-    CommitBuildStable:  (PendingBuildStable,  _execute_build_stable, True),
+    CommitBuildStable:  (PendingBuildStables, _execute_build_stable, False),
+    CommitBuildRoom:    (PendingBuildRooms,   _execute_build_room,   False),
     CommitRenovate:     (PendingRenovate,     _execute_renovate,     True),
     # CommitAccommodate lands on any of three market parent pendings.
     # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.

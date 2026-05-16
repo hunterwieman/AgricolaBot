@@ -71,7 +71,7 @@ class CommitBuildStable(CommitSubAction):
 
     The cost paid is read from the host pending's `cost` field, not from
     this commit (the cost is determined by the caller that pushed
-    `PendingBuildStable`, not by the agent at commit time).
+    `PendingBuildStables`, not by the agent at commit time).
     """
     row: int
     col: int

@@ -86,22 +86,6 @@ class PendingPlow:
 
 
 @dataclass(frozen=True)
-class PendingBuildStable:
-    """Sub-action pending for stable construction.
-
-    `cost: Resources` is set at push time by the choose handler (1 wood
-    for Side Job; future spaces/cards specify their own). `_execute_build_stable`
-    reads `pending.cost` and debits via `p.resources - pending.cost`.
-    """
-    PENDING_ID: ClassVar[str] = "build_stable"
-    TRIGGER_EVENT: ClassVar[str] = "before_build_stable"
-    player_idx: int
-    initiated_by_id: str
-    cost: Resources
-    triggers_resolved: frozenset = frozenset()
-
-
-@dataclass(frozen=True)
 class PendingBuildStables:
     """Multi-shot sub-action pending for stable construction.
 
@@ -307,7 +291,6 @@ PendingDecision = Union[
     PendingSow,
     PendingBakeBread,
     PendingPlow,
-    PendingBuildStable,
     PendingBuildStables,
     PendingBuildRooms,
     PendingBuildMajor,

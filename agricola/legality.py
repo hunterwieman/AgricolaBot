@@ -30,7 +30,6 @@ from agricola.pending import (
     PendingBakeBread,
     PendingBuildMajor,
     PendingBuildRooms,
-    PendingBuildStable,
     PendingBuildStables,
     PendingDecision,
     PendingGrainUtilization,
@@ -721,19 +720,6 @@ def _enumerate_pending_plow(
     return [CommitPlow(row=r, col=c) for (r, c) in _legal_plow_cells(p)]
 
 
-def _enumerate_pending_build_stable(
-    state: GameState, pending,
-) -> list[Action]:
-    """Enumerate legal CommitBuildStable actions at PendingBuildStable.
-
-    One CommitBuildStable per empty cell. Cost-affordability and
-    stable-supply checks happen at the parent enumerator level (before
-    the choose handler pushes PendingBuildStable).
-    """
-    p = state.players[pending.player_idx]
-    return [CommitBuildStable(row=r, col=c) for (r, c) in _legal_stable_cells(p)]
-
-
 def _enumerate_pending_build_stables(
     state: GameState, pending: PendingBuildStables,
 ) -> list[Action]:
@@ -969,7 +955,6 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,
     PendingPlow:                _enumerate_pending_plow,
-    PendingBuildStable:         _enumerate_pending_build_stable,
     PendingBuildStables:        _enumerate_pending_build_stables,
     PendingBuildRooms:          _enumerate_pending_build_rooms,
     PendingBuildMajor:          _enumerate_pending_build_major,

@@ -27,7 +27,6 @@ from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBakeBread,
     PendingBuildRooms,
-    PendingBuildStable,
     PendingBuildStables,
     PendingBuildMajor,
     PendingClayOven,
@@ -423,10 +422,11 @@ def _choose_subaction_side_job(
     p_idx = top.player_idx
     if action.name == "build_stable":
         state = replace_top(state, dataclasses.replace(top, stable_chosen=True))
-        return push(state, PendingBuildStable(
+        return push(state, PendingBuildStables(
             player_idx=p_idx,
             initiated_by_id=top.PENDING_ID,
             cost=Resources(wood=1),
+            max_builds=1,
         ))
     if action.name == "bake_bread":
         state = replace_top(state, dataclasses.replace(top, bake_chosen=True))
@@ -643,36 +643,12 @@ def _execute_plow(
 def _execute_build_stable(
     state: GameState, player_idx: int, commit: CommitBuildStable,
 ) -> GameState:
-    """Build a stable at (commit.row, commit.col), paying `pending.cost`.
-
-    The cost is on the pending frame (set at push time by the choose
-    handler), not on the commit action — different callers (Side Job, future
-    Farm Expansion, cards) specify different costs.
-    """
-    pending = state.pending_stack[-1]
-    assert isinstance(pending, PendingBuildStable)
-    p = state.players[player_idx]
-    grid = p.farmyard.grid
-    new_row = tuple(
-        Cell(cell_type=CellType.STABLE) if c == commit.col else cell
-        for c, cell in enumerate(grid[commit.row])
-    )
-    new_grid = tuple(
-        new_row if r == commit.row else row
-        for r, row in enumerate(grid)
-    )
-    new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
-    new_player = dataclasses.replace(
-        p, resources=p.resources - pending.cost, farmyard=new_farmyard,
-    )
-    return _update_player(state, player_idx, new_player)
-
-
-def _execute_build_stables(
-    state: GameState, player_idx: int, commit: CommitBuildStable,
-) -> GameState:
     """Multi-shot stable build: place one stable, increment num_built, leave
     PendingBuildStables on top (dispatcher's auto_pop=False).
+
+    The cost is on the pending frame (set at push time by the choose
+    handler) — different callers (Side Job, Farm Expansion, future cards)
+    specify different costs.
 
     Recomputes Farmyard.pastures explicitly: a stable placed inside an
     existing pasture changes that pasture's num_stables (and capacity).
@@ -680,14 +656,8 @@ def _execute_build_stables(
     unimplemented and no other resolver builds fences), this is the
     documented convention for pasture-changing resolvers (CLAUDE.md
     "Current exception: Farmyard.pastures") — fixes the latent bug in
-    Task 5C's _execute_build_stable and means Fencing won't have to
-    revisit this function later.
-
-    Introduced under the plural name because the singular
-    `_execute_build_stable` from Task 5C is still alive at step 6
-    (Side Job's coexisting code path). At step 7 the old singular
-    function is deleted and this function is renamed to
-    `_execute_build_stable` to match the function-name prefix taxonomy.
+    Task 5C's version and means Fencing won't have to revisit this
+    function later.
     """
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildStables)

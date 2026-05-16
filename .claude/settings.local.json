@@ -13,7 +13,8 @@
       "Bash(git commit -q -m 'Task 5D step 2: absorb CommitBuildMajor into generic dispatcher *)",
       "Bash(git commit -q -m 'Task 5D step 3: add ROOM_COSTS, _can_afford helper, simplify _can_afford_room *)",
       "Bash(git commit -q -m 'Task 5D step 4: predicate-enumerator dedup + _can_build_stable *)",
-      "Bash(git commit -q -m 'Task 5D step 5: add _new_grid_with_cell helper, migrate _execute_plow *)"
+      "Bash(git commit -q -m 'Task 5D step 5: add _new_grid_with_cell helper, migrate _execute_plow *)",
+      "Bash(git commit -q -m 'Task 5D step 7: atomic Side Job migration + PendingBuildStable retirement *)"
     ]
   }
 }
