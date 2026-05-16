@@ -86,6 +86,25 @@ class PendingPlow:
 
 
 @dataclass(frozen=True)
+class PendingFarmExpansion:
+    """Top-level parent pending for the Farm Expansion action space.
+
+    Mirrors the Side Job parent's shape — two boolean `*_chosen` flags
+    enforcing the "once per category" rule (you cannot build rooms,
+    switch to stables, then return to rooms).
+
+    No `triggers_resolved` field and no `TRIGGER_EVENT` classvar — card
+    machinery for the farm_expansion event is deferred until the first
+    such card lands.
+    """
+    PENDING_ID: ClassVar[str] = "farm_expansion"
+    player_idx: int
+    initiated_by_id: str
+    room_chosen: bool = False
+    stable_chosen: bool = False
+
+
+@dataclass(frozen=True)
 class PendingBuildStables:
     """Multi-shot sub-action pending for stable construction.
 
@@ -295,6 +314,7 @@ PendingDecision = Union[
     PendingBuildRooms,
     PendingBuildMajor,
     PendingRenovate,
+    PendingFarmExpansion,
     PendingFarmland,
     PendingCultivation,
     PendingSideJob,

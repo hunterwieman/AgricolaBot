@@ -180,7 +180,7 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
 
     raise NotImplementedError(
         f"Non-atomic space {action.space!r} is not implemented "
-        f"(deferred: farm_expansion, farm_redevelopment, fencing)"
+        f"(deferred: farm_redevelopment, fencing)"
     )
 
 

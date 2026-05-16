@@ -341,6 +341,15 @@ def _initiate_house_redevelopment(state: GameState) -> GameState:
     ))
 
 
+def _initiate_farm_expansion(state: GameState) -> GameState:
+    """Initiate Farm Expansion by pushing PendingFarmExpansion."""
+    from agricola.pending import PendingFarmExpansion
+    return push(state, PendingFarmExpansion(
+        player_idx=state.current_player,
+        initiated_by_id="space:farm_expansion",
+    ))
+
+
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "grain_utilization":    _initiate_grain_utilization,
     "farmland":             _initiate_farmland,
@@ -351,6 +360,7 @@ NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "cattle_market":        _initiate_cattle_market,
     "major_improvement":    _initiate_major_improvement,
     "house_redevelopment":  _initiate_house_redevelopment,
+    "farm_expansion":       _initiate_farm_expansion,
 }
 
 
@@ -507,10 +517,37 @@ def _choose_subaction_house_redevelopment(
     raise ValueError(f"Unknown sub-action {action.name!r} for House Redevelopment")
 
 
+def _choose_subaction_farm_expansion(
+    state: GameState, action: ChooseSubAction,
+) -> GameState:
+    from agricola.constants import ROOM_COSTS
+    top = state.pending_stack[-1]
+    p_idx = top.player_idx
+    p = state.players[p_idx]
+    if action.name == "build_rooms":
+        state = replace_top(state, dataclasses.replace(top, room_chosen=True))
+        return push(state, PendingBuildRooms(
+            player_idx=p_idx,
+            initiated_by_id=top.PENDING_ID,
+            cost=ROOM_COSTS[p.house_material],
+            max_builds=None,
+        ))
+    if action.name == "build_stables":
+        state = replace_top(state, dataclasses.replace(top, stable_chosen=True))
+        return push(state, PendingBuildStables(
+            player_idx=p_idx,
+            initiated_by_id=top.PENDING_ID,
+            cost=Resources(wood=2),
+            max_builds=None,
+        ))
+    raise ValueError(f"Unknown sub-action {action.name!r} for Farm Expansion")
+
+
 CHOOSE_SUBACTION_HANDLERS: dict[type, Callable[[GameState, ChooseSubAction], GameState]] = {}
 # Populated below after parent pending types are imported.
 from agricola.pending import (
     PendingCultivation,
+    PendingFarmExpansion,
     PendingFarmland,
     PendingHouseRedevelopment,
     PendingMajorMinorImprovement,
@@ -524,6 +561,7 @@ CHOOSE_SUBACTION_HANDLERS[PendingMajorMinorImprovement] = _choose_subaction_majo
 CHOOSE_SUBACTION_HANDLERS[PendingClayOven] = _choose_subaction_clay_oven
 CHOOSE_SUBACTION_HANDLERS[PendingStoneOven] = _choose_subaction_stone_oven
 CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_redevelopment
+CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
 
 
 # ---------------------------------------------------------------------------

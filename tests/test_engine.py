@@ -228,16 +228,16 @@ def test_step_raises_on_before_scoring():
 
 
 def test_step_raises_on_unimplemented_non_atomic():
-    """Taking an unimplemented non-atomic space raises NotImplementedError."""
+    """Taking an unimplemented non-atomic space raises NotImplementedError.
+
+    After Task 5D, only farm_redevelopment and fencing remain unimplemented.
+    Both lack legality predicates (or, for fencing, have it permanently
+    excluded), so we can't easily get one into `legal_actions`. Bypass
+    legality and call step() directly to verify the engine still raises.
+    """
     state = setup(seed=0)
-    ap = state.current_player
-    # Set up resources so farm_expansion is legal.
-    state = with_resources(state, ap, wood=5, reed=2)
-    # Confirm legality.
-    actions = legal_actions(state)
-    assert PlaceWorker(space="farm_expansion") in actions
     with pytest.raises(NotImplementedError):
-        step(state, PlaceWorker(space="farm_expansion"))
+        step(state, PlaceWorker(space="farm_redevelopment"))
 
 
 # ---------------------------------------------------------------------------

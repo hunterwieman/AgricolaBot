@@ -32,6 +32,7 @@ from agricola.pending import (
     PendingBuildRooms,
     PendingBuildStables,
     PendingDecision,
+    PendingFarmExpansion,
     PendingGrainUtilization,
     PendingPlow,
     PendingRenovate,
@@ -813,9 +814,30 @@ def _enumerate_pending_renovate(
 
 
 # ---------------------------------------------------------------------------
-# Parent pending enumerators (Farmland, Cultivation, Side Job, Markets,
-# Major/Minor Improvement, Clay/Stone Oven wrappers, House Redevelopment)
+# Parent pending enumerators (Farm Expansion, Farmland, Cultivation, Side Job,
+# Markets, Major/Minor Improvement, Clay/Stone Oven wrappers, House Redevelopment)
 # ---------------------------------------------------------------------------
+
+def _enumerate_pending_farm_expansion(
+    state: GameState, pending,
+) -> list[Action]:
+    """Enumerate legal actions at PendingFarmExpansion.
+
+    Once-per-category: build_rooms and build_stables each appear only if the
+    corresponding *_chosen flag is False AND the player can actually do it.
+    Stop is legal once at least one sub-action has been chosen (the
+    "must do at least one when entering the action" rule).
+    """
+    actions: list[Action] = []
+    p = state.players[pending.player_idx]
+    if not pending.room_chosen and _can_build_room(p):
+        actions.append(ChooseSubAction(name="build_rooms"))
+    if not pending.stable_chosen and _can_build_stable(p, Resources(wood=2)):
+        actions.append(ChooseSubAction(name="build_stables"))
+    if pending.room_chosen or pending.stable_chosen:
+        actions.append(Stop())
+    return actions
+
 
 def _enumerate_pending_farmland(
     state: GameState, pending,
@@ -959,6 +981,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingBuildRooms:          _enumerate_pending_build_rooms,
     PendingBuildMajor:          _enumerate_pending_build_major,
     PendingRenovate:            _enumerate_pending_renovate,
+    PendingFarmExpansion:       _enumerate_pending_farm_expansion,
     PendingFarmland:            _enumerate_pending_farmland,
     PendingCultivation:         _enumerate_pending_cultivation,
     PendingSideJob:             _enumerate_pending_side_job,
