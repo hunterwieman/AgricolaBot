@@ -18,7 +18,8 @@
       "Bash(git commit -q -m 'Task 5D step 10: CLAUDE.md and CHANGES.md updates *)",
       "Bash(git rev-list *)",
       "Bash(git cat-file *)",
-      "Bash(git commit -q -m 'Post-Task-5D cleanup: trim stale CLAUDE.md content + dead state.py code *)"
+      "Bash(git commit -q -m 'Post-Task-5D cleanup: trim stale CLAUDE.md content + dead state.py code *)",
+      "Bash(git commit -q -m 'SESSION_HISTORY.md: add Task 5D entry + update Current State *)"
     ]
   }
 }

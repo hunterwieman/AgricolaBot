@@ -26,6 +26,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 5 — The `step` Function, Pending Stack, Grain Utilization, Potter Ceramics](#task-5)
 - [Task 5B — Dispatch Cleanup](#task-5b)
 - [Task 5C — Eight Non-Atomic Spaces + Convention Shifts](#task-5c)
+- [Task 5D — Farm Expansion + Multi-Shot Sub-Action Pendings](#task-5d)
 - [Current State](#current-state)
 
 ---
@@ -1146,23 +1147,170 @@ Implementation surface is now ~90% complete for the Family game's work phase. Re
 
 ---
 
+<a name="task-5d"></a>
+## Task 5D — Farm Expansion + Multi-Shot Sub-Action Pendings (2026-05-16)
+
+### What was built
+
+Farm Expansion non-atomic resolution lands, introducing the **multi-shot sub-action pending pattern** — a sub-action category that hosts multiple commits within one invocation before the player explicitly Stops. The pattern is a new abstraction the codebase will reuse for Farm Redevelopment and Fencing later. Side Job migrates onto the same multi-shot machinery (with `max_builds=1`); the old singular `PendingBuildStable` retires. Five behavior-preserving Part 1 refactors land first as preparatory cleanup. The latent pasture-cache bug in Task 5C's `_execute_build_stable` is fixed as a side effect. See **`TASK_5D.md`** for the implementation plan and **`CHANGES.md`** Change 6 for the cross-cutting summary.
+
+After Task 5D, `step()` raises `NotImplementedError` only for `farm_redevelopment` and `fencing` — implementation surface for the Family game's work phase is essentially complete pending those two and the harvest.
+
+**The multi-shot sub-action pending pattern.** Pendings carry `max_builds: int | None` (caller-imposed cap; `None` = no cap) and `num_built: int = 0`. The effect function is registered with `auto_pop=False` in `COMMIT_SUBACTION_HANDLERS`. Each commit applies its effect, increments `num_built`, and `replace_top`s — does not pop. `Stop` is the explicit exit, legal at `num_built >= 1`. Per-pending legality offers `Commit*` actions only while the cap permits AND remaining buildability constraints (supply, affordability, cell availability) permit. When no commit is legal but `num_built >= 1`, `Stop` becomes the only legal action — the singleton-`Stop` state arises uniformly regardless of which constraint binds. Card-trigger fields (`triggers_resolved`, `TRIGGER_EVENT`) are intentionally absent on the new pendings, deferred until the first card needs them.
+
+**Farm Expansion** — `PendingFarmExpansion` parent with `room_chosen` / `stable_chosen` flags (once-per-category rule). `ChooseSubAction(name="build_rooms")` pushes `PendingBuildRooms(cost=ROOM_COSTS[house_material], max_builds=None)`; `ChooseSubAction(name="build_stables")` pushes `PendingBuildStables(cost=Resources(wood=2), max_builds=None)`. The multi-room build's within-action adjacency chaining falls out automatically: each commit replaces the farmyard, and the next call to `_enumerate_pending_build_rooms` reads the new state.
+
+**Five Part 1 preliminary refactors:**
+
+1. **`auto_pop` flag on `COMMIT_SUBACTION_HANDLERS`.** Entries grew a third element: `(expected_pending_type, effect_fn, auto_pop)`. `auto_pop=True` is default behavior (dispatcher pops); `auto_pop=False` means the dispatcher steps back and the effect function owns any stack manipulation.
+2. **`_execute_build_major` absorbed into the generic dispatch path.** Previously special-cased in `_apply_action`. Now registered as `(PendingBuildMajor, _execute_build_major, False)`. The function body is unchanged — it already owned its conditional stack manipulation (pop for non-ovens, push wrapper for ovens). The four-line special-case branch in `_apply_action` is deleted; its docstring is updated.
+3. **`ROOM_COSTS` constant + `_can_afford(p, cost)` helper + simplified `_can_afford_room`.** `ROOM_COSTS: dict[HouseMaterial, Resources]` in `constants.py` mirrors the existing `MAJOR_IMPROVEMENT_COSTS` shape. `_can_afford(p, cost) -> bool` in `legality.py` does generic component-wise affordability checks. `_can_afford_room` collapses to a one-liner over both. Used by both `_choose_subaction_farm_expansion` and `_enumerate_pending_build_rooms`.
+4. **Predicate-enumerator deduplication.** Three predicates in `legality.py` duplicated their cell enumerators' logic. `_can_plow(p)` → `bool(_legal_plow_cells(p))`. `_has_room_placement(p)` → `bool(_legal_room_cells(p))` (with new `_legal_room_cells` enumerator added). `_has_stable_placement` *deleted*, replaced by parameterized `_can_build_stable(p, cost)` that combines empty-cell + supply + affordability — three call sites migrated.
+5. **`_new_grid_with_cell` helper.** Extracted from the nested-tuple-comprehension pattern in `_execute_plow` and the now-replaced singular `_execute_build_stable`. Used by `_execute_plow`, the new `_execute_build_stable`, and `_execute_build_room`.
+
+**Latent pasture-cache bug fix in `_execute_build_stable`.** Task 5C's version omitted the pasture recompute when placing a stable. The bug couldn't be triggered in current gameplay (no resolver creates fences, so `_legal_stable_cells` never returned a cell inside any pasture) but would have manifested the moment Fencing landed. The new (post-rename, multi-shot) `_execute_build_stable` constructs the new `Farmyard` with explicit `pastures=compute_pastures_from_arrays(...)`, matching the documented convention for pasture-changing resolvers. Directly exercised by `tests/test_farm_expansion.py::test_stable_inside_pasture_recomputes_pasture_cache` (factory-prefabs a state with an existing pasture and asserts the cache updates).
+
+**Side Job migration + `PendingBuildStable` retirement.** Side Job's `_choose_subaction_side_job` now pushes `PendingBuildStables(max_builds=1)` instead of `PendingBuildStable`. The dispatch table for `CommitBuildStable` re-points at the multi-shot effect function. The old singular `_execute_build_stable` body is deleted; the new multi-shot function (introduced under the plural name `_execute_build_stables` during step 6) is renamed back to the singular `_execute_build_stable` at the same time. `PendingBuildStable` and `_enumerate_pending_build_stable` are deleted; the union shrinks by one. Side Job's trace shape grew by one step (commit + Stop instead of self-popping commit); `tests/test_side_job.py` updated accordingly.
+
+**Two new pending dataclasses** in `agricola/pending.py`: `PendingBuildStables` and `PendingBuildRooms`. Both carry the multi-shot fields (`cost`, `max_builds`, `num_built`) but no trigger fields. Plus one parent pending: `PendingFarmExpansion` (also no trigger fields yet, deferred). `PendingBuildStable` (singular) deleted.
+
+**One new commit action class** in `agricola/actions.py`: `CommitBuildRoom(row, col)`. Added to the `Action` union.
+
+**One new test file** (`tests/test_farm_expansion.py`, 25 tests) plus updates to `tests/test_side_job.py`, `tests/test_legality_non_atomic.py`, and `tests/test_engine.py`. See "Test count after Task 5D" below.
+
+### Design conversation (pre-implementation)
+
+A long iterative design pass produced `TASK_5D.md` before any code changed. The conversation covered multiple alternatives at each decision point; only the chosen path is summarized here.
+
+- **Atomic fat commit vs. one-at-a-time-with-nested-plural-pending.** The first option would emit a single `CommitBuildStables(cells: frozenset[(int,int)])` per build session — enumerating all subsets, ~C(13,4) ≈ 715 worst case for stables, more complex for rooms (where within-action adjacency chains). The second option (chosen) keeps per-step legality bounded by farm cells (~13) + Stop, and is far better-shaped for the future NN policy head than a one-shot decision with hundreds of options.
+
+- **Where to pop the multi-shot pending: Approach 1 (effect function auto-pops when `num_built == max_builds`) vs. Approach 2 (effect function never pops; Stop is always the explicit exit).** Approach 2 won on consistency — the affordability/empty-cell case already requires a singleton-`Stop` state somewhere (player runs out of wood mid-action, no cap involved), so special-casing the cap-reached state to auto-pop introduces a divergence with no upside. Also aligns with the engine's "no auto-resolved singleton player decisions" principle. Side effect: Side Job's trace grew by one step.
+
+- **`max_builds` as caller-imposed cap, supply/affordability/cell-availability as separate legality checks.** Initially the design conflated these (`max_builds = stables_in_supply` at push time). Decoupled after recognizing the distinction: `max_builds` encodes the **caller's intent** (Side Job: hard cap of 1 from the space's rules); supply / affordability / cell availability are global constraints checked dynamically in the enumerator. Forward-compat for cards that impose real caps (e.g., a hypothetical "build at most 2 stables this turn"). Farm Expansion sets `max_builds=None`.
+
+- **Card-trigger fields on the new pendings: deferred entirely.** Earlier drafts had `triggers_resolved` reset per commit; mid-conversation we flipped to "don't reset" (one multi-shot session is one action with multiple builds, per the rules "in a single action, you can build as many rooms as you can afford, one after another"); finally settled on "don't add the fields at all yet." Card-trigger machinery will be added per-pending when the first card needs it. The question of reset-vs-persist will be settled then per the relevant rules interpretation.
+
+- **Function naming under the function-name prefix taxonomy.** The taxonomy prefers singular Commit-derived names (`_execute_<sub_action>` where `<sub_action>` matches the singular Commit it handles): `_execute_sow`, `_execute_plow`, `_execute_build_stable`. The multi-shot effect function would conflict with the existing singular `_execute_build_stable` (alive during the Task 5C → Task 5D coexistence). Resolution: introduce the new function under the temporary plural name `_execute_build_stables` during step 6 (coexisting with the old), then rename to singular in step 7 when the old is deleted. Final state matches the taxonomy.
+
+- **ChooseSubAction category names: `"build_stables"` / `"build_rooms"` (plural) vs. `"build_stable"` / `"build_room"` (singular).** Side Job uses singular `"build_stable"` — the rules read "Build 1 stable and/or Bake Bread", singular. Farm Expansion uses plural `"build_stables"` / `"build_rooms"` — the rules read "Build rooms and/or build stables", plural. The split is meaningful and rule-faithful: each space's category names follow its own rule text. (An earlier draft normalized both to singular for internal consistency; rejected after recognizing it overrode genuine rule-text differences.)
+
+- **`auto_pop=False` semantics: "don't pop" vs. "effect function owns stack management".** The flag describes the dispatcher's behavior, not the effect function's. What an `auto_pop=False` effect function does varies — multi-shot pendings leave themselves on top via `replace_top`; `_execute_build_major` pops for non-ovens and pushes wrappers for ovens. The flag is consistently "dispatcher steps back," with the effect function free to do whatever its semantics require.
+
+- **Order of work — the dispatch-table conflict.** Original step order put Farm Expansion wiring (step 6) before Side Job migration (step 8). Caught during design that this would leave a window where `_choose_subaction_farm_expansion` could push `PendingBuildStables` but `COMMIT_SUBACTION_HANDLERS[CommitBuildStable]` still pointed at the singular `PendingBuildStable` — `_apply_commit_subaction`'s `isinstance` assertion would fail. Reordered: Side Job migration (now step 7) precedes Farm Expansion wiring (step 8). Avoids the conflict; everything else falls out.
+
+- **Pasture-cache fix in the new effect function (not a separate cleanup).** Spotted during the convention sweep — Task 5C's `_execute_build_stable` didn't recompute pastures, and CLAUDE.md explicitly listed it as a pasture-changing resolver. Folded the fix into the new function rather than a separate one-line patch to the old: since the old function was being deleted at step 7 anyway, fixing it twice would have been wasted work. The fix is directly exercised by a dedicated test in `tests/test_farm_expansion.py` that prefabs a state with an existing pasture and asserts the cache updates.
+
+- **Helper-organization sweep beyond the strict Farm Expansion need.** The plan initially proposed only `_can_build_stable_farm_expansion(p)` and inline `_room_cost(material)`. A first-principles re-examination revealed broader deduplication opportunities: `_can_plow` and `_has_room_placement` duplicated their enumerators' logic; `_has_stable_placement` could fold into a parameterized `_can_build_stable(p, cost)`; `_can_afford_room` could be a one-liner over `ROOM_COSTS` + `_can_afford`. The sweep included `_can_plow → bool(_legal_plow_cells)` as opportunistic cleanup of an unrelated predicate. Bundled into Part 1 Changes 3–5 as behavior-preserving refactors.
+
+- **Cost handling: `Resources.__ge__` vs. `_can_afford(p, cost)` helper.** The new multi-shot enumerators need to ask "can the player afford this cost?" Two options: add `Resources.__ge__` for `p.resources >= cost` semantics, or add a per-`(player, cost)` helper. Chose the helper because (a) `Resources` partial-ordering opens a small can of worms (`__ge__` paired with `__le__`/`__lt__`/`__gt__` for consistency? `total_ordering` decorator?); (b) affordability is naturally per-player, so a function over `(p, cost)` reads as cleanly as the operator at call sites.
+
+For the full design discussion thread (including discarded alternatives like per-individual-build trigger events, the plural-named-throughout naming choice, deferred discussion of `Resources.__ge__`), see `TASK_5D.md`.
+
+### Out of scope (deliberate)
+
+- **Farm Redevelopment** and **Fencing** remain `NotImplementedError`. Farm Redevelopment will reuse `PendingRenovate` and a new `PendingBuildFences`. Fencing introduces `PendingBuildFences` and the deferred fence-configuration legality (which lacks even a placement-legality predicate today).
+- **Harvest phases** (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) and rounds 5–14 — entirely deferred. Engine still halts at `Phase.BEFORE_SCORING` after round 4's RETURN_HOME.
+- **Card-trigger machinery on the new pendings.** `PendingFarmExpansion`, `PendingBuildStables`, and `PendingBuildRooms` were introduced **without** `triggers_resolved` fields or `TRIGGER_EVENT` classvars. When the first card needing to fire on `"before_build_stable"`, `"before_build_room"`, or `"before_farm_expansion"` is implemented, the relevant pending(s) gain the field + classvar at that time, and the question of whether the field persists across commits or resets per commit is settled then.
+- **Once-per-turn card pattern.** Sketched during the design conversation — a future `triggered_this_turn: frozenset[str]` field on `PlayerState`, cleared in `_apply_place_worker`, populated by once-per-turn cards' `apply_fn`s. No Family-game card needs this today; both the field and its lifecycle are deferred until the first such card lands.
+- **`PendingBuildRoom` (singular).** Not introduced. Room construction shares `PendingBuildRooms` (plural multi-shot) across all current and likely future callers (Farm Expansion today; future cards that grant room builds will share the same pending). The naming asymmetry with the now-retired singular `PendingBuildStable` is intentional — there's no current need for both shapes.
+- **Compound-card-interaction machinery** — still deferred (per `IMPLEMENTATION_CHOICES.md` item 11).
+- **Atomic-space trigger hosting** (phase tracking, phase-transition mechanism) — still deferred.
+
+### Bugs caught during implementation
+
+Implementation went unusually cleanly — most of the design conversation happened up front, and the order-of-work + Part 1 refactor sequencing meant every step had a clear green-tests checkpoint. The only test that broke during implementation was `tests/test_engine.py::test_step_raises_on_unimplemented_non_atomic`, which had used `farm_expansion` as its example of an unimplemented space — updated at step 8 to use `farm_redevelopment` instead.
+
+The biggest single risk — step 7's coordinated edit (delete old singular function, rename new function in, delete old pending, update dispatch table, migrate Side Job, update Side Job tests) — landed first try. Helped by the pre-task design conversation that surfaced the dispatch-table conflict (forcing the reorder) and the function-naming question (forcing the temporary-plural-name choice).
+
+The pasture-cache fix was *not* a bug caught during implementation — it was caught during the design conversation when CLAUDE.md's "pasture-changing resolvers" list was cross-checked against the actual `_execute_build_stable` code. The new effect function fixed it from the start; a dedicated test confirms.
+
+### Test count after Task 5D
+
+| File | Tests |
+|---|---|
+| `tests/test_state.py` | 28 (unchanged) |
+| `tests/test_helpers.py` | 37 (unchanged) |
+| `tests/test_scoring.py` | 8 (unchanged) |
+| `tests/test_legality_atomic.py` | 27 (unchanged) |
+| `tests/test_legality_non_atomic.py` | 58 (+2: three `_has_stable_placement` tests replaced with five `_can_build_stable` tests covering the cost dimension) |
+| `tests/test_resolution_atomic.py` | 25 (unchanged) |
+| `tests/test_engine.py` | 28 (unchanged; one test rewritten to use `farm_redevelopment` after `farm_expansion` was implemented) |
+| `tests/test_grain_utilization.py` | 24 (unchanged) |
+| `tests/test_potter_ceramics.py` | 11 (unchanged) |
+| `tests/test_bake_bread.py` | 16 (unchanged) |
+| `tests/test_farmland.py` | 8 (unchanged) |
+| `tests/test_cultivation.py` | 7 (unchanged) |
+| `tests/test_side_job.py` | 9 (+1: `test_side_job_stable_singleton_stop_after_commit` covering the Approach-2 singleton-Stop state; the existing tests' trace shapes also updated for commit + Stop) |
+| `tests/test_animal_markets.py` | 13 (unchanged) |
+| `tests/test_major_improvement.py` | 9 (unchanged — verified the `_execute_build_major` absorption introduced no observable change) |
+| `tests/test_house_redevelopment.py` | 10 (unchanged) |
+| `tests/test_farm_expansion.py` | **25** (new) |
+| **Total** | **343** |
+
+315 → 343, net +28.
+
+`random_agent_play` across seeds 0–99 (run both before and after the changes per the acceptance criterion) all pass; Farm Expansion is selected by the random agent in 40 of 100 seeds.
+
+### Documentation cascade
+
+Concurrent doc updates landed alongside the implementation:
+
+- **`TASK_5D.md`** — created during the design conversation, ~900 lines covering all 10 implementation steps, the pre-implementation discussion, ordering rationale (especially the Part 4 → Part 3 swap), test plan, and acceptance criteria. Includes a dedicated note on the pasture-cache fix and its dedicated test.
+- **`CLAUDE.md`** — extensive updates: status table grew by 7 rows for the Task 5D items; "Not yet implemented" trimmed from three spaces to two. New "Multi-shot sub-action pendings" subsection under "Additional Design Principles" describing the full pattern. "Lifecycle of a non-atomic turn" bullet updated with the multi-shot variant parenthetical. Sub-action cost handling bucket-2 examples updated. Per-file descriptions updated for `constants.py` (`ROOM_COSTS`), `actions.py` (`CommitBuildRoom`, updated `CommitBuildStable`/`CommitBuildMajor` descriptions, updated `CommitSubAction` framing now that all commits go through the generic path), `pending.py` (added `PendingBuildStables`/`PendingBuildRooms`/`PendingFarmExpansion`, removed `PendingBuildStable`), `legality.py` (added `_can_afford`/`_can_build_stable`/`_legal_room_cells`; noted predicates that are now one-liners), `resolution.py` (added `_new_grid_with_cell` utility; updated effect function descriptions including the pasture recompute; updated `_execute_build_major` description to reflect the generic dispatch path; updated handler counts), `engine.py` (updated `_apply_action` branch count and `_apply_commit_subaction` description for `auto_pop`). Per-file description added for `tests/test_farm_expansion.py`; `tests/test_side_job.py` description updated for the multi-shot trace shape. Directory tree filled in (also caught a Task 5C oversight — the tree had been missing all Task 5C test files). A subsequent cleanup pass (after Task 5D landed) removed two stale CLAUDE.md sentences that no longer described current code: the `_execute_build_major` "acknowledged stretch" bullet under the function-name prefix taxonomy, and the `pasture.py` "separate file" rationale referencing `Farmyard.__post_init__` (which was disabled in CHANGES.md Change 3). Three "pop" phrasings under the dispatcher description were tightened to mention `auto_pop`-conditional popping. `POSSIBLE_NEXT_STEPS.md` added to the Documentation Files table.
+- **`CHANGES.md`** — Change 6 added (cross-cutting summary of all Part 1 refactors + the multi-shot pattern + the pasture-cache fix + the `PendingBuildStable` retirement). Test counts updated to 343.
+- **`POSSIBLE_NEXT_STEPS.md`** — updated earlier in the session (before Task 5D implementation) to reflect that Farm Expansion was selected as the next task; afterwards stays accurate for the next phase (Farm Redevelopment / Fencing / harvest).
+- **`RULES.md`** — added a clarification to the "And/or" vs "And Afterward" subsection: "Each sub-action category may be taken at most once within the action; you cannot return to a category after switching to the other (e.g., on Farm Expansion: rooms-then-stables or stables-then-rooms, but not rooms-then-stables-then-rooms)." Rule was implicit but the wording was ambiguous; clarified before implementation locked in the once-per-category interpretation.
+- **`agricola/state.py`** — opportunistic cleanup during the post-Task-5D documentation pass: removed a dead import (`from agricola.pasture import compute_pastures_from_arrays`, only referenced in commented-out code) and the long commented-out `__post_init__` block. The design rationale for the disabled auto-fill lives in CHANGES.md Change 3 and the cache-discipline note in CLAUDE.md; the commented code itself is preserved history that those docs cover.
+
+### Conventions established (stable, documented in CLAUDE.md)
+
+- **`auto_pop: bool` flag on `COMMIT_SUBACTION_HANDLERS` entries.** Describes the dispatcher's behavior; `True` = pop after the effect, `False` = leave the stack alone. Documented in CLAUDE.md "agricola/engine.py" per-file description and the new "Multi-shot sub-action pendings" subsection.
+- **Multi-shot sub-action pending pattern.** Pendings with `max_builds: int | None` + `num_built: int` + effect function with `auto_pop=False` + Stop-as-explicit-exit. Documented in the new "Multi-shot sub-action pendings" subsection under "Additional Design Principles".
+- **`max_builds` as caller-imposed cap.** Distinct from global constraints (supply, affordability, cell availability), which are checked separately in the enumerator. Documented in the multi-shot subsection.
+- **Singleton-`Stop` arises uniformly regardless of binding constraint.** Whether the cap, supply, affordability, or cell-availability constraint is what blocks further commits, the player sees the same singleton-`Stop` state — preserves trace consistency for MCTS / replay.
+- **ChooseSubAction category names follow each space's rule text.** Side Job uses singular `"build_stable"` (rules say "Build 1 stable"); Farm Expansion uses plural `"build_stables"` / `"build_rooms"` (rules say "Build rooms and/or build stables"). The split is meaningful, not an inconsistency.
+- **Card-trigger machinery is deferred to per-pending need.** New pendings don't carry `triggers_resolved` / `TRIGGER_EVENT` until a card actually needs to fire on them. When added, the question of cross-commit persistence will be settled per the rules interpretation. Documented in the multi-shot subsection's final paragraph.
+- **`ROOM_COSTS: dict[HouseMaterial, Resources]` as a constant.** Mirrors `MAJOR_IMPROVEMENT_COSTS` shape; lives in `constants.py`; consumed by both `_can_afford_room` (legality) and `_choose_subaction_farm_expansion` (resolution). Pattern: per-material cost data lives as a static dict in constants.
+- **Predicate-shadows-enumerator pattern.** Existence predicates that ask "is there a legal cell?" should be one-liners over their cell enumerator (`_can_plow → bool(_legal_plow_cells(p))`). Single source of truth for "where can X go" lives in the enumerator; predicates derive.
+- **`_can_afford(p, cost)` for generic affordability checks.** Component-wise comparison helper in `legality.py`. Pattern: parameterized affordability checks compose with per-action cost lookups (e.g., `ROOM_COSTS[material]`, `MAJOR_IMPROVEMENT_COSTS[idx]`).
+- **`_can_build_stable(p, cost)` parameterized predicate.** Combined supply + cell-availability + affordability in one call. Replaces the deleted `_has_stable_placement` + inline cost checks across four sites. Pattern: per-action predicates take their cost as a parameter, so each call site supplies its own (Side Job: 1 wood; Farm Expansion: 2 wood; future cards: as stated).
+- **`_new_grid_with_cell` helper in `resolution.py`.** Small utility wrapper sitting alongside `_update_player` / `_update_space`. Used by `_execute_plow`, `_execute_build_stable`, `_execute_build_room` (and future cell-placing effects) instead of inline nested tuple-comprehensions.
+
+### Process improvements adopted mid-task
+
+- **Run pre-task baselines (test count + random-agent 100-seed sweep) before any code edits.** Established as a pre-flight habit during Task 5D. Captures the regression baseline cleanly; the 100-seed sweep also validates the random-agent harness itself.
+- **One commit per implementation step with descriptive messages.** Each commit carries a clear "what / why / test count" message. Enables future `git bisect` if a regression surfaces; gives the reviewer a 10-step narrative rather than one monolithic diff. Established during Task 5D's git-init pass.
+- **Convention sweep against CLAUDE.md after each major task.** Walks CLAUDE.md looking for stale phrasings ("special-case branch" after the branch is deleted; "and pops" after the pop becomes conditional) and applies the doc's own framing ("describe current code, not history") to trim accumulated cruft.
+
+### Next task
+
+Implementation surface for the Family game's work phase is now essentially complete pending three pieces, in increasing complexity:
+
+- **Farm Redevelopment** — renovate (mandatory first) + fence build. Will reuse `PendingRenovate`; needs the `PendingBuildFences` infrastructure shared with Fencing.
+- **Fencing** — the deferred fence-validity enumeration problem. The hardest of the three remaining spaces because it lacks even a legality predicate today. May be best paired with Farm Redevelopment (both need fence-build machinery).
+- **Harvest phases** (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) — multi-step harvest logic with player decisions (which goods to convert, how to feed, whether to beg). The decision points in HARVEST_FEED are the first real "strategic choice" decisions the engine surfaces beyond worker placement. Probably the highest-value addition to gameplay realism after the three remaining spaces land. Unblocks rounds 5–14.
+
+The card-system work (compound-card-interaction machinery, then cards beyond Potter Ceramics) is a separate parallel track. Updated planning in `POSSIBLE_NEXT_STEPS.md`.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 315 tests pass. The codebase has:
+All 343 tests pass. The codebase has:
 
-- Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with Task 5's additions and Task 5C's expanded constants (`MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, `FIREPLACE_INDICES`, `COOKING_HEARTH_INDICES`, `BAKING_IMPROVEMENTS` migrated here from legality).
-- Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`). Subtraction added in Task 5C.
-- Pasture cache on `Farmyard` (`agricola/pasture.py`, `agricola/state.py`); auto-fill `__post_init__` disabled per `CHANGES.md` Change 3.
+- Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc.
+- Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`).
+- Pasture cache on `Farmyard` (`agricola/pasture.py`, `agricola/state.py`); auto-fill `__post_init__` disabled per `CHANGES.md` Change 3. Pasture-changing resolvers (including the post-Task-5D `_execute_build_stable`) recompute via `compute_pastures_from_arrays` explicitly.
 - All helper functions through Task 3 plus the `enclosed_cells` legality helper (`agricola/helpers.py`).
 - Scoring and tiebreaker (`agricola/scoring.py`).
-- Action union (`agricola/actions.py`): `PlaceWorker`, `ChooseSubAction`, `CommitSow`, `CommitBake`, `CommitPlow`, `CommitBuildStable`, `CommitBuildMajor`, `CommitRenovate`, `CommitAccommodate`, `FireTrigger`, `Stop`. `CommitSubAction` is the frozen-dataclass marker base for the `Commit*` types.
-- Pending types and stack operations (`agricola/pending.py`): 14 concrete pendings (3 from Task 5 plus 11 added in Task 5C), split into sub-action pendings (host `CommitX`) and parent pendings (host `ChooseSubAction`/`Stop`). Every pending carries `initiated_by_id` (mandatory) + `PENDING_ID` (ClassVar). `PendingBuildStable` and `PendingRenovate` additionally carry `cost: Resources` set at push time. Stack helpers `push` / `pop` / `replace_top` live here.
-- Unified legality (`agricola/legality.py`): `legal_actions(state)` as the top-level entry point. New helpers `_legal_plow_cells`, `_legal_stable_cells`, `baking_specs_for_player`. Two card-extension registries: `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` (broadens `_can_bake_bread`) and `BAKING_SPEC_EXTENSIONS` (contributes baking sources for `_execute_bake`'s greedy allocator). All enumerators take `(state, pending: PendingX)`.
-- Per-space resolution (`agricola/resolution.py`): atomic handlers (12 spaces), non-atomic initiators (9: grain_utilization + 8 new), choose-sub-action handlers (8: grain_utilization plus 7 new parent pendings that have a choose step; animal markets have no choose step), and sub-action effect functions (`_execute_sow`, `_execute_bake`, `_execute_plow`, `_execute_build_stable`, `_execute_build_major`, `_execute_renovate`, `_execute_accommodate`). `_execute_bake` does greedy-by-rate allocation across all owned baking improvements (Clay Oven and Stone Oven now fully supported). The three function-pointer dispatch tables are now fully populated (`ATOMIC_HANDLERS`, `NONATOMIC_HANDLERS`, `CHOOSE_SUBACTION_HANDLERS`).
-- The engine (`agricola/engine.py`): `step` + `_advance_until_decision` + phase resolvers + `_advance_current_player`. `_apply_action` now has six branches (the new fifth is the `CommitBuildMajor` special-case before the generic `CommitSubAction` branch). `_apply_commit_subaction` simplified: asserts + effect + pop, no parent-flag setting (moved to choose handlers). `COMMIT_SUBACTION_HANDLERS` entries are 2-tuples `(expected_pending_type_or_tuple_of_types, effect_fn)`. Rounds 1 → 4 fully playable; halts at `Phase.BEFORE_SCORING` after round 4's RETURN_HOME. Only `farm_expansion`, `farm_redevelopment`, `fencing` still raise `NotImplementedError`.
-- Card framework (`agricola/cards/`): `triggers.py` registries + `register()`; one card (`potter_ceramics.py`) implementing both a `before_bake_bread` trigger and a `_can_bake_bread` extension. Forward-compat hooks now in place for card-driven baking sources (`BAKING_SPEC_EXTENSIONS`) and the `"card:<card_id>"` provenance prefix.
-- Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `IMPLEMENTED_NON_ATOMIC_SPACES` now contains all 9 implemented non-atomic spaces.
-- Full test coverage including the new per-space test files (Farmland 8, Cultivation 7, Side Job 8, Animal Markets 13, Major Improvement 9, House Redevelopment 10) and the parametrized Bake Bread matrix (16). Random-agent plays succeed across 10 seeds with the expanded space coverage.
+- Action union (`agricola/actions.py`): `PlaceWorker`, `ChooseSubAction`, `CommitSow`, `CommitBake`, `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom`, `CommitBuildMajor`, `CommitRenovate`, `CommitAccommodate`, `FireTrigger`, `Stop`. `CommitSubAction` is the frozen-dataclass marker base; all concrete commits dispatch through the generic `_apply_commit_subaction` (the Task 5C `CommitBuildMajor` special-case was absorbed in Task 5D step 2).
+- Pending types and stack operations (`agricola/pending.py`): 15 concrete pendings split into sub-action pendings (host `CommitX`) and parent pendings (host `ChooseSubAction`/`Stop`). Every pending carries `initiated_by_id` (mandatory) + `PENDING_ID` (ClassVar). Multi-shot sub-action pendings (`PendingBuildStables`, `PendingBuildRooms`) additionally carry `cost: Resources` + `max_builds: int | None` + `num_built: int = 0`; their effect functions don't pop, leaving Stop as the explicit exit. Stack helpers `push` / `pop` / `replace_top` live here.
+- Unified legality (`agricola/legality.py`): `legal_actions(state)` as the top-level entry point. Helpers include the new `_can_afford(p, cost)`, `_can_build_stable(p, cost)`, `_legal_room_cells(p)` from Task 5D; existing predicates `_can_plow` / `_has_room_placement` / `_can_afford_room` are now one-liners over their underlying enumerators or constants. Two card-extension registries: `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` and `BAKING_SPEC_EXTENSIONS`. All enumerators take `(state, pending: PendingX)`.
+- Per-space resolution (`agricola/resolution.py`): atomic handlers (12 spaces), non-atomic initiators (10: grain_utilization + Task 5C's 8 + Task 5D's farm_expansion), choose-sub-action handlers (9: grain_utilization plus 8 parent pendings that have a choose step; animal markets have no choose step). Sub-action effect functions (`_execute_sow`, `_execute_bake`, `_execute_plow`, `_execute_build_stable`, `_execute_build_room`, `_execute_build_major`, `_execute_renovate`, `_execute_accommodate`). `_execute_build_stable` and `_execute_build_room` are multi-shot (`auto_pop=False`, increment `num_built`, don't pop). `_execute_build_stable` recomputes pastures (fix for the latent Task 5C bug). New utility: `_new_grid_with_cell`. The three function-pointer dispatch tables fully populated.
+- The engine (`agricola/engine.py`): `step` + `_advance_until_decision` + phase resolvers + `_advance_current_player`. `_apply_action` has five branches (PlaceWorker, ChooseSubAction, CommitSubAction generic, FireTrigger, Stop). `_apply_commit_subaction` reads `auto_pop` and conditionally pops after the effect. `COMMIT_SUBACTION_HANDLERS` entries are 3-tuples `(expected_pending_type_or_tuple_of_types, effect_fn, auto_pop: bool)`. Rounds 1 → 4 fully playable; halts at `Phase.BEFORE_SCORING` after round 4's RETURN_HOME. Only `farm_redevelopment` and `fencing` still raise `NotImplementedError`.
+- Card framework (`agricola/cards/`): unchanged from Task 5C — `triggers.py` registries + `register()`; one card (`potter_ceramics.py`). Forward-compat hooks remain.
+- Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `IMPLEMENTED_NON_ATOMIC_SPACES` now contains all 10 implemented non-atomic spaces (auto-derived from `NONATOMIC_HANDLERS.keys()`).
+- Full test coverage including the new `tests/test_farm_expansion.py` (25 tests covering basic walks, multi-shot semantics, singleton-Stop states, the pasture-cache recompute, once-per-category, placement legality, and stack invariants) plus updated `tests/test_side_job.py` for the multi-shot trace shape. Random-agent plays succeed across 100 seeds with Farm Expansion exercised in roughly 40% of them.
 
-**Next task**: non-atomic resolution for the other ten spaces (Farmland, Side Job, Farm Expansion, Cultivation, House Redevelopment, Farm Redevelopment, Major Improvement, Sheep/Pig/Cattle Market, Fencing) — see Task 5's "Next task — open questions" for the suggested order. Harvest implementation is a separate task. Compound-card-interaction machinery (per `IMPLEMENTATION_CHOICES.md` item 11) is the major prerequisite for broader card support. The dispatch infrastructure from Task 5B is in place for new non-atomic spaces to land cleanly.
+**Next task**: pick from `POSSIBLE_NEXT_STEPS.md`. Highest-impact directions are Farm Redevelopment + Fencing (the last two non-atomic spaces; Fencing the harder of the two due to the deferred fence-configuration legality), followed by the harvest (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED), which together unblock rounds 5–14 and make the engine feature-complete for the Family game.
