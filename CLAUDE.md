@@ -94,8 +94,6 @@ Resolution-layer functions follow a small set of prefix conventions so the role 
 | `_execute_<sub_action>` | applies a committed sub-action's effect |
 | `_resolve_<phase>` | phase bookkeeping (in `engine.py`, not `resolution.py`) |
 
-One acknowledged stretch of the taxonomy: `_execute_build_major` in `resolution.py` also handles its own stack manipulation (pop for non-oven majors, push of `PendingClayOven`/`PendingStoneOven` for ovens). It's dispatched via a special-case branch in `_apply_action` rather than through the generic `_apply_commit_subaction` dispatcher, because the conditional push/no-pop is incompatible with the dispatcher's unconditional pop.
-
 ### Sub-action cost handling
 
 Sub-actions that debit resources fall into three buckets based on where the cost lives. When adding a new sub-action pending that debits resources, choose the bucket that fits — pick bucket 2 by default; reach for bucket 3 only when the cost is genuinely a function of a commit-time parameter.
@@ -242,7 +240,7 @@ def _choose_subaction_X(state, action):
     ...
 ```
 
-The commit dispatcher (`_apply_commit_subaction`) does NOT set the flag; its sole job is assert, effect, pop. The choose-time setting keeps flag management adjacent to the push that creates the sub-action, making each parent's chosen-tracking visible in one function.
+The commit dispatcher (`_apply_commit_subaction`) does NOT set the flag; its sole job is assert, effect, and pop (conditionally, per `auto_pop`). The choose-time setting keeps flag management adjacent to the push that creates the sub-action, making each parent's chosen-tracking visible in one function.
 
 ### `actions: list[Action] = []`
 
@@ -329,7 +327,7 @@ Three categories of value for `initiated_by_id`, using a namespaced prefix schem
 
 The `"space:"` and `"card:"` prefixes make the namespaces disjoint by construction — no reserved-string carve-out is needed. Sub-action pendings pushed by `ChooseSubAction` use the parent's `PENDING_ID` directly (no prefix).
 
-The generic commit dispatcher (`_apply_commit_subaction` in `engine.py`) asserts that the expected pending type is on top, applies the effect function, and pops. It does not touch parent state — parent `*_chosen` flags are set earlier by the `_choose_subaction_*` handler that pushed the sub-action pending. See "Code Conventions" → "Choose-time parent-flag setting".
+The generic commit dispatcher (`_apply_commit_subaction` in `engine.py`) asserts that the expected pending type is on top, applies the effect function, and conditionally pops (per `auto_pop`). It does not touch parent state — parent `*_chosen` flags are set earlier by the `_choose_subaction_*` handler that pushed the sub-action pending. See "Code Conventions" → "Choose-time parent-flag setting".
 
 When a pending hosts card trigger events, the event names follow the convention `"before_<PENDING_ID>"` and `"after_<PENDING_ID>"`. So `PendingBakeBread.TRIGGER_EVENT = "before_bake_bread"` is the canonical form.
 
@@ -359,7 +357,7 @@ Ten design philosophies govern the stack:
 
 - **`PlaceWorker` and each `ChooseSubAction` push exactly one pending frame.** This invariant ensures card triggers fire cleanly between frames (each trigger event corresponds to a specific stack-state, not an ambiguous "somewhere mid-push").
 
-- **Parent `*_chosen` flags are set at choose-time, not at commit-time.** Each `_choose_subaction_*` handler does `replace_top(state, dataclasses.replace(parent, <action>_chosen=True))` before pushing the sub-action pending. The commit dispatcher (`_apply_commit_subaction`) is responsible only for assert + effect + pop; it does not touch parent state. See "Code Conventions" → "Choose-time parent-flag setting" for rationale.
+- **Parent `*_chosen` flags are set at choose-time, not at commit-time.** Each `_choose_subaction_*` handler does `replace_top(state, dataclasses.replace(parent, <action>_chosen=True))` before pushing the sub-action pending. The commit dispatcher (`_apply_commit_subaction`) is responsible only for assert + effect + conditional pop; it does not touch parent state. See "Code Conventions" → "Choose-time parent-flag setting" for rationale.
 - **Commit sub-actions inherit from `CommitSubAction`.** All `Commit*` action types (`CommitSow`, `CommitBake`, future `CommitPlow`, …) inherit from a frozen-dataclass base `CommitSubAction`. The engine dispatches them uniformly through `_apply_commit_subaction` and the `COMMIT_SUBACTION_HANDLERS` metadata table. Adding a new sub-action type does not require editing `_apply_action`.
 - **`TRIGGER_EVENT` is a `ClassVar` on pending types that fire triggers.** Read by `legal_actions` enumerators to filter the trigger registry. Reason: type-derived event identity, no field bloat.
 - **`triggers_resolved` is scoped to a pending frame's lifetime.** It records which triggers have fired during this specific instance of the trigger event. Next instance (e.g., next Bake Bread action, next round's PREPARATION) creates a fresh pending with an empty `triggers_resolved`. **Do not put `triggers_resolved`-like state on `PlayerState`** — that would make a trigger fire once per game instead of once per event instance.
@@ -482,6 +480,7 @@ Significant cross-cutting refactors that touched many files at once are document
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
+| `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
 | `TASK_*.md` | Implementation task files, one per development task. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
 
@@ -584,7 +583,7 @@ Small standalone module that owns the `Pasture` dataclass and the BFS that turns
 - **`compute_pastures_from_arrays(grid, horizontal_fences, vertical_fences) -> tuple[Pasture, ...]`** — the public function. Implements the flood-fill from outside the grid, identifies enclosed connected components, and packages each as a `Pasture`. Returns the tuple sorted canonically by `min(p.cells)` (lexicographic on `(row, col)`) so equivalent farmyards always produce equal `pastures` tuples — required for `Farmyard.__eq__` and hashing across MCTS.
 - **`_are_connected(horizontal_fences, vertical_fences, r1, c1, r2, c2)`** — private helper used by the BFS. Returns `True` if two orthogonally adjacent cells have no fence between them.
 
-This module exists as a separate file (rather than living inside `helpers.py`) so that `Farmyard.__post_init__` in `state.py` can call `compute_pastures_from_arrays` without creating a circular import. `pasture.py` imports only from `agricola.constants` (for `CellType`); it reads `grid[r][c].cell_type` via duck typing and never imports `Cell`.
+`pasture.py` imports only from `agricola.constants` (for `CellType`) and reads `grid[r][c].cell_type` via duck typing rather than importing `Cell` — a deliberate module-layering choice that keeps `pasture.py` independent of `state.py`.
 
 ---
 

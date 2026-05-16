@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Optional  # used by BoardState.major_improvement_owners annotation
 
 from agricola.constants import CellType, HouseMaterial, Phase
-from agricola.pasture import compute_pastures_from_arrays
 from agricola.resources import Animals, Resources
 
 
@@ -43,17 +42,6 @@ class Farmyard:
     # mutations leave `pastures` alone, which rides along correctly via
     # dataclasses.replace.
     pastures: tuple = ()  # tuple[Pasture, ...], canonically ordered
-
-    # def __post_init__(self):
-    #     # Auto-fill removed in CHANGES.md Change 3 to skip the BFS on
-    #     # Farmyard mutations that cannot change pastures (room-builds,
-    #     # plows, sows, renovations, etc.). Pasture-changing resolvers
-    #     # now pass `pastures=compute_pastures_from_arrays(...)`
-    #     # explicitly. See CHANGES.md Change 3 for the full rationale.
-    #     computed = compute_pastures_from_arrays(
-    #         self.grid, self.horizontal_fences, self.vertical_fences,
-    #     )
-    #     object.__setattr__(self, "pastures", computed)
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,10 @@
       "Bash(git commit -q -m 'Task 5D step 4: predicate-enumerator dedup + _can_build_stable *)",
       "Bash(git commit -q -m 'Task 5D step 5: add _new_grid_with_cell helper, migrate _execute_plow *)",
       "Bash(git commit -q -m 'Task 5D step 7: atomic Side Job migration + PendingBuildStable retirement *)",
-      "Bash(git commit -q -m 'Task 5D step 10: CLAUDE.md and CHANGES.md updates *)"
+      "Bash(git commit -q -m 'Task 5D step 10: CLAUDE.md and CHANGES.md updates *)",
+      "Bash(git rev-list *)",
+      "Bash(git cat-file *)",
+      "Bash(git commit -q -m 'Post-Task-5D cleanup: trim stale CLAUDE.md content + dead state.py code *)"
     ]
   }
 }
