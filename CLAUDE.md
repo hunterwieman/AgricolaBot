@@ -102,11 +102,25 @@ Sub-actions that debit resources fall into three buckets based on where the cost
 
 1. **No cost.** The sub-action doesn't debit resources (e.g., `PendingPlow`). No `cost` field. Effect function applies its non-resource effect and returns.
 
-2. **Caller-parameterizable cost — field on the pending.** The cost varies by who pushed the sub-action: different spaces specify different costs, and cards may inject alternate costs or formula choices. The choose handler (or trigger / `_initiate_*` / card effect that pushes the pending) computes the cost at push time and stores it on the pending as `cost: Resources`. The effect function reads `pending.cost` and debits via `p.resources - pending.cost`. Cards that modify cost can update `pending.cost` either at push time (by computing differently) or via a trigger between push and commit (by `replace_top`-ing the pending). `PendingBuildStable` and `PendingRenovate` are the current examples; `PendingBuildRoom` and `PendingBuildFences` will follow the same pattern when introduced.
+2. **Caller-parameterizable cost — field on the pending.** The cost varies by who pushed the sub-action: different spaces specify different costs, and cards may inject alternate costs or formula choices. The choose handler (or trigger / `_initiate_*` / card effect that pushes the pending) computes the cost at push time and stores it on the pending as `cost: Resources`. The effect function reads `pending.cost` and debits via `p.resources - pending.cost`. Cards that modify cost can update `pending.cost` either at push time (by computing differently) or via a trigger between push and commit (by `replace_top`-ing the pending). `PendingBuildStables` (Side Job: 1 wood; Farm Expansion: 2 wood), `PendingBuildRooms` (Farm Expansion: `ROOM_COSTS[material]`), and `PendingRenovate` are the current examples; `PendingBuildFences` will follow the same pattern when introduced.
 
 3. **Commit-time-parameterizable cost — keyed lookup at execute time.** The cost varies by a parameter on the commit action itself, chosen at commit time rather than push time. No `cost` field on the pending — the effect function looks up the cost from the commit's parameters against a const table. `PendingBuildMajor` is the canonical example: cost depends on `commit.major_idx`, looked up in `MAJOR_IMPROVEMENT_COSTS`. This pattern fits when the commit-time parameter space is small and pre-defined.
 
 Bucket 2 is the most flexible for card extensions because the cost can be set or modified anywhere along the push → commit path. Bucket 3 trades flexibility for a single source of truth (the const table) and is appropriate when the cost variations *are* the action's identity (each major improvement is fundamentally a distinct item with a distinct cost).
+
+### Multi-shot sub-action pendings
+
+Some sub-action categories allow multiple commits within a single category invocation (Farm Expansion's build_rooms and build_stables; Side Job's build_stable as a degenerate cap=1 case). The pattern:
+
+- The pending carries two integer fields: `max_builds: int | None` (caller-imposed cap, set at push time; `None` means no cap) and `num_built: int = 0` (increments on each commit).
+- `max_builds` encodes only the **caller's intent**, not global constraints. Affordability, supply, and cell/placement availability are checked separately in the per-pending enumerator. Side Job pushes with `max_builds=1` (the space's rule). Farm Expansion pushes with `max_builds=None` — the dynamic constraints in the enumerator do all the bounding.
+- The effect function is registered with `auto_pop=False` in `COMMIT_SUBACTION_HANDLERS`. Each commit applies its effect, increments `num_built`, and `replace_top`s — but does **not** pop the pending.
+- `Stop` is the explicit exit. `Stop` is legal at `num_built >= 1` (the "must do at least one when entering a category" rule); not legal at `num_built == 0`.
+- Per-pending legality offers `Commit*` actions only while `(max_builds is None or num_built < max_builds)` AND remaining affordability/placement/supply constraints permit. When no commit is legal but `num_built >= 1`, `Stop` becomes the only legal action and the agent explicitly Stops. This singleton-`Stop` state arises uniformly whether the cap, supply, affordability, or cell-availability constraint is the binding one.
+
+Side Job's stable build is a multi-shot pending with `max_builds=1`: after the single commit, `Stop` is the only legal action. There is no auto-pop optimization for `max_builds=1` cases — surfacing the singleton `Stop` keeps trace consistency uniform across multi-shot pendings and aligns with the engine's "no auto-resolved singleton player decisions" principle.
+
+Card-trigger fields (`triggers_resolved`, `TRIGGER_EVENT`) are intentionally absent from the multi-shot pendings introduced in Task 5D. They will be added per-pending when the first card needs them. When added, the question of whether `triggers_resolved` persists across commits or resets per commit will be settled per the rules interpretation ("one action with multiple builds" suggests persistence across commits; per-individual-build cards would attach to a different event like `"after_build_stable"` on each commit).
 
 ---
 
@@ -330,7 +344,7 @@ When a pending hosts card trigger events, the event names follow the convention 
 
 - `PlaceWorker(non_atomic_space)` pushes the space's pending.
 - `ChooseSubAction("category")` writes `<category>_chosen=True` on the parent pending AND pushes a category pending on top (both in the same handler).
-- `CommitX(...)` pops the category pending. The parent flag was set earlier, at choose-time.
+- `CommitX(...)` pops the category pending. The parent flag was set earlier, at choose-time. *(Exception for multi-shot pendings — `PendingBuildStables`, `PendingBuildRooms`: `CommitX(...)` increments `num_built` and leaves the pending on top via `replace_top`; `Stop` is the explicit exit and pops. See "Multi-shot sub-action pendings" below.)*
 - `FireTrigger(card_id)` modifies the top frame's `triggers_resolved` set; no push or pop.
 - `Stop` pops the top frame.
 - Card-triggered sub-decisions push their pending **on top of** the pending whose event they fire from (never between existing frames). This invariant guarantees that when a sub-action commit pops its pending, the new top is always the parent — no stack walking required.
@@ -387,7 +401,7 @@ The full card system (the other ~470 cards in the Family + full game) is a separ
 
 ## Current Status
 
-All 315 tests pass. The following pieces are complete:
+All 343 tests pass. The following pieces are complete:
 
 | Component | Status | Task file(s) |
 |---|---|---|
@@ -423,10 +437,17 @@ All 315 tests pass. The following pieces are complete:
 | Provenance prefix scheme (`"space:<id>"` / `"card:<id>"`) | Complete | `TASK_5C.md`, `CHANGES.md` Change 5 |
 | Major improvement costs and baking specs in `constants.py` | Complete | `TASK_5C.md` |
 | Bake Bread support for Clay Oven and Stone Oven (greedy-by-rate over all owned baking improvements) | Complete | `TASK_5C.md` |
+| `auto_pop` flag on `COMMIT_SUBACTION_HANDLERS` + `CommitBuildMajor` absorbed into generic dispatcher | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
+| Multi-shot sub-action pending pattern (`PendingBuildStables`, `PendingBuildRooms`) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
+| Farm Expansion non-atomic resolution | Complete | `TASK_5D.md` |
+| Side Job migrated to `PendingBuildStables`; `PendingBuildStable` (singular) retired | Complete | `TASK_5D.md` |
+| `ROOM_COSTS` constant + `_can_afford(p, cost)` + predicate-enumerator deduplication (`_can_build_stable`, `_legal_room_cells`) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
+| `_new_grid_with_cell` helper in `resolution.py` | Complete | `TASK_5D.md` |
+| Pasture cache recompute on stable build (fixes latent Task 5C bug) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
 
 **Not yet implemented:**
 
-- Non-atomic resolution for the three remaining spaces: **Farm Expansion**, **Farm Redevelopment**, **Fencing** (selecting them via `PlaceWorker(...)` still raises `NotImplementedError`).
+- Non-atomic resolution for the two remaining spaces: **Farm Redevelopment**, **Fencing** (selecting them via `PlaceWorker(...)` still raises `NotImplementedError`).
 - `fencing` legality (still missing entirely).
 - Harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED).
 - Rounds 5–14 (engine halts in `Phase.BEFORE_SCORING` after round 4's RETURN_HOME).
@@ -501,6 +522,14 @@ AgricolaBot/
         test_engine.py          # step, phase resolvers, random-agent (Task 5)
         test_grain_utilization.py    # non-atomic resolution tests (Task 5)
         test_potter_ceramics.py      # card-trigger tests (Task 5)
+        test_bake_bread.py           # _execute_bake / spec-extension registry (Task 5C)
+        test_farmland.py             # Task 5C
+        test_cultivation.py          # Task 5C
+        test_side_job.py             # Task 5C; updated for multi-shot in Task 5D
+        test_animal_markets.py       # Task 5C
+        test_major_improvement.py    # Task 5C
+        test_house_redevelopment.py  # Task 5C
+        test_farm_expansion.py       # Task 5D — multi-shot pending pattern
 ```
 
 ---
@@ -540,6 +569,7 @@ All the named enumerations and lookup tables the engine uses. Nothing in here is
 - **`HARVEST_ROUNDS`**, **`NUM_ROUNDS`**, **`NUM_MAJOR_IMPROVEMENTS`** — numeric constants.
 - **`STAGE_ROUNDS`** — convenience dict mapping stage number to its `(first_round, last_round)` inclusive, used in tests.
 - **`MAJOR_IMPROVEMENT_COSTS`** — tuple of length 10, indexed by major_idx, giving each major improvement's standard cost as a `Resources` object. The Cooking Hearth alternate-payment path (return a Fireplace) is handled in resolution code, not encoded here.
+- **`ROOM_COSTS`** — dict keyed by `HouseMaterial` (WOOD / CLAY / STONE) giving each material's per-room cost as a `Resources` object (5 of the material + 2 reed). Mirrors the `MAJOR_IMPROVEMENT_COSTS` shape. Used by both `_can_afford_room` in `legality.py` and `_choose_subaction_farm_expansion` in `resolution.py`.
 - **`BAKING_IMPROVEMENT_SPECS`** — dict keyed by major_idx (0, 1, 2, 3, 5, 6) giving each baking improvement's per-action `(max_grain_per_action, food_per_grain)` tuple. `None` cap means "any amount" (Fireplace, Cooking Hearth). Used by the greedy-by-rate allocator in `_execute_bake` and the per-action grain-cap computation in `_enumerate_pending_bake_bread`.
 - **`FIREPLACE_INDICES`**, **`COOKING_HEARTH_INDICES`** — tuples of the two indices for each cookware family. Used in legality predicates for Cooking Hearth's alternate payment (return a Fireplace).
 - **`BAKING_IMPROVEMENTS`** — frozenset of all major-improvement indices that grant a Bake Bread capability. Derived from `BAKING_IMPROVEMENT_SPECS.keys()`. Previously lived in `legality.py`; migrated to `constants.py` in Change 5 for centralized constants.
@@ -619,17 +649,18 @@ Defines the action types the engine's `step` accepts. Every action is a frozen d
 
 - **`PlaceWorker(space: str)`** — place the active player's worker on a named action space. For atomic spaces this is the complete action. For non-atomic spaces this initiates the chain of sub-decisions.
 - **`ChooseSubAction(name: str)`** — pick a sub-action category at a non-atomic space's pending decision. Categories are space-specific strings (e.g., `"sow"`, `"bake_bread"` at Grain Utilization).
-- **`CommitSubAction`** — frozen-dataclass marker base for all `Commit*` sub-action types. Empty (no fields). Concrete subclasses inherit from it. Most are dispatched uniformly by `_apply_commit_subaction` in `engine.py` via the `COMMIT_SUBACTION_HANDLERS` table; `CommitBuildMajor` is special-cased.
+- **`CommitSubAction`** — frozen-dataclass marker base for all `Commit*` sub-action types. Empty (no fields). Concrete subclasses inherit from it. All are dispatched uniformly by `_apply_commit_subaction` in `engine.py` via the `COMMIT_SUBACTION_HANDLERS` table (post-Task-5D: `CommitBuildMajor` was absorbed into the generic path with `auto_pop=False`).
 - **`CommitSow(grain: int, veg: int)`** — commit a sow. Pops `PendingSow`.
 - **`CommitBake(grain: int)`** — commit a Bake Bread with the chosen grain amount. Pops `PendingBakeBread`.
 - **`CommitPlow(row: int, col: int)`** — commit a plow at the chosen cell. Pops `PendingPlow`.
-- **`CommitBuildStable(row: int, col: int)`** — commit a stable build at the chosen cell. The cost paid is read from the host `PendingBuildStable.cost` field. Pops `PendingBuildStable`.
-- **`CommitBuildMajor(major_idx: int, return_fireplace_idx: int | None = None)`** — purchase a major improvement. For Cooking Hearth, `return_fireplace_idx` may be 0 or 1 to pay by returning that Fireplace. Special-cased in `_apply_action` — does NOT go through the generic commit dispatcher.
+- **`CommitBuildStable(row: int, col: int)`** — commit a stable build at the chosen cell. The cost paid is read from the host `PendingBuildStables.cost` field. Does NOT pop `PendingBuildStables` (multi-shot pattern, `auto_pop=False`); `Stop` pops it.
+- **`CommitBuildRoom(row: int, col: int)`** — commit a room build at the chosen cell. The cost paid is read from the host `PendingBuildRooms.cost` field (set from `ROOM_COSTS[p.house_material]` at push time). Does NOT pop `PendingBuildRooms` (multi-shot pattern, `auto_pop=False`); `Stop` pops it.
+- **`CommitBuildMajor(major_idx: int, return_fireplace_idx: int | None = None)`** — purchase a major improvement. For Cooking Hearth, `return_fireplace_idx` may be 0 or 1 to pay by returning that Fireplace. Dispatched via the generic commit dispatcher with `auto_pop=False`; the effect function owns the conditional stack manipulation (pop for non-ovens, push wrapper for Clay/Stone Oven).
 - **`CommitRenovate()`** — commit a renovation (parameterless; the cost and material transition are derived from current state and `pending.cost`). Pops `PendingRenovate`.
 - **`CommitAccommodate(sheep: int, boar: int, cattle: int)`** — commit the final animal configuration after taking from a market. Lands directly on `PendingSheepMarket` / `PendingPigMarket` / `PendingCattleMarket` (no separate sub-action pending). Dispatcher entry uses a tuple of pending types.
 - **`FireTrigger(card_id: str)`** — fire a specific card trigger that's currently eligible at the top pending.
 - **`Stop()`** — end the current non-atomic action (pop the top pending frame). Legal at parent pendings once at least one sub-action has been chosen.
-- **`Action`** — the union alias listing the concrete subclasses (`PlaceWorker | ChooseSubAction | CommitSow | CommitBake | CommitPlow | CommitBuildStable | CommitBuildMajor | CommitRenovate | CommitAccommodate | FireTrigger | Stop`). The `CommitSubAction` base is intentionally not in the union — concrete subclasses are listed so legality enumerators and type checkers see the real options. There is no `SkipTrigger`: declining a trigger is implicit.
+- **`Action`** — the union alias listing the concrete subclasses (`PlaceWorker | ChooseSubAction | CommitSow | CommitBake | CommitPlow | CommitBuildStable | CommitBuildRoom | CommitBuildMajor | CommitRenovate | CommitAccommodate | FireTrigger | Stop`). The `CommitSubAction` base is intentionally not in the union — concrete subclasses are listed so legality enumerators and type checkers see the real options. There is no `SkipTrigger`: declining a trigger is implicit.
 
 ---
 
@@ -647,13 +678,15 @@ Frozen pending-decision dataclasses *and* the stack operations on them. The stac
 - **`PendingSow(player_idx, initiated_by_id)`** — `PENDING_ID = "sow"`. Pushed by `ChooseSubAction("sow")`. Pops on `CommitSow`.
 - **`PendingBakeBread(player_idx, initiated_by_id, triggers_resolved=frozenset())`** — `PENDING_ID = "bake_bread"`, `TRIGGER_EVENT = "before_bake_bread"`. `triggers_resolved` is scoped to this frame's lifetime.
 - **`PendingPlow(player_idx, initiated_by_id, triggers_resolved=frozenset())`** — `PENDING_ID = "plow"`, `TRIGGER_EVENT = "before_plow"`. Used by Farmland and Cultivation.
-- **`PendingBuildStable(player_idx, initiated_by_id, cost, triggers_resolved=frozenset())`** — `PENDING_ID = "build_stable"`, `TRIGGER_EVENT = "before_build_stable"`. `cost: Resources` is set at push time by the choose handler (1 wood for Side Job; future Farm Expansion would use 2 wood). `_execute_build_stable` reads `pending.cost` and debits via `__sub__`. See "Sub-action cost handling" → bucket 2.
+- **`PendingBuildStables(player_idx, initiated_by_id, cost, max_builds, num_built=0)`** — `PENDING_ID = "build_stables"`. Multi-shot pending: each `CommitBuildStable` increments `num_built` and leaves the pending on top (`auto_pop=False`); `Stop` is the explicit exit. `cost: Resources` is per-commit (1 wood for Side Job; 2 wood for Farm Expansion; future cards may inject other costs). `max_builds: int | None` is a caller-imposed cap (`None` = no cap; Side Job sets 1; Farm Expansion sets None). Supply/affordability/cell checks live in the enumerator. No card-trigger fields yet (`triggers_resolved` / `TRIGGER_EVENT` deferred until a card needs them). See "Sub-action cost handling" → bucket 2, and "Multi-shot sub-action pendings".
+- **`PendingBuildRooms(player_idx, initiated_by_id, cost, max_builds, num_built=0)`** — `PENDING_ID = "build_rooms"`. Multi-shot pending mirroring `PendingBuildStables`. `cost: Resources` is set at push time from `ROOM_COSTS[p.house_material]`. Farm Expansion pushes with `max_builds=None`; future cards may set integer caps.
 - **`PendingBuildMajor(player_idx, initiated_by_id, build_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "build_major"`, `TRIGGER_EVENT = "before_build_major"`. `build_chosen` is set by `_execute_build_major` and matters only for oven majors (Clay/Stone Oven), where `PendingBuildMajor` lingers below the oven wrapper while the optional free bake resolves. Cost is NOT on this pending — it's looked up in `MAJOR_IMPROVEMENT_COSTS` by `commit.major_idx`. See "Sub-action cost handling" → bucket 3.
 - **`PendingRenovate(player_idx, initiated_by_id, cost, triggers_resolved=frozenset())`** — `PENDING_ID = "renovate"`, `TRIGGER_EVENT = "before_renovate"`. `cost: Resources` is set at push time by `_choose_subaction_house_redevelopment` based on current house material and room count.
 
 **Parent pendings** host `ChooseSubAction` and (after a flag flips) `Stop`. Include both top-level pendings pushed by `PlaceWorker` and non-top-level wrapper pendings pushed by special-case commit handlers.
 
 - **`PendingGrainUtilization(player_idx, initiated_by_id, sow_chosen=False, bake_chosen=False)`** — `PENDING_ID = "grain_utilization"`. Stop-legality requires `sow_chosen or bake_chosen`.
+- **`PendingFarmExpansion(player_idx, initiated_by_id, room_chosen=False, stable_chosen=False)`** — `PENDING_ID = "farm_expansion"`. Stop-legality requires `room_chosen or stable_chosen`. Once-per-category: a player who chooses build_rooms, exits via Stop, and returns to the parent cannot re-enter build_rooms. No `triggers_resolved` / `TRIGGER_EVENT` yet (deferred until cards need them).
 - **`PendingFarmland(player_idx, initiated_by_id, plow_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "farmland"`. Stop-legality requires `plow_chosen`.
 - **`PendingCultivation(player_idx, initiated_by_id, plow_chosen=False, sow_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "cultivation"`. Stop-legality requires at least one of `plow_chosen`/`sow_chosen`.
 - **`PendingSideJob(player_idx, initiated_by_id, stable_chosen=False, bake_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "side_job"`. Stop-legality requires at least one of `stable_chosen`/`bake_chosen`.
@@ -677,13 +710,13 @@ Frozen pending-decision dataclasses *and* the stack operations on them. The stac
 Determines which actions are legal from a given game state. Covers all 12 **atomic** action spaces and 11 of the 13 **non-atomic** action spaces. `fencing` legality is deferred (requires enumerating valid fence configurations); `lessons` is permanently illegal in the Family game and is intentionally absent from every dispatch table. Also provides per-pending sub-action enumerators (Task 5).
 
 - The 12 atomic spaces: `day_laborer`, `fishing`, `forest`, `clay_pit`, `reed_bank`, `grain_seeds`, `meeting_place`, `western_quarry`, `vegetable_seeds`, `eastern_quarry`, `basic_wish_for_children`, `urgent_wish_for_children`.
-- The 11 implemented non-atomic spaces (legality only — only `grain_utilization` has its resolution implemented in Task 5): `farm_expansion`, `farmland`, `side_job`, `grain_utilization`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `cultivation`, `farm_redevelopment`.
+- The 11 non-atomic spaces with legality predicates: `farm_expansion`, `farmland`, `side_job`, `grain_utilization`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `cultivation`, `farm_redevelopment`. After Task 5D, only `farm_redevelopment` and `fencing` remain without resolution; the other 10 + Farm Expansion are fully implemented.
 
 Internal structure:
 - `_is_available(state, space)` — the cross-cutting check shared by all spaces: the space must be unoccupied (`workers == (0, 0)`) and currently revealed (`round_revealed <= round_number`).
 - One private predicate function per space, adding space-specific checks on top of `_is_available`. Most accumulation spaces require at least one accumulated good to be present (it is illegal to take an empty accumulation space). The Wish for Children spaces additionally require that the current player has fewer than 5 people and (for Basic Wish) has more rooms than people. Non-atomic predicates check the player can actually execute at least one of the space's effects.
-- Shared helpers used across non-atomic predicates: `_owns_baker(state, p)`, `_can_bake_bread(state, p)`, `_can_sow(p)`, `_can_plow(p)`, `_has_stable_placement(p)`, `_can_afford_room(p)`, `_has_room_placement(p)`, `_can_build_room(p)`, `_can_renovate(p)`, `_can_afford_major(state, p, idx)`, `_can_afford_any_major_improvement(state, p)`. These follow the player-parameter convention in the Additional Design Principles section above. `BAKING_IMPROVEMENTS` lives in `constants.py`.
-- Cell-enumeration helpers added in Change 5: `_legal_plow_cells(p)` (used by `_enumerate_pending_plow`), `_legal_stable_cells(p)` (used by `_enumerate_pending_build_stable`).
+- Shared helpers used across non-atomic predicates: `_owns_baker(state, p)`, `_can_bake_bread(state, p)`, `_can_sow(p)`, `_can_plow(p)`, `_can_build_stable(p, cost)`, `_can_afford(p, cost)`, `_can_afford_room(p)`, `_has_room_placement(p)`, `_can_build_room(p)`, `_can_renovate(p)`, `_can_afford_major(state, p, idx)`, `_can_afford_any_major_improvement(state, p)`. These follow the player-parameter convention in the Additional Design Principles section above. `BAKING_IMPROVEMENTS` lives in `constants.py`. `ROOM_COSTS` (per-material room cost dict) lives in `constants.py`. `_can_afford_room` is a one-liner over `_can_afford(p, ROOM_COSTS[p.house_material])`. `_can_build_stable(p, cost)` combines supply + cell-availability + affordability and replaces the deleted `_has_stable_placement` (which had no cost dimension).
+- Cell-enumeration helpers: `_legal_plow_cells(p)` (used by `_enumerate_pending_plow` and by `_can_plow`, which is now a one-liner over it), `_legal_stable_cells(p)` (used by `_enumerate_pending_build_stables` and by `_can_build_stable`), `_legal_room_cells(p)` (used by `_enumerate_pending_build_rooms` and by `_has_room_placement`, which is now a one-liner over it).
 - **Card extension registries**:
   - `BAKE_BREAD_ELIGIBILITY_EXTENSIONS: list[Callable]` — card-supplied predicates that may broaden `_can_bake_bread`. Cards register via `register_bake_bread_extension(fn)`. (Potter Ceramics registers an extension that accepts clay >= 1 as a valid baking precondition.)
   - `BAKING_SPEC_EXTENSIONS: list[Callable]` — card-supplied baking source contributors. Each registered fn takes `(state, player_idx)` and returns a list of `(max_grain_per_action, food_per_grain)` tuples. Cards register via `register_baking_spec_extension(fn)`. The helper `baking_specs_for_player(state, player_idx)` combines major-improvement specs (from `BAKING_IMPROVEMENT_SPECS`) with card-driven contributions; both `_execute_bake` and `_enumerate_pending_bake_bread` consume this combined list.
@@ -698,32 +731,34 @@ Internal structure:
 
 Per-space resolution code. Atomic and non-atomic space handlers, sub-action effect functions, and the function-pointer dispatch tables for them. Imported by `agricola.engine` for dispatch. Never mutates state — always uses `dataclasses.replace(...)`.
 
-Two utility wrappers:
+Three utility wrappers:
 - `_update_player(state, ap, new_player)` — new `GameState` with one player replaced.
 - `_update_space(state, space_id, **kwargs)` — new `GameState` with one action space's fields updated.
+- `_new_grid_with_cell(grid, row, col, cell)` — new 3×5 grid identical to `grid` except at `(row, col)`, which is replaced. Used by `_execute_plow`, `_execute_build_stable`, and `_execute_build_room` instead of inline nested tuple-comprehensions.
 
 **Cross-cutting bookkeeping.**
 - `_apply_worker_placement(state, space_id)` — increments `workers[ap]` on the space and decrements `people_home` on the active player. Run for every worker placement.
 
 **Atomic handlers.** Per-space `_resolve_<space>` functions for the 12 atomic spaces, each receiving the state *after* `_apply_worker_placement` and applying the space's specific effect (adding goods to the player's supply, resetting accumulated goods, updating the starting player token, etc.). Two shared helpers — `_resolve_building_accumulation` (for `forest`, `clay_pit`, `reed_bank`, `western_quarry`, `eastern_quarry`) and `_resolve_food_accumulation` (for `fishing` and `meeting_place`) — avoid repetition.
 
-**Non-atomic initiators.** `_initiate_<space>` functions push the space's parent pending. Implemented for: `grain_utilization`, `farmland`, `cultivation`, `side_job`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`. Each pushes its respective `Pending<Space>` with `initiated_by_id="space:<space_id>"`. The three market initiators additionally read `accumulated_amount` off the action space, zero it, and stage the count on the pending as `gained`. The three still-deferred spaces (`farm_expansion`, `farm_redevelopment`, `fencing`) raise `NotImplementedError` at `_apply_place_worker`.
+**Non-atomic initiators.** `_initiate_<space>` functions push the space's parent pending. Implemented for: `grain_utilization`, `farmland`, `cultivation`, `side_job`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `farm_expansion`. Each pushes its respective `Pending<Space>` with `initiated_by_id="space:<space_id>"`. The three market initiators additionally read `accumulated_amount` off the action space, zero it, and stage the count on the pending as `gained`. The two still-deferred spaces (`farm_redevelopment`, `fencing`) raise `NotImplementedError` at `_apply_place_worker`.
 
-**Choose-sub-action handlers.** `_choose_subaction_<space>` functions handle `ChooseSubAction` at that space's parent pending. Each follows the choose-time convention: set the corresponding `*_chosen` flag on the parent via `replace_top`, then push the sub-action pending with `initiated_by_id=top.PENDING_ID`. Implemented for: grain_utilization, farmland, cultivation, side_job, major_minor_improvement, clay_oven, stone_oven, house_redevelopment. (Animal markets have no choose step — commit lands directly on the parent.)
+**Choose-sub-action handlers.** `_choose_subaction_<space>` functions handle `ChooseSubAction` at that space's parent pending. Each follows the choose-time convention: set the corresponding `*_chosen` flag on the parent via `replace_top`, then push the sub-action pending with `initiated_by_id=top.PENDING_ID`. Implemented for: grain_utilization, farmland, cultivation, side_job, major_minor_improvement, clay_oven, stone_oven, house_redevelopment, farm_expansion. (Animal markets have no choose step — commit lands directly on the parent.)
 
-**Sub-action effect functions.** `_execute_<sub_action>(state, player_idx, commit)` functions apply the effect of a committed sub-action. Each takes the commit action object as the third argument so a single dispatcher can call any effect uniformly. Effect functions MAY read `state.pending_stack[-1]` to access their own pending frame (the dispatcher guarantees it is still on top during effect execution); this is how cost-on-pending sub-actions (`_execute_build_stable`, `_execute_renovate`) recover their cost.
+**Sub-action effect functions.** `_execute_<sub_action>(state, player_idx, commit)` functions apply the effect of a committed sub-action. Each takes the commit action object as the third argument so a single dispatcher can call any effect uniformly. Effect functions MAY read `state.pending_stack[-1]` to access their own pending frame (the dispatcher guarantees it is still on top during effect execution); this is how cost-on-pending sub-actions (`_execute_build_stable`, `_execute_build_room`, `_execute_renovate`) recover their cost.
 - `_execute_sow(state, player_idx, commit)` — fills empty fields with grain or veg.
 - `_execute_bake(state, player_idx, commit)` — greedy-by-rate allocation across all owned baking improvements. Consults `baking_specs_for_player` (in `legality.py`) to collect `(cap, rate)` tuples from `BAKING_IMPROVEMENT_SPECS` plus any card-registered sources, processes sources in rate-descending order.
 - `_execute_plow(state, player_idx, commit)` — places a `FIELD` cell at `(commit.row, commit.col)`.
-- `_execute_build_stable(state, player_idx, commit)` — places a `STABLE` cell at `(commit.row, commit.col)` and debits `pending.cost`.
+- `_execute_build_stable(state, player_idx, commit)` — multi-shot stable effect. Places a `STABLE` cell at `(commit.row, commit.col)`, debits `pending.cost`, increments `pending.num_built`. Does NOT pop (`auto_pop=False`); `Stop` is the explicit exit. Recomputes `Farmyard.pastures` explicitly via `compute_pastures_from_arrays` — required because a stable placed inside an existing pasture changes that pasture's `num_stables`/`capacity`. (Post-Task-5D rewrite; the body was renamed in from `_execute_build_stables` during step 7's atomic swap.)
+- `_execute_build_room(state, player_idx, commit)` — multi-shot room effect. Places a `ROOM` cell at `(commit.row, commit.col)`, debits `pending.cost`, increments `pending.num_built`. Does NOT pop. No pasture recompute needed — rooms cannot legally land in enclosed cells (`_legal_room_cells` enforces). `people_total` unchanged; new rooms are empty until a Wish for Children populates them.
 - `_execute_renovate(state, player_idx, commit)` — advances the player's `house_material` and debits `pending.cost`. Material transition (WOOD→CLAY, CLAY→STONE) derived from current material.
-- `_execute_build_major(state, player_idx, commit)` — pays cost (either standard or via Fireplace-return for Cooking Hearth), assigns ownership, writes Well's `+1 food` into the next 5 future-resource entries if applicable, sets `build_chosen=True` on `PendingBuildMajor`, then either pops `PendingBuildMajor` (non-oven) or pushes `PendingClayOven`/`PendingStoneOven` (oven majors). NOT dispatched via `COMMIT_SUBACTION_HANDLERS` — called directly from `_apply_action`'s special-case branch because the conditional push/no-pop is incompatible with the generic dispatcher's unconditional pop.
+- `_execute_build_major(state, player_idx, commit)` — pays cost (either standard or via Fireplace-return for Cooking Hearth), assigns ownership, writes Well's `+1 food` into the next 5 future-resource entries if applicable, sets `build_chosen=True` on `PendingBuildMajor`, then either pops `PendingBuildMajor` (non-oven) or pushes `PendingClayOven`/`PendingStoneOven` (oven majors). Dispatched via the generic `COMMIT_SUBACTION_HANDLERS` path with `auto_pop=False` — the dispatcher does not pop after the effect; the function owns its own conditional pop/push.
 - `_execute_accommodate(state, player_idx, commit)` — sets the player's animals to the chosen frontier point and converts excess to food at the player's cooking rates. Lands on any of the three animal-market pendings via tuple-of-types dispatch in `COMMIT_SUBACTION_HANDLERS`.
 
 **Function-pointer dispatch tables**, each keyed by space-id or pending-type:
 - `ATOMIC_HANDLERS: dict[str, callable]` — `space_id → _resolve_<space>`.
-- `NONATOMIC_HANDLERS: dict[str, callable]` — `space_id → _initiate_<space>`. Now contains 9 entries (Grain Utilization plus the 8 new spaces).
-- `CHOOSE_SUBACTION_HANDLERS: dict[type, callable]` — `pending_type → _choose_subaction_<space>`. Now contains 8 entries (Grain Utilization plus the 7 new parent pendings that have a choose step; animal markets have no entry because they have no choose step).
+- `NONATOMIC_HANDLERS: dict[str, callable]` — `space_id → _initiate_<space>`. Now contains 10 entries.
+- `CHOOSE_SUBACTION_HANDLERS: dict[type, callable]` — `pending_type → _choose_subaction_<space>`. Now contains 9 entries (animal markets have no entry because they have no choose step).
 
 The metadata dispatch table for `Commit*` sub-actions (`COMMIT_SUBACTION_HANDLERS`) lives in `engine.py` — it's metadata for the engine's generic commit dispatcher, not a function-pointer table.
 
@@ -733,11 +768,11 @@ The metadata dispatch table for `Commit*` sub-actions (`COMMIT_SUBACTION_HANDLER
 
 The state-transition engine. Public API: `step(state, action) -> GameState`. Pure transition function; the loop that drives a game lives outside this module (typically the agent loop in tests).
 
-- **`step(state, action)`** — apply one action and auto-advance through system transitions. Raises `RuntimeError` if called with `Phase.BEFORE_SCORING`. Raises `NotImplementedError` for `PlaceWorker` on `farm_expansion`, `farm_redevelopment`, or `fencing` (the three still-deferred non-atomic spaces). Does NOT validate legality — callers assert via `legal_actions`.
-- **`_apply_action(state, action)`** — dispatches on action type via six `isinstance` branches: `PlaceWorker`, `ChooseSubAction`, `CommitBuildMajor` (special-case, before the generic `CommitSubAction` branch), `CommitSubAction` (matches any other concrete commit subclass), `FireTrigger`, `Stop`. The `CommitBuildMajor` branch is hand-written because oven majors keep `PendingBuildMajor` on the stack and push a wrapper on top, incompatible with `_apply_commit_subaction`'s unconditional pop.
-- **`_apply_place_worker(state, action)`** — runs `_apply_worker_placement` (from `resolution.py`) then dispatches via `ATOMIC_HANDLERS` (atomic spaces) or `NONATOMIC_HANDLERS` (non-atomic spaces). The three deferred non-atomic spaces (`farm_expansion`, `farm_redevelopment`, `fencing`) raise `NotImplementedError`.
+- **`step(state, action)`** — apply one action and auto-advance through system transitions. Raises `RuntimeError` if called with `Phase.BEFORE_SCORING`. Raises `NotImplementedError` for `PlaceWorker` on `farm_redevelopment` or `fencing` (the two still-deferred non-atomic spaces). Does NOT validate legality — callers assert via `legal_actions`.
+- **`_apply_action(state, action)`** — dispatches on action type via five `isinstance` branches: `PlaceWorker`, `ChooseSubAction`, `CommitSubAction` (matches every concrete commit subclass including `CommitBuildMajor` post-Task-5D), `FireTrigger`, `Stop`. (Pre-Task-5D had a special-case branch for `CommitBuildMajor`; absorbed into the generic dispatcher when `auto_pop=False` was added.)
+- **`_apply_place_worker(state, action)`** — runs `_apply_worker_placement` (from `resolution.py`) then dispatches via `ATOMIC_HANDLERS` (atomic spaces) or `NONATOMIC_HANDLERS` (non-atomic spaces). The two deferred non-atomic spaces (`farm_redevelopment`, `fencing`) raise `NotImplementedError`.
 - **`_apply_choose_sub_action(state, action)`** — dispatches via `CHOOSE_SUBACTION_HANDLERS` keyed by the top pending's type.
-- **`_apply_commit_subaction(state, action)`** — generic handler for any `CommitSubAction` subclass (except `CommitBuildMajor`, which has its own branch). Dispatches via `COMMIT_SUBACTION_HANDLERS` (defined in this module). For each commit type the table holds `(expected_pending_type, effect_fn)` — `expected_pending_type` may be either a single type or a tuple of types (the animal-markets case uses a tuple). The handler asserts the expected pending is on top, applies the effect, and pops the sub-action pending. It does NOT touch parent state — parent `*_chosen` flags are set earlier, at choose-time, by the `_choose_subaction_*` handler that pushed the sub-action pending.
+- **`_apply_commit_subaction(state, action)`** — generic handler for any `CommitSubAction` subclass. Dispatches via `COMMIT_SUBACTION_HANDLERS` (defined in this module). For each commit type the table holds `(expected_pending_type, effect_fn, auto_pop)` — `expected_pending_type` may be a single type or a tuple of types (animal markets use a tuple). The handler asserts the expected pending is on top, applies the effect, and pops the sub-action pending only if `auto_pop=True`. When `auto_pop=False` the effect function owns any stack manipulation (multi-shot pendings leave themselves on top via `replace_top`; `_execute_build_major` pops for non-ovens or pushes the oven wrapper). The dispatcher does NOT touch parent state — parent `*_chosen` flags are set earlier, at choose-time, by the `_choose_subaction_*` handler that pushed the sub-action pending.
 - **`_apply_fire_trigger`** — looks up the trigger via `CARDS[card_id]` (direct O(1) lookup), applies its `apply_fn`, adds `card_id` to the top frame's `triggers_resolved`.
 - **`_apply_stop`** — pops the top pending frame. Does NOT assert the stack becomes empty afterward (future cards may have deeper stacks).
 - **`_advance_current_player(state)`** — rotates `current_player` to the next player with workers, using modular arithmetic. Called inside `step` only when the stack is empty AND phase is WORK (i.e., a worker placement just completed). NOT called from `_advance_until_decision`.
@@ -746,7 +781,7 @@ The state-transition engine. Public API: `step(state, action) -> GameState`. Pur
 - **`_resolve_preparation(state)`** — set up the new round: increment `round_number`, refill every revealed accumulation space, distribute each player's `future_resources[round_number - 1]` into their supply, clear `newborns`, set `current_player = starting_player`, transition to WORK.
 
 **Dispatch table in this module.**
-- `COMMIT_SUBACTION_HANDLERS: dict[type, tuple]` — `CommitX → (PendingX_or_tuple_of_types, _execute_x)`. Metadata table for the generic commit dispatcher; co-located with its sole consumer rather than placed alongside the function-pointer dispatch tables in `resolution.py`. `CommitBuildMajor` is NOT in this table — it's special-cased in `_apply_action`.
+- `COMMIT_SUBACTION_HANDLERS: dict[type, tuple]` — `CommitX → (PendingX_or_tuple_of_types, _execute_x, auto_pop: bool)`. Metadata table for the generic commit dispatcher; co-located with its sole consumer rather than placed alongside the function-pointer dispatch tables in `resolution.py`. Includes `CommitBuildMajor` (with `auto_pop=False`), `CommitBuildStable` (with `PendingBuildStables` and `auto_pop=False` for the multi-shot pattern), and `CommitBuildRoom` (with `PendingBuildRooms` and `auto_pop=False`).
 
 **Stack operations** (`push`, `pop`, `replace_top`) are imported from `pending.py`.
 
@@ -893,7 +928,7 @@ Tests for the Cultivation action space. Covers: plow-only, sow-only, plow-then-s
 
 ### `tests/test_side_job.py`
 
-Tests for the Side Job action space. Covers: stable-only, bake-only, both; 1-wood stable cost (debited from `PendingBuildStable.cost`); `PendingBuildStable.cost == Resources(wood=1)` invariant; Potter Ceramics integration; Stop legality; placement illegality when neither sub-action is possible.
+Tests for the Side Job action space. Post-Task-5D: uses `PendingBuildStables(max_builds=1)` (the multi-shot pending in its cap=1 degenerate case). Covers: stable-only, bake-only, both; 1-wood stable cost (debited from `PendingBuildStables.cost`); `PendingBuildStables.cost == Resources(wood=1)` and `max_builds == 1` invariants; Potter Ceramics integration; Stop legality; placement illegality when neither sub-action is possible; singleton-Stop state after the single commit (only Stop is legal because `max_builds=1` saturates).
 
 ### `tests/test_animal_markets.py`
 
@@ -906,3 +941,7 @@ Integration tests for the full Major Improvement purchase-then-bake chain. Cover
 ### `tests/test_house_redevelopment.py`
 
 Tests for the House Redevelopment action space. Covers: renovate-only and renovate-then-improvement walks; improvement step requires `renovate_chosen` first; Stop legality before / after each step; material progression WOOD→CLAY→STONE; STONE house cannot renovate; renovation cost on `PendingRenovate.cost` for both transitions (1 reed total, not per-room); inner `PendingMajorMinorImprovement.initiated_by_id == "house_redevelopment"` (provenance check).
+
+### `tests/test_farm_expansion.py`
+
+Tests for the Farm Expansion action space — first space using the multi-shot sub-action pending pattern from Task 5D. 25 tests covering: basic walks (rooms-only, stables-only, rooms-then-stables); within-action adjacency chaining for rooms; 4-stable build saturating supply; singleton-Stop states for both supply-exhausted and affordability-exhausted constraints (Approach 2: Stop is always the explicit exit); Stop legality at num_built=0 (illegal in `PendingBuildStables` / `PendingBuildRooms`) and at the parent before any category is chosen; cost on pending parametrized over house material (wood / clay / stone); Farm Expansion's 2-wood stable cost (distinct from Side Job's 1-wood); room adjacency rule + room-inside-pasture exclusion; pasture-cache recompute when a stable lands inside an existing pasture (directly exercises the fix for the latent bug in Task 5C's `_execute_build_stable`); once-per-category rule parametrized over rooms/stables; placement legality (none / rooms-only / stables-only cases); stack invariants (choose-time flag set, no-pop on commit, Stop pops).
