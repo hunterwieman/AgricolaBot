@@ -6,7 +6,10 @@
       "Bash(awk '/Worked example B/,/Worked example|---|^## /' /Users/hunterwieman/Desktop/Agricola/AgricolaBot/TASK_5.md)",
       "Bash(python -c \"from agricola.cards.triggers import TRIGGERS, CARDS, register, TriggerEntry; print\\('imports OK'\\)\")",
       "Bash(python -c ' *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Initial baseline: AgricolaBot post-Task 5C \\(315 tests passing\\) *)",
+      "Bash(pytest -q)",
+      "Bash(git commit -q -m 'Task 5D step 1: add auto_pop flag to COMMIT_SUBACTION_HANDLERS *)"
     ]
   }
 }

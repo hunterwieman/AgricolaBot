@@ -138,21 +138,28 @@ def _apply_action(state: GameState, action: Action) -> GameState:
 
 # Metadata dispatch table for Commit* sub-actions. Each entry maps a
 # CommitSubAction subclass to:
-#   (expected_pending_type, effect_fn)
+#   (expected_pending_type, effect_fn, auto_pop)
 # Co-located with its sole consumer (_apply_commit_subaction below).
+#
+# `auto_pop` semantics:
+#   True  -> dispatcher pops the sub-action pending after the effect runs.
+#   False -> dispatcher leaves the stack alone; the effect function is
+#            responsible for any stack manipulation (pop, push wrapper, etc.).
+#
 # Adding a new sub-action: define a new CommitX subclass + an
 # `_execute_x(state, player_idx, commit)` in resolution.py + a row here.
 COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
-    CommitSow:          (PendingSow,          _execute_sow),
-    CommitBake:         (PendingBakeBread,    _execute_bake),
-    CommitPlow:         (PendingPlow,         _execute_plow),
-    CommitBuildStable:  (PendingBuildStable,  _execute_build_stable),
-    CommitRenovate:     (PendingRenovate,     _execute_renovate),
+    CommitSow:          (PendingSow,          _execute_sow,          True),
+    CommitBake:         (PendingBakeBread,    _execute_bake,         True),
+    CommitPlow:         (PendingPlow,         _execute_plow,         True),
+    CommitBuildStable:  (PendingBuildStable,  _execute_build_stable, True),
+    CommitRenovate:     (PendingRenovate,     _execute_renovate,     True),
     # CommitAccommodate lands on any of three market parent pendings.
     # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.
     CommitAccommodate:  (
         (PendingSheepMarket, PendingPigMarket, PendingCattleMarket),
         _execute_accommodate,
+        True,
     ),
     # CommitBuildMajor is NOT in this table — special-cased in _apply_action.
 }
@@ -193,9 +200,12 @@ def _apply_commit_subaction(
 ) -> GameState:
     """Generic handler for any CommitSubAction subclass.
 
-    Looks up `(expected_pending_type, effect_fn)` in
+    Looks up `(expected_pending_type, effect_fn, auto_pop)` in
     `COMMIT_SUBACTION_HANDLERS`, asserts the expected pending is on top,
-    applies the effect, and pops the sub-action pending.
+    applies the effect, and (if `auto_pop`) pops the sub-action pending.
+
+    When `auto_pop=False`, the effect function is responsible for any stack
+    manipulation it needs (pop, push wrapper, replace_top, etc.).
 
     Parent `*_chosen` flags are set earlier, by the `_choose_subaction_*`
     handler that pushed the sub-action pending. This dispatcher does not
@@ -204,14 +214,15 @@ def _apply_commit_subaction(
     assert state.pending_stack, (
         f"{type(action).__name__} called with empty pending_stack"
     )
-    pending_type, effect_fn = COMMIT_SUBACTION_HANDLERS[type(action)]
+    pending_type, effect_fn, auto_pop = COMMIT_SUBACTION_HANDLERS[type(action)]
     top = state.pending_stack[-1]
     assert isinstance(top, pending_type), (
         f"{type(action).__name__} expected top={pending_type.__name__}, "
         f"got {type(top).__name__}"
     )
     state = effect_fn(state, top.player_idx, action)
-    state = pop(state)
+    if auto_pop:
+        state = pop(state)
     return state
 
 
