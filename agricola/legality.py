@@ -169,41 +169,21 @@ def _can_plow(p: PlayerState) -> bool:
     First field: any EMPTY non-enclosed cell.
     Subsequent fields: additionally orthogonally adjacent to an existing FIELD.
     """
-    grid = p.farmyard.grid
-    enclosed = enclosed_cells(p.farmyard)
-    field_cells = {
-        (r, c)
-        for r in range(3) for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-    }
-    empty_cells = {
-        (r, c)
-        for r in range(3) for c in range(5)
-        if grid[r][c].cell_type == CellType.EMPTY
-        and (r, c) not in enclosed
-    }
-    if not empty_cells:
-        return False
-    if not field_cells:
-        return True  # first field goes anywhere (any empty, non-enclosed cell)
-    adjacent_to_field = {
-        (r + dr, c + dc)
-        for (r, c) in field_cells
-        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]
-    }
-    return bool(empty_cells & adjacent_to_field)
+    return bool(_legal_plow_cells(p))
 
 
-def _has_stable_placement(p: PlayerState) -> bool:
-    """At least one EMPTY cell exists AND ≥1 stable remains in supply.
+def _can_build_stable(p: PlayerState, cost: Resources) -> bool:
+    """Combined legality check for one stable build at the given cost.
 
-    Does NOT check wood cost — that is per-space (Farm Expansion: 2; Side Job: 1).
+    Empty cell exists + ≥1 stable in supply + can afford `cost`.
+    Parameterized on cost: Farm Expansion uses 2 wood; Side Job uses 1 wood;
+    future cards may inject other costs.
     """
-    has_empty_cell = any(
-        p.farmyard.grid[r][c].cell_type == CellType.EMPTY
-        for r in range(3) for c in range(5)
+    return (
+        stables_in_supply(p.farmyard) >= 1
+        and bool(_legal_stable_cells(p))
+        and _can_afford(p, cost)
     )
-    return has_empty_cell and stables_in_supply(p.farmyard) >= 1
 
 
 def _legal_plow_cells(p: PlayerState) -> list:
@@ -272,11 +252,15 @@ def _can_afford_room(p: PlayerState) -> bool:
     return _can_afford(p, ROOM_COSTS[p.house_material])
 
 
-def _has_room_placement(p: PlayerState) -> bool:
-    """Placement geometry: an EMPTY non-enclosed cell adjacent to a ROOM exists.
+def _legal_room_cells(p: PlayerState) -> list:
+    """Enumerate every (row, col) where a room can be placed.
 
+    Empty, non-enclosed, orthogonally adjacent to an existing ROOM cell.
     Cells inside a pasture cannot have rooms built on them per RULES.md
     §House and Rooms.
+
+    Naturally handles within-action adjacency chaining: a room just built
+    counts as an existing ROOM for the next call.
     """
     grid = p.farmyard.grid
     enclosed = enclosed_cells(p.farmyard)
@@ -285,18 +269,27 @@ def _has_room_placement(p: PlayerState) -> bool:
         for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.ROOM
     }
-    empty_cells = {
+    empty_unenclosed = [
         (r, c)
         for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.EMPTY
         and (r, c) not in enclosed
-    }
+    ]
     adjacent_to_room = {
         (r + dr, c + dc)
         for (r, c) in room_cells
         for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]
     }
-    return bool(empty_cells & adjacent_to_room)
+    return [cell for cell in empty_unenclosed if cell in adjacent_to_room]
+
+
+def _has_room_placement(p: PlayerState) -> bool:
+    """Placement geometry: an EMPTY non-enclosed cell adjacent to a ROOM exists.
+
+    Cells inside a pasture cannot have rooms built on them per RULES.md
+    §House and Rooms.
+    """
+    return bool(_legal_room_cells(p))
 
 
 def _can_build_room(p: PlayerState) -> bool:
@@ -460,9 +453,7 @@ def _legal_farm_expansion(state: GameState) -> bool:
     if not _is_available(state, "farm_expansion"):
         return False
     p = state.players[state.current_player]
-    can_room = _can_build_room(p)
-    can_stable = p.resources.wood >= 2 and _has_stable_placement(p)
-    return can_room or can_stable
+    return _can_build_room(p) or _can_build_stable(p, Resources(wood=2))
 
 
 def _legal_farmland(state: GameState) -> bool:
@@ -476,7 +467,7 @@ def _legal_side_job(state: GameState) -> bool:
     if not _is_available(state, "side_job"):
         return False
     p = state.players[state.current_player]
-    can_stable = p.resources.wood >= 1 and _has_stable_placement(p)
+    can_stable = _can_build_stable(p, Resources(wood=1))
     can_bake = _can_bake_bread(state, p)
     return can_stable or can_bake
 
@@ -819,7 +810,7 @@ def _enumerate_pending_side_job(
     p = state.players[pending.player_idx]
     actions: list[Action] = []
     if not pending.stable_chosen:
-        if p.resources.wood >= 1 and _has_stable_placement(p):
+        if _can_build_stable(p, Resources(wood=1)):
             actions.append(ChooseSubAction(name="build_stable"))
     if not pending.bake_chosen and _can_bake_bread(state, p):
         actions.append(ChooseSubAction(name="bake_bread"))

@@ -11,7 +11,8 @@
       "Bash(pytest -q)",
       "Bash(git commit -q -m 'Task 5D step 1: add auto_pop flag to COMMIT_SUBACTION_HANDLERS *)",
       "Bash(git commit -q -m 'Task 5D step 2: absorb CommitBuildMajor into generic dispatcher *)",
-      "Bash(git commit -q -m 'Task 5D step 3: add ROOM_COSTS, _can_afford helper, simplify _can_afford_room *)"
+      "Bash(git commit -q -m 'Task 5D step 3: add ROOM_COSTS, _can_afford helper, simplify _can_afford_room *)",
+      "Bash(git commit -q -m 'Task 5D step 4: predicate-enumerator dedup + _can_build_stable *)"
     ]
   }
 }

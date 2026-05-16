@@ -1,7 +1,7 @@
 """Tests for legal_placements — non-atomic action space legality and shared helpers.
 
 The atomic-space tests live in test_legality_atomic.py. This file covers:
-  - Each shared helper (_can_bake_bread, _can_sow, _can_plow, _has_stable_placement,
+  - Each shared helper (_can_bake_bread, _can_sow, _can_plow, _can_build_stable,
     _can_afford_room, _has_room_placement, _can_build_room, _can_renovate,
     _can_afford_any_major_improvement) directly.
   - Per-space legality for: farm_expansion, farmland, side_job, grain_utilization,
@@ -22,11 +22,11 @@ from agricola.legality import (
     _can_afford_room,
     _can_bake_bread,
     _can_build_room,
+    _can_build_stable,
     _can_plow,
     _can_renovate,
     _can_sow,
     _has_room_placement,
-    _has_stable_placement,
     legal_placements,
 )
 from agricola.pasture import compute_pastures_from_arrays
@@ -317,16 +317,17 @@ def test_can_plow_first_field_excludes_enclosed_cells(state, active):
 
 
 # ---------------------------------------------------------------------------
-# _has_stable_placement
+# _can_build_stable (parameterized: combines empty-cell + supply + affordability)
 # ---------------------------------------------------------------------------
 
-def test_has_stable_placement_legal(state, active):
-    # Fresh state: 13 empty cells, all 4 stables in supply.
+def test_can_build_stable_legal_with_wood(state, active):
+    # Fresh state: 13 empty cells, all 4 stables in supply. Add wood for Side Job cost.
+    state = _set_resources(state, active, wood=1)
     p = state.players[active]
-    assert _has_stable_placement(p) is True
+    assert _can_build_stable(p, Resources(wood=1)) is True
 
 
-def test_has_stable_placement_no_supply(state, active):
+def test_can_build_stable_no_supply(state, active):
     # Convert 4 cells to STABLE so 0 stables remain in supply.
     state = _set_grid(state, active, {
         (0, 0): Cell(cell_type=CellType.STABLE),
@@ -334,11 +335,12 @@ def test_has_stable_placement_no_supply(state, active):
         (0, 2): Cell(cell_type=CellType.STABLE),
         (0, 3): Cell(cell_type=CellType.STABLE),
     })
+    state = _set_resources(state, active, wood=10)
     p = state.players[active]
-    assert _has_stable_placement(p) is False
+    assert _can_build_stable(p, Resources(wood=1)) is False
 
 
-def test_has_stable_placement_no_empty_cell(state, active):
+def test_can_build_stable_no_empty_cell(state, active):
     # Fill every empty cell with a FIELD; then there are no EMPTY cells left.
     cells = {}
     for r in range(3):
@@ -346,8 +348,25 @@ def test_has_stable_placement_no_empty_cell(state, active):
             if (r, c) not in {(1, 0), (2, 0)}:  # leave the 2 starting rooms
                 cells[(r, c)] = Cell(cell_type=CellType.FIELD)
     state = _set_grid(state, active, cells)
+    state = _set_resources(state, active, wood=10)
     p = state.players[active]
-    assert _has_stable_placement(p) is False
+    assert _can_build_stable(p, Resources(wood=1)) is False
+
+
+def test_can_build_stable_insufficient_wood(state, active):
+    # 13 empty cells + supply, but no wood — cost check fails.
+    p = state.players[active]  # fresh state has 0 wood
+    assert _can_build_stable(p, Resources(wood=1)) is False
+
+
+def test_can_build_stable_farm_expansion_cost(state, active):
+    # Farm Expansion uses 2 wood per stable, distinct from Side Job's 1 wood.
+    state = _set_resources(state, active, wood=1)
+    p = state.players[active]
+    assert _can_build_stable(p, Resources(wood=2)) is False
+    state = _set_resources(state, active, wood=2)
+    p = state.players[active]
+    assert _can_build_stable(p, Resources(wood=2)) is True
 
 
 # ---------------------------------------------------------------------------
