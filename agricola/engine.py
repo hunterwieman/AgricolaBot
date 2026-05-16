@@ -122,11 +122,6 @@ def _apply_action(state: GameState, action: Action) -> GameState:
         return _apply_place_worker(state, action)
     if isinstance(action, ChooseSubAction):
         return _apply_choose_sub_action(state, action)
-    if isinstance(action, CommitBuildMajor):
-        # Bypass generic dispatcher: oven majors keep PendingBuildMajor on the stack,
-        # incompatible with the dispatcher's unconditional pop.
-        top = state.pending_stack[-1]
-        return _execute_build_major(state, top.player_idx, action)
     if isinstance(action, CommitSubAction):
         return _apply_commit_subaction(state, action)
     if isinstance(action, FireTrigger):
@@ -161,7 +156,11 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
         _execute_accommodate,
         True,
     ),
-    # CommitBuildMajor is NOT in this table — special-cased in _apply_action.
+    # CommitBuildMajor: auto_pop=False because the effect function owns its
+    # own conditional stack manipulation — pop PendingBuildMajor for non-oven
+    # majors, or push PendingClayOven / PendingStoneOven (leaving
+    # PendingBuildMajor on the stack underneath) for ovens.
+    CommitBuildMajor:   (PendingBuildMajor,   _execute_build_major,  False),
 }
 
 

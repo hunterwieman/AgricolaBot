@@ -688,12 +688,11 @@ def _execute_build_major(
     PendingBuildMajor (non-oven majors) or push the oven wrapper
     (Clay/Stone Oven, hosting the optional free Bake Bread).
 
-    Called directly from `_apply_action`'s special-case branch — NOT
-    through the generic `_apply_commit_subaction` dispatcher. The generic
-    dispatcher unconditionally pops the top pending after the effect; for
-    oven majors we instead push a wrapper on top of PendingBuildMajor and
-    leave PendingBuildMajor in place. The conditional push/no-pop is
-    incompatible with the generic dispatcher's unconditional pop.
+    Dispatched via the generic `_apply_commit_subaction` path with
+    `auto_pop=False` — the dispatcher does NOT pop after the effect runs.
+    This function owns all its own stack manipulation: pop for non-ovens
+    (line below), or push the wrapper for ovens (leaving PendingBuildMajor
+    in place underneath).
     """
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildMajor)
