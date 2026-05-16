@@ -52,6 +52,16 @@ STAGE_CARDS = {
     6: ["farm_redevelopment"],
 }
 
+# Room costs by current house material. Same shape as MAJOR_IMPROVEMENT_COSTS:
+# a static lookup of Resources costs, consumed by both `_can_afford_room`
+# (legality) and `_choose_subaction_farm_expansion` (resolution).
+ROOM_COSTS: dict[HouseMaterial, Resources] = {
+    HouseMaterial.WOOD:  Resources(wood=5,  reed=2),
+    HouseMaterial.CLAY:  Resources(clay=5,  reed=2),
+    HouseMaterial.STONE: Resources(stone=5, reed=2),
+}
+
+
 # Major improvement indices (0-based, length 10):
 # 0: Fireplace (2 clay)
 # 1: Fireplace (3 clay)

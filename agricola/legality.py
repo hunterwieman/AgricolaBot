@@ -21,7 +21,9 @@ from agricola.constants import (
     CellType,
     HouseMaterial,
     Phase,
+    ROOM_COSTS,
 )
+from agricola.resources import Resources
 from agricola.helpers import enclosed_cells, stables_in_supply
 from agricola.pending import (
     PendingBakeBread,
@@ -250,22 +252,24 @@ def _legal_stable_cells(p: PlayerState) -> list:
     ]
 
 
+_RESOURCE_FIELDS = ("wood", "clay", "reed", "stone", "food", "grain", "veg")
+
+
+def _can_afford(p: PlayerState, cost: Resources) -> bool:
+    """True iff every component of the player's resources >= the corresponding cost component."""
+    r = p.resources
+    return all(getattr(r, f) >= getattr(cost, f) for f in _RESOURCE_FIELDS)
+
+
 def _can_afford_room(p: PlayerState) -> bool:
     """Affordability check for one room only.
 
-    Cost: 5 of the current house material + 2 reed.
+    Cost: 5 of the current house material + 2 reed (`ROOM_COSTS` in constants).
 
     Split out from `_can_build_room` so future card support can vary the
     affordability calc without touching placement geometry.
     """
-    res = p.resources
-    material = p.house_material
-    if material == HouseMaterial.WOOD:
-        return res.wood >= 5 and res.reed >= 2
-    if material == HouseMaterial.CLAY:
-        return res.clay >= 5 and res.reed >= 2
-    # STONE
-    return res.stone >= 5 and res.reed >= 2
+    return _can_afford(p, ROOM_COSTS[p.house_material])
 
 
 def _has_room_placement(p: PlayerState) -> bool:
