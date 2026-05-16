@@ -7,6 +7,7 @@ from agricola.actions import (
     ChooseSubAction,
     CommitBake,
     CommitBuildMajor,
+    CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
     CommitRenovate,
@@ -28,7 +29,9 @@ from agricola.helpers import enclosed_cells, stables_in_supply
 from agricola.pending import (
     PendingBakeBread,
     PendingBuildMajor,
+    PendingBuildRooms,
     PendingBuildStable,
+    PendingBuildStables,
     PendingDecision,
     PendingGrainUtilization,
     PendingPlow,
@@ -731,6 +734,56 @@ def _enumerate_pending_build_stable(
     return [CommitBuildStable(row=r, col=c) for (r, c) in _legal_stable_cells(p)]
 
 
+def _enumerate_pending_build_stables(
+    state: GameState, pending: PendingBuildStables,
+) -> list[Action]:
+    """Enumerate legal actions at PendingBuildStables (multi-shot).
+
+    Three constraints filter CommitBuildStable options independently:
+      - Caller-imposed cap: max_builds is None or num_built < max_builds.
+        Side Job's max_builds=1 saturates after the single commit;
+        Farm Expansion's None never blocks here.
+      - Buildability: _can_build_stable(p, cost) — combined supply +
+        cell-availability + affordability check.
+    Stop is legal once num_built >= 1 (the "must do at least one" rule).
+    """
+    actions: list[Action] = []
+    p = state.players[pending.player_idx]
+
+    cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
+    if cap_ok and _can_build_stable(p, pending.cost):
+        for (r, c) in _legal_stable_cells(p):
+            actions.append(CommitBuildStable(row=r, col=c))
+
+    if pending.num_built >= 1:
+        actions.append(Stop())
+
+    return actions
+
+
+def _enumerate_pending_build_rooms(
+    state: GameState, pending: PendingBuildRooms,
+) -> list[Action]:
+    """Enumerate legal actions at PendingBuildRooms (multi-shot).
+
+    Same shape as _enumerate_pending_build_stables. Cell list comes from
+    _legal_room_cells (empty, non-enclosed, adjacent to existing ROOM —
+    naturally handles within-action adjacency chaining).
+    """
+    actions: list[Action] = []
+    p = state.players[pending.player_idx]
+
+    cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
+    if cap_ok and _can_afford(p, pending.cost):
+        for (r, c) in _legal_room_cells(p):
+            actions.append(CommitBuildRoom(row=r, col=c))
+
+    if pending.num_built >= 1:
+        actions.append(Stop())
+
+    return actions
+
+
 def _enumerate_pending_build_major(
     state: GameState, pending,
 ) -> list[Action]:
@@ -917,6 +970,8 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingBakeBread:           _enumerate_pending_bake_bread,
     PendingPlow:                _enumerate_pending_plow,
     PendingBuildStable:         _enumerate_pending_build_stable,
+    PendingBuildStables:        _enumerate_pending_build_stables,
+    PendingBuildRooms:          _enumerate_pending_build_rooms,
     PendingBuildMajor:          _enumerate_pending_build_major,
     PendingRenovate:            _enumerate_pending_renovate,
     PendingFarmland:            _enumerate_pending_farmland,

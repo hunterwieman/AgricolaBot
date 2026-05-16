@@ -8,6 +8,7 @@ from agricola.actions import (
     CommitAccommodate,
     CommitBake,
     CommitBuildMajor,
+    CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
     CommitRenovate,
@@ -22,9 +23,12 @@ from agricola.constants import (
     HouseMaterial,
 )
 from agricola.helpers import cooking_rates, pareto_frontier
+from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBakeBread,
+    PendingBuildRooms,
     PendingBuildStable,
+    PendingBuildStables,
     PendingBuildMajor,
     PendingClayOven,
     PendingGrainUtilization,
@@ -662,6 +666,73 @@ def _execute_build_stable(
         p, resources=p.resources - pending.cost, farmyard=new_farmyard,
     )
     return _update_player(state, player_idx, new_player)
+
+
+def _execute_build_stables(
+    state: GameState, player_idx: int, commit: CommitBuildStable,
+) -> GameState:
+    """Multi-shot stable build: place one stable, increment num_built, leave
+    PendingBuildStables on top (dispatcher's auto_pop=False).
+
+    Recomputes Farmyard.pastures explicitly: a stable placed inside an
+    existing pasture changes that pasture's num_stables (and capacity).
+    Although no pasture can yet exist in current scope (Fencing is
+    unimplemented and no other resolver builds fences), this is the
+    documented convention for pasture-changing resolvers (CLAUDE.md
+    "Current exception: Farmyard.pastures") — fixes the latent bug in
+    Task 5C's _execute_build_stable and means Fencing won't have to
+    revisit this function later.
+
+    Introduced under the plural name because the singular
+    `_execute_build_stable` from Task 5C is still alive at step 6
+    (Side Job's coexisting code path). At step 7 the old singular
+    function is deleted and this function is renamed to
+    `_execute_build_stable` to match the function-name prefix taxonomy.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildStables)
+    p = state.players[player_idx]
+    new_grid = _new_grid_with_cell(
+        p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.STABLE),
+    )
+    new_farmyard = dataclasses.replace(
+        p.farmyard,
+        grid=new_grid,
+        pastures=compute_pastures_from_arrays(
+            new_grid, p.farmyard.horizontal_fences, p.farmyard.vertical_fences,
+        ),
+    )
+    new_player = dataclasses.replace(
+        p, resources=p.resources - top.cost, farmyard=new_farmyard,
+    )
+    state = _update_player(state, player_idx, new_player)
+    return replace_top(state, dataclasses.replace(top, num_built=top.num_built + 1))
+
+
+def _execute_build_room(
+    state: GameState, player_idx: int, commit: CommitBuildRoom,
+) -> GameState:
+    """Multi-shot room build: place one room, increment num_built, leave
+    PendingBuildRooms on top (dispatcher's auto_pop=False).
+
+    Pasture cache is unaffected: rooms cannot legally land in enclosed
+    cells (RULES.md "House and Rooms"); `_legal_room_cells` enforces this.
+
+    people_total is unchanged here — a newly built room is empty until
+    populated by a Wish for Children action.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildRooms)
+    p = state.players[player_idx]
+    new_grid = _new_grid_with_cell(
+        p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.ROOM),
+    )
+    new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
+    new_player = dataclasses.replace(
+        p, resources=p.resources - top.cost, farmyard=new_farmyard,
+    )
+    state = _update_player(state, player_idx, new_player)
+    return replace_top(state, dataclasses.replace(top, num_built=top.num_built + 1))
 
 
 def _execute_renovate(

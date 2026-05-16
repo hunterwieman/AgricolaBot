@@ -102,6 +102,45 @@ class PendingBuildStable:
 
 
 @dataclass(frozen=True)
+class PendingBuildStables:
+    """Multi-shot sub-action pending for stable construction.
+
+    Pushed by `_choose_subaction_*` handlers when the player enters the
+    build-stables category. Holds the per-commit `cost: Resources` and a
+    caller-imposed cap `max_builds: int | None` (None = no cap; Side Job
+    sets 1; Farm Expansion sets None). `num_built` increments on each
+    commit; when no commit is legal but num_built >= 1, only Stop is
+    legal and the player explicitly Stops to pop the pending.
+
+    No card-trigger fields yet — `triggers_resolved` / `TRIGGER_EVENT`
+    will be added when the first card needs them (per the deferred
+    "card-trigger machinery on the new pendings" note in TASK_5D
+    Appendix A).
+    """
+    PENDING_ID: ClassVar[str] = "build_stables"
+    player_idx: int
+    initiated_by_id: str
+    cost: Resources
+    max_builds: int | None
+    num_built: int = 0
+
+
+@dataclass(frozen=True)
+class PendingBuildRooms:
+    """Multi-shot sub-action pending for room construction.
+
+    Same shape as PendingBuildStables. `cost` is `ROOM_COSTS[house_material]`;
+    `max_builds=None` from Farm Expansion (the only caller in Task 5D).
+    """
+    PENDING_ID: ClassVar[str] = "build_rooms"
+    player_idx: int
+    initiated_by_id: str
+    cost: Resources
+    max_builds: int | None
+    num_built: int = 0
+
+
+@dataclass(frozen=True)
 class PendingBuildMajor:
     """Sub-action pending for Major Improvement purchase.
 
@@ -269,6 +308,8 @@ PendingDecision = Union[
     PendingBakeBread,
     PendingPlow,
     PendingBuildStable,
+    PendingBuildStables,
+    PendingBuildRooms,
     PendingBuildMajor,
     PendingRenovate,
     PendingFarmland,

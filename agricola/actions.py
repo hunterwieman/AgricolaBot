@@ -78,6 +78,19 @@ class CommitBuildStable(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitBuildRoom(CommitSubAction):
+    """Commit a Build Room at the chosen (row, col) cell.
+
+    The cost paid is read from the host PendingBuildRooms' `cost` field
+    (set at push time from `ROOM_COSTS[p.house_material]`). Each commit
+    builds one room; the multi-shot session continues until the player
+    explicitly Stops (the pending does not auto-pop).
+    """
+    row: int
+    col: int
+
+
+@dataclass(frozen=True)
 class CommitBuildMajor(CommitSubAction):
     """Commit a Major Improvement purchase.
 
@@ -85,10 +98,11 @@ class CommitBuildMajor(CommitSubAction):
     set to 0 or 1 to pay by returning the named Fireplace instead of
     paying clay. For all other majors, `return_fireplace_idx` must be None.
 
-    Dispatched via a special-case branch in `_apply_action`, NOT via the
-    generic commit dispatcher (the conditional oven-wrapper push for
-    Clay/Stone Oven is incompatible with the dispatcher's unconditional
-    pop). See engine.py `_apply_action`.
+    Dispatched via the generic commit dispatcher with `auto_pop=False`
+    (registered in `COMMIT_SUBACTION_HANDLERS`). The effect function
+    `_execute_build_major` owns the stack manipulation: pop
+    `PendingBuildMajor` for non-oven majors, or push
+    `PendingClayOven` / `PendingStoneOven` for Clay/Stone Oven.
     """
     major_idx: int
     return_fireplace_idx: int | None = None
@@ -144,6 +158,7 @@ Action = Union[
     CommitBake,
     CommitPlow,
     CommitBuildStable,
+    CommitBuildRoom,
     CommitBuildMajor,
     CommitRenovate,
     CommitAccommodate,
