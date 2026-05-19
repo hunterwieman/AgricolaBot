@@ -303,6 +303,86 @@ class PendingStoneOven:
     bake_chosen: bool = False
 
 
+@dataclass(frozen=True)
+class PendingFencing:
+    """Top-level parent pending for the Fencing action space.
+
+    A thin wrapper above PendingBuildFences. Without cards it carries one
+    boolean (`build_fences_chosen`) used by Stop-legality (Stop is illegal
+    until the build_fences sub-action has been entered). With cards it
+    hosts the space-specific `before_fencing` trigger event — distinct
+    from `before_build_fences`, which fires at the sub-action layer when
+    Build Fences is reached via Fencing, Farm Redevelopment, or card
+    effects.
+    """
+    PENDING_ID: ClassVar[str] = "fencing"
+    TRIGGER_EVENT: ClassVar[str] = "before_fencing"
+    player_idx: int
+    initiated_by_id: str
+    build_fences_chosen: bool = False
+    triggers_resolved: frozenset = frozenset()
+
+
+@dataclass(frozen=True)
+class PendingBuildFences:
+    """Multi-shot sub-action pending for fence building.
+
+    Pushed by `_choose_subaction_fencing` and by `_choose_subaction_farm_redevelopment`
+    (and by future card effects). Each `CommitBuildPasture` names one pasture
+    cell-set; the effect function debits wood for the new fence edges and
+    increments the counters below.
+
+    State fields:
+      - `pastures_built`: number of CommitBuildPasture commits landed so far.
+        Stop-legality requires `pastures_built >= 1`.
+      - `fences_built`: total fence-edges placed across all commits. Carries
+        forward for card patterns like "each time you build N fences ≥ current
+        round, get 1 vegetable".
+      - `subdivision_started`: flips True the first time a subdivision commit
+        lands. Implements the builds-before-subdivisions ordering rule
+        (TASK_6.md Part 2.3): once a subdivision has happened, new-pasture
+        commits are no longer offered in the enumerator.
+
+    `auto_pop=False` for the matching `CommitBuildPasture` handler: each
+    commit replaces the top with updated counters and leaves the pending
+    on the stack; Stop pops it.
+    """
+    PENDING_ID: ClassVar[str] = "build_fences"
+    TRIGGER_EVENT: ClassVar[str] = "before_build_fences"
+    player_idx: int
+    initiated_by_id: str
+    pastures_built: int = 0
+    fences_built: int = 0
+    subdivision_started: bool = False
+    triggers_resolved: frozenset = frozenset()
+
+
+@dataclass(frozen=True)
+class PendingFarmRedevelopment:
+    """Top-level parent pending for the Farm Redevelopment action space.
+
+    Two-step structure (mirrors PendingHouseRedevelopment from TASK_5C §3.6):
+      - Renovate is mandatory. Stop-legality requires renovate_chosen=True.
+      - Build Fences is optional ("renovate **then** optionally Build Fences"),
+        offered only after renovate has been entered AND at least one legal
+        pasture commit exists in the post-renovate state.
+
+    Reuses PendingRenovate (from TASK_5C) for the renovate step and
+    PendingBuildFences (above) for the build_fences step. Provenance:
+    inner PendingBuildFences carries `initiated_by_id="farm_redevelopment"`
+    (the parent's PENDING_ID, no prefix) — distinct from the Fencing-space
+    path which pushes with `initiated_by_id="fencing"`. Future cards may
+    gate on entry point via this provenance.
+    """
+    PENDING_ID: ClassVar[str] = "farm_redevelopment"
+    TRIGGER_EVENT: ClassVar[str] = "before_farm_redevelopment"
+    player_idx: int
+    initiated_by_id: str
+    renovate_chosen: bool = False
+    build_fences_chosen: bool = False
+    triggers_resolved: frozenset = frozenset()
+
+
 # The PendingDecision union. New pending types are added here as the
 # non-atomic resolution surface grows.
 PendingDecision = Union[
@@ -325,6 +405,9 @@ PendingDecision = Union[
     PendingHouseRedevelopment,
     PendingClayOven,
     PendingStoneOven,
+    PendingFencing,
+    PendingBuildFences,
+    PendingFarmRedevelopment,
 ]
 
 

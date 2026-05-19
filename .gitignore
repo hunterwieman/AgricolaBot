@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .Rhistory
+
+# Claude Code local settings (per-machine, per-developer)
+.claude/settings.local.json

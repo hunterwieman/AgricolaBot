@@ -44,7 +44,7 @@ These are the foundational architectural decisions for the project. The first th
 
   **Note for future sessions.** If you find yourself instinctively rejecting a caching proposal because "the design doc says no," reread this principle: the doc describes a default and a set of analytical factors, not a hard rule. A well-reasoned caching proposal that addresses the three factors above (or that articulates why a different framing is appropriate) can override this default. The user has good instincts about hot paths the engine will hit later; engage with the proposal on its merits rather than treating the doc as a gate.
 
-  **Current exception:** `Farmyard.pastures` (the pasture decomposition) is cached on `Farmyard`. All higher-level pasture-derived quantities (`enclosed_cells`, capacities, count, fenced-stable count) remain on-demand derivations from this one cached value. The cache is maintained by caller discipline: the four pasture-changing resolvers (Fencing, Farm Expansion's stable build, Side Job's stable build, Farm Redevelopment's fence build) pass `pastures=compute_pastures_from_arrays(...)` explicitly when constructing a new `Farmyard`; all other `Farmyard` mutations leave `pastures` alone (it rides along correctly via `dataclasses.replace`). This is a deliberate weakening of factor 2 (structural enforcement) — auto-fill via `__post_init__` was the obvious structural alternative, and was the original mechanism, but is not used today; see CHANGES.md Change 2 and Change 3 for the rationale.
+  **Current exception:** `Farmyard.pastures` (the pasture decomposition) is cached on `Farmyard`. All higher-level pasture-derived quantities (`enclosed_cells`, capacities, count, fenced-stable count) remain on-demand derivations from this one cached value. The cache is maintained by caller discipline: the two pasture-changing effect functions — `_execute_build_stable` (used by Side Job and Farm Expansion via `CommitBuildStable`) and `_execute_build_pasture` (used by Fencing and Farm Redevelopment via `CommitBuildPasture`) — pass `pastures=compute_pastures_from_arrays(...)` explicitly when constructing a new `Farmyard`; all other `Farmyard` mutations leave `pastures` alone (it rides along correctly via `dataclasses.replace`). This is a deliberate weakening of factor 2 (structural enforcement) — auto-fill via `__post_init__` was the obvious structural alternative, and was the original mechanism, but is not used today; see CHANGES.md Change 2 and Change 3 for the rationale.
 
 For the complete architecture specification, see **`ARCHITECTURE.md`**, the initial design document.
 
@@ -82,6 +82,37 @@ Once a function accepts `p`, it must derive any required player index from `p` i
 
 **Disclaimer.** Some future card effects may legitimately need both `state.current_player` (e.g. who triggered an effect) and `p` (e.g. whose state is being checked or modified) within the same function, with the two roles genuinely distinct. That is a real exception, not a violation, and should be called out explicitly in the function's docstring when it occurs. Other unforeseen game interactions may surface similar legitimate cross-references; treat each on its merits and document the reasoning.
 
+### Reusable sub-action pendings
+
+Many action spaces call one or more primitive sub-actions. For example: Farmland calls Plow; Cultivation calls Plow and Sow; Grain Utilization calls Sow and Bake Bread. Several full-game cards will call Plow as well.
+
+Implementing the primitive sub-actions directly — once per primitive, with the pending shape and effect function defined in one place — lets us express a much wider range of action-space and card effects as compositions of those primitives. The engine needs only the primitive set plus a way for callers to invoke them; there is no bespoke per-space implementation of plowing, sowing, baking, etc.
+
+**Default:** when designing a new sub-action, default to a single reusable pending pushable from any caller, with caller-supplied `initiated_by_id` for provenance, rather than a space-specific specialization.
+
+**Current reusable sub-action pendings:**
+
+| Pending | Callers |
+|---|---|
+| `PendingPlow` | Farmland, Cultivation |
+| `PendingSow` | Grain Utilization, Cultivation |
+| `PendingBakeBread` | Grain Utilization, Side Job, Clay Oven, Stone Oven |
+| `PendingRenovate` | House Redev, Farm Redev |
+| `PendingBuildStables` | Side Job (`max_builds=1`), Farm Expansion (`max_builds=None`) |
+| `PendingBuildFences` | Fencing, Farm Redev |
+
+**Caller-supplied state on the pending.** The pending's fields capture per-call variance — set at push time by the caller. This is what enables one shared pending to serve different callers without specialization:
+
+- `cost: Resources` (bucket 2): Side Job pushes `PendingBuildStables` with `cost=Resources(wood=1)`; Farm Expansion pushes the same pending with `cost=Resources(wood=2)`.
+- `max_builds: int | None`: Side Job pushes with `max_builds=1` (caller-imposed cap); Farm Expansion pushes with `max_builds=None` (uncapped).
+- `initiated_by_id: str`: provenance string lets future code (especially card triggers) gate on entry point, e.g. "fires only when Bake Bread is reached via Grain Utilization."
+
+The reusable pending stays generic; entry-point semantics live in the caller's pushed metadata.
+
+**Exceptions.** If a future sub-action genuinely doesn't generalize across callers, document the reasoning when the specialization is introduced — but default to reusable until proven otherwise.
+
+**See also.** The pending-stack mechanism (push / pop / ChooseSubAction handlers / `COMMIT_SUBACTION_HANDLERS` dispatch) is covered in "Engine and Turn Resolution Architecture" → "The pending-decision stack."
+
 ### Function-name prefix taxonomy
 
 Resolution-layer functions follow a small set of prefix conventions so the role of any function is identifiable from its name:
@@ -96,15 +127,17 @@ Resolution-layer functions follow a small set of prefix conventions so the role 
 
 ### Sub-action cost handling
 
-Sub-actions that debit resources fall into three buckets based on where the cost lives. When adding a new sub-action pending that debits resources, choose the bucket that fits — pick bucket 2 by default; reach for bucket 3 only when the cost is genuinely a function of a commit-time parameter.
+Sub-actions that debit resources fall into four buckets based on where the cost lives. When adding a new sub-action pending that debits resources, choose the bucket that fits — pick bucket 2 by default; reach for bucket 3 when the cost is a function of a commit-time parameter chosen from a small fixed table; reach for bucket 4 when the cost is a function of state plus commit parameters together (the multi-step Build Fences case).
 
 1. **No cost.** The sub-action doesn't debit resources (e.g., `PendingPlow`). No `cost` field. Effect function applies its non-resource effect and returns.
 
-2. **Caller-parameterizable cost — field on the pending.** The cost varies by who pushed the sub-action: different spaces specify different costs, and cards may inject alternate costs or formula choices. The choose handler (or trigger / `_initiate_*` / card effect that pushes the pending) computes the cost at push time and stores it on the pending as `cost: Resources`. The effect function reads `pending.cost` and debits via `p.resources - pending.cost`. Cards that modify cost can update `pending.cost` either at push time (by computing differently) or via a trigger between push and commit (by `replace_top`-ing the pending). `PendingBuildStables` (Side Job: 1 wood; Farm Expansion: 2 wood), `PendingBuildRooms` (Farm Expansion: `ROOM_COSTS[material]`), and `PendingRenovate` are the current examples; `PendingBuildFences` will follow the same pattern when introduced.
+2. **Caller-parameterizable cost — field on the pending.** The cost varies by who pushed the sub-action: different spaces specify different costs, and cards may inject alternate costs or formula choices. The choose handler (or trigger / `_initiate_*` / card effect that pushes the pending) computes the cost at push time and stores it on the pending as `cost: Resources`. The effect function reads `pending.cost` and debits via `p.resources - pending.cost`. Cards that modify cost can update `pending.cost` either at push time (by computing differently) or via a trigger between push and commit (by `replace_top`-ing the pending). `PendingBuildStables` (Side Job: 1 wood; Farm Expansion: 2 wood), `PendingBuildRooms` (Farm Expansion: `ROOM_COSTS[material]`), and `PendingRenovate` are the current examples.
 
 3. **Commit-time-parameterizable cost — keyed lookup at execute time.** The cost varies by a parameter on the commit action itself, chosen at commit time rather than push time. No `cost` field on the pending — the effect function looks up the cost from the commit's parameters against a const table. `PendingBuildMajor` is the canonical example: cost depends on `commit.major_idx`, looked up in `MAJOR_IMPROVEMENT_COSTS`. This pattern fits when the commit-time parameter space is small and pre-defined.
 
-Bucket 2 is the most flexible for card extensions because the cost can be set or modified anywhere along the push → commit path. Bucket 3 trades flexibility for a single source of truth (the const table) and is appropriate when the cost variations *are* the action's identity (each major improvement is fundamentally a distinct item with a distinct cost).
+4. **Pure-function-of-state-and-commit cost — shared helper at execute time.** The cost is neither fixed at push time (bucket 2) nor a const-table lookup keyed on commit parameters (bucket 3); it is a deterministic function of `(state, commit_parameters)` together. No `cost` field on the pending and no const table; instead a shared helper computes the cost on demand. Both the enumerator (for affordability filtering) and the effect function (for the debit) call the same helper. `PendingBuildFences` / `CommitBuildPasture` is the canonical example: cost = 1 wood × popcount(boundary edges of `commit.cells`, minus current fences on the farmyard). The helper is `compute_new_fence_edges(farmyard, cells_bm)` in `fences.py`. This bucket fits multi-shot actions where each commit's cost depends on the farm state left by prior commits — a push-time cost doesn't capture that. The commit object stays the minimal source of truth for *action identity*; the helper stays the single source of truth for the *cost formula*. When cards modify cost later, only the helper changes — commit objects never lie about cost.
+
+Bucket 2 is the most flexible for card extensions because the cost can be set or modified anywhere along the push → commit path. Bucket 3 trades flexibility for a single source of truth (the const table) and is appropriate when the cost variations *are* the action's identity (each major improvement is fundamentally a distinct item with a distinct cost). Bucket 4 fits multi-step actions where the per-commit cost depends on the current farm state.
 
 ### Multi-shot sub-action pendings
 
@@ -376,6 +409,30 @@ Ten design philosophies govern the stack:
 
 For worked examples (a Grain Utilization sow + bake walk-through with and without Potter Ceramics' trigger) and the full implementation breakdown, see **`TASK_5.md`**.
 
+### Fencing and Build Fences
+
+Fencing is the most complex action in Agricola. The farmyard has ~38 fence-edge primitives (4×5 horizontal + 3×6 vertical edges), and the legal subset of final fence configurations is plausibly in the hundreds to low thousands per state. The total space of fencing actions is enormous, and enumerating all legal final configurations — both all possible ones in principle and all legal ones in a given state — is non-trivial. Spatial outcomes interact with future room/field/stable placement so single-axis Pareto pruning is unsafe. AI training needs a stable action representation here — changing it later invalidates trained models.
+
+**Build Fences as a primitive sub-action.** Build Fences is a primitive sub-action (`PendingBuildFences`) called by the Fencing and Farm Redevelopment action spaces, and by some card effects.
+
+Rather than choosing one final fence configuration from the enormous full-action space in a single decision, the player makes a sequence of smaller "build one pasture" commits (`CommitBuildPasture`). Each commit names one pasture cell-set; the engine applies the implied new fences and debits the cost; the player either commits another pasture or stops. This is the same multi-shot pattern used by Farm Expansion's room and stable builds.
+
+Building *pastures* rather than individual *fences* shrinks the action space further. A 1×1 pasture at `(0, 3)` might require 4 new fence edges, or 3, or fewer depending on which adjacent fences already exist — and across many different fence-arrangements that all yield the same pasture. All of those collapse to one commit naming the cell-set `{(0, 3)}`. The agent commits semantic intent (which cells the pasture covers); the engine derives the fence delta.
+
+The **builds-before-subdivisions ordering rule** keeps the search tree from inflating across commit-order permutations: once any subdivision commit lands (`subdivision_started=True` on `PendingBuildFences`), new-pasture commits drop out of `legal_actions` for the remainder of the action. See TASK_6.md Part 2.3 for the reachability argument behind this direction rather than the reverse.
+
+**How `legal_actions` enumerates legal pasture commits.** Per call, the enumerator converts the player's farmyard into a bundle of bitmaps (current horizontal/vertical fences, enclosable cells, existing-pasture cells, wood and supply scalars). It then iterates through the universe of candidate pastures and checks each candidate for legality — meaning the candidate is unenclosed and a legal addition to the existing farmyard, OR enclosed within an existing pasture and a legal subdivision. The per-candidate check is a sequence of cheap bitwise ops against precomputed boundary and adjacency bitmaps stored on the universe entry.
+
+**Cost handling.** Each commit's wood cost is computed at commit time as a pure function of `(farm state, commit cells)` by the shared helper `compute_new_fence_edges` in `fences.py`, and debited by `_execute_build_pasture`. The cost varies per commit because earlier commits may have placed fences that bound a later commit's pasture; see "Sub-action cost handling" → bucket 4.
+
+**Two load-bearing implementation choices:**
+
+- **Fixed list of legal pastures.** The eventual policy network's output head selects from a fixed enumerable list of actions per state; this works cleanly when the action space has a stable structure. We construct the universe of candidate pastures once at `fences.py` import, and per-state legality is a filter over that fixed list rather than an enumerate-from-scratch traversal at runtime. The policy head's output dimension is a stable property of the universe — one slot per pasture — and per-call legality cost stays predictable across MCTS rollouts.
+
+- **Hand-curated RESTRICTED universe.** The runtime default is not the full 1518-entry universe of all rules-permissible pastures — it's `UNIVERSE_RESTRICTED`, a strategist-curated 109-entry subset that omits pastures never plausibly optimal (extremely small, pathologically-shaped, or obviously-wasteful configurations). Reducing the policy-head output dimension by ~14× speeds learning and shrinks MCTS branching without removing meaningful strategic options. The universes are layered (`RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`) so a restriction can be loosened across experiments — or globally swapped via the active-universe constants — without retraining the engine.
+
+Implementation lives in `agricola/fences.py` (universes + edge metadata + cost helper), `agricola/legality.py` (`_legal_fencing`, the three new enumerators, `_any_legal_pasture_commit`), and `agricola/resolution.py` (`_initiate_fencing`, `_choose_subaction_fencing`, `_execute_build_pasture`). Design rationale: **FENCE_IDEAS.md** (broader design space and alternatives), **TASK_6_pre.md** (universe construction), **TASK_6.md** (this task).
+
 ### Card implementation status
 
 The full card system is **not implemented**. Task 5 introduces one card — **Potter Ceramics** (a minor improvement: "Each time before you take a Bake Bread action, you can exchange exactly 1 clay for 1 grain") — solely to exercise and validate the pending-stack's trigger machinery end-to-end. Without a concrete card, the trigger architecture would be untested scaffolding.
@@ -399,7 +456,7 @@ The full card system (the other ~470 cards in the Family + full game) is a separ
 
 ## Current Status
 
-All 426 tests pass. The following pieces are complete:
+All 520 tests pass. The following pieces are complete:
 
 | Component | Status | Task file(s) |
 |---|---|---|
@@ -412,7 +469,7 @@ All 426 tests pass. The following pieces are complete:
 | Atomic-space legality (12 spaces) | Complete | `TASK_4a_i.md` |
 | Atomic-space resolution (12 spaces) | Complete | `TASK_4a_ii.md` |
 | Pasture cache on `Farmyard` (`agricola/pasture.py`) | Complete | `CHANGES.md` Change 2, `CHANGES.md` Change 3, `TASK_4a_iii.md` |
-| Non-atomic legality (11 spaces, `fencing` deferred) | Complete | — |
+| Non-atomic legality (all 12 non-atomic spaces) | Complete | — |
 | Engine: `step` + `_advance_until_decision` + pending stack | Complete | `TASK_5.md` |
 | Round transitions (rounds 1 → 4, halts before harvest) | Complete | `TASK_5.md` |
 | `Phase.PREPARATION` and `Phase.BEFORE_SCORING` | Complete | `TASK_5.md` |
@@ -443,14 +500,22 @@ All 426 tests pass. The following pieces are complete:
 | `_new_grid_with_cell` helper in `resolution.py` | Complete | `TASK_5D.md` |
 | Pasture cache recompute on stable build (fixes latent Task 5C bug) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
 | Fencing pasture-shape universe (`agricola/fences.py` — four layered universes, four filter primitives) | Complete | `TASK_6_pre.md` |
+| Edge metadata on `agricola/fences.py` (`PastureCandidate`, parallel `*_ENTRIES`, `*_SMALLEST_ENTRIES`, `ENTRIES_BY_BM`, pack/apply helpers, `compute_new_fence_edges`) | Complete | `TASK_6.md` |
+| 1×1-at-(0, 0) addition to RESTRICTED (108→109) and EXTENDED (192→193) universes | Complete | `TASK_6.md` |
+| Build Fences sub-action (`PendingBuildFences`, `CommitBuildPasture`, `_execute_build_pasture`) — reusable across entry points | Complete | `TASK_6.md` |
+| Builds-before-subdivisions ordering rule (`subdivision_started` on `PendingBuildFences`) | Complete | `TASK_6.md` |
+| Fencing non-atomic resolution (`PendingFencing` + Build Fences entry point) | Complete | `TASK_6.md` |
+| Farm Redevelopment non-atomic resolution (renovate-then-optional-Build-Fences) | Complete | `TASK_6.md` |
+| Sub-action cost handling: 4th bucket (pure-function-of-state-and-commit) | Documented | `TASK_6.md` |
+| Runtime active-universe selector (`ACTIVE_FENCE_UNIVERSE_*` constants + per-call kwargs) | Complete | `TASK_6.md` |
 
 **Not yet implemented:**
 
-- Non-atomic resolution for the two remaining spaces: **Farm Redevelopment**, **Fencing** (selecting them via `PlaceWorker(...)` still raises `NotImplementedError`).
-- `fencing` legality (still missing entirely).
 - Harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED).
 - Rounds 5–14 (engine halts in `Phase.BEFORE_SCORING` after round 4's RETURN_HOME).
 - Cards other than Potter Ceramics, and the action-space paths that would let players play minor improvements or occupations (`lessons` remains permanently illegal in the Family game; the optional minor / improvement paths at Basic Wish for Children, House Redevelopment, Major Improvement, and Farm Redevelopment depend on minor-card support arriving).
+
+Every action space surfaced by `legal_placements` now has a working initiate path; the `NotImplementedError` branch in `_apply_place_worker` is a defensive guard for unknown space IDs (e.g., `lessons`), no longer used for any normal placement.
 
 A full history of what was built in each session, including design decisions made along the way and bugs caught and fixed, is in **`SESSION_HISTORY.md`**.
 
@@ -505,7 +570,7 @@ AgricolaBot/
         resolution.py
         scoring.py
         engine.py               # step + _advance_until_decision (Task 5)
-        fences.py               # pasture-shape universe enumeration (TASK_6_pre)
+        fences.py               # universes + edge metadata + cost helper (TASK_6_pre, TASK_6)
         cards/                  # card framework + concrete cards
             __init__.py
             triggers.py         # TRIGGERS / CARDS registries + register()
@@ -531,7 +596,9 @@ AgricolaBot/
         test_major_improvement.py    # Task 5C
         test_house_redevelopment.py  # Task 5C
         test_farm_expansion.py       # Task 5D — multi-shot pending pattern
-        test_fences.py               # universe enumeration tests (TASK_6_pre)
+        test_fences.py               # universe enumeration + edge metadata (TASK_6_pre, TASK_6)
+        test_fencing.py              # Fencing action space + Build Fences (TASK_6)
+        test_farm_redevelopment.py   # Farm Redevelopment action space (TASK_6)
 ```
 
 ---
@@ -596,7 +663,7 @@ All the frozen dataclasses that together represent a complete snapshot of a game
 
 - **`Cell`** — one cell of a player's 3×5 farmyard grid. Stores the cell type (`EMPTY`, `ROOM`, `FIELD`, `STABLE`) and any grain/veg counts if it is a field. House material is stored on `PlayerState`, not on `Cell` (see CLEANUP.md Cleanup 1).
 
-- **`Farmyard`** — the complete farmyard for one player. Contains the 3×5 `grid` of `Cell` objects (stored as a tuple of tuples), two fence arrays, and a cached `pastures: tuple[Pasture, ...]` decomposition. The two fence arrays are: `horizontal_fences` (shape 4×5, one bool per horizontal edge between rows) and `vertical_fences` (shape 3×6, one bool per vertical edge between columns). See `ARCHITECTURE.md` for the exact index conventions. The `pastures` cache is canonically ordered by `min(p.cells)` so equivalent farmyards always compare equal — required for `Farmyard.__eq__` and hashing across MCTS. The cache is maintained by caller discipline: the four pasture-changing resolvers (Fencing, Farm Expansion's stable build, Side Job's stable build, Farm Redevelopment's fence build) construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(new_grid, new_h, new_v)` kwarg; all other `Farmyard` mutations use `dataclasses.replace(farmyard, ...)` and leave `pastures` alone, which is correct because these mutations cannot change pastures. A fresh `Farmyard` constructed without any fences or stables (e.g. by `setup`) correctly has `pastures=()` via the placeholder default. This is the first accepted exception to "Derived data, not cached data" — see CHANGES.md Change 2 (and CHANGES.md Change 3 for why auto-fill in `__post_init__`, the obvious structural alternative, is not used).
+- **`Farmyard`** — the complete farmyard for one player. Contains the 3×5 `grid` of `Cell` objects (stored as a tuple of tuples), two fence arrays, and a cached `pastures: tuple[Pasture, ...]` decomposition. The two fence arrays are: `horizontal_fences` (shape 4×5, one bool per horizontal edge between rows) and `vertical_fences` (shape 3×6, one bool per vertical edge between columns). See `ARCHITECTURE.md` for the exact index conventions. The `pastures` cache is canonically ordered by `min(p.cells)` so equivalent farmyards always compare equal — required for `Farmyard.__eq__` and hashing across MCTS. The cache is maintained by caller discipline: the two pasture-changing effect functions — `_execute_build_stable` (used by Side Job and Farm Expansion via `CommitBuildStable`) and `_execute_build_pasture` (used by Fencing and Farm Redevelopment via `CommitBuildPasture`) — construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(new_grid, new_h, new_v)` kwarg. All other `Farmyard` mutations use `dataclasses.replace(farmyard, ...)` and leave `pastures` alone, which is correct because these mutations cannot change pastures. A fresh `Farmyard` constructed without any fences or stables (e.g. by `setup`) correctly has `pastures=()` via the placeholder default. This is the first accepted exception to "Derived data, not cached data" — see CHANGES.md Change 2 (and CHANGES.md Change 3 for why auto-fill in `__post_init__`, the obvious structural alternative, is not used).
 
 - **`ActionSpaceState`** — the state of one action space on the board. Tracks how many workers each player has placed on it (`workers`, a 2-tuple of ints), any accumulated building resources (`accumulated`, a `Resources` object — used for the 5 building-resource spaces), any accumulated food/animals (`accumulated_amount`, a plain int — used for the 5 food/animal spaces), and which round the space is first revealed (`round_revealed`, 0 for permanent spaces).
 
@@ -660,9 +727,10 @@ Defines the action types the engine's `step` accepts. Every action is a frozen d
 - **`CommitBuildMajor(major_idx: int, return_fireplace_idx: int | None = None)`** — purchase a major improvement. For Cooking Hearth, `return_fireplace_idx` may be 0 or 1 to pay by returning that Fireplace. Dispatched via the generic commit dispatcher with `auto_pop=False`; the effect function owns the conditional stack manipulation (pop for non-ovens, push wrapper for Clay/Stone Oven).
 - **`CommitRenovate()`** — commit a renovation (parameterless; the cost and material transition are derived from current state and `pending.cost`). Pops `PendingRenovate`.
 - **`CommitAccommodate(sheep: int, boar: int, cattle: int)`** — commit the final animal configuration after taking from a market. Lands directly on `PendingSheepMarket` / `PendingPigMarket` / `PendingCattleMarket` (no separate sub-action pending). Dispatcher entry uses a tuple of pending types.
+- **`CommitBuildPasture(cells: frozenset[tuple[int, int]])`** — commit one pasture build at `PendingBuildFences`. `cells` is the cell-set of the named pasture — must match an entry in the active fence universe (default `UNIVERSE_RESTRICTED`). `frozenset` provides content-based equality and hashing. Cost is NOT a field on this commit — it is computed as a pure function of `(state, commit.cells)` by `compute_new_fence_edges` in `fences.py` (the 4th sub-action cost-handling bucket). Dispatched via `auto_pop=False`; the effect function leaves `PendingBuildFences` on top with updated counters; `Stop` pops it.
 - **`FireTrigger(card_id: str)`** — fire a specific card trigger that's currently eligible at the top pending.
 - **`Stop()`** — end the current non-atomic action (pop the top pending frame). Legal at parent pendings once at least one sub-action has been chosen.
-- **`Action`** — the union alias listing the concrete subclasses (`PlaceWorker | ChooseSubAction | CommitSow | CommitBake | CommitPlow | CommitBuildStable | CommitBuildRoom | CommitBuildMajor | CommitRenovate | CommitAccommodate | FireTrigger | Stop`). The `CommitSubAction` base is intentionally not in the union — concrete subclasses are listed so legality enumerators and type checkers see the real options. There is no `SkipTrigger`: declining a trigger is implicit.
+- **`Action`** — the union alias listing the concrete subclasses (`PlaceWorker | ChooseSubAction | CommitSow | CommitBake | CommitPlow | CommitBuildStable | CommitBuildRoom | CommitBuildMajor | CommitRenovate | CommitAccommodate | CommitBuildPasture | FireTrigger | Stop`). The `CommitSubAction` base is intentionally not in the union — concrete subclasses are listed so legality enumerators and type checkers see the real options. There is no `SkipTrigger`: declining a trigger is implicit.
 
 ---
 
@@ -697,6 +765,9 @@ Frozen pending-decision dataclasses *and* the stack operations on them. The stac
 - **`PendingHouseRedevelopment(player_idx, initiated_by_id, renovate_chosen=False, improvement_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "house_redevelopment"`. `Stop` is legal only after `renovate_chosen` is True (renovate is mandatory first).
 - **`PendingClayOven(player_idx, initiated_by_id, bake_chosen=False)`** — non-top-level wrapper pending pushed by `_execute_build_major` when `major_idx == 5`. Hosts the optional free Bake Bread offered by Clay Oven purchase. No `TRIGGER_EVENT` — cards that trigger on oven-purchase-bake attach to the inner `PendingBakeBread`'s `"before_bake_bread"` event.
 - **`PendingStoneOven(player_idx, initiated_by_id, bake_chosen=False)`** — mirror of `PendingClayOven` for Stone Oven (`major_idx == 6`).
+- **`PendingFencing(player_idx, initiated_by_id, build_fences_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "fencing"`, `TRIGGER_EVENT = "before_fencing"`. Thin top-level parent above `PendingBuildFences`. The space has a single sub-action category (`build_fences`); the parent exists for two reasons: (1) `build_fences_chosen` gates Stop-legality (matches the uniform parent-pending pattern across non-atomic spaces), and (2) the parent hosts the space-specific `before_fencing` trigger event for future cards — distinct from `before_build_fences`, which fires at the sub-action layer whenever Build Fences is reached (via Fencing, Farm Redevelopment, or a card effect). Stop on this pending is legal once `build_fences_chosen=True` (i.e., the player has entered and exited the inner Build Fences sub-action).
+- **`PendingBuildFences(player_idx, initiated_by_id, pastures_built=0, fences_built=0, subdivision_started=False, triggers_resolved=frozenset())`** — `PENDING_ID = "build_fences"`, `TRIGGER_EVENT = "before_build_fences"`. Multi-shot sub-action pending for fence building. Each `CommitBuildPasture` increments `pastures_built` (by 1) and `fences_built` (by the number of new edges placed) and leaves the pending on top (`auto_pop=False`); `Stop` is the explicit exit, legal once `pastures_built >= 1`. `subdivision_started` flips True the first time a subdivision commit lands; once True, new-pasture commits are no longer offered (the builds-before-subdivisions ordering rule — see "Builds-before-subdivisions ordering rule" below). `fences_built` carries forward to satisfy card patterns like "every time you build N fences ≥ current round, get 1 vegetable". Cost is NOT on this pending — it is a pure function of `(state, commit.cells)` computed by `compute_new_fence_edges` (see "Sub-action cost handling" → bucket 4).
+- **`PendingFarmRedevelopment(player_idx, initiated_by_id, renovate_chosen=False, build_fences_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "farm_redevelopment"`, `TRIGGER_EVENT = "before_farm_redevelopment"`. Top-level parent for the Farm Redevelopment action space. Mirrors `PendingHouseRedevelopment` structurally — renovate mandatory first (Stop illegal until `renovate_chosen=True`), then optionally an "and afterward" sub-action. The optional sub-action here is `build_fences` (vs House Redev's `improvement`); it pushes the same `PendingBuildFences` as the Fencing space but with `initiated_by_id="farm_redevelopment"` (the parent's `PENDING_ID`), distinct from Fencing's `"fencing"`. The provenance lets future cards gate on entry point.
 
 - **`PendingDecision`** — the union alias over all pending types above. Future pending types are added here as more non-atomic spaces' resolutions are implemented.
 
@@ -709,10 +780,16 @@ Frozen pending-decision dataclasses *and* the stack operations on them. The stac
 
 ### `agricola/legality.py`
 
-Determines which actions are legal from a given game state. Covers all 12 **atomic** action spaces and 11 of the 13 **non-atomic** action spaces. `fencing` legality is deferred (requires enumerating valid fence configurations); `lessons` is permanently illegal in the Family game and is intentionally absent from every dispatch table. Also provides per-pending sub-action enumerators (Task 5).
+Determines which actions are legal from a given game state. Covers all 12 **atomic** action spaces and all 12 **non-atomic** action spaces. `lessons` is permanently illegal in the Family game and is intentionally absent from every dispatch table. Also provides per-pending sub-action enumerators.
 
 - The 12 atomic spaces: `day_laborer`, `fishing`, `forest`, `clay_pit`, `reed_bank`, `grain_seeds`, `meeting_place`, `western_quarry`, `vegetable_seeds`, `eastern_quarry`, `basic_wish_for_children`, `urgent_wish_for_children`.
-- The 11 non-atomic spaces with legality predicates: `farm_expansion`, `farmland`, `side_job`, `grain_utilization`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `cultivation`, `farm_redevelopment`. After Task 5D, only `farm_redevelopment` and `fencing` remain without resolution; the other 10 + Farm Expansion are fully implemented.
+- The 12 non-atomic spaces with legality predicates: `farm_expansion`, `farmland`, `side_job`, `grain_utilization`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `cultivation`, `farm_redevelopment`, `fencing`. All have implemented resolution paths after TASK_6.
+
+**Active-universe constants** (TASK_6): three module-level constants imported from `agricola.fences` set the default universe for fence-action enumeration:
+  - `ACTIVE_FENCE_UNIVERSE_ENTRIES: tuple = UNIVERSE_RESTRICTED_ENTRIES` — entries iterated by the enumerator.
+  - `ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES: tuple = UNIVERSE_RESTRICTED_SMALLEST_ENTRIES` — 1×1 fast-path tuple iterated by `_any_legal_pasture_commit`.
+  - `ACTIVE_FENCE_UNIVERSE_SET: frozenset = UNIVERSE_RESTRICTED_SET` — bitmap set used for subdivision canonicalization complement-lookup.
+All three must point at the same universe; the `fences.py` construction guarantees they're aligned (RESTRICTED_ENTRIES ↔ RESTRICTED_SMALLEST_ENTRIES ↔ RESTRICTED_SET). To switch globally, reassign all three; to switch for one call, pass corresponding kwargs to the enumerator.
 
 Internal structure:
 - `_is_available(state, space)` — the cross-cutting check shared by all spaces: the space must be unoccupied (`workers == (0, 0)`) and currently revealed (`round_revealed <= round_number`).
@@ -722,9 +799,15 @@ Internal structure:
 - **Card extension registries**:
   - `BAKE_BREAD_ELIGIBILITY_EXTENSIONS: list[Callable]` — card-supplied predicates that may broaden `_can_bake_bread`. Cards register via `register_bake_bread_extension(fn)`. (Potter Ceramics registers an extension that accepts clay >= 1 as a valid baking precondition.)
   - `BAKING_SPEC_EXTENSIONS: list[Callable]` — card-supplied baking source contributors. Each registered fn takes `(state, player_idx)` and returns a list of `(max_grain_per_action, food_per_grain)` tuples. Cards register via `register_baking_spec_extension(fn)`. The helper `baking_specs_for_player(state, player_idx)` combines major-improvement specs (from `BAKING_IMPROVEMENT_SPECS`) with card-driven contributions; both `_execute_bake` and `_enumerate_pending_bake_bread` consume this combined list.
-- Per-pending enumerators: `_enumerate_pending_X` for each pending type, dispatched via `PENDING_ENUMERATORS`. Signature `(state, pending: PendingX) -> list[Action]` — see "Code Conventions" → "Per-pending enumerator signatures".
-- Dispatch dicts: `ATOMIC_LEGALITY`, `NON_ATOMIC_LEGALITY`, the combined `ALL_LEGALITY = {**ATOMIC_LEGALITY, **NON_ATOMIC_LEGALITY}`, and `PENDING_ENUMERATORS`.
-- `legal_placements(state)` — internal helper. Returns a list of `PlaceWorker` actions, one for each space (atomic or non-atomic) whose predicate returns `True`. Returns an empty list if the current player has no workers left. Never returns `fencing` or `lessons`.
+- Per-pending enumerators: `_enumerate_pending_X` for each pending type, dispatched via `PENDING_ENUMERATORS`. Signature `(state, pending: PendingX) -> list[Action]` — see "Code Conventions" → "Per-pending enumerator signatures". The three fence-action enumerators are: `_enumerate_pending_fencing` (parent: offers `ChooseSubAction("build_fences")` if not yet chosen, else `Stop`), `_enumerate_pending_build_fences` (multi-shot — walks the active universe, applies the per-entry legality chain via `_check_entry_legal`, emits `CommitBuildPasture` per legal entry plus `Stop` once `pastures_built >= 1`; accepts `entries=` and `universe_set=` kwargs for per-call universe override), and `_enumerate_pending_farm_redevelopment` (parent: mirrors House Redev with `build_fences` as the optional second step, gated on `_any_legal_pasture_commit`).
+- **Fence-action helpers** (TASK_6):
+  - `_enclosable_cells_bm(farmyard) -> int` — bitmap of EMPTY/STABLE cells (rooms and fields excluded).
+  - `_cells_bm_of_pasture(pasture) -> int` — cell-set of a `Pasture` as a bitmap.
+  - `_check_entry_legal(entry, *, ...)` — applies the unified pasture-commit legality chain (enclosable / subdivision-vs-new / ordering rule / adjacency / affordability / fences-supply / ≥1 new edge / subdivision canonicalization) against precomputed per-call state bitmaps. Returns `(is_legal, h_new_bm, v_new_bm)`. Shared by the enumerator and `_any_legal_pasture_commit`.
+  - `_any_legal_pasture_commit(state, p, *, entries, smallest_entries, universe_set) -> bool` — returns True on the first legal commit. Two-pass iteration: walks `smallest_entries` (precomputed 1×1 fast path) first, then the slow path skipping 1×1's. Used by `_legal_fencing` (placement legality) and by `_enumerate_pending_farm_redevelopment` (to gate the optional `build_fences` sub-action offer).
+  - `_legal_fencing(state) -> bool` — placement predicate. Requires space available + ≥1 wood + ≥1 fence in supply + at least one legal pasture commit. Registered in `NON_ATOMIC_LEGALITY`.
+- Dispatch dicts: `ATOMIC_LEGALITY`, `NON_ATOMIC_LEGALITY` (now 12 entries), the combined `ALL_LEGALITY = {**ATOMIC_LEGALITY, **NON_ATOMIC_LEGALITY}`, and `PENDING_ENUMERATORS`.
+- `legal_placements(state)` — internal helper. Returns a list of `PlaceWorker` actions, one for each space (atomic or non-atomic) whose predicate returns `True`. Returns an empty list if the current player has no workers left. Never returns `lessons`.
 - **`legal_actions(state)`** — the top-level public legality entry point. Dispatches on stack state: empty stack + WORK phase → `legal_placements`; non-empty stack → `_enumerate_pending` on the top frame; `BEFORE_SCORING` → empty list. All callers (agent loops, tests) should use `legal_actions` rather than `legal_placements` directly.
 
 ---
@@ -743,9 +826,9 @@ Three utility wrappers:
 
 **Atomic handlers.** Per-space `_resolve_<space>` functions for the 12 atomic spaces, each receiving the state *after* `_apply_worker_placement` and applying the space's specific effect (adding goods to the player's supply, resetting accumulated goods, updating the starting player token, etc.). Two shared helpers — `_resolve_building_accumulation` (for `forest`, `clay_pit`, `reed_bank`, `western_quarry`, `eastern_quarry`) and `_resolve_food_accumulation` (for `fishing` and `meeting_place`) — avoid repetition.
 
-**Non-atomic initiators.** `_initiate_<space>` functions push the space's parent pending. Implemented for: `grain_utilization`, `farmland`, `cultivation`, `side_job`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `farm_expansion`. Each pushes its respective `Pending<Space>` with `initiated_by_id="space:<space_id>"`. The three market initiators additionally read `accumulated_amount` off the action space, zero it, and stage the count on the pending as `gained`. The two still-deferred spaces (`farm_redevelopment`, `fencing`) raise `NotImplementedError` at `_apply_place_worker`.
+**Non-atomic initiators.** `_initiate_<space>` functions push the space's parent pending. Implemented for all 12 non-atomic spaces: `grain_utilization`, `farmland`, `cultivation`, `side_job`, `sheep_market`, `pig_market`, `cattle_market`, `major_improvement`, `house_redevelopment`, `farm_expansion`, `fencing`, `farm_redevelopment`. Each pushes its respective `Pending<Space>` with `initiated_by_id="space:<space_id>"`. The three market initiators additionally read `accumulated_amount` off the action space, zero it, and stage the count on the pending as `gained`.
 
-**Choose-sub-action handlers.** `_choose_subaction_<space>` functions handle `ChooseSubAction` at that space's parent pending. Each follows the choose-time convention: set the corresponding `*_chosen` flag on the parent via `replace_top`, then push the sub-action pending with `initiated_by_id=top.PENDING_ID`. Implemented for: grain_utilization, farmland, cultivation, side_job, major_minor_improvement, clay_oven, stone_oven, house_redevelopment, farm_expansion. (Animal markets have no choose step — commit lands directly on the parent.)
+**Choose-sub-action handlers.** `_choose_subaction_<space>` functions handle `ChooseSubAction` at that space's parent pending. Each follows the choose-time convention: set the corresponding `*_chosen` flag on the parent via `replace_top`, then push the sub-action pending with `initiated_by_id=top.PENDING_ID`. Implemented for: grain_utilization, farmland, cultivation, side_job, major_minor_improvement, clay_oven, stone_oven, house_redevelopment, farm_expansion, fencing, farm_redevelopment. (Animal markets have no choose step — commit lands directly on the parent.) Note: `_choose_subaction_farm_redevelopment` computes the renovate cost identically to House Redev's choose handler, then pushes `PendingRenovate` (renovate branch) or `PendingBuildFences` (build_fences branch) with `initiated_by_id=top.PENDING_ID` (i.e., `"farm_redevelopment"`).
 
 **Sub-action effect functions.** `_execute_<sub_action>(state, player_idx, commit)` functions apply the effect of a committed sub-action. Each takes the commit action object as the third argument so a single dispatcher can call any effect uniformly. Effect functions MAY read `state.pending_stack[-1]` to access their own pending frame (the dispatcher guarantees it is still on top during effect execution); this is how cost-on-pending sub-actions (`_execute_build_stable`, `_execute_build_room`, `_execute_renovate`) recover their cost.
 - `_execute_sow(state, player_idx, commit)` — fills empty fields with grain or veg.
@@ -756,11 +839,12 @@ Three utility wrappers:
 - `_execute_renovate(state, player_idx, commit)` — advances the player's `house_material` and debits `pending.cost`. Material transition (WOOD→CLAY, CLAY→STONE) derived from current material.
 - `_execute_build_major(state, player_idx, commit)` — pays cost (either standard or via Fireplace-return for Cooking Hearth), assigns ownership, writes Well's `+1 food` into the next 5 future-resource entries if applicable, sets `build_chosen=True` on `PendingBuildMajor`, then either pops `PendingBuildMajor` (non-oven) or pushes `PendingClayOven`/`PendingStoneOven` (oven majors). Dispatched via the generic `COMMIT_SUBACTION_HANDLERS` path with `auto_pop=False` — the dispatcher does not pop after the effect; the function owns its own conditional pop/push.
 - `_execute_accommodate(state, player_idx, commit)` — sets the player's animals to the chosen frontier point and converts excess to food at the player's cooking rates. Lands on any of the three animal-market pendings via tuple-of-types dispatch in `COMMIT_SUBACTION_HANDLERS`.
+- `_execute_build_pasture(state, player_idx, commit)` — multi-shot pasture effect (TASK_6). Packs `commit.cells` to a bitmap, determines new-pasture vs subdivision against the pre-commit farmyard (for the ordering-rule flag), computes new fence edges + wood cost via `compute_new_fence_edges`, applies the new edges to the fence arrays, recomputes `Farmyard.pastures` via `compute_pastures_from_arrays`, debits wood, and updates `PendingBuildFences` counters (`pastures_built += 1`, `fences_built += wood_cost`, `subdivision_started |= is_subdivision`). Does NOT pop (`auto_pop=False`); `Stop` is the explicit exit. **Second pasture-changing effect function** alongside `_execute_build_stable` — both must construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(...)` kwarg (the caller-discipline rule for the pasture cache). Shared between the Fencing space's path and the Farm Redev path; the only resolver that derives the subdivision/new-pasture distinction at execute time.
 
 **Function-pointer dispatch tables**, each keyed by space-id or pending-type:
 - `ATOMIC_HANDLERS: dict[str, callable]` — `space_id → _resolve_<space>`.
-- `NONATOMIC_HANDLERS: dict[str, callable]` — `space_id → _initiate_<space>`. Now contains 10 entries.
-- `CHOOSE_SUBACTION_HANDLERS: dict[type, callable]` — `pending_type → _choose_subaction_<space>`. Now contains 9 entries (animal markets have no entry because they have no choose step).
+- `NONATOMIC_HANDLERS: dict[str, callable]` — `space_id → _initiate_<space>`. Now contains 12 entries (every non-atomic space).
+- `CHOOSE_SUBACTION_HANDLERS: dict[type, callable]` — `pending_type → _choose_subaction_<space>`. Now contains 11 entries (animal markets have no entry because they have no choose step).
 
 The metadata dispatch table for `Commit*` sub-actions (`COMMIT_SUBACTION_HANDLERS`) lives in `engine.py` — it's metadata for the engine's generic commit dispatcher, not a function-pointer table.
 
@@ -770,9 +854,9 @@ The metadata dispatch table for `Commit*` sub-actions (`COMMIT_SUBACTION_HANDLER
 
 The state-transition engine. Public API: `step(state, action) -> GameState`. Pure transition function; the loop that drives a game lives outside this module (typically the agent loop in tests).
 
-- **`step(state, action)`** — apply one action and auto-advance through system transitions. Raises `RuntimeError` if called with `Phase.BEFORE_SCORING`. Raises `NotImplementedError` for `PlaceWorker` on `farm_redevelopment` or `fencing` (the two still-deferred non-atomic spaces). Does NOT validate legality — callers assert via `legal_actions`.
+- **`step(state, action)`** — apply one action and auto-advance through system transitions. Raises `RuntimeError` if called with `Phase.BEFORE_SCORING`. Does NOT validate legality — callers assert via `legal_actions`. The `NotImplementedError` branch in `_apply_place_worker` is a defensive guard for unknown space-IDs (e.g., `lessons`); every space surfaced by `legal_placements` has a registered handler post-TASK_6.
 - **`_apply_action(state, action)`** — dispatches on action type via five `isinstance` branches: `PlaceWorker`, `ChooseSubAction`, `CommitSubAction` (matches every concrete commit subclass including `CommitBuildMajor` post-Task-5D), `FireTrigger`, `Stop`. (Pre-Task-5D had a special-case branch for `CommitBuildMajor`; absorbed into the generic dispatcher when `auto_pop=False` was added.)
-- **`_apply_place_worker(state, action)`** — runs `_apply_worker_placement` (from `resolution.py`) then dispatches via `ATOMIC_HANDLERS` (atomic spaces) or `NONATOMIC_HANDLERS` (non-atomic spaces). The two deferred non-atomic spaces (`farm_redevelopment`, `fencing`) raise `NotImplementedError`.
+- **`_apply_place_worker(state, action)`** — runs `_apply_worker_placement` (from `resolution.py`) then dispatches via `ATOMIC_HANDLERS` (atomic spaces) or `NONATOMIC_HANDLERS` (non-atomic spaces). Raises `NotImplementedError` if the space is in neither dict — defensive guard for unknown space-IDs (only `lessons` qualifies today, and it never surfaces via `legal_placements`).
 - **`_apply_choose_sub_action(state, action)`** — dispatches via `CHOOSE_SUBACTION_HANDLERS` keyed by the top pending's type.
 - **`_apply_commit_subaction(state, action)`** — generic handler for any `CommitSubAction` subclass. Dispatches via `COMMIT_SUBACTION_HANDLERS` (defined in this module). For each commit type the table holds `(expected_pending_type, effect_fn, auto_pop)` — `expected_pending_type` may be a single type or a tuple of types (animal markets use a tuple). The handler asserts the expected pending is on top, applies the effect, and pops the sub-action pending only if `auto_pop=True`. When `auto_pop=False` the effect function owns any stack manipulation (multi-shot pendings leave themselves on top via `replace_top`; `_execute_build_major` pops for non-ovens or pushes the oven wrapper). The dispatcher does NOT touch parent state — parent `*_chosen` flags are set earlier, at choose-time, by the `_choose_subaction_*` handler that pushed the sub-action pending.
 - **`_apply_fire_trigger`** — looks up the trigger via `CARDS[card_id]` (direct O(1) lookup), applies its `apply_fn`, adds `card_id` to the top frame's `triggers_resolved`.
@@ -825,15 +909,27 @@ See CLAUDE.md "Card implementation status" for the broader card-system design an
 
 ### `agricola/fences.py`
 
-Precomputed universes of candidate pasture shapes for the Fencing action. Standalone module; built once at module import.
+Precomputed universes of candidate pasture shapes for the Fencing action, plus per-shape edge metadata + shared utilities consumed by the legality and resolution layers. Standalone module; built once at module import. Imports only `from __future__ import annotations` and stdlib `dataclasses` — no engine dependencies.
 
-- **Bitmap encoding for cell-sets**: cell `(r, c)` ↔ bit `r * NUM_COLS + c` (row-major, 15 bits). Used by downstream `legal_actions` enumerators and commit-action consumers.
+- **Bitmap encodings**: cell `(r, c)` ↔ bit `r * NUM_COLS + c` (15 bits). Horizontal edges `horizontal_fences[r][c]` ↔ bit `r * NUM_COLS + c` (20 bits). Vertical edges `vertical_fences[r][c]` ↔ bit `r * (NUM_COLS + 1) + c` (18 bits). Adjacency is 4-neighbor (orthogonal).
 
-- **Module-level universe constants**: four `(tuple, frozenset)` pairs exported for downstream consumption — `UNIVERSE_FULL` / `UNIVERSE_FAMILY` / `UNIVERSE_EXTENDED` / `UNIVERSE_RESTRICTED`, each paired with a `_SET` for O(1) membership. Sizes 1518 / 762 / 192 / 108. Containment chain: `RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`.
+- **Module-level universe constants**: four `(tuple, frozenset)` pairs — `UNIVERSE_FULL` / `UNIVERSE_FAMILY` / `UNIVERSE_EXTENDED` / `UNIVERSE_RESTRICTED`, each paired with a `_SET` for O(1) membership. Sizes 1518 / 762 / 193 / 109 (TASK_6 grew RESTRICTED 108→109 and EXTENDED 192→193 by switching the category-1 1×1 scope from `PASTURE_CELLS` to `ENCLOSABLE_CELLS`, adding the 1×1 at (0, 0)). Containment chain: `RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`.
 
 - **Why four universes**: `UNIVERSE_FULL` is the broadest baseline (accommodates a full-game card that grants extra perimeter fences). `UNIVERSE_FAMILY` is the rules-correct universe for the Family game mode (no such card; total fences ≤ 15). `UNIVERSE_RESTRICTED` is the strategist-curated set used at legality-check time. `UNIVERSE_EXTENDED` sits between RESTRICTED and FAMILY as the policy-network output space, allowing relaxation without retraining if the restricted set turns out to omit a move.
 
-Filter primitives, shape categories, and the verification approach live in `TASK_6_pre.md`.
+- **`PastureCandidate` frozen dataclass**: one per universe entry. Fields: `cells_bm` (15-bit), `h_boundary_bm` (20-bit), `v_boundary_bm` (18-bit), `adjacency_bm` (15-bit; in-grid orthogonal neighbors not in the cell-set), `cells: frozenset[tuple[int, int]]` (for `CommitBuildPasture` construction). All four metadata fields are pure functions of `cells_bm`; computed at module import by `_boundary_h_bm`, `_boundary_v_bm`, `_adjacency_bm`.
+
+- **Parallel `UNIVERSE_*_ENTRIES` tuples**: same order and length as the bitmap tuples; one `PastureCandidate` per entry. Built by `_make_entries(bm_tuple)`.
+
+- **Fast-path `UNIVERSE_*_SMALLEST_ENTRIES` tuples**: the popcount-1 subset of each universe (13 entries each — one per ENCLOSABLE cell after the (0, 0) addition). Used by `_any_legal_pasture_commit` in `legality.py` to walk cheap 1×1 candidates first. Built by `_filter_singletons(entries)`.
+
+- **`ENTRIES_BY_BM: dict[int, PastureCandidate]`**: bitmap-keyed lookup. Used off the hot path — by `_execute_build_pasture` (receives `commit.cells`, packs to bitmap, looks up the entry's boundary metadata) and by `compute_new_fence_edges`. Keyed off `UNIVERSE_FULL_ENTRIES`, which by the containment chain covers every bitmap in any universe.
+
+- **Fence-array packing helpers**: `pack_fences_h(h_arr) -> int` and `pack_fences_v(v_arr) -> int` convert `Farmyard.horizontal_fences` (4×5) / `vertical_fences` (3×6) tuple-of-tuple-of-bool into the corresponding 20/18-bit bitmaps. Symmetric apply helpers `apply_fence_edges_h(h_arr, new_h_bm) -> tuple` and `apply_fence_edges_v(v_arr, new_v_bm) -> tuple` flip new bits back into nested-tuple form (purely additive union with existing True entries). All four are module-level (no underscore) — consumed across modules.
+
+- **`compute_new_fence_edges(farmyard, cells_bm) -> (h_new_bm, v_new_bm, wood_cost)`**: shared bucket-4 cost helper. Computes the new fence-edges to place (boundary AND NOT current fences) and the total wood cost (default rule: 1 wood per new edge). `farmyard` is duck-typed (only `.horizontal_fences` and `.vertical_fences` read). Both `_execute_build_pasture` (for the debit) and tests call it; the legality-hot-path `_check_entry_legal` inlines the same calc against pre-computed per-call bitmaps for speed.
+
+Filter primitives, shape categories, and the original verification approach live in `TASK_6_pre.md`. Edge metadata and the (0, 0) addition are introduced in `TASK_6.md`.
 
 ---
 
@@ -964,4 +1060,16 @@ Tests for the Farm Expansion action space — first space using the multi-shot s
 
 ### `tests/test_fences.py`
 
-Tests for `agricola/fences.py`: grid constant correctness, the filter primitives (`_is_connected`, `_internal_fence_count`, `_perimeter_fence_count`, `_total_fence_count`, `_has_hole`, plus `PERIMETER_EDGE_COUNT_PER_CELL`), and the four universes (sizes pinned to exact values from `python -m agricola.fences`: FULL=1518, FAMILY=762, EXTENDED=192, RESTRICTED=108; no duplicates, lex-on-cells sort, every `UNIVERSE_FULL` / `UNIVERSE_FAMILY` entry passes its four filters, named shapes present, specific shapes absent, full containment chain `UNIVERSE_RESTRICTED ⊆ UNIVERSE_EXTENDED ⊆ UNIVERSE_FAMILY ⊆ UNIVERSE_FULL`, FULL-vs-FAMILY divergence pinned by `PASTURE_CELLS + (0,0)` which is in FULL but not FAMILY). 83 tests total.
+Tests for `agricola/fences.py`. Two layers:
+
+**TASK_6_pre layer (universes + filters).** Grid constant correctness, the filter primitives (`_is_connected`, `_internal_fence_count`, `_perimeter_fence_count`, `_total_fence_count`, `_has_hole`, plus `PERIMETER_EDGE_COUNT_PER_CELL`), and the four universes (sizes pinned to exact values from `python -m agricola.fences`: FULL=1518, FAMILY=762, EXTENDED=193, RESTRICTED=109; no duplicates, lex-on-cells sort, every `UNIVERSE_FULL` / `UNIVERSE_FAMILY` entry passes its four filters, named shapes present, specific shapes absent, full containment chain `UNIVERSE_RESTRICTED ⊆ UNIVERSE_EXTENDED ⊆ UNIVERSE_FAMILY ⊆ UNIVERSE_FULL`, FULL-vs-FAMILY divergence pinned by `PASTURE_CELLS + (0,0)` which is in FULL but not FAMILY).
+
+**TASK_6 layer (edge metadata + helpers).** `PastureCandidate` shape (frozen dataclass with five fields); `_boundary_h_bm` and `_boundary_v_bm` on 1×1s, 2×2, narrow strip, full PASTURE_CELLS; `_adjacency_bm` on corner / edge / interior cells; `UNIVERSE_*_ENTRIES` parallel to `UNIVERSE_*` (same length, same order, derived metadata correct); `ENTRIES_BY_BM` keys cover every bitmap in any universe; `UNIVERSE_*_SMALLEST_ENTRIES` are popcount-1 subsets in lex-on-cells order (13 entries each after the (0, 0) addition); 1×1 at (0, 0) present in all four universes; containment chain preserved post-addition; `pack_fences_h/v` + `apply_fence_edges_h/v` round-trip and additive-union behavior; `compute_new_fence_edges` returns correct deltas + wood cost on empty and pre-fenced farmyards.
+
+### `tests/test_fencing.py`
+
+Engine-level integration tests for the Fencing action space (TASK_6). 35 tests covering: single-pasture basic walk (PlaceWorker → ChooseSubAction → CommitBuildPasture → Stop → Stop); multi-pasture commits in one action with adjacency between them; subdivision of an existing 2×1 into two 1×1s; subdivision canonicalization (only lex-smaller side appears in `legal_actions`); first-pasture-anywhere rule with all 13 ENCLOSABLE 1×1s enumerated; adjacency required for subsequent new pastures; enclosable filter (rooms/fields excluded); wood and fences-in-supply affordability binding; re-stating an existing pasture filtered (zero new edges); Stop legality on both `PendingBuildFences` (illegal at `pastures_built=0`) and `PendingFencing` (illegal until `build_fences_chosen=True`); counter updates across multiple commits; builds-before-subdivisions ordering rule (new pasture then subdivision OK; subdivision then new pasture blocked; `subdivision_started` flag flips on subdivisions only); stack invariants (provenance: parent `"space:fencing"`, child `"fencing"`); `_legal_fencing` predicate true/false matrix; universe swap via kwarg (passing `entries`/`smallest_entries`/`universe_set`) and via module constant rebind; `ACTIVE_FENCE_UNIVERSE_*` defaults to RESTRICTED at fresh import; pasture cache recompute after each commit; random-agent end-to-end smoke across 10 seeds with both `fencing` and `farm_redevelopment` in `IMPLEMENTED_NON_ATOMIC_SPACES`.
+
+### `tests/test_farm_redevelopment.py`
+
+Engine-level integration tests for the Farm Redevelopment action space (TASK_6). 20 tests covering: renovate-only walk; renovate-then-build-fences walk; Build Fences requires `renovate_chosen=True` first; Stop illegal at parent before renovate, legal after; material progression WOOD→CLAY and CLAY→STONE; STONE house blocked (`_legal_farm_redevelopment` returns False); renovation cost on `PendingRenovate` (`Resources(clay=num_rooms, reed=1)` for WOOD→CLAY, `Resources(stone=num_rooms, reed=1)` for CLAY→STONE); inner `PendingBuildFences.initiated_by_id == "farm_redevelopment"` (provenance distinct from Fencing space's `"fencing"`); Build Fences engine reuse — `subdivision_started` ordering rule still works via Farm Redev's entry; `_legal_farm_redevelopment` baseline + missing-reed / missing-clay / missing-stone / STONE-house failure modes; Build Fences not offered post-renovate when no legal pasture commit exists (e.g., player has 0 wood after paying renovate); full-walk stack invariants including provenance at each frame.

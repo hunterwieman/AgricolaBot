@@ -328,7 +328,7 @@ the same action. Only and/or space in Family game where ordering matters.
 | Eastern Quarry | Stage 4, Accum | Take all stone (+1/round) |
 | Urgent Wish for Children | Stage 5 | Family Growth even without room |
 | Cultivation | Stage 5 | Plow 1 field **and/or** Sow |
-| Farm Redevelopment | Stage 6 | Renovate **then** Build Fences |
+| Farm Redevelopment | Stage 6 | Renovate **then** optionally Build Fences |
 
 ---
 

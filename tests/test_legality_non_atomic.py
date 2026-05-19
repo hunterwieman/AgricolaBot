@@ -717,15 +717,17 @@ def test_cultivation_illegal_neither_option(state, active):
 
 
 # ---------------------------------------------------------------------------
-# Cross-cutting: fencing and lessons never appear
+# Cross-cutting: fencing now legal post-TASK_6; lessons remains illegal
 # ---------------------------------------------------------------------------
 
-def test_fencing_absent_from_legal_placements(state):
-    # Reveal the fencing space and give the player a hoard of resources.
-    # Even so, fencing must never appear in legal_placements (deferred).
+def test_fencing_present_in_legal_placements_with_resources(state):
+    # TASK_6: Fencing is now implemented. Reveal the space and give the
+    # player wood + fences supply; fencing should appear in legal_placements
+    # because at least one legal pasture commit exists (e.g., a 1×1 at (0, 0)
+    # or any other ENCLOSABLE cell).
     state = _reveal_space(state, "fencing")
     state = _set_resources(state, state.current_player, wood=99, clay=99, reed=99, stone=99)
-    assert "fencing" not in _spaces(legal_placements(state))
+    assert "fencing" in _spaces(legal_placements(state))
 
 
 def test_lessons_absent_from_legal_placements(state):

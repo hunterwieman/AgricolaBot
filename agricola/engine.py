@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitAccommodate,
     CommitBake,
     CommitBuildMajor,
+    CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
@@ -34,6 +35,7 @@ from agricola.constants import (
 )
 from agricola.pending import (
     PendingBakeBread,
+    PendingBuildFences,
     PendingBuildRooms,
     PendingBuildStables,
     PendingBuildMajor,
@@ -56,6 +58,7 @@ from agricola.resolution import (
     _execute_accommodate,
     _execute_bake,
     _execute_build_major,
+    _execute_build_pasture,
     _execute_build_room,
     _execute_build_stable,
     _execute_plow,
@@ -85,9 +88,10 @@ def step(state: GameState, action: Action) -> GameState:
         state.phase == Phase.BEFORE_SCORING.
 
     Raises:
-      - NotImplementedError if action is a PlaceWorker on `farm_expansion`,
-        `farm_redevelopment`, or `fencing` (still deferred after Task 5C).
       - RuntimeError if state.phase == Phase.BEFORE_SCORING.
+      - NotImplementedError only as a defensive guard if a PlaceWorker
+        targets a space without registered handlers (should not happen for
+        any space surfaced by legal_placements).
     """
     if state.phase == Phase.BEFORE_SCORING:
         raise RuntimeError("step called on a terminated game")
@@ -165,6 +169,10 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # majors, or push PendingClayOven / PendingStoneOven (leaving
     # PendingBuildMajor on the stack underneath) for ovens.
     CommitBuildMajor:   (PendingBuildMajor,   _execute_build_major,  False),
+    # CommitBuildPasture: auto_pop=False (multi-shot). The effect function
+    # increments PendingBuildFences's counters via replace_top and leaves
+    # the pending on the stack; Stop pops it.
+    CommitBuildPasture: (PendingBuildFences,  _execute_build_pasture, False),
 }
 
 
@@ -178,9 +186,11 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     if action.space in NONATOMIC_HANDLERS:
         return NONATOMIC_HANDLERS[action.space](state)
 
+    # Defensive: every space surfaced by `legal_placements` is registered
+    # in one of the two dispatch dicts. After TASK_6 the only remaining
+    # never-registered ID is `lessons`, which `legal_placements` excludes.
     raise NotImplementedError(
-        f"Non-atomic space {action.space!r} is not implemented "
-        f"(deferred: farm_redevelopment, fencing)"
+        f"No handler registered for space {action.space!r}"
     )
 
 

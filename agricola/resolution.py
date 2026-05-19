@@ -8,6 +8,7 @@ from agricola.actions import (
     CommitAccommodate,
     CommitBake,
     CommitBuildMajor,
+    CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
@@ -22,14 +23,23 @@ from agricola.constants import (
     CellType,
     HouseMaterial,
 )
+from agricola.fences import (
+    NUM_COLS,
+    apply_fence_edges_h,
+    apply_fence_edges_v,
+    compute_new_fence_edges,
+)
 from agricola.helpers import cooking_rates, pareto_frontier
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBakeBread,
+    PendingBuildFences,
     PendingBuildRooms,
     PendingBuildStables,
     PendingBuildMajor,
     PendingClayOven,
+    PendingFarmRedevelopment,
+    PendingFencing,
     PendingGrainUtilization,
     PendingRenovate,
     PendingSow,
@@ -350,6 +360,22 @@ def _initiate_farm_expansion(state: GameState) -> GameState:
     ))
 
 
+def _initiate_fencing(state: GameState) -> GameState:
+    """Initiate Fencing by pushing PendingFencing."""
+    return push(state, PendingFencing(
+        player_idx=state.current_player,
+        initiated_by_id="space:fencing",
+    ))
+
+
+def _initiate_farm_redevelopment(state: GameState) -> GameState:
+    """Initiate Farm Redevelopment by pushing PendingFarmRedevelopment."""
+    return push(state, PendingFarmRedevelopment(
+        player_idx=state.current_player,
+        initiated_by_id="space:farm_redevelopment",
+    ))
+
+
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "grain_utilization":    _initiate_grain_utilization,
     "farmland":             _initiate_farmland,
@@ -361,6 +387,8 @@ NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "major_improvement":    _initiate_major_improvement,
     "house_redevelopment":  _initiate_house_redevelopment,
     "farm_expansion":       _initiate_farm_expansion,
+    "fencing":              _initiate_fencing,
+    "farm_redevelopment":   _initiate_farm_redevelopment,
 }
 
 
@@ -543,6 +571,54 @@ def _choose_subaction_farm_expansion(
     raise ValueError(f"Unknown sub-action {action.name!r} for Farm Expansion")
 
 
+def _choose_subaction_fencing(
+    state: GameState, action: ChooseSubAction,
+) -> GameState:
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFencing)
+    if action.name == "build_fences":
+        state = replace_top(state, dataclasses.replace(top, build_fences_chosen=True))
+        return push(state, PendingBuildFences(
+            player_idx=top.player_idx,
+            initiated_by_id=top.PENDING_ID,
+        ))
+    raise ValueError(f"Unknown sub-action {action.name!r} for Fencing")
+
+
+def _choose_subaction_farm_redevelopment(
+    state: GameState, action: ChooseSubAction,
+) -> GameState:
+    """Choose handler for Farm Redevelopment.
+
+    Mirrors `_choose_subaction_house_redevelopment` with the optional branch
+    swapped from "improvement" to "build_fences". Renovate cost is computed
+    here at push time using the same formula as House Redevelopment.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFarmRedevelopment)
+    p_idx = top.player_idx
+    p = state.players[p_idx]
+    if action.name == "renovate":
+        num_rooms = sum(
+            1 for r in range(3) for c in range(5)
+            if p.farmyard.grid[r][c].cell_type == CellType.ROOM
+        )
+        if p.house_material == HouseMaterial.WOOD:
+            cost = Resources(clay=num_rooms, reed=1)
+        else:  # CLAY (STONE filtered out by _can_renovate at the parent enumerator)
+            cost = Resources(stone=num_rooms, reed=1)
+        state = replace_top(state, dataclasses.replace(top, renovate_chosen=True))
+        return push(state, PendingRenovate(
+            player_idx=p_idx, initiated_by_id=top.PENDING_ID, cost=cost,
+        ))
+    if action.name == "build_fences":
+        state = replace_top(state, dataclasses.replace(top, build_fences_chosen=True))
+        return push(state, PendingBuildFences(
+            player_idx=p_idx, initiated_by_id=top.PENDING_ID,
+        ))
+    raise ValueError(f"Unknown sub-action {action.name!r} for Farm Redevelopment")
+
+
 CHOOSE_SUBACTION_HANDLERS: dict[type, Callable[[GameState, ChooseSubAction], GameState]] = {}
 # Populated below after parent pending types are imported.
 from agricola.pending import (
@@ -562,6 +638,8 @@ CHOOSE_SUBACTION_HANDLERS[PendingClayOven] = _choose_subaction_clay_oven
 CHOOSE_SUBACTION_HANDLERS[PendingStoneOven] = _choose_subaction_stone_oven
 CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
+CHOOSE_SUBACTION_HANDLERS[PendingFencing] = _choose_subaction_fencing
+CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
 
 
 # ---------------------------------------------------------------------------
@@ -844,6 +922,72 @@ def _execute_build_major(
 
     # Non-oven: pop PendingBuildMajor immediately.
     return pop(state)
+
+
+def _execute_build_pasture(
+    state: GameState, player_idx: int, commit: CommitBuildPasture,
+) -> GameState:
+    """Multi-shot pasture build: place one pasture's fences, increment the
+    PendingBuildFences counters, leave the pending on top (auto_pop=False).
+
+    Steps:
+      1. Pack commit.cells to a bitmap.
+      2. Determine new-pasture vs subdivision (against the BEFORE-commit
+         farmyard) so the ordering-rule flag is correctly updated.
+      3. Compute new fence edges + wood cost via `compute_new_fence_edges`.
+      4. Apply the new edges to the fence arrays.
+      5. Recompute the pasture decomposition (`compute_pastures_from_arrays`).
+         This is the second pasture-changing effect function in the engine
+         (alongside `_execute_build_stable`).
+      6. Debit wood.
+      7. Update player.
+      8. Increment counters on PendingBuildFences and OR in subdivision_started
+         if this commit was a subdivision.
+    """
+    p = state.players[player_idx]
+    farmyard = p.farmyard
+
+    # 1. Pack cells to bitmap.
+    cells_bm = sum(1 << (r * NUM_COLS + c) for (r, c) in commit.cells)
+
+    # 2. Determine new-pasture vs subdivision (pre-commit farmyard).
+    existing_pasture_cells_bm = 0
+    for P in farmyard.pastures:
+        for (r, c) in P.cells:
+            existing_pasture_cells_bm |= 1 << (r * NUM_COLS + c)
+    is_subdivision = bool(cells_bm & existing_pasture_cells_bm)
+
+    # 3. Compute new-edge deltas + cost.
+    h_new, v_new, wood_cost = compute_new_fence_edges(farmyard, cells_bm)
+
+    # 4. Apply fence-array updates.
+    new_h = apply_fence_edges_h(farmyard.horizontal_fences, h_new)
+    new_v = apply_fence_edges_v(farmyard.vertical_fences, v_new)
+
+    # 5. Recompute pasture decomposition.
+    new_pastures = compute_pastures_from_arrays(farmyard.grid, new_h, new_v)
+    new_farmyard = dataclasses.replace(
+        farmyard, horizontal_fences=new_h, vertical_fences=new_v,
+        pastures=new_pastures,
+    )
+
+    # 6 + 7. Debit wood + update player.
+    new_resources = p.resources - Resources(wood=wood_cost)
+    new_player = dataclasses.replace(
+        p, farmyard=new_farmyard, resources=new_resources,
+    )
+    state = _update_player(state, player_idx, new_player)
+
+    # 8. Bump pending counters + ordering-rule flag. No auto-pop; Stop pops.
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences)
+    new_top = dataclasses.replace(
+        top,
+        pastures_built=top.pastures_built + 1,
+        fences_built=top.fences_built + wood_cost,
+        subdivision_started=top.subdivision_started or is_subdivision,
+    )
+    return replace_top(state, new_top)
 
 
 def _execute_accommodate(

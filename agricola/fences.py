@@ -1,15 +1,32 @@
 """Universe of candidate pasture shapes for the Fencing action.
 
-Bitmap conventions (cells only — edge bitmaps are introduced in TASK_6):
-- Cell `(r, c)` ↔ bit `r * NUM_COLS + c` (row-major).
-- A cell-set is a 15-bit integer.
+Bitmap conventions:
+- Cells: cell `(r, c)` ↔ bit `r * NUM_COLS + c` (row-major), 15-bit integer.
+- Horizontal edges: `horizontal_fences[r][c]` ↔ bit `r * NUM_COLS + c`,
+  20-bit integer (r in 0..NUM_ROWS, c in 0..NUM_COLS-1).
+- Vertical edges: `vertical_fences[r][c]` ↔ bit `r * (NUM_COLS+1) + c`,
+  18-bit integer (r in 0..NUM_ROWS-1, c in 0..NUM_COLS).
 - Adjacency is 4-neighbor (orthogonal) only.
 
-The four universes (full, family, extended, restricted) are built once at
-module import. See FENCE_IDEAS.md and CLAUDE.md for design rationale.
+Module contents (built once at module import):
+- Four universes of cell-set bitmaps: UNIVERSE_FULL / UNIVERSE_FAMILY /
+  UNIVERSE_EXTENDED / UNIVERSE_RESTRICTED (+ matching `_SET` frozensets).
+- Four parallel `UNIVERSE_*_ENTRIES` tuples of `PastureCandidate` dataclasses,
+  each carrying cell + boundary + adjacency metadata.
+- Four `UNIVERSE_*_SMALLEST_ENTRIES` tuples — the 1×1 subset of each universe,
+  used by the `_any_legal_pasture_commit` fast path.
+- `ENTRIES_BY_BM` dict keyed by cell-bitmap for off-hot-path lookup.
+- Pack/apply helpers for converting between `Farmyard` tuple-of-tuple-of-bool
+  fence arrays and bitmap form.
+- `compute_new_fence_edges` shared helper consumed by legality and resolution.
+
+See FENCE_IDEAS.md, TASK_6_pre.md, TASK_6.md, and CLAUDE.md for design
+rationale.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 
 NUM_ROWS, NUM_COLS = 3, 5
@@ -312,8 +329,12 @@ def enumerate_universe_restricted() -> tuple[int, ...]:
     """Strategist-curated restricted universe. Lex-on-cells order."""
     shapes: set[frozenset] = set()
 
-    # 1-2. 1×1 and 2×1 (vertical) on PASTURE_CELLS.
-    shapes.update(_enum_rects(1, 1, PASTURE_CELLS))
+    # 1. 1×1 on ENCLOSABLE_CELLS (PASTURE_CELLS + the (0, 0) corner).
+    #    The (0, 0) addition gives the `_any_legal_pasture_commit` fast path
+    #    (in legality.py) full coverage of enclosable cells — see TASK_6.md
+    #    Part 1.8 for the rationale.
+    # 2. 2×1 (vertical) on PASTURE_CELLS.
+    shapes.update(_enum_rects(1, 1, ENCLOSABLE_CELLS))
     shapes.update(_enum_rects(2, 1, PASTURE_CELLS))
 
     # 3. 1×2 (horizontal) on NARROW_CELLS only.
@@ -380,7 +401,10 @@ def enumerate_universe_extended() -> tuple[int, ...]:
     Lex-on-cells order."""
     shapes: set[frozenset] = set()
 
-    shapes.update(_enum_rects(1, 1, PASTURE_CELLS))
+    # 1×1 on ENCLOSABLE_CELLS — matches the restricted set's category 1 so
+    # the containment chain RESTRICTED ⊆ EXTENDED holds. See TASK_6.md
+    # Part 1.8.
+    shapes.update(_enum_rects(1, 1, ENCLOSABLE_CELLS))
     shapes.update(_enum_rects(2, 1, PASTURE_CELLS))
     shapes.update(_enum_rects(1, 2, PASTURE_CELLS))                # narrow → pasture
     shapes.update(_enum_rects(3, 1, PASTURE_CELLS))
@@ -436,11 +460,201 @@ UNIVERSE_RESTRICTED: tuple[int, ...] = enumerate_universe_restricted()
 UNIVERSE_RESTRICTED_SET: frozenset[int] = frozenset(UNIVERSE_RESTRICTED)
 
 
+# ─── Part 5: Edge metadata (PastureCandidate + parallel _ENTRIES tuples) ──
+#
+# TASK_6 additions. The cell-set bitmaps above stay unchanged; everything
+# below is per-shape metadata that decorates each universe entry.
+
+
+@dataclass(frozen=True)
+class PastureCandidate:
+    """One candidate pasture shape — cell-set bitmap plus precomputed metadata.
+
+    All four metadata fields are pure functions of `cells_bm`; computed once
+    at module import.
+    """
+    cells_bm:        int                                # 15-bit cell-set bitmap
+    h_boundary_bm:   int                                # 20-bit horizontal-edge boundary
+    v_boundary_bm:   int                                # 18-bit vertical-edge boundary
+    adjacency_bm:    int                                # 15-bit; cells one step outside cells_bm, in-grid
+    cells:           frozenset                          # frozenset[tuple[int, int]], for CommitBuildPasture
+
+
+def _boundary_h_bm(cells_bm: int) -> int:
+    """Bitmap of horizontal fence-edges on the boundary of `cells_bm`.
+
+    For each in-set cell, contribute its top edge if the cell above is
+    out-of-set (or off-grid), and its bottom edge if the cell below is
+    out-of-set (or off-grid).
+    """
+    bm = 0
+    for idx in range(NUM_CELLS):
+        if not (cells_bm & (1 << idx)):
+            continue
+        r, c = divmod(idx, NUM_COLS)
+        # Top edge
+        if r == 0 or not (cells_bm & (1 << ((r - 1) * NUM_COLS + c))):
+            bm |= 1 << (r * NUM_COLS + c)
+        # Bottom edge
+        if r == NUM_ROWS - 1 or not (cells_bm & (1 << ((r + 1) * NUM_COLS + c))):
+            bm |= 1 << ((r + 1) * NUM_COLS + c)
+    return bm
+
+
+def _boundary_v_bm(cells_bm: int) -> int:
+    """Bitmap of vertical fence-edges on the boundary of `cells_bm`."""
+    bm = 0
+    for idx in range(NUM_CELLS):
+        if not (cells_bm & (1 << idx)):
+            continue
+        r, c = divmod(idx, NUM_COLS)
+        # Left edge
+        if c == 0 or not (cells_bm & (1 << (r * NUM_COLS + (c - 1)))):
+            bm |= 1 << (r * (NUM_COLS + 1) + c)
+        # Right edge
+        if c == NUM_COLS - 1 or not (cells_bm & (1 << (r * NUM_COLS + (c + 1)))):
+            bm |= 1 << (r * (NUM_COLS + 1) + (c + 1))
+    return bm
+
+
+def _adjacency_bm(cells_bm: int) -> int:
+    """In-grid orthogonal neighbors of `cells_bm` not themselves in `cells_bm`."""
+    adj = 0
+    b = cells_bm
+    while b:
+        idx = (b & -b).bit_length() - 1
+        adj |= NEIGHBOR_BM[idx]
+        b &= b - 1
+    return adj & ~cells_bm
+
+
+def _make_entries(universe_bms: tuple[int, ...]) -> tuple[PastureCandidate, ...]:
+    """Build PastureCandidate tuple for a universe, preserving order."""
+    return tuple(
+        PastureCandidate(
+            cells_bm=bm,
+            h_boundary_bm=_boundary_h_bm(bm),
+            v_boundary_bm=_boundary_v_bm(bm),
+            adjacency_bm=_adjacency_bm(bm),
+            cells=frozenset(_cells_of(bm)),
+        )
+        for bm in universe_bms
+    )
+
+
+UNIVERSE_FULL_ENTRIES:       tuple[PastureCandidate, ...] = _make_entries(UNIVERSE_FULL)
+UNIVERSE_FAMILY_ENTRIES:     tuple[PastureCandidate, ...] = _make_entries(UNIVERSE_FAMILY)
+UNIVERSE_EXTENDED_ENTRIES:   tuple[PastureCandidate, ...] = _make_entries(UNIVERSE_EXTENDED)
+UNIVERSE_RESTRICTED_ENTRIES: tuple[PastureCandidate, ...] = _make_entries(UNIVERSE_RESTRICTED)
+
+
+def _filter_singletons(entries: tuple[PastureCandidate, ...]) -> tuple[PastureCandidate, ...]:
+    """Return the popcount-1 subset of `entries`, preserving order."""
+    return tuple(e for e in entries if e.cells_bm.bit_count() == 1)
+
+
+# Fast-path tuples used by `_any_legal_pasture_commit` (in legality.py) to
+# walk the cheap 1×1 candidates first and short-circuit on the first legal
+# one. Same order as the parent _ENTRIES tuple.
+UNIVERSE_FULL_SMALLEST_ENTRIES:       tuple[PastureCandidate, ...] = _filter_singletons(UNIVERSE_FULL_ENTRIES)
+UNIVERSE_FAMILY_SMALLEST_ENTRIES:     tuple[PastureCandidate, ...] = _filter_singletons(UNIVERSE_FAMILY_ENTRIES)
+UNIVERSE_EXTENDED_SMALLEST_ENTRIES:   tuple[PastureCandidate, ...] = _filter_singletons(UNIVERSE_EXTENDED_ENTRIES)
+UNIVERSE_RESTRICTED_SMALLEST_ENTRIES: tuple[PastureCandidate, ...] = _filter_singletons(UNIVERSE_RESTRICTED_ENTRIES)
+
+
+# Bitmap-keyed lookup. Used off the hot path — by the effect function (which
+# receives `commit.cells` and needs the entry's boundary metadata) and by the
+# cost helper. Keyed off UNIVERSE_FULL, which by the containment chain
+# RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL covers every bitmap that can appear
+# in any universe.
+ENTRIES_BY_BM: dict[int, PastureCandidate] = {
+    e.cells_bm: e for e in UNIVERSE_FULL_ENTRIES
+}
+
+
+# ─── Part 6: Fence-array <-> bitmap helpers ──────────────────────────────
+
+
+def pack_fences_h(horizontal_fences: tuple) -> int:
+    """Pack `Farmyard.horizontal_fences` (shape (4, 5)) into a 20-bit bitmap."""
+    bm = 0
+    for r in range(NUM_ROWS + 1):
+        for c in range(NUM_COLS):
+            if horizontal_fences[r][c]:
+                bm |= 1 << (r * NUM_COLS + c)
+    return bm
+
+
+def pack_fences_v(vertical_fences: tuple) -> int:
+    """Pack `Farmyard.vertical_fences` (shape (3, 6)) into an 18-bit bitmap."""
+    bm = 0
+    for r in range(NUM_ROWS):
+        for c in range(NUM_COLS + 1):
+            if vertical_fences[r][c]:
+                bm |= 1 << (r * (NUM_COLS + 1) + c)
+    return bm
+
+
+def apply_fence_edges_h(horizontal_fences: tuple, new_h_bm: int) -> tuple:
+    """Return a new horizontal_fences tuple-of-tuples with `new_h_bm`'s bits set to True.
+
+    Existing True entries are preserved; this is a purely-additive union.
+    Shape matches the input: (NUM_ROWS+1, NUM_COLS) i.e. (4, 5).
+    """
+    return tuple(
+        tuple(
+            horizontal_fences[r][c] or bool(new_h_bm & (1 << (r * NUM_COLS + c)))
+            for c in range(NUM_COLS)
+        )
+        for r in range(NUM_ROWS + 1)
+    )
+
+
+def apply_fence_edges_v(vertical_fences: tuple, new_v_bm: int) -> tuple:
+    """Return a new vertical_fences tuple-of-tuples with `new_v_bm`'s bits set to True.
+
+    Shape: (NUM_ROWS, NUM_COLS+1) i.e. (3, 6).
+    """
+    return tuple(
+        tuple(
+            vertical_fences[r][c] or bool(new_v_bm & (1 << (r * (NUM_COLS + 1) + c)))
+            for c in range(NUM_COLS + 1)
+        )
+        for r in range(NUM_ROWS)
+    )
+
+
+# ─── Part 7: Shared cost helper (bucket-4 cost handling) ─────────────────
+
+
+def compute_new_fence_edges(
+    farmyard, cells_bm: int,
+) -> tuple[int, int, int]:
+    """Return (h_new_bm, v_new_bm, wood_cost) for placing `cells_bm`'s
+    boundary on top of the player's current fence state.
+
+    wood_cost = popcount(h_new) + popcount(v_new) (default rule, 1 wood per edge).
+    Card-driven cost modifiers will adjust this helper when the first such
+    card lands.
+
+    `farmyard` is duck-typed — only `.horizontal_fences` and `.vertical_fences`
+    are read. This keeps `fences.py` independent of `state.py`.
+    """
+    entry = ENTRIES_BY_BM[cells_bm]
+    h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
+    v_fences_bm = pack_fences_v(farmyard.vertical_fences)
+    h_new = entry.h_boundary_bm & ~h_fences_bm
+    v_new = entry.v_boundary_bm & ~v_fences_bm
+    return h_new, v_new, h_new.bit_count() + v_new.bit_count()
+
+
 if __name__ == "__main__":
     # Run `python -m agricola.fences` to print sizes of each universe.
-    # Used during step 9 to pin the placeholder `test_size_is_recorded`
-    # lower bounds to exact values.
-    print(f"UNIVERSE_FULL:       {len(UNIVERSE_FULL):>5,} entries")
-    print(f"UNIVERSE_FAMILY:     {len(UNIVERSE_FAMILY):>5,} entries")
-    print(f"UNIVERSE_EXTENDED:   {len(UNIVERSE_EXTENDED):>5,} entries")
-    print(f"UNIVERSE_RESTRICTED: {len(UNIVERSE_RESTRICTED):>5,} entries")
+    print(f"UNIVERSE_FULL:       {len(UNIVERSE_FULL):>5,} entries  "
+          f"({len(UNIVERSE_FULL_SMALLEST_ENTRIES)} singletons)")
+    print(f"UNIVERSE_FAMILY:     {len(UNIVERSE_FAMILY):>5,} entries  "
+          f"({len(UNIVERSE_FAMILY_SMALLEST_ENTRIES)} singletons)")
+    print(f"UNIVERSE_EXTENDED:   {len(UNIVERSE_EXTENDED):>5,} entries  "
+          f"({len(UNIVERSE_EXTENDED_SMALLEST_ENTRIES)} singletons)")
+    print(f"UNIVERSE_RESTRICTED: {len(UNIVERSE_RESTRICTED):>5,} entries  "
+          f"({len(UNIVERSE_RESTRICTED_SMALLEST_ENTRIES)} singletons)")

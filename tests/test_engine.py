@@ -227,17 +227,17 @@ def test_step_raises_on_before_scoring():
         step(state, PlaceWorker(space="day_laborer"))
 
 
-def test_step_raises_on_unimplemented_non_atomic():
-    """Taking an unimplemented non-atomic space raises NotImplementedError.
+def test_step_raises_on_unknown_space():
+    """Calling step on a PlaceWorker with an unknown space-id raises.
 
-    After Task 5D, only farm_redevelopment and fencing remain unimplemented.
-    Both lack legality predicates (or, for fencing, have it permanently
-    excluded), so we can't easily get one into `legal_actions`. Bypass
-    legality and call step() directly to verify the engine still raises.
+    After TASK_6, every non-atomic space surfaced by legal_placements has a
+    registered handler. The defensive guard in `_apply_place_worker` covers
+    the remaining never-registered IDs (only `lessons`, which is permanently
+    illegal in the Family game and never surfaces via legal_placements).
     """
     state = setup(seed=0)
     with pytest.raises(NotImplementedError):
-        step(state, PlaceWorker(space="farm_redevelopment"))
+        step(state, PlaceWorker(space="lessons"))
 
 
 # ---------------------------------------------------------------------------

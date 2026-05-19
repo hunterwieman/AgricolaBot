@@ -128,6 +128,28 @@ class CommitAccommodate(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitBuildPasture(CommitSubAction):
+    """Commit one pasture build at PendingBuildFences.
+
+    `cells` is the cell-set of the pasture being committed — same shape as
+    one entry in the active fence universe (UNIVERSE_RESTRICTED by default).
+    `frozenset` gives content-based equality and hashing, so two
+    CommitBuildPasture objects naming the same cell-set compare equal
+    regardless of construction order. By convention, callers iterating
+    `cells` for display or logging sort by (row, col) lexicographic order.
+
+    Cost is NOT a field on this commit — it is a pure function of
+    (state, commit.cells) computed by `compute_new_fence_edges` in
+    `agricola.fences`. This is the 4th sub-action cost-handling bucket
+    (CLAUDE.md "Additional Design Principles" → "Sub-action cost handling").
+
+    Dispatched via `auto_pop=False`: the effect function leaves
+    PendingBuildFences on top with updated counters; Stop pops it.
+    """
+    cells: frozenset                          # frozenset[tuple[int, int]]
+
+
+@dataclass(frozen=True)
 class FireTrigger:
     """Fire a specific card trigger that's currently eligible at the top pending.
 
@@ -162,6 +184,7 @@ Action = Union[
     CommitBuildMajor,
     CommitRenovate,
     CommitAccommodate,
+    CommitBuildPasture,
     FireTrigger,
     Stop,
 ]

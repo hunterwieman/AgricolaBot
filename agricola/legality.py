@@ -7,6 +7,7 @@ from agricola.actions import (
     ChooseSubAction,
     CommitBake,
     CommitBuildMajor,
+    CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
@@ -24,21 +25,49 @@ from agricola.constants import (
     Phase,
     ROOM_COSTS,
 )
+from agricola.fences import (
+    NUM_COLS,
+    NUM_ROWS,
+    PastureCandidate,
+    UNIVERSE_RESTRICTED_ENTRIES,
+    UNIVERSE_RESTRICTED_SET,
+    UNIVERSE_RESTRICTED_SMALLEST_ENTRIES,
+    pack_fences_h,
+    pack_fences_v,
+)
 from agricola.resources import Resources
-from agricola.helpers import enclosed_cells, stables_in_supply
+from agricola.helpers import enclosed_cells, fences_in_supply, stables_in_supply
 from agricola.pending import (
     PendingBakeBread,
+    PendingBuildFences,
     PendingBuildMajor,
     PendingBuildRooms,
     PendingBuildStables,
     PendingDecision,
     PendingFarmExpansion,
+    PendingFarmRedevelopment,
+    PendingFencing,
     PendingGrainUtilization,
     PendingPlow,
     PendingRenovate,
     PendingSow,
 )
 from agricola.state import GameState, PlayerState
+
+
+# ---------------------------------------------------------------------------
+# Active fence-universe constants (TASK_6 §4.1)
+# ---------------------------------------------------------------------------
+#
+# Three module-level constants set the default universe for `legal_actions`.
+# All three must point at the same universe; they are kept aligned by the
+# `fences.py` construction (RESTRICTED_ENTRIES ↔ RESTRICTED_SMALLEST_ENTRIES ↔
+# RESTRICTED_SET). To switch globally, reassign all three; to switch for one
+# call, pass `entries=`, `smallest_entries=`, `universe_set=` kwargs.
+
+ACTIVE_FENCE_UNIVERSE_ENTRIES:          tuple     = UNIVERSE_RESTRICTED_ENTRIES
+ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES: tuple     = UNIVERSE_RESTRICTED_SMALLEST_ENTRIES
+ACTIVE_FENCE_UNIVERSE_SET:              frozenset = UNIVERSE_RESTRICTED_SET
 
 
 # ---------------------------------------------------------------------------
@@ -531,6 +560,186 @@ def _legal_farm_redevelopment(state: GameState) -> bool:
     return _can_renovate(p)
 
 
+def _legal_fencing(state: GameState) -> bool:
+    """Placement legality for the Fencing action space.
+
+    Requires: space available + ≥1 wood + ≥1 fence in supply + at least one
+    legal pasture commit exists at the current state. The last check uses
+    `_any_legal_pasture_commit`'s two-pass iteration (1×1 fast path, then
+    larger shapes) over the active universe.
+    """
+    if not _is_available(state, "fencing"):
+        return False
+    p = state.players[state.current_player]
+    if p.resources.wood < 1:
+        return False
+    if fences_in_supply(p.farmyard) < 1:
+        return False
+    return _any_legal_pasture_commit(state, p)
+
+
+# ---------------------------------------------------------------------------
+# Fence-action helpers
+# ---------------------------------------------------------------------------
+
+def _enclosable_cells_bm(farmyard) -> int:
+    """Bitmap of cells that can legally be enclosed by fences (EMPTY or STABLE).
+
+    Rooms and fields cannot be enclosed per RULES.md "Fences and Pastures".
+    Starting-room cells (1, 0) and (2, 0) are ROOM type and therefore
+    excluded automatically.
+    """
+    bm = 0
+    for r in range(NUM_ROWS):
+        for c in range(NUM_COLS):
+            ct = farmyard.grid[r][c].cell_type
+            if ct == CellType.EMPTY or ct == CellType.STABLE:
+                bm |= 1 << (r * NUM_COLS + c)
+    return bm
+
+
+def _cells_bm_of_pasture(pasture) -> int:
+    """Cell-set of a `Pasture` (from agricola.pasture) as a 15-bit bitmap."""
+    bm = 0
+    for (r, c) in pasture.cells:
+        bm |= 1 << (r * NUM_COLS + c)
+    return bm
+
+
+def _check_entry_legal(
+    entry: PastureCandidate,
+    *,
+    enclosable_bm: int,
+    pasture_bms: tuple,
+    existing_pasture_cells_bm: int,
+    has_existing_pastures: bool,
+    subdivision_started: bool,
+    h_fences_bm: int,
+    v_fences_bm: int,
+    wood: int,
+    fences_left: int,
+    universe_set: frozenset,
+) -> tuple[bool, int, int]:
+    """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
+    universe entry against precomputed per-call state.
+
+    Returns (is_legal, h_new_bm, v_new_bm). h_new/v_new are 0 if not legal.
+    Both callers (`_any_legal_pasture_commit` and
+    `_enumerate_pending_build_fences`) share this function.
+    """
+    bm = entry.cells_bm
+
+    # 1. Enclosable cells only.
+    if bm & ~enclosable_bm:
+        return False, 0, 0
+
+    # 2. Subdivision vs new-pasture: must be entirely within ONE existing
+    #    pasture, or entirely in unenclosed area.
+    is_subdivision = False
+    parent_bm = 0
+    if bm & existing_pasture_cells_bm:
+        for P_bm in pasture_bms:
+            if (bm & P_bm) == bm:
+                is_subdivision = True
+                parent_bm = P_bm
+                break
+        if not is_subdivision:
+            return False, 0, 0                   # straddles multiple pastures
+
+    # 2b. Builds-before-subdivisions ordering rule (TASK_6 §2.3).
+    if (not is_subdivision) and subdivision_started:
+        return False, 0, 0
+
+    # 3. Adjacency: subdivision is fine (within); new-pasture must touch an
+    #    existing pasture OR there are no existing pastures (first-pasture rule).
+    if not is_subdivision and has_existing_pastures:
+        if not (entry.adjacency_bm & existing_pasture_cells_bm):
+            return False, 0, 0
+
+    # 4. Affordability + supply + at-least-one-new-fence.
+    h_new = entry.h_boundary_bm & ~h_fences_bm
+    v_new = entry.v_boundary_bm & ~v_fences_bm
+    new_count = h_new.bit_count() + v_new.bit_count()
+    if new_count < 1:
+        return False, 0, 0
+    if new_count > wood:
+        return False, 0, 0
+    if new_count > fences_left:
+        return False, 0, 0
+
+    # 5. Subdivision canonicalization: if complement-within-parent is also a
+    #    universe entry, emit only the lex-smaller-min-cell side.
+    if is_subdivision:
+        complement_bm = parent_bm & ~bm
+        if complement_bm in universe_set:
+            lo_self = (bm & -bm).bit_length()
+            lo_comp = (complement_bm & -complement_bm).bit_length()
+            if lo_comp < lo_self:
+                return False, 0, 0
+
+    return True, h_new, v_new
+
+
+def _any_legal_pasture_commit(
+    state: GameState, p: PlayerState,
+    *,
+    entries: tuple     = ACTIVE_FENCE_UNIVERSE_ENTRIES,
+    smallest_entries: tuple = ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES,
+    universe_set: frozenset = ACTIVE_FENCE_UNIVERSE_SET,
+) -> bool:
+    """Return True iff at least one pasture commit is legal for `p` in `state`.
+
+    Two-pass iteration: precomputed 1×1 fast-path first, then the rest of the
+    universe (skipping 1×1's already checked). The fast path capitalizes on
+    the property "if any commit is legal, some 1×1 commit is legal" (TASK_6
+    Part 4.3); the (0, 0)-1×1 addition (Part 1.8) ensures every enclosable
+    cell has a 1×1 candidate.
+
+    `subdivision_started=False` is hardcoded because this helper answers a
+    placement-time question (Fencing space availability) or a pre-entry
+    question (Farm Redev's optional Build Fences offer) — no in-progress
+    Build Fences action exists at either call site.
+    """
+    farmyard = p.farmyard
+    enclosable_bm = _enclosable_cells_bm(farmyard)
+    pasture_bms = tuple(_cells_bm_of_pasture(P) for P in farmyard.pastures)
+    existing_pasture_cells_bm = 0
+    for P_bm in pasture_bms:
+        existing_pasture_cells_bm |= P_bm
+    h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
+    v_fences_bm = pack_fences_v(farmyard.vertical_fences)
+    wood = p.resources.wood
+    fences_left = fences_in_supply(farmyard)
+    has_existing_pastures = bool(pasture_bms)
+
+    common = dict(
+        enclosable_bm=enclosable_bm,
+        pasture_bms=pasture_bms,
+        existing_pasture_cells_bm=existing_pasture_cells_bm,
+        has_existing_pastures=has_existing_pastures,
+        subdivision_started=False,
+        h_fences_bm=h_fences_bm,
+        v_fences_bm=v_fences_bm,
+        wood=wood,
+        fences_left=fences_left,
+        universe_set=universe_set,
+    )
+
+    # Fast path: precomputed 1×1 tuple (~13 entries under RESTRICTED).
+    for entry in smallest_entries:
+        ok, _h, _v = _check_entry_legal(entry, **common)
+        if ok:
+            return True
+    # Slow path: full universe minus 1×1's.
+    for entry in entries:
+        if entry.cells_bm.bit_count() == 1:
+            continue
+        ok, _h, _v = _check_entry_legal(entry, **common)
+        if ok:
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Dispatch tables
 # ---------------------------------------------------------------------------
@@ -551,8 +760,9 @@ ATOMIC_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     "urgent_wish_for_children":  _legal_urgent_wish_for_children,
 }
 
-# Non-atomic spaces covered by this task. `fencing` is deferred (requires fence
-# enumeration); `lessons` is permanently illegal in the Family game and omitted.
+# Non-atomic spaces. `lessons` is permanently illegal in the Family game
+# and omitted. After TASK_6, both `fencing` and `farm_redevelopment` are
+# implemented; every non-atomic space appears here.
 NON_ATOMIC_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     "farm_expansion":      _legal_farm_expansion,
     "farmland":            _legal_farmland,
@@ -565,6 +775,7 @@ NON_ATOMIC_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     "house_redevelopment": _legal_house_redevelopment,
     "cultivation":         _legal_cultivation,
     "farm_redevelopment":  _legal_farm_redevelopment,
+    "fencing":             _legal_fencing,
 }
 
 # Combined dispatch used by `legal_placements`.
@@ -958,6 +1169,102 @@ def _enumerate_pending_house_redevelopment(
     return actions
 
 
+def _enumerate_pending_fencing(
+    state: GameState, pending: PendingFencing,
+) -> list[Action]:
+    """Enumerate legal actions at PendingFencing.
+
+    The space has a single sub-action category (build_fences). Before that
+    category has been entered, only ChooseSubAction("build_fences") is legal.
+    After entering and committing through PendingBuildFences (which has its
+    own Stop), control returns to PendingFencing where only Stop is legal.
+    """
+    actions: list[Action] = []
+    if not pending.build_fences_chosen:
+        actions.append(ChooseSubAction(name="build_fences"))
+    else:
+        actions.append(Stop())
+    # Future: eligible card triggers at `before_fencing` would be appended here.
+    return actions
+
+
+def _enumerate_pending_build_fences(
+    state: GameState,
+    pending: PendingBuildFences,
+    *,
+    entries: tuple     = ACTIVE_FENCE_UNIVERSE_ENTRIES,
+    universe_set: frozenset = ACTIVE_FENCE_UNIVERSE_SET,
+) -> list[Action]:
+    """Enumerate legal CommitBuildPasture + Stop actions at PendingBuildFences.
+
+    Implements the unified pasture-commit legality chain (TASK_6 §4.5) via
+    `_check_entry_legal`. Walks every entry in `entries` and emits one
+    CommitBuildPasture per legal entry. Stop is appended once at least one
+    pasture has been committed.
+    """
+    p = state.players[pending.player_idx]
+    farmyard = p.farmyard
+
+    enclosable_bm = _enclosable_cells_bm(farmyard)
+    pasture_bms = tuple(_cells_bm_of_pasture(P) for P in farmyard.pastures)
+    existing_pasture_cells_bm = 0
+    for P_bm in pasture_bms:
+        existing_pasture_cells_bm |= P_bm
+    h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
+    v_fences_bm = pack_fences_v(farmyard.vertical_fences)
+    wood = p.resources.wood
+    fences_left = fences_in_supply(farmyard)
+    has_existing_pastures = bool(pasture_bms)
+
+    common = dict(
+        enclosable_bm=enclosable_bm,
+        pasture_bms=pasture_bms,
+        existing_pasture_cells_bm=existing_pasture_cells_bm,
+        has_existing_pastures=has_existing_pastures,
+        subdivision_started=pending.subdivision_started,
+        h_fences_bm=h_fences_bm,
+        v_fences_bm=v_fences_bm,
+        wood=wood,
+        fences_left=fences_left,
+        universe_set=universe_set,
+    )
+
+    actions: list[Action] = []
+    for entry in entries:
+        ok, _h, _v = _check_entry_legal(entry, **common)
+        if ok:
+            actions.append(CommitBuildPasture(cells=entry.cells))
+
+    if pending.pastures_built >= 1:
+        actions.append(Stop())
+
+    # Future: eligible card triggers at `before_build_fences` would be appended here.
+    return actions
+
+
+def _enumerate_pending_farm_redevelopment(
+    state: GameState, pending: PendingFarmRedevelopment,
+) -> list[Action]:
+    """Enumerate legal actions at PendingFarmRedevelopment.
+
+    Mirrors `_enumerate_pending_house_redevelopment` with the optional second
+    step swapped from "improvement" to "build_fences". Renovate is mandatory
+    first (Stop illegal until renovate_chosen); Build Fences is offered only
+    after renovate AND only when at least one legal pasture commit exists.
+    """
+    p = state.players[pending.player_idx]
+    actions: list[Action] = []
+    if not pending.renovate_chosen and _can_renovate(p):
+        actions.append(ChooseSubAction(name="renovate"))
+    if (pending.renovate_chosen
+            and not pending.build_fences_chosen
+            and _any_legal_pasture_commit(state, p)):
+        actions.append(ChooseSubAction(name="build_fences"))
+    if pending.renovate_chosen:
+        actions.append(Stop())
+    return actions
+
+
 # Dispatch table for per-pending enumerators. New pending types register here.
 from agricola.pending import (
     PendingCattleMarket,
@@ -992,6 +1299,9 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingClayOven:            _enumerate_pending_clay_oven,
     PendingStoneOven:           _enumerate_pending_stone_oven,
     PendingHouseRedevelopment:  _enumerate_pending_house_redevelopment,
+    PendingFencing:             _enumerate_pending_fencing,
+    PendingBuildFences:         _enumerate_pending_build_fences,
+    PendingFarmRedevelopment:   _enumerate_pending_farm_redevelopment,
 }
 
 
