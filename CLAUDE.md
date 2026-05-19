@@ -399,7 +399,7 @@ The full card system (the other ~470 cards in the Family + full game) is a separ
 
 ## Current Status
 
-All 343 tests pass. The following pieces are complete:
+All 426 tests pass. The following pieces are complete:
 
 | Component | Status | Task file(s) |
 |---|---|---|
@@ -442,6 +442,7 @@ All 343 tests pass. The following pieces are complete:
 | `ROOM_COSTS` constant + `_can_afford(p, cost)` + predicate-enumerator deduplication (`_can_build_stable`, `_legal_room_cells`) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
 | `_new_grid_with_cell` helper in `resolution.py` | Complete | `TASK_5D.md` |
 | Pasture cache recompute on stable build (fixes latent Task 5C bug) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
+| Fencing pasture-shape universe (`agricola/fences.py` — four layered universes, four filter primitives) | Complete | `TASK_6_pre.md` |
 
 **Not yet implemented:**
 
@@ -504,6 +505,7 @@ AgricolaBot/
         resolution.py
         scoring.py
         engine.py               # step + _advance_until_decision (Task 5)
+        fences.py               # pasture-shape universe enumeration (TASK_6_pre)
         cards/                  # card framework + concrete cards
             __init__.py
             triggers.py         # TRIGGERS / CARDS registries + register()
@@ -529,6 +531,7 @@ AgricolaBot/
         test_major_improvement.py    # Task 5C
         test_house_redevelopment.py  # Task 5C
         test_farm_expansion.py       # Task 5D — multi-shot pending pattern
+        test_fences.py               # universe enumeration tests (TASK_6_pre)
 ```
 
 ---
@@ -820,6 +823,20 @@ See CLAUDE.md "Card implementation status" for the broader card-system design an
 
 ---
 
+### `agricola/fences.py`
+
+Precomputed universes of candidate pasture shapes for the Fencing action. Standalone module; built once at module import.
+
+- **Bitmap encoding for cell-sets**: cell `(r, c)` ↔ bit `r * NUM_COLS + c` (row-major, 15 bits). Used by downstream `legal_actions` enumerators and commit-action consumers.
+
+- **Module-level universe constants**: four `(tuple, frozenset)` pairs exported for downstream consumption — `UNIVERSE_FULL` / `UNIVERSE_FAMILY` / `UNIVERSE_EXTENDED` / `UNIVERSE_RESTRICTED`, each paired with a `_SET` for O(1) membership. Sizes 1518 / 762 / 192 / 108. Containment chain: `RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`.
+
+- **Why four universes**: `UNIVERSE_FULL` is the broadest baseline (accommodates a full-game card that grants extra perimeter fences). `UNIVERSE_FAMILY` is the rules-correct universe for the Family game mode (no such card; total fences ≤ 15). `UNIVERSE_RESTRICTED` is the strategist-curated set used at legality-check time. `UNIVERSE_EXTENDED` sits between RESTRICTED and FAMILY as the policy-network output space, allowing relaxation without retraining if the restricted set turns out to omit a move.
+
+Filter primitives, shape categories, and the verification approach live in `TASK_6_pre.md`.
+
+---
+
 ### `agricola/scoring.py`
 
 Computes a player's end-of-game score.
@@ -944,3 +961,7 @@ Tests for the House Redevelopment action space. Covers: renovate-only and renova
 ### `tests/test_farm_expansion.py`
 
 Tests for the Farm Expansion action space — first space using the multi-shot sub-action pending pattern from Task 5D. 25 tests covering: basic walks (rooms-only, stables-only, rooms-then-stables); within-action adjacency chaining for rooms; 4-stable build saturating supply; singleton-Stop states for both supply-exhausted and affordability-exhausted constraints (Approach 2: Stop is always the explicit exit); Stop legality at num_built=0 (illegal in `PendingBuildStables` / `PendingBuildRooms`) and at the parent before any category is chosen; cost on pending parametrized over house material (wood / clay / stone); Farm Expansion's 2-wood stable cost (distinct from Side Job's 1-wood); room adjacency rule + room-inside-pasture exclusion; pasture-cache recompute when a stable lands inside an existing pasture (directly exercises the fix for the latent bug in Task 5C's `_execute_build_stable`); once-per-category rule parametrized over rooms/stables; placement legality (none / rooms-only / stables-only cases); stack invariants (choose-time flag set, no-pop on commit, Stop pops).
+
+### `tests/test_fences.py`
+
+Tests for `agricola/fences.py`: grid constant correctness, the filter primitives (`_is_connected`, `_internal_fence_count`, `_perimeter_fence_count`, `_total_fence_count`, `_has_hole`, plus `PERIMETER_EDGE_COUNT_PER_CELL`), and the four universes (sizes pinned to exact values from `python -m agricola.fences`: FULL=1518, FAMILY=762, EXTENDED=192, RESTRICTED=108; no duplicates, lex-on-cells sort, every `UNIVERSE_FULL` / `UNIVERSE_FAMILY` entry passes its four filters, named shapes present, specific shapes absent, full containment chain `UNIVERSE_RESTRICTED ⊆ UNIVERSE_EXTENDED ⊆ UNIVERSE_FAMILY ⊆ UNIVERSE_FULL`, FULL-vs-FAMILY divergence pinned by `PASTURE_CELLS + (0,0)` which is in FULL but not FAMILY). 83 tests total.

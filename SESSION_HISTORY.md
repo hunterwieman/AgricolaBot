@@ -27,6 +27,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 5B — Dispatch Cleanup](#task-5b)
 - [Task 5C — Eight Non-Atomic Spaces + Convention Shifts](#task-5c)
 - [Task 5D — Farm Expansion + Multi-Shot Sub-Action Pendings](#task-5d)
+- [Task 6_pre — Fencing Universe Enumeration](#task-6-pre)
 - [Current State](#current-state)
 
 ---
@@ -1294,10 +1295,144 @@ The card-system work (compound-card-interaction machinery, then cards beyond Pot
 
 ---
 
+<a name="task-6-pre"></a>
+## Task 6_pre — Fencing Universe Enumeration (2026-05-19)
+
+### What was built
+
+A precursor to the broader Fencing implementation (TASK_6). This task stands up the precomputed universe of pasture shapes that `legal_actions` will iterate over at Fencing-time, validates the layered-universe design from `FENCE_IDEAS.md`, and ships the supporting module + tests. The engine itself is unchanged — `step()` still raises `NotImplementedError` for `fencing` and `farm_redevelopment`. The actual action space, pending dataclass, commit action, legality predicate, resolution, and engine wiring are deferred to TASK_6.
+
+**Two new files**, both standalone (`agricola/fences.py` imports only stdlib; `tests/test_fences.py` imports only from `agricola.fences`):
+
+- `agricola/fences.py` — four precomputed universes of candidate pasture-shape bitmaps for the 3×5 farmyard. Built once at module import; ~0.22 seconds.
+- `tests/test_fences.py` — 83 tests covering grid constants, filter primitives, and universe construction.
+
+**The four universes**, in containment-chain order `RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`:
+
+| Universe | Size | Filter | Purpose |
+|---|---|---|---|
+| `UNIVERSE_FULL` | 1518 | internal-fence ≤ 15, connected, no donut, no starting-room overlap | broadest baseline (accommodates a full-game card granting extra perimeter fences) |
+| `UNIVERSE_FAMILY` | 762 | as FULL but with **total**-fence ≤ 15 | rules-correct for Family game mode (no perimeter-fence card) |
+| `UNIVERSE_EXTENDED` | 192 | strategist-curated shape categories (rectangles, 3- and 4-cell L's, etc.) on PASTURE_CELLS | policy-network output space; relaxation buffer above RESTRICTED |
+| `UNIVERSE_RESTRICTED` | 108 | tightest strategist-curated set (17 shape categories) | runtime default for `legal_actions` |
+
+Each universe is exported as a `(tuple, frozenset)` pair: the tuple gives deterministic lex-on-cells iteration (sort key `_cells_of(bm)` returns the cells in row-major order); the frozenset gives O(1) membership lookup.
+
+**Four filter primitives** in `fences.py`: `_is_connected` (BFS), `_internal_fence_count` (scan of 22 internal grid edges), `_perimeter_fence_count` (popcount-weighted sum via `PERIMETER_EDGE_COUNT_PER_CELL`), `_total_fence_count` (sum of the two), `_has_hole` (complement flood-fill with two edge-case branches: empty complement → no hole; complement entirely interior → guaranteed hole).
+
+**Shape-category helpers** for the curated universes: `_enum_rects` (all `rows × cols` rectangles in scope), `_enum_3cell_Ls`, `_enum_3cell_Ls_2right_1left`, `_enum_4cell_Ls`, `_adjacents_of`, `_enum_5cell_2x2_plus1`, `_enum_6cell_2x2_plus2`. Each takes a `scope` frozenset and returns a list of frozensets; set semantics in the calling enumerator absorb duplicates from overlapping categories.
+
+**`__main__` block** prints the four universe sizes when invoked as `python -m agricola.fences`. Stays silent on regular `import`. Used during implementation to capture the exact-equality assertions for the four `test_size_is_recorded` tests.
+
+### Design conversation (pre-implementation)
+
+A long iterative design pass produced `FENCE_IDEAS.md` (217 lines, the broader Fencing rationale) and `TASK_6_pre.md` (~1100 lines) before any code changed. The conversation covered multiple alternatives at each decision point; only the chosen path is summarized here.
+
+- **Universe construction strategy: fixed-list with bitmaps vs on-the-fly construction.** Section 3 of FENCE_IDEAS strongly recommended fixed-list. Settled directly on fixed-list — 32K-candidate scans are sub-second at module load, bitmap-encoded entries make per-call legality checks O(1), and hand-curation of the restricted universe is trivial (just drop entries). On-the-fly is kept as a documented fallback if universe-materialization ever breaks down.
+
+- **One universe vs three vs four.** Started with one (just `UNIVERSE_FULL`), grew to three (FULL + EXTENDED + RESTRICTED, per FENCE_IDEAS Section 3's layered-restriction pattern), then to four after the user pointed out that internal-fence-only ≤ 15 anticipates a full-game card grants extra perimeter fences but **the Family game has no such card**. Added `UNIVERSE_FAMILY` (total-fence ≤ 15) as the rules-correct universe for the currently-implemented game mode. FULL remains as the broader rules-permissible baseline for future-proofing.
+
+- **The strategist-curated `UNIVERSE_RESTRICTED` and `UNIVERSE_EXTENDED`.** The user (a world-class Agricola player) specified 17 shape categories for RESTRICTED — built from `PASTURE_CELLS` (cols 1-4, excluding column 0 by strategic preference) and `NARROW_CELLS` (cols 2-4, tighter sub-grid). EXTENDED relaxes most NARROW_CELLS-scoped categories to PASTURE_CELLS, adds all 4-cell L's, adds a 6-cell `2×2 + 2-adjacent-extras` category, and includes two ad-hoc shapes (`PASTURE_CELLS - {(0,1)}` and `PASTURE_CELLS - {(0,1), (0,2)}`). The two ad-hoc shapes are explicitly present in *both* RESTRICTED and EXTENDED. The strategic exclusion of `(0,0)` from the square scope is loosened only for the 5-cell `2×2 + 1` category, where the user explicitly allowed `(0,0)` as the extra cell.
+
+- **Internal-fence filter rationale flipped mid-conversation.** Initially documented as "the player has 15 fence pieces; pastures requiring > 15 internal fences are unbuildable." The user clarified: a full-game card grants additional fence pieces only for perimeter placements, so the internal-only ≤ 15 cap is the cards-friendly upper bound. Family game tightens this to total ≤ 15 (no such card). This re-framing produced the FAMILY universe.
+
+- **Sort order: bitmap-numeric vs lex-on-cells.** The first draft used bitmap-numeric order (`sorted(bms)`). User pointed out that lex-on-cells is more intuitive for human inspection (`{(0,0)} < {(0,0), (0,1)} < {(0,1)}` matches reading order). Lex-on-cells is implemented via `_cells_of(bm)` which converts a bitmap back to cells in row-major iteration order — the resulting tuple comparison is exactly lex on sorted cells. Used as the sort key in all four enumerators.
+
+- **`UNIVERSE_FULL` filter: starting-room overlap.** Cells `(1, 0)` and `(2, 0)` are permanent starting rooms placed by `setup` in every game. Per game rules, cells with rooms cannot be enclosed by fences. Encoded into the universe as `bm & STARTING_ROOM_BM == 0` — cheapest of the four filters, applied first as a short-circuit. The exclusion is rules-derived (structural fact about the engine), distinct from the strategist-curated `(0,0)` exclusion in `PASTURE_CELLS` (which is a heuristic about strategic value).
+
+- **Donut detection: complement flood-fill.** Picture the 3×5 grid embedded in the infinite plane. A pasture is topologically a donut iff its complement has a connected component that doesn't touch the grid perimeter. Detected by flood-filling the complement starting from every perimeter cell in the complement; any unreached complement cell is an enclosed pocket. Three branches: empty complement (cells_bm fills the grid → no hole); complement contains no perimeter cell (interior-only complement → guaranteed donut); BFS branch (the general case).
+
+- **YAGNI on pending-dataclass fields.** During the broader FENCE_IDEAS design, the user articulated a principle: don't add fields to pending dataclasses purely to anticipate future cards. Applied here by *not* including `max_builds` on the future `PendingBuildFences` (will be added when a card actually needs to cap fence builds per action). `triggers_resolved` / `TRIGGER_EVENT` are still planned to be included on `PendingBuildFences` because they back the existing trigger architecture — the principle distinguishes fields backing already-shipped uniform machinery from fields that would sit inert until cards.
+
+- **Lower-bound size placeholders in tests.** Earlier drafts used `assert len(UNIVERSE_FULL) >= 500` as placeholder lower bounds. User asked whether these matter once exact values are pinned. Honest answer: not really — `test_non_empty` already catches the empty case, and the lower bound is overwritten with the exact value in the same commit. Dropped the placeholder framing in favor of going directly to exact-equality assertions once `python -m agricola.fences` produced the four sizes.
+
+- **Resolve-on-pop hook briefly considered.** During the broader Fencing design, the user proposed adding a generic `resolve` function on every pending type, called at Stop-time. Walked through all 19 existing pending types — none would benefit. Per-commit cost (matching `PendingBuildStables` / `PendingBuildRooms`) handles fence-cost accounting cleanly without deferred state. The hook can be added later when an `after_build_fences`-style trigger card actually needs it.
+
+For the full design discussion thread including discarded alternatives (flat full-edge-configuration enumeration, goal-state specification, verify-only / try-and-reject, multi-step one-fence-at-a-time, Pareto-capacity pruning, etc.), see `FENCE_IDEAS.md` Section 7.
+
+### Out of scope (deliberate)
+
+All deferred to TASK_6:
+
+- `PendingBuildFences` dataclass, `CommitBuildPasture(cells: frozenset[(int, int)])` action class, and the related changes to `agricola/pending.py` and `agricola/actions.py`.
+- `_can_fence` predicate (top-level Fencing legality), `_enumerate_pending_build_fences` (per-pending sub-action enumerator), `NON_ATOMIC_LEGALITY` and `PENDING_ENUMERATORS` registration.
+- `_initiate_fencing` and `_execute_build_pasture` in `agricola/resolution.py`; `NONATOMIC_HANDLERS` and `COMMIT_SUBACTION_HANDLERS` registration.
+- Removal of the `fencing` `NotImplementedError` branch in `agricola/engine.py`.
+- **Per-entry metadata** (boundary fence-edge bitmaps `h_boundary` / `v_boundary`, cell-adjacency bitmap, frozenset-of-cells for `CommitBuildPasture` construction). Currently each universe entry is just a 15-bit integer; consumers in TASK_6 will need metadata to derive new fence edges, check pasture-adjacency, etc.
+- **Per-commit cost-modifier registry for cards** — Section 4 of FENCE_IDEAS flagged fence-building's cost handling as a 4th bucket alongside the three already-documented (no cost / cost-on-pending / commit-time-keyed lookup). Fences' cost is a pure function of state plus commit parameters, computed by the effect function. The CLAUDE.md documentation for this 4th bucket also lands in TASK_6.
+- **`after_build_fences` trigger mechanism** — Section 9 of FENCE_IDEAS flagged the user's vegetable-card example ("each time you build N fences where N ≥ current round, gain 1 vegetable") as a candidate consumer for an `after_X` trigger event. The codebase has precedent for `before_X` events but no precedent for `after_X` events yet. Deferred until the first such card needs it.
+
+### Bugs caught during implementation
+
+Implementation went very cleanly — the extensive pre-task design conversation surfaced essentially all the edge cases up front. Two minor things:
+
+- **`agricola-ref/` directory had unrelated import errors** when running `pytest` from the project root. That directory contains a reference implementation from elsewhere; the errors are pre-existing and unrelated to fences.py. Worked around by running `pytest tests/` instead. Not a regression.
+
+- **No silent bugs surfaced.** The 83 new tests pass on first run, including the cross-cutting `test_excludes_pasture_cells_plus_0_0` which explicitly exercises the FULL-vs-FAMILY divergence (PASTURE_CELLS + (0,0) is in FULL but not FAMILY because its total fence count is 16 > 15). The containment chain holds: 108 ⊆ 192 ⊆ 762 ⊆ 1518.
+
+### Test count after Task 6_pre
+
+| File | Tests |
+|---|---|
+| (all Task 5D files) | 343 (unchanged) |
+| `tests/test_fences.py` | **83** (new) |
+| **Total** | **426** |
+
+343 → 426, net +83.
+
+The 83 new tests break down as:
+- `TestGridConstants` (5): NUM_ROWS / NUM_COLS / NUM_CELLS, `FULL_GRID_BM`, `STARTING_ROOM_BM`, `PERIMETER_BM`, two `NEIGHBOR_BM` spot checks.
+- `TestIsConnected` (7): single cell, two-adjacent (horizontal + vertical), two non-adjacent, L-shape, disconnected corners, two-diagonal-cells (orthogonal-only check).
+- `TestInternalFenceCount` (6): corner / center / edge cell, full grid, full grid minus center, 2×2 at origin.
+- `TestPerimeterEdgeCountPerCell` (4): corners=2, non-corner perimeter=1, interior=0, total=16.
+- `TestPerimeterFenceCount` (5): corner / edge / interior cell, full grid, PASTURE_CELLS.
+- `TestTotalFenceCount` (5): corner / interior cell, full grid, PASTURE_CELLS, additive-identity sanity.
+- `TestHasHole` (6): single-cell / L-shape / full-grid (no hole); donut-around-center (seed_bm=0 branch) and donut-in-pasture-cells (BFS branch); top-and-bottom-rows (no hole, complement is connected to outside).
+- `TestUniverseFull` (12): non-empty, no duplicates, lex sort, set-matches-tuple, every-entry-passes-all-filters, starting-room exclusion, full-grid excluded, donut excluded (cleanly isolated via PASTURE_CELLS - (1,2)), single-cell-pasture inclusion, PASTURE_CELLS / NARROW_CELLS inclusion, size=1518.
+- `TestUniverseFamily` (9): non-empty, no duplicates, lex sort, subset-of-full, every-entry-passes-filters, full-grid excluded, PASTURE_CELLS included, the FULL-vs-FAMILY divergence test, size=762.
+- `TestUniverseExtended` (9): non-empty, no duplicates, lex sort, subset-of-family, subset-of-full, ad-hoc-shape inclusion (×2), 4-cell-L beyond the named four, size=192.
+- `TestUniverseRestricted` (12): non-empty, no duplicates, lex sort, subset-of-extended, subset-of-family, subset-of-full, named 4-cell L's (×4), PASTURE_CELLS / NARROW_CELLS inclusion, narrow-minus-corner (×4), ad-hoc shape inclusion (×2), 1×4 absence, size=108.
+
+`random_agent_play` across the existing 100-seed sweep continues to pass (fences.py doesn't touch the engine, so this was a sanity check, not a regression risk).
+
+### Documentation cascade
+
+Concurrent doc updates landed alongside the implementation:
+
+- **`FENCE_IDEAS.md`** — 217-line design document covering the broader Fencing rationale: enumeration strategy (Section 3), the unified pasture-commit design (Section 4), MCTS interaction (Section 5), alternative approaches considered (Section 7), and open problems (Section 9). Lives at the project root. Authored before TASK_6_pre.md.
+- **`TASK_6_pre.md`** — the implementation plan for this task, ~1100 lines. Parts 1-9 cover module layout, the four filters, restricted/extended enumerators, module-level constants + size-print entry point, tests, CLAUDE.md edits, order of work, acceptance criteria, and open questions deferred to TASK_6.
+- **`CLAUDE.md`** — directory tree updated to add `agricola/fences.py` and `tests/test_fences.py`. Two new file descriptions added (the `fences.py` description was tightened from an 8-bullet implementation-heavy form to a 3-bullet purpose-and-outputs form during a doc-quality pass at the user's request). Status table grew one row. Test count updated 343 → 426.
+
+### Conventions established (stable, documented in CLAUDE.md)
+
+- **Bitmap encoding for cell-sets**: cell `(r, c)` ↔ bit `r * NUM_COLS + c` (row-major). Used by `fences.py` today; downstream `_enumerate_pending_build_fences` and `_execute_build_pasture` (TASK_6) will use the same encoding for interop.
+- **Layered universes pattern.** `(tuple, frozenset)` pairs exported per universe — tuple for ordered iteration, frozenset for O(1) membership. Standard form for any future state-independent action universe (e.g., if Farm Redevelopment ever needs a precomputed fence-configuration universe, it would mirror this shape).
+- **Lex-on-cells sort key.** `_cells_of(bm)` returns cells in row-major iteration order; sorting bitmaps by this key produces lex order on the sorted-cell-tuple. More intuitive than bitmap-numeric order for human inspection of test output and trace logs.
+- **`__main__` size-printer entry point.** `python -m agricola.fences` prints the four universe sizes. Used to capture exact-equality assertions for size tests; pattern is reusable for any future module with similar precomputed-universe characteristics.
+- **YAGNI on card-anticipating pending-dataclass fields.** Articulated during this task's design conversation: fields that integrate with already-shipped uniform engine machinery (e.g., `triggers_resolved` / `TRIGGER_EVENT`) are OK to add proactively; bespoke per-pending fields with no current engine consumer (e.g., `max_builds` on a future `PendingBuildFences`) wait until a real consumer arrives. Surfaces concretely in TASK_6 when `PendingBuildFences` lands.
+
+### Process notes
+
+- **The "/loop" of design → implement → sweep iterations.** The user drove a long pre-task design pass (multiple sessions across FENCE_IDEAS and TASK_6_pre) before any code was touched. Each design round produced revisions to the plan; the final TASK_6_pre.md was ~1100 lines with the full algorithm pseudocode and test specs. Implementation itself took one round — write fences.py, run `python -m agricola.fences` to get sizes, write test_fences.py with exact assertions, run all tests. 426/426 passed on first run. This is the pattern Task 5D established and Task 6_pre confirms: front-load design, run implementation as a mechanical pass, finish with a documentation sweep.
+
+### Next task
+
+**TASK_6 (the actual Fencing implementation).** Builds on this precursor by introducing:
+
+- `PendingBuildFences` (with `triggers_resolved` and `TRIGGER_EVENT = "before_build_fences"`, but no `max_builds`).
+- `CommitBuildPasture(cells: frozenset[(int, int)])` action class.
+- Per-entry metadata on each universe entry (boundary fence-edge bitmaps, adjacency bitmap, frozenset-of-cells for commit construction).
+- `_can_fence` predicate, `_enumerate_pending_build_fences` enumerator (with subdivision-canonicalization-via-complement-lookup), `_initiate_fencing`, `_execute_build_pasture` (with per-commit cost handling — the 4th sub-action-cost bucket).
+- Engine wiring: removal of the `fencing` NotImplementedError, `COMMIT_SUBACTION_HANDLERS` entry, `auto_pop=False` for the multi-shot pattern.
+
+Farm Redevelopment can land as a separate small task after TASK_6 — it reuses `PendingRenovate` and pushes `PendingBuildFences` after renovation. Then the harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) unblock rounds 5–14.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 343 tests pass. The codebase has:
+All 426 tests pass. The codebase has:
 
 - Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc.
 - Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`).
@@ -1310,7 +1445,8 @@ All 343 tests pass. The codebase has:
 - Per-space resolution (`agricola/resolution.py`): atomic handlers (12 spaces), non-atomic initiators (10: grain_utilization + Task 5C's 8 + Task 5D's farm_expansion), choose-sub-action handlers (9: grain_utilization plus 8 parent pendings that have a choose step; animal markets have no choose step). Sub-action effect functions (`_execute_sow`, `_execute_bake`, `_execute_plow`, `_execute_build_stable`, `_execute_build_room`, `_execute_build_major`, `_execute_renovate`, `_execute_accommodate`). `_execute_build_stable` and `_execute_build_room` are multi-shot (`auto_pop=False`, increment `num_built`, don't pop). `_execute_build_stable` recomputes pastures (fix for the latent Task 5C bug). New utility: `_new_grid_with_cell`. The three function-pointer dispatch tables fully populated.
 - The engine (`agricola/engine.py`): `step` + `_advance_until_decision` + phase resolvers + `_advance_current_player`. `_apply_action` has five branches (PlaceWorker, ChooseSubAction, CommitSubAction generic, FireTrigger, Stop). `_apply_commit_subaction` reads `auto_pop` and conditionally pops after the effect. `COMMIT_SUBACTION_HANDLERS` entries are 3-tuples `(expected_pending_type_or_tuple_of_types, effect_fn, auto_pop: bool)`. Rounds 1 → 4 fully playable; halts at `Phase.BEFORE_SCORING` after round 4's RETURN_HOME. Only `farm_redevelopment` and `fencing` still raise `NotImplementedError`.
 - Card framework (`agricola/cards/`): unchanged from Task 5C — `triggers.py` registries + `register()`; one card (`potter_ceramics.py`). Forward-compat hooks remain.
+- **Fencing universe precursor (TASK_6_pre)** — `agricola/fences.py` ships four precomputed pasture-shape universes built from the 3×5 farmyard's 32K candidate cell-sets through four filter primitives (connectivity, internal- or total-fence count, donut detection, starting-room overlap). Standalone module; ~0.22s module-import cost. Sizes: FULL=1518, FAMILY=762, EXTENDED=192, RESTRICTED=108. Containment chain `RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`. No engine wiring yet — that lands in TASK_6 along with `PendingBuildFences`, `CommitBuildPasture`, the legality enumerator, the effect function, and per-entry metadata on each universe entry.
 - Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `IMPLEMENTED_NON_ATOMIC_SPACES` now contains all 10 implemented non-atomic spaces (auto-derived from `NONATOMIC_HANDLERS.keys()`).
-- Full test coverage including the new `tests/test_farm_expansion.py` (25 tests covering basic walks, multi-shot semantics, singleton-Stop states, the pasture-cache recompute, once-per-category, placement legality, and stack invariants) plus updated `tests/test_side_job.py` for the multi-shot trace shape. Random-agent plays succeed across 100 seeds with Farm Expansion exercised in roughly 40% of them.
+- Full test coverage including the new `tests/test_farm_expansion.py` (25 tests covering basic walks, multi-shot semantics, singleton-Stop states, the pasture-cache recompute, once-per-category, placement legality, and stack invariants), `tests/test_side_job.py` updated for the multi-shot trace shape, and `tests/test_fences.py` (83 tests covering grid constants, filter primitives, and universe construction across all four universes). Random-agent plays succeed across 100 seeds with Farm Expansion exercised in roughly 40% of them.
 
-**Next task**: pick from `POSSIBLE_NEXT_STEPS.md`. Highest-impact directions are Farm Redevelopment + Fencing (the last two non-atomic spaces; Fencing the harder of the two due to the deferred fence-configuration legality), followed by the harvest (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED), which together unblock rounds 5–14 and make the engine feature-complete for the Family game.
+**Next task**: **TASK_6 — Fencing implementation.** Builds on the TASK_6_pre universes by introducing `PendingBuildFences`, `CommitBuildPasture`, per-entry metadata, `_can_fence`, `_enumerate_pending_build_fences`, `_initiate_fencing`, `_execute_build_pasture`, and the engine wiring. Then Farm Redevelopment (small, reuses `PendingRenovate` + the new `PendingBuildFences`). Then the harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) unblock rounds 5–14 and make the engine feature-complete for the Family game.
