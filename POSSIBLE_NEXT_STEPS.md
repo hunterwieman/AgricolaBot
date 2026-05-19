@@ -1,128 +1,136 @@
-# Possible Next Steps after Task 5C
+# Possible Next Steps after Task 6
 
-A sketch of directions the project could take next, organized by scope and effort. Originally written 2026-05-13 after Task 5; updated 2026-05-15 after Task 5C. 315 tests passing. Non-atomic resolution is complete for 9 of 12 spaces; only Farm Expansion, Farm Redevelopment, and Fencing remain unresolved (and Fencing has no legality predicate yet).
+A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised 2026-05-15 after Task 5C; rewritten 2026-05-19 after Task 6.
 
-This is a planning document, not a commitment. The actual next task should be chosen based on what's most useful and what fits the available time.
+520 tests passing. Every non-atomic action space has a working resolution path; the `NotImplementedError` branch in `_apply_place_worker` is now only a defensive guard for unknown space-IDs. Only the harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) and rounds 5–14 remain as engine-level work for Phase 1 completion.
 
----
-
-## Immediate / one-task scope (one task's worth)
-
-After Task 5C the only remaining single-space resolvers are the three deferred non-atomic spaces. Each is a clean one-task scope.
-
-### A. Implement Farm Expansion
-
-"Build rooms (5 mat + 2 reed each) and/or build stables (2 wood each)." Reuses `PendingBuildStable` from Task 5C; introduces a new `PendingBuildRoom` carrying `cost: Resources` per the bucket-2 sub-action cost convention (see CLAUDE.md "Sub-action cost handling"). The room cost varies with house material, so push-time cost computation in the choose handler is the natural fit.
-
-The action is and/or with multi-build (multiple rooms or stables in one action), so the parent pending mirrors Side Job in shape but with two genuinely multi-shot sub-actions. Within-action adjacency chaining for rooms ("a room just built counts immediately for the next room placed in the same action") is the main new wrinkle.
-
-Probably the simplest of the three remaining spaces.
-
-### B. Implement Fencing — legality and resolution together
-
-Fencing has no legality predicate today (Task 4 deferred it) and no resolution. Both pieces land in one task because the resolution can't be tested without legality and vice versa.
-
-The core design problem is enumerating valid fence configurations. The rules: a Build Fences action must place at least one fence; every placed fence must be connected to other fences at both ends; the resulting fences must enclose one or more pastures; only empty or stable cells may be enclosed (rooms and fields can't); first pasture anywhere, subsequent pastures must be orthogonally adjacent to an existing pasture. The legality enumerator must produce the list of *valid resulting fence-array pairs* given the current state.
-
-`PendingBuildFences` should carry `cost: Resources` (bucket-2 convention) since fence count varies per commit. This is the first sub-action whose commit payload is a richer-than-scalar shape (a fence configuration), so the `CommitBuildFences` dataclass design is itself a small design conversation.
-
-### C. Implement Farm Redevelopment
-
-"Renovate, then build fences." Reuses `PendingRenovate` from Task 5C and `PendingBuildFences` from §B above. The structural pattern mirrors House Redevelopment (renovate-then-optional-improvement); the second step is mandatory-fence instead of optional-improvement. Best done after §B since it depends on the fence machinery.
+This is a planning document, not a commitment.
 
 ---
 
-## Multi-task scope (a few tasks)
+## Engine completeness (Phase 1)
 
-### D. Finish the three deferred non-atomic resolvers
+Harvest is the only remaining engine-level work for Phase 1 (a fully playable Family game from setup to scoring).
 
-§A + §B + §C above. At completion every Family-game worker placement resolves (no `NotImplementedError` paths remain in `step()`). The natural order is Farm Expansion → Fencing → Farm Redevelopment, since the latter two share infrastructure.
+### A. Harvest phases
 
-Approximate effort: 3 tasks. Largely pattern-application work for Farm Expansion; the fence-enumeration design in Fencing is the only piece that's not pure application of the post-5C patterns.
+Three sub-phases at the end of rounds 4, 7, 9, 11, 13, 14: HARVEST_FIELD → HARVEST_FEED → HARVEST_BREED.
 
-### E. Implement the harvest
+- **HARVEST_FIELD** is mechanical — take 1 crop from each planted field. No agent decisions; pure state transformation.
 
-HARVEST_FIELD (mechanical, no decisions), HARVEST_FEED (multi-decision; uses `pareto_frontier`-like enumeration), HARVEST_BREED (uses `breeding_frontier` from helpers).
+- **HARVEST_FEED** is the most complex of the three. Each adult requires 2 food; newborns from the just-ended round require 1 food. Players can convert grain/veg directly (1:1) or animals/veg via cooking improvements, plus once-per-harvest building-resource conversions via Joinery / Pottery / Basketmaker's Workshop. Shortfall = 1 begging marker (−3 points) per missing food. The decision space — which goods to convert in what order, whether to beg, whether to release animals before breeding — is the first real strategic-choice surface beyond worker placement.
 
-The decision points in HARVEST_FEED — which goods to convert, how to feed, whether to beg — are the first real "strategic choice" decisions the engine surfaces beyond worker placement. After 5C, animals can land on the farm (via the three markets), so the harvest is no longer blocked on prior work; this is now the natural next big-design task.
+- **HARVEST_BREED** uses the existing `breeding_frontier` helper in `agricola/helpers.py`. Per-type rule: breeds iff player has ≥ 2 of that animal AND has capacity for the newborn. Players can release animals immediately before breeding to make space; the existing `breeding_frontier` returns a Pareto frontier of post-breed configurations.
 
-Implementing the harvest also requires extending the round loop to rounds 5–14 (the engine currently halts in `BEFORE_SCORING` after round 4's RETURN_HOME). Probably a 2–3 task arc: the three phases land first; the round-loop extension and the round 4/7/9/11/13/14 harvest-trigger logic land alongside.
+Implementing the harvest also unblocks rounds 5–14: the engine currently halts in `Phase.BEFORE_SCORING` after round 4's RETURN_HOME because `_resolve_return_home` doesn't know what to do with the harvest trigger. After harvest lands, the round loop extends to round 14.
 
-Recommended sequencing within the multi-task scope: D first (to retire the last `NotImplementedError` placements), then E.
-
----
-
-## Compound-card prerequisite work (one task)
-
-### F. Build speculative-legality machinery for compound card interactions
-
-The Pan-Baker-plus-Potter-Ceramics example flagged in `IMPLEMENTATION_CHOICES.md` item 11. Required before any card with an on-placement effect can be implemented (e.g., a card that grants resources when you take a specific space, which then enables a downstream Bake Bread trigger).
-
-Concretely: when checking `PlaceWorker(space)` legality, the legality system needs to apply all owned cards' on-placement transformations to a hypothetical state, then ask the existing sub-action predicates against that hypothetical. The trigger registry already supports arbitrary event names; the missing piece is the legality-side speculative application.
-
-Probably worth doing before adding many more cards. Without F, the card system can only handle cards of the Potter Ceramics shape (purely-during-resolution triggers, no on-placement effects).
-
-**Related open questions** documented in CLAUDE.md "Card implementation status", likely addressed alongside F when card work begins in earnest:
-
-- **Atomic-space trigger hosting: phase tracking.** When atomic spaces convert to push trigger-host pendings (so cards like Cottager and Hardware Store can attach to Day Laborer, etc.), what state tracks "primary effect applied yet?" — generic `primary_effect_applied: bool` vs. a `phase: Literal["before", "after"]` field.
-- **Atomic-space trigger hosting: phase-transition mechanism.** How to flip the phase bit AND apply the primary effect between the before and after trigger phases — explicit transition action, overloaded `Stop`, or nested pendings.
-
-(The earlier "PENDING_ID vs initiated_by_id redundancy" question was resolved by Task 5C's `"space:"` / `"card:"` prefix scheme.)
+Probably 1 task of work. End state: a Family game playable from setup to scoring (without cards beyond Potter Ceramics).
 
 ---
 
-## Phase transitions (further out)
+## Small engine cleanup / hardening
 
-### G. Phase 2 baseline — a heuristic agent
+Worth doing before serious MCTS / agent work begins. Each is 1–2 sessions.
 
-The random agent is in place via `tests/test_utils.py::random_agent_play`. A hand-written heuristic agent that knows simple Agricola strategy (prioritize food + family growth + field-and-pasture balance) would give a non-trivial baseline to compare against. Useful for sanity-checking the engine and for benchmarking when self-play RL begins.
+### B. `BoardState.action_spaces` hashability
 
-Probably waits until Phase 1 is complete (all non-atomic + harvest + full 14 rounds).
+Currently `BoardState.action_spaces` is a `dict[str, ActionSpaceState]`, which makes `BoardState` (and transitively `GameState`) unhashable. State-hashed legal-actions caching and DAG-MCTS both require this — flagged as a known small refactor in FENCE_IDEAS.md Section 5. Replace the dict with a structurally equivalent hashable type (e.g., a `tuple[ActionSpaceState, ...]` indexed by canonical space-id order, plus a name → index lookup at module load). Mechanical refactor; the tricky part is the canonical ordering choice and updating every call site that currently keys by string.
 
-### H. Engine performance pass
+### C. Performance profiling of `legal_actions` and `step`
 
-Profile `step` / `legal_actions` / `_advance_until_decision`. Identify hot paths. Decide on any caching (e.g., cached `legal_actions` per state hash). Probably premature until MCTS rollouts actually run.
+Nothing is known to be slow, but no one has measured. Useful before MCTS scaling exposes per-call cost as a bottleneck. Easy first pass: profile `random_agent_play` across the 10-seed sweep, broken down by function. Identify hot paths, then decide whether any caching or restructuring is worth doing. The Fencing legality enumerator is the most likely hot spot given its per-call universe walk; the precomputed 1×1 fast path mitigates this but hasn't been measured.
 
-### I. Tooling
+### D. State-independent fence-universe restriction tooling
 
-A simple text/CLI driver that plays a game and prints turn-by-turn state. More useful now that 9 non-atomic spaces resolve — a random-agent playthrough now exercises a substantial fraction of the engine. Tiny scope: an `if __name__ == "__main__"` block in a small driver script, or a `scripts/play_one_game.py` file. Could be done at any time; useful adjunct to harvest work in particular (HARVEST_FEED decisions are easier to debug with a turn-by-turn printer).
-
----
-
-## Small housekeeping
-
-### J. Documentation cleanup
-
-- CLAUDE.md's Documentation Files table is missing entries for `POSSIBLE_NEXT_STEPS.md` (this file), `TASK_5B_DISPATCH_CLEANUP.md`, and `TASK_5C.md`. Worth adding.
-- File-naming for related task clusters has settled de facto on the sub-letter convention (`TASK_5`, `TASK_5B`, `TASK_5C`). No further action needed.
-
-### K. Minor refactor opportunities
-
-None urgent; flagging for visibility:
-
-- `agricola/resolution.py` is 796 lines after Task 5C and now holds seven `_execute_*` sub-action effect functions (sow, bake, plow, build_stable, build_major, renovate, accommodate). The split into `sub_actions.py` is closer to worthwhile than it was after Task 5. Defer until the file passes ~1000 lines or until another batch of sub-actions lands (Farm Expansion's BuildRoom, Fencing's BuildFences).
-- `agricola/legality.py` is 974 lines (up from 653 after Task 5). Placement-legality, per-pending enumerators, and the card extension registries are all here. A split is now plausible — e.g., `legality_placements.py` + `legality_pending.py` + `card_extensions.py`. Worth considering during the next time the file gains substantive new code (Fencing legality is the obvious trigger — it will add nontrivial fence-configuration enumeration).
+The `ACTIVE_FENCE_UNIVERSE_*` constants are swappable today. A small experimental tooling layer — a `restrict_to(predicate)` wrapper, a per-experiment-config layer, or shared test fixtures that swap and restore the constants — would make universe-restriction research cleaner once self-play training begins. Currently each test that swaps does so manually with monkey-patching. Defer until there's a concrete restriction experiment to run.
 
 ---
 
-## Strategic framing — three possible paths
+## Phase 2 — baseline agents
 
-**Path 1: Breadth-first engine completion.** Tackle D (the three remaining non-atomic resolvers) → E (harvest + rounds 5–14). The engine becomes feature-complete for the Family game. After this point, agent work (Phase 2) becomes the natural next phase.
+After the engine is feature-complete (post-harvest). Useful as benchmarks for the trained agent and as scaffolding for MCTS.
 
-Approximate effort: 3 tasks for D, 2–3 tasks for E. End state: a Family game playable from setup to scoring by random or heuristic agents.
+### E. Heuristic agent
 
-**Path 2: Card-first expansion.** Implement F (speculative legality), then add cards of various shapes (on-placement effects, conditional triggers, end-game scoring effects). Tests the card framework deeply on the existing 9 non-atomic spaces and 12 atomic spaces.
+A hand-written policy implementing reasonable Agricola strategy: prioritize food security, family growth, field-and-pasture balance, build major improvements on schedule, etc. Plays without MCTS — direct action selection from observed state.
 
-Approximate effort: 1 task for F, then ongoing as cards are added. End state: a robust card framework with several validated card patterns, but the engine still can't play to game end (no harvest, no rounds 5–14).
+Useful as:
+- A baseline to compare the trained agent against (Phase 5+).
+- A second agent for sanity-checking the engine end-to-end. `random_agent_play` exercises only the simplest paths; a heuristic agent surfaces edge cases that random play rarely hits.
 
-**Path 3: Mixed.** Alternate one of D's remaining spaces with documentation / tooling improvements (I, J). Slowest gameplay progress but lowest risk of design churn — each step is small and well-understood.
+### F. MCTS scaffolding
+
+Pure MCTS (no neural net yet), used initially with random and heuristic agents to validate the tree-search loop. Becomes the substrate for AlphaZero-style training in Phase 5.
+
+Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / expand / simulate / backup` loop, UCB1 selection, terminal-state handling, and an agent wrapper that uses MCTS to pick actions. State-hashed transposition table (depends on B) lets nodes share statistics across reachable-by-different-paths states; without it, the search tree fragments more than necessary on actions like Fencing (where the builds-before-subdivisions ordering rule already cuts some path-level inflation but doesn't eliminate it).
+
+---
+
+## Phase 3 — card system
+
+The largest single piece of remaining work. Several open design questions block large-scale card implementation; resolving them is itself a meaningful task. Each open question is best addressed when the first card needing it actually lands — don't speculate ahead of concrete consumers.
+
+### G. Compound card interactions
+
+The Pan-Baker-plus-Potter-Ceramics example flagged in TASK_5.md and IMPLEMENTATION_CHOICES.md. When checking `PlaceWorker(space)` legality, the system needs to apply all owned cards' on-placement transformations to a hypothetical state, then ask the existing sub-action predicates against that hypothetical. The trigger registry already supports arbitrary event names; the missing piece is the legality-side speculative application.
+
+Probably worth doing before adding many more cards. Without G, the card system can only handle cards of the Potter Ceramics shape (purely-during-resolution triggers, no on-placement effects).
+
+### H. `after_X` trigger event mechanics
+
+The codebase has precedent for `before_X` events on sub-action pendings. `after_X` events have no precedent. Candidate consumers:
+- The vegetable-card example mentioned during Fencing design ("each time you build N fences ≥ current round, gain 1 vegetable").
+- Cards like Cottager and Hardware Store that attach to atomic spaces with before/after semantics.
+
+Three candidate mechanisms documented in the design conversations: a resolve-on-pop hook on every pending type, an explicit `ApplyAfterTriggers` action, or overloaded `Stop` semantics. Decision deferred until the first such card lands.
+
+### I. Atomic-space trigger hosting
+
+Atomic spaces currently apply their effect immediately on `PlaceWorker`. For cards that attach to specific atomic spaces (Cottager fires before Day Laborer's food, Hardware Store fires after), atomic spaces need to push trigger-host pendings rather than resolve in one step. Two design questions documented in CLAUDE.md "Card implementation status":
+
+- **Phase tracking.** Generic `primary_effect_applied: bool` on every space pending vs. a `phase: Literal["before", "after"]` field.
+- **Phase-transition mechanism.** Explicit transition action vs. overloaded `Stop` vs. nested pendings.
+
+Likely addressed alongside G when card work begins in earnest.
+
+### J. Free-fence accounting and cost-modifier extension
+
+Cards modifying per-edge fence cost (material substitution, free perimeter fences, etc.) need an extension mechanism on `compute_new_fence_edges`. The pattern would mirror `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` / `BAKING_SPEC_EXTENSIONS` in `legality.py`. Free-fence counter fields on `PendingBuildFences` may also be needed (currently excluded per the YAGNI-on-pending-fields principle). Defer until the first such card lands.
+
+### K. The remaining ~470 cards
+
+Largest piece of work in the project. Once G–J above are settled, this becomes ongoing card-by-card implementation. Two related action-space paths unblock alongside cards:
+
+- **Minor improvement play paths.** Optional minor-improvement steps at Basic Wish for Children, House Redevelopment, Major Improvement, and Farm Redevelopment all currently dead-end (no path commits a minor in Family scope). Unblocked by minor-card support.
+
+- **The Lessons action space.** Permanently illegal in the Family game today; the legality predicate omits it from `NON_ATOMIC_LEGALITY`. Enabled once occupation cards exist.
+
+---
+
+## Phases 4–6 — training and evaluation
+
+Furthest out. Listed for completeness.
+
+### L. Imitation learning bootstrap
+
+Train a policy on human game data to bootstrap the agent before self-play. Requires a corpus of human Agricola games (e.g., from BGA logs or other online play). Less compute-intensive than self-play; gets the agent to "plays the game competently" before RL refines it. Optional but accelerates phase 5.
+
+### M. AlphaZero-style self-play RL
+
+Self-play with MCTS guided by a neural network. The network outputs `(policy, value)` given state; MCTS uses the policy as priors and the value as rollout estimates. Iterated self-play improves the network over time.
+
+Depends on F (MCTS scaffolding), and ideally on G–J (card system mostly complete; otherwise the agent learns to play a non-Agricola game). L (imitation bootstrap) is helpful but not required.
+
+### N. Evaluation tooling
+
+Elo ratings between agent versions, score distribution analysis, game-length variance, trace replay viewer, head-to-head match infrastructure. Useful throughout training to detect regressions and to compare experimental variants. Some pieces (trace replay, score distribution) become useful right after harvest lands and could ship earlier than the full evaluation pipeline.
 
 ---
 
 ## My take (advisory, not prescriptive)
 
-If you want the most concrete and useful single next task: **A (Farm Expansion)** as a warm-up — it's the simplest of the three remaining non-atomic spaces and unblocks no other work, so it's a low-risk pattern-application exercise. After that, **B (Fencing)** is the most interesting design problem left in the non-atomic space — fence-configuration enumeration is genuinely new.
+**Highest-impact single next task: harvest (A).** Completes Phase 1; turns the engine into a feature-complete Family-game implementation. Without harvest, no agent work makes sense — there's no "game" to play through to a final score.
 
-If you want the highest-impact direction: **E (harvest)** is where the engine starts to feel like a real game rather than a placement simulator. After 5C, animals can land on the farm, so the harvest is no longer blocked. Comparable in scope to Task 5 itself, but with most of the architecture work already done.
+**After harvest:** the small-hardening items (B and C) before MCTS work begins, then the heuristic agent (E) for a benchmark, then MCTS scaffolding (F).
 
-If you want to make broader card development possible: **F (compound legality)** unlocks all the upstream-effect cards (Pan Baker class) that the current architecture can't handle. Worth doing before too many more cards land.
+**Card system as a separate track:** can run in parallel with agent work, but the open design questions (G, H, I, J) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.
