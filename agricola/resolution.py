@@ -7,10 +7,13 @@ from agricola.actions import (
     ChooseSubAction,
     CommitAccommodate,
     CommitBake,
+    CommitBreed,
     CommitBuildMajor,
     CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
+    CommitConvert,
+    CommitHarvestConversion,
     CommitPlow,
     CommitRenovate,
     CommitSow,
@@ -29,7 +32,7 @@ from agricola.fences import (
     apply_fence_edges_v,
     compute_new_fence_edges,
 )
-from agricola.helpers import cooking_rates, pareto_frontier
+from agricola.helpers import breeding_frontier, cooking_rates, pareto_frontier
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBakeBread,
@@ -41,6 +44,8 @@ from agricola.pending import (
     PendingFarmRedevelopment,
     PendingFencing,
     PendingGrainUtilization,
+    PendingHarvestBreed,
+    PendingHarvestFeed,
     PendingRenovate,
     PendingSow,
     PendingStoneOven,
@@ -1006,7 +1011,8 @@ def _execute_accommodate(
     pending = state.pending_stack[-1]
     assert isinstance(pending, (PendingSheepMarket, PendingPigMarket, PendingCattleMarket))
     p = state.players[player_idx]
-    rates = cooking_rates(state, player_idx)
+    # Animal markets don't convert veg; slice to the (sheep, boar, cattle) triple.
+    rates = cooking_rates(state, player_idx)[:3]
 
     # Compute "available" per type (player's existing + gained for this market only).
     s_avail = p.animals.sheep + (pending.gained if isinstance(pending, PendingSheepMarket) else 0)
@@ -1024,3 +1030,154 @@ def _execute_accommodate(
     new_resources = p.resources + Resources(food=food)
     new_player = dataclasses.replace(p, animals=new_animals, resources=new_resources)
     return _update_player(state, player_idx, new_player)
+
+
+# ---------------------------------------------------------------------------
+# Harvest sub-action effect functions (Task 7)
+# ---------------------------------------------------------------------------
+
+def _execute_harvest_conversion(
+    state: GameState, player_idx: int, commit: CommitHarvestConversion,
+) -> GameState:
+    """Apply one once-per-harvest conversion decision on PendingHarvestFeed.
+
+    Records the decision (both use=True and use=False) by adding
+    `conversion_id` to `player.harvest_conversions_used`. If use=True, also
+    pays the input cost, produces food_out food (applied against food_owed
+    with surplus going to supply), and invokes the optional side_effect_fn.
+
+    auto_pop=False — the pending stays on top to host further craft
+    decisions plus the final CommitConvert.
+    """
+    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestFeed)
+    p = state.players[player_idx]
+    spec = HARVEST_CONVERSIONS[commit.conversion_id]
+
+    # Record the decision regardless of use (both record_used and record_skipped land here).
+    new_used = p.harvest_conversions_used | {commit.conversion_id}
+
+    if not commit.use:
+        new_player = dataclasses.replace(p, harvest_conversions_used=new_used)
+        return _update_player(state, player_idx, new_player)
+
+    # use=True: pay input cost, produce food_out, apply against food_owed.
+    food_owed_before     = top.food_owed
+    food_consumed_by_owed = min(spec.food_out, food_owed_before)
+    food_surplus         = spec.food_out - food_consumed_by_owed
+    new_resources        = p.resources - spec.input_cost + Resources(food=food_surplus)
+
+    new_player = dataclasses.replace(
+        p,
+        resources=new_resources,
+        harvest_conversions_used=new_used,
+    )
+    state = _update_player(state, player_idx, new_player)
+    state = replace_top(state, dataclasses.replace(
+        top, food_owed=food_owed_before - food_consumed_by_owed,
+    ))
+
+    # Optional non-food effect (e.g. future Stone Sculptor's +1 point).
+    if spec.side_effect_fn is not None:
+        state = spec.side_effect_fn(state, player_idx)
+
+    return state
+
+
+def _execute_convert(
+    state: GameState, player_idx: int, commit: CommitConvert,
+) -> GameState:
+    """Apply the player's chosen goods-to-food conversion on PendingHarvestFeed.
+
+    `commit.{grain, veg, sheep, boar, cattle}` are CONSUMED amounts —
+    subtracted from the player's supply. food_produced is computed from
+    these via cooking_rates. The result splits into:
+      - `food_consumed_by_owed`: applied against pending.food_owed.
+      - `food_surplus`: added to p.resources.food.
+    Any remaining owed becomes begging markers (assigned here, not at Stop,
+    preserving the Stop-only-pops convention).
+
+    After commit, only Stop is legal on this pending — conversion_done=True
+    and food_owed=0.
+
+    auto_pop=False — the trailing Stop is the explicit exit, matching the
+    other multi-stage pendings.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestFeed)
+    p = state.players[player_idx]
+    sR, bR, cR, vR = cooking_rates(state, player_idx)
+
+    food_produced = (
+        commit.grain
+        + commit.veg    * vR
+        + commit.sheep  * sR
+        + commit.boar   * bR
+        + commit.cattle * cR
+    )
+
+    food_owed_before      = top.food_owed
+    food_consumed_by_owed = min(food_produced, food_owed_before)
+    food_surplus          = food_produced - food_consumed_by_owed
+    food_owed_after       = food_owed_before - food_consumed_by_owed
+    begging_added         = food_owed_after
+
+    new_resources = p.resources + Resources(
+        grain=-commit.grain,
+        veg=-commit.veg,
+        food=food_surplus,
+    )
+    new_animals = Animals(
+        sheep  = p.animals.sheep  - commit.sheep,
+        boar   = p.animals.boar   - commit.boar,
+        cattle = p.animals.cattle - commit.cattle,
+    )
+    new_player = dataclasses.replace(
+        p,
+        resources=new_resources,
+        animals=new_animals,
+        begging_markers=p.begging_markers + begging_added,
+    )
+    state = _update_player(state, player_idx, new_player)
+    return replace_top(state, dataclasses.replace(
+        top, food_owed=0, conversion_done=True,
+    ))
+
+
+def _execute_breed(
+    state: GameState, player_idx: int, commit: CommitBreed,
+) -> GameState:
+    """Apply the chosen post-breed configuration on PendingHarvestBreed.
+
+    `commit.(sheep, boar, cattle)` must match a Pareto-optimal point from
+    `breeding_frontier(p, rates[:3])`. Sets the player's animals to the
+    chosen counts and adds the frontier's food_gained to supply (the food
+    formula is owned by breeding_frontier — a single source of truth).
+
+    auto_pop=False; trailing Stop is the explicit exit.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestBreed)
+    p = state.players[player_idx]
+
+    rates_3 = cooking_rates(state, player_idx)[:3]
+    chosen  = Animals(sheep=commit.sheep, boar=commit.boar, cattle=commit.cattle)
+
+    food_gained = None
+    for (cfg, fg) in breeding_frontier(p, rates_3):
+        if cfg == chosen:
+            food_gained = fg
+            break
+    assert food_gained is not None, (
+        f"CommitBreed {chosen} not in breeding_frontier for player {player_idx}"
+    )
+
+    new_player = dataclasses.replace(
+        p,
+        animals=chosen,
+        resources=p.resources + Resources(food=food_gained),
+    )
+    state = _update_player(state, player_idx, new_player)
+    return replace_top(state, dataclasses.replace(top, breed_chosen=True))

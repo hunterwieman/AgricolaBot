@@ -88,6 +88,16 @@ class PlayerState:
     minor_improvements: frozenset = frozenset()  # frozenset[str]
     occupations:        frozenset = frozenset()  # frozenset[str]
 
+    # Once-per-harvest conversion-decision budget. Tracks which conversion ids
+    # (joinery / pottery / basketmaker, plus any future card-registered ids)
+    # have been DECIDED this harvest — recording both use=True and use=False
+    # commits. Reset to frozenset() inside engine._resolve_harvest_field at the
+    # start of each harvest. Used by the HARVEST_FEED legality enumerator to
+    # filter out already-decided conversions. Lives on PlayerState rather than
+    # on PendingHarvestFeed per CLAUDE.md guidance ("per-card budgets that span
+    # multiple events live on PlayerState").
+    harvest_conversions_used: frozenset = frozenset()  # frozenset[str]
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.

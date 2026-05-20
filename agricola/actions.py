@@ -150,6 +150,69 @@ class CommitBuildPasture(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitHarvestConversion(CommitSubAction):
+    """Commit a once-per-harvest goods-to-food conversion decision at PendingHarvestFeed.
+
+    `conversion_id` is a key in HARVEST_CONVERSIONS (e.g. "joinery", "pottery",
+    "basketmaker", or a future card-registered id).
+
+    `use=True` fires the conversion: pays input_cost, produces food_out, applies
+    against food_owed (with surplus going to supply). `use=False` records the
+    decision without firing. Either way, the conversion_id is added to
+    `player.harvest_conversions_used` so the enumerator no longer offers it
+    for the remainder of this harvest's FEED. Dispatched with `auto_pop=False`
+    — the pending stays on top to host further craft decisions and the final
+    CommitConvert.
+    """
+    conversion_id: str
+    use:           bool
+
+
+@dataclass(frozen=True)
+class CommitConvert(CommitSubAction):
+    """Commit the player's chosen goods-to-food conversion configuration at
+    PendingHarvestFeed.
+
+    Fields hold CONSUMED amounts — values subtracted from the player's supply
+    at commit time (contrast with CommitAccommodate / CommitBreed, which hold
+    post-event-state counts). The CONSUMED convention fits CommitConvert because
+    the values are bounded by per-good caps in food_payment_frontier, and
+    (0,0,0,0,0) means "consume nothing" regardless of player state.
+
+    The legality enumerator constructs CommitConvert by inverting the
+    REMAINING-goods tuples returned by harvest_feed_frontier (consumed =
+    player_max - remaining).
+
+    Dispatched with `auto_pop=False`. After this commit, only Stop is legal
+    on the pending — `conversion_done` is set True, and any remaining
+    food_owed becomes begging markers (assigned by _execute_convert, not Stop,
+    preserving the Stop-only-pops convention).
+    """
+    grain:  int
+    veg:    int
+    sheep:  int
+    boar:   int
+    cattle: int
+
+
+@dataclass(frozen=True)
+class CommitBreed(CommitSubAction):
+    """Commit the final post-breed animal configuration at PendingHarvestBreed.
+
+    Fields hold POST-BREED animal counts (matches the convention of
+    CommitAccommodate). The triple must match a Pareto-optimal point from
+    `breeding_frontier(player_state, rates[:3])`; the legality enumerator
+    only emits frontier points.
+
+    Dispatched with `auto_pop=False`: the effect sets the chosen counts and
+    adds the frontier's `food_gained` to supply; Stop is the explicit exit.
+    """
+    sheep:  int
+    boar:   int
+    cattle: int
+
+
+@dataclass(frozen=True)
 class FireTrigger:
     """Fire a specific card trigger that's currently eligible at the top pending.
 
@@ -185,6 +248,9 @@ Action = Union[
     CommitRenovate,
     CommitAccommodate,
     CommitBuildPasture,
+    CommitHarvestConversion,
+    CommitConvert,
+    CommitBreed,
     FireTrigger,
     Stop,
 ]

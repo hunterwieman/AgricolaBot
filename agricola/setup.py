@@ -128,6 +128,7 @@ def _make_player(food: int) -> PlayerState:
         future_resources=(Resources(),) * NUM_ROUNDS,
         minor_improvements=frozenset(),
         occupations=frozenset(),
+        harvest_conversions_used=frozenset(),
     )
 
 

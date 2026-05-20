@@ -6,10 +6,13 @@ from agricola.actions import (
     Action,
     ChooseSubAction,
     CommitBake,
+    CommitBreed,
     CommitBuildMajor,
     CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
+    CommitConvert,
+    CommitHarvestConversion,
     CommitPlow,
     CommitRenovate,
     CommitSow,
@@ -22,6 +25,7 @@ from agricola.constants import (
     BAKING_IMPROVEMENTS,
     CellType,
     HouseMaterial,
+    MAJOR_IMPROVEMENT_COSTS,
     Phase,
     ROOM_COSTS,
 )
@@ -1001,7 +1005,13 @@ def _enumerate_pending_build_major(
     for idx in range(10):
         if owners[idx] is not None:
             continue
-        if _can_afford_major(state, p, idx):
+        # Standard-payment option requires the raw cost specifically. We can't
+        # use `_can_afford_major` here because for Cooking Hearth (idx 2, 3)
+        # that predicate also accepts the Fireplace-return alternative; using
+        # it as a gate for the standard-payment option leaks unaffordable
+        # standard-payment commits (the player ends with negative clay).
+        # The Fireplace-return alternative is emitted separately below.
+        if _can_afford(p, MAJOR_IMPROVEMENT_COSTS[idx]):
             actions.append(CommitBuildMajor(major_idx=idx, return_fireplace_idx=None))
         # Cooking Hearth via Fireplace return: emit one option per Fireplace owned.
         from agricola.constants import COOKING_HEARTH_INDICES, FIREPLACE_INDICES
@@ -1106,7 +1116,9 @@ def _enumerate_pending_animal_market(
     from agricola.resources import Animals
 
     p = state.players[pending.player_idx]
-    rates = cooking_rates(state, pending.player_idx)
+    # Animal markets don't convert veg; slice to the (sheep, boar, cattle) triple
+    # that pareto_frontier expects.
+    rates = cooking_rates(state, pending.player_idx)[:3]
     if isinstance(pending, PendingSheepMarket):
         gained = Animals(sheep=pending.gained)
     elif isinstance(pending, PendingPigMarket):
@@ -1265,12 +1277,104 @@ def _enumerate_pending_farm_redevelopment(
     return actions
 
 
+def _enumerate_pending_harvest_feed(
+    state: GameState, pending,
+) -> list[Action]:
+    """Enumerate legal actions at PendingHarvestFeed.
+
+    Two regimes based on the pending's state:
+
+    1. `conversion_done == False`: offer each undecided owned conversion as
+       use=True/False (use=True only if affordable), AND all Pareto-frontier
+       CommitConvert points from harvest_feed_frontier.
+    2. `conversion_done == True`: only Stop is legal.
+
+    No ordering between crafts and the main convert: the agent can fire
+    crafts in any order before committing convert, or commit convert
+    immediately (forfeiting any undecided crafts — strategically equivalent
+    to explicitly skipping each one).
+
+    The conversion frontier is always non-empty (food_owed == 0 yields the
+    trivial (0,0,0,0,0)-consumed config; food_owed > 0 always has the
+    consume-nothing + beg-everything entry).
+    """
+    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+    from agricola.helpers import cooking_rates, harvest_feed_frontier
+
+    actions: list[Action] = []
+    p = state.players[pending.player_idx]
+
+    if pending.conversion_done:
+        actions.append(Stop())
+        return actions
+
+    # 1. Undecided owned conversions.
+    for conversion_id, spec in HARVEST_CONVERSIONS.items():
+        if conversion_id in p.harvest_conversions_used:
+            continue
+        if not spec.is_owned_fn(state, pending.player_idx):
+            continue
+        # use=False is always available (record-skip).
+        actions.append(CommitHarvestConversion(conversion_id=conversion_id, use=False))
+        # use=True only if affordable.
+        if _can_afford(p, spec.input_cost):
+            actions.append(CommitHarvestConversion(conversion_id=conversion_id, use=True))
+
+    # 2. All Pareto-frontier CommitConvert points. Invert REMAINING tuples
+    #    to CONSUMED amounts (consumed = player_max - remaining).
+    rates = cooking_rates(state, pending.player_idx)  # 4-tuple
+    grain_pre  = p.resources.grain
+    veg_pre    = p.resources.veg
+    sheep_pre  = p.animals.sheep
+    boar_pre   = p.animals.boar
+    cattle_pre = p.animals.cattle
+    for ((g_rem, v_rem, s_rem, b_rem, c_rem), _begging) in harvest_feed_frontier(
+        p, pending.food_owed, rates,
+    ):
+        actions.append(CommitConvert(
+            grain  = grain_pre  - g_rem,
+            veg    = veg_pre    - v_rem,
+            sheep  = sheep_pre  - s_rem,
+            boar   = boar_pre   - b_rem,
+            cattle = cattle_pre - c_rem,
+        ))
+
+    return actions
+
+
+def _enumerate_pending_harvest_breed(
+    state: GameState, pending,
+) -> list[Action]:
+    """Enumerate legal actions at PendingHarvestBreed.
+
+    Before `breed_chosen`: one CommitBreed per Pareto-frontier point from
+    breeding_frontier (frontier always non-empty — includes at minimum the
+    do-nothing config). After `breed_chosen`: only Stop.
+    """
+    from agricola.helpers import breeding_frontier, cooking_rates
+
+    actions: list[Action] = []
+    p = state.players[pending.player_idx]
+
+    if pending.breed_chosen:
+        actions.append(Stop())
+        return actions
+
+    rates_3 = cooking_rates(state, pending.player_idx)[:3]
+    for (cfg, _food) in breeding_frontier(p, rates_3):
+        actions.append(CommitBreed(sheep=cfg.sheep, boar=cfg.boar, cattle=cfg.cattle))
+
+    return actions
+
+
 # Dispatch table for per-pending enumerators. New pending types register here.
 from agricola.pending import (
     PendingCattleMarket,
     PendingClayOven,
     PendingCultivation,
     PendingFarmland,
+    PendingHarvestBreed,
+    PendingHarvestFeed,
     PendingHouseRedevelopment,
     PendingMajorMinorImprovement,
     PendingPigMarket,
@@ -1302,6 +1406,8 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingFencing:             _enumerate_pending_fencing,
     PendingBuildFences:         _enumerate_pending_build_fences,
     PendingFarmRedevelopment:   _enumerate_pending_farm_redevelopment,
+    PendingHarvestFeed:         _enumerate_pending_harvest_feed,
+    PendingHarvestBreed:        _enumerate_pending_harvest_breed,
 }
 
 

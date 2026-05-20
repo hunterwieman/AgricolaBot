@@ -16,10 +16,13 @@ from agricola.actions import (
     ChooseSubAction,
     CommitAccommodate,
     CommitBake,
+    CommitBreed,
     CommitBuildMajor,
     CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
+    CommitConvert,
+    CommitHarvestConversion,
     CommitPlow,
     CommitRenovate,
     CommitSow,
@@ -31,6 +34,9 @@ from agricola.actions import (
 from agricola.constants import (
     BUILDING_ACCUMULATION_RATES,
     FOOD_ANIMAL_ACCUMULATION_RATES,
+    HARVEST_ROUNDS,
+    NUM_ROUNDS,
+    CellType,
     Phase,
 )
 from agricola.pending import (
@@ -40,12 +46,15 @@ from agricola.pending import (
     PendingBuildStables,
     PendingBuildMajor,
     PendingCattleMarket,
+    PendingHarvestBreed,
+    PendingHarvestFeed,
     PendingPigMarket,
     PendingPlow,
     PendingRenovate,
     PendingSheepMarket,
     PendingSow,
     pop,
+    push,
     replace_top,
 )
 from agricola.resources import Resources
@@ -57,13 +66,17 @@ from agricola.resolution import (
     _apply_worker_placement,
     _execute_accommodate,
     _execute_bake,
+    _execute_breed,
     _execute_build_major,
     _execute_build_pasture,
     _execute_build_room,
     _execute_build_stable,
+    _execute_convert,
+    _execute_harvest_conversion,
     _execute_plow,
     _execute_renovate,
     _execute_sow,
+    _update_player,
 )
 
 # Ensure card registrations run at engine-module load time.
@@ -117,7 +130,43 @@ def step(state: GameState, action: Action) -> GameState:
     # 3. Walk through system-driven transitions (phase changes) until the
     #    next agent decision OR the game ends.
     state = _advance_until_decision(state)
+
+    # 4. Engine invariant: no player has negative resources or animals.
+    #    `Resources.__sub__` and `Animals` arithmetic intentionally allow
+    #    negative intermediate values (it would be tedious to special-case
+    #    every operator), so the check has to live at a transition boundary.
+    #    Catching the violation here, at the end of every step(), gives the
+    #    tightest possible bug-localization: the assertion message names the
+    #    action and the player, so the offending sub-action effect or
+    #    enumerator gate is one source-grep away.
+    _assert_nonnegative_state(state, action)
+
     return state
+
+
+def _assert_nonnegative_state(state: GameState, action: Action) -> None:
+    """Verify all players' resources and animals are non-negative.
+
+    Engine-level safety net. Should never fire in correct code; if it does,
+    the action immediately preceding is the prime suspect (a sub-action
+    effect debited without a matching legality / affordability gate, or a
+    multi-shot enumerator emitted an option past the affordability frontier).
+    """
+    for p_idx, p in enumerate(state.players):
+        r = p.resources
+        for fld in ("wood", "clay", "reed", "stone", "food", "grain", "veg"):
+            val = getattr(r, fld)
+            assert val >= 0, (
+                f"Engine invariant violated after action {action!r}: "
+                f"player {p_idx} resources.{fld} = {val} (must be >= 0)."
+            )
+        a = p.animals
+        for fld in ("sheep", "boar", "cattle"):
+            val = getattr(a, fld)
+            assert val >= 0, (
+                f"Engine invariant violated after action {action!r}: "
+                f"player {p_idx} animals.{fld} = {val} (must be >= 0)."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +222,13 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # increments PendingBuildFences's counters via replace_top and leaves
     # the pending on the stack; Stop pops it.
     CommitBuildPasture: (PendingBuildFences,  _execute_build_pasture, False),
+    # Harvest sub-actions (Task 7). All auto_pop=False — the trailing Stop is
+    # the explicit exit. PendingHarvestFeed hosts both CommitHarvestConversion
+    # (zero or more) and CommitConvert (exactly one), with `conversion_done`
+    # gating Stop.
+    CommitHarvestConversion: (PendingHarvestFeed,  _execute_harvest_conversion, False),
+    CommitConvert:           (PendingHarvestFeed,  _execute_convert,            False),
+    CommitBreed:             (PendingHarvestBreed, _execute_breed,              False),
 }
 
 
@@ -319,11 +375,31 @@ def _advance_until_decision(state: GameState) -> GameState:
             state = _resolve_return_home(state)
             continue
 
-        # TODO: when the harvest is implemented, branches for HARVEST_FIELD,
-        # HARVEST_FEED, HARVEST_BREED go here. They would be entered from
-        # _resolve_return_home on HARVEST_ROUNDS (4, 7, 9, 11, 13, 14).
+        # Case 5: HARVEST_FIELD phase. _resolve_harvest_field does the
+        # mechanical FIELD work, resets harvest_conversions_used, pushes FEED
+        # pendings, and transitions to HARVEST_FEED. After it returns the
+        # stack is non-empty and the outer guard exits on the next iteration.
+        if state.phase == Phase.HARVEST_FIELD:
+            state = _resolve_harvest_field(state)
+            continue
 
-        # Case 5: terminal phase. No more steps possible.
+        # Case 6: HARVEST_FEED with empty stack = exit signal. All FEED
+        # pendings have been Stop'd. Push BREED pendings and transition.
+        if state.phase == Phase.HARVEST_FEED:
+            state = _initiate_harvest_breed(state)
+            state = dataclasses.replace(state, phase=Phase.HARVEST_BREED)
+            continue
+
+        # Case 7: HARVEST_BREED with empty stack = exit signal. Transition
+        # to PREPARATION (round < 14) or BEFORE_SCORING (round == 14).
+        if state.phase == Phase.HARVEST_BREED:
+            if state.round_number >= NUM_ROUNDS:
+                state = dataclasses.replace(state, phase=Phase.BEFORE_SCORING)
+            else:
+                state = dataclasses.replace(state, phase=Phase.PREPARATION)
+            continue
+
+        # Case 8: terminal phase. No more steps possible.
         if state.phase == Phase.BEFORE_SCORING:
             return state
 
@@ -364,19 +440,13 @@ def _resolve_return_home(state: GameState) -> GameState:
     state = dataclasses.replace(state, players=new_players, board=new_board)
 
     # 3. Decide next phase.
-    # Task 5: halt after round 4 (harvest is unimplemented).
-    if state.round_number >= 4:
-        return dataclasses.replace(state, phase=Phase.BEFORE_SCORING)
+    # On a HARVEST_ROUND (4, 7, 9, 11, 13, 14), route to HARVEST_FIELD. The
+    # harvest sub-phases (Field/Feed/Breed) own their own transitions and
+    # eventually land back in PREPARATION (rounds 1–13) or BEFORE_SCORING
+    # (after round 14's HARVEST_BREED — handled in _advance_until_decision).
+    if state.round_number in HARVEST_ROUNDS:
+        return dataclasses.replace(state, phase=Phase.HARVEST_FIELD)
 
-    # TODO: when the harvest is implemented, on HARVEST_ROUNDS (4, 7, 9,
-    # 11, 13, 14) this should transition to Phase.HARVEST_FIELD instead
-    # of Phase.PREPARATION. The harvest itself (Field/Feed/Breed) is a
-    # distinct multi-phase entity with its own resolvers and player
-    # decisions; _resolve_return_home only triggers the transition, it
-    # does NOT run any harvest logic. After the harvest completes, the
-    # game transitions to Phase.PREPARATION for the next round (rounds
-    # 1–13), or directly to Phase.BEFORE_SCORING (after round 14's
-    # HARVEST_BREED).
     return dataclasses.replace(state, phase=Phase.PREPARATION)
 
 
@@ -439,3 +509,123 @@ def _resolve_preparation(state: GameState) -> GameState:
         phase=Phase.WORK,
         current_player=state.starting_player,
     )
+
+
+# ---------------------------------------------------------------------------
+# Harvest phase resolvers (Task 7)
+# ---------------------------------------------------------------------------
+
+def _initiate_harvest_feed(state: GameState) -> GameState:
+    """Push a PendingHarvestFeed for each player, starting player's frame on top.
+
+    Pre-debits food per the "Cannot withhold food tokens" rule (RULES.md
+    Feeding Phase): `spent = min(need, p.resources.food)` is debited upfront;
+    the remaining `food_owed` is what conversions / begging must cover.
+
+    Push order: non-starting player pushed first (bottom of stack), starting
+    player pushed second (top). When the starting player Stops, the
+    non-starting player's pending becomes top automatically.
+
+    Also exposed standalone so tests can construct a FEED-only state without
+    running FIELD mechanics.
+    """
+    sp = state.starting_player
+    push_order = [(sp + 1) % 2, sp]
+
+    for idx in push_order:
+        p = state.players[idx]
+        # need = 2*adults + 1*newborns_just_born = 2*people_total - newborns.
+        need      = 2 * p.people_total - p.newborns
+        spent     = min(need, p.resources.food)
+        food_owed = need - spent
+
+        new_player = dataclasses.replace(
+            p, resources=p.resources + Resources(food=-spent),
+        )
+        state = _update_player(state, idx, new_player)
+        state = push(state, PendingHarvestFeed(
+            player_idx=idx,
+            initiated_by_id="phase:harvest_feed",
+            food_owed=food_owed,
+        ))
+
+    return state
+
+
+def _initiate_harvest_breed(state: GameState) -> GameState:
+    """Push a PendingHarvestBreed for each player, starting player's frame on top.
+
+    No pre-debit (breeding doesn't consume food upfront). Push order
+    mirrors _initiate_harvest_feed.
+    """
+    sp = state.starting_player
+    push_order = [(sp + 1) % 2, sp]
+
+    for idx in push_order:
+        state = push(state, PendingHarvestBreed(
+            player_idx=idx,
+            initiated_by_id="phase:harvest_breed",
+        ))
+
+    return state
+
+
+def _resolve_harvest_field(state: GameState) -> GameState:
+    """Mechanical FIELD work + reset once-per-harvest budget + push FEED
+    pendings + transition phase. Called by _advance_until_decision when
+    phase == HARVEST_FIELD.
+
+    Three concerns combined (mirrors _resolve_preparation's multi-concern
+    shape — justified in TASK_7 Part 2.1):
+
+    1. Mechanical: take 1 crop from each planted field. Grain takes
+       precedence over veg per RULES.md (a field is sown with one or the
+       other, never both — the elif fallback handles a veg-sown field).
+    2. Reset harvest_conversions_used on both players so FEED starts with
+       a fresh once-per-harvest budget.
+    3. Push FEED pendings via _initiate_harvest_feed and set
+       phase=HARVEST_FEED. After this returns, the stack is non-empty
+       (one frame per player) and the outer guard returns control to the
+       agent.
+    """
+    new_players = []
+    for p in state.players:
+        grain_gain = 0
+        veg_gain   = 0
+        new_grid_rows = []
+        for r in range(3):
+            new_row = []
+            for c in range(5):
+                cell = p.farmyard.grid[r][c]
+                if cell.cell_type == CellType.FIELD:
+                    if cell.grain > 0:
+                        grain_gain += 1
+                        new_row.append(dataclasses.replace(cell, grain=cell.grain - 1))
+                    elif cell.veg > 0:
+                        veg_gain += 1
+                        new_row.append(dataclasses.replace(cell, veg=cell.veg - 1))
+                    else:
+                        new_row.append(cell)   # empty field (already harvested or never sown)
+                else:
+                    new_row.append(cell)
+            new_grid_rows.append(tuple(new_row))
+        new_grid = tuple(new_grid_rows)
+
+        # Fields cannot lie inside pastures, so the pasture cache is preserved
+        # via dataclasses.replace's natural ride-along.
+        new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
+        new_resources = p.resources + Resources(grain=grain_gain, veg=veg_gain)
+        new_players.append(dataclasses.replace(
+            p,
+            farmyard=new_farmyard,
+            resources=new_resources,
+            harvest_conversions_used=frozenset(),
+        ))
+
+    state = dataclasses.replace(state, players=tuple(new_players))
+
+    # Push FEED pendings (one per player, SP on top, food pre-debited) and
+    # transition phase. The outer guard returns on the next iteration because
+    # the stack is now non-empty.
+    state = _initiate_harvest_feed(state)
+    return dataclasses.replace(state, phase=Phase.HARVEST_FEED)

@@ -205,14 +205,28 @@ def test_preparation_resets_current_player_to_starting_player():
     assert new_state.current_player == new_state.starting_player
 
 
-def test_round_4_return_home_transitions_to_before_scoring():
-    """After RETURN_HOME on round 4, Task 5 halts in BEFORE_SCORING."""
+def test_harvest_round_return_home_transitions_to_harvest_field():
+    """After RETURN_HOME on a HARVEST_ROUND (e.g. 4), the next phase is
+    HARVEST_FIELD — the harvest sub-phases drive the round forward, not
+    PREPARATION (Task 7). Round 14's HARVEST_BREED exit lands in
+    BEFORE_SCORING, but that transition lives in _advance_until_decision,
+    not here."""
     state = setup(seed=0)
     state = with_round(state, 4)
     state = with_phase(state, Phase.RETURN_HOME)
     new_state = _resolve_return_home(state)
-    assert new_state.phase == Phase.BEFORE_SCORING
-    assert new_state.round_number == 4   # NOT advanced past 4
+    assert new_state.phase == Phase.HARVEST_FIELD
+    assert new_state.round_number == 4   # not advanced — that happens in PREPARATION
+
+
+def test_non_harvest_round_return_home_transitions_to_preparation():
+    """RETURN_HOME on a non-harvest round goes to PREPARATION."""
+    state = setup(seed=0)
+    state = with_round(state, 3)   # not in HARVEST_ROUNDS
+    state = with_phase(state, Phase.RETURN_HOME)
+    new_state = _resolve_return_home(state)
+    assert new_state.phase == Phase.PREPARATION
+    assert new_state.round_number == 3
 
 
 # ---------------------------------------------------------------------------
@@ -245,12 +259,13 @@ def test_step_raises_on_unknown_space():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("seed", list(range(10)))
-def test_random_agent_plays_four_rounds(seed):
-    """A random agent picking only implemented actions plays to BEFORE_SCORING."""
+def test_random_agent_plays_full_game(seed):
+    """A random agent picking only implemented actions plays all 14 rounds
+    to BEFORE_SCORING. Post-Task-7 (harvest + rounds 5–14)."""
     state, trace = random_agent_play(setup(seed=seed), seed=seed)
 
     assert state.phase == Phase.BEFORE_SCORING
-    assert state.round_number == 4
+    assert state.round_number == 14
     assert state.pending_stack == ()
     # After RETURN_HOME, both players have full people_home.
     for p in state.players:
@@ -267,9 +282,12 @@ def test_random_agent_invariants():
 
     'Decider' rule: when stack is non-empty, the decision-maker is
     pending_stack[-1].player_idx; when empty, it's state.current_player.
-    Our test framework chooses actions for state.current_player only —
-    which means whenever stack is non-empty, the top frame's player_idx
-    must equal state.current_player.
+    During WORK, the worker-placement path keeps current_player aligned with
+    the top pending. During HARVEST_FEED / HARVEST_BREED, the pending stack
+    alone identifies the decider — no worker is placed, and current_player
+    is not updated to track each pending swap (per TASK_7 Part 2.1: the
+    stack is authoritative). So the alignment invariant holds only during
+    WORK.
     """
     for seed in range(5):
         state = setup(seed=seed)
@@ -277,9 +295,9 @@ def test_random_agent_invariants():
             actions = filter_implemented(legal_actions(state))
             if not actions:
                 break
-            # If stack is non-empty, decider IS current_player in Task 5
-            # (no out-of-turn triggers yet).
-            if state.pending_stack:
+            # During WORK with a non-empty stack, the alignment holds.
+            # (Harvest phases are excluded — the stack is authoritative there.)
+            if state.pending_stack and state.phase == Phase.WORK:
                 assert state.pending_stack[-1].player_idx == state.current_player
             action = actions[0]   # deterministic pick for invariant testing
             state = step(state, action)

@@ -44,13 +44,30 @@ Nothing is known to be slow, but no one has measured. Useful before MCTS scaling
 
 The `ACTIVE_FENCE_UNIVERSE_*` constants are swappable today. A small experimental tooling layer — a `restrict_to(predicate)` wrapper, a per-experiment-config layer, or shared test fixtures that swap and restore the constants — would make universe-restriction research cleaner once self-play training begins. Currently each test that swaps does so manually with monkey-patching. Defer until there's a concrete restriction experiment to run.
 
+### E. Pareto frontier pruning optimizations
+
+Two related optimizations to `pareto_frontier` (animal market gain) and `breeding_frontier` (post-breed) in `agricola/helpers.py`. Both exploit the same observation: confirming feasibility of one candidate rules out a whole rectangular prism of other candidates without further checks.
+
+**Anchor pruning.** When a player gains animals through an action space, breeding, or a card effect, the pre-gain animal arrangement is feasible by definition — the player was already accommodating it. The "release all gained" option always lands at exactly the pre-gain state, so it's a frontier candidate. Any post-gain config `(s', b', c')` with `s' ≤ s_current AND b' ≤ b_current AND c' ≤ c_current` (at least one strict inequality) is strictly Pareto-dominated on animal dims; food is excluded from the Pareto check per the **"Preserving optionality"** Key Design Principle. The entire lower-left rectangular prism in animal-space under the pre-gain anchor can therefore be skipped at enumeration time. Same argument for `breeding_frontier` with the "no eat, no breed" pre-breed anchor. Implementation: a few-line dominance check at candidate emit. Speedup range: ~2× for small states up to ~30–50× mid-late game, with the O(n²) Pareto-filter step benefiting quadratically from the candidate-count reduction.
+
+**Incremental geometric pruning.** Generalizes the anchor idea: *every* confirmed-feasible candidate X creates its own dominated prism `{(s, b, c) : s ≤ X.s, b ≤ X.b, c ≤ X.c, with at least one strict inequality}`, not just the pre-state anchor. If candidates are checked in an order that finds high-coordinate feasible candidates early (largest-sum or lexicographically-greedy first, etc.), each confirmed feasible candidate invalidates many remaining candidates before they're enumerated or feasibility-checked. Maintain a set of confirmed-feasible anchors; for each new candidate, test whether it lies inside any anchor's dominated prism; if so, skip without checking feasibility. The anchor set is an incremental max-corner Pareto frontier in animal-space. Most valuable when each feasibility check is expensive (it is, for pareto_frontier — `can_accommodate` enumerates slot assignments).
+
+**Applicability.**
+- `pareto_frontier` and `breeding_frontier`: both forms apply cleanly.
+- `food_payment_frontier` (food_owed > 0): partially. The simple pre-state anchor is infeasible (player must pay something), so the anchor variant doesn't apply directly. But the broader geometric form *does* apply — once a config X that fully pays food_owed is confirmed, any config Y consuming at least as much of every good (= `Y.remaining ≤ X.remaining` on every dim) is dominated by X. This prunes the lower-left REMAINING prism, equivalently the upper-right CONSUMPTION prism. The existing per-good consumption caps in `food_payment_frontier` already provide a related dimension-level form of this pruning; the geometric variant extends it to joint pruning across goods.
+- `harvest_feed_frontier`: does NOT apply — the do-nothing config is the *worst* on the −begging dim, so it dominates nothing.
+
+**Correctness check.** The pruning is valid iff the Pareto dimensions are exactly the upstream-goods counts (animals for `pareto_frontier` / `breeding_frontier`; the 5-tuple remaining-goods vector for `food_payment_frontier`). This holds today per the "Preserving optionality" principle, which excludes downstream byproducts (food) from the Pareto check. If a future card makes some non-food byproduct of conversion into a strategic resource that *should* be a Pareto dim, the assumption must be re-examined.
+
+**Why this matters.** Per-call cost is microseconds today — invisible during human-paced play. The reason to do it is MCTS, where these helpers run inside every rollout, potentially millions of times per turn during self-play. The constant-factor improvement compounds. The pre-state-anchor variant is the easy half and can land standalone; the geometric variant is a more substantial refactor (candidate-ordering choice, anchor-set data structure) and is probably worth deferring until profiling (C) identifies one of these helpers as a hot path.
+
 ---
 
 ## Phase 2 — baseline agents
 
 After the engine is feature-complete (post-harvest). Useful as benchmarks for the trained agent and as scaffolding for MCTS.
 
-### E. Heuristic agent
+### F. Heuristic agent
 
 A hand-written policy implementing reasonable Agricola strategy: prioritize food security, family growth, field-and-pasture balance, build major improvements on schedule, etc. Plays without MCTS — direct action selection from observed state.
 
@@ -58,7 +75,7 @@ Useful as:
 - A baseline to compare the trained agent against (Phase 5+).
 - A second agent for sanity-checking the engine end-to-end. `random_agent_play` exercises only the simplest paths; a heuristic agent surfaces edge cases that random play rarely hits.
 
-### F. MCTS scaffolding
+### G. MCTS scaffolding
 
 Pure MCTS (no neural net yet), used initially with random and heuristic agents to validate the tree-search loop. Becomes the substrate for AlphaZero-style training in Phase 5.
 
@@ -70,13 +87,13 @@ Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / exp
 
 The largest single piece of remaining work. Several open design questions block large-scale card implementation; resolving them is itself a meaningful task. Each open question is best addressed when the first card needing it actually lands — don't speculate ahead of concrete consumers.
 
-### G. Compound card interactions
+### H. Compound card interactions
 
 The Pan-Baker-plus-Potter-Ceramics example flagged in TASK_5.md and IMPLEMENTATION_CHOICES.md. When checking `PlaceWorker(space)` legality, the system needs to apply all owned cards' on-placement transformations to a hypothetical state, then ask the existing sub-action predicates against that hypothetical. The trigger registry already supports arbitrary event names; the missing piece is the legality-side speculative application.
 
-Probably worth doing before adding many more cards. Without G, the card system can only handle cards of the Potter Ceramics shape (purely-during-resolution triggers, no on-placement effects).
+Probably worth doing before adding many more cards. Without H, the card system can only handle cards of the Potter Ceramics shape (purely-during-resolution triggers, no on-placement effects).
 
-### H. `after_X` trigger event mechanics
+### I. `after_X` trigger event mechanics
 
 The codebase has precedent for `before_X` events on sub-action pendings. `after_X` events have no precedent. Candidate consumers:
 - The vegetable-card example mentioned during Fencing design ("each time you build N fences ≥ current round, gain 1 vegetable").
@@ -84,22 +101,22 @@ The codebase has precedent for `before_X` events on sub-action pendings. `after_
 
 Three candidate mechanisms documented in the design conversations: a resolve-on-pop hook on every pending type, an explicit `ApplyAfterTriggers` action, or overloaded `Stop` semantics. Decision deferred until the first such card lands.
 
-### I. Atomic-space trigger hosting
+### J. Atomic-space trigger hosting
 
 Atomic spaces currently apply their effect immediately on `PlaceWorker`. For cards that attach to specific atomic spaces (Cottager fires before Day Laborer's food, Hardware Store fires after), atomic spaces need to push trigger-host pendings rather than resolve in one step. Two design questions documented in CLAUDE.md "Card implementation status":
 
 - **Phase tracking.** Generic `primary_effect_applied: bool` on every space pending vs. a `phase: Literal["before", "after"]` field.
 - **Phase-transition mechanism.** Explicit transition action vs. overloaded `Stop` vs. nested pendings.
 
-Likely addressed alongside G when card work begins in earnest.
+Likely addressed alongside H when card work begins in earnest.
 
-### J. Free-fence accounting and cost-modifier extension
+### K. Free-fence accounting and cost-modifier extension
 
 Cards modifying per-edge fence cost (material substitution, free perimeter fences, etc.) need an extension mechanism on `compute_new_fence_edges`. The pattern would mirror `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` / `BAKING_SPEC_EXTENSIONS` in `legality.py`. Free-fence counter fields on `PendingBuildFences` may also be needed (currently excluded per the YAGNI-on-pending-fields principle). Defer until the first such card lands.
 
-### K. The remaining ~470 cards
+### L. The remaining ~470 cards
 
-Largest piece of work in the project. Once G–J above are settled, this becomes ongoing card-by-card implementation. Two related action-space paths unblock alongside cards:
+Largest piece of work in the project. Once H–K above are settled, this becomes ongoing card-by-card implementation. Two related action-space paths unblock alongside cards:
 
 - **Minor improvement play paths.** Optional minor-improvement steps at Basic Wish for Children, House Redevelopment, Major Improvement, and Farm Redevelopment all currently dead-end (no path commits a minor in Family scope). Unblocked by minor-card support.
 
@@ -111,17 +128,17 @@ Largest piece of work in the project. Once G–J above are settled, this becomes
 
 Furthest out. Listed for completeness.
 
-### L. Imitation learning bootstrap
+### M. Imitation learning bootstrap
 
 Train a policy on human game data to bootstrap the agent before self-play. Requires a corpus of human Agricola games (e.g., from BGA logs or other online play). Less compute-intensive than self-play; gets the agent to "plays the game competently" before RL refines it. Optional but accelerates phase 5.
 
-### M. AlphaZero-style self-play RL
+### N. AlphaZero-style self-play RL
 
 Self-play with MCTS guided by a neural network. The network outputs `(policy, value)` given state; MCTS uses the policy as priors and the value as rollout estimates. Iterated self-play improves the network over time.
 
-Depends on F (MCTS scaffolding), and ideally on G–J (card system mostly complete; otherwise the agent learns to play a non-Agricola game). L (imitation bootstrap) is helpful but not required.
+Depends on G (MCTS scaffolding), and ideally on H–K (card system mostly complete; otherwise the agent learns to play a non-Agricola game). M (imitation bootstrap) is helpful but not required.
 
-### N. Evaluation tooling
+### O. Evaluation tooling
 
 Elo ratings between agent versions, score distribution analysis, game-length variance, trace replay viewer, head-to-head match infrastructure. Useful throughout training to detect regressions and to compare experimental variants. Some pieces (trace replay, score distribution) become useful right after harvest lands and could ship earlier than the full evaluation pipeline.
 
@@ -131,6 +148,6 @@ Elo ratings between agent versions, score distribution analysis, game-length var
 
 **Highest-impact single next task: harvest (A).** Completes Phase 1; turns the engine into a feature-complete Family-game implementation. Without harvest, no agent work makes sense — there's no "game" to play through to a final score.
 
-**After harvest:** the small-hardening items (B and C) before MCTS work begins, then the heuristic agent (E) for a benchmark, then MCTS scaffolding (F).
+**After harvest:** the small-hardening items (B and C) before MCTS work begins, then the heuristic agent (F) for a benchmark, then MCTS scaffolding (G).
 
-**Card system as a separate track:** can run in parallel with agent work, but the open design questions (G, H, I, J) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.
+**Card system as a separate track:** can run in parallel with agent work, but the open design questions (H, I, J, K) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.

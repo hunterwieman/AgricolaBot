@@ -40,7 +40,9 @@ After this task, `random_agent_play` runs end-to-end from `setup` to `Phase.BEFO
 | `tests/test_harvest_integration.py` — end-to-end multi-round, multi-harvest scenarios; random-agent extension to rounds 5–14 | new |
 | `tests/test_helpers.py` — update `cooking_rates` tests for the 4-tuple; new tests for `food_payment_frontier` and `harvest_feed_frontier` | extended |
 | `tests/test_utils.py` — `IMPLEMENTED_NON_ATOMIC_SPACES` unchanged; `random_agent_play` now runs all 14 rounds (no other update needed — it already loops until `BEFORE_SCORING`) | extended |
-| CLAUDE.md — Status table, harvest architecture section, new file/function descriptions | updated |
+| CLAUDE.md — Status table, harvest architecture narrative, provenance-prefix table, directory one-liners | updated |
+| FILE_DESCRIPTIONS.md — per-file detail updates for every touched `agricola/*.py` and new module entry for `cards/harvest_conversions.py` | updated |
+| TEST_DESCRIPTIONS.md — entries for the four new harvest test files; updates to the `test_helpers.py` entry | updated |
 | CHANGES.md — new entry covering the 4-tuple cooking_rates refactor and the harvest architecture | updated |
 
 **Out of scope** (deferred to future tasks):
@@ -1206,25 +1208,41 @@ Concretely: add `CommitHarvestConversion`, `CommitConvert`, `CommitBreed` to the
 
 # Part 9 — Documentation
 
-## 9.1 CLAUDE.md updates
+The documentation updates are split across four files. CLAUDE.md hosts only architectural narrative and high-level one-liners; per-file details live in FILE_DESCRIPTIONS.md; per-test-file coverage lives in TEST_DESCRIPTIONS.md; cross-cutting refactor records live in CHANGES.md. The four subsections below partition the work along those lines.
+
+## 9.1 CLAUDE.md updates (architectural narrative + one-liners)
 
 - **Status table**: Add seven new rows under Task 7 ("Harvest sub-phases — Field/Feed/Breed", "Cooking rates 4-tuple", "food_payment_frontier / harvest_feed_frontier", "HARVEST_CONVERSIONS registry", "PlayerState.harvest_conversions_used", "PendingHarvestFeed / PendingHarvestBreed + commits", "Rounds 5–14"). Remove the "Not yet implemented" lines for harvest and rounds 5–14.
-- **`agricola/state.py` description**: add `harvest_conversions_used` to `PlayerState`. No `GameState` changes needed (no new phase values, no auxiliary flags — see Part 2.1).
-- **`agricola/constants.py` description**: no `Phase` enum changes (existing `HARVEST_FIELD` / `HARVEST_FEED` / `HARVEST_BREED` suffice). The harvest registry lives in `agricola/cards/harvest_conversions.py`, not `constants.py`, so no addition to the `constants.py` description from this task — note the new module in the file/directory list instead.
-- **`agricola/cards/harvest_conversions.py` description**: new module. `HARVEST_CONVERSIONS` dict, `HarvestConversionSpec` dataclass, `register_harvest_conversion(spec)` registration function. Three built-in entries: joinery, pottery, basketmaker. Imported by `agricola/cards/__init__.py` so the entries register at package import time.
-- **`agricola/helpers.py` description**: extend `cooking_rates` description to 4-tuple. Add `food_payment_frontier` and `harvest_feed_frontier` (with the inline "may move to harvest.py" comment quoted).
-- **`agricola/pending.py` per-class descriptions**: add `PendingHarvestFeed`, `PendingHarvestBreed`. Add the `"phase:..."` provenance prefix to the prefix-scheme table.
-- **`agricola/actions.py` description**: add `CommitHarvestConversion`, `CommitConvert`, `CommitBreed` to the action class enumeration and `Action` union.
-- **`agricola/legality.py` description**: add `_enumerate_pending_harvest_feed` and `_enumerate_pending_harvest_breed`. Register in `PENDING_ENUMERATORS`.
-- **`agricola/resolution.py` description**: add `_execute_harvest_conversion`, `_execute_convert`, `_execute_breed`. Note the three additions in `COMMIT_SUBACTION_HANDLERS`.
-- **`agricola/engine.py` description**: update `_advance_until_decision` description to cover the three new harvest-phase branches. Update `_resolve_return_home` to note the routing to HARVEST_FIELD on HARVEST_ROUNDS. Note that the existing `HARVEST_FIELD` / `HARVEST_FEED` / `HARVEST_BREED` phases carry dual meaning (interactive when stack non-empty; exit signal when stack empty). Add `_resolve_harvest_field` (mechanical FIELD work + once-per-harvest reset + push FEED pendings + transition to HARVEST_FEED), `_initiate_harvest_feed`, `_initiate_harvest_breed` — all three live in `engine.py` alongside the existing `_resolve_return_home` / `_resolve_preparation`, matching the convention that phase-bookkeeping resolvers belong in `engine.py`.
-- **"Engine and Turn Resolution Architecture" section**: extend the phase-transition narrative to include the harvest sub-phases. Add a "Harvest" subsection covering the FIELD → FEED → BREED progression, the gratuitous-Stop rule, the Pareto-frontier action filter, and the once-per-harvest budget on PlayerState.
-- **Note on Pareto principle**: the Pareto-over-upstream-goods rule that the new frontiers follow (no `food_surplus` Pareto dim) is the specific prescription that drops out of the **"Preserving optionality"** Key Design Principle in CLAUDE.md. No separate documentation cascade needed for this task.
-- **"Card implementation status" section**: extend the trigger-mechanism note to mention `before_harvest_feed` / `after_harvest_feed` / `before_harvest_breed` / `after_harvest_breed` as future events. Note that `triggers_resolved` / `TRIGGER_EVENT` are intentionally absent from `PendingHarvestFeed` / `PendingHarvestBreed` per the Task 5D precedent.
-- **Provenance prefix scheme**: add the `"phase:<id>"` row to the table.
-- **`tests/` directory list**: add `tests/test_harvest_field.py`, `tests/test_harvest_feed.py`, `tests/test_harvest_breed.py`, `tests/test_harvest_integration.py` each with a one-line summary.
+- **"Engine and Turn Resolution Architecture" section**: extend the phase-transition narrative to include the harvest sub-phases. Add a "Harvest" subsection covering the FIELD → FEED → BREED progression, the gratuitous-Stop rule, the Pareto-frontier action filter, the once-per-harvest budget on PlayerState, and the dual stack-empty / stack-non-empty meaning of `HARVEST_FEED` / `HARVEST_BREED`.
+- **Provenance prefix scheme**: add the `"phase:<id>"` row to the table alongside `"space:<id>"` and `"card:<id>"`.
+- **"Card implementation status" section**: extend the trigger-mechanism note to mention `before_harvest_feed` / `after_harvest_feed` / `before_harvest_breed` / `after_harvest_breed` as future events. Note that `triggers_resolved` / `TRIGGER_EVENT` are intentionally absent from `PendingHarvestFeed` / `PendingHarvestBreed` per the Task 5D precedent. Add a forward-looking sentence: once the full card system lands, almost every pending will host trigger-style opt-in sub-decisions in the shape `PendingHarvestFeed` uses for the three craft majors — opportunities to take `Commit*` actions for cards that trigger on the space or sub-action, followed by the main action or sub-action commit.
+- **Note on Pareto principle**: no separate documentation cascade — the Pareto-over-upstream-goods rule that the new frontiers follow (no `food_surplus` Pareto dim) is already the specific prescription dropping out of the **"Preserving optionality"** Key Design Principle in CLAUDE.md. The new helpers' docstrings cross-reference that principle; no edit to the principle text itself.
+- **Directory Structure section**: update the one-liner for `agricola/cards/__init__.py` to mention the harvest_conversions import; add a one-liner for the new `agricola/cards/harvest_conversions.py`; add one-liners for `tests/test_harvest_field.py`, `tests/test_harvest_feed.py`, `tests/test_harvest_breed.py`, `tests/test_harvest_integration.py`. Brief edits only — detailed descriptions belong in FILE_DESCRIPTIONS.md / TEST_DESCRIPTIONS.md.
+- **Documentation Files table**: no change.
 
-## 9.2 CHANGES.md entry
+## 9.2 FILE_DESCRIPTIONS.md updates (per-file detail)
+
+- **`agricola/state.py`**: add `harvest_conversions_used: frozenset[str]` to the `PlayerState` description; note the reset point (`_resolve_harvest_field`) and that the field records both `use=True` and `use=False` decisions ("decided" set, not "used" set). No `GameState` changes needed (no new phase values, no auxiliary flags — see Part 2.1).
+- **`agricola/constants.py`**: no changes — no `Phase` enum additions, no new constants. The harvest registry lives in `agricola/cards/harvest_conversions.py`, not `constants.py`.
+- **`agricola/cards/harvest_conversions.py`**: NEW entry. `HARVEST_CONVERSIONS` dict, `HarvestConversionSpec` dataclass, `register_harvest_conversion(spec)` registration function. Three built-in entries: joinery, pottery, basketmaker. Imported by `agricola/cards/__init__.py` so the entries register at package import time.
+- **`agricola/cards/__init__.py`**: extend description to note the new `harvest_conversions` import alongside the existing card module imports.
+- **`agricola/helpers.py`**: extend the `cooking_rates` description to the 4-tuple shape (with the (0,0,0,1) fallback note for the veg dim). Add `food_payment_frontier` (general-purpose food-payment frontier, returns REMAINING tuples, Pareto-filtered on upstream goods only) and `harvest_feed_frontier` (harvest-specific wrapper composing `food_payment_frontier` across paid levels with the begging dimension added). Include the inline "may move to harvest.py" marker.
+- **`agricola/pending.py`**: add `PendingHarvestFeed` (hosts trigger-style opt-in sub-decisions — the three craft majors — plus one main `CommitConvert`; `food_owed` + `conversion_done` fields) and `PendingHarvestBreed` (one `CommitBreed` + Stop; `breed_chosen` field). Add the `"phase:..."` provenance prefix to the prefix-scheme table inside this file's description.
+- **`agricola/actions.py`**: add `CommitHarvestConversion`, `CommitConvert`, `CommitBreed` to the action class enumeration. Note their inclusion in the `Action` union. Document the CONSUMED-amounts convention used by `CommitConvert` (in contrast to the post-event-state convention used by `CommitBreed` / `CommitAccommodate`).
+- **`agricola/legality.py`**: add `_enumerate_pending_harvest_feed` and `_enumerate_pending_harvest_breed`. Note their registration in `PENDING_ENUMERATORS`.
+- **`agricola/resolution.py`**: add `_execute_harvest_conversion`, `_execute_convert`, `_execute_breed`. Note the three additions in `COMMIT_SUBACTION_HANDLERS` (all `auto_pop=False`).
+- **`agricola/engine.py`**: update `_advance_until_decision` description to cover the three new harvest-phase branches and the dual stack-empty / stack-non-empty meaning of `HARVEST_FEED` / `HARVEST_BREED`. Update `_resolve_return_home` to note the routing to HARVEST_FIELD on HARVEST_ROUNDS. Add `_resolve_harvest_field` (mechanical FIELD work + once-per-harvest reset + push FEED pendings + transition to HARVEST_FEED), `_initiate_harvest_feed`, `_initiate_harvest_breed` — all three live in `engine.py` alongside the existing `_resolve_return_home` / `_resolve_preparation`, per the convention that phase-bookkeeping resolvers belong in `engine.py`.
+- **`tests/factories.py` / `tests/test_utils.py`**: no description changes for `factories.py`; for `test_utils.py`, note that the `_is_implemented_action` filter now accepts `CommitHarvestConversion`, `CommitConvert`, `CommitBreed`.
+
+## 9.3 TEST_DESCRIPTIONS.md updates (per-test-file coverage)
+
+- **`tests/test_harvest_field.py`**: NEW. Mechanical-resolution tests for `_resolve_harvest_field` — single/multiple/empty fields per player, both players harvest simultaneously, `harvest_conversions_used` reset, phase transition to HARVEST_FEED, pasture cache preserved, newborns preserved.
+- **`tests/test_harvest_feed.py`**: NEW. Engine-level integration tests for `PendingHarvestFeed` — trivial Stop, pre-debit semantics, begging assignment, raw grain 1:1 conversion, veg conversion (no cooking / Fireplace / Cooking Hearth), animal cooking (Fireplace), Cooking Hearth dominates Fireplace, Joinery once-per-harvest (including insufficient wood and food_owed=0 cases), multiple-craft cross-product, Pareto excludes over-conversion, Pareto preserves full-feed tradeoffs and "convert less and beg" choices, `conversion_done` gates Stop, trailing-Stop gratuity, push order (SP on top), newborn discount.
+- **`tests/test_harvest_breed.py`**: NEW. Engine-level integration tests for `PendingHarvestBreed` — trivial Stop for 0-animal player, insufficient-animals no-breeding, single-type breeding (with and without cooking), capacity-constraint forces release, multi-type breeding, two-1×1-pasture house-pet contention, `breed_chosen` gates Stop, push order.
+- **`tests/test_harvest_integration.py`**: NEW. End-to-end multi-round tests — round 4 first harvest, all 6 harvests in one game, round 14 terminal BEFORE_SCORING, `harvest_conversions_used` resets correctly across harvests, newborn discount applied, random-agent over 100 seeds, begging-marker scoring impact.
+- **`tests/test_helpers.py`**: extend existing entry — `cooking_rates` updated to 4-tuple; new sections covering `food_payment_frontier` (direct tests including the food_owed=0 shortcut, partial-pay configs, Pareto-excludes-over-conversion invariants) and `harvest_feed_frontier` (begging-dim Pareto, full-feed-never-dominated invariant, `food_payment_frontier` matches the begging-zero subset invariant).
+
+## 9.4 CHANGES.md entry
 
 **Change 7 — Harvest phases, `cooking_rates` 4-tuple, food-payment Pareto helpers, dual-meaning phase pattern.**
 
@@ -1233,8 +1251,8 @@ Documents:
 - `cooking_rates` extended from 3-tuple to 4-tuple `(sheep, boar, cattle, veg)`. Two call sites (legality + resolution) updated to slice; `pareto_frontier` and `breeding_frontier` signatures unchanged.
 - New `food_payment_frontier` and `harvest_feed_frontier` in `helpers.py`. Pareto-filtered conversion options for paying food, with `harvest_feed_frontier` adding a begging dimension.
 - New `HARVEST_CONVERSIONS` registry in `agricola/cards/harvest_conversions.py` paralleling `agricola/cards/triggers.py`. Built-in entries: joinery, pottery, basketmaker. Card extension hook: `register_harvest_conversion(spec)`.
-- New `PlayerState.harvest_conversions_used: frozenset[str]` for once-per-harvest budget. Reset inside `_resolve_harvest_field`.
-- New `PendingHarvestFeed` (multi-shot: craft decisions + conversion) and `PendingHarvestBreed` (one CommitBreed + Stop). Begging is assigned by `_execute_convert`, not by Stop — preserves the Stop-only-pops convention.
+- New `PlayerState.harvest_conversions_used: frozenset[str]` for once-per-harvest budget. Reset inside `_resolve_harvest_field`. Records both `use=True` and `use=False` decisions (a "decided" set, not a "used" set).
+- New `PendingHarvestFeed` — hosts trigger-style opt-in sub-decisions (the three craft majors via `CommitHarvestConversion`) followed by one main `CommitConvert`. This is the same shape future card triggers will use across most pendings: opportunities to take `Commit*` actions for triggering effects, then the main commit. `PendingHarvestBreed` is the simpler one-`CommitBreed` + Stop shape. Begging is assigned by `_execute_convert`, not by Stop — preserves the Stop-only-pops convention.
 - The existing `HARVEST_FEED` / `HARVEST_BREED` phase values now carry dual meaning: stack non-empty = player is deciding, stack empty = phase-exit signal. The discriminator works because the only way to reach phase=X with empty stack is for the entry-resolver to have pushed pendings (now drained). No new phase values or boolean flags needed.
 - New `"phase:<id>"` namespace for `initiated_by_id` (alongside `"space:<id>"` and `"card:<id>"`). Phase-driven pending pushes use this prefix.
 - New `Action` types: `CommitHarvestConversion`, `CommitConvert`, `CommitBreed`. All `auto_pop=False`.
@@ -1261,7 +1279,7 @@ Each step should leave the test suite green before proceeding. Note that the imp
 12. **Part 8.3** — New test file `tests/test_harvest_breed.py`. All tests pass.
 13. **Part 8.4** — New test file `tests/test_harvest_integration.py`. End-to-end tests. Random-agent over 100 seeds passes.
 14. **Part 8.6** — Update `tests/test_utils.py` filter to include new commit types.
-15. **Part 9** — CLAUDE.md and CHANGES.md updates.
+15. **Part 9** — Documentation updates across CLAUDE.md (narrative + one-liners), FILE_DESCRIPTIONS.md (per-file detail), TEST_DESCRIPTIONS.md (per-test-file coverage), and CHANGES.md (Change 7 entry).
 
 After step 15, the engine plays a complete Family game without raising.
 

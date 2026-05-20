@@ -31,6 +31,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 6 — Fencing, Build Fences, and Farm Redevelopment](#task-6)
 - [Task 7 design — Harvest spec + breeding_frontier Pareto-dim fix](#task-7-design)
 - [Task 7 design follow-up — breeding_frontier revert + "Preserving optionality" principle](#task-7-design-followup)
+- [Task 7 implementation — Harvest phases + rounds 5–14 + Cooking-Hearth fix + non-negative invariant](#task-7-impl)
 - [Current State](#current-state)
 
 ---
@@ -1699,26 +1700,195 @@ Test count: still 521 (no net change).
 
 ---
 
+<a name="task-7-impl"></a>
+## Task 7 implementation — Harvest phases + rounds 5–14 + Cooking-Hearth fix + non-negative invariant (2026-05-20)
+
+The implementation pass for Task 7. After this session the engine plays a complete 14-round Family game end-to-end with all 6 harvests resolved. As a side effect of running random games to verify the end-to-end flow, a pre-existing engine bug was surfaced and fixed, and a non-negative-resources invariant was added at the `step()` boundary as a permanent safety net.
+
+521 → 599 tests after the harvest implementation; 599 → 601 after the Cooking-Hearth regression tests.
+
+### Pre-implementation prep
+
+Before any code changed:
+
+- **TASK_7.md Part 9 (Documentation) was restructured.** The original spec predated the CLAUDE.md split into FILE_DESCRIPTIONS.md and TEST_DESCRIPTIONS.md, so its file-by-file description bullets all targeted CLAUDE.md. The restructure split Part 9 into four subsections — CLAUDE.md (narrative + one-liners only), FILE_DESCRIPTIONS.md (per-file detail), TEST_DESCRIPTIONS.md (per-test-file coverage), CHANGES.md (Change 7 entry). The Card-implementation-status bullet picked up a forward-look about trigger-style opt-in sub-decision pendings (the shape `PendingHarvestFeed` instantiates for crafts). The Change 7 entry dropped the "multi-shot" framing for `PendingHarvestFeed` and reframed it as the trigger-style pattern instantiated for the three craft majors.
+
+- **Three clarifying questions resolved before code:**
+  1. Newborn clearing — confirmed pre-existing behavior. `_resolve_preparation` clears `newborns=0` at the top of each new round; `_resolve_return_home` deliberately does not (newborns must survive into HARVEST_FEED for the 1-food discount).
+  2. `PendingHarvestFeed`'s shape — reframed from "multi-shot" to "trigger-style opt-in sub-decisions plus one main commit," per the user's articulation that once cards land, almost every pending will work this way.
+  3. Empty-list return of `food_payment_frontier` — confirmed harmless in this task (the harvest-only `harvest_feed_frontier` wrapper always has at least the no-conversion + max-begging entry); future card-cost payment paths that call `food_payment_frontier` directly are responsible for feasibility pre-checks.
+
+- **POSSIBLE_NEXT_STEPS.md gained a new section: Pareto-frontier pruning optimizations** (anchor pruning + the geometric generalization). Worked through applicability to all four frontier helpers (clean fit for `pareto_frontier` and `breeding_frontier`; partial fit for `food_payment_frontier`; not applicable to `harvest_feed_frontier` because the do-nothing config is the worst on −begging). Renumbered E–N to F–O and updated cross-references.
+
+### Implementation (15 ordered steps, per TASK_7.md Part 10)
+
+The steps landed bottom-up, smallest pieces first. Each step left the test suite green before proceeding to the next.
+
+**Step 1 — `cooking_rates` to 4-tuple.** Extended from `(sheep, boar, cattle)` to `(sheep, boar, cattle, veg)`. Cooking Hearth → `(2, 3, 4, 3)`, Fireplace → `(2, 2, 3, 2)`, neither → `(0, 0, 0, 1)`. The veg row has a 1:1 fallback per RULES.md (vegetables count as 1 food even without a cooking improvement); animal rates have no such fallback. Two call sites (legality.py:1109, resolution.py:1009) slice with `cooking_rates(...)[:3]` since their consumers — `pareto_frontier` and `_execute_accommodate` — only handle animals. Four `cooking_rates` test assertions in `test_helpers.py` updated to the 4-tuple shape.
+
+**Step 2 — `PlayerState.harvest_conversions_used: frozenset[str]`.** Added to `state.py` with default `frozenset()`. Records both `use=True` and `use=False` decisions (a "decided" set, not a "used" set) so the enumerator stops offering a conversion once decided. Reset to `frozenset()` in `_resolve_harvest_field` at the start of each harvest. `setup.py` updated to pass the explicit default in `_make_player`.
+
+**Step 3 — `HARVEST_CONVERSIONS` registry.** New module `agricola/cards/harvest_conversions.py`. Parallels `agricola/cards/triggers.py` in shape: a `HarvestConversionSpec` dataclass (`conversion_id`, `input_cost: Resources`, `food_out: int`, `is_owned_fn`, `side_effect_fn: Optional[Callable]`), a mutable `HARVEST_CONVERSIONS: dict[str, HarvestConversionSpec]` populated at import time, and a `register_harvest_conversion(spec)` hook for future card extensions. Three built-in entries register at module load: `joinery` (1 wood → 2 food, owns major idx 7), `pottery` (1 clay → 2 food, owns major idx 8), `basketmaker` (1 reed → 3 food, owns major idx 9). The new module is imported from `agricola/cards/__init__.py`.
+
+**Step 4 — `food_payment_frontier` and `harvest_feed_frontier` in `helpers.py`.** The general-purpose food-payment frontier returns Pareto-optimal `(grain_rem, veg_rem, sheep_rem, boar_rem, cattle_rem)` REMAINING-goods tuples for fully paying `food_owed`. Per-good consumption caps trim enumeration (`grain_cap = min(player.grain, food_owed)`, `veg_cap = min(player.veg, ceil(food_owed/vR))`, etc.); the Pareto-filter drops over-conversion configs that are dominated by the same-amount-paid configs that consume fewer goods. `food_owed=0` short-circuits to the no-conversion config. The harvest-only wrapper `harvest_feed_frontier` composes `food_payment_frontier` across paid levels in `[0, food_owed]`, admitting each config at its natural fit (`paid == min(food_generated, food_owed)`) — a pre-filter that avoids ghost-begging duplicates before the 6-dim `(5 goods, -begging)` Pareto pass. Pareto dimensions exclude food_surplus per the "Preserving optionality" principle, but include `-begging` as a strategic-cost dim. Always non-empty for `food_owed > 0` (the no-conversion + max-begging entry is always on the frontier). 11 new tests in `test_helpers.py` cover both helpers including the food_owed=0 shortcut, partial-pay configs, over-conversion exclusion, and the begging-zero-subset invariant.
+
+**Step 5 — Three new action types in `actions.py`.** `CommitHarvestConversion(conversion_id: str, use: bool)`, `CommitConvert(grain, veg, sheep, boar, cattle: int)` (CONSUMED amounts — inverted from frontier REMAINING tuples by the enumerator), `CommitBreed(sheep, boar, cattle: int)` (post-event-state counts, matching `CommitAccommodate`). All inherit from `CommitSubAction`. Added to the `Action` union.
+
+**Step 6 — Two new pendings in `pending.py`.** `PendingHarvestFeed(player_idx, initiated_by_id, food_owed, conversion_done=False)` and `PendingHarvestBreed(player_idx, initiated_by_id, breed_chosen=False)`. Both added to the `PendingDecision` union. Both use `"phase:harvest_feed"` / `"phase:harvest_breed"` provenance — a third namespace alongside `"space:..."` and `"card:..."`. Neither carries `triggers_resolved` / `TRIGGER_EVENT` yet (Task 5D precedent — added per-pending when the first card needs them).
+
+**Step 7 — Effect functions in `resolution.py` and legality enumerators in `legality.py`.** `_execute_harvest_conversion` records the decision (both branches) and, if `use=True`, pays input cost + produces food applied against `food_owed` with surplus going to supply + invokes `spec.side_effect_fn` if any. `_execute_convert` consumes the named goods, computes `food_produced` via the 4-tuple `cooking_rates`, applies to `food_owed`, sends surplus to supply, and assigns any remaining owed to begging markers — begging is assigned here, not at Stop, preserving the Stop-only-pops convention. `_execute_breed` sets the chosen post-breed animals and adds the frontier's `food_gained` to supply (the food formula stays owned by `breeding_frontier` — single source of truth; the effect looks up the chosen point's `food_gained` rather than recomputing). All three registered in `COMMIT_SUBACTION_HANDLERS` with `auto_pop=False` — the trailing Stop is the explicit exit. The two new enumerators in `legality.py` are `_enumerate_pending_harvest_feed` (offers undecided owned conversions + all Pareto-frontier convert points; only Stop after `conversion_done`) and `_enumerate_pending_harvest_breed` (one CommitBreed per Pareto-frontier point; only Stop after `breed_chosen`). Both registered in `PENDING_ENUMERATORS`.
+
+**Steps 8–9 — Engine wiring.** `_initiate_harvest_feed(state)` and `_initiate_harvest_breed(state)` push one pending per player with the SP's frame on top (push order `[1-sp, sp]`). FEED pre-debits food per the "Cannot withhold food tokens" rule (`spent = min(need, p.resources.food)` debited upfront; `food_owed = need - spent` becomes the pending's `food_owed`, with `need = 2*people_total - newborns`). BREED has no pre-debit. `_resolve_harvest_field(state)` does mechanical FIELD work (take 1 crop from each planted field — grain takes precedence over veg in the elif chain), resets `harvest_conversions_used = frozenset()` on both players, calls `_initiate_harvest_feed`, and sets `phase=HARVEST_FEED`. Pasture cache rides along untouched via `dataclasses.replace` (fields cannot lie inside pastures).
+
+**Step 10 — `_advance_until_decision` + `_resolve_return_home` extension.** Three new phase branches: `HARVEST_FIELD` calls `_resolve_harvest_field`; `HARVEST_FEED` with empty stack (the exit signal — all FEED pendings have been Stop'd) pushes BREED pendings via `_initiate_harvest_breed` and transitions to `HARVEST_BREED`; `HARVEST_BREED` with empty stack transitions to `PREPARATION` (round < 14) or `BEFORE_SCORING` (round == 14). The dual-meaning phase pattern (stack non-empty = a player is deciding; stack empty = phase-exit) is enforced by construction — the only way to reach `phase=HARVEST_X` with empty stack is for the entry-resolver to have pushed pendings now drained by Stop. `_resolve_return_home` now routes to `Phase.HARVEST_FIELD` on `HARVEST_ROUNDS = {4, 7, 9, 11, 13, 14}` instead of the Task-5-era `BEFORE_SCORING` halt after round 4.
+
+**Steps 11–13 — Four new test files.**
+  - `tests/test_harvest_field.py` (11 tests) — mechanical resolution, budget reset, phase transition, pre-debit semantics.
+  - `tests/test_harvest_feed.py` (19 tests) — pre-debit + begging, trivial-FEED gratuitous floor, grain/veg/animal conversions at all cooking rates, once-per-harvest craft conversions, Stop gating, push order, Pareto excludes over-conversion.
+  - `tests/test_harvest_breed.py` (8 tests) — trivial breed, single-type breeding, multi-type breeding with house-pet contention, `breed_chosen` gating, push order, capacity-forced release with cooking.
+  - `tests/test_harvest_integration.py` (28 tests) — random-agent over 20 seeds reaches BEFORE_SCORING; harvest phases reached across 10 seeds; round-14 → BEFORE_SCORING transition; round-4 → PREPARATION → round 5 transition; multi-harvest budget reset; begging-marker propagation to `score()`; pending-stack evolution through FEED → BREED; newborn discount; all 6 harvests fire at the expected rounds.
+
+**Step 14 — `tests/test_utils.py` docstring update.** The `_is_implemented_action` filter doesn't need a code change — it only filters `PlaceWorker` actions; all other action types (including the three new harvest commits) pass through unconditionally. Updated the docstring to make this explicit.
+
+**Step 15 — Documentation cascade.** CLAUDE.md gained a new "Harvest sub-phases" subsection in the Engine Architecture section, a `"phase:<id>"` row in the provenance-prefix table, harvest-conversions and forward-look additions to the Card-implementation-status section, status-table additions, and directory one-liners for the new files. FILE_DESCRIPTIONS.md got updated entries for the 8 modified `agricola/*.py` files plus a new entry for `cards/harvest_conversions.py`. TEST_DESCRIPTIONS.md got entries for the 4 new test files and updates to the `test_helpers.py` and `test_engine.py` entries. CHANGES.md gained Change 7 documenting the harvest architecture end-to-end.
+
+### Test fixes downstream of harvest landing
+
+Two pre-existing tests had to be updated because their premises changed when the engine extended past round 4:
+
+- `tests/test_engine.py::test_round_4_return_home_transitions_to_before_scoring` — premise obsolete (round 4 no longer halts; it routes to `HARVEST_FIELD`). Renamed to `test_harvest_round_return_home_transitions_to_harvest_field` and added a sibling `test_non_harvest_round_return_home_transitions_to_preparation`.
+
+- `tests/test_engine.py::test_random_agent_plays_four_rounds` — premise extended. Renamed to `test_random_agent_plays_full_game` and updated to assert `round_number == 14`.
+
+- `tests/test_engine.py::test_random_agent_invariants` — the decider-rule alignment invariant (`pending_stack[-1].player_idx == state.current_player` when stack non-empty) had to be scoped to `phase == Phase.WORK`. Harvest pendings can legitimately have a different `player_idx` than `current_player` because no worker is placed during harvest — the stack alone identifies the decider. Loosening the invariant is the correct call, not tightening engine behavior, because (per TASK_7 Part 2.1) the stack is authoritative during harvest by design.
+
+### Bugs caught during implementation
+
+- **`harvest_breed` test's pre-food hardcoded constant.** First draft of `test_single_type_breeding_sheep_no_cooking` assumed `pre_food = 2` based on a guess about seed-0's starting-player food assignment. The seed-0 game's actual starting-food split (SP gets 2, non-SP gets 3) put player 0 at food=3 since the original starting player was 1, even though the test forced `starting_player=0`. The food assignment happens in `setup` before any reassignment. Fixed by reading `pre_food = state.players[0].resources.food` dynamically.
+
+- **`test_random_agent_plays_four_rounds` failures.** When the round-4 RETURN_HOME branch started routing to HARVEST_FIELD instead of BEFORE_SCORING, the random-agent driver continued past round 4 and surfaced the decider-rule invariant violation described above. Both fixes (rename + invariant loosening) landed inline.
+
+### Side-quest: random-vs-random game runner
+
+After the harvest landed and the suite was green at 599, a top-level `play_random_game.py` script was created to play one full game between two random agents and report the score. The script wraps `random_agent_play` and `score`, prints the full per-category breakdown, applies the tiebreaker on score ties, and supports a `--trace` flag that walks the action list and prints a per-round narrative grouping worker-placement chains and harvest sub-phases. The `--trace` format uses a `P{n}:` prefix for lead actions (every `PlaceWorker` plus first-action-of-pending) with indented continuations for the same player's sub-actions, plus `-- HARVEST_FEED --` / `-- HARVEST_BREED --` dividers within the round. Action shorthand (`place forest`, `plow (2,1)`, `sow g=2,v=0`, `breed (3,0,0)`, `convert g=1`, `pasture {(0,2),(1,2),(2,2)}`, `major idx=9`, etc.) keeps each round's narrative readable in ~10–20 lines.
+
+### Side-quest discovery: pre-existing Cooking-Hearth enumeration bug
+
+First run of `play_random_game.py` on seed 100 produced `Resources(clay=-6)` on player 0 at game end. Tracing the negative clay through the action list pinpointed `CommitBuildMajor(major_idx=2, return_fireplace_idx=None)` as the culprit — Cooking Hearth (cost 4 clay) was committed with only 1 clay on hand.
+
+The bug was in `_enumerate_pending_build_major` at `legality.py:1007`. The standard-payment option was gated on `_can_afford_major(state, p, idx)`, which for Cooking Hearth (idx 2, 3) returns True if `clay ≥ 4 OR owns_fireplace`. The permissive "either pathway works" semantics is correct for the placement-legality call site (`_can_afford_any_major_improvement`) but wrong as a gate for the standard-payment option specifically — a player with Fireplace + 0 clay passed the check and got offered the standard-payment commit, which then drove clay to −3 (with another harvest later pushing it to −6).
+
+**Fix:** the standard-payment option is now gated on `_can_afford(p, MAJOR_IMPROVEMENT_COSTS[idx])` — the precise raw cost. The Fireplace-return alternative is emitted separately in the same enumerator and remains correctly gated on Fireplace ownership. `_can_afford_major`'s semantics are unchanged (it still answers the broader "can afford the major somehow" question for placement legality).
+
+Pre-existing, not introduced by Task 7 — the path triggered on round 4 WORK, which has been reachable since Task 5C. Task 7 just made it 6× more likely to surface by extending play to 14 rounds.
+
+**Two regression tests** added to `tests/test_major_improvement.py`:
+- `test_cooking_hearth_standard_payment_gated_on_clay_not_on_fireplace` — direct repro.
+- `test_clay_oven_standard_payment_gated_on_full_cost` — sibling case (Clay Oven has no alternative-payment path, so 0 clay should yield no Clay Oven option at all regardless of Fireplace ownership).
+
+### Engine invariant added
+
+The negative-clay bug went undetected by 599 tests because `Resources.__sub__` silently produces negative components. A non-negative-resources invariant was added at the `step()` boundary as a permanent safety net.
+
+`step()` now ends with `_assert_nonnegative_state(state, action)`, which asserts every player's resources (`wood`/`clay`/`reed`/`stone`/`food`/`grain`/`veg`) and animals (`sheep`/`boar`/`cattle`) are ≥ 0. The assertion message names the offending action and player, so any future enumerator gate that misses an affordability check fires immediately at the assertion boundary with the offending sub-action effect or enumerator one source-grep away. Safety net — should never fire in correct code.
+
+Cost: an `O(2 × 10)` check per step, negligible.
+
+Tests after the fix + the invariant: 599 → 601 (the two regression tests).
+
+### Random-vs-random tournament
+
+After the engine was clean across 20-seed sweeps, a 10-game tournament across seeds 0–9 was run to characterize random-play behavior. P0 record: 4–6–0. Average scores P0 −6.2 / P1 −0.9. Score range P0 [−29, 5] / P1 [−15, 13]. Action counts 150–180 per game. Both players in negative-score territory most of the time (random play doesn't manage feeding well — begging-marker tallies of −15 to −36 are common; the +6 from "people" alone isn't enough to offset). No engine assertions tripped across all 30+ games run this session (10 single + 20 sweep).
+
+### Files modified or created (summary)
+
+**New (6):**
+
+- `agricola/cards/harvest_conversions.py`
+- `tests/test_harvest_field.py`
+- `tests/test_harvest_feed.py`
+- `tests/test_harvest_breed.py`
+- `tests/test_harvest_integration.py`
+- `play_random_game.py`
+
+**Modified (15):**
+
+- `agricola/{actions,cards/__init__,engine,helpers,legality,pending,resolution,setup,state}.py`
+- `tests/{test_engine,test_helpers,test_major_improvement,test_utils}.py`
+- `CHANGES.md`, `CLAUDE.md`, `FILE_DESCRIPTIONS.md`, `POSSIBLE_NEXT_STEPS.md`, `TASK_7.md`, `TEST_DESCRIPTIONS.md`
+
+### Test count after Task 7
+
+| Bucket | Tests | Δ vs Task 7 design baseline |
+|---|---|---|
+| Pre-existing files (with cooking_rates 4-tuple updates + test_engine renames + harvest_conversions_used reset compatibility) | 532 | +11 (food_payment_frontier + harvest_feed_frontier tests in test_helpers.py) |
+| `tests/test_harvest_field.py` (new) | 11 | +11 |
+| `tests/test_harvest_feed.py` (new) | 19 | +19 |
+| `tests/test_harvest_breed.py` (new) | 8 | +8 |
+| `tests/test_harvest_integration.py` (new) | 28 | +28 |
+| `tests/test_major_improvement.py` (regression: Cooking-Hearth + Clay-Oven gating) | +2 | +2 |
+| **Total** | **601** | **+80** |
+
+521 → 601, net +80 tests. The engine has no remaining unimplemented phases.
+
+### Conventions established or refined (stable, documented)
+
+- **`"phase:<id>"` provenance namespace.** Third namespace for `initiated_by_id` alongside `"space:<id>"` and `"card:<id>"`. Phase-driven pending pushes use this prefix. Today: `"phase:harvest_feed"` and `"phase:harvest_breed"`. Documented in CLAUDE.md's pending-provenance section.
+
+- **Dual-meaning phase pattern.** Phase values can carry two meanings depending on stack state: stack non-empty = a player is deciding; stack empty = phase-exit signal. `HARVEST_FEED` and `HARVEST_BREED` use this today. The discriminator works because the only way to reach phase=X with empty stack is for the entry-resolver to have pushed pendings now drained by Stop. Documented in CLAUDE.md's "Harvest sub-phases" subsection.
+
+- **4-tuple `cooking_rates` with veg fallback.** The fourth element captures the at-any-time veg conversion rate, with a 1:1 fallback even without a cooking improvement per RULES.md. Animal rates have no fallback. Callers that need only the animal triple slice with `cooking_rates(...)[:3]`.
+
+- **Non-negative resources/animals invariant at `step()` boundary.** Engine-level safety net asserted on every step. Catches enumerator-gate misses immediately, before they cascade through subsequent gameplay. Should never fire in correct code.
+
+- **Begging-marker assignment by `_execute_convert`, not by Stop.** Preserves the Stop-only-pops convention. The food-payment decision is final at the moment of `CommitConvert` (no further craft uses or other food sources can fire after `conversion_done` is set), so begging is fully determined there.
+
+- **Trigger-style pendings as the future-default shape.** `PendingHarvestFeed` exhibits the shape future card-trigger pendings will reuse: opt-in `Commit*` sub-decisions (the craft conversions, analogous to future card triggers) followed by one main commit. Captured in CLAUDE.md's Card-implementation-status forward-look.
+
+### Process notes
+
+- **80 new tests, 0 cascading failures.** Each implementation step was tested before moving on. The two test-update items (decider-rule invariant + round-4 RETURN_HOME) surfaced when the engine wiring went in at step 10 — that's the natural seam for those updates, not a process failure.
+
+- **Side-quests were value-positive.** The random-vs-random script surfaced the Cooking-Hearth bug on its first run (seed 100). The bug had been latent since Task 5C — random play in Task 5D / Task 6 era halted at round 4 before harvest, so a player accumulating Fireplace + low clay would only attempt the bad Cooking-Hearth path occasionally pre-Task-7. Task 7's 14-round extension made the path 6× more common (one harvest-vulnerable round became six rounds of opportunity to leak negative clay). Running real games is a different surface than unit tests.
+
+- **Doc-restructuring before code paid off.** Restructuring TASK_7.md Part 9 into four subsections (CLAUDE.md / FILE_DESCRIPTIONS.md / TEST_DESCRIPTIONS.md / CHANGES.md) before implementation made the documentation cascade trivially mechanical at the end — each subsection had a target file and a known scope, no untangling needed mid-edit.
+
+### Next task
+
+The engine is feature-complete for the Family game. The next high-leverage targets, per POSSIBLE_NEXT_STEPS.md:
+
+1. **B — `BoardState.action_spaces` hashability refactor.** Required for state-hashed legal-actions caching and DAG-MCTS. Mechanical refactor; the tricky part is the canonical ordering choice and updating every call site that currently keys by string.
+
+2. **C — Performance profiling of `legal_actions` and `step`.** Nothing is known to be slow, but no one has measured. Useful before MCTS scaling exposes per-call cost as a bottleneck.
+
+3. **F — Heuristic agent.** First non-random agent. Should push these random-play scores (avg −3.5 across both players) up by 30–50 points just by avoiding begging markers and unused cells.
+
+4. **E (newly added in POSSIBLE_NEXT_STEPS.md this session) — Pareto-frontier pruning optimizations.** Anchor pruning and the broader incremental geometric pruning. Defer until profiling (C) identifies the helpers as a hot path.
+
+Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 521 tests pass. The codebase has:
+All 601 tests pass. The codebase has:
 
-- Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc.
-- Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`).
+- Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc. `PlayerState` carries `harvest_conversions_used: frozenset[str]` as of Task 7 — the once-per-harvest conversion-decision budget, reset in `_resolve_harvest_field`.
+- Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`). The non-negative invariant for resources / animals is enforced at the `step()` boundary, not inside `__sub__` itself.
 - Pasture cache on `Farmyard` (`agricola/pasture.py`, `agricola/state.py`); auto-fill `__post_init__` disabled per `CHANGES.md` Change 3. Pasture-changing resolvers (including the post-Task-5D `_execute_build_stable`) recompute via `compute_pastures_from_arrays` explicitly.
-- All helper functions through Task 3 plus the `enclosed_cells` legality helper (`agricola/helpers.py`). `breeding_frontier` updated in the Task 7 design session to include food as a Pareto dimension (the deliberate exception to the upstream-goods principle); see [Task 7 design](#task-7-design) for the rationale.
+- All helper functions through Task 3 plus the `enclosed_cells` legality helper (`agricola/helpers.py`). `cooking_rates` is a 4-tuple `(sheep, boar, cattle, veg)` as of Task 7. `food_payment_frontier` and `harvest_feed_frontier` (Task 7) provide Pareto-filtered conversion options for paying food. `breeding_frontier` is animal-counts-only Pareto per the "Preserving optionality" Key Design Principle (the Task 7 design's food-as-Pareto-dim attempt was reverted).
 - Scoring and tiebreaker (`agricola/scoring.py`).
-- Action union (`agricola/actions.py`): `PlaceWorker`, `ChooseSubAction`, `CommitSow`, `CommitBake`, `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom`, `CommitBuildMajor`, `CommitRenovate`, `CommitAccommodate`, `CommitBuildPasture`, `FireTrigger`, `Stop`. `CommitSubAction` is the frozen-dataclass marker base; all concrete commits dispatch through the generic `_apply_commit_subaction`.
-- Pending types and stack operations (`agricola/pending.py`): 18 concrete pendings split into sub-action pendings (host `CommitX`) and parent pendings (host `ChooseSubAction`/`Stop`). Every pending carries `initiated_by_id` (mandatory) + `PENDING_ID` (ClassVar). Multi-shot sub-action pendings (`PendingBuildStables`, `PendingBuildRooms`) carry `cost: Resources` + `max_builds: int | None` + `num_built: int = 0`; their effect functions don't pop, leaving Stop as the explicit exit. `PendingBuildFences` follows the same multi-shot pattern with `pastures_built` / `fences_built` counters and the `subdivision_started` ordering-rule flag (and no `cost` — bucket-4 cost handling). Stack helpers `push` / `pop` / `replace_top` live here.
-- Unified legality (`agricola/legality.py`): `legal_actions(state)` as the top-level entry point. `NON_ATOMIC_LEGALITY` covers all 12 non-atomic spaces. Three `ACTIVE_FENCE_UNIVERSE_*` module constants set the default fence universe (RESTRICTED) with per-call kwarg overrides on the build-fences enumerator. Card extension registries: `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` and `BAKING_SPEC_EXTENSIONS`. New helpers from Task 6: `_legal_fencing`, `_any_legal_pasture_commit` (two-pass 1×1 fast path), `_check_entry_legal`, `_enclosable_cells_bm`, `_cells_bm_of_pasture`. All enumerators take `(state, pending: PendingX)`; the build-fences enumerator additionally accepts universe kwargs.
-- Per-space resolution (`agricola/resolution.py`): atomic handlers (12 spaces), non-atomic initiators (all 12 non-atomic spaces), choose-sub-action handlers (11: animal markets have no choose step). Sub-action effect functions: `_execute_sow`, `_execute_bake`, `_execute_plow`, `_execute_build_stable`, `_execute_build_room`, `_execute_build_major`, `_execute_renovate`, `_execute_accommodate`, `_execute_build_pasture`. `_execute_build_stable` and `_execute_build_pasture` are the two pasture-changing effect functions; both recompute `Farmyard.pastures` via `compute_pastures_from_arrays` per the caller-discipline rule. Three function-pointer dispatch tables fully populated.
-- The engine (`agricola/engine.py`): `step` + `_advance_until_decision` + phase resolvers + `_advance_current_player`. `_apply_action` has five branches (PlaceWorker, ChooseSubAction, CommitSubAction generic, FireTrigger, Stop). `_apply_commit_subaction` reads `auto_pop` and conditionally pops. `COMMIT_SUBACTION_HANDLERS` entries are 3-tuples `(expected_pending_type_or_tuple_of_types, effect_fn, auto_pop: bool)`. Rounds 1 → 4 fully playable; halts at `Phase.BEFORE_SCORING` after round 4's RETURN_HOME. The `NotImplementedError` branch in `_apply_place_worker` is now only a defensive guard for unknown space-IDs — every space surfaced by `legal_placements` has a registered handler.
-- Card framework (`agricola/cards/`): unchanged from Task 5C — `triggers.py` registries + `register()`; one card (`potter_ceramics.py`). Forward-compat hooks remain.
-- **Fencing universes and edge metadata** — `agricola/fences.py` ships four precomputed pasture-shape universes (Task 6_pre) plus per-shape edge metadata (Task 6). Universe sizes: FULL=1518, FAMILY=762, EXTENDED=193, RESTRICTED=109 (the 109/193 sizes reflect Task 6's 1×1-at-(0, 0) addition). Each universe also has a parallel `_ENTRIES` tuple of `PastureCandidate` dataclasses (cells_bm + boundary bitmaps + adjacency bitmap + cells frozenset) and a `_SMALLEST_ENTRIES` fast-path tuple (the 1×1 subset). `ENTRIES_BY_BM` bitmap-keyed lookup for off-hot-path access. Fence-array pack/apply helpers and the `compute_new_fence_edges` cost helper (bucket 4) are also exposed.
-- **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time. The design principle is documented in CLAUDE.md's "Additional Design Principles" → "Reusable sub-action pendings."
-- Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `IMPLEMENTED_NON_ATOMIC_SPACES` is auto-derived from `NONATOMIC_HANDLERS.keys()` and now contains all 12 non-atomic spaces.
-- Full test coverage: 521 tests across all test files. New since Task 5D: `tests/test_fences.py` extended to 122 (universe enumeration + edge metadata), `tests/test_fencing.py` (35 tests on the Fencing engine flow), `tests/test_farm_redevelopment.py` (20 tests mirroring House Redev with Build Fences integration). Task 7 design session added `test_breeding_two_pastures_two_sheep_two_boar` and updated four existing breeding tests in `tests/test_helpers.py` for the new `breeding_frontier` Pareto-dim behavior. Random-agent end-to-end smoke runs to BEFORE_SCORING across multiple seeds with all 12 non-atomic spaces in scope.
-- **Implementation spec for harvest phases ready** — `TASK_7.md` covers FIELD / FEED / BREED phase wiring, the `food_payment_frontier` / `harvest_feed_frontier` helpers, three new commit types (`CommitHarvestConversion`, `CommitConvert`, `CommitBreed`), two new pending types (`PendingHarvestFeed`, `PendingHarvestBreed`), the `HARVEST_CONVERSIONS` registry, and the once-per-harvest `harvest_conversions_used` field on `PlayerState`. The spec is the next implementation target; no harvest code has been written yet.
+- Action union (`agricola/actions.py`): `PlaceWorker`, `ChooseSubAction`, `CommitSow`, `CommitBake`, `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom`, `CommitBuildMajor`, `CommitRenovate`, `CommitAccommodate`, `CommitBuildPasture`, `CommitHarvestConversion`, `CommitConvert`, `CommitBreed`, `FireTrigger`, `Stop`. `CommitSubAction` is the frozen-dataclass marker base; all concrete commits dispatch through the generic `_apply_commit_subaction`.
+- Pending types and stack operations (`agricola/pending.py`): 20 concrete pendings — sub-action pendings (host `CommitX`), parent pendings (host `ChooseSubAction`/`Stop`), and the two phase-driven harvest pendings `PendingHarvestFeed` / `PendingHarvestBreed`. Every pending carries `initiated_by_id` (mandatory) + `PENDING_ID` (ClassVar). The three provenance namespaces are `"space:<id>"`, `"phase:<id>"`, and `"card:<id>"`. Multi-shot sub-action pendings (`PendingBuildStables`, `PendingBuildRooms`) carry `cost: Resources` + `max_builds: int | None` + `num_built: int = 0`. `PendingBuildFences` follows the same multi-shot pattern with `pastures_built` / `fences_built` counters and the `subdivision_started` ordering-rule flag (no `cost` — bucket-4 cost handling). `PendingHarvestFeed` carries `food_owed` + `conversion_done` (gates Stop legality); `PendingHarvestBreed` carries `breed_chosen`. Stack helpers `push` / `pop` / `replace_top` live here.
+- Unified legality (`agricola/legality.py`): `legal_actions(state)` as the top-level entry point. `NON_ATOMIC_LEGALITY` covers all 12 non-atomic spaces. Three `ACTIVE_FENCE_UNIVERSE_*` module constants set the default fence universe (RESTRICTED) with per-call kwarg overrides on the build-fences enumerator. Card extension registries: `BAKE_BREAD_ELIGIBILITY_EXTENSIONS`, `BAKING_SPEC_EXTENSIONS`. Helpers from Task 6: `_legal_fencing`, `_any_legal_pasture_commit`, `_check_entry_legal`, `_enclosable_cells_bm`, `_cells_bm_of_pasture`. From Task 7: `_enumerate_pending_harvest_feed`, `_enumerate_pending_harvest_breed`. All enumerators take `(state, pending: PendingX)`; the build-fences enumerator additionally accepts universe kwargs.
+- Per-space resolution (`agricola/resolution.py`): atomic handlers (12 spaces), non-atomic initiators (all 12), choose-sub-action handlers (11: animal markets have no choose step). Sub-action effect functions: `_execute_sow`, `_execute_bake`, `_execute_plow`, `_execute_build_stable`, `_execute_build_room`, `_execute_build_major`, `_execute_renovate`, `_execute_accommodate`, `_execute_build_pasture`, plus Task 7's `_execute_harvest_conversion`, `_execute_convert`, `_execute_breed`. `_execute_build_stable` and `_execute_build_pasture` are the two pasture-changing effect functions; both recompute `Farmyard.pastures` via `compute_pastures_from_arrays` per the caller-discipline rule. Three function-pointer dispatch tables fully populated.
+- The engine (`agricola/engine.py`): `step` + `_advance_until_decision` + phase resolvers + `_advance_current_player`. `_apply_action` has five branches (PlaceWorker, ChooseSubAction, CommitSubAction generic, FireTrigger, Stop). `_apply_commit_subaction` reads `auto_pop` and conditionally pops. `COMMIT_SUBACTION_HANDLERS` entries are 3-tuples; harvest entries (`CommitHarvestConversion`, `CommitConvert`, `CommitBreed`) all use `auto_pop=False`. **All 14 rounds and all 6 harvests are playable**: `_resolve_return_home` routes to `HARVEST_FIELD` on `HARVEST_ROUNDS = {4, 7, 9, 11, 13, 14}`; `_resolve_harvest_field` + `_initiate_harvest_feed` + `_initiate_harvest_breed` drive the harvest phases; `_advance_until_decision` has dual-meaning branches for `HARVEST_FEED` / `HARVEST_BREED` (stack non-empty = a player is deciding; stack empty = phase-exit signal). The terminal transition (HARVEST_BREED empty stack after round 14 → BEFORE_SCORING) lives in the engine loop. `step()` ends with `_assert_nonnegative_state(state, action)` — a non-negative invariant on every player's resources and animals that catches enumerator-gate misses immediately at the assertion boundary. The `NotImplementedError` branch in `_apply_place_worker` is only a defensive guard for unknown space-IDs.
+- Card framework (`agricola/cards/`): `triggers.py` (event-keyed + card-id-keyed registries) + `harvest_conversions.py` (Task 7 — once-per-harvest conversion registry with three built-in craft majors and a `register_harvest_conversion(spec)` hook for future cards). One card: `potter_ceramics.py`. Forward-compat hooks remain.
+- **Fencing universes and edge metadata** — `agricola/fences.py` ships four precomputed pasture-shape universes (Task 6_pre) plus per-shape edge metadata (Task 6). Sizes: FULL=1518, FAMILY=762, EXTENDED=193, RESTRICTED=109. Each universe also has a parallel `_ENTRIES` tuple of `PastureCandidate` dataclasses and a `_SMALLEST_ENTRIES` fast-path tuple. `ENTRIES_BY_BM` for off-hot-path lookup. Fence-array pack/apply helpers and the `compute_new_fence_edges` cost helper (bucket 4) are exposed.
+- **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time.
+- Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `_is_implemented_action` only filters `PlaceWorker` actions; all other action types (including the three new harvest commits) pass through unconditionally.
+- Top-level `play_random_game.py` script: plays one full random-vs-random game and prints the scoreboard with per-category breakdown, tiebreaker, and winner. `--trace` flag prints a per-round narrative grouping worker-placement chains and harvest sub-phases.
+- Full test coverage: **601 tests** across all test files. New since Task 6: four harvest test files (`test_harvest_field.py`, `test_harvest_feed.py`, `test_harvest_breed.py`, `test_harvest_integration.py`) totaling 66 tests; 11 new tests in `test_helpers.py` for the two new frontier helpers; 2 regression tests in `test_major_improvement.py` for the Cooking-Hearth gating fix; minor renames + invariant-loosening in `test_engine.py`. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
 
-**Next task**: **Task 7 implementation — harvest phases.** Per TASK_7.md's Order of Work, 15 sequential implementation steps land the spec. After implementation, the engine plays a complete 14-round Family game end-to-end with all 6 harvests resolved; `random_agent_play` across seeds 0–99 to BEFORE_SCORING is the acceptance benchmark. Cards beyond Potter Ceramics remain a larger separate effort with open design questions documented in CLAUDE.md's "Card implementation status" and in FENCE_IDEAS.md Section 9.
+**Next task**: Engine is feature-complete for the Family game. Per POSSIBLE_NEXT_STEPS.md, the next high-leverage targets are (B) the `BoardState.action_spaces` hashability refactor (required for state-hashed MCTS), (C) performance profiling of `legal_actions` / `step` before MCTS scaling, (E) the newly-documented Pareto-frontier pruning optimizations (defer until profiling identifies the helpers as a hot path), and (F) the heuristic agent — the first non-random agent. Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."

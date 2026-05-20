@@ -383,6 +383,63 @@ class PendingFarmRedevelopment:
     triggers_resolved: frozenset = frozenset()
 
 
+@dataclass(frozen=True)
+class PendingHarvestFeed:
+    """Phase-driven pending for the HARVEST_FEED sub-phase, one per player.
+
+    Pushed by `_initiate_harvest_feed` (in engine.py) at the start of FEED,
+    with `initiated_by_id="phase:harvest_feed"` — the third namespace in the
+    provenance scheme alongside `"space:..."` and `"card:..."`.
+
+    Hosts trigger-style opt-in sub-decisions (the three craft majors, via
+    CommitHarvestConversion) plus one main `CommitConvert`. After cards
+    land, additional card-triggered conversions register into the same
+    HARVEST_CONVERSIONS registry and appear alongside the crafts.
+
+    State semantics:
+      - `food_owed` is set at push time to max(0, need - p.resources.food),
+        with `need = 2*people_total - newborns`. Food is pre-debited at push
+        per the "Cannot withhold food tokens" rule (RULES.md Feeding Phase).
+      - Each successful CommitHarvestConversion reduces food_owed by
+        min(food_out, food_owed); surplus food (if any) goes to supply.
+      - CommitConvert reduces food_owed by min(food_produced, food_owed),
+        places surplus in supply, and assigns the remaining owed to
+        begging markers. Then sets `conversion_done=True`.
+      - Stop is legal only after `conversion_done=True`.
+
+    "Decided" conversion ids live on PlayerState.harvest_conversions_used,
+    not on this pending — per the "per-card budgets that span multiple
+    events live on PlayerState" convention.
+
+    No `triggers_resolved` / `TRIGGER_EVENT` fields yet — added per Task 5D
+    precedent only when the first card needing them lands. Natural future
+    events: `before_harvest_feed`, `after_harvest_feed`.
+    """
+    PENDING_ID: ClassVar[str] = "harvest_feed"
+    player_idx:      int
+    initiated_by_id: str            # always "phase:harvest_feed"
+    food_owed:       int
+    conversion_done: bool = False
+
+
+@dataclass(frozen=True)
+class PendingHarvestBreed:
+    """Phase-driven pending for the HARVEST_BREED sub-phase, one per player.
+
+    Pushed by `_initiate_harvest_breed` at the start of BREED with
+    `initiated_by_id="phase:harvest_breed"`. Simpler shape than FEED — one
+    CommitBreed (chosen from `breeding_frontier`) followed by Stop. No
+    food pre-debit; CommitBreed adds the frontier's food_gained to supply.
+
+    No `triggers_resolved` / `TRIGGER_EVENT` yet (Task 5D precedent).
+    Natural future events: `before_harvest_breed`, `after_harvest_breed`.
+    """
+    PENDING_ID: ClassVar[str] = "harvest_breed"
+    player_idx:      int
+    initiated_by_id: str            # always "phase:harvest_breed"
+    breed_chosen:    bool = False
+
+
 # The PendingDecision union. New pending types are added here as the
 # non-atomic resolution surface grows.
 PendingDecision = Union[
@@ -408,6 +465,8 @@ PendingDecision = Union[
     PendingFencing,
     PendingBuildFences,
     PendingFarmRedevelopment,
+    PendingHarvestFeed,
+    PendingHarvestBreed,
 ]
 
 
