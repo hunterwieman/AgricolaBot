@@ -29,6 +29,8 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 5D — Farm Expansion + Multi-Shot Sub-Action Pendings](#task-5d)
 - [Task 6_pre — Fencing Universe Enumeration](#task-6-pre)
 - [Task 6 — Fencing, Build Fences, and Farm Redevelopment](#task-6)
+- [Task 7 design — Harvest spec + breeding_frontier Pareto-dim fix](#task-7-design)
+- [Task 7 design follow-up — breeding_frontier revert + "Preserving optionality" principle](#task-7-design-followup)
 - [Current State](#current-state)
 
 ---
@@ -1592,15 +1594,120 @@ Cards beyond Potter Ceramics are a separate large effort. Several open design qu
 
 ---
 
+<a name="task-7-design"></a>
+## Task 7 design — Harvest Implementation Spec + `breeding_frontier` Pareto-Dim Fix (2026-05-20)
+
+> **Note (2026-05-20 follow-up):** The `breeding_frontier` food-as-Pareto-dim change documented in this entry was reverted later the same day after a principled re-examination. The canonical convention is now animal-counts-only Pareto (matching `pareto_frontier`), formalized as the "Preserving optionality" Key Design Principle in CLAUDE.md. See the next section ("Task 7 design follow-up") for the revert and the corrected design.
+
+Design-only session. Produced the full implementation spec for Task 7 (harvest phases) but did not land the implementation itself — that's a follow-up session. The one code change made this session was a targeted fix to `breeding_frontier` in `agricola/helpers.py` to include food as a Pareto dimension, surfaced and prompted by the design discussion.
+
+### What was produced
+
+- **`TASK_7.md`** — 1300-line implementation spec for the three harvest sub-phases (FIELD / FEED / BREED) and the round-5-to-14 unblock. Top-down narrative: engine wiring & phase machine first (Part 2), state objects (Part 3), resolution functions (Part 4), legality enumerators (Part 5), algorithmic primitives (Part 6), integration glue (Part 7), tests (Part 8), documentation (Part 9), order of work (Part 10), acceptance criteria (Part 11), out of scope (Appendix A).
+
+- **`POSSIBLE_NEXT_STEPS.md`** entry E added — captures the "Pareto dominance over upstream goods" principle for eventual addition to CLAUDE.md as a design principle. Documents that food is a one-way downstream derivative of crops/animals; preserving upstream goods strictly dominates preserving the food they could produce; `food_payment_frontier` and `harvest_feed_frontier` follow this; `breeding_frontier` is the deliberate exception (food IS a Pareto dim there because the "release for food" strategic option would otherwise vanish).
+
+- **`agricola/helpers.py`** — `breeding_frontier` updated. The pre-existing dominance check filtered over animal counts only and computed food after the filter — which silently excluded all release-for-food options when an animal type's max-keep config was feasible. Removed the local `dominates()` helper, inlined the dominance check, and added food as a Pareto dim. Updated the docstring to call out that this is an intentional exception to the upstream-goods principle, with the rationale.
+
+- **`tests/test_helpers.py`** — four pre-existing breeding tests adapted to the new behavior (now expect multi-point frontiers in the cooking-rates-non-zero cases), plus one new test `test_breeding_two_pastures_two_sheep_two_boar` asserting the full 10-point frontier for the "two 1×1 pastures, 2 sheep + 2 boar, Fireplace" scenario. The new test demonstrates the constraint that the house pet slot is shared — only one type can breed at a time when both types have a dedicated pasture.
+
+### Why design-only this session
+
+The harvest sub-phase machinery is meaningfully different from prior tasks (which each added a single conceptual unit — Fencing space, Farm Expansion, etc.). Harvest adds:
+- Three coordinated phases with shared state.
+- The first real strategic decision surface outside worker placement (FEED's "what to convert + whether to beg").
+- A new "phase-driven" pending push pattern, distinct from the existing space-driven `_initiate_<nonatomic_space>` pattern.
+- A new Pareto-frontier helper (`food_payment_frontier`) usable for future card payments.
+
+Getting the design pinned before implementation began — same pattern as TASK_6 — let the conversation surface and resolve several non-obvious design questions before any code was written. Key questions settled during the session:
+
+- **3-phase vs 5-phase engine state machine.** Initial sketch had `HARVEST_FEED_WAIT` and `HARVEST_BREED_WAIT` to distinguish "pending pushed" from "pending popped." Settled on 3 phases (no new enum values) where `HARVEST_FEED` / `HARVEST_BREED` carry dual meaning by stack state — non-empty = interactive, empty = exit signal. `_resolve_harvest_field` does mechanical work + pushes FEED pendings + transitions phase, mirroring `_resolve_preparation`'s multi-concern shape.
+
+- **Doc ordering.** Original draft was bottom-up (preliminary refactor → helpers → action types → pendings → resolution → legality → engine wiring). For harvest, top-down reads better — show the phase machine first, then drill into specifics. Restructured the doc; Part 10 (order of work) stays bottom-up because implementation order ≠ narrative order.
+
+- **Pareto dominance over upstream goods.** The principle is: when comparing configurations via Pareto filter, compare over upstream goods only, never include downstream derivatives like food. Three rounds of design discussion before the principle was settled correctly. The principle now governs `food_payment_frontier` and `harvest_feed_frontier`. `breeding_frontier` is the documented exception (food IS a Pareto dim there). Principle queued for CLAUDE.md (`POSSIBLE_NEXT_STEPS.md` entry E).
+
+- **Natural-fit filter in `harvest_feed_frontier`.** First sketch had a loop-over-paid composition where the same config could land in the candidate set multiple times with different begging tags ("ghost begging"); Pareto filter cleaned them up but at the cost of redundant work. Refined to a natural-fit filter (`paid == min(food_generated, food_owed)`) that admits each config exactly once, with the correct begging value. Same final frontier, no wasted candidates.
+
+- **REMAINING vs CONSUMED convention for action types.** `pareto_frontier` and `breeding_frontier` return REMAINING tuples (matched by `CommitAccommodate` and `CommitBreed`). The new `food_payment_frontier` and `harvest_feed_frontier` also return REMAINING. But `CommitConvert` was switched to CONSUMED amounts — the values are bounded by per-good caps in the frontier, uniform across player states (`(0,0,0,0,0)` always means "consume nothing"), and map cleanly to "convert these goods." The enumerator inverts the REMAINING frontier tuples → CONSUMED CommitConvert values. `CommitBreed` and `CommitAccommodate` stay REMAINING because they represent post-event states that combine subtraction with addition (newborns / market gains).
+
+- **`_initiate_*` naming convention extension.** `_initiate_<X>` was originally for non-atomic worker placement entry. Extended (with documentation) to cover phase-driven pending push (`_initiate_harvest_feed`, `_initiate_harvest_breed`). Both live in `engine.py` adjacent to `_resolve_harvest_field`, alongside the existing `_resolve_return_home` / `_resolve_preparation`.
+
+### Conventions established (some queued for CLAUDE.md)
+
+- **Pareto dominance over upstream goods.** When two goods are connected by a one-way conversion (e.g., grain → food but not food → grain), Pareto comparisons should be over the upstream goods only. The downstream good is a derived quantity whose surplus does not contribute Pareto value because the upstream goods can produce it on demand. Applied uniformly across `food_payment_frontier` and `harvest_feed_frontier`. `breeding_frontier` is the deliberate exception — food IS a Pareto dim there because in BREED the only outcome of releasing animals is food, and without food in the comparison the frontier would collapse to "keep max animals" and the player would never have a release-for-food choice. Principle is documented in `POSSIBLE_NEXT_STEPS.md` entry E for eventual CLAUDE.md addition.
+
+- **Dual-meaning phase values.** `HARVEST_FEED` and `HARVEST_BREED` carry two structural meanings depending on stack state: non-empty = player is deciding, empty = phase-exit signal. The discriminator works because the only way to reach phase=X with empty stack is for the entry-resolver to have pushed pendings (now drained). No new phase values or boolean flags needed. Documented in TASK_7.md Part 2.1 and queued for CLAUDE.md as part of the harvest documentation cascade.
+
+- **Three provenance prefix categories.** `"space:<id>"` (existing) / `"card:<id>"` (existing) / `"phase:<id>"` (new). Phase-driven pending pushes use `"phase:harvest_feed"` / `"phase:harvest_breed"`. No risk of namespace collision; prefixes are disjoint by construction.
+
+- **`CommitConvert` uses CONSUMED amounts.** Distinct from `CommitBreed` / `CommitAccommodate` (which use REMAINING/final counts). Rationale: `CommitConvert` is pure subtraction, the values are bounded by per-good caps in the food-payment frontier (small fixed range, friendly to NN policy heads), and `(0,0,0,0,0)` uniformly means "consume nothing" regardless of player state. The enumerator inverts the REMAINING frontier tuples when constructing `CommitConvert`.
+
+- **`HARVEST_CONVERSIONS` registry pattern.** New module `agricola/cards/harvest_conversions.py` parallels the existing `agricola/cards/triggers.py` registry. Built-in entries for Joinery, Pottery, Basketmaker. `register_harvest_conversion(spec)` extension hook for future cards (e.g., Stone Sculptor). Imported from `agricola/cards/__init__.py` so entries register at package-import time.
+
+### Test count change
+
+| File | Before | After | Δ |
+|---|---|---|---|
+| `tests/test_helpers.py` | (subset) | (subset) | +1 |
+| **Total** | **520** | **521** | **+1** |
+
+The +1 is the new `test_breeding_two_pastures_two_sheep_two_boar` test. Four other breeding tests in `test_helpers.py` were modified in-place to assert the new multi-point frontier behavior; their count is unchanged.
+
+### Process notes
+
+- **The design-first pattern continued to pay off, but with longer iteration than Task 6.** Roughly 8 substantial design-conversation rounds before the spec stabilized — Task 6's design phase took ~5. Each round produced revisions: doc restructure (top-down), Pareto principle refinement (three rounds before the upstream-goods rule was stable), natural-fit filter for harvest_feed_frontier, REMAINING-vs-CONSUMED convention for CommitConvert, breeding_frontier food-as-Pareto-dim exception. Several rounds caught design errors that would have been expensive to undo in code (the food_surplus-as-Pareto-dim mistake; the loop-over-paid algorithm with ghost-begging entries; the original 5-phase state machine).
+
+- **The Pareto principle was the design pivot of the session.** Multiple iterations on whether food belongs as a Pareto dim. Settled: NO for `food_payment_frontier` / `harvest_feed_frontier` (upstream goods can produce food on demand → preserving upstream strictly dominates), YES for `breeding_frontier` (without food in the comparison, the frontier collapses and strategic options vanish). The asymmetry is honest — the principle applies when food is "reproducibly downstream," and BREED has a specific structural reason it isn't (the in-phase release-for-food is the only food-production mechanism for animals during BREED, and forgone release is forgone forever).
+
+- **One existing-code fix surfaced organically from the design discussion.** The breeding_frontier Pareto-dim issue was identified while reviewing the design doc; it had been a latent inconsistency in helpers.py since Task 3. Fixed in this session along with the four existing tests it affected. No other existing code changes; all other helpers.py / tests/* changes await the Task 7 implementation session.
+
+- **Read-through review caught real issues.** A deep-dive end-to-end read of the 1300-line doc surfaced: a wrong frontier claim in test 8.3 (4 points claimed, actually 1 point under old behavior or 3 under new behavior); a self-contradicting paragraph in test_utils.py notes; a duplicate-sentence bug in Part 10; double `---` separators in two places; several stale Part X.Y cross-references. All fixed in the same review pass.
+
+### Next task
+
+**Task 7 implementation.** TASK_7.md's "Order of Work" (Part 10) lays out 15 sequential implementation steps, bottom-up: cooking_rates 4-tuple → PlayerState field → HARVEST_CONVERSIONS registry → frontier helpers → action types → pendings → effect functions + enumerators → engine-loop wiring → tests → documentation. After implementation, the engine plays a complete 14-round Family game end-to-end with all 6 harvests resolved. `random_agent_play` across seeds 0–99 to BEFORE_SCORING is the acceptance benchmark.
+
+---
+
+<a name="task-7-design-followup"></a>
+## Task 7 design follow-up — `breeding_frontier` revert + "Preserving optionality" principle (2026-05-20)
+
+The food-as-Pareto-dim change to `breeding_frontier` made earlier the same day was reverted in a follow-up session. Under closer scrutiny the change was determined to be incorrect: the "release for food" options it was retaining are themselves strategically dominated by simply keeping the animals (the animals can be converted to food at any future moment via the same Fireplace/Hearth — eaten animals can't be brought back). The deliberate-exception framing didn't survive its first principled examination.
+
+**Reverted:**
+
+- `agricola/helpers.py` — `breeding_frontier` restored to animal-counts-only Pareto, matching `pareto_frontier`. Food is returned alongside each frontier point as the deterministic consequence of the chosen end-state, not as a Pareto dimension.
+- `tests/test_helpers.py` — the four pre-existing breeding tests restored to their single-point assertions (`test_breeding_food_from_excess`, `test_breeding_worked_example`, `test_breeding_formula_sF_ge_3`, `test_breeding_formula_sF_lt_3`).
+- `tests/test_helpers.py` — `test_breeding_two_pastures_two_sheep_two_boar` retained (rather than deleted) but updated to assert the correct 2-point frontier `{(3,2,0): 0, (2,3,0): 0}` — the symmetric "one type breeds, the other keeps both parents" outcomes. Both options surface because the shared house pet slot can host either type's newborn but not both.
+
+Test count: still 521 (no net change).
+
+**Added in CLAUDE.md as the fifth Key Design Principle:**
+
+- **"Preserving optionality."** Statement: never surface an action that is *both* irreversible and "at any time" (deferrable to any future moment) as a standalone bot decision unless the proceeds are needed at that moment. The Pareto-on-upstream-goods rule (which governs `pareto_frontier`, `breeding_frontier`, and the future `food_payment_frontier` / `harvest_feed_frontier`) is the concrete prescription that drops out of this principle. `breeding_frontier` is no longer an exception — it follows the same convention as the other frontier helpers, and the principle's note-for-future-sessions paragraph is calibrated for exactly the failure mode that produced the food-as-Pareto-dim mistake.
+
+  The principle also articulates one feeding-specific refinement: in `harvest_feed_frontier`, begging markers *are* a Pareto dim (they represent a strategic cost the player chose to incur, with a known −3 scoring cost). Surplus food remains excluded. The asymmetry: downstream costs the player chose to incur are Pareto dimensions; downstream byproducts of over-conversion are not.
+
+**TASK_7.md updates landed alongside the revert:**
+
+- The "Note: `breeding_frontier` is an exception" paragraph in `food_payment_frontier`'s docstring was removed. The docstring now states that the three frontier helpers all follow the rule uniformly.
+- Test 8.3 (HARVEST_BREED tests) bullets updated to reflect single-point frontiers — the food-as-Pareto-dim filter had been producing 3-point and 5-point frontiers in cases where animal-only Pareto produces 1-point or 2-point.
+- The confused "Cooking Hearth rates" bullet was deleted (it claimed Hearth rates would shift the frontier; under animal-only Pareto, cooking rates don't change the frontier shape — only the food values reported for each point).
+
+**Lesson:** the principled answer to "should we surface a release-for-food option at breeding?" is no, because the player can release-and-convert later at any time without losing anything (in fact, deferring gains optionality — the animal can be reassigned, can breed in a future harvest, can score). The deliberate-exception framing felt right in the moment because release-for-food *is* a real-feeling strategic choice. But "real-feeling" isn't the same as "load-bearing" — under the preserving-optionality lens, the release-for-food configurations were dominated all along by their kept-animal counterparts. The note-for-future-sessions paragraph in CLAUDE.md is the corrective hook for next time.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 520 tests pass. The codebase has:
+All 521 tests pass. The codebase has:
 
 - Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc.
 - Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`).
 - Pasture cache on `Farmyard` (`agricola/pasture.py`, `agricola/state.py`); auto-fill `__post_init__` disabled per `CHANGES.md` Change 3. Pasture-changing resolvers (including the post-Task-5D `_execute_build_stable`) recompute via `compute_pastures_from_arrays` explicitly.
-- All helper functions through Task 3 plus the `enclosed_cells` legality helper (`agricola/helpers.py`).
+- All helper functions through Task 3 plus the `enclosed_cells` legality helper (`agricola/helpers.py`). `breeding_frontier` updated in the Task 7 design session to include food as a Pareto dimension (the deliberate exception to the upstream-goods principle); see [Task 7 design](#task-7-design) for the rationale.
 - Scoring and tiebreaker (`agricola/scoring.py`).
 - Action union (`agricola/actions.py`): `PlaceWorker`, `ChooseSubAction`, `CommitSow`, `CommitBake`, `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom`, `CommitBuildMajor`, `CommitRenovate`, `CommitAccommodate`, `CommitBuildPasture`, `FireTrigger`, `Stop`. `CommitSubAction` is the frozen-dataclass marker base; all concrete commits dispatch through the generic `_apply_commit_subaction`.
 - Pending types and stack operations (`agricola/pending.py`): 18 concrete pendings split into sub-action pendings (host `CommitX`) and parent pendings (host `ChooseSubAction`/`Stop`). Every pending carries `initiated_by_id` (mandatory) + `PENDING_ID` (ClassVar). Multi-shot sub-action pendings (`PendingBuildStables`, `PendingBuildRooms`) carry `cost: Resources` + `max_builds: int | None` + `num_built: int = 0`; their effect functions don't pop, leaving Stop as the explicit exit. `PendingBuildFences` follows the same multi-shot pattern with `pastures_built` / `fences_built` counters and the `subdivision_started` ordering-rule flag (and no `cost` — bucket-4 cost handling). Stack helpers `push` / `pop` / `replace_top` live here.
@@ -1611,6 +1718,7 @@ All 520 tests pass. The codebase has:
 - **Fencing universes and edge metadata** — `agricola/fences.py` ships four precomputed pasture-shape universes (Task 6_pre) plus per-shape edge metadata (Task 6). Universe sizes: FULL=1518, FAMILY=762, EXTENDED=193, RESTRICTED=109 (the 109/193 sizes reflect Task 6's 1×1-at-(0, 0) addition). Each universe also has a parallel `_ENTRIES` tuple of `PastureCandidate` dataclasses (cells_bm + boundary bitmaps + adjacency bitmap + cells frozenset) and a `_SMALLEST_ENTRIES` fast-path tuple (the 1×1 subset). `ENTRIES_BY_BM` bitmap-keyed lookup for off-hot-path access. Fence-array pack/apply helpers and the `compute_new_fence_edges` cost helper (bucket 4) are also exposed.
 - **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time. The design principle is documented in CLAUDE.md's "Additional Design Principles" → "Reusable sub-action pendings."
 - Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `IMPLEMENTED_NON_ATOMIC_SPACES` is auto-derived from `NONATOMIC_HANDLERS.keys()` and now contains all 12 non-atomic spaces.
-- Full test coverage: 520 tests across all test files. New since Task 5D: `tests/test_fences.py` extended to 122 (universe enumeration + edge metadata), `tests/test_fencing.py` (35 tests on the Fencing engine flow), `tests/test_farm_redevelopment.py` (20 tests mirroring House Redev with Build Fences integration). Random-agent end-to-end smoke runs to BEFORE_SCORING across multiple seeds with all 12 non-atomic spaces in scope.
+- Full test coverage: 521 tests across all test files. New since Task 5D: `tests/test_fences.py` extended to 122 (universe enumeration + edge metadata), `tests/test_fencing.py` (35 tests on the Fencing engine flow), `tests/test_farm_redevelopment.py` (20 tests mirroring House Redev with Build Fences integration). Task 7 design session added `test_breeding_two_pastures_two_sheep_two_boar` and updated four existing breeding tests in `tests/test_helpers.py` for the new `breeding_frontier` Pareto-dim behavior. Random-agent end-to-end smoke runs to BEFORE_SCORING across multiple seeds with all 12 non-atomic spaces in scope.
+- **Implementation spec for harvest phases ready** — `TASK_7.md` covers FIELD / FEED / BREED phase wiring, the `food_payment_frontier` / `harvest_feed_frontier` helpers, three new commit types (`CommitHarvestConversion`, `CommitConvert`, `CommitBreed`), two new pending types (`PendingHarvestFeed`, `PendingHarvestBreed`), the `HARVEST_CONVERSIONS` registry, and the once-per-harvest `harvest_conversions_used` field on `PlayerState`. The spec is the next implementation target; no harvest code has been written yet.
 
-**Next task**: **Harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED).** Currently the engine halts at `Phase.BEFORE_SCORING` after round 4's RETURN_HOME. Implementing the three harvest phases unblocks rounds 5–14 and makes the engine feature-complete for the Family game. After that, the random-agent driver can play complete games, enabling trace analysis and score-distribution work. Cards beyond Potter Ceramics are a larger separate effort with several open design questions documented in CLAUDE.md's "Card implementation status" and in FENCE_IDEAS.md Section 9.
+**Next task**: **Task 7 implementation — harvest phases.** Per TASK_7.md's Order of Work, 15 sequential implementation steps land the spec. After implementation, the engine plays a complete 14-round Family game end-to-end with all 6 harvests resolved; `random_agent_play` across seeds 0–99 to BEFORE_SCORING is the acceptance benchmark. Cards beyond Potter Ceramics remain a larger separate effort with open design questions documented in CLAUDE.md's "Card implementation status" and in FENCE_IDEAS.md Section 9.

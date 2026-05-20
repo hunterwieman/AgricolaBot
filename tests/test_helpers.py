@@ -526,11 +526,12 @@ def test_breeding_food_from_excess():
     # Farm: 2x1 pasture (cap 4) + house (1 flexible, no standalone stable).
     # Animals: sheep=4 (fits in pasture ✓), cattle=1 (fits in house ✓).
     # s=4, s_desired=5; c=1, c_desired=1 (no cattle breeding).
-    # Frontier is exactly {(5,0,0), (4,0,1)} — neither dominates the other:
-    #   (5,0,0): 5 sheep in pasture+house, no cattle. sF=5>=3, s=4>=2
-    #            food_s = (4+1-5)*2 = 0; food_c = (1-0)*0 = 0 → total food=0
-    #   (4,0,1): 4 sheep in pasture, 1 cattle in house. sF=4>=3, s=4>=2
-    #            food_s = (4+1-4)*2 = 2; food_c = 0 → total food=2
+    # rates=(2, 0, 0): sheep cook for 2 food each.
+    #
+    # Frontier (Pareto over animals only):
+    #   (5,0,0): release cattle, newborn sheep takes house slot. Food=0.
+    #   (4,0,1): keep cattle, cook 1 sheep pre-breed; newborn sheep kept. Food=2.
+    # Neither dominates the other: (5,0,0) has more sheep, (4,0,1) has cattle.
     hf = _no_fences_h()
     vf = _no_fences_v()
     hf = _set_h(hf, 0, 0); hf = _set_h(hf, 0, 1)
@@ -548,8 +549,8 @@ def test_breeding_food_from_excess():
     frontier = breeding_frontier(player, rates=(2, 0, 0))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {
-        (5, 0, 0): 0,   # kept newborn sheep, cooked 1 cattle
-        (4, 0, 1): 2,   # kept cattle, cooked 1 sheep pre-breed; newborn sheep kept
+        (5, 0, 0): 0,   # kept newborn sheep, released cattle (cR=0 → no food)
+        (4, 0, 1): 2,   # kept cattle, cooked 1 sheep pre-breed; newborn kept
     }
 
 
@@ -557,7 +558,7 @@ def test_breeding_worked_example():
     # b=4, farm: 2x1 (cap 4) + 1x1 (cap 2) + house (1 flexible). rates (2,2,3).
     # b_desired=5. 5 boar fit: 4 in cap-4 pasture + 1 in house.
     # (0,5,0) is the unique maximum; all lower boar counts are dominated.
-    # bF=5>=3 and b=4>=2 → food_b = (4+1-5)*2 = 0.
+    # bF=5 ≥ 3 and b=4 ≥ 2 → food=(4+1-5)*2=0.
     # Frontier is exactly {(0,5,0): 0}.
     player = _player_with_two_pastures(animals=Animals(boar=4))
     frontier = breeding_frontier(player, rates=(2, 2, 3))
@@ -568,7 +569,8 @@ def test_breeding_worked_example():
 def test_breeding_formula_sF_ge_3():
     # s=3, 1x1 pasture (cap 2) + house (1 flexible) → max 3 sheep fit.
     # s_desired=4; sF=4 doesn't fit, so best achievable is sF=3.
-    # (3,0,0) dominates all lower configs. sF=3>=3 and s=3>=2 → food=(3+1-3)*2=2.
+    # (3,0,0) dominates all lower configs (food not a Pareto dim).
+    # sF=3 ≥ 3 and s=3 ≥ 2 → food=(3+1-3)*2=2.
     # Frontier is exactly {(3,0,0): 2}.
     player = _player_with_1x1_pasture(animals=Animals(sheep=3))
     frontier = breeding_frontier(player, rates=(2, 0, 0))
@@ -578,9 +580,42 @@ def test_breeding_formula_sF_ge_3():
 
 def test_breeding_formula_sF_lt_3():
     # s=3, house only (1 flexible, no pastures) → max sheep=1.
-    # s_desired=4. (1,0,0) dominates (0,0,0). sF=1<3 → food=(3-1)*2=4.
+    # s_desired=4. Feasible sF: 0 and 1. (1,0,0) dominates (0,0,0).
+    # sF=1 < 3 → food = (s-sF)*sR = (3-1)*2 = 4.
     # Frontier is exactly {(1,0,0): 4}.
     player = _fresh_player_no_stables(animals=Animals(sheep=3))
     frontier = breeding_frontier(player, rates=(2, 0, 0))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {(1, 0, 0): 4}
+
+
+def test_breeding_two_pastures_two_sheep_two_boar():
+    # Two 1x1 pastures (cap 2 each) + house (1 flex). 2 sheep + 2 boar.
+    # Each pasture holds one animal type. With one pasture for sheep and one
+    # for boar, the house pet slot is shared — only ONE type's newborn can
+    # use it. So (3, 3, 0) is infeasible (both newborns would need it).
+    #
+    # s_desired=3, b_desired=3. Pareto frontier over animal counts:
+    #   (3, 2, 0): sheep bred (newborn in house), all boar kept.
+    #   (2, 3, 0): boar bred (newborn in house), all sheep kept (symmetric).
+    # Neither dominates the other; everything else is dominated by one of them.
+    # Both have food=0 (no animals eaten beyond what breeding required).
+    hf, vf = _enclose_cell(0, 0, _no_fences_h(), _no_fences_v())
+    hf, vf = _enclose_cell(0, 2, hf, vf)
+    farmyard = _make_farmyard(hf=hf, vf=vf)
+    player = PlayerState(
+        resources=Resources(),
+        animals=Animals(sheep=2, boar=2),
+        farmyard=farmyard,
+        house_material=HouseMaterial.WOOD,
+        people_total=2,
+        people_home=2,
+    )
+    frontier = breeding_frontier(player, rates=(2, 2, 3))
+    frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
+    assert frontier_dict == {
+        (3, 2, 0): 0,   # sheep bred, all boar kept
+        (2, 3, 0): 0,   # boar bred, all sheep kept (symmetric)
+    }
+    # (3, 3, 0) is infeasible — at most one type can use the house pet slot.
+    assert (3, 3, 0) not in frontier_dict
