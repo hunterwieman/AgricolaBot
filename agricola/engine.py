@@ -301,9 +301,10 @@ def _advance_until_decision(state: GameState) -> GameState:
         if state.pending_stack:
             return state
 
-        # Case 2: terminal phase. No more steps possible.
-        if state.phase == Phase.BEFORE_SCORING:
-            return state
+        # Case 2: PREPARATION phase. Setup for the next round.
+        if state.phase == Phase.PREPARATION:
+            state = _resolve_preparation(state)
+            continue
 
         # Case 3: WORK phase. If any player has workers, an agent decision
         # is awaiting. If neither does, the work phase ends.
@@ -318,14 +319,14 @@ def _advance_until_decision(state: GameState) -> GameState:
             state = _resolve_return_home(state)
             continue
 
-        # Case 5: PREPARATION phase. Setup for the next round.
-        if state.phase == Phase.PREPARATION:
-            state = _resolve_preparation(state)
-            continue
-
         # TODO: when the harvest is implemented, branches for HARVEST_FIELD,
         # HARVEST_FEED, HARVEST_BREED go here. They would be entered from
         # _resolve_return_home on HARVEST_ROUNDS (4, 7, 9, 11, 13, 14).
+
+        # Case 5: terminal phase. No more steps possible.
+        if state.phase == Phase.BEFORE_SCORING:
+            return state
+
         raise AssertionError(f"Unexpected phase in advance loop: {state.phase}")
 
 
