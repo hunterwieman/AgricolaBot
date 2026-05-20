@@ -12,6 +12,8 @@ from agricola.helpers import (
     enclosed_cells,
     extract_slots,
     fences_in_supply,
+    food_payment_frontier,
+    harvest_feed_frontier,
     pareto_frontier,
     stables_in_supply,
 )
@@ -392,21 +394,22 @@ def _make_state_with_owners(owners: tuple) -> GameState:
 
 def test_no_cooking_improvement():
     state = _make_state_with_owners(tuple(None for _ in range(10)))
-    assert cooking_rates(state, 0) == (0, 0, 0)
+    # No cooking improvement: animals can't be cooked (0), veg always 1:1 (raw).
+    assert cooking_rates(state, 0) == (0, 0, 0, 1)
 
 
 def test_fireplace_owned():
     owners = [None] * 10
     owners[0] = 0  # Fireplace (idx 0)
     state = _make_state_with_owners(tuple(owners))
-    assert cooking_rates(state, 0) == (2, 2, 3)
+    assert cooking_rates(state, 0) == (2, 2, 3, 2)
 
 
 def test_cooking_hearth_owned():
     owners = [None] * 10
     owners[2] = 0  # Cooking Hearth (idx 2)
     state = _make_state_with_owners(tuple(owners))
-    assert cooking_rates(state, 0) == (2, 3, 4)
+    assert cooking_rates(state, 0) == (2, 3, 4, 3)
 
 
 def test_hearth_beats_fireplace():
@@ -414,7 +417,7 @@ def test_hearth_beats_fireplace():
     owners[1] = 0  # Fireplace (idx 1)
     owners[3] = 0  # Cooking Hearth (idx 3)
     state = _make_state_with_owners(tuple(owners))
-    assert cooking_rates(state, 0) == (2, 3, 4)
+    assert cooking_rates(state, 0) == (2, 3, 4, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -619,3 +622,155 @@ def test_breeding_two_pastures_two_sheep_two_boar():
     }
     # (3, 3, 0) is infeasible — at most one type can use the house pet slot.
     assert (3, 3, 0) not in frontier_dict
+
+
+# ---------------------------------------------------------------------------
+# food_payment_frontier tests (Task 7)
+#
+# Frontier tuples below use the REMAINING convention:
+# (grain_rem, veg_rem, sheep_rem, boar_rem, cattle_rem).
+# ---------------------------------------------------------------------------
+
+def _player_with_supply(grain=0, veg=0, sheep=0, boar=0, cattle=0) -> PlayerState:
+    return PlayerState(
+        resources=Resources(grain=grain, veg=veg),
+        animals=Animals(sheep=sheep, boar=boar, cattle=cattle),
+        farmyard=_make_farmyard(),
+        house_material=HouseMaterial.WOOD,
+        people_total=2,
+        people_home=2,
+    )
+
+
+def test_food_payment_frontier_food_owed_zero_shortcut():
+    # food_owed=0: only the all-remaining (no-conversion) config.
+    p = _player_with_supply(grain=3, sheep=1)
+    rates = (0, 0, 0, 1)  # no cooking
+    assert food_payment_frontier(p, 0, rates) == [(3, 0, 1, 0, 0)]
+
+
+def test_food_payment_frontier_one_grain_owe_one():
+    p = _player_with_supply(grain=1)
+    rates = (0, 0, 0, 1)
+    # consume the one grain
+    assert food_payment_frontier(p, 1, rates) == [(0, 0, 0, 0, 0)]
+
+
+def test_food_payment_frontier_pareto_excludes_over_conversion():
+    # 4 grain + 2 veg, owe 4, no cooking (veg rate=1, grain rate=1 implicit).
+    # Three full-feed configs trade off grain vs veg preservation:
+    #   consume 4 grain      -> (0, 2, 0, 0, 0)
+    #   consume 3 grain+1 veg -> (1, 1, 0, 0, 0)
+    #   consume 2 grain+2 veg -> (2, 0, 0, 0, 0)
+    # Over-conversion configs (e.g. consume 4 grain + 1 veg = 5 food)
+    # remaining (0, 1, 0, 0, 0) is dominated by (0, 2, 0, 0, 0) on veg dim.
+    p = _player_with_supply(grain=4, veg=2)
+    rates = (0, 0, 0, 1)
+    frontier = food_payment_frontier(p, 4, rates)
+    assert set(frontier) == {
+        (0, 2, 0, 0, 0),
+        (1, 1, 0, 0, 0),
+        (2, 0, 0, 0, 0),
+    }
+    # Explicit exclusion of an over-conversion config:
+    assert (0, 1, 0, 0, 0) not in frontier  # consume 4g+1v, surplus 1 food
+
+
+def test_food_payment_frontier_fireplace_veg_rate():
+    # 2 grain + 1 veg, owe 2, Fireplace (rates (2,2,3,2)).
+    # (consume 1 veg = 2 food) -> remaining (2, 0, 0, 0, 0)
+    # (consume 2 grain        = 2 food) -> remaining (0, 1, 0, 0, 0)
+    # Neither dominates the other (grain vs veg tradeoff).
+    p = _player_with_supply(grain=2, veg=1)
+    rates = (2, 2, 3, 2)
+    frontier = set(food_payment_frontier(p, 2, rates))
+    assert (2, 0, 0, 0, 0) in frontier
+    assert (0, 1, 0, 0, 0) in frontier
+
+
+def test_food_payment_frontier_infeasible_returns_empty():
+    # Player can produce at most 0 food, but owes 2 -> empty frontier.
+    p = _player_with_supply()  # nothing
+    rates = (2, 3, 4, 3)
+    assert food_payment_frontier(p, 2, rates) == []
+
+
+# ---------------------------------------------------------------------------
+# harvest_feed_frontier tests (Task 7)
+# ---------------------------------------------------------------------------
+
+def test_harvest_feed_frontier_food_owed_zero_shortcut():
+    p = _player_with_supply(grain=1)
+    rates = (0, 0, 0, 1)
+    assert harvest_feed_frontier(p, 0, rates) == [((1, 0, 0, 0, 0), 0)]
+
+
+def test_harvest_feed_frontier_one_grain_partial_pay():
+    # 1 grain, owe 2, no cooking. Two configs:
+    #   consume 0 grain -> ((1, 0, 0, 0, 0), beg=2)
+    #   consume 1 grain -> ((0, 0, 0, 0, 0), beg=1)
+    # Neither dominates the other (grain vs begging tradeoff).
+    p = _player_with_supply(grain=1)
+    rates = (0, 0, 0, 1)
+    frontier = set(harvest_feed_frontier(p, 2, rates))
+    assert frontier == {
+        ((1, 0, 0, 0, 0), 2),
+        ((0, 0, 0, 0, 0), 1),
+    }
+
+
+def test_harvest_feed_frontier_two_grain_three_configs():
+    # 2 grain, owe 2, no cooking. Three configs (full-feed + two partial):
+    #   consume 2 -> ((0, 0, 0, 0, 0), 0)
+    #   consume 1 -> ((1, 0, 0, 0, 0), 1)
+    #   consume 0 -> ((2, 0, 0, 0, 0), 2)
+    # All three on the frontier — different goods vs begging tradeoffs.
+    p = _player_with_supply(grain=2)
+    rates = (0, 0, 0, 1)
+    frontier = set(harvest_feed_frontier(p, 2, rates))
+    assert frontier == {
+        ((0, 0, 0, 0, 0), 0),
+        ((1, 0, 0, 0, 0), 1),
+        ((2, 0, 0, 0, 0), 2),
+    }
+
+
+def test_harvest_feed_frontier_full_feed_never_dominated_by_partial():
+    # Invariant: for any state with food_owed > 0, every full-feed config
+    # (begging=0) remains in the frontier — partial-feed configs cannot
+    # dominate them because -begging is strictly worse for partial-feed.
+    p = _player_with_supply(grain=4, veg=2)
+    rates = (0, 0, 0, 1)
+    frontier = harvest_feed_frontier(p, 4, rates)
+    full_feed = [pt for pt in frontier if pt[1] == 0]
+    # food_payment_frontier returns 3 full-feed configs here (from the
+    # corresponding direct test above); all 3 must be in the frontier.
+    assert len(full_feed) == 3
+
+
+def test_harvest_feed_frontier_matches_food_payment_zero_begging_subset():
+    # Invariant: the begging=0 subset of harvest_feed_frontier equals
+    # food_payment_frontier(food_owed) exactly. Confirms the wrapper
+    # relationship.
+    p = _player_with_supply(grain=2, veg=1, sheep=1)
+    rates = (2, 2, 3, 2)  # Fireplace
+    food_owed = 4
+
+    fp = set(food_payment_frontier(p, food_owed, rates))
+    hf_zero = {remaining for (remaining, beg) in harvest_feed_frontier(p, food_owed, rates) if beg == 0}
+    assert fp == hf_zero
+
+
+def test_harvest_feed_frontier_animals_with_cooking():
+    # 1 sheep + Fireplace (sheep rate=2), owe 2.
+    # Configs:
+    #   consume 0 sheep -> ((0, 0, 1, 0, 0), 2)
+    #   consume 1 sheep -> ((0, 0, 0, 0, 0), 0)  -- exact pay
+    # Both on frontier (sheep vs begging tradeoff).
+    p = _player_with_supply(sheep=1)
+    rates = (2, 2, 3, 2)
+    frontier = set(harvest_feed_frontier(p, 2, rates))
+    assert frontier == {
+        ((0, 0, 1, 0, 0), 2),
+        ((0, 0, 0, 0, 0), 0),
+    }

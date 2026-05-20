@@ -45,12 +45,13 @@ IMPLEMENTED_NON_ATOMIC_SPACES = frozenset(NONATOMIC_HANDLERS.keys())
 
 
 def _is_implemented_action(action):
-    """Return True if step() can apply this action under Task 5 scope.
+    """Return True if step() can apply this action under current engine scope.
 
     For PlaceWorker actions: the target space must be in ATOMIC_HANDLERS or
-    in NONATOMIC_HANDLERS (i.e., grain_utilization). For all other action
-    types (sub-actions, triggers, Stop), they're only reachable when the
-    pending stack already has an implemented frame, so they're always OK.
+    in NONATOMIC_HANDLERS. For all other action types (sub-actions, triggers,
+    Stop, and the Task-7 harvest commits CommitHarvestConversion / CommitConvert
+    / CommitBreed), they're only reachable when the pending stack already has
+    an implemented frame, so they're always OK.
     """
     if isinstance(action, PlaceWorker):
         return (

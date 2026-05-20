@@ -107,6 +107,57 @@ def test_cooking_hearth_both_payment_modes_offered():
     assert 1 in return_fp_options          # return Fireplace 1
 
 
+def test_cooking_hearth_standard_payment_gated_on_clay_not_on_fireplace():
+    """Regression test for the negative-clay leak surfaced by random play.
+
+    Player owns Fireplace (idx 0) but has 0 clay. Two legal actions should
+    appear for Cooking Hearth (idx 2): the Fireplace-return option only.
+    The standard-clay-payment option (`return_fireplace_idx=None`) must be
+    EXCLUDED — paying the 4-clay cost from 0 clay would silently produce
+    negative clay.
+
+    Before the fix, `_can_afford_major(state, p, 2)` returned True via the
+    `OR owns_fireplace` branch and the enumerator emitted both options.
+    `CommitBuildMajor(major_idx=2, return_fireplace_idx=None)` then
+    committed, driving clay to -4. The non-negative invariant in
+    `engine.step` now catches this case at the assertion boundary; this
+    test verifies the enumerator never emits the bad option in the first
+    place.
+    """
+    state = _mi_setup(resources={"clay": 0}, owner_by_idx={0: 0})  # Fireplace, 0 clay
+    state = run_actions(state, [
+        PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="build_major"),
+    ])
+    legal = legal_actions(state)
+    options_for_hearth2 = [
+        a for a in legal
+        if isinstance(a, CommitBuildMajor) and a.major_idx == 2
+    ]
+    return_fp_options = {a.return_fireplace_idx for a in options_for_hearth2}
+    assert None not in return_fp_options    # standard payment EXCLUDED
+    assert 0 in return_fp_options           # Fireplace-return INCLUDED
+
+
+def test_clay_oven_standard_payment_gated_on_full_cost():
+    """Sibling regression: Clay Oven (idx 5) costs 3 clay + 1 stone. Owning
+    a Fireplace is irrelevant — Clay Oven has no alternative-payment path.
+    A player with 0 clay should see no Clay Oven option at all, regardless
+    of Fireplace ownership.
+    """
+    state = _mi_setup(resources={"clay": 0, "stone": 1}, owner_by_idx={0: 0})
+    state = run_actions(state, [
+        PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="build_major"),
+    ])
+    legal = legal_actions(state)
+    options_for_clay_oven = [
+        a for a in legal
+        if isinstance(a, CommitBuildMajor) and a.major_idx == 5
+    ]
+    assert options_for_clay_oven == []
+
+
 def test_build_well_writes_future_resources():
     """Building the Well writes +1 food into the next 5 round entries of future_resources."""
     state = _mi_setup(resources={"stone": 3, "wood": 1})
