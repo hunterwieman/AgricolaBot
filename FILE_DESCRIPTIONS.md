@@ -64,7 +64,7 @@ All the frozen dataclasses that together represent a complete snapshot of a game
 
 - **`Cell`** — one cell of a player's 3×5 farmyard grid. Stores the cell type (`EMPTY`, `ROOM`, `FIELD`, `STABLE`) and any grain/veg counts if it is a field. House material is stored on `PlayerState`, not on `Cell` (see CLEANUP.md Cleanup 1).
 
-- **`Farmyard`** — the complete farmyard for one player. Contains the 3×5 `grid` of `Cell` objects (stored as a tuple of tuples), two fence arrays, and a cached `pastures: tuple[Pasture, ...]` decomposition. The two fence arrays are: `horizontal_fences` (shape 4×5, one bool per horizontal edge between rows) and `vertical_fences` (shape 3×6, one bool per vertical edge between columns). See `ARCHITECTURE.md` for the exact index conventions. The `pastures` cache is canonically ordered by `min(p.cells)` so equivalent farmyards always compare equal — required for `Farmyard.__eq__` and hashing across MCTS. The cache is maintained by caller discipline: the two pasture-changing effect functions — `_execute_build_stable` (used by Side Job and Farm Expansion via `CommitBuildStable`) and `_execute_build_pasture` (used by Fencing and Farm Redevelopment via `CommitBuildPasture`) — construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(new_grid, new_h, new_v)` kwarg. All other `Farmyard` mutations use `dataclasses.replace(farmyard, ...)` and leave `pastures` alone, which is correct because these mutations cannot change pastures. A fresh `Farmyard` constructed without any fences or stables (e.g. by `setup`) correctly has `pastures=()` via the placeholder default. This is the first accepted exception to "Derived data, not cached data" — see CHANGES.md Change 2 (and CHANGES.md Change 3 for why auto-fill in `__post_init__`, the obvious structural alternative, is not used).
+- **`Farmyard`** — the complete farmyard for one player. Contains the 3×5 `grid` of `Cell` objects (stored as a tuple of tuples), two fence arrays, and a cached `pastures: tuple[Pasture, ...]` decomposition. The two fence arrays are: `horizontal_fences` (shape 4×5, one bool per horizontal edge between rows) and `vertical_fences` (shape 3×6, one bool per vertical edge between columns). See `task_files/ARCHITECTURE.md` for the exact index conventions. The `pastures` cache is canonically ordered by `min(p.cells)` so equivalent farmyards always compare equal — required for `Farmyard.__eq__` and hashing across MCTS. The cache is maintained by caller discipline: the two pasture-changing effect functions — `_execute_build_stable` (used by Side Job and Farm Expansion via `CommitBuildStable`) and `_execute_build_pasture` (used by Fencing and Farm Redevelopment via `CommitBuildPasture`) — construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(new_grid, new_h, new_v)` kwarg. All other `Farmyard` mutations use `dataclasses.replace(farmyard, ...)` and leave `pastures` alone, which is correct because these mutations cannot change pastures. A fresh `Farmyard` constructed without any fences or stables (e.g. by `setup`) correctly has `pastures=()` via the placeholder default. This is the first accepted exception to "Derived data, not cached data" — see CHANGES.md Change 2 (and CHANGES.md Change 3 for why auto-fill in `__post_init__`, the obvious structural alternative, is not used).
 
 - **`ActionSpaceState`** — the state of one action space on the board. Tracks how many workers each player has placed on it (`workers`, a 2-tuple of ints), any accumulated building resources (`accumulated`, a `Resources` object — used for the 5 building-resource spaces), any accumulated food/animals (`accumulated_amount`, a plain int — used for the 5 food/animal spaces), and which round the space is first revealed (`round_revealed`, 0 for permanent spaces).
 
@@ -291,7 +291,7 @@ The state-transition engine. Public API: `step(state, action) -> GameState`. Pur
 
 **Stack operations** (`push`, `pop`, `replace_top`) are imported from `pending.py`.
 
-See CLAUDE.md "Engine and Turn Resolution Architecture" for the design philosophies and TASK_5.md / TASK_5B_DISPATCH_CLEANUP.md for the full implementation breakdown.
+See CLAUDE.md "Engine and Turn Resolution Architecture" for the design philosophies and task_files/TASK_5.md / task_files/TASK_5B_DISPATCH_CLEANUP.md for the full implementation breakdown.
 
 ---
 
@@ -365,7 +365,7 @@ Precomputed universes of candidate pasture shapes for the Fencing action, plus p
 
 - **`compute_new_fence_edges(farmyard, cells_bm) -> (h_new_bm, v_new_bm, wood_cost)`**: shared bucket-4 cost helper. Computes the new fence-edges to place (boundary AND NOT current fences) and the total wood cost (default rule: 1 wood per new edge). `farmyard` is duck-typed (only `.horizontal_fences` and `.vertical_fences` read). Both `_execute_build_pasture` (for the debit) and tests call it; the legality-hot-path `_check_entry_legal` inlines the same calc against pre-computed per-call bitmaps for speed.
 
-Filter primitives, shape categories, and the original verification approach live in `TASK_6_pre.md`. Edge metadata and the (0, 0) addition are introduced in `TASK_6.md`.
+Filter primitives, shape categories, and the original verification approach live in `task_files/TASK_6_pre.md`. Edge metadata and the (0, 0) addition are introduced in `task_files/TASK_6.md`.
 
 ---
 
@@ -390,7 +390,7 @@ Empty package marker. Makes `tests` importable as a Python package. No code here
 
 ### `tests/factories.py`
 
-Prefabricated-state helpers used across test files. Each helper takes a state and returns a NEW state (no mutation). Helpers include `with_resources`, `add_resources`, `with_animals`, `with_house`, `with_majors`, `with_minors`, `with_grid`, `with_fields`, `with_sown_fields`, `with_space`, `with_pending_stack`, `with_phase`, `with_round`, `with_current_player`, `with_people`. Tests compose them to reach any state — including states unreachable through gameplay (e.g., a player who has played Potter Ceramics, which requires minor-improvement card play paths that aren't implemented yet). This is the project-wide convention for test state construction; see TASK_5.md "Testing principle: prefabricated states" for rationale.
+Prefabricated-state helpers used across test files. Each helper takes a state and returns a NEW state (no mutation). Helpers include `with_resources`, `add_resources`, `with_animals`, `with_house`, `with_majors`, `with_minors`, `with_grid`, `with_fields`, `with_sown_fields`, `with_space`, `with_pending_stack`, `with_phase`, `with_round`, `with_current_player`, `with_people`. Tests compose them to reach any state — including states unreachable through gameplay (e.g., a player who has played Potter Ceramics, which requires minor-improvement card play paths that aren't implemented yet). This is the project-wide convention for test state construction; see task_files/TASK_5.md "Testing principle: prefabricated states" for rationale.
 
 ### `tests/test_utils.py`
 

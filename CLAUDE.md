@@ -2,7 +2,7 @@
 
 A from-scratch Python implementation of the board game Agricola, with the long-term goal of training a strong AI agent using Monte Carlo Tree Search and reinforcement learning.
 
-> **For new sessions:** This file (`CLAUDE.md`) is read automatically. It covers project status, key design principles, code conventions, engine architecture, and an enriched directory tree. For deeper per-file descriptions see **`FILE_DESCRIPTIONS.md`**; for per-test-file coverage see **`TEST_DESCRIPTIONS.md`**. For the full architecture spec, game rules reference, and original dataclass definitions see **`ARCHITECTURE.md`**. For significant cross-cutting refactors see **`CHANGES.md`**. For small targeted fixes see **`CLEANUP.md`**.
+> **For new sessions:** This file (`CLAUDE.md`) is read automatically. It covers project status, key design principles, code conventions, engine architecture, and an enriched directory tree. For deeper per-file descriptions see **`FILE_DESCRIPTIONS.md`**; for per-test-file coverage see **`TEST_DESCRIPTIONS.md`**. For the full architecture spec, game rules reference, and original dataclass definitions see **`task_files/ARCHITECTURE.md`**. For significant cross-cutting refactors see **`CHANGES.md`**. For small targeted fixes see **`CLEANUP.md`**.
 
 ---
 
@@ -56,7 +56,7 @@ These are the foundational architectural decisions for the project. The first th
 
   **Note for future sessions.** Don't reflexively reject a proposal to surface an "at any time" conversion as a standalone action. Engage with the rationale: is there a moment of need not already covered by the existing bundling pattern (e.g., a new card effect creating a new strategic moment)? If yes, the proposal is in-scope — it's a new bundling point. If no, the deviation needs strong justification. No current exceptions.
 
-For the complete architecture specification, see **`ARCHITECTURE.md`**, the initial design document.
+For the complete architecture specification, see **`task_files/ARCHITECTURE.md`**, the initial design document.
 
 ---
 
@@ -232,7 +232,7 @@ When modifying state from resolution code, prefer `_update_player(state, player_
 
 ## Engine and Turn Resolution Architecture
 
-This section describes the engine's transition model, the pending-decision stack that supports multi-action turns, and the card-implementation status. The full design and pseudocode are in **`TASK_5.md`**; what follows is the conceptual summary every session should internalize.
+This section describes the engine's transition model, the pending-decision stack that supports multi-action turns, and the card-implementation status. The full design and pseudocode are in **`task_files/TASK_5.md`**; what follows is the conceptual summary every session should internalize.
 
 ### The engine: `step`, `legal_actions`, `_advance_until_decision`
 
@@ -250,7 +250,7 @@ Five design philosophies govern the engine:
 - **The engine exports only `step` + `legal_actions`.** No `play_round`, no `play_game`, no MCTS driver. Reason: those are trivial compositions of `step` and depend on the caller (random rollout vs. MCTS vs. NN-with-batching vs. human); premature high-level helpers lock callers in.
 - **`_advance_until_decision` is state-driven, not history-driven, and idempotent.** Any state returned by `step` is stable: re-running `_advance_until_decision` on it produces the same state. This is a useful invariant for tests.
 
-For the full implementation including dispatch tables, phase resolvers, and the engine module layout, see **`TASK_5.md`**.
+For the full implementation including dispatch tables, phase resolvers, and the engine module layout, see **`task_files/TASK_5.md`**.
 
 ### The pending-decision stack
 
@@ -331,7 +331,7 @@ Ten design philosophies govern the stack:
 - Atomic spaces will follow the "push a parent pending" pattern when card triggers begin attaching to them — the pending hosts the trigger event(s) for that space, with no `*_done` fields. The `ATOMIC_HANDLERS` / `NONATOMIC_HANDLERS` split will collapse at that point.
 - Two trigger events per space (`"before_<space>"` and `"after_<space>"`), enforcing the rules-faithful timing of card triggers (e.g., Cottager fires before Day Laborer's food is received; Hardware Store fires after).
 
-For worked examples (a Grain Utilization sow + bake walk-through with and without Potter Ceramics' trigger) and the full implementation breakdown, see **`TASK_5.md`**.
+For worked examples (a Grain Utilization sow + bake walk-through with and without Potter Ceramics' trigger) and the full implementation breakdown, see **`task_files/TASK_5.md`**.
 
 ### Fencing and Build Fences
 
@@ -343,7 +343,7 @@ Rather than choosing one final fence configuration from the enormous full-action
 
 Building *pastures* rather than individual *fences* shrinks the action space further. A 1×1 pasture at `(0, 3)` might require 4 new fence edges, or 3, or fewer depending on which adjacent fences already exist — and across many different fence-arrangements that all yield the same pasture. All of those collapse to one commit naming the cell-set `{(0, 3)}`. The agent commits semantic intent (which cells the pasture covers); the engine derives the fence delta.
 
-The **builds-before-subdivisions ordering rule** keeps the search tree from inflating across commit-order permutations: once any subdivision commit lands (`subdivision_started=True` on `PendingBuildFences`), new-pasture commits drop out of `legal_actions` for the remainder of the action. See TASK_6.md Part 2.3 for the reachability argument behind this direction rather than the reverse.
+The **builds-before-subdivisions ordering rule** keeps the search tree from inflating across commit-order permutations: once any subdivision commit lands (`subdivision_started=True` on `PendingBuildFences`), new-pasture commits drop out of `legal_actions` for the remainder of the action. See task_files/TASK_6.md Part 2.3 for the reachability argument behind this direction rather than the reverse.
 
 **How `legal_actions` enumerates legal pasture commits.** Per call, the enumerator converts the player's farmyard into a bundle of bitmaps (current horizontal/vertical fences, enclosable cells, existing-pasture cells, wood and supply scalars). It then iterates through the universe of candidate pastures and checks each candidate for legality — meaning the candidate is unenclosed and a legal addition to the existing farmyard, OR enclosed within an existing pasture and a legal subdivision. The per-candidate check is a sequence of cheap bitwise ops against precomputed boundary and adjacency bitmaps stored on the universe entry.
 
@@ -355,7 +355,7 @@ The **builds-before-subdivisions ordering rule** keeps the search tree from infl
 
 - **Hand-curated RESTRICTED universe.** The runtime default is not the full 1518-entry universe of all rules-permissible pastures — it's `UNIVERSE_RESTRICTED`, a strategist-curated 109-entry subset that omits pastures never plausibly optimal (extremely small, pathologically-shaped, or obviously-wasteful configurations). Reducing the policy-head output dimension by ~14× speeds learning and shrinks MCTS branching without removing meaningful strategic options. The universes are layered (`RESTRICTED ⊆ EXTENDED ⊆ FAMILY ⊆ FULL`) so a restriction can be loosened across experiments — or globally swapped via the active-universe constants — without retraining the engine.
 
-Implementation lives in `agricola/fences.py` (universes + edge metadata + cost helper), `agricola/legality.py` (`_legal_fencing`, the three new enumerators, `_any_legal_pasture_commit`), and `agricola/resolution.py` (`_initiate_fencing`, `_choose_subaction_fencing`, `_execute_build_pasture`). Design rationale: **FENCE_IDEAS.md** (broader design space and alternatives), **TASK_6_pre.md** (universe construction), **TASK_6.md** (this task).
+Implementation lives in `agricola/fences.py` (universes + edge metadata + cost helper), `agricola/legality.py` (`_legal_fencing`, the three new enumerators, `_any_legal_pasture_commit`), and `agricola/resolution.py` (`_initiate_fencing`, `_choose_subaction_fencing`, `_execute_build_pasture`). Design rationale: **task_files/FENCE_IDEAS.md** (broader design space and alternatives), **task_files/TASK_6_pre.md** (universe construction), **task_files/TASK_6.md** (this task).
 
 ### Harvest sub-phases
 
@@ -375,7 +375,7 @@ The harvest fires at the end of rounds 4, 7, 9, 11, 13, 14 (`HARVEST_ROUNDS`). I
 
 **Dual-meaning phase pattern.** Both `HARVEST_FEED` and `HARVEST_BREED` carry two meanings depending on stack state: stack non-empty = a player is deciding; stack empty = phase-exit signal. The discriminator works because the only way to reach phase=HARVEST_X with empty stack is for the entry-resolver to have pushed pendings (now drained by Stop). `_advance_until_decision` checks the stack inside each phase branch and either returns (non-empty) or transitions (empty → push next phase's pendings, or BEFORE_SCORING after round 14).
 
-**Implementation lives in** `agricola/engine.py` (`_resolve_harvest_field`, `_initiate_harvest_feed`, `_initiate_harvest_breed`, plus the three harvest branches in `_advance_until_decision`), `agricola/resolution.py` (`_execute_harvest_conversion`, `_execute_convert`, `_execute_breed`), `agricola/legality.py` (`_enumerate_pending_harvest_feed`, `_enumerate_pending_harvest_breed`), `agricola/helpers.py` (the 4-tuple `cooking_rates` + `food_payment_frontier` + `harvest_feed_frontier`), and `agricola/cards/harvest_conversions.py` (the `HARVEST_CONVERSIONS` registry). See **TASK_7.md** for the full design.
+**Implementation lives in** `agricola/engine.py` (`_resolve_harvest_field`, `_initiate_harvest_feed`, `_initiate_harvest_breed`, plus the three harvest branches in `_advance_until_decision`), `agricola/resolution.py` (`_execute_harvest_conversion`, `_execute_convert`, `_execute_breed`), `agricola/legality.py` (`_enumerate_pending_harvest_feed`, `_enumerate_pending_harvest_breed`), `agricola/helpers.py` (the 4-tuple `cooking_rates` + `food_payment_frontier` + `harvest_feed_frontier`), and `agricola/cards/harvest_conversions.py` (the `HARVEST_CONVERSIONS` registry). See **task_files/TASK_7.md** for the full design.
 
 ### Card implementation status
 
@@ -396,7 +396,7 @@ Task 7 extended this with:
 
 The full card system (the other ~470 cards in the Family + full game) is a separate future task. Several known design questions are deferred to that task:
 
-- **Compound card interactions.** The current extension-registry pattern handles single-card eligibility broadening (Potter Ceramics) cleanly, but does not handle cases where one card's effect enables another card's eligibility (canonical example: Pan Baker + Potter Ceramics — Pan Baker's on-placement clay grant enables Potter Ceramics' clay-to-grain conversion, which together let the player bake from a 0-clay-0-grain state). Resolving this requires speculative-legality machinery (apply on-placement card effects to a hypothetical state, then check sub-action predicates against the hypothetical). The trigger registry already supports arbitrary event names; the missing piece is the legality-side speculative-application. See **`TASK_5.md`**'s "Known limitation: compound card interactions" for the detailed framing.
+- **Compound card interactions.** The current extension-registry pattern handles single-card eligibility broadening (Potter Ceramics) cleanly, but does not handle cases where one card's effect enables another card's eligibility (canonical example: Pan Baker + Potter Ceramics — Pan Baker's on-placement clay grant enables Potter Ceramics' clay-to-grain conversion, which together let the player bake from a 0-clay-0-grain state). Resolving this requires speculative-legality machinery (apply on-placement card effects to a hypothetical state, then check sub-action predicates against the hypothetical). The trigger registry already supports arbitrary event names; the missing piece is the legality-side speculative-application. See **`task_files/TASK_5.md`**'s "Known limitation: compound card interactions" for the detailed framing.
 
 - **Atomic-space trigger hosting: phase tracking.** When atomic spaces convert to push trigger-host pendings (so cards like Cottager and Hardware Store can attach to Day Laborer, etc.), the pending needs at least one piece of state to indicate "primary effect applied yet?" Two modeling options to weigh: a uniform `primary_effect_applied: bool` on every space pending (simplest dispatcher), or a `phase: Literal["before", "after"]` field (extensible to a hypothetical third trigger point).
 
@@ -412,62 +412,62 @@ All 599 tests pass. The following pieces are complete:
 
 | Component | Status | Task file(s) |
 |---|---|---|
-| State dataclasses + setup | Complete | `TASK_1.md`, `ARCHITECTURE.md` |
+| State dataclasses + setup | Complete | `task_files/ARCHITECTURE.md` |
 | Resource types (`Resources`, `Animals`) | Complete | `CHANGES.md` Change 1 |
 | `Resources.__sub__` operator | Complete | `CHANGES.md` Change 5 |
-| Helper functions (pastures, animal accommodation, pareto frontiers, cooking rates) | Complete | `TASK_2.md`, `TASK_3.md` |
-| Scoring and tiebreaker | Complete | `TASK_2.md` |
-| Action type (`PlaceWorker`) | Complete | `TASK_4a_i.md` |
-| Atomic-space legality (12 spaces) | Complete | `TASK_4a_i.md` |
-| Atomic-space resolution (12 spaces) | Complete | `TASK_4a_ii.md` |
-| Pasture cache on `Farmyard` (`agricola/pasture.py`) | Complete | `CHANGES.md` Change 2, `CHANGES.md` Change 3, `TASK_4a_iii.md` |
+| Helper functions (pastures, animal accommodation, pareto frontiers, cooking rates) | Complete | `task_files/TASK_2.md`, `task_files/TASK_3.md` |
+| Scoring and tiebreaker | Complete | `task_files/TASK_2.md` |
+| Action type (`PlaceWorker`) | Complete | `task_files/TASK_4a_i.md` |
+| Atomic-space legality (12 spaces) | Complete | `task_files/TASK_4a_i.md` |
+| Atomic-space resolution (12 spaces) | Complete | `task_files/TASK_4a_ii.md` |
+| Pasture cache on `Farmyard` (`agricola/pasture.py`) | Complete | `CHANGES.md` Change 2, `CHANGES.md` Change 3, `task_files/TASK_4a_iii.md` |
 | Non-atomic legality (all 12 non-atomic spaces) | Complete | — |
-| Engine: `step` + `_advance_until_decision` + pending stack | Complete | `TASK_5.md` |
-| Round transitions (rounds 1 → 14, all 6 harvests resolved) | Complete | `TASK_5.md`, `TASK_7.md` |
-| `Phase.PREPARATION` and `Phase.BEFORE_SCORING` | Complete | `TASK_5.md` |
-| Action union (`ChooseSubAction`, `CommitSow`, `CommitBake`, `FireTrigger`, `Stop`) | Complete | `TASK_5.md` |
-| Grain Utilization non-atomic resolution | Complete | `TASK_5.md` |
-| Card framework (`cards/__init__.py`, `cards/triggers.py`) | Complete | `TASK_5.md` |
-| Potter Ceramics card (the one card in scope) | Complete | `TASK_5.md` |
-| `legal_actions` top-level dispatch | Complete | `TASK_5.md` |
-| Test scaffolding (`factories.py`, `test_utils.py`) | Complete | `TASK_5.md` |
-| `CommitSubAction` hierarchy + generic commit dispatch | Complete | `TASK_5B_DISPATCH_CLEANUP.md`, `CHANGES.md` Change 4 |
-| Pending provenance metadata (`initiated_by_id`, `PENDING_ID`) | Complete | `TASK_5B_DISPATCH_CLEANUP.md`, `CHANGES.md` Change 4 |
-| Dispatch table relocation (`NONATOMIC_HANDLERS` / `CHOOSE_SUBACTION_HANDLERS` in `resolution.py`; stack helpers in `pending.py`) | Complete | `TASK_5B_DISPATCH_CLEANUP.md` |
-| Farmland non-atomic resolution | Complete | `TASK_5C.md` |
-| Cultivation non-atomic resolution | Complete | `TASK_5C.md` |
-| Side Job non-atomic resolution | Complete | `TASK_5C.md` |
-| Sheep / Pig / Cattle Market non-atomic resolution | Complete | `TASK_5C.md` |
-| Major Improvement non-atomic resolution (incl. Cooking Hearth payment options, Clay/Stone Oven free Bake) | Complete | `TASK_5C.md` |
-| House Redevelopment non-atomic resolution | Complete | `TASK_5C.md` |
-| Choose-time flag-setting convention (`*_chosen` fields) | Complete | `TASK_5C.md`, `CHANGES.md` Change 5 |
-| Provenance prefix scheme (`"space:<id>"` / `"card:<id>"`) | Complete | `TASK_5C.md`, `CHANGES.md` Change 5 |
-| Major improvement costs and baking specs in `constants.py` | Complete | `TASK_5C.md` |
-| Bake Bread support for Clay Oven and Stone Oven (greedy-by-rate over all owned baking improvements) | Complete | `TASK_5C.md` |
-| `auto_pop` flag on `COMMIT_SUBACTION_HANDLERS` + `CommitBuildMajor` absorbed into generic dispatcher | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
-| Multi-shot sub-action pending pattern (`PendingBuildStables`, `PendingBuildRooms`) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
-| Farm Expansion non-atomic resolution | Complete | `TASK_5D.md` |
-| Side Job migrated to `PendingBuildStables`; `PendingBuildStable` (singular) retired | Complete | `TASK_5D.md` |
-| `ROOM_COSTS` constant + `_can_afford(p, cost)` + predicate-enumerator deduplication (`_can_build_stable`, `_legal_room_cells`) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
-| `_new_grid_with_cell` helper in `resolution.py` | Complete | `TASK_5D.md` |
-| Pasture cache recompute on stable build (fixes latent Task 5C bug) | Complete | `TASK_5D.md`, `CHANGES.md` Change 6 |
-| Fencing pasture-shape universe (`agricola/fences.py` — four layered universes, four filter primitives) | Complete | `TASK_6_pre.md` |
-| Edge metadata on `agricola/fences.py` (`PastureCandidate`, parallel `*_ENTRIES`, `*_SMALLEST_ENTRIES`, `ENTRIES_BY_BM`, pack/apply helpers, `compute_new_fence_edges`) | Complete | `TASK_6.md` |
-| 1×1-at-(0, 0) addition to RESTRICTED (108→109) and EXTENDED (192→193) universes | Complete | `TASK_6.md` |
-| Build Fences sub-action (`PendingBuildFences`, `CommitBuildPasture`, `_execute_build_pasture`) — reusable across entry points | Complete | `TASK_6.md` |
-| Builds-before-subdivisions ordering rule (`subdivision_started` on `PendingBuildFences`) | Complete | `TASK_6.md` |
-| Fencing non-atomic resolution (`PendingFencing` + Build Fences entry point) | Complete | `TASK_6.md` |
-| Farm Redevelopment non-atomic resolution (renovate-then-optional-Build-Fences) | Complete | `TASK_6.md` |
-| Sub-action cost handling: 4th bucket (pure-function-of-state-and-commit) | Documented | `TASK_6.md` |
-| Runtime active-universe selector (`ACTIVE_FENCE_UNIVERSE_*` constants + per-call kwargs) | Complete | `TASK_6.md` |
-| `cooking_rates` 4-tuple `(sheep, boar, cattle, veg)` with veg raw-1:1 fallback | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| `food_payment_frontier` and `harvest_feed_frontier` in `helpers.py` | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| `HARVEST_CONVERSIONS` registry in `agricola/cards/harvest_conversions.py` | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| `PlayerState.harvest_conversions_used: frozenset[str]` once-per-harvest budget | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| `PendingHarvestFeed` / `PendingHarvestBreed` + `CommitHarvestConversion` / `CommitConvert` / `CommitBreed` | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| Dual-meaning `HARVEST_FEED` / `HARVEST_BREED` phase pattern; `"phase:<id>"` provenance namespace | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| Harvest sub-phases — `_resolve_harvest_field`, `_initiate_harvest_feed`, `_initiate_harvest_breed` in `engine.py` | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
-| Rounds 5–14, all 6 harvests | Complete | `TASK_7.md`, `CHANGES.md` Change 7 |
+| Engine: `step` + `_advance_until_decision` + pending stack | Complete | `task_files/TASK_5.md` |
+| Round transitions (rounds 1 → 14, all 6 harvests resolved) | Complete | `task_files/TASK_5.md`, `task_files/TASK_7.md` |
+| `Phase.PREPARATION` and `Phase.BEFORE_SCORING` | Complete | `task_files/TASK_5.md` |
+| Action union (`ChooseSubAction`, `CommitSow`, `CommitBake`, `FireTrigger`, `Stop`) | Complete | `task_files/TASK_5.md` |
+| Grain Utilization non-atomic resolution | Complete | `task_files/TASK_5.md` |
+| Card framework (`cards/__init__.py`, `cards/triggers.py`) | Complete | `task_files/TASK_5.md` |
+| Potter Ceramics card (the one card in scope) | Complete | `task_files/TASK_5.md` |
+| `legal_actions` top-level dispatch | Complete | `task_files/TASK_5.md` |
+| Test scaffolding (`factories.py`, `test_utils.py`) | Complete | `task_files/TASK_5.md` |
+| `CommitSubAction` hierarchy + generic commit dispatch | Complete | `task_files/TASK_5B_DISPATCH_CLEANUP.md`, `CHANGES.md` Change 4 |
+| Pending provenance metadata (`initiated_by_id`, `PENDING_ID`) | Complete | `task_files/TASK_5B_DISPATCH_CLEANUP.md`, `CHANGES.md` Change 4 |
+| Dispatch table relocation (`NONATOMIC_HANDLERS` / `CHOOSE_SUBACTION_HANDLERS` in `resolution.py`; stack helpers in `pending.py`) | Complete | `task_files/TASK_5B_DISPATCH_CLEANUP.md` |
+| Farmland non-atomic resolution | Complete | `task_files/TASK_5C.md` |
+| Cultivation non-atomic resolution | Complete | `task_files/TASK_5C.md` |
+| Side Job non-atomic resolution | Complete | `task_files/TASK_5C.md` |
+| Sheep / Pig / Cattle Market non-atomic resolution | Complete | `task_files/TASK_5C.md` |
+| Major Improvement non-atomic resolution (incl. Cooking Hearth payment options, Clay/Stone Oven free Bake) | Complete | `task_files/TASK_5C.md` |
+| House Redevelopment non-atomic resolution | Complete | `task_files/TASK_5C.md` |
+| Choose-time flag-setting convention (`*_chosen` fields) | Complete | `task_files/TASK_5C.md`, `CHANGES.md` Change 5 |
+| Provenance prefix scheme (`"space:<id>"` / `"card:<id>"`) | Complete | `task_files/TASK_5C.md`, `CHANGES.md` Change 5 |
+| Major improvement costs and baking specs in `constants.py` | Complete | `task_files/TASK_5C.md` |
+| Bake Bread support for Clay Oven and Stone Oven (greedy-by-rate over all owned baking improvements) | Complete | `task_files/TASK_5C.md` |
+| `auto_pop` flag on `COMMIT_SUBACTION_HANDLERS` + `CommitBuildMajor` absorbed into generic dispatcher | Complete | `task_files/TASK_5D.md`, `CHANGES.md` Change 6 |
+| Multi-shot sub-action pending pattern (`PendingBuildStables`, `PendingBuildRooms`) | Complete | `task_files/TASK_5D.md`, `CHANGES.md` Change 6 |
+| Farm Expansion non-atomic resolution | Complete | `task_files/TASK_5D.md` |
+| Side Job migrated to `PendingBuildStables`; `PendingBuildStable` (singular) retired | Complete | `task_files/TASK_5D.md` |
+| `ROOM_COSTS` constant + `_can_afford(p, cost)` + predicate-enumerator deduplication (`_can_build_stable`, `_legal_room_cells`) | Complete | `task_files/TASK_5D.md`, `CHANGES.md` Change 6 |
+| `_new_grid_with_cell` helper in `resolution.py` | Complete | `task_files/TASK_5D.md` |
+| Pasture cache recompute on stable build (fixes latent Task 5C bug) | Complete | `task_files/TASK_5D.md`, `CHANGES.md` Change 6 |
+| Fencing pasture-shape universe (`agricola/fences.py` — four layered universes, four filter primitives) | Complete | `task_files/TASK_6_pre.md` |
+| Edge metadata on `agricola/fences.py` (`PastureCandidate`, parallel `*_ENTRIES`, `*_SMALLEST_ENTRIES`, `ENTRIES_BY_BM`, pack/apply helpers, `compute_new_fence_edges`) | Complete | `task_files/TASK_6.md` |
+| 1×1-at-(0, 0) addition to RESTRICTED (108→109) and EXTENDED (192→193) universes | Complete | `task_files/TASK_6.md` |
+| Build Fences sub-action (`PendingBuildFences`, `CommitBuildPasture`, `_execute_build_pasture`) — reusable across entry points | Complete | `task_files/TASK_6.md` |
+| Builds-before-subdivisions ordering rule (`subdivision_started` on `PendingBuildFences`) | Complete | `task_files/TASK_6.md` |
+| Fencing non-atomic resolution (`PendingFencing` + Build Fences entry point) | Complete | `task_files/TASK_6.md` |
+| Farm Redevelopment non-atomic resolution (renovate-then-optional-Build-Fences) | Complete | `task_files/TASK_6.md` |
+| Sub-action cost handling: 4th bucket (pure-function-of-state-and-commit) | Documented | `task_files/TASK_6.md` |
+| Runtime active-universe selector (`ACTIVE_FENCE_UNIVERSE_*` constants + per-call kwargs) | Complete | `task_files/TASK_6.md` |
+| `cooking_rates` 4-tuple `(sheep, boar, cattle, veg)` with veg raw-1:1 fallback | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| `food_payment_frontier` and `harvest_feed_frontier` in `helpers.py` | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| `HARVEST_CONVERSIONS` registry in `agricola/cards/harvest_conversions.py` | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| `PlayerState.harvest_conversions_used: frozenset[str]` once-per-harvest budget | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| `PendingHarvestFeed` / `PendingHarvestBreed` + `CommitHarvestConversion` / `CommitConvert` / `CommitBreed` | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| Dual-meaning `HARVEST_FEED` / `HARVEST_BREED` phase pattern; `"phase:<id>"` provenance namespace | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| Harvest sub-phases — `_resolve_harvest_field`, `_initiate_harvest_feed`, `_initiate_harvest_breed` in `engine.py` | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| Rounds 5–14, all 6 harvests | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
 
 **Not yet implemented:**
 
@@ -495,20 +495,34 @@ Significant cross-cutting refactors that touched many files at once are document
 
 ## Documentation Files
 
+Top-level docs (live alongside CLAUDE.md and are kept current as the project evolves):
+
 | File | Description |
 |---|---|
-| `ARCHITECTURE.md` | Original full architecture spec, game rules reference, and original dataclass definitions. Field names may diverge from current code — inline annotations flag known discrepancies. |
 | `RULES.md` | Complete rules reference for the 2-player Family game, including action space descriptions, major improvement effects, harvest rules, animal accommodation, and scoring tables. |
 | `STRATEGY.md` | AI strategy and algorithm decisions: action space structure, MCTS approach, neural network design, and the rationale behind each project phase. |
-| `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance). |
+| `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases). |
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
 | `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
-| `TASK_*.md` | Implementation task files, one per development task. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
+
+Historical task specs and design artifacts (in `task_files/`, frozen at the time of their task's landing):
+
+| File | Description |
+|---|---|
+| `task_files/ARCHITECTURE.md` | Original full architecture spec, game rules reference, and original dataclass definitions. Field names may diverge from current code — inline annotations flag known discrepancies. |
+| `task_files/FENCE_IDEAS.md` | Design conversation artifact from Task 6 — explores the broader Fencing action-space design alternatives. |
+| `task_files/TASK_2.md` … `task_files/TASK_7.md` | Implementation task files, one per development task. Frozen at landing time; cross-referenced from CLAUDE.md's status table and from SESSION_HISTORY.md. |
+
+Archived (in `archive/`, fully superseded by current docs):
+
+| File | Description |
+|---|---|
+| `archive/TESTS.md` | Pre-`TEST_DESCRIPTIONS.md` per-test reference. Superseded by `TEST_DESCRIPTIONS.md`. |
 
 ---
 
@@ -564,6 +578,24 @@ AgricolaBot/
         test_harvest_feed.py
         test_harvest_breed.py
         test_harvest_integration.py
+    task_files/                     # Historical task specs and design artifacts — frozen at the time their task landed; referenced from CLAUDE.md's status table and from SESSION_HISTORY.md / CHANGES.md as the design-rationale anchors. Not auto-read; consult when a status-table row or a session-history entry points here.
+        ARCHITECTURE.md             # Original full architecture spec + game rules reference + original dataclass definitions. Inline `> Note:` annotations flag known divergences from current code.
+        FENCE_IDEAS.md              # Design conversation artifact from Task 6 — broader Fencing design-space alternatives considered before the bitmap-fixed-universe approach.
+        TASK_2.md                   # Pastures, slots, accommodation, Pareto frontier.
+        TASK_3.md                   # Cooking rates, modified pareto_frontier, breeding_frontier.
+        TASK_4a_i.md                # State additions + atomic-space legality.
+        TASK_4a_ii.md               # Atomic-space resolution.
+        TASK_4a_iii.md              # Pasture cache scaffolding.
+        TASK_4b_i.md                # Non-atomic legality (initial pass).
+        TASK_5.md                   # The `step` function + pending stack + Grain Utilization + Potter Ceramics.
+        TASK_5B_DISPATCH_CLEANUP.md # Dispatch refactor + pending provenance.
+        TASK_5C.md                  # Eight non-atomic spaces + convention shifts.
+        TASK_5D.md                  # Farm Expansion + multi-shot sub-action pendings.
+        TASK_6_pre.md               # Fencing universe enumeration.
+        TASK_6.md                   # Fencing + Build Fences + Farm Redevelopment.
+        TASK_7.md                   # Harvest phases + rounds 5–14.
+    archive/                        # Fully superseded docs kept for historical reference. Not load-bearing.
+        TESTS.md                    # Pre-TEST_DESCRIPTIONS.md per-test reference (170-test snapshot). Superseded.
 ```
 
 For deeper per-file details, see **`FILE_DESCRIPTIONS.md`** (every `agricola/*.py` + the test-infrastructure files). For test-file coverage, see **`TEST_DESCRIPTIONS.md`**.
