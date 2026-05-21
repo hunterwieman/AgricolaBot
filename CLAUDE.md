@@ -410,7 +410,7 @@ The full card system (the other ~470 cards in the Family + full game) is a separ
 
 ## Current Status
 
-All 599 tests pass. The following pieces are complete:
+All 613 tests pass. The following pieces are complete:
 
 | Component | Status | Task file(s) |
 |---|---|---|
@@ -470,6 +470,7 @@ All 599 tests pass. The following pieces are complete:
 | Dual-meaning `HARVEST_FEED` / `HARVEST_BREED` phase pattern; `"phase:<id>"` provenance namespace | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
 | Harvest sub-phases — `_resolve_harvest_field`, `_initiate_harvest_feed`, `_initiate_harvest_breed` in `engine.py` | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
 | Rounds 5–14, all 6 harvests | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
+| `BoardState.action_spaces` canonical-tuple refactor (`GameState` hashable) | Complete | `CHANGES.md` Change 8 |
 
 **Not yet implemented:**
 
@@ -503,7 +504,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 |---|---|
 | `RULES.md` | Complete rules reference for the 2-player Family game, including action space descriptions, major improvement effects, harvest rules, animal accommodation, and scoring tables. |
 | `STRATEGY.md` | AI strategy and algorithm decisions: action space structure, MCTS approach, neural network design, and the rationale behind each project phase. |
-| `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases). |
+| `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases; `BoardState.action_spaces` canonical-tuple refactor). |
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
@@ -534,10 +535,10 @@ Archived (in `archive/`, fully superseded by current docs):
 AgricolaBot/
     agricola/                       # Game engine package.
         __init__.py                 # Empty package marker.
-        constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS.
+        constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces.
         resources.py                # Resources (wood/clay/reed/stone/food/grain/veg) and Animals (sheep/boar/cattle) frozen dataclasses with __add__/__sub__/__bool__ operators. Extracted from state.py to avoid circular imports with constants.py.
         pasture.py                  # Pasture dataclass (cells, num_stables, precomputed capacity) + compute_pastures_from_arrays BFS that flood-fills from outside the grid to find enclosed connected components. Independent of state.py via duck typing.
-        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState, PlayerState, BoardState, GameState. The top-level GameState snapshot — every transition produces a new one via dataclasses.replace.
+        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState, PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The top-level GameState snapshot — every transition produces a new one via dataclasses.replace — is fully hashable.
         setup.py                    # setup(seed) -> GameState — builds the initial 2-player Family game state. All randomness (starting player, stage card shuffle per stage) is resolved here via a seeded NumPy RNG; engine is fully deterministic afterward.
         helpers.py                  # Pure derived-quantity functions (fences_in_supply, stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
         actions.py                  # All Action dataclasses (PlaceWorker, ChooseSubAction, the full Commit* family, FireTrigger, Stop) plus the CommitSubAction marker base used by the generic commit dispatcher.

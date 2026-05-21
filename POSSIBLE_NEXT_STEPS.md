@@ -1,30 +1,10 @@
-# Possible Next Steps after Task 6
+# Possible Next Steps
 
-A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised 2026-05-15 after Task 5C; rewritten 2026-05-19 after Task 6.
+A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised 2026-05-15 after Task 5C; rewritten 2026-05-19 after Task 6; pruned 2026-05-21 after the harvest implementation (item A), the `BoardState.action_spaces` hashability refactor (item B), and the fence-universe restriction tooling (item D) all landed.
 
-520 tests passing. Every non-atomic action space has a working resolution path; the `NotImplementedError` branch in `_apply_place_worker` is now only a defensive guard for unknown space-IDs. Only the harvest phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) and rounds 5–14 remain as engine-level work for Phase 1 completion.
+613 tests passing. The engine is feature-complete for the Family game (all 14 rounds, all 6 harvests, Potter Ceramics as the one card). `GameState` is hashable, unblocking transposition-table caches and state-keyed memoization. Letter labels are preserved across removals so cross-references in CHANGES.md / SESSION_HISTORY.md to historical items remain valid.
 
 This is a planning document, not a commitment.
-
----
-
-## Engine completeness (Phase 1)
-
-Harvest is the only remaining engine-level work for Phase 1 (a fully playable Family game from setup to scoring).
-
-### A. Harvest phases (completed)
-
-Three sub-phases at the end of rounds 4, 7, 9, 11, 13, 14: HARVEST_FIELD → HARVEST_FEED → HARVEST_BREED.
-
-- **HARVEST_FIELD** is mechanical — take 1 crop from each planted field. No agent decisions; pure state transformation.
-
-- **HARVEST_FEED** is the most complex of the three. Each adult requires 2 food; newborns from the just-ended round require 1 food. Players can convert grain/veg directly (1:1) or animals/veg via cooking improvements, plus once-per-harvest building-resource conversions via Joinery / Pottery / Basketmaker's Workshop. Shortfall = 1 begging marker (−3 points) per missing food. The decision space — which goods to convert in what order, whether to beg, whether to release animals before breeding — is the first real strategic-choice surface beyond worker placement.
-
-- **HARVEST_BREED** uses the existing `breeding_frontier` helper in `agricola/helpers.py`. Per-type rule: breeds iff player has ≥ 2 of that animal AND has capacity for the newborn. Players can release animals immediately before breeding to make space; the existing `breeding_frontier` returns a Pareto frontier of post-breed configurations.
-
-Implementing the harvest also unblocks rounds 5–14: the engine currently halts in `Phase.BEFORE_SCORING` after round 4's RETURN_HOME because `_resolve_return_home` doesn't know what to do with the harvest trigger. After harvest lands, the round loop extends to round 14.
-
-Probably 1 task of work. End state: a Family game playable from setup to scoring (without cards beyond Potter Ceramics).
 
 ---
 
@@ -32,21 +12,11 @@ Probably 1 task of work. End state: a Family game playable from setup to scoring
 
 Worth doing before serious MCTS / agent work begins. Each is 1–2 sessions.
 
-### B. `BoardState.action_spaces` hashability
-
-Currently `BoardState.action_spaces` is a `dict[str, ActionSpaceState]`, which makes `BoardState` (and transitively `GameState`) unhashable. State-hashed legal-actions caching and DAG-MCTS both require this — flagged as a known small refactor in FENCE_IDEAS.md Section 5. Replace the dict with a structurally equivalent hashable type (e.g., a `tuple[ActionSpaceState, ...]` indexed by canonical space-id order, plus a name → index lookup at module load). Mechanical refactor; the tricky part is the canonical ordering choice and updating every call site that currently keys by string.
-
 ### C. Performance profiling of `legal_actions` and `step`
 
 Nothing is known to be slow, but no one has measured. Useful before MCTS scaling exposes per-call cost as a bottleneck. Easy first pass: profile `random_agent_play` across the 10-seed sweep, broken down by function. Identify hot paths, then decide whether any caching or restructuring is worth doing. The Fencing legality enumerator is the most likely hot spot given its per-call universe walk; the precomputed 1×1 fast path mitigates this but hasn't been measured.
 
 One concern is that `random_agent_play` will not go on some of the more complicated action spaces that require care to set up (e.g. Farm Redevelopment after aquiring the required resources and a large amount of wood). This can be partially mitigated by a prefabricated starting state where each player starts with a very large amount of resources. Then a random agent or a methodical agent that checks every action combination will come across a wider array of legal actions.
-
-### D. State-independent fence-universe restriction tooling (completed)
-
-The `ACTIVE_FENCE_UNIVERSE_*` constants are swappable today. A small experimental tooling layer — a `restrict_to(predicate)` wrapper, a per-experiment-config layer, or shared test fixtures that swap and restore the constants — would make universe-restriction research cleaner once self-play training begins. Currently each test that swaps does so manually with monkey-patching. Defer until there's a concrete restriction experiment to run.
-
-**Landed in `agricola/fence_universe.py`:** the `active_universe(spec)` context manager (named universes or explicit triples; nests; restores on exception), `restrict_to(predicate, base=...)` builder for derived universes, `NAMED_UNIVERSES` registry, and `current_universe()` accessor. A prerequisite footgun-fix in `legality.py` changed the universe-aware enumerator defaults from definition-time-bound constants to `None` sentinels with call-time lookup, so `with active_universe(...):` blocks affect every default-kwarg call site (including all production paths). The pytest-fixture variant mentioned above was deliberately omitted — the context manager covers the use case, and a fixture is a one-liner if one is later wanted. Test coverage: +10 cases in `tests/test_fencing.py` covering swap-via-context-manager, exception restoration, nesting, explicit-triple acceptance, error handling, `restrict_to` filtering / default-base / composition, `current_universe()`, and `NAMED_UNIVERSES` keys.
 
 ### E. Pareto frontier pruning optimizations
 
@@ -69,7 +39,7 @@ Two related optimizations to `pareto_frontier` (animal market gain) and `breedin
 
 ## Phase 2 — baseline agents
 
-After the engine is feature-complete (post-harvest). Useful as benchmarks for the trained agent and as scaffolding for MCTS.
+Useful as benchmarks for the trained agent and as scaffolding for MCTS.
 
 ### F. Heuristic agent
 
@@ -83,7 +53,7 @@ Useful as:
 
 Pure MCTS (no neural net yet), used initially with random and heuristic agents to validate the tree-search loop. Becomes the substrate for AlphaZero-style training in Phase 5.
 
-Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / expand / simulate / backup` loop, UCB1 selection, terminal-state handling, and an agent wrapper that uses MCTS to pick actions. State-hashed transposition table (depends on B) lets nodes share statistics across reachable-by-different-paths states; without it, the search tree fragments more than necessary on actions like Fencing (where the builds-before-subdivisions ordering rule already cuts some path-level inflation but doesn't eliminate it).
+Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / expand / simulate / backup` loop, UCB1 selection, terminal-state handling, and an agent wrapper that uses MCTS to pick actions. State-hashed transposition table — now unblocked by the Change 8 hashability refactor — lets nodes share statistics across reachable-by-different-paths states; without it, the search tree fragments more than necessary on actions like Fencing (where the builds-before-subdivisions ordering rule already cuts some path-level inflation but doesn't eliminate it).
 
 ---
 
@@ -144,14 +114,14 @@ Depends on G (MCTS scaffolding), and ideally on H–K (card system mostly comple
 
 ### O. Evaluation tooling
 
-Elo ratings between agent versions, score distribution analysis, game-length variance, trace replay viewer, head-to-head match infrastructure. Useful throughout training to detect regressions and to compare experimental variants. Some pieces (trace replay, score distribution) become useful right after harvest lands and could ship earlier than the full evaluation pipeline.
+Elo ratings between agent versions, score distribution analysis, game-length variance, trace replay viewer, head-to-head match infrastructure. Useful throughout training to detect regressions and to compare experimental variants. Some pieces (trace replay, score distribution) are useful immediately for the existing engine and could ship ahead of the full evaluation pipeline.
 
 ---
 
 ## My take (advisory, not prescriptive)
 
-**Highest-impact single next task: harvest (A).** Completes Phase 1; turns the engine into a feature-complete Family-game implementation. Without harvest, no agent work makes sense — there's no "game" to play through to a final score.
+**Highest-impact single next task: the heuristic agent (F).** The engine has played thousands of random games but never a competent one. A heuristic agent is the first chance to see the engine drive recognizable Agricola strategy and to set a real baseline for everything that follows. It also surfaces edge cases random play never hits.
 
-**After harvest:** the small-hardening items (B and C) before MCTS work begins, then the heuristic agent (F) for a benchmark, then MCTS scaffolding (G).
+**After F:** MCTS scaffolding (G) — directly unblocked by the Change 8 hashability refactor. Profiling (C) and the Pareto pruning work (E) can land before or alongside G, but neither is required until rollout cost starts mattering at MCTS scale.
 
 **Card system as a separate track:** can run in parallel with agent work, but the open design questions (H, I, J, K) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.

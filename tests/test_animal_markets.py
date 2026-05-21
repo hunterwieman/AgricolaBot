@@ -18,6 +18,7 @@ from agricola.pending import (
     PendingSheepMarket,
 )
 from agricola.setup import setup
+from agricola.state import get_space
 
 from tests.factories import (
     with_animals,
@@ -54,7 +55,7 @@ def test_market_place_worker_stages_animals_on_pending(space_id, pending_type, a
     assert isinstance(pending, pending_type)
     assert pending.gained == 3
     # Space's accumulated_amount is zeroed.
-    assert state.board.action_spaces[space_id].accumulated_amount == 0
+    assert get_space(state.board, space_id).accumulated_amount == 0
     # Player's animals field is not yet updated.
     assert getattr(state.players[0].animals, animal_field) == 0
 

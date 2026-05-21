@@ -16,6 +16,7 @@ For implementation decisions that may need revisiting when cards are introduced 
 - [Change 5 — Choose-time flag-setting, provenance prefix scheme, and Bake Bread expansion](#change-5)
 - [Change 6 — Multi-shot sub-action pendings, `auto_pop` dispatcher flag, `_execute_build_major` absorption, legality helper consolidations](#change-6)
 - [Change 7 — Harvest phases, `cooking_rates` 4-tuple, food-payment Pareto helpers, dual-meaning phase pattern](#change-7)
+- [Change 8 — `BoardState.action_spaces` dict → canonical-tuple refactor (hashable `GameState`)](#change-8)
 
 ---
 
@@ -265,3 +266,37 @@ The three harvest sub-phases (HARVEST_FIELD / HARVEST_FEED / HARVEST_BREED) and 
 **Test invariant loosened.** `test_random_agent_invariants` previously asserted `pending_stack[-1].player_idx == current_player` whenever the stack was non-empty. Harvest pendings can legitimately have a different `player_idx` than `current_player` (no worker is placed during harvest; the stack alone identifies the decider). The invariant is now scoped to `phase == Phase.WORK`.
 
 **Outcome.** 599 tests pass (up from 521 baseline; +78 net). New test files: `tests/test_harvest_field.py` (11 tests covering mechanical resolution, budget reset, phase transition, and pre-debit semantics), `tests/test_harvest_feed.py` (19 tests covering pre-debit / begging / pareto frontier / craft conversions / Stop gating / push order), `tests/test_harvest_breed.py` (8 tests covering trivial breed / single-and-multi-type breeding / capacity-forced release / Stop gating / push order), `tests/test_harvest_integration.py` (28 tests covering 20-seed random-agent runs, all-6-harvests coverage, multi-harvest budget reset, begging-marker → score propagation, stack evolution through FEED + BREED). Extended: `tests/test_helpers.py` (4 `cooking_rates` assertions updated to 4-tuple; 11 new tests for `food_payment_frontier` and `harvest_feed_frontier`). Test renames: `test_round_4_return_home_transitions_to_before_scoring` → `test_harvest_round_return_home_transitions_to_harvest_field` (+ new sibling `test_non_harvest_round_return_home_transitions_to_preparation`); `test_random_agent_plays_four_rounds` → `test_random_agent_plays_full_game` (now asserts `round_number == 14`). Test util update: `tests/test_utils.py` docstring extended to note the three new harvest commits are auto-accepted by `_is_implemented_action` (only `PlaceWorker` is filtered).
+
+---
+
+<a name="change-8"></a>
+## Change 8 — `BoardState.action_spaces` dict → canonical-tuple refactor (hashable `GameState`)
+
+**Status:** Completed (post-Task-7 cleanup session).
+
+**Motivation:**
+`BoardState.action_spaces` was a `dict[str, ActionSpaceState]`, which made `BoardState` — and transitively `GameState` — unhashable. State-hashed legal-actions caching and DAG-MCTS both require hashable game states; the dict was flagged as a known small refactor in POSSIBLE_NEXT_STEPS.md item B and FENCE_IDEAS.md Section 5. This change replaces the dict with a length-25 tuple in a fixed canonical order, so the field rides naturally through `dataclasses.replace` and gets hashed component-wise by Python's default frozen-dataclass `__hash__`. Useful well before MCTS lands: an experimental transposition-table cache or a state-keyed memoization layer is now a one-line `dict[GameState, ...]` away.
+
+**Canonical ordering.**
+`constants.SPACE_IDS: tuple[str, ...]` is length-25: the 11 permanent spaces in their `PERMANENT_ACTION_SPACES` order (chosen by the user for readability — Farm Expansion / Meeting Place / Grain Seeds / Farmland / Lessons / Day Laborer / Forest / Clay Pit / Reed Bank / Fishing / Side Job), then the 14 stage cards in stage order (stage 1's four cards, stage 2's three, …, stage 6's one). `SPACE_INDEX: dict[str, int]` is the reverse lookup. The ordering is fixed across all games — `BoardState.round_card_order` carries the per-game stage-card shuffle separately, so two states reached by different action paths compare equal and hash to the same bucket regardless of how their stage cards were dealt.
+
+**New accessor helpers in `agricola/state.py`.**
+- `get_space(board: BoardState, space_id: str) -> ActionSpaceState` — read.
+- `with_space(board: BoardState, space_id: str, new_space: ActionSpaceState) -> BoardState` — return a new board with one slot replaced (tuple slice + concat).
+
+Both are free functions, not methods, matching the codebase's preference for `cooking_rates(state, p)`-style derived-quantity helpers over methods on state objects. The existing `resolution._update_space(state, space_id, **kwargs)` wrapper kept its public signature; only its internals changed to call `get_space` + `with_space`.
+
+**Per-file changes.**
+- **`agricola/constants.py`** — added `SPACE_IDS` and `SPACE_INDEX` at module load, built from the existing `PERMANENT_ACTION_SPACES` list and `STAGE_CARDS` dict (no new lists; pure derivation).
+- **`agricola/state.py`** — `BoardState.action_spaces: dict` → `tuple` with an updated comment. Added `get_space` / `with_space` free functions immediately after `BoardState`.
+- **`agricola/setup.py`** — `_make_action_spaces(round_card_order)` return type `dict` → `tuple`. Internal implementation still builds a `dict` keyed by space-id, then converts to the canonical-ordered tuple at the end (`tuple(by_id[sid] for sid in SPACE_IDS)`) — the dict-building stays clean; only the return shape changes.
+- **`agricola/resolution.py`** — `_update_space` rewritten in three lines using the new helpers; all read sites (`get_space(state.board, "<id>")`) replace the old `state.board.action_spaces["<id>"]` pattern.
+- **`agricola/legality.py`** — read sites converted (10 sites across `_is_available` and the per-space accumulation predicates).
+- **`agricola/engine.py`** — two bulk-update loops rewritten. `_resolve_return_home`'s "reset every worker" generator now iterates the tuple directly; `_resolve_preparation`'s "refill revealed accumulation spaces" loop uses a `list(...) + enumerate(...) + SPACE_IDS[i]` pattern (the only place `SPACE_IDS` appears in production logic, because the refill rates are still keyed by string-id).
+- **`tests/factories.py`** — `with_space(state, space_id, **kwargs)` rewritten to delegate to the new state-level helpers (imported under aliases `_get_space` / `_board_with_space` to avoid colliding with the test-side `with_space` name).
+- **`tests/test_*.py`** — five test files updated: read sites use `get_space`; the two test-local `_set_space` write helpers use `with_space`; the `dict.items()` / `dict.values()` iteration sites become `zip(SPACE_IDS, state.board.action_spaces)` / direct tuple iteration.
+- **`play.py`, `play_web.py`** — UI read sites updated (3 sites). `play.py:_placeworker_sort_key`'s `dict.get(space_id)` fallback (which returned `None` for unknown ids) is rewritten as a `try`/`except KeyError` around `get_space`, preserving the same behavior.
+
+**Outcome.** All 613 tests pass — no test count change (no new tests added, none removed). `GameState`, `BoardState`, and the underlying `action_spaces` tuple are all hashable. An end-to-end smoke check confirms two states reached by the same action sequence compare equal and hash to the same value (verified live with `setup(seed=0)` → `step(..., PlaceWorker(space="day_laborer"))` from two parallel calls).
+
+**Forward look.** The hashability unblocks MCTS-side transposition-table work (item G in POSSIBLE_NEXT_STEPS.md) and any per-state legal-actions cache experiments. No code is yet wired to take advantage of it; this change just removes the structural blocker.

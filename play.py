@@ -47,7 +47,7 @@ from agricola.engine import step
 from agricola.legality import legal_actions
 from agricola.scoring import score, tiebreaker
 from agricola.setup import setup
-from agricola.state import GameState
+from agricola.state import GameState, get_space
 
 # ---------------------------------------------------------------------------
 # Display constants
@@ -155,10 +155,10 @@ def _fmt_accumulation(space_id: str, sp_state) -> str:
 
 def render_action_board(state: GameState) -> list[str]:
     lines = ["Action spaces:"]
-    spaces = state.board.action_spaces
+    board = state.board
 
     def emit(sid: str) -> None:
-        ss = spaces[sid]
+        ss = get_space(board, sid)
         name = SPACE_DISPLAY_NAMES.get(sid, sid)
         accum = _fmt_accumulation(sid, ss)
         occ = _fmt_workers(ss.workers)
@@ -545,8 +545,11 @@ def _group_actions(actions: list[Action]) -> dict[str, list[Action]]:
 def _placeworker_sort_key(space_id: str, state: GameState) -> tuple:
     if space_id in PERMANENT_DISPLAY_ORDER:
         return (0, PERMANENT_DISPLAY_ORDER.index(space_id))
-    ss = state.board.action_spaces.get(space_id)
-    rr = ss.round_revealed if ss is not None else 999
+    try:
+        ss = get_space(state.board, space_id)
+        rr = ss.round_revealed
+    except KeyError:
+        rr = 999
     return (1, rr, space_id)
 
 

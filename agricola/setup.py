@@ -8,6 +8,7 @@ from agricola.constants import (
     NUM_MAJOR_IMPROVEMENTS,
     NUM_ROUNDS,
     PERMANENT_ACTION_SPACES,
+    SPACE_IDS,
     STAGE_CARDS,
     CellType,
     HouseMaterial,
@@ -41,19 +42,20 @@ def _make_round_card_order(rng: np.random.Generator) -> tuple:
     return tuple(order)
 
 
-def _make_action_spaces(round_card_order: tuple) -> dict:
+def _make_action_spaces(round_card_order: tuple) -> tuple:
     """Build the initial ActionSpaceState for all 25 action spaces.
 
+    Returns a tuple of length len(SPACE_IDS), indexed by SPACE_INDEX[space_id].
     Permanent spaces: round_revealed=0, accumulated/accumulated_amount pre-loaded for round 1.
     Stage cards: round_revealed = the round they appear, accumulated=Resources(), accumulated_amount=0.
     """
-    spaces = {}
+    by_id: dict[str, ActionSpaceState] = {}
 
     # Permanent spaces
     for space_id in PERMANENT_ACTION_SPACES:
         if space_id in BUILDING_ACCUMULATION_RATES:
             # Building-resource space: pre-load round-1 Resources
-            spaces[space_id] = ActionSpaceState(
+            by_id[space_id] = ActionSpaceState(
                 workers=(0, 0),
                 accumulated=BUILDING_ACCUMULATION_RATES[space_id],
                 round_revealed=0,
@@ -61,13 +63,13 @@ def _make_action_spaces(round_card_order: tuple) -> dict:
         elif space_id in FOOD_ANIMAL_ACCUMULATION_RATES:
             # Food/animal space: pre-load scalar round-1 goods
             _, rate = FOOD_ANIMAL_ACCUMULATION_RATES[space_id]
-            spaces[space_id] = ActionSpaceState(
+            by_id[space_id] = ActionSpaceState(
                 workers=(0, 0),
                 accumulated_amount=rate,
                 round_revealed=0,
             )
         else:
-            spaces[space_id] = ActionSpaceState(
+            by_id[space_id] = ActionSpaceState(
                 workers=(0, 0),
                 round_revealed=0,
             )
@@ -76,19 +78,19 @@ def _make_action_spaces(round_card_order: tuple) -> dict:
     for i, card_id in enumerate(round_card_order):
         round_revealed = i + 1
         if card_id in BUILDING_ACCUMULATION_RATES:
-            spaces[card_id] = ActionSpaceState(
+            by_id[card_id] = ActionSpaceState(
                 workers=(0, 0),
                 accumulated=Resources(),
                 round_revealed=round_revealed,
             )
         else:
-            spaces[card_id] = ActionSpaceState(
+            by_id[card_id] = ActionSpaceState(
                 workers=(0, 0),
                 accumulated_amount=0,
                 round_revealed=round_revealed,
             )
 
-    return spaces
+    return tuple(by_id[sid] for sid in SPACE_IDS)
 
 
 def _make_farmyard() -> Farmyard:

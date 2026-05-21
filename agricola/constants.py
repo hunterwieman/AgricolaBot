@@ -52,6 +52,19 @@ STAGE_CARDS = {
     6: ["farm_redevelopment"],
 }
 
+# Canonical ordering of all 25 action space IDs. Used to index
+# BoardState.action_spaces (a tuple). Permanent spaces first in the order
+# they appear in PERMANENT_ACTION_SPACES, then stage cards in stage order.
+# The order is fixed across all games — `round_card_order` (per-game stage-card
+# shuffle) is recorded separately on BoardState — so two states reached by
+# different paths can compare equal and hash to the same bucket.
+SPACE_IDS: tuple[str, ...] = tuple(PERMANENT_ACTION_SPACES) + tuple(
+    card_id
+    for stage in sorted(STAGE_CARDS)
+    for card_id in STAGE_CARDS[stage]
+)
+SPACE_INDEX: dict[str, int] = {sid: i for i, sid in enumerate(SPACE_IDS)}
+
 # Room costs by current house material. Same shape as MAJOR_IMPROVEMENT_COSTS:
 # a static lookup of Resources costs, consumed by both `_can_afford_room`
 # (legality) and `_choose_subaction_farm_expansion` (resolution).

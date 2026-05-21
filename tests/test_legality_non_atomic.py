@@ -32,7 +32,7 @@ from agricola.legality import (
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.resources import Resources
 from agricola.setup import setup
-from agricola.state import Cell
+from agricola.state import Cell, get_space, with_space
 
 
 # ---------------------------------------------------------------------------
@@ -44,10 +44,8 @@ def _spaces(result: list[PlaceWorker]) -> set[str]:
 
 
 def _set_space(state, space_id: str, **kwargs):
-    old = state.board.action_spaces[space_id]
-    new_spaces = dict(state.board.action_spaces)
-    new_spaces[space_id] = dataclasses.replace(old, **kwargs)
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_space = dataclasses.replace(get_space(state.board, space_id), **kwargs)
+    new_board = with_space(state.board, space_id, new_space)
     return dataclasses.replace(state, board=new_board)
 
 

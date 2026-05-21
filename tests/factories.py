@@ -21,6 +21,8 @@ from agricola.state import (
     Farmyard,
     GameState,
     PlayerState,
+    get_space as _get_space,
+    with_space as _board_with_space,
 )
 
 
@@ -122,11 +124,8 @@ def with_space(state, space_id: str, **kwargs):
 
     Example: with_space(s, "fishing", round_revealed=1, accumulated_amount=3)
     """
-    action_space = state.board.action_spaces[space_id]
-    new_action_space = dataclasses.replace(action_space, **kwargs)
-    new_spaces = dict(state.board.action_spaces)
-    new_spaces[space_id] = new_action_space
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_action_space = dataclasses.replace(_get_space(state.board, space_id), **kwargs)
+    new_board = _board_with_space(state.board, space_id, new_action_space)
     return dataclasses.replace(state, board=new_board)
 
 

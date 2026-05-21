@@ -54,7 +54,7 @@ from agricola.pending import (
     replace_top,
 )
 from agricola.resources import Animals, Resources
-from agricola.state import Cell, GameState, PlayerState
+from agricola.state import Cell, GameState, PlayerState, get_space, with_space
 
 
 # ---------------------------------------------------------------------------
@@ -72,11 +72,9 @@ def _update_player(state: GameState, ap: int, new_player: PlayerState) -> GameSt
 
 def _update_space(state: GameState, space_id: str, **kwargs) -> GameState:
     """Return a new GameState with the named action space updated."""
-    old_space = state.board.action_spaces[space_id]
+    old_space = get_space(state.board, space_id)
     new_space = dataclasses.replace(old_space, **kwargs)
-    new_spaces = dict(state.board.action_spaces)
-    new_spaces[space_id] = new_space
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_board = with_space(state.board, space_id, new_space)
     return dataclasses.replace(state, board=new_board)
 
 
@@ -110,7 +108,7 @@ def _apply_worker_placement(state: GameState, space_id: str) -> GameState:
     ap = state.current_player
 
     # 1. Update workers on the action space
-    old_w = state.board.action_spaces[space_id].workers
+    old_w = get_space(state.board, space_id).workers
     new_workers = (
         old_w[0] + (1 if ap == 0 else 0),
         old_w[1] + (1 if ap == 1 else 0),
@@ -143,7 +141,7 @@ def _resolve_building_accumulation(state: GameState, space_id: str) -> GameState
     """
     ap = state.current_player
     p = state.players[ap]
-    space_state = state.board.action_spaces[space_id]
+    space_state = get_space(state.board, space_id)
     new_resources = p.resources + space_state.accumulated
     state = _update_player(state, ap, dataclasses.replace(p, resources=new_resources))
     state = _update_space(state, space_id, accumulated=Resources())
@@ -154,7 +152,7 @@ def _resolve_food_accumulation(state: GameState, space_id: str) -> GameState:
     """Shared handler for food accumulation spaces (scalar accumulated_amount)."""
     ap = state.current_player
     p = state.players[ap]
-    amount = state.board.action_spaces[space_id].accumulated_amount
+    amount = get_space(state.board, space_id).accumulated_amount
     new_resources = p.resources + Resources(food=amount)
     state = _update_player(state, ap, dataclasses.replace(p, resources=new_resources))
     state = _update_space(state, space_id, accumulated_amount=0)
@@ -215,7 +213,7 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
     ap = state.current_player
 
     # Add newborn worker to the space (parent already there from cross-cutting)
-    old_w = state.board.action_spaces[space_id].workers
+    old_w = get_space(state.board, space_id).workers
     new_workers = (
         old_w[0] + (1 if ap == 0 else 0),
         old_w[1] + (1 if ap == 1 else 0),
@@ -309,7 +307,7 @@ def _initiate_sheep_market(state: GameState) -> GameState:
     and push PendingSheepMarket."""
     from agricola.pending import PendingSheepMarket
     ap = state.current_player
-    gained = state.board.action_spaces["sheep_market"].accumulated_amount
+    gained = get_space(state.board, "sheep_market").accumulated_amount
     state = _update_space(state, "sheep_market", accumulated_amount=0)
     return push(state, PendingSheepMarket(
         player_idx=ap, initiated_by_id="space:sheep_market", gained=gained,
@@ -320,7 +318,7 @@ def _initiate_pig_market(state: GameState) -> GameState:
     """Initiate Pig Market — same shape as Sheep Market."""
     from agricola.pending import PendingPigMarket
     ap = state.current_player
-    gained = state.board.action_spaces["pig_market"].accumulated_amount
+    gained = get_space(state.board, "pig_market").accumulated_amount
     state = _update_space(state, "pig_market", accumulated_amount=0)
     return push(state, PendingPigMarket(
         player_idx=ap, initiated_by_id="space:pig_market", gained=gained,
@@ -331,7 +329,7 @@ def _initiate_cattle_market(state: GameState) -> GameState:
     """Initiate Cattle Market — same shape as Sheep Market."""
     from agricola.pending import PendingCattleMarket
     ap = state.current_player
-    gained = state.board.action_spaces["cattle_market"].accumulated_amount
+    gained = get_space(state.board, "cattle_market").accumulated_amount
     state = _update_space(state, "cattle_market", accumulated_amount=0)
     return push(state, PendingCattleMarket(
         player_idx=ap, initiated_by_id="space:cattle_market", gained=gained,

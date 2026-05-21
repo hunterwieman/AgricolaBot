@@ -15,7 +15,7 @@ from agricola.constants import CellType, HouseMaterial
 from agricola.legality import legal_placements
 from agricola.resources import Resources
 from agricola.setup import setup
-from agricola.state import ActionSpaceState, Cell, Farmyard, PlayerState
+from agricola.state import ActionSpaceState, Cell, Farmyard, PlayerState, get_space, with_space
 
 
 # ---------------------------------------------------------------------------
@@ -28,10 +28,8 @@ def _spaces(result: list[PlaceWorker]) -> set[str]:
 
 def _set_space(state, space_id: str, **kwargs):
     """Return a new state with the given fields replaced on the named action space."""
-    old = state.board.action_spaces[space_id]
-    new_spaces = dict(state.board.action_spaces)
-    new_spaces[space_id] = dataclasses.replace(old, **kwargs)
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_space = dataclasses.replace(get_space(state.board, space_id), **kwargs)
+    new_board = with_space(state.board, space_id, new_space)
     return dataclasses.replace(state, board=new_board)
 
 
@@ -113,23 +111,23 @@ def test_day_laborer_legal_at_setup(state):
 
 def test_fishing_legal_with_accumulation(state):
     # At setup fishing already has accumulated_amount=1 (round-1 pre-load).
-    assert state.board.action_spaces["fishing"].accumulated_amount == 1
+    assert get_space(state.board, "fishing").accumulated_amount == 1
     assert PlaceWorker(space="fishing") in legal_placements(state)
 
 
 def test_forest_legal_with_accumulation(state):
     # At setup forest already has accumulated=Resources(wood=3).
-    assert state.board.action_spaces["forest"].accumulated == Resources(wood=3)
+    assert get_space(state.board, "forest").accumulated == Resources(wood=3)
     assert PlaceWorker(space="forest") in legal_placements(state)
 
 
 def test_clay_pit_legal_with_accumulation(state):
-    assert state.board.action_spaces["clay_pit"].accumulated == Resources(clay=1)
+    assert get_space(state.board, "clay_pit").accumulated == Resources(clay=1)
     assert PlaceWorker(space="clay_pit") in legal_placements(state)
 
 
 def test_reed_bank_legal_with_accumulation(state):
-    assert state.board.action_spaces["reed_bank"].accumulated == Resources(reed=1)
+    assert get_space(state.board, "reed_bank").accumulated == Resources(reed=1)
     assert PlaceWorker(space="reed_bank") in legal_placements(state)
 
 
@@ -244,7 +242,7 @@ def test_occupied_space_illegal(state):
 
 def test_unrevealed_stage_space_illegal(state):
     # At round 1, western_quarry has round_revealed > 1. Even with goods it is illegal.
-    assert state.board.action_spaces["western_quarry"].round_revealed > 1
+    assert get_space(state.board, "western_quarry").round_revealed > 1
     state2 = _set_space(state, "western_quarry", accumulated=Resources(stone=3))
     # round_revealed is unchanged (still > 1), so it remains unrevealed.
     assert PlaceWorker(space="western_quarry") not in legal_placements(state2)

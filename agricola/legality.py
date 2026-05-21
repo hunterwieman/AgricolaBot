@@ -56,7 +56,7 @@ from agricola.pending import (
     PendingRenovate,
     PendingSow,
 )
-from agricola.state import GameState, PlayerState
+from agricola.state import GameState, PlayerState, get_space
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@ def baking_specs_for_player(
 
 def _is_available(state: GameState, space: str) -> bool:
     """Cross-cutting check: space is unoccupied and currently revealed."""
-    sp = state.board.action_spaces[space]
+    sp = get_space(state.board, space)
     unoccupied = sp.workers == (0, 0)
     revealed = sp.round_revealed <= state.round_number
     return unoccupied and revealed
@@ -426,28 +426,28 @@ def _legal_day_laborer(state: GameState) -> bool:
 def _legal_fishing(state: GameState) -> bool:
     return (
         _is_available(state, "fishing")
-        and state.board.action_spaces["fishing"].accumulated_amount > 0
+        and get_space(state.board, "fishing").accumulated_amount > 0
     )
 
 
 def _legal_forest(state: GameState) -> bool:
     return (
         _is_available(state, "forest")
-        and bool(state.board.action_spaces["forest"].accumulated)
+        and bool(get_space(state.board, "forest").accumulated)
     )
 
 
 def _legal_clay_pit(state: GameState) -> bool:
     return (
         _is_available(state, "clay_pit")
-        and bool(state.board.action_spaces["clay_pit"].accumulated)
+        and bool(get_space(state.board, "clay_pit").accumulated)
     )
 
 
 def _legal_reed_bank(state: GameState) -> bool:
     return (
         _is_available(state, "reed_bank")
-        and bool(state.board.action_spaces["reed_bank"].accumulated)
+        and bool(get_space(state.board, "reed_bank").accumulated)
     )
 
 
@@ -463,7 +463,7 @@ def _legal_meeting_place(state: GameState) -> bool:
 def _legal_western_quarry(state: GameState) -> bool:
     return (
         _is_available(state, "western_quarry")
-        and bool(state.board.action_spaces["western_quarry"].accumulated)
+        and bool(get_space(state.board, "western_quarry").accumulated)
     )
 
 
@@ -474,7 +474,7 @@ def _legal_vegetable_seeds(state: GameState) -> bool:
 def _legal_eastern_quarry(state: GameState) -> bool:
     return (
         _is_available(state, "eastern_quarry")
-        and bool(state.board.action_spaces["eastern_quarry"].accumulated)
+        and bool(get_space(state.board, "eastern_quarry").accumulated)
     )
 
 
@@ -529,21 +529,21 @@ def _legal_grain_utilization(state: GameState) -> bool:
 def _legal_sheep_market(state: GameState) -> bool:
     return (
         _is_available(state, "sheep_market")
-        and state.board.action_spaces["sheep_market"].accumulated_amount > 0
+        and get_space(state.board, "sheep_market").accumulated_amount > 0
     )
 
 
 def _legal_pig_market(state: GameState) -> bool:
     return (
         _is_available(state, "pig_market")
-        and state.board.action_spaces["pig_market"].accumulated_amount > 0
+        and get_space(state.board, "pig_market").accumulated_amount > 0
     )
 
 
 def _legal_cattle_market(state: GameState) -> bool:
     return (
         _is_available(state, "cattle_market")
-        and state.board.action_spaces["cattle_market"].accumulated_amount > 0
+        and get_space(state.board, "cattle_market").accumulated_amount > 0
     )
 
 

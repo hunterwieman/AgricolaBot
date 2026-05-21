@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional  # used by BoardState.major_improvement_owners annotation
 
-from agricola.constants import CellType, HouseMaterial, Phase
+from agricola.constants import SPACE_IDS, SPACE_INDEX, CellType, HouseMaterial, Phase
 from agricola.resources import Animals, Resources
 
 
@@ -105,9 +105,12 @@ class PlayerState:
 
 @dataclass(frozen=True)
 class BoardState:
-    # Maps action_space_id (str) -> ActionSpaceState for all 25 spaces.
-    # Treat as immutable — never mutate this dict after creation.
-    action_spaces: dict  # dict[str, ActionSpaceState]
+    # ActionSpaceState for all 25 spaces, indexed by SPACE_INDEX[space_id].
+    # The canonical ordering (constants.SPACE_IDS) is fixed across all games,
+    # which keeps BoardState — and transitively GameState — hashable. Use the
+    # `get_space` / `with_space` helpers below for keyed access; never index
+    # this tuple directly with raw integers in callers.
+    action_spaces: tuple  # tuple[ActionSpaceState, ...], length 25
 
     # Who owns each of the 10 major improvements (None = still on supply board).
     # Indexed by major improvement index 0–9 (see constants.py).
@@ -117,6 +120,23 @@ class BoardState:
     # round_card_order[i] is the action space ID appearing at round i+1.
     # Determined randomly at setup (randomised within each stage).
     round_card_order: tuple  # tuple[str, ...], length 14
+
+
+def get_space(board: BoardState, space_id: str) -> ActionSpaceState:
+    """Return the ActionSpaceState for `space_id`."""
+    return board.action_spaces[SPACE_INDEX[space_id]]
+
+
+def with_space(board: BoardState, space_id: str, new_space: ActionSpaceState) -> BoardState:
+    """Return a new BoardState with `space_id` replaced by `new_space`."""
+    idx = SPACE_INDEX[space_id]
+    spaces = board.action_spaces
+    new_spaces = spaces[:idx] + (new_space,) + spaces[idx + 1:]
+    return BoardState(
+        action_spaces=new_spaces,
+        major_improvement_owners=board.major_improvement_owners,
+        round_card_order=board.round_card_order,
+    )
 
 
 @dataclass(frozen=True)

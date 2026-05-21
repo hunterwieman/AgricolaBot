@@ -22,6 +22,7 @@ from agricola.engine import (
 )
 from agricola.legality import legal_actions
 from agricola.setup import setup
+from agricola.state import get_space
 
 from tests.factories import (
     with_current_player,
@@ -50,7 +51,7 @@ def test_step_day_laborer_basic():
 
     assert new_state.players[ap].resources.food == pre_food + 2
     assert new_state.players[ap].people_home == pre_home - 1
-    assert new_state.board.action_spaces["day_laborer"].workers != (0, 0)
+    assert get_space(new_state.board, "day_laborer").workers != (0, 0)
     assert new_state.pending_stack == ()
     # current_player alternated.
     assert new_state.current_player != ap
@@ -125,7 +126,7 @@ def test_work_phase_ends_when_both_players_zero_workers():
     # current_player reset to starting_player.
     assert new_state.current_player == new_state.starting_player
     # All action-space workers reset.
-    for space_state in new_state.board.action_spaces.values():
+    for space_state in new_state.board.action_spaces:
         assert space_state.workers == (0, 0)
 
 
@@ -137,7 +138,7 @@ def test_return_home_resets_workers():
     state = with_phase(state, Phase.RETURN_HOME)
 
     new_state = _resolve_return_home(state)
-    for space_state in new_state.board.action_spaces.values():
+    for space_state in new_state.board.action_spaces:
         assert space_state.workers == (0, 0)
 
 
@@ -179,13 +180,13 @@ def test_preparation_refills_accumulation_spaces():
     state = with_phase(state, Phase.PREPARATION)
     # Pre-PREP forest accumulation is some round-1 value. After PREP for
     # round 2, it gains 3 more wood.
-    pre_forest = state.board.action_spaces["forest"].accumulated
-    pre_clay_pit = state.board.action_spaces["clay_pit"].accumulated
+    pre_forest = get_space(state.board, "forest").accumulated
+    pre_clay_pit = get_space(state.board, "clay_pit").accumulated
 
     new_state = _resolve_preparation(state)
 
-    new_forest = new_state.board.action_spaces["forest"].accumulated
-    new_clay_pit = new_state.board.action_spaces["clay_pit"].accumulated
+    new_forest = get_space(new_state.board, "forest").accumulated
+    new_clay_pit = get_space(new_state.board, "clay_pit").accumulated
     assert new_forest.wood == pre_forest.wood + 3
     assert new_clay_pit.clay == pre_clay_pit.clay + 1
 
@@ -271,7 +272,7 @@ def test_random_agent_plays_full_game(seed):
     for p in state.players:
         assert p.people_home == p.people_total
     # All action-space workers reset.
-    for space_state in state.board.action_spaces.values():
+    for space_state in state.board.action_spaces:
         assert space_state.workers == (0, 0)
     # Trace contains at least some actions.
     assert len(trace) > 0

@@ -36,6 +36,7 @@ from agricola.constants import (
     FOOD_ANIMAL_ACCUMULATION_RATES,
     HARVEST_ROUNDS,
     NUM_ROUNDS,
+    SPACE_IDS,
     CellType,
     Phase,
 )
@@ -425,10 +426,10 @@ def _resolve_return_home(state: GameState) -> GameState:
 
     # 1. Reset every action space's worker tuple. Unrevealed spaces
     #    already have workers=(0, 0); the reset is a no-op for them.
-    new_spaces = {
-        space_id: dataclasses.replace(action_space, workers=(0, 0))
-        for space_id, action_space in state.board.action_spaces.items()
-    }
+    new_spaces = tuple(
+        dataclasses.replace(action_space, workers=(0, 0))
+        for action_space in state.board.action_spaces
+    )
     new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
 
     # 2. Return all people home. Newborns NOT cleared here.
@@ -466,23 +467,24 @@ def _resolve_preparation(state: GameState) -> GameState:
     # 1. Refill revealed accumulation spaces. After incrementing the
     #    round counter, the comparison `round_revealed <= new_round`
     #    correctly identifies the just-revealed stage card too.
-    new_spaces = dict(state.board.action_spaces)
-    for space_id, action_space in list(new_spaces.items()):
+    new_spaces_list = list(state.board.action_spaces)
+    for i, action_space in enumerate(new_spaces_list):
         if action_space.round_revealed > new_round:
             continue   # not yet revealed
+        space_id = SPACE_IDS[i]
         if space_id in BUILDING_ACCUMULATION_RATES:
             rate = BUILDING_ACCUMULATION_RATES[space_id]
-            new_spaces[space_id] = dataclasses.replace(
+            new_spaces_list[i] = dataclasses.replace(
                 action_space,
                 accumulated=action_space.accumulated + rate,
             )
         elif space_id in FOOD_ANIMAL_ACCUMULATION_RATES:
             _, rate = FOOD_ANIMAL_ACCUMULATION_RATES[space_id]
-            new_spaces[space_id] = dataclasses.replace(
+            new_spaces_list[i] = dataclasses.replace(
                 action_space,
                 accumulated_amount=action_space.accumulated_amount + rate,
             )
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_board = dataclasses.replace(state.board, action_spaces=tuple(new_spaces_list))
 
     # 2. Per-player: distribute future_resources, clear newborns.
     idx = new_round - 1

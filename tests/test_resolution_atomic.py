@@ -12,11 +12,11 @@ import dataclasses
 import pytest
 
 from agricola.actions import PlaceWorker
-from agricola.constants import CellType, HouseMaterial
+from agricola.constants import SPACE_IDS, CellType, HouseMaterial
 from agricola.engine import step
 from agricola.resources import Resources
 from agricola.setup import setup
-from agricola.state import ActionSpaceState, Cell, Farmyard, PlayerState
+from agricola.state import ActionSpaceState, Cell, Farmyard, PlayerState, get_space, with_space
 
 
 # ---------------------------------------------------------------------------
@@ -25,10 +25,8 @@ from agricola.state import ActionSpaceState, Cell, Farmyard, PlayerState
 
 def _set_space(state, space_id: str, **kwargs):
     """Return a new state with the given fields replaced on the named action space."""
-    old = state.board.action_spaces[space_id]
-    new_spaces = dict(state.board.action_spaces)
-    new_spaces[space_id] = dataclasses.replace(old, **kwargs)
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_space = dataclasses.replace(get_space(state.board, space_id), **kwargs)
+    new_board = with_space(state.board, space_id, new_space)
     return dataclasses.replace(state, board=new_board)
 
 
@@ -113,7 +111,7 @@ def test_day_laborer_resolution(state, ap):
 
 
 def test_fishing_resolution(state, ap):
-    accum = state.board.action_spaces["fishing"].accumulated_amount
+    accum = get_space(state.board, "fishing").accumulated_amount
     assert accum > 0  # precondition: setup pre-loads 1 food
 
     pre_food = state.players[ap].resources.food
@@ -123,7 +121,7 @@ def test_fishing_resolution(state, ap):
     # food up by accumulated amount
     assert p.resources.food == pre_food + accum
     # accumulated_amount reset to 0
-    assert new_state.board.action_spaces["fishing"].accumulated_amount == 0
+    assert get_space(new_state.board, "fishing").accumulated_amount == 0
     # no other resource changes
     assert p.resources.wood == state.players[ap].resources.wood
     assert p.resources.clay == state.players[ap].resources.clay
@@ -134,7 +132,7 @@ def test_fishing_resolution(state, ap):
 
 
 def test_forest_resolution(state, ap):
-    accum = state.board.action_spaces["forest"].accumulated
+    accum = get_space(state.board, "forest").accumulated
     assert bool(accum)  # setup pre-loads Resources(wood=3)
 
     pre_wood = state.players[ap].resources.wood
@@ -142,7 +140,7 @@ def test_forest_resolution(state, ap):
     p = new_state.players[ap]
 
     assert p.resources.wood == pre_wood + accum.wood
-    assert new_state.board.action_spaces["forest"].accumulated == Resources()
+    assert get_space(new_state.board, "forest").accumulated == Resources()
     # no other resource changes
     assert p.resources.clay == state.players[ap].resources.clay
     assert p.resources.reed == state.players[ap].resources.reed
@@ -153,7 +151,7 @@ def test_forest_resolution(state, ap):
 
 
 def test_clay_pit_resolution(state, ap):
-    accum = state.board.action_spaces["clay_pit"].accumulated
+    accum = get_space(state.board, "clay_pit").accumulated
     assert bool(accum)
 
     pre_clay = state.players[ap].resources.clay
@@ -161,11 +159,11 @@ def test_clay_pit_resolution(state, ap):
     p = new_state.players[ap]
 
     assert p.resources.clay == pre_clay + accum.clay
-    assert new_state.board.action_spaces["clay_pit"].accumulated == Resources()
+    assert get_space(new_state.board, "clay_pit").accumulated == Resources()
 
 
 def test_reed_bank_resolution(state, ap):
-    accum = state.board.action_spaces["reed_bank"].accumulated
+    accum = get_space(state.board, "reed_bank").accumulated
     assert bool(accum)
 
     pre_reed = state.players[ap].resources.reed
@@ -173,7 +171,7 @@ def test_reed_bank_resolution(state, ap):
     p = new_state.players[ap]
 
     assert p.resources.reed == pre_reed + accum.reed
-    assert new_state.board.action_spaces["reed_bank"].accumulated == Resources()
+    assert get_space(new_state.board, "reed_bank").accumulated == Resources()
 
 
 def test_grain_seeds_resolution(state, ap):
@@ -194,7 +192,7 @@ def test_grain_seeds_resolution(state, ap):
 
 
 def test_meeting_place_resolution(state, ap):
-    accum = state.board.action_spaces["meeting_place"].accumulated_amount
+    accum = get_space(state.board, "meeting_place").accumulated_amount
     pre_food = state.players[ap].resources.food
 
     new_state = step(state, PlaceWorker(space="meeting_place"))
@@ -203,21 +201,21 @@ def test_meeting_place_resolution(state, ap):
     # food up by accumulated amount
     assert p.resources.food == pre_food + accum
     # accumulated_amount reset to 0
-    assert new_state.board.action_spaces["meeting_place"].accumulated_amount == 0
+    assert get_space(new_state.board, "meeting_place").accumulated_amount == 0
     # starting_player updated immediately to ap
     assert new_state.starting_player == ap
 
 
 def test_western_quarry_resolution(state, ap):
     state2 = _reveal_space(state, "western_quarry", accumulated=Resources(stone=2))
-    accum = state2.board.action_spaces["western_quarry"].accumulated
+    accum = get_space(state2.board, "western_quarry").accumulated
 
     pre_stone = state2.players[ap].resources.stone
     new_state = step(state2, PlaceWorker(space="western_quarry"))
     p = new_state.players[ap]
 
     assert p.resources.stone == pre_stone + accum.stone
-    assert new_state.board.action_spaces["western_quarry"].accumulated == Resources()
+    assert get_space(new_state.board, "western_quarry").accumulated == Resources()
 
 
 def test_vegetable_seeds_resolution(state, ap):
@@ -240,14 +238,14 @@ def test_vegetable_seeds_resolution(state, ap):
 
 def test_eastern_quarry_resolution(state, ap):
     state2 = _reveal_space(state, "eastern_quarry", accumulated=Resources(stone=3))
-    accum = state2.board.action_spaces["eastern_quarry"].accumulated
+    accum = get_space(state2.board, "eastern_quarry").accumulated
 
     pre_stone = state2.players[ap].resources.stone
     new_state = step(state2, PlaceWorker(space="eastern_quarry"))
     p = new_state.players[ap]
 
     assert p.resources.stone == pre_stone + accum.stone
-    assert new_state.board.action_spaces["eastern_quarry"].accumulated == Resources()
+    assert get_space(new_state.board, "eastern_quarry").accumulated == Resources()
 
 
 def test_basic_wish_resolution(state, ap):
@@ -268,7 +266,7 @@ def test_basic_wish_resolution(state, ap):
     # parent placed (people_home decremented by 1), newborn NOT added to people_home
     assert p.people_home == pre_people_home - 1
     # workers[ap] == 2 (parent + newborn on space)
-    assert new_state.board.action_spaces["basic_wish_for_children"].workers[ap] == 2
+    assert get_space(new_state.board, "basic_wish_for_children").workers[ap] == 2
 
 
 def test_urgent_wish_resolution(state, ap):
@@ -284,7 +282,7 @@ def test_urgent_wish_resolution(state, ap):
     assert p.people_total == pre_people_total + 1
     assert p.newborns == 1
     assert p.people_home == pre_people_home - 1
-    assert new_state.board.action_spaces["urgent_wish_for_children"].workers[ap] == 2
+    assert get_space(new_state.board, "urgent_wish_for_children").workers[ap] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +291,7 @@ def test_urgent_wish_resolution(state, ap):
 
 def test_resolution_marks_space_occupied(state, ap):
     new_state = step(state, PlaceWorker(space="day_laborer"))
-    assert new_state.board.action_spaces["day_laborer"].workers[ap] == 1
+    assert get_space(new_state.board, "day_laborer").workers[ap] == 1
 
 
 def test_resolution_decrements_people_home(state, ap):
@@ -336,10 +334,10 @@ def test_resolution_other_player_unchanged(state, ap):
 def test_resolution_other_spaces_unchanged(state):
     ap = state.current_player
     new_state = step(state, PlaceWorker(space="day_laborer"))
-    for space_id, old_space in state.board.action_spaces.items():
+    for space_id, old_space in zip(SPACE_IDS, state.board.action_spaces):
         if space_id == "day_laborer":
             continue
-        new_space = new_state.board.action_spaces[space_id]
+        new_space = get_space(new_state.board, space_id)
         assert new_space.workers == old_space.workers, (
             f"{space_id}: workers changed from {old_space.workers} to {new_space.workers}"
         )
@@ -372,7 +370,7 @@ def test_meeting_place_zero_accumulation(state, ap):
 def test_accumulation_zero_after_take(state, ap):
     # Forest is always legal at setup (accumulated=Resources(wood=3)).
     new_state = step(state, PlaceWorker(space="forest"))
-    assert new_state.board.action_spaces["forest"].accumulated == Resources()
+    assert get_space(new_state.board, "forest").accumulated == Resources()
 
 
 def test_resolution_returns_new_state(state, ap):
@@ -390,7 +388,7 @@ def test_basic_wish_workers_are_two(state, ap):
     state2 = _reveal_space(state2, "basic_wish_for_children")
 
     new_state = step(state2, PlaceWorker(space="basic_wish_for_children"))
-    assert new_state.board.action_spaces["basic_wish_for_children"].workers[ap] == 2
+    assert get_space(new_state.board, "basic_wish_for_children").workers[ap] == 2
 
 
 def test_basic_wish_other_player_workers_zero(state, ap):
@@ -399,7 +397,7 @@ def test_basic_wish_other_player_workers_zero(state, ap):
     state2 = _reveal_space(state2, "basic_wish_for_children")
 
     new_state = step(state2, PlaceWorker(space="basic_wish_for_children"))
-    assert new_state.board.action_spaces["basic_wish_for_children"].workers[other] == 0
+    assert get_space(new_state.board, "basic_wish_for_children").workers[other] == 0
 
 
 def test_wish_increments_newborns(state, ap):

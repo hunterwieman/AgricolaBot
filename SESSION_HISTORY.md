@@ -32,6 +32,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 7 design — Harvest spec + breeding_frontier Pareto-dim fix](#task-7-design)
 - [Task 7 design follow-up — breeding_frontier revert + "Preserving optionality" principle](#task-7-design-followup)
 - [Task 7 implementation — Harvest phases + rounds 5–14 + Cooking-Hearth fix + non-negative invariant](#task-7-impl)
+- [Hashability refactor — `BoardState.action_spaces` dict → canonical tuple](#hashability-refactor)
 - [Current State](#current-state)
 
 ---
@@ -1869,12 +1870,77 @@ Cards beyond Potter Ceramics remain a larger separate effort with the open desig
 
 ---
 
+<a name="hashability-refactor"></a>
+## Hashability refactor — `BoardState.action_spaces` dict → canonical tuple (2026-05-21)
+
+Short focused session landing item B from POSSIBLE_NEXT_STEPS.md: convert `BoardState.action_spaces` from a `dict[str, ActionSpaceState]` to a fixed-order `tuple[ActionSpaceState, ...]` so that `BoardState` and (transitively) `GameState` become hashable. State-hashed caching layers — a transposition table for MCTS, per-state legal-action memoization, simple `dict[GameState, X]` experiments — were structurally blocked by the dict. This change removes the blocker. No new tests; 613 → 613.
+
+### What was built
+
+- **`agricola/constants.py`** — added `SPACE_IDS` (length-25 canonical tuple) and `SPACE_INDEX: dict[str, int]` reverse lookup. `SPACE_IDS` is built at module load from the existing `PERMANENT_ACTION_SPACES` list (in its given order) followed by the 14 stage cards in stage order. The user confirmed the permanent-space order verbatim before code went in.
+
+- **`agricola/state.py`** — `BoardState.action_spaces: dict` → `tuple` with an updated comment. Two new free-function helpers:
+  - `get_space(board, space_id) -> ActionSpaceState` for reads.
+  - `with_space(board, space_id, new_space) -> BoardState` for single-space writes (tuple slice + concat, returning a fresh `BoardState`).
+  - Free functions, not methods, matching the codebase's preference for `cooking_rates(state, p)`-style helpers.
+
+- **`agricola/setup.py`** — `_make_action_spaces(round_card_order)` return type `dict` → `tuple`. The body still builds the dict internally (one branch per accumulation-rate dispatch), then returns `tuple(by_id[sid] for sid in SPACE_IDS)`.
+
+- **`agricola/resolution.py`** — `_update_space(state, space_id, **kwargs)` rewritten in three lines using the new helpers (read via `get_space`, write via `with_space`). Public signature unchanged; only internals shifted. Eight read sites in the per-handler resolution code (`_resolve_building_accumulation`, `_resolve_food_accumulation`, `_initiate_sheep_market` / `_initiate_pig_market` / `_initiate_cattle_market`, two worker-placement sites) migrated to `get_space`.
+
+- **`agricola/legality.py`** — 10 read sites converted: `_is_available`, the building-resource predicates (`_legal_fishing`, `_legal_forest`, `_legal_clay_pit`, `_legal_reed_bank`, `_legal_western_quarry`, `_legal_eastern_quarry`), the market predicates (`_legal_sheep_market`, `_legal_pig_market`, `_legal_cattle_market`).
+
+- **`agricola/engine.py`** — two bulk-update loops rewritten:
+  - `_resolve_return_home`'s "reset every worker" generator now iterates the tuple directly (no `.items()` / dict rebuild).
+  - `_resolve_preparation`'s "refill revealed accumulation spaces" loop uses `enumerate(list(...))` with `SPACE_IDS[i]` to recover the space-id string for the per-rate dispatch. The only place `SPACE_IDS` appears in production logic.
+
+- **`tests/factories.py`** — `with_space(state, space_id, **kwargs)` rewritten as a thin shim over `state.get_space` + `state.with_space`. The state-level helpers are imported under aliases (`_get_space` / `_board_with_space`) to avoid colliding with the test-side `with_space` name.
+
+- **`tests/test_*.py`** — five test files updated: read sites use `get_space`; the two test-local `_set_space` write helpers (in `test_legality_atomic.py` and `test_legality_non_atomic.py` and `test_resolution_atomic.py`) use `with_space`; `dict.items()` / `dict.values()` iteration sites become `zip(SPACE_IDS, state.board.action_spaces)` or direct tuple iteration. Read sites in `test_resolution_atomic.py` (16 sites in assertion expressions) were converted with a regex-driven mechanical pass — every `<X>.board.action_spaces["<id>"]` became `get_space(<X>.board, "<id>")`.
+
+- **`play.py`, `play_web.py`** — UI read sites updated. `play.py:render_action_board` reads via `get_space`. `play.py:_placeworker_sort_key`'s `dict.get(...)`-with-None-fallback became a `try`/`except KeyError` around `get_space`, preserving the same fall-through behavior for unknown space-ids. `play_web.py:_board_to_dict` iterates with `zip(SPACE_IDS, state.board.action_spaces)`.
+
+- **`POSSIBLE_NEXT_STEPS.md`** — item B marked completed with a "Landed" paragraph noting the canonical-ordering choice, the new helpers, and the test count.
+
+- **`CHANGES.md` Change 8** — full refactor entry covering motivation, ordering choice, helpers, per-file changes, and the forward look (MCTS-side transposition-table work unblocked, no code yet wired to take advantage).
+
+- **`CLAUDE.md`** — Status-table row added pointing to Change 8; test count updated 599 → 613; one-liner descriptions for `constants.py` and `state.py` in the directory tree extended to mention `SPACE_IDS` / `SPACE_INDEX` and `get_space` / `with_space`; doc-table description of `CHANGES.md` updated to mention the new refactor.
+
+- **`FILE_DESCRIPTIONS.md`** — `BoardState` description rewritten to describe the tuple shape, the canonical-ordering rule, the hashability consequence, and the access helpers. `_make_action_spaces` return type updated. New entries in the `constants.py` section for `SPACE_IDS` and `SPACE_INDEX`.
+
+### Process notes
+
+- **One regex-driven sweep is fine when the pattern is unambiguous.** `test_resolution_atomic.py` had 16 nearly-identical bracketed-access sites; a one-shot Python `re.sub` over `(\w+)\.board\.action_spaces\["([a-z_]+)"\]` → `get_space(\1.board, "\2")` handled them all in one pass. No manual review of individual lines required because the pattern had no false-positive risk.
+
+- **The two test-side helpers named `with_space` are distinct from the new state-level `with_space`.** Both take different shapes (state + kwargs vs. board + new_space). Imported the state-level helpers under aliases inside `tests/factories.py` rather than renaming either. The test-side public API stays the same; only internals changed.
+
+- **No new tests added.** Behavior is identical; the refactor is purely structural. Verified end-to-end with a smoke check that confirms `hash(GameState)` works and that two states reached by `setup(seed=0)` → `step(..., PlaceWorker(space="day_laborer"))` from parallel calls compare equal and hash to the same value.
+
+- **Estimated and delivered "well under 30 minutes."** The user's estimate was right — the core change is small (one type, two helpers, ~20 read-site conversions, two bulk-loop rewrites). The long tail was mostly mechanical test-side cleanups.
+
+### Files modified or created
+
+**New (0):** —
+
+**Modified (15):**
+
+- `agricola/{constants,state,setup,resolution,legality,engine}.py`
+- `tests/factories.py`, `tests/test_{legality_atomic,legality_non_atomic,resolution_atomic,engine,animal_markets}.py`
+- `play.py`, `play_web.py`
+- `POSSIBLE_NEXT_STEPS.md`, `CHANGES.md`, `CLAUDE.md`, `FILE_DESCRIPTIONS.md`, `SESSION_HISTORY.md`
+
+### Next task
+
+Per POSSIBLE_NEXT_STEPS.md: (C) performance profiling of `legal_actions` / `step` before MCTS scaling exposes per-call cost as a bottleneck, (F) the heuristic agent (first non-random agent), or (G) MCTS scaffolding — which is the direct beneficiary of this refactor.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 601 tests pass. The codebase has:
+All 613 tests pass. The codebase has:
 
-- Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc. `PlayerState` carries `harvest_conversions_used: frozenset[str]` as of Task 7 — the once-per-harvest conversion-decision budget, reset in `_resolve_harvest_field`.
+- Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc. `PlayerState` carries `harvest_conversions_used: frozenset[str]` as of Task 7 — the once-per-harvest conversion-decision budget, reset in `_resolve_harvest_field`. `BoardState.action_spaces` is a canonical-ordered `tuple[ActionSpaceState, ...]` indexed by `constants.SPACE_INDEX` (Change 8), making `BoardState` and `GameState` fully hashable. Access helpers `get_space(board, space_id)` / `with_space(board, space_id, new_space)` live in `state.py`.
 - Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`). The non-negative invariant for resources / animals is enforced at the `step()` boundary, not inside `__sub__` itself.
 - Pasture cache on `Farmyard` (`agricola/pasture.py`, `agricola/state.py`); auto-fill `__post_init__` disabled per `CHANGES.md` Change 3. Pasture-changing resolvers (including the post-Task-5D `_execute_build_stable`) recompute via `compute_pastures_from_arrays` explicitly.
 - All helper functions through Task 3 plus the `enclosed_cells` legality helper (`agricola/helpers.py`). `cooking_rates` is a 4-tuple `(sheep, boar, cattle, veg)` as of Task 7. `food_payment_frontier` and `harvest_feed_frontier` (Task 7) provide Pareto-filtered conversion options for paying food. `breeding_frontier` is animal-counts-only Pareto per the "Preserving optionality" Key Design Principle (the Task 7 design's food-as-Pareto-dim attempt was reverted).
@@ -1889,6 +1955,6 @@ All 601 tests pass. The codebase has:
 - **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time.
 - Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `_is_implemented_action` only filters `PlaceWorker` actions; all other action types (including the three new harvest commits) pass through unconditionally.
 - Top-level `play_random_game.py` script: plays one full random-vs-random game and prints the scoreboard with per-category breakdown, tiebreaker, and winner. `--trace` flag prints a per-round narrative grouping worker-placement chains and harvest sub-phases.
-- Full test coverage: **601 tests** across all test files. New since Task 6: four harvest test files (`test_harvest_field.py`, `test_harvest_feed.py`, `test_harvest_breed.py`, `test_harvest_integration.py`) totaling 66 tests; 11 new tests in `test_helpers.py` for the two new frontier helpers; 2 regression tests in `test_major_improvement.py` for the Cooking-Hearth gating fix; minor renames + invariant-loosening in `test_engine.py`. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
+- Full test coverage: **613 tests** across all test files. Includes the Task 7 harvest test files (`test_harvest_field.py`, `test_harvest_feed.py`, `test_harvest_breed.py`, `test_harvest_integration.py`), the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 new `tests/test_fencing.py` cases covering the `fence_universe` context manager / `restrict_to` builder (item D), and the post-Task-7 deferred-food-payment / web-UI / context-manager work landed in the four commits between Task 7 and the hashability refactor. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
 
-**Next task**: Engine is feature-complete for the Family game. Per POSSIBLE_NEXT_STEPS.md, the next high-leverage targets are (B) the `BoardState.action_spaces` hashability refactor (required for state-hashed MCTS), (C) performance profiling of `legal_actions` / `step` before MCTS scaling, (E) the newly-documented Pareto-frontier pruning optimizations (defer until profiling identifies the helpers as a hot path), and (F) the heuristic agent — the first non-random agent. Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."
+**Next task**: Engine is feature-complete for the Family game and `GameState` is hashable (B done). Per POSSIBLE_NEXT_STEPS.md, the next high-leverage targets are (C) performance profiling of `legal_actions` / `step` before MCTS scaling, (E) the documented Pareto-frontier pruning optimizations (defer until profiling identifies the helpers as a hot path), (F) the heuristic agent — the first non-random agent, and (G) MCTS scaffolding — which is the direct beneficiary of the hashability refactor. Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."

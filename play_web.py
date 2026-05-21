@@ -46,6 +46,7 @@ from agricola.constants import (
     HARVEST_ROUNDS,
     NUM_ROUNDS,
     PERMANENT_ACTION_SPACES_SET,
+    SPACE_IDS,
     STAGE_ROUNDS,
     CellType,
     HouseMaterial,
@@ -242,7 +243,7 @@ def _space_stage(round_revealed: int) -> int | None:
 
 def _board_to_dict(state: GameState) -> dict:
     spaces = []
-    for sid, ss in state.board.action_spaces.items():
+    for sid, ss in zip(SPACE_IDS, state.board.action_spaces):
         is_revealed = ss.round_revealed == 0 or ss.round_revealed <= state.round_number
         spaces.append({
             "id": sid,
