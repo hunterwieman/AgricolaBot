@@ -165,7 +165,8 @@ def test_begging_markers_propagate_to_score():
 
     from agricola.engine import _resolve_harvest_field
     state = _resolve_harvest_field(state)
-    # Player 0 has food_owed=4, no convertibles. Only CommitConvert(0,0,0,0,0).
+    # Player 0 has 0 food, need=4, no convertibles. Only CommitConvert(0,0,0,0,0);
+    # _execute_convert pays 0 food and assigns 4 begging markers.
     state = step(state, CommitConvert(0, 0, 0, 0, 0))
     state = step(state, Stop())
 
@@ -216,10 +217,13 @@ def test_fed_stack_evolves_correctly():
 
 def test_newborn_discount_applied_at_round_4_feed():
     """Player with newborn from round 4 (a Family Growth this round) -> need
-    reduced by 1 at this harvest's FEED."""
+    reduced by 1 at this harvest's FEED.
+
+    Verified end-to-end: 2 adults + 1 newborn has need = 2*3 - 1 = 5 (not 6),
+    so a 0-food player with no convertibles ends with 5 begging markers
+    (not 6) after the gratuitous CommitConvert."""
     state = setup(seed=0)
     state = dataclasses.replace(state, starting_player=0)
-    # 2 adults + 1 newborn: need = 2*3 - 1 = 5.
     state = dataclasses.replace(
         state,
         players=(
@@ -235,10 +239,9 @@ def test_newborn_discount_applied_at_round_4_feed():
     from agricola.engine import _resolve_harvest_field
     state = _resolve_harvest_field(state)
 
-    # Player 0's pending should carry food_owed=5 (not 6).
-    p0_pending = [f for f in state.pending_stack
-                  if isinstance(f, PendingHarvestFeed) and f.player_idx == 0][0]
-    assert p0_pending.food_owed == 5
+    # CommitConvert(0,...) pays 0 food and assigns begging = need = 5.
+    state = step(state, CommitConvert(0, 0, 0, 0, 0))
+    assert state.players[0].begging_markers == 5
 
 
 # --- Harvest occurs at every HARVEST_ROUND ----------------------------------

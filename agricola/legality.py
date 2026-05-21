@@ -1294,6 +1294,14 @@ def _enumerate_pending_harvest_feed(
     immediately (forfeiting any undecided crafts — strategically equivalent
     to explicitly skipping each one).
 
+    `food_owed` is derived on each call from the live player state:
+        need      = 2*people_total - newborns
+        food_owed = max(0, need - p.resources.food)
+    Not cached on the pending — see CLAUDE.md "Derived data, not cached
+    data" Key Design Principle. Recomputing here means any food the player
+    spent/gained earlier in the feed phase (via crafts today, or food-side
+    card effects in the future) is reflected immediately.
+
     The conversion frontier is always non-empty (food_owed == 0 yields the
     trivial (0,0,0,0,0)-consumed config; food_owed > 0 always has the
     consume-nothing + beg-everything entry).
@@ -1323,13 +1331,15 @@ def _enumerate_pending_harvest_feed(
     # 2. All Pareto-frontier CommitConvert points. Invert REMAINING tuples
     #    to CONSUMED amounts (consumed = player_max - remaining).
     rates = cooking_rates(state, pending.player_idx)  # 4-tuple
+    need       = 2 * p.people_total - p.newborns
+    food_owed  = max(0, need - p.resources.food)
     grain_pre  = p.resources.grain
     veg_pre    = p.resources.veg
     sheep_pre  = p.animals.sheep
     boar_pre   = p.animals.boar
     cattle_pre = p.animals.cattle
     for ((g_rem, v_rem, s_rem, b_rem, c_rem), _begging) in harvest_feed_frontier(
-        p, pending.food_owed, rates,
+        p, food_owed, rates,
     ):
         actions.append(CommitConvert(
             grain  = grain_pre  - g_rem,

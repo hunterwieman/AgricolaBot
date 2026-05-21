@@ -518,9 +518,10 @@ def _resolve_preparation(state: GameState) -> GameState:
 def _initiate_harvest_feed(state: GameState) -> GameState:
     """Push a PendingHarvestFeed for each player, starting player's frame on top.
 
-    Pre-debits food per the "Cannot withhold food tokens" rule (RULES.md
-    Feeding Phase): `spent = min(need, p.resources.food)` is debited upfront;
-    the remaining `food_owed` is what conversions / begging must cover.
+    No food is debited here. Food payment is deferred to `CommitConvert`
+    (see `_execute_convert` in resolution.py), and the "Cannot withhold
+    food tokens" rule is enforced there by paying `min(need, available)`
+    unconditionally — the player has no knob to keep food while begging.
 
     Push order: non-starting player pushed first (bottom of stack), starting
     player pushed second (top). When the starting player Stops, the
@@ -533,20 +534,9 @@ def _initiate_harvest_feed(state: GameState) -> GameState:
     push_order = [(sp + 1) % 2, sp]
 
     for idx in push_order:
-        p = state.players[idx]
-        # need = 2*adults + 1*newborns_just_born = 2*people_total - newborns.
-        need      = 2 * p.people_total - p.newborns
-        spent     = min(need, p.resources.food)
-        food_owed = need - spent
-
-        new_player = dataclasses.replace(
-            p, resources=p.resources + Resources(food=-spent),
-        )
-        state = _update_player(state, idx, new_player)
         state = push(state, PendingHarvestFeed(
             player_idx=idx,
             initiated_by_id="phase:harvest_feed",
-            food_owed=food_owed,
         ))
 
     return state

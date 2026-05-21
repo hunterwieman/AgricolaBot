@@ -169,15 +169,14 @@ def test_newborns_not_cleared():
     assert new_state.players[0].newborns == 1
 
 
-def test_pre_debit_food_in_feed_push():
-    """_initiate_harvest_feed (invoked by _resolve_harvest_field) pre-debits
-    food per the cannot-withhold rule.
+def test_feed_push_does_not_debit_food():
+    """_initiate_harvest_feed (invoked by _resolve_harvest_field) does NOT
+    pre-debit food. Payment is deferred to CommitConvert.
 
-    Player with 5 food and need=4 -> pre-debit 4, food_owed=0, supply=1.
+    Each player keeps their full supply when FEED begins; the pending shape
+    is just (player_idx, initiated_by_id, conversion_done).
     """
     state = setup(seed=0)
-    # Both default players: people_total=2 -> need=4. Player 0 has 2 food
-    # (seed=0 starts SP with 2 and non-SP with 3); set explicitly.
     state = with_resources(state, 0, food=5)
     state = with_resources(state, 1, food=5)
     state = with_phase(state, Phase.HARVEST_FIELD)
@@ -185,9 +184,10 @@ def test_pre_debit_food_in_feed_push():
     new_state = _resolve_harvest_field(state)
 
     for p_idx in (0, 1):
-        # Find this player's pending.
         pendings = [f for f in new_state.pending_stack
                     if isinstance(f, PendingHarvestFeed) and f.player_idx == p_idx]
         assert len(pendings) == 1
-        assert pendings[0].food_owed == 0
-        assert new_state.players[p_idx].resources.food == 1
+        # No food_owed field on the pending in the deferred-payment model.
+        assert not hasattr(pendings[0], "food_owed")
+        # Food untouched by initiate.
+        assert new_state.players[p_idx].resources.food == 5

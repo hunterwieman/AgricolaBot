@@ -324,11 +324,19 @@ def _fmt_cost(r) -> str:
     return " ".join(parts) if parts else "0"
 
 
-def _pending_detail(frame) -> str:
-    """Short summary of the top pending's relevant state fields."""
+def _pending_detail(frame, state: GameState) -> str:
+    """Short summary of the top pending's relevant state fields.
+
+    Some details are derived from live player state rather than stored on
+    the pending — `food_owed` for PendingHarvestFeed is the canonical
+    example (see PendingHarvestFeed docstring).
+    """
     cls = type(frame).__name__
     if cls == "PendingHarvestFeed":
-        return f"food_owed={frame.food_owed}, conversion_done={frame.conversion_done}"
+        p = state.players[frame.player_idx]
+        need = 2 * p.people_total - p.newborns
+        food_owed = max(0, need - p.resources.food)
+        return f"food_owed={food_owed}, conversion_done={frame.conversion_done}"
     if cls == "PendingHarvestBreed":
         return f"breed_chosen={frame.breed_chosen}"
     if cls == "PendingBuildFences":
@@ -351,7 +359,7 @@ def render_pending(state: GameState) -> str:
     if not state.pending_stack:
         return ""
     chain = " > ".join(type(f).__name__.removeprefix("Pending") for f in state.pending_stack)
-    detail = _pending_detail(state.pending_stack[-1])
+    detail = _pending_detail(state.pending_stack[-1], state)
     if detail:
         return f"Pending: {chain}  ({detail})"
     return f"Pending: {chain}"

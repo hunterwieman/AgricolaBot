@@ -397,14 +397,21 @@ class PendingHarvestFeed:
     HARVEST_CONVERSIONS registry and appear alongside the crafts.
 
     State semantics:
-      - `food_owed` is set at push time to max(0, need - p.resources.food),
-        with `need = 2*people_total - newborns`. Food is pre-debited at push
-        per the "Cannot withhold food tokens" rule (RULES.md Feeding Phase).
-      - Each successful CommitHarvestConversion reduces food_owed by
-        min(food_out, food_owed); surplus food (if any) goes to supply.
-      - CommitConvert reduces food_owed by min(food_produced, food_owed),
-        places surplus in supply, and assigns the remaining owed to
-        begging markers. Then sets `conversion_done=True`.
+      - Food payment is deferred to `CommitConvert`. No food is debited
+        when this pending is pushed; `p.resources.food` is the player's
+        live supply throughout the feed sub-phase.
+      - `food_owed` is a derived value, recomputed wherever needed as
+        `max(0, need - p.resources.food)` with `need = 2*people_total - newborns`.
+        It is not stored on this pending — see CLAUDE.md "Derived data,
+        not cached data" Key Design Principle. Recomputing on each
+        legality call lets future cards that mutate food during feeding
+        (e.g. food↔resource exchanges that chain into Pottery) be reflected
+        immediately in the next legal-actions call.
+      - Each CommitHarvestConversion(use=True) pays input_cost and adds
+        food_out to supply (no food_owed bookkeeping).
+      - CommitConvert is the sole payment site: pays `min(need, food_in_supply
+        + food_produced)` to feeding; surplus stays in supply; any shortfall
+        becomes begging markers. Sets `conversion_done=True`.
       - Stop is legal only after `conversion_done=True`.
 
     "Decided" conversion ids live on PlayerState.harvest_conversions_used,
@@ -418,7 +425,6 @@ class PendingHarvestFeed:
     PENDING_ID: ClassVar[str] = "harvest_feed"
     player_idx:      int
     initiated_by_id: str            # always "phase:harvest_feed"
-    food_owed:       int
     conversion_done: bool = False
 
 

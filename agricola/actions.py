@@ -156,9 +156,10 @@ class CommitHarvestConversion(CommitSubAction):
     `conversion_id` is a key in HARVEST_CONVERSIONS (e.g. "joinery", "pottery",
     "basketmaker", or a future card-registered id).
 
-    `use=True` fires the conversion: pays input_cost, produces food_out, applies
-    against food_owed (with surplus going to supply). `use=False` records the
-    decision without firing. Either way, the conversion_id is added to
+    `use=True` fires the conversion: pays input_cost and adds the full
+    food_out to the player's supply (which will be paid out, or kept as
+    surplus, at the final CommitConvert). `use=False` records the decision
+    without firing. Either way, the conversion_id is added to
     `player.harvest_conversions_used` so the enumerator no longer offers it
     for the remainder of this harvest's FEED. Dispatched with `auto_pop=False`
     — the pending stays on top to host further craft decisions and the final
@@ -171,7 +172,7 @@ class CommitHarvestConversion(CommitSubAction):
 @dataclass(frozen=True)
 class CommitConvert(CommitSubAction):
     """Commit the player's chosen goods-to-food conversion configuration at
-    PendingHarvestFeed.
+    PendingHarvestFeed AND pay the feeding cost.
 
     Fields hold CONSUMED amounts — values subtracted from the player's supply
     at commit time (contrast with CommitAccommodate / CommitBreed, which hold
@@ -184,9 +185,12 @@ class CommitConvert(CommitSubAction):
     player_max - remaining).
 
     Dispatched with `auto_pop=False`. After this commit, only Stop is legal
-    on the pending — `conversion_done` is set True, and any remaining
-    food_owed becomes begging markers (assigned by _execute_convert, not Stop,
-    preserving the Stop-only-pops convention).
+    on the pending — `conversion_done` is set True. `_execute_convert` is
+    the sole food-payment site: it adds food_produced to supply, then pays
+    `min(need, supply + food_produced)` from the combined pool, leaves any
+    surplus in supply, and assigns the shortfall as begging markers
+    (assigned by _execute_convert, not Stop, preserving the Stop-only-pops
+    convention).
     """
     grain:  int
     veg:    int

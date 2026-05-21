@@ -1043,8 +1043,11 @@ def _execute_harvest_conversion(
 
     Records the decision (both use=True and use=False) by adding
     `conversion_id` to `player.harvest_conversions_used`. If use=True, also
-    pays the input cost, produces food_out food (applied against food_owed
-    with surplus going to supply), and invokes the optional side_effect_fn.
+    pays the input cost, adds the full food_out to the player's supply,
+    and invokes the optional side_effect_fn. The produced food flows into
+    `p.resources.food` and is paid out (or kept as surplus) at the final
+    `_execute_convert` call — there is no food_owed bookkeeping on the
+    pending.
 
     auto_pop=False — the pending stays on top to host further craft
     decisions plus the final CommitConvert.
@@ -1063,11 +1066,8 @@ def _execute_harvest_conversion(
         new_player = dataclasses.replace(p, harvest_conversions_used=new_used)
         return _update_player(state, player_idx, new_player)
 
-    # use=True: pay input cost, produce food_out, apply against food_owed.
-    food_owed_before     = top.food_owed
-    food_consumed_by_owed = min(spec.food_out, food_owed_before)
-    food_surplus         = spec.food_out - food_consumed_by_owed
-    new_resources        = p.resources - spec.input_cost + Resources(food=food_surplus)
+    # use=True: pay input cost, add full food_out to supply.
+    new_resources = p.resources - spec.input_cost + Resources(food=spec.food_out)
 
     new_player = dataclasses.replace(
         p,
@@ -1075,9 +1075,6 @@ def _execute_harvest_conversion(
         harvest_conversions_used=new_used,
     )
     state = _update_player(state, player_idx, new_player)
-    state = replace_top(state, dataclasses.replace(
-        top, food_owed=food_owed_before - food_consumed_by_owed,
-    ))
 
     # Optional non-food effect (e.g. future Stone Sculptor's +1 point).
     if spec.side_effect_fn is not None:
@@ -1089,18 +1086,29 @@ def _execute_harvest_conversion(
 def _execute_convert(
     state: GameState, player_idx: int, commit: CommitConvert,
 ) -> GameState:
-    """Apply the player's chosen goods-to-food conversion on PendingHarvestFeed.
+    """Apply the player's chosen goods-to-food conversion on PendingHarvestFeed
+    AND pay the feeding cost from the resulting supply.
 
     `commit.{grain, veg, sheep, boar, cattle}` are CONSUMED amounts —
-    subtracted from the player's supply. food_produced is computed from
-    these via cooking_rates. The result splits into:
-      - `food_consumed_by_owed`: applied against pending.food_owed.
-      - `food_surplus`: added to p.resources.food.
-    Any remaining owed becomes begging markers (assigned here, not at Stop,
-    preserving the Stop-only-pops convention).
+    subtracted from the player's supply. `food_produced` is computed via
+    cooking_rates and added to the player's supply alongside any food the
+    player was already holding. The full feeding cost is then paid from the
+    combined pool in a single step:
 
-    After commit, only Stop is legal on this pending — conversion_done=True
-    and food_owed=0.
+        need            = 2*people_total - newborns
+        total_available = p.resources.food + food_produced
+        food_paid       = min(need, total_available)
+        food_remaining  = total_available - food_paid   # surplus stays in supply
+        begging_added   = need - food_paid
+
+    The "Cannot withhold food tokens" rule (RULES.md Feeding Phase) is
+    enforced structurally by `min(need, total_available)`: the player has
+    no knob to keep food while taking begging markers.
+
+    Begging markers are assigned here, not at Stop — preserving the
+    Stop-only-pops convention.
+
+    After commit, only Stop is legal on this pending (`conversion_done=True`).
 
     auto_pop=False — the trailing Stop is the explicit exit, matching the
     other multi-stage pendings.
@@ -1118,16 +1126,20 @@ def _execute_convert(
         + commit.cattle * cR
     )
 
-    food_owed_before      = top.food_owed
-    food_consumed_by_owed = min(food_produced, food_owed_before)
-    food_surplus          = food_produced - food_consumed_by_owed
-    food_owed_after       = food_owed_before - food_consumed_by_owed
-    begging_added         = food_owed_after
+    need            = 2 * p.people_total - p.newborns
+    total_available = p.resources.food + food_produced
+    food_paid       = min(need, total_available)
+    food_remaining  = total_available - food_paid
+    begging_added   = need - food_paid
 
-    new_resources = p.resources + Resources(
-        grain=-commit.grain,
-        veg=-commit.veg,
-        food=food_surplus,
+    new_resources = Resources(
+        wood  = p.resources.wood,
+        clay  = p.resources.clay,
+        reed  = p.resources.reed,
+        stone = p.resources.stone,
+        food  = food_remaining,
+        grain = p.resources.grain - commit.grain,
+        veg   = p.resources.veg   - commit.veg,
     )
     new_animals = Animals(
         sheep  = p.animals.sheep  - commit.sheep,
@@ -1141,9 +1153,7 @@ def _execute_convert(
         begging_markers=p.begging_markers + begging_added,
     )
     state = _update_player(state, player_idx, new_player)
-    return replace_top(state, dataclasses.replace(
-        top, food_owed=0, conversion_done=True,
-    ))
+    return replace_top(state, dataclasses.replace(top, conversion_done=True))
 
 
 def _execute_breed(
