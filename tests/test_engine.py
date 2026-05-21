@@ -20,7 +20,7 @@ from agricola.engine import (
     _resolve_return_home,
     step,
 )
-from agricola.legality import legal_actions
+from agricola.legality import legal_actions, legal_actions_cache
 from agricola.setup import setup
 from agricola.state import get_space
 
@@ -276,6 +276,134 @@ def test_random_agent_plays_full_game(seed):
         assert space_state.workers == (0, 0)
     # Trace contains at least some actions.
     assert len(trace) > 0
+
+
+# ---------------------------------------------------------------------------
+# legal_actions_cache (PROFILING.md R1)
+# ---------------------------------------------------------------------------
+
+def test_legal_actions_uncached_by_default():
+    """Outside the context manager, two calls each go through full enumeration
+    and return DIFFERENT list objects (no cache hit)."""
+    state = setup(seed=0)
+    a1 = legal_actions(state)
+    a2 = legal_actions(state)
+    assert a1 == a2          # same content
+    assert a1 is not a2      # different list objects (uncached)
+
+
+def test_legal_actions_cached_inside_context_manager():
+    """Inside `with legal_actions_cache():`, the same state returns the SAME
+    list object on repeat calls."""
+    state = setup(seed=0)
+    with legal_actions_cache():
+        a1 = legal_actions(state)
+        a2 = legal_actions(state)
+        assert a1 is a2      # cached by reference
+
+
+def test_legal_actions_cache_distinguishes_states():
+    """Different states get different cache entries."""
+    state_a = setup(seed=0)
+    state_b = setup(seed=1)
+    with legal_actions_cache():
+        a = legal_actions(state_a)
+        b = legal_actions(state_b)
+        # Two distinct states -> two distinct cached lists (regardless of
+        # whether the lists' contents happen to coincide).
+        assert legal_actions(state_a) is a
+        assert legal_actions(state_b) is b
+
+
+def test_legal_actions_cache_size_grows_with_unique_states():
+    """The cache dict yielded by the context manager grows as new states are
+    queried; repeat queries on the same state do not."""
+    state = setup(seed=0)
+    with legal_actions_cache() as cache:
+        assert len(cache) == 0
+        legal_actions(state)
+        assert len(cache) == 1
+        legal_actions(state)
+        assert len(cache) == 1   # no new entry on repeat
+        # Step once to produce a different state, query that too.
+        actions = legal_actions(state)
+        state2 = step(state, actions[0])
+        legal_actions(state2)
+        assert len(cache) == 2
+
+
+def test_legal_actions_cache_cleared_on_exit():
+    """After exiting the context manager, the next call is uncached again."""
+    state = setup(seed=0)
+    with legal_actions_cache():
+        a_inside = legal_actions(state)
+        assert legal_actions(state) is a_inside
+    a_outside = legal_actions(state)
+    assert a_outside is not a_inside   # different object, fresh enumeration
+
+
+def test_legal_actions_cache_nests():
+    """Nested context managers have independent caches; inner exit does not
+    drop outer's entries."""
+    state = setup(seed=0)
+    with legal_actions_cache() as outer:
+        a_outer = legal_actions(state)
+        assert len(outer) == 1
+        with legal_actions_cache() as inner:
+            assert len(inner) == 0          # fresh inner cache
+            a_inner = legal_actions(state)
+            assert a_inner is not a_outer   # different object — inner cache miss-then-fill
+            assert len(inner) == 1
+        # After inner exit, outer cache still has its entry
+        assert len(outer) == 1
+        assert legal_actions(state) is a_outer
+
+
+def test_legal_actions_cache_step_state_evolution():
+    """Walk a few steps of a game inside the cache; verify each new state is
+    a new entry and repeat queries are reused."""
+    state = setup(seed=0)
+    with legal_actions_cache() as cache:
+        for _ in range(5):
+            actions = legal_actions(state)
+            # Repeat query is cached
+            assert legal_actions(state) is actions
+            state = step(state, actions[0])
+        # We've seen at least 5 distinct states (likely all of them unique).
+        assert len(cache) >= 5
+
+
+# ---------------------------------------------------------------------------
+# Non-negative safety net (PROFILING.md R2)
+# ---------------------------------------------------------------------------
+
+def test_nonnegative_assertion_active_under_debug():
+    """The R2 gate is `if __debug__:`. Under unoptimized Python (test runner
+    default), __debug__ is True and the assertion remains live."""
+    assert __debug__, "Tests should run with __debug__ == True"
+    # Sanity: a normal step doesn't trip the assertion.
+    state = setup(seed=0)
+    state = step(state, legal_actions(state)[0])
+    # If the assertion fired, step would have raised before returning.
+    assert state is not None
+
+
+def test_nonnegative_assertion_fires_on_corrupted_state():
+    """When the assertion path runs, a state with negative resources trips it.
+
+    Builds a state with negative grain, then calls _assert_nonnegative_state
+    directly (so the test doesn't depend on a step() path that happens to
+    produce negative values).
+    """
+    from agricola.actions import Stop
+    from agricola.engine import _assert_nonnegative_state
+    from agricola.resources import Resources
+    from tests.factories import with_resources
+
+    state = setup(seed=0)
+    state = with_resources(state, 0, grain=-1)
+    with pytest.raises(AssertionError):
+        _assert_nonnegative_state(state, Stop())
 
 
 def test_random_agent_invariants():

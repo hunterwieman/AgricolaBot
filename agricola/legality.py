@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import threading
 from typing import Callable
 
 from agricola.actions import (
@@ -1466,6 +1468,76 @@ def _enumerate_pending(state: GameState, top: PendingDecision) -> list[Action]:
 # Top-level legality entry point
 # ---------------------------------------------------------------------------
 
+# Thread-local cache stack for `legal_actions(state)` memoization. Empty (or
+# missing `stack` attribute) means no cache is active and every call hits the
+# full enumeration path. The `legal_actions_cache()` context manager pushes a
+# fresh dict for the duration of a search and pops on exit. Stacking lets
+# nested searches each have their own scoped cache without leaking entries.
+#
+# Design notes (PROFILING.md R1):
+#   - The cache is opt-in via the context manager — random play / tests /
+#     profiling do NOT pay any lookup cost. The only overhead in the absence
+#     of an active cache is one `getattr` + truthiness check at the top of
+#     `legal_actions`, which is essentially free.
+#   - The cache keys on `id(state)`, NOT on the state's content hash.
+#     Measured cost: `hash(GameState)` is ~26 us — recursively hashing the
+#     full state dominates any savings from caching enumeration (~30 us);
+#     content-based caching only buys ~2x. Identity-based `id(state)` lookup
+#     is ~70 ns — ~370x faster on cache hit. MCTS is the intended consumer,
+#     and a TreeNode holds a reference to its state object, so the same
+#     state OBJECT is queried many times during selection. That's exactly
+#     the identity-cache shape.
+#   - A consequence: the cache stores the state object alongside the result
+#     (`cache[id(state)] = (state, result)`) to prevent Python from
+#     recycling the id while a cache entry still references it. Without
+#     this, a state could be garbage-collected and its id reused by an
+#     unrelated state with a different result — silent corruption.
+#   - Transposition tables (different action paths arriving at identical
+#     state content sharing statistics) need content-based hashing, NOT
+#     this cache. That's a separate, slower layer for a future MCTS
+#     enhancement. See PROFILING.md for the framing.
+#   - The returned list is cached by reference, NOT defensively copied.
+#     Callers must not mutate `legal_actions(state)` output (this was
+#     already the convention; the cache makes it load-bearing).
+_cache_tls = threading.local()
+
+
+@contextlib.contextmanager
+def legal_actions_cache():
+    """Enable in-search memoization of `legal_actions(state)`.
+
+    Returns a context manager that pushes a fresh per-search cache onto a
+    thread-local stack. While the context is active, calls to
+    `legal_actions(state)` hit the cache on repeat queries (keyed on
+    `id(state)`); on exit the cache is dropped and subsequent calls are
+    uncached again.
+
+    Intended for MCTS (and any other consumer that revisits the same state
+    object). TreeNode-style search where each node holds a reference to its
+    state benefits directly. For transposition-table use (different paths
+    → same state content) a separate content-keyed layer is needed; this
+    cache is identity-based.
+
+        with legal_actions_cache() as cache:
+            ...  # run a search; legal_actions(state) is memoized
+            print(f"cache size at end of search: {len(cache)}")
+
+    Nests cleanly — inner `with` blocks get their own cache that doesn't
+    leak entries to the outer scope. Random play / profiling / tests that
+    never enter the context pay zero cost.
+    """
+    stack = getattr(_cache_tls, "stack", None)
+    if stack is None:
+        stack = []
+        _cache_tls.stack = stack
+    cache: dict = {}
+    stack.append(cache)
+    try:
+        yield cache
+    finally:
+        stack.pop()
+
+
 def legal_actions(state: GameState) -> list[Action]:
     """Return all currently-legal actions, given pending and phase state.
 
@@ -1476,7 +1548,31 @@ def legal_actions(state: GameState) -> list[Action]:
 
     Other phases (RETURN_HOME, PREPARATION, HARVEST_*) do not surface to
     the agent in Task 5 because no triggers push pendings during them.
+
+    Memoization: when called inside a `with legal_actions_cache():` block,
+    repeated calls on the SAME state object return the cached list (by
+    reference). Identity-based — see the module-level comment and
+    PROFILING.md R1 for the rationale. Outside the context manager, this
+    function is uncached.
     """
+    # Fast cache path (opt-in via legal_actions_cache()).
+    stack = getattr(_cache_tls, "stack", None)
+    if stack:
+        cache = stack[-1]
+        sid = id(state)
+        entry = cache.get(sid)
+        if entry is not None:
+            # entry is (state_ref, result); state_ref pins the object so its
+            # id can't be recycled while this cache entry is live.
+            return entry[1]
+        result = _legal_actions_uncached(state)
+        cache[sid] = (state, result)
+        return result
+    return _legal_actions_uncached(state)
+
+
+def _legal_actions_uncached(state: GameState) -> list[Action]:
+    """The actual dispatch — see `legal_actions` for the public contract."""
     if state.pending_stack:
         return _enumerate_pending(state, state.pending_stack[-1])
     if state.phase == Phase.BEFORE_SCORING:

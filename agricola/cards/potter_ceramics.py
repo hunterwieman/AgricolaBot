@@ -24,6 +24,7 @@ import dataclasses
 
 from agricola.cards.triggers import register
 from agricola.legality import register_bake_bread_extension, _owns_baker
+from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState, PlayerState
 
@@ -55,12 +56,12 @@ def _apply(state: GameState, player_idx: int) -> GameState:
     """Apply the trigger: -1 clay, +1 grain."""
     p = state.players[player_idx]
     new_resources = p.resources + Resources(clay=-1, grain=1)
-    new_player = dataclasses.replace(p, resources=new_resources)
+    new_player = fast_replace(p, resources=new_resources)
     new_players = tuple(
         new_player if i == player_idx else state.players[i]
         for i in range(2)
     )
-    return dataclasses.replace(state, players=new_players)
+    return fast_replace(state, players=new_players)
 
 
 # Register the trigger with the event-keyed and card-id-keyed registries.

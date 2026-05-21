@@ -58,6 +58,7 @@ from agricola.pending import (
     push,
     replace_top,
 )
+from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
 from agricola.resolution import (
@@ -140,7 +141,13 @@ def step(state: GameState, action: Action) -> GameState:
     #    tightest possible bug-localization: the assertion message names the
     #    action and the player, so the offending sub-action effect or
     #    enumerator gate is one source-grep away.
-    _assert_nonnegative_state(state, action)
+    #
+    #    Gated on `__debug__` so `python -O` (or PYTHONOPTIMIZE=1) strips the
+    #    check entirely for production / self-play / training. Tests, CI, and
+    #    interactive dev all run unoptimized — the safety net stays live there.
+    #    See PROFILING.md R2 for the rationale.
+    if __debug__:
+        _assert_nonnegative_state(state, action)
 
     return state
 
@@ -304,7 +311,7 @@ def _apply_fire_trigger(
     top = state.pending_stack[-1]
     entry = CARDS[action.card_id]
     state = entry.apply_fn(state, top.player_idx)
-    new_top = dataclasses.replace(
+    new_top = fast_replace(
         top, triggers_resolved=top.triggers_resolved | {action.card_id},
     )
     return replace_top(state, new_top)
@@ -338,7 +345,7 @@ def _advance_current_player(state: GameState) -> GameState:
     for offset in range(1, num_players):
         candidate = (state.current_player + offset) % num_players
         if state.players[candidate].people_home > 0:
-            return dataclasses.replace(state, current_player=candidate)
+            return fast_replace(state, current_player=candidate)
     return state
 
 
@@ -367,7 +374,7 @@ def _advance_until_decision(state: GameState) -> GameState:
         # is awaiting. If neither does, the work phase ends.
         if state.phase == Phase.WORK:
             if all(p.people_home == 0 for p in state.players):
-                state = dataclasses.replace(state, phase=Phase.RETURN_HOME)
+                state = fast_replace(state, phase=Phase.RETURN_HOME)
                 continue
             return state
 
@@ -388,16 +395,16 @@ def _advance_until_decision(state: GameState) -> GameState:
         # pendings have been Stop'd. Push BREED pendings and transition.
         if state.phase == Phase.HARVEST_FEED:
             state = _initiate_harvest_breed(state)
-            state = dataclasses.replace(state, phase=Phase.HARVEST_BREED)
+            state = fast_replace(state, phase=Phase.HARVEST_BREED)
             continue
 
         # Case 7: HARVEST_BREED with empty stack = exit signal. Transition
         # to PREPARATION (round < 14) or BEFORE_SCORING (round == 14).
         if state.phase == Phase.HARVEST_BREED:
             if state.round_number >= NUM_ROUNDS:
-                state = dataclasses.replace(state, phase=Phase.BEFORE_SCORING)
+                state = fast_replace(state, phase=Phase.BEFORE_SCORING)
             else:
-                state = dataclasses.replace(state, phase=Phase.PREPARATION)
+                state = fast_replace(state, phase=Phase.PREPARATION)
             continue
 
         # Case 8: terminal phase. No more steps possible.
@@ -424,21 +431,28 @@ def _resolve_return_home(state: GameState) -> GameState:
     # Future: card triggers fire here ("when you return home from
     # action space X, may do Y"). Stub for Task 5.
 
-    # 1. Reset every action space's worker tuple. Unrevealed spaces
-    #    already have workers=(0, 0); the reset is a no-op for them.
+    # 1. Reset every action space's worker tuple. Unrevealed spaces and any
+    #    space no worker landed on this round already have workers=(0, 0);
+    #    skip the replace for those so we don't construct identical objects.
+    #    Without this guard, every round reconstructs all 25 ActionSpaceStates
+    #    even though typically only ~8 actually had workers on them (one per
+    #    worker placement that round); profiling showed this was the single
+    #    most frequent `dataclasses.replace` call shape in the engine.
     new_spaces = tuple(
-        dataclasses.replace(action_space, workers=(0, 0))
+        fast_replace(action_space, workers=(0, 0))
+        if action_space.workers != (0, 0)
+        else action_space
         for action_space in state.board.action_spaces
     )
-    new_board = dataclasses.replace(state.board, action_spaces=new_spaces)
+    new_board = fast_replace(state.board, action_spaces=new_spaces)
 
     # 2. Return all people home. Newborns NOT cleared here.
     new_players = tuple(
-        dataclasses.replace(p, people_home=p.people_total)
+        fast_replace(p, people_home=p.people_total)
         for p in state.players
     )
 
-    state = dataclasses.replace(state, players=new_players, board=new_board)
+    state = fast_replace(state, players=new_players, board=new_board)
 
     # 3. Decide next phase.
     # On a HARVEST_ROUND (4, 7, 9, 11, 13, 14), route to HARVEST_FIELD. The
@@ -446,9 +460,9 @@ def _resolve_return_home(state: GameState) -> GameState:
     # eventually land back in PREPARATION (rounds 1–13) or BEFORE_SCORING
     # (after round 14's HARVEST_BREED — handled in _advance_until_decision).
     if state.round_number in HARVEST_ROUNDS:
-        return dataclasses.replace(state, phase=Phase.HARVEST_FIELD)
+        return fast_replace(state, phase=Phase.HARVEST_FIELD)
 
-    return dataclasses.replace(state, phase=Phase.PREPARATION)
+    return fast_replace(state, phase=Phase.PREPARATION)
 
 
 def _resolve_preparation(state: GameState) -> GameState:
@@ -474,22 +488,22 @@ def _resolve_preparation(state: GameState) -> GameState:
         space_id = SPACE_IDS[i]
         if space_id in BUILDING_ACCUMULATION_RATES:
             rate = BUILDING_ACCUMULATION_RATES[space_id]
-            new_spaces_list[i] = dataclasses.replace(
+            new_spaces_list[i] = fast_replace(
                 action_space,
                 accumulated=action_space.accumulated + rate,
             )
         elif space_id in FOOD_ANIMAL_ACCUMULATION_RATES:
             _, rate = FOOD_ANIMAL_ACCUMULATION_RATES[space_id]
-            new_spaces_list[i] = dataclasses.replace(
+            new_spaces_list[i] = fast_replace(
                 action_space,
                 accumulated_amount=action_space.accumulated_amount + rate,
             )
-    new_board = dataclasses.replace(state.board, action_spaces=tuple(new_spaces_list))
+    new_board = fast_replace(state.board, action_spaces=tuple(new_spaces_list))
 
     # 2. Per-player: distribute future_resources, clear newborns.
     idx = new_round - 1
     new_players = tuple(
-        dataclasses.replace(
+        fast_replace(
             p,
             resources=p.resources + p.future_resources[idx],
             future_resources=(
@@ -503,7 +517,7 @@ def _resolve_preparation(state: GameState) -> GameState:
     )
 
     # 3. Transition to WORK with starting_player as the active player.
-    return dataclasses.replace(
+    return fast_replace(
         state,
         round_number=new_round,
         players=new_players,
@@ -592,10 +606,10 @@ def _resolve_harvest_field(state: GameState) -> GameState:
                 if cell.cell_type == CellType.FIELD:
                     if cell.grain > 0:
                         grain_gain += 1
-                        new_row.append(dataclasses.replace(cell, grain=cell.grain - 1))
+                        new_row.append(fast_replace(cell, grain=cell.grain - 1))
                     elif cell.veg > 0:
                         veg_gain += 1
-                        new_row.append(dataclasses.replace(cell, veg=cell.veg - 1))
+                        new_row.append(fast_replace(cell, veg=cell.veg - 1))
                     else:
                         new_row.append(cell)   # empty field (already harvested or never sown)
                 else:
@@ -605,19 +619,19 @@ def _resolve_harvest_field(state: GameState) -> GameState:
 
         # Fields cannot lie inside pastures, so the pasture cache is preserved
         # via dataclasses.replace's natural ride-along.
-        new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
+        new_farmyard = fast_replace(p.farmyard, grid=new_grid)
         new_resources = p.resources + Resources(grain=grain_gain, veg=veg_gain)
-        new_players.append(dataclasses.replace(
+        new_players.append(fast_replace(
             p,
             farmyard=new_farmyard,
             resources=new_resources,
             harvest_conversions_used=frozenset(),
         ))
 
-    state = dataclasses.replace(state, players=tuple(new_players))
+    state = fast_replace(state, players=tuple(new_players))
 
     # Push FEED pendings (one per player, SP on top, food pre-debited) and
     # transition phase. The outer guard returns on the next iteration because
     # the stack is now non-empty.
     state = _initiate_harvest_feed(state)
-    return dataclasses.replace(state, phase=Phase.HARVEST_FEED)
+    return fast_replace(state, phase=Phase.HARVEST_FEED)

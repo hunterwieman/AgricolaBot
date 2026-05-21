@@ -19,6 +19,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import ClassVar, TYPE_CHECKING, Union
 
+from agricola.replace import fast_replace
 from agricola.resources import Resources
 
 if TYPE_CHECKING:
@@ -485,21 +486,21 @@ PendingDecision = Union[
 
 def push(state: "GameState", frame: PendingDecision) -> "GameState":
     """Push a pending frame onto the top of state.pending_stack."""
-    return dataclasses.replace(
+    return fast_replace(
         state, pending_stack=state.pending_stack + (frame,),
     )
 
 
 def pop(state: "GameState") -> "GameState":
     """Drop the top frame from state.pending_stack."""
-    return dataclasses.replace(
+    return fast_replace(
         state, pending_stack=state.pending_stack[:-1],
     )
 
 
 def replace_top(state: "GameState", new_top: PendingDecision) -> "GameState":
     """Replace the top frame of state.pending_stack with new_top."""
-    return dataclasses.replace(
+    return fast_replace(
         state,
         pending_stack=state.pending_stack[:-1] + (new_top,),
     )

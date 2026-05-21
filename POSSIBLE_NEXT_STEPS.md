@@ -1,39 +1,49 @@
 # Possible Next Steps
 
-A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised 2026-05-15 after Task 5C; rewritten 2026-05-19 after Task 6; pruned 2026-05-21 after the harvest implementation (item A), the `BoardState.action_spaces` hashability refactor (item B), and the fence-universe restriction tooling (item D) all landed.
+A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised after Task 5C, Task 6, the harvest implementation, and the Change-8 hashability work; restructured 2026-05-21 to fold performance work (formerly items C and E) into a single pointer to POSSIBLE_SPEEDUPS.md.
 
-613 tests passing. The engine is feature-complete for the Family game (all 14 rounds, all 6 harvests, Potter Ceramics as the one card). `GameState` is hashable, unblocking transposition-table caches and state-keyed memoization. Letter labels are preserved across removals so cross-references in CHANGES.md / SESSION_HISTORY.md to historical items remain valid.
+636 tests passing. The engine is feature-complete for the Family game (all 14 rounds, all 6 harvests, Potter Ceramics as the one card). `GameState` is hashable. The engine has been profiled and a first wave of optimizations has landed (Change 9). Letter labels are preserved across removals so cross-references in CHANGES.md / SESSION_HISTORY.md to historical items remain valid.
 
 This is a planning document, not a commitment.
 
 ---
 
-## Small engine cleanup / hardening
+## Engine performance
 
-Worth doing before serious MCTS / agent work begins. Each is 1–2 sessions.
+### C. Performance work (catalog in POSSIBLE_SPEEDUPS.md)
 
-### C. Performance profiling of `legal_actions` and `step`
+Performance work has its own living document — **`POSSIBLE_SPEEDUPS.md`** — which catalogs specific optimization ideas, organized by what they target. The split is intentional: this file is about project *direction* (what to build next); POSSIBLE_SPEEDUPS.md is about *making existing code faster*, with the bias toward measure-before-acting.
 
-Nothing is known to be slow, but no one has measured. Useful before MCTS scaling exposes per-call cost as a bottleneck. Easy first pass: profile `random_agent_play` across the 10-seed sweep, broken down by function. Identify hot paths, then decide whether any caching or restructuring is worth doing. The Fencing legality enumerator is the most likely hot spot given its per-call universe walk; the precomputed 1×1 fast path mitigates this but hasn't been measured.
+**What's already landed (Change 9, 2026-05-21):**
 
-One concern is that `random_agent_play` will not go on some of the more complicated action spaces that require care to set up (e.g. Farm Redevelopment after aquiring the required resources and a large amount of wood). This can be partially mitigated by a prefabricated starting state where each player starts with a very large amount of resources. Then a random agent or a methodical agent that checks every action combination will come across a wider array of legal actions.
+- A profiling harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, plus the counter and microbench scripts) producing reproducible numbers across three workloads.
+- `fast_replace` — drop-in faster equivalent of `dataclasses.replace` (~20% per-call speedup, microbenched).
+- `legal_actions_cache()` — opt-in identity-keyed memoizer in `agricola/legality.py`, dormant outside a `with` block; parked for MCTS to be the first consumer.
+- `__debug__` gate on `_assert_nonnegative_state` — production runs under `python -O` skip the safety net.
+- Round-end-reset guard in `_resolve_return_home` — skips redundant `replace` calls for already-empty action spaces.
 
-### E. Pareto frontier pruning optimizations
+See **PROFILING.md** for the methodology and headline numbers, and **CHANGES.md Change 9** for the full breakdown.
 
-Two related optimizations to `pareto_frontier` (animal market gain) and `breeding_frontier` (post-breed) in `agricola/helpers.py`. Both exploit the same observation: confirming feasibility of one candidate rules out a whole rectangular prism of other candidates without further checks.
+**What's catalogued for future work (POSSIBLE_SPEEDUPS.md):**
 
-**Anchor pruning.** When a player gains animals through an action space, breeding, or a card effect, the pre-gain animal arrangement is feasible by definition — the player was already accommodating it. The "release all gained" option always lands at exactly the pre-gain state, so it's a frontier candidate. Any post-gain config `(s', b', c')` with `s' ≤ s_current AND b' ≤ b_current AND c' ≤ c_current` (at least one strict inequality) is strictly Pareto-dominated on animal dims; food is excluded from the Pareto check per the **"Preserving optionality"** Key Design Principle. The entire lower-left rectangular prism in animal-space under the pre-gain anchor can therefore be skipped at enumeration time. Same argument for `breeding_frontier` with the "no eat, no breed" pre-breed anchor. Implementation: a few-line dominance check at candidate emit. Speedup range: ~2× for small states up to ~30–50× mid-late game, with the O(n²) Pareto-filter step benefiting quadratically from the candidate-count reduction.
+- **S1 — Anchor Pareto pruning** on `pareto_frontier` / `breeding_frontier`. The highest-ROI remaining optimization based on current profiles: `can_accommodate` + Pareto inner generators are now the dominant cost cluster (~22 ms / Workload-B run in mid/late game). Low-difficulty, few-line change.
+- **S2 — Geometric Pareto pruning.** Extends S1; defer until S1 is measured.
+- **S3 — `legal_placements` short-circuit by availability.** Avoids per-predicate function-call overhead for spaces with workers already on them. Independent quick win, ~2-4% expected.
+- **S4 — Form C per-shape replacers.** Continuation of the Change-9 `fast_replace` work — hand-written single-shape helpers for the hottest update patterns. Reach for only if `fast_replace` still dominates after S1-S3.
+- **S5 — Cached `__hash__` on hot dataclasses.** Transposition-table enabler; only worth doing once MCTS adds a content-keyed transposition layer.
+- **S6 — Zobrist-style incremental hashing.** Heavy alternative to S5; listed for completeness, probably never needed for this game's scale.
 
-**Incremental geometric pruning.** Generalizes the anchor idea: *every* confirmed-feasible candidate X creates its own dominated prism `{(s, b, c) : s ≤ X.s, b ≤ X.b, c ≤ X.c, with at least one strict inequality}`, not just the pre-state anchor. If candidates are checked in an order that finds high-coordinate feasible candidates early (largest-sum or lexicographically-greedy first, etc.), each confirmed feasible candidate invalidates many remaining candidates before they're enumerated or feasibility-checked. Maintain a set of confirmed-feasible anchors; for each new candidate, test whether it lies inside any anchor's dominated prism; if so, skip without checking feasibility. The anchor set is an incremental max-corner Pareto frontier in animal-space. Most valuable when each feasibility check is expensive (it is, for pareto_frontier — `can_accommodate` enumerates slot assignments).
+Each entry in POSSIBLE_SPEEDUPS.md has an estimated speedup (with uncertainty called out), a difficulty rating, an implementation sketch, and a "when to do it" trigger. The catalog is updated as items land or as new profiling exposes new hot paths.
 
-**Applicability.**
-- `pareto_frontier` and `breeding_frontier`: both forms apply cleanly.
-- `food_payment_frontier` (food_owed > 0): partially. The simple pre-state anchor is infeasible (player must pay something), so the anchor variant doesn't apply directly. But the broader geometric form *does* apply — once a config X that fully pays food_owed is confirmed, any config Y consuming at least as much of every good (= `Y.remaining ≤ X.remaining` on every dim) is dominated by X. This prunes the lower-left REMAINING prism, equivalently the upper-right CONSUMPTION prism. The existing per-good consumption caps in `food_payment_frontier` already provide a related dimension-level form of this pruning; the geometric variant extends it to joint pruning across goods.
-- `harvest_feed_frontier`: does NOT apply — the do-nothing config is the *worst* on the −begging dim, so it dominates nothing.
+**When to consult POSSIBLE_SPEEDUPS.md:**
 
-**Correctness check.** The pruning is valid iff the Pareto dimensions are exactly the upstream-goods counts (animals for `pareto_frontier` / `breeding_frontier`; the 5-tuple remaining-goods vector for `food_payment_frontier`). This holds today per the "Preserving optionality" principle, which excludes downstream byproducts (food) from the Pareto check. If a future card makes some non-food byproduct of conversion into a strategic resource that *should* be a Pareto dim, the assumption must be re-examined.
+- When profiling identifies a hot path that one of the catalogued items targets.
+- When MCTS scales up rollouts and per-action cost becomes the dominant cost.
+- When considering a structural change (e.g., adding a transposition table) and you want to know what optimizations are pre-thought-through.
 
-**Why this matters.** Per-call cost is microseconds today — invisible during human-paced play. The reason to do it is MCTS, where these helpers run inside every rollout, potentially millions of times per turn during self-play. The constant-factor improvement compounds. The pre-state-anchor variant is the easy half and can land standalone; the geometric variant is a more substantial refactor (candidate-ordering choice, anchor-set data structure) and is probably worth deferring until profiling (C) identifies one of these helpers as a hot path.
+When *not* to consult it:
+
+- Speculatively, ahead of evidence. Every entry has a "profile first" disclaimer; the catalog is reference material, not a TODO list to walk top-down.
 
 ---
 
@@ -53,7 +63,13 @@ Useful as:
 
 Pure MCTS (no neural net yet), used initially with random and heuristic agents to validate the tree-search loop. Becomes the substrate for AlphaZero-style training in Phase 5.
 
-Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / expand / simulate / backup` loop, UCB1 selection, terminal-state handling, and an agent wrapper that uses MCTS to pick actions. State-hashed transposition table — now unblocked by the Change 8 hashability refactor — lets nodes share statistics across reachable-by-different-paths states; without it, the search tree fragments more than necessary on actions like Fencing (where the builds-before-subdivisions ordering rule already cuts some path-level inflation but doesn't eliminate it).
+Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / expand / simulate / backup` loop, UCB1 selection, terminal-state handling, and an agent wrapper that uses MCTS to pick actions.
+
+Now fully unblocked on both fronts:
+- **Hashability** (Change 8) — `GameState` can key a transposition table once one is wanted.
+- **Within-search memoization** (Change 9) — `legal_actions_cache()` provides an opt-in identity-keyed cache; MCTS wraps its search loop in `with legal_actions_cache(): ...` to take the ~370× cache-hit speedup at zero plumbing cost.
+
+If MCTS performance becomes the bottleneck, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) and S5 (cached `__hash__` for transposition tables) are the natural targets — but profile first.
 
 ---
 
@@ -122,6 +138,6 @@ Elo ratings between agent versions, score distribution analysis, game-length var
 
 **Highest-impact single next task: the heuristic agent (F).** The engine has played thousands of random games but never a competent one. A heuristic agent is the first chance to see the engine drive recognizable Agricola strategy and to set a real baseline for everything that follows. It also surfaces edge cases random play never hits.
 
-**After F:** MCTS scaffolding (G) — directly unblocked by the Change 8 hashability refactor. Profiling (C) and the Pareto pruning work (E) can land before or alongside G, but neither is required until rollout cost starts mattering at MCTS scale.
+**After F:** MCTS scaffolding (G) — fully unblocked by Changes 8 and 9. If MCTS rollout cost becomes a problem, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining optimization based on current profiles.
 
 **Card system as a separate track:** can run in parallel with agent work, but the open design questions (H, I, J, K) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.

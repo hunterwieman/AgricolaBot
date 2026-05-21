@@ -197,12 +197,18 @@ Sub-action effect functions in `resolution.py` take `(state, player_idx, commit:
 
 For pure resource subtraction, use `__sub__` (e.g., `p.resources - cost`). For mixed subtract-and-add in one operation, keep a single `Resources` literal with negative components (e.g., `p.resources + Resources(grain=-commit.grain, food=rate * commit.grain)`). Splitting a mixed operation into `(p.resources + Resources(food=...)) - Resources(grain=...)` adds operands without clarity gain. `__sub__` is reserved for pure-subtraction sites where it is strictly cleaner.
 
+### Use `fast_replace`, not `dataclasses.replace`, in production code
+
+All state-mutation sites in `agricola/` use `fast_replace(obj, **changes)` from `agricola.replace` rather than the stdlib `dataclasses.replace(obj, **changes)`. It's a drop-in faster equivalent (~20% per-call speedup, microbenched) with the same signature. See CHANGES.md Change 9 for the rationale and `agricola/replace.py` for the implementation.
+
+Test code (`tests/`) continues to use `dataclasses.replace` — test setup is not a hot path, and stdlib `replace` is the reference implementation used by the equivalence tests in `tests/test_replace.py`.
+
 ### `replace_top` call form
 
-Prefer the one-line form when the inner `dataclasses.replace` fits on a single line (e.g., `state = replace_top(state, dataclasses.replace(top, sow_chosen=True))`). Use a named variable when the replace would exceed comfortable line length or has many fields:
+Prefer the one-line form when the inner `fast_replace` fits on a single line (e.g., `state = replace_top(state, fast_replace(top, sow_chosen=True))`). Use a named variable when the replace would exceed comfortable line length or has many fields:
 
 ```python
-new_top = dataclasses.replace(
+new_top = fast_replace(
     top, triggers_resolved=top.triggers_resolved | {action.card_id},
 )
 return replace_top(state, new_top)
@@ -210,7 +216,7 @@ return replace_top(state, new_top)
 
 ### Variable naming for replaced `PlayerState`
 
-When you bind the result of `dataclasses.replace(p, ...)` to a variable, name it `new_player` (not `new_p` or `np`). The replaced player flows into `_update_player(state, ap, new_player)`.
+When you bind the result of `fast_replace(p, ...)` to a variable, name it `new_player` (not `new_p` or `np`). The replaced player flows into `_update_player(state, ap, new_player)`.
 
 ### Choose-time parent-flag setting
 
@@ -314,7 +320,7 @@ Ten design philosophies govern the stack:
 
 - **`PlaceWorker` and each `ChooseSubAction` push exactly one pending frame.** This invariant ensures card triggers fire cleanly between frames (each trigger event corresponds to a specific stack-state, not an ambiguous "somewhere mid-push").
 
-- **Parent `*_chosen` flags are set at choose-time, not at commit-time.** Each `_choose_subaction_*` handler does `replace_top(state, dataclasses.replace(parent, <action>_chosen=True))` before pushing the sub-action pending. The commit dispatcher (`_apply_commit_subaction`) is responsible only for assert + effect + conditional pop; it does not touch parent state. See "Code Conventions" → "Choose-time parent-flag setting" for rationale.
+- **Parent `*_chosen` flags are set at choose-time, not at commit-time.** Each `_choose_subaction_*` handler does `replace_top(state, fast_replace(parent, <action>_chosen=True))` before pushing the sub-action pending. The commit dispatcher (`_apply_commit_subaction`) is responsible only for assert + effect + conditional pop; it does not touch parent state. See "Code Conventions" → "Choose-time parent-flag setting" for rationale.
 - **Commit sub-actions inherit from `CommitSubAction`.** All `Commit*` action types (`CommitSow`, `CommitBake`, future `CommitPlow`, …) inherit from a frozen-dataclass base `CommitSubAction`. The engine dispatches them uniformly through `_apply_commit_subaction` and the `COMMIT_SUBACTION_HANDLERS` metadata table. Adding a new sub-action type does not require editing `_apply_action`.
 - **`TRIGGER_EVENT` is a `ClassVar` on pending types that fire triggers.** Read by `legal_actions` enumerators to filter the trigger registry. Reason: type-derived event identity, no field bloat.
 - **`triggers_resolved` is scoped to a pending frame's lifetime.** It records which triggers have fired during this specific instance of the trigger event. Next instance (e.g., next Bake Bread action, next round's PREPARATION) creates a fresh pending with an empty `triggers_resolved`. **Do not put `triggers_resolved`-like state on `PlayerState`** — that would make a trigger fire once per game instead of once per event instance.
@@ -410,7 +416,7 @@ The full card system (the other ~470 cards in the Family + full game) is a separ
 
 ## Current Status
 
-All 613 tests pass. The following pieces are complete:
+All 636 tests pass. The following pieces are complete:
 
 | Component | Status | Task file(s) |
 |---|---|---|
@@ -472,6 +478,7 @@ All 613 tests pass. The following pieces are complete:
 | Harvest sub-phases — `_resolve_harvest_field`, `_initiate_harvest_feed`, `_initiate_harvest_breed` in `engine.py` | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
 | Rounds 5–14, all 6 harvests | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
 | `BoardState.action_spaces` canonical-tuple refactor (`GameState` hashable) | Complete | `CHANGES.md` Change 8 |
+| Engine performance pass: `fast_replace`, `legal_actions_cache()`, `__debug__` gate, round-end-reset guard | Complete | `CHANGES.md` Change 9, `PROFILING.md` |
 
 **Not yet implemented:**
 
@@ -505,11 +512,13 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 |---|---|
 | `RULES.md` | Complete rules reference for the 2-player Family game, including action space descriptions, major improvement effects, harvest rules, animal accommodation, and scoring tables. |
 | `STRATEGY.md` | AI strategy and algorithm decisions: action space structure, MCTS approach, neural network design, and the rationale behind each project phase. |
-| `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases; `BoardState.action_spaces` canonical-tuple refactor). |
+| `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases; `BoardState.action_spaces` canonical-tuple refactor; engine performance pass with `fast_replace` + `legal_actions_cache()`). |
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
 | `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
+| `POSSIBLE_SPEEDUPS.md` | Living catalog of performance optimizations — both ideas surfaced by profiling and not yet acted on, and forward-looking candidates. Sibling to POSSIBLE_NEXT_STEPS.md, scoped to performance specifically. |
+| `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
@@ -539,6 +548,7 @@ AgricolaBot/
         constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces.
         resources.py                # Resources (wood/clay/reed/stone/food/grain/veg) and Animals (sheep/boar/cattle) frozen dataclasses with __add__/__sub__/__bool__ operators. Extracted from state.py to avoid circular imports with constants.py.
         pasture.py                  # Pasture dataclass (cells, num_stables, precomputed capacity) + compute_pastures_from_arrays BFS that flood-fills from outside the grid to find enclosed connected components. Independent of state.py via duck typing.
+        replace.py                  # fast_replace(obj, **changes) — a drop-in faster equivalent of dataclasses.replace, ~20% faster per call (timeit-measured). Used at every state-mutation site in engine.py / resolution.py / pending.py / cards/. See CHANGES.md Change 9.
         state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState, PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The top-level GameState snapshot — every transition produces a new one via dataclasses.replace — is fully hashable.
         setup.py                    # setup(seed) -> GameState — builds the initial 2-player Family game state. All randomness (starting player, stage card shuffle per stage) is resolved here via a seeded NumPy RNG; engine is fully deterministic afterward.
         helpers.py                  # Pure derived-quantity functions (fences_in_supply, stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
@@ -583,6 +593,11 @@ AgricolaBot/
         test_harvest_feed.py
         test_harvest_breed.py
         test_harvest_integration.py
+    scripts/                        # Out-of-tree utilities — profiling, benchmarking, replace-counter. Re-runnable; not imported by `agricola/` or `tests/`. Used to produce / update PROFILING.md.
+        profile_engine.py           # Three-workload runner (A: random from setup; B: random from wealthy prefab; C: micro-bench across 9 prefab states) with cProfile + wall-clock.
+        profile_states.py           # 9 prefab `GameState` factories covering early/mid/late game; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).
+        count_replaces.py           # Monkey-patch counter for `dataclasses.replace` / `fast_replace` call shapes.
+        bench_replace.py            # `timeit`-based microbenchmark comparing stdlib replace vs `fast_replace`.
     task_files/                     # Historical task specs and design artifacts — frozen at the time their task landed; referenced from CLAUDE.md's status table and from SESSION_HISTORY.md / CHANGES.md as the design-rationale anchors. Not auto-read; consult when a status-table row or a session-history entry points here.
         ARCHITECTURE.md             # Original full architecture spec + game rules reference + original dataclass definitions. Inline `> Note:` annotations flag known divergences from current code.
         FENCE_IDEAS.md              # Design conversation artifact from Task 6 — broader Fencing design-space alternatives considered before the bitmap-fixed-universe approach.

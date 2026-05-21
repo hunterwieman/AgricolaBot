@@ -53,6 +53,7 @@ from agricola.pending import (
     push,
     replace_top,
 )
+from agricola.replace import fast_replace
 from agricola.resources import Animals, Resources
 from agricola.state import Cell, GameState, PlayerState, get_space, with_space
 
@@ -67,15 +68,15 @@ def _update_player(state: GameState, ap: int, new_player: PlayerState) -> GameSt
         new_player if ap == 0 else state.players[0],
         new_player if ap == 1 else state.players[1],
     )
-    return dataclasses.replace(state, players=new_players)
+    return fast_replace(state, players=new_players)
 
 
 def _update_space(state: GameState, space_id: str, **kwargs) -> GameState:
     """Return a new GameState with the named action space updated."""
     old_space = get_space(state.board, space_id)
-    new_space = dataclasses.replace(old_space, **kwargs)
+    new_space = fast_replace(old_space, **kwargs)
     new_board = with_space(state.board, space_id, new_space)
-    return dataclasses.replace(state, board=new_board)
+    return fast_replace(state, board=new_board)
 
 
 def _new_grid_with_cell(
@@ -117,7 +118,7 @@ def _apply_worker_placement(state: GameState, space_id: str) -> GameState:
 
     # 2. Decrement active player's people_home
     p = state.players[ap]
-    state = _update_player(state, ap, dataclasses.replace(p, people_home=p.people_home - 1))
+    state = _update_player(state, ap, fast_replace(p, people_home=p.people_home - 1))
 
     return state
 
@@ -130,7 +131,7 @@ def _apply_worker_placement(state: GameState, space_id: str) -> GameState:
 def _resolve_day_laborer(state: GameState) -> GameState:
     ap = state.current_player
     p = state.players[ap]
-    return _update_player(state, ap, dataclasses.replace(p, resources=p.resources + Resources(food=2)))
+    return _update_player(state, ap, fast_replace(p, resources=p.resources + Resources(food=2)))
 
 
 def _resolve_building_accumulation(state: GameState, space_id: str) -> GameState:
@@ -143,7 +144,7 @@ def _resolve_building_accumulation(state: GameState, space_id: str) -> GameState
     p = state.players[ap]
     space_state = get_space(state.board, space_id)
     new_resources = p.resources + space_state.accumulated
-    state = _update_player(state, ap, dataclasses.replace(p, resources=new_resources))
+    state = _update_player(state, ap, fast_replace(p, resources=new_resources))
     state = _update_space(state, space_id, accumulated=Resources())
     return state
 
@@ -154,7 +155,7 @@ def _resolve_food_accumulation(state: GameState, space_id: str) -> GameState:
     p = state.players[ap]
     amount = get_space(state.board, space_id).accumulated_amount
     new_resources = p.resources + Resources(food=amount)
-    state = _update_player(state, ap, dataclasses.replace(p, resources=new_resources))
+    state = _update_player(state, ap, fast_replace(p, resources=new_resources))
     state = _update_space(state, space_id, accumulated_amount=0)
     return state
 
@@ -178,7 +179,7 @@ def _resolve_reed_bank(state: GameState) -> GameState:
 def _resolve_grain_seeds(state: GameState) -> GameState:
     ap = state.current_player
     p = state.players[ap]
-    return _update_player(state, ap, dataclasses.replace(p, resources=p.resources + Resources(grain=1)))
+    return _update_player(state, ap, fast_replace(p, resources=p.resources + Resources(grain=1)))
 
 
 def _resolve_meeting_place(state: GameState) -> GameState:
@@ -186,7 +187,7 @@ def _resolve_meeting_place(state: GameState) -> GameState:
     # Collect accumulated food and reset (food/animal scalar path)
     state = _resolve_food_accumulation(state, "meeting_place")
     # Transfer starting player token to the player who took this space
-    return dataclasses.replace(state, starting_player=ap)
+    return fast_replace(state, starting_player=ap)
 
 
 def _resolve_western_quarry(state: GameState) -> GameState:
@@ -196,7 +197,7 @@ def _resolve_western_quarry(state: GameState) -> GameState:
 def _resolve_vegetable_seeds(state: GameState) -> GameState:
     ap = state.current_player
     p = state.players[ap]
-    return _update_player(state, ap, dataclasses.replace(p, resources=p.resources + Resources(veg=1)))
+    return _update_player(state, ap, fast_replace(p, resources=p.resources + Resources(veg=1)))
 
 
 def _resolve_eastern_quarry(state: GameState) -> GameState:
@@ -222,7 +223,7 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
 
     # Update player: people_total and newborns
     p = state.players[ap]
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p,
         people_total=p.people_total + 1,
         newborns=p.newborns + 1,
@@ -408,13 +409,13 @@ def _choose_subaction_grain_utilization(
 ) -> GameState:
     top = state.pending_stack[-1]
     if action.name == "sow":
-        state = replace_top(state, dataclasses.replace(top, sow_chosen=True))
+        state = replace_top(state, fast_replace(top, sow_chosen=True))
         return push(state, PendingSow(
             player_idx=top.player_idx,
             initiated_by_id=top.PENDING_ID,
         ))
     if action.name == "bake_bread":
-        state = replace_top(state, dataclasses.replace(top, bake_chosen=True))
+        state = replace_top(state, fast_replace(top, bake_chosen=True))
         return push(state, PendingBakeBread(
             player_idx=top.player_idx,
             initiated_by_id=top.PENDING_ID,
@@ -430,7 +431,7 @@ def _choose_subaction_farmland(
     from agricola.pending import PendingPlow
     top = state.pending_stack[-1]
     if action.name == "plow":
-        state = replace_top(state, dataclasses.replace(top, plow_chosen=True))
+        state = replace_top(state, fast_replace(top, plow_chosen=True))
         return push(state, PendingPlow(
             player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -444,12 +445,12 @@ def _choose_subaction_cultivation(
     top = state.pending_stack[-1]
     p_idx = top.player_idx
     if action.name == "plow":
-        state = replace_top(state, dataclasses.replace(top, plow_chosen=True))
+        state = replace_top(state, fast_replace(top, plow_chosen=True))
         return push(state, PendingPlow(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
     if action.name == "sow":
-        state = replace_top(state, dataclasses.replace(top, sow_chosen=True))
+        state = replace_top(state, fast_replace(top, sow_chosen=True))
         return push(state, PendingSow(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -462,7 +463,7 @@ def _choose_subaction_side_job(
     top = state.pending_stack[-1]
     p_idx = top.player_idx
     if action.name == "build_stable":
-        state = replace_top(state, dataclasses.replace(top, stable_chosen=True))
+        state = replace_top(state, fast_replace(top, stable_chosen=True))
         return push(state, PendingBuildStables(
             player_idx=p_idx,
             initiated_by_id=top.PENDING_ID,
@@ -470,7 +471,7 @@ def _choose_subaction_side_job(
             max_builds=1,
         ))
     if action.name == "bake_bread":
-        state = replace_top(state, dataclasses.replace(top, bake_chosen=True))
+        state = replace_top(state, fast_replace(top, bake_chosen=True))
         return push(state, PendingBakeBread(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -483,7 +484,7 @@ def _choose_subaction_major_minor_improvement(
     top = state.pending_stack[-1]
     p_idx = top.player_idx
     if action.name == "build_major":
-        state = replace_top(state, dataclasses.replace(top, major_chosen=True))
+        state = replace_top(state, fast_replace(top, major_chosen=True))
         return push(state, PendingBuildMajor(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -498,7 +499,7 @@ def _choose_subaction_clay_oven(
 ) -> GameState:
     top = state.pending_stack[-1]
     if action.name == "bake_bread":
-        state = replace_top(state, dataclasses.replace(top, bake_chosen=True))
+        state = replace_top(state, fast_replace(top, bake_chosen=True))
         return push(state, PendingBakeBread(
             player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -510,7 +511,7 @@ def _choose_subaction_stone_oven(
 ) -> GameState:
     top = state.pending_stack[-1]
     if action.name == "bake_bread":
-        state = replace_top(state, dataclasses.replace(top, bake_chosen=True))
+        state = replace_top(state, fast_replace(top, bake_chosen=True))
         return push(state, PendingBakeBread(
             player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -536,12 +537,12 @@ def _choose_subaction_house_redevelopment(
             cost = Resources(clay=num_rooms, reed=1)  # 1 clay per room, 1 reed total
         else:  # CLAY — STONE filtered out by _can_renovate at parent enumerator
             cost = Resources(stone=num_rooms, reed=1)
-        state = replace_top(state, dataclasses.replace(top, renovate_chosen=True))
+        state = replace_top(state, fast_replace(top, renovate_chosen=True))
         return push(state, PendingRenovate(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID, cost=cost,
         ))
     if action.name == "improvement":
-        state = replace_top(state, dataclasses.replace(top, improvement_chosen=True))
+        state = replace_top(state, fast_replace(top, improvement_chosen=True))
         return push(state, PendingMajorMinorImprovement(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -556,7 +557,7 @@ def _choose_subaction_farm_expansion(
     p_idx = top.player_idx
     p = state.players[p_idx]
     if action.name == "build_rooms":
-        state = replace_top(state, dataclasses.replace(top, room_chosen=True))
+        state = replace_top(state, fast_replace(top, room_chosen=True))
         return push(state, PendingBuildRooms(
             player_idx=p_idx,
             initiated_by_id=top.PENDING_ID,
@@ -564,7 +565,7 @@ def _choose_subaction_farm_expansion(
             max_builds=None,
         ))
     if action.name == "build_stables":
-        state = replace_top(state, dataclasses.replace(top, stable_chosen=True))
+        state = replace_top(state, fast_replace(top, stable_chosen=True))
         return push(state, PendingBuildStables(
             player_idx=p_idx,
             initiated_by_id=top.PENDING_ID,
@@ -580,7 +581,7 @@ def _choose_subaction_fencing(
     top = state.pending_stack[-1]
     assert isinstance(top, PendingFencing)
     if action.name == "build_fences":
-        state = replace_top(state, dataclasses.replace(top, build_fences_chosen=True))
+        state = replace_top(state, fast_replace(top, build_fences_chosen=True))
         return push(state, PendingBuildFences(
             player_idx=top.player_idx,
             initiated_by_id=top.PENDING_ID,
@@ -610,12 +611,12 @@ def _choose_subaction_farm_redevelopment(
             cost = Resources(clay=num_rooms, reed=1)
         else:  # CLAY (STONE filtered out by _can_renovate at the parent enumerator)
             cost = Resources(stone=num_rooms, reed=1)
-        state = replace_top(state, dataclasses.replace(top, renovate_chosen=True))
+        state = replace_top(state, fast_replace(top, renovate_chosen=True))
         return push(state, PendingRenovate(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID, cost=cost,
         ))
     if action.name == "build_fences":
-        state = replace_top(state, dataclasses.replace(top, build_fences_chosen=True))
+        state = replace_top(state, fast_replace(top, build_fences_chosen=True))
         return push(state, PendingBuildFences(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
@@ -682,10 +683,10 @@ def _execute_sow(
                     and cell.grain == 0 and cell.veg == 0):
                 # Empty field — fill grain first, then veg.
                 if g_remaining > 0:
-                    new_row.append(dataclasses.replace(cell, grain=3))
+                    new_row.append(fast_replace(cell, grain=3))
                     g_remaining -= 1
                 elif v_remaining > 0:
-                    new_row.append(dataclasses.replace(cell, veg=2))
+                    new_row.append(fast_replace(cell, veg=2))
                     v_remaining -= 1
                 else:
                     new_row.append(cell)
@@ -698,8 +699,8 @@ def _execute_sow(
         f"grain remaining={g_remaining}, veg remaining={v_remaining}"
     )
 
-    new_farmyard = dataclasses.replace(p.farmyard, grid=tuple(new_grid_rows))
-    new_player = dataclasses.replace(
+    new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
+    new_player = fast_replace(
         p, resources=new_resources, farmyard=new_farmyard,
     )
     return _update_player(state, player_idx, new_player)
@@ -734,7 +735,7 @@ def _execute_bake(
         f"CommitBake(grain={commit.grain}) exceeds player's per-action grain cap"
     )
     p = state.players[player_idx]
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p,
         resources=p.resources + Resources(food=food, grain=-commit.grain),
     )
@@ -754,8 +755,8 @@ def _execute_plow(
     new_grid = _new_grid_with_cell(
         p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.FIELD),
     )
-    new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
-    new_player = dataclasses.replace(p, farmyard=new_farmyard)
+    new_farmyard = fast_replace(p.farmyard, grid=new_grid)
+    new_player = fast_replace(p, farmyard=new_farmyard)
     return _update_player(state, player_idx, new_player)
 
 
@@ -784,18 +785,18 @@ def _execute_build_stable(
     new_grid = _new_grid_with_cell(
         p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.STABLE),
     )
-    new_farmyard = dataclasses.replace(
+    new_farmyard = fast_replace(
         p.farmyard,
         grid=new_grid,
         pastures=compute_pastures_from_arrays(
             new_grid, p.farmyard.horizontal_fences, p.farmyard.vertical_fences,
         ),
     )
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p, resources=p.resources - top.cost, farmyard=new_farmyard,
     )
     state = _update_player(state, player_idx, new_player)
-    return replace_top(state, dataclasses.replace(top, num_built=top.num_built + 1))
+    return replace_top(state, fast_replace(top, num_built=top.num_built + 1))
 
 
 def _execute_build_room(
@@ -816,12 +817,12 @@ def _execute_build_room(
     new_grid = _new_grid_with_cell(
         p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.ROOM),
     )
-    new_farmyard = dataclasses.replace(p.farmyard, grid=new_grid)
-    new_player = dataclasses.replace(
+    new_farmyard = fast_replace(p.farmyard, grid=new_grid)
+    new_player = fast_replace(
         p, resources=p.resources - top.cost, farmyard=new_farmyard,
     )
     state = _update_player(state, player_idx, new_player)
-    return replace_top(state, dataclasses.replace(top, num_built=top.num_built + 1))
+    return replace_top(state, fast_replace(top, num_built=top.num_built + 1))
 
 
 def _execute_renovate(
@@ -842,7 +843,7 @@ def _execute_renovate(
         new_material = HouseMaterial.STONE
     else:
         raise AssertionError("CommitRenovate illegal on stone house")
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p, resources=p.resources - pending.cost, house_material=new_material,
     )
     return _update_player(state, player_idx, new_player)
@@ -869,7 +870,7 @@ def _execute_build_major(
 
     # 1. Pay: either deduct cost, or return a Fireplace (Cooking Hearth only).
     if commit.return_fireplace_idx is None:
-        new_player = dataclasses.replace(p, resources=p.resources - cost)
+        new_player = fast_replace(p, resources=p.resources - cost)
         state = _update_player(state, player_idx, new_player)
     else:
         assert commit.major_idx in COOKING_HEARTH_INDICES, (
@@ -884,9 +885,9 @@ def _execute_build_major(
             None if i == commit.return_fireplace_idx else owners[i]
             for i in range(len(owners))
         )
-        state = dataclasses.replace(
+        state = fast_replace(
             state,
-            board=dataclasses.replace(state.board, major_improvement_owners=new_owners),
+            board=fast_replace(state.board, major_improvement_owners=new_owners),
         )
 
     # 2. Assign the new major to the player.
@@ -895,9 +896,9 @@ def _execute_build_major(
         player_idx if i == commit.major_idx else owners[i]
         for i in range(len(owners))
     )
-    state = dataclasses.replace(
+    state = fast_replace(
         state,
-        board=dataclasses.replace(state.board, major_improvement_owners=new_owners),
+        board=fast_replace(state.board, major_improvement_owners=new_owners),
     )
 
     # 3. Well's special effect: +1 food on each of the next 5 round spaces.
@@ -907,11 +908,11 @@ def _execute_build_major(
         # future_resources[r] holds goods promised for round r+1 (0-indexed).
         for r in range(state.round_number, min(state.round_number + 5, 14)):
             new_future[r] = new_future[r] + Resources(food=1)
-        new_player = dataclasses.replace(p, future_resources=tuple(new_future))
+        new_player = fast_replace(p, future_resources=tuple(new_future))
         state = _update_player(state, player_idx, new_player)
 
     # 4. Set build_chosen=True on PendingBuildMajor (matters only if we linger for an oven).
-    state = replace_top(state, dataclasses.replace(top, build_chosen=True))
+    state = replace_top(state, fast_replace(top, build_chosen=True))
 
     # 5. Branch on major_idx for the oven wrappers; otherwise pop.
     if commit.major_idx == 5:  # Clay Oven
@@ -969,14 +970,14 @@ def _execute_build_pasture(
 
     # 5. Recompute pasture decomposition.
     new_pastures = compute_pastures_from_arrays(farmyard.grid, new_h, new_v)
-    new_farmyard = dataclasses.replace(
+    new_farmyard = fast_replace(
         farmyard, horizontal_fences=new_h, vertical_fences=new_v,
         pastures=new_pastures,
     )
 
     # 6 + 7. Debit wood + update player.
     new_resources = p.resources - Resources(wood=wood_cost)
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p, farmyard=new_farmyard, resources=new_resources,
     )
     state = _update_player(state, player_idx, new_player)
@@ -984,7 +985,7 @@ def _execute_build_pasture(
     # 8. Bump pending counters + ordering-rule flag. No auto-pop; Stop pops.
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildFences)
-    new_top = dataclasses.replace(
+    new_top = fast_replace(
         top,
         pastures_built=top.pastures_built + 1,
         fences_built=top.fences_built + wood_cost,
@@ -1026,7 +1027,7 @@ def _execute_accommodate(
 
     new_animals = Animals(sheep=commit.sheep, boar=commit.boar, cattle=commit.cattle)
     new_resources = p.resources + Resources(food=food)
-    new_player = dataclasses.replace(p, animals=new_animals, resources=new_resources)
+    new_player = fast_replace(p, animals=new_animals, resources=new_resources)
     return _update_player(state, player_idx, new_player)
 
 
@@ -1061,13 +1062,13 @@ def _execute_harvest_conversion(
     new_used = p.harvest_conversions_used | {commit.conversion_id}
 
     if not commit.use:
-        new_player = dataclasses.replace(p, harvest_conversions_used=new_used)
+        new_player = fast_replace(p, harvest_conversions_used=new_used)
         return _update_player(state, player_idx, new_player)
 
     # use=True: pay input cost, add full food_out to supply.
     new_resources = p.resources - spec.input_cost + Resources(food=spec.food_out)
 
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p,
         resources=new_resources,
         harvest_conversions_used=new_used,
@@ -1144,14 +1145,14 @@ def _execute_convert(
         boar   = p.animals.boar   - commit.boar,
         cattle = p.animals.cattle - commit.cattle,
     )
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p,
         resources=new_resources,
         animals=new_animals,
         begging_markers=p.begging_markers + begging_added,
     )
     state = _update_player(state, player_idx, new_player)
-    return replace_top(state, dataclasses.replace(top, conversion_done=True))
+    return replace_top(state, fast_replace(top, conversion_done=True))
 
 
 def _execute_breed(
@@ -1182,10 +1183,10 @@ def _execute_breed(
         f"CommitBreed {chosen} not in breeding_frontier for player {player_idx}"
     )
 
-    new_player = dataclasses.replace(
+    new_player = fast_replace(
         p,
         animals=chosen,
         resources=p.resources + Resources(food=food_gained),
     )
     state = _update_player(state, player_idx, new_player)
-    return replace_top(state, dataclasses.replace(top, breed_chosen=True))
+    return replace_top(state, fast_replace(top, breed_chosen=True))

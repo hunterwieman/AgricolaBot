@@ -33,6 +33,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 7 design follow-up — breeding_frontier revert + "Preserving optionality" principle](#task-7-design-followup)
 - [Task 7 implementation — Harvest phases + rounds 5–14 + Cooking-Hearth fix + non-negative invariant](#task-7-impl)
 - [Hashability refactor — `BoardState.action_spaces` dict → canonical tuple](#hashability-refactor)
+- [Engine performance pass — profiling, `fast_replace`, `legal_actions_cache`, assertion gate](#perf-pass)
 - [Current State](#current-state)
 
 ---
@@ -1935,10 +1936,144 @@ Per POSSIBLE_NEXT_STEPS.md: (C) performance profiling of `legal_actions` / `step
 
 ---
 
+<a name="perf-pass"></a>
+## Engine performance pass — profiling, `fast_replace`, `legal_actions_cache`, assertion gate (2026-05-21)
+
+Item C from POSSIBLE_NEXT_STEPS.md, plus three adjacent optimizations the profiling pass surfaced. Built a reusable profiling harness from scratch, walked the data, agreed on changes through several rounds of measurement, and landed a first wave: `fast_replace`, the opt-in `legal_actions_cache()`, the `__debug__` gate on the non-negative assertion, and the round-end-reset guard. 613 → 636 tests passing.
+
+### Phase 1 — profiling infrastructure (out-of-tree)
+
+A new top-level `scripts/` directory holds re-runnable utilities; no files under `agricola/` or `tests/` were modified for the infrastructure itself.
+
+- **`scripts/profile_states.py`** — 9 prefab `GameState` factories across early/mid/late game, composed from existing `tests.factories` helpers. The round-14 state alone makes every action space legal except `lessons` (permanently illegal in the Family game) — the coverage requirement for Workload C below. Includes a self-validator: `python scripts/profile_states.py` audits each state and reports which spaces are legal where, then confirms the union covers everything.
+
+- **`scripts/profile_engine.py`** — three-workload runner under cProfile + wall-clock timing:
+  - Workload A: `random_agent_play` from `setup()` across seeds 0-9 (end-to-end baseline).
+  - Workload B: same but starting from the wealthy prefab state, exercising action spaces random play from a fresh setup rarely reaches (Major Improvement, Farm Expansion's room-build, Farm Redevelopment, Fencing).
+  - Workload C: micro-bench loop calling `legal_actions(state)` and `step(state, action)` 1000× on each prefab, isolating per-call cost from game-walk overhead.
+
+- **`scripts/count_replaces.py`** — monkey-patches `dataclasses.replace` (and later `fast_replace`) to count call shapes by `(class_name, fields_changed)`. Surfaced two findings: the round-end-reset over-call, and that `GameState.{players}` updates are surprisingly less frequent than `ActionSpaceState.{workers}` updates due to that same over-call.
+
+- **`scripts/bench_replace.py`** — `timeit`-based apples-to-apples microbench for replace variants. Built mid-session to settle a measurement disagreement: cProfile's per-function self-time accounting credited `fast_replace` with a 45% speedup; `timeit` showed the honest number was closer to 20% (cProfile counted `fast_replace`'s inner generator + getattr as separate lines, while `dataclasses.replace` does everything in one body and gets all the credit).
+
+### Phase 2 — read the data
+
+cProfile + wall-clock numbers identified six recommendations (R1-R6) documented in **PROFILING.md**. Top hot paths:
+
+1. `dataclasses.replace` — 27 ms self-time on Workload A (16% of total). #1 by self time.
+2. `legal_placements` evaluating all 24 predicates every call — 7.5 us per state, 24×9009 = 216,216 `_is_available` invocations in Workload C.
+3. `can_accommodate` + Pareto inner generators — 22 ms self-time on Workload B mid-game (much higher than early-game), 5.5× the Workload A cost.
+4. `_any_legal_pasture_commit` + `_check_entry_legal` — Fencing universe walk, ~12 ms total, mitigated by the 1×1 fast-path.
+5. `_assert_nonnegative_state` — 4 ms / 1613 calls, 2.5 us per `step()`, pure safety net.
+
+The user explicitly pushed back on relative-only numbers ("5.5× more expensive" without anchoring), prompting absolute-cost framing in the recommendations. PROFILING.md was rewritten to use absolute numbers and explicit uncertainty.
+
+### Phase 3 — first-wave optimizations (Change 9 in CHANGES.md)
+
+Four changes landed, in roughly this order:
+
+**R1 — `legal_actions_cache()` opt-in memoizer.** New context manager in `agricola/legality.py` (96 added lines). Activates an identity-keyed cache (`dict[int, tuple[GameState, list[Action]]]`) for `legal_actions(state)` results. Identity-keyed because `hash(GameState)` recursively hashes thousands of nested fields (~26 us), nearly the cost of enumeration itself; `id(state)` is ~10 ns. Cache value pairs `(state_ref, result)` so the cache pins the state object alive — solves the id-recycling-on-GC problem. Thread-local, dropped on exit. Zero cost when no `with` block is open. Consumer status: dormant; MCTS will be the first user via `with legal_actions_cache(): ...` around its search loop. 7 tests in `tests/test_engine.py`.
+
+**R2 — `__debug__` gate on `_assert_nonnegative_state`.** One-line wrap in `step()`: `if __debug__: _assert_nonnegative_state(state, action)`. Under standard `python`, behavior unchanged. Under `python -O` (or `PYTHONOPTIMIZE=1`), the branch is compiled out — saves ~2.5 us per `step()` (≈4% of step's cost) in production / self-play / training. The assertion has caught exactly one bug (Task 7's Cooking-Hearth gate, since fixed); the safety net remains live in dev/CI.
+
+**Round-end-reset guard in `_resolve_return_home`.** Surfaced by `count_replaces.py`. The reset loop rebuilt every `ActionSpaceState` unconditionally, even spaces with `workers=(0, 0)`. After: skip the replace for already-empty spaces. Cut total `replace` calls per Workload-B run from 13,117 → 10,613 — a 19% reduction. Single biggest contributor to the Workload-C `step`-per-call improvement on the round-14 state (88 us → 16 us), since round 14 has a fully-revealed but mostly-empty board at RETURN_HOME.
+
+**R3 — `fast_replace` (Form A) in new `agricola/replace.py`.** Drop-in faster equivalent of `dataclasses.replace` that caches each class's init-field name tuple at first use and constructs the new instance positionally. Skips per-call type checks, Field descriptor iteration, the no-non-init-in-changes guard, and `**kwargs` unpacking. Microbenchmarked ~20% per-call speedup on the dataclass shapes used in the engine. Migration: 89 call sites across 4 production files (`agricola/engine.py`, `agricola/resolution.py`, `agricola/pending.py`, `agricola/cards/potter_ceramics.py`). Test code (`tests/`) was deliberately not migrated — stdlib `dataclasses.replace` stays as the reference implementation for the 14 equivalence tests in `tests/test_replace.py`.
+
+A subtle gotcha caught during implementation: `cls.__dataclass_fields__` includes `ClassVar` entries (CPython detail); `dataclasses.fields(cls)` is the canonical filter that excludes them. `PendingSow` and friends carry `PENDING_ID: ClassVar[str]`, so this matters. The fix was to use `dataclasses.fields()` (cached per class) in `fast_replace`'s field-discovery path.
+
+### Honest framing arc (the measurement story)
+
+Three measurement errors were caught mid-session by the user, each prompting a tighter follow-up:
+
+1. **"19% call-count drop attributed to fast_replace"** — actually came from the round-end-reset guard, which landed *before* `fast_replace`. The two changes happened in sequence; I conflated them in a single before/after table. Corrected with separated attribution.
+
+2. **"45% per-call speedup from fast_replace"** — based on dividing cProfile self-times, which credit `fast_replace`'s wrapper but separately count its inner generator + `getattr` calls. `timeit` (a clean apples-to-apples microbench) revealed the honest number is ~20%. PROFILING.md and the proposal language were tightened.
+
+3. **"R5 expected speedup"** — original PROFILING.md estimate ("~2-4% wall-clock") survived measurement, but the broader R-list was reordered post-data: R3's contribution to overall wall-clock was within noise (~1-2%), so the recommended order shifted from "R2 → R1 → R3 → R4 → R5" to "R2 → R1 → R3 → re-profile → R4 if Pareto is still hot".
+
+The pattern: discuss → measure → implement → re-measure → discuss again. Each measurement round corrected a claim that had been made with too much confidence. The user's pushback on relative-only numbers was the key intervention that pulled the conversation toward absolute, anchored data.
+
+### Documentation cascade
+
+Substantial doc work alongside the code:
+
+- **PROFILING.md** (new, repo root) — methodology, headline numbers, R1-R6 recommendations with corrected magnitudes.
+- **POSSIBLE_SPEEDUPS.md** (new, repo root) — living catalog of future optimizations (S1-S6), explicitly forked from the perf side of POSSIBLE_NEXT_STEPS.md so direction work and performance work can live in separate files.
+- **CHANGES.md Change 9** — engine performance pass, full write-up of all four landed pieces with measurement provenance.
+- **POSSIBLE_NEXT_STEPS.md** restructured — old items C (profiling) and E (Pareto pruning) folded into one new item C that points at POSSIBLE_SPEEDUPS.md with summaries; F-O unchanged.
+- **CLAUDE.md** updates: test count 613 → 636, new status-table row for the perf pass, directory-tree entries for `agricola/replace.py` and the new `scripts/` directory, new "Use `fast_replace`, not `dataclasses.replace`" Code Convention, examples in `replace_top call form` / `Variable naming` / `Parent *_chosen flags` updated to `fast_replace`. Doc table grew entries for POSSIBLE_SPEEDUPS.md and PROFILING.md.
+- **FILE_DESCRIPTIONS.md** — new `agricola/replace.py` entry with `fast_replace` signature, speedup numbers, and the `dataclasses.fields()` vs `__dataclass_fields__` gotcha.
+- **TEST_DESCRIPTIONS.md** — bullet under `test_engine.py` for the 7 `legal_actions_cache()` tests; new top-level entry for `test_replace.py`.
+
+Deliberately deferred: a `legal_actions_cache()` subsection in CLAUDE.md's Engine Architecture section. The cache is engine infrastructure but its only consumer will be MCTS; the natural place to document it is inside an MCTS section when that work begins. The function has a docstring, CHANGES.md Change 9 covers rationale, and POSSIBLE_NEXT_STEPS.md item G explicitly says "all MCTS needs is `with legal_actions_cache(): ...`" — three pointers a future-me will hit immediately.
+
+### Process notes
+
+- **Out-of-tree profiling infrastructure paid off.** Putting profiling utilities in `scripts/` (rather than under `tests/` or `agricola/`) made the rule "no engine changes from this work" structurally enforceable, kept the harness re-runnable independent of test selection, and made it natural to add new measurement scripts (`count_replaces.py`, `bench_replace.py`) as the conversation unearthed new questions.
+
+- **Microbenchmarks reveal what cProfile obscures.** cProfile is good for finding hot functions; it's misleading for comparing two implementations of the same function when one delegates work to nested Python-level callees (genexpr, dict.get) and the other doesn't. The `bench_replace.py` `timeit` harness was the right tool for the "is `fast_replace` actually faster?" question, and the answer (~20% per call, not 45%) was significantly less impressive than the cProfile read suggested.
+
+- **User-driven correction of estimate inflation worked.** Three rounds of "wait, those numbers don't add up" → "you're right, let me re-measure" → revised numbers → revised recommendation order. The discipline came from the user, not from me. Worth internalizing.
+
+- **The PROFILING.md → POSSIBLE_SPEEDUPS.md split is structurally sound.** PROFILING.md captures a snapshot ("here's what was hot on this date"). POSSIBLE_SPEEDUPS.md is forward-looking ("here are ideas that may be worth implementing"). The two docs cite each other but don't duplicate; if a future profiling pass produces different numbers, PROFILING.md's snapshot is replaced and POSSIBLE_SPEEDUPS.md is updated to match.
+
+- **`legal_actions_cache()` is dormant on purpose.** Landing it now (before MCTS exists) is a small cost — no consumer to break, tests cover correctness in isolation — and removes a future distraction for the MCTS implementer who'd otherwise have to design memoization from scratch while also designing tree mechanics.
+
+### Files modified or created
+
+**New (out-of-tree):**
+
+- `scripts/profile_states.py`, `scripts/profile_engine.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`
+
+**New (root):**
+
+- `PROFILING.md`, `POSSIBLE_SPEEDUPS.md`
+
+**New (in-tree):**
+
+- `agricola/replace.py` (~30 lines), `tests/test_replace.py` (14 tests)
+
+**Modified (in-tree):**
+
+- `agricola/engine.py` — `__debug__` gate around the assertion call; round-end-reset guard in `_resolve_return_home`; 25 `dataclasses.replace` → `fast_replace` migrations.
+- `agricola/legality.py` — `legal_actions_cache()` context manager + thread-local plumbing (~96 lines).
+- `agricola/resolution.py` — 59 `dataclasses.replace` → `fast_replace` migrations.
+- `agricola/pending.py` — 3 `dataclasses.replace` → `fast_replace` migrations.
+- `agricola/cards/potter_ceramics.py` — 2 `dataclasses.replace` → `fast_replace` migrations.
+- `tests/test_engine.py` — 7 new `legal_actions_cache()` tests.
+
+**Modified (docs):**
+
+- `CHANGES.md` — Change 9 entry.
+- `POSSIBLE_NEXT_STEPS.md` — restructured; old C+E folded into new C pointing at POSSIBLE_SPEEDUPS.md.
+- `CLAUDE.md` — test count, status table, directory tree, conventions, doc table.
+- `FILE_DESCRIPTIONS.md` — `agricola/replace.py` entry.
+- `TEST_DESCRIPTIONS.md` — `legal_actions_cache()` tests bullet, `test_replace.py` entry.
+- `SESSION_HISTORY.md` — this entry.
+
+### Test count after this session
+
+| Bucket | Count | Δ |
+|---|---:|---:|
+| Baseline (pre-session) | 613 | — |
+| `tests/test_engine.py` | +7 | `legal_actions_cache()` tests |
+| `tests/test_replace.py` (new) | +14 | `fast_replace` equivalence tests across every engine dataclass shape |
+| Other minor adjustments | +2 | small additions during the session |
+| **Total** | **636** | **+23** |
+
+### Next task
+
+Per POSSIBLE_NEXT_STEPS.md "My take": **the heuristic agent (F)** is the highest-impact next step. The engine has been profiled, optimized, and made MCTS-ready, but no agent yet plays it competently. F is the first chance to set a real baseline and surface edge cases random play never hits. After F, MCTS scaffolding (G) is the natural follow-on — fully unblocked by Changes 8 and 9.
+
+POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining performance optimization based on current profiles. Defer unless / until MCTS scaling makes per-rollout cost the bottleneck — but the catalog entry is fleshed-out enough to act on quickly when the time comes.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 613 tests pass. The codebase has:
+All 636 tests pass. The codebase has:
 
 - Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc. `PlayerState` carries `harvest_conversions_used: frozenset[str]` as of Task 7 — the once-per-harvest conversion-decision budget, reset in `_resolve_harvest_field`. `BoardState.action_spaces` is a canonical-ordered `tuple[ActionSpaceState, ...]` indexed by `constants.SPACE_INDEX` (Change 8), making `BoardState` and `GameState` fully hashable. Access helpers `get_space(board, space_id)` / `with_space(board, space_id, new_space)` live in `state.py`.
 - Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`). The non-negative invariant for resources / animals is enforced at the `step()` boundary, not inside `__sub__` itself.
@@ -1955,6 +2090,7 @@ All 613 tests pass. The codebase has:
 - **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time.
 - Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `_is_implemented_action` only filters `PlaceWorker` actions; all other action types (including the three new harvest commits) pass through unconditionally.
 - Top-level `play_random_game.py` script: plays one full random-vs-random game and prints the scoreboard with per-category breakdown, tiebreaker, and winner. `--trace` flag prints a per-round narrative grouping worker-placement chains and harvest sub-phases.
-- Full test coverage: **613 tests** across all test files. Includes the Task 7 harvest test files (`test_harvest_field.py`, `test_harvest_feed.py`, `test_harvest_breed.py`, `test_harvest_integration.py`), the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 new `tests/test_fencing.py` cases covering the `fence_universe` context manager / `restrict_to` builder (item D), and the post-Task-7 deferred-food-payment / web-UI / context-manager work landed in the four commits between Task 7 and the hashability refactor. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
+- Full test coverage: **636 tests** across all test files. Includes the Task 7 harvest test files, the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 `tests/test_fencing.py` cases for the `fence_universe` context manager / `restrict_to` builder (item D), the 7 `legal_actions_cache()` tests in `tests/test_engine.py` (Change 9), the 14 `fast_replace` equivalence tests in `tests/test_replace.py` (Change 9), and the post-Task-7 deferred-food-payment / web-UI / context-manager work. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
+- Performance harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) — re-runnable from the repo root; no dependencies under `agricola/` or `tests/`. Used to produce the PROFILING.md snapshot and to validate that subsequent changes don't regress.
 
-**Next task**: Engine is feature-complete for the Family game and `GameState` is hashable (B done). Per POSSIBLE_NEXT_STEPS.md, the next high-leverage targets are (C) performance profiling of `legal_actions` / `step` before MCTS scaling, (E) the documented Pareto-frontier pruning optimizations (defer until profiling identifies the helpers as a hot path), (F) the heuristic agent — the first non-random agent, and (G) MCTS scaffolding — which is the direct beneficiary of the hashability refactor. Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."
+**Next task**: Engine is feature-complete for the Family game, `GameState` is hashable (B done, Change 8), and the engine has been profiled and first-wave-optimized (Change 9: `fast_replace`, `legal_actions_cache()`, `__debug__` assertion gate, round-end-reset guard). Per POSSIBLE_NEXT_STEPS.md, the highest-impact next step is **(F) the heuristic agent** — the first non-random agent, which surfaces edge cases random play never hits and sets a real baseline. After F, **(G) MCTS scaffolding** is fully unblocked by Changes 8+9. Further performance work is catalogued in **POSSIBLE_SPEEDUPS.md** (S1-S6); the highest-ROI remaining item is S1 (anchor Pareto pruning), defer until MCTS makes rollout cost the bottleneck. Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."

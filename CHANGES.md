@@ -17,6 +17,7 @@ For implementation decisions that may need revisiting when cards are introduced 
 - [Change 6 — Multi-shot sub-action pendings, `auto_pop` dispatcher flag, `_execute_build_major` absorption, legality helper consolidations](#change-6)
 - [Change 7 — Harvest phases, `cooking_rates` 4-tuple, food-payment Pareto helpers, dual-meaning phase pattern](#change-7)
 - [Change 8 — `BoardState.action_spaces` dict → canonical-tuple refactor (hashable `GameState`)](#change-8)
+- [Change 9 — Engine performance pass: `fast_replace`, `legal_actions` cache, assertion gate, round-end-reset guard](#change-9)
 
 ---
 
@@ -300,3 +301,116 @@ Both are free functions, not methods, matching the codebase's preference for `co
 **Outcome.** All 613 tests pass — no test count change (no new tests added, none removed). `GameState`, `BoardState`, and the underlying `action_spaces` tuple are all hashable. An end-to-end smoke check confirms two states reached by the same action sequence compare equal and hash to the same value (verified live with `setup(seed=0)` → `step(..., PlaceWorker(space="day_laborer"))` from two parallel calls).
 
 **Forward look.** The hashability unblocks MCTS-side transposition-table work (item G in POSSIBLE_NEXT_STEPS.md) and any per-state legal-actions cache experiments. No code is yet wired to take advantage of it; this change just removes the structural blocker.
+
+---
+
+<a name="change-9"></a>
+## Change 9 — Engine performance pass: `fast_replace`, `legal_actions` cache, assertion gate, round-end-reset guard
+
+**Status:** Completed (post-Change-8 perf-pass session).
+
+**Motivation:** POSSIBLE_NEXT_STEPS.md item C — performance profiling of `legal_actions` and `step`. The profiling pass (workloads A/B/C, prefab states across early/mid/late game, cProfile + microbenchmarks) identified four optimization targets ranked by ROI:
+
+1. `dataclasses.replace` was the #1 self-time cost in every workload (~16-30%).
+2. `_assert_nonnegative_state` ran on every `step()` purely as a debug safety net.
+3. The round-end worker reset (`_resolve_return_home`) rebuilt all 25 `ActionSpaceState`s every round, even for spaces that already had `workers=(0, 0)`. Profiling showed this was the single most-frequent `replace` call shape — 26.8% of all replace calls in Workload B.
+4. MCTS will revisit the same node many times across rollouts; an opt-in `legal_actions` memoization layer (now feasible after Change 8's hashability work) handles that without affecting random-play workloads.
+
+All four changes landed in one pass because the profiling exposed them together and they don't interact. The supporting infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`, `PROFILING.md`) is all out-of-tree from `agricola/` and re-runnable.
+
+### 1. `agricola/replace.py` — `fast_replace` (Form A)
+
+New module with one function: `fast_replace(obj, /, **changes)`. Drop-in substitute for `dataclasses.replace` that skips per-call type checks, Field descriptor iteration, the no-non-init-in-changes guard, and `**kwargs` unpacking, by caching each class's init-field name tuple at first use and constructing the new instance positionally.
+
+**Measured speedup vs stdlib** (timeit microbenchmark, 200k iters each):
+
+| Class (fields) | `dataclasses.replace` | `fast_replace` | Speedup |
+|---|---:|---:|---:|
+| Resources (7) | 1.84 us | 1.35 us | 27% |
+| ActionSpaceState (4) | 1.03 us | 0.92 us | 11% |
+| PlayerState (12) | 2.79 us | 2.07 us | 26% |
+| GameState (7) | 1.59 us | 1.30 us | 18% |
+| GameState (2-field multi) | 1.53 us | 1.32 us | 14% |
+
+Mean per-call speedup: ~20%. Across the ~10,600 replace calls per Workload-B run, that's ~3 ms saved on a ~240 ms wall-clock — within measurement noise on its own, but a real constant-factor improvement that compounds at MCTS rollout scale.
+
+**Field-discovery note.** `fast_replace` uses `dataclasses.fields(cls)` (and caches the result) rather than `cls.__dataclass_fields__` directly. The latter includes `ClassVar` entries in CPython (an implementation detail); `dataclasses.fields()` is the canonical filter. The `PendingSow` / `PendingBakeBread` / etc. classes carry `PENDING_ID: ClassVar[str]`, so this matters.
+
+**Migration:** 89 call sites across 4 production files (`agricola/engine.py`, `agricola/resolution.py`, `agricola/pending.py`, `agricola/cards/potter_ceramics.py`). Mechanical search-and-replace: `dataclasses.replace(` → `fast_replace(`, plus one new import per file. Test code was deliberately not migrated — test setup isn't a hot path and stdlib `replace` remains the reference implementation for the equivalence tests in `tests/test_replace.py`.
+
+**Why land it despite modest wall-clock impact:** the change is drop-in, low-risk (covered by 14 new equivalence tests in `tests/test_replace.py` exercising every dataclass shape the engine uses, plus all 622 pre-existing tests), and removes `dataclasses.replace` overhead permanently from the hot path. It also sets up Form C (per-shape hand-written replacers for the hottest update shapes), which can be layered in later without re-migrating call sites.
+
+### 2. `legal_actions_cache()` context manager (R1)
+
+New context manager in `agricola/legality.py`. When wrapped around a code block (typically an MCTS search), it activates an identity-keyed cache (`dict[int, tuple[GameState, list[Action]]]`) for `legal_actions(state)` results. The cache is thread-local (so parallel searches don't interfere) and is dropped on exit (so each search starts fresh).
+
+**Key design choice — identity, not content:**
+- The cache key is `id(state)`, not `hash(state)`.
+- `hash(GameState)` recursively hashes thousands of nested fields and measures ~26 us — nearly as expensive as the enumeration we're trying to memoize.
+- `id(state)` is ~10 ns. The dict's per-lookup hash cost effectively vanishes.
+- The trade-off: content-based caching catches transpositions (two paths reaching the same content via different objects); identity-based does not. For an MCTS *within-search* cache where the same `TreeNode.state` object is revisited many times, identity is exactly the right shape. A content-keyed transposition table is a separate, future layer that can sit alongside.
+- **id-recycling gotcha:** Python recycles `id()` values when objects are garbage-collected. The cache value is a `(state_ref, result)` tuple, so the cache pins the state object alive for the cache entry's lifetime, preventing recycle confusion.
+
+**Zero cost when unused:** outside any `with legal_actions_cache():` block, `legal_actions` pays one `getattr(_cache_tls, "stack", None)` plus a falsy check — sub-nanosecond. The 636 tests confirm no regression on the random-play path.
+
+**Consumer status:** no code in the engine, tests, or random-play workloads opens the context manager today. The cache is dormant, waiting for MCTS (item G in POSSIBLE_NEXT_STEPS.md) to be the first consumer. Landing it now lets MCTS authors take the speedup with one line (`with legal_actions_cache(): ...`) instead of designing memoization themselves.
+
+**Test coverage:** 7 new tests in `tests/test_engine.py` covering cache hits, distinguishability across states, growth, cleanup-on-exit, nesting, and state-evolution semantics.
+
+### 3. `_assert_nonnegative_state` gated on `__debug__` (R2)
+
+In `agricola/engine.py`, the safety-net assertion that ran on every `step()` is now wrapped in `if __debug__:`. Under standard `python` it still fires (tests, CI, interactive use). Under `python -O` (or `PYTHONOPTIMIZE=1`), the entire branch is compiled out — saves ~2.5 us per `step()`, or ~4% of step's cost in production / self-play / training.
+
+**Risk:** very low. The assertion has caught exactly one bug (Task 7's Cooking-Hearth gate) and that bug is now fixed. Keeping it on in dev preserves the safety net; stripping it under `-O` removes the dead-weight cost where every microsecond matters.
+
+### 4. Round-end-reset guard in `_resolve_return_home`
+
+The worker-reset loop in `_resolve_return_home` used to rebuild every `ActionSpaceState` unconditionally:
+
+```python
+new_spaces = tuple(
+    dataclasses.replace(action_space, workers=(0, 0))
+    for action_space in state.board.action_spaces
+)
+```
+
+Profiling (`scripts/count_replaces.py`) showed this was the dominant replace shape at 26.8% of all calls in Workload B — and most of those calls replaced spaces whose workers were already `(0, 0)`. The fix:
+
+```python
+new_spaces = tuple(
+    fast_replace(action_space, workers=(0, 0))
+    if action_space.workers != (0, 0)
+    else action_space
+    for action_space in state.board.action_spaces
+)
+```
+
+Skips the replace for already-empty spaces. Cut total `replace` calls in Workload B from 13,117 to 10,613 — **a 19% reduction, attributable entirely to this one branch**. The biggest single contributor to the Workload-C `step`-per-call improvement on the round-14 state (88 us → 16 us; on round-14 the board is fully revealed but most spaces are empty at return-home, so the guard skips ~20+ replaces per `step` that triggers RETURN_HOME).
+
+### Outcome
+
+All 636 tests pass (622 pre-existing + 14 new `test_replace.py`). Per-action wall-clock on random-play workloads stays flat-to-slightly-noisy (the wins are real but small in aggregate); per-`step` cost on complex late-game states drops sharply (round-14 by ~82%). The bigger value is positional:
+
+- `fast_replace` removes ~20% of `replace` overhead permanently.
+- `legal_actions_cache()` is parked and ready for MCTS.
+- The `__debug__` gate ensures production runs skip the safety net.
+- The round-end guard fixes a per-game O(rounds × 25) over-call.
+
+**Updated top hot paths (Workload A, cProfile by self time):**
+
+| Function | Self time | Notes |
+|---|---:|---|
+| `can_accommodate` + Pareto inner generators | 9 ms | Now the dominant cost cluster — targeted by R4 (item E anchor pruning). |
+| `fast_replace` + inner genexpr + getattr | ~30 ms total (down from ~33 ms `dataclasses.replace` + inner getattr) | About flat in aggregate but each call is ~20% cheaper. |
+| `_legal_fencing` listcomp + `_check_entry_legal` | ~10 ms combined | Fencing universe walk; not currently the bottleneck. |
+| `_is_available` | 4 ms | Predicate dispatch — target of R5 (legal_placements short-circuit) if it becomes hot. |
+
+**New supporting files (out of `agricola/`):**
+
+- `scripts/profile_states.py` — 9 prefab `GameState` factories covering early/mid/late; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).
+- `scripts/profile_engine.py` — three-workload profiler (A: random from setup; B: random from wealthy prefab; C: micro-bench across the 9 states). Re-run any time to compare.
+- `scripts/count_replaces.py` — monkey-patches `dataclasses.replace` and `fast_replace` to count (class, fields-changed) shapes.
+- `scripts/bench_replace.py` — apples-to-apples `timeit` microbenchmark for replace variants.
+- `PROFILING.md` — findings and the R1-R6 recommendation list with corrected magnitudes after measurement (the original PROFILING.md estimates were tightened in the discussion that followed: R3 is ~20% per-call, not 45%; R5 is small enough to defer).
+
+**Forward look.** R4 (item E anchor Pareto pruning) is now the highest-ROI remaining optimization target — confirmed as the second-largest cost cluster in mid/late game. R5 (legal_placements short-circuit) and the geometric pruning extension to R4 are documented but deferred until profiling justifies them. The MCTS consumer (item G) is unblocked on both the hashability front (Change 8) and the memoization front (this change).

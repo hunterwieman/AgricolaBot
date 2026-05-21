@@ -60,6 +60,22 @@ Small standalone module that owns the `Pasture` dataclass and the BFS that turns
 
 ---
 
+### `agricola/replace.py`
+
+Performance helper for frozen-dataclass field updates. Exports a single function — `fast_replace(obj, /, **changes)` — that is a drop-in faster equivalent of stdlib `dataclasses.replace(obj, **changes)`. Used at every state-mutation site in production code (`engine.py`, `resolution.py`, `pending.py`, `cards/`).
+
+- **`fast_replace(obj, /, **changes)`** — return a new instance of `type(obj)` with the given field changes. Behaviorally equivalent to `dataclasses.replace` for every dataclass shape in the engine. Microbenchmarked at ~20% faster per call across the dataclass shapes used in the engine (1.84 us → 1.35 us on Resources; 2.79 us → 2.07 us on PlayerState; etc).
+
+The implementation caches each class's init-field name tuple in a module-level dict (`_FIELDS_CACHE`) at first use and constructs the new instance positionally. The speedup vs stdlib comes from skipping per-call type checks, Field descriptor iteration, the no-non-init-in-changes guard, and `**kwargs` unpacking.
+
+Field discovery uses `dataclasses.fields(cls)` rather than `cls.__dataclass_fields__` directly — the latter includes `ClassVar` entries (a CPython implementation detail) which would cause positional construction to fail. `dataclasses.fields()` is the canonical filter. The cost is amortized: it runs once per class and is cached for the lifetime of the process.
+
+Unknown field names in `changes` are silently ignored rather than raising (stdlib raises `TypeError` on the constructor); the equivalence tests in `tests/test_replace.py` cover every dataclass shape the engine uses, so a real typo would surface as a test failure.
+
+`replace.py` imports only from `dataclasses` (stdlib) — no other `agricola.*` dependencies. See CHANGES.md Change 9 for the rationale.
+
+---
+
 ### `agricola/state.py`
 
 All the frozen dataclasses that together represent a complete snapshot of a game in progress. Nothing is ever mutated; all transitions use `dataclasses.replace(...)` to produce new objects.
