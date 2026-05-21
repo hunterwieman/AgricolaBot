@@ -543,6 +543,9 @@ Archived (in `archive/`, fully superseded by current docs):
 
 ```
 AgricolaBot/
+    play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
+    play_web.py                     # Top-level entry point — browser-based human play UI. Serves a JSON game state over HTTP for a JavaScript frontend; shares formatting helpers with `play.py`.
+    play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
     agricola/                       # Game engine package.
         __init__.py                 # Empty package marker.
         constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces.
@@ -593,6 +596,7 @@ AgricolaBot/
         test_harvest_feed.py
         test_harvest_breed.py
         test_harvest_integration.py
+        test_replace.py
     scripts/                        # Out-of-tree utilities — profiling, benchmarking, replace-counter. Re-runnable; not imported by `agricola/` or `tests/`. Used to produce / update PROFILING.md.
         profile_engine.py           # Three-workload runner (A: random from setup; B: random from wealthy prefab; C: micro-bench across 9 prefab states) with cProfile + wall-clock.
         profile_states.py           # 9 prefab `GameState` factories covering early/mid/late game; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).
