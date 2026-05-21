@@ -4,9 +4,18 @@ A browser-based UI for the AgricolaBot engine, modeled after Boardgamearena's
 Agricola interface. Lives parallel to the existing terminal `play.py` driver;
 neither replaces nor modifies the engine.
 
-This document is the design spec for a fresh session to implement. It is
-written so the next session can read it once and build without re-deriving
-decisions.
+> **Living document.** This file is kept current as the UI evolves — it is
+> not frozen at MVP-landing. When the implementation changes meaningfully
+> (transport, file layout, action dispatch, MVP-scope items, stretch items,
+> open questions resolved), update the relevant section here in the same
+> change. The doc plays a dual role: design rationale that survives the
+> implementation and an always-current map of what the UI actually is.
+> Frozen design artifacts that don't deserve updating live under
+> `task_files/` (cf. CLAUDE.md's documentation conventions).
+>
+> See **§15 Implementation status** for the always-current ledger of what's
+> built. Bullet form, terse — the design sections (§1–§14) remain the
+> reasoning record.
 
 ---
 
@@ -49,11 +58,11 @@ decisions.
                    │           + app.js         │
                    └────────────┬───────────────┘
                                 │
-                  HTTP (POST)   │  WebSocket
-                                │  (state push)
+                  HTTP (POST)   │  SSE (Server-Sent Events)
+                                │  (state push, one-way)
                                 ▼
                    ┌────────────────────────────┐
-                   │  play_web.py (FastAPI)     │
+                   │  play_web.py (stdlib only) │
                    │  - holds GameState         │
                    │  - holds humans set        │
                    │  - holds RNG for random ag │
@@ -69,9 +78,16 @@ decisions.
 ```
 
 - Backend is a thin loop just like `play.py`: get legal actions, dispatch
-  human (await client) or AI (random choice), call `step()`, broadcast.
+  human (await client POST) or AI (random choice), call `step()`, broadcast.
 - Frontend is stateless beyond pending UI input (e.g. partial pasture
   selection); the canonical state always lives on the server.
+- **Transport substitution.** The implementation uses `http.server`
+  (stdlib `ThreadingHTTPServer`) with **Server-Sent Events** for the push
+  channel instead of FastAPI + WebSocket. The semantics are identical for
+  this UI — the client never streams to the server; everything client→server
+  goes through plain HTTP POST. SSE was chosen to keep the project
+  dependency-free (no `pip install`). If WebSocket becomes useful later
+  (e.g. client-side input streaming), swap is local to one endpoint.
 
 ---
 
@@ -101,9 +117,10 @@ The server prints a URL like `http://127.0.0.1:8000` and opens a browser
 ### HTTP
 
 - **`GET /`** — serves `templates/index.html`.
-- **`GET /static/*`** — static asset serving via `StaticFiles`.
+- **`GET /static/*`** — static asset serving (allowlisted extensions; path
+  traversal rejected via `os.path.normpath` check).
 - **`GET /api/state`** — returns current state JSON (defined in §6). Used by
-  the client on initial load; thereafter the WS push is the canonical update
+  the client on initial load; thereafter the SSE push is the canonical update
   channel.
 - **`POST /api/step`** — body `{"action_index": int}`. The server applies
   `step(state, legal_actions(state)[i])`, drives the AI seats until the next
@@ -114,22 +131,32 @@ The server prints a URL like `http://127.0.0.1:8000` and opens a browser
   Resets the in-memory game. Useful for restarting without killing the
   server.
 
-### WebSocket
+### Server-Sent Events
 
-- **`/api/ws`** — clients connect after page load. Every `step()` (whether
-  triggered by a human via POST or by an AI driving forward) pushes the new
-  state JSON to all connected clients.
+- **`GET /api/events`** — clients connect after page load. Every `step()`
+  (whether triggered by a human via POST or by an AI driving forward)
+  pushes the new state JSON as an SSE `event: state` frame to all
+  connected clients. The server emits a `: ping` heartbeat every 15 s to
+  keep the connection alive through proxies; a `: connected` prelude
+  flushes the headers immediately so the browser knows it has a stream.
+- The plan originally called for WebSocket on `/api/ws`; SSE is a direct
+  substitute since the push is one-way (server → client only). The
+  client-side `EventSource` API handles reconnect itself.
 
 State JSON is the single source of truth. Frontend just renders whatever
 arrives. No client-side game logic.
 
 ### Concurrency model
 
-- One global `GameState` and one `asyncio.Lock` guard the loop.
+- One global `GameState` and one `threading.Lock` guard the loop
+  (`ThreadingHTTPServer` services each request on its own thread, so a
+  plain mutex suffices — no asyncio).
 - POST handler acquires the lock, applies the action, runs the AI loop until
   a human is the next decider (or game over), broadcasts, releases the lock.
 - AI rollouts happen synchronously inside the lock — they're fast.
-- Background broadcaster isn't needed; broadcasting happens inline.
+- Broadcasting drops a JSON payload onto each subscriber's bounded `Queue`;
+  the SSE handler thread drains its own queue and writes to the socket.
+  Subscribers whose queue fills are pruned silently (slow client).
 
 ---
 
@@ -174,7 +201,7 @@ panel border).
 
 ## 6. State JSON schema
 
-The full state pushed over `/api/ws` and returned by `/api/state`:
+The full state pushed over `/api/events` (SSE) and returned by `/api/state`:
 
 ```json
 {
@@ -369,9 +396,9 @@ matches the spirit.
 
 ## 10. MVP scope
 
-Must-have (MVP):
+Must-have (MVP) — **all landed**, see §15 for the always-current ledger:
 
-1. Backend serves state, accepts POST, broadcasts via WS.
+1. Backend serves state, accepts POST, broadcasts via SSE.
 2. Initial page loads and shows a fresh game.
 3. Action-space cards render with names, accumulation text, worker tokens.
 4. Both farmyards render with cells, fences, pastures, crops.
@@ -379,21 +406,22 @@ Must-have (MVP):
    counts, owned majors.
 6. Pending breadcrumb + key fields visible at top of decision panel.
 7. Round log visible at bottom; updates live.
-8. **All legal actions clickable as plain buttons** in the decision panel
-   (no cell-clicking yet). Enough to play through a whole game.
+8. **All legal actions clickable as plain buttons** in the decision panel.
+   Enough to play through a whole game.
 9. AI agent plays automatically between human prompts.
 10. Game-over screen with full `ScoreBreakdown` table and winner.
 
 Stretch (post-MVP, in order of value):
 
 1. **PlaceWorker** as a click on the matching action-space card (instead of
-   a button in the decision panel).
+   a button in the decision panel). — *landed*
 2. **Cell-click** for `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom`.
-3. **Multi-cell select** for `CommitBuildPasture`.
-4. **Major-card click** for `CommitBuildMajor`.
+   — *landed*
+3. **Multi-cell select** for `CommitBuildPasture`. — *landed*
+4. **Major-card click** for `CommitBuildMajor`. — *landed*
 5. **Live preview** during multi-cell selection (e.g., fence-cost preview,
    pasture-capacity preview).
-6. Per-player WebSocket gating so each browser tab only acts as one player
+6. Per-player SSE/auth gating so each browser tab only acts as one player
    (real multiplayer over network).
 7. Sprite art and tile graphics.
 
@@ -401,24 +429,27 @@ Stretch (post-MVP, in order of value):
 
 ## 11. Implementation order
 
-The recommended build order for the fresh session:
+The recommended build order for a fresh session — preserved here as the
+shape the MVP took. The actual build followed this order with the SSE
+substitution noted in §2 and §4:
 
-1. **`play_web.py` skeleton** (~50 LOC): FastAPI app, mount `/static`, serve
-   `index.html`, define routes returning stubs, register a single WS endpoint.
+1. **`play_web.py` skeleton** (~50 LOC): app, mount `/static`, serve
+   `index.html`, define routes returning stubs, register a single push
+   endpoint (SSE `/api/events` in the implementation).
 2. **Game state singleton + reset endpoint** (~30 LOC): in-process `GameState`
    variable, lock, `reset` to call `setup(seed)`.
 3. **State serializer** (~150 LOC): `state_to_json(state) -> dict`. Lift
    formatting helpers from `play.py` (`_fmt_resources`, `_fmt_animals`,
    `_fmt_accumulation`, `MAJOR_NAMES`, `SPACE_DISPLAY_NAMES`,
-   `_pending_detail`). Optional: refactor `play.py` to expose these as
-   module-level helpers.
+   `_pending_detail`). The MVP imports these directly from `play.py`; if
+   duplication grows, refactor to a shared `webui/format.py`.
 4. **Step endpoint + driver loop** (~50 LOC): apply action by index, then run
    AI seats until the next human decision (mirror of `play.py`'s main loop).
    Broadcast.
 5. **index.html layout** (~80 LOC): static skeleton with placeholder divs for
    each panel.
-6. **app.js: WebSocket subscription + render** (~200 LOC):
-   - Connect to `/api/ws` on load.
+6. **app.js: push subscription + render** (~200 LOC):
+   - Connect to `/api/events` on load (browser `EventSource`).
    - On message, parse state JSON; re-render every panel by replacing
      `innerHTML`.
    - Render action-space cards from `state.board.spaces`.
@@ -512,3 +543,129 @@ These are decisions to make when the code is in front of you; not blocking.
 
 These get decided during implementation. The doc is the architectural
 backbone; the rest is taste and iteration.
+
+---
+
+## 15. Implementation status
+
+The always-current ledger of what the UI is, today. Sections §1–§14 are the
+design rationale (durable); this section is the running state (mutable).
+Update on every meaningful change to the UI.
+
+### Transport
+
+- HTTP via stdlib `ThreadingHTTPServer` (no FastAPI / no `pip install`).
+- Push channel: **Server-Sent Events** at `GET /api/events` (not WebSocket).
+  `EventSource` on the client handles auto-reconnect.
+
+### Files
+
+- `play_web.py` — backend (server + driver loop + state serializer +
+  RoundLog). Imports formatting helpers directly from `play.py`.
+- `templates/index.html` — three-column layout per §5.
+- `static/style.css` — palette, grid, SVG farmyard styling.
+- `static/app.js` — SSE subscription, render, click handlers.
+
+### MVP (§10 must-haves) — all landed
+
+| Item | Status |
+|---|---|
+| Backend serves state / accepts POST / SSE broadcast | ✓ |
+| Initial page loads with a fresh game | ✓ |
+| Action-space cards (name + accum + worker tokens) | ✓ |
+| Both farmyards (cells, fences, pastures, crops) | ✓ |
+| Player panels (resources, animals, people, score, supply, majors) | ✓ |
+| Pending breadcrumb + key fields at top of decision panel | ✓ |
+| Round log (current round + AI carryover) | ✓ |
+| All legal actions clickable as plain buttons | ✓ |
+| AI plays automatically between human prompts | ✓ |
+| Game-over modal with `ScoreBreakdown` table | ✓ |
+
+### Stretch items landed beyond MVP
+
+- **PlaceWorker click** on the matching action-space card (§10 stretch 1).
+- **Cell-click** for `CommitPlow` / `CommitBuildStable` / `CommitBuildRoom`
+  (§10 stretch 2). Decider's farmyard cells get a dashed-green outline +
+  pointer cursor; clicking submits the corresponding commit.
+- **Multi-cell select** for `CommitBuildPasture` (§10 stretch 3). Click
+  cells to build a selection; Confirm button appears whenever the selection
+  matches a legal pasture; Clear button while selection is non-empty.
+  Auto-submit fires only when the selection matches an option AND no legal
+  extension is reachable (so the user can grow a 1×1 selection into a 1×2
+  before committing).
+- **Major-card click** for `CommitBuildMajor` (§10 stretch 4). Each major
+  card on the supply board surfaces its own buy button(s); Cooking Hearths
+  show the return-fireplace variants explicitly.
+
+### Other features
+
+- **Fast mode** toggle in the header (`#fast-mode-toggle`). When enabled,
+  the client auto-submits whenever `state.legal_actions.length === 1` and
+  the game isn't over. Each pushed state is auto-submitted at most once
+  (a per-stateVersion guard prevents multi-fire from local re-renders).
+  Preference persists across reloads via `localStorage`
+  (`agricola.fastMode`). The toggle is purely client-side — the server
+  has no notion of UI preferences.
+- **Farmyard glyph polish.**
+  - FIELD cells with crops render as `N` (digit) plus a small filled
+    circle: yellow (`#E8C547`) for grain, orange (`#E67E22`) for veg.
+    Disc radius is sized to match the digit height.
+  - STABLE cells render the `⌂` glyph at 3× the default cell-label size
+    (controlled by the `stable-glyph` CSS class; the y-offset in
+    `appendCellGlyph` scales with the font-size — keep them in sync).
+- **Player-summary grid layout** (compact form, fits panel width):
+  - Top-left: `Resources: Nw, Nc, Nr, Ns` — number+unit fused into a
+    single bolded token per resource.
+  - Top-right: `Crops: Grain N, Veg N | Food n/d` — denom is
+    harvest-accurate (`2·people_total − newborns` = `2·adults + newborns`).
+  - Bottom-left: `Animals: Sheep N, Boar N, Cattle N`.
+  - Bottom-right: `People: Home N, Newborns N, Total N`.
+  - Footer line (full-width, `|`-separated):
+    `House: X | Begging: N | Score: N | Fences Built: N/15 | Stables Built: N/4`.
+    The Built tokens are pre-computed server-side via the
+    `fences_in_supply` / `stables_in_supply` helpers and emitted as
+    `fences_built` / `stables_built` (+ `*_total` 15 / 4).
+  Convention: section labels (`Resources`, `Crops`, …) and sub-names
+  (`Grain`, `Sheep`, `Home`, …) render in normal weight; numeric values
+  (and the number+unit tokens in Resources) are bolded.
+  Helper: `buildRow(label, parts)` splices alternating plain text and
+  bolded tokens — lets each row pick its own micro-layout.
+
+Items still open from §10 stretch: live previews during selection;
+per-player auth gating for real multiplayer; sprite art.
+
+### Polish items applied from `FRONTEND_FIXES.md`
+
+| # | Fix | Status |
+|---|---|---|
+| 1 | PlaceWorker menu sorted to match action-board order | ✓ |
+| 2 | Boundary fences visually distinct (brown dashed vs. interior near-invisible) | ✓ |
+| 3 | Carryover log entries muted + `(R<round>)` prefixed | ✓ |
+| 4 | Pending breadcrumb shows `details_text` in muted span | ✓ |
+| 5 | In-progress turn rendered in log with italic / opacity | ✓ |
+| 6 | Active decider's panel highlighted; non-decider dimmed | ✓ |
+| 7 | Cell / cell_set commit groups collapse into farmyard-click hint when > 6 options | ✓ |
+| 8 | Resources / animals labeled (text labels) | ✓ |
+| 9 | Action board grouped: permanent, stage 1…6 | ✓ |
+| 10 | Unrevealed stage cards omitted | ✓ |
+
+### Open questions still pending (§12)
+
+- Q4 — house material visualization on rooms: currently all rooms render
+  in `--room-wood` color; per-player house-material recoloring not yet
+  wired (one-line change when desired).
+- Q5 — newborn meeples: current implementation shows total worker count
+  on a single token (e.g. "x2"); stacked tokens not implemented.
+- Q9 — "Full Score" interim breakdown button: the player panel shows the
+  rolling interim total; a full-breakdown modal mid-game is not yet wired.
+
+---
+
+## 16. Related docs
+
+- `FRONTEND_FIXES.md` — the post-MVP polish checklist applied above. Treat
+  it as the inbox; each item is either landed (entry in §15) or open with
+  rationale.
+- `play.py` — the terminal UI. Source of all formatting helpers that
+  `play_web.py` imports; convention divergences should be called out here.
+

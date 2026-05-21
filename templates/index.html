@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AgricolaBot</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="header">
+    <div id="header-main">
+      <span id="round-label">Round —/—</span>
+      <span id="phase-label">Phase —</span>
+      <span id="sp-label">SP P—</span>
+      <span id="decider-label">Deciding: P—</span>
+      <span id="harvest-note"></span>
+    </div>
+    <div id="header-actions">
+      <label class="header-toggle" title="Auto-submit whenever there is exactly one legal action.">
+        <input type="checkbox" id="fast-mode-toggle">
+        <span>Fast mode</span>
+      </label>
+      <button id="reset-btn">New game</button>
+      <span id="connection-state" class="conn-disconnected">offline</span>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="col-board" class="panel">
+      <h2>Action board</h2>
+      <div id="action-board"></div>
+      <h3>Major improvements</h3>
+      <div id="major-board"></div>
+    </div>
+
+    <div id="col-p0" class="panel">
+      <h2 id="p0-header">P0</h2>
+      <div id="p0-summary" class="player-summary"></div>
+      <div id="p0-farmyard-container" class="farmyard-container"></div>
+      <div id="p0-improvements"></div>
+    </div>
+
+    <div id="col-p1" class="panel">
+      <h2 id="p1-header">P1</h2>
+      <div id="p1-summary" class="player-summary"></div>
+      <div id="p1-farmyard-container" class="farmyard-container"></div>
+      <div id="p1-improvements"></div>
+    </div>
+  </div>
+
+  <div id="decision-panel" class="panel">
+    <h2>Decision</h2>
+    <div id="pending-breadcrumb"></div>
+    <div id="decider-banner"></div>
+    <div id="action-menu"></div>
+  </div>
+
+  <div id="log-panel" class="panel">
+    <h2>Round log</h2>
+    <div id="round-log"></div>
+  </div>
+
+  <div id="game-over-modal" class="modal hidden">
+    <div class="modal-body">
+      <h2>Game over</h2>
+      <div id="game-over-content"></div>
+      <button id="game-over-close">Close</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

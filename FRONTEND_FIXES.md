@@ -12,8 +12,8 @@ change needed.
 
 Items are ordered by **certainty that the fix is needed**, highest first.
 Items 1–4 are almost certainly missing; 5–7 are common omissions; 8–10 may
-already be handled. Apply in order, stopping when you see a fix is already
-present.
+already be handled. Apply in order, checking first to see if the fix is already
+present or otherwise unnecessary.
 
 ---
 

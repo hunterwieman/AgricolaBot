@@ -12,7 +12,7 @@ This is a planning document, not a commitment.
 
 Harvest is the only remaining engine-level work for Phase 1 (a fully playable Family game from setup to scoring).
 
-### A. Harvest phases
+### A. Harvest phases (completed)
 
 Three sub-phases at the end of rounds 4, 7, 9, 11, 13, 14: HARVEST_FIELD → HARVEST_FEED → HARVEST_BREED.
 
@@ -39,6 +39,8 @@ Currently `BoardState.action_spaces` is a `dict[str, ActionSpaceState]`, which m
 ### C. Performance profiling of `legal_actions` and `step`
 
 Nothing is known to be slow, but no one has measured. Useful before MCTS scaling exposes per-call cost as a bottleneck. Easy first pass: profile `random_agent_play` across the 10-seed sweep, broken down by function. Identify hot paths, then decide whether any caching or restructuring is worth doing. The Fencing legality enumerator is the most likely hot spot given its per-call universe walk; the precomputed 1×1 fast path mitigates this but hasn't been measured.
+
+One concern is that `random_agent_play` will not go on some of the more complicated action spaces that require care to set up (e.g. Farm Redevelopment after aquiring the required resources and a large amount of wood). This can be partially mitigated by a prefabricated starting state where each player starts with a very large amount of resources. Then a random agent or a methodical agent that checks every action combination will come across a wider array of legal actions.
 
 ### D. State-independent fence-universe restriction tooling
 
