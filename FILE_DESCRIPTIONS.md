@@ -203,7 +203,7 @@ Determines which actions are legal from a given game state. Covers all 12 **atom
   - `ACTIVE_FENCE_UNIVERSE_ENTRIES: tuple = UNIVERSE_RESTRICTED_ENTRIES` — entries iterated by the enumerator.
   - `ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES: tuple = UNIVERSE_RESTRICTED_SMALLEST_ENTRIES` — 1×1 fast-path tuple iterated by `_any_legal_pasture_commit`.
   - `ACTIVE_FENCE_UNIVERSE_SET: frozenset = UNIVERSE_RESTRICTED_SET` — bitmap set used for subdivision canonicalization complement-lookup.
-All three must point at the same universe; the `fences.py` construction guarantees they're aligned (RESTRICTED_ENTRIES ↔ RESTRICTED_SMALLEST_ENTRIES ↔ RESTRICTED_SET). To switch globally, reassign all three; to switch for one call, pass corresponding kwargs to the enumerator.
+All three must point at the same universe; the `fences.py` construction guarantees they're aligned (RESTRICTED_ENTRIES ↔ RESTRICTED_SMALLEST_ENTRIES ↔ RESTRICTED_SET). To switch globally, reassign all three (or use `active_universe(...)` from `agricola.fence_universe` — recommended); to switch for one call, pass corresponding kwargs to the enumerator. The two universe-aware enumerators (`_any_legal_pasture_commit`, `_enumerate_pending_build_fences`) resolve the active universe at CALL time (defaults are `None` sentinels; each function falls back to the `ACTIVE_FENCE_UNIVERSE_*` constants when the kwarg is omitted). This is what makes reassignment of the module constants — and therefore the `active_universe(...)` context manager — effective for default-kwarg call sites including all production paths.
 
 Internal structure:
 - `_is_available(state, space)` — the cross-cutting check shared by all spaces: the space must be unoccupied (`workers == (0, 0)`) and currently revealed (`round_revealed <= round_number`).
@@ -366,6 +366,28 @@ Precomputed universes of candidate pasture shapes for the Fencing action, plus p
 - **`compute_new_fence_edges(farmyard, cells_bm) -> (h_new_bm, v_new_bm, wood_cost)`**: shared bucket-4 cost helper. Computes the new fence-edges to place (boundary AND NOT current fences) and the total wood cost (default rule: 1 wood per new edge). `farmyard` is duck-typed (only `.horizontal_fences` and `.vertical_fences` read). Both `_execute_build_pasture` (for the debit) and tests call it; the legality-hot-path `_check_entry_legal` inlines the same calc against pre-computed per-call bitmaps for speed.
 
 Filter primitives, shape categories, and the original verification approach live in `task_files/TASK_6_pre.md`. Edge metadata and the (0, 0) addition are introduced in `task_files/TASK_6.md`.
+
+---
+
+### `agricola/fence_universe.py`
+
+Experimental tooling for swapping the active fence universe — the set of candidate pastures the Build Fences enumerator considers — during research and tests. Lives separately from `fences.py` (which owns the universes themselves) and from `legality.py` (which owns the active-universe constants); this module exists purely to compose those two cleanly.
+
+- **`Universe` type alias**: `tuple[tuple[PastureCandidate, ...], tuple[PastureCandidate, ...], frozenset]` — the (entries, smallest_entries, set) triple expected by the legality enumerators. `UniverseSpec` extends this with `str` to allow name-based lookup.
+
+- **`NAMED_UNIVERSES: dict[str, Universe]`** — registry mapping `"restricted"` / `"extended"` / `"family"` / `"full"` to the four built-in triples from `fences.py`.
+
+- **`current_universe() -> Universe`** — reads `legality.ACTIVE_FENCE_UNIVERSE_*` at call time and returns the active triple. Useful in tests that want to capture state before swapping.
+
+- **`active_universe(spec: UniverseSpec) -> Iterator[Universe]`** — `@contextlib.contextmanager`. Swaps the three `legality.ACTIVE_FENCE_UNIVERSE_*` constants for the duration of a with-block, restoring them on exit (including on exception). Safe to nest. `spec` accepts a name string or an explicit `Universe` triple (typically from `restrict_to(...)`). The recommended way to switch universes in tests and experiments; replaces the prior manual save/swap/restore pattern.
+
+- **`restrict_to(predicate, *, base="full") -> Universe`** — builds a derived universe by filtering `base` through `predicate`. The returned `smallest_entries` is the 1×1 subset of the filtered entries (preserving the fast-path semantic in `_any_legal_pasture_commit`); the returned set contains every kept entry's `cells_bm`. Order is preserved from `base`. The triple is suitable for `active_universe(triple)` or as per-call kwargs.
+
+- **`_resolve(spec) -> Universe`** — private helper. Accepts a string (looked up in `NAMED_UNIVERSES`) or a 3-tuple, with explicit `ValueError`/`TypeError` for bad inputs.
+
+The reason `active_universe(...)` works at all is the footgun-fix in `legality.py`: `_any_legal_pasture_commit` and `_enumerate_pending_build_fences` now default their universe kwargs to `None` and resolve to `ACTIVE_FENCE_UNIVERSE_*` at call time (rather than at function-definition time, which is how kwarg defaults are bound). Without this, reassigning the constants would only affect call sites that pass the kwargs explicitly — which would exclude every production call path.
+
+Originally listed as item D in `POSSIBLE_NEXT_STEPS.md` ("State-independent fence-universe restriction tooling"). The pytest-fixture variant suggested there is not provided; the context manager covers the use case directly and a fixture is trivial to add later (`@pytest.fixture def extended_universe(): with active_universe("extended") as u: yield u`).
 
 ---
 

@@ -546,7 +546,11 @@ def test_universe_swap_via_kwarg():
 
 
 def test_universe_swap_via_module_constant():
-    """Reassigning legality.ACTIVE_FENCE_UNIVERSE_* changes enumerator output."""
+    """Reassigning legality.ACTIVE_FENCE_UNIVERSE_* changes enumerator output.
+
+    Default-kwarg call sites pick up the swap because the enumerators read
+    the active-universe constants at call time, not definition time.
+    """
     state = _fencing_setup(wood=99)
     state = run_actions(state, [
         PlaceWorker(space="fencing"),
@@ -559,7 +563,7 @@ def test_universe_swap_via_module_constant():
     baseline = legality._enumerate_pending_build_fences(state, pending)
     assert all(a.cells != target for a in baseline if isinstance(a, CommitBuildPasture))
 
-    # Swap to EXTENDED globally.
+    # Swap to EXTENDED globally. No kwargs needed at the call site.
     saved_entries = legality.ACTIVE_FENCE_UNIVERSE_ENTRIES
     saved_smallest = legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES
     saved_set = legality.ACTIVE_FENCE_UNIVERSE_SET
@@ -567,14 +571,7 @@ def test_universe_swap_via_module_constant():
         legality.ACTIVE_FENCE_UNIVERSE_ENTRIES = UNIVERSE_EXTENDED_ENTRIES
         legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES = UNIVERSE_EXTENDED_SMALLEST_ENTRIES
         legality.ACTIVE_FENCE_UNIVERSE_SET = UNIVERSE_EXTENDED_SET
-        # Note: defaults are bound at function-definition time, so calling
-        # with no kwargs uses the ORIGINAL defaults. Pass kwargs explicitly
-        # to exercise the swapped constants.
-        swapped = legality._enumerate_pending_build_fences(
-            state, pending,
-            entries=legality.ACTIVE_FENCE_UNIVERSE_ENTRIES,
-            universe_set=legality.ACTIVE_FENCE_UNIVERSE_SET,
-        )
+        swapped = legality._enumerate_pending_build_fences(state, pending)
         assert any(a.cells == target for a in swapped if isinstance(a, CommitBuildPasture))
     finally:
         legality.ACTIVE_FENCE_UNIVERSE_ENTRIES = saved_entries
@@ -587,6 +584,168 @@ def test_active_universe_defaults_to_restricted():
     assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_RESTRICTED_ENTRIES
     assert legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES is UNIVERSE_RESTRICTED_SMALLEST_ENTRIES
     assert legality.ACTIVE_FENCE_UNIVERSE_SET is UNIVERSE_RESTRICTED_SET
+
+
+# ─── fence_universe.py: context manager + restrict_to builder ─────────────
+
+def test_active_universe_context_manager_swaps_globally():
+    """`with active_universe(...)`: no kwargs needed at the enumerator call site."""
+    from agricola.fence_universe import active_universe
+
+    state = _fencing_setup(wood=99)
+    state = run_actions(state, [
+        PlaceWorker(space="fencing"),
+        ChooseSubAction(name="build_fences"),
+    ])
+    pending = state.pending_stack[-1]
+    target = _shape_only_in_extended()
+
+    # Baseline (RESTRICTED): target absent.
+    baseline = legality._enumerate_pending_build_fences(state, pending)
+    assert all(a.cells != target for a in baseline if isinstance(a, CommitBuildPasture))
+
+    # Inside the context, default-kwarg call picks up the swap.
+    with active_universe("extended"):
+        swapped = legality._enumerate_pending_build_fences(state, pending)
+    assert any(a.cells == target for a in swapped if isinstance(a, CommitBuildPasture))
+
+    # Restored on exit.
+    after = legality._enumerate_pending_build_fences(state, pending)
+    assert all(a.cells != target for a in after if isinstance(a, CommitBuildPasture))
+
+
+def test_active_universe_restores_on_exception():
+    """The context manager restores the trio even when the block raises."""
+    from agricola.fence_universe import active_universe, current_universe
+
+    before = current_universe()
+    with pytest.raises(RuntimeError):
+        with active_universe("extended"):
+            raise RuntimeError("boom")
+    assert current_universe() == before
+
+
+def test_active_universe_nests():
+    """Nested `with active_universe(...)` blocks save/restore correctly."""
+    from agricola.fence_universe import active_universe
+
+    assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_RESTRICTED_ENTRIES
+    with active_universe("extended"):
+        assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_EXTENDED_ENTRIES
+        with active_universe("restricted"):
+            assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_RESTRICTED_ENTRIES
+        # Outer scope is restored.
+        assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_EXTENDED_ENTRIES
+    assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_RESTRICTED_ENTRIES
+
+
+def test_active_universe_accepts_explicit_triple():
+    """`active_universe(triple)` accepts the same shape `restrict_to` returns."""
+    from agricola.fence_universe import active_universe
+
+    triple = (
+        UNIVERSE_EXTENDED_ENTRIES,
+        UNIVERSE_EXTENDED_SMALLEST_ENTRIES,
+        UNIVERSE_EXTENDED_SET,
+    )
+    with active_universe(triple):
+        assert legality.ACTIVE_FENCE_UNIVERSE_ENTRIES is UNIVERSE_EXTENDED_ENTRIES
+        assert legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES is UNIVERSE_EXTENDED_SMALLEST_ENTRIES
+        assert legality.ACTIVE_FENCE_UNIVERSE_SET is UNIVERSE_EXTENDED_SET
+
+
+def test_active_universe_rejects_unknown_name():
+    from agricola.fence_universe import active_universe
+
+    with pytest.raises(ValueError, match="Unknown universe name"):
+        with active_universe("not-a-universe"):
+            pass
+
+
+def test_active_universe_rejects_bad_shape():
+    from agricola.fence_universe import active_universe
+
+    with pytest.raises(TypeError):
+        with active_universe(42):  # type: ignore[arg-type]
+            pass
+
+
+def test_restrict_to_filters_universe():
+    """`restrict_to` returns a triple whose entries all satisfy the predicate."""
+    from agricola.fence_universe import restrict_to
+
+    small = restrict_to(lambda e: e.cells_bm.bit_count() <= 2, base="extended")
+    entries, smallest, uset = small
+
+    # All entries pass the predicate.
+    assert entries  # non-empty (1×1's alone satisfy ≤2)
+    assert all(e.cells_bm.bit_count() <= 2 for e in entries)
+    # smallest_entries is the 1-cell subset of entries.
+    assert all(e.cells_bm.bit_count() == 1 for e in smallest)
+    # universe_set matches the entries.
+    assert uset == frozenset(e.cells_bm for e in entries)
+    # Strict subset of base (predicate excludes ≥3-cell entries).
+    assert len(entries) < len(UNIVERSE_EXTENDED_ENTRIES)
+
+
+def test_restrict_to_default_base_is_full():
+    """Default base for `restrict_to` is UNIVERSE_FULL."""
+    from agricola.fences import UNIVERSE_FULL_ENTRIES
+    from agricola.fence_universe import restrict_to
+
+    # Identity predicate: restrict_to should return everything in FULL.
+    everything = restrict_to(lambda e: True)
+    entries, _, _ = everything
+    assert len(entries) == len(UNIVERSE_FULL_ENTRIES)
+
+
+def test_restrict_to_composes_with_active_universe():
+    """A derived universe applies cleanly inside `active_universe`."""
+    from agricola.actions import CommitBuildPasture
+    from agricola.fence_universe import active_universe, restrict_to
+
+    # Only 1×1 pastures.
+    singletons_only = restrict_to(lambda e: e.cells_bm.bit_count() == 1, base="full")
+
+    state = _fencing_setup(wood=99)
+    state = run_actions(state, [
+        PlaceWorker(space="fencing"),
+        ChooseSubAction(name="build_fences"),
+    ])
+    pending = state.pending_stack[-1]
+
+    with active_universe(singletons_only):
+        commits = [
+            a for a in legality._enumerate_pending_build_fences(state, pending)
+            if isinstance(a, CommitBuildPasture)
+        ]
+    # Every emitted commit names a single cell.
+    assert commits  # non-empty
+    assert all(len(a.cells) == 1 for a in commits)
+
+
+def test_current_universe_reads_active_constants():
+    """`current_universe()` reflects whatever is currently active."""
+    from agricola.fence_universe import active_universe, current_universe
+
+    # Default: RESTRICTED.
+    e, s, u = current_universe()
+    assert e is UNIVERSE_RESTRICTED_ENTRIES
+    assert s is UNIVERSE_RESTRICTED_SMALLEST_ENTRIES
+    assert u is UNIVERSE_RESTRICTED_SET
+
+    with active_universe("extended"):
+        e, s, u = current_universe()
+        assert e is UNIVERSE_EXTENDED_ENTRIES
+        assert s is UNIVERSE_EXTENDED_SMALLEST_ENTRIES
+        assert u is UNIVERSE_EXTENDED_SET
+
+
+def test_named_universes_keys():
+    """Sanity check: NAMED_UNIVERSES has the four expected entries."""
+    from agricola.fence_universe import NAMED_UNIVERSES
+
+    assert set(NAMED_UNIVERSES) == {"restricted", "extended", "family", "full"}
 
 
 # ─── Pasture cache + random-agent smoke ───────────────────────────────────

@@ -66,8 +66,19 @@ from agricola.state import GameState, PlayerState
 # Three module-level constants set the default universe for `legal_actions`.
 # All three must point at the same universe; they are kept aligned by the
 # `fences.py` construction (RESTRICTED_ENTRIES ↔ RESTRICTED_SMALLEST_ENTRIES ↔
-# RESTRICTED_SET). To switch globally, reassign all three; to switch for one
-# call, pass `entries=`, `smallest_entries=`, `universe_set=` kwargs.
+# RESTRICTED_SET).
+#
+# Switching the active universe:
+#
+#   - For a single call, pass `entries=`, `smallest_entries=`, `universe_set=`
+#     kwargs to the enumerator.
+#   - For a block of code, reassign all three constants. The enumerators
+#     resolve the active universe at CALL time (not definition time), so a
+#     reassignment takes effect immediately for default-kwarg call sites.
+#     The `active_universe(...)` context manager in `agricola.fence_universe`
+#     wraps this with save/restore (recommended over manual reassignment).
+#   - For derived universes, build a (entries, smallest_entries, set) triple
+#     via `restrict_to(predicate, base=...)` in `agricola.fence_universe`.
 
 ACTIVE_FENCE_UNIVERSE_ENTRIES:          tuple     = UNIVERSE_RESTRICTED_ENTRIES
 ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES: tuple     = UNIVERSE_RESTRICTED_SMALLEST_ENTRIES
@@ -687,9 +698,9 @@ def _check_entry_legal(
 def _any_legal_pasture_commit(
     state: GameState, p: PlayerState,
     *,
-    entries: tuple     = ACTIVE_FENCE_UNIVERSE_ENTRIES,
-    smallest_entries: tuple = ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES,
-    universe_set: frozenset = ACTIVE_FENCE_UNIVERSE_SET,
+    entries: tuple | None     = None,
+    smallest_entries: tuple | None = None,
+    universe_set: frozenset | None = None,
 ) -> bool:
     """Return True iff at least one pasture commit is legal for `p` in `state`.
 
@@ -703,7 +714,18 @@ def _any_legal_pasture_commit(
     placement-time question (Fencing space availability) or a pre-entry
     question (Farm Redev's optional Build Fences offer) — no in-progress
     Build Fences action exists at either call site.
+
+    Universe resolution: when any of `entries`, `smallest_entries`, or
+    `universe_set` is None, the corresponding `ACTIVE_FENCE_UNIVERSE_*`
+    module constant is read at call time. This lets `active_universe(...)`
+    reassignments affect this call site without requiring an explicit kwarg.
     """
+    if entries is None:
+        entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
+    if smallest_entries is None:
+        smallest_entries = ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES
+    if universe_set is None:
+        universe_set = ACTIVE_FENCE_UNIVERSE_SET
     farmyard = p.farmyard
     enclosable_bm = _enclosable_cells_bm(farmyard)
     pasture_bms = tuple(_cells_bm_of_pasture(P) for P in farmyard.pastures)
@@ -1204,8 +1226,8 @@ def _enumerate_pending_build_fences(
     state: GameState,
     pending: PendingBuildFences,
     *,
-    entries: tuple     = ACTIVE_FENCE_UNIVERSE_ENTRIES,
-    universe_set: frozenset = ACTIVE_FENCE_UNIVERSE_SET,
+    entries: tuple | None     = None,
+    universe_set: frozenset | None = None,
 ) -> list[Action]:
     """Enumerate legal CommitBuildPasture + Stop actions at PendingBuildFences.
 
@@ -1213,7 +1235,16 @@ def _enumerate_pending_build_fences(
     `_check_entry_legal`. Walks every entry in `entries` and emits one
     CommitBuildPasture per legal entry. Stop is appended once at least one
     pasture has been committed.
+
+    Universe resolution: when `entries` or `universe_set` is None, the
+    corresponding `ACTIVE_FENCE_UNIVERSE_*` module constant is read at call
+    time. This lets `active_universe(...)` reassignments affect this call
+    site without requiring an explicit kwarg.
     """
+    if entries is None:
+        entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
+    if universe_set is None:
+        universe_set = ACTIVE_FENCE_UNIVERSE_SET
     p = state.players[pending.player_idx]
     farmyard = p.farmyard
 

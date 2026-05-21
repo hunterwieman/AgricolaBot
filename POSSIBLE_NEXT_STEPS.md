@@ -42,9 +42,11 @@ Nothing is known to be slow, but no one has measured. Useful before MCTS scaling
 
 One concern is that `random_agent_play` will not go on some of the more complicated action spaces that require care to set up (e.g. Farm Redevelopment after aquiring the required resources and a large amount of wood). This can be partially mitigated by a prefabricated starting state where each player starts with a very large amount of resources. Then a random agent or a methodical agent that checks every action combination will come across a wider array of legal actions.
 
-### D. State-independent fence-universe restriction tooling
+### D. State-independent fence-universe restriction tooling (completed)
 
 The `ACTIVE_FENCE_UNIVERSE_*` constants are swappable today. A small experimental tooling layer — a `restrict_to(predicate)` wrapper, a per-experiment-config layer, or shared test fixtures that swap and restore the constants — would make universe-restriction research cleaner once self-play training begins. Currently each test that swaps does so manually with monkey-patching. Defer until there's a concrete restriction experiment to run.
+
+**Landed in `agricola/fence_universe.py`:** the `active_universe(spec)` context manager (named universes or explicit triples; nests; restores on exception), `restrict_to(predicate, base=...)` builder for derived universes, `NAMED_UNIVERSES` registry, and `current_universe()` accessor. A prerequisite footgun-fix in `legality.py` changed the universe-aware enumerator defaults from definition-time-bound constants to `None` sentinels with call-time lookup, so `with active_universe(...):` blocks affect every default-kwarg call site (including all production paths). The pytest-fixture variant mentioned above was deliberately omitted — the context manager covers the use case, and a fixture is a one-liner if one is later wanted. Test coverage: +10 cases in `tests/test_fencing.py` covering swap-via-context-manager, exception restoration, nesting, explicit-triple acceptance, error handling, `restrict_to` filtering / default-base / composition, `current_universe()`, and `NAMED_UNIVERSES` keys.
 
 ### E. Pareto frontier pruning optimizations
 
