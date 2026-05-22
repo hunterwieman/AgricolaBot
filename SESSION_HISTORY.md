@@ -2070,10 +2070,148 @@ POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining per
 
 ---
 
+## Heuristic agents (item F) — SimpleHeuristic + HubrisHeuristic V1/V2 (2026-05-22)
+
+Built the first competent agents from scratch. Two evaluator variants (`SimpleHeuristic` MVP + `HubrisHeuristic` full-spec) share a generic `HeuristicAgent` infrastructure class doing 1-turn lookahead with singleton-skip and softmax-with-temperature action selection. HubrisHeuristic itself ended up as two versions (V1 and V2) after a mid-session experiment surfaced an interesting "the bug helps" finding. 636 → 661 tests passing.
+
+### Phase 1 — design conversation + MVP
+
+The user laid out heuristic ideas in four broad shapes: placement-order priors, resource→points value functions, turn-order traps, and resource-cutoff thresholds. We agreed on a state-evaluation function + 1-action lookahead architecture, with softmax-temperature for diversity, deterministic by default. The first cut shipped quickly:
+
+- `agricola/agents/__init__.py`, `base.py` (Agent protocol, `RandomAgent`, generic `HeuristicAgent`, `play_game` driver), `heuristic.py` (`HeuristicConfig` dataclass + `SimpleHeuristic` + `HubrisHeuristic`).
+- `play_heuristic_game.py` top-level driver, mirroring `play_random_game.py` but accepting any combination of random / simple / hubris in either seat.
+- 25 smoke tests in `tests/test_agents_heuristic.py`.
+
+First benchmark was a surprise: agents *lost* to random with 1-action lookahead. Cause: post-PlaceWorker states for non-atomic spaces look identical to no-action states (no sub-actions committed yet, so Farm Expansion can't be distinguished from Fencing). Switched to **1-turn lookahead** (greedy rollout through the decider's own subsequent decisions until control hands off, then evaluate). Made it the default; "action" mode stays available. Immediately: Hubris 20-0-0 vs Random, +32 vs −5.
+
+The user had predicted this in our pre-implementation discussion ("n steps deep should mean n meaningful decisions"). Their instinct was right; my "1-action lookahead is enough for v1" was wrong.
+
+### Phase 2 — four rounds of evaluator iteration
+
+The next several conversational rounds were user-driven iteration on V1's evaluator terms. Pattern: user spots a behavior, asks why, we trace, we adjust. Selected items:
+
+**Cooking-improvement double-count.** Original Hubris credited each Fireplace at 4 pts and each Hearth at 6 pts. User pointed out: a player owning both Hearth + Fireplace gets credited 10 for "cooking utility," but the Fireplace is dead weight (Hearth has strictly-better rates). Fixed: only the *primary* cooking implement (Hearth > Fireplace) gets utility value; any redundant ones get printed VP (1pt). Hearth+Fireplace = 6+1 = 7, not 10.
+
+**Wood/clay/stone diminishing returns.** User flagged the hoarding failure mode: 14 wood with no fences built shouldn't be valued at 11.2 (= 14 × 0.8). Added 3-tier piecewise valuation via a `_three_tier` helper. Wood: first 6 at 0.8, next 5 at 0.5, rest at 0.15. Clay-without-cookware: first 5 at 1.0 (incentivize buying Fireplace), rest at 0.3. Stone: first 5 at 0.8, rest at 0.3. Hubris-vs-Random average went 31.9 → 34.5 (more aggressive spending of resources).
+
+**Cooking-implement decay by round bucket.** User-proposed: bonus value of cookware declines over time since the instrumental value is captured by the food-conversion comparison. Tiered: rounds 1-11 full / 12-13 half / 14 just printed VP.
+
+**Renovation EV (proposed, attempted, reverted, replaced).** Renovation Wood→Clay was roughly EV-neutral in the heuristic. First fix: lower clay/stone rates so renovation came out +EV (clay_per_wood_room 0.8 → 0.55, stone_value 0.8 → 0.6). User pushed back: don't lower clay/stone globally; add a small renovation bonus instead. Replaced rate-lowering with `_hubris_renovation_bonus` (per-step credit, larger in stages 5-6). At end of session the user said "comment it out, decide later" — so the helper and config fields are kept but the call site in `evaluate_hubris_v1` is commented out.
+
+**Newborn family-value discount (proposed, rejected).** I added a discount on newborn family members' future value (they can't act in their birth round). User rejected: the symmetric opportunity cost is also a turn (the parent's placement creates the newborn). Reverted. Then user pointed out the *real* under-count was at-home members getting only `rounds_future` plays when they should get `rounds_future + 1` (current round + future). Fixed by adding an at-home current-round bonus to the formula.
+
+**Pasture location bonus.** I added a center-cell bonus mirroring fields' (cells (0,1),(0,2),(1,1),(1,2)). User corrected: pasture bonus should apply to all cells with `c >= 2` (right half), since the strategic motivation is "leave the left clear for room expansion." Fixed the cell set.
+
+**Pair-bonus bug.** During a debugging conversation, user spotted that the crop+field pair bonus was firing with zero plowed fields. I'd implemented it against "empty unenclosed cells" (cells that could become fields); the user's intent was "plowed empty fields" (field tiles ready to receive crops). Fixed — grain_seeds eval in round 1 dropped from +3.1 to +2.5, exactly matching the user's expectation.
+
+Several other small adds landed cleanly: Pottery/BMW bonus caps (match the actual end-game craft-bonus thresholds), starting-player bonus (+1.0 for SP-token holder), and stage-1 resource value multiplier (×1.5 in rounds 1-4 for the wood/clay/reed/stone tiers).
+
+### Phase 3 — the V2 experiment
+
+User flagged the conceptually-cleanest issue: the food/begging term assumes convertibles get converted (reducing the begging penalty) while `score()` simultaneously credits those same goods at full direct value. A double-count.
+
+**V1 snapshot + V2 implementation.** We versioned: renamed `evaluate_hubris` → `evaluate_hubris_v1`, `HubrisHeuristic` → `HubrisHeuristicV1`, kept `HubrisHeuristic` as a backward-compat alias to V1. Implemented `evaluate_hubris_v2` using `harvest_feed_frontier` (Pareto enumeration of feeding configurations), valuing each option as `goods_score(post-conversion) + food_pts + begging_pts` and taking the max. Theoretically correct.
+
+**The surprise.** V2 *lost* head-to-head against V1 (6-13-1 in one 20-seed sample). Worked example: 5 sheep / 0 food / need 4 / Fireplace.
+
+- V1: `_score_sheep(5)` = +2, convertibles ≥ need so no penalty, total +2. (The "bug" — credits goods AND treats them as covering food.)
+- V2: best frontier option is "convert 2 sheep → 4 food, keep 3 sheep," `_score_sheep(3)` = +1, no begging, total +1.
+
+V2 is *technically* correct. But in the Family game, food shortfalls are rare — players usually preserve goods to scoring. V1's "I have lots of goods AND no penalty" is locally wrong but *empirically aligned* with the typical end-state. The conceptual gap: what we'd really want is max over (post-conversion outcome, no-conversion outcome) weighted by probability of conversion — V1 approximates the no-conversion case, V2 approximates the will-convert case, neither weighs them.
+
+User's decision: keep V1 as the default; V2 remains opt-in for future work. Both are wired into `play_web.py` (`hubris_v1`, `hubris_v2` seat types) and `play_heuristic_game.py`.
+
+### Phase 4 — web UI for AI-vs-AI watching
+
+User requested the ability to watch AI vs AI in the browser, stepping one move at a time (Enter or button click). Substantial frontend + backend work:
+
+- **Backend.** `--seats AGENT AGENT` replaces `--players` / `--human-seat`. New `/api/step_ai` endpoint advances one AI move. `Session` constructor takes per-seat agent types; builds agent objects for non-human seats. When at least one seat is human, AI seats fast-forward (existing behavior); when both are AI, the game waits for explicit step calls.
+- **Frontend.** Per-seat agent picker in the New-game dialog (prompt-style for consistency with existing UX). Seat-type tag in player headers, color-coded (green = human, blue = simple, red = hubris). When the current decider is AI, the decision panel shows an "Advance" button + hint that Enter works. Global Enter-key handler advances one AI move when an AI is on the clock (with single-flight protection so held-Enter doesn't stack requests).
+
+### Phase 5 — record progress
+
+User explicitly asked to checkpoint before continuing tuning experiments. Comprehensive doc work:
+
+- **`HEURISTIC_TUNING_PLAN.md`** (new) — three threads for the next sessions: self-play tuning harness (CMA-ES over the ~50 `HeuristicConfig` fields), time-varying parameters (per-stage tuples with monotonic constraints), score-leaf reweighting (to address the early-grain bias from the score-leaf 0→1 jump).
+
+- **`HUBRIS_V1_NOTES.md`** (new, 605 lines) — design reference for V1: per-term function / motivation / shape / magnitude reasoning for every term in `evaluate_hubris_v1`, the V1-vs-V2 finding with worked example, deferred / rejected alternatives with reasoning, known limitations / failure modes (the A-J list with current status). Organized by design domain, not chronology — per user preference ("I want to have something that allows a reader to understand the function, motivation, and reasoning behind the current code"). Cross-referenced from CLAUDE.md and HEURISTIC_TUNING_PLAN.md so future sessions discover it.
+
+- **CLAUDE.md, FILE_DESCRIPTIONS.md, TEST_DESCRIPTIONS.md, POSSIBLE_NEXT_STEPS.md** — status-table rows, per-module / per-test descriptions, F marked done with pointer to the tuning plan.
+
+### Honest framing arc
+
+Several places I over-implemented during this session:
+
+1. **Newborn discount (B).** I added it from my own brainstorm list, framing it as a "high signal, easy fix." User correctly pointed out the symmetric-opportunity-cost reasoning. Reverted. Lesson: brainstorm items aren't user-approved by default; ask before landing.
+
+2. **Renovation rate-lowering (C).** Same pattern. Implemented as part of the A/B/C "should I go ahead?" batch. User-preferred reframe (post-state bonus instead of global rate-lowering) made the original change moot.
+
+3. **`pasture_center_bonus`** initially used center cells (mirroring field bonus). User clarified the strategic motivation was different (right-half, not center). Re-fixed. Lesson: when a user says "similar to X," they may mean "small magnitude like X" rather than "same target set as X."
+
+The recovery pattern in each case: user notices, I correct, we proceed. The user explicitly noted "you implemented some of my ideas that I wrote as simple brainstorming ideas" as a meta-observation. Useful intervention — informs my behavior in future sessions where the user is explicitly thinking-out-loud vs. authorizing implementation.
+
+### Process notes
+
+- **The "bug that helps" finding is genuine, not a fluke.** Three follow-up benches across config tweaks all show V1 either tied with or beating V2. V2 systematically under-values animal/grain acquisition because its frontier optimization assumes mid-game conversion that empirically rarely happens. This is the kind of insight that's hard to discover without actually running the matches — pure code review of the two evaluators would have concluded V2 is strictly better.
+
+- **One-turn lookahead with greedy rollout is enough for V1.** The user predicted this from first principles ("n meaningful decisions") and it played out in the bench numbers. The greedy 1-ply choice at each rollout step doesn't seem to materially hurt vs. deeper search — the evaluator's signal is the bottleneck, not the search.
+
+- **The action-board pricing trace was the right diagnostic tool.** Several debugging sessions used the same shape: take an agent state, list each candidate action's eval delta, find the surprising one, decompose to find which term is doing the work. This is essentially the agent's own decision view; reading it out loud surfaced the pair-bonus bug, the stage-1 calibration question, and the grain_seeds +3.1 → +2.5 conversation.
+
+- **`HUBRIS_V1_NOTES.md` is unusual for the project but probably right.** Other features have their rationale in CHANGES.md (cross-cutting refactors) or TASK_*.md (frozen task specs). The heuristic agent's *coefficient choices* don't fit either: they were iterated through conversation, not designed up-front, and they'll be tuned by future sessions. A standalone "why does V1 look like this?" reference is the natural home. Future versions (V2, V3) would get their own notes; this one freezes V1's reasoning.
+
+### Files modified or created
+
+**New (in-tree):**
+
+- `agricola/agents/__init__.py`, `agricola/agents/base.py`, `agricola/agents/heuristic.py`
+- `tests/test_agents_heuristic.py` (25 tests)
+
+**New (root):**
+
+- `play_heuristic_game.py` (top-level driver)
+- `HEURISTIC_TUNING_PLAN.md` (forward plan)
+- `HUBRIS_V1_NOTES.md` (V1 design reference)
+
+**Modified:**
+
+- `play_web.py` — AI-vs-AI mode, `--seats`, `/api/step_ai`
+- `static/app.js` — Advance button, Enter handler, seat-picker prompts
+- `static/style.css` — seat-tag color coding, Advance button styling
+- `CLAUDE.md` — status table rows, directory tree, doc table
+- `FILE_DESCRIPTIONS.md` — `agricola/agents/*` entries
+- `TEST_DESCRIPTIONS.md` — `test_agents_heuristic.py` entry
+- `POSSIBLE_NEXT_STEPS.md` — item F marked done with pointer to tuning plan
+- `SESSION_HISTORY.md` — this entry
+
+### Test count after this session
+
+| Bucket | Count | Δ |
+|---|---:|---:|
+| Baseline (pre-session) | 636 | — |
+| `tests/test_agents_heuristic.py` (new) | +25 | smoke tests for both agents, both evaluators, breeding-helper anchors |
+| **Total** | **661** | **+25** |
+
+### Bench summary (20 seeds, default `HeuristicConfig`)
+
+| Match | Result | Avg score | Notes |
+|---|---|---|---|
+| V1 vs Random | 20-0-0 | +32.2 vs −3.8 | Default Hubris dominates random |
+| V1 vs Simple | 20-0-0 | +28.8 vs +15.9 | Stage-1 boost made V1 strictly better than V1-pre-boost |
+| V2 vs V1 | 7-10-3 | +24.4 vs +26.4 | The surprise — V2's joint-frontier loses to V1's "bug" |
+
+### Next task
+
+Per `HEURISTIC_TUNING_PLAN.md`: build the **self-play tuning harness** (Thread A) first. It's the infrastructure that makes every subsequent heuristic change measurable. Then **score-leaf reweighting** (Thread C — cheap to implement, addresses the early-grain bias). Then **time-varying parameter space** (Thread B — once Threads A and C have produced a baseline tuning result and we know which scalars are doing the most work).
+
+In parallel: **MCTS scaffolding (item G in POSSIBLE_NEXT_STEPS.md)** is the natural next-track work. HubrisHeuristic V1 becomes the rollout policy. `legal_actions_cache()` (Change 9) is the search-loop memoizer. If MCTS rollout cost becomes a problem, `POSSIBLE_SPEEDUPS.md` S1 (anchor Pareto pruning) is the highest-ROI remaining optimization.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
-All 636 tests pass. The codebase has:
+All 661 tests pass. The codebase has:
 
 - Complete state dataclasses and setup (`agricola/state.py`, `agricola/setup.py`, `agricola/constants.py`), with the Task 5D additions of `ROOM_COSTS` alongside the existing `MAJOR_IMPROVEMENT_COSTS`, `BAKING_IMPROVEMENT_SPECS`, etc. `PlayerState` carries `harvest_conversions_used: frozenset[str]` as of Task 7 — the once-per-harvest conversion-decision budget, reset in `_resolve_harvest_field`. `BoardState.action_spaces` is a canonical-ordered `tuple[ActionSpaceState, ...]` indexed by `constants.SPACE_INDEX` (Change 8), making `BoardState` and `GameState` fully hashable. Access helpers `get_space(board, space_id)` / `with_space(board, space_id, new_space)` live in `state.py`.
 - Resource types with `__add__`, `__sub__`, and `__bool__` (`agricola/resources.py`). The non-negative invariant for resources / animals is enforced at the `step()` boundary, not inside `__sub__` itself.
@@ -2090,7 +2228,8 @@ All 636 tests pass. The codebase has:
 - **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time.
 - Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `_is_implemented_action` only filters `PlaceWorker` actions; all other action types (including the three new harvest commits) pass through unconditionally.
 - Top-level `play_random_game.py` script: plays one full random-vs-random game and prints the scoreboard with per-category breakdown, tiebreaker, and winner. `--trace` flag prints a per-round narrative grouping worker-placement chains and harvest sub-phases.
-- Full test coverage: **636 tests** across all test files. Includes the Task 7 harvest test files, the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 `tests/test_fencing.py` cases for the `fence_universe` context manager / `restrict_to` builder (item D), the 7 `legal_actions_cache()` tests in `tests/test_engine.py` (Change 9), the 14 `fast_replace` equivalence tests in `tests/test_replace.py` (Change 9), and the post-Task-7 deferred-food-payment / web-UI / context-manager work. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
+- **Heuristic agents** (`agricola/agents/`): generic `HeuristicAgent` infrastructure with 1-turn lookahead + always-on singleton-skip + softmax-with-temperature; `SimpleHeuristic` (MVP — score + linear resource bonuses + food/begging) and `HubrisHeuristic` (full-spec, ~50 coefficients in `HeuristicConfig`). Two Hubris versions: V1 (the iterated default; `HubrisHeuristic` alias) and V2 (uses `harvest_feed_frontier` for joint goods-or-food optimization; theoretically more correct but loses head-to-head to V1 due to the "won't actually convert if game ends first" effect — see HUBRIS_V1_NOTES.md §4). `play_heuristic_game.py` is the matchup driver. `play_web.py` supports any combination of human / random / simple / hubris / hubris_v1 / hubris_v2 in either seat, with manual step-through (Enter / "Advance" button) for AI-vs-AI watching.
+- Full test coverage: **661 tests** across all test files. Includes the Task 7 harvest test files, the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 `tests/test_fencing.py` cases for the `fence_universe` context manager / `restrict_to` builder (item D), the 7 `legal_actions_cache()` tests in `tests/test_engine.py` (Change 9), the 14 `fast_replace` equivalence tests in `tests/test_replace.py` (Change 9), the 25 heuristic-agent smoke tests in `tests/test_agents_heuristic.py`, and the post-Task-7 deferred-food-payment / web-UI / context-manager work. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
 - Performance harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) — re-runnable from the repo root; no dependencies under `agricola/` or `tests/`. Used to produce the PROFILING.md snapshot and to validate that subsequent changes don't regress.
 
 **Next task**: Engine is feature-complete for the Family game, `GameState` is hashable (B done, Change 8), and the engine has been profiled and first-wave-optimized (Change 9: `fast_replace`, `legal_actions_cache()`, `__debug__` assertion gate, round-end-reset guard). Per POSSIBLE_NEXT_STEPS.md, the highest-impact next step is **(F) the heuristic agent** — the first non-random agent, which surfaces edge cases random play never hits and sets a real baseline. After F, **(G) MCTS scaffolding** is fully unblocked by Changes 8+9. Further performance work is catalogued in **POSSIBLE_SPEEDUPS.md** (S1-S6); the highest-ROI remaining item is S1 (anchor Pareto pruning), defer until MCTS makes rollout cost the bottleneck. Cards beyond Potter Ceramics remain a larger separate effort with the open design questions documented in CLAUDE.md's "Card implementation status."
