@@ -51,13 +51,18 @@ When *not* to consult it:
 
 Useful as benchmarks for the trained agent and as scaffolding for MCTS.
 
-### F. Heuristic agent
+### F. Heuristic agent — **landed 2026-05-22**
 
-A hand-written policy implementing reasonable Agricola strategy: prioritize food security, family growth, field-and-pasture balance, build major improvements on schedule, etc. Plays without MCTS — direct action selection from observed state.
+Hand-written policies implementing reasonable Agricola strategy. Two agents shipped:
 
-Useful as:
-- A baseline to compare the trained agent against (Phase 5+).
-- A second agent for sanity-checking the engine end-to-end. `random_agent_play` exercises only the simplest paths; a heuristic agent surfaces edge cases that random play rarely hits.
+- **`SimpleHeuristic`** — MVP. `score(state)` + linear resource bonuses + food/begging term.
+- **`HubrisHeuristic`** — full-spec. ~50 coefficients in `HeuristicConfig` covering family-future, empty rooms, breeding opportunities, location bonuses, context-aware resources, majors with cooking-primary + round-decay, stage-1×1.5 multiplier, etc. Two evaluator versions: V1 (current default; iterated through user feedback) and V2 (uses `harvest_feed_frontier` for joint goods-or-food optimization — theoretically more correct but loses head-to-head to V1).
+
+Shared infrastructure (`agricola/agents/base.py`) provides the `Agent` protocol, the generic `HeuristicAgent` class with configurable lookahead horizon (1-action or 1-turn, always with singleton-skip), softmax-with-temperature action selection, and a `play_game` driver. The web UI (`play_web.py`) supports any combination of human / random / simple / hubris / hubris_v1 / hubris_v2 in either seat, with manual step-through for AI-vs-AI watching (Enter or "Advance" button).
+
+Bench (20 seeds, default `HeuristicConfig`): V1 beats Random 20-0-0 (+32 vs −4); V1 beats Simple 20-0-0 (+29 vs +16); V1 vs V2 is effectively tied at 7-10-3.
+
+**Next sessions** on this thread are scoped in **`HEURISTIC_TUNING_PLAN.md`**: a self-play tuning harness for the ~50-parameter `HeuristicConfig`, time-varying parameters with monotonic constraints, and stage-dependent score-leaf reweighting to address remaining early-game biases.
 
 ### G. MCTS scaffolding
 
@@ -136,8 +141,13 @@ Elo ratings between agent versions, score distribution analysis, game-length var
 
 ## My take (advisory, not prescriptive)
 
-**Highest-impact single next task: the heuristic agent (F).** The engine has played thousands of random games but never a competent one. A heuristic agent is the first chance to see the engine drive recognizable Agricola strategy and to set a real baseline for everything that follows. It also surfaces edge cases random play never hits.
+**F (heuristic agent) landed.** SimpleHeuristic and HubrisHeuristic V1/V2 ship as of 2026-05-22 — see HEURISTIC_TUNING_PLAN.md for the queue of work to improve them via self-play tuning and time-varying parameters.
 
-**After F:** MCTS scaffolding (G) — fully unblocked by Changes 8 and 9. If MCTS rollout cost becomes a problem, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining optimization based on current profiles.
+**Two natural next directions, in parallel:**
+
+1. **Tune the heuristic** (HEURISTIC_TUNING_PLAN.md). Build a self-play tuning harness, extend the parameter space to allow time variation, and reweight score-leaves. This gives the agent its first principled tuning rather than hand-picked coefficients.
+2. **MCTS scaffolding (G)** — fully unblocked by Changes 8 and 9. Pure MCTS first, with HubrisHeuristic as the rollout policy. If MCTS rollout cost becomes a problem, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining optimization based on current profiles.
+
+Both compound: a tuned heuristic makes MCTS rollouts cheaper / better, and MCTS-driven self-play could itself be a source of tuning signal for the heuristic.
 
 **Card system as a separate track:** can run in parallel with agent work, but the open design questions (H, I, J, K) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.

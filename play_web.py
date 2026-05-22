@@ -1,8 +1,19 @@
 """Browser UI for AgricolaBot. Companion to the terminal play.py driver.
 
 Run:
-    python play_web.py [--seed N] [--players 1|2] [--human-seat 0|1]
+    python play_web.py [--seed N] [--seats AGENT AGENT]
         [--host 127.0.0.1] [--port 8000] [--no-browser]
+
+`AGENT` is one of: human, random, simple, hubris. Defaults: ["human", "random"].
+Examples:
+    python play_web.py --seats human hubris      # play vs the Hubris heuristic
+    python play_web.py --seats hubris hubris     # watch self-play
+    python play_web.py --seats simple random     # watch Simple vs Random
+
+When both seats are AI, the game does NOT auto-advance — click the
+"Advance" button in the UI (or press Enter) to step one move at a time.
+When at least one seat is human, AI seats fast-forward until the human is
+on the clock (matching the old behavior).
 
 Stdlib-only: ThreadingHTTPServer for HTTP, Server-Sent Events for push.
 """
@@ -12,7 +23,6 @@ import argparse
 import json
 import os
 import queue
-import random
 import sys
 import threading
 import time
@@ -52,12 +62,49 @@ from agricola.constants import (
     HouseMaterial,
     Phase,
 )
+from agricola.agents import (
+    HubrisHeuristic,
+    HubrisHeuristicV1,
+    HubrisHeuristicV2,
+    RandomAgent,
+    SimpleHeuristic,
+)
 from agricola.engine import step
 from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
 from agricola.scoring import score, tiebreaker
 from agricola.setup import setup
 from agricola.state import GameState
+
+
+# Allowed seat types. "human" leaves the seat to be controlled by the
+# browser; the others are agent classes from agricola.agents. "hubris" is
+# an alias for the currently-default Hubris version (v1 today); v1 and v2
+# are also explicitly selectable for matchups and comparisons.
+AGENT_TYPES: tuple[str, ...] = (
+    "human", "random", "simple", "hubris", "hubris_v1", "hubris_v2",
+)
+
+
+def _build_agent(seat_type: str, seed: int):
+    """Construct an agent for an AI seat (or return None for human seats).
+
+    Each agent gets its own seeded RNG; we XOR the session seed with a
+    per-seat constant so the two seats don't end up with identical
+    tiebreaks in self-play scenarios."""
+    if seat_type == "human":
+        return None
+    if seat_type == "random":
+        return RandomAgent(seed=seed)
+    if seat_type == "simple":
+        return SimpleHeuristic(seed=seed)
+    if seat_type == "hubris":
+        return HubrisHeuristic(seed=seed)
+    if seat_type == "hubris_v1":
+        return HubrisHeuristicV1(seed=seed)
+    if seat_type == "hubris_v2":
+        return HubrisHeuristicV2(seed=seed)
+    raise ValueError(f"unknown seat type {seat_type!r}; choose from {AGENT_TYPES}")
 
 # Reuse formatting helpers from play.py.
 from play import (
@@ -346,7 +393,8 @@ def _score_block(state: GameState) -> dict:
 
 
 def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
-                  actions: list[Action] | None = None) -> dict:
+                  actions: list[Action] | None = None,
+                  seats: tuple[str, str] | None = None) -> dict:
     decider = _decider_of(state)
     if actions is None:
         actions = legal_actions(state) if not game_over else []
@@ -359,6 +407,7 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
         "decider": decider,
         "harvest_note": _harvest_note(state),
         "game_over": game_over,
+        "seats": list(seats) if seats is not None else ["human", "human"],
         "players": [_player_to_dict(state, i, decider) for i in (0, 1)],
         "board": _board_to_dict(state),
         "pending_stack": _pending_to_dict(state),
@@ -434,21 +483,32 @@ class RoundLog:
 # ---------------------------------------------------------------------------
 
 class Session:
-    def __init__(self, seed: int, humans: set[int]) -> None:
+    def __init__(self, seed: int, seats: tuple[str, str]) -> None:
+        for s in seats:
+            if s not in AGENT_TYPES:
+                raise ValueError(f"unknown seat type {s!r}; choose from {AGENT_TYPES}")
         self.seed = seed
-        self.humans = humans
-        self.rng = random.Random(seed ^ 0xA6C01A)
+        self.seats = seats
+        self.humans: set[int] = {i for i, s in enumerate(seats) if s == "human"}
+        # Per-seat agent objects; None for human seats.
+        self.agents = (
+            _build_agent(seats[0], seed ^ 0x10000),
+            _build_agent(seats[1], seed ^ 0x20000),
+        )
         self.state = setup(seed)
-        self.log = RoundLog(humans)
+        self.log = RoundLog(self.humans)
         self.current_round = self.state.round_number
         self.lock = threading.Lock()
         self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
         # SSE subscribers
         self.subs: list[queue.Queue] = []
         self.subs_lock = threading.Lock()
-        # Run any opening AI turns up to the first human decision.
+        # If at least one seat is human, fast-forward any opening AI moves
+        # until a human decision is reached. With no humans (AI-vs-AI), we
+        # leave the state as-is and require explicit /api/step_ai calls.
         with self.lock:
-            self._drive_until_human_locked()
+            if self.humans:
+                self._drive_until_human_locked()
 
     # ---------- subscriber management ----------
 
@@ -489,6 +549,7 @@ class Session:
                 self.log.to_wire(self.current_round),
                 self.game_over,
                 actions,
+                seats=self.seats,
             )
 
     # ---------- step driving ----------
@@ -507,16 +568,23 @@ class Session:
             self.game_over = True
 
     def _drive_until_human_locked(self) -> None:
-        """Apply random AI actions until a human is the decider or game over."""
+        """Apply AI actions until a human is the decider or game over.
+
+        Used only when at least one seat is human, to fast-forward AI
+        moves so the human isn't waiting through opponent turns. With
+        zero humans the session never calls this — each AI step requires
+        an explicit /api/step_ai call so the UI can show one move at a
+        time."""
         while not self.game_over:
             self._maybe_round_transition_locked()
-            actions = legal_actions(self.state)
-            if not actions:
-                break
             dec = _decider_of(self.state)
             if dec in self.humans:
                 return
-            action = self.rng.choice(actions)
+            agent = self.agents[dec]
+            if agent is None:
+                # Defensive: shouldn't happen — humans set is consistent with agents.
+                return
+            action = agent(self.state)
             self._apply_action_locked(action)
 
     def submit_human_action(self, action_index: int) -> tuple[bool, str]:
@@ -530,32 +598,71 @@ class Session:
             if dec not in self.humans:
                 return False, "not a human's turn"
             self._apply_action_locked(actions[action_index])
-            self._drive_until_human_locked()
+            if self.humans:
+                self._drive_until_human_locked()
             payload = state_to_json(
                 self.state,
                 self.log.to_wire(self.current_round),
                 self.game_over,
                 [] if self.game_over else legal_actions(self.state),
+                seats=self.seats,
             )
         self._broadcast(payload)
         return True, "ok"
 
-    def reset(self, seed: int, players: int, human_seat: int) -> None:
-        humans = {0, 1} if players == 2 else {human_seat}
+    def step_ai(self) -> tuple[bool, str]:
+        """Apply ONE AI action and broadcast the new state.
+
+        Returns (False, msg) if the game is over or it's a human's turn.
+        Intended for the AI-vs-AI watching mode (and for "advance"
+        buttons in human-vs-AI mode if the user wants to step opp
+        moves explicitly, though that's not the default flow)."""
         with self.lock:
-            self.seed = seed
-            self.humans = humans
-            self.rng = random.Random(seed ^ 0xA6C01A)
-            self.state = setup(seed)
-            self.log = RoundLog(humans)
-            self.current_round = self.state.round_number
-            self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
-            self._drive_until_human_locked()
+            if self.game_over:
+                return False, "game over"
+            dec = _decider_of(self.state)
+            if dec in self.humans:
+                return False, "human's turn"
+            agent = self.agents[dec]
+            if agent is None:
+                return False, "no agent for current decider"
+            self._maybe_round_transition_locked()
+            action = agent(self.state)
+            self._apply_action_locked(action)
             payload = state_to_json(
                 self.state,
                 self.log.to_wire(self.current_round),
                 self.game_over,
                 [] if self.game_over else legal_actions(self.state),
+                seats=self.seats,
+            )
+        self._broadcast(payload)
+        return True, "ok"
+
+    def reset(self, seed: int, seats: tuple[str, str]) -> None:
+        for s in seats:
+            if s not in AGENT_TYPES:
+                raise ValueError(f"unknown seat type {s!r}")
+        with self.lock:
+            self.seed = seed
+            self.seats = seats
+            self.humans = {i for i, s in enumerate(seats) if s == "human"}
+            self.agents = (
+                _build_agent(seats[0], seed ^ 0x10000),
+                _build_agent(seats[1], seed ^ 0x20000),
+            )
+            self.state = setup(seed)
+            self.log = RoundLog(self.humans)
+            self.current_round = self.state.round_number
+            self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
+            if self.humans:
+                self._drive_until_human_locked()
+            payload = state_to_json(
+                self.state,
+                self.log.to_wire(self.current_round),
+                self.game_over,
+                [] if self.game_over else legal_actions(self.state),
+                seats=self.seats,
             )
         self._broadcast(payload)
 
@@ -667,21 +774,35 @@ def _make_handler(session: Session):
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
                 self._send_json(status, {"ok": ok, "error": None if ok else msg})
                 return
+            if path == "/api/step_ai":
+                # No body required — just advance one AI move.
+                ok, msg = session.step_ai()
+                status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
+                self._send_json(status, {"ok": ok, "error": None if ok else msg})
+                return
             if path == "/api/reset":
                 body = self._read_body()
                 seed = body.get("seed")
                 if not isinstance(seed, int):
                     seed = int(time.time())
-                players = body.get("players", 1)
-                if players not in (1, 2):
-                    players = 1
-                human_seat = body.get("human_seat", 0)
-                if human_seat not in (0, 1):
-                    human_seat = 0
-                session.reset(seed, players, human_seat)
-                self._send_json(HTTPStatus.OK, {"ok": True, "seed": seed,
-                                                "players": players,
-                                                "human_seat": human_seat})
+                raw_seats = body.get("seats", ["human", "random"])
+                if (
+                    not isinstance(raw_seats, list)
+                    or len(raw_seats) != 2
+                    or any(s not in AGENT_TYPES for s in raw_seats)
+                ):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": f"seats must be a 2-element list of {AGENT_TYPES}",
+                    })
+                    return
+                seats = (raw_seats[0], raw_seats[1])
+                session.reset(seed, seats)
+                self._send_json(HTTPStatus.OK, {
+                    "ok": True,
+                    "seed": seed,
+                    "seats": list(seats),
+                })
                 return
             self._send_text(HTTPStatus.NOT_FOUND, "not found")
 
@@ -730,10 +851,15 @@ def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Browser UI for AgricolaBot.")
     ap.add_argument("--seed", type=int, default=None,
                     help="Engine RNG seed (default: time-based).")
-    ap.add_argument("--players", type=int, choices=(1, 2), default=1,
-                    help="Number of human players (default: 1, AI fills the other seat).")
-    ap.add_argument("--human-seat", type=int, choices=(0, 1), default=0,
-                    help="Seat for the human in 1-player mode (default: 0).")
+    ap.add_argument(
+        "--seats", nargs=2, choices=AGENT_TYPES, default=["human", "random"],
+        metavar="AGENT",
+        help=(
+            "Seat assignments for P0 and P1. Choices: human, random, simple, "
+            "hubris. Default: human random. The browser UI can reassign seats "
+            "via the New-game dialog."
+        ),
+    )
     ap.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1).")
     ap.add_argument("--port", type=int, default=8000, help="Bind port (default 8000).")
     ap.add_argument("--no-browser", action="store_true", help="Don't auto-open a browser.")
@@ -743,12 +869,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     seed = args.seed if args.seed is not None else int(time.time())
-    humans = {0, 1} if args.players == 2 else {args.human_seat}
-    session = Session(seed=seed, humans=humans)
+    seats = (args.seats[0], args.seats[1])
+    session = Session(seed=seed, seats=seats)
     handler = _make_handler(session)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     url = f"http://{args.host}:{args.port}"
-    print(f"AgricolaBot WebUI - seed={seed} | humans={sorted(humans)}")
+    print(f"AgricolaBot WebUI - seed={seed} | seats={list(seats)}")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:

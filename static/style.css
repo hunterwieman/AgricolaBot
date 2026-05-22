@@ -222,6 +222,47 @@ h3 {
   border-radius: 3px;
   margin-left: 4px;
 }
+/* Per-seat agent-type tag in player headers. Color-coded so it's easy to
+   tell at a glance which seat is human vs which AI. */
+.seat-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #888;
+  color: #fff;
+}
+.seat-tag[data-seat="human"]     { background: #5e8d36; }
+.seat-tag[data-seat="random"]    { background: #777;    }
+.seat-tag[data-seat="simple"]    { background: #2e7bbf; }
+.seat-tag[data-seat="hubris"]    { background: #b03a3a; }
+.seat-tag[data-seat="hubris_v1"] { background: #b03a3a; }
+.seat-tag[data-seat="hubris_v2"] { background: #7a2a55; }
+
+/* "Advance" button shown when an AI is the current decider. */
+.advance-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.advance-btn {
+  font-size: 14px;
+  padding: 6px 16px;
+  background: var(--accent-active, #2A2113);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.advance-btn:hover { filter: brightness(1.15); }
+.advance-hint {
+  color: #555;
+  font-size: 12px;
+}
 
 /* ---------- farmyard SVG ---------- */
 

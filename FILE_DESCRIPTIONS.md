@@ -422,6 +422,39 @@ The scoring tables (how many points for 0 fields, 1 field, 2 fields, etc.) are i
 
 ---
 
+### `agricola/agents/__init__.py`
+
+Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, the `HeuristicConfig` dataclass, the three module-level evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, plus `evaluate_hubris` alias), and the `play_game(initial_state, agents)` driver. Designed so that callers can write `from agricola.agents import HubrisHeuristic, play_game, ...` without dipping into submodules.
+
+---
+
+### `agricola/agents/base.py`
+
+Agent infrastructure shared by all heuristic agents.
+
+- **`Agent`** — `Protocol` describing the agent contract: callable as `(state) -> Action` returning one element of `filter_implemented(legal_actions(state))`.
+- **`decider_of(state)`** — small helper returning the player index whose decision is currently being awaited (`pending_stack[-1].player_idx` if the stack is non-empty, else `state.current_player`).
+- **`RandomAgent`** — uniformly-random over `filter_implemented(legal_actions(state))`. Mirrors the body of `tests/test_utils.random_agent_play`, packaged as an agent object for symmetry with heuristic agents.
+- **`HeuristicAgent`** — generic 1-action-or-1-turn lookahead agent. Takes an evaluator callable `(state, player_idx, config) -> float`, a `temperature`, a `seed`, and a `lookahead` mode (`"action"` or `"turn"`, default `"turn"`). Uses `legal_actions_cache()` over the lookahead, and `filter_implemented` to limit selections to engine-known actions. Always skips singleton decisions before evaluation (via the `_skip_singletons` helper) — "n steps deep = n meaningful decisions" applies uniformly. In `"turn"` mode the `_rollout_value` helper greedily plays the decider's own subsequent decisions until control hands off, then evaluates.
+- **`play_game(initial_state, agents)`** — drives a full game from `initial_state` to `BEFORE_SCORING`. Returns `(terminal_state, trace)` like `tests/test_utils.random_agent_play`, but accepts any mix of agent types.
+
+---
+
+### `agricola/agents/heuristic.py`
+
+Two evaluator variants (plus shared infrastructure) and their corresponding agent classes.
+
+- **`HeuristicConfig`** — frozen dataclass holding ~50 tunable coefficients spanning every term used by either evaluator: resource tier rates and caps, family-member per-round rates, breeding-value tiers (active vs. passive, has-cooking vs. can-afford vs. can't), major-improvement utility values (with stage-3 tiers for cooking implements), field and pasture location bonuses, crop+field pair bonuses, food-by-stage rates, begging-by-moves rates, stage-1 resource multiplier, round-13/14 resource decay, Pottery/BMW bonus caps, starting-player bonus, deferred renovation-bonus fields. Default values are hand-picked; the next sessions' agenda (HEURISTIC_TUNING_PLAN.md) covers replacing them with self-play-tuned values.
+- **`evaluate_simple(state, player_idx, config)`** — MVP evaluator. `score(state)` as the base, plus linear resource bonuses for wood/clay/reed/stone/grain/veg and a food/begging term with convertible-shortfall awareness.
+- **`evaluate_hubris_v1(state, player_idx, config)`** — current default Hubris evaluator. Composes `score(state)` with: a major-improvement override (`_hubris_major_value`, with cooking-primary-only logic and 3-tier round decay), family-future value (rate × remaining plays, with at-home bonus), empty-room anticipation (basic-wish-aware), unfenced-stable value, breeding-opportunity counter (greedy assignment over pastures + flex slots), field-center location bonus, pasture-right-half location bonus, crop+plowed-field pair bonus, context-aware tiered resource value (with stage-1×1.5 multiplier and round-13/14 decay), starting-player bonus, and the v1 `_food_term_hubris` (which has a known convertible-goods double-count addressed in v2).
+- **`evaluate_hubris_v2(state, player_idx, config)`** — same composition as v1, but the food-leaf scoring + food + begging is replaced with `_food_and_goods_term_v2`: enumerate `harvest_feed_frontier`'s Pareto-optimal feeding configurations, evaluate each (post-conversion goods score + food supply value + begging penalty), take the max. Theoretically correct but in 20-seed benches loses head-to-head to V1 (the missing piece is "I won't actually convert if game ends first").
+- **`SimpleHeuristic`** / **`HubrisHeuristicV1`** / **`HubrisHeuristicV2`** — thin subclasses of `HeuristicAgent` binding their respective evaluator. `HubrisHeuristic` is a backward-compat alias to `HubrisHeuristicV1`.
+- **`evaluate_hubris`** — alias to `evaluate_hubris_v1`. Flip when v2 is promoted.
+
+The file also contains a number of private helpers used by Hubris: `_three_tier` for piecewise-linear resource valuation, `_hubris_breeding_value`'s greedy assignment, `_hubris_family_value`'s at-home-bonus computation, the `_grain_on_fields` / `_veg_on_fields` accessors used by v2's joint feeding term, and the round-bucket helpers (`_stage_of_round`, `_next_harvest_round`, `_moves_left_before_harvest`).
+
+---
+
 ### `tests/__init__.py`
 
 Empty package marker. Makes `tests` importable as a Python package. No code here.

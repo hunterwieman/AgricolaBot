@@ -67,24 +67,57 @@
     }
   }
 
+  // Apply one AI move. Used in AI-vs-AI mode (manual step-through) and as
+  // the bound action for the "Advance" button / Enter-key shortcut. In
+  // human-vs-AI mode the backend already fast-forwards AI moves after a
+  // human action, so this is rarely needed there.
+  let aiStepInFlight = false;
+  async function stepAI() {
+    if (aiStepInFlight) return;  // single-flight: avoid stacking on rapid keypresses
+    aiStepInFlight = true;
+    try {
+      const res = await fetch('/api/step_ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) {
+        console.warn('step_ai rejected:', data.error);
+      }
+    } catch (err) {
+      console.error('step_ai request failed', err);
+    } finally {
+      aiStepInFlight = false;
+    }
+  }
+
+  const AGENT_TYPES = ['human', 'random', 'simple', 'hubris', 'hubris_v1', 'hubris_v2'];
+
   async function resetGame() {
+    // Three prompts to match the existing prompt-style UX (avoids building
+    // a modal). For richer setup, a future change can swap in a real modal.
     const seedStr = prompt('Seed for new game?', String(Date.now() & 0xffff));
     if (seedStr === null) return;
     const seed = parseInt(seedStr, 10) || 0;
-    const playersStr = prompt('Number of human players (1 or 2)?', '1');
-    if (playersStr === null) return;
-    const players = playersStr === '2' ? 2 : 1;
-    let humanSeat = 0;
-    if (players === 1) {
-      const seatStr = prompt('Human seat (0 or 1)?', '0');
-      if (seatStr === null) return;
-      humanSeat = seatStr === '1' ? 1 : 0;
-    }
-    await fetch('/api/reset', {
+    const currentSeats = (currentState && currentState.seats) || ['human', 'random'];
+    const p0Str = prompt(
+      `P0 seat? (${AGENT_TYPES.join(' / ')})`, currentSeats[0]);
+    if (p0Str === null) return;
+    const p1Str = prompt(
+      `P1 seat? (${AGENT_TYPES.join(' / ')})`, currentSeats[1]);
+    if (p1Str === null) return;
+    const p0 = AGENT_TYPES.includes(p0Str.trim()) ? p0Str.trim() : 'human';
+    const p1 = AGENT_TYPES.includes(p1Str.trim()) ? p1Str.trim() : 'random';
+    const res = await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seed, players, human_seat: humanSeat }),
+      body: JSON.stringify({ seed, seats: [p0, p1] }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) {
+      console.warn('reset rejected:', data.error);
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -364,6 +397,10 @@
     if (p.is_sp) headerEl.appendChild(el('span', { class: 'sp-tag' }, 'SP'));
     if (p.is_decider)
       headerEl.appendChild(el('span', { class: 'decider-tag' }, 'deciding'));
+    // Seat-type tag (human/random/simple/hubris) so it's visible whose
+    // brain is in this seat.
+    const seat = (state.seats && state.seats[idx]) || 'human';
+    headerEl.appendChild(el('span', { class: 'seat-tag', dataset: { seat } }, seat));
 
     colEl.classList.toggle('active-decider', p.is_decider && !state.game_over);
     colEl.classList.toggle('dim', !p.is_decider && !state.game_over);
@@ -740,20 +777,58 @@
 
   // -------- decision panel --------
 
+  function isAiDecider(state) {
+    if (!state || state.game_over) return false;
+    const seat = (state.seats && state.seats[state.decider]) || 'human';
+    return seat !== 'human';
+  }
+
   function renderDecisionPanel(state) {
     const breadcrumb = document.getElementById('pending-breadcrumb');
     const banner = document.getElementById('decider-banner');
     const menu = document.getElementById('action-menu');
 
     renderPendingBreadcrumb(breadcrumb, state);
-    banner.textContent = state.game_over
-      ? 'Game over — see scoring below.'
-      : `Decider: P${state.decider}`;
+
+    const deciderSeat = state.game_over
+      ? null
+      : (state.seats && state.seats[state.decider]) || 'human';
+    if (state.game_over) {
+      banner.textContent = 'Game over — see scoring below.';
+    } else if (deciderSeat === 'human') {
+      banner.textContent = `Decider: P${state.decider} (human)`;
+    } else {
+      banner.textContent = `Decider: P${state.decider} (${deciderSeat}) — press Enter or click Advance to play next move`;
+    }
 
     menu.innerHTML = '';
 
     if (state.game_over) {
       menu.appendChild(el('div', {}, 'No legal actions.'));
+      return;
+    }
+
+    // AI-decider mode: show an "Advance" button instead of (or in addition
+    // to) the legal-actions menu. Clicking it (or pressing Enter) fires
+    // /api/step_ai, which advances exactly one move. The legal-actions
+    // list is still rendered below for inspection — the user can see what
+    // the agent was choosing among. Clicking a legal action in AI mode
+    // would be rejected by /api/step ("not a human's turn") so we hide
+    // the action buttons by short-circuiting after rendering the Advance
+    // bar.
+    if (deciderSeat !== 'human') {
+      const advanceBar = el('div', { class: 'advance-bar' });
+      advanceBar.appendChild(el(
+        'button',
+        { class: 'advance-btn', onclick: () => stepAI() },
+        `Advance (P${state.decider}: ${deciderSeat})`,
+      ));
+      advanceBar.appendChild(el(
+        'span', { class: 'advance-hint' },
+        `${state.legal_actions.length} legal action${state.legal_actions.length === 1 ? '' : 's'} available — agent will pick one.`,
+      ));
+      menu.appendChild(advanceBar);
+      // Don't render the action buttons (would be rejected by backend).
       return;
     }
 
@@ -912,6 +987,21 @@
     const fastCb = document.getElementById('fast-mode-toggle');
     fastCb.checked = fastMode;
     fastCb.addEventListener('change', (e) => setFastMode(e.target.checked));
+    // Global Enter-key handler: when an AI is on the clock, Enter advances
+    // one move. Ignored when focus is in a text input (so it doesn't fight
+    // the seed prompt or future form inputs). Also ignored on the game-over
+    // modal (no AI moves to take).
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const modal = document.getElementById('game-over-modal');
+      if (modal && !modal.classList.contains('hidden')) return;
+      if (isAiDecider(currentState)) {
+        e.preventDefault();
+        stepAI();
+      }
+    });
     // Get initial state (fallback in case SSE is slow).
     fetch('/api/state').then((r) => r.json()).then((s) => {
       if (!currentState) {

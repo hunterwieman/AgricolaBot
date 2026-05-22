@@ -479,6 +479,11 @@ All 636 tests pass. The following pieces are complete:
 | Rounds 5–14, all 6 harvests | Complete | `task_files/TASK_7.md`, `CHANGES.md` Change 7 |
 | `BoardState.action_spaces` canonical-tuple refactor (`GameState` hashable) | Complete | `CHANGES.md` Change 8 |
 | Engine performance pass: `fast_replace`, `legal_actions_cache()`, `__debug__` gate, round-end-reset guard | Complete | `CHANGES.md` Change 9, `PROFILING.md` |
+| `agricola/agents/` package: `Agent` protocol, `HeuristicAgent` infrastructure, `RandomAgent`, `play_game` driver | Complete | `HEURISTIC_TUNING_PLAN.md`, `FILE_DESCRIPTIONS.md` |
+| `SimpleHeuristic` (MVP) and `HubrisHeuristic` (full-spec) heuristic agents with `HeuristicConfig` (~50 coefficients), 1-turn lookahead, singleton-skip, softmax-with-temperature | Complete | `HEURISTIC_TUNING_PLAN.md` |
+| Hubris V1 / V2 versioning (`HubrisHeuristicV1`, `HubrisHeuristicV2`); V2 uses `harvest_feed_frontier` for joint goods-or-food optimization but loses to V1 head-to-head (the "won't actually convert if game ends first" effect) | Complete | `HEURISTIC_TUNING_PLAN.md` |
+| `play_heuristic_game.py` top-level driver (`random` / `simple` / `hubris` / `hubris_v1` / `hubris_v2` matchups) | Complete | `FILE_DESCRIPTIONS.md` |
+| `play_web.py` AI-vs-AI + per-seat agent picker (`--seats AGENT AGENT`); `/api/step_ai` for manual step-through; Enter-key advance | Complete | `FILE_DESCRIPTIONS.md` |
 
 **Not yet implemented:**
 
@@ -518,6 +523,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
 | `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
 | `POSSIBLE_SPEEDUPS.md` | Living catalog of performance optimizations — both ideas surfaced by profiling and not yet acted on, and forward-looking candidates. Sibling to POSSIBLE_NEXT_STEPS.md, scoped to performance specifically. |
+| `HEURISTIC_TUNING_PLAN.md` | Plan for the next sessions on heuristic agents: self-play tuning harness, time-varying parameters, score-leaf reweighting. Written 2026-05-22 at the end of the heuristic-agents arc. |
 | `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
@@ -546,6 +552,7 @@ AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
     play_web.py                     # Top-level entry point — browser-based human play UI. Serves a JSON game state over HTTP for a JavaScript frontend; shares formatting helpers with `play.py`.
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
+    play_heuristic_game.py          # Top-level entry point — any-vs-any heuristic-agent driver. `--p0`/`--p1` pick from {random, simple, hubris, hubris_v1, hubris_v2}; `--temperature` for softmax sampling; `--lookahead` toggles the action/turn lookahead horizon. Same scoreboard output as `play_random_game.py`.
     agricola/                       # Game engine package.
         __init__.py                 # Empty package marker.
         constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces.
@@ -568,6 +575,10 @@ AgricolaBot/
             triggers.py             # Two parallel registries — TRIGGERS (event-keyed list, used by enumerators) and CARDS (card-id-keyed direct lookup, used by _apply_fire_trigger) — plus the register() function called by card modules at import time.
             potter_ceramics.py      # The one card in scope: "exchange 1 clay for 1 grain before each Bake Bread action, at most once per action." Exercises the trigger machinery end-to-end.
             harvest_conversions.py  # HARVEST_CONVERSIONS registry + HarvestConversionSpec dataclass + register_harvest_conversion(). Three built-in entries: joinery (1 wood -> 2 food), pottery (1 clay -> 2 food), basketmaker (1 reed -> 3 food).
+        agents/                     # Agent implementations: random + heuristics. Built atop the engine's pure `step` / `legal_actions` interface.
+            __init__.py             # Re-exports Agent / HeuristicAgent / RandomAgent / SimpleHeuristic / HubrisHeuristic[V1,V2] / HeuristicConfig / evaluator functions / play_game.
+            base.py                 # `Agent` Protocol, decider_of helper, RandomAgent, generic HeuristicAgent (1-turn or 1-action lookahead, singleton-skip always on, softmax-with-temperature action selection), play_game(initial, agents) game-driver.
+            heuristic.py            # HeuristicConfig (~50 coefficient frozen dataclass) + evaluate_simple + evaluate_hubris_v1 (current default Hubris) + evaluate_hubris_v2 (joint goods-or-food via harvest_feed_frontier) + SimpleHeuristic / HubrisHeuristicV1 / HubrisHeuristicV2 agent classes. `HubrisHeuristic` is an alias to V1. See HEURISTIC_TUNING_PLAN.md for the next-session agenda.
     tests/                          # pytest test suite — per-file coverage descriptions in TEST_DESCRIPTIONS.md.
         __init__.py                 # Empty package marker.
         factories.py                # Prefabricated-state helpers (with_resources, with_animals, with_majors, with_grid, with_pending_stack, etc.) for composing test states — including states unreachable through gameplay. Project-wide convention for test setup.
@@ -597,6 +608,7 @@ AgricolaBot/
         test_harvest_breed.py
         test_harvest_integration.py
         test_replace.py
+        test_agents_heuristic.py
     scripts/                        # Out-of-tree utilities — profiling, benchmarking, replace-counter. Re-runnable; not imported by `agricola/` or `tests/`. Used to produce / update PROFILING.md.
         profile_engine.py           # Three-workload runner (A: random from setup; B: random from wealthy prefab; C: micro-bench across 9 prefab states) with cProfile + wall-clock.
         profile_states.py           # 9 prefab `GameState` factories covering early/mid/late game; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).
