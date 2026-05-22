@@ -148,27 +148,123 @@ self-fulfills.
 
 ### 3.3 Breeding-opportunity value (`_hubris_breeding_value`)
 
-**What.** Counts breeding-opportunity slots — for each future harvest,
-how many animal types can the farm hold 3+ of? — and credits a
-per-slot rate based on whether the player has cookware (active rate
-1.0) or could afford one (0.8) or can't (0.6). Members without 2+
-animals of a type get the lower "passive" rate (0.3).
+**What.** Per-future-harvest value for the farm's ability to support
+breeding. Each future harvest produces a small score contribution
+proportional to "how many animal types could be productively bred at
+that harvest given the current farm layout and animal inventory."
 
 **Why.** Pastures' `score()` contribution caps at +4 (4+ pastures = 4
-pts). But pastures enable breeding which compounds animal counts over
-harvests. A 2×1 pasture that holds 4 cattle, breeds annually, is worth
+pts). But pastures enable breeding, which compounds animal counts over
+harvests. A 2×1 pasture that holds 4 cattle, breeding annually, is worth
 far more than +1 pasture-pt suggests.
 
-**Shape.**
-- Farm config determines max breeding types via greedy assignment of
-  pastures + flex slots (house + standalone stables) to types, taking
-  the most types where each can reach 3 animals.
-- Future harvests have known available types (sheep in harvest 1+,
-  pigs in harvest 3+, cattle in harvest 4+).
-- Per-harvest breed count = min(farm_opps, types_available).
-- Active vs passive: "active" = player has 2+ of that type (could
-  breed today); "passive" = future-potential. Active rate × cooking
-  state + passive rate × (slots − active).
+**Shape — algorithm.** Two-part computation. Both parts are mildly weird;
+the algorithm is what landed, not what the cleanest design would be.
+
+**Part 1: `_num_breeding_opportunities_from_farm(p)` — counts "type
+slots" the farm could support.** Greedy assignment of pastures and flex
+slots to imaginary animal types, where each type needs ≥3 animals worth
+of capacity to be considered "supported."
+
+- `extract_slots(p)` returns `(pasture_capacities, num_flex)`:
+    - `pasture_capacities`: the capacity (= 2 × cells × 2^stables) of
+      each enclosed pasture.
+    - `num_flex` = `1 + standalone_stables` (one for the house pet
+      slot, plus one per unfenced stable).
+- Sort the pasture capacities ascending. For each pasture:
+    - `deficit = max(0, 3 − capacity)` — how many flex slots needed to
+      top this pasture up to 3 animals.
+    - If `flex >= deficit`: subtract `deficit` from flex and count this
+      pasture as one supported type slot.
+    - Else (the pasture is too small AND insufficient flex remaining):
+      skip the pasture entirely. Its capacity is wasted in the counting.
+- After processing all pastures: if `flex >= 3`, count one additional
+  "pure flex" type slot (the remaining flex can support an entire
+  type's herd by itself).
+- Cap result at 3 (the game only has 3 animal types).
+
+  Sorting ascending matters: small pastures benefit more from flex than
+  large ones do, so spending flex on a 1-cell pasture (to get it to 3
+  capacity) before "wasting" it on a 4-cell pasture (which already has
+  4 capacity ≥ 3) is the right greedy order.
+
+**Part 2: `_hubris_breeding_value` — turns the slot count into per-harvest
+points.** Computes a per-future-harvest contribution and sums them.
+
+- `farm_opps` = result of Part 1.
+- `types_with_2` = how many animal types the player currently has ≥2 of
+  (0, 1, 2, or 3). "Has the herd to actually breed right now."
+- `active_rate` from `HeuristicConfig`, depends on cooking-implement
+  state:
+    - `breed_active_has_cooking = 1.0` — player owns a Fireplace or
+      Cooking Hearth.
+    - `breed_active_can_afford = 0.8` — no cookware yet but has ≥2
+      clay and a Fireplace remains unowned.
+    - `breed_active_cannot_afford = 0.6` — neither.
+- `passive_rate = 0.3` — fixed.
+- `_HARVEST_AVAILABLE_TYPES` maps each harvest round to how many animal
+  types are plausibly available by that harvest:
+
+  | Harvest round | Types available | Why |
+  |---|---|---|
+  | 4  | 1 | Sheep maybe (Sheep Market is stage 1) |
+  | 7  | 1 | Sheep yes |
+  | 9  | 2 | Sheep yes, pigs maybe (Pig Market stage 3) |
+  | 11 | 3 | Sheep yes, pigs yes, cattle maybe (Cattle Market stage 4) |
+  | 13 | 3 | All three |
+  | 14 | 3 | All three |
+
+  Treats "possibly available" as "available" — the heuristic doesn't
+  know the actual reveal schedule, just rounds-up the count.
+
+- For each future harvest `h` (any harvest at or after the current
+  round):
+    - `per_harvest = min(farm_opps, types_avail[h])` — the farm can
+      support N type-slots; this harvest only N' ≤ N types are
+      available. The min is the realized breeding capacity for this
+      harvest.
+    - `active = min(types_with_2, per_harvest)` — of the
+      farm-supportable slots, how many would the player actually breed
+      *right now* (i.e., already has the 2-animal threshold for).
+    - `passive = per_harvest − active` — the rest. Farm-supportable but
+      no current herd; credit for "future potential" only.
+    - `harvest_pts = active × active_rate + passive × passive_rate`.
+- Sum `harvest_pts` across all remaining future harvests. That's the
+  total `_hubris_breeding_value`.
+
+**Worked example.** Round 8, fireplace owned (so `active_rate = 1.0`).
+Player has:
+- 2 pastures: 1×1 (cap 2) and 2×2 (cap 8). `pasture_capacities = [2, 8]`.
+- 1 flex slot (house pet only — no standalone stables). `num_flex = 1`.
+- 3 sheep, 1 boar, 0 cattle. `types_with_2 = 1` (only sheep ≥ 2).
+
+Part 1, sorted ascending `[2, 8]`:
+- Pasture cap=2: deficit 1, flex 1 ≥ 1 → use 1 flex, types=1, flex=0.
+- Pasture cap=8: deficit 0 → types=2.
+- Flex 0 < 3 → no extra.
+- `farm_opps = min(2, 3) = 2`.
+
+Part 2, future harvests are 9, 11, 13, 14:
+- Harvest 9 (types_avail=2): per_harvest=min(2,2)=2, active=min(1,2)=1,
+  passive=1 → 1×1.0 + 1×0.3 = 1.3.
+- Harvest 11 (types_avail=3): per_harvest=min(2,3)=2, active=1,
+  passive=1 → 1.3.
+- Harvest 13: same → 1.3.
+- Harvest 14: same → 1.3.
+- Total: **5.2**.
+
+**A few corner-case behaviors.**
+- Farm with no pastures but 4 flex slots (= 3 standalone stables +
+  house): `farm_opps = 1` (the all-flex "pure" type slot fires).
+- Farm with 4+ small pastures each at cap 2 and 0 flex beyond the
+  house: only the first small pasture gets topped up by the house
+  flex → `farm_opps = 1` despite having 4 pastures.
+- Pasture-shape never matters for breeding-value purposes — only
+  capacity. A `5 × 1` strip and a `1 × 5` strip (cap 10 each) are
+  identical here.
+- A pasture with cap ≥ 3 contributes one type slot regardless of how
+  much larger it is (cap 4 == cap 8 == cap 16 → all just one type
+  slot).
 
 **Magnitude.** Active rates (1.0 / 0.8 / 0.6) are per-breed-per-harvest.
 Passive (0.3) is small but nonzero to encourage having unfilled pastures
@@ -176,10 +272,25 @@ Passive (0.3) is small but nonzero to encourage having unfilled pastures
 harvests × 1.0 = +8, a serious animal strategy contributes ~10-15
 hubris points beyond `score()`.
 
-**Limitations.** Treats "possible" sheep/pig/cattle market availability
-as available (user's "We will count possible opportunities as
-opportunities"). Greedy assignment is optimal for typical pasture
-arrangements; degenerate edge cases not exhaustively analyzed.
+**Limitations.**
+- `types_with_2` snapshots the CURRENT animal counts. A player who
+  *will* acquire more animals before the harvest gets passive credit
+  only, not active. Self-correcting over the lookahead — once the
+  agent picks up animals, future evaluations see higher `types_with_2`
+  — but means the "first pickup" of a 2nd animal type can be
+  under-valued.
+- The greedy slot assignment is optimal for typical pasture
+  arrangements but isn't formally proven optimal across every farm
+  layout. Believed correct; not exhaustively verified.
+- The cooking-implement gating (`active_rate` tiers) is coarse — a
+  player with 1 clay and otherwise capable of buying a Fireplace
+  doesn't get the can_afford tier because the gate checks `clay >= 2`
+  for the cheaper-Fireplace cost only.
+- `_HARVEST_AVAILABLE_TYPES` is hardcoded with the standard reveal
+  schedule's "could be revealed by this harvest" counts. Doesn't
+  consult the actual `state.board.round_card_order` — a player who can
+  see Sheep Market hasn't been revealed yet still gets harvest-4 credit
+  as if it might be.
 
 ### 3.4 Unfenced stable value (`_hubris_unfenced_stable_value`)
 
