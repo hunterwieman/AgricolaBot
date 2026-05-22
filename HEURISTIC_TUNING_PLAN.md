@@ -5,6 +5,10 @@
 > self-play tuning, extending the parameter space to allow time variation,
 > and reweighting score-leaf contributions to discourage over-aggressive
 > early-stage score-leaf grabs.
+>
+> **Companion doc:** **`HUBRIS_V1_NOTES.md`** — design reference for
+> V1's term-by-term reasoning. Read that first to understand *what*
+> we're tuning before reading *how* to tune it.
 
 The HubrisHeuristic numerical values landed so far are hand-picked from
 intuition. They aren't tuned. This plan covers turning the heuristic into
