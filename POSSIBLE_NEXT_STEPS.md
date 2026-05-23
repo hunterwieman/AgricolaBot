@@ -51,18 +51,34 @@ When *not* to consult it:
 
 Useful as benchmarks for the trained agent and as scaffolding for MCTS.
 
-### F. Heuristic agent — **landed 2026-05-22**
+### F. Heuristic agent — **landed 2026-05-22 (V1) and 2026-05-22 evening (V3)**
 
-Hand-written policies implementing reasonable Agricola strategy. Two agents shipped:
+Hand-written policies implementing reasonable Agricola strategy. Three Hubris versions ship plus Simple/Random infrastructure:
 
 - **`SimpleHeuristic`** — MVP. `score(state)` + linear resource bonuses + food/begging term.
-- **`HubrisHeuristic`** — full-spec. ~50 coefficients in `HeuristicConfig` covering family-future, empty rooms, breeding opportunities, location bonuses, context-aware resources, majors with cooking-primary + round-decay, stage-1×1.5 multiplier, etc. Two evaluator versions: V1 (current default; iterated through user feedback) and V2 (uses `harvest_feed_frontier` for joint goods-or-food optimization — theoretically more correct but loses head-to-head to V1).
+- **`HubrisHeuristicV1`** — original V1 architecture. ~70 coefficients in `HeuristicConfig` covering family-future, empty rooms, breeding opportunities, location bonuses, context-aware resources, majors with cooking-primary + round-decay, stage-1×1.5 multiplier, etc. **`CONFIG_V1_T2`** is the round-2-tuned constant (58 params tuned; +8.85 holdout vs default; 90-1-9 record). Wired as the `hubris` seat alias.
+- **`HubrisHeuristicV2`** — V1 with `harvest_feed_frontier` for joint goods-or-food optimization. Theoretically more correct but loses head-to-head to V1.
+- **`HubrisHeuristicV3`** — current main heuristic. ~250 parameters across blend / additive / joint-alpha categories + three-component resources. Carries over V1's family-future, empty-room, location bonuses, SP, renovation, major-override, and food/begging helpers via duck typing. `tuned_configs/v3_best.json` auto-maintained pointer to the strongest V3 config. See **`V3_DESIGN.md`** for the architecture.
 
-Shared infrastructure (`agricola/agents/base.py`) provides the `Agent` protocol, the generic `HeuristicAgent` class with configurable lookahead horizon (1-action or 1-turn, always with singleton-skip), softmax-with-temperature action selection, and a `play_game` driver. The web UI (`play_web.py`) supports any combination of human / random / simple / hubris / hubris_v1 / hubris_v2 in either seat, with manual step-through for AI-vs-AI watching (Enter or "Advance" button).
+**CMA-ES tuning pipeline** (`scripts/tune_heuristic.py` + `scripts/run_iterative_v3.py`) implements Thread A from HEURISTIC_TUNING_PLAN.md. Per-category tuning with save/resume via pickle, x0 fallback to prevent chain-forward regression, automatic `<arch>_best.json` updates, parallel CMA-ES population evaluation. See **`V3_TRAINING_PIPELINE.md`** for operational guide.
 
-Bench (20 seeds, default `HeuristicConfig`): V1 beats Random 20-0-0 (+32 vs −4); V1 beats Simple 20-0-0 (+29 vs +16); V1 vs V2 is effectively tied at 7-10-3.
+Web UI: `python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json` plays you against the current champion. New-game dropdown simplified to human/random/v1/v3.
 
-**Next sessions** on this thread are scoped in **`HEURISTIC_TUNING_PLAN.md`**: a self-play tuning harness for the ~50-parameter `HeuristicConfig`, time-varying parameters with monotonic constraints, and stage-dependent score-leaf reweighting to address remaining early-game biases.
+**Cumulative tuning results:** V1+T2 = +8.85 vs V1 default. V3 + tuned resources = +8.72 vs V1+T2 (~+17 over V1 default cumulatively). V3 iterative tuning in progress at time of writing.
+
+**Open V3 next steps:**
+
+- **F1.** Finish the current iterative run (2 passes × 4 categories; 7 steps remaining at time of writing).
+- **F2.** Promote `v3_best.json` to a Python constant `CONFIG_V3_T1` once tuning converges (mirror the `CONFIG_V1_T2` pattern). Document in CHANGES.md.
+- **F3.** Address V1's food double-count in V3. Options: convertible-discount-by-stage (add 6-element array scaling `convertible` in the food shortfall calculation by stage); V2-style joint frontier with "will I actually convert?" weighting. See HUBRIS_V1_NOTES.md §4 for the V2 history.
+- **F4.** Discrete-cutoff sweep — manual sweep, not CMA-ES. Test alternative values for: pasture "capacity ≥ 4" threshold (currently K=4 for `pasture_value_large`), "≤2 rooms" threshold for `wood_pre_3rd_room_vector` activation, "≥3 capacity per pasture" threshold for breeding-capable, "round 12 cap" in empty-room helper, stage boundaries in `_stage_of_round`. See V3_DESIGN.md §8.6.
+- **F5.** Per-stage joint-alpha split. `score_joint_alpha_by_stage` currently modulates clay_rooms + stone_rooms + people + bonus_points with ONE curve. Could split into 4 separate curves (24 params) if tuning suggests the lump is too coarse.
+- **F6.** Slot-indexed stone-major vector. Stone currently has only renovation + generic; could add a `stone_major_vector` indexed by stone count, analogous to `wood_fence_vector`. Defer until tuning suggests stone is under-modeled.
+- **F7.** Per-vector pasture alphas. `pasture_value_all` and `pasture_value_large` share one blend α; per-vector alphas would let the optimizer give the "large pasture bonus" a different time profile.
+- **F8.** Baseline graduation. When V3 holdout margin exceeds ~+20-25 vs `t2`, signal saturates. Switch tuning `--baseline` to `v3_best.json` itself (each candidate must beat its own previous best). Easy: orchestrator already supports JSON-path baselines.
+- **F9.** Seed-rotation during training. Currently all candidates in all generations play games against the same fixed seeds 0-99. Could rotate per-gen (gen 1 → seeds 0-99, gen 2 → seeds 100-199, ...) to broaden environmental coverage and reduce overfitting. Implementation: modify `_eval_candidate` to accept per-call seeds (small refactor). Concerns and trade-offs in chat history under "Is it worthwhile to vary the seeds between generations?"
+- **F10.** V4 architectural ideas (defer until V3 has clearly converged). Possible directions: per-round arrays instead of per-stage step functions; explicit regime-conditional vectors instead of additive overlays; an explicit "moves remaining" axis on every category.
+- **F11. Known bug: extract `x0` from warm-start base, not TUNABLE defaults.** Currently fresh tuning runs use `TUNABLE`'s `default` field as `x0`, which OVERWRITES the warm-start base's already-tuned values for fields in TUNABLE. Caused a regression in this session's pass-1 step-3 (resources) — sanity dropped from ~+10 to −14 vs t2 at gen 0. Mitigated for resumed runs (the saved CMA-ES mean is loaded instead). Fix: extract `x0` from the base config at run-time. See V3_TRAINING_PIPELINE.md §10.4b for the full diagnosis + code sketch.
 
 ### G. MCTS scaffolding
 
@@ -141,13 +157,13 @@ Elo ratings between agent versions, score distribution analysis, game-length var
 
 ## My take (advisory, not prescriptive)
 
-**F (heuristic agent) landed.** SimpleHeuristic and HubrisHeuristic V1/V2 ship as of 2026-05-22 — see HEURISTIC_TUNING_PLAN.md for the queue of work to improve them via self-play tuning and time-varying parameters.
+**F (heuristic agent) landed and substantially evolved.** SimpleHeuristic + Hubris V1/V2 shipped 2026-05-22. CONFIG_V1_T2 (round-2-tuned V1) promoted same day. HubrisHeuristicV3 architecture + CMA-ES tuning pipeline landed 2026-05-22 evening. Iterative V3 tuning in progress at the time this entry was written. See V3_DESIGN.md, V3_TRAINING_PIPELINE.md, and the F-section bullet list above for the queue of V3 follow-up work.
 
 **Two natural next directions, in parallel:**
 
-1. **Tune the heuristic** (HEURISTIC_TUNING_PLAN.md). Build a self-play tuning harness, extend the parameter space to allow time variation, and reweight score-leaves. This gives the agent its first principled tuning rather than hand-picked coefficients.
-2. **MCTS scaffolding (G)** — fully unblocked by Changes 8 and 9. Pure MCTS first, with HubrisHeuristic as the rollout policy. If MCTS rollout cost becomes a problem, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining optimization based on current profiles.
+1. **Continue V3 tuning + analysis** (F1-F10 above). Finish current iterative run, promote v3_best.json to a Python constant, address food double-count, sweep discrete cutoffs.
+2. **MCTS scaffolding (G)** — fully unblocked by Changes 8 and 9. Pure MCTS first, with HubrisHeuristicV3 + CONFIG_V3_T1 as the rollout policy (once promoted). If MCTS rollout cost becomes a problem, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining optimization based on current profiles.
 
-Both compound: a tuned heuristic makes MCTS rollouts cheaper / better, and MCTS-driven self-play could itself be a source of tuning signal for the heuristic.
+Both compound: a stronger heuristic makes MCTS rollouts more informative, and MCTS-driven self-play could itself be a source of tuning signal for the heuristic.
 
 **Card system as a separate track:** can run in parallel with agent work, but the open design questions (H, I, J, K) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.

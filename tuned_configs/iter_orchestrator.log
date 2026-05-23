@@ -1,0 +1,629 @@
+  pre-populated pickle for v3_food: tuned_configs/iter_p1_v3_food.cma.pkl
+  pre-populated pickle for v3_fields_crops: tuned_configs/iter_p1_v3_fields_crops.cma.pkl
+Iterative V3 tuning
+  passes: 2
+  categories per pass: ['v3_fields_crops', 'v3_food', 'v3_resources', 'v3_pastures_animals']
+  total steps: 8
+  max-gens per step: 10
+  n-seeds per evaluation: 100
+  starting from: tuned_configs/iter_p1_v3_fields_crops.json
+
+========================================================================
+  PASS 1 / 2
+========================================================================
+
+--- step 1/8: pass 1, v3_fields_crops (SKIPPED) ---
+
+--- step 2/8: pass 1, v3_food ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.json
+  --resume tuned_configs/iter_p1_v3_food.cma.pkl
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json
+  popsize: 13, n-seeds: 100, max-gens: 10
+Tuning 18 parameters via CMA-ES
+  category: 'v3_food'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: tuned_configs/iter_p1_v3_food.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 13, max_gens: 10, sigma0: 0.3
+  total evals: 130
+  jobs: 8; python -O: ON
+  estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = +13.010 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from tuned_configs/iter_p1_v3_food.cma.pkl: countiter=8, σ=0.2638, will run until gen 18 (10 additional generations).
+gen   9  best so far: +12.790  gen best: +12.790  gen mean: +9.100  (5.5 min)
+gen  10  best so far: +12.790  gen best: +12.580  gen mean: +10.488  (10.6 min)
+gen  11  best so far: +12.790  gen best: +12.350  gen mean: +10.232  (15.0 min)
+gen  12  best so far: +12.790  gen best: +12.580  gen mean: +10.121  (19.0 min)
+gen  13  best so far: +12.790  gen best: +12.740  gen mean: +10.573  (23.9 min)
+gen  14  best so far: +12.790  gen best: +12.060  gen mean: +10.372  (28.3 min)
+gen  15  best so far: +12.840  gen best: +12.840  gen mean: +9.856  (32.6 min)
+gen  16  best so far: +12.940  gen best: +12.940  gen mean: +10.644  (36.8 min)
+gen  17  best so far: +12.940  gen best: +12.500  gen mean: +9.902  (40.8 min)
+gen  18  best so far: +12.940  gen best: +12.760  gen mean: +11.230  (44.9 min)
+
+⚠️  CMA-ES best (+12.940) is worse than x0 sanity (+13.010) by 0.070.
+   Falling back to x0 (warm-start base unchanged for the 18 tuned fields). This category's tuning did not improve on the starting point.
+
+Optimization complete in 44.9 min.
+Best margin (training): +13.010
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+food_at_need_stage1                      1.168      1.168     +0.000
+food_at_need_stage2                      1.213      1.213     +0.000
+food_at_need_stage3                      0.794      0.794     +0.000
+food_at_need_stage4                      0.126      0.126     +0.000
+food_at_need_stage5                      0.874      0.874     +0.000
+food_at_need_stage6                      0.302      0.302     +0.000
+food_excess_stage1                       1.057      1.057     +0.000
+food_excess_stage2                       0.452      0.452     +0.000
+food_excess_stage3                       0.316      0.316     +0.000
+food_excess_stage4                       0.295      0.295     +0.000
+food_excess_stage5                       0.587      0.587     +0.000
+food_excess_stage6                       0.000      0.000     +0.000
+begging_moves_0                         -2.785     -2.785     +0.000
+begging_moves_1                         -2.362     -2.362     +0.000
+begging_moves_2                         -1.633     -1.633     +0.000
+begging_moves_3                         -0.931     -0.931     +0.000
+begging_moves_4                         -0.976     -0.976     +0.000
+begging_moves_5                         -0.575     -0.575     +0.000
+
+Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
+  holdout P0 90-0-10 P1  avg +24.31 vs +14.15  margin +10.16  (100 games, 68.5s)
+  → smaller than training margin but still positive. Mild overfitting.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (unchanged; existing +10.16 > new +10.16)
+  ✓ step completed in 57.2 min (cumulative 57.2 min)
+
+--- step 3/8: pass 1, v3_resources ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json
+  popsize: 17, n-seeds: 100, max-gens: 10
+Tuning 63 parameters via CMA-ES
+  category: 'v3_resources'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 17, max_gens: 10, sigma0: 0.3
+  total evals: 170
+  jobs: 8; python -O: ON
+  estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = -14.300 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: -4.140  gen best: -4.140  gen mean: -16.679  (5.2 min)
+gen   2  best so far: -4.140  gen best: -6.540  gen mean: -13.929  (10.0 min)
+gen   3  best so far: +7.630  gen best: +7.630  gen mean: -13.637  (14.6 min)
+gen   4  best so far: +7.630  gen best: -3.050  gen mean: -12.775  (19.7 min)
+gen   5  best so far: +9.180  gen best: +9.180  gen mean: -9.447  (24.5 min)
+gen   6  best so far: +10.060  gen best: +10.060  gen mean: -4.310  (29.1 min)
+gen   7  best so far: +10.060  gen best: +5.800  gen mean: -4.537  (34.6 min)
+gen   8  best so far: +10.060  gen best: +7.920  gen mean: -0.265  (39.7 min)
+gen   9  best so far: +11.190  gen best: +11.190  gen mean: +1.302  (44.8 min)
+gen  10  best so far: +11.190  gen best: +9.310  gen mean: +2.418  (49.9 min)
+
+Optimization complete in 49.9 min.
+Best margin (training): +11.190
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+wood_fence_0                             0.700      0.556     -0.144
+wood_fence_1                             0.700      1.026     +0.326
+wood_fence_2                             0.700      0.499     -0.201
+wood_fence_3                             0.700      0.821     +0.121
+wood_fence_4                             0.700      0.215     -0.485
+wood_fence_5                             0.700      1.085     +0.385
+wood_fence_6                             0.700      0.657     -0.043
+wood_fence_7                             0.700      0.752     +0.052
+wood_fence_8                             0.700      0.676     -0.024
+wood_fence_9                             0.700      0.681     -0.019
+wood_fence_10                            0.500      0.002     -0.498
+wood_fence_11                            0.500      0.469     -0.031
+wood_fence_12                            0.500      0.333     -0.167
+wood_fence_13                            0.500      0.314     -0.186
+wood_fence_14                            0.500      0.462     -0.038
+wood_pre_3rd_room_0                      0.800      0.618     -0.182
+wood_pre_3rd_room_1                      0.800      0.806     +0.006
+wood_pre_3rd_room_2                      0.800      0.225     -0.575
+wood_pre_3rd_room_3                      0.800      0.479     -0.321
+wood_pre_3rd_room_4                      0.800      1.033     +0.233
+wood_generic_value                       0.100      0.016     -0.084
+wood_weight_stage1                       1.500      0.580     -0.920
+wood_weight_stage2                       1.000      1.071     +0.071
+wood_weight_stage3                       1.000      0.099     -0.901
+wood_weight_stage4                       1.000      0.378     -0.622
+wood_weight_stage5                       0.900      0.781     -0.119
+wood_weight_stage6                       0.200      0.081     -0.119
+reed_room_0                              5.000      4.936     -0.064
+reed_room_1                              1.500      1.669     +0.169
+reed_room_2                              0.300      0.622     +0.322
+reed_room_3                              0.300      0.299     -0.001
+reed_room_4                              0.000      0.710     +0.710
+reed_room_5                              0.000      0.241     +0.241
+reed_renovation_0                        0.500      0.700     +0.200
+reed_renovation_1                        0.300      0.247     -0.053
+reed_generic_value                       0.200      0.546     +0.346
+reed_weight_stage1                       1.500      1.564     +0.064
+reed_weight_stage2                       1.000      0.631     -0.369
+reed_weight_stage3                       1.000      0.935     -0.065
+reed_weight_stage4                       1.000      1.312     +0.312
+reed_weight_stage5                       0.900      0.836     -0.064
+reed_weight_stage6                       0.200      0.539     +0.339
+clay_cookware_0                          0.800      0.256     -0.544
+clay_cookware_1                          0.800      1.389     +0.589
+clay_cookware_2                          0.800      0.776     -0.024
+clay_cookware_3                          0.800      1.157     +0.357
+clay_cookware_4                          0.800      1.396     +0.596
+clay_renovation_per_room                 0.800      0.843     +0.043
+clay_generic_value                       0.100      0.517     +0.417
+clay_weight_stage1                       1.500      1.651     +0.151
+clay_weight_stage2                       1.000      0.993     -0.007
+clay_weight_stage3                       1.000      1.204     +0.204
+clay_weight_stage4                       1.000      0.928     -0.072
+clay_weight_stage5                       0.900      0.534     -0.366
+clay_weight_stage6                       0.200      0.215     +0.015
+stone_renovation_per_room                0.500      0.138     -0.362
+stone_generic_value                      0.500      0.313     -0.187
+stone_weight_stage1                      1.500      1.876     +0.376
+stone_weight_stage2                      1.000      0.837     -0.163
+stone_weight_stage3                      1.000      1.227     +0.227
+stone_weight_stage4                      1.000      1.196     +0.196
+stone_weight_stage5                      1.000      1.416     +0.416
+stone_weight_stage6                      0.700      0.945     +0.245
+
+Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
+  holdout P0 87-0-13 P1  avg +17.21 vs +5.68  margin +11.53  (100 games, 72.6s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +10.16 → +11.53)
+  ✓ step completed in 52.6 min (cumulative 109.8 min)
+
+--- step 4/8: pass 1, v3_pastures_animals ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.json
+  popsize: 18, n-seeds: 100, max-gens: 10
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 18, max_gens: 10, sigma0: 0.3
+  total evals: 180
+  jobs: 8; python -O: ON
+  estimated wall time: ~21.6 min (vs ~150.0 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = +11.190 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +11.530  gen best: +11.530  gen mean: +9.836  (5.6 min)
+gen   2  best so far: +11.530  gen best: +11.440  gen mean: +10.493  (11.1 min)
+gen   3  best so far: +11.530  gen best: +11.430  gen mean: +10.695  (16.6 min)
+gen   4  best so far: +11.530  gen best: +11.440  gen mean: +10.552  (22.1 min)
+gen   5  best so far: +11.530  gen best: +11.470  gen mean: +10.792  (27.7 min)
+gen   6  best so far: +11.530  gen best: +11.440  gen mean: +10.751  (33.2 min)
+gen   7  best so far: +11.660  gen best: +11.660  gen mean: +11.123  (38.8 min)
+gen   8  best so far: +11.660  gen best: +11.550  gen mean: +11.192  (44.3 min)
+gen   9  best so far: +11.660  gen best: +11.630  gen mean: +11.183  (49.9 min)
+gen  10  best so far: +11.660  gen best: +11.570  gen mean: +9.872  (55.4 min)
+
+Optimization complete in 55.4 min.
+Best margin (training): +11.660
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+pasture_value_all_0                     -1.000     -0.845     +0.155
+pasture_value_all_1                      1.000      1.082     +0.082
+pasture_value_all_2                      2.000      2.402     +0.402
+pasture_value_all_3                      3.000      3.144     +0.144
+pasture_value_all_4                      4.000      3.562     -0.438
+pasture_value_large_0                    0.000      0.584     +0.584
+pasture_value_large_1                    0.000     -0.850     -0.850
+pasture_value_large_2                    0.000     -0.134     -0.134
+pasture_value_large_3                    0.000      0.283     +0.283
+pasture_value_large_4                    0.000      0.328     +0.328
+pasture_blend_alpha_stage1               0.500      0.136     -0.364
+pasture_blend_alpha_stage2               0.500      0.981     +0.481
+pasture_blend_alpha_stage3               0.500      0.960     +0.460
+pasture_blend_alpha_stage4               0.500      0.761     +0.261
+pasture_blend_alpha_stage5               0.500      0.603     +0.103
+pasture_blend_alpha_stage6               0.500      0.553     +0.053
+sheep_value_0                           -1.000     -0.927     +0.073
+sheep_value_1                            1.000      1.356     +0.356
+sheep_value_2                            1.000      0.884     -0.116
+sheep_value_3                            1.000      0.762     -0.238
+sheep_value_4                            2.000      2.559     +0.559
+sheep_value_5                            2.000      2.185     +0.185
+sheep_value_6                            3.000      2.794     -0.206
+sheep_value_7                            3.000      2.929     -0.071
+sheep_value_8                            4.000      4.313     +0.313
+sheep_blend_alpha_stage1                 0.500      0.195     -0.305
+sheep_blend_alpha_stage2                 0.500      0.155     -0.345
+sheep_blend_alpha_stage3                 0.500      0.895     +0.395
+sheep_blend_alpha_stage4                 0.500      0.302     -0.198
+sheep_blend_alpha_stage5                 0.500      0.402     -0.098
+sheep_blend_alpha_stage6                 0.500      0.908     +0.408
+boar_value_0                            -1.000     -0.248     +0.752
+boar_value_1                             1.000      1.214     +0.214
+boar_value_2                             1.000      0.706     -0.294
+boar_value_3                             2.000      2.181     +0.181
+boar_value_4                             2.000      1.899     -0.101
+boar_value_5                             3.000      3.291     +0.291
+boar_value_6                             3.000      2.951     -0.049
+boar_value_7                             4.000      4.485     +0.485
+boar_blend_alpha_stage1                  0.500      0.373     -0.127
+boar_blend_alpha_stage2                  0.500      0.627     +0.127
+boar_blend_alpha_stage3                  0.500      0.708     +0.208
+boar_blend_alpha_stage4                  0.500      0.460     -0.040
+boar_blend_alpha_stage5                  0.500      0.576     +0.076
+boar_blend_alpha_stage6                  0.500      0.524     +0.024
+cattle_value_0                          -1.000     -0.760     +0.240
+cattle_value_1                           1.000      0.899     -0.101
+cattle_value_2                           2.000      2.082     +0.082
+cattle_value_3                           2.000      2.573     +0.573
+cattle_value_4                           3.000      3.225     +0.225
+cattle_value_5                           3.000      2.810     -0.190
+cattle_value_6                           4.000      4.669     +0.669
+cattle_blend_alpha_stage1                0.500      0.546     +0.046
+cattle_blend_alpha_stage2                0.500      0.687     +0.187
+cattle_blend_alpha_stage3                0.500      0.314     -0.186
+cattle_blend_alpha_stage4                0.500      0.079     -0.421
+cattle_blend_alpha_stage5                0.500      0.555     +0.055
+cattle_blend_alpha_stage6                0.500      0.682     +0.182
+fenced_stable_value_0                    0.000     -0.277     -0.277
+fenced_stable_value_1                    1.000      0.796     -0.204
+fenced_stable_value_2                    2.000      1.949     -0.051
+fenced_stable_value_3                    3.000      2.882     -0.118
+fenced_stable_value_4                    4.000      4.127     +0.127
+fenced_stable_blend_alpha_stage1         0.500      0.457     -0.043
+fenced_stable_blend_alpha_stage2         0.500      0.037     -0.463
+fenced_stable_blend_alpha_stage3         0.500      0.875     +0.375
+fenced_stable_blend_alpha_stage4         0.500      0.741     +0.241
+fenced_stable_blend_alpha_stage5         0.500      0.668     +0.168
+fenced_stable_blend_alpha_stage6         0.500      0.725     +0.225
+cattle_breeding_pair_value               1.000      1.207     +0.207
+cattle_breed_weight_stage1               1.000      1.141     +0.141
+cattle_breed_weight_stage2               1.000      1.799     +0.799
+cattle_breed_weight_stage3               1.000      0.799     -0.201
+cattle_breed_weight_stage4               0.500      0.652     +0.152
+cattle_breed_weight_stage5               0.000      0.145     +0.145
+cattle_breed_weight_stage6               0.000      0.083     +0.083
+boar_breeding_pair_value                 1.000      1.009     +0.009
+boar_breed_weight_stage1                 1.000      0.793     -0.207
+boar_breed_weight_stage2                 1.000      1.272     +0.272
+boar_breed_weight_stage3                 1.000      0.747     -0.253
+boar_breed_weight_stage4                 0.500      0.875     +0.375
+boar_breed_weight_stage5                 0.000      0.119     +0.119
+boar_breed_weight_stage6                 0.000      0.105     +0.105
+sheep_breeding_pair_value                1.000      1.343     +0.343
+sheep_breed_weight_stage1                1.000      0.754     -0.246
+sheep_breed_weight_stage2                1.000      1.099     +0.099
+sheep_breed_weight_stage3                1.000      0.895     -0.105
+sheep_breed_weight_stage4                0.500      0.522     +0.022
+sheep_breed_weight_stage5                0.000      0.144     +0.144
+sheep_breed_weight_stage6                0.000      0.225     +0.225
+unfenced_stable_value_0                  0.000      0.034     +0.034
+unfenced_stable_value_1                  0.400      0.429     +0.029
+unfenced_stable_value_2                  0.800      1.468     +0.668
+unfenced_stable_value_3                  1.200      1.408     +0.208
+unfenced_stable_value_4                  1.600      1.547     -0.053
+unfenced_stable_weight_stage1            1.000      1.118     +0.118
+unfenced_stable_weight_stage2            1.000      0.869     -0.131
+unfenced_stable_weight_stage3            1.000      0.459     -0.541
+unfenced_stable_weight_stage4            0.000      0.423     +0.423
+unfenced_stable_weight_stage5            0.000      0.247     +0.247
+unfenced_stable_weight_stage6            0.000      0.143     +0.143
+
+Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
+  holdout P0 89-3-8 P1  avg +17.37 vs +5.45  margin +11.92  (100 games, 72.9s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +11.53 → +11.92)
+  ✓ step completed in 57.9 min (cumulative 167.6 min)
+========================================================================
+  PASS 2 / 2
+========================================================================
+
+--- step 5/8: pass 2, v3_fields_crops ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.json
+  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.json
+  popsize: 16, n-seeds: 100, max-gens: 10
+Tuning 60 parameters via CMA-ES
+  category: 'v3_fields_crops'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~19.2 min (vs ~133.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = +12.260 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl: countiter=10, σ=0.2575, will run until gen 20 (10 additional generations).
+Process SpawnPoolWorker-1:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-3:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-4:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-5:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-6:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-8:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-7:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-2:
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+    self._send(header + buf)
+  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

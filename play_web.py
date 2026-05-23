@@ -63,12 +63,39 @@ from agricola.constants import (
     Phase,
 )
 from agricola.agents import (
+    CONFIG_V1_T2,
+    CONFIG_V3_T1,
+    DEFAULT_CONFIG_V3,
+    HeuristicConfigV3,
     HubrisHeuristic,
     HubrisHeuristicV1,
     HubrisHeuristicV2,
+    HubrisHeuristicV3,
     RandomAgent,
     SimpleHeuristic,
 )
+
+
+# Tuned V3 config loaded at startup via --v3-config PATH (or None if the
+# flag wasn't passed). When None, `hubris_v3` falls back to DEFAULT_CONFIG_V3.
+_TUNED_V3_CONFIG: HeuristicConfigV3 | None = None
+_TUNED_V3_SOURCE_PATH: str | None = None
+
+
+def _load_v3_config_from_json(path: str) -> HeuristicConfigV3:
+    """Load a HeuristicConfigV3 from a tune_heuristic.py JSON output file's
+    `best_config` field. Raises if the file isn't a V3 tuning artifact."""
+    import json as _json
+    with open(path) as f:
+        data = _json.load(f)
+    if data.get("candidate_arch") != "v3":
+        raise ValueError(
+            f"{path}: candidate_arch is {data.get('candidate_arch')!r}, "
+            f"expected 'v3'. This JSON is not a V3 tuning result."
+        )
+    if "best_config" not in data:
+        raise ValueError(f"{path}: missing 'best_config' field.")
+    return HeuristicConfigV3(**data["best_config"])
 from agricola.engine import step
 from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
@@ -78,11 +105,16 @@ from agricola.state import GameState
 
 
 # Allowed seat types. "human" leaves the seat to be controlled by the
-# browser; the others are agent classes from agricola.agents. "hubris" is
-# an alias for the currently-default Hubris version (v1 today); v1 and v2
-# are also explicitly selectable for matchups and comparisons.
+# browser; the others are agent classes from agricola.agents.
+#
+# "hubris" is the currently-strongest configured Hubris (V1 architecture with
+# CONFIG_V1_T2 — tuned via scripts/tune_heuristic.py round 2; +8.85 holdout
+# margin vs default V1). "hubris_v1" still points at the original V1 with
+# DEFAULT_CONFIG, useful for direct comparisons against the pre-tuning
+# baseline. "hubris_v2" is the V2 architecture (joint frontier) on default
+# config.
 AGENT_TYPES: tuple[str, ...] = (
-    "human", "random", "simple", "hubris", "hubris_v1", "hubris_v2",
+    "human", "random", "simple", "hubris", "hubris_v1", "hubris_v2", "hubris_v3",
 )
 
 
@@ -99,11 +131,20 @@ def _build_agent(seat_type: str, seed: int):
     if seat_type == "simple":
         return SimpleHeuristic(seed=seed)
     if seat_type == "hubris":
-        return HubrisHeuristic(seed=seed)
+        # Current strongest: V1 architecture + tuned CONFIG_V1_T2.
+        return HubrisHeuristicV1(seed=seed, config=CONFIG_V1_T2)
     if seat_type == "hubris_v1":
+        # Original V1 with hand-picked DEFAULT_CONFIG (kept for comparison).
         return HubrisHeuristicV1(seed=seed)
     if seat_type == "hubris_v2":
         return HubrisHeuristicV2(seed=seed)
+    if seat_type == "hubris_v3":
+        # V3 architecture. Priority: --v3-config PATH (if set at startup) >
+        # CONFIG_V3_T1 (the promoted tuned constant — current strongest V3).
+        # Falls back further to DEFAULT_CONFIG_V3 only if CONFIG_V3_T1 is
+        # somehow None (shouldn't happen — it's a module-level constant).
+        cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
+        return HubrisHeuristicV3(seed=seed, config=cfg)
     raise ValueError(f"unknown seat type {seat_type!r}; choose from {AGENT_TYPES}")
 
 # Reuse formatting helpers from play.py.
@@ -863,11 +904,22 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1).")
     ap.add_argument("--port", type=int, default=8000, help="Bind port (default 8000).")
     ap.add_argument("--no-browser", action="store_true", help="Don't auto-open a browser.")
+    ap.add_argument(
+        "--v3-config", default=None,
+        help="Path to a JSON file (from scripts/tune_heuristic.py) whose "
+             "'best_config' is loaded as the HubrisHeuristicV3 config when "
+             "'hubris_v3' is selected as a seat. If omitted, hubris_v3 uses "
+             "DEFAULT_CONFIG_V3 (untuned).",
+    )
     return ap.parse_args()
 
 
 def main() -> None:
+    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH
     args = parse_args()
+    if args.v3_config is not None:
+        _TUNED_V3_CONFIG = _load_v3_config_from_json(args.v3_config)
+        _TUNED_V3_SOURCE_PATH = args.v3_config
     seed = args.seed if args.seed is not None else int(time.time())
     seats = (args.seats[0], args.seats[1])
     session = Session(seed=seed, seats=seats)
@@ -875,6 +927,8 @@ def main() -> None:
     server = ThreadingHTTPServer((args.host, args.port), handler)
     url = f"http://{args.host}:{args.port}"
     print(f"AgricolaBot WebUI - seed={seed} | seats={list(seats)}")
+    if _TUNED_V3_SOURCE_PATH is not None:
+        print(f"  hubris_v3 will use tuned config from: {_TUNED_V3_SOURCE_PATH}")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:

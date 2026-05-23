@@ -22,9 +22,12 @@ import random
 import sys
 
 from agricola.agents import (
+    CONFIG_V1_T2,
+    CONFIG_V3_T1,
     HubrisHeuristic,
     HubrisHeuristicV1,
     HubrisHeuristicV2,
+    HubrisHeuristicV3,
     RandomAgent,
     SimpleHeuristic,
     play_game,
@@ -42,26 +45,43 @@ from play_random_game import (
 )
 
 
-AGENT_TYPES = ("random", "simple", "hubris", "hubris_v1", "hubris_v2")
+AGENT_TYPES = ("random", "simple", "hubris", "hubris_v1", "hubris_v2", "hubris_v3")
 
 
 def _make_agent(name: str, seed: int, temperature: float, lookahead: str):
     """Build an agent by name. `temperature` and `lookahead` are ignored
-    by `random` (it has no evaluator). `hubris` is an alias for the
-    currently-default Hubris version; `hubris_v1` and `hubris_v2` select
-    explicitly. The same seed is passed to both agents' RNGs;
-    tournaments wanting independent RNGs should rely on the p0/p1 seed
-    offset derived in main()."""
+    by `random` (it has no evaluator).
+
+    Agent name conventions:
+      "hubris"     — currently-strongest configured Hubris: V1 architecture
+                     with the round-2-tuned CONFIG_V1_T2. Use this as the
+                     default opponent in head-to-head matchups.
+      "hubris_v1"  — original V1 with hand-picked DEFAULT_CONFIG (kept for
+                     comparison with the tuned config).
+      "hubris_v2"  — V2 architecture (joint frontier) with DEFAULT_CONFIG.
+
+    The same seed is passed to both agents' RNGs; tournaments wanting
+    independent RNGs should rely on the p0/p1 seed offset derived in main().
+    """
     if name == "random":
         return RandomAgent(seed=seed)
     if name == "simple":
         return SimpleHeuristic(seed=seed, temperature=temperature, lookahead=lookahead)
     if name == "hubris":
-        return HubrisHeuristic(seed=seed, temperature=temperature, lookahead=lookahead)
+        # Current strongest: V1 architecture + tuned CONFIG_V1_T2.
+        return HubrisHeuristicV1(
+            seed=seed, temperature=temperature, lookahead=lookahead,
+            config=CONFIG_V1_T2,
+        )
     if name == "hubris_v1":
+        # Original V1 with DEFAULT_CONFIG (hand-picked).
         return HubrisHeuristicV1(seed=seed, temperature=temperature, lookahead=lookahead)
     if name == "hubris_v2":
         return HubrisHeuristicV2(seed=seed, temperature=temperature, lookahead=lookahead)
+    if name == "hubris_v3":
+        # V3 architecture with the tuned CONFIG_V3_T1 (current strongest V3).
+        return HubrisHeuristicV3(seed=seed, temperature=temperature, lookahead=lookahead,
+                                  config=CONFIG_V3_T1)
     raise ValueError(f"Unknown agent type {name!r}; choose from {AGENT_TYPES}")
 
 

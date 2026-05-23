@@ -1,0 +1,64 @@
+Tuning 18 parameters via CMA-ES
+  category: 'v3_food'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: tuned_configs/iter_p1_v3_food.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 13, max_gens: 10, sigma0: 0.3
+  total evals: 130
+  jobs: 8; python -O: ON
+  estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = +13.010 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from tuned_configs/iter_p1_v3_food.cma.pkl: countiter=8, σ=0.2638, will run until gen 18 (10 additional generations).
+gen   9  best so far: +12.790  gen best: +12.790  gen mean: +9.100  (5.5 min)
+gen  10  best so far: +12.790  gen best: +12.580  gen mean: +10.488  (10.6 min)
+gen  11  best so far: +12.790  gen best: +12.350  gen mean: +10.232  (15.0 min)
+gen  12  best so far: +12.790  gen best: +12.580  gen mean: +10.121  (19.0 min)
+gen  13  best so far: +12.790  gen best: +12.740  gen mean: +10.573  (23.9 min)
+gen  14  best so far: +12.790  gen best: +12.060  gen mean: +10.372  (28.3 min)
+gen  15  best so far: +12.840  gen best: +12.840  gen mean: +9.856  (32.6 min)
+gen  16  best so far: +12.940  gen best: +12.940  gen mean: +10.644  (36.8 min)
+gen  17  best so far: +12.940  gen best: +12.500  gen mean: +9.902  (40.8 min)
+gen  18  best so far: +12.940  gen best: +12.760  gen mean: +11.230  (44.9 min)
+
+⚠️  CMA-ES best (+12.940) is worse than x0 sanity (+13.010) by 0.070.
+   Falling back to x0 (warm-start base unchanged for the 18 tuned fields). This category's tuning did not improve on the starting point.
+
+Optimization complete in 44.9 min.
+Best margin (training): +13.010
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+food_at_need_stage1                      1.168      1.168     +0.000
+food_at_need_stage2                      1.213      1.213     +0.000
+food_at_need_stage3                      0.794      0.794     +0.000
+food_at_need_stage4                      0.126      0.126     +0.000
+food_at_need_stage5                      0.874      0.874     +0.000
+food_at_need_stage6                      0.302      0.302     +0.000
+food_excess_stage1                       1.057      1.057     +0.000
+food_excess_stage2                       0.452      0.452     +0.000
+food_excess_stage3                       0.316      0.316     +0.000
+food_excess_stage4                       0.295      0.295     +0.000
+food_excess_stage5                       0.587      0.587     +0.000
+food_excess_stage6                       0.000      0.000     +0.000
+begging_moves_0                         -2.785     -2.785     +0.000
+begging_moves_1                         -2.362     -2.362     +0.000
+begging_moves_2                         -1.633     -1.633     +0.000
+begging_moves_3                         -0.931     -0.931     +0.000
+begging_moves_4                         -0.976     -0.976     +0.000
+begging_moves_5                         -0.575     -0.575     +0.000
+
+Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
+  holdout P0 90-0-10 P1  avg +24.31 vs +14.15  margin +10.16  (100 games, 68.5s)
+  → smaller than training margin but still positive. Mild overfitting.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (unchanged; existing +10.16 > new +10.16)

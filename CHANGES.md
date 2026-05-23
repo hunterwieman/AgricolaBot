@@ -414,3 +414,60 @@ All 636 tests pass (622 pre-existing + 14 new `test_replace.py`). Per-action wal
 - `PROFILING.md` — findings and the R1-R6 recommendation list with corrected magnitudes after measurement (the original PROFILING.md estimates were tightened in the discussion that followed: R3 is ~20% per-call, not 45%; R5 is small enough to defer).
 
 **Forward look.** R4 (item E anchor Pareto pruning) is now the highest-ROI remaining optimization target — confirmed as the second-largest cost cluster in mid/late game. R5 (legal_placements short-circuit) and the geometric pruning extension to R4 are documented but deferred until profiling justifies them. The MCTS consumer (item G) is unblocked on both the hashability front (Change 8) and the memoization front (this change).
+
+
+## Change 10 — HubrisHeuristicV3 architecture + category-by-category CMA-ES tuning pipeline
+
+A two-part change that reorganizes the strongest heuristic agent (V1 with `CONFIG_V1_T2`) into a new architecture (V3) and builds a tuning pipeline capable of training V3 in tractable category-sized chunks.
+
+### Part 1 — V3 architecture
+
+V1's evaluator was a mix of: trust-score()'s-leaf for most categories + scattered hubris "anticipation" terms (breeding-opportunity, crop+field pair, family-future, empty-room) + piecewise resource tiers with integer caps and regime branches. V3 reorganizes around a **uniform `value(count, stage)` representation** with three combination styles:
+
+1. **BLEND** — for categories with a `score()` leaf: `α[stage] · v3_value(count) + (1 − α[stage]) · score_leaf`. Used for fields, pastures (two vectors share one α), grain, veg, sheep, boar, cattle, fenced stables, unused-spaces (parameterized side fixed at 0).
+2. **ADDITIVE-MULTIPLICATIVE** — for categories without a score leaf: `weight[stage] · v3_value(count)`. Used for grain-field-pairs, veg-field-pairs, 3 breeding-pairs (cattle/boar/sheep priority allocation), unfenced-stables.
+3. **JOINT-ALPHA** — for score leaves V3 doesn't explicitly model: `score_joint_alpha[stage] · score_leaf`. Single shared modulator across clay_rooms + stone_rooms + people + craft_bonus_points. Begging markers excluded (always full-weight).
+
+Resources get their own three-component pattern (per resource): a state-aware vector indexed by the resource's "next-use slot" (e.g., wood indexed by which fence slot it would build), an optional regime-conditional overlay vector (pre-3rd-room wood; renovation reed; cookware-status clay), and a generic per-unit scalar. All three sum, gated by a per-stage weight.
+
+Several V1 helpers were preserved as carry-overs via duck typing on the config object (`HeuristicConfigV3` defines the same field names V1 helpers read): `_hubris_family_value`, `_hubris_empty_room_value`, `_hubris_field_location_bonus`, `_hubris_pasture_location_bonus`, `_hubris_starting_player_bonus`, `_hubris_renovation_bonus`, `_hubris_major_value`, `_food_term_hubris`. V1 helpers `_hubris_resource_value`, `_hubris_breeding_value`, `_hubris_unfenced_stable_value`, `_hubris_crop_field_pair_bonus` were deleted (subsumed by V3's category structure).
+
+`DEFAULT_CONFIG_V3` seeds its carry-over fields with `CONFIG_V1_T2`'s tuned values (family rates, empty-room rates, cooking-implement override values, food-by-stage curve, begging-by-moves penalties, starting-player bonus). This closes most of the gap between a fresh V3 and V1+T2 — without tuning, V3 default vs V1+T2 measures ~−15 (was −19 before the carry-over update).
+
+Total V3 parameter count: ~250 continuous floats (vs V1's ~70). All CMA-ES-tunable.
+
+Authoritative reference: **`V3_DESIGN.md`**.
+
+### Part 2 — Tuning pipeline
+
+Three new scripts in `scripts/`:
+
+- **`play_match.py`** — match-runner library + CLI. `play_match(p0_factory, p1_factory, seeds) → MatchResult` (win/draw/loss counts, score sums, per-game records). Used by `tune_heuristic.py` and as a standalone head-to-head tool.
+
+- **`tune_heuristic.py`** — CMA-ES tuner for one TUNABLE category at a time. Supports V1 and V3 configs via `--category` (e.g., `v3_resources`, `v3_pastures_animals`) + a `--arch`-derived dispatch. Save/resume via pickle (writes `<output>.cma.pkl` after every generation). x0 fallback after the loop: if `es.best` is worse than the warm-start point's sanity fitness, fall back to x0 — prevents chain-forward regression when a category's defaults were already near-optimal. Automatic `<arch>_best.json` maintenance: at end of each run, copies the new JSON to `tuned_configs/<arch>_best.json` if its holdout margin beats the existing pointer. Parallel across `--jobs` cores via `multiprocessing.Pool`. The `--from` and `--baseline` flags accept either named configs (`default_v3`, `t2`, etc.) or paths to previous tuning JSON files — letting the orchestrator chain category outputs.
+
+- **`run_iterative_v3.py`** — orchestrator chaining V3 category tunings as block-coordinate descent. Per pass: fields_crops → food → resources → pastures_animals. Each step's `--from` is the previous step's output JSON; on passes 2+, each step also `--resume`s its own category's prior `.cma.pkl`, continuing CMA-ES exactly where that category last left off. Supports `--start-step N` (skip first N-1) and `--initial-pickles "cat:path,..."` (pre-populate the per-category pickle map) for resuming partial iterations.
+
+`tuned_configs/` was reorganized into a persistent artifact directory. Each completed run writes `<timestamp>.{json,log,cma.pkl}`. `v1_best.json` and `v3_best.json` are auto-maintained pointers to the strongest config per architecture; `play_web.py --v3-config tuned_configs/v3_best.json` always uses the current champion in the browser UI.
+
+### Results so far
+
+- `CONFIG_V1_T2` (V1's round-2 tuned config; 58 params): **+8.85 holdout margin vs V1 default** (90-1-9 record). Promoted to a module-level constant in `agricola/agents/heuristic.py`. Wired as the `hubris` seat-alias in `play_web.py`, `play_heuristic_game.py`, and `scripts/play_match.py`.
+- V3 initial resources tuning (63 params, against V1+T2 baseline): **+8.72 holdout margin vs V1+T2** (82-1-17 record). Cumulative ~+17 over V1 default.
+- V3 iterative tuning (in progress at time of writing): pass-1 fields_crops adds **+10.16 holdout margin vs V1+T2**. Remaining 7 steps queued.
+
+### Files touched
+
+- **`agricola/agents/heuristic.py`**: added `CONFIG_V1_T2` constant, `HeuristicConfigV3` dataclass (70 fields), `evaluate_hubris_v3`, `HubrisHeuristicV3`, all V3 helpers. Enabled `_hubris_renovation_bonus` in both V1 and V2 evaluators (was previously commented out); dataclass defaults set to 0.0/0.0 for backwards compatibility.
+- **`agricola/agents/__init__.py`**: added exports for V3 classes/constants.
+- **`play_web.py`**: added `--v3-config PATH` flag and `hubris_v3` seat handling.
+- **`static/app.js`**: simplified New-game dropdown to human/random/v1/v3 (frontend labels with backend translation).
+- **`play_heuristic_game.py`**: added `hubris_v3` agent type; "hubris" alias now points at `CONFIG_V1_T2`.
+- **`scripts/play_match.py`**: created.
+- **`scripts/tune_heuristic.py`**: created.
+- **`scripts/run_iterative_v3.py`**: created.
+- **`V3_DESIGN.md`**: created.
+- **`V3_TRAINING_PIPELINE.md`**: created.
+- **`tuned_configs/v3_best.json`**: bootstrapped from the initial resources run.
+
+Operational reference: **`V3_TRAINING_PIPELINE.md`**.

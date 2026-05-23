@@ -1,5 +1,19 @@
 # Heuristic Tuning & Time-Varying Parameters — Plan
 
+> **⚠️ Partially superseded.** This doc was written 2026-05-22 at the end of the
+> V1 heuristic-agents arc, before V3 existed. Thread A (self-play tuning harness)
+> has been implemented — see **`scripts/tune_heuristic.py`** + **`scripts/run_iterative_v3.py`**
+> with operational details in **`V3_TRAINING_PIPELINE.md`**. The V1 round-2 tuning
+> Thread A enabled produced **`CONFIG_V1_T2`** (+8.85 holdout vs V1 default).
+>
+> Threads B (time-varying parameters) and C (score-leaf reweighting) are
+> implicitly addressed by V3's architecture: per-stage modulators give every
+> category time variation, and the BLEND/ADDITIVE/JOINT-ALPHA combination
+> styles handle the score-leaf-trust concern explicitly. See **`V3_DESIGN.md`**.
+>
+> This doc remains useful for understanding the original V1-era motivation
+> for the tuning effort, and the design considerations that led to V3.
+>
 > **Status:** planning doc written 2026-05-22 at the end of the
 > heuristic-agents arc. Captures the next sessions' agenda: systematic
 > self-play tuning, extending the parameter space to allow time variation,

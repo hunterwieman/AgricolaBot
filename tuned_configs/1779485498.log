@@ -1,0 +1,22 @@
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: 'tuned_configs/1779480129.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 50 games per evaluation (training: 0..49)
+  holdout: 100 games (1000..1099)
+  popsize: 18, max_gens: 10, sigma0: 0.3
+  total evals: 180
+  jobs: 8; python -O: ON
+  estimated wall time: ~10.8 min (vs ~75.0 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779485498.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779485498.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = +11.820 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +12.040  gen best: +12.040  gen mean: +9.430  (3.0 min)
+gen   2  best so far: +12.080  gen best: +12.080  gen mean: +9.853  (6.0 min)
+gen   3  best so far: +12.560  gen best: +12.560  gen mean: +9.149  (9.3 min)
+gen   4  best so far: +12.560  gen best: +12.540  gen mean: +10.410  (12.4 min)
+gen   5  best so far: +12.560  gen best: +12.120  gen mean: +10.673  (15.7 min)
+gen   6  best so far: +12.560  gen best: +12.260  gen mean: +9.992  (18.5 min)

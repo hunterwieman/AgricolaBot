@@ -2208,6 +2208,127 @@ In parallel: **MCTS scaffolding (item G in POSSIBLE_NEXT_STEPS.md)** is the natu
 
 ---
 
+## V1 round-2 tuning + HubrisHeuristicV3 + iterative tuning pipeline (2026-05-22 evening)
+
+A long session that took the V1 heuristic from "hand-picked defaults" all the way to a new V3 architecture with a working category-by-category CMA-ES tuning pipeline. Two new docs (V3_DESIGN.md, V3_TRAINING_PIPELINE.md) capture the design in full; see also CHANGES.md Change 10. This entry is the chronological narrative of how we got there.
+
+### V1 round 2 — `CONFIG_V1_T2`
+
+Started by running the Thread-A tuning harness (`scripts/tune_heuristic.py` — built earlier in the session) over 58 of V1's coefficients: family rates, crop+field pair rates, all resource tier rates, all cooking-implement override values, the food curve, the begging-by-moves penalty, and a few smaller behavioral fields. Baseline = `HubrisHeuristicV1(DEFAULT_CONFIG)`. 50 training seeds, popsize 18, max_gens 25.
+
+Result: training margin **+8.10** (over default), holdout margin **+8.85** on 100 disjoint seeds (record 90-1-9). Promoted to module-level constant **`CONFIG_V1_T2`** in `agricola/agents/heuristic.py`. Wired as the **`hubris` seat alias** in `play_web.py`, `play_heuristic_game.py`, and `scripts/play_match.py`. `hubris_v1` continues to point at the original V1 default for direct comparison.
+
+Notable shifts (vs hand-picked defaults):
+- `wood_excess` 0.15 → 0.73 (~5× higher — stockpiled wood is much more valuable than V1 thought)
+- `stage1_resource_mult` 1.5 → 2.10 (front-load resource accumulation more aggressively)
+- `round14_resource_mult` 0.5 → 0.01 (end-game resources are essentially worthless)
+- `cooking_secondary_vp` 1.0 → 0.48 (redundant cookware adds half what V1 credited)
+- `family_per_round[2]` (5th member) 1.5 → 2.0
+- `food_excess_stage6` 0.30 → 0.00, `food_at_need_stage4` 0.60 → 0.13
+
+### V1 round 3 — add-only with 12 fresh params (did not promote)
+
+Tested whether the parameters round 2 *didn't* tune (renovation bonus, location bonuses, unfenced stable, well, ovens, joinery/pottery/basketmaker) could improve over T2 when warm-started from T2 and tuned add-only.
+
+Result: training +0.14, holdout **−0.88** (record 46-0-54). Did not promote. Confirmed V1 was at a local optimum for its architecture — further improvement requires architectural change.
+
+### HubrisHeuristicV3 architecture
+
+Designed and implemented a new heuristic architecture replacing V1's mixed model. See `V3_DESIGN.md` for the canonical reference. Key design decisions (the chat negotiated each in turn):
+
+- **Three combination styles** per scoring category: BLEND (`α[stage]·v3_value + (1−α[stage])·score_leaf` for categories with a score leaf), ADDITIVE-MULTIPLICATIVE (`weight[stage]·v3_value` for hubris-only categories like pairs and unfenced stables), JOINT-ALPHA (single `α` modulating clay/stone rooms, people, craft bonuses together). Begging excluded from joint-alpha (always full-weight).
+- **Per-stage modulators** (length-6 vectors) on every category — stages 1..6 derived from `_stage_of_round`. User requested per-stage rather than per-round to keep parameter counts tractable.
+- **Three-component pattern per resource**: slot-indexed primary vector (wood: fence slot 0..14; reed: room-pair slot; clay: cookware status slot), regime-conditional overlay (pre-3rd-room wood; renovation-step reed; renovation-per-room clay/stone), and a generic per-unit scalar — all gated by a per-stage weight. Same wood unit can contribute via multiple components ("double or triple counted"), letting the optimizer put weight on whichever decomposition matters.
+- **Two pasture vectors** sharing one blend alpha: `pasture_value_all` (indexed by total count) + `pasture_value_large` (indexed by # pastures with capacity ≥ 4). Captures "2×1 pasture is strictly better than two 1×1 pastures" — score()'s "1 pt per pasture, max 4" formula can't distinguish.
+- **Breeding-pair priority**: cattle > boar > sheep. Allocates pasture-breeding-capacity slots in that order using the existing `_num_breeding_opportunities_from_farm` helper.
+- **Grain-priority allocation** for crop-field pairs (grain "fills" empty fields before veg, since grain produces 3 units/field vs veg's 2).
+- **V1 helpers preserved** via duck typing on config field names: `_hubris_family_value`, `_hubris_empty_room_value`, `_hubris_field_location_bonus`, `_hubris_pasture_location_bonus`, `_hubris_starting_player_bonus`, `_hubris_renovation_bonus`, `_hubris_major_value`, `_food_term_hubris`. `HeuristicConfigV3` mirrors V1's field names for these; V3 evaluator calls the same helper code with the V3 config.
+- **V1 helpers deleted** (subsumed by V3 categories): `_hubris_resource_value`, `_hubris_breeding_value`, `_hubris_unfenced_stable_value`, `_hubris_crop_field_pair_bonus`.
+- **`DEFAULT_CONFIG_V3`'s carry-over fields seeded from `CONFIG_V1_T2`'s tuned values** (family rates, empty-room rates, cooking-implement override values, food-by-stage curve, begging-by-moves, starting-player bonus). Without this, V3 default vs hubris (V1+T2) was -19; after the carry-over update, -15. The remaining gap is the un-tuned V3-specific structure (resource model + per-category alphas).
+
+Renovation bonus was enabled in both V1 and V2 evaluators (was previously commented out). Dataclass defaults set to 0.0/0.0 for backwards compatibility — `DEFAULT_CONFIG` and `CONFIG_V1_T2` still produce identical evaluator output. Verified by re-running `hubris vs hubris_v1` head-to-head: 9-0-1 / +7.30 over 10 seeds, unchanged.
+
+Total V3 parameter count: ~250 continuous floats (vs V1's ~70).
+
+### V3 resources tuning (the first V3 result)
+
+Started a V3 tuning run on the 63 resource parameters with `--from default_v3 --baseline t2` (warm-start = V3 default, opponent = V1+T2). Within 2 generations CMA-ES closed the −15 gap entirely and went positive. By gen 17 the best was +11.82. Killed at gen 25/30 on user request after the margin plateaued.
+
+Manually computed holdout (100 disjoint seeds 1000..1099): **margin +8.72** (record 82-1-17). Cumulative: V3+tuned_resources is +8.72 over V1+T2, which itself was +8.85 over V1 default — so cumulative ~+17 over the original V1 baseline.
+
+Bootstrapped this config as the initial `tuned_configs/v3_best.json`. The original run didn't have `--resume` infrastructure (added later in the session), so its CMA-ES state wasn't pickled.
+
+### CMA-ES save/resume infrastructure
+
+Added `--resume <path>.cma.pkl` support to `scripts/tune_heuristic.py`. Implementation:
+- After every generation: `pickle.dump(es, <output>.cma.pkl)` atomically (temp-file + rename).
+- On `--resume`: `pickle.load(es, ...)`, assert `es.N == len(tunable)`, bump `es.opts["maxiter"] = es.countiter + args.max_gens` (so `--max-gens` becomes "additional gens"), call `es.stop(ignore_list=["maxiter"])` in the loop to avoid the saved `maxiter` cap short-circuiting immediately.
+- `--from <name-or-path>` extended to accept either a `BASE_CONFIGS` name or a JSON file path; loads `best_config` and constructs the right dataclass based on the JSON's `candidate_arch` field. Same name-or-path semantics for `--baseline`.
+
+This enables chained tuning across categories — each category's CMA-ES can resume from where it last left off, with the warm-start base updated to reflect intervening category tunings.
+
+### The orchestrator `scripts/run_iterative_v3.py`
+
+Chains V3 category tunings as block-coordinate descent. Per pass: fields_crops → food → resources → pastures_animals. Each step's `--from` is the previous step's JSON; on passes 2+, each step's `--resume` is the same category's pickle from the previous pass.
+
+Per-category TUNABLE lists were written (`TUNABLE_V3_FIELDS_CROPS` 60 params, `TUNABLE_V3_FOOD` 18, `TUNABLE_V3_RESOURCES` 63, `TUNABLE_V3_PASTURES_ANIMALS` 101) using list comprehensions for compactness. `CATEGORIES` dict maps each name to `(tunable, arch)`.
+
+### The food regression bug + x0 fallback fix
+
+First iterative-tuning attempt (3 passes, 12 total steps) ran for ~half an hour and made it to step 2 (food). At that point we noticed food's "best so far" was +12.43 — *worse than* its sanity-check x0 fitness of +13.01.
+
+Investigation: V3's food parameters were seeded from CONFIG_V1_T2's tuned food values (the carry-over update), which were already near-optimal. CMA-ES samples around x0 with σ=0.3 perturbations of size ~10-30% per field; food rates have strong strategic effect (feeding decisions, conversion timing), so 0.3-stddev perturbations typically degrade fitness. CMA-ES would eventually converge back toward x0 as σ shrinks, but with d=18 and only 10 max-gens this might not happen.
+
+Worse: the orchestrator's chain-forward design would propagate the degraded food values to the next category (resources), corrupting all downstream tuning.
+
+**Fix**: added an x0 fallback to `tune_heuristic.py`. After the CMA-ES loop, if `es.best.f` is worse than the pre-loop sanity `f0`, the script overrides `best_x = x0` and reports `best_margin = sanity_margin`. Prints an explicit warning when triggered. This guarantees a step's official "best" is never worse than its starting point — protecting the chain.
+
+Killed the 3-pass run, applied the fix, restarted with:
+- `--n-passes 2` (downgraded from 3 — by user choice; 2 was enough to validate)
+- `--start-step 2` (skip the already-done fields_crops step from the original pass 1)
+- `--initial-pickles "v3_food:tuned_configs/iter_p1_v3_food.cma.pkl,v3_fields_crops:tuned_configs/iter_p1_v3_fields_crops.cma.pkl"` (resume food from gen 7 of the original run; resume fields_crops on pass 2)
+
+Added `--start-step N` (skip first N-1 steps, just advance the chain) and `--initial-pickles "cat:path,..."` (pre-populate the per-category pickle map) flags to the orchestrator to support resumable continuation.
+
+### Iterative tuning current state (in progress)
+
+Pass-1 fields_crops landed before any of this restructuring: training margin (unknown — fields_crops's log shows the param table but I don't have the training-best in the entry I read), holdout **+10.16** vs T2 (record 90-0-10). Updated `v3_best.json` from +8.72 to +10.16.
+
+7 steps queued after that (food through pass 2 pastures_animals). Step 2 (food resume) is currently running. The x0 fallback is expected to fire for food (since its starting point was already near-optimal); the substantive improvements should come from resources and pastures_animals.
+
+### Web UI integration
+
+- Added `--v3-config PATH` flag to `play_web.py`. When set, loads the JSON's `best_config` and uses it whenever a seat is `hubris_v3`. Stable run command: `python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json`.
+- Simplified the New-game dialog's seat dropdown to `human / random / v1 / v3` (with internal translation: `v1` → backend `hubris` = V1+T2; `v3` → backend `hubris_v3` with loaded config). Backend agent names (`hubris`, `hubris_v3`, etc.) still work for CLI `--seats`.
+- `_maybe_update_best_pointer()` in `tune_heuristic.py` auto-maintains `tuned_configs/<arch>_best.json` — at end of every run, copies the new JSON to that path iff the new holdout margin beats the existing one. So `v3_best.json` always reflects the strongest V3 config we've ever produced.
+
+### Other notable changes
+
+- Per-game logging structure: every `tune_heuristic.py` run now writes three files (`<output>.json` + `<output>.log` + `<output>.cma.pkl`) atomically per generation. The `.log` is a tee of stdout (human-readable progress mirror); JSON is the machine-readable artifact; pickle is the CMA-ES state.
+- `scripts/play_match.py` was extracted as a library + CLI for head-to-head matches. Used by `tune_heuristic.py` and as a standalone tool.
+- Parallelism via `multiprocessing.Pool` (default `os.cpu_count()` jobs). Each pool worker evaluates one CMA-ES candidate. Pool initializer (`_init_worker`) sets up the worker-side globals (seeds, baseline config, base config, arch labels, tunable list) so the pickleable `_eval_candidate(x)` doesn't need them as args.
+- `python -O` recommended for tuning runs — strips engine debug asserts (`_assert_nonnegative_state` gated by `__debug__`) for ~2× speedup. Documented in the script's help output.
+- Three integer caps in the resource model (`wood_tier1_cap`, `wood_tier2_cap`, `clay_no_cookware_cap`) stay fixed — CMA-ES doesn't handle integers naturally. Tunable-by-hand if desired; not in any current TUNABLE.
+
+### Documentation
+
+Two new top-level docs created in this session:
+- **`V3_DESIGN.md`** — comprehensive V3 architecture reference. Combination styles, per-category specs, three-component resource pattern, V1 carry-overs, known limitations (food double-count inherited from V1, no slot-indexed vector for stone, single shared α for pasture vectors, etc.).
+- **`V3_TRAINING_PIPELINE.md`** — operational guide. CMA-ES basics, the tune script's flags + semantics, save/resume mechanics, the orchestrator, `v3_best.json` convention, current training state, next steps, operational quick-reference.
+
+CLAUDE.md updated with the new status rows, directory tree entries for the new scripts, and entries in the Documentation Files table. CHANGES.md got a new entry (**Change 10 — HubrisHeuristicV3 architecture + category-by-category CMA-ES tuning pipeline**). FILE_DESCRIPTIONS.md updated with the new scripts + V3 entries on `heuristic.py` / `agents/__init__.py`. HEURISTIC_TUNING_PLAN.md got a partially-superseded header note pointing at V3_TRAINING_PIPELINE.md.
+
+### Next session
+
+- Wait for the iterative run (8 steps, ~5-6 hours remaining at time of writing) to complete.
+- Analyze final v3_best.json holdout margin. Compare to projected ~+15-25 range vs T2.
+- If holdout > +20, consider switching the tuning baseline from `t2` to `v3_best.json` (signal-saturation territory).
+- Promote v3_best.json's config to a Python constant `CONFIG_V3_T1` (mirror the `CONFIG_V1_T2` pattern). Document promotion in CHANGES.md.
+- Consider addressing the V1 food double-count in V3 (see HUBRIS_V1_NOTES.md §4 — options: convertible-discount-by-stage, V2-style joint frontier with "will I actually convert?" weighting).
+- Discrete-cutoff sweep (pasture-large threshold K=4, etc.) — manual sweep, not CMA-ES.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
@@ -2228,7 +2349,7 @@ All 661 tests pass. The codebase has:
 - **Reusable sub-action pendings.** Six sub-action pendings are shared across multiple entry points: `PendingPlow` (Farmland + Cultivation), `PendingSow` (Grain Utilization + Cultivation), `PendingBakeBread` (Grain Utilization + Side Job + Clay Oven + Stone Oven), `PendingRenovate` (House Redev + Farm Redev), `PendingBuildStables` (Side Job + Farm Expansion), `PendingBuildFences` (Fencing + Farm Redev). Caller-supplied `initiated_by_id` provides provenance; per-call variance (cost, caps) is captured in pending fields set at push time.
 - Test infrastructure: `tests/factories.py` for prefabricated states, `tests/test_utils.py` for `run_actions` and `random_agent_play`. `_is_implemented_action` only filters `PlaceWorker` actions; all other action types (including the three new harvest commits) pass through unconditionally.
 - Top-level `play_random_game.py` script: plays one full random-vs-random game and prints the scoreboard with per-category breakdown, tiebreaker, and winner. `--trace` flag prints a per-round narrative grouping worker-placement chains and harvest sub-phases.
-- **Heuristic agents** (`agricola/agents/`): generic `HeuristicAgent` infrastructure with 1-turn lookahead + always-on singleton-skip + softmax-with-temperature; `SimpleHeuristic` (MVP — score + linear resource bonuses + food/begging) and `HubrisHeuristic` (full-spec, ~50 coefficients in `HeuristicConfig`). Two Hubris versions: V1 (the iterated default; `HubrisHeuristic` alias) and V2 (uses `harvest_feed_frontier` for joint goods-or-food optimization; theoretically more correct but loses head-to-head to V1 due to the "won't actually convert if game ends first" effect — see HUBRIS_V1_NOTES.md §4). `play_heuristic_game.py` is the matchup driver. `play_web.py` supports any combination of human / random / simple / hubris / hubris_v1 / hubris_v2 in either seat, with manual step-through (Enter / "Advance" button) for AI-vs-AI watching.
+- **Heuristic agents** (`agricola/agents/`): generic `HeuristicAgent` infrastructure with 1-turn lookahead + always-on singleton-skip + softmax-with-temperature; `SimpleHeuristic` (MVP — score + linear resource bonuses + food/begging) and three Hubris versions: V1 (`HubrisHeuristicV1`, `HeuristicConfig` — ~70 coefficients; round-2-tuned `CONFIG_V1_T2` constant is +8.85 holdout vs default), V2 (`HubrisHeuristicV2` — V1 with joint goods-or-food via `harvest_feed_frontier`; loses head-to-head to V1), and **V3** (`HubrisHeuristicV3`, `HeuristicConfigV3` — ~250 parameters across blend/additive/joint-alpha categories + three-component resources). `HubrisHeuristic` alias still points at V1 for backward compat. **CMA-ES tuning pipeline** (`scripts/tune_heuristic.py` per-category + `scripts/run_iterative_v3.py` orchestrator with save/resume + x0 fallback). `tuned_configs/v3_best.json` auto-maintained — `python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json` plays against the current champion. See **`V3_DESIGN.md`** and **`V3_TRAINING_PIPELINE.md`** for full reference.
 - Full test coverage: **661 tests** across all test files. Includes the Task 7 harvest test files, the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 `tests/test_fencing.py` cases for the `fence_universe` context manager / `restrict_to` builder (item D), the 7 `legal_actions_cache()` tests in `tests/test_engine.py` (Change 9), the 14 `fast_replace` equivalence tests in `tests/test_replace.py` (Change 9), the 25 heuristic-agent smoke tests in `tests/test_agents_heuristic.py`, and the post-Task-7 deferred-food-payment / web-UI / context-manager work. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
 - Performance harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) — re-runnable from the repo root; no dependencies under `agricola/` or `tests/`. Used to produce the PROFILING.md snapshot and to validate that subsequent changes don't regress.
 

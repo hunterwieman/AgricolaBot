@@ -1,0 +1,577 @@
+{
+  "status": "complete",
+  "tunable_spec": [
+    {
+      "name": "family_per_round_0",
+      "default": 2.5,
+      "lower": 0.0,
+      "upper": 6.0,
+      "path": [
+        "family_per_round",
+        0
+      ]
+    },
+    {
+      "name": "family_per_round_1",
+      "default": 2.0,
+      "lower": 0.0,
+      "upper": 6.0,
+      "path": [
+        "family_per_round",
+        1
+      ]
+    },
+    {
+      "name": "family_per_round_2",
+      "default": 1.5,
+      "lower": 0.0,
+      "upper": 6.0,
+      "path": [
+        "family_per_round",
+        2
+      ]
+    },
+    {
+      "name": "starting_player_bonus",
+      "default": 1.0,
+      "lower": -1.0,
+      "upper": 5.0,
+      "path": [
+        "starting_player_bonus"
+      ]
+    },
+    {
+      "name": "crop_field_pair_early",
+      "default": 0.6,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "crop_field_pair_early"
+      ]
+    },
+    {
+      "name": "crop_field_pair_mid",
+      "default": 0.4,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "crop_field_pair_mid"
+      ]
+    },
+    {
+      "name": "crop_field_pair_late",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "crop_field_pair_late"
+      ]
+    },
+    {
+      "name": "wood_first5_no_room",
+      "default": 1.5,
+      "lower": 0.0,
+      "upper": 4.0,
+      "path": [
+        "wood_first5_no_room"
+      ]
+    },
+    {
+      "name": "wood_per_fence_owed",
+      "default": 0.8,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "wood_per_fence_owed"
+      ]
+    },
+    {
+      "name": "wood_secondary",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "wood_secondary"
+      ]
+    }
+  ],
+  "n_seeds": 50,
+  "training_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49
+  ],
+  "holdout_seeds": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1005,
+    1006,
+    1007,
+    1008,
+    1009,
+    1010,
+    1011,
+    1012,
+    1013,
+    1014,
+    1015,
+    1016,
+    1017,
+    1018,
+    1019,
+    1020,
+    1021,
+    1022,
+    1023,
+    1024,
+    1025,
+    1026,
+    1027,
+    1028,
+    1029,
+    1030,
+    1031,
+    1032,
+    1033,
+    1034,
+    1035,
+    1036,
+    1037,
+    1038,
+    1039,
+    1040,
+    1041,
+    1042,
+    1043,
+    1044,
+    1045,
+    1046,
+    1047,
+    1048,
+    1049,
+    1050,
+    1051,
+    1052,
+    1053,
+    1054,
+    1055,
+    1056,
+    1057,
+    1058,
+    1059,
+    1060,
+    1061,
+    1062,
+    1063,
+    1064,
+    1065,
+    1066,
+    1067,
+    1068,
+    1069,
+    1070,
+    1071,
+    1072,
+    1073,
+    1074,
+    1075,
+    1076,
+    1077,
+    1078,
+    1079,
+    1080,
+    1081,
+    1082,
+    1083,
+    1084,
+    1085,
+    1086,
+    1087,
+    1088,
+    1089,
+    1090,
+    1091,
+    1092,
+    1093,
+    1094,
+    1095,
+    1096,
+    1097,
+    1098,
+    1099
+  ],
+  "popsize": 12,
+  "max_gens": 10,
+  "sigma0": 0.3,
+  "cma_seed": 1,
+  "best_x": [
+    2.8036194382609163,
+    2.152789914511647,
+    1.8761270954809077,
+    0.9114945276306919,
+    0.6579101404113443,
+    0.606261188797528,
+    0.07087210808257055,
+    1.4272910966472308,
+    0.617375452837035,
+    0.622196960407966
+  ],
+  "best_margin": 1.759999999999998,
+  "best_config": {
+    "simple_wood_value": 0.5,
+    "simple_clay_value": 0.5,
+    "simple_reed_value": 0.5,
+    "simple_stone_value": 0.5,
+    "simple_grain_value": 0.2,
+    "simple_veg_value": 0.2,
+    "food_value": 0.5,
+    "food_at_need_value": 1.0,
+    "simple_begging_per_food": -2.0,
+    "family_per_round": [
+      2.8036194382609163,
+      2.152789914511647,
+      1.8761270954809077
+    ],
+    "empty_room_rate_pre_basic_wish": 2.5,
+    "empty_room_rate_post_basic_wish": 2.5,
+    "hubris_unfenced_stable_value_early": 0.4,
+    "breed_active_has_cooking": 1.0,
+    "breed_active_can_afford": 0.8,
+    "breed_active_cannot_afford": 0.6,
+    "breed_passive": 0.3,
+    "field_center_bonus": 0.1,
+    "pasture_location_bonus": 0.05,
+    "renovation_bonus_per_step_early": 0.75,
+    "renovation_bonus_per_step_late": 1.5,
+    "starting_player_bonus": 0.9114945276306919,
+    "crop_field_pair_early": 0.6579101404113443,
+    "crop_field_pair_mid": 0.606261188797528,
+    "crop_field_pair_late": 0.07087210808257055,
+    "wood_per_fence_owed": 0.617375452837035,
+    "wood_tier1_cap": 6,
+    "wood_secondary": 0.622196960407966,
+    "wood_tier2_cap": 5,
+    "wood_excess": 0.15,
+    "wood_first5_no_room": 1.4272910966472308,
+    "clay_no_cookware": 1.0,
+    "clay_no_cookware_cap": 5,
+    "clay_no_cookware_excess": 0.3,
+    "clay_per_wood_room": 0.8,
+    "clay_excess": 0.3,
+    "pottery_clay_bonus": 0.5,
+    "pottery_bonus_cap": 7,
+    "basketmaker_bonus_cap": 5,
+    "reed_first2": 0.8,
+    "reed_excess": 0.3,
+    "reed_first_no_room": 1.0,
+    "reed_second_no_room": 2.0,
+    "reed_excess_no_room": 0.7,
+    "basketmaker_reed_bonus": 0.5,
+    "stone_value": 0.8,
+    "stone_tier_cap": 5,
+    "stone_excess": 0.3,
+    "stage1_resource_mult": 1.5,
+    "round13_resource_mult": 0.75,
+    "round14_resource_mult": 0.5,
+    "fireplace_value": 4.0,
+    "fireplace_value_mid": 2.0,
+    "fireplace_value_late": 1.0,
+    "hearth_value": 6.0,
+    "hearth_value_mid": 3.0,
+    "hearth_value_late": 1.0,
+    "cooking_secondary_vp": 1.0,
+    "well_value": 4.0,
+    "well_food_per_future": 0.4,
+    "clay_oven_value": 2.0,
+    "stone_oven_value": 3.0,
+    "joinery_value": 2.0,
+    "pottery_value": 2.0,
+    "basketmaker_value": 2.0,
+    "hubris_food_by_stage": [
+      [
+        1.0,
+        0.5
+      ],
+      [
+        0.75,
+        0.5
+      ],
+      [
+        0.6,
+        0.3
+      ],
+      [
+        0.6,
+        0.3
+      ],
+      [
+        0.6,
+        0.3
+      ],
+      [
+        0.6,
+        0.3
+      ]
+    ],
+    "hubris_begging_by_moves": [
+      -3.0,
+      -2.0,
+      -2.0,
+      -1.0,
+      -1.0,
+      -0.5
+    ]
+  },
+  "history": [
+    {
+      "generation": 1,
+      "best_margin_so_far": 1.4399999999999977,
+      "best_x_so_far": [
+        2.859675363970452,
+        2.0555472029805038,
+        1.3874133891124862,
+        0.8083780034553425,
+        0.7270508472107681,
+        0.42320260056233117,
+        0.053159197400823505,
+        1.5130795148252818,
+        0.6139923066566316,
+        0.7094190338661561
+      ],
+      "gen_best_margin": 1.4399999999999977,
+      "gen_mean_margin": -2.978333333333334,
+      "elapsed_seconds": 316.30332895810716
+    },
+    {
+      "generation": 2,
+      "best_margin_so_far": 1.4399999999999977,
+      "best_x_so_far": [
+        2.859675363970452,
+        2.0555472029805038,
+        1.3874133891124862,
+        0.8083780034553425,
+        0.7270508472107681,
+        0.42320260056233117,
+        0.053159197400823505,
+        1.5130795148252818,
+        0.6139923066566316,
+        0.7094190338661561
+      ],
+      "gen_best_margin": 0.5800000000000018,
+      "gen_mean_margin": -1.9833333333333334,
+      "elapsed_seconds": 604.674324041931
+    },
+    {
+      "generation": 3,
+      "best_margin_so_far": 1.4399999999999977,
+      "best_x_so_far": [
+        2.859675363970452,
+        2.0555472029805038,
+        1.3874133891124862,
+        0.8083780034553425,
+        0.7270508472107681,
+        0.42320260056233117,
+        0.053159197400823505,
+        1.5130795148252818,
+        0.6139923066566316,
+        0.7094190338661561
+      ],
+      "gen_best_margin": 1.3999999999999986,
+      "gen_mean_margin": -0.978333333333334,
+      "elapsed_seconds": 886.7386657919269
+    },
+    {
+      "generation": 4,
+      "best_margin_so_far": 1.4399999999999977,
+      "best_x_so_far": [
+        2.859675363970452,
+        2.0555472029805038,
+        1.3874133891124862,
+        0.8083780034553425,
+        0.7270508472107681,
+        0.42320260056233117,
+        0.053159197400823505,
+        1.5130795148252818,
+        0.6139923066566316,
+        0.7094190338661561
+      ],
+      "gen_best_margin": 0.26000000000000156,
+      "gen_mean_margin": -1.403333333333334,
+      "elapsed_seconds": 1168.6636267080903
+    },
+    {
+      "generation": 5,
+      "best_margin_so_far": 1.4399999999999977,
+      "best_x_so_far": [
+        2.859675363970452,
+        2.0555472029805038,
+        1.3874133891124862,
+        0.8083780034553425,
+        0.7270508472107681,
+        0.42320260056233117,
+        0.053159197400823505,
+        1.5130795148252818,
+        0.6139923066566316,
+        0.7094190338661561
+      ],
+      "gen_best_margin": 1.1600000000000001,
+      "gen_mean_margin": -3.2783333333333338,
+      "elapsed_seconds": 1460.5414919999894
+    },
+    {
+      "generation": 6,
+      "best_margin_so_far": 1.4399999999999977,
+      "best_x_so_far": [
+        2.859675363970452,
+        2.0555472029805038,
+        1.3874133891124862,
+        0.8083780034553425,
+        0.7270508472107681,
+        0.42320260056233117,
+        0.053159197400823505,
+        1.5130795148252818,
+        0.6139923066566316,
+        0.7094190338661561
+      ],
+      "gen_best_margin": 1.2399999999999984,
+      "gen_mean_margin": -0.6400000000000009,
+      "elapsed_seconds": 1738.7185119169299
+    },
+    {
+      "generation": 7,
+      "best_margin_so_far": 1.759999999999998,
+      "best_x_so_far": [
+        2.8036194382609163,
+        2.152789914511647,
+        1.8761270954809077,
+        0.9114945276306919,
+        0.6579101404113443,
+        0.606261188797528,
+        0.07087210808257055,
+        1.4272910966472308,
+        0.617375452837035,
+        0.622196960407966
+      ],
+      "gen_best_margin": 1.759999999999998,
+      "gen_mean_margin": -1.511666666666667,
+      "elapsed_seconds": 2017.6159667919856
+    },
+    {
+      "generation": 8,
+      "best_margin_so_far": 1.759999999999998,
+      "best_x_so_far": [
+        2.8036194382609163,
+        2.152789914511647,
+        1.8761270954809077,
+        0.9114945276306919,
+        0.6579101404113443,
+        0.606261188797528,
+        0.07087210808257055,
+        1.4272910966472308,
+        0.617375452837035,
+        0.622196960407966
+      ],
+      "gen_best_margin": 1.2199999999999989,
+      "gen_mean_margin": -0.24000000000000052,
+      "elapsed_seconds": 2300.8202201251406
+    },
+    {
+      "generation": 9,
+      "best_margin_so_far": 1.759999999999998,
+      "best_x_so_far": [
+        2.8036194382609163,
+        2.152789914511647,
+        1.8761270954809077,
+        0.9114945276306919,
+        0.6579101404113443,
+        0.606261188797528,
+        0.07087210808257055,
+        1.4272910966472308,
+        0.617375452837035,
+        0.622196960407966
+      ],
+      "gen_best_margin": 0.6600000000000001,
+      "gen_mean_margin": -0.3766666666666663,
+      "elapsed_seconds": 2579.4361165419687
+    },
+    {
+      "generation": 10,
+      "best_margin_so_far": 1.759999999999998,
+      "best_x_so_far": [
+        2.8036194382609163,
+        2.152789914511647,
+        1.8761270954809077,
+        0.9114945276306919,
+        0.6579101404113443,
+        0.606261188797528,
+        0.07087210808257055,
+        1.4272910966472308,
+        0.617375452837035,
+        0.622196960407966
+      ],
+      "gen_best_margin": 0.8200000000000003,
+      "gen_mean_margin": -0.2283333333333326,
+      "elapsed_seconds": 2865.331011667149
+    }
+  ],
+  "holdout": {
+    "n_games": 100,
+    "p0_wins": 68,
+    "p1_wins": 32,
+    "draws": 0,
+    "avg_score_p0": 27.31,
+    "avg_score_p1": 25.03,
+    "avg_margin": 2.2799999999999976,
+    "elapsed_seconds": 46.26867016707547
+  }
+}

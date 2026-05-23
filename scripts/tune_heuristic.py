@@ -1,0 +1,869 @@
+"""Self-play tuning of HubrisHeuristic V1 config coefficients via CMA-ES.
+
+Tunes a subset of `HeuristicConfig`'s scalar fields against
+`HubrisHeuristicV1` with the default config as the baseline opponent.
+Fitness = mean(candidate_score - baseline_score) over a fixed seed set.
+Higher (more positive) margin = better candidate.
+
+Initial sanity-check parameter set (10 floats): family_per_round[3] +
+starting_player_bonus + crop_field_pair_{early,mid,late} +
+wood_{first5_no_room, per_fence_owed, secondary}. Edit `TUNABLE` to
+expand.
+
+Usage:
+    # Recommended (parallel + asserts stripped — ~12-15x faster):
+    python -O scripts/tune_heuristic.py                    # uses all cores
+    python -O scripts/tune_heuristic.py --jobs 4           # cap parallelism
+    python    scripts/tune_heuristic.py --jobs 1           # debug / sequential
+
+    python -O scripts/tune_heuristic.py --n-seeds 50 --max-gens 20
+    python -O scripts/tune_heuristic.py --output tuned_configs/run1.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pickle
+import sys
+import time
+from dataclasses import asdict, replace
+from multiprocessing import Pool
+from pathlib import Path
+from typing import Any
+
+# Make `agricola` and sibling `scripts/` modules importable when run directly.
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import cma
+import numpy as np
+
+from agricola.agents import (
+    CONFIG_V1_T2,
+    CONFIG_V3_T1,
+    DEFAULT_CONFIG_V3,
+    HubrisHeuristicV1,
+    HubrisHeuristicV3,
+)
+from agricola.agents.heuristic import (
+    DEFAULT_CONFIG,
+    HeuristicConfig,
+    HeuristicConfigV3,
+)
+
+from play_match import play_match  # noqa: E402  (sibling module via sys.path)
+
+
+# Named configs. Each maps to (config_obj, architecture_label).
+# Used for both --from (warm-start base, must match --arch) and --baseline
+# (opponent agent, independent of --arch).
+BASE_CONFIGS: dict[str, tuple] = {
+    "default":    (DEFAULT_CONFIG, "v1"),
+    "t2":         (CONFIG_V1_T2, "v1"),
+    "default_v3": (DEFAULT_CONFIG_V3, "v3"),
+    "v3_t1":      (CONFIG_V3_T1, "v3"),
+}
+
+
+def _make_agent(arch: str, cfg, seed: int):
+    """Construct an agent of the given architecture with the given config."""
+    if arch == "v1":
+        return HubrisHeuristicV1(config=cfg, seed=seed,
+                                  temperature=0.0, lookahead="turn")
+    if arch == "v3":
+        return HubrisHeuristicV3(config=cfg, seed=seed,
+                                  temperature=0.0, lookahead="turn")
+    raise ValueError(f"Unknown arch {arch!r}")
+
+
+def _resolve_config(spec: str) -> tuple:
+    """Resolve a --from / --baseline spec into (config_obj, arch).
+
+    `spec` is either:
+      - A name from BASE_CONFIGS (e.g. 'default', 't2', 'default_v3'), OR
+      - A path to a JSON file produced by a previous tuning run; the
+        'best_config' field is loaded into the appropriate dataclass
+        (HeuristicConfig if 'candidate_arch' == 'v1', else HeuristicConfigV3).
+
+    The JSON-path form lets the warm-start base reflect the latest
+    cross-category tuning progress when iterating between categories.
+    """
+    if spec in BASE_CONFIGS:
+        return BASE_CONFIGS[spec]
+
+    path = Path(spec)
+    if not path.is_file():
+        raise SystemExit(
+            f"Config spec {spec!r} is not a known name "
+            f"({sorted(BASE_CONFIGS)}) and not a file path."
+        )
+
+    with open(path) as f:
+        data = json.load(f)
+    cfg_dict = data.get("best_config")
+    if cfg_dict is None:
+        raise SystemExit(f"{path} has no 'best_config' field.")
+    arch = data.get("candidate_arch", "v1")  # legacy JSONs default to v1
+    if arch == "v1":
+        return HeuristicConfig(**cfg_dict), "v1"
+    if arch == "v3":
+        return HeuristicConfigV3(**cfg_dict), "v3"
+    raise SystemExit(f"Unknown candidate_arch {arch!r} in {path}.")
+
+
+class _Tee:
+    """Mirror writes across multiple streams (stdout + log file).
+
+    Used to send all print() output to both the terminal and the
+    timestamped .log companion file. Set up early in main(); restored on
+    exit by the try/finally."""
+
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, s: str) -> int:
+        for stream in self.streams:
+            stream.write(s)
+        return len(s)
+
+    def flush(self) -> None:
+        for stream in self.streams:
+            stream.flush()
+
+
+# ---------------------------------------------------------------------------
+# TUNABLE specs
+# ---------------------------------------------------------------------------
+#
+# Each TUNABLE entry: (name, default, lower, upper, config_path).
+# config_path = ("field_name",) for a scalar, ("field_name", idx) for
+# tuple-valued, or ("field_name", outer, inner) for tuple-of-tuples.
+#
+# Each named CATEGORY in CATEGORIES is a (tunable_list, arch) pair.
+# `--category` selects which one to run; `--arch` is enforced to match.
+
+
+# --- V1 add-only (used in round 3; kept for reproducibility / V1 follow-ups) ---
+TUNABLE_V1_ADDONLY: list[tuple[str, float, float, float, tuple]] = [
+    ("renovation_bonus_per_step_early", 0.75, 0.0, 3.0, ("renovation_bonus_per_step_early",)),
+    ("renovation_bonus_per_step_late",  1.5,  0.0, 4.0, ("renovation_bonus_per_step_late",)),
+    ("field_center_bonus",    0.10, -0.20, 1.00, ("field_center_bonus",)),
+    ("pasture_location_bonus", 0.05, -0.20, 0.50, ("pasture_location_bonus",)),
+    ("hubris_unfenced_stable_value_early", 0.40, -0.50, 2.00,
+     ("hubris_unfenced_stable_value_early",)),
+    ("well_value",            4.0, 0.0, 10.0, ("well_value",)),
+    ("well_food_per_future",  0.4, 0.0,  2.0, ("well_food_per_future",)),
+    ("clay_oven_value",       2.0, 0.0,  6.0, ("clay_oven_value",)),
+    ("stone_oven_value",      3.0, 0.0,  8.0, ("stone_oven_value",)),
+    ("joinery_value",         2.0, 0.0,  6.0, ("joinery_value",)),
+    ("pottery_value",         2.0, 0.0,  6.0, ("pottery_value",)),
+    ("basketmaker_value",     2.0, 0.0,  6.0, ("basketmaker_value",)),
+]
+
+
+# --- V3 RESOURCES (63 params) ---
+# Tunes wood/clay/reed/stone vectors + scalars + per-stage weights.
+# Other V3 categories (fields/crops, pastures/animals, food) frozen at
+# DEFAULT_CONFIG_V3 via the warm-start base.
+TUNABLE_V3_RESOURCES: list[tuple[str, float, float, float, tuple]] = [
+    # Wood: 15 fence_vector + 5 pre_3rd_room + 1 generic + 6 stage = 27
+    *[(f"wood_fence_{i}", v, 0.0, 3.0, ("wood_fence_vector", i))
+      for i, v in enumerate([0.7]*10 + [0.5]*5)],
+    *[(f"wood_pre_3rd_room_{i}", 0.8, 0.0, 3.0, ("wood_pre_3rd_room_vector", i))
+      for i in range(5)],
+    ("wood_generic_value", 0.1, 0.0, 1.5, ("wood_generic_value",)),
+    *[(f"wood_weight_stage{i+1}", v, 0.0, 3.0, ("wood_weight_by_stage", i))
+      for i, v in enumerate([1.5, 1.0, 1.0, 1.0, 0.9, 0.2])],
+
+    # Reed: 6 room + 2 renovation + 1 generic + 6 stage = 15
+    *[(f"reed_room_{i}", v, 0.0, 8.0, ("reed_room_vector", i))
+      for i, v in enumerate([5.0, 1.5, 0.3, 0.3, 0.0, 0.0])],
+    *[(f"reed_renovation_{i}", v, 0.0, 3.0, ("reed_renovation_vector", i))
+      for i, v in enumerate([0.5, 0.3])],
+    ("reed_generic_value", 0.2, 0.0, 1.5, ("reed_generic_value",)),
+    *[(f"reed_weight_stage{i+1}", v, 0.0, 3.0, ("reed_weight_by_stage", i))
+      for i, v in enumerate([1.5, 1.0, 1.0, 1.0, 0.9, 0.2])],
+
+    # Clay: 5 cookware + 1 renovation_per_room + 1 generic + 6 stage = 13
+    *[(f"clay_cookware_{i}", 0.8, 0.0, 3.0, ("clay_cookware_vector", i))
+      for i in range(5)],
+    ("clay_renovation_per_room", 0.8, 0.0, 3.0, ("clay_renovation_per_room",)),
+    ("clay_generic_value", 0.1, 0.0, 1.5, ("clay_generic_value",)),
+    *[(f"clay_weight_stage{i+1}", v, 0.0, 3.0, ("clay_weight_by_stage", i))
+      for i, v in enumerate([1.5, 1.0, 1.0, 1.0, 0.9, 0.2])],
+
+    # Stone: 1 renovation_per_room + 1 generic + 6 stage = 8
+    ("stone_renovation_per_room", 0.5, 0.0, 3.0, ("stone_renovation_per_room",)),
+    ("stone_generic_value", 0.5, 0.0, 3.0, ("stone_generic_value",)),
+    *[(f"stone_weight_stage{i+1}", v, 0.0, 3.0, ("stone_weight_by_stage", i))
+      for i, v in enumerate([1.5, 1.0, 1.0, 1.0, 1.0, 0.7])],
+]
+
+
+# --- V3 FIELDS & CROPS (60 params) ---
+TUNABLE_V3_FIELDS_CROPS: list[tuple[str, float, float, float, tuple]] = [
+    # Fields (7+6 = 13)
+    *[(f"plowed_field_value_{i}", v, -3.0, 8.0, ("plowed_field_value", i))
+      for i, v in enumerate([-1.0, -1.0, 1.0, 2.0, 3.0, 4.0, 4.0])],
+    *[(f"field_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("field_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Grain (10+6 = 16)
+    *[(f"grain_value_{i}", v, -3.0, 8.0, ("grain_value", i))
+      for i, v in enumerate([-1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0])],
+    *[(f"grain_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("grain_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Veg (5+6 = 11)
+    *[(f"veg_value_{i}", v, -3.0, 8.0, ("veg_value", i))
+      for i, v in enumerate([-1.0, 1.0, 2.0, 3.0, 4.0])],
+    *[(f"veg_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("veg_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Grain-field pairs (4+6 = 10)
+    *[(f"grain_pair_value_{i}", v, 0.0, 5.0, ("grain_pair_value", i))
+      for i, v in enumerate([0.0, 0.6, 1.2, 1.8])],
+    *[(f"grain_pair_weight_stage{i+1}", v, 0.0, 3.0, ("grain_pair_weight_by_stage", i))
+      for i, v in enumerate([1.0, 1.0, 0.8, 0.6, 0.4, 0.0])],
+    # Veg-field pairs (4+6 = 10)
+    *[(f"veg_pair_value_{i}", v, 0.0, 5.0, ("veg_pair_value", i))
+      for i, v in enumerate([0.0, 0.6, 1.2, 1.8])],
+    *[(f"veg_pair_weight_stage{i+1}", v, 0.0, 3.0, ("veg_pair_weight_by_stage", i))
+      for i, v in enumerate([1.0, 1.0, 0.8, 0.6, 0.4, 0.0])],
+]
+
+
+# --- V3 PASTURES & ANIMALS (101 params) ---
+TUNABLE_V3_PASTURES_ANIMALS: list[tuple[str, float, float, float, tuple]] = [
+    # Pastures (5+5+6 = 16)
+    *[(f"pasture_value_all_{i}", v, -3.0, 8.0, ("pasture_value_all", i))
+      for i, v in enumerate([-1.0, 1.0, 2.0, 3.0, 4.0])],
+    *[(f"pasture_value_large_{i}", 0.0, -1.0, 5.0, ("pasture_value_large", i))
+      for i in range(5)],
+    *[(f"pasture_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("pasture_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Sheep (9+6 = 15)
+    *[(f"sheep_value_{i}", v, -3.0, 8.0, ("sheep_value", i))
+      for i, v in enumerate([-1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0])],
+    *[(f"sheep_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("sheep_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Boar (8+6 = 14)
+    *[(f"boar_value_{i}", v, -3.0, 8.0, ("boar_value", i))
+      for i, v in enumerate([-1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0])],
+    *[(f"boar_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("boar_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Cattle (7+6 = 13)
+    *[(f"cattle_value_{i}", v, -3.0, 8.0, ("cattle_value", i))
+      for i, v in enumerate([-1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0])],
+    *[(f"cattle_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0, ("cattle_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Fenced stables (5+6 = 11)
+    *[(f"fenced_stable_value_{i}", v, -3.0, 8.0, ("fenced_stable_value", i))
+      for i, v in enumerate([0.0, 1.0, 2.0, 3.0, 4.0])],
+    *[(f"fenced_stable_blend_alpha_stage{i+1}", 0.5, 0.0, 1.0,
+       ("fenced_stable_blend_alpha_by_stage", i))
+      for i in range(6)],
+    # Breeding pairs — cattle (1+6 = 7)
+    ("cattle_breeding_pair_value", 1.0, 0.0, 5.0, ("cattle_breeding_pair_value",)),
+    *[(f"cattle_breed_weight_stage{i+1}", v, 0.0, 3.0, ("cattle_breeding_pair_weight_by_stage", i))
+      for i, v in enumerate([1.0, 1.0, 1.0, 0.5, 0.0, 0.0])],
+    # Breeding pairs — boar (1+6 = 7)
+    ("boar_breeding_pair_value", 1.0, 0.0, 5.0, ("boar_breeding_pair_value",)),
+    *[(f"boar_breed_weight_stage{i+1}", v, 0.0, 3.0, ("boar_breeding_pair_weight_by_stage", i))
+      for i, v in enumerate([1.0, 1.0, 1.0, 0.5, 0.0, 0.0])],
+    # Breeding pairs — sheep (1+6 = 7)
+    ("sheep_breeding_pair_value", 1.0, 0.0, 5.0, ("sheep_breeding_pair_value",)),
+    *[(f"sheep_breed_weight_stage{i+1}", v, 0.0, 3.0, ("sheep_breeding_pair_weight_by_stage", i))
+      for i, v in enumerate([1.0, 1.0, 1.0, 0.5, 0.0, 0.0])],
+    # Unfenced stables (5+6 = 11)
+    *[(f"unfenced_stable_value_{i}", v, 0.0, 3.0, ("unfenced_stable_value", i))
+      for i, v in enumerate([0.0, 0.4, 0.8, 1.2, 1.6])],
+    *[(f"unfenced_stable_weight_stage{i+1}", v, 0.0, 3.0, ("unfenced_stable_weight_by_stage", i))
+      for i, v in enumerate([1.0, 1.0, 1.0, 0.0, 0.0, 0.0])],
+]
+
+
+# --- V3 FOOD (18 params) ---
+# hubris_food_by_stage[stage][0=at_need, 1=excess] + hubris_begging_by_moves.
+# Defaults are CONFIG_V1_T2's tuned values (carried over into DEFAULT_CONFIG_V3).
+TUNABLE_V3_FOOD: list[tuple[str, float, float, float, tuple]] = [
+    # Food per stage (6 stages × 2 rates = 12)
+    *[(f"food_at_need_stage{s+1}", v, 0.0, 3.0, ("hubris_food_by_stage", s, 0))
+      for s, v in enumerate([1.168, 1.213, 0.794, 0.126, 0.874, 0.302])],
+    *[(f"food_excess_stage{s+1}", v, 0.0, 2.0, ("hubris_food_by_stage", s, 1))
+      for s, v in enumerate([1.057, 0.452, 0.316, 0.295, 0.587, 0.000])],
+    # Begging penalty by moves remaining (6)
+    *[(f"begging_moves_{i}", v, -5.0, 0.0, ("hubris_begging_by_moves", i))
+      for i, v in enumerate([-2.785, -2.362, -1.633, -0.931, -0.976, -0.575])],
+]
+
+
+# Category registry. (tunable_list, arch_label).
+CATEGORIES: dict[str, tuple[list, str]] = {
+    "v1_addonly":           (TUNABLE_V1_ADDONLY,         "v1"),
+    "v3_resources":         (TUNABLE_V3_RESOURCES,       "v3"),
+    "v3_fields_crops":      (TUNABLE_V3_FIELDS_CROPS,    "v3"),
+    "v3_pastures_animals":  (TUNABLE_V3_PASTURES_ANIMALS,"v3"),
+    "v3_food":              (TUNABLE_V3_FOOD,            "v3"),
+}
+
+
+# Default `TUNABLE` for callers that don't go through the dispatch
+# (preserves legacy import-as-list behavior). Defaults to V3 resources.
+TUNABLE: list = TUNABLE_V3_RESOURCES
+
+
+def _x0_from_base(tunable: list, base_config) -> np.ndarray:
+    """Extract the warm-start base's current values for each TUNABLE entry's
+    path. Returns a numpy array suitable as CMA-ES's x0.
+
+    Path shapes follow `vector_to_config`'s convention:
+      ("field",)               → scalar
+      ("field", idx)           → tuple-indexed
+      ("field", outer, inner)  → nested tuple-of-tuples
+
+    This is the inverse of `vector_to_config`: where vector_to_config
+    writes x's values INTO the config at each path, this READS the
+    config's values OUT into a vector. So `vector_to_config(_x0_from_base(t, base), base, t) == base` for any base that has values within bounds.
+    """
+    values: list[float] = []
+    for (_name, _default, _lo, _hi, path) in tunable:
+        val = getattr(base_config, path[0])
+        for idx in path[1:]:
+            val = val[idx]
+        values.append(float(val))
+    return np.array(values, dtype=float)
+
+
+def vector_to_config(x: np.ndarray, base, tunable: list | None = None):
+    """Apply CMA-ES candidate vector to `base` config, returning a new config.
+
+    Path shapes:
+      ("field",)               → scalar field
+      ("field", idx)           → flat tuple of floats (e.g. family_per_round)
+      ("field", outer, inner)  → tuple of tuples (e.g. hubris_food_by_stage)
+
+    Buffer policy: writes accumulate into list-of-lists (or list-of-floats)
+    keyed by field name, then are converted back to tuples in a single
+    `replace(...)` call at the end.
+
+    `tunable` defaults to the module-level `TUNABLE` (kept for callers
+    that bind to the default category). Workers receive their tunable
+    via `_WORKER_TUNABLE` (set by `_init_worker`).
+    """
+    if tunable is None:
+        tunable = _WORKER_TUNABLE if _WORKER_TUNABLE is not None else TUNABLE
+    overrides: dict[str, Any] = {}
+    tuple_buffers: dict[str, list] = {}        # flat tuple[float]
+    nested_buffers: dict[str, list[list]] = {}  # nested tuple[tuple[float]]
+
+    for value, (_name, _default, _lo, _hi, path) in zip(x, tunable):
+        field = path[0]
+        if len(path) == 1:
+            overrides[field] = float(value)
+        elif len(path) == 2:
+            idx = path[1]
+            if field not in tuple_buffers:
+                tuple_buffers[field] = list(getattr(base, field))
+            tuple_buffers[field][idx] = float(value)
+        elif len(path) == 3:
+            outer, inner = path[1], path[2]
+            if field not in nested_buffers:
+                nested_buffers[field] = [list(row) for row in getattr(base, field)]
+            nested_buffers[field][outer][inner] = float(value)
+        else:
+            raise ValueError(f"Unsupported path length {len(path)}: {path!r}")
+
+    for field, lst in tuple_buffers.items():
+        overrides[field] = tuple(lst)
+    for field, lst_of_lst in nested_buffers.items():
+        overrides[field] = tuple(tuple(row) for row in lst_of_lst)
+
+    return replace(base, **overrides)
+
+
+# Worker-side global state. Populated by `_init_worker` in pool workers
+# (via Pool's `initializer` argument) and by `main()` directly for the
+# sequential / sanity-check path.
+_WORKER_SEEDS: list[int] | None = None
+_WORKER_BASELINE_CONFIG = None    # opponent config
+_WORKER_BASELINE_ARCH: str = "v1" # opponent architecture
+_WORKER_BASE_CONFIG = None        # warm-start base for the candidate
+_WORKER_BASE_ARCH: str = "v3"     # candidate architecture
+_WORKER_TUNABLE: list | None = None  # which TUNABLE list is active
+
+
+def _init_worker(seeds: list[int],
+                 baseline_config, baseline_arch: str,
+                 base_config, base_arch: str,
+                 tunable: list) -> None:
+    """Pool initializer: copy seeds, baseline (opponent), warm-start base,
+    architecture labels, and the active TUNABLE into worker globals.
+
+    - `baseline_config`: opponent that the candidate plays against.
+    - `base_config`: starting point for `vector_to_config` — fields not in
+      TUNABLE inherit values from this config (add-only tuning).
+    """
+    global _WORKER_SEEDS, _WORKER_BASELINE_CONFIG, _WORKER_BASELINE_ARCH
+    global _WORKER_BASE_CONFIG, _WORKER_BASE_ARCH, _WORKER_TUNABLE
+    _WORKER_SEEDS = seeds
+    _WORKER_BASELINE_CONFIG = baseline_config
+    _WORKER_BASELINE_ARCH = baseline_arch
+    _WORKER_BASE_CONFIG = base_config
+    _WORKER_BASE_ARCH = base_arch
+    _WORKER_TUNABLE = tunable
+
+
+def _eval_candidate(x: np.ndarray) -> float:
+    """Top-level fitness function `x -> -avg_margin`.
+
+    Top-level (not a closure) so `multiprocessing.Pool` can pickle it.
+    Reads seeds/baseline from module-level globals populated by
+    `_init_worker` (parallel mode) or `main()` (sequential mode).
+
+    Negative-margin convention: CMA-ES minimizes; we want to MAXIMIZE
+    the candidate's score margin over the baseline.
+    """
+    assert _WORKER_SEEDS is not None, "worker globals not initialized"
+    assert _WORKER_BASELINE_CONFIG is not None, "worker globals not initialized"
+    assert _WORKER_BASE_CONFIG is not None, "worker globals not initialized"
+    candidate_cfg = vector_to_config(np.asarray(x), base=_WORKER_BASE_CONFIG)
+    candidate_arch = _WORKER_BASE_ARCH
+    baseline_cfg = _WORKER_BASELINE_CONFIG
+    baseline_arch = _WORKER_BASELINE_ARCH
+
+    def p0_factory(seed: int):
+        return _make_agent(candidate_arch, candidate_cfg, seed)
+
+    def p1_factory(seed: int):
+        return _make_agent(baseline_arch, baseline_cfg, seed + 1)
+
+    result = play_match(p0_factory, p1_factory, _WORKER_SEEDS)
+    return -result.avg_margin
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--n-seeds", type=int, default=50,
+                        help="Games per evaluation (seeds 0..n-1). Default 50.")
+    parser.add_argument("--max-gens", type=int, default=10,
+                        help="Max CMA-ES generations. Default 10.")
+    parser.add_argument("--popsize", type=int, default=12,
+                        help="CMA-ES population size. Default 12 (≈ 4 + 3 ln(d), d=10).")
+    parser.add_argument("--sigma0", type=float, default=0.3,
+                        help="Initial CMA-ES step size. Default 0.3.")
+    parser.add_argument("--cma-seed", type=int, default=1,
+                        help="CMA-ES internal RNG seed. Default 1.")
+    parser.add_argument("--holdout-start", type=int, default=1000,
+                        help="First seed of the holdout set for the post-tuning verification "
+                             "match. Default 1000 (disjoint from the training seeds 0..n-1).")
+    parser.add_argument("--holdout-n", type=int, default=100,
+                        help="Number of holdout games for the post-tuning verification match. "
+                             "Default 100.")
+    parser.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
+                        help="Number of parallel processes for population evaluation. "
+                             f"Default {os.cpu_count() or 1} (all cores). Set to 1 for sequential "
+                             "execution (easier debugging).")
+    parser.add_argument("--category", choices=tuple(CATEGORIES.keys()),
+                        default="v3_resources",
+                        help="Which TUNABLE set to optimize. The category implies a "
+                             "candidate architecture (v1 or v3); --from must match it.")
+    parser.add_argument("--from", dest="from_config", default="default_v3",
+                        help="Base config for the candidate (warm-start). Either a "
+                             f"named config ({sorted(BASE_CONFIGS)}) or a path to a "
+                             "JSON file from a previous tuning run (its 'best_config' is "
+                             "loaded). Default 'default_v3'.")
+    parser.add_argument("--baseline", default="t2",
+                        help="OPPONENT config (the candidate plays against this). Same "
+                             "name-or-path semantics as --from. Default 't2'.")
+    parser.add_argument("--resume", type=Path, default=None,
+                        help="Path to a previously-saved CMA-ES state (.cma.pkl). If set, "
+                             "CMA-ES picks up exactly where it left off (mean, σ, "
+                             "covariance, paths, counters all restored). --max-gens "
+                             "becomes the number of ADDITIONAL generations to run from "
+                             "the resumed state. The TUNABLE size must match the saved "
+                             "state's dimension.")
+    parser.add_argument("--output", type=Path, default=None,
+                        help="Where to write JSON result. Default tuned_configs/<timestamp>.json. "
+                             "A companion .log file with human-readable progress is written next to it.")
+    args = parser.parse_args()
+
+    seeds = list(range(args.n_seeds))
+    holdout_seeds = list(range(args.holdout_start, args.holdout_start + args.holdout_n))
+
+    # Resolve TUNABLE + architectures.
+    tunable, candidate_arch = CATEGORIES[args.category]
+    base_config, from_arch = _resolve_config(args.from_config)
+    baseline_config, baseline_arch = _resolve_config(args.baseline)
+
+    if from_arch != candidate_arch:
+        raise SystemExit(
+            f"--from {args.from_config!r} (arch {from_arch!r}) does not match "
+            f"--category {args.category!r} (arch {candidate_arch!r}). "
+            f"Use --from default_v3 for v3_* categories, --from default/t2 for v1_*."
+        )
+
+    # Populate module-level globals for the sequential code path (sanity
+    # check, --jobs 1). Parallel workers receive these via Pool initializer.
+    _init_worker(seeds, baseline_config, baseline_arch,
+                  base_config, candidate_arch, tunable)
+
+    # CMA-ES starting vector: extract from `base_config` at each tuned
+    # field's path. This means x0 EXACTLY corresponds to the warm-start
+    # base, so the candidate at x0 equals the warm-start config (sanity
+    # fitness ≈ warm-start performance). TUNABLE's `default` field is
+    # informational only — describes the intended fresh-start point — but
+    # the actual x0 always reflects the current base_config values.
+    #
+    # The earlier behavior (x0 = TUNABLE defaults) was a bug: it caused
+    # regression at every category handoff where the warm-start base
+    # already had tuned values for the about-to-be-tuned category. The
+    # handoff would throw away those tuned values via x0 override.
+    x0 = _x0_from_base(tunable, base_config)
+    lower = [t[2] for t in tunable]
+    upper = [t[3] for t in tunable]
+    # Clip x0 into the bounds in case the base_config's value sits outside
+    # the TUNABLE bounds for this category (CMA-ES would otherwise reject).
+    x0 = np.clip(x0, lower, upper)
+
+    if args.output is None:
+        out_dir = ROOT / "tuned_configs"
+        out_dir.mkdir(exist_ok=True)
+        args.output = out_dir / f"{int(time.time())}.json"
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    log_path = args.output.with_suffix(".log")
+
+    # Open the log file and tee stdout into it. The original stdout is
+    # restored in the finally block at the end of main(). Workers don't
+    # print (they emit no stdout), so this is safe across multiprocessing.
+    log_file = open(log_path, "w", buffering=1)  # line-buffered
+    _original_stdout = sys.stdout
+    sys.stdout = _Tee(_original_stdout, log_file)
+
+    try:
+        n_params = len(tunable)
+        total_evals = args.popsize * args.max_gens
+        per_game_sec = 0.5 if sys.flags.optimize else 1.0
+        est_seconds_seq = total_evals * args.n_seeds * per_game_sec
+        est_seconds_par = est_seconds_seq / max(1, args.jobs) * 1.15  # ~15% load-balance loss
+        print(f"Tuning {n_params} parameters via CMA-ES")
+        print(f"  category: {args.category!r}  (arch: {candidate_arch})")
+        print(f"  warm-start base: {args.from_config!r}")
+        print(f"  baseline opponent: {args.baseline!r} (arch: {baseline_arch})")
+        print(f"  seeds: {args.n_seeds} games per evaluation (training: 0..{args.n_seeds - 1})")
+        print(f"  holdout: {args.holdout_n} games "
+              f"({args.holdout_start}..{args.holdout_start + args.holdout_n - 1})")
+        if args.resume:
+            print(f"  resume: {args.resume}  (continues a previous run's CMA-ES state)")
+        print(f"  popsize: {args.popsize}, max_gens: {args.max_gens}, sigma0: {args.sigma0}")
+        print(f"  total evals: {total_evals}")
+        print(f"  jobs: {args.jobs}; python -O: {'ON' if sys.flags.optimize else 'OFF'}")
+        print(f"  estimated wall time: ~{est_seconds_par / 60:.1f} min "
+              f"(vs ~{est_seconds_seq / 60:.1f} min if 1-job & no -O)")
+        if not sys.flags.optimize:
+            print(f"  TIP: re-run as `python -O ...` for ~2x speedup (strips debug asserts).")
+        print(f"  Output: {args.output} (JSON, rewritten after every generation)")
+        print(f"  Log:    {log_path} (human-readable progress mirror)")
+        print()
+
+        f0 = _eval_candidate(x0)
+        print(f"Sanity: fitness(starting point vs {args.baseline!r} baseline) "
+              f"= {-f0:+.3f} margin")
+        print(f"  (sign/magnitude reflects warm-start config vs baseline strength gap)\n")
+        return _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch,
+                                  baseline_config, baseline_arch, tunable,
+                                  x0, lower, upper, log_path, sanity_f0=f0)
+    finally:
+        sys.stdout = _original_stdout
+        log_file.close()
+
+
+def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: str,
+                      baseline_config, baseline_arch: str, tunable: list,
+                      x0, lower, upper, log_path: Path, *, sanity_f0: float) -> int:
+    # The CMA-ES state pickle lives next to the JSON output, sharing its stem.
+    pkl_path = args.output.with_suffix(".cma.pkl")
+
+    if args.resume is not None:
+        if not args.resume.is_file():
+            raise SystemExit(f"--resume path {args.resume} not found")
+        with open(args.resume, "rb") as f:
+            es = pickle.load(f)
+        if es.N != len(tunable):
+            raise SystemExit(
+                f"--resume state has dimension {es.N} but TUNABLE has {len(tunable)} "
+                f"params. The category likely doesn't match the saved state."
+            )
+        start_gen = es.countiter
+        target_gen = start_gen + args.max_gens
+        # Raise the saved maxiter so es.stop() doesn't trigger on the
+        # already-reached generation count from the prior session.
+        es.opts["maxiter"] = target_gen
+        print(f"Resumed from {args.resume}: countiter={start_gen}, "
+              f"σ={es.sigma:.4f}, will run until gen {target_gen} "
+              f"({args.max_gens} additional generations).")
+        history = []  # local history for THIS resume session
+    else:
+        es = cma.CMAEvolutionStrategy(
+            x0=x0, sigma0=args.sigma0,
+            inopts={
+                "bounds": [lower, upper],
+                "popsize": args.popsize,
+                "maxiter": args.max_gens,
+                "seed": args.cma_seed,
+                "verbose": -9,  # suppress cma's stdout; we print our own
+            },
+        )
+        start_gen = 0
+        target_gen = args.max_gens
+        history = []
+
+    t_start = time.perf_counter()
+
+    # Session-best state, accessible to both the loop (which updates it) and
+    # `write_results` (which serializes it). Defined as mutable so closures
+    # see updates without rebinding. Initialized to x0 / sanity_f0 so the
+    # very first write_results call (called before any gen completes) sees
+    # the warm-start values rather than None/stale-es.best.
+    session_best: dict = {
+        "x": np.array(x0, copy=True),
+        "f": float(sanity_f0),
+    }
+
+    def save_cma_state() -> None:
+        """Pickle the full ES state to <output>.cma.pkl. Atomically write
+        via a temp file then rename, so a crash mid-write can't corrupt
+        the previous good state."""
+        tmp_path = pkl_path.with_suffix(".cma.pkl.tmp")
+        with open(tmp_path, "wb") as f:
+            pickle.dump(es, f)
+        tmp_path.replace(pkl_path)
+
+    def write_results(*, status: str, holdout: dict | None = None) -> None:
+        """Serialize current optimizer state to `args.output`.
+
+        Called after every generation (status="in_progress") so a crash
+        mid-run still leaves a usable artifact, and once at the end
+        (status="complete", holdout populated)."""
+        # Use the session-best (initialized to x0 / sanity_f0; updated by
+        # the main loop as candidates beat it). Never uses es.best.x
+        # directly because on --resume es.best can be stale.
+        best_x = np.asarray(session_best["x"])
+        best_margin = -float(session_best["f"])
+        best_cfg = vector_to_config(best_x, base=base_config, tunable=tunable)
+        payload = {
+            "status":            status,
+            "category":          args.category,
+            "candidate_arch":    candidate_arch,
+            "from_config":       args.from_config,
+            "baseline":          args.baseline,
+            "baseline_arch":     baseline_arch,
+            "tunable_spec": [
+                {"name": t[0], "default": t[1], "lower": t[2], "upper": t[3], "path": list(t[4])}
+                for t in tunable
+            ],
+            "n_seeds":         args.n_seeds,
+            "training_seeds":  seeds,
+            "holdout_seeds":   holdout_seeds,
+            "popsize":         args.popsize,
+            "max_gens":        args.max_gens,
+            "sigma0":          args.sigma0,
+            "cma_seed":        args.cma_seed,
+            "best_x":          list(map(float, best_x)),
+            "best_margin":     best_margin,
+            "best_config":     asdict(best_cfg),
+            "history":         history,
+            "holdout":         holdout,
+            "log_path":        str(log_path),
+            "cma_pkl_path":    str(pkl_path),
+            "resumed_from":    str(args.resume) if args.resume else None,
+            "start_gen":       start_gen,
+        }
+        args.output.write_text(json.dumps(payload, indent=2))
+
+    pool: Pool | None = None
+    if args.jobs > 1:
+        pool = Pool(
+            processes=args.jobs,
+            initializer=_init_worker,
+            initargs=(seeds, baseline_config, baseline_arch,
+                      base_config, candidate_arch, tunable),
+        )
+
+    try:
+        # `session_best` is the mutable shared dict initialized above
+        # (before write_results). The loop updates it; write_results reads
+        # from it. Initialization to (x0, sanity_f0) guarantees session-best
+        # is never worse than the warm-start point (the previous "x0
+        # fallback" block becomes implicit).
+
+        # Loop until target_gen is reached, or until ES signals a "real"
+        # stop condition (convergence etc.). We ignore the 'maxiter' stop
+        # because we drive that ourselves via target_gen — a resumed ES has
+        # its old maxiter cached and would short-circuit immediately.
+        while not es.stop(ignore_list=["maxiter"]) and es.countiter < target_gen:
+            X = es.ask()
+            if pool is not None:
+                fitnesses = pool.map(_eval_candidate, X)
+            else:
+                fitnesses = [_eval_candidate(x) for x in X]
+            es.tell(X, fitnesses)
+
+            # Update session-best from this generation's samples.
+            for x, f in zip(X, fitnesses):
+                if f < session_best["f"]:
+                    session_best["f"] = float(f)
+                    session_best["x"] = np.array(x, copy=True)
+
+            gen = es.countiter
+            gen_best = min(fitnesses)
+            gen_mean = sum(fitnesses) / len(fitnesses)
+            elapsed = time.perf_counter() - t_start
+            print(f"gen {gen:>3}  best so far: {-session_best['f']:+.3f}  "
+                  f"gen best: {-gen_best:+.3f}  gen mean: {-gen_mean:+.3f}  "
+                  f"({elapsed / 60:.1f} min)")
+            history.append({
+                "generation":         gen,
+                "best_margin_so_far": -session_best["f"],
+                "best_x_so_far":      list(map(float, session_best["x"])),
+                "gen_best_margin":    -float(gen_best),
+                "gen_mean_margin":    -float(gen_mean),
+                "elapsed_seconds":    elapsed,
+            })
+            write_results(status="in_progress")
+            save_cma_state()
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
+
+    best_x = np.asarray(session_best["x"])
+    best_margin = -session_best["f"]
+    sanity_margin = -sanity_f0
+
+    # If session best didn't beat x0, the run produced no improvement.
+    # By construction session_best["x"] == x0 in that case (initialization
+    # was never overridden), so best_x equals the warm-start base's values
+    # for the tuned fields. Print an informational warning so the user
+    # knows the category had no slack.
+    if session_best["f"] >= sanity_f0 - 1e-9:
+        print()
+        print(f"ℹ️  No CMA-ES sample beat x0 (warm-start base). Using x0 as best.")
+        print(f"   This run preserves the warm-start config for the {len(tunable)} "
+              f"tuned fields. Likely either: (a) the category was already "
+              f"near-optimal in the warm-start, or (b) σ was too large/small "
+              f"for this generation budget.")
+
+    print()
+    print(f"Optimization complete in {(time.perf_counter() - t_start) / 60:.1f} min.")
+    print(f"Best margin (training): {best_margin:+.3f}")
+    print()
+    print(f"{'parameter':<35}  {'start':>9}  {'tuned':>9}  {'delta':>9}")
+    print("-" * 70)
+    for (name, default, _lo, _hi, _path), val in zip(tunable, best_x):
+        print(f"{name:<35}  {default:>9.3f}  {val:>9.3f}  {val - default:>+9.3f}")
+
+    # --- Holdout verification match ---
+    print()
+    print(f"Running holdout match: tuned vs {args.baseline!r} baseline on "
+          f"{len(holdout_seeds)} disjoint seeds...")
+    best_cfg = vector_to_config(best_x, base=base_config, tunable=tunable)
+
+    def tuned_factory(seed: int):
+        return _make_agent(candidate_arch, best_cfg, seed)
+
+    def baseline_factory(seed: int):
+        return _make_agent(baseline_arch, baseline_config, seed)
+
+    holdout_result = play_match(tuned_factory, baseline_factory, holdout_seeds)
+    print(f"  holdout {holdout_result.summary_line()}")
+    if holdout_result.avg_margin >= best_margin - 1.0:
+        print("  → consistent with training (within 1pt). Tuning generalizes.")
+    elif holdout_result.avg_margin > 0:
+        print("  → smaller than training margin but still positive. Mild overfitting.")
+    else:
+        print("  → NEGATIVE on holdout. Likely overfit; treat training result with caution.")
+
+    holdout_payload = {
+        "n_games":         holdout_result.n_games,
+        "p0_wins":         holdout_result.p0_wins,
+        "p1_wins":         holdout_result.p1_wins,
+        "draws":           holdout_result.draws,
+        "avg_score_p0":    holdout_result.avg_score_p0,
+        "avg_score_p1":    holdout_result.avg_score_p1,
+        "avg_margin":      holdout_result.avg_margin,
+        "elapsed_seconds": holdout_result.elapsed_seconds,
+    }
+    write_results(status="complete", holdout=holdout_payload)
+    save_cma_state()
+    print(f"\nWritten: {args.output}")
+    print(f"Log:     {log_path}")
+    print(f"CMA pkl: {pkl_path}  (use --resume {pkl_path} to continue this run)")
+
+    # --- Maintain a fixed best-of-architecture pointer ---
+    # tuned_configs/<arch>_best.json always holds the highest-holdout-margin
+    # result we've seen for this architecture. Drivers (e.g. play_web.py
+    # --v3-config) can point at this stable path to always use the current
+    # champion without remembering individual timestamped paths.
+    _maybe_update_best_pointer(args.output, candidate_arch,
+                                holdout_result.avg_margin, holdout_result.n_games)
+    return 0
+
+
+def _maybe_update_best_pointer(new_json_path: Path, arch: str,
+                                new_holdout_margin: float,
+                                new_holdout_n_games: int) -> None:
+    """If the new run's holdout result beats the current
+    `tuned_configs/<arch>_best.json`, copy `new_json_path` to that path.
+
+    Comparison requires BOTH:
+      1. new_holdout_n_games >= existing_holdout_n_games (don't let a
+         small-sample lucky win displace a large-sample solid result), AND
+      2. new_holdout_margin > existing_holdout_margin.
+
+    This guards against smoke-test runs (small --holdout-n) accidentally
+    overwriting v3_best.json with a low-confidence result. Comparison metric
+    is the holdout margin (more honest than training; less prone to
+    overfitting noise). Prints the result either way.
+    """
+    import shutil
+    best_path = ROOT / "tuned_configs" / f"{arch}_best.json"
+    existing_margin: float | None = None
+    existing_n: int | None = None
+    if best_path.exists():
+        try:
+            existing = json.loads(best_path.read_text())
+            existing_ho = existing.get("holdout", {}) or {}
+            existing_margin = existing_ho.get("avg_margin")
+            existing_n = existing_ho.get("n_games")
+        except (json.JSONDecodeError, KeyError):
+            existing_margin = None
+            existing_n = None
+
+    if existing_margin is None:
+        # No existing best — accept any holdout.
+        best_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(new_json_path, best_path)
+        print(f"Best:    {best_path}  (initialized; holdout {new_holdout_margin:+.2f}, "
+              f"n={new_holdout_n_games})")
+        return
+
+    if new_holdout_n_games < (existing_n or 0):
+        # New holdout is smaller-sample. Even if the margin is higher, we
+        # don't trust it enough to dethrone the existing big-sample champion.
+        print(f"Best:    {best_path}  (unchanged; new holdout sample {new_holdout_n_games} "
+              f"< existing {existing_n}, so smaller-sample result skipped regardless "
+              f"of margin)")
+        return
+
+    if new_holdout_margin > existing_margin:
+        best_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(new_json_path, best_path)
+        print(f"Best:    {best_path}  (UPDATED: {existing_margin:+.2f} (n={existing_n}) "
+              f"→ {new_holdout_margin:+.2f} (n={new_holdout_n_games}))")
+    else:
+        print(f"Best:    {best_path}  (unchanged; existing {existing_margin:+.2f} "
+              f"(n={existing_n}) >= new {new_holdout_margin:+.2f} (n={new_holdout_n_games}))")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

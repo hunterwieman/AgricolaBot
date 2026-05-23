@@ -132,11 +132,19 @@ class HeuristicConfig:
     # --- Hubris: renovation step bonus ---
     # Each completed renovation (Wood→Clay, Clay→Stone) credits a small
     # bonus. Larger in late stages so the agent doesn't sit on a wood
-    # house with hoarded clay forever. Per the user's reframe of C: the
-    # bonus exceeds the per-resource value just enough to make renovation
-    # marginally +EV, rather than lowering the per-resource rates globally.
-    renovation_bonus_per_step_early: float = 0.75  # stages 1-4
-    renovation_bonus_per_step_late:  float = 1.5   # stages 5-6
+    # house with hoarded clay forever. The bonus exceeds the per-resource
+    # value just enough to make renovation marginally +EV, rather than
+    # lowering the per-resource rates globally.
+    #
+    # Defaults are 0.0 (renovation contributes nothing) to preserve
+    # backwards compatibility for configs predating the
+    # _hubris_renovation_bonus activation (e.g., CONFIG_V1_T2 was tuned with
+    # this term disabled; setting the dataclass defaults to 0.0 means it
+    # inherits 0.0 and continues to behave identically). The intended
+    # post-tuning values are around 0.75 (early) and 1.5 (late); tuning
+    # rounds set explicit starting values in their TUNABLE specs.
+    renovation_bonus_per_step_early: float = 0.0  # stages 1-4 (intended ~0.75)
+    renovation_bonus_per_step_late:  float = 0.0  # stages 5-6 (intended ~1.5)
 
     # --- Hubris: starting-player bonus ---
     # Holding the SP token grants priority in the next WORK phase.
@@ -267,6 +275,82 @@ class HeuristicConfig:
 
 
 DEFAULT_CONFIG = HeuristicConfig()
+
+
+# Tuned via `scripts/tune_heuristic.py` (round 2: 58 parameters, popsize 18,
+# 25 generations, training seeds 0-49, baseline = HubrisHeuristicV1(DEFAULT_CONFIG)).
+# Holdout match (100 disjoint seeds 1000-1099): 90-1-9 record, avg margin
+# +8.85 pts/game vs DEFAULT_CONFIG. Best gen-7 → gen-14 jump from +6.14
+# to +8.10 was the run's breakthrough.
+#
+# Source artifact: tuned_configs/1779468329.json
+#
+# Notable shifts from DEFAULT_CONFIG (see HUBRIS_V1_NOTES.md for the rationale
+# on each field):
+#   - wood_excess 0.15 → 0.73  (stockpiled wood much more valuable)
+#   - stage1_resource_mult 1.5 → 2.10  (front-load resource accumulation)
+#   - round14_resource_mult 0.5 → 0.01  (end-game resources nearly worthless)
+#   - fireplace_value 4.0 → 4.81, hearth_value 6.0 → 5.25  (closer in value)
+#   - cooking_secondary_vp 1.0 → 0.48  (redundant cookware adds half)
+#   - family_per_round[2] (5th member) 1.5 → 2.00
+#   - food_excess_stage6 0.30 → 0.00, food_at_need_stage4 0.60 → 0.13
+#   - crop_field_pair_mid 0.40 → 1.00, crop_field_pair_late 0.0 → 0.34
+CONFIG_V1_T2 = HeuristicConfig(
+    family_per_round=(3.292323267102328, 2.2556860160847774, 2.004865826860955),
+    empty_room_rate_pre_basic_wish=2.616157917681491,
+    empty_room_rate_post_basic_wish=2.922029893978679,
+    breed_active_has_cooking=1.3789935031432146,
+    breed_active_can_afford=0.9248390053296937,
+    breed_active_cannot_afford=1.08791470092937,
+    breed_passive=0.5100715312929863,
+    starting_player_bonus=1.2280813469772174,
+    crop_field_pair_early=0.906736992790556,
+    crop_field_pair_mid=0.9981190406502182,
+    crop_field_pair_late=0.34086896938522965,
+    wood_per_fence_owed=0.7761285653706179,
+    wood_secondary=0.7777474779830841,
+    wood_excess=0.732687528592316,
+    wood_first5_no_room=1.1577649334862539,
+    clay_no_cookware=0.7289557555178702,
+    clay_no_cookware_excess=0.25390555174604157,
+    clay_per_wood_room=0.9493779740746326,
+    clay_excess=0.023275732204667766,
+    pottery_clay_bonus=0.6446401904764089,
+    reed_first2=0.8154846842302074,
+    reed_excess=0.09570503534455865,
+    reed_first_no_room=0.7550514963927762,
+    reed_second_no_room=1.3774511946075076,
+    reed_excess_no_room=0.9310705857295531,
+    basketmaker_reed_bonus=0.6905787508208417,
+    stone_value=0.8494538535037545,
+    stone_excess=0.31217514274320957,
+    stage1_resource_mult=2.1040877121932264,
+    round13_resource_mult=0.977862502869988,
+    round14_resource_mult=0.011355468692829251,
+    fireplace_value=4.80973022568891,
+    fireplace_value_mid=2.471273053448844,
+    fireplace_value_late=0.1474925121229842,
+    hearth_value=5.246727936850129,
+    hearth_value_mid=2.718190472453053,
+    hearth_value_late=0.8213097609387353,
+    cooking_secondary_vp=0.48196317373922687,
+    hubris_food_by_stage=(
+        (1.16765135850428,   1.056669260991314),
+        (1.2127932585275092, 0.45234625189382893),
+        (0.7944468518551056, 0.3157046399829259),
+        (0.1263927943010597, 0.2953788459187008),
+        (0.874233089079564,  0.5867586820590537),
+        (0.30227799655272203, 4.31604179496554e-06),
+    ),
+    hubris_begging_by_moves=(
+        -2.7854978336523946,
+        -2.3623773432736224,
+        -1.6326538722022812,
+        -0.9310447177164846,
+        -0.9759328167375869,
+        -0.5750095758640759,
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -990,10 +1074,13 @@ def evaluate_hubris_v1(
     pts += _hubris_pasture_location_bonus(p, config)
     pts += _hubris_crop_field_pair_bonus(state, p, config)
     pts += _hubris_resource_value(state, p, player_idx, config)
-    # Renovation bonus deferred per user feedback (2026-05-22): the
-    # helper and config fields remain defined so this can be re-enabled
-    # by uncommenting the line below if/when we decide to add it.
-    # pts += _hubris_renovation_bonus(state, p, config)
+    # Renovation bonus (enabled 2026-05-22 for round-3 tuning). Dataclass
+    # defaults for renovation_bonus_per_step_* are 0.0 so configs predating
+    # this activation (DEFAULT_CONFIG, CONFIG_V1_T2) continue to contribute
+    # zero from this term — preserving backwards compatibility of any
+    # past benchmarks. Tuning rounds set positive starting values in their
+    # TUNABLE spec.
+    pts += _hubris_renovation_bonus(state, p, config)
     pts += _hubris_starting_player_bonus(state, player_idx, config)
     pts += _food_term_hubris(state, p, player_idx, config)
 
@@ -1178,8 +1265,8 @@ def evaluate_hubris_v2(
     pts += _hubris_pasture_location_bonus(p, config)
     pts += _hubris_crop_field_pair_bonus(state, p, config)
     pts += _hubris_resource_value(state, p, player_idx, config)
-    # Renovation bonus deferred (see v1 comment).
-    # pts += _hubris_renovation_bonus(state, p, config)
+    # Renovation bonus (enabled 2026-05-22; see v1 comment).
+    pts += _hubris_renovation_bonus(state, p, config)
     pts += _hubris_starting_player_bonus(state, player_idx, config)
 
     # The combined food-leaves + food-supply + begging term, max over
@@ -1275,3 +1362,702 @@ class HubrisHeuristicV2(HeuristicAgent):
 # Backward-compatibility alias: the unversioned name resolves to v1.
 # When v2 is promoted, flip this to HubrisHeuristicV2.
 HubrisHeuristic = HubrisHeuristicV1
+
+
+# ---------------------------------------------------------------------------
+# Hubris V3 — per-category count-indexed value vectors + per-stage modulators
+# ---------------------------------------------------------------------------
+#
+# Design pattern: each scoring-relevant aspect of the player's state is
+# expressed as `value_vector[count] * modulator[stage]`, replacing V1's
+# tier-and-regime resource model + score-leaf-trust + scattered hubris
+# helpers.
+#
+# Three combination styles:
+#
+#   1. BLEND (used when score() has a leaf for this category):
+#         contribution = alpha[stage] * v3_value + (1 - alpha[stage]) * score_leaf
+#      alpha ∈ [0, 1]. alpha=0 fully trusts score(); alpha=1 fully replaces.
+#
+#   2. ADDITIVE-MULTIPLICATIVE (no score leaf — pure hubris signal):
+#         contribution = weight[stage] * v3_value
+#      weight ∈ [0, ∞). Used for crop-field pairs, breeding pairs,
+#      unfenced stables.
+#
+#   3. JOINT-ALPHA (score leaves we don't explicitly model in V3):
+#         contribution = score_joint_alpha[stage] * score_leaf
+#      Single shared alpha across clay/stone rooms, people, craft bonuses.
+#      Models "these categories matter more as the game progresses."
+#      Begging markers are excluded (they are always full-weight).
+#
+# Categories covered by V3 explicit treatment:
+#   blend: fields, pastures, grain, vegetables, sheep, boar, cattle,
+#          fenced stables, unused farmyard spaces (parameterized side = 0).
+#   additive: grain-field pairs, veg-field pairs, breeding pairs ×3,
+#             unfenced stables.
+#   resources (own pattern): wood, reed, clay, stone (fence/room/cookware/
+#             renovation subvectors + generic per-unit value).
+#
+# Categories carried over from V1 unchanged:
+#   - _hubris_family_value, _hubris_empty_room_value (people-anticipation)
+#   - _hubris_field_location_bonus, _hubris_pasture_location_bonus
+#     (per-cell location preferences)
+#   - _hubris_starting_player_bonus, _hubris_renovation_bonus
+#   - _hubris_major_value (override on major_improvement_points)
+#   - _food_term_hubris (food / begging penalty)
+#
+# Categories getting the joint-alpha factor:
+#   bd.clay_rooms, bd.stone_rooms, bd.people, bd.bonus_points
+#
+# Always full-weight (no modulator):
+#   bd.begging_markers
+
+@dataclass(frozen=True)
+class HeuristicConfigV3:
+    """V3 heuristic config. See module-level docstring above for the design
+    pattern and combination styles. All length-6 vectors are indexed by
+    stage (1..6 → idx 0..5); stages map to rounds via `_stage_of_round`."""
+
+    # -------------------------------------------------------------------
+    # BLEND categories: alpha[stage] * v3_value + (1-alpha) * score_leaf
+    # -------------------------------------------------------------------
+
+    # --- Plowed fields (count = # field tiles) ---
+    # Length 7: indices 0..5 are exact counts, index 6 is "6 or more".
+    # Default mirrors score()'s breakpoints (-1/-1/+1/+2/+3/+4) extended.
+    plowed_field_value: tuple[float, ...] = (-1.0, -1.0, 1.0, 2.0, 3.0, 4.0, 4.0)
+    field_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+
+    # --- Grain (supply + on-field) ---
+    # Length 10: indices 0..8 exact, index 9 is "9 or more".
+    grain_value: tuple[float, ...] = (-1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0)
+    grain_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+
+    # --- Vegetables (supply + on-field) ---
+    # Length 5: indices 0..3 exact, index 4 is "4 or more".
+    veg_value: tuple[float, ...] = (-1.0, 1.0, 2.0, 3.0, 4.0)
+    veg_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+
+    # --- Pastures (two vectors share one blend alpha) ---
+    # vector 1: indexed by total pasture count (capped at 4+).
+    # vector 2: indexed by # pastures with capacity ≥ 4 (also capped 4+).
+    # Default: vector 1 mirrors score(); vector 2 is zero — no extra bonus
+    # for "large" pastures until tuning finds otherwise.
+    pasture_value_all:   tuple[float, ...] = (-1.0, 1.0, 2.0, 3.0, 4.0)
+    pasture_value_large: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    pasture_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+
+    # --- Sheep / Boar / Cattle ---
+    # Lengths matching score()'s plateaus.
+    sheep_value: tuple[float, ...] = (-1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0)
+    sheep_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+    boar_value:  tuple[float, ...] = (-1.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0)
+    boar_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+    cattle_value: tuple[float, ...] = (-1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0)
+    cattle_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+
+    # --- Fenced stables ---
+    # Length 5. Mirrors score()'s +1 each, max 4.
+    fenced_stable_value: tuple[float, ...] = (0.0, 1.0, 2.0, 3.0, 4.0)
+    fenced_stable_blend_alpha_by_stage: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+
+    # --- Unused farmyard spaces (no value vector — parameterized side is 0) ---
+    # contribution = (1 - alpha[stage]) * bd.unused_spaces (which is negative).
+    # alpha=1 → ignore penalty (early game); alpha=0 → full penalty.
+    unused_spaces_alpha_by_stage: tuple[float, ...] = (1.0, 0.7, 0.5, 0.3, 0.1, 0.0)
+
+    # -------------------------------------------------------------------
+    # ADDITIVE-MULTIPLICATIVE categories: weight[stage] * v3_value
+    # -------------------------------------------------------------------
+
+    # --- Grain-field pairs ---
+    # Pair count = min(supply_grain, empty_plowed_fields) with grain
+    # prioritized over veg for empty-field allocation.
+    grain_pair_value: tuple[float, ...] = (0.0, 0.6, 1.2, 1.8)
+    grain_pair_weight_by_stage: tuple[float, ...] = (1.0, 1.0, 0.8, 0.6, 0.4, 0.0)
+
+    # --- Veg-field pairs (allocated after grain) ---
+    veg_pair_value: tuple[float, ...] = (0.0, 0.6, 1.2, 1.8)
+    veg_pair_weight_by_stage: tuple[float, ...] = (1.0, 1.0, 0.8, 0.6, 0.4, 0.0)
+
+    # --- Breeding pairs (priority cattle > boar > sheep when distributing
+    # breeding-capacity slots from `_num_breeding_opportunities_from_farm`).
+    # Per-type scalar value; multiplied by a per-stage weight if the pair
+    # exists (= 1) or contributes 0 if not (= 0).
+    cattle_breeding_pair_value: float = 1.0
+    cattle_breeding_pair_weight_by_stage: tuple[float, ...] = (1.0, 1.0, 1.0, 0.5, 0.0, 0.0)
+    boar_breeding_pair_value: float = 1.0
+    boar_breeding_pair_weight_by_stage: tuple[float, ...] = (1.0, 1.0, 1.0, 0.5, 0.0, 0.0)
+    sheep_breeding_pair_value: float = 1.0
+    sheep_breeding_pair_weight_by_stage: tuple[float, ...] = (1.0, 1.0, 1.0, 0.5, 0.0, 0.0)
+
+    # --- Unfenced stables ---
+    # Length 5 (counts 0..4+). No score leaf.
+    # Defaults: V1's 0.4/stable rate, active in stages 1-3 (≈ rounds 1-9).
+    unfenced_stable_value: tuple[float, ...] = (0.0, 0.4, 0.8, 1.2, 1.6)
+    unfenced_stable_weight_by_stage: tuple[float, ...] = (1.0, 1.0, 1.0, 0.0, 0.0, 0.0)
+
+    # -------------------------------------------------------------------
+    # RESOURCES — own pattern, see notes per resource
+    # -------------------------------------------------------------------
+
+    # Wood: 3 components, double/triple counting permitted.
+    # 1) wood_fence_vector: indexed by FENCE SLOT (0..14 = fences 1..15).
+    #    Owned wood matched to slots starting at `num_fences_built`.
+    # 2) wood_pre_3rd_room_vector: indexed by wood count (first 5 owned
+    #    wood), only when num_rooms <= 2.
+    # 3) wood_generic_value: scalar applied to all wood.
+    wood_fence_vector: tuple[float, ...] = (
+        0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7,
+        0.5, 0.5, 0.5, 0.5, 0.5,
+    )
+    wood_pre_3rd_room_vector: tuple[float, ...] = (0.8, 0.8, 0.8, 0.8, 0.8)
+    wood_generic_value: float = 0.1
+    wood_weight_by_stage: tuple[float, ...] = (1.5, 1.0, 1.0, 1.0, 0.9, 0.2)
+
+    # Reed: 3 components.
+    # 1) reed_room_vector: indexed by reed count (first 6 owned).
+    # 2) reed_renovation_vector: length 2. Applies for as many entries as
+    #    renovations-still-possible (2 if WOOD house, 1 if CLAY, 0 if STONE).
+    # 3) reed_generic_value: scalar applied to all reed.
+    reed_room_vector: tuple[float, ...] = (5.0, 1.5, 0.3, 0.3, 0.0, 0.0)
+    reed_renovation_vector: tuple[float, ...] = (0.5, 0.3)
+    reed_generic_value: float = 0.2
+    reed_weight_by_stage: tuple[float, ...] = (1.5, 1.0, 1.0, 1.0, 0.9, 0.2)
+
+    # Clay: 3 components.
+    # 1) clay_cookware_vector: indexed by clay count (first 5), only when
+    #    player owns no cookware.
+    # 2) clay_renovation_per_room: scalar, applied to up to num_rooms
+    #    clay when house is WOOD.
+    # 3) clay_generic_value: scalar applied to all clay.
+    clay_cookware_vector: tuple[float, ...] = (0.8, 0.8, 0.8, 0.8, 0.8)
+    clay_renovation_per_room: float = 0.8
+    clay_generic_value: float = 0.1
+    clay_weight_by_stage: tuple[float, ...] = (1.5, 1.0, 1.0, 1.0, 0.9, 0.2)
+
+    # Stone: 2 components.
+    # 1) stone_renovation_per_room: scalar, applied to up to num_rooms
+    #    stone when house is CLAY (clay→stone renovation).
+    # 2) stone_generic_value: scalar applied to all stone.
+    stone_renovation_per_room: float = 0.5
+    stone_generic_value: float = 0.5
+    stone_weight_by_stage: tuple[float, ...] = (1.5, 1.0, 1.0, 1.0, 1.0, 0.7)
+
+    # -------------------------------------------------------------------
+    # JOINT-ALPHA for uncovered score leaves
+    # -------------------------------------------------------------------
+    # Applies to bd.clay_rooms + bd.stone_rooms + bd.people + bd.bonus_points.
+    # Does NOT apply to bd.begging_markers (always full weight).
+    score_joint_alpha_by_stage: tuple[float, ...] = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+
+    # -------------------------------------------------------------------
+    # CARRY-OVER from V1 — defaults seeded from CONFIG_V1_T2 where the
+    # field was tuned in V1's round 2 (and clearly translatable to V3's
+    # mixed evaluator). Fields that V1_T2 did NOT tune retain V1's
+    # hand-picked defaults.
+    # -------------------------------------------------------------------
+
+    # From V1_T2 tuning:
+    family_per_round: tuple[float, float, float] = (
+        3.292323267102328,
+        2.2556860160847774,
+        2.004865826860955,
+    )
+    empty_room_rate_pre_basic_wish:  float = 2.616157917681491
+    empty_room_rate_post_basic_wish: float = 2.922029893978679
+    starting_player_bonus:           float = 1.2280813469772174
+
+    # NOT in V1_T2 (kept at hand-picked V1 defaults):
+    field_center_bonus: float = 0.1
+    pasture_location_bonus: float = 0.05
+    # Renovation bonus was enabled but its starting/late values were 0.0 in T2
+    # (the round-3 run did not promote). Keep at 0.0 (no behavior change).
+    renovation_bonus_per_step_early: float = 0.0
+    renovation_bonus_per_step_late:  float = 0.0
+
+    # Major-improvement override values — all tuned in V1_T2:
+    fireplace_value:      float = 4.80973022568891
+    fireplace_value_mid:  float = 2.471273053448844
+    fireplace_value_late: float = 0.1474925121229842
+    hearth_value:         float = 5.246727936850129
+    hearth_value_mid:     float = 2.718190472453053
+    hearth_value_late:    float = 0.8213097609387353
+    cooking_secondary_vp: float = 0.48196317373922687
+
+    # NOT in V1_T2 (kept at V1 defaults):
+    well_value:           float = 4.0
+    well_food_per_future: float = 0.4
+    clay_oven_value:      float = 2.0
+    stone_oven_value:     float = 3.0
+    joinery_value:        float = 2.0
+    pottery_value:        float = 2.0
+    basketmaker_value:    float = 2.0
+
+    # Food + begging — all tuned in V1_T2:
+    hubris_food_by_stage: tuple[tuple[float, float], ...] = (
+        (1.16765135850428,   1.056669260991314),
+        (1.2127932585275092, 0.45234625189382893),
+        (0.7944468518551056, 0.3157046399829259),
+        (0.1263927943010597, 0.2953788459187008),
+        (0.874233089079564,  0.5867586820590537),
+        (0.30227799655272203, 4.31604179496554e-06),
+    )
+    hubris_begging_by_moves: tuple[float, ...] = (
+        -2.7854978336523946,
+        -2.3623773432736224,
+        -1.6326538722022812,
+        -0.9310447177164846,
+        -0.9759328167375869,
+        -0.5750095758640759,
+    )
+
+
+DEFAULT_CONFIG_V3 = HeuristicConfigV3()
+
+
+# Promoted V3 config — first stable tuned V3 result.
+#
+# Provenance: iterative V3 tuning (2026-05-22 evening session). Specifically
+# the best_config from `tuned_configs/iter_p2_v3_fields_crops.json`, captured
+# at gen 4 of 10 when the user killed the run after discovering an x0 bug.
+# That JSON's resources/pastures/animals fields came from pass 1's tunings
+# (chained forward); fields/crops fields are this step's tuned values.
+#
+# Holdout: 100-0-0 record vs hubris (V1+T2) on seeds 1000-1099, margin
+# +14.03. (Training margin +14.03 happened to match.) Cumulatively about
+# +23 vs V1 default (CONFIG_V1_T2 was +8.85 vs V1 default; CONFIG_V3_T1 is
+# +14.03 vs CONFIG_V1_T2). The first V3 config that beats T2 in every
+# single game of a 100-seed holdout.
+#
+# Caveats:
+# - The iterative run was killed before the x0 bug fix landed. Subsequent
+#   V3 tunings (with the fix) may surpass this; promote them as CONFIG_V3_T2,
+#   CONFIG_V3_T3, etc.
+# - Pass 1 food's tuning fell back to x0 (food values inherited from
+#   CONFIG_V1_T2 — already near-optimal). So food values here are V1_T2's.
+# - Source JSON is preserved in the repo at the path above for full
+#   reproducibility.
+CONFIG_V3_T1 = HeuristicConfigV3(
+    plowed_field_value=(-1.8346701668539558, -0.6800697530659943, 0.42699035516862316, 2.0273216541779977, 3.3816882616648156, 3.97804405658607, 4.520875165007302),
+    field_blend_alpha_by_stage=(0.15321012132686984, 0.8273996026306746, 0.14684913638567454, 0.9825716510271931, 0.6435792675291786, 0.8544016168736459),
+    grain_value=(0.17402495828423753, -0.2161716503738686, 0.5107468293345641, 1.295453843367152, 2.1099705142788876, 1.7329938853592417, 2.9806304390165272, 3.3563665740161213, 4.763058994627261, 4.419718494158466),
+    grain_blend_alpha_by_stage=(0.34893599357340466, 0.13056407534797093, 0.6968404035645409, 0.02221574402912711, 0.4357327636979399, 0.4844700107427211),
+    veg_value=(-0.8793187863203071, 1.225368831983077, 2.6304993659643543, 2.7726778164624584, 4.280302231353293),
+    veg_blend_alpha_by_stage=(0.6575041153914182, 0.03798543254814677, 0.8221112781552651, 0.49032529664410957, 0.3149192549936486, 0.99917511391515),
+    pasture_value_all=(-0.8446559985684469, 1.0818302947786762, 2.402319418677965, 3.1444965933290674, 3.5618261753480147),
+    pasture_value_large=(0.5842600379477392, -0.850237730316519, -0.13402368875747706, 0.2833189388166774, 0.3277609881929734),
+    pasture_blend_alpha_by_stage=(0.13580643071145723, 0.9807290317541433, 0.9598649105177888, 0.7609011975422386, 0.6029003591161977, 0.5525449452312027),
+    sheep_value=(-0.927035332662041, 1.3555161788632575, 0.8839400689087908, 0.761697113688398, 2.558582629155015, 2.185170624942671, 2.7940888237251693, 2.9289651868452, 4.313066947316402),
+    sheep_blend_alpha_by_stage=(0.19526415826138271, 0.15463996576417288, 0.8945945865651794, 0.3024782353916702, 0.4024098667435169, 0.907834805127995),
+    boar_value=(-0.24757339873693043, 1.2138525121244896, 0.7058125254065328, 2.18131978181596, 1.8993026031471612, 3.2906975102172433, 2.950708650204335, 4.485431911181479),
+    boar_blend_alpha_by_stage=(0.37342107309772277, 0.6270111858683494, 0.7084080834936732, 0.4599311882835705, 0.5758638245506147, 0.5238825908266485),
+    cattle_value=(-0.7600794910606632, 0.8989453625740429, 2.08153301344839, 2.5730587743305375, 3.224985388582182, 2.809937799525405, 4.669034883492907),
+    cattle_blend_alpha_by_stage=(0.5456380356226618, 0.6868878175552594, 0.31376656854056717, 0.0793058052536676, 0.5546395135011721, 0.6820267715811481),
+    fenced_stable_value=(-0.2772091480307516, 0.795645875195543, 1.949443603174337, 2.8816302086537915, 4.127481094424726),
+    fenced_stable_blend_alpha_by_stage=(0.4568705351070726, 0.03658251428426296, 0.8748845954833594, 0.7413179854373133, 0.6682357710745566, 0.725400026508385),
+    unused_spaces_alpha_by_stage=(1.0, 0.7, 0.5, 0.3, 0.1, 0.0),
+    grain_pair_value=(0.6650537331323765, 0.722448334530647, 0.5867285003375383, 1.8162753549343322),
+    grain_pair_weight_by_stage=(0.4500503153364924, 1.2617613826173635, 0.305983832257428, 0.008918982018997854, 0.10953080265460863, 0.3697787594569842),
+    veg_pair_value=(0.3928079489761503, 0.09407912125334661, 1.5997852405831352, 1.415436591728395),
+    veg_pair_weight_by_stage=(0.7090382095854262, 1.8266140832975712, 1.6210815343655354, 0.5081134731977662, 0.38628931476778766, 0.08360976232728681),
+    cattle_breeding_pair_value=1.207164802323992,
+    cattle_breeding_pair_weight_by_stage=(1.1411818127916382, 1.7993975300348932, 0.7985332590368611, 0.6524259578619398, 0.1449848210760804, 0.08256949531404709),
+    boar_breeding_pair_value=1.0091853039535876,
+    boar_breeding_pair_weight_by_stage=(0.7930472153970302, 1.2722075673300253, 0.7467379747402141, 0.8747518779980306, 0.11871617154251554, 0.10519917257464834),
+    sheep_breeding_pair_value=1.3434189279038293,
+    sheep_breeding_pair_weight_by_stage=(0.7541919722825934, 1.0994214796948654, 0.8947112315500341, 0.5217418561959133, 0.14392297303263502, 0.22541428167586802),
+    unfenced_stable_value=(0.034194733468743216, 0.42866992363822637, 1.4675831608388348, 1.4081205209898915, 1.5466282581258584),
+    unfenced_stable_weight_by_stage=(1.1176980103635548, 0.8694987528968184, 0.45915694425500475, 0.42288271151696244, 0.2469214382190526, 0.14269757929581894),
+    wood_fence_vector=(0.555900107508227, 1.025970620607663, 0.4994188306698526, 0.8212207494157755, 0.21543973935476218, 1.0849287478887824, 0.657440269995863, 0.7522661851886951, 0.6762622730205032, 0.6811952569744137, 0.0019111114767116797, 0.46864685509732584, 0.33265050231770416, 0.3135718588991893, 0.4617436210501177),
+    wood_pre_3rd_room_vector=(0.6184275100336629, 0.8058210260241256, 0.22452222044457104, 0.4788020217598108, 1.032547921254182),
+    wood_generic_value=0.01628430886411239,
+    wood_weight_by_stage=(0.5796516265607075, 1.0710180869497592, 0.09901390641803931, 0.377744611685623, 0.7806257922028559, 0.08078632261949042),
+    reed_room_vector=(4.936150998215496, 1.6687037756991663, 0.6215504083714793, 0.2988357933905953, 0.7095557888751973, 0.24140545434884794),
+    reed_renovation_vector=(0.7003157425578573, 0.24713243334585555),
+    reed_generic_value=0.5461072111384337,
+    reed_weight_by_stage=(1.5641988707734835, 0.630908587717494, 0.9352722236968815, 1.312424481546026, 0.8361921375035, 0.5388181188212573),
+    clay_cookware_vector=(0.255724933566978, 1.3889809110748517, 0.7757307889904569, 1.1572375098486958, 1.3963717795734472),
+    clay_renovation_per_room=0.8429315445620721,
+    clay_generic_value=0.5166964079297481,
+    clay_weight_by_stage=(1.6507870635065442, 0.9934478543487825, 1.2035966727884342, 0.928429099708715, 0.5338065483748452, 0.2151117466448452),
+    stone_renovation_per_room=0.13798408799346726,
+    stone_generic_value=0.31269309772389287,
+    stone_weight_by_stage=(1.8764695375997384, 0.836532938142883, 1.2268715955486829, 1.19560531225043, 1.4155393279922792, 0.9450237522421419),
+    score_joint_alpha_by_stage=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+    family_per_round=(3.292323267102328, 2.2556860160847774, 2.004865826860955),
+    empty_room_rate_pre_basic_wish=2.616157917681491,
+    empty_room_rate_post_basic_wish=2.922029893978679,
+    starting_player_bonus=1.2280813469772174,
+    field_center_bonus=0.1,
+    pasture_location_bonus=0.05,
+    renovation_bonus_per_step_early=0.0,
+    renovation_bonus_per_step_late=0.0,
+    fireplace_value=4.80973022568891,
+    fireplace_value_mid=2.471273053448844,
+    fireplace_value_late=0.1474925121229842,
+    hearth_value=5.246727936850129,
+    hearth_value_mid=2.718190472453053,
+    hearth_value_late=0.8213097609387353,
+    cooking_secondary_vp=0.48196317373922687,
+    well_value=4.0,
+    well_food_per_future=0.4,
+    clay_oven_value=2.0,
+    stone_oven_value=3.0,
+    joinery_value=2.0,
+    pottery_value=2.0,
+    basketmaker_value=2.0,
+    hubris_food_by_stage=(
+        (1.7884341267822894, 1.0558248514476203),
+        (1.974794189772384, 0.03857092839956404),
+        (1.4621902682816512, 0.1800039461417814),
+        (1.2954374601077405, 0.6263768760563065),
+        (1.3197120890082046, 0.16421299820974317),
+        (0.3398706932777853, 0.01248992137296325),
+    ),
+    hubris_begging_by_moves=(-2.168827576740096, -1.400040886550546, -1.7188243942938597, -0.6645405122519157, -1.446132710577415, -1.3344923732468477),
+)
+
+
+# ---------------------------------------------------------------------------
+# V3 per-category helpers
+# ---------------------------------------------------------------------------
+
+def _v3_clip_index(count: int, vec_len: int) -> int:
+    """Clip `count` to a valid index into a length-`vec_len` vector
+    (saturating at the last index)."""
+    return min(max(count, 0), vec_len - 1)
+
+
+def _v3_blend(stage_idx: int, alpha_by_stage: tuple[float, ...],
+              parameterized: float, score_leaf: float) -> float:
+    """Blend formula: alpha * parameterized + (1-alpha) * score_leaf."""
+    a = alpha_by_stage[stage_idx]
+    return a * parameterized + (1.0 - a) * score_leaf
+
+
+def _v3_count_field_tiles(p: PlayerState) -> int:
+    return _count_cells_of_type(p, CellType.FIELD)
+
+
+def _v3_count_plowed_empty_fields(p: PlayerState) -> int:
+    """Count field cells that are plowed but have no crops on them."""
+    grid = p.farmyard.grid
+    return sum(
+        1
+        for r in range(3)
+        for c in range(5)
+        if grid[r][c].cell_type == CellType.FIELD
+        and grid[r][c].grain == 0
+        and grid[r][c].veg == 0
+    )
+
+
+def _v3_total_grain(p: PlayerState) -> int:
+    """Grain in supply + on field tiles."""
+    grid = p.farmyard.grid
+    return p.resources.grain + sum(
+        grid[r][c].grain
+        for r in range(3) for c in range(5)
+        if grid[r][c].cell_type == CellType.FIELD
+    )
+
+
+def _v3_total_veg(p: PlayerState) -> int:
+    """Veg in supply + on field tiles."""
+    grid = p.farmyard.grid
+    return p.resources.veg + sum(
+        grid[r][c].veg
+        for r in range(3) for c in range(5)
+        if grid[r][c].cell_type == CellType.FIELD
+    )
+
+
+def _v3_pasture_counts(p: PlayerState) -> tuple[int, int]:
+    """Return (total_pastures, pastures_with_capacity_ge_4)."""
+    total = len(p.farmyard.pastures)
+    large = sum(1 for past in p.farmyard.pastures if past.capacity >= 4)
+    return total, large
+
+
+def _v3_fenced_stable_count(p: PlayerState) -> int:
+    return sum(past.num_stables for past in p.farmyard.pastures)
+
+
+def _v3_crop_field_pair_counts(p: PlayerState) -> tuple[int, int]:
+    """Return (grain_pairs, veg_pairs). Grain has priority for empty-field
+    allocation."""
+    empty_fields = _v3_count_plowed_empty_fields(p)
+    grain_pairs = min(p.resources.grain, empty_fields)
+    remaining = empty_fields - grain_pairs
+    veg_pairs = min(p.resources.veg, remaining)
+    return grain_pairs, veg_pairs
+
+
+def _v3_breeding_pair_counts(p: PlayerState) -> tuple[int, int, int]:
+    """Return (cattle_pair, boar_pair, sheep_pair), each 0 or 1.
+    Priority: cattle > boar > sheep when distributing breeding-capacity slots.
+    """
+    cap = _num_breeding_opportunities_from_farm(p)
+    cattle = 1 if (cap > 0 and p.animals.cattle >= 2) else 0
+    if cattle:
+        cap -= 1
+    boar = 1 if (cap > 0 and p.animals.boar >= 2) else 0
+    if boar:
+        cap -= 1
+    sheep = 1 if (cap > 0 and p.animals.sheep >= 2) else 0
+    return cattle, boar, sheep
+
+
+def _v3_fences_built(p: PlayerState) -> int:
+    """Total fence pieces placed (each is one wood spent)."""
+    return sum(sum(row) for row in p.farmyard.horizontal_fences) + sum(
+        sum(row) for row in p.farmyard.vertical_fences
+    )
+
+
+def _v3_resources_contribution(state: GameState, p: PlayerState,
+                                player_idx: int, stage_idx: int,
+                                cfg: HeuristicConfigV3) -> float:
+    """V3 resource value: per-resource contribution = stage_weight × (sum
+    of vector contributions + generic × count). See `HeuristicConfigV3`
+    docstrings for the per-component semantics."""
+    r = p.resources
+    num_rooms = _count_cells_of_type(p, CellType.ROOM)
+
+    # --- Wood ---
+    wood = r.wood
+    fences_built = _v3_fences_built(p)
+    fence_start = min(fences_built, len(cfg.wood_fence_vector))
+    fence_end = min(fence_start + wood, len(cfg.wood_fence_vector))
+    wood_fence_pts = sum(cfg.wood_fence_vector[i] for i in range(fence_start, fence_end))
+
+    if num_rooms <= 2:
+        wood_pre3_pts = sum(
+            cfg.wood_pre_3rd_room_vector[i]
+            for i in range(min(wood, len(cfg.wood_pre_3rd_room_vector)))
+        )
+    else:
+        wood_pre3_pts = 0.0
+
+    wood_pts = (wood_fence_pts + wood_pre3_pts + wood * cfg.wood_generic_value) \
+        * cfg.wood_weight_by_stage[stage_idx]
+
+    # --- Reed ---
+    reed = r.reed
+    reed_room_pts = sum(
+        cfg.reed_room_vector[i]
+        for i in range(min(reed, len(cfg.reed_room_vector)))
+    )
+
+    if p.house_material == HouseMaterial.WOOD:
+        renovations_left = 2
+    elif p.house_material == HouseMaterial.CLAY:
+        renovations_left = 1
+    else:
+        renovations_left = 0
+    reed_reno_pts = sum(
+        cfg.reed_renovation_vector[i]
+        for i in range(min(reed, renovations_left, len(cfg.reed_renovation_vector)))
+    )
+
+    reed_pts = (reed_room_pts + reed_reno_pts + reed * cfg.reed_generic_value) \
+        * cfg.reed_weight_by_stage[stage_idx]
+
+    # --- Clay ---
+    clay = r.clay
+    if _has_cooking(state, player_idx):
+        clay_cookware_pts = 0.0
+    else:
+        clay_cookware_pts = sum(
+            cfg.clay_cookware_vector[i]
+            for i in range(min(clay, len(cfg.clay_cookware_vector)))
+        )
+
+    if p.house_material == HouseMaterial.WOOD:
+        clay_reno_pts = min(clay, num_rooms) * cfg.clay_renovation_per_room
+    else:
+        clay_reno_pts = 0.0
+
+    clay_pts = (clay_cookware_pts + clay_reno_pts + clay * cfg.clay_generic_value) \
+        * cfg.clay_weight_by_stage[stage_idx]
+
+    # --- Stone ---
+    stone = r.stone
+    if p.house_material != HouseMaterial.STONE:
+        stone_reno_pts = min(stone, num_rooms) * cfg.stone_renovation_per_room
+    else:
+        stone_reno_pts = 0.0
+
+    stone_pts = (stone_reno_pts + stone * cfg.stone_generic_value) \
+        * cfg.stone_weight_by_stage[stage_idx]
+
+    return wood_pts + reed_pts + clay_pts + stone_pts
+
+
+# ---------------------------------------------------------------------------
+# V3 evaluator
+# ---------------------------------------------------------------------------
+
+def evaluate_hubris_v3(
+    state: GameState, player_idx: int,
+    config: HeuristicConfigV3 = DEFAULT_CONFIG_V3,
+) -> float:
+    """Hubris v3: per-category value vectors + per-stage modulators.
+
+    End-of-game (`Phase.BEFORE_SCORING`) returns the raw score, as V1/V2 do.
+
+    See module docstring above `HeuristicConfigV3` for the full design.
+    """
+    if state.phase == Phase.BEFORE_SCORING:
+        total, _ = score(state, player_idx)
+        return float(total)
+
+    stage_idx = _stage_of_round(state.round_number) - 1
+    p = state.players[player_idx]
+    _, bd = score(state, player_idx)
+
+    pts = 0.0
+
+    # ----- BLEND categories -----
+
+    n_fields = _v3_count_field_tiles(p)
+    pts += _v3_blend(
+        stage_idx, config.field_blend_alpha_by_stage,
+        parameterized=config.plowed_field_value[_v3_clip_index(n_fields, len(config.plowed_field_value))],
+        score_leaf=bd.field_tiles,
+    )
+
+    n_total_pastures, n_large_pastures = _v3_pasture_counts(p)
+    pasture_param = (
+        config.pasture_value_all[_v3_clip_index(n_total_pastures, len(config.pasture_value_all))]
+        + config.pasture_value_large[_v3_clip_index(n_large_pastures, len(config.pasture_value_large))]
+    )
+    pts += _v3_blend(
+        stage_idx, config.pasture_blend_alpha_by_stage,
+        parameterized=pasture_param,
+        score_leaf=bd.pastures,
+    )
+
+    n_grain = _v3_total_grain(p)
+    pts += _v3_blend(
+        stage_idx, config.grain_blend_alpha_by_stage,
+        parameterized=config.grain_value[_v3_clip_index(n_grain, len(config.grain_value))],
+        score_leaf=bd.grain,
+    )
+
+    n_veg = _v3_total_veg(p)
+    pts += _v3_blend(
+        stage_idx, config.veg_blend_alpha_by_stage,
+        parameterized=config.veg_value[_v3_clip_index(n_veg, len(config.veg_value))],
+        score_leaf=bd.vegetables,
+    )
+
+    pts += _v3_blend(
+        stage_idx, config.sheep_blend_alpha_by_stage,
+        parameterized=config.sheep_value[_v3_clip_index(p.animals.sheep, len(config.sheep_value))],
+        score_leaf=bd.sheep,
+    )
+    pts += _v3_blend(
+        stage_idx, config.boar_blend_alpha_by_stage,
+        parameterized=config.boar_value[_v3_clip_index(p.animals.boar, len(config.boar_value))],
+        score_leaf=bd.boar,
+    )
+    pts += _v3_blend(
+        stage_idx, config.cattle_blend_alpha_by_stage,
+        parameterized=config.cattle_value[_v3_clip_index(p.animals.cattle, len(config.cattle_value))],
+        score_leaf=bd.cattle,
+    )
+
+    n_fenced = _v3_fenced_stable_count(p)
+    pts += _v3_blend(
+        stage_idx, config.fenced_stable_blend_alpha_by_stage,
+        parameterized=config.fenced_stable_value[_v3_clip_index(n_fenced, len(config.fenced_stable_value))],
+        score_leaf=bd.fenced_stables,
+    )
+
+    # Unused-spaces special blend (parameterized = 0):
+    pts += (1.0 - config.unused_spaces_alpha_by_stage[stage_idx]) * bd.unused_spaces
+
+    # ----- ADDITIVE-MULTIPLICATIVE categories -----
+
+    grain_pair_n, veg_pair_n = _v3_crop_field_pair_counts(p)
+    pts += config.grain_pair_weight_by_stage[stage_idx] * \
+        config.grain_pair_value[_v3_clip_index(grain_pair_n, len(config.grain_pair_value))]
+    pts += config.veg_pair_weight_by_stage[stage_idx] * \
+        config.veg_pair_value[_v3_clip_index(veg_pair_n, len(config.veg_pair_value))]
+
+    cattle_pair, boar_pair, sheep_pair = _v3_breeding_pair_counts(p)
+    if cattle_pair:
+        pts += config.cattle_breeding_pair_weight_by_stage[stage_idx] * config.cattle_breeding_pair_value
+    if boar_pair:
+        pts += config.boar_breeding_pair_weight_by_stage[stage_idx] * config.boar_breeding_pair_value
+    if sheep_pair:
+        pts += config.sheep_breeding_pair_weight_by_stage[stage_idx] * config.sheep_breeding_pair_value
+
+    n_unfenced = _count_unfenced_stables(p)
+    pts += config.unfenced_stable_weight_by_stage[stage_idx] * \
+        config.unfenced_stable_value[_v3_clip_index(n_unfenced, len(config.unfenced_stable_value))]
+
+    # ----- RESOURCES (V3 own pattern) -----
+    pts += _v3_resources_contribution(state, p, player_idx, stage_idx, config)
+
+    # ----- JOINT-ALPHA score leaves -----
+    j = config.score_joint_alpha_by_stage[stage_idx]
+    pts += j * (bd.clay_rooms + bd.stone_rooms + bd.people + bd.bonus_points)
+
+    # ----- Begging: always full weight -----
+    pts += bd.begging_markers  # already negative
+
+    # ----- Major improvements (V1 override) -----
+    pts += _hubris_major_value(state, player_idx, config)
+
+    # ----- V1 carry-over additive terms -----
+    pts += _hubris_family_value(state, p, config)
+    pts += _hubris_empty_room_value(state, p, config)
+    pts += _hubris_field_location_bonus(p, config)
+    pts += _hubris_pasture_location_bonus(p, config)
+    pts += _hubris_starting_player_bonus(state, player_idx, config)
+    pts += _hubris_renovation_bonus(state, p, config)
+
+    # ----- Food / begging-penalty term -----
+    pts += _food_term_hubris(state, p, player_idx, config)
+
+    return pts
+
+
+class HubrisHeuristicV3(HeuristicAgent):
+    """Hubris v3 agent — per-category count-indexed value vectors with
+    per-stage modulators. See `evaluate_hubris_v3` and `HeuristicConfigV3`
+    for the full design.
+
+    V3 replaces V1's tier-based resource model with three-component
+    resource vectors (fence/room/cookware/renovation + generic) and
+    replaces V1's score-leaf trust for most categories with explicit
+    `count -> value` vectors blended against score()'s leaf via per-stage
+    alphas. Categories not directly modeled (clay/stone rooms, people,
+    craft bonuses) are scaled by a joint per-stage alpha. Begging markers
+    are always full-weight.
+
+    Initial behavior expectation: V3 with default config is expected to
+    play noticeably weaker than V1 with CONFIG_V1_T2 (the round-2-tuned
+    config). V3's defaults are a coarse translation of V1's hand-picked
+    values; tuning is needed to find competitive parameters in V3's much
+    richer parameter space (~250 scalars vs V1's ~70).
+    """
+
+    def __init__(
+        self,
+        *,
+        temperature: float = 0.0,
+        seed: int = 0,
+        config: HeuristicConfigV3 = DEFAULT_CONFIG_V3,
+        lookahead: str = "turn",
+    ):
+        super().__init__(
+            evaluator=evaluate_hubris_v3,
+            config=config,
+            temperature=temperature,
+            seed=seed,
+            lookahead=lookahead,
+        )

@@ -92,7 +92,31 @@
     }
   }
 
-  const AGENT_TYPES = ['human', 'random', 'simple', 'hubris', 'hubris_v1', 'hubris_v2'];
+  // User-facing seat names shown in the New-game dialog. We expose a
+  // simplified set ('v1' = current strongest V1 = backend 'hubris',
+  // 'v3' = current strongest V3 = backend 'hubris_v3' loaded via
+  // --v3-config). The backend understands additional types ('simple',
+  // 'hubris_v1', 'hubris_v2') for CLI use but they're not surfaced here.
+  const SEAT_LABELS = ['human', 'random', 'v1', 'v3'];
+  const LABEL_TO_BACKEND = {
+    'human': 'human',
+    'random': 'random',
+    'v1':     'hubris',     // V1 architecture with tuned CONFIG_V1_T2
+    'v3':     'hubris_v3',  // V3 architecture (loads --v3-config if set)
+  };
+  const BACKEND_TO_LABEL = {
+    'human': 'human',
+    'random': 'random',
+    'simple': 'simple',
+    'hubris': 'v1',
+    'hubris_v1': 'v1 (default)',
+    'hubris_v2': 'v2',
+    'hubris_v3': 'v3',
+  };
+
+  function backendToLabel(backend) {
+    return BACKEND_TO_LABEL[backend] || backend;
+  }
 
   async function resetGame() {
     // Three prompts to match the existing prompt-style UX (avoids building
@@ -102,13 +126,17 @@
     const seed = parseInt(seedStr, 10) || 0;
     const currentSeats = (currentState && currentState.seats) || ['human', 'random'];
     const p0Str = prompt(
-      `P0 seat? (${AGENT_TYPES.join(' / ')})`, currentSeats[0]);
+      `P0 seat? (${SEAT_LABELS.join(' / ')})`,
+      backendToLabel(currentSeats[0]));
     if (p0Str === null) return;
     const p1Str = prompt(
-      `P1 seat? (${AGENT_TYPES.join(' / ')})`, currentSeats[1]);
+      `P1 seat? (${SEAT_LABELS.join(' / ')})`,
+      backendToLabel(currentSeats[1]));
     if (p1Str === null) return;
-    const p0 = AGENT_TYPES.includes(p0Str.trim()) ? p0Str.trim() : 'human';
-    const p1 = AGENT_TYPES.includes(p1Str.trim()) ? p1Str.trim() : 'random';
+    const p0Label = SEAT_LABELS.includes(p0Str.trim()) ? p0Str.trim() : 'human';
+    const p1Label = SEAT_LABELS.includes(p1Str.trim()) ? p1Str.trim() : 'random';
+    const p0 = LABEL_TO_BACKEND[p0Label];
+    const p1 = LABEL_TO_BACKEND[p1Label];
     const res = await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -397,10 +425,12 @@
     if (p.is_sp) headerEl.appendChild(el('span', { class: 'sp-tag' }, 'SP'));
     if (p.is_decider)
       headerEl.appendChild(el('span', { class: 'decider-tag' }, 'deciding'));
-    // Seat-type tag (human/random/simple/hubris) so it's visible whose
-    // brain is in this seat.
+    // Seat-type tag (friendly label — see BACKEND_TO_LABEL above) so it's
+    // visible whose brain is in this seat. The CSS dataset still uses the
+    // raw backend value for any per-type styling.
     const seat = (state.seats && state.seats[idx]) || 'human';
-    headerEl.appendChild(el('span', { class: 'seat-tag', dataset: { seat } }, seat));
+    headerEl.appendChild(el('span', { class: 'seat-tag', dataset: { seat } },
+                            backendToLabel(seat)));
 
     colEl.classList.toggle('active-decider', p.is_decider && !state.game_over);
     colEl.classList.toggle('dim', !p.is_decider && !state.game_over);

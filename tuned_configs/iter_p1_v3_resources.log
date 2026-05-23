@@ -1,0 +1,104 @@
+Tuning 63 parameters via CMA-ES
+  category: 'v3_resources'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_food.json'
+  baseline opponent: 't2' (arch: v1)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 17, max_gens: 10, sigma0: 0.3
+  total evals: 170
+  jobs: 8; python -O: ON
+  estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = -14.300 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: -4.140  gen best: -4.140  gen mean: -16.679  (5.2 min)
+gen   2  best so far: -4.140  gen best: -6.540  gen mean: -13.929  (10.0 min)
+gen   3  best so far: +7.630  gen best: +7.630  gen mean: -13.637  (14.6 min)
+gen   4  best so far: +7.630  gen best: -3.050  gen mean: -12.775  (19.7 min)
+gen   5  best so far: +9.180  gen best: +9.180  gen mean: -9.447  (24.5 min)
+gen   6  best so far: +10.060  gen best: +10.060  gen mean: -4.310  (29.1 min)
+gen   7  best so far: +10.060  gen best: +5.800  gen mean: -4.537  (34.6 min)
+gen   8  best so far: +10.060  gen best: +7.920  gen mean: -0.265  (39.7 min)
+gen   9  best so far: +11.190  gen best: +11.190  gen mean: +1.302  (44.8 min)
+gen  10  best so far: +11.190  gen best: +9.310  gen mean: +2.418  (49.9 min)
+
+Optimization complete in 49.9 min.
+Best margin (training): +11.190
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+wood_fence_0                             0.700      0.556     -0.144
+wood_fence_1                             0.700      1.026     +0.326
+wood_fence_2                             0.700      0.499     -0.201
+wood_fence_3                             0.700      0.821     +0.121
+wood_fence_4                             0.700      0.215     -0.485
+wood_fence_5                             0.700      1.085     +0.385
+wood_fence_6                             0.700      0.657     -0.043
+wood_fence_7                             0.700      0.752     +0.052
+wood_fence_8                             0.700      0.676     -0.024
+wood_fence_9                             0.700      0.681     -0.019
+wood_fence_10                            0.500      0.002     -0.498
+wood_fence_11                            0.500      0.469     -0.031
+wood_fence_12                            0.500      0.333     -0.167
+wood_fence_13                            0.500      0.314     -0.186
+wood_fence_14                            0.500      0.462     -0.038
+wood_pre_3rd_room_0                      0.800      0.618     -0.182
+wood_pre_3rd_room_1                      0.800      0.806     +0.006
+wood_pre_3rd_room_2                      0.800      0.225     -0.575
+wood_pre_3rd_room_3                      0.800      0.479     -0.321
+wood_pre_3rd_room_4                      0.800      1.033     +0.233
+wood_generic_value                       0.100      0.016     -0.084
+wood_weight_stage1                       1.500      0.580     -0.920
+wood_weight_stage2                       1.000      1.071     +0.071
+wood_weight_stage3                       1.000      0.099     -0.901
+wood_weight_stage4                       1.000      0.378     -0.622
+wood_weight_stage5                       0.900      0.781     -0.119
+wood_weight_stage6                       0.200      0.081     -0.119
+reed_room_0                              5.000      4.936     -0.064
+reed_room_1                              1.500      1.669     +0.169
+reed_room_2                              0.300      0.622     +0.322
+reed_room_3                              0.300      0.299     -0.001
+reed_room_4                              0.000      0.710     +0.710
+reed_room_5                              0.000      0.241     +0.241
+reed_renovation_0                        0.500      0.700     +0.200
+reed_renovation_1                        0.300      0.247     -0.053
+reed_generic_value                       0.200      0.546     +0.346
+reed_weight_stage1                       1.500      1.564     +0.064
+reed_weight_stage2                       1.000      0.631     -0.369
+reed_weight_stage3                       1.000      0.935     -0.065
+reed_weight_stage4                       1.000      1.312     +0.312
+reed_weight_stage5                       0.900      0.836     -0.064
+reed_weight_stage6                       0.200      0.539     +0.339
+clay_cookware_0                          0.800      0.256     -0.544
+clay_cookware_1                          0.800      1.389     +0.589
+clay_cookware_2                          0.800      0.776     -0.024
+clay_cookware_3                          0.800      1.157     +0.357
+clay_cookware_4                          0.800      1.396     +0.596
+clay_renovation_per_room                 0.800      0.843     +0.043
+clay_generic_value                       0.100      0.517     +0.417
+clay_weight_stage1                       1.500      1.651     +0.151
+clay_weight_stage2                       1.000      0.993     -0.007
+clay_weight_stage3                       1.000      1.204     +0.204
+clay_weight_stage4                       1.000      0.928     -0.072
+clay_weight_stage5                       0.900      0.534     -0.366
+clay_weight_stage6                       0.200      0.215     +0.015
+stone_renovation_per_room                0.500      0.138     -0.362
+stone_generic_value                      0.500      0.313     -0.187
+stone_weight_stage1                      1.500      1.876     +0.376
+stone_weight_stage2                      1.000      0.837     -0.163
+stone_weight_stage3                      1.000      1.227     +0.227
+stone_weight_stage4                      1.000      1.196     +0.196
+stone_weight_stage5                      1.000      1.416     +0.416
+stone_weight_stage6                      0.700      0.945     +0.245
+
+Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
+  holdout P0 87-0-13 P1  avg +17.21 vs +5.68  margin +11.53  (100 games, 72.6s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +10.16 → +11.53)

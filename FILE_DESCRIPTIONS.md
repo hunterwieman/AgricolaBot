@@ -424,7 +424,7 @@ The scoring tables (how many points for 0 fields, 1 field, 2 fields, etc.) are i
 
 ### `agricola/agents/__init__.py`
 
-Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, the `HeuristicConfig` dataclass, the three module-level evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, plus `evaluate_hubris` alias), and the `play_game(initial_state, agents)` driver. Designed so that callers can write `from agricola.agents import HubrisHeuristic, play_game, ...` without dipping into submodules.
+Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, **`HubrisHeuristicV3`**, the `HeuristicConfig` and **`HeuristicConfigV3`** dataclasses, named config constants **`DEFAULT_CONFIG`** / **`DEFAULT_CONFIG_V3`** / **`CONFIG_V1_T2`**, the four evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, `evaluate_hubris_v3`, plus `evaluate_hubris` alias), and the `play_game(initial_state, agents)` driver. Designed so that callers can write `from agricola.agents import HubrisHeuristicV3, CONFIG_V1_T2, play_game, ...` without dipping into submodules.
 
 ---
 
@@ -442,16 +442,25 @@ Agent infrastructure shared by all heuristic agents.
 
 ### `agricola/agents/heuristic.py`
 
-Two evaluator variants (plus shared infrastructure) and their corresponding agent classes.
+All heuristic-agent code: Simple, Hubris V1, V2, V3 evaluators and agent classes, plus named config constants. See **`V3_DESIGN.md`** for the V3 architecture and **`HUBRIS_V1_NOTES.md`** for the V1 design rationale.
 
-- **`HeuristicConfig`** — frozen dataclass holding ~50 tunable coefficients spanning every term used by either evaluator: resource tier rates and caps, family-member per-round rates, breeding-value tiers (active vs. passive, has-cooking vs. can-afford vs. can't), major-improvement utility values (with stage-3 tiers for cooking implements), field and pasture location bonuses, crop+field pair bonuses, food-by-stage rates, begging-by-moves rates, stage-1 resource multiplier, round-13/14 resource decay, Pottery/BMW bonus caps, starting-player bonus, deferred renovation-bonus fields. Default values are hand-picked; the next sessions' agenda (HEURISTIC_TUNING_PLAN.md) covers replacing them with self-play-tuned values.
-- **`evaluate_simple(state, player_idx, config)`** — MVP evaluator. `score(state)` as the base, plus linear resource bonuses for wood/clay/reed/stone/grain/veg and a food/begging term with convertible-shortfall awareness.
-- **`evaluate_hubris_v1(state, player_idx, config)`** — current default Hubris evaluator. Composes `score(state)` with: a major-improvement override (`_hubris_major_value`, with cooking-primary-only logic and 3-tier round decay), family-future value (rate × remaining plays, with at-home bonus), empty-room anticipation (basic-wish-aware), unfenced-stable value, breeding-opportunity counter (greedy assignment over pastures + flex slots), field-center location bonus, pasture-right-half location bonus, crop+plowed-field pair bonus, context-aware tiered resource value (with stage-1×1.5 multiplier and round-13/14 decay), starting-player bonus, and the v1 `_food_term_hubris` (which has a known convertible-goods double-count addressed in v2).
-- **`evaluate_hubris_v2(state, player_idx, config)`** — same composition as v1, but the food-leaf scoring + food + begging is replaced with `_food_and_goods_term_v2`: enumerate `harvest_feed_frontier`'s Pareto-optimal feeding configurations, evaluate each (post-conversion goods score + food supply value + begging penalty), take the max. Theoretically correct but in 20-seed benches loses head-to-head to V1 (the missing piece is "I won't actually convert if game ends first").
-- **`SimpleHeuristic`** / **`HubrisHeuristicV1`** / **`HubrisHeuristicV2`** — thin subclasses of `HeuristicAgent` binding their respective evaluator. `HubrisHeuristic` is a backward-compat alias to `HubrisHeuristicV1`.
-- **`evaluate_hubris`** — alias to `evaluate_hubris_v1`. Flip when v2 is promoted.
+**V1-era components:**
+- **`HeuristicConfig`** — frozen dataclass holding ~70 tunable coefficients spanning V1's evaluator terms: resource tier rates and caps, family-member per-round rates, breeding-value tiers, major-improvement utility values, location bonuses, crop+field pair bonuses, food-by-stage rates, begging-by-moves rates, time multipliers, Pottery/BMW bonus caps, starting-player bonus, renovation-bonus fields. Default values are hand-picked.
+- **`DEFAULT_CONFIG`** — module-level instance of `HeuristicConfig()` (all hand-picked defaults).
+- **`CONFIG_V1_T2`** — round-2-tuned `HeuristicConfig` (58 params tuned; +8.85 holdout margin vs `DEFAULT_CONFIG`; 90-1-9 record). Sourced from `tuned_configs/1779468329.json`. Used as the **`hubris` seat-alias** in all drivers.
+- **`evaluate_simple(state, player_idx, config)`** — MVP evaluator: `score()` + linear resource bonuses + food term.
+- **`evaluate_hubris_v1(state, player_idx, config)`** — V1 evaluator. Composes `score(state)` with major-improvement override + family-future + empty-room anticipation + unfenced-stable + breeding-opportunity + location bonuses + crop+field pair + tiered resource value + starting-player + renovation bonus + `_food_term_hubris`.
+- **`evaluate_hubris_v2(state, player_idx, config)`** — V1 with the food-leaf computation replaced by `_food_and_goods_term_v2` (joint goods-or-food maximization via `harvest_feed_frontier`). Loses head-to-head to V1.
+- **`SimpleHeuristic`** / **`HubrisHeuristicV1`** / **`HubrisHeuristicV2`** — thin `HeuristicAgent` subclasses. `HubrisHeuristic` is an alias to V1. `evaluate_hubris` alias to V1.
 
-The file also contains a number of private helpers used by Hubris: `_three_tier` for piecewise-linear resource valuation, `_hubris_breeding_value`'s greedy assignment, `_hubris_family_value`'s at-home-bonus computation, the `_grain_on_fields` / `_veg_on_fields` accessors used by v2's joint feeding term, and the round-bucket helpers (`_stage_of_round`, `_next_harvest_round`, `_moves_left_before_harvest`).
+**V3 architecture (current main heuristic):**
+- **`HeuristicConfigV3`** — frozen dataclass with ~70 fields (250+ scalar parameters total). Categorizes scoring-relevant state into: BLEND categories (fields, pastures × 2 vectors + alpha, grain, veg, sheep, boar, cattle, fenced stables, unused-spaces with parameterized-side fixed at 0), ADDITIVE categories (grain/veg pairs, 3 breeding-pairs with cattle>boar>sheep priority, unfenced stables), three-component resources (wood: fence-slot vector + pre-3rd-room overlay + generic; reed: room-slot vector + renovation overlay + generic; clay: cookware-status vector + renovation-per-room scalar + generic; stone: renovation-per-room scalar + generic; all gated by per-stage weight vectors), a joint-alpha modulator for uncovered score leaves (clay/stone rooms, people, craft bonuses), and V1 carry-over fields (family rates, empty-room rates, location bonuses, SP bonus, renovation bonus, full major-improvement override values, food-by-stage, begging-by-moves) — these carry-overs duck-type into the existing V1 helpers.
+- **`DEFAULT_CONFIG_V3`** — module-level instance with carry-over fields seeded from `CONFIG_V1_T2`'s tuned values.
+- **`evaluate_hubris_v3(state, player_idx, config)`** — V3 evaluator. Composes per-category contributions: blend (α·v3 + (1−α)·score_leaf), additive (weight·v3_value), joint-alpha (single α × multiple score_leaves), three-component resources, full-weight begging, and V1 carry-over additive terms (`_hubris_family_value`, `_hubris_empty_room_value`, `_hubris_field_location_bonus`, `_hubris_pasture_location_bonus`, `_hubris_starting_player_bonus`, `_hubris_renovation_bonus`, `_hubris_major_value`, `_food_term_hubris`).
+- **`HubrisHeuristicV3`** — thin `HeuristicAgent` subclass binding `evaluate_hubris_v3` + `DEFAULT_CONFIG_V3`.
+- **V3 helper functions** (with `_v3_` prefix): `_v3_clip_index`, `_v3_blend`, `_v3_count_field_tiles`, `_v3_count_plowed_empty_fields`, `_v3_total_grain` / `_total_veg`, `_v3_pasture_counts` (returns total + large), `_v3_fenced_stable_count`, `_v3_crop_field_pair_counts` (grain priority allocation), `_v3_breeding_pair_counts` (cattle > boar > sheep priority), `_v3_fences_built`, `_v3_resources_contribution`.
+
+**Shared V1/V3 helpers**: `_three_tier` for piecewise-linear resource valuation, `_stage_of_round`, `_next_harvest_round`, `_moves_left_before_harvest`, `_feeding_need`, `_max_convertible_food`, `_has_cooking`, `_can_afford_cooking`, `_basic_wish_revealed_round`, `_num_breeding_opportunities_from_farm`, `_types_with_2_plus_animals`, `_count_unfenced_stables`, `_count_cells_of_type`, `_empty_unenclosed_cells`. The carry-over V1 helpers (`_hubris_family_value` etc.) duck-type on the config's field names — same code, called by both `evaluate_hubris_v1` and `evaluate_hubris_v3`.
 
 ---
 
@@ -472,6 +481,75 @@ Test-side multi-action helpers and the random-agent driver. NOT a test file desp
 - `run_actions(state, actions)` — apply a scripted sequence of actions; validate each is legal before applying. Used by tests that walk through a specific scenario.
 - `IMPLEMENTED_NON_ATOMIC_SPACES`, `_is_implemented_action`, `filter_implemented(actions)` — filter `legal_actions` output to actions `step` can apply. `IMPLEMENTED_NON_ATOMIC_SPACES = frozenset(NONATOMIC_HANDLERS.keys())` — currently covers every non-atomic space (all 12), so the filter is effectively a no-op today; it stays in place for forward-compat as new action types may surface in `legal_actions` before their `step` handler does. Non-`PlaceWorker` actions (including the Task-7 harvest commits `CommitHarvestConversion` / `CommitConvert` / `CommitBreed`) are accepted unconditionally — they're only reachable when the pending stack already has an implemented frame.
 - `random_agent_play(state, seed)` — plays a random-action game to `Phase.BEFORE_SCORING`. Returns `(terminal_state, trace)`. Raises if the agent gets stuck (would indicate a bug). Used by the end-to-end engine smoke test.
+
+---
+
+### `scripts/play_match.py`
+
+Match-runner library + standalone CLI. Used by `scripts/tune_heuristic.py` as its inner-loop game-runner, and as a stand-alone head-to-head tool from the command line.
+
+Library API:
+- **`play_match(p0_factory, p1_factory, seeds) -> MatchResult`** — runs one game per seed; each game uses `setup(seed)` and the factories' agents; aggregates win/draw/loss counts (with tiebreaker), per-game scores and tiebreaker values, average score margin, elapsed time. Factories are `Callable[[int], Agent]` (game_seed → Agent), letting callers decide how the game seed maps to the agent's RNG seed.
+- **`MatchResult`** / **`GameResult`** — frozen dataclasses for the aggregate and per-game records. `MatchResult.summary_line()` produces a one-line summary.
+
+CLI: `python scripts/play_match.py --p0 hubris_v3 --p1 hubris --n 100`. Supports `--seeds RANGE` (e.g. `--seeds 0-29,42,1000-1099`), `--temperature`, `--lookahead`, `--per-game` (per-game output table). Agent type names match the play_web/play_heuristic_game convention: `human` (not for play_match), `random`, `simple`, `hubris` (= V1+T2), `hubris_v1` (V1+default), `hubris_v2`, `hubris_v3`.
+
+---
+
+### `scripts/tune_heuristic.py`
+
+CMA-ES tuner for ONE TUNABLE category at a time. Supports both V1 and V3 architectures via `--category` dispatch. See **`V3_TRAINING_PIPELINE.md`** for the full operational guide.
+
+Core mechanics:
+- **`TUNABLE`** lists (one per category, in `CATEGORIES` dict): `(name, default, lower, upper, config_path)` tuples. `config_path` is `("field",)` for scalar, `("field", idx)` for tuple, `("field", outer, inner)` for tuple-of-tuples. Each TUNABLE entry defines one CMA-ES dimension.
+- **`BASE_CONFIGS`**: `{"default": (DEFAULT_CONFIG, "v1"), "t2": (CONFIG_V1_T2, "v1"), "default_v3": (DEFAULT_CONFIG_V3, "v3")}`. The `_resolve_config(spec)` helper also accepts a JSON file path; loads `best_config` and constructs the right dataclass based on the JSON's `candidate_arch` field.
+- **`vector_to_config(x, base, tunable)`** — applies a CMA-ES sample vector to `base` config via the path specs; returns a new config (`dataclasses.replace`).
+- **`_eval_candidate(x)`** — top-level (picklable) fitness function. Constructs candidate config + opponent agent, plays `n_seeds` games via `play_match`, returns `-avg_margin` (CMA-ES minimizes).
+- **`_init_worker(seeds, baseline_cfg, baseline_arch, base_cfg, base_arch, tunable)`** — Pool initializer, populates worker-side globals so `_eval_candidate` is parameterless.
+
+CLI flags (key ones; full list via `--help`):
+- `--category` (e.g. `v3_resources`, `v3_pastures_animals`) — selects the TUNABLE list and architecture.
+- `--from <name-or-path>` — warm-start base config. Either a `BASE_CONFIGS` name or a path to a previous run's JSON (loads `best_config`).
+- `--baseline <name-or-path>` — opponent agent's config. Same name-or-path semantics.
+- `--resume <path.cma.pkl>` — load a previously-saved CMA-ES state and continue. `--max-gens` becomes "additional gens" from the resumed countiter. The script bumps `es.opts["maxiter"]` and calls `es.stop(ignore_list=["maxiter"])` to avoid the saved cap short-circuiting the loop.
+- `--n-seeds` (default 50), `--max-gens` (default 10), `--popsize`, `--sigma0`, `--cma-seed`, `--holdout-start`/`--holdout-n` (default 1000/100), `--jobs` (default `cpu_count()`), `--output`.
+
+Per-generation: writes `<output>.json` (best config + history + holdout) and `<output>.cma.pkl` (pickled `CMAEvolutionStrategy`) atomically (temp-file + rename). Stdout is teed to `<output>.log`.
+
+End-of-run logic:
+- **x0 fallback**: if `es.best.f` is worse than `sanity_f0` (the fitness of x0 evaluated before the CMA-ES loop), the script overrides `best_x = x0` and reports `best_margin = sanity_margin`. Prevents chain-forward regression when a category's defaults were already near-optimal. Prints an explicit warning when triggered.
+- **Auto-update `<arch>_best.json`**: at the very end, `_maybe_update_best_pointer(new_json, candidate_arch, holdout_margin)` reads `tuned_configs/<arch>_best.json` (if exists) and copies the new JSON there iff the new holdout margin beats the existing one.
+
+Recommended invocation: `python -O scripts/tune_heuristic.py --category v3_resources --from default_v3 --baseline t2 --max-gens 10` (the `-O` flag strips debug asserts in the engine for ~2× speedup).
+
+---
+
+### `scripts/run_iterative_v3.py`
+
+Orchestrator chaining V3 category-tuning invocations as block-coordinate descent. Calls `scripts/tune_heuristic.py` as a subprocess once per (pass, category) pair. See **`V3_TRAINING_PIPELINE.md`** §5 for the full design.
+
+Per pass, categories run in fixed order:
+1. `v3_fields_crops` (60 params)
+2. `v3_food` (18 params)
+3. `v3_resources` (63 params)
+4. `v3_pastures_animals` (101 params)
+
+Each step's `--from` is the previous step's JSON output (cumulative warm-start within a pass). On passes 2+, each step's `--resume` is the same category's pickle from the previous pass (continues CMA-ES from where THIS category last left off, against a now-different warm-start context).
+
+CLI:
+- `--n-passes N` (default 3) — full cycles.
+- `--max-gens N` (default 10) — per-step CMA-ES generations.
+- `--n-seeds N` (default 100) — games per evaluation.
+- `--baseline <spec>` (default `t2`) — opponent for all steps.
+- `--start-from <path>` (default `tuned_configs/v3_best.json`) — warm-start base for pass 1's first step.
+- `--label <str>` (default `iter`) — output filename prefix.
+- `--start-step N` — skip the first N-1 steps (for resuming partially-completed iterations).
+- `--initial-pickles "cat:path,cat:path"` — pre-populate the per-category pickle map (for resuming specific categories).
+- `--dry-run` — print the command sequence without executing.
+
+The orchestrator itself is pure-Python — all heavy lifting happens in the spawned `tune_heuristic.py` subprocesses, which write their own `.json`, `.log`, `.cma.pkl` files. The orchestrator's own stdout is captured to `tuned_configs/iter_orchestrator.log` when launched via nohup redirection; that log subsumes each subprocess's stdout (via subprocess inheritance) AND the orchestrator's own step-boundary headers.
+
+`CATEGORY_POPSIZE` maps each category to its CMA-ES popsize (`4 + ⌈3·ln(d)⌉`): 16, 13, 17, 18 for the four V3 categories respectively. `CATEGORY_ORDER` defines the fixed per-pass sequence.
 
 ---
 

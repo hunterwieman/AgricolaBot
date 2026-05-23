@@ -1,0 +1,59 @@
+Tuning 12 parameters via CMA-ES
+  warm-start base + baseline opponent: 't2' (CONFIG_V1_T2)
+  seeds: 50 games per evaluation (training: 0..49)
+  holdout: 100 games (1000..1099)
+  popsize: 12, max_gens: 20, sigma0: 0.3
+  total evals: 240
+  jobs: 8; python -O: ON
+  estimated wall time: ~14.4 min (vs ~100.0 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 't2' baseline) = -0.540 margin
+  (nonzero reflects finite-N noise + any difference between x0 values and base_config field values)
+
+gen   1  best so far: -1.360  gen best: -1.360  gen mean: -2.438  (1.5 min)
+gen   2  best so far: -1.080  gen best: -1.080  gen mean: -2.082  (3.1 min)
+gen   3  best so far: -0.980  gen best: -0.980  gen mean: -1.835  (4.5 min)
+gen   4  best so far: -0.880  gen best: -0.880  gen mean: -1.790  (5.9 min)
+gen   5  best so far: -0.880  gen best: -0.900  gen mean: -2.012  (7.5 min)
+gen   6  best so far: -0.880  gen best: -1.160  gen mean: -1.648  (9.0 min)
+gen   7  best so far: -0.880  gen best: -0.880  gen mean: -1.628  (10.4 min)
+gen   8  best so far: -0.820  gen best: -0.820  gen mean: -1.490  (11.8 min)
+gen   9  best so far: -0.100  gen best: -0.100  gen mean: -1.560  (13.2 min)
+gen  10  best so far: +0.140  gen best: +0.140  gen mean: -1.597  (14.6 min)
+gen  11  best so far: +0.140  gen best: -0.740  gen mean: -1.752  (16.0 min)
+gen  12  best so far: +0.140  gen best: -1.120  gen mean: -2.583  (17.6 min)
+gen  13  best so far: +0.140  gen best: -1.140  gen mean: -2.013  (19.1 min)
+gen  14  best so far: +0.140  gen best: -1.360  gen mean: -1.968  (20.6 min)
+gen  15  best so far: +0.140  gen best: -0.440  gen mean: -1.778  (22.0 min)
+gen  16  best so far: +0.140  gen best: -0.660  gen mean: -1.863  (23.7 min)
+gen  17  best so far: +0.140  gen best: -0.720  gen mean: -1.632  (25.2 min)
+gen  18  best so far: +0.140  gen best: -0.540  gen mean: -1.333  (26.6 min)
+gen  19  best so far: +0.140  gen best: -0.920  gen mean: -1.583  (28.0 min)
+gen  20  best so far: +0.140  gen best: -0.940  gen mean: -1.610  (29.3 min)
+
+Optimization complete in 29.3 min.
+Best margin (training): +0.140
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+renovation_bonus_per_step_early          0.750      0.955     +0.205
+renovation_bonus_per_step_late           1.500      1.525     +0.025
+field_center_bonus                       0.100      0.225     +0.125
+pasture_location_bonus                   0.050      0.035     -0.015
+hubris_unfenced_stable_value_early       0.400      0.774     +0.374
+well_value                               4.000      3.706     -0.294
+well_food_per_future                     0.400      1.490     +1.090
+clay_oven_value                          2.000      2.448     +0.448
+stone_oven_value                         3.000      2.612     -0.388
+joinery_value                            2.000      1.473     -0.527
+pottery_value                            2.000      1.291     -0.709
+basketmaker_value                        2.000      0.835     -1.165
+
+Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
+  holdout P0 46-0-54 P1  avg +26.67 vs +27.55  margin -0.88  (100 games, 58.2s)
+  → NEGATIVE on holdout. Likely overfit; treat training result with caution.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.log
