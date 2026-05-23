@@ -58,7 +58,13 @@ def main() -> int:
     p.add_argument("--max-gens", type=int, default=10,
                    help="Generations per category per pass. Default 10.")
     p.add_argument("--n-seeds", type=int, default=100,
-                   help="Games per evaluation. Default 100.")
+                   help="Games per evaluation (training). Default 100.")
+    p.add_argument("--holdout-n", type=int, default=100,
+                   help="Games for the per-category post-tuning holdout match. "
+                        "Default 100. Bumping this gives less-noisy auto-update "
+                        "decisions (e.g. n=300 → ±1.7 95%% CI on margin estimate "
+                        "vs ±3.0 at n=100). One-shot per category step, so the "
+                        "extra cost is small.")
     p.add_argument("--start-from", type=Path,
                    default=ROOT / "tuned_configs" / "v3_best.json",
                    help="JSON file (with 'best_config' field) used as the warm-start "
@@ -80,6 +86,10 @@ def main() -> int:
                         "v3_fields_crops:tuned_configs/iter_p1_v3_fields_crops.cma.pkl'.")
     p.add_argument("--dry-run", action="store_true",
                    help="Print the command sequence without executing.")
+    p.add_argument("--restricted", action=argparse.BooleanOptionalAction, default=True,
+                   help="Pass --restricted (default) or --no-restricted through to each "
+                        "tune_heuristic.py invocation. When restricted, both candidate "
+                        "and baseline agents use agricola.agents.restricted_legal_actions.")
     args = p.parse_args()
 
     current_from: Path = args.start_from
@@ -121,7 +131,9 @@ def main() -> int:
     print(f"  total steps: {total_steps}")
     print(f"  max-gens per step: {args.max_gens}")
     print(f"  n-seeds per evaluation: {args.n_seeds}")
+    print(f"  holdout n per category: {args.holdout_n}")
     print(f"  starting from: {current_from}")
+    print(f"  restricted action set: {'ON' if args.restricted else 'OFF'}")
     print()
 
     for pass_idx in range(1, args.n_passes + 1):
@@ -158,7 +170,9 @@ def main() -> int:
                 "--max-gens",  str(args.max_gens),
                 "--popsize",   str(CATEGORY_POPSIZE[cat]),
                 "--n-seeds",   str(args.n_seeds),
+                "--holdout-n", str(args.holdout_n),
                 "--output",    str(output),
+                "--restricted" if args.restricted else "--no-restricted",
             ]
             if resume_pkl is not None and resume_pkl.exists():
                 cmd.extend(["--resume", str(resume_pkl)])

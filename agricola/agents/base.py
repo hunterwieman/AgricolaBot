@@ -82,6 +82,13 @@ from agricola.state import GameState
 from tests.test_utils import filter_implemented
 
 
+# A `legal_actions_fn` is anything with the shape `legal_actions(state)`. The
+# default for every agent is `agricola.legality.legal_actions` (unrestricted).
+# Passing `agricola.agents.restricted.restricted_legal_actions` swaps in the
+# action-pruned variant at every legality consultation.
+LegalActionsFn = Callable[[GameState], list[Action]]
+
+
 # ---------------------------------------------------------------------------
 # Agent protocol
 # ---------------------------------------------------------------------------
@@ -125,13 +132,24 @@ class RandomAgent:
     Equivalent to the loop body of `tests/test_utils.random_agent_play`,
     packaged as an agent object for symmetry with the heuristic agents.
     Used as a baseline opponent and as a sanity-check for evaluator code.
+
+    `legal_actions_fn` is the function consulted for legality. Defaults to
+    `agricola.legality.legal_actions` (the engine's unrestricted set); pass
+    `agricola.agents.restricted.restricted_legal_actions` for a random
+    agent operating on the action-pruned set.
     """
 
-    def __init__(self, seed: int):
+    def __init__(
+        self,
+        seed: int,
+        *,
+        legal_actions_fn: LegalActionsFn = legal_actions,
+    ):
         self.rng = np.random.default_rng(seed)
+        self.legal_actions_fn = legal_actions_fn
 
     def __call__(self, state: GameState) -> Action:
-        actions = filter_implemented(legal_actions(state))
+        actions = filter_implemented(self.legal_actions_fn(state))
         if not actions:
             raise RuntimeError(
                 f"RandomAgent stuck: no implemented legal actions. "
@@ -177,6 +195,7 @@ class HeuristicAgent:
         temperature: float = 0.0,
         seed: int = 0,
         lookahead: str = "turn",
+        legal_actions_fn: LegalActionsFn = legal_actions,
     ):
         if lookahead not in ("action", "turn"):
             raise ValueError(f"lookahead must be 'action' or 'turn', got {lookahead!r}")
@@ -185,9 +204,14 @@ class HeuristicAgent:
         self.temperature = float(temperature)
         self.rng = np.random.default_rng(seed)
         self.lookahead = lookahead
+        # See module-level note: the function consulted for legality at every
+        # decision point (top-level pick, singleton-skip, rollout). Default is
+        # the engine's unrestricted set; pass `restricted_legal_actions` for
+        # the action-pruned variant.
+        self.legal_actions_fn = legal_actions_fn
 
     def __call__(self, state: GameState) -> Action:
-        actions = filter_implemented(legal_actions(state))
+        actions = filter_implemented(self.legal_actions_fn(state))
         if not actions:
             raise RuntimeError(
                 f"HeuristicAgent stuck: no implemented legal actions. "
@@ -223,13 +247,18 @@ class HeuristicAgent:
     def _skip_singletons(self, state: GameState, decider: int) -> GameState:
         """Step through any chain of singleton decisions owned by `decider`
         until we reach a multi-option decision, the opponent's turn, or
-        game end. Always-on; matches the "n meaningful decisions" rule."""
+        game end. Always-on; matches the "n meaningful decisions" rule.
+
+        Singletons are detected against `self.legal_actions_fn`, so the
+        action-pruned variant collapses sequences that look like singletons
+        only after restriction (e.g., a forced highest-priority Commit*).
+        """
         while True:
             if state.phase == Phase.BEFORE_SCORING:
                 return state
             if decider_of(state) != decider:
                 return state
-            actions = filter_implemented(legal_actions(state))
+            actions = filter_implemented(self.legal_actions_fn(state))
             if not actions or len(actions) != 1:
                 return state
             state = step(state, actions[0])
@@ -252,7 +281,7 @@ class HeuristicAgent:
                 break
             if decider_of(state) != decider:
                 break
-            actions = filter_implemented(legal_actions(state))
+            actions = filter_implemented(self.legal_actions_fn(state))
             if not actions:
                 break
             # _skip_singletons guarantees len(actions) > 1 here.

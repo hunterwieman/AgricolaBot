@@ -18,6 +18,8 @@ For implementation decisions that may need revisiting when cards are introduced 
 - [Change 7 — Harvest phases, `cooking_rates` 4-tuple, food-payment Pareto helpers, dual-meaning phase pattern](#change-7)
 - [Change 8 — `BoardState.action_spaces` dict → canonical-tuple refactor (hashable `GameState`)](#change-8)
 - [Change 9 — Engine performance pass: `fast_replace`, `legal_actions` cache, assertion gate, round-end-reset guard](#change-9)
+- [Change 10 — HubrisHeuristicV3 architecture + category-by-category CMA-ES tuning pipeline](#change-10)
+- [Change 11 — Action-pruning wrapper + restricted-by-default training pipeline](#change-11)
 
 ---
 
@@ -471,3 +473,76 @@ Three new scripts in `scripts/`:
 - **`tuned_configs/v3_best.json`**: bootstrapped from the initial resources run.
 
 Operational reference: **`V3_TRAINING_PIPELINE.md`**.
+
+---
+
+<a name="change-11"></a>
+## Change 11 — Action-pruning wrapper + restricted-by-default training pipeline
+
+**Status:** Completed.
+
+### Motivation
+
+The 1-step heuristic agent's per-decision compute is dominated by the size of `legal_actions(state)`. Most decisions branch wide (10-50 options) and the agent must score every post-step state via the evaluator. Many of those options encode strategic mistakes a human player would never consider — building a stable at (2, 4) when (0, 4) is open, opening a pasture in the middle of the farmyard, building a 6th room in the family game, or paying for a `CommitConvert` configuration that triggers begging when a zero-begging configuration is available. Pruning these from the candidate set narrows the action space the agent searches and, more importantly, narrows the branching factor that any future tree-search agent (deeper minimax, MCTS) will pay per ply.
+
+**Why a wrapper, not an engine change.** Several of the priors look loss-less in the Family game but become lossy once cards are introduced (canonical example: "sow before bake on Grain Utilization" is loss-less without cards but lossy with Potter Ceramics, which converts clay → grain on the `before_bake_bread` trigger). Putting priors in the agent layer keeps `legal_actions(state)` an honest source of all mechanically-legal actions, lets any consumer that wants the full set (MCTS, tests, future card-affected legality) get it unchanged, and makes the priors trivially reversible by passing a different `legal_actions_fn` at agent construction.
+
+### Scope
+
+Three layers of change:
+
+1. **New module: `agricola/agents/restricted.py`** — the wrapper itself. Pure function `restricted_legal_actions(state) -> list[Action]` over `legal_actions(state)`. Exports priority constants `STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`. Filters dispatched on the top pending frame.
+2. **Agent infrastructure: `legal_actions_fn` parameter.** Both `RandomAgent` and `HeuristicAgent` (and all four heuristic subclasses) accept a `legal_actions_fn` kwarg defaulting to the engine's unrestricted `legal_actions`. Threaded through `__call__`, `_skip_singletons`, and `_rollout_value` so every legality consultation in the agent uses the same function.
+3. **Training pipeline: `--restricted` default ON.** `scripts/tune_heuristic.py` and `scripts/run_iterative_v3.py` accept `--restricted` / `--no-restricted` (`argparse.BooleanOptionalAction`, default ON). When ON, candidate, baseline, and holdout agents are all built with `legal_actions_fn=restricted_legal_actions`. Recorded as `"restricted": bool` in the output JSON. `scripts/play_match.py` gains per-seat `--p0-restricted` / `--p1-restricted` for ad-hoc matchups.
+
+### Filters (the priors)
+
+| Filter | Active at | Effect |
+|---|---|---|
+| Sub-action ordering | `PendingFarmExpansion` | drop `ChooseSubAction("build_stables")` when `build_rooms` is on offer |
+| Sub-action ordering | `PendingCultivation` | drop `ChooseSubAction("sow")` when `plow` is on offer |
+| Sub-action ordering | `PendingGrainUtilization` | drop `ChooseSubAction("bake_bread")` when `sow` is on offer |
+| Cell priority | `PendingBuildStables` | keep only the highest-priority cell from `[(0,4), (0,3), (1,4), (1,3)]` |
+| Cell priority | `PendingBuildRooms` | keep only the highest-priority cell from `[(0,0), (2,1), (1,1), (2,2)]` |
+| Cell priority | `PendingPlow` | keep only the highest-priority cell from `[(0,1), (0,2), (1,1), (0,0), (1,2), (2,2), (2,3)]` |
+| First-pasture opener | `PendingBuildFences` (`pastures_built == 0`) | require `cells ∩ {(0,4), (1,4)}` ≠ ∅ |
+| Room cap | `PendingFarmExpansion`, `PendingBuildRooms` | drop room-build options once at `MAX_TOTAL_ROOMS = 5` (2 starting + 3 additional) |
+| Min-begging | `PendingHarvestFeed` | keep only `CommitConvert` options tying for the minimum begging count |
+
+Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing would empty the action set, the filter is skipped. Guarantees the wrapper is always a subset of the unrestricted set of size ≥ 1 (or 0 only when the input is empty).
+
+### Empirical validation
+
+A 1000-game paired match with `CONFIG_V3_T1` (which was tuned without the wrapper) wrapped on one side:
+
+```
+Match A (restricted = P0):  n=500  mean=+0.042  SE=0.56  t=+0.08
+Match B (restricted = P1):  n=500  mean=-2.060  SE=0.51  t=-4.03
+PAIRED per-seed mean:       n=500  mean=-1.009  SE=0.19  t=-5.42
+Win record (decisive):      restricted 478 — unrestricted 488   (49.5%, 95% CI [46.3%, 52.6%])
+```
+
+**Win rate is statistically indistinguishable from 50%** (z = −0.32). Avg margin is −1.0 ± 0.19, statistically significant due to N but small in magnitude. This is the expected cost of bolting the wrapper onto a config tuned in the unrestricted space; re-tuning under the wrapper should amortize it away (see V3_TRAINING_PIPELINE.md §11.5).
+
+**Surfaced open question:** Match A and Match B disagree by ~2 points despite the wrapper being symmetric — suggests a `player_idx`-conditional code path somewhere in V3 or one of the carry-over helpers. Diagnostic: run 500 games of unrestricted V3 vs unrestricted V3 and inspect per-seat margins. Tracked in POSSIBLE_NEXT_STEPS.md.
+
+### Files touched
+
+- **`agricola/agents/restricted.py`** (new) — wrapper + priority constants + filter functions. ~280 LOC.
+- **`agricola/agents/base.py`** — `LegalActionsFn` alias; `RandomAgent` gains `legal_actions_fn` kwarg; `HeuristicAgent` gains `legal_actions_fn` kwarg, threaded through `__call__`, `_skip_singletons`, `_rollout_value`.
+- **`agricola/agents/heuristic.py`** — all four heuristic subclasses (`SimpleHeuristic`, `HubrisHeuristicV1/V2/V3`) forward `legal_actions_fn` to the base.
+- **`agricola/agents/__init__.py`** — new exports: `restricted_legal_actions`, priority constants, `LegalActionsFn`.
+- **`scripts/play_match.py`** — `--p0-restricted` / `--p1-restricted` per-seat flags; factory gains a `restricted: bool` parameter.
+- **`scripts/tune_heuristic.py`** — `_make_agent` gains required `restricted: bool` kwarg; `_init_worker` propagates the flag to multiprocessing workers via `_WORKER_RESTRICTED`; `_eval_candidate` builds both factories with `restricted=_WORKER_RESTRICTED`; holdout factories likewise; new `--restricted` / `--no-restricted` flag (default ON); JSON output records `"restricted": bool`; startup line shows `restricted action set: ON/OFF`.
+- **`scripts/run_iterative_v3.py`** — new `--restricted` / `--no-restricted` flag (default ON); appended to every constructed `tune_heuristic.py` subprocess command line.
+- **`tests/test_restricted_actions.py`** (new) — 23 tests covering each filter independently + cross-cutting invariants (no-op on empty stack, always-≥1-action fallback, randomized full-game walk that asserts the wrapper never empties a non-empty input).
+- **`CLAUDE.md`** — three new status rows, directory tree entries, "Action-pruning wrapper" subsection under Additional Design Principles.
+- **`FILE_DESCRIPTIONS.md`** — new entry for `restricted.py`; updates to `base.py`, `heuristic.py`, `__init__.py`, `play_match.py`, `tune_heuristic.py`, `run_iterative_v3.py`.
+- **`TEST_DESCRIPTIONS.md`** — new entry for `test_restricted_actions.py`.
+- **`V3_TRAINING_PIPELINE.md`** — `--restricted` row in §2.2 and §5.2; new §11 covering the mechanical interaction with V3, the 1000-game empirical baseline, the seat asymmetry, the re-tuning expectations, and the iter3 setup command.
+
+### Outcome
+
+All 23 new restricted-action tests pass; previous test suite stays green after the agent-infrastructure edits. End-to-end smoke run of `tune_heuristic.py --restricted` confirmed multiprocessing path + holdout + JSON output all work. Dry-runs on the orchestrator confirmed the flag forwards correctly to every subprocess command line.
+
+Future training runs (iter3 and beyond) default to `--restricted` ON. To opt out for a control or comparison run, append `--no-restricted`.

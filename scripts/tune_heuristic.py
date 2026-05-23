@@ -46,7 +46,9 @@ from agricola.agents import (
     DEFAULT_CONFIG_V3,
     HubrisHeuristicV1,
     HubrisHeuristicV3,
+    restricted_legal_actions,
 )
+from agricola.legality import legal_actions as _unrestricted_legal_actions
 from agricola.agents.heuristic import (
     DEFAULT_CONFIG,
     HeuristicConfig,
@@ -67,14 +69,21 @@ BASE_CONFIGS: dict[str, tuple] = {
 }
 
 
-def _make_agent(arch: str, cfg, seed: int):
-    """Construct an agent of the given architecture with the given config."""
+def _make_agent(arch: str, cfg, seed: int, *, restricted: bool):
+    """Construct an agent of the given architecture with the given config.
+
+    When `restricted=True`, the agent is constructed with
+    `legal_actions_fn=restricted_legal_actions` so every legality
+    consultation (top-level pick, singleton-skip, rollout) sees the
+    action-pruned set defined by `agricola.agents.restricted`.
+    """
+    extra = {"legal_actions_fn": restricted_legal_actions} if restricted else {}
     if arch == "v1":
         return HubrisHeuristicV1(config=cfg, seed=seed,
-                                  temperature=0.0, lookahead="turn")
+                                  temperature=0.0, lookahead="turn", **extra)
     if arch == "v3":
         return HubrisHeuristicV3(config=cfg, seed=seed,
-                                  temperature=0.0, lookahead="turn")
+                                  temperature=0.0, lookahead="turn", **extra)
     raise ValueError(f"Unknown arch {arch!r}")
 
 
@@ -282,6 +291,108 @@ TUNABLE_V3_PASTURES_ANIMALS: list[tuple[str, float, float, float, tuple]] = [
 ]
 
 
+# --- V3 MAJORS PER STAGE (48 params) ---
+# Tunes the 8 per-stage major-improvement value arrays added in the
+# post-iter2 refactor (see V3_DESIGN.md §3 D, V3_TRAINING_PIPELINE.md §8.1).
+# 8 majors × 6 stages each.
+#
+# Defaults: cooking values (fireplace/hearth) derived from CONFIG_V1_T2's
+# 3-tier scalars expanded to 6 stages (stages 1-4 = "full", stage 5 = "_mid",
+# stage 6 = "_late"). Other majors flat at V1's hand-picked single-scalar
+# defaults across all 6 stages.
+#
+# Bounds aligned with the v1_addonly precedent: cooking 0-10, well 0-10,
+# clay_oven 0-6, stone_oven 0-8, crafts (joinery/pottery/basketmaker) 0-6.
+# Cooking gets a more generous upper bound since hearth_value_late in T2
+# is already ~5.25.
+_FP_DEFAULTS = (4.80973022568891, 4.80973022568891, 4.80973022568891,
+                4.80973022568891, 2.471273053448844, 0.1474925121229842)
+_HE_DEFAULTS = (5.246727936850129, 5.246727936850129, 5.246727936850129,
+                5.246727936850129, 2.718190472453053, 0.8213097609387353)
+
+TUNABLE_V3_MAJORS_PER_STAGE: list[tuple[str, float, float, float, tuple]] = [
+    # Fireplace per-stage (6)
+    *[(f"fireplace_value_stage{i+1}", v, 0.0, 10.0, ("fireplace_value_by_stage", i))
+      for i, v in enumerate(_FP_DEFAULTS)],
+    # Hearth per-stage (6)
+    *[(f"hearth_value_stage{i+1}", v, 0.0, 10.0, ("hearth_value_by_stage", i))
+      for i, v in enumerate(_HE_DEFAULTS)],
+    # Well per-stage (6) — defaults flat at 4.0 (V1 hand-picked); drops the
+    # old well_food_per_future term which is no longer read.
+    *[(f"well_value_stage{i+1}", 4.0, 0.0, 10.0, ("well_value_by_stage", i))
+      for i in range(6)],
+    # Clay Oven per-stage (6) — defaults flat at 2.0 (V1 hand-picked)
+    *[(f"clay_oven_value_stage{i+1}", 2.0, 0.0, 6.0, ("clay_oven_value_by_stage", i))
+      for i in range(6)],
+    # Stone Oven per-stage (6) — defaults flat at 3.0 (V1 hand-picked)
+    *[(f"stone_oven_value_stage{i+1}", 3.0, 0.0, 8.0, ("stone_oven_value_by_stage", i))
+      for i in range(6)],
+    # Joinery per-stage (6)
+    *[(f"joinery_value_stage{i+1}", 2.0, 0.0, 6.0, ("joinery_value_by_stage", i))
+      for i in range(6)],
+    # Pottery per-stage (6)
+    *[(f"pottery_value_stage{i+1}", 2.0, 0.0, 6.0, ("pottery_value_by_stage", i))
+      for i in range(6)],
+    # Basketmaker per-stage (6)
+    *[(f"basketmaker_value_stage{i+1}", 2.0, 0.0, 6.0, ("basketmaker_value_by_stage", i))
+      for i in range(6)],
+]
+
+
+# --- V3 ALPHAS + CARRY-OVERS (22 params) ---
+# Joint TUNABLE over three groups that are otherwise uncovered by any
+# V3 category-specific TUNABLE (see V3_TRAINING_PIPELINE.md §8.1):
+#
+#   B1 (V3-specific stage curves, hand-picked, never tuned)
+#     - score_joint_alpha_by_stage (6): modulator on (clay_rooms +
+#       stone_rooms + people + bonus_points) score leaves.
+#     - unused_spaces_alpha_by_stage (6): scales the unused-spaces
+#       penalty (parameterized side fixed at 0).
+#
+#   B3 (V1_T2-tuned carry-overs still actively read in V3, never re-tuned
+#       in V3 context)
+#     - family_per_round (3): per-future-round value for 3rd/4th/5th
+#       family members.
+#     - empty_room_rate_pre_basic_wish + _post_basic_wish (2): anticipated
+#       value of empty rooms for future people.
+#     - starting_player_bonus (1): flat bonus when holding SP token.
+#
+#   B4 (V1 carry-overs never tuned at all — V1 round 3 attempted some;
+#       none promoted)
+#     - field_center_bonus (1): per-cell bonus for center 4 field cells.
+#     - pasture_location_bonus (1): per-cell bonus for c >= 3 pasture
+#       cells (V3-c≥3 helper; V1 used c≥2).
+#     - renovation_bonus_per_step_early + _late (2): per-renovation-step
+#       bonus, currently 0.0 (backwards-compat).
+#
+# Bounds: alphas constrained to plausible modulator ranges (0..1.5 for
+# joint, 0..1 for unused-spaces per its design). Carry-over scalars use
+# the v1_addonly precedent where applicable, generous bounds otherwise.
+TUNABLE_V3_ALPHAS_AND_CARRYOVERS: list[tuple[str, float, float, float, tuple]] = [
+    # B1: V3-specific stage curves (6+6 = 12)
+    *[(f"score_joint_alpha_stage{i+1}", v, 0.0, 1.5, ("score_joint_alpha_by_stage", i))
+      for i, v in enumerate([0.5, 0.6, 0.7, 0.8, 0.9, 1.0])],
+    *[(f"unused_spaces_alpha_stage{i+1}", v, 0.0, 1.0, ("unused_spaces_alpha_by_stage", i))
+      for i, v in enumerate([1.0, 0.7, 0.5, 0.3, 0.1, 0.0])],
+
+    # B3: V1_T2-tuned carry-overs (3+1+1+1 = 6)
+    *[(f"family_per_round_{i}", v, 0.0, 6.0, ("family_per_round", i))
+      for i, v in enumerate([3.292323267102328, 2.2556860160847774, 2.004865826860955])],
+    ("empty_room_rate_pre_basic_wish",  2.616157917681491, 0.0, 6.0,
+        ("empty_room_rate_pre_basic_wish",)),
+    ("empty_room_rate_post_basic_wish", 2.922029893978679, 0.0, 6.0,
+        ("empty_room_rate_post_basic_wish",)),
+    ("starting_player_bonus",           1.2280813469772174, 0.0, 4.0,
+        ("starting_player_bonus",)),
+
+    # B4: V1 untuned carry-overs (1+1+1+1 = 4)
+    ("field_center_bonus",              0.10, -0.20, 1.00, ("field_center_bonus",)),
+    ("pasture_location_bonus",          0.05, -0.20, 0.50, ("pasture_location_bonus",)),
+    ("renovation_bonus_per_step_early", 0.0,   0.0,  3.0, ("renovation_bonus_per_step_early",)),
+    ("renovation_bonus_per_step_late",  0.0,   0.0,  4.0, ("renovation_bonus_per_step_late",)),
+]
+
+
 # --- V3 FOOD (18 params) ---
 # hubris_food_by_stage[stage][0=at_need, 1=excess] + hubris_begging_by_moves.
 # Defaults are CONFIG_V1_T2's tuned values (carried over into DEFAULT_CONFIG_V3).
@@ -304,6 +415,8 @@ CATEGORIES: dict[str, tuple[list, str]] = {
     "v3_fields_crops":      (TUNABLE_V3_FIELDS_CROPS,    "v3"),
     "v3_pastures_animals":  (TUNABLE_V3_PASTURES_ANIMALS,"v3"),
     "v3_food":              (TUNABLE_V3_FOOD,            "v3"),
+    "v3_majors_per_stage":  (TUNABLE_V3_MAJORS_PER_STAGE,"v3"),
+    "v3_alphas_and_carryovers": (TUNABLE_V3_ALPHAS_AND_CARRYOVERS, "v3"),
 }
 
 
@@ -390,27 +503,35 @@ _WORKER_BASELINE_ARCH: str = "v1" # opponent architecture
 _WORKER_BASE_CONFIG = None        # warm-start base for the candidate
 _WORKER_BASE_ARCH: str = "v3"     # candidate architecture
 _WORKER_TUNABLE: list | None = None  # which TUNABLE list is active
+_WORKER_RESTRICTED: bool = False  # whether agents use restricted_legal_actions
 
 
 def _init_worker(seeds: list[int],
                  baseline_config, baseline_arch: str,
                  base_config, base_arch: str,
-                 tunable: list) -> None:
+                 tunable: list,
+                 restricted: bool = False) -> None:
     """Pool initializer: copy seeds, baseline (opponent), warm-start base,
-    architecture labels, and the active TUNABLE into worker globals.
+    architecture labels, the active TUNABLE, and the restricted flag into
+    worker globals.
 
     - `baseline_config`: opponent that the candidate plays against.
     - `base_config`: starting point for `vector_to_config` — fields not in
       TUNABLE inherit values from this config (add-only tuning).
+    - `restricted`: when True, candidate and baseline agents are built with
+      `legal_actions_fn=restricted_legal_actions`, so the tuning runs in
+      the action-pruned space.
     """
     global _WORKER_SEEDS, _WORKER_BASELINE_CONFIG, _WORKER_BASELINE_ARCH
     global _WORKER_BASE_CONFIG, _WORKER_BASE_ARCH, _WORKER_TUNABLE
+    global _WORKER_RESTRICTED
     _WORKER_SEEDS = seeds
     _WORKER_BASELINE_CONFIG = baseline_config
     _WORKER_BASELINE_ARCH = baseline_arch
     _WORKER_BASE_CONFIG = base_config
     _WORKER_BASE_ARCH = base_arch
     _WORKER_TUNABLE = tunable
+    _WORKER_RESTRICTED = restricted
 
 
 def _eval_candidate(x: np.ndarray) -> float:
@@ -432,10 +553,12 @@ def _eval_candidate(x: np.ndarray) -> float:
     baseline_arch = _WORKER_BASELINE_ARCH
 
     def p0_factory(seed: int):
-        return _make_agent(candidate_arch, candidate_cfg, seed)
+        return _make_agent(candidate_arch, candidate_cfg, seed,
+                            restricted=_WORKER_RESTRICTED)
 
     def p1_factory(seed: int):
-        return _make_agent(baseline_arch, baseline_cfg, seed + 1)
+        return _make_agent(baseline_arch, baseline_cfg, seed + 1,
+                            restricted=_WORKER_RESTRICTED)
 
     result = play_match(p0_factory, p1_factory, _WORKER_SEEDS)
     return -result.avg_margin
@@ -485,6 +608,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=None,
                         help="Where to write JSON result. Default tuned_configs/<timestamp>.json. "
                              "A companion .log file with human-readable progress is written next to it.")
+    parser.add_argument("--restricted", action=argparse.BooleanOptionalAction, default=True,
+                        help="If set (default), both candidate and baseline agents use "
+                             "agricola.agents.restricted_legal_actions — the action-pruned set "
+                             "(rooms-before-stables ordering, cell priorities, room cap, "
+                             "first-pasture-cells, min-begging at harvest feed). Use "
+                             "--no-restricted to run tuning in the unrestricted action space "
+                             "(matches pre-restricted behavior). The flag is recorded in the "
+                             "output JSON.")
     args = parser.parse_args()
 
     seeds = list(range(args.n_seeds))
@@ -505,7 +636,8 @@ def main() -> int:
     # Populate module-level globals for the sequential code path (sanity
     # check, --jobs 1). Parallel workers receive these via Pool initializer.
     _init_worker(seeds, baseline_config, baseline_arch,
-                  base_config, candidate_arch, tunable)
+                  base_config, candidate_arch, tunable,
+                  restricted=args.restricted)
 
     # CMA-ES starting vector: extract from `base_config` at each tuned
     # field's path. This means x0 EXACTLY corresponds to the warm-start
@@ -549,6 +681,7 @@ def main() -> int:
         print(f"  category: {args.category!r}  (arch: {candidate_arch})")
         print(f"  warm-start base: {args.from_config!r}")
         print(f"  baseline opponent: {args.baseline!r} (arch: {baseline_arch})")
+        print(f"  restricted action set: {'ON (wrapper active for both sides)' if args.restricted else 'OFF (unrestricted legal_actions)'}")
         print(f"  seeds: {args.n_seeds} games per evaluation (training: 0..{args.n_seeds - 1})")
         print(f"  holdout: {args.holdout_n} games "
               f"({args.holdout_start}..{args.holdout_start + args.holdout_n - 1})")
@@ -657,6 +790,7 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             "from_config":       args.from_config,
             "baseline":          args.baseline,
             "baseline_arch":     baseline_arch,
+            "restricted":        bool(args.restricted),
             "tunable_spec": [
                 {"name": t[0], "default": t[1], "lower": t[2], "upper": t[3], "path": list(t[4])}
                 for t in tunable
@@ -686,7 +820,8 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             processes=args.jobs,
             initializer=_init_worker,
             initargs=(seeds, baseline_config, baseline_arch,
-                      base_config, candidate_arch, tunable),
+                      base_config, candidate_arch, tunable,
+                      args.restricted),
         )
 
     try:
@@ -757,10 +892,17 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     print(f"Optimization complete in {(time.perf_counter() - t_start) / 60:.1f} min.")
     print(f"Best margin (training): {best_margin:+.3f}")
     print()
+    # "start" is the actual warm-start x0 (extracted from --from at each
+    # TUNABLE path, then clipped into bounds) — i.e. the same x0 used by
+    # the sanity-margin evaluation above. NOT the TUNABLE spec's static
+    # `default` field, which is fresh-start reference metadata and would
+    # be identical across every invocation regardless of --from. "delta"
+    # is therefore best_x - x0: total movement from the warm-start in
+    # this run (across resumed gens too).
     print(f"{'parameter':<35}  {'start':>9}  {'tuned':>9}  {'delta':>9}")
     print("-" * 70)
-    for (name, default, _lo, _hi, _path), val in zip(tunable, best_x):
-        print(f"{name:<35}  {default:>9.3f}  {val:>9.3f}  {val - default:>+9.3f}")
+    for (name, _default, _lo, _hi, _path), start_val, val in zip(tunable, x0, best_x):
+        print(f"{name:<35}  {start_val:>9.3f}  {val:>9.3f}  {val - start_val:>+9.3f}")
 
     # --- Holdout verification match ---
     print()
@@ -769,10 +911,12 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     best_cfg = vector_to_config(best_x, base=base_config, tunable=tunable)
 
     def tuned_factory(seed: int):
-        return _make_agent(candidate_arch, best_cfg, seed)
+        return _make_agent(candidate_arch, best_cfg, seed,
+                            restricted=args.restricted)
 
     def baseline_factory(seed: int):
-        return _make_agent(baseline_arch, baseline_config, seed)
+        return _make_agent(baseline_arch, baseline_config, seed,
+                            restricted=args.restricted)
 
     holdout_result = play_match(tuned_factory, baseline_factory, holdout_seeds)
     print(f"  holdout {holdout_result.summary_line()}")

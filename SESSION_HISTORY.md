@@ -2329,6 +2329,90 @@ CLAUDE.md updated with the new status rows, directory tree entries for the new s
 
 ---
 
+## Action-pruning wrapper + restricted-by-default training (2026-05-23)
+
+### What was built
+
+User raised the question of whether 1-step lookahead is the right ceiling for the heuristic, given that branching factor at non-atomic spaces dominates per-decision compute. The framing settled on a two-step approach: first, prune the action space with strategic priors; second (deferred), build deeper search on top of the smaller action space. This session implemented the first half.
+
+**New module `agricola/agents/restricted.py`** — pure wrapper over `legal_actions(state)` applying user-specified priors:
+
+- **Sub-action ordering:** Cultivation plow-before-sow; Grain Utilization sow-before-bake; Farm Expansion rooms-before-stables.
+- **Cell priorities** (user-supplied lists):
+  - Stables: `[(0, 4), (0, 3), (1, 4), (1, 3)]`
+  - Rooms: `[(0, 0), (2, 1), (1, 1), (2, 2)]`
+  - Plow: `[(0, 1), (0, 2), (1, 1), (0, 0), (1, 2), (2, 2), (2, 3)]`
+- **First-pasture opener** must include cell `(0, 4)` or `(1, 4)`.
+- **Hard cap** of 5 total rooms (2 starting + 3 additional).
+- **Min-begging filter** at `PendingHarvestFeed`: among enumerated `CommitConvert` actions, keep only those tying for the minimum begging count.
+
+Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing would empty the action set, the filter is skipped. The wrapper is always a subset of the unrestricted set of size ≥ 1 (or 0 only when the input is empty).
+
+**Agent infrastructure.** `RandomAgent` and `HeuristicAgent` (and all four heuristic subclasses) gained a `legal_actions_fn` kwarg defaulting to the engine's unrestricted `legal_actions`. The kwarg threads through `__call__`, `_skip_singletons`, and `_rollout_value` so every legality consultation uses the same function.
+
+**Training pipeline.** `scripts/tune_heuristic.py` and `scripts/run_iterative_v3.py` gained `--restricted` / `--no-restricted` flags (`argparse.BooleanOptionalAction`, default **ON**). When ON, candidate, baseline, and holdout agents all use `restricted_legal_actions`. The flag is recorded as `"restricted": bool` in the output JSON; the worker pool propagates it via a new `_WORKER_RESTRICTED` global. `scripts/play_match.py` gained per-seat `--p0-restricted` / `--p1-restricted` flags for ad-hoc comparisons.
+
+### Design decisions
+
+- **Wrapper, not engine change.** User explicitly stated: "I doubt I want to touch the game implementation code at all." The priors live at the agent layer (`agricola/agents/restricted.py`) so MCTS, tests, and any other consumer that wants the full action space gets it unchanged. Several priors that look loss-less in the Family game become lossy with cards (e.g. Potter Ceramics breaks the dominance argument for sow-before-bake on Grain Utilization), so engine-baking would be premature anyway.
+
+- **Always-≥1 invariant via `_safe_narrow`.** Every filter has a fallback path. Guarantees the wrapper never strands the engine.
+
+- **Priority list interactions handled by fallback, not error.** User clarified: "the restriction would automatically choose the legal option closest to the top of the priority list. In that case overlap should not cause an error." The `_filter_cell_priority` walks the priority list in order and takes the first cell currently in the legal commit set — overlap (e.g. (0, 0) and (1, 1) appear in both ROOM_PRIORITY and PLOW_PRIORITY) is fine because each cell can only serve one purpose at a time, and whichever space the agent uses first claims the cell.
+
+- **`--restricted` defaults to ON, not OFF.** User said "modify the code so that the training runs will now use this restricted set." The default-ON semantics means iter3+ tune in the action-pruned space without any extra flag at the orchestrator invocation. Backwards compat preserved via `--no-restricted`.
+
+### Empirical validation
+
+Initial 200-game smoke (100 per direction): restricted lost 95-104 with avg margin −1.77. I framed this as "small but real effect" — user pushed back: "I think you should be able to do standard errors on 200 realizations of a bernoulli RV. Seems like it is well within the range of noise." Correct call — z = −0.65, two-tailed p ≈ 0.52, CI cleanly contained 0.5. I had overclaimed.
+
+User offered to run a larger sample. **1000-game paired re-run** (500 per direction with `--per-game`, paired by seed across the two matches):
+
+```
+Match A (restricted = P0):  n=500  mean=+0.042  SE=0.56  t=+0.08
+Match B (restricted = P1):  n=500  mean=-2.060  SE=0.51  t=-4.03
+PAIRED per-seed mean:       n=500  mean=-1.009  SE=0.19  t=-5.42
+Win record (decisive):      restricted 478 — unrestricted 488  (49.5%, 95% CI [46.3%, 52.6%])
+```
+
+**Win rate indistinguishable from 50%.** User's prior that the restrictions are fine — supported. Avg margin is −1.0 ± 0.19 (statistically significant due to N, small in magnitude). The cleanest interpretation: V3_T1 was tuned without the wrapper; the −1 pt cost is the price of bolt-on, expected to amortize away under re-tuning with `--restricted` ON for both sides (what iter3+ will do by default).
+
+### Surfaced open question — seat asymmetry
+
+Match A (restricted at P0) and Match B (restricted at P1) disagree by ~2 points. Not conventional turn-order seat bias (`setup(seed)` randomizes `starting_player`). My initial framing — "pairing across matches cancels seat bias" — was wrong; user correctly noted: "seat position is random based on seed. There is no seed bias in the first place." What does differ between seat 0 and seat 1: the agent's RNG seed (`seed_offset = 0` for P0, `1` for P1) affects argmax tiebreaks, and `player_idx` may propagate through evaluator code paths in a non-symmetric way. The magnitude (~2 pts) is larger than expected from RNG tiebreaks alone.
+
+**Diagnostic next step (deferred):** 500 games of `hubris_v3 vs hubris_v3` *with both sides unrestricted*. If per-seat margins also disagree by ~1 pt, the asymmetry is in V3 itself — a latent bias affecting all asymmetric matchups in tuning. Worth surfacing before iter3 lands.
+
+### Files touched
+
+- **`agricola/agents/restricted.py`** (new, ~280 LOC).
+- **`agricola/agents/base.py`** — `LegalActionsFn` alias, `legal_actions_fn` kwarg on `RandomAgent` and `HeuristicAgent`.
+- **`agricola/agents/heuristic.py`** — all four subclasses forward `legal_actions_fn`.
+- **`agricola/agents/__init__.py`** — new exports.
+- **`scripts/play_match.py`** — `--p0-restricted` / `--p1-restricted`, factory `restricted` param.
+- **`scripts/tune_heuristic.py`** — `--restricted` flag, `_WORKER_RESTRICTED` global, `_make_agent`/`_init_worker`/`_eval_candidate`/holdout factories updated, JSON output records flag, startup line shows status.
+- **`scripts/run_iterative_v3.py`** — `--restricted` flag forwarded to every subprocess command.
+- **`tests/test_restricted_actions.py`** (new, 23 tests).
+- **`CLAUDE.md`** — 3 new status rows; directory tree entries for `restricted.py` and `test_restricted_actions.py`; new "Action-pruning wrapper" subsection under Additional Design Principles.
+- **`FILE_DESCRIPTIONS.md`** — new entry for `restricted.py`; updated entries for `base.py`, `heuristic.py`, `__init__.py`, `play_match.py`, `tune_heuristic.py`, `run_iterative_v3.py`.
+- **`TEST_DESCRIPTIONS.md`** — new entry for `test_restricted_actions.py`.
+- **`V3_TRAINING_PIPELINE.md`** — `--restricted` row in §2.2 and §5.2; new §11 covering mechanical interaction with V3, the 1000-game empirical baseline, the seat-asymmetry open question, and the iter3 setup command.
+- **`CHANGES.md`** — new **Change 11** entry.
+
+### Tests
+
+All 23 new restricted-action tests pass; previous suite stays green after the agent-infrastructure edits. Full suite ran clean after the heuristic-subclass edits and the training-pipeline plumbing. End-to-end smoke run of `tune_heuristic.py --restricted` with `--jobs 2` confirmed multiprocessing path + holdout + JSON output all work end-to-end with `"restricted": true` in the output.
+
+### Next session
+
+- **Investigate seat asymmetry first.** Cheap 500-game unrestricted-vs-unrestricted control. If real, the discovery affects how to read all asymmetric V3 matches (including tuning fitness).
+- **Launch iter3 with `--restricted` ON (default).** Apples-to-apples retune in the smaller action space; expected to recover the −1 pt cost and possibly improve beyond V3_T1.
+- **Once iter3 finishes, consider Tier 1 lookahead** ("Place-to-Stop" expansion — search the full sub-action subtree initiated by a single PlaceWorker before evaluating). Wrapper is a strict prerequisite — branching factor reduction makes Tier 1 viable.
+- **Discrete-cutoff sweep** still deferred.
+- **Compound-card interactions** (Potter Ceramics + Pan Baker, etc.) — out of scope until more cards land; one open trail for the eventual card-system work.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 

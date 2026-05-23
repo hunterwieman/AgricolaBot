@@ -424,7 +424,7 @@ The scoring tables (how many points for 0 fields, 1 field, 2 fields, etc.) are i
 
 ### `agricola/agents/__init__.py`
 
-Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, **`HubrisHeuristicV3`**, the `HeuristicConfig` and **`HeuristicConfigV3`** dataclasses, named config constants **`DEFAULT_CONFIG`** / **`DEFAULT_CONFIG_V3`** / **`CONFIG_V1_T2`**, the four evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, `evaluate_hubris_v3`, plus `evaluate_hubris` alias), and the `play_game(initial_state, agents)` driver. Designed so that callers can write `from agricola.agents import HubrisHeuristicV3, CONFIG_V1_T2, play_game, ...` without dipping into submodules.
+Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, **`HubrisHeuristicV3`**, the `HeuristicConfig` and **`HeuristicConfigV3`** dataclasses, named config constants **`DEFAULT_CONFIG`** / **`DEFAULT_CONFIG_V3`** / **`CONFIG_V1_T2`** / **`CONFIG_V3_T1`**, the four evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, `evaluate_hubris_v3`, plus `evaluate_hubris` alias), the `play_game(initial_state, agents)` driver, and the **action-pruning wrapper** `restricted_legal_actions` + its priority constants (`STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`) + the `LegalActionsFn` type alias. Designed so that callers can write `from agricola.agents import HubrisHeuristicV3, CONFIG_V1_T2, restricted_legal_actions, play_game, ...` without dipping into submodules.
 
 ---
 
@@ -433,9 +433,10 @@ Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` p
 Agent infrastructure shared by all heuristic agents.
 
 - **`Agent`** — `Protocol` describing the agent contract: callable as `(state) -> Action` returning one element of `filter_implemented(legal_actions(state))`.
+- **`LegalActionsFn`** — type alias `Callable[[GameState], list[Action]]`. The shape both agents accept as their `legal_actions_fn` kwarg.
 - **`decider_of(state)`** — small helper returning the player index whose decision is currently being awaited (`pending_stack[-1].player_idx` if the stack is non-empty, else `state.current_player`).
-- **`RandomAgent`** — uniformly-random over `filter_implemented(legal_actions(state))`. Mirrors the body of `tests/test_utils.random_agent_play`, packaged as an agent object for symmetry with heuristic agents.
-- **`HeuristicAgent`** — generic 1-action-or-1-turn lookahead agent. Takes an evaluator callable `(state, player_idx, config) -> float`, a `temperature`, a `seed`, and a `lookahead` mode (`"action"` or `"turn"`, default `"turn"`). Uses `legal_actions_cache()` over the lookahead, and `filter_implemented` to limit selections to engine-known actions. Always skips singleton decisions before evaluation (via the `_skip_singletons` helper) — "n steps deep = n meaningful decisions" applies uniformly. In `"turn"` mode the `_rollout_value` helper greedily plays the decider's own subsequent decisions until control hands off, then evaluates.
+- **`RandomAgent`** — uniformly-random over `filter_implemented(legal_actions_fn(state))`. Takes a `legal_actions_fn` kwarg (default = `agricola.legality.legal_actions`); pass `agricola.agents.restricted.restricted_legal_actions` for a random agent operating on the action-pruned set.
+- **`HeuristicAgent`** — generic 1-action-or-1-turn lookahead agent. Takes an evaluator callable `(state, player_idx, config) -> float`, a `temperature`, a `seed`, a `lookahead` mode (`"action"` or `"turn"`, default `"turn"`), and a `legal_actions_fn` (default unrestricted). Uses `legal_actions_cache()` over the lookahead, and `filter_implemented` to limit selections to engine-known actions. Always skips singleton decisions before evaluation (via the `_skip_singletons` helper) — "n steps deep = n meaningful decisions" applies uniformly, evaluated against `self.legal_actions_fn` so the action-pruned variant collapses sequences that look like singletons only after restriction. In `"turn"` mode the `_rollout_value` helper greedily plays the decider's own subsequent decisions until control hands off, then evaluates.
 - **`play_game(initial_state, agents)`** — drives a full game from `initial_state` to `BEFORE_SCORING`. Returns `(terminal_state, trace)` like `tests/test_utils.random_agent_play`, but accepts any mix of agent types.
 
 ---
@@ -461,6 +462,27 @@ All heuristic-agent code: Simple, Hubris V1, V2, V3 evaluators and agent classes
 - **V3 helper functions** (with `_v3_` prefix): `_v3_clip_index`, `_v3_blend`, `_v3_count_field_tiles`, `_v3_count_plowed_empty_fields`, `_v3_total_grain` / `_total_veg`, `_v3_pasture_counts` (returns total + large), `_v3_fenced_stable_count`, `_v3_crop_field_pair_counts` (grain priority allocation), `_v3_breeding_pair_counts` (cattle > boar > sheep priority), `_v3_fences_built`, `_v3_resources_contribution`.
 
 **Shared V1/V3 helpers**: `_three_tier` for piecewise-linear resource valuation, `_stage_of_round`, `_next_harvest_round`, `_moves_left_before_harvest`, `_feeding_need`, `_max_convertible_food`, `_has_cooking`, `_can_afford_cooking`, `_basic_wish_revealed_round`, `_num_breeding_opportunities_from_farm`, `_types_with_2_plus_animals`, `_count_unfenced_stables`, `_count_cells_of_type`, `_empty_unenclosed_cells`. The carry-over V1 helpers (`_hubris_family_value` etc.) duck-type on the config's field names — same code, called by both `evaluate_hubris_v1` and `evaluate_hubris_v3`.
+
+All four agent subclasses (`SimpleHeuristic`, `HubrisHeuristicV1`, `HubrisHeuristicV2`, `HubrisHeuristicV3`) accept an optional `legal_actions_fn` kwarg and forward it to the base `HeuristicAgent` constructor.
+
+---
+
+### `agricola/agents/restricted.py`
+
+Pure wrapper over `legal_actions(state)` applying strategic action-pruning at the agent layer (engine code is untouched). Exports the public entry point `restricted_legal_actions(state)` plus the priority constants `STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`.
+
+Filters applied based on the top pending frame:
+- **Sub-action ordering** at parent pendings: `PendingFarmExpansion` drops `build_stables` when `build_rooms` is on offer; `PendingCultivation` drops `sow` when `plow` is on offer; `PendingGrainUtilization` drops `bake_bread` when `sow` is on offer.
+- **Cell priority** at multi-shot pendings: `PendingBuildStables` / `PendingBuildRooms` / `PendingPlow` each filter their `Commit*` actions to the single top-priority cell present in the legal set (walk the priority list in order; first hit wins; cells outside the list are never selected as long as a priority cell is available).
+- **Room cap** at `PendingFarmExpansion` (drop `ChooseSubAction("build_rooms")` once at `MAX_TOTAL_ROOMS = 5`) and at `PendingBuildRooms` (drop further `CommitBuildRoom` when at cap).
+- **First-pasture opener** at `PendingBuildFences` with `pastures_built == 0`: every `CommitBuildPasture` must include at least one of `(0, 4)` or `(1, 4)`. Restriction lifts on subsequent pastures.
+- **Min-begging** at `PendingHarvestFeed`: among enumerated `CommitConvert` options, keep only those tying for the minimum begging count. Begging is computed directly from `cooking_rates(state, player_idx)` and the action's consumed amounts; no dependency on the harvest-feed frontier.
+
+Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing would empty the action set, the filter is skipped and the original options stand. This guarantees the wrapper is always a subset of the unrestricted set of size ≥ 1 (or 0 only when the input is empty).
+
+The PlaceWorker layer (empty pending stack) is a no-op — no restriction is applied to top-level worker placement.
+
+See **`CHANGES.md`** Change 11 for the design rationale and empirical evaluation, and CLAUDE.md "Additional Design Principles" → "Action-pruning wrapper" for the convention.
 
 ---
 
@@ -492,7 +514,7 @@ Library API:
 - **`play_match(p0_factory, p1_factory, seeds) -> MatchResult`** — runs one game per seed; each game uses `setup(seed)` and the factories' agents; aggregates win/draw/loss counts (with tiebreaker), per-game scores and tiebreaker values, average score margin, elapsed time. Factories are `Callable[[int], Agent]` (game_seed → Agent), letting callers decide how the game seed maps to the agent's RNG seed.
 - **`MatchResult`** / **`GameResult`** — frozen dataclasses for the aggregate and per-game records. `MatchResult.summary_line()` produces a one-line summary.
 
-CLI: `python scripts/play_match.py --p0 hubris_v3 --p1 hubris --n 100`. Supports `--seeds RANGE` (e.g. `--seeds 0-29,42,1000-1099`), `--temperature`, `--lookahead`, `--per-game` (per-game output table). Agent type names match the play_web/play_heuristic_game convention: `human` (not for play_match), `random`, `simple`, `hubris` (= V1+T2), `hubris_v1` (V1+default), `hubris_v2`, `hubris_v3`.
+CLI: `python scripts/play_match.py --p0 hubris_v3 --p1 hubris --n 100`. Supports `--seeds RANGE` (e.g. `--seeds 0-29,42,1000-1099`), `--temperature`, `--lookahead`, `--per-game` (per-game output table), and per-seat **`--p0-restricted`** / **`--p1-restricted`** flags that wrap the respective seat's agent in `restricted_legal_actions` (each seat is independent — supports apples-to-apples restricted-vs-unrestricted matchups). Agent type names match the play_web/play_heuristic_game convention: `human` (not for play_match), `random`, `simple`, `hubris` (= V1+T2), `hubris_v1` (V1+default), `hubris_v2`, `hubris_v3`.
 
 ---
 
@@ -513,6 +535,7 @@ CLI flags (key ones; full list via `--help`):
 - `--baseline <name-or-path>` — opponent agent's config. Same name-or-path semantics.
 - `--resume <path.cma.pkl>` — load a previously-saved CMA-ES state and continue. `--max-gens` becomes "additional gens" from the resumed countiter. The script bumps `es.opts["maxiter"]` and calls `es.stop(ignore_list=["maxiter"])` to avoid the saved cap short-circuiting the loop.
 - `--n-seeds` (default 50), `--max-gens` (default 10), `--popsize`, `--sigma0`, `--cma-seed`, `--holdout-start`/`--holdout-n` (default 1000/100), `--jobs` (default `cpu_count()`), `--output`.
+- **`--restricted`** / **`--no-restricted`** (`argparse.BooleanOptionalAction`, default **ON**). When ON, candidate, baseline, and holdout agents are all constructed with `legal_actions_fn=restricted_legal_actions`. The flag is recorded as `"restricted": bool` in the output JSON; the worker pool's `_init_worker` propagates it via the new `_WORKER_RESTRICTED` global so `_eval_candidate` builds factories consistently across processes.
 
 Per-generation: writes `<output>.json` (best config + history + holdout) and `<output>.cma.pkl` (pickled `CMAEvolutionStrategy`) atomically (temp-file + rename). Stdout is teed to `<output>.log`.
 
@@ -546,6 +569,8 @@ CLI:
 - `--start-step N` — skip the first N-1 steps (for resuming partially-completed iterations).
 - `--initial-pickles "cat:path,cat:path"` — pre-populate the per-category pickle map (for resuming specific categories).
 - `--dry-run` — print the command sequence without executing.
+- **`--restricted`** / **`--no-restricted`** (`argparse.BooleanOptionalAction`, default **ON**). Forwarded to every spawned `tune_heuristic.py` subprocess; default-ON means iter3+ run inside the action-pruned space without any extra flag at the orchestrator invocation.
+- `--holdout-n N` — games per category's post-tuning holdout match (default 100; user-added field for tighter auto-update decisions at higher N).
 
 The orchestrator itself is pure-Python — all heavy lifting happens in the spawned `tune_heuristic.py` subprocesses, which write their own `.json`, `.log`, `.cma.pkl` files. The orchestrator's own stdout is captured to `tuned_configs/iter_orchestrator.log` when launched via nohup redirection; that log subsumes each subprocess's stdout (via subprocess inheritance) AND the orchestrator's own step-boundary headers.
 

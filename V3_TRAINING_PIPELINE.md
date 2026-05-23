@@ -59,6 +59,7 @@ Each invocation:
 | `--jobs` | `cpu_count()` | Parallel processes for population evaluation |
 | `--holdout-start, --holdout-n` | 1000, 100 | Holdout seed range |
 | `--output <path>` | `tuned_configs/<ts>.json` | Output path; `.log` and `.cma.pkl` companion files share the stem |
+| `--restricted` / `--no-restricted` | **ON** | Builds candidate, baseline, and holdout agents with `legal_actions_fn=restricted_legal_actions`. Recorded as `"restricted": bool` in the output JSON. See §11. |
 
 ### 2.3 Fitness convention
 
@@ -174,6 +175,8 @@ The "block-coordinate Gauss-Seidel" interpretation: each pass cycles through 4 b
 | `--start-step N` | Skip the first N-1 steps. For resuming a partially-completed iteration. |
 | `--initial-pickles "cat:path,cat:path"` | Pre-populate the per-category pickle map (for resuming specific categories). |
 | `--dry-run` | Print the command sequence without executing. |
+| `--restricted` / `--no-restricted` | **ON by default.** Forwarded to every spawned `tune_heuristic.py` subprocess so iter3+ tune inside the action-pruned space. See §11. |
+| `--holdout-n N` | Games per category's post-tuning holdout match. Default 100. |
 
 ### 5.3 Output files
 
@@ -233,22 +236,23 @@ The frontend dropdown in the "New Game" dialog has been simplified to **human / 
 
 ### 8.1 Per-parameter tuning status (cheat sheet)
 
-Quick reference for what's been optimized and what hasn't, as of `CONFIG_V3_T1`'s promotion (the current `tuned_configs/v3_best.json`).
+Quick reference for what's been optimized and what hasn't, as of `iter2`'s completion (the current `tuned_configs/v3_best.json` = `iter2_p2_v3_pastures_animals.json`, +26.06 holdout vs CONFIG_V3_T1 on 100 seeds).
 
-**Headline numbers**: `HeuristicConfigV3` defines ~278 continuous-float parameters. Of these:
+**Headline numbers**: `HeuristicConfigV3` defines ~326 dataclass fields, of which 14 are inert legacy major-value scalars kept for JSON backwards-compat. That leaves ~312 actively-read parameters. Of these:
 
 | Status | Scalars | Source of values |
 |---|---|---|
-| Tuned via V3 iterative CMA-ES | **224** | iter1 (this session's runs); chained over multiple steps |
-| Inherited from `CONFIG_V1_T2`'s tuning (V3 v3_food fell back to x0) | **18** | V1 round 2 tuned, never improved by V3 v3_food's attempt |
-| Inherited from `CONFIG_V1_T2`'s tuning (no V3 TUNABLE includes them) | **13** | V1 round 2 tuned, never re-tuned in V3 |
-| Never tuned — V1 carry-overs at hand-picked defaults | **10** | V1 round 3 attempted but did not promote; V1 hand-picked defaults |
-| Never tuned — V3-specific, hand-picked defaults | **12** | V3 design (hand-picked) |
-| **Total** | **~277** | |
+| Tuned via V3 iterative CMA-ES (iter1 → iter2) | **224** | latest iter2 tuning |
+| Inherited from `CONFIG_V1_T2` (V3 v3_food fell back to x0 across both iter1 and iter2) | **18** | V1 round 2 tuned, never improved by V3 v3_food |
+| Inherited from `CONFIG_V1_T2` (no V3 TUNABLE includes them; still actively read) | **6** | V1 round 2 tuned, never re-tuned: `family_per_round`, `empty_room_rate_pre/post_basic_wish`, `starting_player_bonus` |
+| Never tuned — V1 carry-overs at hand-picked defaults (actively read) | **4** | `field_center_bonus`, `pasture_location_bonus` (now V3-c≥3), `renovation_bonus_per_step_early/late` |
+| Never tuned — V3-specific per-stage major values (new post-iter2) | **48** | 8 majors × 6 stages; cooking defaults derived from V1_T2 |
+| Never tuned — V3-specific hand-picked stage curves | **12** | `score_joint_alpha_by_stage` (6) + `unused_spaces_alpha_by_stage` (6) |
+| **Subtotal (actively read)** | **312** | |
+| Inert legacy major-value scalars (kept for JSON backwards-compat only) | **14** | not read by V3 evaluator post-refactor |
+| **Total dataclass fields** | **326** | |
 
-So roughly **84% of V3's parameters are at tuned values** (242 + 13 = 255 tuned vs ~22 untuned). The 22 untuned scalars are spread across:
-- 12 in V3's `score_joint_alpha` and `unused_spaces_alpha` curves (per-stage)
-- 10 in V1 carry-over scalars that V1 round 3 tried but couldn't improve
+The new 48 per-stage major scalars are the **largest single untuned block** post-iter2 and the natural target for a new TUNABLE (see §10.x).
 
 ### 8.2 Detailed parameter map
 
@@ -305,7 +309,7 @@ The full picture per category. Each row is a group of related fields in `Heurist
 
 #### V1 carry-over fields (in HeuristicConfigV3, NOT in any V3 TUNABLE)
 
-These fields live on `HeuristicConfigV3` so the carry-over V1 helpers (`_hubris_family_value`, `_hubris_major_value`, etc.) can read them via duck typing. They're NOT touched by any V3 TUNABLE.
+These fields live on `HeuristicConfigV3` so the carry-over V1 helpers (`_hubris_family_value`, etc.) can read them via duck typing. They're NOT touched by any V3 TUNABLE.
 
 | Field | # scalars | Tuned by | Notes |
 |---|---|---|---|
@@ -313,21 +317,37 @@ These fields live on `HeuristicConfigV3` so the carry-over V1 helpers (`_hubris_
 | `empty_room_rate_pre_basic_wish` | 1 | V1 round 2 | |
 | `empty_room_rate_post_basic_wish` | 1 | V1 round 2 | |
 | `starting_player_bonus` | 1 | V1 round 2 | |
-| `fireplace_value`, `_mid`, `_late` | 3 | V1 round 2 | |
-| `hearth_value`, `_mid`, `_late` | 3 | V1 round 2 | |
-| `cooking_secondary_vp` | 1 | V1 round 2 | |
 | `field_center_bonus` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `pasture_location_bonus` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
+| `pasture_location_bonus` | 1 | **Never tuned** | Shared scalar; V3 helper applies it only to c≥3 cells (V1 applied to c≥2). |
 | `renovation_bonus_per_step_early` | 1 | **Never tuned** | V1 round 3 attempted, did not promote. At 0.0 (backwards-compat). |
 | `renovation_bonus_per_step_late` | 1 | **Never tuned** | V1 round 3 attempted, did not promote. At 0.0. |
-| `well_value` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `well_food_per_future` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `clay_oven_value` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `stone_oven_value` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `joinery_value` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `pottery_value` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| `basketmaker_value` | 1 | **Never tuned** | V1 round 3 attempted, did not promote |
-| **Subtotal** | **23** | (13 from V1_T2; 10 untuned) | |
+| **Subtotal** | **10** | (6 from V1_T2; 4 untuned) | |
+
+#### V3 per-stage major-improvement values (NOT in any V3 TUNABLE yet)
+
+Introduced post-iter2 to replace V1's `_hubris_major_value`. Each major has a length-6 per-stage tuple read by `_hubris_major_value_v3`. Defaults derived from CONFIG_V1_T2's tuned 3-tier values (cooking: stages 1-4 = "full", stage 5 = "_mid", stage 6 = "_late"). The "extra cooking implement = flat +1" rule is hardcoded — no longer a config field. Well no longer scales with future-food rounds.
+
+| Field | # scalars | Tuned by | Notes |
+|---|---|---|---|
+| `fireplace_value_by_stage` | 6 | **Never tuned (defaults from V1_T2)** | stages 1-4 = V1_T2's `fireplace_value`, stage 5 = `_mid`, stage 6 = `_late` |
+| `hearth_value_by_stage` | 6 | **Never tuned (defaults from V1_T2)** | analogous |
+| `well_value_by_stage` | 6 | **Never tuned (V1 default 4.0 flat)** | drops V1's `well_food_per_future` term |
+| `clay_oven_value_by_stage` | 6 | **Never tuned** | hand-picked 2.0 flat |
+| `stone_oven_value_by_stage` | 6 | **Never tuned** | hand-picked 3.0 flat |
+| `joinery_value_by_stage` | 6 | **Never tuned** | hand-picked 2.0 flat |
+| `pottery_value_by_stage` | 6 | **Never tuned** | hand-picked 2.0 flat |
+| `basketmaker_value_by_stage` | 6 | **Never tuned** | hand-picked 2.0 flat |
+| **Subtotal** | **48** | (all untuned) | Target for a new `v3_majors_per_stage` TUNABLE (see §10.x) |
+
+#### Legacy major-improvement scalars (kept for JSON backwards-compat only)
+
+These pre-refactor field names remain on `HeuristicConfigV3` so older `tuned_configs/*.json` files (including the current `v3_best.json`) construct cleanly. They are NOT read by `evaluate_hubris_v3` post-refactor — superseded by the per-stage arrays above.
+
+| Field | # scalars | Status |
+|---|---|---|
+| `fireplace_value`, `_mid`, `_late`, `hearth_value`, `_mid`, `_late`, `cooking_secondary_vp` | 7 | Inert (legacy) |
+| `well_value`, `well_food_per_future`, `clay_oven_value`, `stone_oven_value`, `joinery_value`, `pottery_value`, `basketmaker_value` | 7 | Inert (legacy) |
+| **Subtotal** | **14** | Not read by V3 evaluator |
 
 #### V3-specific fields with NO TUNABLE coverage
 
@@ -344,9 +364,10 @@ These fields live on `HeuristicConfigV3` so the carry-over V1 helpers (`_hubris_
 3. **V1 round 3 (add-only)** — 12 params, training +0.14, holdout −0.88 (46-0-54 vs V1+T2). Did not promote. Confirmed V1 architecture at local optimum.
 4. **V3 resources (initial)** — 63 params, killed at gen 25 of 30 with training +11.82. Manual holdout: +8.72 (82-1-17 vs V1+T2). Bootstrapped initial `v3_best.json`.
 5. **iter1** (2-pass iterative) — 4 categories × 2 passes (8 steps), `--baseline t2`. Killed at pass 2 fields_crops gen 4 of 10 when we discovered an x0 bug. The killed-mid-run pass-2 fields_crops config produced **holdout +14.03 (100-0-0 vs V1+T2)** — the strongest V3 result so far. Promoted as **`CONFIG_V3_T1`**.
-6. **iter2** (in progress at time of writing) — 2-pass iterative, `--baseline v3_t1` for both training and holdout (per user direction: "I don't care about continuity"). x0 bug fixed. Holdout comparison now measures progress over V3_T1, not over V1+T2.
+6. **iter2** — 2-pass iterative, `--baseline v3_t1` for both training and holdout. x0 bug fixed. Final holdout **+26.06 vs CONFIG_V3_T1 on 100 seeds** (last promotion: pass-2 pastures_animals = 100-0-0). Promoted to `v3_best.json`. Promotion of this config to `CONFIG_V3_T2` is pending.
+7. **Major-value refactor (post-iter2)** — replaced V1's `_hubris_major_value` with V3-specific `_hubris_major_value_v3`: 8 majors × 6 stages = 48 new per-stage scalars. Extra cooking implements now contribute a flat +1 each (replacing `cooking_secondary_vp`). Well no longer scales with future-food rounds. Also added `_hubris_pasture_location_bonus_v3` with c≥3 cells (vs V1's c≥2). All defaults derived from V1_T2 where applicable; no new tuning run yet — see §10.
 
-### 8.4 iter2 setup (currently running)
+### 8.4 iter2 setup (completed)
 
 Started from `v3_best.json` (= CONFIG_V3_T1). Configuration:
 - `--n-passes 2`, `--max-gens 10`, `--n-seeds 100`
@@ -393,25 +414,19 @@ This might also apply to other carry-over categories (cooking-implement values, 
 
 ## 10. Next steps
 
-### 10.1 Finish the current 2-pass run
+### 10.0 Tune the new per-stage major-improvement values
 
-ETA ~3.5 hours from when food (step 2) finishes. Monitor via:
-```bash
-tail -f tuned_configs/iter_orchestrator.log
-grep -E "step .*/.*pass|UPDATED|Falling back" tuned_configs/iter_orchestrator.log
-```
+The 48 new per-stage scalars (`fireplace_value_by_stage`, `hearth_value_by_stage`, …, `basketmaker_value_by_stage`) are the largest untuned block post-refactor. Defaults are derived from V1_T2 (cooking) or hand-picked (everything else); they've never been tuned in V3's context.
 
-### 10.2 Analyze post-run
+To set up: register a new TUNABLE `v3_majors_per_stage` in `scripts/tune_heuristic.py` with 48 entries (8 majors × 6 stages each). Reasonable bounds: lower=0.0, upper=10.0 for most (hearth/fireplace might want upper=15.0). Run against the current `v3_best.json` (= iter2's pastures_animals output, which is `~+26 vs V3_T1` already).
 
-When done, expected outputs:
-- `tuned_configs/iter_p{1,2}_<category>.{json,log,cma.pkl}` × 8 sets (but step 1 skipped this run — its files are from the initial pass-1 fields_crops we already had)
-- `tuned_configs/v3_best.json` reflecting the strongest config
-- `tuned_configs/iter_orchestrator.log` with the full per-step history
+Expected behavior:
+- Cooking implements (`fireplace_*` and `hearth_*`) are V1_T2-derived → may fall back to x0 like food did (defaults are already strong).
+- Well / ovens / crafts are hand-picked → high probability of meaningful gains, especially well_value_by_stage (V1's `4.0 + 0.4 * upcoming_food` formula is gone, so the residual flat value may want tuning).
 
-Analysis to do:
-- **Which categories improved?** Compare each step's holdout to the previous step's. If multiple steps fall back to x0, those categories might not have tuning room.
-- **Is there cross-category synergy?** If pass 2's first run (fields_crops) significantly improves over pass 1's, the food/resources/pastures tunings shifted the fitness landscape in a way that lets fields_crops do more.
-- **Is the run still improving?** If pass 2 only adds 1-2 points over pass 1, we're near convergence and further passes have low value.
+### 10.1 Promote iter2's final config to CONFIG_V3_T2
+
+iter2 left `v3_best.json` at +26.06 holdout vs CONFIG_V3_T1. Promote it to a named constant `CONFIG_V3_T2` in `agricola/agents/heuristic.py` mirroring the `CONFIG_V3_T1` pattern. Note: the refactor changes the evaluator semantics (well-without-future-food + pasture-c≥3), so the +26.06 number was measured under the *old* evaluator. After promotion, re-measure CONFIG_V3_T2 vs CONFIG_V3_T1 under the refactored evaluator to capture the true post-refactor margin.
 
 ### 10.3 If still improving substantially, consider another pass
 
@@ -534,3 +549,65 @@ ps aux | grep -E "tune_heuristic|run_iterative"
 pkill -f "run_iterative_v3"
 pkill -f "tune_heuristic.py"
 ```
+
+## 11. Restricted action set (`--restricted`, default ON)
+
+As of the doc-update following iter2, the training pipeline runs by default with `restricted_legal_actions` wrapping every agent's legality consultation. Both `scripts/tune_heuristic.py` and `scripts/run_iterative_v3.py` carry a `--restricted` / `--no-restricted` flag (defaults to ON); `scripts/play_match.py` carries per-seat `--p0-restricted` / `--p1-restricted` flags for ad-hoc comparisons. See **`agricola/agents/restricted.py`** for the wrapper, **CLAUDE.md** "Additional Design Principles" → "Action-pruning wrapper" for the convention, and **`CHANGES.md`** Change 11 for the design rationale + empirical validation.
+
+### 11.1 What the wrapper does (one-paragraph summary)
+
+The wrapper filters the engine's `legal_actions(state)` to apply a set of strategic priors: sub-action ordering (Cultivation plow-before-sow; Grain Util sow-before-bake; Farm Expansion rooms-before-stables), cell priorities (`STABLE_PRIORITY = [(0,4), (0,3), (1,4), (1,3)]`, `ROOM_PRIORITY = [(0,0), (2,1), (1,1), (2,2)]`, `PLOW_PRIORITY = [(0,1), (0,2), (1,1), (0,0), (1,2), (2,2), (2,3)]`), first-pasture opener cells `{(0,4), (1,4)}`, a 5-room cap, and min-begging at `CommitConvert`. Each filter routes through `_safe_narrow` so the wrapper never empties a non-empty input.
+
+### 11.2 Mechanical interaction with V3
+
+Two independent layers that compose at one point:
+
+```python
+actions = filter_implemented(self.legal_actions_fn(state))   # wrapper runs here
+…
+scores = [self._lookahead_value(step(state, a), decider) for a in actions]  # V3 runs here
+```
+
+V3 (`evaluate_hubris_v3`) scores the same states it would have, just on a smaller candidate set per decision. V3 never calls `legal_actions` itself, and `step()` doesn't know about the wrapper either. Strategic interaction is via *implicit agreement or disagreement*: V3's tuned coefficients may already prefer a cell the wrapper enforces (agreement → wrapper is free), or V3 may prefer a cell the wrapper forbids (disagreement → V3 picks a V3-suboptimal move at that decision).
+
+### 11.3 Empirical baseline: V3_T1 with the wrapper bolted on
+
+A 1000-game paired match (V3_T1 + restricted vs V3_T1 unrestricted, seeds 0..499 with seats swapped for the second 500):
+
+```
+Match A (restricted = P0):  n=500  mean=+0.042  SE=0.56   95% CI=[-1.05, +1.13]   t=+0.08
+Match B (restricted = P1):  n=500  mean=-2.060  SE=0.51   95% CI=[-3.06, -1.06]   t=-4.03
+PAIRED per-seed mean:       n=500  mean=-1.009  SE=0.19   95% CI=[-1.37, -0.64]   t=-5.42
+
+Win record (decisive):      restricted 478 — unrestricted 488    (49.48%, 95% CI [46.3%, 52.6%])
+```
+
+**Win rate is indistinguishable from 50%** (z = −0.32). **Avg margin is −1.0 ± 0.19**, statistically significant due to large N but small in magnitude.
+
+### 11.4 Seat asymmetry — open question
+
+Match A (restricted at P0) and Match B (restricted at P1) disagree by ~2 points. This is *not* conventional turn-order seat bias (`setup(seed)` randomizes `starting_player`). What differs between seat 0 and seat 1: the agent's RNG seed (`seed_offset = 0` for P0, `1` for P1) affects argmax tiebreaks, and `player_idx` may propagate through evaluator code paths in a non-symmetric way. The magnitude (~2 pts) is larger than expected from RNG tiebreaks alone, which suggests there's a `player_idx`-conditional code path somewhere in V3's evaluator or one of the carry-over helpers.
+
+**Diagnostic next step:** run 500 games of `hubris_v3 vs hubris_v3` *with both sides unrestricted*. If the per-seat margins also disagree by ~1 pt, the asymmetry is in V3 itself, not the wrapper — a latent bias affecting all asymmetric matchups in tuning.
+
+### 11.5 What re-tuning under the wrapper does mechanically
+
+When `--restricted` is ON (both sides), CMA-ES optimizes V3's coefficients in the smaller action space:
+
+- **Coefficients that duplicate the wrapper's behavior drift toward 0.** If the wrapper enforces a cell preference, V3's matching parameter (e.g. `pasture_location_bonus`, `field_center_bonus`) doesn't need to push as hard in that direction. CMA-ES should find equivalent fitness at lower values.
+- **Coefficients that V3_T1 used to "buy" wrapper-forbidden plays settle elsewhere.** Any V3_T1 preference the wrapper now blocks gets re-optimized within the constrained set.
+- **Per-evaluation work is slightly cheaper** because the agent's argmax is over a smaller candidate set; effective wall-clock per generation is unchanged or marginally faster.
+- **Holdout comparisons stay valid.** `_maybe_update_best_pointer` compares the new run's holdout margin against the existing `v3_best.json`'s. Both are now `restricted: true` matches against the chosen baseline. The auto-update logic doesn't care whether the prior best was wrapped — it just compares margins on whatever opponents the matches used.
+
+**Net expectation:** re-tuned-V3-under-wrapper should perform at least as well as V3_T1 in the wrapper-active matchup. The current −1 pt cost (§11.3) is the price of bolt-on; re-tuning amortizes it away.
+
+### 11.6 Iter3 setup (when launched)
+
+```bash
+nohup python -u scripts/run_iterative_v3.py \
+    --n-passes 2 --max-gens 10 --n-seeds 100 \
+    --baseline v3_t1 --label iter3 \
+    > tuned_configs/iter3_orchestrator.log 2>&1 &
+```
+
+`--restricted` is ON by default — no flag needed. To opt out (e.g. for an unrestricted control run), add `--no-restricted`. Auto-update of `v3_best.json` proceeds as usual; the resulting champion JSON will carry `"restricted": true` as a record of how it was tuned.

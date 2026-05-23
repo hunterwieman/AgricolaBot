@@ -35,6 +35,7 @@ from agricola.agents import (
     RandomAgent,
     SimpleHeuristic,
     play_game,
+    restricted_legal_actions,
 )
 from agricola.agents.base import Agent
 from agricola.scoring import score, tiebreaker
@@ -149,7 +150,14 @@ def play_match(
 AGENT_TYPES = ("random", "simple", "hubris", "hubris_v1", "hubris_v2", "hubris_v3")
 
 
-def _make_factory(name: str, *, seed_offset: int, temperature: float, lookahead: str) -> AgentFactory:
+def _make_factory(
+    name: str,
+    *,
+    seed_offset: int,
+    temperature: float,
+    lookahead: str,
+    restricted: bool = False,
+) -> AgentFactory:
     """Build a factory closure for a named agent. The agent's RNG seed is
     `game_seed + seed_offset` so P0 and P1 can be given independent RNG
     streams (matching `play_heuristic_game.py`'s convention).
@@ -158,23 +166,30 @@ def _make_factory(name: str, *, seed_offset: int, temperature: float, lookahead:
       "hubris"     — V1 architecture + tuned CONFIG_V1_T2 (current strongest).
       "hubris_v1"  — V1 architecture + DEFAULT_CONFIG (original, for comparison).
       "hubris_v2"  — V2 architecture + DEFAULT_CONFIG.
+
+    When `restricted=True` the agent is constructed with
+    `legal_actions_fn=restricted_legal_actions`, so every legality
+    consultation (top-level pick, singleton-skip, rollout) sees the
+    action-pruned set defined by `agricola.agents.restricted`.
     """
+    extra = {"legal_actions_fn": restricted_legal_actions} if restricted else {}
+
     def factory(game_seed: int) -> Agent:
         s = game_seed + seed_offset
         if name == "random":
-            return RandomAgent(seed=s)
+            return RandomAgent(seed=s, **extra)
         if name == "simple":
-            return SimpleHeuristic(seed=s, temperature=temperature, lookahead=lookahead)
+            return SimpleHeuristic(seed=s, temperature=temperature, lookahead=lookahead, **extra)
         if name == "hubris":
             return HubrisHeuristicV1(seed=s, temperature=temperature, lookahead=lookahead,
-                                     config=CONFIG_V1_T2)
+                                     config=CONFIG_V1_T2, **extra)
         if name == "hubris_v1":
-            return HubrisHeuristicV1(seed=s, temperature=temperature, lookahead=lookahead)
+            return HubrisHeuristicV1(seed=s, temperature=temperature, lookahead=lookahead, **extra)
         if name == "hubris_v2":
-            return HubrisHeuristicV2(seed=s, temperature=temperature, lookahead=lookahead)
+            return HubrisHeuristicV2(seed=s, temperature=temperature, lookahead=lookahead, **extra)
         if name == "hubris_v3":
             return HubrisHeuristicV3(seed=s, temperature=temperature, lookahead=lookahead,
-                                      config=CONFIG_V3_T1)
+                                      config=CONFIG_V3_T1, **extra)
         raise ValueError(f"Unknown agent type {name!r}; choose from {AGENT_TYPES}")
     return factory
 
@@ -196,6 +211,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--p0", choices=AGENT_TYPES, default="hubris_v1")
     parser.add_argument("--p1", choices=AGENT_TYPES, default="hubris_v1")
+    parser.add_argument("--p0-restricted", action="store_true",
+                        help="Wrap P0 in restricted_legal_actions (action-pruned set).")
+    parser.add_argument("--p1-restricted", action="store_true",
+                        help="Wrap P1 in restricted_legal_actions (action-pruned set).")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--seeds", type=str, default=None,
                        help="Seed spec (e.g. '0-29' or '0,5,10'). Default: '0-{n-1}'.")
@@ -212,10 +231,14 @@ def main() -> int:
     else:
         seeds = list(range(args.n))
 
-    p0_fac = _make_factory(args.p0, seed_offset=0, temperature=args.temperature, lookahead=args.lookahead)
-    p1_fac = _make_factory(args.p1, seed_offset=1, temperature=args.temperature, lookahead=args.lookahead)
+    p0_fac = _make_factory(args.p0, seed_offset=0, temperature=args.temperature,
+                            lookahead=args.lookahead, restricted=args.p0_restricted)
+    p1_fac = _make_factory(args.p1, seed_offset=1, temperature=args.temperature,
+                            lookahead=args.lookahead, restricted=args.p1_restricted)
 
-    print(f"Match: P0={args.p0}  vs  P1={args.p1}  ({len(seeds)} seeds, "
+    p0_label = args.p0 + ("[restricted]" if args.p0_restricted else "")
+    p1_label = args.p1 + ("[restricted]" if args.p1_restricted else "")
+    print(f"Match: P0={p0_label}  vs  P1={p1_label}  ({len(seeds)} seeds, "
           f"temperature={args.temperature}, lookahead={args.lookahead})")
     result = play_match(p0_fac, p1_fac, seeds)
 

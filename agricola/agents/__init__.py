@@ -25,8 +25,17 @@ For drivers that use these agents see `play_heuristic_game.py` at repo root.
 from agricola.agents.base import (
     Agent,
     HeuristicAgent,
+    LegalActionsFn,
     RandomAgent,
     play_game,
+)
+from agricola.agents.restricted import (
+    FIRST_PASTURE_REQUIRED_CELLS,
+    MAX_TOTAL_ROOMS,
+    PLOW_PRIORITY,
+    ROOM_PRIORITY,
+    STABLE_PRIORITY,
+    restricted_legal_actions,
 )
 from agricola.agents.heuristic import (
     CONFIG_V1_T2,
@@ -50,6 +59,7 @@ from agricola.agents.heuristic import (
 __all__ = [
     "Agent",
     "HeuristicAgent",
+    "LegalActionsFn",
     "RandomAgent",
     "HeuristicConfig",
     "HeuristicConfigV3",
@@ -68,4 +78,10 @@ __all__ = [
     "evaluate_hubris_v2",
     "evaluate_hubris_v3",
     "play_game",
+    "restricted_legal_actions",
+    "STABLE_PRIORITY",
+    "ROOM_PRIORITY",
+    "PLOW_PRIORITY",
+    "FIRST_PASTURE_REQUIRED_CELLS",
+    "MAX_TOTAL_ROOMS",
 ]

@@ -1298,14 +1298,18 @@ class SimpleHeuristic(HeuristicAgent):
         seed: int = 0,
         config: HeuristicConfig = DEFAULT_CONFIG,
         lookahead: str = "turn",
+        legal_actions_fn=None,
     ):
-        super().__init__(
+        kwargs = dict(
             evaluator=evaluate_simple,
             config=config,
             temperature=temperature,
             seed=seed,
             lookahead=lookahead,
         )
+        if legal_actions_fn is not None:
+            kwargs["legal_actions_fn"] = legal_actions_fn
+        super().__init__(**kwargs)
 
 
 class HubrisHeuristicV1(HeuristicAgent):
@@ -1323,14 +1327,18 @@ class HubrisHeuristicV1(HeuristicAgent):
         seed: int = 0,
         config: HeuristicConfig = DEFAULT_CONFIG,
         lookahead: str = "turn",
+        legal_actions_fn=None,
     ):
-        super().__init__(
+        kwargs = dict(
             evaluator=evaluate_hubris_v1,
             config=config,
             temperature=temperature,
             seed=seed,
             lookahead=lookahead,
         )
+        if legal_actions_fn is not None:
+            kwargs["legal_actions_fn"] = legal_actions_fn
+        super().__init__(**kwargs)
 
 
 class HubrisHeuristicV2(HeuristicAgent):
@@ -1349,14 +1357,18 @@ class HubrisHeuristicV2(HeuristicAgent):
         seed: int = 0,
         config: HeuristicConfig = DEFAULT_CONFIG,
         lookahead: str = "turn",
+        legal_actions_fn=None,
     ):
-        super().__init__(
+        kwargs = dict(
             evaluator=evaluate_hubris_v2,
             config=config,
             temperature=temperature,
             seed=seed,
             lookahead=lookahead,
         )
+        if legal_actions_fn is not None:
+            kwargs["legal_actions_fn"] = legal_actions_fn
+        super().__init__(**kwargs)
 
 
 # Backward-compatibility alias: the unversioned name resolves to v1.
@@ -1576,7 +1588,41 @@ class HeuristicConfigV3:
     renovation_bonus_per_step_early: float = 0.0
     renovation_bonus_per_step_late:  float = 0.0
 
-    # Major-improvement override values — all tuned in V1_T2:
+    # -------------------------------------------------------------------
+    # MAJOR IMPROVEMENT OVERRIDE — per-stage value arrays (V3-specific).
+    # -------------------------------------------------------------------
+    # Each major has a length-6 tuple of per-stage ownership values.
+    # `_hubris_major_value_v3` reads these instead of the legacy 3-tier
+    # scalars below. Cooking: the BEST owned implement (hearth wins over
+    # fireplace) contributes its per-stage value; each additional cooking
+    # implement contributes a flat +1 (regardless of type). Well: just
+    # well_value_by_stage[stage] (no longer scaled by future-food rounds).
+    #
+    # Defaults derived from V1_T2's 3-tier values: stages 1-4 (rounds 1-11)
+    # use the "full" value, stage 5 (rounds 12-13) uses the "_mid" value,
+    # stage 6 (round 14) uses the "_late" value. Hand-picked majors (well,
+    # ovens, joinery/pottery/basketmaker) keep their V1 scalar across all
+    # stages.
+    fireplace_value_by_stage: tuple[float, ...] = (
+        4.80973022568891, 4.80973022568891, 4.80973022568891,
+        4.80973022568891, 2.471273053448844, 0.1474925121229842,
+    )
+    hearth_value_by_stage: tuple[float, ...] = (
+        5.246727936850129, 5.246727936850129, 5.246727936850129,
+        5.246727936850129, 2.718190472453053, 0.8213097609387353,
+    )
+    well_value_by_stage:         tuple[float, ...] = (4.0, 4.0, 4.0, 4.0, 4.0, 4.0)
+    clay_oven_value_by_stage:    tuple[float, ...] = (2.0, 2.0, 2.0, 2.0, 2.0, 2.0)
+    stone_oven_value_by_stage:   tuple[float, ...] = (3.0, 3.0, 3.0, 3.0, 3.0, 3.0)
+    joinery_value_by_stage:      tuple[float, ...] = (2.0, 2.0, 2.0, 2.0, 2.0, 2.0)
+    pottery_value_by_stage:      tuple[float, ...] = (2.0, 2.0, 2.0, 2.0, 2.0, 2.0)
+    basketmaker_value_by_stage:  tuple[float, ...] = (2.0, 2.0, 2.0, 2.0, 2.0, 2.0)
+
+    # -------------------------------------------------------------------
+    # LEGACY major-improvement scalars — kept for backwards-compat JSON
+    # loading (older tuned_configs/*.json carry these fields). NOT read by
+    # `evaluate_hubris_v3`; superseded by the per-stage arrays above.
+    # -------------------------------------------------------------------
     fireplace_value:      float = 4.80973022568891
     fireplace_value_mid:  float = 2.471273053448844
     fireplace_value_late: float = 0.1474925121229842
@@ -1584,8 +1630,6 @@ class HeuristicConfigV3:
     hearth_value_mid:     float = 2.718190472453053
     hearth_value_late:    float = 0.8213097609387353
     cooking_secondary_vp: float = 0.48196317373922687
-
-    # NOT in V1_T2 (kept at V1 defaults):
     well_value:           float = 4.0
     well_food_per_future: float = 0.4
     clay_oven_value:      float = 2.0
@@ -1693,6 +1737,26 @@ CONFIG_V3_T1 = HeuristicConfigV3(
     pasture_location_bonus=0.05,
     renovation_bonus_per_step_early=0.0,
     renovation_bonus_per_step_late=0.0,
+    # Per-stage major-improvement values (V3-specific, read by
+    # `_hubris_major_value_v3`). Defaults derived from V1_T2's 3-tier
+    # values: stages 1-4 (rounds 1-11) = "full", stage 5 (12-13) = "_mid",
+    # stage 6 (14) = "_late". Hand-picked majors flat across stages.
+    fireplace_value_by_stage=(
+        4.80973022568891, 4.80973022568891, 4.80973022568891,
+        4.80973022568891, 2.471273053448844, 0.1474925121229842,
+    ),
+    hearth_value_by_stage=(
+        5.246727936850129, 5.246727936850129, 5.246727936850129,
+        5.246727936850129, 2.718190472453053, 0.8213097609387353,
+    ),
+    well_value_by_stage=(4.0, 4.0, 4.0, 4.0, 4.0, 4.0),
+    clay_oven_value_by_stage=(2.0, 2.0, 2.0, 2.0, 2.0, 2.0),
+    stone_oven_value_by_stage=(3.0, 3.0, 3.0, 3.0, 3.0, 3.0),
+    joinery_value_by_stage=(2.0, 2.0, 2.0, 2.0, 2.0, 2.0),
+    pottery_value_by_stage=(2.0, 2.0, 2.0, 2.0, 2.0, 2.0),
+    basketmaker_value_by_stage=(2.0, 2.0, 2.0, 2.0, 2.0, 2.0),
+    # Legacy scalars kept for backwards-compat JSON loading (not read by
+    # _hubris_major_value_v3 — see HeuristicConfigV3 comment).
     fireplace_value=4.80973022568891,
     fireplace_value_mid=2.471273053448844,
     fireplace_value_late=0.1474925121229842,
@@ -1896,6 +1960,76 @@ def _v3_resources_contribution(state: GameState, p: PlayerState,
 
 
 # ---------------------------------------------------------------------------
+# V3-specific helpers: major-value override + pasture location bonus.
+# Both are V3 reimplementations of V1 helpers — V1's versions are unchanged.
+# ---------------------------------------------------------------------------
+
+def _hubris_major_value_v3(
+    state: GameState, player_idx: int, cfg: "HeuristicConfigV3",
+) -> float:
+    """V3 major-improvement override. REPLACES score()'s major term.
+
+    Each major has a length-6 per-stage value tuple on `HeuristicConfigV3`;
+    the contribution at the current stage is that tuple's value.
+
+    Cooking implements: the BEST owned implement (hearth wins over
+    fireplace) contributes its per-stage value; each ADDITIONAL cooking
+    implement contributes a flat +1 (regardless of type). This drops V1's
+    `cooking_secondary_vp` scalar — extras are now worth a fixed 1 point.
+
+    Well: just `well_value_by_stage[stage]` (the V1 helper's
+    `well_food_per_future * min(upcoming, 5)` term is gone).
+    """
+    owners = state.board.major_improvement_owners
+    stage_idx = _stage_of_round(state.round_number) - 1
+    pts = 0.0
+
+    # --- Cooking implements: best primary + flat +1 per extra ---
+    has_hearth    = any(owners[i] == player_idx for i in (2, 3))
+    has_fireplace = any(owners[i] == player_idx for i in (0, 1))
+    num_cooking_owned = sum(1 for i in (0, 1, 2, 3) if owners[i] == player_idx)
+
+    if has_hearth:
+        pts += cfg.hearth_value_by_stage[stage_idx]
+    elif has_fireplace:
+        pts += cfg.fireplace_value_by_stage[stage_idx]
+    if num_cooking_owned >= 2:
+        pts += float(num_cooking_owned - 1)
+
+    # --- Well (idx 4): per-stage only, no future-food scaling ---
+    if owners[4] == player_idx:
+        pts += cfg.well_value_by_stage[stage_idx]
+
+    # --- Single-major per-stage values ---
+    if owners[5] == player_idx:  pts += cfg.clay_oven_value_by_stage[stage_idx]
+    if owners[6] == player_idx:  pts += cfg.stone_oven_value_by_stage[stage_idx]
+    if owners[7] == player_idx:  pts += cfg.joinery_value_by_stage[stage_idx]
+    if owners[8] == player_idx:  pts += cfg.pottery_value_by_stage[stage_idx]
+    if owners[9] == player_idx:  pts += cfg.basketmaker_value_by_stage[stage_idx]
+
+    return pts
+
+
+# V3 pasture location bonus: only the rightmost 6 cells (c >= 3), vs V1's
+# rightmost 9 cells (c >= 2). Rationale: pastures pushed all the way to
+# columns 3-4 leave columns 0-2 free for rooms/fields/wider pastures.
+_PASTURE_BONUS_CELLS_V3: tuple[tuple[int, int], ...] = tuple(
+    (r, c) for r in range(3) for c in range(3, 5)
+)
+
+
+def _hubris_pasture_location_bonus_v3(
+    p: PlayerState, cfg: "HeuristicConfigV3",
+) -> float:
+    """V3 variant: per-cell `pasture_location_bonus` only for enclosed
+    pasture cells with c >= 3 (the rightmost 6 cells of the 3×5 grid)."""
+    pasture_cells = {cell for past in p.farmyard.pastures for cell in past.cells}
+    return cfg.pasture_location_bonus * sum(
+        1 for cell in _PASTURE_BONUS_CELLS_V3 if cell in pasture_cells
+    )
+
+
+# ---------------------------------------------------------------------------
 # V3 evaluator
 # ---------------------------------------------------------------------------
 
@@ -2009,14 +2143,14 @@ def evaluate_hubris_v3(
     # ----- Begging: always full weight -----
     pts += bd.begging_markers  # already negative
 
-    # ----- Major improvements (V1 override) -----
-    pts += _hubris_major_value(state, player_idx, config)
+    # ----- Major improvements (V3 per-stage override) -----
+    pts += _hubris_major_value_v3(state, player_idx, config)
 
     # ----- V1 carry-over additive terms -----
     pts += _hubris_family_value(state, p, config)
     pts += _hubris_empty_room_value(state, p, config)
     pts += _hubris_field_location_bonus(p, config)
-    pts += _hubris_pasture_location_bonus(p, config)
+    pts += _hubris_pasture_location_bonus_v3(p, config)
     pts += _hubris_starting_player_bonus(state, player_idx, config)
     pts += _hubris_renovation_bonus(state, p, config)
 
@@ -2053,11 +2187,15 @@ class HubrisHeuristicV3(HeuristicAgent):
         seed: int = 0,
         config: HeuristicConfigV3 = DEFAULT_CONFIG_V3,
         lookahead: str = "turn",
+        legal_actions_fn=None,
     ):
-        super().__init__(
+        kwargs = dict(
             evaluator=evaluate_hubris_v3,
             config=config,
             temperature=temperature,
             seed=seed,
             lookahead=lookahead,
         )
+        if legal_actions_fn is not None:
+            kwargs["legal_actions_fn"] = legal_actions_fn
+        super().__init__(**kwargs)
