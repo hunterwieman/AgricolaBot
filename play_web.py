@@ -541,6 +541,12 @@ class Session:
         self.current_round = self.state.round_number
         self.lock = threading.Lock()
         self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
+        # Full ordered action trace: every action ever applied to this
+        # session's state, in apply order, captured before `step` is
+        # invoked. Combined with `self.seed` and `self.seats` this is
+        # sufficient to replay the entire session deterministically.
+        # Exposed via /api/trace and the UI's "Download trace" button.
+        self.action_trace: list[dict] = []
         # SSE subscribers
         self.subs: list[queue.Queue] = []
         self.subs_lock = threading.Lock()
@@ -593,6 +599,24 @@ class Session:
                 seats=self.seats,
             )
 
+    def trace_snapshot(self) -> dict:
+        """Return the full session trace (seed + seats + ordered actions).
+
+        Self-contained replay payload: feeding `setup(seed)` and stepping
+        each entry's (type, params) reconstructs the exact game state. The
+        `display` field is for human eyeballing; consumers that replay
+        should use `type` + `params`.
+        """
+        with self.lock:
+            return {
+                "seed": self.seed,
+                "seats": list(self.seats),
+                "current_round": self.current_round,
+                "phase": self.state.phase.name,
+                "game_over": self.game_over,
+                "actions": list(self.action_trace),
+            }
+
     # ---------- step driving ----------
 
     def _maybe_round_transition_locked(self) -> None:
@@ -602,6 +626,18 @@ class Session:
 
     def _apply_action_locked(self, action: Action) -> None:
         dec = _decider_of(self.state)
+        # Capture into the persistent trace before stepping. We record the
+        # decider, round, type name, params, and human-readable display
+        # so the trace is both replayable (type+params is enough to
+        # reconstruct the Action) and debuggable by eye.
+        self.action_trace.append({
+            "round": self.current_round,
+            "phase": self.state.phase.name,
+            "decider": dec,
+            "type": type(action).__name__,
+            "params": _action_params(action),
+            "display": _fmt_action_inline(action),
+        })
         self.log.add(dec, action, self.current_round)
         self.state = step(self.state, action)
         self._maybe_round_transition_locked()
@@ -696,6 +732,8 @@ class Session:
             self.log = RoundLog(self.humans)
             self.current_round = self.state.round_number
             self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
+            # Drop any prior session's trace; this is a fresh game.
+            self.action_trace = []
             if self.humans:
                 self._drive_until_human_locked()
             payload = state_to_json(
@@ -796,6 +834,24 @@ def _make_handler(session: Session):
                 return
             if path == "/api/state":
                 self._send_json(HTTPStatus.OK, session.snapshot())
+                return
+            if path == "/api/trace":
+                # Self-contained replay payload — seed, seats, and the
+                # ordered action trace. Served as an attachment so the
+                # browser saves it directly rather than navigating to it.
+                payload = session.trace_snapshot()
+                body = json.dumps(payload, indent=2).encode("utf-8")
+                fname = f"agricola-trace-seed{payload['seed']}.json"
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{fname}"',
+                )
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
                 return
             if path == "/api/events":
                 self._serve_sse()

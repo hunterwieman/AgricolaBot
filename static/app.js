@@ -1011,6 +1011,12 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reset-btn').addEventListener('click', resetGame);
+    // Download-trace button: navigate to /api/trace, which is served with a
+    // Content-Disposition: attachment header so the browser saves it as
+    // `agricola-trace-seed<seed>.json` instead of rendering it inline.
+    document.getElementById('download-trace-btn').addEventListener('click', () => {
+      window.location.href = '/api/trace';
+    });
     document.getElementById('game-over-close').addEventListener('click', () => {
       document.getElementById('game-over-modal').classList.add('hidden');
     });
