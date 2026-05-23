@@ -73,6 +73,7 @@ from agricola.agents import (
     HubrisHeuristicV3,
     RandomAgent,
     SimpleHeuristic,
+    restricted_legal_actions,
 )
 
 
@@ -80,6 +81,12 @@ from agricola.agents import (
 # flag wasn't passed). When None, `hubris_v3` falls back to DEFAULT_CONFIG_V3.
 _TUNED_V3_CONFIG: HeuristicConfigV3 | None = None
 _TUNED_V3_SOURCE_PATH: str | None = None
+
+# Whether AI seats use agricola.agents.restricted_legal_actions. Set from the
+# --restricted / --no-restricted CLI flag at startup; default ON to match the
+# training pipeline (scripts/tune_heuristic.py + scripts/run_iterative_v3.py
+# default --restricted ON as of CHANGES.md Change 11). Read by _build_agent.
+_RESTRICTED: bool = True
 
 
 def _load_v3_config_from_json(path: str) -> HeuristicConfigV3:
@@ -123,28 +130,37 @@ def _build_agent(seat_type: str, seed: int):
 
     Each agent gets its own seeded RNG; we XOR the session seed with a
     per-seat constant so the two seats don't end up with identical
-    tiebreaks in self-play scenarios."""
+    tiebreaks in self-play scenarios.
+
+    When the module-level `_RESTRICTED` flag is True (default — controlled
+    by the --restricted/--no-restricted CLI), every AI agent is built with
+    `legal_actions_fn=restricted_legal_actions` so it consults the
+    action-pruned set defined in agricola.agents.restricted. This matches
+    the training pipeline's default, so AI seats in the UI behave the same
+    way they do during fitness evaluation.
+    """
     if seat_type == "human":
         return None
+    extra = {"legal_actions_fn": restricted_legal_actions} if _RESTRICTED else {}
     if seat_type == "random":
-        return RandomAgent(seed=seed)
+        return RandomAgent(seed=seed, **extra)
     if seat_type == "simple":
-        return SimpleHeuristic(seed=seed)
+        return SimpleHeuristic(seed=seed, **extra)
     if seat_type == "hubris":
         # Current strongest: V1 architecture + tuned CONFIG_V1_T2.
-        return HubrisHeuristicV1(seed=seed, config=CONFIG_V1_T2)
+        return HubrisHeuristicV1(seed=seed, config=CONFIG_V1_T2, **extra)
     if seat_type == "hubris_v1":
         # Original V1 with hand-picked DEFAULT_CONFIG (kept for comparison).
-        return HubrisHeuristicV1(seed=seed)
+        return HubrisHeuristicV1(seed=seed, **extra)
     if seat_type == "hubris_v2":
-        return HubrisHeuristicV2(seed=seed)
+        return HubrisHeuristicV2(seed=seed, **extra)
     if seat_type == "hubris_v3":
         # V3 architecture. Priority: --v3-config PATH (if set at startup) >
         # CONFIG_V3_T1 (the promoted tuned constant — current strongest V3).
         # Falls back further to DEFAULT_CONFIG_V3 only if CONFIG_V3_T1 is
         # somehow None (shouldn't happen — it's a module-level constant).
         cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
-        return HubrisHeuristicV3(seed=seed, config=cfg)
+        return HubrisHeuristicV3(seed=seed, config=cfg, **extra)
     raise ValueError(f"unknown seat type {seat_type!r}; choose from {AGENT_TYPES}")
 
 # Reuse formatting helpers from play.py.
@@ -967,15 +983,24 @@ def parse_args() -> argparse.Namespace:
              "'hubris_v3' is selected as a seat. If omitted, hubris_v3 uses "
              "DEFAULT_CONFIG_V3 (untuned).",
     )
+    ap.add_argument(
+        "--restricted", action=argparse.BooleanOptionalAction, default=True,
+        help="If set (default), AI seats use agricola.agents.restricted_legal_actions "
+             "— the action-pruned set (rooms-before-stables ordering, cell priorities, "
+             "room cap, first-pasture cells, min-begging at harvest feed). Matches the "
+             "training pipeline's default. Use --no-restricted to play against agents "
+             "that see the full unrestricted legal-action set.",
+    )
     return ap.parse_args()
 
 
 def main() -> None:
-    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH
+    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH, _RESTRICTED
     args = parse_args()
     if args.v3_config is not None:
         _TUNED_V3_CONFIG = _load_v3_config_from_json(args.v3_config)
         _TUNED_V3_SOURCE_PATH = args.v3_config
+    _RESTRICTED = bool(args.restricted)
     seed = args.seed if args.seed is not None else int(time.time())
     seats = (args.seats[0], args.seats[1])
     session = Session(seed=seed, seats=seats)
@@ -985,6 +1010,7 @@ def main() -> None:
     print(f"AgricolaBot WebUI - seed={seed} | seats={list(seats)}")
     if _TUNED_V3_SOURCE_PATH is not None:
         print(f"  hubris_v3 will use tuned config from: {_TUNED_V3_SOURCE_PATH}")
+    print(f"  AI seats use restricted_legal_actions: {'ON' if _RESTRICTED else 'OFF'}")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:
