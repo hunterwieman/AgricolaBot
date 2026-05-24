@@ -220,13 +220,17 @@ Comparison metric: **holdout margin** (more honest than training margin; less pr
 
 ## 7. Web UI integration
 
-`play_web.py --v3-config <json_path>` loads the JSON's `best_config` and uses it whenever a seat is set to `hubris_v3`. Without the flag, `hubris_v3` falls back to `DEFAULT_CONFIG_V3` (untuned baseline).
+`play_web.py --v3-config <json_path>` loads the JSON's `best_config` and uses it whenever a seat is set to `hubris_v3`. Without the flag, `hubris_v3` falls back to `CONFIG_V3_T1` (and to `DEFAULT_CONFIG_V3` if the constant is somehow None).
 
-**Stable run command for playing against the current strongest V3:**
+`play_web.py` also carries a `--restricted` / `--no-restricted` flag (`argparse.BooleanOptionalAction`, default **ON**). When ON, every AI seat is built with `legal_actions_fn=restricted_legal_actions` so browser-UI agents behave the same way they do during training-pipeline fitness evaluation. The startup line prints `AI seats use restricted_legal_actions: ON/OFF` so the state is visible.
+
+**Stable run command for playing against the current strongest V3 (wrapper active):**
 
 ```bash
 python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json
 ```
+
+(No flag change needed — `--restricted` is ON by default.) Add `--no-restricted` to play against agents that see the full unrestricted action set.
 
 Since `v3_best.json` is auto-maintained, this command always uses the latest champion config without needing updates after each tuning run.
 

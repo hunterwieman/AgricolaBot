@@ -174,7 +174,7 @@ Strategic action-pruning lives in `agricola/agents/restricted.py` as a wrapper o
 
 **The always-≥1 invariant.** Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing would empty the action set, the filter is skipped and the original options stand. This guarantees the wrapper never strands the engine — any state with ≥1 legal action under `legal_actions` has ≥1 legal action under `restricted_legal_actions`.
 
-**Agent wiring.** Agents (`RandomAgent`, `HeuristicAgent`, all heuristic subclasses) accept a `legal_actions_fn` kwarg that defaults to the engine's unrestricted `legal_actions`. Passing `restricted_legal_actions` swaps in the pruned variant uniformly across the agent's top-level pick, singleton-skip, and rollout. The training pipeline (`scripts/tune_heuristic.py`, `scripts/run_iterative_v3.py`) sets it via the `--restricted` flag (default ON).
+**Agent wiring.** Agents (`RandomAgent`, `HeuristicAgent`, all heuristic subclasses) accept a `legal_actions_fn` kwarg that defaults to the engine's unrestricted `legal_actions`. Passing `restricted_legal_actions` swaps in the pruned variant uniformly across the agent's top-level pick, singleton-skip, and rollout. The training pipeline (`scripts/tune_heuristic.py`, `scripts/run_iterative_v3.py`) and the browser-UI driver (`play_web.py`) all carry a `--restricted` / `--no-restricted` flag (default ON). AI seats in every interactive and training context use the wrapper by default, so the agent the user plays against in the browser is the same one CMA-ES is optimizing.
 
 **Not in scope:** the wrapper is at the *agent* layer, not the engine. `legal_actions(state)` continues to enumerate every mechanically-legal action regardless. MCTS, tests, and any other consumer that wants the full action space gets it unchanged.
 
@@ -578,7 +578,7 @@ Archived (in `archive/`, fully superseded by current docs):
 ```
 AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
-    play_web.py                     # Top-level entry point — browser-based human play UI. Serves a JSON game state over HTTP for a JavaScript frontend; shares formatting helpers with `play.py`.
+    play_web.py                     # Top-level entry point — browser-based human play UI. Serves a JSON game state over HTTP for a JavaScript frontend; shares formatting helpers with `play.py`. `--restricted` / `--no-restricted` (default ON) makes AI seats use `restricted_legal_actions` so the browser-UI agents behave the same way they do during training-pipeline fitness evaluation. `--v3-config <json>` loads a tuned V3 config (`best_config` field).
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
     play_heuristic_game.py          # Top-level entry point — any-vs-any heuristic-agent driver. `--p0`/`--p1` pick from {random, simple, hubris, hubris_v1, hubris_v2}; `--temperature` for softmax sampling; `--lookahead` toggles the action/turn lookahead horizon. Same scoreboard output as `play_random_game.py`.
     agricola/                       # Game engine package.

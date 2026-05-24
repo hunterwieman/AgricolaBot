@@ -578,4 +578,31 @@ The orchestrator itself is pure-Python — all heavy lifting happens in the spaw
 
 ---
 
+## Top-level entry points
+
+Files at the repo root that run a game, drive matches, or serve the browser UI. Not part of `agricola/` or `scripts/`; documented here for completeness.
+
+### `play_web.py`
+
+Browser-based human-play UI. Serves a JSON game state over HTTP to a JavaScript frontend (`templates/index.html`, `static/app.js`); shares formatting helpers with `play.py` (`HOUSE_MATERIAL_NAME`, `MAJOR_NAMES`, etc.). The Session object holds one in-flight game and exposes routes for state polling, action submission, AI step-through, and trace download.
+
+Agent construction lives in `_build_agent(seat_type, seed)` and dispatches on a string seat label (`human`, `random`, `simple`, `hubris`, `hubris_v1`, `hubris_v2`, `hubris_v3`). The `hubris` label resolves to V1 architecture + `CONFIG_V1_T2`; `hubris_v3` resolves to V3 with the config selected by `--v3-config` (path to a `tune_heuristic.py` JSON, `best_config` field loaded), falling back to `CONFIG_V3_T1`, then `DEFAULT_CONFIG_V3`.
+
+CLI flags:
+- `--seed N` — engine RNG seed (default: time-based).
+- `--seats P0 P1` — seat assignments at launch (browser dropdown can re-pick later). Choices match `AGENT_TYPES`.
+- `--host`, `--port`, `--no-browser` — server config.
+- `--v3-config PATH` — load a tuned V3 config from a `tune_heuristic.py` JSON file's `best_config` field. Used whenever a seat is `hubris_v3`.
+- **`--restricted`** / **`--no-restricted`** (`argparse.BooleanOptionalAction`, default **ON**). When ON, every AI seat (random, simple, all heuristics) is constructed with `legal_actions_fn=restricted_legal_actions` so the browser UI agent behaves the same way it does during fitness evaluation. Matches `scripts/tune_heuristic.py` / `scripts/run_iterative_v3.py` defaults. Use `--no-restricted` to play against agents that see the full unrestricted set. The flag value is captured in a module-level `_RESTRICTED` global read by `_build_agent`, and the startup line prints `AI seats use restricted_legal_actions: ON/OFF` for visibility.
+
+The stable command to play against the current strongest V3 with the wrapper active:
+
+```bash
+python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json
+```
+
+(No flag change needed — `--restricted` is ON by default.)
+
+---
+
 Per-file coverage descriptions for each `tests/test_*.py` live in **`TEST_DESCRIPTIONS.md`**.
