@@ -409,6 +409,23 @@ TUNABLE_V3_FOOD: list[tuple[str, float, float, float, tuple]] = [
 
 
 # Category registry. (tunable_list, arch_label).
+# All V3 parameters combined into one TUNABLE. ~312 params total.
+# Use with `--category v3_all` to tune every V3 field in a single CMA-ES
+# call rather than the block-coordinate-descent pattern enforced by
+# `run_iterative_v3.py`. Recommended popsize for d=312 is ~30 (≈ 4+3·ln(d)),
+# so `--popsize 30 --max-gens 50+` for a serious run. The historical
+# motivation for splitting into smaller categories was partly the
+# "chained baseline drift" failure mode now addressed by --baselines /
+# --regression-baseline; the per-category split is no longer load-bearing.
+TUNABLE_V3_ALL: list[tuple[str, float, float, float, tuple]] = (
+    TUNABLE_V3_FIELDS_CROPS
+    + TUNABLE_V3_FOOD
+    + TUNABLE_V3_RESOURCES
+    + TUNABLE_V3_PASTURES_ANIMALS
+    + TUNABLE_V3_MAJORS_PER_STAGE
+    + TUNABLE_V3_ALPHAS_AND_CARRYOVERS
+)
+
 CATEGORIES: dict[str, tuple[list, str]] = {
     "v1_addonly":           (TUNABLE_V1_ADDONLY,         "v1"),
     "v3_resources":         (TUNABLE_V3_RESOURCES,       "v3"),
@@ -417,6 +434,7 @@ CATEGORIES: dict[str, tuple[list, str]] = {
     "v3_food":              (TUNABLE_V3_FOOD,            "v3"),
     "v3_majors_per_stage":  (TUNABLE_V3_MAJORS_PER_STAGE,"v3"),
     "v3_alphas_and_carryovers": (TUNABLE_V3_ALPHAS_AND_CARRYOVERS, "v3"),
+    "v3_all":               (TUNABLE_V3_ALL,             "v3"),
 }
 
 
@@ -498,8 +516,8 @@ def vector_to_config(x: np.ndarray, base, tunable: list | None = None):
 # (via Pool's `initializer` argument) and by `main()` directly for the
 # sequential / sanity-check path.
 _WORKER_SEEDS: list[int] | None = None
-_WORKER_BASELINE_CONFIG = None    # opponent config
-_WORKER_BASELINE_ARCH: str = "v1" # opponent architecture
+_WORKER_BASELINE_CONFIGS: list | None = None  # opponent configs (multi-baseline)
+_WORKER_BASELINE_ARCHS: list[str] | None = None  # opponent architectures
 _WORKER_BASE_CONFIG = None        # warm-start base for the candidate
 _WORKER_BASE_ARCH: str = "v3"     # candidate architecture
 _WORKER_TUNABLE: list | None = None  # which TUNABLE list is active
@@ -507,27 +525,33 @@ _WORKER_RESTRICTED: bool = False  # whether agents use restricted_legal_actions
 
 
 def _init_worker(seeds: list[int],
-                 baseline_config, baseline_arch: str,
+                 baseline_configs: list, baseline_archs: list,
                  base_config, base_arch: str,
                  tunable: list,
                  restricted: bool = False) -> None:
-    """Pool initializer: copy seeds, baseline (opponent), warm-start base,
+    """Pool initializer: copy seeds, baselines (opponents), warm-start base,
     architecture labels, the active TUNABLE, and the restricted flag into
     worker globals.
 
-    - `baseline_config`: opponent that the candidate plays against.
+    - `baseline_configs` / `baseline_archs`: parallel lists of opponent
+      configs that the candidate plays against. When more than one is
+      supplied, the candidate's fitness is the mean margin across all
+      baselines (each evaluated on the same seed set). This prevents
+      overfitting to a single opponent — the "chained baseline drift"
+      failure mode that caused V3 to silently regress against V1+T2
+      during iter2.
     - `base_config`: starting point for `vector_to_config` — fields not in
       TUNABLE inherit values from this config (add-only tuning).
     - `restricted`: when True, candidate and baseline agents are built with
       `legal_actions_fn=restricted_legal_actions`, so the tuning runs in
       the action-pruned space.
     """
-    global _WORKER_SEEDS, _WORKER_BASELINE_CONFIG, _WORKER_BASELINE_ARCH
+    global _WORKER_SEEDS, _WORKER_BASELINE_CONFIGS, _WORKER_BASELINE_ARCHS
     global _WORKER_BASE_CONFIG, _WORKER_BASE_ARCH, _WORKER_TUNABLE
     global _WORKER_RESTRICTED
     _WORKER_SEEDS = seeds
-    _WORKER_BASELINE_CONFIG = baseline_config
-    _WORKER_BASELINE_ARCH = baseline_arch
+    _WORKER_BASELINE_CONFIGS = list(baseline_configs)
+    _WORKER_BASELINE_ARCHS = list(baseline_archs)
     _WORKER_BASE_CONFIG = base_config
     _WORKER_BASE_ARCH = base_arch
     _WORKER_TUNABLE = tunable
@@ -535,33 +559,58 @@ def _init_worker(seeds: list[int],
 
 
 def _eval_candidate(x: np.ndarray) -> float:
-    """Top-level fitness function `x -> -avg_margin`.
+    """Top-level fitness function `x -> -mean_margin_across_baselines`.
 
     Top-level (not a closure) so `multiprocessing.Pool` can pickle it.
-    Reads seeds/baseline from module-level globals populated by
+    Reads seeds/baselines from module-level globals populated by
     `_init_worker` (parallel mode) or `main()` (sequential mode).
 
+    With one baseline this reduces to the old `x -> -avg_margin` behavior.
+    With multiple baselines, the fitness aggregates margin across all
+    opponents (mean of per-baseline mean margins). All baselines play on
+    the same seed set.
+
     Negative-margin convention: CMA-ES minimizes; we want to MAXIMIZE
-    the candidate's score margin over the baseline.
+    the candidate's score margin over the baselines.
     """
     assert _WORKER_SEEDS is not None, "worker globals not initialized"
-    assert _WORKER_BASELINE_CONFIG is not None, "worker globals not initialized"
+    assert _WORKER_BASELINE_CONFIGS, "worker globals not initialized"
     assert _WORKER_BASE_CONFIG is not None, "worker globals not initialized"
     candidate_cfg = vector_to_config(np.asarray(x), base=_WORKER_BASE_CONFIG)
     candidate_arch = _WORKER_BASE_ARCH
-    baseline_cfg = _WORKER_BASELINE_CONFIG
-    baseline_arch = _WORKER_BASELINE_ARCH
 
+    margins: list[float] = []
+    for baseline_cfg, baseline_arch in zip(
+        _WORKER_BASELINE_CONFIGS, _WORKER_BASELINE_ARCHS,
+    ):
+        def p0_factory(seed: int, _cfg=candidate_cfg, _arch=candidate_arch):
+            return _make_agent(_arch, _cfg, seed, restricted=_WORKER_RESTRICTED)
+
+        def p1_factory(seed: int, _cfg=baseline_cfg, _arch=baseline_arch):
+            return _make_agent(_arch, _cfg, seed + 1, restricted=_WORKER_RESTRICTED)
+
+        result = play_match(p0_factory, p1_factory, _WORKER_SEEDS)
+        margins.append(result.avg_margin)
+
+    return -(sum(margins) / len(margins))
+
+
+def _eval_against_baseline(candidate_cfg, candidate_arch: str,
+                            baseline_cfg, baseline_arch: str,
+                            seeds: list[int], restricted: bool) -> float:
+    """Single-baseline match returning the candidate's average margin.
+    Used by the regression-detector path (per-gen check against a fixed
+    reference opponent, NOT in the fitness aggregate).
+    """
     def p0_factory(seed: int):
         return _make_agent(candidate_arch, candidate_cfg, seed,
-                            restricted=_WORKER_RESTRICTED)
+                            restricted=restricted)
 
     def p1_factory(seed: int):
         return _make_agent(baseline_arch, baseline_cfg, seed + 1,
-                            restricted=_WORKER_RESTRICTED)
+                            restricted=restricted)
 
-    result = play_match(p0_factory, p1_factory, _WORKER_SEEDS)
-    return -result.avg_margin
+    return play_match(p0_factory, p1_factory, seeds).avg_margin
 
 
 def main() -> int:
@@ -595,9 +644,26 @@ def main() -> int:
                              f"named config ({sorted(BASE_CONFIGS)}) or a path to a "
                              "JSON file from a previous tuning run (its 'best_config' is "
                              "loaded). Default 'default_v3'.")
-    parser.add_argument("--baseline", default="t2",
-                        help="OPPONENT config (the candidate plays against this). Same "
-                             "name-or-path semantics as --from. Default 't2'.")
+    parser.add_argument("--baseline", default=None,
+                        help="DEPRECATED single-opponent flag. Same name-or-path "
+                             "semantics as --from. If set, equivalent to "
+                             "`--baselines <value>`. Use --baselines for multi-opponent "
+                             "fitness.")
+    parser.add_argument("--baselines", nargs="+", default=None,
+                        help="OPPONENT configs for the fitness function. The candidate "
+                             "plays against each, on the same seed set; fitness = mean "
+                             "margin across all baselines. Use one entry for the "
+                             "classic single-opponent setup, multiple to prevent "
+                             "overfitting to one opponent. Names or paths, same as "
+                             "--from. Default 't2'.")
+    parser.add_argument("--regression-baseline", default="t2",
+                        help="Fixed reference opponent used as a REGRESSION DETECTOR. "
+                             "Measured per-generation on the session-best candidate "
+                             "(NOT in the fitness aggregate). The trajectory is "
+                             "recorded in the output JSON as `regression_history` so "
+                             "you can see when tuning starts drifting away from a "
+                             "known-strong reference. Default 't2' (V1+T2). Set to "
+                             "'' to disable.")
     parser.add_argument("--resume", type=Path, default=None,
                         help="Path to a previously-saved CMA-ES state (.cma.pkl). If set, "
                              "CMA-ES picks up exactly where it left off (mean, σ, "
@@ -635,7 +701,31 @@ def main() -> int:
     # Resolve TUNABLE + architectures.
     tunable, candidate_arch = CATEGORIES[args.category]
     base_config, from_arch = _resolve_config(args.from_config)
-    baseline_config, baseline_arch = _resolve_config(args.baseline)
+
+    # Resolve baselines. --baselines (list) is the new canonical form;
+    # --baseline (singular) is a backwards-compat alias for a one-element
+    # list. Default is ['t2'] when neither is set.
+    if args.baselines is None and args.baseline is None:
+        baseline_specs = ["t2"]
+    elif args.baselines is not None and args.baseline is not None:
+        raise SystemExit("Set either --baselines or --baseline, not both.")
+    elif args.baselines is not None:
+        baseline_specs = list(args.baselines)
+    else:
+        baseline_specs = [args.baseline]
+
+    baselines: list = []  # list of (config, arch) tuples
+    for spec in baseline_specs:
+        cfg, arch = _resolve_config(spec)
+        baselines.append((cfg, arch))
+    baseline_configs = [c for c, _ in baselines]
+    baseline_archs = [a for _, a in baselines]
+
+    # Regression-detector baseline (separate; not in fitness aggregate).
+    if args.regression_baseline:
+        regression_cfg, regression_arch = _resolve_config(args.regression_baseline)
+    else:
+        regression_cfg, regression_arch = None, None
 
     if from_arch != candidate_arch:
         raise SystemExit(
@@ -646,7 +736,7 @@ def main() -> int:
 
     # Populate module-level globals for the sequential code path (sanity
     # check, --jobs 1). Parallel workers receive these via Pool initializer.
-    _init_worker(seeds, baseline_config, baseline_arch,
+    _init_worker(seeds, baseline_configs, baseline_archs,
                   base_config, candidate_arch, tunable,
                   restricted=args.restricted)
 
@@ -691,7 +781,17 @@ def main() -> int:
         print(f"Tuning {n_params} parameters via CMA-ES")
         print(f"  category: {args.category!r}  (arch: {candidate_arch})")
         print(f"  warm-start base: {args.from_config!r}")
-        print(f"  baseline opponent: {args.baseline!r} (arch: {baseline_arch})")
+        if len(baseline_specs) == 1:
+            print(f"  baseline opponent: {baseline_specs[0]!r} (arch: {baseline_archs[0]})")
+        else:
+            print(f"  baseline opponents (mean margin across all):")
+            for spec, arch in zip(baseline_specs, baseline_archs):
+                print(f"    - {spec!r} (arch: {arch})")
+        if regression_cfg is not None:
+            print(f"  regression detector: {args.regression_baseline!r} "
+                  f"(arch: {regression_arch}) — measured per-gen on session-best")
+        else:
+            print(f"  regression detector: disabled")
         print(f"  restricted action set: {'ON (wrapper active for both sides)' if args.restricted else 'OFF (unrestricted legal_actions)'}")
         print(f"  seeds: {args.n_seeds} games per evaluation (training: 0..{args.n_seeds - 1})")
         print(f"  holdout: {args.holdout_n} games "
@@ -710,11 +810,16 @@ def main() -> int:
         print()
 
         f0 = _eval_candidate(x0)
-        print(f"Sanity: fitness(starting point vs {args.baseline!r} baseline) "
-              f"= {-f0:+.3f} margin")
+        if len(baseline_specs) == 1:
+            print(f"Sanity: fitness(starting point vs {baseline_specs[0]!r} baseline) "
+                  f"= {-f0:+.3f} margin")
+        else:
+            print(f"Sanity: fitness(starting point, mean margin across "
+                  f"{len(baseline_specs)} baselines) = {-f0:+.3f}")
         print(f"  (sign/magnitude reflects warm-start config vs baseline strength gap)\n")
         return _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch,
-                                  baseline_config, baseline_arch, tunable,
+                                  baseline_configs, baseline_archs, baseline_specs,
+                                  regression_cfg, regression_arch, tunable,
                                   x0, lower, upper, log_path, sanity_f0=f0)
     finally:
         sys.stdout = _original_stdout
@@ -722,7 +827,10 @@ def main() -> int:
 
 
 def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: str,
-                      baseline_config, baseline_arch: str, tunable: list,
+                      baseline_configs: list, baseline_archs: list,
+                      baseline_specs: list,
+                      regression_cfg, regression_arch,
+                      tunable: list,
                       x0, lower, upper, log_path: Path, *, sanity_f0: float) -> int:
     # The CMA-ES state pickle lives next to the JSON output, sharing its stem.
     pkl_path = args.output.with_suffix(".cma.pkl")
@@ -794,13 +902,24 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         best_x = np.asarray(session_best["x"])
         best_margin = -float(session_best["f"])
         best_cfg = vector_to_config(best_x, base=base_config, tunable=tunable)
+        # Backwards-compat single-baseline fields (first listed baseline)
+        # are still surfaced so existing tooling that reads `baseline` /
+        # `baseline_arch` continues to work. The new `baselines` /
+        # `baseline_archs` lists are the canonical multi-baseline view.
+        primary_baseline_spec = baseline_specs[0] if baseline_specs else None
+        primary_baseline_arch = baseline_archs[0] if baseline_archs else None
         payload = {
             "status":            status,
             "category":          args.category,
             "candidate_arch":    candidate_arch,
             "from_config":       args.from_config,
-            "baseline":          args.baseline,
-            "baseline_arch":     baseline_arch,
+            "baseline":          primary_baseline_spec,    # backwards-compat
+            "baseline_arch":     primary_baseline_arch,    # backwards-compat
+            "baselines":         list(baseline_specs),
+            "baseline_archs":    list(baseline_archs),
+            "regression_baseline":      args.regression_baseline or None,
+            "regression_baseline_arch": regression_arch,
+            "regression_history":       regression_history,
             "restricted":        bool(args.restricted),
             "tunable_spec": [
                 {"name": t[0], "default": t[1], "lower": t[2], "upper": t[3], "path": list(t[4])}
@@ -825,12 +944,17 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         }
         args.output.write_text(json.dumps(payload, indent=2))
 
+    # Per-generation drift trajectory: list of {generation, regression_margin}
+    # measurements of session-best vs the regression baseline. Empty if
+    # regression detector is disabled.
+    regression_history: list[dict] = []
+
     pool: Pool | None = None
     if args.jobs > 1:
         pool = Pool(
             processes=args.jobs,
             initializer=_init_worker,
-            initargs=(seeds, baseline_config, baseline_arch,
+            initargs=(seeds, baseline_configs, baseline_archs,
                       base_config, candidate_arch, tunable,
                       args.restricted),
         )
@@ -875,6 +999,32 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
                 "gen_mean_margin":    -float(gen_mean),
                 "elapsed_seconds":    elapsed,
             })
+
+            # Regression-detector check: measure the session-best candidate
+            # against the fixed reference opponent (typically V1+T2).
+            # NOT part of the fitness aggregate — this is purely diagnostic.
+            # Output: a separate margin recorded in regression_history. If
+            # this trend goes DOWN while best_margin_so_far goes UP, the
+            # tuning is overfitting to the training baselines.
+            if regression_cfg is not None:
+                best_cfg_for_drift = vector_to_config(
+                    np.asarray(session_best["x"]),
+                    base=base_config, tunable=tunable,
+                )
+                drift_margin = _eval_against_baseline(
+                    candidate_cfg=best_cfg_for_drift,
+                    candidate_arch=candidate_arch,
+                    baseline_cfg=regression_cfg,
+                    baseline_arch=regression_arch,
+                    seeds=seeds, restricted=args.restricted,
+                )
+                regression_history.append({
+                    "generation":         gen,
+                    "regression_margin":  float(drift_margin),
+                })
+                print(f"           regression vs {args.regression_baseline!r}: "
+                      f"{drift_margin:+.3f}")
+
             write_results(status="in_progress")
             save_cma_state()
     finally:
@@ -916,8 +1066,15 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         print(f"{name:<35}  {start_val:>9.3f}  {val:>9.3f}  {val - start_val:>+9.3f}")
 
     # --- Holdout verification match ---
+    # Holdout runs against the PRIMARY (first listed) baseline only, so
+    # the recorded `holdout.avg_margin` stays directly comparable to
+    # previous runs that used a single baseline. Multi-baseline tuning
+    # still surfaces a per-baseline holdout breakdown in `holdout_by_baseline`.
     print()
-    print(f"Running holdout match: tuned vs {args.baseline!r} baseline on "
+    primary_spec = baseline_specs[0]
+    primary_cfg = baseline_configs[0]
+    primary_arch = baseline_archs[0]
+    print(f"Running holdout match: tuned vs {primary_spec!r} primary baseline on "
           f"{len(holdout_seeds)} disjoint seeds...")
     best_cfg = vector_to_config(best_x, base=base_config, tunable=tunable)
 
@@ -925,9 +1082,8 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         return _make_agent(candidate_arch, best_cfg, seed,
                             restricted=args.restricted)
 
-    def baseline_factory(seed: int):
-        return _make_agent(baseline_arch, baseline_config, seed,
-                            restricted=args.restricted)
+    def baseline_factory(seed: int, _cfg=primary_cfg, _arch=primary_arch):
+        return _make_agent(_arch, _cfg, seed, restricted=args.restricted)
 
     holdout_result = play_match(tuned_factory, baseline_factory, holdout_seeds)
     print(f"  holdout {holdout_result.summary_line()}")
@@ -938,6 +1094,39 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     else:
         print("  → NEGATIVE on holdout. Likely overfit; treat training result with caution.")
 
+    # Multi-baseline holdout breakdown — measure vs each baseline so users
+    # can see per-opponent generalization. Always include the primary even
+    # though it was just measured above; this keeps the structure uniform.
+    holdout_by_baseline: list[dict] = []
+    for spec, cfg, arch in zip(baseline_specs, baseline_configs, baseline_archs):
+        def opp_factory(seed: int, _cfg=cfg, _arch=arch):
+            return _make_agent(_arch, _cfg, seed, restricted=args.restricted)
+        r = play_match(tuned_factory, opp_factory, holdout_seeds)
+        holdout_by_baseline.append({
+            "baseline": spec, "baseline_arch": arch,
+            "avg_margin": r.avg_margin, "p0_wins": r.p0_wins,
+            "p1_wins": r.p1_wins, "draws": r.draws,
+        })
+        if len(baseline_specs) > 1:
+            print(f"  vs {spec!r}: margin {r.avg_margin:+.3f}  "
+                  f"({r.p0_wins}-{r.draws}-{r.p1_wins})")
+
+    # Regression detector on holdout (separate from the fitness baselines).
+    regression_holdout: dict | None = None
+    if regression_cfg is not None:
+        def reg_factory(seed: int):
+            return _make_agent(regression_arch, regression_cfg, seed,
+                                restricted=args.restricted)
+        r = play_match(tuned_factory, reg_factory, holdout_seeds)
+        regression_holdout = {
+            "baseline": args.regression_baseline,
+            "baseline_arch": regression_arch,
+            "avg_margin": r.avg_margin,
+            "p0_wins": r.p0_wins, "p1_wins": r.p1_wins, "draws": r.draws,
+        }
+        print(f"  regression vs {args.regression_baseline!r}: "
+              f"margin {r.avg_margin:+.3f}  ({r.p0_wins}-{r.draws}-{r.p1_wins})")
+
     holdout_payload = {
         "n_games":         holdout_result.n_games,
         "p0_wins":         holdout_result.p0_wins,
@@ -947,6 +1136,8 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         "avg_score_p1":    holdout_result.avg_score_p1,
         "avg_margin":      holdout_result.avg_margin,
         "elapsed_seconds": holdout_result.elapsed_seconds,
+        "by_baseline":     holdout_by_baseline,
+        "regression":      regression_holdout,
     }
     write_results(status="complete", holdout=holdout_payload)
     save_cma_state()

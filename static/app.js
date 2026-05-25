@@ -16,12 +16,16 @@
   // Stored as Set<"r,c">.
   let cellSelection = new Set();
 
-  // Fast mode: when enabled, auto-submit whenever there is exactly one legal
-  // action. Persists across reloads. Stateful guard so multiple re-renders of
-  // the same server state don't multi-fire — only one auto-submit per push.
+  // Fast mode: when enabled, the SERVER auto-applies any human-singleton
+  // decision in the same lock-held window where it already auto-applies
+  // AI moves. The frontend's role is just to surface a toggle that POSTs
+  // to /api/fast_mode. Local state mirrors the server flag for UI display
+  // and is persisted to localStorage so the preference survives reloads.
+  // (Previously this was a client-side auto-submit, but that had race
+  // conditions with SSE event ordering, particularly when MCTS was the
+  // opponent — the singleton state could be displayed briefly before the
+  // auto-submit fired, and was sometimes skipped entirely.)
   let fastMode = localStorage.getItem('agricola.fastMode') === '1';
-  let stateVersion = 0;
-  let lastAutoSubmittedVersion = -1;
 
   function setConnState(connected) {
     const el = document.getElementById('connection-state');
@@ -39,7 +43,6 @@
       try {
         currentState = JSON.parse(e.data);
         cellSelection = new Set();  // server step happened → drop any partial selection
-        stateVersion++;
         render(currentState);
       } catch (err) {
         console.error('failed to parse state', err);
@@ -95,14 +98,16 @@
   // User-facing seat names shown in the New-game dialog. We expose a
   // simplified set ('v1' = current strongest V1 = backend 'hubris',
   // 'v3' = current strongest V3 = backend 'hubris_v3' loaded via
-  // --v3-config). The backend understands additional types ('simple',
-  // 'hubris_v1', 'hubris_v2') for CLI use but they're not surfaced here.
-  const SEAT_LABELS = ['human', 'random', 'v1', 'v3'];
+  // --v3-config, 'mcts' = MCTS agent using V3 as leaf evaluator). The
+  // backend understands additional types ('simple', 'hubris_v1',
+  // 'hubris_v2') for CLI use but they're not surfaced here.
+  const SEAT_LABELS = ['human', 'random', 'v1', 'v3', 'mcts'];
   const LABEL_TO_BACKEND = {
     'human': 'human',
     'random': 'random',
     'v1':     'hubris',     // V1 architecture with tuned CONFIG_V1_T2
     'v3':     'hubris_v3',  // V3 architecture (loads --v3-config if set)
+    'mcts':   'mcts',       // MCTS w/ V3 leaf evaluator + configurable sims
   };
   const BACKEND_TO_LABEL = {
     'human': 'human',
@@ -112,11 +117,17 @@
     'hubris_v1': 'v1 (default)',
     'hubris_v2': 'v2',
     'hubris_v3': 'v3',
+    'mcts': 'mcts',
   };
 
   function backendToLabel(backend) {
     return BACKEND_TO_LABEL[backend] || backend;
   }
+
+  // Remembered MCTS sims across resets so the user doesn't have to re-type
+  // it every game. Initialized from the most recent reset payload (which
+  // the backend echoes back) or the backend's --mcts-sims default.
+  let lastMctsSims = 500;
 
   async function resetGame() {
     // Three prompts to match the existing prompt-style UX (avoids building
@@ -137,14 +148,41 @@
     const p1Label = SEAT_LABELS.includes(p1Str.trim()) ? p1Str.trim() : 'random';
     const p0 = LABEL_TO_BACKEND[p0Label];
     const p1 = LABEL_TO_BACKEND[p1Label];
+
+    // If either seat is MCTS, ask for sims/move. Single value applies to
+    // both MCTS seats if both are MCTS. Cancel = abort the reset.
+    const payload = { seed, seats: [p0, p1] };
+    if (p0 === 'mcts' || p1 === 'mcts') {
+      const simsStr = prompt(
+        'MCTS sims/move?\n' +
+        '  100  - fast (~5s/move at default settings)\n' +
+        '  500  - default (~30s/move)\n' +
+        '  1000 - stronger but ~60s/move\n' +
+        '  2000 - much stronger, multi-minute moves',
+        String(lastMctsSims),
+      );
+      if (simsStr === null) return;
+      const sims = parseInt(simsStr.trim(), 10);
+      if (!Number.isFinite(sims) || sims < 1) {
+        alert('MCTS sims must be a positive integer; aborting reset.');
+        return;
+      }
+      payload.mcts_sims = sims;
+      lastMctsSims = sims;
+    }
+
     const res = await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seed, seats: [p0, p1] }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
     if (!data.ok) {
       console.warn('reset rejected:', data.error);
+    } else if (typeof data.mcts_sims === 'number') {
+      // Backend echoes the effective sims (whether explicitly set or
+      // defaulted from --mcts-sims). Use as next-prompt default.
+      lastMctsSims = data.mcts_sims;
     }
   }
 
@@ -180,25 +218,27 @@
     return e;
   }
 
-  function setFastMode(v) {
+  async function setFastMode(v) {
     fastMode = !!v;
     localStorage.setItem('agricola.fastMode', fastMode ? '1' : '0');
     const cb = document.getElementById('fast-mode-toggle');
     if (cb) cb.checked = fastMode;
-    // Re-arm so toggling ON immediately fires for the current state if it's
-    // a singleton. Toggling OFF is a no-op beyond persisting the preference.
-    lastAutoSubmittedVersion = -1;
-    if (currentState) render(currentState);
-  }
-
-  function maybeAutoSubmit(state) {
-    if (!fastMode) return;
-    if (state.game_over) return;
-    if (state.legal_actions.length !== 1) return;
-    if (lastAutoSubmittedVersion === stateVersion) return;
-    lastAutoSubmittedVersion = stateVersion;
-    // Defer to next tick so the DOM update completes before the next POST.
-    setTimeout(() => submitAction(state.legal_actions[0].index), 0);
+    // Push to the server. The server's set_fast_mode also auto-advances
+    // any pending human singleton when turning ON, and broadcasts the
+    // new state via SSE — we don't need to do anything else here.
+    try {
+      const res = await fetch('/api/fast_mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: fastMode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) {
+        console.warn('fast_mode toggle rejected:', data.error);
+      }
+    } catch (err) {
+      console.error('fast_mode toggle failed', err);
+    }
   }
 
   function render(state) {
@@ -210,7 +250,6 @@
     renderDecisionPanel(state);
     renderRoundLog(state);
     renderGameOver(state);
-    maybeAutoSubmit(state);
   }
 
   // -------- header --------
@@ -1023,6 +1062,10 @@
     const fastCb = document.getElementById('fast-mode-toggle');
     fastCb.checked = fastMode;
     fastCb.addEventListener('change', (e) => setFastMode(e.target.checked));
+    // On page load, push the persisted client preference to the server
+    // so the server-side flag matches. The fire-and-forget POST also
+    // triggers the server's auto-advance for any pending singleton.
+    if (fastMode) setFastMode(true);
     // Global Enter-key handler: when an AI is on the clock, Enter advances
     // one move. Ignored when focus is in a text input (so it doesn't fight
     // the seed prompt or future form inputs). Also ignored on the game-over

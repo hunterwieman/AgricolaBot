@@ -241,6 +241,8 @@ h3 {
 .seat-tag[data-seat="hubris"]    { background: #b03a3a; }
 .seat-tag[data-seat="hubris_v1"] { background: #b03a3a; }
 .seat-tag[data-seat="hubris_v2"] { background: #7a2a55; }
+.seat-tag[data-seat="hubris_v3"] { background: #c2832f; }
+.seat-tag[data-seat="mcts"]      { background: #2f7a5a; }
 
 /* "Advance" button shown when an AI is the current decider. */
 .advance-bar {

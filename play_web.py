@@ -1,19 +1,26 @@
 """Browser UI for AgricolaBot. Companion to the terminal play.py driver.
 
 Run:
-    python play_web.py [--seed N] [--seats AGENT AGENT]
+    python play_web.py [--seed N] [--seats AGENT AGENT] [--mcts-sims N]
         [--host 127.0.0.1] [--port 8000] [--no-browser]
 
-`AGENT` is one of: human, random, simple, hubris. Defaults: ["human", "random"].
+`AGENT` is one of: human, random, simple, hubris, hubris_v3, mcts.
+Defaults: ["human", "random"].
+
 Examples:
-    python play_web.py --seats human hubris      # play vs the Hubris heuristic
-    python play_web.py --seats hubris hubris     # watch self-play
-    python play_web.py --seats simple random     # watch Simple vs Random
+    python play_web.py --seats human hubris        # play vs the Hubris heuristic
+    python play_web.py --seats human mcts          # play vs MCTS (default 500 sims)
+    python play_web.py --seats human mcts --mcts-sims 1000
+    python play_web.py --seats hubris hubris       # watch self-play
+    python play_web.py --seats simple random       # watch Simple vs Random
 
 When both seats are AI, the game does NOT auto-advance — click the
 "Advance" button in the UI (or press Enter) to step one move at a time.
 When at least one seat is human, AI seats fast-forward until the human is
 on the clock (matching the old behavior).
+
+The New-game dialog in the browser also exposes seat selection AND, when
+'mcts' is picked, prompts for sims/move (override of --mcts-sims).
 
 Stdlib-only: ThreadingHTTPServer for HTTP, Server-Sent Events for push.
 """
@@ -71,6 +78,8 @@ from agricola.agents import (
     HubrisHeuristicV1,
     HubrisHeuristicV2,
     HubrisHeuristicV3,
+    MCTSAgent,
+    MCTSSearch,
     RandomAgent,
     SimpleHeuristic,
     restricted_legal_actions,
@@ -87,6 +96,11 @@ _TUNED_V3_SOURCE_PATH: str | None = None
 # training pipeline (scripts/tune_heuristic.py + scripts/run_iterative_v3.py
 # default --restricted ON as of CHANGES.md Change 11). Read by _build_agent.
 _RESTRICTED: bool = True
+
+# Default MCTS sims/move for the `mcts` seat type. Settable at startup via
+# --mcts-sims; overridable per-session via the `mcts_sims` field on the
+# /api/reset payload (and from the frontend's New-game dialog).
+_MCTS_SIMS_DEFAULT: int = 500
 
 
 def _load_v3_config_from_json(path: str) -> HeuristicConfigV3:
@@ -121,11 +135,12 @@ from agricola.state import GameState
 # baseline. "hubris_v2" is the V2 architecture (joint frontier) on default
 # config.
 AGENT_TYPES: tuple[str, ...] = (
-    "human", "random", "simple", "hubris", "hubris_v1", "hubris_v2", "hubris_v3",
+    "human", "random", "simple", "hubris", "hubris_v1", "hubris_v2",
+    "hubris_v3", "mcts",
 )
 
 
-def _build_agent(seat_type: str, seed: int):
+def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
     """Construct an agent for an AI seat (or return None for human seats).
 
     Each agent gets its own seeded RNG; we XOR the session seed with a
@@ -138,6 +153,11 @@ def _build_agent(seat_type: str, seed: int):
     action-pruned set defined in agricola.agents.restricted. This matches
     the training pipeline's default, so AI seats in the UI behave the same
     way they do during fitness evaluation.
+
+    `mcts_sims` is consulted only when `seat_type == "mcts"`. If None, the
+    module-level `_MCTS_SIMS_DEFAULT` is used. MCTS uses the loaded V3
+    config (priority: --v3-config PATH > CONFIG_V3_T1 > DEFAULT_CONFIG_V3)
+    as its leaf evaluator config — same precedence as `hubris_v3`.
     """
     if seat_type == "human":
         return None
@@ -161,6 +181,27 @@ def _build_agent(seat_type: str, seed: int):
         # somehow None (shouldn't happen — it's a module-level constant).
         cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
         return HubrisHeuristicV3(seed=seed, config=cfg, **extra)
+    if seat_type == "mcts":
+        # MCTS uses the same V3 config as `hubris_v3` for its leaf evaluator.
+        # The strict-restricted wrapper isn't tied to the `_RESTRICTED` flag
+        # here — MCTSSearch constructs its own strict wrapper internally
+        # with a per-search RNG (so the harvest-feed cap's random samples
+        # are deterministic per session).
+        cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
+        sims = int(mcts_sims) if mcts_sims is not None else _MCTS_SIMS_DEFAULT
+        search = MCTSSearch(
+            evaluator_config=cfg,
+            n_random_fencing=4,
+            rng_seed=seed,
+        )
+        return MCTSAgent(
+            search,
+            sims_per_move=sims,
+            c_uct=1.4,
+            fpu_offset=0.0,
+            action_selection_temperature=0.2,
+            rng_seed=seed,
+        )
     raise ValueError(f"unknown seat type {seat_type!r}; choose from {AGENT_TYPES}")
 
 # Reuse formatting helpers from play.py.
@@ -540,17 +581,31 @@ class RoundLog:
 # ---------------------------------------------------------------------------
 
 class Session:
-    def __init__(self, seed: int, seats: tuple[str, str]) -> None:
+    def __init__(
+        self,
+        seed: int,
+        seats: tuple[str, str],
+        *,
+        mcts_sims: int | None = None,
+        fast_mode: bool = False,
+    ) -> None:
         for s in seats:
             if s not in AGENT_TYPES:
                 raise ValueError(f"unknown seat type {s!r}; choose from {AGENT_TYPES}")
         self.seed = seed
         self.seats = seats
+        self.mcts_sims = mcts_sims  # None means use _MCTS_SIMS_DEFAULT
+        # When True, the auto-advance driver also auto-applies human
+        # singletons (a state where the human has exactly one legal
+        # action). Settable via /api/fast_mode at runtime — survives
+        # across resets. Server-side resolution avoids the SSE-arrival
+        # races the previous client-side fast-mode had.
+        self.fast_mode: bool = fast_mode
         self.humans: set[int] = {i for i, s in enumerate(seats) if s == "human"}
         # Per-seat agent objects; None for human seats.
         self.agents = (
-            _build_agent(seats[0], seed ^ 0x10000),
-            _build_agent(seats[1], seed ^ 0x20000),
+            _build_agent(seats[0], seed ^ 0x10000, mcts_sims=mcts_sims),
+            _build_agent(seats[1], seed ^ 0x20000, mcts_sims=mcts_sims),
         )
         self.state = setup(seed)
         self.log = RoundLog(self.humans)
@@ -571,7 +626,7 @@ class Session:
         # leave the state as-is and require explicit /api/step_ai calls.
         with self.lock:
             if self.humans:
-                self._drive_until_human_locked()
+                self._drive_until_decision_locked()
 
     # ---------- subscriber management ----------
 
@@ -660,19 +715,39 @@ class Session:
         if self.state.phase == Phase.BEFORE_SCORING:
             self.game_over = True
 
-    def _drive_until_human_locked(self) -> None:
-        """Apply AI actions until a human is the decider or game over.
+    def _drive_until_decision_locked(self) -> None:
+        """Apply moves until a meaningful human decision OR game over.
 
-        Used only when at least one seat is human, to fast-forward AI
-        moves so the human isn't waiting through opponent turns. With
-        zero humans the session never calls this — each AI step requires
-        an explicit /api/step_ai call so the UI can show one move at a
-        time."""
+        Two auto-application rules combined:
+
+        - **AI moves**: always auto-applied (so the human isn't waiting
+          through opponent turns). Used only when at least one seat is
+          human — with zero humans the session never calls this and each
+          AI step requires an explicit /api/step_ai call.
+
+        - **Human singletons** (when `self.fast_mode` is on): if it's a
+          human's turn and the engine reports exactly one legal action,
+          apply that action automatically and loop. Lets the user skip
+          forced decisions without an extra click. Resolving server-side
+          avoids the SSE-arrival races the client-side fast-mode had.
+
+        Without fast_mode, this exits as soon as a human is the decider,
+        regardless of how many legal actions they have — matching the
+        original `_drive_until_human` semantic.
+        """
         while not self.game_over:
             self._maybe_round_transition_locked()
             dec = _decider_of(self.state)
             if dec in self.humans:
-                return
+                # Human's turn. Auto-resolve singletons iff fast_mode on.
+                if not self.fast_mode:
+                    return
+                actions = legal_actions(self.state)
+                if len(actions) != 1:
+                    return
+                self._apply_action_locked(actions[0])
+                continue
+            # AI's turn — always auto-apply.
             agent = self.agents[dec]
             if agent is None:
                 # Defensive: shouldn't happen — humans set is consistent with agents.
@@ -692,7 +767,7 @@ class Session:
                 return False, "not a human's turn"
             self._apply_action_locked(actions[action_index])
             if self.humans:
-                self._drive_until_human_locked()
+                self._drive_until_decision_locked()
             payload = state_to_json(
                 self.state,
                 self.log.to_wire(self.current_round),
@@ -702,6 +777,32 @@ class Session:
             )
         self._broadcast(payload)
         return True, "ok"
+
+    def set_fast_mode(self, fast_mode: bool) -> None:
+        """Toggle server-side fast mode and (if turning ON) immediately
+        auto-advance through any pending human singletons.
+
+        Broadcasts the post-advance state if anything changed. Called by
+        the frontend's fast-mode toggle via /api/fast_mode.
+        """
+        with self.lock:
+            prev = self.fast_mode
+            self.fast_mode = bool(fast_mode)
+            advanced = False
+            if self.fast_mode and not prev and self.humans and not self.game_over:
+                # Capture pre-state so we can tell if the auto-advance moved.
+                pre_state_id = id(self.state)
+                self._drive_until_decision_locked()
+                advanced = id(self.state) != pre_state_id
+            payload = state_to_json(
+                self.state,
+                self.log.to_wire(self.current_round),
+                self.game_over,
+                [] if self.game_over else legal_actions(self.state),
+                seats=self.seats,
+            )
+        if advanced:
+            self._broadcast(payload)
 
     def step_ai(self) -> tuple[bool, str]:
         """Apply ONE AI action and broadcast the new state.
@@ -732,17 +833,24 @@ class Session:
         self._broadcast(payload)
         return True, "ok"
 
-    def reset(self, seed: int, seats: tuple[str, str]) -> None:
+    def reset(
+        self,
+        seed: int,
+        seats: tuple[str, str],
+        *,
+        mcts_sims: int | None = None,
+    ) -> None:
         for s in seats:
             if s not in AGENT_TYPES:
                 raise ValueError(f"unknown seat type {s!r}")
         with self.lock:
             self.seed = seed
             self.seats = seats
+            self.mcts_sims = mcts_sims
             self.humans = {i for i, s in enumerate(seats) if s == "human"}
             self.agents = (
-                _build_agent(seats[0], seed ^ 0x10000),
-                _build_agent(seats[1], seed ^ 0x20000),
+                _build_agent(seats[0], seed ^ 0x10000, mcts_sims=mcts_sims),
+                _build_agent(seats[1], seed ^ 0x20000, mcts_sims=mcts_sims),
             )
             self.state = setup(seed)
             self.log = RoundLog(self.humans)
@@ -751,7 +859,7 @@ class Session:
             # Drop any prior session's trace; this is a fresh game.
             self.action_trace = []
             if self.humans:
-                self._drive_until_human_locked()
+                self._drive_until_decision_locked()
             payload = state_to_json(
                 self.state,
                 self.log.to_wire(self.current_round),
@@ -893,6 +1001,18 @@ def _make_handler(session: Session):
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
                 self._send_json(status, {"ok": ok, "error": None if ok else msg})
                 return
+            if path == "/api/fast_mode":
+                body = self._read_body()
+                value = body.get("enabled")
+                if not isinstance(value, bool):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "enabled must be a boolean",
+                    })
+                    return
+                session.set_fast_mode(value)
+                self._send_json(HTTPStatus.OK, {"ok": True, "fast_mode": value})
+                return
             if path == "/api/reset":
                 body = self._read_body()
                 seed = body.get("seed")
@@ -910,11 +1030,22 @@ def _make_handler(session: Session):
                     })
                     return
                 seats = (raw_seats[0], raw_seats[1])
-                session.reset(seed, seats)
+                # Optional MCTS sims override (only relevant if a seat is
+                # 'mcts'). Reject non-positive / non-integer values.
+                mcts_sims = body.get("mcts_sims")
+                if mcts_sims is not None:
+                    if not (isinstance(mcts_sims, int) and mcts_sims >= 1):
+                        self._send_json(HTTPStatus.BAD_REQUEST, {
+                            "ok": False,
+                            "error": "mcts_sims must be a positive integer",
+                        })
+                        return
+                session.reset(seed, seats, mcts_sims=mcts_sims)
                 self._send_json(HTTPStatus.OK, {
                     "ok": True,
                     "seed": seed,
                     "seats": list(seats),
+                    "mcts_sims": mcts_sims if mcts_sims is not None else _MCTS_SIMS_DEFAULT,
                 })
                 return
             self._send_text(HTTPStatus.NOT_FOUND, "not found")
@@ -991,16 +1122,24 @@ def parse_args() -> argparse.Namespace:
              "training pipeline's default. Use --no-restricted to play against agents "
              "that see the full unrestricted legal-action set.",
     )
+    ap.add_argument(
+        "--mcts-sims", type=int, default=500,
+        help="Default MCTS simulations per move when an MCTS seat is selected. "
+             "Per-session override available via the New-game dialog in the "
+             "browser UI. Defaults to 500. Approximate per-move wall on an "
+             "M-series Mac core: 500 sims ≈ 50-100ms, 1000 sims ≈ 100-200ms.",
+    )
     return ap.parse_args()
 
 
 def main() -> None:
-    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH, _RESTRICTED
+    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH, _RESTRICTED, _MCTS_SIMS_DEFAULT
     args = parse_args()
     if args.v3_config is not None:
         _TUNED_V3_CONFIG = _load_v3_config_from_json(args.v3_config)
         _TUNED_V3_SOURCE_PATH = args.v3_config
     _RESTRICTED = bool(args.restricted)
+    _MCTS_SIMS_DEFAULT = int(args.mcts_sims)
     seed = args.seed if args.seed is not None else int(time.time())
     seats = (args.seats[0], args.seats[1])
     session = Session(seed=seed, seats=seats)
@@ -1009,8 +1148,9 @@ def main() -> None:
     url = f"http://{args.host}:{args.port}"
     print(f"AgricolaBot WebUI - seed={seed} | seats={list(seats)}")
     if _TUNED_V3_SOURCE_PATH is not None:
-        print(f"  hubris_v3 will use tuned config from: {_TUNED_V3_SOURCE_PATH}")
+        print(f"  hubris_v3 / mcts will use tuned V3 config from: {_TUNED_V3_SOURCE_PATH}")
     print(f"  AI seats use restricted_legal_actions: {'ON' if _RESTRICTED else 'OFF'}")
+    print(f"  MCTS default sims/move: {_MCTS_SIMS_DEFAULT}  (override per session via New-game dialog)")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:

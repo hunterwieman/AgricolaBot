@@ -185,9 +185,46 @@ class MCTSSearch:
         *,
         legal_actions_fn=None,
         evaluator_config=None,
+        evaluator_fn=None,
+        heuristic=None,
         n_random_fencing: int = 4,
         rng_seed: int = 0,
+        leaf_differential: bool = True,
     ):
+        """Build an MCTSSearch.
+
+        Defaults configure a fully-V3 search (V3 leaf evaluator + V3
+        heuristic for greedy macros + V3-aware strict-restricted legality).
+        Override `evaluator_fn` + `heuristic` to use a different leaf
+        evaluator / different heuristic for macros (e.g., V1 for
+        head-to-head experiments).
+
+        - `evaluator_config`: dataclass holding the evaluator's tunable
+          parameters. Used to construct the default `heuristic` AND
+          passed through to `evaluator_fn(state, player_idx, config)`.
+          Defaults to `DEFAULT_CONFIG_V3` when neither this nor
+          `heuristic` is supplied.
+        - `evaluator_fn`: callable `(state, player_idx, config) -> float`
+          used at MCTS leaves. Defaults to `evaluate_hubris_v3`.
+        - `heuristic`: a pre-constructed heuristic agent used to play
+          the greedy macro-fencing chain. Defaults to a
+          `HubrisHeuristicV3(config=evaluator_config, ...)`. Pass an
+          arbitrary agent to use a different policy for macros.
+        - `legal_actions_fn`: every legality consultation routes through
+          this. Defaults to a strict-restricted wrapper bound to this
+          search's RNG using `evaluator_config` for the harvest-feed cap's
+          ranking. NB: the wrapper's cap uses V3 internally regardless of
+          what evaluator_fn you supply — the cap is a legality concern,
+          not an evaluation one.
+        - `leaf_differential`: if True (default), leaf value is
+          `evaluator_fn(state, 0) - evaluator_fn(state, 1)` — the standard
+          zero-sum margin estimate. If False, leaf value is just
+          `evaluator_fn(state, 0)` (P0's standalone quality, no opponent
+          subtraction). Useful when the evaluator was tuned as a
+          single-player evaluator and the subtraction amplifies biases
+          rather than canceling them. Both modes still use P0-frame leaf
+          values and the same sign-flip backprop.
+        """
         self.transpositions: dict[GameState, MCTSNode] = {}
         self.root: Optional[MCTSNode] = None
         self.n_random_fencing = int(n_random_fencing)
@@ -197,6 +234,11 @@ class MCTSSearch:
         if evaluator_config is None:
             evaluator_config = _lazy_default_config_v3()
         self.evaluator_config = evaluator_config
+
+        # Resolve evaluator function (V3 if not specified).
+        if evaluator_fn is None:
+            evaluator_fn = _lazy_evaluate_hubris_v3()
+        self.evaluator_fn = evaluator_fn
 
         # Resolve legality function. Default: a strict wrapper bound to this
         # search's RNG so the harvest-feed cap's random samples are
@@ -211,13 +253,18 @@ class MCTSSearch:
         # Heuristic agent used to play greedy macro-fencing chains.
         # Constructed once; reused. Uses the same legal_actions_fn so its
         # internal lookahead sees the same action-pruning the tree does.
-        HubrisHeuristicV3 = _lazy_hubris_v3_class()
-        self.heuristic = HubrisHeuristicV3(
-            config=self.evaluator_config,
-            seed=rng_seed,
-            lookahead="turn",
-            legal_actions_fn=self.legal_actions_fn,
-        )
+        if heuristic is None:
+            HubrisHeuristicV3 = _lazy_hubris_v3_class()
+            heuristic = HubrisHeuristicV3(
+                config=self.evaluator_config,
+                seed=rng_seed,
+                lookahead="turn",
+                legal_actions_fn=self.legal_actions_fn,
+            )
+        self.heuristic = heuristic
+
+        # Whether `evaluate_leaf` subtracts P1's evaluation from P0's.
+        self.leaf_differential = bool(leaf_differential)
 
     # ---- Transposition table maintenance ---------------------------------
 
@@ -294,22 +341,28 @@ class MCTSSearch:
     def evaluate_leaf(self, state: GameState) -> float:
         """Leaf value in P0's reference frame.
 
-        At terminal states (`Phase.BEFORE_SCORING`), `evaluate_hubris_v3`
-        already returns the margin (`own − opponent`) via
-        `_terminal_margin_value`. Return it directly. Subtracting at
-        terminal would double the value (since at terminal e1 = -e0).
+        At terminal states (`Phase.BEFORE_SCORING`), all `evaluate_hubris_*`
+        functions already return the margin (`own − opponent`) via the
+        shared `_terminal_margin_value` helper. Return it directly.
+        Subtracting at terminal would double the value (since at terminal
+        e1 = -e0).
 
-        Mid-game, `evaluate_hubris_v3(state, p)` returns player p's
-        heuristic quality (one-player value). Subtract to get a margin
-        in P0's frame.
+        Mid-game behavior depends on `self.leaf_differential`:
+          - True (default): return `e(state, 0) - e(state, 1)` — the
+            standard zero-sum margin estimate.
+          - False: return `e(state, 0)` only — P0's standalone quality.
+            For evaluators that were tuned as single-player evaluators
+            and may amplify biases when differenced.
+
+        The evaluator is whatever was passed to `MCTSSearch.__init__`
+        (defaults to `evaluate_hubris_v3`).
         """
-        evaluate_hubris_v3 = _lazy_evaluate_hubris_v3()
         if state.phase == Phase.BEFORE_SCORING:
-            return evaluate_hubris_v3(state, 0, self.evaluator_config)
-        return (
-            evaluate_hubris_v3(state, 0, self.evaluator_config)
-            - evaluate_hubris_v3(state, 1, self.evaluator_config)
-        )
+            return self.evaluator_fn(state, 0, self.evaluator_config)
+        p0_val = self.evaluator_fn(state, 0, self.evaluator_config)
+        if not self.leaf_differential:
+            return p0_val
+        return p0_val - self.evaluator_fn(state, 1, self.evaluator_config)
 
     # ---- Macro-fencing ---------------------------------------------------
 

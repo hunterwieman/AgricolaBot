@@ -64,33 +64,37 @@ Hand-written policies implementing reasonable Agricola strategy. Three Hubris ve
 
 Web UI: `python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json` plays you against the current champion. New-game dropdown simplified to human/random/v1/v3.
 
-**Cumulative tuning results:** V1+T2 = +8.85 vs V1 default. V3 + tuned resources = +8.72 vs V1+T2 (~+17 over V1 default cumulatively). V3 iterative tuning in progress at time of writing.
+**Current state:** V1+T2 (= `CONFIG_V1_T2`, the round-2-tuned V1) is the project's strongest standalone heuristic. The current `v3_best.json` is the iter1 V3 manually ported into the post-refactor schema — beats V1+T2 by ~12 margin (the strongest V3 we have). The previous v3_best (post-iter4 alphas) lost to V1+T2 by ~11 (chained-baseline drift, now caught by the multi-baseline + regression-detector tooling). See V3_TRAINING_PIPELINE.md §2.5, §6, §8.
 
 **Open V3 next steps:**
 
-- **F1.** Finish the current iterative run (2 passes × 4 categories; 7 steps remaining at time of writing).
+- **F1.** ~~Finish the current iterative run~~ — superseded by the V3 retune planned in F12.
 - **F2.** Promote `v3_best.json` to a Python constant `CONFIG_V3_T1` once tuning converges (mirror the `CONFIG_V1_T2` pattern). Document in CHANGES.md.
 - **F3.** Address V1's food double-count in V3. Options: convertible-discount-by-stage (add 6-element array scaling `convertible` in the food shortfall calculation by stage); V2-style joint frontier with "will I actually convert?" weighting. See HUBRIS_V1_NOTES.md §4 for the V2 history.
 - **F4.** Discrete-cutoff sweep — manual sweep, not CMA-ES. Test alternative values for: pasture "capacity ≥ 4" threshold (currently K=4 for `pasture_value_large`), "≤2 rooms" threshold for `wood_pre_3rd_room_vector` activation, "≥3 capacity per pasture" threshold for breeding-capable, "round 12 cap" in empty-room helper, stage boundaries in `_stage_of_round`. See V3_DESIGN.md §8.6.
 - **F5.** Per-stage joint-alpha split. `score_joint_alpha_by_stage` currently modulates clay_rooms + stone_rooms + people + bonus_points with ONE curve. Could split into 4 separate curves (24 params) if tuning suggests the lump is too coarse.
 - **F6.** Slot-indexed stone-major vector. Stone currently has only renovation + generic; could add a `stone_major_vector` indexed by stone count, analogous to `wood_fence_vector`. Defer until tuning suggests stone is under-modeled.
 - **F7.** Per-vector pasture alphas. `pasture_value_all` and `pasture_value_large` share one blend α; per-vector alphas would let the optimizer give the "large pasture bonus" a different time profile.
-- **F8.** Baseline graduation. When V3 holdout margin exceeds ~+20-25 vs `t2`, signal saturates. Switch tuning `--baseline` to `v3_best.json` itself (each candidate must beat its own previous best). Easy: orchestrator already supports JSON-path baselines.
-- **F9.** Seed-rotation during training. Currently all candidates in all generations play games against the same fixed seeds 0-99. Could rotate per-gen (gen 1 → seeds 0-99, gen 2 → seeds 100-199, ...) to broaden environmental coverage and reduce overfitting. Implementation: modify `_eval_candidate` to accept per-call seeds (small refactor). Concerns and trade-offs in chat history under "Is it worthwhile to vary the seeds between generations?"
+- **F8.** ~~Baseline graduation~~ — **OBSOLETE**. The chained-baseline approach this proposed is exactly what caused the iter2 drift. Use `--baselines` (mix of references) + `--regression-baseline t2` instead. See V3_TRAINING_PIPELINE.md §2.5.
+- **F9.** Seed-rotation during training. Currently all candidates in all generations play games against the same fixed seeds 0-99. Could rotate per-gen to broaden environmental coverage and reduce overfitting. Lower priority now that multi-baseline addresses overfitting from a different angle.
 - **F10.** V4 architectural ideas (defer until V3 has clearly converged). Possible directions: per-round arrays instead of per-stage step functions; explicit regime-conditional vectors instead of additive overlays; an explicit "moves remaining" axis on every category.
-- **F11. Known bug: extract `x0` from warm-start base, not TUNABLE defaults.** Currently fresh tuning runs use `TUNABLE`'s `default` field as `x0`, which OVERWRITES the warm-start base's already-tuned values for fields in TUNABLE. Caused a regression in this session's pass-1 step-3 (resources) — sanity dropped from ~+10 to −14 vs t2 at gen 0. Mitigated for resumed runs (the saved CMA-ES mean is loaded instead). Fix: extract `x0` from the base config at run-time. See V3_TRAINING_PIPELINE.md §10.4b for the full diagnosis + code sketch.
+- **F11.** ~~x0 from warm-start base bug~~ — **FIXED** in earlier session (`_x0_from_base` extracts at run-time).
+- **F12. V3 retune from the recovered ported baseline using the new multi-baseline + regression-detector tooling.** Run `python -O scripts/tune_heuristic.py --category v3_all --from tuned_configs/v3_best.json --baselines t2 v3_best --regression-baseline t2 --popsize 30 --max-gens 30 --n-seeds 50`. Inspect output JSON's `regression_history`. Should improve over the current `+12 vs V1+T2`. If it doesn't, the V3 architecture may be near its ceiling and the next leverage is structural (F10/V4) rather than parameter tuning.
+- **F13. Reed weight audit.** Hypothesis (raised this session): V3 over-values reed because of implicit "reed denial" dynamics from V3-vs-V3 self-tuning. Inspect `v3_best.json`'s reed-related fields vs V1's structure to test this; no compute needed. May explain why V3 lost ground to V1 during iter2's drift.
 
-### G. MCTS scaffolding
+### G. MCTS scaffolding — **landed**
 
-Pure MCTS (no neural net yet), used initially with random and heuristic agents to validate the tree-search loop. Becomes the substrate for AlphaZero-style training in Phase 5.
+`agricola/agents/mcts.py` ships `MCTSAgent` / `MCTSSearch` / `MCTSNode` / `MacroFencingAction`. Vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation (no rollouts) + macro-enumeration for Fencing + strict-restricted legality. See **`MCTS_DESIGN.md`** for the full design and **`agricola/agents/mcts.py`** for the implementation.
 
-Concrete pieces: a `TreeNode` class with edge / node statistics, a `select / expand / simulate / backup` loop, UCB1 selection, terminal-state handling, and an agent wrapper that uses MCTS to pick actions.
+`MCTSSearch` accepts `evaluator_fn`, `heuristic`, and `leaf_differential` parameters so the same scaffold can run with V1 or V3 as the leaf evaluator, and with single-player vs differential leaf semantics.
 
-Now fully unblocked on both fronts:
-- **Hashability** (Change 8) — `GameState` can key a transposition table once one is wanted.
-- **Within-search memoization** (Change 9) — `legal_actions_cache()` provides an opt-in identity-keyed cache; MCTS wraps its search loop in `with legal_actions_cache(): ...` to take the ~370× cache-hit speedup at zero plumbing cost.
+**Current empirical finding:** at 200-500 sims with vanilla UCT and the project's V1 / V3 heuristics as leaf evaluators, MCTS **loses 3-5 points** vs the same heuristic used standalone (e.g. MCTS-V1 vs V1-heuristic = −3.88 at 500 sims; MCTS-V3-ported vs V3-ported-heuristic = −5.58 at 200 sims). The +2.5-3 lift seen against the old (drifted) v3_best was MCTS partially compensating for V3's weakness, not absolute value.
 
-If MCTS performance becomes the bottleneck, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) and S5 (cached `__hash__` for transposition tables) are the natural targets — but profile first.
+**MCTS remains the project's long-term direction** (Phase 5 AlphaZero-style self-play): the current finding scopes what UCT-with-1-turn-leaf-eval does NOW with the CURRENT evaluators at modest sim budgets, not whether MCTS will eventually pay off. PUCT priors + a learned-value NN + higher sim budgets are the natural follow-ups (see N below).
+
+### G2. MCTS asymptote study
+
+Does MCTS-V1 vs V1-heuristic margin cross 0 at high sim budgets (1000, 2000, 5000), or saturate negative? Trend so far: 200 sims = −5.43, 500 sims = −3.88 (small improvement with more sims). Settles whether MCTS at the current scaffolding is just under-budgeted or fundamentally not pulling weight against strong heuristics in this game. Compute: ~30-90 min depending on top budget. Useful before investing more in MCTS scaffold improvements vs jumping to learned evaluators (P).
 
 ---
 
@@ -153,17 +157,39 @@ Depends on G (MCTS scaffolding), and ideally on H–K (card system mostly comple
 
 Elo ratings between agent versions, score distribution analysis, game-length variance, trace replay viewer, head-to-head match infrastructure. Useful throughout training to detect regressions and to compare experimental variants. Some pieces (trace replay, score distribution) are useful immediately for the existing engine and could ship ahead of the full evaluation pipeline.
 
+### P. NN value-function training
+
+Train a neural network value function that takes a `GameState` (or a featurized view of it) and predicts the expected score margin from that player's perspective. Replaces V1/V3 as the leaf evaluator inside MCTS — and potentially as a standalone agent via 1-turn lookahead.
+
+Why this matters: the empirical bottleneck for agent strength is the EVALUATOR, not the search algorithm. V1/V3 are hand-designed feature combinations with finite expressiveness; a NN can learn arbitrary nonlinear interactions. If a learned value function beats V1 as a standalone evaluator (1-ply margin), it can then be dropped into MCTS as a leaf — and the AlphaZero-style training loop (G → P → better G → ...) becomes available.
+
+**Minimum viable approach:**
+
+1. **Feature extractor:** `GameState → fixed-size float vector` (or sparse representation). Should capture resources, animals, farmyard cells, pending stack, current player, round number, etc. Design choice between raw features and hand-engineered features (mimicking V3's structure) — start with both available and let training preference settle it.
+2. **Generate self-play training data:** ~10K-50K games of `V1-heuristic` self-play (with temperature > 0 for diversity), recording (state, final-margin) pairs. ~3-10 hours compute on 8 cores.
+3. **Train a value-only NN** (~50K-500K params, hidden dim 64-256). PyTorch. Target: predict final margin from each state.
+4. **Evaluate as standalone agent** (1-ply argmax over NN scores) vs V1-heuristic. If NN beats V1, the AlphaZero loop unlocks.
+
+If NN beats V1 by ANY margin, use it as the MCTS leaf evaluator and re-test G (MCTS vs heuristic). MCTS with a stronger leaf should perform better than the current MCTS-with-V1.
+
+**Setup work before any results:** feature extractor, data-generation harness with diversity (temperature + random openings, possibly your exogenous-randomization ideas), PyTorch training script, evaluation framework. Probably 1-2 sessions of pure infrastructure before training data hits the network.
+
+**Uncertainty:** I'd give roughly equal probability (~33% each) to "NN beats V1 by a meaningful margin," "NN ≈ V1 (no improvement)," and "NN clearly worse than V1." No specific prior for Agricola here.
+
 ---
 
 ## My take (advisory, not prescriptive)
 
-**F (heuristic agent) landed and substantially evolved.** SimpleHeuristic + Hubris V1/V2 shipped 2026-05-22. CONFIG_V1_T2 (round-2-tuned V1) promoted same day. HubrisHeuristicV3 architecture + CMA-ES tuning pipeline landed 2026-05-22 evening. Iterative V3 tuning in progress at the time this entry was written. See V3_DESIGN.md, V3_TRAINING_PIPELINE.md, and the F-section bullet list above for the queue of V3 follow-up work.
+**Current strongest agent: V1+T2** (`HubrisHeuristicV1` + `CONFIG_V1_T2`). The V3 architecture exists and the strongest historical V3 (now in `v3_best.json` via the iter1 port) beats V1 by ~12 in heuristic head-to-head — but the V3 tuning pipeline previously drifted via chained-baseline overfitting (caught by new multi-baseline + regression-detector tooling). MCTS as currently configured doesn't lift over strong heuristics at 200-500 sims.
 
-**Two natural next directions, in parallel:**
+**Three natural next directions, in priority order:**
 
-1. **Continue V3 tuning + analysis** (F1-F10 above). Finish current iterative run, promote v3_best.json to a Python constant, address food double-count, sweep discrete cutoffs.
-2. **MCTS scaffolding (G)** — fully unblocked by Changes 8 and 9. Pure MCTS first, with HubrisHeuristicV3 + CONFIG_V3_T1 as the rollout policy (once promoted). If MCTS rollout cost becomes a problem, POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining optimization based on current profiles.
+1. **V3 retune (F12)** — exercise the new multi-baseline + regression-detector tooling on a real run from the recovered V3 baseline. Goal: V3 that beats V1+T2 by MORE than +12 without drifting. ~2-3 hours. Validates whether the V3 architecture has more headroom than the broken tuning suggested, or whether it's near its real ceiling.
 
-Both compound: a stronger heuristic makes MCTS rollouts more informative, and MCTS-driven self-play could itself be a source of tuning signal for the heuristic.
+2. **NN value function (P)** — the most likely path to a meaningfully stronger agent. The MCTS finding shows search isn't the bottleneck at current evaluator quality; better evaluators is the leverage point. Setup-heavy (1-2 sessions of infrastructure work before any results), but the strategic payoff is large if it works.
 
-**Card system as a separate track:** can run in parallel with agent work, but the open design questions (H, I, J, K) should be settled before adding many cards. Resolve each question when the first card needing it lands; let real cards drive the design rather than speculating ahead of consumers.
+3. **MCTS asymptote (G2)** — settles whether MCTS is "just under-budgeted" or "fundamentally not pulling weight" at the current scaffolding level. Quick to run (~1 hour), tells us whether to invest in MCTS scaffold improvements (PUCT, better priors, more sims) or jump straight to learned evaluators (P).
+
+Smaller items: **F13 (reed weight audit)** is free (no compute) and could clarify why V3 drifted. **F3 (V3 food double-count)** is a meaningful but bounded improvement. F4-F7 are architectural V3 expansions, defer until F12 settles V3's headroom.
+
+**Card system (H-L)** still a separate track that can run in parallel. Open design questions (H, I, J, K) should be settled when the first card needing each lands.
