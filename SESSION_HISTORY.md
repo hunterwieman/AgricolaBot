@@ -2413,6 +2413,177 @@ All 23 new restricted-action tests pass; previous suite stays green after the ag
 
 ---
 
+## Per-stage major refactor + extensive heuristic tuning + exhaustive-lookahead negative result + terminal-margin semantics (2026-05-23 / 2026-05-24)
+
+### What was built
+
+A long session that landed (a) a substantive evaluator refactor making major-improvement values per-stage, (b) two new TUNABLEs covering every actively-read V3 parameter, (c) five tuning runs across two days totaling ~7 hours of compute, (d) a key bug fix to the auto-update infrastructure, (e) an experimental `lookahead="exhaustive"` mode that turned out to be a negative result, and (f) a small but principled change to end-of-game evaluator semantics.
+
+**Per-stage major-improvement refactor** (`agricola/agents/heuristic.py`). V1's `_hubris_major_value` used a 3-tier round bucket for cooking + scalar values for everything else + a `well_value + 0.4 × upcoming_food_rounds` formula for the well. V3 now has `_hubris_major_value_v3` reading 8 length-6 per-stage arrays — 48 new continuous parameters that CMA-ES can tune (`fireplace_value_by_stage`, `hearth_value_by_stage`, `well_value_by_stage`, `clay_oven_value_by_stage`, `stone_oven_value_by_stage`, `joinery_value_by_stage`, `pottery_value_by_stage`, `basketmaker_value_by_stage`). The "extra cooking implement = flat +1" rule replaces the V1 `cooking_secondary_vp` scalar. Well drops its future-food scaling entirely. Also added `_hubris_pasture_location_bonus_v3` with c≥3 cell-set (6 cells) instead of V1's c≥2 (9 cells). V1 helpers untouched. Legacy field names kept on `HeuristicConfigV3` for JSON backwards-compat; the V3 evaluator no longer reads them. 20 new tests in `tests/test_v3_majors_and_pasture_bonus.py`.
+
+**Two new TUNABLEs** in `scripts/tune_heuristic.py`: `v3_majors_per_stage` (48 dims, 8 majors × 6 stages) and `v3_alphas_and_carryovers` (22 dims — the B1+B3+B4 enumeration: `score_joint_alpha_by_stage` + `unused_spaces_alpha_by_stage` + `family_per_round` + `empty_room_rate_pre/post_basic_wish` + `starting_player_bonus` + `field_center_bonus` + `pasture_location_bonus` + `renovation_bonus_per_step_early/late`). Combined with the existing four V3 TUNABLEs, every actively-read parameter on `HeuristicConfigV3` (~312 of ~326 dataclass fields) is now covered by some TUNABLE.
+
+**Five tuning runs** in order, each promoting `tuned_configs/v3_best.json`:
+
+1. `v3_majors_per_stage` (first) — n=100, popsize 14 — holdout **+2.58** vs prior v3_best.
+2. `v3_alphas_and_carryovers` (first) — n=100, popsize 13 — holdout **+6.27** vs prior v3_best, the biggest single-category gain. Striking parameter shifts: `starting_player_bonus` crashed from 1.23 → 0.02 (SP token essentially worthless to V3), `pasture_location_bonus` jumped ~10× from 0.05 → 0.49 (the c≥3 cell preference is much stronger than V1's c≥2 calibration suggested), `score_joint_alpha_stage3` rose above 1.0 (V3 was undervaluing the score leaf mid-game).
+3. **iter3 pass 1** (orchestrated) — 4 original categories × 1 pass at n=200 training, n=300 holdout. All 4 categories promoted: fields_crops (+5.99), food (+10.55 — food was a major surprise, having always fallen back to x0 in prior iterations), resources (+15.16), pastures_animals (+4.73 after mid-run manual floor reset). Total wall ~3.2 hours.
+4. **iter4 majors re-tune** — `v3_majors_per_stage` resumed from prior pickle at n=300 / n=400 — holdout **+8.11** (~+4.57 true gain over self-match floor). Confirmed the iter3 baseline shift had moved majors' optima.
+5. **iter4 alphas re-tune** — first run using the new `--reset-floor-after-promote` flag. Training +4.03, holdout +0.68 (mild overfitting; saturation signal for this category). `unused_spaces_alpha_stage2` showed a striking reversal (0.04 → 0.99 vs its previous-run value), suggesting a flat optimum or non-identifiable parameter.
+
+Cumulative gain across the five runs is roughly +15-25 holdout points over the pre-session post-iter2 baseline. Exact number hard to pin down because of the chained-baseline auto-update bug fixed mid-session.
+
+**Auto-update bug fix** (`--reset-floor-after-promote` flag in `scripts/tune_heuristic.py`). The bug: when a sequence of single-category tunings each uses `--baseline tuned_configs/v3_best.json` and v3_best.json auto-promotes between steps, the stored `holdout.avg_margin` records step N's gain over step N−1's now-obsolete baseline. The next step's holdout (vs the NEW champion) would have to exceed that stale number to promote, which is essentially impossible for an incremental improvement. iter3 step 4 hit this concretely: its +4.73 gain over the post-step-3 champion was a real improvement, but compared against the +15.16 stored value (= step 3's gain over step 2), would have failed to promote. We worked around it manually mid-run, then implemented the proper fix.
+
+The flag's behavior: after `_maybe_update_best_pointer` promotes, re-measure the new champion's self-match floor on the holdout seeds and overwrite the stored `holdout.avg_margin` with that floor. Cost: ~holdout_n self-match games per promoted run (~2 min at n=300, restricted). `_maybe_update_best_pointer` was changed to return bool so the caller can gate the floor-reset on actual promotion. Verified working end-to-end on the iter4 alphas re-tune. Default OFF for backwards compatibility; the orchestrator doesn't currently pass it but should for any future iter5+.
+
+`scripts/run_iterative_v3.py` also gained a `--holdout-n` passthrough flag so iter3 could use n=300 holdout instead of the hardcoded 100.
+
+**Exhaustive lookahead — implementation and negative result.** User wanted to verify the agent was doing the originally-specified "full sub-action subtree search" rather than the actual "greedy 1-ply descent" that `lookahead="turn"` does. Added `lookahead="exhaustive"` mode to `HeuristicAgent` (`agricola/agents/base.py`) with `_exhaustive_value` / `_exhaustive_recurse` and a per-top-action `exhaustive_leaf_cap` (default 1000) with greedy-descent fallback above the cap.
+
+Wrote `scripts/measure_exhaustive_leaves.py` to characterize cost before running matches. Result: average ~29k leaves per game (avg across 10 self-match games), estimated 3.6× slowdown vs greedy. Manageable. Cost distribution dominated by PlaceWorker (74%) and PendingBuildFences (24%).
+
+Wrote `scripts/run_exhaustive_vs_greedy_match.py` (8-way parallel pool, ~3s/game). Ran 100 games and then 800 games of exhaustive-V3 vs greedy-V3 at the current v3_best:
+
+```
+100-game: P0 (exh) 46-4-50 P1 (greedy)  margin -2.15  (seeds 1000-1099)
+800-game: P0 (exh) 281-23-496 P1 (greedy)  margin -4.49 ± 1.05  (seeds 20000-20799)
+```
+
+Exhaustive is significantly **worse** than greedy. Diagnostic: exhaustive max-selects against an imperfect evaluator, systematically picking the states the evaluator overvalues (evaluator-bias amplification). Greedy's locally-correct picks at each step don't expose this bias as aggressively. This is the same phenomenon that motivates stochastic rollouts (rather than deterministic max) in MCTS. The implementation is correct; the negative result is about the paradigm, not the code.
+
+The mode is kept as opt-in (used by the leaf counter as a side-effect), but default lookahead remains `"turn"`. Important strategic implication: the heuristic agent's bottleneck is evaluator quality, NOT search-depth. Continued investment in deterministic-search variants is not promising; the natural next leverage point is MCTS (which sidesteps the bias-amplification problem via stochastic rollouts) or a learned value function.
+
+**Terminal-margin-value semantics.** All four evaluators (`evaluate_simple`, `evaluate_hubris_v1/v2/v3`) now return `own_score − opponent_score` at `Phase.BEFORE_SCORING` (was: just `own_score`). Shared via new `_terminal_margin_value(state, player_idx)` helper. The game's actual payoff is the margin between the two players, not absolute score. Matters specifically for late-round-14 decisions where two actions would yield the same own-end-score but differ in opponent-end-score (blocking effects, shared-resource consumption). Mid-game evaluator output unchanged; tuning fitness unchanged.
+
+### Design decisions
+
+- **Per-stage majors over multi-tier round buckets.** V1's 3-tier scheme (`<12`, `12-13`, `=14`) baked in coarse round boundaries. V3 already uses 6-stage curves uniformly for resources, animals, etc. — extending majors to the same scheme makes the schema uniform and exposes ~3× more degrees of freedom to tuning. The empirical validation: the first majors run gained +2.58 over floor, and the iter4 re-tune (post-iter3 baseline shift) gained another +4.57, showing the new parameters had real expressive capacity that V1's scalars didn't.
+
+- **Flat +1 for extra cookings, not `cooking_secondary_vp`.** Simpler and approximately matches the printed VP of a duplicate cooking implement. One less scalar to tune. Drops well_food_per_future for similar simplification reasons — the future-food scaling was hand-picked at 0.4 and never tuned anyway.
+
+- **V3-only helpers, V1 untouched.** Backwards compat for `CONFIG_V1_T2`, `HubrisHeuristicV1`, and any V1-vs-V3 holdout comparison. The price is doc/code duplication, but the V1 codebase is essentially frozen and the duplication is bounded.
+
+- **Auto-floor-reset opts-in, not opts-out.** Default OFF preserves the existing single-run behavior (the v1_addonly TUNABLE precedent, where stable cross-run comparisons against `t2` matter). New chained-baseline pattern explicitly engages the flag. iter1/iter2 didn't need it because they used a fixed baseline. iter3+ needs it.
+
+- **Per-top-action leaf cap, not global cap.** The leaf-counter measurement showed most chains are small (p95 <100 leaves) with Fencing as the outlier. Per-top-action capping at 1000 means 95%+ of chains complete exhaustively; only Fencing-heavy decisions hit greedy fallback. Global cap would have starved later candidates of budget after earlier ones consumed it.
+
+- **Terminal margin via shared helper, not duplicated logic.** Four evaluators with the same three-line pattern is exactly the case for a single helper. Refactor reduces duplication and makes future tweaks (e.g. draw-handling) a one-line change.
+
+### Empirical findings
+
+1. **Block-coordinate descent with chained baselines compounds well.** Every per-category run during iter3 found real gains because the surrounding categories had shifted. food in particular — which previously always fell back to x0 — produced a +10.55 holdout gain when the post-alphas baseline gave it new room to move.
+
+2. **Some V1_T2-derived parameters are NOT actually well-tuned in V3 context.** The starting_player_bonus crashed from 1.23 → 0.02. The pasture_location_bonus shot up ~10× (admittedly its cell set also changed). `score_joint_alpha_stage3` rose to >1.0 — V3 was *under*-weighting the score leaf mid-game, the opposite of what the hand-picked monotone-increasing default suggested. V1's tuning didn't catch any of these because V1's evaluator didn't have V3's surrounding structure.
+
+3. **Exhaustive deterministic search hurts.** Negative finding. The heuristic's bottleneck is evaluator quality, not search-depth strategy.
+
+4. **Auto-update bug requires careful floor management.** Whenever the baseline shifts via auto-promote, the stored holdout becomes a "step N vs step N−1" margin, not a self-match floor. `--reset-floor-after-promote` is essential going forward for any chained-baseline pattern.
+
+5. **Saturation signal for alphas.** iter4 alphas re-tune showed mild overfitting (training +4.03, holdout +0.68) plus parameter reversal on `unused_spaces_alpha_stage2`. First clear saturation indicator in any V3 category.
+
+### Surfaced confusion and recovery
+
+I made an analysis mistake mid-session: when interpreting head-to-head matches I treated the self-match "floor" as a baseline representing seat asymmetry, and attempted to compute "exhaustive vs greedy" gains by subtracting the floor. User caught this: starting player is randomized per seed, so there's no consistent seat-asymmetry to subtract. The correct read of the 800-game match is the direct number (−4.49 ± 1.05) — exhaustive is genuinely worse than greedy. The "floor" measurements ARE useful as auto-update thresholds (per the auto-update bug fix), but NOT as seat-baselines for comparing different agents. Apologized and reframed.
+
+### Files touched
+
+**New:**
+- `tests/test_v3_majors_and_pasture_bonus.py` — 20 tests for `_hubris_major_value_v3` + `_hubris_pasture_location_bonus_v3` + backwards-compat (later tweaked to synthesize old-shape dict rather than rely on v3_best.json's evolving contents).
+- `scripts/measure_exhaustive_leaves.py` — leaf counter / cost analyzer for exhaustive search.
+- `scripts/run_exhaustive_vs_greedy_match.py` — 8-way parallel head-to-head runner.
+
+**Modified:**
+- `agricola/agents/heuristic.py` — per-stage major fields on `HeuristicConfigV3`; new helpers `_hubris_major_value_v3`, `_hubris_pasture_location_bonus_v3`, `_terminal_margin_value`; `evaluate_hubris_v3` call sites updated; `CONFIG_V3_T1` extended with explicit per-stage values; legacy fields preserved; `HubrisHeuristicV3` accepts `exhaustive_leaf_cap`; all four evaluators' `BEFORE_SCORING` branch unified through `_terminal_margin_value`.
+- `agricola/agents/base.py` — `lookahead="exhaustive"` mode; `_exhaustive_value` + `_exhaustive_recurse` with per-top-action leaf cap and greedy-descent fallback.
+- `scripts/tune_heuristic.py` — new TUNABLEs `TUNABLE_V3_MAJORS_PER_STAGE` (48) and `TUNABLE_V3_ALPHAS_AND_CARRYOVERS` (22); `--reset-floor-after-promote` flag + `_reset_floor_in_best_pointer` helper; `_maybe_update_best_pointer` returns bool.
+- `scripts/run_iterative_v3.py` — `--holdout-n` passthrough flag.
+- `tuned_configs/v3_best.json` — promoted ~6 times through the session (final = iter4 alphas re-tune output).
+- `CLAUDE.md` — 2 new status rows (exhaustive lookahead negative result; terminal-margin-value).
+- `V3_DESIGN.md` — §6 updated for terminal-margin pseudocode; new §8.8 (why margin not own-score) + §8.9 (exhaustive negative result); §5 already had the V3-specific helpers split-out from a prior edit.
+- `V3_TRAINING_PIPELINE.md` — new §2.6 (chained-baseline auto-update bug + fix, with concrete iter3 example); new TUNABLE rows in §3; `--reset-floor-after-promote` row in §2.2; §8.3 chronology extended with entries 8-14; new §8.5 (current state); new §10.9 (the "evaluator quality is the bottleneck" finding).
+- `TEST_DESCRIPTIONS.md` — entry for the new test file (added earlier) tweaked to reflect the resilient-backwards-compat-test design.
+
+### Tests
+
+All 704 tests pass throughout the session (was 661 at session start; added 20 in `test_v3_majors_and_pasture_bonus.py` + 23 in `test_restricted_actions.py` from the prior session). Test suite remained green after every individual edit.
+
+### Next session
+
+- **Tune `v3_alphas_and_carryovers` again** OR confirm saturation. Mild overfitting in iter4 alphas suggests the category may be near its ceiling; one more pass would confirm.
+- **Reset floor with `--reset-floor-after-promote` going forward.** No more manual fiddling.
+- **Consider iter5 or stop heuristic tuning.** With ~5 of 6 categories still showing gains in their iter3/iter4 runs, one more orchestrator pass might still be worthwhile (~3 hours). Beyond that we're in diminishing-returns territory.
+- **MCTS scaffolding.** Per the exhaustive-lookahead negative result, the heuristic's evaluator IS the bottleneck. Deeper deterministic search amplifies bias. MCTS (with stochastic rollouts) sidesteps this and is the right next major direction. The heuristic agent and `restricted_legal_actions` wrapper are both prerequisites that are now in place. Project phase 5 per CLAUDE.md.
+- **Promote current v3_best.json to a `CONFIG_V3_T2` named constant** in `agricola/agents/heuristic.py` — same pattern as `CONFIG_V1_T2` and `CONFIG_V3_T1`. Deferred pending the next round of tuning's settling.
+- **Compound card interactions** still deferred to whenever the card system lands.
+
+---
+
+## MCTS design session — comprehensive design spec drafted in `MCTS_DESIGN.md` (2026-05-25)
+
+### What was built
+
+A new top-level design document `MCTS_DESIGN.md` (~1100 lines, 13 sections) capturing the full design for the project's phase-5 MCTS implementation. No code was written; the deliverable is the spec itself, ready for a future session to implement against.
+
+The design is the result of an extended back-and-forth where each decision was challenged, alternatives weighed, and pitfalls anticipated. Key architecture decisions captured:
+
+- **Vanilla UCT, not PUCT** — keeps the MVP simple; no need to define a prior. The `c = 1.4` (= √2) classical constant is the default, tunable.
+- **FPU (First-Play Urgency) with Bayesian-UCT-style formulation** — `UCB(unvisited) = parent.mean_q + c·√(ln(N_parent+1))`, treating unvisited as if visited once. Avoids the +∞ "sweep every child first" cost at high-branching nodes (PendingHarvestFeed, PendingBuildMajor). The naive `parent.mean_q − offset` formulation was identified as broken (unvisited never re-explored) and explicitly rejected.
+- **Random ordering at expansion** — avoid systematic bias from deterministic `legal_actions` order.
+- **DAG with transposition table** from the start — `dict[GameState, MCTSNode]` keyed by content hash. Two different action sequences reaching the same state share one node.
+- **Path-only backpropagation** (not full DAG) — SELECT builds a local `path: list[MCTSNode]` as it descends; backprop iterates THAT list, not `node.parents`. Information from other paths propagates lazily.
+- **Macro-enumeration for Fencing** — at every node where a fencing-initiating action is legal, replace the trigger with up to `1 + n_random_fencing` macro-actions (1 greedy chain via heuristic + 4 random chains). UCT discriminates among them. Two trigger points handled: `PlaceWorker(fencing)` at empty stack AND `ChooseSubAction("fences")` at `PendingFarmRedevelopment`. Chain-end condition is "PendingBuildFences is no longer at the top of the stack" — works for both triggers without special-casing.
+- **In-tree handling for all other chains** — under strict restrictions, sub-action chains collapse to ≤5 decision points, manageable in-tree with FPU.
+- **Leaf evaluation, no rollouts** — each sim ends at the new leaf and gets one heuristic call (`evaluate_hubris_v3(state, 0) - evaluate_hubris_v3(state, 1)` for the margin in P0's frame; at terminal, `evaluate_hubris_v3(state, 0)` already returns margin via `_terminal_margin_value`). Trade: speed (~100-1000x faster than game-end rollouts).
+- **Two-player zero-sum sign-flip backprop** — leaf value computed in P0's perspective; backprop flips sign at nodes where decider is P1.
+- **Tree reuse + shared-tree mode** — agent maintains its tree across calls (re-roots when current state matches a tree node). For self-play with identical agents, pass the same MCTSAgent instance to both seats; the search is shared.
+- **Action selection: softmax over visit counts at T=0.2** — close to argmax with occasional second-place picks; adds variability useful for diverse game records.
+- **Per-parent macro_sequences storage** — sequences are parent-keyed (`MCTSNode.macro_sequences: dict[MacroFencingAction, list[Action]]`) rather than stored on the endpoint node. Avoids a subtle ambiguity where two different parents whose macros converge on the same endpoint would overwrite each other's sequence.
+
+The `strict_restricted_legal_actions` wrapper was specified in detail (§7 of MCTS_DESIGN.md):
+- **§7.0** (in regular `restricted_legal_actions`, benefits all agents): drop `CommitHarvestConversion(use=False)` — declining a craft is redundant.
+- **§7.1** Cultivation sow-max: at `PendingSow` initiated by Cultivation, keep only the max-fill action.
+- **§7.2** Grain-Util veggie rule: at `PendingSow` initiated by Grain Utilization, force `veg_sown == min(veggies_in_supply, empty_plowed_fields − grain_sown)`.
+- **§7.3** Nine specific fencing patterns based on (wood count, pasture configuration) — user-specified exact wood counts (7-9, 10, 13, 15, 3, 5, 2, 4, 6) with exact cell sets. Two distinct semantic flavors documented: rule 7 (subdivision) requires single-pasture identity match; rules 8/9 use cell-set-union equality.
+- **§7.4** Harvest-feed cap: keep all `CommitHarvestConversion` actions; cap `CommitConvert` variants at top-5-by-V3-evaluator + 2 random samples (using `search.rng` for reproducibility).
+
+### Design decisions
+
+A lot of substantive back-and-forth across the design conversation. A few that left the deepest fingerprints on the spec:
+
+- **Sections reordered (Option A)** — moved `Data structures` (§4) before `Algorithm details` (§5) so that algorithm pseudocode references types the reader has already seen. Originally the doc introduced the classes after the algorithm details, causing forward references.
+- **FPU formulation corrected mid-session** — the doc initially used `parent.mean_q − fpu_offset` for unvisited children, which is broken for vanilla UCT (visited children's UCB strictly exceeds parent.mean_q whenever exploration > 0). Caught and corrected to the Bayesian-UCT virtual-visit formulation.
+- **Macro-sequence storage moved from endpoint to parent** — initial design stored `macro_action_sequence` on each macro endpoint node. Realized that two different parents whose macros happen to converge on the same endpoint would have ambiguous storage (only the first parent's sequence retained). Fixed by storing per-parent (`macro_sequences: dict` on the parent node).
+- **MacroFencingAction lives in `mcts.py`, not `actions.py`** — it's MCTS-internal scaffolding, not a game-level action; the engine never sees it.
+- **Section §7.3 fencing patterns went from user-described English to fully specified table** — wood-arithmetic verification cross-check for each of the 9 rules (1×1 at (0,4) needs 4 fences; 1×1 adjacent shares 1 edge → 3 new; subdivision needs 2 internal fences; etc.) caught a couple of edge cases (single-pasture vs cell-set semantics for rules 7 vs 8/9).
+- **`legal_actions_fn` lives on MCTSSearch, not MCTSAgent** — agent takes a pre-built search; configuration lives on the search. Avoids "silent ignore" failure mode where the user thinks they're configuring an agent-level legal_actions_fn but it's silently overridden by the search's.
+- **Cost cheat-sheet (§5.0)** added explicitly so a reader can reason about hot paths from a single table without scanning the prose.
+
+### Confidence calibration
+
+A useful pattern emerged: when the user pushed back on a spec detail with their game-rules intuition (e.g., on Farm Redev renovation ordering), I should defer to their knowledge. I was over-confident on a couple of game-rules points and was corrected. Internalized for future sessions.
+
+### Files touched
+
+- **New:** `MCTS_DESIGN.md` (~1100 lines)
+- **Updated:** `CLAUDE.md` — added status row for MCTS design spec, added MCTS_DESIGN.md to the documentation files list
+- **Updated:** `STRATEGY.md` — added cross-ref at top pointing to MCTS_DESIGN.md for implementation specifics
+
+### Tests
+
+None added. No code written. All existing tests still pass (no source files modified).
+
+### Next session
+
+The MCTS_DESIGN.md spec is ready for implementation. The natural sequence (per §8 of the doc):
+
+1. **Phase 1:** add `strict_restricted_legal_actions` + the `use=False` filter to `agricola/agents/restricted.py`; ~300 LOC plus ~30 new tests. Single session.
+2. **Phase 2:** implement `MCTSNode`, `MCTSSearch`, `MCTSAgent` in `agricola/agents/mcts.py`; ~400-500 LOC plus ~15 sanity tests. Single session.
+3. **Phase 3:** game integration — match driver `scripts/play_mcts_match.py`, export from `agricola/agents/__init__.py`, validate that MCTS-vs-heuristic and MCTS-vs-MCTS-shared-tree matches both complete. May combine with Phase 2.
+4. **Phase 4:** empirical validation and tuning. Target: MCTS margin > +3 over `HubrisHeuristicV3` in a 100-game match. If it does, scale up sims and start producing self-play games for the eventual learned-value-function phase.
+
+---
+
 <a name="current-state"></a>
 ## Current State
 

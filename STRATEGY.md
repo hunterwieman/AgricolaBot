@@ -4,6 +4,13 @@ This document captures the high-level AI strategy and key algorithm decisions
 made in the design sessions. Read alongside RULES.md (complete rules reference),
 ARCHITECTURE.md (code architecture), and SESSION_HISTORY.md (implementation history).
 
+> **For MCTS specifics:** see `MCTS_DESIGN.md` for the comprehensive design
+> spec of the MCTS phase (vanilla UCT, FPU, DAG with transpositions,
+> leaf-evaluation, macro-enumeration for Fencing, strict-restrictions wrapper,
+> shared/separate tree modes). This document covers the higher-level
+> "why MCTS, why AlphaZero-style" rationale; `MCTS_DESIGN.md` covers the
+> concrete implementation decisions.
+
 ---
 
 ## Project Phases
