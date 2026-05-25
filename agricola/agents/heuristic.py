@@ -584,6 +584,23 @@ def _food_term_hubris(
 
 
 # ---------------------------------------------------------------------------
+# Terminal-state value shared by all evaluators
+# ---------------------------------------------------------------------------
+
+def _terminal_margin_value(state: GameState, player_idx: int) -> float:
+    """End-of-game value for the decider: own score MINUS opponent's score.
+
+    Used by every evaluator's `Phase.BEFORE_SCORING` branch. Returning the
+    margin (rather than the raw own-score) makes the agent prefer actions
+    that hurt the opponent at parity in own-score — the game's true payoff
+    is the margin, so this matches the actual objective. Mid-game evaluator
+    output is unchanged."""
+    own, _ = score(state, player_idx)
+    opp, _ = score(state, 1 - player_idx)
+    return float(own - opp)
+
+
+# ---------------------------------------------------------------------------
 # Simple evaluator
 # ---------------------------------------------------------------------------
 
@@ -602,9 +619,7 @@ def evaluate_simple(
     dependent resource value, round-end decay. These all live in Hubris.
     """
     if state.phase == Phase.BEFORE_SCORING:
-        # Game-over evaluation: just the true score.
-        total, _ = score(state, player_idx)
-        return float(total)
+        return _terminal_margin_value(state, player_idx)
 
     p = state.players[player_idx]
     total, _ = score(state, player_idx)
@@ -1054,8 +1069,7 @@ def evaluate_hubris_v1(
     pasture's role in enabling future breeding (not the pasture itself).
     """
     if state.phase == Phase.BEFORE_SCORING:
-        total, _ = score(state, player_idx)
-        return float(total)
+        return _terminal_margin_value(state, player_idx)
 
     p = state.players[player_idx]
     total, bd = score(state, player_idx)
@@ -1235,8 +1249,7 @@ def evaluate_hubris_v2(
     fields) landed in v1 too.
     """
     if state.phase == Phase.BEFORE_SCORING:
-        total, _ = score(state, player_idx)
-        return float(total)
+        return _terminal_margin_value(state, player_idx)
 
     p = state.players[player_idx]
     total, bd = score(state, player_idx)
@@ -2039,13 +2052,15 @@ def evaluate_hubris_v3(
 ) -> float:
     """Hubris v3: per-category value vectors + per-stage modulators.
 
-    End-of-game (`Phase.BEFORE_SCORING`) returns the raw score, as V1/V2 do.
+    End-of-game (`Phase.BEFORE_SCORING`) returns the score margin
+    (own − opponent) — the actual game payoff. Same convention as
+    `evaluate_simple`, `evaluate_hubris_v1`, and `evaluate_hubris_v2`
+    after the 2026-05-24 unification (see `_terminal_margin_value`).
 
     See module docstring above `HeuristicConfigV3` for the full design.
     """
     if state.phase == Phase.BEFORE_SCORING:
-        total, _ = score(state, player_idx)
-        return float(total)
+        return _terminal_margin_value(state, player_idx)
 
     stage_idx = _stage_of_round(state.round_number) - 1
     p = state.players[player_idx]
@@ -2188,6 +2203,7 @@ class HubrisHeuristicV3(HeuristicAgent):
         config: HeuristicConfigV3 = DEFAULT_CONFIG_V3,
         lookahead: str = "turn",
         legal_actions_fn=None,
+        exhaustive_leaf_cap: int = 1000,
     ):
         kwargs = dict(
             evaluator=evaluate_hubris_v3,
@@ -2195,6 +2211,7 @@ class HubrisHeuristicV3(HeuristicAgent):
             temperature=temperature,
             seed=seed,
             lookahead=lookahead,
+            exhaustive_leaf_cap=exhaustive_leaf_cap,
         )
         if legal_actions_fn is not None:
             kwargs["legal_actions_fn"] = legal_actions_fn

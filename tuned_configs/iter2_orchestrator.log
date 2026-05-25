@@ -1,0 +1,893 @@
+Iterative V3 tuning
+  passes: 2
+  categories per pass: ['v3_fields_crops', 'v3_food', 'v3_resources', 'v3_pastures_animals']
+  total steps: 8
+  max-gens per step: 10
+  n-seeds per evaluation: 100
+  starting from: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json
+
+========================================================================
+  PASS 1 / 2
+========================================================================
+
+--- step 1/8: pass 1, v3_fields_crops ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json
+  popsize: 16, n-seeds: 100, max-gens: 10
+Tuning 60 parameters via CMA-ES
+  category: 'v3_fields_crops'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~19.2 min (vs ~133.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +2.080 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +2.520  gen best: +2.520  gen mean: +1.103  (4.8 min)
+gen   2  best so far: +3.120  gen best: +3.120  gen mean: +1.597  (9.7 min)
+gen   3  best so far: +3.120  gen best: +3.120  gen mean: +1.581  (15.5 min)
+gen   4  best so far: +3.440  gen best: +3.440  gen mean: +1.433  (20.1 min)
+gen   5  best so far: +3.830  gen best: +3.830  gen mean: +2.238  (25.6 min)
+gen   6  best so far: +3.830  gen best: +3.040  gen mean: +1.972  (30.9 min)
+gen   7  best so far: +3.830  gen best: +3.310  gen mean: +2.419  (35.6 min)
+gen   8  best so far: +3.830  gen best: +3.580  gen mean: +2.757  (41.3 min)
+gen   9  best so far: +3.830  gen best: +3.650  gen mean: +2.876  (47.0 min)
+gen  10  best so far: +3.960  gen best: +3.960  gen mean: +3.006  (52.3 min)
+
+Optimization complete in 52.3 min.
+Best margin (training): +3.960
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+plowed_field_value_0                    -1.000     -1.905     -0.905
+plowed_field_value_1                    -1.000     -0.765     +0.235
+plowed_field_value_2                     1.000      1.091     +0.091
+plowed_field_value_3                     2.000      1.488     -0.512
+plowed_field_value_4                     3.000      4.132     +1.132
+plowed_field_value_5                     4.000      3.863     -0.137
+plowed_field_value_6                     4.000      5.385     +1.385
+field_blend_alpha_stage1                 0.500      0.138     -0.362
+field_blend_alpha_stage2                 0.500      0.012     -0.488
+field_blend_alpha_stage3                 0.500      0.117     -0.383
+field_blend_alpha_stage4                 0.500      0.282     -0.218
+field_blend_alpha_stage5                 0.500      0.813     +0.313
+field_blend_alpha_stage6                 0.500      0.010     -0.490
+grain_value_0                           -1.000     -0.133     +0.867
+grain_value_1                            1.000     -0.143     -1.143
+grain_value_2                            1.000      0.154     -0.846
+grain_value_3                            1.000      1.580     +0.580
+grain_value_4                            2.000      2.583     +0.583
+grain_value_5                            2.000      1.989     -0.011
+grain_value_6                            3.000      3.016     +0.016
+grain_value_7                            3.000      2.700     -0.300
+grain_value_8                            4.000      5.085     +1.085
+grain_value_9                            4.000      4.032     +0.032
+grain_blend_alpha_stage1                 0.500      0.922     +0.422
+grain_blend_alpha_stage2                 0.500      0.742     +0.242
+grain_blend_alpha_stage3                 0.500      0.667     +0.167
+grain_blend_alpha_stage4                 0.500      0.000     -0.500
+grain_blend_alpha_stage5                 0.500      0.338     -0.162
+grain_blend_alpha_stage6                 0.500      0.001     -0.499
+veg_value_0                             -1.000     -1.504     -0.504
+veg_value_1                              1.000      2.269     +1.269
+veg_value_2                              2.000      2.238     +0.238
+veg_value_3                              3.000      2.837     -0.163
+veg_value_4                              4.000      4.015     +0.015
+veg_blend_alpha_stage1                   0.500      0.649     +0.149
+veg_blend_alpha_stage2                   0.500      0.239     -0.261
+veg_blend_alpha_stage3                   0.500      0.886     +0.386
+veg_blend_alpha_stage4                   0.500      0.143     -0.357
+veg_blend_alpha_stage5                   0.500      0.492     -0.008
+veg_blend_alpha_stage6                   0.500      0.011     -0.489
+grain_pair_value_0                       0.000      0.528     +0.528
+grain_pair_value_1                       0.600      1.232     +0.632
+grain_pair_value_2                       1.200      0.804     -0.396
+grain_pair_value_3                       1.800      2.120     +0.320
+grain_pair_weight_stage1                 1.000      1.206     +0.206
+grain_pair_weight_stage2                 1.000      0.938     -0.062
+grain_pair_weight_stage3                 0.800      0.002     -0.798
+grain_pair_weight_stage4                 0.600      0.836     +0.236
+grain_pair_weight_stage5                 0.400      0.687     +0.287
+grain_pair_weight_stage6                 0.000      0.212     +0.212
+veg_pair_value_0                         0.000      0.092     +0.092
+veg_pair_value_1                         0.600      0.316     -0.284
+veg_pair_value_2                         1.200      1.586     +0.386
+veg_pair_value_3                         1.800      2.223     +0.423
+veg_pair_weight_stage1                   1.000      1.897     +0.897
+veg_pair_weight_stage2                   1.000      2.175     +1.175
+veg_pair_weight_stage3                   0.800      1.724     +0.924
+veg_pair_weight_stage4                   0.600      0.845     +0.245
+veg_pair_weight_stage5                   0.400      0.021     -0.379
+veg_pair_weight_stage6                   0.000      0.227     +0.227
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 63-0-37 P1  avg +20.01 vs +16.67  margin +3.34  (100 games, 70.0s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +0.77 (n=100) → +3.34 (n=100))
+  ✓ step completed in 54.7 min (cumulative 54.7 min)
+
+--- step 2/8: pass 1, v3_food ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
+  popsize: 13, n-seeds: 100, max-gens: 10
+Tuning 18 parameters via CMA-ES
+  category: 'v3_food'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 13, max_gens: 10, sigma0: 0.3
+  total evals: 130
+  jobs: 8; python -O: ON
+  estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +3.960 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +5.090  gen best: +5.090  gen mean: -1.338  (4.1 min)
+gen   2  best so far: +5.090  gen best: +4.890  gen mean: +0.552  (7.9 min)
+gen   3  best so far: +5.260  gen best: +5.260  gen mean: +2.135  (11.9 min)
+gen   4  best so far: +5.260  gen best: +4.720  gen mean: +0.647  (15.6 min)
+gen   5  best so far: +5.260  gen best: +4.690  gen mean: +1.011  (19.1 min)
+gen   6  best so far: +7.410  gen best: +7.410  gen mean: +3.636  (22.8 min)
+gen   7  best so far: +7.410  gen best: +5.900  gen mean: +3.206  (26.4 min)
+gen   8  best so far: +7.410  gen best: +5.740  gen mean: +2.315  (30.0 min)
+gen   9  best so far: +7.690  gen best: +7.690  gen mean: +2.685  (33.4 min)
+gen  10  best so far: +7.690  gen best: +5.760  gen mean: +1.908  (36.9 min)
+
+Optimization complete in 36.9 min.
+Best margin (training): +7.690
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+food_at_need_stage1                      1.168      2.021     +0.853
+food_at_need_stage2                      1.213      1.607     +0.394
+food_at_need_stage3                      0.794      0.791     -0.003
+food_at_need_stage4                      0.126      1.393     +1.267
+food_at_need_stage5                      0.874      0.669     -0.205
+food_at_need_stage6                      0.302      0.019     -0.283
+food_excess_stage1                       1.057      1.101     +0.044
+food_excess_stage2                       0.452      0.007     -0.445
+food_excess_stage3                       0.316      0.453     +0.137
+food_excess_stage4                       0.295      0.064     -0.231
+food_excess_stage5                       0.587      0.016     -0.571
+food_excess_stage6                       0.000      0.323     +0.323
+begging_moves_0                         -2.785     -2.332     +0.453
+begging_moves_1                         -2.362     -1.181     +1.181
+begging_moves_2                         -1.633     -1.263     +0.370
+begging_moves_3                         -0.931     -0.212     +0.719
+begging_moves_4                         -0.976     -2.027     -1.051
+begging_moves_5                         -0.575     -1.148     -0.573
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 79-0-21 P1  avg +23.29 vs +14.54  margin +8.75  (100 games, 64.7s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +3.34 (n=100) → +8.75 (n=100))
+  ✓ step completed in 39.3 min (cumulative 94.1 min)
+
+--- step 3/8: pass 1, v3_resources ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json
+  popsize: 17, n-seeds: 100, max-gens: 10
+Tuning 63 parameters via CMA-ES
+  category: 'v3_resources'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 17, max_gens: 10, sigma0: 0.3
+  total evals: 170
+  jobs: 8; python -O: ON
+  estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +7.690 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +11.000  gen best: +11.000  gen mean: -1.609  (5.2 min)
+gen   2  best so far: +11.090  gen best: +11.090  gen mean: +2.991  (10.8 min)
+gen   3  best so far: +14.840  gen best: +14.840  gen mean: +4.912  (15.5 min)
+gen   4  best so far: +14.840  gen best: +11.030  gen mean: +4.254  (20.0 min)
+gen   5  best so far: +15.980  gen best: +15.980  gen mean: +7.012  (25.0 min)
+gen   6  best so far: +15.980  gen best: +15.220  gen mean: +10.168  (30.1 min)
+gen   7  best so far: +15.980  gen best: +14.320  gen mean: +9.790  (35.3 min)
+gen   8  best so far: +16.110  gen best: +16.110  gen mean: +10.387  (39.7 min)
+gen   9  best so far: +16.110  gen best: +15.890  gen mean: +10.848  (44.8 min)
+gen  10  best so far: +18.600  gen best: +18.600  gen mean: +12.487  (50.3 min)
+
+Optimization complete in 50.3 min.
+Best margin (training): +18.600
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+wood_fence_0                             0.700      0.453     -0.247
+wood_fence_1                             0.700      0.522     -0.178
+wood_fence_2                             0.700      0.270     -0.430
+wood_fence_3                             0.700      1.199     +0.499
+wood_fence_4                             0.700      0.192     -0.508
+wood_fence_5                             0.700      0.572     -0.128
+wood_fence_6                             0.700      0.037     -0.663
+wood_fence_7                             0.700      0.326     -0.374
+wood_fence_8                             0.700      1.046     +0.346
+wood_fence_9                             0.700      1.176     +0.476
+wood_fence_10                            0.500      0.411     -0.089
+wood_fence_11                            0.500      0.021     -0.479
+wood_fence_12                            0.500      0.279     -0.221
+wood_fence_13                            0.500      0.842     +0.342
+wood_fence_14                            0.500      0.399     -0.101
+wood_pre_3rd_room_0                      0.800      0.741     -0.059
+wood_pre_3rd_room_1                      0.800      1.341     +0.541
+wood_pre_3rd_room_2                      0.800      0.496     -0.304
+wood_pre_3rd_room_3                      0.800      0.716     -0.084
+wood_pre_3rd_room_4                      0.800      1.676     +0.876
+wood_generic_value                       0.100      0.269     +0.169
+wood_weight_stage1                       1.500      0.674     -0.826
+wood_weight_stage2                       1.000      0.876     -0.124
+wood_weight_stage3                       1.000      0.465     -0.535
+wood_weight_stage4                       1.000      1.029     +0.029
+wood_weight_stage5                       0.900      0.682     -0.218
+wood_weight_stage6                       0.200      0.381     +0.181
+reed_room_0                              5.000      4.502     -0.498
+reed_room_1                              1.500      2.219     +0.719
+reed_room_2                              0.300      1.311     +1.011
+reed_room_3                              0.300      0.497     +0.197
+reed_room_4                              0.000      0.531     +0.531
+reed_room_5                              0.000      0.580     +0.580
+reed_renovation_0                        0.500      0.712     +0.212
+reed_renovation_1                        0.300      0.854     +0.554
+reed_generic_value                       0.200      0.214     +0.014
+reed_weight_stage1                       1.500      1.667     +0.167
+reed_weight_stage2                       1.000      0.086     -0.914
+reed_weight_stage3                       1.000      1.198     +0.198
+reed_weight_stage4                       1.000      2.037     +1.037
+reed_weight_stage5                       0.900      0.413     -0.487
+reed_weight_stage6                       0.200      0.393     +0.193
+clay_cookware_0                          0.800      0.326     -0.474
+clay_cookware_1                          0.800      1.169     +0.369
+clay_cookware_2                          0.800      0.407     -0.393
+clay_cookware_3                          0.800      0.544     -0.256
+clay_cookware_4                          0.800      0.991     +0.191
+clay_renovation_per_room                 0.800      0.335     -0.465
+clay_generic_value                       0.100      0.077     -0.023
+clay_weight_stage1                       1.500      2.096     +0.596
+clay_weight_stage2                       1.000      0.731     -0.269
+clay_weight_stage3                       1.000      1.229     +0.229
+clay_weight_stage4                       1.000      0.046     -0.954
+clay_weight_stage5                       0.900      1.261     +0.361
+clay_weight_stage6                       0.200      0.328     +0.128
+stone_renovation_per_room                0.500      0.008     -0.492
+stone_generic_value                      0.500      0.161     -0.339
+stone_weight_stage1                      1.500      2.182     +0.682
+stone_weight_stage2                      1.000      0.967     -0.033
+stone_weight_stage3                      1.000      1.267     +0.267
+stone_weight_stage4                      1.000      1.396     +0.396
+stone_weight_stage5                      1.000      1.427     +0.427
+stone_weight_stage6                      0.700      0.344     -0.356
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 96-1-3 P1  avg +26.36 vs +8.46  margin +17.90  (100 games, 67.4s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +8.75 (n=100) → +17.90 (n=100))
+  ✓ step completed in 52.6 min (cumulative 146.6 min)
+
+--- step 4/8: pass 1, v3_pastures_animals ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json
+  popsize: 18, n-seeds: 100, max-gens: 10
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 18, max_gens: 10, sigma0: 0.3
+  total evals: 180
+  jobs: 8; python -O: ON
+  estimated wall time: ~21.6 min (vs ~150.0 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +18.600 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +19.600  gen best: +19.600  gen mean: +16.842  (5.1 min)
+gen   2  best so far: +19.920  gen best: +19.920  gen mean: +17.141  (10.6 min)
+gen   3  best so far: +19.920  gen best: +19.580  gen mean: +17.754  (16.3 min)
+gen   4  best so far: +20.080  gen best: +20.080  gen mean: +18.320  (22.2 min)
+gen   5  best so far: +20.330  gen best: +20.330  gen mean: +18.008  (28.0 min)
+gen   6  best so far: +20.330  gen best: +19.680  gen mean: +17.678  (33.5 min)
+gen   7  best so far: +20.330  gen best: +20.030  gen mean: +18.858  (39.4 min)
+gen   8  best so far: +20.330  gen best: +20.300  gen mean: +19.144  (46.4 min)
+gen   9  best so far: +20.550  gen best: +20.550  gen mean: +19.332  (53.0 min)
+gen  10  best so far: +20.550  gen best: +20.270  gen mean: +19.245  (59.2 min)
+
+Optimization complete in 59.2 min.
+Best margin (training): +20.550
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+pasture_value_all_0                     -1.000     -0.465     +0.535
+pasture_value_all_1                      1.000      1.460     +0.460
+pasture_value_all_2                      2.000      2.759     +0.759
+pasture_value_all_3                      3.000      3.727     +0.727
+pasture_value_all_4                      4.000      3.934     -0.066
+pasture_value_large_0                    0.000      0.598     +0.598
+pasture_value_large_1                    0.000     -0.860     -0.860
+pasture_value_large_2                    0.000      0.166     +0.166
+pasture_value_large_3                    0.000      0.662     +0.662
+pasture_value_large_4                    0.000      0.145     +0.145
+pasture_blend_alpha_stage1               0.500      0.623     +0.123
+pasture_blend_alpha_stage2               0.500      0.881     +0.381
+pasture_blend_alpha_stage3               0.500      0.763     +0.263
+pasture_blend_alpha_stage4               0.500      0.963     +0.463
+pasture_blend_alpha_stage5               0.500      0.377     -0.123
+pasture_blend_alpha_stage6               0.500      0.179     -0.321
+sheep_value_0                           -1.000     -0.677     +0.323
+sheep_value_1                            1.000      0.845     -0.155
+sheep_value_2                            1.000      0.417     -0.583
+sheep_value_3                            1.000      0.888     -0.112
+sheep_value_4                            2.000      2.314     +0.314
+sheep_value_5                            2.000      2.381     +0.381
+sheep_value_6                            3.000      3.446     +0.446
+sheep_value_7                            3.000      3.753     +0.753
+sheep_value_8                            4.000      4.140     +0.140
+sheep_blend_alpha_stage1                 0.500      0.274     -0.226
+sheep_blend_alpha_stage2                 0.500      0.315     -0.185
+sheep_blend_alpha_stage3                 0.500      0.828     +0.328
+sheep_blend_alpha_stage4                 0.500      0.181     -0.319
+sheep_blend_alpha_stage5                 0.500      0.169     -0.331
+sheep_blend_alpha_stage6                 0.500      0.349     -0.151
+boar_value_0                            -1.000      0.311     +1.311
+boar_value_1                             1.000      0.852     -0.148
+boar_value_2                             1.000      0.467     -0.533
+boar_value_3                             2.000      2.557     +0.557
+boar_value_4                             2.000      1.998     -0.002
+boar_value_5                             3.000      3.048     +0.048
+boar_value_6                             3.000      2.565     -0.435
+boar_value_7                             4.000      5.044     +1.044
+boar_blend_alpha_stage1                  0.500      0.287     -0.213
+boar_blend_alpha_stage2                  0.500      0.458     -0.042
+boar_blend_alpha_stage3                  0.500      0.872     +0.372
+boar_blend_alpha_stage4                  0.500      0.844     +0.344
+boar_blend_alpha_stage5                  0.500      0.201     -0.299
+boar_blend_alpha_stage6                  0.500      0.499     -0.001
+cattle_value_0                          -1.000     -0.735     +0.265
+cattle_value_1                           1.000      0.994     -0.006
+cattle_value_2                           2.000      1.869     -0.131
+cattle_value_3                           2.000      2.950     +0.950
+cattle_value_4                           3.000      2.703     -0.297
+cattle_value_5                           3.000      3.177     +0.177
+cattle_value_6                           4.000      4.809     +0.809
+cattle_blend_alpha_stage1                0.500      0.946     +0.446
+cattle_blend_alpha_stage2                0.500      0.964     +0.464
+cattle_blend_alpha_stage3                0.500      0.231     -0.269
+cattle_blend_alpha_stage4                0.500      0.134     -0.366
+cattle_blend_alpha_stage5                0.500      0.444     -0.056
+cattle_blend_alpha_stage6                0.500      0.720     +0.220
+fenced_stable_value_0                    0.000     -0.499     -0.499
+fenced_stable_value_1                    1.000      0.643     -0.357
+fenced_stable_value_2                    2.000      2.314     +0.314
+fenced_stable_value_3                    3.000      3.473     +0.473
+fenced_stable_value_4                    4.000      3.867     -0.133
+fenced_stable_blend_alpha_stage1         0.500      0.168     -0.332
+fenced_stable_blend_alpha_stage2         0.500      0.137     -0.363
+fenced_stable_blend_alpha_stage3         0.500      0.926     +0.426
+fenced_stable_blend_alpha_stage4         0.500      0.564     +0.064
+fenced_stable_blend_alpha_stage5         0.500      0.512     +0.012
+fenced_stable_blend_alpha_stage6         0.500      0.103     -0.397
+cattle_breeding_pair_value               1.000      0.691     -0.309
+cattle_breed_weight_stage1               1.000      0.551     -0.449
+cattle_breed_weight_stage2               1.000      1.523     +0.523
+cattle_breed_weight_stage3               1.000      1.046     +0.046
+cattle_breed_weight_stage4               0.500      1.018     +0.518
+cattle_breed_weight_stage5               0.000      0.904     +0.904
+cattle_breed_weight_stage6               0.000      0.461     +0.461
+boar_breeding_pair_value                 1.000      0.277     -0.723
+boar_breed_weight_stage1                 1.000      1.029     +0.029
+boar_breed_weight_stage2                 1.000      1.069     +0.069
+boar_breed_weight_stage3                 1.000      0.916     -0.084
+boar_breed_weight_stage4                 0.500      0.540     +0.040
+boar_breed_weight_stage5                 0.000      0.003     +0.003
+boar_breed_weight_stage6                 0.000      0.090     +0.090
+sheep_breeding_pair_value                1.000      1.485     +0.485
+sheep_breed_weight_stage1                1.000      0.315     -0.685
+sheep_breed_weight_stage2                1.000      0.962     -0.038
+sheep_breed_weight_stage3                1.000      0.294     -0.706
+sheep_breed_weight_stage4                0.500      0.468     -0.032
+sheep_breed_weight_stage5                0.000      0.362     +0.362
+sheep_breed_weight_stage6                0.000      0.157     +0.157
+unfenced_stable_value_0                  0.000      0.300     +0.300
+unfenced_stable_value_1                  0.400      0.769     +0.369
+unfenced_stable_value_2                  0.800      1.642     +0.842
+unfenced_stable_value_3                  1.200      0.692     -0.508
+unfenced_stable_value_4                  1.600      1.733     +0.133
+unfenced_stable_weight_stage1            1.000      1.575     +0.575
+unfenced_stable_weight_stage2            1.000      0.110     -0.890
+unfenced_stable_weight_stage3            1.000      0.347     -0.653
+unfenced_stable_weight_stage4            0.000      0.622     +0.622
+unfenced_stable_weight_stage5            0.000      0.608     +0.608
+unfenced_stable_weight_stage6            0.000      0.384     +0.384
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 98-1-1 P1  avg +26.69 vs +8.12  margin +18.57  (100 games, 67.7s)
+  → smaller than training margin but still positive. Mild overfitting.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +17.90 (n=100) → +18.57 (n=100))
+  ✓ step completed in 61.4 min (cumulative 208.0 min)
+========================================================================
+  PASS 2 / 2
+========================================================================
+
+--- step 5/8: pass 2, v3_fields_crops ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json
+  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json
+  popsize: 16, n-seeds: 100, max-gens: 10
+Tuning 60 parameters via CMA-ES
+  category: 'v3_fields_crops'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~19.2 min (vs ~133.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +20.550 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl: countiter=10, σ=0.2517, will run until gen 20 (10 additional generations).
+gen  11  best so far: +21.700  gen best: +21.700  gen mean: +20.133  (4.6 min)
+gen  12  best so far: +23.010  gen best: +23.010  gen mean: +20.582  (9.1 min)
+gen  13  best so far: +23.010  gen best: +22.060  gen mean: +20.157  (13.3 min)
+gen  14  best so far: +23.510  gen best: +23.510  gen mean: +20.923  (17.8 min)
+gen  15  best so far: +23.510  gen best: +23.010  gen mean: +21.439  (22.3 min)
+gen  16  best so far: +23.510  gen best: +23.310  gen mean: +21.103  (26.7 min)
+gen  17  best so far: +23.510  gen best: +23.180  gen mean: +21.735  (31.1 min)
+gen  18  best so far: +23.510  gen best: +23.290  gen mean: +21.446  (35.7 min)
+gen  19  best so far: +23.510  gen best: +23.000  gen mean: +21.530  (40.1 min)
+gen  20  best so far: +23.510  gen best: +23.250  gen mean: +22.251  (44.3 min)
+
+Optimization complete in 44.3 min.
+Best margin (training): +23.510
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+plowed_field_value_0                    -1.000     -1.920     -0.920
+plowed_field_value_1                    -1.000     -0.625     +0.375
+plowed_field_value_2                     1.000      0.977     -0.023
+plowed_field_value_3                     2.000      1.403     -0.597
+plowed_field_value_4                     3.000      3.797     +0.797
+plowed_field_value_5                     4.000      3.468     -0.532
+plowed_field_value_6                     4.000      5.362     +1.362
+field_blend_alpha_stage1                 0.500      0.525     +0.025
+field_blend_alpha_stage2                 0.500      0.295     -0.205
+field_blend_alpha_stage3                 0.500      0.095     -0.405
+field_blend_alpha_stage4                 0.500      0.976     +0.476
+field_blend_alpha_stage5                 0.500      0.812     +0.312
+field_blend_alpha_stage6                 0.500      0.002     -0.498
+grain_value_0                           -1.000     -0.523     +0.477
+grain_value_1                            1.000     -0.918     -1.918
+grain_value_2                            1.000      0.276     -0.724
+grain_value_3                            1.000      1.590     +0.590
+grain_value_4                            2.000      1.640     -0.360
+grain_value_5                            2.000      2.363     +0.363
+grain_value_6                            3.000      2.814     -0.186
+grain_value_7                            3.000      3.197     +0.197
+grain_value_8                            4.000      4.362     +0.362
+grain_value_9                            4.000      3.337     -0.663
+grain_blend_alpha_stage1                 0.500      0.981     +0.481
+grain_blend_alpha_stage2                 0.500      0.516     +0.016
+grain_blend_alpha_stage3                 0.500      0.959     +0.459
+grain_blend_alpha_stage4                 0.500      0.001     -0.499
+grain_blend_alpha_stage5                 0.500      0.357     -0.143
+grain_blend_alpha_stage6                 0.500      0.384     -0.116
+veg_value_0                             -1.000     -1.146     -0.146
+veg_value_1                              1.000      2.115     +1.115
+veg_value_2                              2.000      2.875     +0.875
+veg_value_3                              3.000      2.741     -0.259
+veg_value_4                              4.000      4.343     +0.343
+veg_blend_alpha_stage1                   0.500      0.611     +0.111
+veg_blend_alpha_stage2                   0.500      0.576     +0.076
+veg_blend_alpha_stage3                   0.500      0.887     +0.387
+veg_blend_alpha_stage4                   0.500      0.650     +0.150
+veg_blend_alpha_stage5                   0.500      0.740     +0.240
+veg_blend_alpha_stage6                   0.500      0.094     -0.406
+grain_pair_value_0                       0.000      0.675     +0.675
+grain_pair_value_1                       0.600      1.304     +0.704
+grain_pair_value_2                       1.200      0.681     -0.519
+grain_pair_value_3                       1.800      1.986     +0.186
+grain_pair_weight_stage1                 1.000      1.054     +0.054
+grain_pair_weight_stage2                 1.000      1.317     +0.317
+grain_pair_weight_stage3                 0.800      0.171     -0.629
+grain_pair_weight_stage4                 0.600      0.956     +0.356
+grain_pair_weight_stage5                 0.400      0.261     -0.139
+grain_pair_weight_stage6                 0.000      0.125     +0.125
+veg_pair_value_0                         0.000      0.535     +0.535
+veg_pair_value_1                         0.600      0.075     -0.525
+veg_pair_value_2                         1.200      1.095     -0.105
+veg_pair_value_3                         1.800      2.241     +0.441
+veg_pair_weight_stage1                   1.000      1.199     +0.199
+veg_pair_weight_stage2                   1.000      2.618     +1.618
+veg_pair_weight_stage3                   0.800      1.736     +0.936
+veg_pair_weight_stage4                   0.600      0.680     +0.080
+veg_pair_weight_stage5                   0.400      0.408     +0.008
+veg_pair_weight_stage6                   0.000      0.338     +0.338
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 98-0-2 P1  avg +28.69 vs +6.87  margin +21.82  (100 games, 75.6s)
+  → smaller than training margin but still positive. Mild overfitting.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +18.57 (n=100) → +21.82 (n=100))
+  ✓ step completed in 46.7 min (cumulative 254.7 min)
+
+--- step 6/8: pass 2, v3_food ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json
+  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json
+  popsize: 13, n-seeds: 100, max-gens: 10
+Tuning 18 parameters via CMA-ES
+  category: 'v3_food'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 13, max_gens: 10, sigma0: 0.3
+  total evals: 130
+  jobs: 8; python -O: ON
+  estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +23.510 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl: countiter=10, σ=0.2532, will run until gen 20 (10 additional generations).
+gen  11  best so far: +23.510  gen best: +22.420  gen mean: +17.265  (4.1 min)
+gen  12  best so far: +23.510  gen best: +22.540  gen mean: +19.117  (7.7 min)
+gen  13  best so far: +23.530  gen best: +23.530  gen mean: +19.793  (11.3 min)
+gen  14  best so far: +23.530  gen best: +23.440  gen mean: +19.603  (15.4 min)
+gen  15  best so far: +23.530  gen best: +22.710  gen mean: +19.301  (19.3 min)
+gen  16  best so far: +23.530  gen best: +23.230  gen mean: +19.615  (22.8 min)
+gen  17  best so far: +23.530  gen best: +22.480  gen mean: +19.480  (26.1 min)
+gen  18  best so far: +23.530  gen best: +22.500  gen mean: +19.745  (29.4 min)
+gen  19  best so far: +23.530  gen best: +22.740  gen mean: +18.738  (32.7 min)
+gen  20  best so far: +23.530  gen best: +23.260  gen mean: +19.716  (36.0 min)
+
+Optimization complete in 36.0 min.
+Best margin (training): +23.530
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+food_at_need_stage1                      1.168      1.611     +0.443
+food_at_need_stage2                      1.213      1.688     +0.475
+food_at_need_stage3                      0.794      0.630     -0.164
+food_at_need_stage4                      0.126      1.260     +1.134
+food_at_need_stage5                      0.874      0.362     -0.512
+food_at_need_stage6                      0.302      0.171     -0.131
+food_excess_stage1                       1.057      1.167     +0.110
+food_excess_stage2                       0.452      0.165     -0.287
+food_excess_stage3                       0.316      0.120     -0.196
+food_excess_stage4                       0.295      0.365     +0.070
+food_excess_stage5                       0.587      0.001     -0.586
+food_excess_stage6                       0.000      0.097     +0.097
+begging_moves_0                         -2.785     -2.026     +0.759
+begging_moves_1                         -2.362     -1.375     +0.987
+begging_moves_2                         -1.633     -1.904     -0.271
+begging_moves_3                         -0.931     -0.418     +0.513
+begging_moves_4                         -0.976     -2.417     -1.441
+begging_moves_5                         -0.575     -1.055     -0.480
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 100-0-0 P1  avg +29.45 vs +6.78  margin +22.67  (100 games, 64.6s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +21.82 (n=100) → +22.67 (n=100))
+  ✓ step completed in 38.2 min (cumulative 292.9 min)
+
+--- step 7/8: pass 2, v3_resources ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json
+  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
+  popsize: 17, n-seeds: 100, max-gens: 10
+Tuning 63 parameters via CMA-ES
+  category: 'v3_resources'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 17, max_gens: 10, sigma0: 0.3
+  total evals: 170
+  jobs: 8; python -O: ON
+  estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +23.530 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl: countiter=10, σ=0.2454, will run until gen 20 (10 additional generations).
+gen  11  best so far: +23.530  gen best: +18.360  gen mean: +13.288  (5.0 min)
+gen  12  best so far: +23.530  gen best: +21.170  gen mean: +11.018  (9.5 min)
+gen  13  best so far: +23.530  gen best: +22.040  gen mean: +14.120  (14.1 min)
+gen  14  best so far: +25.330  gen best: +25.330  gen mean: +15.751  (18.5 min)
+gen  15  best so far: +25.330  gen best: +20.780  gen mean: +15.959  (23.1 min)
+gen  16  best so far: +25.330  gen best: +23.530  gen mean: +16.165  (27.7 min)
+gen  17  best so far: +25.330  gen best: +23.080  gen mean: +16.466  (32.1 min)
+gen  18  best so far: +25.330  gen best: +23.140  gen mean: +14.908  (36.6 min)
+gen  19  best so far: +25.330  gen best: +21.090  gen mean: +13.784  (41.4 min)
+gen  20  best so far: +25.330  gen best: +22.950  gen mean: +15.481  (45.7 min)
+
+Optimization complete in 45.7 min.
+Best margin (training): +25.330
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+wood_fence_0                             0.453      0.422     -0.030
+wood_fence_1                             0.522      0.432     -0.090
+wood_fence_2                             0.270      0.071     -0.199
+wood_fence_3                             1.199      1.321     +0.123
+wood_fence_4                             0.192      0.319     +0.127
+wood_fence_5                             0.572      0.297     -0.275
+wood_fence_6                             0.037      0.018     -0.020
+wood_fence_7                             0.326      0.369     +0.042
+wood_fence_8                             1.046      1.095     +0.049
+wood_fence_9                             1.176      0.792     -0.385
+wood_fence_10                            0.411      0.410     -0.001
+wood_fence_11                            0.021      0.479     +0.458
+wood_fence_12                            0.279      0.565     +0.286
+wood_fence_13                            0.842      0.701     -0.141
+wood_fence_14                            0.399      0.632     +0.233
+wood_pre_3rd_room_0                      0.741      0.098     -0.643
+wood_pre_3rd_room_1                      1.341      0.465     -0.875
+wood_pre_3rd_room_2                      0.496      0.353     -0.144
+wood_pre_3rd_room_3                      0.716      1.267     +0.551
+wood_pre_3rd_room_4                      1.676      1.719     +0.043
+wood_generic_value                       0.269      0.146     -0.123
+wood_weight_stage1                       0.674      0.866     +0.192
+wood_weight_stage2                       0.876      0.346     -0.530
+wood_weight_stage3                       0.465      0.024     -0.442
+wood_weight_stage4                       1.029      0.605     -0.423
+wood_weight_stage5                       0.682      0.294     -0.388
+wood_weight_stage6                       0.381      0.685     +0.304
+reed_room_0                              4.502      4.648     +0.146
+reed_room_1                              2.219      1.928     -0.292
+reed_room_2                              1.311      0.558     -0.753
+reed_room_3                              0.497      0.703     +0.206
+reed_room_4                              0.531      0.357     -0.174
+reed_room_5                              0.580      0.302     -0.278
+reed_renovation_0                        0.712      0.269     -0.444
+reed_renovation_1                        0.854      0.199     -0.655
+reed_generic_value                       0.214      0.245     +0.031
+reed_weight_stage1                       1.667      1.991     +0.323
+reed_weight_stage2                       0.086      0.019     -0.067
+reed_weight_stage3                       1.198      0.488     -0.710
+reed_weight_stage4                       2.037      1.707     -0.330
+reed_weight_stage5                       0.413      0.618     +0.205
+reed_weight_stage6                       0.393      0.480     +0.087
+clay_cookware_0                          0.326      0.337     +0.012
+clay_cookware_1                          1.169      1.555     +0.386
+clay_cookware_2                          0.407      0.953     +0.546
+clay_cookware_3                          0.544      0.513     -0.031
+clay_cookware_4                          0.991      1.070     +0.079
+clay_renovation_per_room                 0.335      0.200     -0.134
+clay_generic_value                       0.077      0.398     +0.321
+clay_weight_stage1                       2.096      1.709     -0.387
+clay_weight_stage2                       0.731      0.702     -0.030
+clay_weight_stage3                       1.229      1.399     +0.170
+clay_weight_stage4                       0.046      0.709     +0.663
+clay_weight_stage5                       1.261      1.308     +0.047
+clay_weight_stage6                       0.328      0.112     -0.216
+stone_renovation_per_room                0.008      0.003     -0.006
+stone_generic_value                      0.161      0.213     +0.052
+stone_weight_stage1                      2.182      2.802     +0.619
+stone_weight_stage2                      0.967      0.450     -0.517
+stone_weight_stage3                      1.267      1.513     +0.246
+stone_weight_stage4                      1.396      1.498     +0.102
+stone_weight_stage5                      1.427      1.519     +0.092
+stone_weight_stage6                      0.344      0.196     -0.148
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 100-0-0 P1  avg +32.22 vs +7.37  margin +24.85  (100 games, 63.8s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +22.67 (n=100) → +24.85 (n=100))
+  ✓ step completed in 47.9 min (cumulative 340.8 min)
+
+--- step 8/8: pass 2, v3_pastures_animals ---
+  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
+  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl
+  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json
+  popsize: 18, n-seeds: 100, max-gens: 10
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json'
+  baseline opponent: 'v3_t1' (arch: v3)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 18, max_gens: 10, sigma0: 0.3
+  total evals: 180
+  jobs: 8; python -O: ON
+  estimated wall time: ~21.6 min (vs ~150.0 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'v3_t1' baseline) = +25.330 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl: countiter=10, σ=0.2389, will run until gen 20 (10 additional generations).
+gen  11  best so far: +25.570  gen best: +25.570  gen mean: +24.198  (4.6 min)
+gen  12  best so far: +26.510  gen best: +26.510  gen mean: +23.145  (9.1 min)
+gen  13  best so far: +26.510  gen best: +25.740  gen mean: +23.979  (13.7 min)
+gen  14  best so far: +27.130  gen best: +27.130  gen mean: +24.531  (18.3 min)
+gen  15  best so far: +27.130  gen best: +26.940  gen mean: +24.226  (22.9 min)
+gen  16  best so far: +27.130  gen best: +26.930  gen mean: +24.630  (27.4 min)
+gen  17  best so far: +27.770  gen best: +27.770  gen mean: +24.703  (31.9 min)
+gen  18  best so far: +28.090  gen best: +28.090  gen mean: +24.793  (36.5 min)
+gen  19  best so far: +28.090  gen best: +27.740  gen mean: +25.302  (41.1 min)
+gen  20  best so far: +28.090  gen best: +27.640  gen mean: +25.312  (45.8 min)
+
+Optimization complete in 45.8 min.
+Best margin (training): +28.090
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+pasture_value_all_0                     -0.465     -0.197     +0.268
+pasture_value_all_1                      1.460      0.896     -0.564
+pasture_value_all_2                      2.759      3.364     +0.605
+pasture_value_all_3                      3.727      3.907     +0.180
+pasture_value_all_4                      3.934      4.038     +0.104
+pasture_value_large_0                    0.598     -0.137     -0.735
+pasture_value_large_1                   -0.860     -0.614     +0.247
+pasture_value_large_2                    0.166      0.184     +0.018
+pasture_value_large_3                    0.662      0.444     -0.217
+pasture_value_large_4                    0.145      0.758     +0.613
+pasture_blend_alpha_stage1               0.623      0.903     +0.280
+pasture_blend_alpha_stage2               0.881      0.408     -0.472
+pasture_blend_alpha_stage3               0.763      0.584     -0.179
+pasture_blend_alpha_stage4               0.963      0.960     -0.003
+pasture_blend_alpha_stage5               0.377      0.413     +0.036
+pasture_blend_alpha_stage6               0.179      0.860     +0.682
+sheep_value_0                           -0.677     -0.774     -0.097
+sheep_value_1                            0.845      0.338     -0.507
+sheep_value_2                            0.417      1.306     +0.889
+sheep_value_3                            0.888      0.719     -0.168
+sheep_value_4                            2.314      2.703     +0.389
+sheep_value_5                            2.381      2.673     +0.291
+sheep_value_6                            3.446      3.219     -0.227
+sheep_value_7                            3.753      2.847     -0.906
+sheep_value_8                            4.140      3.810     -0.330
+sheep_blend_alpha_stage1                 0.274      0.553     +0.279
+sheep_blend_alpha_stage2                 0.315      0.001     -0.314
+sheep_blend_alpha_stage3                 0.828      0.774     -0.054
+sheep_blend_alpha_stage4                 0.181      0.377     +0.196
+sheep_blend_alpha_stage5                 0.169      0.394     +0.225
+sheep_blend_alpha_stage6                 0.349      0.781     +0.432
+boar_value_0                             0.311      0.349     +0.037
+boar_value_1                             0.852      0.724     -0.128
+boar_value_2                             0.467      0.386     -0.081
+boar_value_3                             2.557      2.536     -0.021
+boar_value_4                             1.998      1.901     -0.096
+boar_value_5                             3.048      2.704     -0.344
+boar_value_6                             2.565      2.500     -0.065
+boar_value_7                             5.044      5.247     +0.203
+boar_blend_alpha_stage1                  0.287      0.146     -0.141
+boar_blend_alpha_stage2                  0.458      0.907     +0.449
+boar_blend_alpha_stage3                  0.872      0.987     +0.115
+boar_blend_alpha_stage4                  0.844      0.424     -0.420
+boar_blend_alpha_stage5                  0.201      0.052     -0.149
+boar_blend_alpha_stage6                  0.499      0.943     +0.444
+cattle_value_0                          -0.735     -0.871     -0.136
+cattle_value_1                           0.994      0.621     -0.373
+cattle_value_2                           1.869      1.308     -0.561
+cattle_value_3                           2.950      2.302     -0.648
+cattle_value_4                           2.703      2.745     +0.043
+cattle_value_5                           3.177      2.873     -0.304
+cattle_value_6                           4.809      5.796     +0.987
+cattle_blend_alpha_stage1                0.946      0.489     -0.457
+cattle_blend_alpha_stage2                0.964      0.826     -0.138
+cattle_blend_alpha_stage3                0.231      0.848     +0.617
+cattle_blend_alpha_stage4                0.134      0.491     +0.357
+cattle_blend_alpha_stage5                0.444      0.060     -0.383
+cattle_blend_alpha_stage6                0.720      0.247     -0.473
+fenced_stable_value_0                   -0.499     -0.487     +0.012
+fenced_stable_value_1                    0.643      0.652     +0.008
+fenced_stable_value_2                    2.314      2.682     +0.369
+fenced_stable_value_3                    3.473      3.134     -0.339
+fenced_stable_value_4                    3.867      3.781     -0.085
+fenced_stable_blend_alpha_stage1         0.168      0.438     +0.271
+fenced_stable_blend_alpha_stage2         0.137      0.473     +0.336
+fenced_stable_blend_alpha_stage3         0.926      0.567     -0.359
+fenced_stable_blend_alpha_stage4         0.564      0.995     +0.430
+fenced_stable_blend_alpha_stage5         0.512      0.000     -0.511
+fenced_stable_blend_alpha_stage6         0.103      0.412     +0.309
+cattle_breeding_pair_value               0.691      1.142     +0.451
+cattle_breed_weight_stage1               0.551      0.907     +0.355
+cattle_breed_weight_stage2               1.523      2.137     +0.613
+cattle_breed_weight_stage3               1.046      1.344     +0.298
+cattle_breed_weight_stage4               1.018      1.310     +0.292
+cattle_breed_weight_stage5               0.904      0.515     -0.389
+cattle_breed_weight_stage6               0.461      0.038     -0.423
+boar_breeding_pair_value                 0.277      1.036     +0.759
+boar_breed_weight_stage1                 1.029      0.742     -0.288
+boar_breed_weight_stage2                 1.069      0.994     -0.075
+boar_breed_weight_stage3                 0.916      1.222     +0.306
+boar_breed_weight_stage4                 0.540      0.456     -0.084
+boar_breed_weight_stage5                 0.003      0.108     +0.105
+boar_breed_weight_stage6                 0.090      0.401     +0.310
+sheep_breeding_pair_value                1.485      1.338     -0.146
+sheep_breed_weight_stage1                0.315      0.118     -0.197
+sheep_breed_weight_stage2                0.962      1.103     +0.140
+sheep_breed_weight_stage3                0.294      0.161     -0.132
+sheep_breed_weight_stage4                0.468      1.234     +0.766
+sheep_breed_weight_stage5                0.362      0.105     -0.257
+sheep_breed_weight_stage6                0.157      0.359     +0.203
+unfenced_stable_value_0                  0.300      0.289     -0.012
+unfenced_stable_value_1                  0.769      0.520     -0.249
+unfenced_stable_value_2                  1.642      1.602     -0.040
+unfenced_stable_value_3                  0.692      0.996     +0.303
+unfenced_stable_value_4                  1.733      1.856     +0.123
+unfenced_stable_weight_stage1            1.575      1.705     +0.130
+unfenced_stable_weight_stage2            0.110      0.364     +0.254
+unfenced_stable_weight_stage3            0.347      1.425     +1.077
+unfenced_stable_weight_stage4            0.622      0.440     -0.182
+unfenced_stable_weight_stage5            0.608      0.780     +0.172
+unfenced_stable_weight_stage6            0.384      0.737     +0.352
+
+Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
+  holdout P0 100-0-0 P1  avg +32.88 vs +6.82  margin +26.06  (100 games, 64.2s)
+  → smaller than training margin but still positive. Mild overfitting.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +24.85 (n=100) → +26.06 (n=100))
+  ✓ step completed in 48.0 min (cumulative 388.8 min)
+
+========================================================================
+  ALL 8 STEPS COMPLETE in 388.8 min (6.5 hours)
+========================================================================
+
+Final config chain ended at: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json
+v3_best.json was auto-updated whenever a step's holdout improved.

@@ -196,9 +196,11 @@ class HeuristicAgent:
         seed: int = 0,
         lookahead: str = "turn",
         legal_actions_fn: LegalActionsFn = legal_actions,
+        exhaustive_leaf_cap: int = 1000,
     ):
-        if lookahead not in ("action", "turn"):
-            raise ValueError(f"lookahead must be 'action' or 'turn', got {lookahead!r}")
+        if lookahead not in ("action", "turn", "exhaustive"):
+            raise ValueError(f"lookahead must be 'action', 'turn', or "
+                              f"'exhaustive', got {lookahead!r}")
         self.evaluator = evaluator
         self.config = config
         self.temperature = float(temperature)
@@ -209,6 +211,14 @@ class HeuristicAgent:
         # the engine's unrestricted set; pass `restricted_legal_actions` for
         # the action-pruned variant.
         self.legal_actions_fn = legal_actions_fn
+        # Per-top-level-action leaf cap used by lookahead="exhaustive". Each
+        # candidate top-level action's exhaustive subtree may visit at most
+        # this many leaves (= evaluator calls); if a recursion would exceed
+        # the cap, that branch falls back to greedy descent (`_rollout_value`).
+        # Default 1000 is a safety bound for Fencing-style explosions — per
+        # the leaf-counter measurement, 95% of chains are <500 leaves so the
+        # cap rarely fires.
+        self.exhaustive_leaf_cap = int(exhaustive_leaf_cap)
 
     def __call__(self, state: GameState) -> Action:
         actions = filter_implemented(self.legal_actions_fn(state))
@@ -242,6 +252,8 @@ class HeuristicAgent:
         state = self._skip_singletons(state, decider)
         if self.lookahead == "action":
             return self.evaluator(state, decider, self.config)
+        if self.lookahead == "exhaustive":
+            return self._exhaustive_value(state, decider)
         return self._rollout_value(state, decider)
 
     def _skip_singletons(self, state: GameState, decider: int) -> GameState:
@@ -262,6 +274,67 @@ class HeuristicAgent:
             if not actions or len(actions) != 1:
                 return state
             state = step(state, actions[0])
+
+    def _exhaustive_value(self, state: GameState, decider: int) -> float:
+        """Exhaustive search over the decider's chain of decisions until
+        control hands off. Returns the maximum evaluator score over all
+        reachable handoff/end-state configurations.
+
+        Cost is O(branching^chain_length) — potentially much larger than
+        `_rollout_value`'s O(chain_length × branching). To bound the worst
+        case (especially for Fencing, where chains can produce hundreds to
+        thousands of leaves), a per-call leaf counter is tracked: when it
+        exceeds `self.exhaustive_leaf_cap`, the recursion FALLS BACK to
+        greedy descent (`_rollout_value`) for the remainder of that branch.
+
+        Returns the best evaluator score reachable from this state through
+        the decider's chain (whether found exhaustively or via partial
+        greedy fallback). The caller is responsible for `_skip_singletons`
+        before calling (the entry from `_lookahead_value` already does so;
+        the recursive helper handles internal singleton-skip).
+        """
+        counter = [0]
+        return self._exhaustive_recurse(state, decider, counter)
+
+    def _exhaustive_recurse(self, state: GameState, decider: int,
+                              counter: list) -> float:
+        # Skip singletons (don't count as leaves — they have no decision).
+        while True:
+            if state.phase == Phase.BEFORE_SCORING:
+                counter[0] += 1
+                return self.evaluator(state, decider, self.config)
+            if decider_of(state) != decider:
+                counter[0] += 1
+                return self.evaluator(state, decider, self.config)
+            actions = filter_implemented(self.legal_actions_fn(state))
+            if not actions:
+                counter[0] += 1
+                return self.evaluator(state, decider, self.config)
+            if len(actions) == 1:
+                state = step(state, actions[0])
+                continue
+            break
+
+        # Multi-option decision still owned by decider.
+        # If we're already over the cap, fall back to greedy for this branch.
+        if counter[0] >= self.exhaustive_leaf_cap:
+            return self._rollout_value(state, decider)
+
+        best = -float("inf")
+        for a in actions:
+            cand = step(state, a)
+            if counter[0] >= self.exhaustive_leaf_cap:
+                # Cap hit mid-loop: remaining branches are evaluated greedily
+                # rather than skipped, so we still return the BEST of what
+                # we've seen plus a greedy approximation of unexpanded
+                # branches. Greedy is admissible-ish (lower bound on what
+                # exhaustive would find within the same branch).
+                v = self._rollout_value(cand, decider)
+            else:
+                v = self._exhaustive_recurse(cand, decider, counter)
+            if v > best:
+                best = v
+        return best
 
     def _rollout_value(self, state: GameState, decider: int) -> float:
         """Greedy 1-ply rollout of the decider's OWN subsequent decisions

@@ -1,0 +1,64 @@
+Tuning 22 parameters via CMA-ES
+  category: 'v3_alphas_and_carryovers'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponent: 'tuned_configs/v3_best.json' (arch: v3)
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 13, max_gens: 10, sigma0: 0.3
+  total evals: 130
+  jobs: 8; python -O: ON
+  estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
+  Output: tuned_configs/v3_alphas_carryovers_1779559111.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/v3_alphas_carryovers_1779559111.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'tuned_configs/v3_best.json' baseline) = +1.620 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +1.620  gen best: +1.470  gen mean: -0.465  (1.6 min)
+gen   2  best so far: +3.310  gen best: +3.310  gen mean: +0.608  (3.3 min)
+gen   3  best so far: +3.310  gen best: +2.350  gen mean: +0.997  (5.1 min)
+gen   4  best so far: +3.310  gen best: +2.270  gen mean: +1.318  (6.7 min)
+gen   5  best so far: +3.760  gen best: +3.760  gen mean: +1.329  (8.5 min)
+gen   6  best so far: +3.760  gen best: +3.380  gen mean: +1.569  (10.2 min)
+gen   7  best so far: +3.760  gen best: +3.260  gen mean: +1.416  (11.9 min)
+gen   8  best so far: +3.810  gen best: +3.810  gen mean: +1.569  (13.6 min)
+gen   9  best so far: +3.810  gen best: +3.730  gen mean: +2.502  (15.2 min)
+gen  10  best so far: +4.440  gen best: +4.440  gen mean: +2.445  (17.0 min)
+
+Optimization complete in 17.0 min.
+Best margin (training): +4.440
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+score_joint_alpha_stage1                 0.500      0.477     -0.023
+score_joint_alpha_stage2                 0.600      0.393     -0.207
+score_joint_alpha_stage3                 0.700      1.272     +0.572
+score_joint_alpha_stage4                 0.800      1.079     +0.279
+score_joint_alpha_stage5                 0.900      0.657     -0.243
+score_joint_alpha_stage6                 1.000      1.211     +0.211
+unused_spaces_alpha_stage1               1.000      0.640     -0.360
+unused_spaces_alpha_stage2               0.700      0.039     -0.661
+unused_spaces_alpha_stage3               0.500      0.631     +0.131
+unused_spaces_alpha_stage4               0.300      0.002     -0.298
+unused_spaces_alpha_stage5               0.100      0.171     +0.071
+unused_spaces_alpha_stage6               0.000      0.007     +0.007
+family_per_round_0                       3.292      3.372     +0.079
+family_per_round_1                       2.256      2.031     -0.225
+family_per_round_2                       2.005      2.179     +0.174
+empty_room_rate_pre_basic_wish           2.616      2.804     +0.188
+empty_room_rate_post_basic_wish          2.922      2.975     +0.053
+starting_player_bonus                    1.228      0.020     -1.209
+field_center_bonus                       0.100      0.095     -0.005
+pasture_location_bonus                   0.050      0.492     +0.442
+renovation_bonus_per_step_early          0.000      0.064     +0.064
+renovation_bonus_per_step_late           0.000      0.013     +0.013
+
+Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 100 disjoint seeds...
+  holdout P0 72-1-27 P1  avg +30.00 vs +23.73  margin +6.27  (100 games, 36.5s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: tuned_configs/v3_alphas_carryovers_1779559111.json
+Log:     tuned_configs/v3_alphas_carryovers_1779559111.log
+CMA pkl: tuned_configs/v3_alphas_carryovers_1779559111.cma.pkl  (use --resume tuned_configs/v3_alphas_carryovers_1779559111.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +1.25 (n=100) → +6.27 (n=100))

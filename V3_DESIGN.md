@@ -202,6 +202,23 @@ No score-leaf. Defaults make this active in stages 1-3 (early game) and zero in 
 
 Applies to `bd.clay_rooms + bd.stone_rooms + bd.people + bd.bonus_points`.
 
+### D — Per-stage major-improvement values (replaces V1's `_hubris_major_value`)
+
+| Field | Length | Indexing |
+|---|---|---|
+| `fireplace_value_by_stage` | 6 | per stage |
+| `hearth_value_by_stage` | 6 | per stage |
+| `well_value_by_stage` | 6 | per stage |
+| `clay_oven_value_by_stage` | 6 | per stage |
+| `stone_oven_value_by_stage` | 6 | per stage |
+| `joinery_value_by_stage` | 6 | per stage |
+| `pottery_value_by_stage` | 6 | per stage |
+| `basketmaker_value_by_stage` | 6 | per stage |
+
+48 scalars. **Combination:** REPLACES `score()`'s major-improvement leaf (the evaluator subtracts `bd.major_improvement_points` implicitly by not adding it; instead `_hubris_major_value_v3` is added). Cooking rule: the BEST owned implement (hearth wins over fireplace) contributes its per-stage value; each ADDITIONAL cooking implement contributes a flat +1 (regardless of type). Well: just `well_value_by_stage[stage]` — no future-food scaling.
+
+Defaults in `DEFAULT_CONFIG_V3` derived from V1_T2 where applicable: fireplace/hearth stages 1-4 use the V1_T2 "full" value, stage 5 = "_mid", stage 6 = "_late". Hand-picked majors (well, ovens, joinery, pottery, basketmaker) flat across all stages at V1's defaults.
+
 ## 4. Resources
 
 V3 uses a **three-component pattern per resource**: a slot-indexed primary vector, an optional regime overlay vector, and a generic per-unit scalar. All three are gated by a per-stage weight.
@@ -268,11 +285,24 @@ V3 doesn't reimplement everything. Several V1 helpers and config fields are carr
 | `_hubris_family_value` | Per-future-round value for 3rd/4th/5th family members | `family_per_round` |
 | `_hubris_empty_room_value` | Anticipated value of empty rooms (future people) | `empty_room_rate_pre_basic_wish`, `empty_room_rate_post_basic_wish` |
 | `_hubris_field_location_bonus` | Per-cell bonus for fields on center 4 cells | `field_center_bonus` |
-| `_hubris_pasture_location_bonus` | Per-cell bonus for pasture cells with column ≥2 | `pasture_location_bonus` |
 | `_hubris_starting_player_bonus` | Flat bonus when SP token held | `starting_player_bonus` |
 | `_hubris_renovation_bonus` | Per-renovation-step bonus | `renovation_bonus_per_step_early/late` |
-| `_hubris_major_value` | Replaces score()'s major-improvement leaf with per-major utility values | `fireplace_value*`, `hearth_value*`, `cooking_secondary_vp`, `well_value`, `well_food_per_future`, `clay_oven_value`, `stone_oven_value`, `joinery_value`, `pottery_value`, `basketmaker_value` |
 | `_food_term_hubris` | Stage-dependent food + moves-keyed begging penalty | `hubris_food_by_stage`, `hubris_begging_by_moves` |
+
+### V3-specific replacements for V1 helpers
+
+Two V1 helpers were replaced with V3-specific variants because their semantics changed for V3. The V1 originals are untouched (V1 still uses them); V3 calls the `_v3` variants exclusively.
+
+| V3 helper | What it does | Config fields read |
+|---|---|---|
+| `_hubris_major_value_v3` | Replaces score()'s major leaf with per-stage per-major utility values. Cooking: BEST owned implement (hearth wins over fireplace) contributes its per-stage value; each additional cooking implement contributes a flat +1. Well: per-stage value only (no future-food scaling). | `fireplace_value_by_stage`, `hearth_value_by_stage`, `well_value_by_stage`, `clay_oven_value_by_stage`, `stone_oven_value_by_stage`, `joinery_value_by_stage`, `pottery_value_by_stage`, `basketmaker_value_by_stage` |
+| `_hubris_pasture_location_bonus_v3` | Per-cell bonus for pasture cells with column ≥ 3 (right 6 cells), vs V1's column ≥ 2 (right 9 cells). | `pasture_location_bonus` |
+
+**Why the major-value refactor.** V1's `_hubris_major_value` used a 3-tier round bucketing (`<12`, `12-13`, `=14`) for cooking, single scalars for the other 5 majors, and a `well_value + 0.4 * future_food_rounds` term for the well. V3 replaces this with uniform length-6 per-stage arrays (one per major), aligning major values with the rest of V3's per-stage modulator pattern and exposing them to CMA-ES tuning. The `+1 per extra cooking` rule replaces the V1 `cooking_secondary_vp` scalar — a flat 1 is simpler and approximately matches the printed VP of a duplicate cooking implement.
+
+**Why the pasture-bonus refactor.** Pastures pushed to columns 3-4 leave columns 0-2 entirely free for rooms / fields / wider pastures, which is a sharper strategic signal than columns 2-4 (where a column-2 pasture forecloses room expansion). The `pasture_location_bonus` scalar itself is unchanged in meaning; only the cell set narrowed.
+
+**Legacy fields kept on `HeuristicConfigV3`** for backwards-compat JSON loading: `fireplace_value`, `fireplace_value_mid`, `fireplace_value_late`, `hearth_value`, `hearth_value_mid`, `hearth_value_late`, `cooking_secondary_vp`, `well_value`, `well_food_per_future`, `clay_oven_value`, `stone_oven_value`, `joinery_value`, `pottery_value`, `basketmaker_value`. Unread by `evaluate_hubris_v3` post-refactor.
 
 ### Default values copied from CONFIG_V1_T2
 
@@ -299,13 +329,12 @@ V2's joint-frontier food handling (`_food_and_goods_term_v2`) is not in V3 eithe
 
 ## 6. The evaluator (top-level orchestration)
 
-`evaluate_hubris_v3(state, player_idx, config)` composes everything into one float:
+`evaluate_hubris_v3(state, player_idx, config)` composes everything into one float. At `Phase.BEFORE_SCORING` it returns the **score margin** `own − opponent` (via the shared `_terminal_margin_value` helper, used uniformly by all four evaluators); mid-game it returns the heuristic-weighted sum:
 
 ```python
 def evaluate_hubris_v3(state, player_idx, config):
     if state.phase == Phase.BEFORE_SCORING:
-        total, _ = score(state, player_idx)
-        return float(total)  # End-of-game: just the raw score.
+        return _terminal_margin_value(state, player_idx)  # own − opponent
 
     stage_idx = _stage_of_round(state.round_number) - 1  # 0..5
     p = state.players[player_idx]
@@ -331,14 +360,14 @@ def evaluate_hubris_v3(state, player_idx, config):
     # Begging at full weight
     pts += bd.begging_markers
 
-    # Major improvement override (V1's hubris helper)
-    pts += _hubris_major_value(state, player_idx, config)
+    # Major improvement override (V3-specific per-stage helper)
+    pts += _hubris_major_value_v3(state, player_idx, config)
 
-    # V1 carry-over additive terms
+    # V1 carry-over additive terms + V3 pasture-location helper (c >= 3)
     pts += _hubris_family_value(state, p, config)
     pts += _hubris_empty_room_value(state, p, config)
     pts += _hubris_field_location_bonus(p, config)
-    pts += _hubris_pasture_location_bonus(p, config)
+    pts += _hubris_pasture_location_bonus_v3(p, config)
     pts += _hubris_starting_player_bonus(state, player_idx, config)
     pts += _hubris_renovation_bonus(state, p, config)
 
@@ -404,3 +433,19 @@ CMA-ES doesn't handle integers naturally. These are not in `HeuristicConfigV3` a
 ### 8.7 Parameter count vs CMA-ES tractability
 
 V3 has ~250 continuous parameters. The category-by-category tuning approach (see `V3_TRAINING_PIPELINE.md`) keeps any single CMA-ES run to ≤ 101 dimensions, well within the algorithm's comfortable range. Tuning all 250 at once would be much harder (popsize ≈ 30+, generations ≈ 100+ for adequate convergence).
+
+### 8.8 Why end-of-game value is the margin, not own-score
+
+All four evaluators' `Phase.BEFORE_SCORING` branch returns `own_score − opponent_score` (via `_terminal_margin_value`), not just `own_score`. The game's actual payoff is the margin between the two players, not absolute score. The two are equivalent when one's own actions don't affect the opponent — which is most of the time in Agricola — but they differ on actions that consume shared resources or accumulation spaces the opponent would have used. Returning the margin makes the agent prefer those blocking effects at parity in own-score, matching the actual game objective.
+
+Mid-game evaluator output is unchanged: it remains the heuristic-weighted sum the agent has always optimized. Only the terminal-state value is affected.
+
+### 8.9 Exhaustive lookahead is empirically worse than greedy
+
+The `HeuristicAgent` supports a third lookahead mode, `lookahead="exhaustive"`, which replaces `_rollout_value`'s greedy 1-ply argmax-descent with a full subtree max-search bounded by a per-top-action leaf cap (default 1000, with greedy fallback above the cap). Implementation in `agricola/agents/base.py`.
+
+An 800-game self-match at a tuned `v3_best` (exhaustive P0 vs greedy P1) produced margin **−4.49 ± 1.05** — exhaustive is significantly **worse** than greedy.
+
+Diagnostic explanation: exhaustive search picks the leaf that maximizes the evaluator's score, which systematically selects states the evaluator overvalues (the imperfect-value-function-amplification problem). Greedy's locally-correct picks at each step don't expose this bias as aggressively. This is the same phenomenon that motivates stochastic rollouts (rather than deterministic max) in MCTS.
+
+The mode is not removed — it's kept as opt-in for experimentation and as the implementation backing the leaf-counter measurement (`scripts/measure_exhaustive_leaves.py`). Default lookahead remains `"turn"` (greedy). See V3_TRAINING_PIPELINE.md §8.3 for the experiment timeline.

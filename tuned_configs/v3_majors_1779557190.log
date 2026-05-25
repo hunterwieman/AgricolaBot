@@ -1,0 +1,90 @@
+Tuning 48 parameters via CMA-ES
+  category: 'v3_majors_per_stage'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponent: 'tuned_configs/v3_best.json' (arch: v3)
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 100 games per evaluation (training: 0..99)
+  holdout: 100 games (1000..1099)
+  popsize: 14, max_gens: 10, sigma0: 0.3
+  total evals: 140
+  jobs: 8; python -O: ON
+  estimated wall time: ~16.8 min (vs ~116.7 min if 1-job & no -O)
+  Output: tuned_configs/v3_majors_1779557190.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/v3_majors_1779557190.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'tuned_configs/v3_best.json' baseline) = -0.510 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +1.480  gen best: +1.480  gen mean: +0.624  (1.8 min)
+gen   2  best so far: +1.850  gen best: +1.850  gen mean: +0.885  (3.4 min)
+gen   3  best so far: +2.190  gen best: +2.190  gen mean: +1.227  (5.0 min)
+gen   4  best so far: +2.190  gen best: +2.000  gen mean: +1.462  (6.5 min)
+gen   5  best so far: +2.690  gen best: +2.690  gen mean: +1.643  (8.0 min)
+gen   6  best so far: +2.690  gen best: +2.540  gen mean: +1.735  (9.6 min)
+gen   7  best so far: +2.810  gen best: +2.810  gen mean: +2.131  (11.1 min)
+gen   8  best so far: +2.810  gen best: +2.290  gen mean: +1.974  (12.6 min)
+gen   9  best so far: +2.810  gen best: +2.590  gen mean: +2.045  (14.1 min)
+gen  10  best so far: +2.810  gen best: +2.040  gen mean: +1.363  (15.6 min)
+
+Optimization complete in 15.6 min.
+Best margin (training): +2.810
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+fireplace_value_stage1                   4.810      4.480     -0.330
+fireplace_value_stage2                   4.810      4.659     -0.150
+fireplace_value_stage3                   4.810      3.949     -0.861
+fireplace_value_stage4                   4.810      4.669     -0.141
+fireplace_value_stage5                   2.471      1.901     -0.570
+fireplace_value_stage6                   0.147      0.737     +0.590
+hearth_value_stage1                      5.247      5.834     +0.588
+hearth_value_stage2                      5.247      5.397     +0.150
+hearth_value_stage3                      5.247      4.832     -0.415
+hearth_value_stage4                      5.247      6.456     +1.210
+hearth_value_stage5                      2.718      2.927     +0.209
+hearth_value_stage6                      0.821      0.730     -0.091
+well_value_stage1                        4.000      4.051     +0.051
+well_value_stage2                        4.000      4.042     +0.042
+well_value_stage3                        4.000      4.197     +0.197
+well_value_stage4                        4.000      4.487     +0.487
+well_value_stage5                        4.000      3.557     -0.443
+well_value_stage6                        4.000      3.464     -0.536
+clay_oven_value_stage1                   2.000      2.003     +0.003
+clay_oven_value_stage2                   2.000      1.987     -0.013
+clay_oven_value_stage3                   2.000      2.439     +0.439
+clay_oven_value_stage4                   2.000      1.302     -0.698
+clay_oven_value_stage5                   2.000      1.937     -0.063
+clay_oven_value_stage6                   2.000      1.588     -0.412
+stone_oven_value_stage1                  3.000      3.630     +0.630
+stone_oven_value_stage2                  3.000      3.157     +0.157
+stone_oven_value_stage3                  3.000      2.129     -0.871
+stone_oven_value_stage4                  3.000      3.229     +0.229
+stone_oven_value_stage5                  3.000      2.932     -0.068
+stone_oven_value_stage6                  3.000      3.807     +0.807
+joinery_value_stage1                     2.000      2.682     +0.682
+joinery_value_stage2                     2.000      0.993     -1.007
+joinery_value_stage3                     2.000      2.145     +0.145
+joinery_value_stage4                     2.000      1.965     -0.035
+joinery_value_stage5                     2.000      2.425     +0.425
+joinery_value_stage6                     2.000      1.803     -0.197
+pottery_value_stage1                     2.000      2.345     +0.345
+pottery_value_stage2                     2.000      1.818     -0.182
+pottery_value_stage3                     2.000      2.676     +0.676
+pottery_value_stage4                     2.000      2.513     +0.513
+pottery_value_stage5                     2.000      2.615     +0.615
+pottery_value_stage6                     2.000      2.541     +0.541
+basketmaker_value_stage1                 2.000      1.538     -0.462
+basketmaker_value_stage2                 2.000      2.608     +0.608
+basketmaker_value_stage3                 2.000      1.695     -0.305
+basketmaker_value_stage4                 2.000      1.196     -0.804
+basketmaker_value_stage5                 2.000      1.838     -0.162
+basketmaker_value_stage6                 2.000      2.565     +0.565
+
+Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 100 disjoint seeds...
+  holdout P0 68-0-32 P1  avg +26.22 vs +23.64  margin +2.58  (100 games, 25.8s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: tuned_configs/v3_majors_1779557190.json
+Log:     tuned_configs/v3_majors_1779557190.log
+CMA pkl: tuned_configs/v3_majors_1779557190.cma.pkl  (use --resume tuned_configs/v3_majors_1779557190.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +0.61 (n=100) → +2.58 (n=100))

@@ -616,6 +616,17 @@ def main() -> int:
                              "--no-restricted to run tuning in the unrestricted action space "
                              "(matches pre-restricted behavior). The flag is recorded in the "
                              "output JSON.")
+    parser.add_argument("--reset-floor-after-promote",
+                        action=argparse.BooleanOptionalAction, default=False,
+                        help="After a fresh promotion of <arch>_best.json, re-measure the "
+                             "new champion's self-match floor on the holdout seeds and "
+                             "overwrite the stored holdout.avg_margin with the floor. "
+                             "Fixes the chained-baseline auto-update issue: without this, "
+                             "the stored margin is the champion's gain over its (now-obsolete) "
+                             "predecessor, which is much larger than the meaningful self-match "
+                             "floor and blocks future legitimate promotions. Adds ~holdout_n "
+                             "games of compute per promoted run. Recommended for sequential "
+                             "single-category runs that re-tune against the current champion.")
     args = parser.parse_args()
 
     seeds = list(range(args.n_seeds))
@@ -948,14 +959,23 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     # result we've seen for this architecture. Drivers (e.g. play_web.py
     # --v3-config) can point at this stable path to always use the current
     # champion without remembering individual timestamped paths.
-    _maybe_update_best_pointer(args.output, candidate_arch,
-                                holdout_result.avg_margin, holdout_result.n_games)
+    promoted = _maybe_update_best_pointer(args.output, candidate_arch,
+                                            holdout_result.avg_margin,
+                                            holdout_result.n_games)
+    if promoted and args.reset_floor_after_promote:
+        _reset_floor_in_best_pointer(
+            arch=candidate_arch,
+            champion_cfg=best_cfg,
+            candidate_arch=candidate_arch,
+            holdout_seeds=holdout_seeds,
+            restricted=args.restricted,
+        )
     return 0
 
 
 def _maybe_update_best_pointer(new_json_path: Path, arch: str,
                                 new_holdout_margin: float,
-                                new_holdout_n_games: int) -> None:
+                                new_holdout_n_games: int) -> bool:
     """If the new run's holdout result beats the current
     `tuned_configs/<arch>_best.json`, copy `new_json_path` to that path.
 
@@ -968,6 +988,10 @@ def _maybe_update_best_pointer(new_json_path: Path, arch: str,
     overwriting v3_best.json with a low-confidence result. Comparison metric
     is the holdout margin (more honest than training; less prone to
     overfitting noise). Prints the result either way.
+
+    Returns True if a fresh copy was written (initialization or genuine
+    promotion); False if the existing best was kept. The caller may use
+    this to gate a subsequent floor-reset step.
     """
     import shutil
     best_path = ROOT / "tuned_configs" / f"{arch}_best.json"
@@ -989,7 +1013,7 @@ def _maybe_update_best_pointer(new_json_path: Path, arch: str,
         shutil.copy(new_json_path, best_path)
         print(f"Best:    {best_path}  (initialized; holdout {new_holdout_margin:+.2f}, "
               f"n={new_holdout_n_games})")
-        return
+        return True
 
     if new_holdout_n_games < (existing_n or 0):
         # New holdout is smaller-sample. Even if the margin is higher, we
@@ -997,16 +1021,68 @@ def _maybe_update_best_pointer(new_json_path: Path, arch: str,
         print(f"Best:    {best_path}  (unchanged; new holdout sample {new_holdout_n_games} "
               f"< existing {existing_n}, so smaller-sample result skipped regardless "
               f"of margin)")
-        return
+        return False
 
     if new_holdout_margin > existing_margin:
         best_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(new_json_path, best_path)
         print(f"Best:    {best_path}  (UPDATED: {existing_margin:+.2f} (n={existing_n}) "
               f"→ {new_holdout_margin:+.2f} (n={new_holdout_n_games}))")
+        return True
     else:
         print(f"Best:    {best_path}  (unchanged; existing {existing_margin:+.2f} "
               f"(n={existing_n}) >= new {new_holdout_margin:+.2f} (n={new_holdout_n_games}))")
+        return False
+
+
+def _reset_floor_in_best_pointer(arch: str, champion_cfg, candidate_arch: str,
+                                   holdout_seeds: list, restricted: bool) -> None:
+    """After a fresh promotion, re-measure the just-promoted champion's
+    self-match floor on the same holdout seeds and overwrite the stored
+    `holdout.avg_margin` so future auto-promote decisions are apples-to-apples.
+
+    Without this, chained-baseline runs (where the baseline keeps shifting
+    to the latest champion) leave a stale `holdout.avg_margin` that
+    represents "champion's gain over a now-obsolete predecessor" — far
+    larger than the meaningful self-match floor, blocking future legitimate
+    promotions. See V3_TRAINING_PIPELINE.md §X on the auto-update bug.
+    """
+    import shutil
+    best_path = ROOT / "tuned_configs" / f"{arch}_best.json"
+    if not best_path.exists():
+        print(f"  (--reset-floor-after-promote: best file not found at {best_path}, skipping)")
+        return
+
+    def champion_factory(seed):
+        return _make_agent(candidate_arch, champion_cfg, seed, restricted=restricted)
+
+    print(f"  --reset-floor-after-promote: measuring self-match floor of "
+          f"newly-promoted {arch} champion ({len(holdout_seeds)} games)...")
+    res = play_match(champion_factory, champion_factory, holdout_seeds)
+    print(f"  self-match floor: {res.summary_line()}")
+
+    # Overwrite the holdout block in the promoted file with the self-match
+    # measurement. n_games stays the same (same seed count), so future
+    # n-comparison still works.
+    d = json.loads(best_path.read_text())
+    d["holdout"] = {
+        "n_games":         res.n_games,
+        "p0_wins":         res.p0_wins,
+        "p1_wins":         res.p1_wins,
+        "draws":           res.draws,
+        "avg_score_p0":    res.avg_score_p0,
+        "avg_score_p1":    res.avg_score_p1,
+        "avg_margin":      res.avg_margin,
+        "elapsed_seconds": res.elapsed_seconds,
+        "holdout_seeds":   list(holdout_seeds),
+        "note":            (f"Self-match floor (current champion vs self, "
+                            f"restricted={restricted}, n={res.n_games}). "
+                            f"Reset post-promotion by --reset-floor-after-promote. "
+                            f"Future tunings must beat {res.avg_margin:+.2f} "
+                            f"to auto-promote."),
+    }
+    best_path.write_text(json.dumps(d, indent=2))
+    print(f"  {best_path}: holdout.avg_margin reset to {res.avg_margin:+.2f}")
 
 
 if __name__ == "__main__":

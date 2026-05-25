@@ -1,0 +1,145 @@
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_resources.json'
+  baseline opponent: 'tuned_configs/v3_best.json' (arch: v3)
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 200 games per evaluation (training: 0..199)
+  holdout: 300 games (1000..1299)
+  resume: tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 18, max_gens: 10, sigma0: 0.3
+  total evals: 180
+  jobs: 8; python -O: ON
+  estimated wall time: ~43.1 min (vs ~300.0 min if 1-job & no -O)
+  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'tuned_configs/v3_best.json' baseline) = +1.110 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl: countiter=20, σ=0.2342, will run until gen 30 (10 additional generations).
+gen  21  best so far: +2.480  gen best: +2.480  gen mean: -0.979  (5.2 min)
+gen  22  best so far: +2.615  gen best: +2.615  gen mean: -0.254  (10.6 min)
+gen  23  best so far: +3.060  gen best: +3.060  gen mean: +0.804  (16.2 min)
+gen  24  best so far: +3.140  gen best: +3.140  gen mean: +1.997  (21.4 min)
+gen  25  best so far: +3.195  gen best: +3.195  gen mean: +2.304  (26.7 min)
+gen  26  best so far: +3.390  gen best: +3.390  gen mean: +2.081  (31.7 min)
+gen  27  best so far: +3.390  gen best: +3.265  gen mean: +1.932  (36.9 min)
+gen  28  best so far: +3.725  gen best: +3.725  gen mean: +2.891  (42.2 min)
+gen  29  best so far: +3.725  gen best: +3.675  gen mean: +1.705  (47.2 min)
+gen  30  best so far: +3.725  gen best: +3.575  gen mean: +1.963  (52.3 min)
+
+Optimization complete in 52.3 min.
+Best margin (training): +3.725
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+pasture_value_all_0                     -0.197      0.421     +0.618
+pasture_value_all_1                      0.896      1.177     +0.281
+pasture_value_all_2                      3.364      2.983     -0.381
+pasture_value_all_3                      3.907      4.701     +0.794
+pasture_value_all_4                      4.038      4.307     +0.269
+pasture_value_large_0                   -0.137     -0.066     +0.071
+pasture_value_large_1                   -0.614     -0.690     -0.076
+pasture_value_large_2                    0.184      0.425     +0.241
+pasture_value_large_3                    0.444     -0.291     -0.736
+pasture_value_large_4                    0.758      1.353     +0.594
+pasture_blend_alpha_stage1               0.903      0.620     -0.283
+pasture_blend_alpha_stage2               0.408      0.079     -0.330
+pasture_blend_alpha_stage3               0.584      0.540     -0.043
+pasture_blend_alpha_stage4               0.960      0.981     +0.022
+pasture_blend_alpha_stage5               0.413      0.331     -0.082
+pasture_blend_alpha_stage6               0.860      0.463     -0.397
+sheep_value_0                           -0.774     -0.816     -0.041
+sheep_value_1                            0.338      0.202     -0.135
+sheep_value_2                            1.306      1.722     +0.416
+sheep_value_3                            0.719      0.610     -0.109
+sheep_value_4                            2.703      2.542     -0.161
+sheep_value_5                            2.673      2.252     -0.421
+sheep_value_6                            3.219      2.805     -0.414
+sheep_value_7                            2.847      3.123     +0.276
+sheep_value_8                            3.810      3.823     +0.013
+sheep_blend_alpha_stage1                 0.553      0.658     +0.105
+sheep_blend_alpha_stage2                 0.001      0.257     +0.256
+sheep_blend_alpha_stage3                 0.774      0.337     -0.437
+sheep_blend_alpha_stage4                 0.377      0.308     -0.069
+sheep_blend_alpha_stage5                 0.394      0.634     +0.239
+sheep_blend_alpha_stage6                 0.781      0.495     -0.287
+boar_value_0                             0.349     -0.284     -0.632
+boar_value_1                             0.724     -0.277     -1.001
+boar_value_2                             0.386      0.964     +0.578
+boar_value_3                             2.536      2.571     +0.035
+boar_value_4                             1.901      1.708     -0.194
+boar_value_5                             2.704      2.821     +0.117
+boar_value_6                             2.500      2.383     -0.117
+boar_value_7                             5.247      5.502     +0.254
+boar_blend_alpha_stage1                  0.146      0.648     +0.502
+boar_blend_alpha_stage2                  0.907      0.862     -0.045
+boar_blend_alpha_stage3                  0.987      0.879     -0.108
+boar_blend_alpha_stage4                  0.424      0.482     +0.059
+boar_blend_alpha_stage5                  0.052      0.572     +0.521
+boar_blend_alpha_stage6                  0.943      0.205     -0.737
+cattle_value_0                          -0.871     -0.218     +0.654
+cattle_value_1                           0.621      0.540     -0.081
+cattle_value_2                           1.308      0.682     -0.627
+cattle_value_3                           2.302      2.579     +0.277
+cattle_value_4                           2.745      2.509     -0.236
+cattle_value_5                           2.873      3.057     +0.184
+cattle_value_6                           5.796      5.495     -0.300
+cattle_blend_alpha_stage1                0.489      0.494     +0.005
+cattle_blend_alpha_stage2                0.826      0.785     -0.040
+cattle_blend_alpha_stage3                0.848      0.938     +0.090
+cattle_blend_alpha_stage4                0.491      0.737     +0.246
+cattle_blend_alpha_stage5                0.060      0.156     +0.096
+cattle_blend_alpha_stage6                0.247      0.026     -0.221
+fenced_stable_value_0                   -0.487     -0.532     -0.045
+fenced_stable_value_1                    0.652      0.800     +0.149
+fenced_stable_value_2                    2.682      2.591     -0.091
+fenced_stable_value_3                    3.134      3.897     +0.764
+fenced_stable_value_4                    3.781      3.391     -0.391
+fenced_stable_blend_alpha_stage1         0.438      0.298     -0.140
+fenced_stable_blend_alpha_stage2         0.473      0.050     -0.423
+fenced_stable_blend_alpha_stage3         0.567      0.542     -0.025
+fenced_stable_blend_alpha_stage4         0.995      0.865     -0.130
+fenced_stable_blend_alpha_stage5         0.000      0.098     +0.098
+fenced_stable_blend_alpha_stage6         0.412      0.727     +0.315
+cattle_breeding_pair_value               1.142      1.288     +0.147
+cattle_breed_weight_stage1               0.907      0.745     -0.162
+cattle_breed_weight_stage2               2.137      1.928     -0.209
+cattle_breed_weight_stage3               1.344      1.483     +0.139
+cattle_breed_weight_stage4               1.310      1.459     +0.149
+cattle_breed_weight_stage5               0.515      0.685     +0.170
+cattle_breed_weight_stage6               0.038      0.447     +0.409
+boar_breeding_pair_value                 1.036      0.685     -0.352
+boar_breed_weight_stage1                 0.742      0.588     -0.153
+boar_breed_weight_stage2                 0.994      1.538     +0.544
+boar_breed_weight_stage3                 1.222      1.122     -0.100
+boar_breed_weight_stage4                 0.456      0.749     +0.293
+boar_breed_weight_stage5                 0.108      0.139     +0.031
+boar_breed_weight_stage6                 0.401      0.081     -0.320
+sheep_breeding_pair_value                1.338      0.556     -0.782
+sheep_breed_weight_stage1                0.118      0.648     +0.529
+sheep_breed_weight_stage2                1.103      0.997     -0.106
+sheep_breed_weight_stage3                0.161      0.231     +0.070
+sheep_breed_weight_stage4                1.234      1.613     +0.379
+sheep_breed_weight_stage5                0.105      0.425     +0.320
+sheep_breed_weight_stage6                0.359      0.486     +0.127
+unfenced_stable_value_0                  0.289      0.449     +0.161
+unfenced_stable_value_1                  0.520      0.528     +0.008
+unfenced_stable_value_2                  1.602      1.381     -0.221
+unfenced_stable_value_3                  0.996      0.974     -0.022
+unfenced_stable_value_4                  1.856      1.977     +0.121
+unfenced_stable_weight_stage1            1.705      2.046     +0.341
+unfenced_stable_weight_stage2            0.364      0.385     +0.020
+unfenced_stable_weight_stage3            1.425      0.769     -0.656
+unfenced_stable_weight_stage4            0.440      0.320     -0.120
+unfenced_stable_weight_stage5            0.780      1.234     +0.454
+unfenced_stable_weight_stage6            0.737      0.935     +0.199
+
+Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 300 disjoint seeds...
+  holdout P0 240-3-57 P1  avg +26.98 vs +22.26  margin +4.73  (300 games, 111.6s)
+  → consistent with training (within 1pt). Tuning generalizes.
+
+Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.json
+Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.log
+CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +2.89 (n=300) → +4.73 (n=300))

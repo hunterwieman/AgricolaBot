@@ -1,0 +1,69 @@
+Tuning 22 parameters via CMA-ES
+  category: 'v3_alphas_and_carryovers'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponent: 'tuned_configs/v3_best.json' (arch: v3)
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 300 games per evaluation (training: 0..299)
+  holdout: 400 games (1000..1399)
+  resume: tuned_configs/v3_alphas_carryovers_1779559111.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 13, max_gens: 10, sigma0: 0.3
+  total evals: 130
+  jobs: 8; python -O: ON
+  estimated wall time: ~46.7 min (vs ~325.0 min if 1-job & no -O)
+  Output: tuned_configs/iter4_alphas_1779586613.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter4_alphas_1779586613.log (human-readable progress mirror)
+
+Sanity: fitness(starting point vs 'tuned_configs/v3_best.json' baseline) = -1.233 margin
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from tuned_configs/v3_alphas_carryovers_1779559111.cma.pkl: countiter=10, σ=0.2634, will run until gen 20 (10 additional generations).
+gen  11  best so far: +1.097  gen best: +1.097  gen mean: -1.223  (5.9 min)
+gen  12  best so far: +1.317  gen best: +1.317  gen mean: -1.509  (12.3 min)
+gen  13  best so far: +1.563  gen best: +1.563  gen mean: -0.163  (18.2 min)
+gen  14  best so far: +1.850  gen best: +1.850  gen mean: +0.572  (23.9 min)
+gen  15  best so far: +2.190  gen best: +2.190  gen mean: +0.178  (29.7 min)
+gen  16  best so far: +2.787  gen best: +2.787  gen mean: +1.024  (35.9 min)
+gen  17  best so far: +3.020  gen best: +3.020  gen mean: +1.673  (43.0 min)
+gen  18  best so far: +3.917  gen best: +3.917  gen mean: +1.875  (49.3 min)
+gen  19  best so far: +3.917  gen best: +3.273  gen mean: +1.709  (56.2 min)
+gen  20  best so far: +4.033  gen best: +4.033  gen mean: +2.313  (64.0 min)
+
+Optimization complete in 64.0 min.
+Best margin (training): +4.033
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+score_joint_alpha_stage1                 0.477      0.489     +0.011
+score_joint_alpha_stage2                 0.393      0.200     -0.193
+score_joint_alpha_stage3                 1.272      0.873     -0.400
+score_joint_alpha_stage4                 1.079      0.875     -0.204
+score_joint_alpha_stage5                 0.657      0.338     -0.319
+score_joint_alpha_stage6                 1.211      1.442     +0.231
+unused_spaces_alpha_stage1               0.640      0.784     +0.144
+unused_spaces_alpha_stage2               0.039      0.988     +0.949
+unused_spaces_alpha_stage3               0.631      0.536     -0.095
+unused_spaces_alpha_stage4               0.002      0.248     +0.246
+unused_spaces_alpha_stage5               0.171      0.173     +0.001
+unused_spaces_alpha_stage6               0.007      0.168     +0.161
+family_per_round_0                       3.372      3.209     -0.162
+family_per_round_1                       2.031      2.365     +0.334
+family_per_round_2                       2.179      2.754     +0.575
+empty_room_rate_pre_basic_wish           2.804      4.606     +1.802
+empty_room_rate_post_basic_wish          2.975      2.813     -0.162
+starting_player_bonus                    0.020      0.345     +0.325
+field_center_bonus                       0.095      0.259     +0.164
+pasture_location_bonus                   0.492      0.460     -0.032
+renovation_bonus_per_step_early          0.064      0.790     +0.726
+renovation_bonus_per_step_late           0.013      0.233     +0.221
+
+Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 400 disjoint seeds...
+  holdout P0 205-0-195 P1  avg +26.94 vs +26.27  margin +0.68  (400 games, 159.9s)
+  → smaller than training margin but still positive. Mild overfitting.
+
+Written: tuned_configs/iter4_alphas_1779586613.json
+Log:     tuned_configs/iter4_alphas_1779586613.log
+CMA pkl: tuned_configs/iter4_alphas_1779586613.cma.pkl  (use --resume tuned_configs/iter4_alphas_1779586613.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: -2.77 (n=400) → +0.68 (n=400))
+  --reset-floor-after-promote: measuring self-match floor of newly-promoted v3 champion (400 games)...
+  self-match floor: P0 157-1-242 P1  avg +25.20 vs +28.80  margin -3.60  (400 games, 189.8s)
+  /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json: holdout.avg_margin reset to -3.60

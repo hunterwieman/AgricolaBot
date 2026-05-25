@@ -60,6 +60,7 @@ Each invocation:
 | `--holdout-start, --holdout-n` | 1000, 100 | Holdout seed range |
 | `--output <path>` | `tuned_configs/<ts>.json` | Output path; `.log` and `.cma.pkl` companion files share the stem |
 | `--restricted` / `--no-restricted` | **ON** | Builds candidate, baseline, and holdout agents with `legal_actions_fn=restricted_legal_actions`. Recorded as `"restricted": bool` in the output JSON. See §11. |
+| `--reset-floor-after-promote` / `--no-reset-floor-after-promote` | **OFF** | After a fresh promotion of `<arch>_best.json`, re-measure the new champion's self-match floor on the holdout seeds and overwrite the stored `holdout.avg_margin`. Fixes the chained-baseline auto-update bug — see §2.6. |
 
 ### 2.3 Fitness convention
 
@@ -86,6 +87,16 @@ After holdout completes, the script reads `tuned_configs/<candidate_arch>_best.j
 
 This keeps `tuned_configs/v3_best.json` always pointing at the strongest V3 config we've ever produced.
 
+### 2.6 The chained-baseline auto-update bug (and the `--reset-floor-after-promote` fix)
+
+When you run a sequence of single-category tunings each with `--baseline tuned_configs/v3_best.json` (the v3_best file being auto-updated by the previous run's promotion), the auto-update comparison breaks down. After step N promotes, `v3_best.json`'s stored `holdout.avg_margin` records step N's gain over step N−1's baseline — a number that can be much larger than the meaningful self-match floor of the current champion. The next step's holdout (measuring tuned vs new champion) would have to exceed that stale number to promote, which is essentially impossible for an incremental improvement.
+
+**Concrete example from iter3.** Step 3 (`v3_resources`) promoted with holdout `+15.16` (its margin against the post-step-2 champion). v3_best.json's stored `holdout.avg_margin` was overwritten with `+15.16`. Step 4 (`v3_pastures_animals`) then ran against the post-step-3 champion. Its holdout came in at `+4.73` — a real improvement (self-match floor was around `+2.89`), but the auto-update logic compared `+4.73 > +15.16` → false → would have failed to promote, despite being a legitimate gain. We worked around this mid-run by manually resetting `v3_best.json`'s stored margin to the measured self-match floor before step 4 finished its holdout.
+
+The `--reset-floor-after-promote` flag automates that fix: after a fresh promotion, the script measures the new champion's self-match floor on the holdout seeds and overwrites `holdout.avg_margin` with that floor. Future tunings then compare against the meaningful self-match-floor threshold. Adds ~holdout_n games of compute per promoted run (~2 min at n=300, restricted=True).
+
+Recommended for any single-category run where the baseline is also the current champion (the common iter3+ pattern). The iter1/iter2 setup used a FIXED baseline (`v3_t1`, `t2`) across all steps, where margins are directly comparable — the bug doesn't bite there. iter3 onwards uses chained baselines and needs the flag.
+
 ## 3. The TUNABLE categories
 
 A TUNABLE is a list of `(name, default, lower, upper, config_path)` tuples. `config_path` is either:
@@ -106,6 +117,8 @@ Defined in `scripts/tune_heuristic.py`. Each entry maps to `(tunable_list, archi
 | `v3_pastures_animals` | V3 | 101 | Pasture (2 vectors + alpha), sheep/boar/cattle value vectors + alphas, fenced stables, 3 breeding-pair values + weights, unfenced stables. |
 | `v3_resources` | V3 | 63 | Wood (15+5+1 vector entries + 6 stage weights), reed (6+2+1+6), clay (5+1+1+6), stone (1+1+6). |
 | `v3_food` | V3 | 18 | `hubris_food_by_stage` (6 stages × 2 = 12) + `hubris_begging_by_moves` (6). |
+| `v3_majors_per_stage` | V3 | 48 | 8 majors × 6 per-stage values (`fireplace_value_by_stage`, ..., `basketmaker_value_by_stage`). Added 2026-05-23 after the major-value refactor. |
+| `v3_alphas_and_carryovers` | V3 | 22 | `score_joint_alpha_by_stage` (6) + `unused_spaces_alpha_by_stage` (6) + `family_per_round` (3) + `empty_room_rate_pre/post_basic_wish` (2) + `starting_player_bonus` (1) + `field_center_bonus` (1) + `pasture_location_bonus` (1) + `renovation_bonus_per_step_early/late` (2). Joint TUNABLE covering all otherwise-uncovered actively-read fields. Added 2026-05-23. |
 
 ### Base configs
 
@@ -369,9 +382,23 @@ These pre-refactor field names remain on `HeuristicConfigV3` so older `tuned_con
 4. **V3 resources (initial)** — 63 params, killed at gen 25 of 30 with training +11.82. Manual holdout: +8.72 (82-1-17 vs V1+T2). Bootstrapped initial `v3_best.json`.
 5. **iter1** (2-pass iterative) — 4 categories × 2 passes (8 steps), `--baseline t2`. Killed at pass 2 fields_crops gen 4 of 10 when we discovered an x0 bug. The killed-mid-run pass-2 fields_crops config produced **holdout +14.03 (100-0-0 vs V1+T2)** — the strongest V3 result so far. Promoted as **`CONFIG_V3_T1`**.
 6. **iter2** — 2-pass iterative, `--baseline v3_t1` for both training and holdout. x0 bug fixed. Final holdout **+26.06 vs CONFIG_V3_T1 on 100 seeds** (last promotion: pass-2 pastures_animals = 100-0-0). Promoted to `v3_best.json`. Promotion of this config to `CONFIG_V3_T2` is pending.
-7. **Major-value refactor (post-iter2)** — replaced V1's `_hubris_major_value` with V3-specific `_hubris_major_value_v3`: 8 majors × 6 stages = 48 new per-stage scalars. Extra cooking implements now contribute a flat +1 each (replacing `cooking_secondary_vp`). Well no longer scales with future-food rounds. Also added `_hubris_pasture_location_bonus_v3` with c≥3 cells (vs V1's c≥2). All defaults derived from V1_T2 where applicable; no new tuning run yet — see §10.
+7. **Major-value refactor (post-iter2)** — replaced V1's `_hubris_major_value` with V3-specific `_hubris_major_value_v3`: 8 majors × 6 stages = 48 new per-stage scalars. Extra cooking implements now contribute a flat +1 each (replacing `cooking_secondary_vp`). Well no longer scales with future-food rounds. Also added `_hubris_pasture_location_bonus_v3` with c≥3 cells (vs V1's c≥2). All defaults derived from V1_T2 where applicable.
 
-### 8.4 iter2 setup (completed)
+8. **`v3_majors_per_stage` (first run, 2026-05-23)** — 48 new dims, popsize 14, n=100. Resumed from no prior pickle (fresh CMA-ES). Holdout **+2.58 vs prior v3_best** on 100 seeds. Notable shifts: cooking-implement curves reshaped (e.g. `stone_oven_stage4` +1.05), most non-cooking majors moved meaningfully from their V1 hand-picked defaults. Promoted.
+
+9. **`v3_alphas_and_carryovers` (first run, 2026-05-23)** — 22 new dims (B1 + B3 + B4 from the parameter enumeration), popsize 13, n=100. Holdout **+6.27 vs prior v3_best** on 100 seeds — the biggest single-category gain. Striking parameter shifts: `starting_player_bonus` crashed from 1.23 → 0.02 (SP token essentially worthless to V3), `pasture_location_bonus` jumped ~10× (from 0.05 to 0.49 — the c≥3 cell preference is much stronger than V1's c≥2 calibration suggested), `score_joint_alpha_stage3` rose above 1.0 (V3 was undervaluing the score leaf mid-game). Promoted.
+
+10. **iter3 pass 1 (2026-05-23)** — 4 original categories × 1 pass at n=200 training, n=300 holdout, `--baseline tuned_configs/v3_best.json` (chained baseline = prior step's promoted config). All 4 categories promoted: fields_crops (+5.99), food (+10.55 — food was a major surprise, having always fallen back to x0 in prior iterations), resources (+15.16), pastures_animals (+4.73 after mid-run manual floor reset). Surfaced the chained-baseline auto-update bug (see §2.6). Total wall ~3.2 hours.
+
+11. **iter4 majors re-tune (2026-05-23)** — `v3_majors_per_stage` resumed from prior pickle, n=300 training, n=400 holdout. Holdout **+8.11 vs prior v3_best** (~+4.57 true gain over self-match floor). Confirmed the iter3 baseline shift had moved majors' optima — re-tune was worthwhile.
+
+12. **iter4 alphas re-tune (2026-05-24)** — first run using the new `--reset-floor-after-promote` flag. `v3_alphas_and_carryovers` resumed. Training +4.03, holdout +0.68 (mild overfitting; saturation signal for this category). `unused_spaces_alpha_stage2` showed a striking reversal (0.04 → 0.99 vs its previous-run value of 0.04 from 0.70 originally), suggesting a flat optimum or unidentifiable parameter. Promoted; auto-floor-reset confirmed working end-to-end.
+
+13. **Exhaustive lookahead experiment (2026-05-23)** — implemented `lookahead="exhaustive"` mode in `HeuristicAgent` with per-top-action leaf cap (default 1000) and greedy-descent fallback. 800-game match: exhaustive P0 vs greedy P1, both at the post-iter4-alphas champion. Margin **−4.49 ± 1.05**: exhaustive is significantly **worse** than greedy. Diagnostic: evaluator-bias amplification by deterministic max over an imperfect value function. Negative result; default lookahead stays greedy. See V3_DESIGN.md §8.9.
+
+14. **Terminal-margin-value semantics (2026-05-24)** — all four evaluators (`evaluate_simple`, `evaluate_hubris_v1/v2/v3`) updated to return `own_score − opponent_score` at `Phase.BEFORE_SCORING` (was: just `own_score`). Shared via `_terminal_margin_value`. Matches game payoff; late-round-14 decisions may shift when blocking matters. Tuning fitness unaffected. See V3_DESIGN.md §8.8.
+
+### 8.4 iter2 setup (completed) — historical
 
 Started from `v3_best.json` (= CONFIG_V3_T1). Configuration:
 - `--n-passes 2`, `--max-gens 10`, `--n-seeds 100`
@@ -397,6 +424,15 @@ Output files: `tuned_configs/iter2_p{1,2}_<cat>.{json,log,cma.pkl}` + `tuned_con
 Expected wall time: ~4-5 hours.
 
 **Auto-update of `v3_best.json`**: each step's holdout is now `vs V3_T1`. The auto-update compares new vs existing (both `vs V3_T1`); v3_best.json updates whenever a step finds something strictly better than V3_T1 with at least as many holdout games as the existing entry.
+
+### 8.5 Current state (as of 2026-05-24)
+
+- `v3_best.json`: post-iter4-alphas-retune config. Stored `holdout.avg_margin` is the self-match floor of this config (auto-maintained by `--reset-floor-after-promote`).
+- All 6 V3 TUNABLEs (`v3_fields_crops`, `v3_food`, `v3_resources`, `v3_pastures_animals`, `v3_majors_per_stage`, `v3_alphas_and_carryovers`) have been tuned at least once against the current champion's lineage.
+- Cumulative gain over the pre-iter3 (post-iter2) baseline is roughly +15-25 holdout points (hard to pin exactly due to the chained-baseline auto-update bug we fixed mid-session — see §2.6).
+- Saturation signal showing for `v3_alphas_and_carryovers` (mild overfitting + parameter reversal in iter4 re-tune). Other categories still showed real gains in iter3 / iter4.
+- Exhaustive lookahead investigated and rejected as the default (negative match result, see entry §8.3.13 and V3_DESIGN.md §8.9).
+- Promotion of the current champion to a named `CONFIG_V3_T2` constant in `agricola/agents/heuristic.py` is still pending.
 
 ## 9. Lessons from the iteration so far
 
@@ -482,6 +518,16 @@ Available named baselines in `BASE_CONFIGS` (`scripts/tune_heuristic.py`):
 ### 10.7 Discrete cutoffs
 
 There are several integer cutoffs in V3 helpers (pasture capacity ≥ 4, num_rooms ≤ 2, breeding capacity ≥ 3, empty-room cap at round 12). These aren't tuned by CMA-ES. If we want to test alternative values, the simplest approach is a manual sweep: try K ∈ {2, 3, 4, 5} for the "pasture large" threshold, run a 30-seed match against `t2` for each, pick the winner. See `V3_DESIGN.md` §8.6.
+
+### 10.9 The "evaluator quality is the bottleneck" finding (2026-05-23)
+
+The exhaustive-lookahead negative result (§8.3 entry 13; V3_DESIGN.md §8.9) shows that deeper deterministic search against the current heuristic evaluator does NOT help — it hurts (margin −4.49 ± 1.05 over 800 games). This argues against further investment in search-strategy improvements at the heuristic level. The natural next leverage points are:
+
+1. **More incremental heuristic tuning until consistent saturation** (~2-3 more category rounds, ~10 hours of compute, mostly hands-off; gains expected in the +1-3 range per category at this point).
+2. **MCTS** — uses stochastic rollouts to estimate value rather than deterministic max-over-evaluator, sidestepping the bias-amplification problem. This is the project's intended phase 5 per CLAUDE.md.
+3. **A learned value function** (NN evaluator) — addresses the imperfect-evaluator problem more directly. Phase 4 (imitation learning) or phase 5 (self-play RL).
+
+Continued investment in greedy-vs-deeper-deterministic-search variants is not promising given the empirical evidence.
 
 ### 10.8 Future architectures: V4?
 
