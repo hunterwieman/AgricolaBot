@@ -1116,61 +1116,89 @@ So worst-case branching at PendingHarvestFeed is **10**. With FPU instead of +�
 
 ---
 
+## 7.5. Implementation notes / spec deviations (post-landing)
+
+Phases 1-3 of §8 landed in a single session. This section documents three points where the implementation diverges from the spec text above; each is a faithful realization of the spec's *intent* with a small correction to a detail the spec got wrong or under-specified.
+
+### 7.5.1 Engine action name: `"build_fences"` (not `"fences"`)
+
+§3.6 and §5.4 refer to trigger 2 as `ChooseSubAction("fences")` at `PendingFarmRedevelopment`. The engine actually emits `ChooseSubAction(name="build_fences")` (see `_choose_subaction_farm_redevelopment` in `agricola/resolution.py:618`). The implementation in `agricola/agents/mcts.py:_find_fencing_triggers` follows the engine, not the spec text.
+
+### 7.5.2 `PendingFencing` wrapper between trigger 1 and `PendingBuildFences`
+
+The spec's pseudocode in §5.4 (`_chain_ended_for_fencing`) reads:
+
+```python
+if not state.pending_stack:
+    return True
+return not isinstance(state.pending_stack[-1], PendingBuildFences)
+```
+
+This assumes that after `PlaceWorker("fencing")` the top of the pending stack is `PendingBuildFences`. The engine actually pushes `PendingFencing` (the *wrapper* pending hosting the `before_fencing` trigger event) first; `PendingBuildFences` is pushed only after the agent plays the singleton `ChooseSubAction("build_fences")` at `PendingFencing`. A literal "PBF on top" predicate applied immediately after the trigger would terminate the chain instantly, producing 1-action macros.
+
+**Resolution:** preserve `_pbf_on_top(state)` as the chain-body termination predicate (matching the spec's intent) by splitting macro generation into three explicit phases in `_generate_fencing_macros`:
+
+1. **Entry** (`_enter_pbf`): auto-step through any singleton decisions of the decider until `PendingBuildFences` is on top. For trigger 1, this plays the singleton `ChooseSubAction("build_fences")` at `PendingFencing` and lands us at PBF on top. For trigger 2, the trigger landed us at PBF directly (`direct_pbf=True`) and the entry phase is skipped.
+2. **Chain body** (`_run_pbf_body`): the literal loop the spec describes — `while _pbf_on_top(state): pick action, apply`.
+3. **Exit / wrapper drain** (`_drain_wrapper`): for trigger 1 only, auto-step through any remaining singleton decisions of the decider so the outer `Stop(PendingFencing)` is recorded as part of the macro. For trigger 2 we don't drain — after PBF pops we're back at `PendingFarmRedev`, where the agent's next non-fencing decision (renovate-vs-stop, etc.) belongs to normal MCTS.
+
+The "PBF on top" predicate is exactly what runs in the body loop; wrapper handling moved to the explicit entry/exit phases.
+
+### 7.5.3 Per-search RNG threading via `make_strict_restricted_legal_actions(...)`
+
+§4.2 shows `MCTSSearch.__init__` defaulting `legal_actions_fn` to the module-level `strict_restricted_legal_actions` callable. That callable uses a single module-level RNG for its harvest-feed cap's random samples — meaning two `MCTSSearch` instances would share RNG state, breaking per-instance determinism.
+
+**Resolution:** when no `legal_actions_fn` is passed, `MCTSSearch` constructs its own strict wrapper via `make_strict_restricted_legal_actions(config=self.evaluator_config, rng=self.rng)`. Each search instance gets its own seeded RNG threaded through the harvest-feed cap. The module-level `strict_restricted_legal_actions` callable still exists and works (uses a seed-0 default RNG) — it's just not the default for MCTS.
+
+---
+
 ## 8. Implementation phases
 
-The full MVP fits in ~1-2 focused sessions. Each phase below is sized at hours, not days.
+The full MVP fits in ~1-2 focused sessions. Each phase below is sized at hours, not days. **Phases 1-3 are complete** (status notes inline below); Phase 4 is ongoing as of this writing.
 
-### Phase 1: `strict_restricted_legal_actions` + `restricted_legal_actions` use=False filter (1 session)
+### Phase 1 ✅: `strict_restricted_legal_actions` + `restricted_legal_actions` use=False filter
 
 **Files modified:**
-- `agricola/agents/restricted.py` — add the use=False filter to `restricted_legal_actions`; add `strict_restricted_legal_actions` with four filter functions (Cultivation sow-max, Grain-Util veggie, Fencing patterns, Harvest-feed cap) and fencing rule helpers
-- `tests/test_restricted_actions.py` — add ~30 new tests covering each filter
+- `agricola/agents/restricted.py` — added the `use=False` filter to `restricted_legal_actions`; added `strict_restricted_legal_actions` with four filter functions (Cultivation sow-max, Grain-Util veggie, Fencing patterns, Harvest-feed cap) + `make_strict_restricted_legal_actions(*, config, rng)` factory + fencing rule helpers
+- `tests/test_restricted_actions.py` — added 28 new tests (23 regular + 28 strict → 51 total). Tests cover each filter in isolation plus cross-cutting invariants (subset of unrestricted, always-≥1, randomized full-game walk).
 
-**Code volume:** ~300-350 LOC in restricted.py, ~30 tests.
+**Code volume actual:** ~280 LOC added to restricted.py, 28 tests added.
 
-**Acceptance criteria:**
-- All existing tests pass
-- New tests pass: each strict filter fires when expected, doesn't fire when not, falls back to less-restricted when empty
-- Hand-verified on a few prefab states: a fresh setup, a mid-game state with various wood/pasture combinations
+**Acceptance:** ✅ all 51 tests pass; ✅ each strict filter fires when expected, doesn't fire when not, falls back when empty; ✅ verified end-to-end on prefab states across the 9 fencing rules.
 
-### Phase 2: MCTS scaffolding (1 session)
+### Phase 2 ✅: MCTS scaffolding
 
 **Files added:**
-- `agricola/agents/mcts.py` — `MCTSNode`, `MCTSSearch`, `MCTSAgent` classes
-- `tests/test_mcts.py` — sanity tests (agent runs, plays legal moves, finishes games, plus a few smoke tests for individual components like UCB, FPU, transposition lookup)
+- `agricola/agents/mcts.py` — `MCTSNode`, `MCTSSearch`, `MCTSAgent`, `MacroFencingAction` classes
+- `tests/test_mcts.py` — 24 tests
 
-**Code volume:** ~400-500 LOC in mcts.py, ~15 tests.
+**Code volume actual:** ~450 LOC in mcts.py, 24 tests.
 
-**Acceptance criteria:**
-- `MCTSAgent` implements Agent protocol
-- A 1-game match `MCTSAgent` vs `RandomAgent` completes
-- A 1-game match `MCTSAgent` vs `HubrisHeuristicV3` completes
-- Tree statistics look reasonable (root visit count = sims_per_move, mean_q values are finite)
-- All children visited at least once per node (validates FPU formulation)
+**Acceptance:** ✅ `MCTSAgent` implements Agent protocol; ✅ 1-game vs `RandomAgent` completes; ✅ 1-game vs `HubrisHeuristicV3` completes; ✅ `root.visits == sims_per_move`; ✅ FPU visits every root child within budget (`test_fpu_visits_all_root_children_when_budget_permits`); ✅ shared-tree self-play completes.
 
-### Phase 3: Game integration and validation (1 session, possibly combined with Phase 2)
+### Phase 3 ✅: Game integration and validation infrastructure
 
 **Files added/modified:**
-- `scripts/play_mcts_match.py` — driver for MCTS-vs-X matches (similar to `scripts/play_match.py` but with MCTS configuration support)
-- `agricola/agents/__init__.py` — export MCTSAgent, MCTSSearch
+- `scripts/play_mcts_match.py` — MCTS-vs-opponent driver with `--jobs N` parallel runner and per-game streaming progress (running win tally + ETA)
+- `agricola/agents/__init__.py` — added exports: `MCTSAgent`, `MCTSSearch`, `MCTSNode`, `MacroFencingAction`, `strict_restricted_legal_actions`, `make_strict_restricted_legal_actions`
 
-**Acceptance criteria:**
-- 10-game match `MCTSAgent` vs `HubrisHeuristicV3` completes with reasonable wall time (target: <10 min for sims_per_move=500 with parallel match driver)
-- MCTSAgent does not crash on any seed
-- Shared-tree self-play (`agents=(mcts, mcts)`) works
-- Separate-tree match (`agents=(mcts_a, mcts_b)` with different configs) works
+**Acceptance:** ✅ 16-game match @ 500 sims completed in 9.7 min wall (8 cores); ✅ MCTS does not crash on any seed; ✅ shared-tree self-play works; ✅ separate-tree match works.
 
-### Phase 4: Validation and tuning (multiple sessions, open-ended)
+### Phase 4 (in progress): Validation and tuning
 
 This is the empirical phase — runs and analysis rather than coding.
 
-**Activities:**
-- **Validation 1:** 100-game match MCTS-vs-V3-greedy. Target: MCTS margin >+3. If margin ≤0 or negative, debug (FPU formulation? sim count? evaluator bias dominating?).
+**Results so far:**
+- **16 games @ 500 sims, jobs=8** (`v3_best.json` opponent): MCTS 11-0-5, avg margin **+2.12** (target was "+3"; within the n=16 CI). Wall 9.7 min.
+- (Larger validation runs ongoing.)
+
+**Remaining activities:**
+- **Validation 1:** ≥50-game match MCTS-vs-V3-greedy to tighten the CI on the +2.12 estimate. If margin ≤0 or negative, debug (FPU formulation? sim count? evaluator bias dominating?).
 - **Validation 2:** Scaling check — sims_per_move at 200/500/1000. Does play strength scale with sims?
 - **Validation 3:** Shared-tree self-play vs separate-tree comparison. Does sharing improve play strength per unit compute?
 - **Tuning:** `c_uct` ∈ {1.0, 1.4, 2.0}, optionally `n_random_fencing` ∈ {2, 4, 8}.
-- **Profile** the actual per-sim cost — verify §5.0 estimates.
-- **Optional:** implement DAG full-backprop, parallelism, or PUCT prior IF validation reveals specific need.
+- **Profile** the actual per-sim cost — verify §5.0 estimates (observed ~36s/game at 500 sims on 8 cores ≈ ~70-100 ms/move per core, within the design's 50-100 ms/move range).
+- **Optional:** implement DAG full-backprop, parallelism (intra-game), or PUCT prior IF validation reveals specific need.
 
 ---
 

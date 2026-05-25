@@ -33,19 +33,41 @@ The priors are organized into per-pending filters:
   Applied at PendingFarmExpansion (drop ChooseSubAction("build_rooms")) and
   at PendingBuildRooms (drop further CommitBuildRoom once at cap).
 
+- **Drop `use=False` craft conversions**: at PendingHarvestFeed, drop every
+  `CommitHarvestConversion(use=False)` action. Explicitly declining a craft
+  is redundant — the player can achieve the same outcome by going directly
+  to `CommitConvert`. Saves consumers from spending evaluation on a no-op.
+
 - **Minimum-begging at CommitConvert**: at PendingHarvestFeed, among all
   enumerated CommitConvert options keep only those that incur the minimum
   begging count. If multiple actions tie for the minimum, all are kept.
 
+`strict_restricted_legal_actions(state)` is a sibling wrapper used by MCTS
+that layers four additional filters on top of `restricted_legal_actions`
+(see MCTS_DESIGN.md §7):
+
+- **Cultivation sow-max**: at the PendingSow pushed by Cultivation, keep
+  only the (grain, veg) commit that maximizes grain+veg (ties broken by
+  more grain).
+- **Grain-Utilization veggie rule**: at the PendingSow pushed by Grain
+  Utilization, require `veg_sown == min(veggies_in_supply, empty_fields − grain_sown)`
+  for each surviving commit — the player chooses grain; veg is auto-maxed.
+- **Fencing patterns**: 9 hand-curated rules at PendingBuildFences that
+  collapse the legal pasture-build set to specific openers / extensions
+  keyed on (existing pastures, wood count).
+- **Harvest-feed cap**: at PendingHarvestFeed, if more than 7 CommitConvert
+  options are legal, keep the top-5 by `evaluate_hubris_v3` ranking plus 2
+  random samples from the rest. Crafts and other actions are always kept.
+
 Architectural choices:
 
-- Engine code is NOT modified. `restricted_legal_actions` is a pure wrapper
-  over the unrestricted `legal_actions(state)`. Removing or A/B-testing the
+- Engine code is NOT modified. Both wrappers are pure functions over the
+  unrestricted `legal_actions(state)`. Removing or A/B-testing the
   restrictions is one constructor argument away.
 - Filters compose. Each is a pure function `(state, top, actions) ->
   list[Action]`. The dispatcher inspects the top pending frame and applies
   the relevant filters in a fixed order.
-- The wrapper has zero effect when the pending stack is empty
+- Both wrappers have zero effect when the pending stack is empty
   (PlaceWorker-level decisions). No restriction is applied to top-level
   worker placement.
 """
@@ -61,7 +83,10 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitConvert,
+    CommitHarvestConversion,
     CommitPlow,
+    CommitSow,
+    Stop,
 )
 from agricola.constants import CellType
 from agricola.legality import legal_actions
@@ -74,6 +99,7 @@ from agricola.pending import (
     PendingGrainUtilization,
     PendingHarvestFeed,
     PendingPlow,
+    PendingSow,
 )
 from agricola.state import GameState
 
@@ -165,6 +191,7 @@ def restricted_legal_actions(state: GameState) -> list[Action]:
     elif isinstance(top, PendingBuildFences):
         actions = _filter_first_pasture(state, top, actions)
     elif isinstance(top, PendingHarvestFeed):
+        actions = _filter_drop_use_false_craft(state, top, actions)
         actions = _filter_min_begging(state, top, actions)
 
     return actions
@@ -357,6 +384,28 @@ def _filter_first_pasture(
 
 
 # ---------------------------------------------------------------------------
+# Drop `use=False` craft conversions (PendingHarvestFeed)
+# ---------------------------------------------------------------------------
+
+def _filter_drop_use_false_craft(
+    state: GameState, top: PendingHarvestFeed, actions: list[Action],
+) -> list[Action]:
+    """Drop every `CommitHarvestConversion(use=False)` from the action set.
+
+    Explicitly declining a craft is a no-op the player can always achieve by
+    going directly to `CommitConvert` (which terminates the feed pending
+    without using any undecided crafts). `harvest_conversions_used` is reset
+    each harvest in `_resolve_harvest_field`, so not recording the skip has
+    no cross-harvest effect.
+    """
+    narrowed = [
+        a for a in actions
+        if not (isinstance(a, CommitHarvestConversion) and a.use is False)
+    ]
+    return _safe_narrow(narrowed, actions)
+
+
+# ---------------------------------------------------------------------------
 # Min-begging filter (PendingHarvestFeed)
 # ---------------------------------------------------------------------------
 
@@ -421,3 +470,339 @@ def _filter_min_begging(
 # agent consults legality (top-level pick, singleton-skip, rollout).
 
 LegalActionsFn = Callable[[GameState], list[Action]]
+
+
+# ===========================================================================
+# Strict mode (MCTS_DESIGN §7)
+# ===========================================================================
+#
+# `strict_restricted_legal_actions(state)` layers four MCTS-specific filters
+# on top of `restricted_legal_actions(state)`. Used by MCTS to collapse
+# trivially-suboptimal sub-action chains, narrow PendingBuildFences to a
+# hand-curated rule set, and cap CommitConvert branching at PendingHarvestFeed.
+#
+# The harvest-feed cap needs an evaluator config (HeuristicConfigV3) and an
+# RNG. The module-level callable uses DEFAULT_CONFIG_V3 and a deterministic
+# seed-0 RNG; callers that want their own RNG (e.g. an MCTS search instance)
+# build a closure via `make_strict_restricted_legal_actions(...)`.
+
+
+# Hand-curated fencing rule set (MCTS_DESIGN §7.3).
+#
+# Each rule is `(precondition, allowed_cell_sets, stop_allowed)`:
+#
+#   - precondition(state, top, p, wood, pastures, pasture_cells_union) -> bool
+#   - allowed_cell_sets: list[frozenset[tuple[int, int]]] — the CommitBuildPasture
+#     options the rule permits
+#   - stop_allowed: bool — whether Stop is in the rule's allowed action set
+#     (Stop is preserved only if also already legal at the pending; the
+#     engine offers it iff `pastures_built >= 1`)
+#
+# If a state matches multiple rules, the filter's allowed-action set is the
+# UNION of all matching rules' allowed actions (and stop_allowed is OR'd).
+
+_RULE_2x2_TR     = frozenset({(0, 3), (0, 4), (1, 3), (1, 4)})
+_RULE_3x2_TR     = frozenset({(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)})
+_RULE_8CELL_L    = frozenset(
+    {(0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 2), (2, 3), (2, 4)},
+)
+_RULE_TOP_2      = frozenset({(0, 3), (0, 4)})
+_RULE_TOP_RIGHT_CELL = frozenset({(0, 4)})
+
+
+def _pasture_identity_match(pastures, cells: frozenset) -> bool:
+    """True iff `pastures` is exactly one pasture whose cells equal `cells`."""
+    return len(pastures) == 1 and pastures[0].cells == cells
+
+
+# ---------------------------------------------------------------------------
+# Public entry point — STRICT
+# ---------------------------------------------------------------------------
+
+def strict_restricted_legal_actions(state: GameState) -> list[Action]:
+    """Strict-mode wrapper layered atop `restricted_legal_actions(state)`.
+
+    Adds the four MCTS-specific filters (Cultivation sow-max, Grain-Util
+    veggie rule, Fencing patterns, Harvest-feed cap). Uses module-level
+    defaults for the V3 evaluator config (`DEFAULT_CONFIG_V3`) and a
+    deterministic seed-0 RNG for the harvest-feed cap's random samples.
+
+    For callers that want their own RNG or config injected (e.g. an
+    `MCTSSearch` instance threading its `search.rng` through every legality
+    call), build a closure via `make_strict_restricted_legal_actions(...)`.
+    """
+    return _strict_impl(state, _default_config(), _default_rng())
+
+
+def make_strict_restricted_legal_actions(
+    *,
+    config=None,
+    rng=None,
+) -> LegalActionsFn:
+    """Build a strict legal_actions_fn closure with injected config and RNG.
+
+    `config` defaults to `agricola.agents.heuristic.DEFAULT_CONFIG_V3`;
+    `rng` defaults to a fresh `numpy.random.default_rng(0)`. Callers that
+    need reproducible matches against a specific seed (e.g. MCTS) should
+    pass their own pre-seeded RNG so the cap's random samples are tied to
+    that seed.
+
+    Returns a callable with signature `(state) -> list[Action]`, suitable
+    for use as an agent's `legal_actions_fn`.
+    """
+    cfg = config if config is not None else _default_config()
+    r = rng if rng is not None else _default_rng()
+    def _fn(state: GameState) -> list[Action]:
+        return _strict_impl(state, cfg, r)
+    return _fn
+
+
+def _strict_impl(state: GameState, cfg, rng) -> list[Action]:
+    """Shared body for the strict wrapper and the factory closure."""
+    actions = restricted_legal_actions(state)
+    if not actions or not state.pending_stack:
+        return actions
+    top = state.pending_stack[-1]
+
+    if isinstance(top, PendingSow):
+        if top.initiated_by_id == "cultivation":
+            actions = _filter_cultivation_sow_max(state, top, actions)
+        elif top.initiated_by_id == "grain_utilization":
+            actions = _filter_grain_utilization_veggie(state, top, actions)
+    elif isinstance(top, PendingBuildFences):
+        actions = _filter_fencing_patterns(state, top, actions)
+    elif isinstance(top, PendingHarvestFeed):
+        actions = _filter_strict_harvest_feed_cap(state, top, actions, cfg, rng)
+
+    return actions
+
+
+# Lazy module-level defaults — constructed on first use to avoid coupling the
+# import order of this module to `agricola.agents.heuristic` (which imports
+# from `agricola.agents.base`, which other code in `agricola/agents/__init__.py`
+# touches first).
+
+_DEFAULT_CONFIG_CACHE = None
+_DEFAULT_RNG_CACHE = None
+
+
+def _default_config():
+    global _DEFAULT_CONFIG_CACHE
+    if _DEFAULT_CONFIG_CACHE is None:
+        from agricola.agents.heuristic import DEFAULT_CONFIG_V3
+        _DEFAULT_CONFIG_CACHE = DEFAULT_CONFIG_V3
+    return _DEFAULT_CONFIG_CACHE
+
+
+def _default_rng():
+    global _DEFAULT_RNG_CACHE
+    if _DEFAULT_RNG_CACHE is None:
+        import numpy as np
+        _DEFAULT_RNG_CACHE = np.random.default_rng(0)
+    return _DEFAULT_RNG_CACHE
+
+
+# ---------------------------------------------------------------------------
+# Cultivation sow-max (§7.1)
+# ---------------------------------------------------------------------------
+
+def _filter_cultivation_sow_max(
+    state: GameState, top: PendingSow, actions: list[Action],
+) -> list[Action]:
+    """Keep only the CommitSow(grain, veg) maximizing grain+veg.
+
+    Applies at PendingSow pushed by Cultivation. When cultivating, sowing
+    fewer fields than the maximum throws away part of the action's value
+    (Cultivation costs a worker placement either way), so we collapse to
+    the single best-by-total CommitSow.
+
+    Ties on total are broken by preferring more grain (grain has the higher
+    end-game value-per-unit-sown when fields are limited).
+    """
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    others = [a for a in actions if not isinstance(a, CommitSow)]
+    if not sows:
+        return actions
+    best = max(sows, key=lambda a: (a.grain + a.veg, a.grain))
+    return _safe_narrow(others + [best], actions)
+
+
+# ---------------------------------------------------------------------------
+# Grain-Utilization veggie rule (§7.2)
+# ---------------------------------------------------------------------------
+
+def _filter_grain_utilization_veggie(
+    state: GameState, top: PendingSow, actions: list[Action],
+) -> list[Action]:
+    """At Grain-Util's PendingSow, auto-determine `veg_sown` from the grain choice.
+
+    Rule: `veg_sown == min(veggies_in_supply, empty_fields − grain_sown)`.
+    The player chooses grain freely; the surviving CommitSow for each grain
+    value is the one with veg maxed out (never leave a plowed field empty
+    when veggies are available to fill it).
+    """
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    others = [a for a in actions if not isinstance(a, CommitSow)]
+    if not sows:
+        return actions
+    p = state.players[top.player_idx]
+    grid = p.farmyard.grid
+    empty_fields = sum(
+        1 for r in range(3) for c in range(5)
+        if grid[r][c].cell_type == CellType.FIELD
+        and grid[r][c].grain == 0
+        and grid[r][c].veg == 0
+    )
+    veggies = p.resources.veg
+    kept = []
+    for a in sows:
+        required_veg = min(veggies, max(0, empty_fields - a.grain))
+        if a.veg == required_veg:
+            kept.append(a)
+    return _safe_narrow(others + kept, actions)
+
+
+# ---------------------------------------------------------------------------
+# Fencing patterns (§7.3) — 9 hand-curated rules at PendingBuildFences
+# ---------------------------------------------------------------------------
+
+def _filter_fencing_patterns(
+    state: GameState, top: PendingBuildFences, actions: list[Action],
+) -> list[Action]:
+    """Narrow CommitBuildPasture options to the 9 hand-curated patterns.
+
+    Wood counts are EXACT (not lower bounds). Multiple rules may match a
+    single state; the allowed-action set is the union. If no rule matches,
+    the filter is inert (returns `actions` unchanged).
+
+    Pasture identity vs cell-set semantics differ across rules:
+      - Rule 7 (subdivision of a 2x2): requires a SINGLE pasture whose cells
+        are exactly the 2x2 cell-set.
+      - Rules 8 / 9 (extend the top row): require only that the UNION of all
+        pasture cells equals exactly {(0,3),(0,4)} — they don't care whether
+        that's one 1x2 pasture or two 1x1 pastures.
+    """
+    p = state.players[top.player_idx]
+    wood = p.resources.wood
+    pastures = p.farmyard.pastures
+    pasture_cells_union = frozenset(
+        cell for past in pastures for cell in past.cells
+    )
+
+    allowed_cells: list[frozenset] = []
+    stop_allowed = False
+
+    if not pastures:
+        # Rule 1
+        if wood in (7, 8, 9):
+            allowed_cells.append(_RULE_TOP_RIGHT_CELL)
+        # Rule 2
+        if wood == 10:
+            allowed_cells.append(_RULE_2x2_TR)
+            allowed_cells.append(_RULE_3x2_TR)
+        # Rule 3
+        if wood == 13:
+            allowed_cells.append(_RULE_3x2_TR)
+        # Rule 4
+        if wood == 15:
+            allowed_cells.append(_RULE_8CELL_L)
+            allowed_cells.append(_RULE_3x2_TR)
+    else:
+        # Rules 5 / 6: a single 1x1 at (0,4) already exists.
+        if _pasture_identity_match(pastures, _RULE_TOP_RIGHT_CELL):
+            if wood == 3:
+                allowed_cells.append(frozenset({(0, 3)}))
+                stop_allowed = True
+            if wood == 5:
+                allowed_cells.append(frozenset({(1, 4), (2, 4)}))
+                stop_allowed = True
+        # Rule 7: single 2x2 at top-right (subdivision).
+        if _pasture_identity_match(pastures, _RULE_2x2_TR) and wood == 2:
+            allowed_cells.append(_RULE_TOP_2)
+        # Rules 8 / 9: pastures cover exactly {(0,3),(0,4)} (any split).
+        if pasture_cells_union == _RULE_TOP_2:
+            if wood == 4:
+                allowed_cells.append(frozenset({(1, 3), (1, 4)}))
+                stop_allowed = True
+            if wood == 6:
+                allowed_cells.append(frozenset({(1, 3), (1, 4), (2, 3), (2, 4)}))
+                stop_allowed = True
+
+    if not allowed_cells and not stop_allowed:
+        # No rule matches the current (pastures, wood) combination — inert.
+        return actions
+
+    narrowed: list[Action] = []
+    for a in actions:
+        if isinstance(a, CommitBuildPasture):
+            if a.cells in allowed_cells:
+                narrowed.append(a)
+        elif isinstance(a, Stop):
+            if stop_allowed:
+                narrowed.append(a)
+        else:
+            # Defensive: pass through anything else (e.g., FireTrigger).
+            narrowed.append(a)
+
+    return _safe_narrow(narrowed, actions)
+
+
+# ---------------------------------------------------------------------------
+# Harvest-feed cap (§7.4)
+# ---------------------------------------------------------------------------
+
+def _filter_strict_harvest_feed_cap(
+    state: GameState,
+    top: PendingHarvestFeed,
+    actions: list[Action],
+    cfg,
+    rng,
+) -> list[Action]:
+    """Cap CommitConvert branching at PendingHarvestFeed.
+
+    If ≤7 CommitConvert options are present, no cap is applied. Otherwise:
+    rank commits by `evaluate_hubris_v3(step(state, a), decider, cfg)`
+    descending; keep the top 5 plus 2 random samples (drawn without
+    replacement) from the rest.
+
+    Crafts (`CommitHarvestConversion`) and any other actions pass through
+    unchanged — sub-sampling crafts risks dropping a strategically important
+    one and saves nothing (at most ~3 crafts exist in the Family game).
+    """
+    crafts: list[Action] = []
+    commits: list[CommitConvert] = []
+    other: list[Action] = []
+    for a in actions:
+        if isinstance(a, CommitHarvestConversion):
+            crafts.append(a)
+        elif isinstance(a, CommitConvert):
+            commits.append(a)
+        else:
+            other.append(a)
+
+    if len(commits) <= 7:
+        return actions
+
+    # Lazy imports — keep the wrapper's module load light. The factory
+    # functions cache imports already; the cap path is rarely hit, so
+    # importing here avoids paying for state/evaluator setup on cold runs.
+    from agricola.agents.heuristic import evaluate_hubris_v3
+    from agricola.engine import step
+
+    decider = top.player_idx
+
+    def commit_score(a: CommitConvert) -> float:
+        return evaluate_hubris_v3(step(state, a), decider, cfg)
+
+    commits_ranked = sorted(commits, key=commit_score, reverse=True)
+    top_5 = commits_ranked[:5]
+    rest = commits_ranked[5:]
+
+    n_random = min(2, len(rest))
+    if n_random > 0:
+        idxs = rng.choice(len(rest), size=n_random, replace=False)
+        random_2 = [rest[int(i)] for i in idxs]
+    else:
+        random_2 = []
+
+    return crafts + other + top_5 + random_2

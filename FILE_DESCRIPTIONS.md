@@ -424,7 +424,7 @@ The scoring tables (how many points for 0 fields, 1 field, 2 fields, etc.) are i
 
 ### `agricola/agents/__init__.py`
 
-Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, **`HubrisHeuristicV3`**, the `HeuristicConfig` and **`HeuristicConfigV3`** dataclasses, named config constants **`DEFAULT_CONFIG`** / **`DEFAULT_CONFIG_V3`** / **`CONFIG_V1_T2`** / **`CONFIG_V3_T1`**, the four evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, `evaluate_hubris_v3`, plus `evaluate_hubris` alias), the `play_game(initial_state, agents)` driver, and the **action-pruning wrapper** `restricted_legal_actions` + its priority constants (`STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`) + the `LegalActionsFn` type alias. Designed so that callers can write `from agricola.agents import HubrisHeuristicV3, CONFIG_V1_T2, restricted_legal_actions, play_game, ...` without dipping into submodules.
+Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, **`HubrisHeuristicV3`**, the `HeuristicConfig` and **`HeuristicConfigV3`** dataclasses, named config constants **`DEFAULT_CONFIG`** / **`DEFAULT_CONFIG_V3`** / **`CONFIG_V1_T2`** / **`CONFIG_V3_T1`**, the four evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, `evaluate_hubris_v3`, plus `evaluate_hubris` alias), the `play_game(initial_state, agents)` driver, the **action-pruning wrappers** `restricted_legal_actions` / `strict_restricted_legal_actions` / `make_strict_restricted_legal_actions` + their priority constants (`STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`) + the `LegalActionsFn` type alias, and the **MCTS classes** `MCTSAgent` / `MCTSSearch` / `MCTSNode` / `MacroFencingAction`. Designed so that callers can write `from agricola.agents import HubrisHeuristicV3, CONFIG_V1_T2, MCTSAgent, MCTSSearch, restricted_legal_actions, play_game, ...` without dipping into submodules.
 
 ---
 
@@ -469,20 +469,58 @@ All four agent subclasses (`SimpleHeuristic`, `HubrisHeuristicV1`, `HubrisHeuris
 
 ### `agricola/agents/restricted.py`
 
-Pure wrapper over `legal_actions(state)` applying strategic action-pruning at the agent layer (engine code is untouched). Exports the public entry point `restricted_legal_actions(state)` plus the priority constants `STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`.
+Pure wrappers over `legal_actions(state)` applying strategic action-pruning at the agent layer (engine code is untouched). Two public entry points:
 
-Filters applied based on the top pending frame:
+- **`restricted_legal_actions(state)`** — regular wrapper, used by the heuristic agents and the training pipeline.
+- **`strict_restricted_legal_actions(state)`** — strict-mode wrapper used by MCTS (layers four MCTS-specific filters on top of the regular wrapper).
+- **`make_strict_restricted_legal_actions(*, config=None, rng=None)`** — factory that builds a strict-wrapper closure with injected `HeuristicConfigV3` and `numpy.random.Generator`. MCTS uses this so the harvest-feed cap's random samples are deterministic per `MCTSSearch` instance (rather than sharing the module-level default RNG across all instances).
+
+Plus priority constants `STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`, and the `LegalActionsFn` type alias.
+
+**Regular-wrapper filters** (applied based on the top pending frame):
 - **Sub-action ordering** at parent pendings: `PendingFarmExpansion` drops `build_stables` when `build_rooms` is on offer; `PendingCultivation` drops `sow` when `plow` is on offer; `PendingGrainUtilization` drops `bake_bread` when `sow` is on offer.
 - **Cell priority** at multi-shot pendings: `PendingBuildStables` / `PendingBuildRooms` / `PendingPlow` each filter their `Commit*` actions to the single top-priority cell present in the legal set (walk the priority list in order; first hit wins; cells outside the list are never selected as long as a priority cell is available).
 - **Room cap** at `PendingFarmExpansion` (drop `ChooseSubAction("build_rooms")` once at `MAX_TOTAL_ROOMS = 5`) and at `PendingBuildRooms` (drop further `CommitBuildRoom` when at cap).
 - **First-pasture opener** at `PendingBuildFences` with `pastures_built == 0`: every `CommitBuildPasture` must include at least one of `(0, 4)` or `(1, 4)`. Restriction lifts on subsequent pastures.
+- **Drop `use=False` craft conversions** at `PendingHarvestFeed`: every `CommitHarvestConversion(use=False)` is dropped (explicitly declining a craft is achievable via direct `CommitConvert`, so the action is redundant; saves consumers from spending evaluation on a no-op). Added per MCTS_DESIGN §7.0 but kept in the regular wrapper because it's a correctness-preserving simplification that benefits all agents.
 - **Min-begging** at `PendingHarvestFeed`: among enumerated `CommitConvert` options, keep only those tying for the minimum begging count. Begging is computed directly from `cooking_rates(state, player_idx)` and the action's consumed amounts; no dependency on the harvest-feed frontier.
 
-Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing would empty the action set, the filter is skipped and the original options stand. This guarantees the wrapper is always a subset of the unrestricted set of size ≥ 1 (or 0 only when the input is empty).
+**Strict-wrapper additions** (per MCTS_DESIGN §7):
+- **Cultivation sow-max (§7.1)** at `PendingSow` with `initiated_by_id == "cultivation"`: collapse the legal CommitSow set to the single max-`(grain+veg)` commit; grain-priority tiebreak.
+- **Grain-Utilization veggie auto-max (§7.2)** at `PendingSow` with `initiated_by_id == "grain_utilization"`: for each `(grain, veg)` commit require `veg == min(veggies_in_supply, empty_fields - grain)`. The player chooses grain; veg is auto-maxed to fill remaining empty fields.
+- **Fencing patterns (§7.3)** at `PendingBuildFences`: 9 hand-curated rules keyed on `(existing pastures, wood count)`. Pasture-identity semantics distinguish rule 7 (subdivision of a single 2×2) from rules 8/9 (cell-set union). Wood counts are EXACT (not lower bounds). If a state matches multiple rules, the allowed-action set is the union. If no rule matches, the filter is inert.
+- **Harvest-feed cap (§7.4)** at `PendingHarvestFeed`: if more than 7 `CommitConvert` options remain, keep the top-5 by `evaluate_hubris_v3(step(state, a), decider, cfg)` ranking plus 2 random samples drawn without replacement. Crafts and any other actions always pass through unchanged — sub-sampling crafts is avoided because dropping a strategically important one would hurt and there are typically ≤3 of them.
 
-The PlaceWorker layer (empty pending stack) is a no-op — no restriction is applied to top-level worker placement.
+Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing would empty the action set, the filter is skipped and the original options stand. This guarantees both wrappers are always a subset of the unrestricted set of size ≥ 1 (or 0 only when the input is empty).
 
-See **`CHANGES.md`** Change 11 for the design rationale and empirical evaluation, and CLAUDE.md "Additional Design Principles" → "Action-pruning wrapper" for the convention.
+The PlaceWorker layer (empty pending stack) is a no-op for both wrappers — no restriction is applied to top-level worker placement.
+
+See **`CHANGES.md`** Change 11 for the regular wrapper's design rationale and empirical evaluation, **`MCTS_DESIGN.md`** §7 for the strict additions, and CLAUDE.md "Additional Design Principles" → "Action-pruning wrapper" for the convention.
+
+---
+
+### `agricola/agents/mcts.py`
+
+MCTS agent implementing the design in **`MCTS_DESIGN.md`**. Vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation (no rollouts) + macro-enumeration for Fencing.
+
+**`MacroFencingAction(label: str)`** — MCTS-internal action type representing one complete fencing chain. Never reaches the engine; the agent translates it into a real engine-action sequence via the parent's `macro_sequences[macro_action]` lookup. `label` distinguishes macros from the same parent ("greedy", "random_0", "random_1", …).
+
+**`MCTSNode`** — `@dataclass(eq=False)` (identity equality, identity hashing). Fields: `state` (frozen GameState), `decider` (cached `decider_of(state)`), `search` (back-reference to the owning `MCTSSearch`), `parents` (list of MCTSNode refs; in-degree typically 1-3 under transposition dedup), `children` (dict[Action, MCTSNode]), `action_from_parent` (one incoming edge, debugging only), `visits` / `value_sum` (running stats in this node's decider's frame), `macro_sequences` (populated only on fencing-trigger parents — dict[MacroFencingAction, list[Action]] keyed by macro action), `_legal_actions` / `_unvisited_actions` (lazy per-node caches; populated on first descent — direct field access ~10ns on every UCT traversal).
+
+**`MCTSSearch`** — owns the `transpositions: dict[GameState, MCTSNode]`, the `root` ref, `legal_actions_fn` (default = a strict wrapper bound to `self.rng`), `evaluator_config` (default `DEFAULT_CONFIG_V3`), `n_random_fencing` (default 4), `rng` (numpy Generator, seeded), and `heuristic` (a `HubrisHeuristicV3` instance constructed once for greedy macro-fencing chains, using the same `legal_actions_fn`). Methods: `find_or_create_node(state, parent=None, action_from_parent=None)` (deduplicates via transpositions), `add_edge(parent, child, action)` (single choke point for DAG edge creation; dedups parent in `child.parents`), `re_root(new_root)` (BFS from new_root, prune `transpositions` to live subtree, set `self.root`), `evaluate_leaf(state)` (P0-frame margin: at terminal returns `evaluate_hubris_v3(state, 0)` directly since that already returns `own − opp` via `_terminal_margin_value`; mid-game returns `evaluate_hubris_v3(state, 0) - evaluate_hubris_v3(state, 1)`), `expand_macros(parent_node, raw_actions)` (replaces fencing-trigger actions in `raw_actions` with `MacroFencingAction` children — side effects: creates the macro child nodes via `find_or_create_node`, writes each macro's full engine-action sequence to `parent_node.macro_sequences`).
+
+**Macro-fencing pipeline** (`_generate_fencing_macros` + helpers): three phases per macro: (1) **entry** (`_enter_pbf`) — auto-step through singleton decisions until `PendingBuildFences` is on top; needed for trigger 1 because `PlaceWorker("fencing")` pushes the wrapper `PendingFencing` before `PendingBuildFences` appears (the singleton `ChooseSubAction("build_fences")` lands us in PBF); (2) **chain body** (`_run_pbf_body`) — while `_pbf_on_top(state)` (the MCTS_DESIGN §5.4 predicate), pick one action via the policy (greedy = `self.heuristic`; random = uniform random over `legal_actions_fn`); (3) **exit / wrapper drain** (`_drain_wrapper`) — auto-step through any remaining singleton decisions of the decider so the outer `Stop(PendingFencing)` is part of the recorded macro. Skipped for trigger 2 because after PBF pops we're back at `PendingFarmRedev`, where the agent's next non-fencing decision belongs to normal MCTS. Macros dedup'd by endpoint state within this parent; greedy always added first; up to `1 + n_random_fencing` distinct macros per trigger.
+
+**`MCTSAgent`** — implements the Agent protocol. Takes a pre-built `MCTSSearch` plus agent-level config: `sims_per_move` (default 500), `c_uct` (default 1.4), `fpu_offset` (default 0.0), `action_selection_temperature` (default 0.2), `rng_seed`. On each `__call__(state)`: if `_pending_macro_actions` is non-empty (mid-macro), pop and return the next queued engine action without running MCTS or re-rooting. Otherwise: `find_or_create_node(state)` → `re_root(root)` → run `sims_per_move` sims → pick an action via softmax over visit counts (`probs[a] ∝ counts[a]^(1/T)`, falls back to uniform when all counts are zero). If a `MacroFencingAction` is picked, queue the macro's `sequence[1:]` in `_pending_macro_actions` and return `sequence[0]` (the trigger action). Per-sim cost: ~100-200µs (descent through K existing nodes ≈ K few-µs of dict lookups + arithmetic, expansion ≈ 40µs `step` + transposition hash, leaf eval ≈ 50-100µs).
+
+**Three usage modes:**
+- **Separate trees**: each MCTSAgent has its own MCTSSearch (used for matches vs other agent types).
+- **Shared tree via shared agent**: pass the same `MCTSAgent` instance to both slots in `play_game` (used for symmetric self-play).
+- **Shared tree via shared MCTSSearch**: construct one `MCTSSearch` and pass it to multiple `MCTSAgent` instances (trees shared, agent-level config can differ per seat).
+
+**Lazy-import shims** at module bottom (`_lazy_default_config_v3` / `_lazy_evaluate_hubris_v3` / `_lazy_hubris_v3_class` / `_lazy_make_strict_legal`) keep the module load cheap by deferring `agricola.agents.heuristic` imports until first use.
+
+**Two corrections vs the original MCTS_DESIGN spec** (documented in code + in `MCTS_DESIGN.md`'s implementation-notes section): (a) the engine's `ChooseSubAction` at `PendingFarmRedevelopment` for the fencing branch is named `"build_fences"` (not `"fences"` as the spec text reads); (b) `PlaceWorker("fencing")` pushes `PendingFencing` (a wrapper) before `PendingBuildFences` is reached, so a literal "PBF on top" predicate would terminate the chain immediately — the implementation handles the wrapper via the explicit entry/exit phases, preserving `_pbf_on_top` as the chain-body predicate per the spec's intent.
 
 ---
 
@@ -573,6 +611,34 @@ CLI:
 - `--holdout-n N` — games per category's post-tuning holdout match (default 100; user-added field for tighter auto-update decisions at higher N).
 
 The orchestrator itself is pure-Python — all heavy lifting happens in the spawned `tune_heuristic.py` subprocesses, which write their own `.json`, `.log`, `.cma.pkl` files. The orchestrator's own stdout is captured to `tuned_configs/iter_orchestrator.log` when launched via nohup redirection; that log subsumes each subprocess's stdout (via subprocess inheritance) AND the orchestrator's own step-boundary headers.
+
+---
+
+### `scripts/play_mcts_match.py`
+
+MCTS-vs-opponent match driver. Built on `scripts/play_match.py`'s aggregation pattern (`MatchResult`, `GameResult`, `_winner`), with an MCTS-specific factory and a parallel runner.
+
+**Library API:**
+- **`play_match_parallel(spec, seeds, *, jobs, progress=True)`** — runs all games in parallel via `multiprocessing.Pool`. `spec` is a `_MatchSpec` dataclass holding everything a worker needs (V3 config, agent names, MCTS knobs); workers construct agents in-process per game (avoids pickling `MCTSSearch` transposition tables). Streams a per-game line as each game completes (running win/loss/draw tally + avg margin + elapsed + ETA) when `progress=True` and `jobs > 1`. Results sorted by seed at the end for stable `--per-game` output.
+- **`_build_agent(name, ...)`** — constructs one agent for a seat; supports `mcts`, `hubris_v3`, `random`. The MCTS factory uses `_MatchSpec`'s `sims_per_move` / `opp_sims_per_move` / `c_uct` / `opp_c_uct` knobs to allow asymmetric MCTS-vs-MCTS configs.
+- **`_init_worker(spec)`** — Pool initializer that stashes `_MatchSpec` in worker globals so per-game tasks don't re-pass it.
+
+**CLI** (defaults are mostly the MCTS_DESIGN spec's design defaults):
+- `--opponent {hubris_v3, random, mcts}` (default `hubris_v3`) — non-MCTS seat.
+- `--mcts-as-p1` — place MCTS at P1 instead of P0.
+- `--v3-config <path>` (or `default_v3` / `v3_t1`) — V3 evaluator config; default `DEFAULT_CONFIG_V3`.
+- `--sims N` (default 500), `--opp-sims N` — MCTS sims/move (latter for the opponent in MCTS-vs-MCTS).
+- `--c-uct F` (default 1.4), `--opp-c-uct F` — UCB exploration constant.
+- `--n-random-fencing N` (default 4) — random macros per fencing trigger (in addition to greedy).
+- `--fpu-offset F` (default 0.0) — added to FPU virtual-Q.
+- `--temperature F` (default 0.2) — action-selection softmax T.
+- `--jobs N` (default `cpu_count()`) — parallel workers. For best throughput pick `--n` as a multiple of `--jobs` (a 10-seed run on 8 cores wastes 6 cores on the trailing batch of 2; 16 seeds on 8 cores fills both batches).
+- `--seeds RANGE` or `--n N` (default 10) — seeds to play.
+- `--per-game` — final per-game table (independent of the streaming progress lines).
+
+Heuristic opponent always uses the same strict-restricted legality as MCTS (via `make_strict_restricted_legal_actions(config=v3_cfg, rng=...)`) — matches the training-pipeline convention so the comparison is fair.
+
+Recommended invocation: `python -O scripts/play_mcts_match.py --opponent hubris_v3 --v3-config tuned_configs/v3_best.json --sims 500 --n 64 --jobs 8`. The `-O` flag strips engine asserts for a meaningful speedup at the per-sim hot path.
 
 `CATEGORY_POPSIZE` maps each category to its CMA-ES popsize (`4 + ⌈3·ln(d)⌉`): 16, 13, 17, 18 for the four V3 categories respectively. `CATEGORY_ORDER` defines the fixed per-pass sequence.
 

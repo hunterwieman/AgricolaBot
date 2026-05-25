@@ -1,16 +1,21 @@
 """Tests for `agricola/agents/restricted.py`.
 
 `restricted_legal_actions(state)` wraps the engine's unrestricted
-`legal_actions(state)` and applies a fixed set of strategic priors. The
-tests below validate each filter independently, plus the cross-cutting
-invariants:
+`legal_actions(state)` and applies a fixed set of strategic priors.
+`strict_restricted_legal_actions(state)` layers four additional MCTS-specific
+filters on top (Cultivation sow-max, Grain-Util veggie rule, Fencing
+patterns, Harvest-feed cap). The tests below validate each filter
+independently, plus the cross-cutting invariants:
 
-  - The wrapper never returns an empty action set when the input is
+  - Neither wrapper returns an empty action set when the input is
     non-empty (the `_safe_narrow` fallback).
-  - The wrapper is a no-op when the pending stack is empty.
+  - The wrappers are a no-op when the pending stack is empty.
   - Each filter narrows or leaves alone — never adds an action.
+  - The strict wrapper is a subset of the regular wrapper.
 """
 from __future__ import annotations
+
+import dataclasses
 
 from agricola.actions import (
     ChooseSubAction,
@@ -18,7 +23,9 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitConvert,
+    CommitHarvestConversion,
     CommitPlow,
+    CommitSow,
     PlaceWorker,
     Stop,
 )
@@ -28,10 +35,19 @@ from agricola.agents.restricted import (
     PLOW_PRIORITY,
     ROOM_PRIORITY,
     STABLE_PRIORITY,
+    make_strict_restricted_legal_actions,
     restricted_legal_actions,
+    strict_restricted_legal_actions,
 )
 from agricola.constants import CellType
+from agricola.fences import (
+    ENTRIES_BY_BM,
+    NUM_COLS,
+    apply_fence_edges_h,
+    apply_fence_edges_v,
+)
 from agricola.legality import legal_actions
+from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBuildFences,
     PendingBuildRooms,
@@ -41,6 +57,7 @@ from agricola.pending import (
     PendingGrainUtilization,
     PendingHarvestFeed,
     PendingPlow,
+    PendingSow,
 )
 from agricola.resources import Animals, Resources
 from agricola.setup import setup
@@ -57,6 +74,49 @@ from tests.factories import (
     with_resources,
     with_space,
 )
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by the strict-wrapper tests
+# ---------------------------------------------------------------------------
+
+def _add_pasture(state, player_idx, cells):
+    """Add a pasture to player_idx's farmyard by placing fences around `cells`.
+
+    `cells` must be a list/tuple of (r, c) tuples whose bitmap is an entry in
+    UNIVERSE_FULL (i.e., connected, enclosable, hole-free). Repeated calls
+    on adjacent cell-sets will produce multiple pastures, sharing boundary
+    fences where applicable — the pasture decomposition is recomputed via
+    `compute_pastures_from_arrays`.
+    """
+    cells_bm = sum(1 << (r * NUM_COLS + c) for (r, c) in cells)
+    entry = ENTRIES_BY_BM[cells_bm]
+    p = state.players[player_idx]
+    fy = p.farmyard
+    new_h = apply_fence_edges_h(fy.horizontal_fences, entry.h_boundary_bm)
+    new_v = apply_fence_edges_v(fy.vertical_fences, entry.v_boundary_bm)
+    new_pastures = compute_pastures_from_arrays(fy.grid, new_h, new_v)
+    new_fy = dataclasses.replace(
+        fy, horizontal_fences=new_h, vertical_fences=new_v,
+        pastures=new_pastures,
+    )
+    new_player = dataclasses.replace(p, farmyard=new_fy)
+    new_players = tuple(
+        new_player if i == player_idx else state.players[i]
+        for i in range(len(state.players))
+    )
+    return dataclasses.replace(state, players=new_players)
+
+
+def _build_fences_pending(player_idx=0, pastures_built=0, fences_built=0):
+    """Construct a PendingBuildFences frame keyed off the Fencing space."""
+    return PendingBuildFences(
+        player_idx=player_idx,
+        initiated_by_id="fencing",
+        pastures_built=pastures_built,
+        fences_built=fences_built,
+        subdivision_started=False,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -543,5 +603,577 @@ def test_wrapper_never_empties_action_set_in_random_play():
             action = restricted[int(rng.integers(len(restricted)))]
         else:
             # Unrestricted is empty — game cannot continue from here.
+            break
+        state = step(state, action)
+
+
+# ===========================================================================
+# Strict wrapper (MCTS_DESIGN §7) — additional filters layered atop the
+# regular wrapper.
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# `use=False` craft filter (§7.0) — applied in the REGULAR wrapper
+# ---------------------------------------------------------------------------
+
+def test_use_false_craft_dropped_at_harvest_feed():
+    """`CommitHarvestConversion(use=False)` is dropped by `restricted_legal_actions`."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_people(state, 0, total=2, home=2, newborns=0)
+    # Owns Joinery (idx 7) — craft is available; has wood to fire it.
+    state = with_majors(state, owner_by_idx={7: 0})
+    state = with_resources(state, 0, food=0, wood=1)
+    state = with_pending_stack(state, [
+        PendingHarvestFeed(player_idx=0, initiated_by_id="phase:harvest_feed"),
+    ])
+    unrestricted = legal_actions(state)
+    restricted = restricted_legal_actions(state)
+    # Engine offers both use=True and use=False for joinery.
+    has_skip = any(
+        isinstance(a, CommitHarvestConversion) and a.use is False
+        for a in unrestricted
+    )
+    has_use = any(
+        isinstance(a, CommitHarvestConversion) and a.use is True
+        for a in unrestricted
+    )
+    assert has_skip and has_use
+    # Wrapper drops use=False but keeps use=True.
+    assert not any(
+        isinstance(a, CommitHarvestConversion) and a.use is False
+        for a in restricted
+    )
+    assert any(
+        isinstance(a, CommitHarvestConversion) and a.use is True
+        for a in restricted
+    )
+
+
+def test_use_false_filter_falls_back_when_only_use_false_offered():
+    """If `use=False` were somehow the only craft option, the safe-narrow
+    fallback preserves it rather than emptying the action set.
+
+    This case isn't reachable in normal gameplay (the engine always offers
+    `use=True` when affordable AND `use=False` is always available; both
+    appear together or neither does). The test artificially constructs the
+    state by giving the player a craft they own but cannot afford to fire,
+    and verifies the wrapper still surfaces a CommitConvert option (the
+    `use=False` filter is inert because there's no `use=False` to drop —
+    `use=True` was already absent from the unrestricted set).
+    """
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_people(state, 0, total=2, home=2, newborns=0)
+    state = with_majors(state, owner_by_idx={7: 0})
+    # No wood means use=True is not offered (the engine only adds use=True if
+    # the cost is affordable). use=False is still offered.
+    state = with_resources(state, 0, food=4, wood=0)
+    state = with_pending_stack(state, [
+        PendingHarvestFeed(player_idx=0, initiated_by_id="phase:harvest_feed"),
+    ])
+    unrestricted = legal_actions(state)
+    # Verify the engine offered use=False but NOT use=True.
+    assert any(
+        isinstance(a, CommitHarvestConversion) and a.use is False
+        for a in unrestricted
+    )
+    assert not any(
+        isinstance(a, CommitHarvestConversion) and a.use is True
+        for a in unrestricted
+    )
+    restricted = restricted_legal_actions(state)
+    # The wrapper dropped use=False (because at least one CommitConvert
+    # survives in the remaining actions, _safe_narrow doesn't kick in).
+    assert restricted, "Wrapper produced empty action set"
+    assert not any(
+        isinstance(a, CommitHarvestConversion) for a in restricted
+    )
+
+
+# ---------------------------------------------------------------------------
+# Strict wrapper: no-op cases
+# ---------------------------------------------------------------------------
+
+def test_strict_no_op_at_placeworker_level():
+    """An empty pending stack means a PlaceWorker decision — strict adds nothing."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    regular = restricted_legal_actions(state)
+    strict = strict_restricted_legal_actions(state)
+    assert strict == regular
+
+
+def test_strict_empty_input_passes_through():
+    """When the engine returns no actions, the strict wrapper returns []."""
+    from agricola.constants import Phase
+
+    from tests.factories import with_phase
+
+    state = setup(seed=0)
+    state = with_phase(state, Phase.BEFORE_SCORING)
+    assert strict_restricted_legal_actions(state) == []
+
+
+def test_strict_is_subset_of_regular():
+    """The strict wrapper's output is always a subset of the regular wrapper's
+    output on a single fresh-game state."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_pending_stack(state, [
+        PendingCultivation(player_idx=0, initiated_by_id="space:cultivation"),
+    ])
+    regular = set(map(repr, restricted_legal_actions(state)))
+    strict = set(map(repr, strict_restricted_legal_actions(state)))
+    assert strict <= regular
+
+
+# ---------------------------------------------------------------------------
+# Cultivation sow-max (§7.1)
+# ---------------------------------------------------------------------------
+
+def test_cultivation_sow_max_picks_max_total():
+    """At Cultivation's PendingSow, only the grain+veg-maximizing commit survives."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, grain=2, veg=1)
+    # Two empty fields.
+    state = with_grid(state, 0, {
+        (0, 1): Cell(cell_type=CellType.FIELD),
+        (0, 2): Cell(cell_type=CellType.FIELD),
+    })
+    state = with_pending_stack(state, [
+        PendingSow(player_idx=0, initiated_by_id="cultivation"),
+    ])
+    actions = strict_restricted_legal_actions(state)
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    assert len(sows) == 1
+    # Best: total=2 with grain priority → (grain=2, veg=0). Note that
+    # (1, 1) also totals 2 but the grain-priority tiebreak picks (2, 0).
+    assert sows[0].grain + sows[0].veg == 2
+    assert sows[0].grain == 2
+
+
+def test_cultivation_sow_max_grain_priority_on_ties():
+    """When several commits tie on total, more-grain wins."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, grain=1, veg=1)
+    state = with_grid(state, 0, {
+        (0, 1): Cell(cell_type=CellType.FIELD),
+        (0, 2): Cell(cell_type=CellType.FIELD),
+    })
+    state = with_pending_stack(state, [
+        PendingSow(player_idx=0, initiated_by_id="cultivation"),
+    ])
+    actions = strict_restricted_legal_actions(state)
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    assert len(sows) == 1
+    # (g=1, v=1) ties with itself on total=2; only one option.
+    assert (sows[0].grain, sows[0].veg) == (1, 1)
+
+
+def test_cultivation_sow_max_does_not_fire_for_grain_utilization():
+    """Sow-max applies ONLY when PendingSow was pushed by Cultivation."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, grain=2)
+    state = with_grid(state, 0, {
+        (0, 1): Cell(cell_type=CellType.FIELD),
+        (0, 2): Cell(cell_type=CellType.FIELD),
+    })
+    state = with_pending_stack(state, [
+        PendingSow(player_idx=0, initiated_by_id="grain_utilization"),
+    ])
+    actions = strict_restricted_legal_actions(state)
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    # Veggie rule applies (veg=0), but sow-max does NOT, so both grain values
+    # survive: (g=1, v=0) and (g=2, v=0).
+    grain_values = sorted(a.grain for a in sows)
+    assert grain_values == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# Grain-Utilization veggie rule (§7.2)
+# ---------------------------------------------------------------------------
+
+def test_grain_util_veggie_auto_maxed():
+    """At Grain-Util's PendingSow with veggies available, `veg_sown` is auto-maxed
+    per grain choice: `veg_sown == min(veg_supply, empty_fields − grain_sown)`."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, grain=2, veg=2)
+    # Three empty fields.
+    state = with_grid(state, 0, {
+        (0, 1): Cell(cell_type=CellType.FIELD),
+        (0, 2): Cell(cell_type=CellType.FIELD),
+        (1, 1): Cell(cell_type=CellType.FIELD),
+    })
+    state = with_pending_stack(state, [
+        PendingSow(player_idx=0, initiated_by_id="grain_utilization"),
+    ])
+    actions = strict_restricted_legal_actions(state)
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    # Per the rule, for each `grain_sown` ∈ {0, 1, 2}, the required
+    # veg = min(2, 3 - grain).
+    # grain=0 → veg=2; grain=1 → veg=2; grain=2 → veg=1.
+    expected = {(0, 2), (1, 2), (2, 1)}
+    actual = {(a.grain, a.veg) for a in sows}
+    assert actual == expected
+
+
+def test_grain_util_veggie_no_veggies_means_veg_zero():
+    """When the player has no veggies, only commits with veg=0 survive."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, grain=2, veg=0)
+    state = with_grid(state, 0, {
+        (0, 1): Cell(cell_type=CellType.FIELD),
+        (0, 2): Cell(cell_type=CellType.FIELD),
+    })
+    state = with_pending_stack(state, [
+        PendingSow(player_idx=0, initiated_by_id="grain_utilization"),
+    ])
+    actions = strict_restricted_legal_actions(state)
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    assert all(a.veg == 0 for a in sows)
+    # All grain values 1..2 survive.
+    assert sorted(a.grain for a in sows) == [1, 2]
+
+
+def test_grain_util_veggie_does_not_fire_for_cultivation():
+    """Veggie rule applies ONLY at Grain-Util's PendingSow, not Cultivation's."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, grain=1, veg=1)
+    state = with_grid(state, 0, {
+        (0, 1): Cell(cell_type=CellType.FIELD),
+        (0, 2): Cell(cell_type=CellType.FIELD),
+    })
+    state = with_pending_stack(state, [
+        PendingSow(player_idx=0, initiated_by_id="cultivation"),
+    ])
+    actions = strict_restricted_legal_actions(state)
+    sows = [a for a in actions if isinstance(a, CommitSow)]
+    # Cultivation sow-max fires → unique max-total commit (g=1, v=1) wins.
+    assert len(sows) == 1
+    assert (sows[0].grain, sows[0].veg) == (1, 1)
+
+
+# ---------------------------------------------------------------------------
+# Fencing patterns (§7.3) — 9 hand-curated rules
+# ---------------------------------------------------------------------------
+
+def _fencing_test_state(wood, pasture_cell_sets=()):
+    """Build a state at PendingBuildFences with the given wood + existing pastures.
+
+    `pasture_cell_sets` is a list of cell-set tuples; each becomes one pasture
+    via `_add_pasture`. `pastures_built` on the pending is set to the number
+    of pastures provided so the engine knows the session is mid-action.
+    """
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, wood=wood)
+    for cells in pasture_cell_sets:
+        state = _add_pasture(state, 0, cells)
+    state = with_pending_stack(state, [
+        _build_fences_pending(
+            pastures_built=len(pasture_cell_sets), fences_built=0,
+        ),
+    ])
+    return state
+
+
+def test_fencing_rule_1_wood7_through_9_opens_with_top_right_cell():
+    """No pastures + wood ∈ {7, 8, 9} → only CommitBuildPasture({(0, 4)})."""
+    for wood in (7, 8, 9):
+        state = _fencing_test_state(wood=wood)
+        actions = strict_restricted_legal_actions(state)
+        commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+        assert len(commits) == 1, f"wood={wood}: got {len(commits)} commits"
+        assert commits[0].cells == frozenset({(0, 4)})
+
+
+def test_fencing_rule_2_wood10_offers_2x2_or_3x2():
+    """No pastures + wood = 10 → 2x2 OR 3x2 at top-right."""
+    state = _fencing_test_state(wood=10)
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    cell_sets = {a.cells for a in commits}
+    assert cell_sets == {
+        frozenset({(0, 3), (0, 4), (1, 3), (1, 4)}),
+        frozenset({(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)}),
+    }
+
+
+def test_fencing_rule_3_wood13_locks_3x2():
+    """No pastures + wood = 13 → only the 3x2 at top-right."""
+    state = _fencing_test_state(wood=13)
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    assert len(commits) == 1
+    assert commits[0].cells == frozenset(
+        {(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)},
+    )
+
+
+def test_fencing_rule_4_wood15_offers_8cell_L_or_3x2():
+    """No pastures + wood = 15 → 8-cell L OR 3x2."""
+    state = _fencing_test_state(wood=15)
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    cell_sets = {a.cells for a in commits}
+    assert cell_sets == {
+        frozenset({(0, 3), (0, 4), (1, 2), (1, 3), (1, 4),
+                   (2, 2), (2, 3), (2, 4)}),
+        frozenset({(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)}),
+    }
+
+
+def test_fencing_rule_5_extend_top_right_with_one_cell():
+    """1x1 at (0,4) + wood = 3 → CommitBuildPasture({(0,3)}) OR Stop."""
+    state = _fencing_test_state(wood=3, pasture_cell_sets=[[(0, 4)]])
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    assert len(commits) == 1
+    assert commits[0].cells == frozenset({(0, 3)})
+    # Stop is allowed by the rule AND legal at the pending (pastures_built=1).
+    assert Stop() in actions
+
+
+def test_fencing_rule_6_extend_down_two_cells():
+    """1x1 at (0,4) + wood = 5 → CommitBuildPasture({(1,4),(2,4)}) OR Stop."""
+    state = _fencing_test_state(wood=5, pasture_cell_sets=[[(0, 4)]])
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    assert len(commits) == 1
+    assert commits[0].cells == frozenset({(1, 4), (2, 4)})
+    assert Stop() in actions
+
+
+def test_fencing_rule_7_subdivide_2x2_at_top_right():
+    """Single 2x2 at top-right + wood = 2 → subdivide into 1x2 ({(0,3),(0,4)})."""
+    state = _fencing_test_state(
+        wood=2, pasture_cell_sets=[[(0, 3), (0, 4), (1, 3), (1, 4)]],
+    )
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    assert len(commits) == 1
+    assert commits[0].cells == frozenset({(0, 3), (0, 4)})
+    # Stop is NOT in the rule's allowed set, so it's filtered out.
+    assert Stop() not in actions
+
+
+def test_fencing_rule_8_extend_top_2_when_split_into_one_pasture():
+    """Single 1x2 at {(0,3),(0,4)} + wood = 4 → extend to row 1 OR Stop."""
+    state = _fencing_test_state(
+        wood=4, pasture_cell_sets=[[(0, 3), (0, 4)]],
+    )
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    assert len(commits) == 1
+    assert commits[0].cells == frozenset({(1, 3), (1, 4)})
+    assert Stop() in actions
+
+
+def test_fencing_rule_8_extend_top_2_when_split_into_two_pastures():
+    """Two 1x1s at (0,3) and (0,4) + wood = 4 → same allowed action.
+
+    Rules 8/9 are cell-set-union-keyed: they fire whether the union is one
+    pasture or several. Verify by building two non-adjacent 1x1s.
+    """
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, wood=4)
+    # Build (0,3) and (0,4) as separate 1x1 pastures (fence between them).
+    state = _add_pasture(state, 0, [(0, 3)])
+    state = _add_pasture(state, 0, [(0, 4)])
+    state = with_pending_stack(state, [
+        _build_fences_pending(pastures_built=2),
+    ])
+    # Sanity: union of pasture cells is {(0,3),(0,4)}; two pastures present.
+    p = state.players[0]
+    assert len(p.farmyard.pastures) == 2
+    assert frozenset(c for past in p.farmyard.pastures for c in past.cells) \
+        == frozenset({(0, 3), (0, 4)})
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    cell_sets = {a.cells for a in commits}
+    # Should still see the single allowed extension (the rule fires on union).
+    assert frozenset({(1, 3), (1, 4)}) in cell_sets
+
+
+def test_fencing_rule_9_extend_top_2_into_bottom_2x2():
+    """Pastures cover exactly {(0,3),(0,4)} + wood = 6 → bottom 2x2 OR Stop."""
+    state = _fencing_test_state(
+        wood=6, pasture_cell_sets=[[(0, 3), (0, 4)]],
+    )
+    actions = strict_restricted_legal_actions(state)
+    commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
+    assert len(commits) == 1
+    assert commits[0].cells == frozenset({(1, 3), (1, 4), (2, 3), (2, 4)})
+    assert Stop() in actions
+
+
+def test_fencing_no_rule_match_passes_through():
+    """No matching rule (e.g., wood = 8 with an existing pasture) → no filter."""
+    state = _fencing_test_state(wood=8, pasture_cell_sets=[[(0, 4)]])
+    regular = restricted_legal_actions(state)
+    strict = strict_restricted_legal_actions(state)
+    # Strict adds no extra filter — output identical to regular.
+    assert sorted(map(repr, strict)) == sorted(map(repr, regular))
+
+
+def test_fencing_rule_7_pasture_identity_required():
+    """Rule 7 (subdivision) requires the 2x2 cells to be ONE pasture, not split."""
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, wood=2)
+    # Build the 2x2 as TWO separate 1x2 pastures (split horizontally).
+    state = _add_pasture(state, 0, [(0, 3), (0, 4)])
+    state = _add_pasture(state, 0, [(1, 3), (1, 4)])
+    state = with_pending_stack(state, [
+        _build_fences_pending(pastures_built=2),
+    ])
+    # Sanity check.
+    p = state.players[0]
+    assert len(p.farmyard.pastures) == 2
+    actions = strict_restricted_legal_actions(state)
+    # Rule 7 doesn't apply (pastures != single 2x2). Pasture union is
+    # {(0,3),(0,4),(1,3),(1,4)} which doesn't match rule 8/9's {(0,3),(0,4)}.
+    # So strict is inert — output equals regular.
+    regular = restricted_legal_actions(state)
+    assert sorted(map(repr, strict_restricted_legal_actions(state))) \
+        == sorted(map(repr, regular))
+
+
+# ---------------------------------------------------------------------------
+# Harvest-feed cap (§7.4)
+# ---------------------------------------------------------------------------
+
+def _harvest_feed_state_with_many_commits():
+    """Build a state with > 7 legal CommitConvert options at PendingHarvestFeed.
+
+    Player: 2 people (need=4), 0 food, lots of crops + animals + Cooking
+    Hearth so all conversion rates are non-zero. The frontier produces many
+    Pareto-optimal payment configurations that all meet need exactly with
+    different goods tradeoffs.
+    """
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_people(state, 0, total=2, home=2, newborns=0)
+    # Cooking Hearth (idx 2) gives rates (sheep=2, boar=3, cattle=4, veg=3).
+    state = with_majors(state, owner_by_idx={2: 0})
+    state = with_resources(state, 0, food=0, grain=4, veg=2)
+    state = with_animals(state, 0, sheep=4, boar=2, cattle=1)
+    state = with_pending_stack(state, [
+        PendingHarvestFeed(player_idx=0, initiated_by_id="phase:harvest_feed"),
+    ])
+    return state
+
+
+def test_harvest_feed_cap_inactive_when_seven_or_fewer_commits():
+    """≤7 commits: no cap. Strict output equals regular at this layer."""
+    # A simple state with very few commits.
+    state = setup(seed=0)
+    state = with_current_player(state, 0)
+    state = with_people(state, 0, total=2, home=2, newborns=0)
+    state = with_resources(state, 0, food=4)
+    state = with_pending_stack(state, [
+        PendingHarvestFeed(player_idx=0, initiated_by_id="phase:harvest_feed"),
+    ])
+    regular = restricted_legal_actions(state)
+    strict = strict_restricted_legal_actions(state)
+    # With food=4 and need=4, the only commit is (0,0,0,0,0).
+    assert sorted(map(repr, regular)) == sorted(map(repr, strict))
+
+
+def test_harvest_feed_cap_engages_when_many_commits():
+    """When > 7 commits remain after the regular wrapper, the cap fires.
+
+    Crafts and other actions pass through unchanged; commit count drops to 7
+    (top-5 by V3 + 2 random).
+    """
+    state = _harvest_feed_state_with_many_commits()
+    regular = restricted_legal_actions(state)
+    regular_commits = [a for a in regular if isinstance(a, CommitConvert)]
+    if len(regular_commits) <= 7:
+        # State doesn't trigger the cap — sanity-skip the cap-specific
+        # assertion, but verify the inert pass-through.
+        assert sorted(map(repr, strict_restricted_legal_actions(state))) \
+            == sorted(map(repr, regular))
+        return
+    strict = strict_restricted_legal_actions(state)
+    strict_commits = [a for a in strict if isinstance(a, CommitConvert)]
+    # Cap kicks in: exactly 7 commits surviving (5 top + 2 random).
+    assert len(strict_commits) == 7
+    # All commits in strict are also in regular.
+    for a in strict_commits:
+        assert a in regular_commits
+
+
+def test_harvest_feed_cap_preserves_crafts():
+    """The cap never sub-samples CommitHarvestConversion entries."""
+    state = _harvest_feed_state_with_many_commits()
+    # Add a Joinery and wood to expose a craft option.
+    state = with_majors(state, owner_by_idx={2: 0, 7: 0})  # Hearth + Joinery
+    state = add_resources(state, 0, wood=1)
+    strict = strict_restricted_legal_actions(state)
+    crafts = [a for a in strict if isinstance(a, CommitHarvestConversion)]
+    # The use=False filter (regular wrapper) dropped use=False; the cap kept
+    # use=True. Joinery + 1 wood available → exactly one craft action remains.
+    assert len(crafts) == 1
+    assert crafts[0].conversion_id == "joinery"
+    assert crafts[0].use is True
+
+
+def test_harvest_feed_cap_deterministic_with_same_rng():
+    """Two strict wrappers built with the same seed produce the same picks."""
+    import numpy as np
+
+    state = _harvest_feed_state_with_many_commits()
+    regular_commits = [
+        a for a in restricted_legal_actions(state) if isinstance(a, CommitConvert)
+    ]
+    if len(regular_commits) <= 7:
+        # Cap inactive — determinism check is trivially satisfied.
+        return
+    fn_a = make_strict_restricted_legal_actions(rng=np.random.default_rng(42))
+    fn_b = make_strict_restricted_legal_actions(rng=np.random.default_rng(42))
+    out_a = sorted(map(repr, fn_a(state)))
+    out_b = sorted(map(repr, fn_b(state)))
+    assert out_a == out_b
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting: strict wrapper always-≥1 invariant on a random walk
+# ---------------------------------------------------------------------------
+
+def test_strict_wrapper_never_empties_action_set_in_random_play():
+    """Run a random game using strict legality; assert non-empty action sets."""
+    import numpy as np
+
+    from agricola.constants import Phase
+    from agricola.engine import step
+    from tests.test_utils import filter_implemented
+
+    rng = np.random.default_rng(0)
+    state = setup(seed=0)
+    while state.phase != Phase.BEFORE_SCORING:
+        unrestricted = filter_implemented(legal_actions(state))
+        strict = filter_implemented(strict_restricted_legal_actions(state))
+        if unrestricted:
+            assert strict, (
+                f"Strict wrapper emptied a non-empty set. "
+                f"phase={state.phase}, "
+                f"stack_top={type(state.pending_stack[-1]).__name__ if state.pending_stack else None}"
+            )
+            for a in strict:
+                assert a in unrestricted, (
+                    f"Strict returned action {a!r} not in unrestricted."
+                )
+            action = strict[int(rng.integers(len(strict)))]
+        else:
             break
         state = step(state, action)

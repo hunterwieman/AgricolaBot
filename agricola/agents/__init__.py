@@ -35,7 +35,9 @@ from agricola.agents.restricted import (
     PLOW_PRIORITY,
     ROOM_PRIORITY,
     STABLE_PRIORITY,
+    make_strict_restricted_legal_actions,
     restricted_legal_actions,
+    strict_restricted_legal_actions,
 )
 from agricola.agents.heuristic import (
     CONFIG_V1_T2,
@@ -54,6 +56,12 @@ from agricola.agents.heuristic import (
     evaluate_hubris_v2,
     evaluate_hubris_v3,
     evaluate_simple,
+)
+from agricola.agents.mcts import (
+    MCTSAgent,
+    MCTSNode,
+    MCTSSearch,
+    MacroFencingAction,
 )
 
 __all__ = [
@@ -79,9 +87,15 @@ __all__ = [
     "evaluate_hubris_v3",
     "play_game",
     "restricted_legal_actions",
+    "strict_restricted_legal_actions",
+    "make_strict_restricted_legal_actions",
     "STABLE_PRIORITY",
     "ROOM_PRIORITY",
     "PLOW_PRIORITY",
     "FIRST_PASTURE_REQUIRED_CELLS",
     "MAX_TOTAL_ROOMS",
+    "MCTSAgent",
+    "MCTSSearch",
+    "MCTSNode",
+    "MacroFencingAction",
 ]
