@@ -693,6 +693,11 @@ def main() -> int:
                              "floor and blocks future legitimate promotions. Adds ~holdout_n "
                              "games of compute per promoted run. Recommended for sequential "
                              "single-category runs that re-tune against the current champion.")
+    parser.add_argument("--no-promote", action="store_true", default=False,
+                        help="Skip the <arch>_best.json auto-promotion step entirely. Use for "
+                             "exploratory / validation runs where you want the JSON output but "
+                             "don't want to risk overwriting the current champion pointer. The "
+                             "regression-history JSON is still written and reported.")
     args = parser.parse_args()
 
     seeds = list(range(args.n_seeds))
@@ -1150,79 +1155,124 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     # result we've seen for this architecture. Drivers (e.g. play_web.py
     # --v3-config) can point at this stable path to always use the current
     # champion without remembering individual timestamped paths.
-    promoted = _maybe_update_best_pointer(args.output, candidate_arch,
-                                            holdout_result.avg_margin,
-                                            holdout_result.n_games)
-    if promoted and args.reset_floor_after_promote:
-        _reset_floor_in_best_pointer(
-            arch=candidate_arch,
-            champion_cfg=best_cfg,
-            candidate_arch=candidate_arch,
-            holdout_seeds=holdout_seeds,
-            restricted=args.restricted,
-        )
+    if args.no_promote:
+        print(f"Best:    skipped (--no-promote)")
+    else:
+        promoted = _enable_best_pointer_update(args.output, candidate_arch,
+                                                holdout_payload)
+        if promoted and args.reset_floor_after_promote:
+            _reset_floor_in_best_pointer(
+                arch=candidate_arch,
+                champion_cfg=best_cfg,
+                candidate_arch=candidate_arch,
+                holdout_seeds=holdout_seeds,
+                restricted=args.restricted,
+            )
     return 0
 
 
-def _maybe_update_best_pointer(new_json_path: Path, arch: str,
-                                new_holdout_margin: float,
-                                new_holdout_n_games: int) -> bool:
+def _enable_best_pointer_update(new_json_path: Path, arch: str,
+                                new_holdout_payload: dict,
+                                min_regression_n: int = 30) -> bool:
     """If the new run's holdout result beats the current
     `tuned_configs/<arch>_best.json`, copy `new_json_path` to that path.
 
-    Comparison requires BOTH:
-      1. new_holdout_n_games >= existing_holdout_n_games (don't let a
-         small-sample lucky win displace a large-sample solid result), AND
-      2. new_holdout_margin > existing_holdout_margin.
+    Comparison metric: ``holdout.regression.avg_margin`` — the candidate's
+    margin against a FIXED reference baseline (typically t2 for V3). This
+    is what protects against chained-baseline drift: ``holdout.avg_margin``
+    is computed against whatever the current tuning baseline is, so it
+    shifts with every promotion and can silently regress in absolute terms
+    while looking like an improvement in relative terms. The regression
+    margin doesn't have that bug — it's measured against a fixed anchor
+    that doesn't move between runs.
 
-    This guards against smoke-test runs (small --holdout-n) accidentally
-    overwriting v3_best.json with a low-confidence result. Comparison metric
-    is the holdout margin (more honest than training; less prone to
-    overfitting noise). Prints the result either way.
+    Gating requirements (all must hold for promotion):
+      1. New payload has a non-null ``regression`` block. Without it we
+         can't make a drift-safe comparison, so the run is held back.
+      2. ``new_holdout_payload["n_games"] >= existing["n_games"]`` — same
+         sample-size protection as before, against the held-out baseline.
+      3. ``regression.n_games >= min_regression_n`` (default 30) — small
+         regression samples are too noisy to trust as a drift signal.
+      4. ``regression.baseline`` matches between existing and new — comparing
+         margins against different reference baselines is apples-to-oranges.
+      5. ``new_regression_margin > existing_regression_margin``.
 
-    Returns True if a fresh copy was written (initialization or genuine
-    promotion); False if the existing best was kept. The caller may use
-    this to gate a subsequent floor-reset step.
+    Existing files that predate the regression block are treated as having
+    ``regression.avg_margin = -inf`` (any drift-safe candidate beats them).
+    First-time initialization (no existing file) always accepts.
+
+    Returns True on initialization or genuine promotion; False otherwise.
+    The caller may use this to gate a subsequent floor-reset step.
     """
+    import math
     import shutil
     best_path = ROOT / "tuned_configs" / f"{arch}_best.json"
-    existing_margin: float | None = None
-    existing_n: int | None = None
-    if best_path.exists():
-        try:
-            existing = json.loads(best_path.read_text())
-            existing_ho = existing.get("holdout", {}) or {}
-            existing_margin = existing_ho.get("avg_margin")
-            existing_n = existing_ho.get("n_games")
-        except (json.JSONDecodeError, KeyError):
-            existing_margin = None
-            existing_n = None
 
-    if existing_margin is None:
-        # No existing best — accept any holdout.
-        best_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(new_json_path, best_path)
-        print(f"Best:    {best_path}  (initialized; holdout {new_holdout_margin:+.2f}, "
-              f"n={new_holdout_n_games})")
-        return True
+    new_reg = (new_holdout_payload.get("regression") or {})
+    new_reg_margin = new_reg.get("avg_margin")
+    new_reg_n = new_reg.get("n_games") or new_holdout_payload.get("n_games") or 0
+    new_reg_baseline = new_reg.get("baseline")
+    new_n = new_holdout_payload.get("n_games") or 0
 
-    if new_holdout_n_games < (existing_n or 0):
-        # New holdout is smaller-sample. Even if the margin is higher, we
-        # don't trust it enough to dethrone the existing big-sample champion.
-        print(f"Best:    {best_path}  (unchanged; new holdout sample {new_holdout_n_games} "
-              f"< existing {existing_n}, so smaller-sample result skipped regardless "
-              f"of margin)")
+    # No regression block → can't make a drift-safe call. Hold the pointer.
+    if new_reg_margin is None:
+        print(f"Best:    {best_path}  (unchanged; new run has no regression block — "
+              f"cannot compare drift-safely. Pass --regression-baseline to enable promotion.)")
         return False
 
-    if new_holdout_margin > existing_margin:
+    # Sample-size guard on the regression measurement itself.
+    if new_reg_n < min_regression_n:
+        print(f"Best:    {best_path}  (unchanged; new regression sample n={new_reg_n} "
+              f"< min {min_regression_n} — too noisy to promote on)")
+        return False
+
+    # No existing best — initialize with the new file.
+    if not best_path.exists():
         best_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(new_json_path, best_path)
-        print(f"Best:    {best_path}  (UPDATED: {existing_margin:+.2f} (n={existing_n}) "
-              f"→ {new_holdout_margin:+.2f} (n={new_holdout_n_games}))")
+        print(f"Best:    {best_path}  (initialized; regression vs {new_reg_baseline!r} "
+              f"margin {new_reg_margin:+.2f}, n={new_reg_n})")
+        return True
+
+    # Load existing for comparison.
+    try:
+        existing = json.loads(best_path.read_text())
+        existing_ho = existing.get("holdout") or {}
+        existing_reg = existing_ho.get("regression") or {}
+    except (json.JSONDecodeError, KeyError):
+        existing_ho = {}
+        existing_reg = {}
+
+    existing_reg_margin = existing_reg.get("avg_margin", -math.inf)
+    existing_reg_n = existing_reg.get("n_games") or existing_ho.get("n_games") or 0
+    existing_reg_baseline = existing_reg.get("baseline")
+    existing_n = existing_ho.get("n_games") or 0
+
+    # Same-baseline check on the regression anchor.
+    if (existing_reg_baseline is not None
+        and existing_reg_baseline != new_reg_baseline):
+        print(f"Best:    {best_path}  (unchanged; existing regression baseline "
+              f"{existing_reg_baseline!r} ≠ new {new_reg_baseline!r} — different anchors, "
+              f"comparison not meaningful)")
+        return False
+
+    # Sample-size guard on the held-out baseline summary (the original guard).
+    if new_n < existing_n:
+        print(f"Best:    {best_path}  (unchanged; new holdout sample {new_n} "
+              f"< existing {existing_n})")
+        return False
+
+    if new_reg_margin > existing_reg_margin:
+        best_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(new_json_path, best_path)
+        print(f"Best:    {best_path}  (UPDATED on regression vs {new_reg_baseline!r}: "
+              f"{existing_reg_margin:+.2f} (n={existing_reg_n}) → "
+              f"{new_reg_margin:+.2f} (n={new_reg_n}))")
         return True
     else:
-        print(f"Best:    {best_path}  (unchanged; existing {existing_margin:+.2f} "
-              f"(n={existing_n}) >= new {new_holdout_margin:+.2f} (n={new_holdout_n_games}))")
+        print(f"Best:    {best_path}  (unchanged; existing regression "
+              f"{existing_reg_margin:+.2f} (n={existing_reg_n}) >= new "
+              f"{new_reg_margin:+.2f} (n={new_reg_n}))")
         return False
 
 
@@ -1256,6 +1306,10 @@ def _reset_floor_in_best_pointer(arch: str, champion_cfg, candidate_arch: str,
     # measurement. n_games stays the same (same seed count), so future
     # n-comparison still works.
     d = json.loads(best_path.read_text())
+    # Preserve regression/by_baseline blocks — they are our drift anchors,
+    # not the self-match floor. The floor only replaces the held-out
+    # baseline summary stats.
+    prev_ho = d.get("holdout") or {}
     d["holdout"] = {
         "n_games":         res.n_games,
         "p0_wins":         res.p0_wins,
@@ -1266,11 +1320,13 @@ def _reset_floor_in_best_pointer(arch: str, champion_cfg, candidate_arch: str,
         "avg_margin":      res.avg_margin,
         "elapsed_seconds": res.elapsed_seconds,
         "holdout_seeds":   list(holdout_seeds),
+        "by_baseline":     prev_ho.get("by_baseline"),
+        "regression":      prev_ho.get("regression"),
         "note":            (f"Self-match floor (current champion vs self, "
                             f"restricted={restricted}, n={res.n_games}). "
                             f"Reset post-promotion by --reset-floor-after-promote. "
-                            f"Future tunings must beat {res.avg_margin:+.2f} "
-                            f"to auto-promote."),
+                            f"Note: comparison metric is now holdout.regression.avg_margin, "
+                            f"not holdout.avg_margin — floor reset is informational only."),
     }
     best_path.write_text(json.dumps(d, indent=2))
     print(f"  {best_path}: holdout.avg_margin reset to {res.avg_margin:+.2f}")

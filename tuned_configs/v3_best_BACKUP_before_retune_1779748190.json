@@ -1593,31 +1593,10 @@
       "elapsed_seconds": 1163.269347500056
     }
   ],
-  "holdout": {
-    "n_games": 40,
-    "note": "Backfilled from scripts/port_pre_refactor_v3.py measurement. No fresh holdout was run when this config was promoted (port + manual cp). Sign convention: tuned (V3-ported) minus baseline. P0=V3-ported, P1=baseline.",
-    "avg_margin": 11.92,
-    "by_baseline": [
-      {
-        "baseline": "t2",
-        "baseline_arch": "v1",
-        "avg_margin": 11.92,
-        "n_games": 40
-      }
-    ],
-    "regression": {
-      "baseline": "t2",
-      "baseline_arch": "v1",
-      "avg_margin": 11.92,
-      "n_games": 40,
-      "note": "Backfilled. The regression-detector path did not yet exist when this config was promoted; this is the V3-ported vs V1+T2 measurement from port_pre_refactor_v3.py."
-    }
-  },
+  "holdout": null,
   "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.log",
   "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.cma.pkl",
   "resumed_from": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl",
   "start_gen": 10,
-  "label": "iter1_ported_to_refactor",
-  "regression_baseline": "t2",
-  "regression_baseline_arch": "v1"
+  "label": "iter1_ported_to_refactor"
 }
