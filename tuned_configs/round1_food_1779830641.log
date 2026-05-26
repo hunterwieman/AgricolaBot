@@ -1,0 +1,28 @@
+Tuning 18 parameters via CMA-ES
+  category: 'v3_food'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_temp05.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 20 games per evaluation (training: 0..19)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 25, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  total evals: 400
+  jobs: 8; python -O: ON
+  estimated wall time: ~9.6 min (vs ~66.7 min if 1-job & no -O)
+  Output: tuned_configs/round1_food_1779830641.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/round1_food_1779830641.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 6 baselines) = +1.533
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +2.662  gen best: +2.662  gen mean: +1.238  (3.1 min)
+           per-baseline: t2=+10.90  tuned_configs/v3_best.json=+8.80  tuned_configs/panel_gen_25.json=+7.05  tuned_configs/round1_resources_start.json=+22.15  tuned_configs/panel_gen47_wood020.json=+5.60  tuned_configs/panel_gen47_temp05.json=+6.20
+           regression vs 't2': +10.900

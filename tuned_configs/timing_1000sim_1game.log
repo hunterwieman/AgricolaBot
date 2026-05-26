@@ -1,0 +1,22 @@
+=== 1000-sim single-game timing measurement ===
+Start: Mon May 25 05:28:58 EDT 2026
+Caveat: this runs concurrently with the 5-config c_uct sweep using 8 cores.
+        macOS shares the 9th process across the 8 cores; expect ~10-30%
+        wall-time inflation vs an idle machine.
+Command: python -O scripts/play_mcts_match.py --sims 1000 --n 1 --jobs 1 --opponent hubris_v3 --v3-config tuned_configs/v3_best.json --per-game
+
+Match: P0=mcts  vs  P1=hubris_v3  (1 seeds, jobs=1)
+  V3 config: tuned_configs/v3_best.json
+  MCTS: sims=1000, c_uct=1.4, n_random_fencing=4, fpu_offset=0.0, temperature=0.2
+  [  1/1] seed=  0 P0= 28 P1= 19 →  P0 | tally P0 1-0-0 P1, avg margin +9.00 | elapsed 2.7m, ETA 0.0m
+
+  seed   SP    P0    P1   tb0   tb1  winner
+     0    1    28    19     8     4  P0
+
+P0 1-0-0 P1  avg +28.00 vs +19.00  margin +9.00  (1 games, 163.5s)
+  Wall: 163.5s total, 163.5s / game
+real 164.15
+user 100.12
+sys 2.38
+
+End: Mon May 25 05:31:42 EDT 2026

@@ -78,12 +78,15 @@ def _make_agent(arch: str, cfg, seed: int, *, restricted: bool):
     action-pruned set defined by `agricola.agents.restricted`.
     """
     extra = {"legal_actions_fn": restricted_legal_actions} if restricted else {}
+    # Read temperature off the config if present (V3 configs carry it as
+    # an opt-in field; default 0.0 = argmax). V1 configs don't have it.
+    temp = float(getattr(cfg, "temperature", 0.0))
     if arch == "v1":
         return HubrisHeuristicV1(config=cfg, seed=seed,
-                                  temperature=0.0, lookahead="turn", **extra)
+                                  temperature=temp, lookahead="turn", **extra)
     if arch == "v3":
         return HubrisHeuristicV3(config=cfg, seed=seed,
-                                  temperature=0.0, lookahead="turn", **extra)
+                                  temperature=temp, lookahead="turn", **extra)
     raise ValueError(f"Unknown arch {arch!r}")
 
 
@@ -522,13 +525,17 @@ _WORKER_BASE_CONFIG = None        # warm-start base for the candidate
 _WORKER_BASE_ARCH: str = "v3"     # candidate architecture
 _WORKER_TUNABLE: list | None = None  # which TUNABLE list is active
 _WORKER_RESTRICTED: bool = False  # whether agents use restricted_legal_actions
+_WORKER_FITNESS_KIND: str = "margin"  # "margin" | "sublinear" | "truncated" | "win_rate"
+_WORKER_FITNESS_K: float = 0.5  # exponent for sublinear; cap for truncated
 
 
 def _init_worker(seeds: list[int],
                  baseline_configs: list, baseline_archs: list,
                  base_config, base_arch: str,
                  tunable: list,
-                 restricted: bool = False) -> None:
+                 restricted: bool = False,
+                 fitness_kind: str = "margin",
+                 fitness_k: float = 0.5) -> None:
     """Pool initializer: copy seeds, baselines (opponents), warm-start base,
     architecture labels, the active TUNABLE, and the restricted flag into
     worker globals.
@@ -548,7 +555,7 @@ def _init_worker(seeds: list[int],
     """
     global _WORKER_SEEDS, _WORKER_BASELINE_CONFIGS, _WORKER_BASELINE_ARCHS
     global _WORKER_BASE_CONFIG, _WORKER_BASE_ARCH, _WORKER_TUNABLE
-    global _WORKER_RESTRICTED
+    global _WORKER_RESTRICTED, _WORKER_FITNESS_KIND, _WORKER_FITNESS_K
     _WORKER_SEEDS = seeds
     _WORKER_BASELINE_CONFIGS = list(baseline_configs)
     _WORKER_BASELINE_ARCHS = list(baseline_archs)
@@ -556,22 +563,50 @@ def _init_worker(seeds: list[int],
     _WORKER_BASE_ARCH = base_arch
     _WORKER_TUNABLE = tunable
     _WORKER_RESTRICTED = restricted
+    _WORKER_FITNESS_KIND = fitness_kind
+    _WORKER_FITNESS_K = fitness_k
+
+
+def _per_game_fitness(per_game, kind: str, k: float) -> float:
+    """Aggregate a match's per-game results into a scalar baseline fitness.
+
+    - `margin`:    avg(score_p0 − score_p1)          — original behavior.
+    - `sublinear`: avg(sign(m) · |m|^k), k≈0.5       — diminishing returns
+                   on blowouts; bounds easy-opponent attractor effects.
+    - `truncated`: avg(clip(m, -k, +k)), k≈5         — hard cap; same intent
+                   as sublinear, sharper threshold.
+    - `win_rate`:  fraction of games won (+0.5 per draw), shifted to
+                   [-0.5, +0.5] so it has the same sign as margin.
+    """
+    import math
+    n = len(per_game)
+    if kind == "margin":
+        return sum(g.score_p0 - g.score_p1 for g in per_game) / n
+    if kind == "sublinear":
+        total = 0.0
+        for g in per_game:
+            m = g.score_p0 - g.score_p1
+            total += math.copysign(abs(m) ** k, m)
+        return total / n
+    if kind == "truncated":
+        return sum(max(-k, min(k, g.score_p0 - g.score_p1)) for g in per_game) / n
+    if kind == "win_rate":
+        wins = sum(1 for g in per_game if g.winner == 0)
+        draws = sum(1 for g in per_game if g.winner not in (0, 1))
+        return (wins + 0.5 * draws) / n - 0.5
+    raise ValueError(f"unknown fitness kind {kind!r}")
 
 
 def _eval_candidate(x: np.ndarray) -> float:
-    """Top-level fitness function `x -> -mean_margin_across_baselines`.
+    """Top-level fitness function. Returns -mean_aggregate_across_baselines,
+    where the per-baseline aggregate is computed per `_WORKER_FITNESS_KIND`.
 
     Top-level (not a closure) so `multiprocessing.Pool` can pickle it.
-    Reads seeds/baselines from module-level globals populated by
-    `_init_worker` (parallel mode) or `main()` (sequential mode).
-
-    With one baseline this reduces to the old `x -> -avg_margin` behavior.
-    With multiple baselines, the fitness aggregates margin across all
-    opponents (mean of per-baseline mean margins). All baselines play on
-    the same seed set.
+    Reads seeds/baselines/fitness-kind from module-level globals populated
+    by `_init_worker` (parallel mode) or `main()` (sequential mode).
 
     Negative-margin convention: CMA-ES minimizes; we want to MAXIMIZE
-    the candidate's score margin over the baselines.
+    the candidate's aggregate over the baselines.
     """
     assert _WORKER_SEEDS is not None, "worker globals not initialized"
     assert _WORKER_BASELINE_CONFIGS, "worker globals not initialized"
@@ -590,7 +625,9 @@ def _eval_candidate(x: np.ndarray) -> float:
             return _make_agent(_arch, _cfg, seed + 1, restricted=_WORKER_RESTRICTED)
 
         result = play_match(p0_factory, p1_factory, _WORKER_SEEDS)
-        margins.append(result.avg_margin)
+        margins.append(_per_game_fitness(result.per_game,
+                                          _WORKER_FITNESS_KIND,
+                                          _WORKER_FITNESS_K))
 
     return -(sum(margins) / len(margins))
 
@@ -698,6 +735,18 @@ def main() -> int:
                              "exploratory / validation runs where you want the JSON output but "
                              "don't want to risk overwriting the current champion pointer. The "
                              "regression-history JSON is still written and reported.")
+    parser.add_argument("--fitness", default="margin",
+                        choices=("margin", "sublinear", "truncated", "win_rate"),
+                        help="Fitness aggregation per baseline. 'margin' (default) is the "
+                             "original avg(p0-p1) per-game; 'sublinear' uses "
+                             "sign(m)·|m|^k (caps blowout influence smoothly); 'truncated' "
+                             "uses clip(m, -k, +k); 'win_rate' uses fraction-of-wins shifted "
+                             "to [-0.5, +0.5]. The aggregate fitness is the mean across "
+                             "baselines of this per-baseline aggregate.")
+    parser.add_argument("--fitness-k", type=float, default=0.5,
+                        help="Exponent for --fitness sublinear (default 0.5), or cap K for "
+                             "--fitness truncated (default 5.0 — pass --fitness-k 5 then). "
+                             "Ignored for margin and win_rate.")
     args = parser.parse_args()
 
     seeds = list(range(args.n_seeds))
@@ -743,7 +792,8 @@ def main() -> int:
     # check, --jobs 1). Parallel workers receive these via Pool initializer.
     _init_worker(seeds, baseline_configs, baseline_archs,
                   base_config, candidate_arch, tunable,
-                  restricted=args.restricted)
+                  restricted=args.restricted,
+                  fitness_kind=args.fitness, fitness_k=args.fitness_k)
 
     # CMA-ES starting vector: extract from `base_config` at each tuned
     # field's path. This means x0 EXACTLY corresponds to the warm-start
@@ -804,6 +854,14 @@ def main() -> int:
         if args.resume:
             print(f"  resume: {args.resume}  (continues a previous run's CMA-ES state)")
         print(f"  popsize: {args.popsize}, max_gens: {args.max_gens}, sigma0: {args.sigma0}")
+        if args.fitness == "margin":
+            print(f"  fitness: margin (raw avg score-difference per game)")
+        elif args.fitness == "sublinear":
+            print(f"  fitness: sublinear  (per-game = sign(m)·|m|^{args.fitness_k})")
+        elif args.fitness == "truncated":
+            print(f"  fitness: truncated  (per-game = clip(m, -{args.fitness_k}, +{args.fitness_k}))")
+        elif args.fitness == "win_rate":
+            print(f"  fitness: win_rate   (fraction-of-wins shifted to [-0.5, +0.5])")
         print(f"  total evals: {total_evals}")
         print(f"  jobs: {args.jobs}; python -O: {'ON' if sys.flags.optimize else 'OFF'}")
         print(f"  estimated wall time: ~{est_seconds_par / 60:.1f} min "
@@ -925,7 +983,10 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             "regression_baseline":      args.regression_baseline or None,
             "regression_baseline_arch": regression_arch,
             "regression_history":       regression_history,
+            "per_baseline_history":     per_baseline_history,
             "restricted":        bool(args.restricted),
+            "fitness_kind":      args.fitness,
+            "fitness_k":         float(args.fitness_k),
             "tunable_spec": [
                 {"name": t[0], "default": t[1], "lower": t[2], "upper": t[3], "path": list(t[4])}
                 for t in tunable
@@ -953,6 +1014,11 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     # measurements of session-best vs the regression baseline. Empty if
     # regression detector is disabled.
     regression_history: list[dict] = []
+    # Per-generation per-baseline breakdown for the session-best candidate.
+    # Each entry is {generation, per_baseline: [{baseline, margin}, ...]}.
+    # Useful for post-mortems: "did fitness rise because we got better vs
+    # every baseline, or did we trade wins on one for losses on another?"
+    per_baseline_history: list[dict] = []
 
     pool: Pool | None = None
     if args.jobs > 1:
@@ -961,7 +1027,7 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             initializer=_init_worker,
             initargs=(seeds, baseline_configs, baseline_archs,
                       base_config, candidate_arch, tunable,
-                      args.restricted),
+                      args.restricted, args.fitness, args.fitness_k),
         )
 
     try:
@@ -1005,6 +1071,38 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
                 "elapsed_seconds":    elapsed,
             })
 
+            # Per-baseline diagnostic: measure the session-best candidate
+            # against EACH fitness baseline individually, so we can attribute
+            # fitness drift to specific opponents. The aggregate fitness
+            # (mean across baselines) hides whether a gen-best is winning
+            # uniformly or trading wins on one baseline for losses on another.
+            # NOT part of the fitness signal — purely diagnostic. Recorded
+            # in per_baseline_history alongside the regression check.
+            best_cfg_for_drift = vector_to_config(
+                np.asarray(session_best["x"]),
+                base=base_config, tunable=tunable,
+            )
+            per_baseline = []
+            for spec, b_cfg, b_arch in zip(
+                baseline_specs, baseline_configs, baseline_archs,
+            ):
+                m = _eval_against_baseline(
+                    candidate_cfg=best_cfg_for_drift,
+                    candidate_arch=candidate_arch,
+                    baseline_cfg=b_cfg, baseline_arch=b_arch,
+                    seeds=seeds, restricted=args.restricted,
+                )
+                per_baseline.append({"baseline": spec, "margin": float(m)})
+            per_baseline_history.append({
+                "generation":   gen,
+                "per_baseline": per_baseline,
+            })
+            if len(per_baseline) > 1:
+                breakdown = "  ".join(
+                    f"{row['baseline']}={row['margin']:+.2f}" for row in per_baseline
+                )
+                print(f"           per-baseline: {breakdown}")
+
             # Regression-detector check: measure the session-best candidate
             # against the fixed reference opponent (typically V1+T2).
             # NOT part of the fitness aggregate — this is purely diagnostic.
@@ -1012,17 +1110,22 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             # this trend goes DOWN while best_margin_so_far goes UP, the
             # tuning is overfitting to the training baselines.
             if regression_cfg is not None:
-                best_cfg_for_drift = vector_to_config(
-                    np.asarray(session_best["x"]),
-                    base=base_config, tunable=tunable,
-                )
-                drift_margin = _eval_against_baseline(
-                    candidate_cfg=best_cfg_for_drift,
-                    candidate_arch=candidate_arch,
-                    baseline_cfg=regression_cfg,
-                    baseline_arch=regression_arch,
-                    seeds=seeds, restricted=args.restricted,
-                )
+                # If the regression baseline is also one of the fitness
+                # baselines, reuse the just-computed per-baseline number
+                # instead of paying for the same 50-game match twice.
+                drift_margin = None
+                for row in per_baseline:
+                    if row["baseline"] == args.regression_baseline:
+                        drift_margin = row["margin"]
+                        break
+                if drift_margin is None:
+                    drift_margin = _eval_against_baseline(
+                        candidate_cfg=best_cfg_for_drift,
+                        candidate_arch=candidate_arch,
+                        baseline_cfg=regression_cfg,
+                        baseline_arch=regression_arch,
+                        seeds=seeds, restricted=args.restricted,
+                    )
                 regression_history.append({
                     "generation":         gen,
                     "regression_margin":  float(drift_margin),

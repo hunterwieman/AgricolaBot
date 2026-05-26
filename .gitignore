@@ -13,3 +13,15 @@ __pycache__/
 tuned_configs/*.cma.pkl
 # Atomic-write temp files used by tune_heuristic.py's save_cma_state.
 tuned_configs/*.cma.pkl.tmp
+# Manual backups / preserved snapshots of tuned configs — local-only.
+tuned_configs/*.PRESERVE.json
+tuned_configs/*BACKUP*.json
+
+# Copyrighted Agricola rulebook PDFs — kept locally for reference, not for distribution.
+Rulebooks/
+
+# Superseded historical docs — kept locally, not shipped.
+archive/
+
+# Debug game traces dumped at the repo root by play_web.py / play.py.
+agricola-trace-seed*.json

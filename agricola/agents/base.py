@@ -237,6 +237,24 @@ class HeuristicAgent:
             scores = [self._lookahead_value(step(state, a), decider) for a in actions]
         return self._select(actions, scores)
 
+    def preview_top_actions(self, state: GameState) -> list[tuple[object, float]]:
+        """Return [(action, score), ...] for each legal top-level action at
+        `state`, sorted by descending score. Same `_lookahead_value`
+        computation as `__call__`, exposed for observability (e.g. the
+        web UI's interactive-AI preview mode). No selection, no mutation.
+
+        Returns an empty list if there are zero or one legal actions
+        (nothing meaningful to preview)."""
+        actions = filter_implemented(self.legal_actions_fn(state))
+        if len(actions) <= 1:
+            return []
+        decider = decider_of(state)
+        with legal_actions_cache():
+            scored = [(a, self._lookahead_value(step(state, a), decider))
+                      for a in actions]
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+        return scored
+
     def _lookahead_value(self, state: GameState, decider: int) -> float:
         """Score a candidate state from the decider's perspective.
 

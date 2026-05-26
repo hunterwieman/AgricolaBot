@@ -1,0 +1,87 @@
+MCTS sweep config: c_uct=1.4
+  sims=500 jobs=8 n=80
+  n_random_fencing=4 fpu_offset=0.0 temperature=0.2
+  p0=mcts p1=hubris_v3 v3_config=tuned_configs/v3_best.json
+
+  [  1/80] seed=  2 P0= 25 P1= 21 →  P0 | tally P0 1-0-0 P1, avg margin +4.00 | elapsed 0.9m, ETA 71.6m
+  [  2/80] seed=  5 P0= 29 P1= 21 →  P0 | tally P0 2-0-0 P1, avg margin +6.00 | elapsed 0.9m, ETA 35.7m
+  [  3/80] seed=  0 P0= 26 P1= 25 →  P0 | tally P0 3-0-0 P1, avg margin +4.33 | elapsed 1.0m, ETA 25.1m
+  [  4/80] seed=  1 P0= 28 P1= 25 →  P0 | tally P0 4-0-0 P1, avg margin +4.00 | elapsed 1.2m, ETA 23.7m
+  [  5/80] seed=  7 P0= 27 P1= 23 →  P0 | tally P0 5-0-0 P1, avg margin +4.00 | elapsed 1.5m, ETA 22.8m
+  [  6/80] seed= 10 P0= 26 P1= 29 →  P1 | tally P0 5-0-1 P1, avg margin +2.83 | elapsed 2.3m, ETA 28.2m
+  [  7/80] seed=  4 P0= 31 P1= 19 →  P0 | tally P0 6-0-1 P1, avg margin +4.14 | elapsed 2.4m, ETA 25.5m
+  [  8/80] seed=  3 P0= 16 P1= 25 →  P1 | tally P0 6-0-2 P1, avg margin +2.50 | elapsed 2.8m, ETA 25.1m
+  [  9/80] seed=  8 P0= 17 P1= 35 →  P1 | tally P0 6-0-3 P1, avg margin +0.22 | elapsed 2.8m, ETA 22.4m
+  [ 10/80] seed= 13 P0= 20 P1= 17 →  P0 | tally P0 7-0-3 P1, avg margin +0.50 | elapsed 3.1m, ETA 21.6m
+  [ 11/80] seed=  6 P0= 32 P1= 20 →  P0 | tally P0 8-0-3 P1, avg margin +1.55 | elapsed 3.1m, ETA 19.7m
+  [ 12/80] seed= 14 P0= 31 P1= 19 →  P0 | tally P0 9-0-3 P1, avg margin +2.42 | elapsed 4.0m, ETA 22.5m
+  [ 13/80] seed= 18 P0= 16 P1= 16 →  P0 | tally P0 10-0-3 P1, avg margin +2.23 | elapsed 4.2m, ETA 21.7m
+  [ 14/80] seed= 19 P0= 18 P1= 28 →  P1 | tally P0 10-0-4 P1, avg margin +1.36 | elapsed 5.3m, ETA 25.0m
+  [ 15/80] seed= 20 P0= 25 P1= 29 →  P1 | tally P0 10-0-5 P1, avg margin +1.00 | elapsed 5.3m, ETA 23.1m
+  [ 16/80] seed= 15 P0= 16 P1= 24 →  P1 | tally P0 10-0-6 P1, avg margin +0.44 | elapsed 5.4m, ETA 21.7m
+  [ 17/80] seed=  9 P0= 34 P1= 17 →  P0 | tally P0 11-0-6 P1, avg margin +1.41 | elapsed 5.4m, ETA 20.2m
+  [ 18/80] seed= 11 P0= 24 P1= 19 →  P0 | tally P0 12-0-6 P1, avg margin +1.61 | elapsed 5.8m, ETA 20.0m
+  [ 19/80] seed= 12 P0= 21 P1= 22 →  P1 | tally P0 12-0-7 P1, avg margin +1.47 | elapsed 5.8m, ETA 18.7m
+  [ 20/80] seed= 17 P0= 27 P1= 21 →  P0 | tally P0 13-0-7 P1, avg margin +1.70 | elapsed 6.1m, ETA 18.4m
+  [ 21/80] seed= 26 P0= 25 P1= 22 →  P0 | tally P0 14-0-7 P1, avg margin +1.76 | elapsed 6.8m, ETA 19.1m
+  [ 22/80] seed= 25 P0= 24 P1= 27 →  P1 | tally P0 14-0-8 P1, avg margin +1.55 | elapsed 6.9m, ETA 18.1m
+  [ 23/80] seed= 16 P0= 17 P1= 26 →  P1 | tally P0 14-0-9 P1, avg margin +1.09 | elapsed 7.3m, ETA 18.2m
+  [ 24/80] seed= 28 P0= 19 P1= 21 →  P1 | tally P0 14-0-10 P1, avg margin +0.96 | elapsed 7.8m, ETA 18.1m
+  [ 25/80] seed= 29 P0= 25 P1= 14 →  P0 | tally P0 15-0-10 P1, avg margin +1.36 | elapsed 8.1m, ETA 17.7m
+  [ 26/80] seed= 22 P0= 27 P1= 12 →  P0 | tally P0 16-0-10 P1, avg margin +1.88 | elapsed 8.4m, ETA 17.4m
+  [ 27/80] seed= 27 P0= 25 P1= 19 →  P0 | tally P0 17-0-10 P1, avg margin +2.04 | elapsed 8.5m, ETA 16.8m
+  [ 28/80] seed= 31 P0= 21 P1= 30 →  P1 | tally P0 17-0-11 P1, avg margin +1.64 | elapsed 9.0m, ETA 16.8m
+  [ 29/80] seed= 23 P0= 16 P1= 24 →  P1 | tally P0 17-0-12 P1, avg margin +1.31 | elapsed 9.2m, ETA 16.3m
+  [ 30/80] seed= 32 P0= 20 P1= 17 →  P0 | tally P0 18-0-12 P1, avg margin +1.37 | elapsed 9.3m, ETA 15.6m
+  [ 31/80] seed= 30 P0= 32 P1= 18 →  P0 | tally P0 19-0-12 P1, avg margin +1.77 | elapsed 10.1m, ETA 16.0m
+  [ 32/80] seed= 21 P0= 29 P1= 12 →  P0 | tally P0 20-0-12 P1, avg margin +2.25 | elapsed 10.2m, ETA 15.3m
+  [ 33/80] seed= 37 P0= 22 P1= 26 →  P1 | tally P0 20-0-13 P1, avg margin +2.06 | elapsed 10.3m, ETA 14.7m
+  [ 34/80] seed= 33 P0= 25 P1= 17 →  P0 | tally P0 21-0-13 P1, avg margin +2.24 | elapsed 10.7m, ETA 14.4m
+  [ 35/80] seed= 24 P0= 28 P1= 16 →  P0 | tally P0 22-0-13 P1, avg margin +2.51 | elapsed 11.4m, ETA 14.6m
+  [ 36/80] seed= 40 P0= 32 P1= 19 →  P0 | tally P0 23-0-13 P1, avg margin +2.81 | elapsed 12.7m, ETA 15.6m
+  [ 37/80] seed= 35 P0= 28 P1= 19 →  P0 | tally P0 24-0-13 P1, avg margin +2.97 | elapsed 13.2m, ETA 15.4m
+  [ 38/80] seed= 34 P0= 25 P1= 16 →  P0 | tally P0 25-0-13 P1, avg margin +3.13 | elapsed 13.6m, ETA 15.0m
+  [ 39/80] seed= 41 P0= 23 P1= 26 →  P1 | tally P0 25-0-14 P1, avg margin +2.97 | elapsed 14.1m, ETA 14.8m
+  [ 40/80] seed= 39 P0= 29 P1= 25 →  P0 | tally P0 26-0-14 P1, avg margin +3.00 | elapsed 14.2m, ETA 14.2m
+  [ 41/80] seed= 42 P0= 27 P1= 21 →  P0 | tally P0 27-0-14 P1, avg margin +3.07 | elapsed 14.4m, ETA 13.7m
+  [ 42/80] seed= 44 P0= 19 P1= 24 →  P1 | tally P0 27-0-15 P1, avg margin +2.88 | elapsed 14.5m, ETA 13.1m
+  [ 43/80] seed= 38 P0= 23 P1= 17 →  P0 | tally P0 28-0-15 P1, avg margin +2.95 | elapsed 14.8m, ETA 12.7m
+  [ 44/80] seed= 45 P0= 30 P1= 22 →  P0 | tally P0 29-0-15 P1, avg margin +3.07 | elapsed 15.0m, ETA 12.2m
+  [ 45/80] seed= 43 P0=  7 P1= 27 →  P1 | tally P0 29-0-16 P1, avg margin +2.56 | elapsed 15.2m, ETA 11.8m
+  [ 46/80] seed= 48 P0= 21 P1= 32 →  P1 | tally P0 29-0-17 P1, avg margin +2.26 | elapsed 15.3m, ETA 11.3m
+  [ 47/80] seed= 36 P0= 25 P1= 14 →  P0 | tally P0 30-0-17 P1, avg margin +2.45 | elapsed 15.3m, ETA 10.8m
+  [ 48/80] seed= 51 P0= 22 P1= 22 →  P1 | tally P0 30-0-18 P1, avg margin +2.40 | elapsed 16.6m, ETA 11.1m
+  [ 49/80] seed= 47 P0= 22 P1= 25 →  P1 | tally P0 30-0-19 P1, avg margin +2.29 | elapsed 16.8m, ETA 10.6m
+  [ 50/80] seed= 50 P0= 24 P1= 30 →  P1 | tally P0 30-0-20 P1, avg margin +2.12 | elapsed 16.8m, ETA 10.1m
+  [ 51/80] seed= 46 P0= 20 P1= 23 →  P1 | tally P0 30-0-21 P1, avg margin +2.02 | elapsed 16.9m, ETA 9.6m
+  [ 52/80] seed= 49 P0= 26 P1= 20 →  P0 | tally P0 31-0-21 P1, avg margin +2.10 | elapsed 17.5m, ETA 9.4m
+  [ 53/80] seed= 55 P0= 20 P1= 29 →  P1 | tally P0 31-0-22 P1, avg margin +1.89 | elapsed 17.6m, ETA 8.9m
+  [ 54/80] seed= 53 P0= 23 P1= 23 →  P1 | tally P0 31-0-23 P1, avg margin +1.85 | elapsed 17.6m, ETA 8.5m
+  [ 55/80] seed= 56 P0= 31 P1= 27 →  P0 | tally P0 32-0-23 P1, avg margin +1.89 | elapsed 17.9m, ETA 8.1m
+  [ 56/80] seed= 62 P0= 18 P1= 25 →  P1 | tally P0 32-0-24 P1, avg margin +1.73 | elapsed 18.9m, ETA 8.1m
+  [ 57/80] seed= 52 P0= 18 P1= 26 →  P1 | tally P0 32-0-25 P1, avg margin +1.56 | elapsed 19.6m, ETA 7.9m
+  [ 58/80] seed= 54 P0= 23 P1= 21 →  P0 | tally P0 33-0-25 P1, avg margin +1.57 | elapsed 19.8m, ETA 7.5m
+  [ 59/80] seed= 61 P0= 16 P1= 23 →  P1 | tally P0 33-0-26 P1, avg margin +1.42 | elapsed 20.6m, ETA 7.3m
+  [ 60/80] seed= 58 P0= 24 P1= 25 →  P1 | tally P0 33-0-27 P1, avg margin +1.38 | elapsed 20.8m, ETA 6.9m
+  [ 61/80] seed= 59 P0= 29 P1= 18 →  P0 | tally P0 34-0-27 P1, avg margin +1.54 | elapsed 21.6m, ETA 6.7m
+  [ 62/80] seed= 66 P0= 20 P1= 25 →  P1 | tally P0 34-0-28 P1, avg margin +1.44 | elapsed 21.8m, ETA 6.3m
+  [ 63/80] seed= 57 P0= 29 P1= 17 →  P0 | tally P0 35-0-28 P1, avg margin +1.60 | elapsed 21.9m, ETA 5.9m
+  [ 64/80] seed= 60 P0= 29 P1= 14 →  P0 | tally P0 36-0-28 P1, avg margin +1.81 | elapsed 22.7m, ETA 5.7m
+  [ 65/80] seed= 70 P0= 21 P1= 26 →  P1 | tally P0 36-0-29 P1, avg margin +1.71 | elapsed 23.3m, ETA 5.4m
+  [ 66/80] seed= 63 P0= 26 P1= 24 →  P0 | tally P0 37-0-29 P1, avg margin +1.71 | elapsed 23.8m, ETA 5.1m
+  [ 67/80] seed= 69 P0= 18 P1= 20 →  P1 | tally P0 37-0-30 P1, avg margin +1.66 | elapsed 24.1m, ETA 4.7m
+  [ 68/80] seed= 72 P0= 23 P1= 19 →  P0 | tally P0 38-0-30 P1, avg margin +1.69 | elapsed 24.7m, ETA 4.4m
+  [ 69/80] seed= 67 P0= 27 P1= 26 →  P0 | tally P0 39-0-30 P1, avg margin +1.68 | elapsed 24.9m, ETA 4.0m
+  [ 70/80] seed= 65 P0= 29 P1= 17 →  P0 | tally P0 40-0-30 P1, avg margin +1.83 | elapsed 25.0m, ETA 3.6m
+  [ 71/80] seed= 74 P0= 25 P1= 25 →  P0 | tally P0 41-0-30 P1, avg margin +1.80 | elapsed 25.1m, ETA 3.2m
+  [ 72/80] seed= 68 P0= 24 P1= 22 →  P0 | tally P0 42-0-30 P1, avg margin +1.81 | elapsed 25.7m, ETA 2.9m
+  [ 73/80] seed= 78 P0= 20 P1= 28 →  P1 | tally P0 42-0-31 P1, avg margin +1.67 | elapsed 26.0m, ETA 2.5m
+  [ 74/80] seed= 71 P0= 27 P1= 18 →  P0 | tally P0 43-0-31 P1, avg margin +1.77 | elapsed 26.2m, ETA 2.1m
+  [ 75/80] seed= 73 P0= 25 P1= 21 →  P0 | tally P0 44-0-31 P1, avg margin +1.80 | elapsed 26.7m, ETA 1.8m
+  [ 76/80] seed= 75 P0= 28 P1= 16 →  P0 | tally P0 45-0-31 P1, avg margin +1.93 | elapsed 26.9m, ETA 1.4m
+  [ 77/80] seed= 76 P0= 26 P1= 19 →  P0 | tally P0 46-0-31 P1, avg margin +2.00 | elapsed 27.5m, ETA 1.1m
+  [ 78/80] seed= 64 P0= 33 P1= 25 →  P0 | tally P0 47-0-31 P1, avg margin +2.08 | elapsed 27.6m, ETA 0.7m
+  [ 79/80] seed= 77 P0= 28 P1= 17 →  P0 | tally P0 48-0-31 P1, avg margin +2.19 | elapsed 27.8m, ETA 0.4m
+  [ 80/80] seed= 79 P0= 31 P1= 16 →  P0 | tally P0 49-0-31 P1, avg margin +2.35 | elapsed 28.6m, ETA 0.0m
+
+P0 49-0-31 P1  avg +24.23 vs +21.88  margin +2.35  (80 games, 1717.1s)

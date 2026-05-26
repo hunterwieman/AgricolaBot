@@ -1,0 +1,135 @@
+Tuning 63 parameters via CMA-ES
+  category: 'v3_resources'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/v3_mod_wood050.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 40 games per evaluation (training: 0..39)
+  holdout: 100 games (1000..1099)
+  resume: tuned_configs/round1_resources_1779777518.cma.pkl  (continues a previous run's CMA-ES state)
+  popsize: 16, max_gens: 15, sigma0: 0.3
+  total evals: 240
+  jobs: 8; python -O: ON
+  estimated wall time: ~11.5 min (vs ~80.0 min if 1-job & no -O)
+  Output: tuned_configs/round1_resources_1779777518.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/round1_resources_1779777518.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 3 baselines) = +2.450
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+Resumed from tuned_configs/round1_resources_1779777518.cma.pkl: countiter=8, σ=0.2537, will run until gen 23 (15 additional generations).
+gen   9  best so far: +15.167  gen best: +15.167  gen mean: +5.581  (4.1 min)
+           regression vs 't2': +10.925
+gen  10  best so far: +15.167  gen best: +14.533  gen mean: +9.946  (7.7 min)
+           regression vs 't2': +10.925
+gen  11  best so far: +15.167  gen best: +14.717  gen mean: +9.261  (11.6 min)
+           regression vs 't2': +10.925
+gen  12  best so far: +15.167  gen best: +11.475  gen mean: +6.679  (15.5 min)
+           regression vs 't2': +10.925
+gen  13  best so far: +16.317  gen best: +16.317  gen mean: +8.722  (19.5 min)
+           regression vs 't2': +7.775
+gen  14  best so far: +16.317  gen best: +14.775  gen mean: +9.409  (23.2 min)
+           regression vs 't2': +7.775
+gen  15  best so far: +16.317  gen best: +15.992  gen mean: +7.508  (26.9 min)
+           regression vs 't2': +7.775
+gen  16  best so far: +16.317  gen best: +13.050  gen mean: +8.174  (30.3 min)
+           regression vs 't2': +7.775
+gen  17  best so far: +17.683  gen best: +17.683  gen mean: +9.034  (33.9 min)
+           regression vs 't2': +2.525
+gen  18  best so far: +17.992  gen best: +17.992  gen mean: +9.959  (37.3 min)
+           regression vs 't2': +7.075
+gen  19  best so far: +18.467  gen best: +18.467  gen mean: +11.568  (40.7 min)
+           regression vs 't2': +11.925
+gen  20  best so far: +18.467  gen best: +15.267  gen mean: +10.606  (44.1 min)
+           regression vs 't2': +11.925
+gen  21  best so far: +19.800  gen best: +19.800  gen mean: +10.858  (47.6 min)
+           regression vs 't2': +15.025
+gen  22  best so far: +19.800  gen best: +18.667  gen mean: +11.650  (50.9 min)
+           regression vs 't2': +15.025
+gen  23  best so far: +19.800  gen best: +19.275  gen mean: +12.356  (54.7 min)
+           regression vs 't2': +15.025
+
+Optimization complete in 55.0 min.
+Best margin (training): +19.800
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+wood_fence_0                             0.556      0.451     -0.105
+wood_fence_1                             1.026      0.000     -1.026
+wood_fence_2                             0.499      0.248     -0.252
+wood_fence_3                             0.821      1.363     +0.541
+wood_fence_4                             0.215      1.025     +0.809
+wood_fence_5                             1.085      1.234     +0.149
+wood_fence_6                             0.657      0.084     -0.574
+wood_fence_7                             0.752      0.746     -0.007
+wood_fence_8                             0.676      1.619     +0.943
+wood_fence_9                             0.681      1.451     +0.769
+wood_fence_10                            0.002      0.371     +0.369
+wood_fence_11                            0.469      0.103     -0.366
+wood_fence_12                            0.333      0.389     +0.056
+wood_fence_13                            0.314      0.029     -0.284
+wood_fence_14                            0.462      1.398     +0.936
+wood_pre_3rd_room_0                      0.618      0.943     +0.325
+wood_pre_3rd_room_1                      0.806      1.486     +0.680
+wood_pre_3rd_room_2                      0.225      0.853     +0.628
+wood_pre_3rd_room_3                      0.479      0.743     +0.265
+wood_pre_3rd_room_4                      1.033      0.302     -0.730
+wood_generic_value                       0.016      0.210     +0.194
+wood_weight_stage1                       0.580      0.706     +0.127
+wood_weight_stage2                       1.071      0.864     -0.207
+wood_weight_stage3                       0.099      0.173     +0.074
+wood_weight_stage4                       0.378      1.227     +0.849
+wood_weight_stage5                       0.781      0.552     -0.229
+wood_weight_stage6                       0.081      0.004     -0.077
+reed_room_0                              4.936      4.450     -0.486
+reed_room_1                              1.669      1.065     -0.604
+reed_room_2                              0.622      0.472     -0.149
+reed_room_3                              0.299      0.407     +0.108
+reed_room_4                              0.710      0.012     -0.697
+reed_room_5                              0.241      1.321     +1.079
+reed_renovation_0                        0.700      0.669     -0.032
+reed_renovation_1                        0.247      0.188     -0.060
+reed_generic_value                       0.546      0.005     -0.541
+reed_weight_stage1                       1.564      2.503     +0.939
+reed_weight_stage2                       0.631      0.268     -0.363
+reed_weight_stage3                       0.935      0.462     -0.473
+reed_weight_stage4                       1.312      1.097     -0.215
+reed_weight_stage5                       0.836      0.277     -0.559
+reed_weight_stage6                       0.539      0.012     -0.526
+clay_cookware_0                          0.256      0.025     -0.230
+clay_cookware_1                          1.389      1.405     +0.016
+clay_cookware_2                          0.776      0.252     -0.523
+clay_cookware_3                          1.157      1.368     +0.210
+clay_cookware_4                          1.396      0.762     -0.634
+clay_renovation_per_room                 0.843      0.056     -0.787
+clay_generic_value                       0.517      0.548     +0.032
+clay_weight_stage1                       1.651      1.643     -0.008
+clay_weight_stage2                       0.993      0.890     -0.103
+clay_weight_stage3                       1.204      1.155     -0.049
+clay_weight_stage4                       0.928      0.847     -0.081
+clay_weight_stage5                       0.534      1.061     +0.527
+clay_weight_stage6                       0.215      0.023     -0.192
+stone_renovation_per_room                0.138      0.491     +0.353
+stone_generic_value                      0.313      0.010     -0.303
+stone_weight_stage1                      1.876      1.059     -0.817
+stone_weight_stage2                      0.837      0.774     -0.062
+stone_weight_stage3                      1.227      1.553     +0.326
+stone_weight_stage4                      1.196      1.639     +0.443
+stone_weight_stage5                      1.416      1.452     +0.037
+stone_weight_stage6                      0.945      0.291     -0.654
+
+Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
+  holdout P0 98-0-2 P1  avg +26.21 vs +13.12  margin +13.09  (100 games, 42.5s)
+  → smaller than training margin but still positive. Mild overfitting.
+  vs 't2': margin +13.090  (98-0-2)
+  vs 'tuned_configs/round1_resources_start.json': margin +18.810  (98-0-2)
+  vs 'tuned_configs/v3_mod_wood050.json': margin +20.350  (100-0-0)
+  regression vs 't2': margin +13.090  (98-0-2)
+
+Written: tuned_configs/round1_resources_1779777518.json
+Log:     tuned_configs/round1_resources_1779777518.log
+CMA pkl: tuned_configs/round1_resources_1779777518.cma.pkl  (use --resume tuned_configs/round1_resources_1779777518.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (unchanged; existing regression +14.24 (n=100) >= new +13.09 (n=100))

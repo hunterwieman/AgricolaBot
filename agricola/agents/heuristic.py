@@ -1539,6 +1539,22 @@ class HeuristicConfigV3:
     wood_pre_3rd_room_vector: tuple[float, ...] = (0.8, 0.8, 0.8, 0.8, 0.8)
     wood_generic_value: float = 0.1
     wood_weight_by_stage: tuple[float, ...] = (1.5, 1.0, 1.0, 1.0, 0.9, 0.2)
+    # Flat per-wood bonus added OUTSIDE wood_weight_by_stage — every wood
+    # the player owns contributes exactly this scalar to wood_pts, in every
+    # stage. Default 0 → no effect (all existing JSONs continue to work).
+    # Non-zero values let us define exploit-baseline configs (e.g.,
+    # v3_mod_wood050.json sets this to 0.5 to model "agent values raw wood
+    # +0.5 above what its tuned per-stage/fence/pre-3rd-room model
+    # predicts") for use as fixed opponents in tuning runs. Not in any
+    # TUNABLE category — only set manually via JSON edit.
+    wood_flat_bonus: float = 0.0
+
+    # Action-selection softmax temperature. Lives on the config (not just
+    # the agent kwarg) so JSON-loaded baseline opponents can specify their
+    # play-style stochasticity without a side-channel. Default 0.0 = argmax.
+    # Used by tune_heuristic.py's _make_agent when constructing baseline
+    # opponents from JSON; not a TUNABLE field (must be set manually).
+    temperature: float = 0.0
 
     # Reed: 3 components.
     # 1) reed_room_vector: indexed by reed count (first 6 owned).
@@ -1918,7 +1934,8 @@ def _v3_resources_contribution(state: GameState, p: PlayerState,
         wood_pre3_pts = 0.0
 
     wood_pts = (wood_fence_pts + wood_pre3_pts + wood * cfg.wood_generic_value) \
-        * cfg.wood_weight_by_stage[stage_idx]
+        * cfg.wood_weight_by_stage[stage_idx] \
+        + wood * cfg.wood_flat_bonus
 
     # --- Reed ---
     reed = r.reed
@@ -2216,3 +2233,78 @@ class HubrisHeuristicV3(HeuristicAgent):
         if legal_actions_fn is not None:
             kwargs["legal_actions_fn"] = legal_actions_fn
         super().__init__(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Differential-evaluator wrapper
+#
+# All four base evaluators (evaluate_simple, evaluate_hubris_v1/v2/v3)
+# return ONLY the decider's own positional value at non-terminal states.
+# (They already return `own − opp` at `Phase.BEFORE_SCORING` via the shared
+# `_terminal_margin_value` helper.) So at non-terminal states, a move that
+# *suppresses the opponent's position* without improving the decider's own
+# position scores the same as a passive move — even though the decider
+# strictly benefits in the eventual win-margin sense.
+#
+# The wrapper below promotes the `own − opp` semantic to every state:
+# wherever a base evaluator returns `eval(state, p, cfg)`, the wrapped
+# variant returns `eval(state, p, cfg) − eval(state, 1 − p, cfg)`.
+#
+# Terminal states: the base evaluators already return `own − opp` there,
+# so wrapping doubles the magnitude (own−opp − (opp−own) = 2·(own−opp)).
+# This is a uniform scale factor — doesn't affect argmax or softmax
+# ranking — harmless.
+# ---------------------------------------------------------------------------
+
+
+def make_differential_evaluator(base_evaluator):
+    """Return a wrapper evaluator that returns
+    `base_evaluator(state, p, cfg) − base_evaluator(state, 1 − p, cfg)`.
+
+    Drop-in replacement anywhere a base evaluator is expected:
+
+        agent = HubrisHeuristicV3(
+            seed=0, config=cfg, lookahead='turn',
+            evaluator=make_differential_evaluator(evaluate_hubris_v3),
+        )
+
+    Or use one of the convenience subclasses below
+    (`HubrisHeuristicV3Differential`, `HubrisHeuristicV1Differential`)
+    that wires this up automatically.
+    """
+    def differential_eval(state, player_idx: int, cfg):
+        own = base_evaluator(state, player_idx, cfg)
+        opp = base_evaluator(state, 1 - player_idx, cfg)
+        return own - opp
+    differential_eval.__name__ = f"differential_{base_evaluator.__name__}"
+    differential_eval.__wrapped__ = base_evaluator
+    return differential_eval
+
+
+evaluate_hubris_v3_differential = make_differential_evaluator(evaluate_hubris_v3)
+evaluate_hubris_v1_differential = make_differential_evaluator(evaluate_hubris_v1)
+
+
+class HubrisHeuristicV3Differential(HubrisHeuristicV3):
+    """V3 heuristic that evaluates `own − opp` at every state (vs the base
+    V3, which uses just `own` at non-terminal states). See
+    `make_differential_evaluator` for the rationale.
+
+    Drop-in replacement for `HubrisHeuristicV3` — same `__init__` signature
+    and default config. Use to test whether explicit opponent-modeling
+    changes V3's choices (often noticeable on worker placements that deny
+    the opponent a key resource without directly improving the decider's
+    own position score).
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.evaluator = evaluate_hubris_v3_differential
+
+
+class HubrisHeuristicV1Differential(HubrisHeuristicV1):
+    """V1 differential counterpart — see `HubrisHeuristicV3Differential`."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.evaluator = evaluate_hubris_v1_differential

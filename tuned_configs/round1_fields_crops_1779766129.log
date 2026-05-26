@@ -1,0 +1,188 @@
+Tuning 60 parameters via CMA-ES
+  category: 'v3_fields_crops'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/round1_start.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 50 games per evaluation (training: 0..49)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 45, sigma0: 0.3
+  total evals: 720
+  jobs: 8; python -O: ON
+  estimated wall time: ~43.1 min (vs ~300.0 min if 1-job & no -O)
+  Output: tuned_configs/round1_fields_crops_1779766129.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/round1_fields_crops_1779766129.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 2 baselines) = +9.250
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +9.250  gen best: +9.100  gen mean: +8.381  (4.7 min)
+           regression vs 't2': +14.360
+gen   2  best so far: +9.250  gen best: +9.240  gen mean: +7.801  (8.3 min)
+           regression vs 't2': +14.360
+gen   3  best so far: +9.280  gen best: +9.280  gen mean: +8.488  (12.1 min)
+           regression vs 't2': +14.140
+gen   4  best so far: +9.660  gen best: +9.660  gen mean: +8.403  (15.7 min)
+           regression vs 't2': +14.780
+gen   5  best so far: +9.660  gen best: +9.230  gen mean: +8.246  (18.6 min)
+           regression vs 't2': +14.780
+gen   6  best so far: +9.660  gen best: +9.370  gen mean: +8.400  (21.7 min)
+           regression vs 't2': +14.780
+gen   7  best so far: +9.660  gen best: +9.220  gen mean: +8.541  (25.2 min)
+           regression vs 't2': +14.780
+gen   8  best so far: +10.000  gen best: +10.000  gen mean: +8.422  (29.5 min)
+           regression vs 't2': +13.600
+gen   9  best so far: +10.000  gen best: +9.690  gen mean: +8.772  (33.6 min)
+           regression vs 't2': +13.600
+gen  10  best so far: +10.280  gen best: +10.280  gen mean: +8.410  (37.4 min)
+           regression vs 't2': +13.640
+gen  11  best so far: +10.280  gen best: +10.140  gen mean: +8.897  (40.9 min)
+           regression vs 't2': +13.640
+gen  12  best so far: +10.280  gen best: +10.130  gen mean: +8.067  (44.4 min)
+           regression vs 't2': +13.640
+gen  13  best so far: +10.820  gen best: +10.820  gen mean: +8.694  (47.7 min)
+           regression vs 't2': +15.260
+gen  14  best so far: +11.110  gen best: +11.110  gen mean: +9.434  (50.6 min)
+           regression vs 't2': +15.300
+gen  15  best so far: +11.110  gen best: +10.630  gen mean: +9.359  (54.0 min)
+           regression vs 't2': +15.300
+gen  16  best so far: +11.110  gen best: +10.290  gen mean: +9.379  (57.9 min)
+           regression vs 't2': +15.300
+gen  17  best so far: +11.110  gen best: +10.400  gen mean: +9.187  (63.0 min)
+           regression vs 't2': +15.300
+gen  18  best so far: +11.110  gen best: +10.220  gen mean: +8.903  (67.6 min)
+           regression vs 't2': +15.300
+gen  19  best so far: +11.110  gen best: +10.740  gen mean: +8.327  (71.2 min)
+           regression vs 't2': +15.300
+gen  20  best so far: +11.110  gen best: +10.390  gen mean: +9.046  (75.1 min)
+           regression vs 't2': +15.300
+gen  21  best so far: +11.110  gen best: +10.230  gen mean: +9.377  (79.5 min)
+           regression vs 't2': +15.300
+gen  22  best so far: +11.110  gen best: +10.270  gen mean: +8.747  (85.8 min)
+           regression vs 't2': +15.300
+gen  23  best so far: +11.110  gen best: +11.060  gen mean: +8.638  (90.3 min)
+           regression vs 't2': +15.300
+gen  24  best so far: +11.110  gen best: +10.280  gen mean: +8.647  (93.8 min)
+           regression vs 't2': +15.300
+gen  25  best so far: +11.110  gen best: +9.720  gen mean: +8.804  (97.7 min)
+           regression vs 't2': +15.300
+gen  26  best so far: +11.110  gen best: +10.210  gen mean: +8.962  (101.8 min)
+           regression vs 't2': +15.300
+gen  27  best so far: +11.110  gen best: +10.200  gen mean: +9.027  (105.1 min)
+           regression vs 't2': +15.300
+gen  28  best so far: +11.110  gen best: +10.200  gen mean: +9.214  (108.2 min)
+           regression vs 't2': +15.300
+gen  29  best so far: +11.110  gen best: +10.570  gen mean: +8.971  (112.9 min)
+           regression vs 't2': +15.300
+gen  30  best so far: +11.110  gen best: +10.410  gen mean: +8.899  (116.0 min)
+           regression vs 't2': +15.300
+gen  31  best so far: +11.110  gen best: +10.720  gen mean: +9.206  (119.2 min)
+           regression vs 't2': +15.300
+gen  32  best so far: +11.110  gen best: +10.000  gen mean: +9.256  (122.6 min)
+           regression vs 't2': +15.300
+gen  33  best so far: +11.110  gen best: +10.120  gen mean: +9.069  (125.8 min)
+           regression vs 't2': +15.300
+gen  34  best so far: +11.110  gen best: +10.440  gen mean: +9.142  (130.6 min)
+           regression vs 't2': +15.300
+gen  35  best so far: +11.110  gen best: +9.910  gen mean: +8.297  (134.0 min)
+           regression vs 't2': +15.300
+gen  36  best so far: +11.110  gen best: +10.700  gen mean: +9.431  (137.2 min)
+           regression vs 't2': +15.300
+gen  37  best so far: +11.110  gen best: +10.630  gen mean: +9.223  (141.7 min)
+           regression vs 't2': +15.300
+gen  38  best so far: +11.110  gen best: +10.360  gen mean: +9.046  (146.2 min)
+           regression vs 't2': +15.300
+gen  39  best so far: +11.110  gen best: +10.310  gen mean: +9.364  (151.4 min)
+           regression vs 't2': +15.300
+gen  40  best so far: +11.110  gen best: +10.380  gen mean: +8.907  (155.9 min)
+           regression vs 't2': +15.300
+gen  41  best so far: +11.110  gen best: +10.950  gen mean: +8.814  (158.9 min)
+           regression vs 't2': +15.300
+gen  42  best so far: +11.110  gen best: +11.000  gen mean: +9.070  (162.1 min)
+           regression vs 't2': +15.300
+gen  43  best so far: +11.110  gen best: +10.220  gen mean: +8.766  (165.6 min)
+           regression vs 't2': +15.300
+gen  44  best so far: +11.110  gen best: +10.850  gen mean: +9.282  (169.6 min)
+           regression vs 't2': +15.300
+gen  45  best so far: +11.110  gen best: +10.560  gen mean: +9.302  (173.3 min)
+           regression vs 't2': +15.300
+
+Optimization complete in 173.8 min.
+Best margin (training): +11.110
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+plowed_field_value_0                    -1.835     -1.727     +0.108
+plowed_field_value_1                    -0.680     -0.562     +0.118
+plowed_field_value_2                     0.427      0.737     +0.310
+plowed_field_value_3                     2.027      2.458     +0.431
+plowed_field_value_4                     3.382      3.103     -0.279
+plowed_field_value_5                     3.978      3.745     -0.234
+plowed_field_value_6                     4.521      3.494     -1.027
+field_blend_alpha_stage1                 0.153      0.304     +0.151
+field_blend_alpha_stage2                 0.827      0.925     +0.098
+field_blend_alpha_stage3                 0.147      0.153     +0.007
+field_blend_alpha_stage4                 0.983      0.813     -0.170
+field_blend_alpha_stage5                 0.644      0.710     +0.066
+field_blend_alpha_stage6                 0.854      0.296     -0.558
+grain_value_0                            0.174     -0.944     -1.118
+grain_value_1                           -0.216      0.164     +0.380
+grain_value_2                            0.511      1.948     +1.438
+grain_value_3                            1.295      1.174     -0.122
+grain_value_4                            2.110      2.209     +0.099
+grain_value_5                            1.733      1.708     -0.025
+grain_value_6                            2.981      3.616     +0.636
+grain_value_7                            3.356      3.214     -0.143
+grain_value_8                            4.763      4.344     -0.419
+grain_value_9                            4.420      5.314     +0.894
+grain_blend_alpha_stage1                 0.349      0.988     +0.639
+grain_blend_alpha_stage2                 0.131      0.038     -0.093
+grain_blend_alpha_stage3                 0.697      0.594     -0.102
+grain_blend_alpha_stage4                 0.022      0.196     +0.173
+grain_blend_alpha_stage5                 0.436      0.757     +0.322
+grain_blend_alpha_stage6                 0.484      0.117     -0.367
+veg_value_0                             -0.879     -0.985     -0.106
+veg_value_1                              1.225      0.980     -0.246
+veg_value_2                              2.630      2.544     -0.087
+veg_value_3                              2.773      3.311     +0.538
+veg_value_4                              4.280      4.306     +0.026
+veg_blend_alpha_stage1                   0.658      0.966     +0.308
+veg_blend_alpha_stage2                   0.038      0.494     +0.456
+veg_blend_alpha_stage3                   0.822      0.761     -0.062
+veg_blend_alpha_stage4                   0.490      0.362     -0.128
+veg_blend_alpha_stage5                   0.315      0.332     +0.017
+veg_blend_alpha_stage6                   0.999      0.824     -0.175
+grain_pair_value_0                       0.665      0.162     -0.503
+grain_pair_value_1                       0.722      1.323     +0.601
+grain_pair_value_2                       0.587      0.672     +0.085
+grain_pair_value_3                       1.816      2.146     +0.330
+grain_pair_weight_stage1                 0.450      1.082     +0.632
+grain_pair_weight_stage2                 1.262      0.986     -0.276
+grain_pair_weight_stage3                 0.306      0.428     +0.122
+grain_pair_weight_stage4                 0.009      0.127     +0.118
+grain_pair_weight_stage5                 0.110      0.315     +0.206
+grain_pair_weight_stage6                 0.370      0.182     -0.188
+veg_pair_value_0                         0.393      0.882     +0.489
+veg_pair_value_1                         0.094      0.067     -0.027
+veg_pair_value_2                         1.600      2.003     +0.404
+veg_pair_value_3                         1.415      1.434     +0.019
+veg_pair_weight_stage1                   0.709      0.593     -0.116
+veg_pair_weight_stage2                   1.827      1.653     -0.173
+veg_pair_weight_stage3                   1.621      0.981     -0.640
+veg_pair_weight_stage4                   0.508      1.205     +0.697
+veg_pair_weight_stage5                   0.386      0.256     -0.130
+veg_pair_weight_stage6                   0.084      0.304     +0.221
+
+Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
+  holdout P0 100-0-0 P1  avg +18.89 vs +4.65  margin +14.24  (100 games, 62.8s)
+  → consistent with training (within 1pt). Tuning generalizes.
+  vs 't2': margin +14.240  (100-0-0)
+  vs 'tuned_configs/round1_start.json': margin +4.490  (67-0-33)
+  regression vs 't2': margin +14.240  (100-0-0)
+
+Written: tuned_configs/round1_fields_crops_1779766129.json
+Log:     tuned_configs/round1_fields_crops_1779766129.log
+CMA pkl: tuned_configs/round1_fields_crops_1779766129.cma.pkl  (use --resume tuned_configs/round1_fields_crops_1779766129.cma.pkl to continue this run)
+Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED on regression vs 't2': +12.85 (n=100) → +14.24 (n=100))

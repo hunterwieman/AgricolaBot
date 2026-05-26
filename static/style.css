@@ -149,9 +149,36 @@ h3 {
   opacity: 0.7;
   background: #ece5cb;
 }
+/* Interactive-AI preview emphasis: gold-ringed top choice; lighter ring for
+   close calls (any candidate within 0.5 of the top score). When the top
+   choice itself has a close-call peer, the top still wears the solid gold
+   ring (CSS class `.preview-top` wins) while the peer(s) wear `.preview-close`. */
+.space-card.preview-top {
+  outline: 2px solid #d9a93b;
+  outline-offset: 1px;
+  background: #fff3c4;
+}
+.space-card.preview-close {
+  outline: 2px dashed #e3b75d;
+  outline-offset: 1px;
+  background: #fff8dc;
+}
 .space-name { font-weight: bold; }
 .space-accum { color: #555; font-style: italic; font-size: 11px; margin-left: 4px; }
+.space-right { display: flex; gap: 6px; align-items: center; }
 .space-workers { display: flex; gap: 3px; }
+.preview-badge {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #ece5cb;
+  color: #3a2d14;
+  border: 1px solid #c8b58a;
+}
+.preview-badge.top   { background: #d9a93b; color: #2A2113; border-color: #8b6f47; }
+.preview-badge.close { background: #f2d782; color: #2A2113; border-color: #b08a3a; }
 .worker-token {
   display: inline-block;
   width: 14px;
@@ -203,6 +230,15 @@ h3 {
 
 .panel.active-decider { box-shadow: 0 0 12px 2px var(--accent-active); }
 .panel.dim            { opacity: 0.75; }
+
+/* Player-column color-coding: each player's column has a thick colored top
+   stripe plus a matching colored header underline, so the P0/P1 sections are
+   identifiable at a glance in every mode (human-vs-AI, AI-vs-AI, etc.).
+   Doesn't conflict with the `.active-decider` glow. */
+#col-p0 { border-top: 8px solid var(--p0); }
+#col-p1 { border-top: 8px solid var(--p1); }
+#col-p0 > h2 { border-bottom-color: var(--p0); color: var(--p0); }
+#col-p1 > h2 { border-bottom-color: var(--p1); color: var(--p1); }
 
 .sp-tag {
   display: inline-block;

@@ -492,7 +492,8 @@ def _score_block(state: GameState) -> dict:
 
 def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
                   actions: list[Action] | None = None,
-                  seats: tuple[str, str] | None = None) -> dict:
+                  seats: tuple[str, str] | None = None,
+                  interactive_ai_paused: bool = False) -> dict:
     decider = _decider_of(state)
     if actions is None:
         actions = legal_actions(state) if not game_over else []
@@ -512,6 +513,10 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
         "legal_actions": _legal_actions_to_dicts(state, actions),
         "round_log": log_entries,
         "scoring": _score_block(state) if game_over else None,
+        # True when interactive_ai is on AND the auto-driver paused before
+        # an AI's top-level worker placement. Frontend uses this to know
+        # when to fetch /api/ai_preview and overlay scores.
+        "interactive_ai_paused": interactive_ai_paused,
     }
     return payload
 
@@ -601,6 +606,12 @@ class Session:
         # across resets. Server-side resolution avoids the SSE-arrival
         # races the previous client-side fast-mode had.
         self.fast_mode: bool = fast_mode
+        # Interactive-AI mode: when ON, the auto-driver stops BEFORE each
+        # AI top-level worker placement (pending_stack empty) and waits
+        # for an explicit /api/step_ai call. Pending-stack AI decisions
+        # still auto-execute silently. Lets the user inspect per-action
+        # evaluator scores via /api/ai_preview before each AI placement.
+        self.interactive_ai: bool = False
         self.humans: set[int] = {i for i, s in enumerate(seats) if s == "human"}
         # Per-seat agent objects; None for human seats.
         self.agents = (
@@ -668,6 +679,7 @@ class Session:
                 self.game_over,
                 actions,
                 seats=self.seats,
+                interactive_ai_paused=self._interactive_ai_paused_here_locked(),
             )
 
     def trace_snapshot(self) -> dict:
@@ -715,6 +727,23 @@ class Session:
         if self.state.phase == Phase.BEFORE_SCORING:
             self.game_over = True
 
+    def _interactive_ai_paused_here_locked(self) -> bool:
+        """Are we currently paused waiting for the user to release the
+        next AI placement?
+
+        True iff: interactive_ai is on AND game not over AND the decider
+        is an AI seat AND the pending_stack is empty (i.e. a top-level
+        PlaceWorker is up). Pending-stack AI decisions don't pause.
+        """
+        if not self.interactive_ai or self.game_over:
+            return False
+        dec = _decider_of(self.state)
+        if dec in self.humans:
+            return False
+        if self.state.pending_stack:
+            return False
+        return True
+
     def _drive_until_decision_locked(self) -> None:
         """Apply moves until a meaningful human decision OR game over.
 
@@ -747,7 +776,11 @@ class Session:
                     return
                 self._apply_action_locked(actions[0])
                 continue
-            # AI's turn — always auto-apply.
+            # AI's turn — always auto-apply, EXCEPT when interactive_ai
+            # mode is on and we're at a top-level placement (pending_stack
+            # empty). In that case the user wants to inspect scores first.
+            if self.interactive_ai and not self.state.pending_stack:
+                return
             agent = self.agents[dec]
             if agent is None:
                 # Defensive: shouldn't happen — humans set is consistent with agents.
@@ -774,6 +807,7 @@ class Session:
                 self.game_over,
                 [] if self.game_over else legal_actions(self.state),
                 seats=self.seats,
+                interactive_ai_paused=self._interactive_ai_paused_here_locked(),
             )
         self._broadcast(payload)
         return True, "ok"
@@ -800,17 +834,100 @@ class Session:
                 self.game_over,
                 [] if self.game_over else legal_actions(self.state),
                 seats=self.seats,
+                interactive_ai_paused=self._interactive_ai_paused_here_locked(),
             )
         if advanced:
             self._broadcast(payload)
 
+    def set_interactive_ai(self, interactive_ai: bool) -> None:
+        """Toggle interactive-AI mode. When turning OFF, immediately
+        resume the auto-driver from wherever we paused (broadcasts the
+        post-advance state if anything changed). When turning ON, no
+        immediate action — the toggle takes effect the next time the
+        auto-driver would auto-apply an AI top-level placement."""
+        with self.lock:
+            prev = self.interactive_ai
+            self.interactive_ai = bool(interactive_ai)
+            advanced = False
+            # Turning OFF: resume the driver so we don't get stuck paused.
+            # Turning ON while already at an AI placement: surfacing the
+            # pause requires a broadcast so the frontend can switch UI.
+            if prev and not self.interactive_ai and not self.game_over:
+                pre_state_id = id(self.state)
+                self._drive_until_decision_locked()
+                advanced = id(self.state) != pre_state_id
+            payload = state_to_json(
+                self.state,
+                self.log.to_wire(self.current_round),
+                self.game_over,
+                [] if self.game_over else legal_actions(self.state),
+                seats=self.seats,
+                interactive_ai_paused=self._interactive_ai_paused_here_locked(),
+            )
+        # Broadcast on any toggle so the UI flag flips even without an advance.
+        self._broadcast(payload)
+
+    def ai_preview(self) -> tuple[bool, str, list[dict]]:
+        """Return per-top-level-action preview scores for the current AI
+        decider. Only valid when we're at the interactive-AI pause point
+        (decider is AI, pending_stack empty, game not over).
+
+        Returns (ok, message, rows) where rows is a list of
+        {action_type, params, space, score, is_top, is_close_call}
+        sorted by descending score. `is_close_call` is True for any
+        action whose score is within 0.5 of the top score (including
+        the top itself) — used by the frontend to render a gold ring
+        on multiple tiles when the AI is near-indifferent.
+
+        Only HeuristicAgent (and its subclasses) is supported. Other
+        agent types (RandomAgent, MCTSAgent) return ok=False.
+        """
+        from agricola.agents.base import HeuristicAgent
+        with self.lock:
+            if self.game_over:
+                return False, "game over", []
+            dec = _decider_of(self.state)
+            if dec in self.humans:
+                return False, "human's turn — no preview", []
+            if self.state.pending_stack:
+                return False, "mid-resolution decision; preview only for top-level placement", []
+            agent = self.agents[dec]
+            if not isinstance(agent, HeuristicAgent):
+                return False, f"agent type {type(agent).__name__!r} does not support preview", []
+            scored = agent.preview_top_actions(self.state)
+        if not scored:
+            return False, "no multi-option preview at current state", []
+
+        top_score = scored[0][1]
+        rows = []
+        for action, score in scored:
+            row = {
+                "type": type(action).__name__,
+                "params": _action_params(action),
+                "display": _fmt_action_inline(action),
+                "score": float(score),
+                "is_top": (score == top_score),
+                "is_close_call": (top_score - score) <= 0.5,
+            }
+            # Surface the space id for PlaceWorker so the frontend can
+            # map score → board tile without parsing the display string.
+            if isinstance(action, PlaceWorker):
+                row["space"] = action.space
+            rows.append(row)
+        return True, "ok", rows
+
     def step_ai(self) -> tuple[bool, str]:
-        """Apply ONE AI action and broadcast the new state.
+        """Apply one AI action and broadcast the new state.
+
+        In interactive-AI mode this is the "release the next AI move"
+        action: apply the one top-level placement the user just inspected,
+        then auto-drive through any resulting AI mid-resolution chain
+        until either control hands off to a human or the next AI top-level
+        placement pauses again. Outside interactive mode this is "step
+        one AI action" — used in AI-vs-AI watching mode.
 
         Returns (False, msg) if the game is over or it's a human's turn.
-        Intended for the AI-vs-AI watching mode (and for "advance"
-        buttons in human-vs-AI mode if the user wants to step opp
-        moves explicitly, though that's not the default flow)."""
+        """
         with self.lock:
             if self.game_over:
                 return False, "game over"
@@ -823,12 +940,20 @@ class Session:
             self._maybe_round_transition_locked()
             action = agent(self.state)
             self._apply_action_locked(action)
+            # In interactive mode, the user wants Enter → ONE full AI
+            # placement + all its resolution sub-actions, NOT Enter →
+            # PlaceWorker, then Enter → ChooseSubAction, etc. Re-drive
+            # the auto-loop; it'll auto-apply the AI's chain and stop at
+            # either a human, game-over, or the next AI top-level pause.
+            if self.interactive_ai:
+                self._drive_until_decision_locked()
             payload = state_to_json(
                 self.state,
                 self.log.to_wire(self.current_round),
                 self.game_over,
                 [] if self.game_over else legal_actions(self.state),
                 seats=self.seats,
+                interactive_ai_paused=self._interactive_ai_paused_here_locked(),
             )
         self._broadcast(payload)
         return True, "ok"
@@ -980,6 +1105,13 @@ def _make_handler(session: Session):
             if path == "/api/events":
                 self._serve_sse()
                 return
+            if path == "/api/ai_preview":
+                ok, msg, rows = session.ai_preview()
+                status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
+                self._send_json(status, {
+                    "ok": ok, "error": None if ok else msg, "rows": rows,
+                })
+                return
             self._send_text(HTTPStatus.NOT_FOUND, "not found")
 
         def do_POST(self) -> None:
@@ -1012,6 +1144,20 @@ def _make_handler(session: Session):
                     return
                 session.set_fast_mode(value)
                 self._send_json(HTTPStatus.OK, {"ok": True, "fast_mode": value})
+                return
+            if path == "/api/interactive_ai":
+                body = self._read_body()
+                value = body.get("enabled")
+                if not isinstance(value, bool):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "enabled must be a boolean",
+                    })
+                    return
+                session.set_interactive_ai(value)
+                self._send_json(HTTPStatus.OK, {
+                    "ok": True, "interactive_ai": value,
+                })
                 return
             if path == "/api/reset":
                 body = self._read_body()

@@ -27,6 +27,19 @@
   // auto-submit fired, and was sometimes skipped entirely.)
   let fastMode = localStorage.getItem('agricola.fastMode') === '1';
 
+  // Interactive AI mode: server pauses BEFORE each AI top-level placement;
+  // the frontend fetches per-action evaluator scores from /api/ai_preview
+  // and overlays them on the board, then Enter (or the Advance button)
+  // releases the AI to play its move. See backend Session.set_interactive_ai
+  // for the pause semantics. Persisted to localStorage like fastMode.
+  let interactiveAi = localStorage.getItem('agricola.interactiveAi') === '1';
+  // Most-recent preview rows from /api/ai_preview, keyed by space id. Set
+  // by render() when state.interactive_ai_paused becomes true; cleared on
+  // every other render so stale scores don't linger.
+  let previewByspace = new Map();
+  let previewTopScore = null;
+  let previewFetchInFlight = false;
+
   function setConnState(connected) {
     const el = document.getElementById('connection-state');
     if (!el) return;
@@ -241,7 +254,77 @@
     }
   }
 
+  async function setInteractiveAi(v) {
+    interactiveAi = !!v;
+    localStorage.setItem('agricola.interactiveAi', interactiveAi ? '1' : '0');
+    const cb = document.getElementById('interactive-ai-toggle');
+    if (cb) cb.checked = interactiveAi;
+    // Drop any stale preview when toggling off, so the badges disappear
+    // immediately (don't wait for the next SSE state push).
+    if (!interactiveAi) {
+      previewByspace = new Map();
+      previewTopScore = null;
+      if (currentState) render(currentState);
+    }
+    try {
+      const res = await fetch('/api/interactive_ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: interactiveAi }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) {
+        console.warn('interactive_ai toggle rejected:', data.error);
+      }
+    } catch (err) {
+      console.error('interactive_ai toggle failed', err);
+    }
+  }
+
+  // Fetch the AI's per-action preview scores and re-render once they arrive.
+  // Called automatically by render() whenever state.interactive_ai_paused
+  // flips to true. Single-flight: a second call while one is in flight is
+  // a no-op (the in-flight response will populate the same state).
+  async function fetchAiPreview() {
+    if (previewFetchInFlight) return;
+    previewFetchInFlight = true;
+    try {
+      const res = await fetch('/api/ai_preview');
+      const data = await res.json().catch(() => ({}));
+      if (data && data.ok && Array.isArray(data.rows)) {
+        const map = new Map();
+        let top = null;
+        for (const row of data.rows) {
+          if (row.space) map.set(row.space, row);
+          if (top === null || row.score > top) top = row.score;
+        }
+        previewByspace = map;
+        previewTopScore = top;
+        if (currentState) render(currentState);
+      } else if (data && !data.ok) {
+        // Backend declined (e.g., MCTS seat, mid-resolution). Drop any
+        // previous scores so we don't keep stale overlays.
+        previewByspace = new Map();
+        previewTopScore = null;
+      }
+    } catch (err) {
+      console.error('ai_preview fetch failed', err);
+    } finally {
+      previewFetchInFlight = false;
+    }
+  }
+
   function render(state) {
+    // Interactive-AI preview management: when the server pauses before an
+    // AI placement, fetch the per-action scores. When unpaused (or
+    // toggled off), drop them so stale overlays don't linger.
+    if (state.interactive_ai_paused && interactiveAi) {
+      if (previewByspace.size === 0) fetchAiPreview();
+    } else if (previewByspace.size > 0) {
+      previewByspace = new Map();
+      previewTopScore = null;
+    }
+
     renderHeader(state);
     renderActionBoard(state);
     renderMajorBoard(state);
@@ -318,10 +401,15 @@
       if (!sp || !sp.is_revealed) return;
       const legal = pwMap.get(sid);
       const occupied = (sp.workers[0] + sp.workers[1]) > 0;
+      // AI preview overlay (only present when state.interactive_ai_paused
+      // and previewByspace has been populated).
+      const preview = previewByspace.get(sid);
       const cls = [
         'space-card',
         legal ? 'clickable' : '',
         occupied ? 'occupied' : '',
+        preview && preview.is_top ? 'preview-top' : '',
+        preview && preview.is_close_call && !preview.is_top ? 'preview-close' : '',
       ].filter(Boolean).join(' ');
       const card = el('div', { class: cls });
       const left = el('div', {},
@@ -330,6 +418,22 @@
           ? el('span', { class: 'space-accum' }, ` (${sp.accumulation_text})`)
           : null,
       );
+      const right = el('div', { class: 'space-right' });
+      if (preview) {
+        const delta = previewTopScore !== null
+          ? preview.score - previewTopScore
+          : 0;
+        const badgeText = `${preview.score.toFixed(1)}` + (
+          delta < 0 ? ` (${delta.toFixed(1)})` : ''
+        );
+        const badgeCls = ['preview-badge'];
+        if (preview.is_top) badgeCls.push('top');
+        else if (preview.is_close_call) badgeCls.push('close');
+        right.appendChild(el(
+          'span', { class: badgeCls.join(' '), title: 'AI evaluator score (Δ vs top)' },
+          badgeText,
+        ));
+      }
       const workers = el('div', { class: 'space-workers' });
       for (let p = 0; p < 2; p++) {
         if (sp.workers[p] > 0) {
@@ -339,8 +443,9 @@
           workers.appendChild(token);
         }
       }
+      right.appendChild(workers);
       card.appendChild(left);
-      card.appendChild(workers);
+      card.appendChild(right);
       if (legal) {
         card.addEventListener('click', () => submitAction(legal.index));
       }
@@ -866,6 +971,10 @@
       banner.textContent = 'Game over — see scoring below.';
     } else if (deciderSeat === 'human') {
       banner.textContent = `Decider: P${state.decider} (human)`;
+    } else if (state.interactive_ai_paused) {
+      banner.textContent =
+        `Decider: P${state.decider} (${deciderSeat}) — INTERACTIVE PAUSE. ` +
+        `Per-action scores overlaid on board. Press Enter (or click Advance) to play.`;
     } else {
       banner.textContent = `Decider: P${state.decider} (${deciderSeat}) — press Enter or click Advance to play next move`;
     }
@@ -1066,6 +1175,13 @@
     // so the server-side flag matches. The fire-and-forget POST also
     // triggers the server's auto-advance for any pending singleton.
     if (fastMode) setFastMode(true);
+
+    const interactiveCb = document.getElementById('interactive-ai-toggle');
+    if (interactiveCb) {
+      interactiveCb.checked = interactiveAi;
+      interactiveCb.addEventListener('change', (e) => setInteractiveAi(e.target.checked));
+      if (interactiveAi) setInteractiveAi(true);
+    }
     // Global Enter-key handler: when an AI is on the clock, Enter advances
     // one move. Ignored when focus is in a text input (so it doesn't fight
     // the seed prompt or future form inputs). Also ignored on the game-over
