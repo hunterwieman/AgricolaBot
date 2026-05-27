@@ -26,7 +26,7 @@ The priors are organized into per-pending filters:
   ≥1 legal action).
 
 - **First-pasture opener**: the very first CommitBuildPasture in a given
-  PendingBuildFences session must include cell (0,4) or (1,4). Once
+  PendingBuildFences session must include cell (0,4). Once
   pastures_built >= 1 the restriction lifts.
 
 - **Hard room cap**: never grow past 5 total rooms (2 starting + 3 additional).
@@ -145,7 +145,12 @@ PLOW_PRIORITY: tuple[tuple[int, int], ...] = (
 
 # The first pasture in any Build Fences session must include at least one of
 # these cells. Once one pasture has been committed, the restriction lifts.
-FIRST_PASTURE_REQUIRED_CELLS: frozenset = frozenset({(0, 4), (1, 4)})
+# Currently a singleton {(0, 4)} — tightened from {(0, 4), (1, 4)} after
+# empirical observation that V3 reliably opens at (1, 4) when both are
+# allowed, which produces awkward downstream pasture shapes. Keeping the
+# frozenset shape (not a single cell) so future relaxations are one-character
+# edits and so the filter's set-membership check stays uniform.
+FIRST_PASTURE_REQUIRED_CELLS: frozenset = frozenset({(0, 4)})
 
 # Hard cap on total rooms in the farmyard. 2 starting + 3 additional = 5.
 MAX_TOTAL_ROOMS: int = 5

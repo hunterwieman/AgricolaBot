@@ -460,7 +460,8 @@ def test_room_cap_inactive_when_below_max():
 # ---------------------------------------------------------------------------
 
 def test_first_pasture_must_include_required_cell():
-    """At pastures_built == 0, every CommitBuildPasture must include (0,4) or (1,4)."""
+    """At pastures_built == 0, every CommitBuildPasture must include a cell
+    from FIRST_PASTURE_REQUIRED_CELLS (currently just (0,4))."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     # Plenty of wood + fences available so candidates are not affordability-blocked.
@@ -479,7 +480,8 @@ def test_first_pasture_must_include_required_cell():
     assert pasture_actions, "Expected at least one legal opener under the restriction."
     for a in pasture_actions:
         assert any(cell in FIRST_PASTURE_REQUIRED_CELLS for cell in a.cells), (
-            f"Restricted opener {sorted(a.cells)} missing both (0,4) and (1,4)."
+            f"Restricted opener {sorted(a.cells)} missing every cell in "
+            f"FIRST_PASTURE_REQUIRED_CELLS={sorted(FIRST_PASTURE_REQUIRED_CELLS)}."
         )
 
 

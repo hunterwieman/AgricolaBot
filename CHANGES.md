@@ -505,7 +505,7 @@ Three layers of change:
 | Cell priority | `PendingBuildStables` | keep only the highest-priority cell from `[(0,4), (0,3), (1,4), (1,3)]` |
 | Cell priority | `PendingBuildRooms` | keep only the highest-priority cell from `[(0,0), (2,1), (1,1), (2,2)]` |
 | Cell priority | `PendingPlow` | keep only the highest-priority cell from `[(0,1), (0,2), (1,1), (0,0), (1,2), (2,2), (2,3)]` |
-| First-pasture opener | `PendingBuildFences` (`pastures_built == 0`) | require `cells ∩ {(0,4), (1,4)}` ≠ ∅ |
+| First-pasture opener | `PendingBuildFences` (`pastures_built == 0`) | require `cells ∋ (0,4)` (tightened from `{(0,4), (1,4)}` post-iter3 observation) |
 | Room cap | `PendingFarmExpansion`, `PendingBuildRooms` | drop room-build options once at `MAX_TOTAL_ROOMS = 5` (2 starting + 3 additional) |
 | Min-begging | `PendingHarvestFeed` | keep only `CommitConvert` options tying for the minimum begging count |
 
