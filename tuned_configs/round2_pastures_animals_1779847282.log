@@ -1,0 +1,31 @@
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen16_temp05.json' (arch: v3)
+    - 'tuned_configs/panel_gen47.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 40 games per evaluation (training: 0..39)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 20, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  rotate seeds: ON (each gen N uses seeds [10000+N·40, 10000+(N+1)·40))
+  validation pool: seeds 500..559 (stable per-baseline diagnostic across gens)
+  total evals: 320
+  jobs: 8; python -O: ON
+  estimated wall time: ~15.3 min (vs ~106.7 min if 1-job & no -O)
+  Output: tuned_configs/round2_pastures_animals_1779847282.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/round2_pastures_animals_1779847282.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 7 baselines) = +2.312
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+
+
+gen   1  best so far: +2.579  gen best: +2.579  gen mean: +2.293  (7.5 min)

@@ -1,0 +1,204 @@
+Tuning 101 parameters via CMA-ES
+  category: 'v3_pastures_animals'  (arch: v3)
+  warm-start base: 'tuned_configs/rot_woodr1_1779906327_v3_majors_per_stage.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen16_temp05.json' (arch: v3)
+    - 'tuned_configs/panel_gen47.json' (arch: v3)
+    - 'tuned_configs/panel_wood_r1.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 40 games per evaluation (training: 0..39)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  rotate seeds: ON (each gen N uses seeds [10000+N·40, 10000+(N+1)·40))
+  validation pool: seeds 500..559 (stable per-baseline diagnostic across gens)
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~7.7 min (vs ~53.3 min if 1-job & no -O)
+  Output: tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 8 baselines) = +2.704
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+
+
+gen   1  best so far: +2.771  gen best: +2.771  gen mean: +2.534  (7.8 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+12.12  v3_best 59-0-1  m=+17.68  panel_gen_25 54-1-5  m=+7.30  round1_resources_start 53-0-7  m=+14.07  panel_gen47_wood020 59-0-1  m=+16.27  panel_gen16_temp05 51-0-9  m=+9.18  panel_gen47 44-0-16 m=+10.92  panel_wood_r1 44-0-16 m=+10.02
+           regression vs 't2': 59-0-1   m=+12.117
+
+
+gen   2  best so far: +3.098  gen best: +3.098  gen mean: +2.884  (16.8 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 57-0-3  m=+10.92  v3_best 59-0-1  m=+17.82  panel_gen_25 52-0-8  m=+7.08  round1_resources_start 57-1-2  m=+15.38  panel_gen47_wood020 57-0-3  m=+16.28  panel_gen16_temp05 48-0-12 m=+8.68  panel_gen47 41-1-18 m=+10.57  panel_wood_r1 45-0-15 m=+10.07
+           regression vs 't2': 57-0-3   m=+10.917
+
+
+gen   3  best so far: +3.150  gen best: +3.150  gen mean: +2.995  (26.0 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.08  v3_best 58-0-2  m=+17.43  panel_gen_25 54-0-6  m=+7.57  round1_resources_start 58-0-2  m=+14.43  panel_gen47_wood020 57-0-3  m=+16.05  panel_gen16_temp05 51-0-9  m=+9.67  panel_gen47 46-0-14 m=+10.75  panel_wood_r1 43-0-17 m=+9.85
+           regression vs 't2': 58-0-2   m=+11.083
+
+
+gen   4  best so far: +3.150  gen best: +2.946  gen mean: +2.869  (36.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.08  v3_best 58-0-2  m=+17.43  panel_gen_25 54-0-6  m=+7.57  round1_resources_start 58-0-2  m=+14.43  panel_gen47_wood020 57-0-3  m=+16.05  panel_gen16_temp05 51-0-9  m=+9.67  panel_gen47 46-0-14 m=+10.75  panel_wood_r1 43-0-17 m=+9.85 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.083
+
+
+gen   5  best so far: +3.320  gen best: +3.320  gen mean: +3.225  (46.2 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   6  best so far: +3.320  gen best: +3.162  gen mean: +3.025  (58.4 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   7  best so far: +3.320  gen best: +3.210  gen mean: +3.095  (68.7 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   8  best so far: +3.320  gen best: +3.082  gen mean: +2.981  (78.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   9  best so far: +3.320  gen best: +3.025  gen mean: +2.913  (89.0 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen  10  best so far: +3.320  gen best: +3.057  gen mean: +2.910  (99.1 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+Optimization complete in 99.1 min.
+Best margin (training): +3.320
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+pasture_value_all_0                     -0.845     -0.641     +0.203
+pasture_value_all_1                      1.082      0.363     -0.719
+pasture_value_all_2                      2.402      2.588     +0.185
+pasture_value_all_3                      3.144      3.602     +0.458
+pasture_value_all_4                      3.562      3.172     -0.389
+pasture_value_large_0                    0.584      0.206     -0.379
+pasture_value_large_1                   -0.850     -0.977     -0.126
+pasture_value_large_2                   -0.134     -0.464     -0.330
+pasture_value_large_3                    0.283      0.405     +0.122
+pasture_value_large_4                    0.328      0.171     -0.157
+pasture_blend_alpha_stage1               0.136      0.322     +0.186
+pasture_blend_alpha_stage2               0.981      0.880     -0.100
+pasture_blend_alpha_stage3               0.960      0.645     -0.315
+pasture_blend_alpha_stage4               0.761      0.677     -0.084
+pasture_blend_alpha_stage5               0.603      0.391     -0.212
+pasture_blend_alpha_stage6               0.553      0.268     -0.285
+sheep_value_0                           -0.927     -0.380     +0.547
+sheep_value_1                            1.356      1.279     -0.077
+sheep_value_2                            0.884      0.725     -0.159
+sheep_value_3                            0.762      1.226     +0.464
+sheep_value_4                            2.559      2.595     +0.036
+sheep_value_5                            2.185      2.405     +0.220
+sheep_value_6                            2.794      2.813     +0.019
+sheep_value_7                            2.929      2.423     -0.506
+sheep_value_8                            4.313      4.136     -0.177
+sheep_blend_alpha_stage1                 0.195      0.639     +0.444
+sheep_blend_alpha_stage2                 0.155      0.175     +0.020
+sheep_blend_alpha_stage3                 0.895      0.962     +0.067
+sheep_blend_alpha_stage4                 0.302      0.174     -0.129
+sheep_blend_alpha_stage5                 0.402      0.401     -0.001
+sheep_blend_alpha_stage6                 0.908      0.932     +0.024
+boar_value_0                            -0.248      0.027     +0.275
+boar_value_1                             1.214      0.291     -0.923
+boar_value_2                             0.706      0.789     +0.083
+boar_value_3                             2.181      2.388     +0.207
+boar_value_4                             1.899      1.546     -0.353
+boar_value_5                             3.291      2.864     -0.427
+boar_value_6                             2.951      3.468     +0.517
+boar_value_7                             4.485      4.488     +0.002
+boar_blend_alpha_stage1                  0.373      0.292     -0.082
+boar_blend_alpha_stage2                  0.627      0.638     +0.010
+boar_blend_alpha_stage3                  0.708      0.885     +0.176
+boar_blend_alpha_stage4                  0.460      0.670     +0.210
+boar_blend_alpha_stage5                  0.576      0.635     +0.059
+boar_blend_alpha_stage6                  0.524      0.372     -0.152
+cattle_value_0                          -0.760     -1.130     -0.370
+cattle_value_1                           0.899      1.086     +0.187
+cattle_value_2                           2.082      2.619     +0.537
+cattle_value_3                           2.573      2.878     +0.304
+cattle_value_4                           3.225      3.118     -0.107
+cattle_value_5                           2.810      2.705     -0.105
+cattle_value_6                           4.669      4.893     +0.224
+cattle_blend_alpha_stage1                0.546      0.847     +0.302
+cattle_blend_alpha_stage2                0.687      0.517     -0.170
+cattle_blend_alpha_stage3                0.314      0.006     -0.308
+cattle_blend_alpha_stage4                0.079      0.208     +0.129
+cattle_blend_alpha_stage5                0.555      0.405     -0.150
+cattle_blend_alpha_stage6                0.682      0.264     -0.418
+fenced_stable_value_0                   -0.277     -0.013     +0.264
+fenced_stable_value_1                    0.796      0.941     +0.145
+fenced_stable_value_2                    1.949      2.175     +0.225
+fenced_stable_value_3                    2.882      2.593     -0.289
+fenced_stable_value_4                    4.127      4.491     +0.364
+fenced_stable_blend_alpha_stage1         0.457      0.791     +0.334
+fenced_stable_blend_alpha_stage2         0.037      0.486     +0.450
+fenced_stable_blend_alpha_stage3         0.875      0.869     -0.005
+fenced_stable_blend_alpha_stage4         0.741      0.649     -0.092
+fenced_stable_blend_alpha_stage5         0.668      0.953     +0.285
+fenced_stable_blend_alpha_stage6         0.725      0.837     +0.112
+cattle_breeding_pair_value               1.207      0.601     -0.606
+cattle_breed_weight_stage1               1.141      0.846     -0.295
+cattle_breed_weight_stage2               1.799      1.848     +0.048
+cattle_breed_weight_stage3               0.799      0.454     -0.344
+cattle_breed_weight_stage4               0.652      1.059     +0.407
+cattle_breed_weight_stage5               0.145      0.004     -0.141
+cattle_breed_weight_stage6               0.083      0.017     -0.065
+boar_breeding_pair_value                 1.009      0.975     -0.034
+boar_breed_weight_stage1                 0.793      1.195     +0.402
+boar_breed_weight_stage2                 1.272      1.424     +0.152
+boar_breed_weight_stage3                 0.747      0.129     -0.618
+boar_breed_weight_stage4                 0.875      1.084     +0.209
+boar_breed_weight_stage5                 0.119      0.343     +0.225
+boar_breed_weight_stage6                 0.105      0.049     -0.057
+sheep_breeding_pair_value                1.343      0.972     -0.371
+sheep_breed_weight_stage1                0.754      0.028     -0.726
+sheep_breed_weight_stage2                1.099      1.067     -0.033
+sheep_breed_weight_stage3                0.895      0.497     -0.398
+sheep_breed_weight_stage4                0.522      0.739     +0.217
+sheep_breed_weight_stage5                0.144      0.638     +0.494
+sheep_breed_weight_stage6                0.225      0.766     +0.541
+unfenced_stable_value_0                  0.034      0.260     +0.226
+unfenced_stable_value_1                  0.429      1.140     +0.712
+unfenced_stable_value_2                  1.468      1.228     -0.239
+unfenced_stable_value_3                  1.408      1.068     -0.340
+unfenced_stable_value_4                  1.547      1.695     +0.149
+unfenced_stable_weight_stage1            1.118      1.132     +0.014
+unfenced_stable_weight_stage2            0.869      1.246     +0.376
+unfenced_stable_weight_stage3            0.459      1.089     +0.630
+unfenced_stable_weight_stage4            0.423      0.465     +0.042
+unfenced_stable_weight_stage5            0.247      0.095     -0.152
+unfenced_stable_weight_stage6            0.143      0.641     +0.498
+
+Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
+  holdout P0 99-0-1 P1  avg +26.84 vs +13.69  margin +13.15  (100 games, 37.4s)
+  → consistent with training (within 1pt). Tuning generalizes.
+  vs 't2': margin +13.150  (99-0-1)
+  vs 'tuned_configs/v3_best.json': margin +20.410  (95-0-5)
+  vs 'tuned_configs/panel_gen_25.json': margin +7.440  (88-0-12)
+  vs 'tuned_configs/round1_resources_start.json': margin +17.150  (95-0-5)
+  vs 'tuned_configs/panel_gen47_wood020.json': margin +17.120  (96-0-4)
+  vs 'tuned_configs/panel_gen16_temp05.json': margin +11.770  (91-0-9)
+  vs 'tuned_configs/panel_gen47.json': margin +13.040  (76-0-24)
+  vs 'tuned_configs/panel_wood_r1.json': margin +9.810  (80-0-20)
+  regression vs 't2': margin +13.150  (99-0-1)
+
+Written: tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.json
+Log:     tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.log
+CMA pkl: tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.cma.pkl  (use --resume tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.cma.pkl to continue this run)
+Best:    skipped (--no-promote)

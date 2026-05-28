@@ -1,0 +1,125 @@
+Tuning 22 parameters via CMA-ES
+  category: 'v3_alphas_and_carryovers'  (arch: v3)
+  warm-start base: 'tuned_configs/rot_woodr1_1779906327_v3_resources.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen16_temp05.json' (arch: v3)
+    - 'tuned_configs/panel_gen47.json' (arch: v3)
+    - 'tuned_configs/panel_wood_r1.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 40 games per evaluation (training: 0..39)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  rotate seeds: ON (each gen N uses seeds [10000+N·40, 10000+(N+1)·40))
+  validation pool: seeds 500..559 (stable per-baseline diagnostic across gens)
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~7.7 min (vs ~53.3 min if 1-job & no -O)
+  Output: tuned_configs/rot_woodr1_1779906327_v3_alphas_and_carryovers.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/rot_woodr1_1779906327_v3_alphas_and_carryovers.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 8 baselines) = +3.116
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+
+
+gen   1  best so far: +3.116  gen best: +2.964  gen mean: +2.401  (9.7 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   2  best so far: +3.178  gen best: +3.178  gen mean: +2.808  (21.4 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.37  v3_best 60-0-0  m=+15.52  panel_gen_25 56-0-4  m=+7.40  round1_resources_start 60-0-0  m=+16.17  panel_gen47_wood020 58-0-2  m=+14.85  panel_gen16_temp05 51-0-9  m=+9.28  panel_gen47 41-0-19 m=+10.03  panel_wood_r1 39-0-21 m=+9.32
+           regression vs 't2': 59-0-1   m=+10.367
+
+
+gen   3  best so far: +3.283  gen best: +3.283  gen mean: +2.798  (31.4 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+11.52  v3_best 60-0-0  m=+17.37  panel_gen_25 50-0-10 m=+7.07  round1_resources_start 60-0-0  m=+15.42  panel_gen47_wood020 55-0-5  m=+14.53  panel_gen16_temp05 49-0-11 m=+9.47  panel_gen47 41-0-19 m=+9.38  panel_wood_r1 52-0-8  m=+10.93
+           regression vs 't2': 59-0-1   m=+11.517
+
+
+gen   4  best so far: +3.283  gen best: +3.129  gen mean: +2.663  (41.6 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+11.52  v3_best 60-0-0  m=+17.37  panel_gen_25 50-0-10 m=+7.07  round1_resources_start 60-0-0  m=+15.42  panel_gen47_wood020 55-0-5  m=+14.53  panel_gen16_temp05 49-0-11 m=+9.47  panel_gen47 41-0-19 m=+9.38  panel_wood_r1 52-0-8  m=+10.93 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+11.517
+
+
+gen   5  best so far: +3.291  gen best: +3.291  gen mean: +2.815  (51.0 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+11.68  v3_best 53-0-7  m=+15.15  panel_gen_25 52-0-8  m=+7.48  round1_resources_start 60-0-0  m=+14.98  panel_gen47_wood020 55-0-5  m=+15.63  panel_gen16_temp05 53-0-7  m=+10.28  panel_gen47 50-0-10 m=+13.82  panel_wood_r1 58-0-2  m=+13.07
+           regression vs 't2': 59-0-1   m=+11.683
+
+
+gen   6  best so far: +3.291  gen best: +3.252  gen mean: +2.884  (61.2 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+11.68  v3_best 53-0-7  m=+15.15  panel_gen_25 52-0-8  m=+7.48  round1_resources_start 60-0-0  m=+14.98  panel_gen47_wood020 55-0-5  m=+15.63  panel_gen16_temp05 53-0-7  m=+10.28  panel_gen47 50-0-10 m=+13.82  panel_wood_r1 58-0-2  m=+13.07 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+11.683
+
+
+gen   7  best so far: +3.293  gen best: +3.293  gen mean: +2.814  (70.4 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+13.73  v3_best 58-0-2  m=+17.23  panel_gen_25 49-0-11 m=+6.62  round1_resources_start 59-0-1  m=+15.48  panel_gen47_wood020 58-0-2  m=+14.42  panel_gen16_temp05 50-0-10 m=+9.67  panel_gen47 43-0-17 m=+10.63  panel_wood_r1 57-0-3  m=+12.10
+           regression vs 't2': 60-0-0   m=+13.733
+
+
+gen   8  best so far: +3.293  gen best: +3.269  gen mean: +3.083  (80.3 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+13.73  v3_best 58-0-2  m=+17.23  panel_gen_25 49-0-11 m=+6.62  round1_resources_start 59-0-1  m=+15.48  panel_gen47_wood020 58-0-2  m=+14.42  panel_gen16_temp05 50-0-10 m=+9.67  panel_gen47 43-0-17 m=+10.63  panel_wood_r1 57-0-3  m=+12.10 [cached: session_best unchanged]
+           regression vs 't2': 60-0-0   m=+13.733
+
+
+gen   9  best so far: +3.293  gen best: +3.200  gen mean: +2.925  (88.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+13.73  v3_best 58-0-2  m=+17.23  panel_gen_25 49-0-11 m=+6.62  round1_resources_start 59-0-1  m=+15.48  panel_gen47_wood020 58-0-2  m=+14.42  panel_gen16_temp05 50-0-10 m=+9.67  panel_gen47 43-0-17 m=+10.63  panel_wood_r1 57-0-3  m=+12.10 [cached: session_best unchanged]
+           regression vs 't2': 60-0-0   m=+13.733
+
+
+gen  10  best so far: +3.293  gen best: +3.180  gen mean: +2.969  (98.1 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+13.73  v3_best 58-0-2  m=+17.23  panel_gen_25 49-0-11 m=+6.62  round1_resources_start 59-0-1  m=+15.48  panel_gen47_wood020 58-0-2  m=+14.42  panel_gen16_temp05 50-0-10 m=+9.67  panel_gen47 43-0-17 m=+10.63  panel_wood_r1 57-0-3  m=+12.10 [cached: session_best unchanged]
+           regression vs 't2': 60-0-0   m=+13.733
+
+Optimization complete in 98.1 min.
+Best margin (training): +3.293
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+score_joint_alpha_stage1                 0.500      1.422     +0.922
+score_joint_alpha_stage2                 0.600      0.986     +0.386
+score_joint_alpha_stage3                 0.700      0.728     +0.028
+score_joint_alpha_stage4                 0.800      0.474     -0.326
+score_joint_alpha_stage5                 0.900      1.287     +0.387
+score_joint_alpha_stage6                 1.000      0.372     -0.628
+unused_spaces_alpha_stage1               1.000      0.964     -0.036
+unused_spaces_alpha_stage2               0.700      0.789     +0.089
+unused_spaces_alpha_stage3               0.500      0.678     +0.178
+unused_spaces_alpha_stage4               0.300      0.008     -0.292
+unused_spaces_alpha_stage5               0.100      0.269     +0.169
+unused_spaces_alpha_stage6               0.000      0.010     +0.010
+family_per_round_0                       3.292      3.203     -0.090
+family_per_round_1                       2.256      2.407     +0.151
+family_per_round_2                       2.005      1.808     -0.197
+empty_room_rate_pre_basic_wish           2.616      2.943     +0.327
+empty_room_rate_post_basic_wish          2.922      3.797     +0.875
+starting_player_bonus                    1.228      0.828     -0.400
+field_center_bonus                       0.100      0.429     +0.329
+pasture_location_bonus                   0.050      0.178     +0.128
+renovation_bonus_per_step_early          0.000      0.094     +0.094
+renovation_bonus_per_step_late           0.000      0.028     +0.028
+
+Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
+  holdout P0 100-0-0 P1  avg +27.59 vs +12.27  margin +15.32  (100 games, 41.4s)
+  → consistent with training (within 1pt). Tuning generalizes.
+  vs 't2': margin +15.320  (100-0-0)
+  vs 'tuned_configs/v3_best.json': margin +20.410  (100-0-0)
+  vs 'tuned_configs/panel_gen_25.json': margin +5.770  (89-0-11)
+  vs 'tuned_configs/round1_resources_start.json': margin +16.240  (98-0-2)
+  vs 'tuned_configs/panel_gen47_wood020.json': margin +14.530  (97-0-3)
+  vs 'tuned_configs/panel_gen16_temp05.json': margin +11.530  (92-0-8)
+  vs 'tuned_configs/panel_gen47.json': margin +12.110  (76-0-24)
+  vs 'tuned_configs/panel_wood_r1.json': margin +11.850  (94-0-6)
+  regression vs 't2': margin +15.320  (100-0-0)
+
+Written: tuned_configs/rot_woodr1_1779906327_v3_alphas_and_carryovers.json
+Log:     tuned_configs/rot_woodr1_1779906327_v3_alphas_and_carryovers.log
+CMA pkl: tuned_configs/rot_woodr1_1779906327_v3_alphas_and_carryovers.cma.pkl  (use --resume tuned_configs/rot_woodr1_1779906327_v3_alphas_and_carryovers.cma.pkl to continue this run)
+Best:    skipped (--no-promote)

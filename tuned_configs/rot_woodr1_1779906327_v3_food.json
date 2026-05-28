@@ -1,0 +1,1885 @@
+{
+  "status": "complete",
+  "category": "v3_food",
+  "candidate_arch": "v3",
+  "from_config": "tuned_configs/panel_wood_r1.json",
+  "baseline": "t2",
+  "baseline_arch": "v1",
+  "baselines": [
+    "t2",
+    "tuned_configs/v3_best.json",
+    "tuned_configs/panel_gen_25.json",
+    "tuned_configs/round1_resources_start.json",
+    "tuned_configs/panel_gen47_wood020.json",
+    "tuned_configs/panel_gen16_temp05.json",
+    "tuned_configs/panel_gen47.json",
+    "tuned_configs/panel_wood_r1.json"
+  ],
+  "baseline_archs": [
+    "v1",
+    "v3",
+    "v3",
+    "v3",
+    "v3",
+    "v3",
+    "v3",
+    "v3"
+  ],
+  "regression_baseline": "t2",
+  "regression_baseline_arch": "v1",
+  "regression_history": [
+    {
+      "generation": 1,
+      "regression_margin": 13.2,
+      "wins": 58,
+      "draws": 0,
+      "losses": 2
+    },
+    {
+      "generation": 2,
+      "regression_margin": 12.750000000000002,
+      "wins": 58,
+      "draws": 0,
+      "losses": 2
+    },
+    {
+      "generation": 3,
+      "regression_margin": 12.750000000000002,
+      "wins": 58,
+      "draws": 0,
+      "losses": 2
+    },
+    {
+      "generation": 4,
+      "regression_margin": 12.750000000000002,
+      "wins": 58,
+      "draws": 0,
+      "losses": 2
+    },
+    {
+      "generation": 5,
+      "regression_margin": 11.200000000000001,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 6,
+      "regression_margin": 11.200000000000001,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 7,
+      "regression_margin": 11.200000000000001,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 8,
+      "regression_margin": 11.200000000000001,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 9,
+      "regression_margin": 11.200000000000001,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 10,
+      "regression_margin": 11.200000000000001,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    }
+  ],
+  "per_baseline_history": [
+    {
+      "generation": 1,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 13.2,
+          "wins": 58,
+          "losses": 2,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 11.616666666666667,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 3.6833333333333336,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 13.966666666666667,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.416666666666668,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 9.566666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 9.93333333333333,
+          "wins": 50,
+          "losses": 10,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 5.050000000000001,
+          "wins": 40,
+          "losses": 20,
+          "draws": 0
+        }
+      ]
+    },
+    {
+      "generation": 2,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 12.750000000000002,
+          "wins": 58,
+          "losses": 2,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 13.866666666666669,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 3.2333333333333343,
+          "wins": 47,
+          "losses": 12,
+          "draws": 1
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 13.233333333333334,
+          "wins": 54,
+          "losses": 6,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 13.766666666666667,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 9.149999999999999,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 10.833333333333332,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.299999999999997,
+          "wins": 45,
+          "losses": 15,
+          "draws": 0
+        }
+      ]
+    },
+    {
+      "generation": 3,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 12.750000000000002,
+          "wins": 58,
+          "losses": 2,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 13.866666666666669,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 3.2333333333333343,
+          "wins": 47,
+          "losses": 12,
+          "draws": 1
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 13.233333333333334,
+          "wins": 54,
+          "losses": 6,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 13.766666666666667,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 9.149999999999999,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 10.833333333333332,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.299999999999997,
+          "wins": 45,
+          "losses": 15,
+          "draws": 0
+        }
+      ]
+    },
+    {
+      "generation": 4,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 12.750000000000002,
+          "wins": 58,
+          "losses": 2,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 13.866666666666669,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 3.2333333333333343,
+          "wins": 47,
+          "losses": 12,
+          "draws": 1
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 13.233333333333334,
+          "wins": 54,
+          "losses": 6,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 13.766666666666667,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 9.149999999999999,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 10.833333333333332,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.299999999999997,
+          "wins": 45,
+          "losses": 15,
+          "draws": 0
+        }
+      ]
+    },
+    {
+      "generation": 5,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 11.200000000000001,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 15.283333333333331,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.433333333333334,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 12.016666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.5,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 10.216666666666669,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.083333333333332,
+          "wins": 39,
+          "losses": 21,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.899999999999999,
+          "wins": 45,
+          "losses": 14,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 6,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 11.200000000000001,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 15.283333333333331,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.433333333333334,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 12.016666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.5,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 10.216666666666669,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.083333333333332,
+          "wins": 39,
+          "losses": 21,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.899999999999999,
+          "wins": 45,
+          "losses": 14,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 7,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 11.200000000000001,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 15.283333333333331,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.433333333333334,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 12.016666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.5,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 10.216666666666669,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.083333333333332,
+          "wins": 39,
+          "losses": 21,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.899999999999999,
+          "wins": 45,
+          "losses": 14,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 8,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 11.200000000000001,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 15.283333333333331,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.433333333333334,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 12.016666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.5,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 10.216666666666669,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.083333333333332,
+          "wins": 39,
+          "losses": 21,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.899999999999999,
+          "wins": 45,
+          "losses": 14,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 9,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 11.200000000000001,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 15.283333333333331,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.433333333333334,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 12.016666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.5,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 10.216666666666669,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.083333333333332,
+          "wins": 39,
+          "losses": 21,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.899999999999999,
+          "wins": 45,
+          "losses": 14,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 10,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 11.200000000000001,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 15.283333333333331,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.433333333333334,
+          "wins": 47,
+          "losses": 13,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 12.016666666666666,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 12.5,
+          "wins": 52,
+          "losses": 8,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 10.216666666666669,
+          "wins": 53,
+          "losses": 7,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.083333333333332,
+          "wins": 39,
+          "losses": 21,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_wood_r1.json",
+          "margin": 7.899999999999999,
+          "wins": 45,
+          "losses": 14,
+          "draws": 1
+        }
+      ]
+    }
+  ],
+  "restricted": true,
+  "fitness_kind": "sublinear",
+  "fitness_k": 0.5,
+  "rotate_seeds": true,
+  "rotate_start": 10000,
+  "validation_pool": 60,
+  "validation_pool_start": 500,
+  "candidate_r1_force_forest": false,
+  "tunable_spec": [
+    {
+      "name": "food_at_need_stage1",
+      "default": 1.168,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "hubris_food_by_stage",
+        0,
+        0
+      ]
+    },
+    {
+      "name": "food_at_need_stage2",
+      "default": 1.213,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "hubris_food_by_stage",
+        1,
+        0
+      ]
+    },
+    {
+      "name": "food_at_need_stage3",
+      "default": 0.794,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "hubris_food_by_stage",
+        2,
+        0
+      ]
+    },
+    {
+      "name": "food_at_need_stage4",
+      "default": 0.126,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "hubris_food_by_stage",
+        3,
+        0
+      ]
+    },
+    {
+      "name": "food_at_need_stage5",
+      "default": 0.874,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "hubris_food_by_stage",
+        4,
+        0
+      ]
+    },
+    {
+      "name": "food_at_need_stage6",
+      "default": 0.302,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "hubris_food_by_stage",
+        5,
+        0
+      ]
+    },
+    {
+      "name": "food_excess_stage1",
+      "default": 1.057,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "hubris_food_by_stage",
+        0,
+        1
+      ]
+    },
+    {
+      "name": "food_excess_stage2",
+      "default": 0.452,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "hubris_food_by_stage",
+        1,
+        1
+      ]
+    },
+    {
+      "name": "food_excess_stage3",
+      "default": 0.316,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "hubris_food_by_stage",
+        2,
+        1
+      ]
+    },
+    {
+      "name": "food_excess_stage4",
+      "default": 0.295,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "hubris_food_by_stage",
+        3,
+        1
+      ]
+    },
+    {
+      "name": "food_excess_stage5",
+      "default": 0.587,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "hubris_food_by_stage",
+        4,
+        1
+      ]
+    },
+    {
+      "name": "food_excess_stage6",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 2.0,
+      "path": [
+        "hubris_food_by_stage",
+        5,
+        1
+      ]
+    },
+    {
+      "name": "begging_moves_0",
+      "default": -2.785,
+      "lower": -5.0,
+      "upper": 0.0,
+      "path": [
+        "hubris_begging_by_moves",
+        0
+      ]
+    },
+    {
+      "name": "begging_moves_1",
+      "default": -2.362,
+      "lower": -5.0,
+      "upper": 0.0,
+      "path": [
+        "hubris_begging_by_moves",
+        1
+      ]
+    },
+    {
+      "name": "begging_moves_2",
+      "default": -1.633,
+      "lower": -5.0,
+      "upper": 0.0,
+      "path": [
+        "hubris_begging_by_moves",
+        2
+      ]
+    },
+    {
+      "name": "begging_moves_3",
+      "default": -0.931,
+      "lower": -5.0,
+      "upper": 0.0,
+      "path": [
+        "hubris_begging_by_moves",
+        3
+      ]
+    },
+    {
+      "name": "begging_moves_4",
+      "default": -0.976,
+      "lower": -5.0,
+      "upper": 0.0,
+      "path": [
+        "hubris_begging_by_moves",
+        4
+      ]
+    },
+    {
+      "name": "begging_moves_5",
+      "default": -0.575,
+      "lower": -5.0,
+      "upper": 0.0,
+      "path": [
+        "hubris_begging_by_moves",
+        5
+      ]
+    }
+  ],
+  "n_seeds": 40,
+  "training_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+  ],
+  "holdout_seeds": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1005,
+    1006,
+    1007,
+    1008,
+    1009,
+    1010,
+    1011,
+    1012,
+    1013,
+    1014,
+    1015,
+    1016,
+    1017,
+    1018,
+    1019,
+    1020,
+    1021,
+    1022,
+    1023,
+    1024,
+    1025,
+    1026,
+    1027,
+    1028,
+    1029,
+    1030,
+    1031,
+    1032,
+    1033,
+    1034,
+    1035,
+    1036,
+    1037,
+    1038,
+    1039,
+    1040,
+    1041,
+    1042,
+    1043,
+    1044,
+    1045,
+    1046,
+    1047,
+    1048,
+    1049,
+    1050,
+    1051,
+    1052,
+    1053,
+    1054,
+    1055,
+    1056,
+    1057,
+    1058,
+    1059,
+    1060,
+    1061,
+    1062,
+    1063,
+    1064,
+    1065,
+    1066,
+    1067,
+    1068,
+    1069,
+    1070,
+    1071,
+    1072,
+    1073,
+    1074,
+    1075,
+    1076,
+    1077,
+    1078,
+    1079,
+    1080,
+    1081,
+    1082,
+    1083,
+    1084,
+    1085,
+    1086,
+    1087,
+    1088,
+    1089,
+    1090,
+    1091,
+    1092,
+    1093,
+    1094,
+    1095,
+    1096,
+    1097,
+    1098,
+    1099
+  ],
+  "popsize": 16,
+  "max_gens": 10,
+  "sigma0": 0.3,
+  "cma_seed": 1,
+  "best_x": [
+    1.5105888612897493,
+    1.148719592257346,
+    0.5297401396735487,
+    1.7626033802196581,
+    0.39818951200833896,
+    0.0438751301236481,
+    1.947610434016618,
+    0.5771801478977228,
+    0.7184776742246815,
+    0.15522587223008028,
+    0.05370862992030879,
+    0.03531625758290687,
+    -2.7097608001159394,
+    -1.6862425044416347,
+    -2.4376525234333313,
+    -0.215727773482614,
+    -1.370864102612325,
+    -0.5936623194736311
+  ],
+  "best_margin": 2.8840878507577226,
+  "best_config": {
+    "plowed_field_value": [
+      -1.7266083212703964,
+      -0.5621920988244552,
+      0.7368614052285205,
+      2.4579362321761105,
+      3.103130690613365,
+      3.744525886836803,
+      3.4935707846452355
+    ],
+    "field_blend_alpha_by_stage": [
+      0.3043658501292843,
+      0.9251583100065973,
+      0.15339299127978415,
+      0.8130448813912364,
+      0.7097351558231692,
+      0.2961968947075374
+    ],
+    "grain_value": [
+      -0.9440554575033977,
+      0.16364808381857165,
+      1.9484860618859847,
+      1.1736392166026717,
+      2.2089380211691263,
+      1.7083084319808097,
+      3.616310104764947,
+      3.2136355101576535,
+      4.344043544090224,
+      5.313568812549403
+    ],
+    "grain_blend_alpha_by_stage": [
+      0.9876777623956252,
+      0.037590931615372726,
+      0.5943545909362872,
+      0.19567958119143736,
+      0.7573162315195521,
+      0.11712038089666482
+    ],
+    "veg_value": [
+      -0.9850506397143026,
+      0.9797007384641823,
+      2.5438273001728358,
+      3.311159361941631,
+      4.306245800700898
+    ],
+    "veg_blend_alpha_by_stage": [
+      0.9656402427151589,
+      0.4941201402670842,
+      0.7605862002549473,
+      0.3619474165172427,
+      0.33161808348896943,
+      0.8238853139402138
+    ],
+    "pasture_value_all": [
+      -0.8446559985684469,
+      1.0818302947786762,
+      2.402319418677965,
+      3.1444965933290674,
+      3.5618261753480147
+    ],
+    "pasture_value_large": [
+      0.5842600379477392,
+      -0.850237730316519,
+      -0.13402368875747706,
+      0.2833189388166774,
+      0.3277609881929734
+    ],
+    "pasture_blend_alpha_by_stage": [
+      0.13580643071145723,
+      0.9807290317541433,
+      0.9598649105177888,
+      0.7609011975422386,
+      0.6029003591161977,
+      0.5525449452312027
+    ],
+    "sheep_value": [
+      -0.927035332662041,
+      1.3555161788632575,
+      0.8839400689087908,
+      0.761697113688398,
+      2.558582629155015,
+      2.185170624942671,
+      2.7940888237251693,
+      2.9289651868452,
+      4.313066947316402
+    ],
+    "sheep_blend_alpha_by_stage": [
+      0.19526415826138271,
+      0.15463996576417288,
+      0.8945945865651794,
+      0.3024782353916702,
+      0.4024098667435169,
+      0.907834805127995
+    ],
+    "boar_value": [
+      -0.24757339873693043,
+      1.2138525121244896,
+      0.7058125254065328,
+      2.18131978181596,
+      1.8993026031471612,
+      3.2906975102172433,
+      2.950708650204335,
+      4.485431911181479
+    ],
+    "boar_blend_alpha_by_stage": [
+      0.37342107309772277,
+      0.6270111858683494,
+      0.7084080834936732,
+      0.4599311882835705,
+      0.5758638245506147,
+      0.5238825908266485
+    ],
+    "cattle_value": [
+      -0.7600794910606632,
+      0.8989453625740429,
+      2.08153301344839,
+      2.5730587743305375,
+      3.224985388582182,
+      2.809937799525405,
+      4.669034883492907
+    ],
+    "cattle_blend_alpha_by_stage": [
+      0.5456380356226618,
+      0.6868878175552594,
+      0.31376656854056717,
+      0.0793058052536676,
+      0.5546395135011721,
+      0.6820267715811481
+    ],
+    "fenced_stable_value": [
+      -0.2772091480307516,
+      0.795645875195543,
+      1.949443603174337,
+      2.8816302086537915,
+      4.127481094424726
+    ],
+    "fenced_stable_blend_alpha_by_stage": [
+      0.4568705351070726,
+      0.03658251428426296,
+      0.8748845954833594,
+      0.7413179854373133,
+      0.6682357710745566,
+      0.725400026508385
+    ],
+    "unused_spaces_alpha_by_stage": [
+      1.0,
+      0.7,
+      0.5,
+      0.3,
+      0.1,
+      0.0
+    ],
+    "grain_pair_value": [
+      0.16206435340531444,
+      1.323243503197304,
+      0.6715261719958664,
+      2.146203118911522
+    ],
+    "grain_pair_weight_by_stage": [
+      1.0817884679257834,
+      0.9858890733699476,
+      0.4278246781138142,
+      0.12737153797992645,
+      0.3153866560670566,
+      0.18202111351153874
+    ],
+    "veg_pair_value": [
+      0.8819766956114987,
+      0.06696972518525018,
+      2.0033424922935947,
+      1.4343677856644004
+    ],
+    "veg_pair_weight_by_stage": [
+      0.5931131632389852,
+      1.653438647675839,
+      0.9809282589833415,
+      1.2053488694141477,
+      0.2563406247983561,
+      0.30445435723788594
+    ],
+    "cattle_breeding_pair_value": 1.207164802323992,
+    "cattle_breeding_pair_weight_by_stage": [
+      1.1411818127916382,
+      1.7993975300348932,
+      0.7985332590368611,
+      0.6524259578619398,
+      0.1449848210760804,
+      0.08256949531404709
+    ],
+    "boar_breeding_pair_value": 1.0091853039535876,
+    "boar_breeding_pair_weight_by_stage": [
+      0.7930472153970302,
+      1.2722075673300253,
+      0.7467379747402141,
+      0.8747518779980306,
+      0.11871617154251554,
+      0.10519917257464834
+    ],
+    "sheep_breeding_pair_value": 1.3434189279038293,
+    "sheep_breeding_pair_weight_by_stage": [
+      0.7541919722825934,
+      1.0994214796948654,
+      0.8947112315500341,
+      0.5217418561959133,
+      0.14392297303263502,
+      0.22541428167586802
+    ],
+    "unfenced_stable_value": [
+      0.034194733468743216,
+      0.42866992363822637,
+      1.4675831608388348,
+      1.4081205209898915,
+      1.5466282581258584
+    ],
+    "unfenced_stable_weight_by_stage": [
+      1.1176980103635548,
+      0.8694987528968184,
+      0.45915694425500475,
+      0.42288271151696244,
+      0.2469214382190526,
+      0.14269757929581894
+    ],
+    "wood_fence_vector": [
+      0.4741980539480001,
+      0.2216959469549969,
+      0.4726078105066611,
+      1.6181002440377619,
+      1.1365809499679178,
+      1.9061517940102233,
+      0.8263149255908824,
+      0.02560776831073949,
+      1.7524585042330463,
+      1.4408463717374198,
+      0.8960364667784833,
+      1.773102467974533,
+      0.2518917233971398,
+      0.5736068544094634,
+      2.8827207953731695
+    ],
+    "wood_pre_3rd_room_vector": [
+      0.7616968704072474,
+      1.4611043845220761,
+      0.18998641634394,
+      0.06225663175418372,
+      0.7605279887106876
+    ],
+    "wood_generic_value": 0.13852895397156278,
+    "wood_weight_by_stage": [
+      0.8848942527645527,
+      0.7034577168183878,
+      0.5633068882940114,
+      1.1042864875979401,
+      0.7633364978325685,
+      0.002597647654770474
+    ],
+    "wood_flat_bonus": 0.0,
+    "temperature": 0.0,
+    "r1_force_forest_bonus": 1000.0,
+    "reed_room_vector": [
+      3.3291167075360257,
+      0.06945970012100203,
+      1.1258240411833418,
+      0.009239514953455413,
+      0.7877403418370985,
+      1.1770576237379213
+    ],
+    "reed_renovation_vector": [
+      0.6352654186919139,
+      0.9541128587574241
+    ],
+    "reed_generic_value": 0.02852726012597106,
+    "reed_weight_by_stage": [
+      2.888394432273909,
+      1.2858413612177446,
+      0.38662083884497933,
+      1.0484954465180374,
+      0.3459702641656085,
+      0.1354354153518827
+    ],
+    "clay_cookware_vector": [
+      0.00011309437481585686,
+      1.676097897257141,
+      0.00038633454101183576,
+      1.6040327061941835,
+      0.5336638549274229
+    ],
+    "clay_renovation_per_room": 0.09818047419458718,
+    "clay_generic_value": 1.4924084683579453,
+    "clay_weight_by_stage": [
+      1.563562516384837,
+      0.6045754587579859,
+      0.4142812057554919,
+      0.6298429282129341,
+      0.6782108609156006,
+      0.020286972444237716
+    ],
+    "stone_renovation_per_room": 0.2638346327739128,
+    "stone_generic_value": 0.2624851501981914,
+    "stone_weight_by_stage": [
+      1.4903263492225163,
+      1.3701471863837322,
+      1.2725308234174035,
+      1.0166499642711333,
+      0.8425006903494114,
+      0.8372771217750825
+    ],
+    "score_joint_alpha_by_stage": [
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "family_per_round": [
+      3.292323267102328,
+      2.2556860160847774,
+      2.004865826860955
+    ],
+    "empty_room_rate_pre_basic_wish": 2.616157917681491,
+    "empty_room_rate_post_basic_wish": 2.922029893978679,
+    "starting_player_bonus": 1.2280813469772174,
+    "field_center_bonus": 0.1,
+    "pasture_location_bonus": 0.05,
+    "renovation_bonus_per_step_early": 0.0,
+    "renovation_bonus_per_step_late": 0.0,
+    "fireplace_value_by_stage": [
+      5.292838631258652,
+      5.999862689645461,
+      8.429852864867257,
+      4.057923171005331,
+      1.9573889403488849,
+      1.4573622435866178
+    ],
+    "hearth_value_by_stage": [
+      5.342619215685751,
+      6.094341689260205,
+      3.78289212633999,
+      4.7765682117598205,
+      2.6405715853030474,
+      2.1073655029309037
+    ],
+    "well_value_by_stage": [
+      4.485789795491342,
+      3.6735408411926427,
+      4.156924349705205,
+      4.158012099187837,
+      3.134430329180011,
+      3.48544501957924
+    ],
+    "clay_oven_value_by_stage": [
+      3.151759779119768,
+      0.8823859466171935,
+      3.4766469073238917,
+      1.8029423491695562,
+      2.1079897801734697,
+      3.30696688914349
+    ],
+    "stone_oven_value_by_stage": [
+      2.1623740132559885,
+      2.0525225425744553,
+      2.310180823953716,
+      3.793681064750031,
+      3.931093426106724,
+      3.222353398827942
+    ],
+    "joinery_value_by_stage": [
+      2.4114147066096203,
+      2.551589650530875,
+      3.5649331028368536,
+      1.47366364926657,
+      0.6124627339517025,
+      1.5088921048474389
+    ],
+    "pottery_value_by_stage": [
+      2.308040552090697,
+      0.6842792348317576,
+      0.6866981187389712,
+      0.6317243020511807,
+      1.5701124579009915,
+      0.9879172842553301
+    ],
+    "basketmaker_value_by_stage": [
+      1.4815969838294478,
+      2.1024786482577866,
+      0.3893119483876175,
+      2.667324223939516,
+      1.4570808645625901,
+      3.164792165495042
+    ],
+    "fireplace_value": 4.80973022568891,
+    "fireplace_value_mid": 2.471273053448844,
+    "fireplace_value_late": 0.1474925121229842,
+    "hearth_value": 5.246727936850129,
+    "hearth_value_mid": 2.718190472453053,
+    "hearth_value_late": 0.8213097609387353,
+    "cooking_secondary_vp": 0.48196317373922687,
+    "well_value": 4.0,
+    "well_food_per_future": 0.4,
+    "clay_oven_value": 2.0,
+    "stone_oven_value": 3.0,
+    "joinery_value": 2.0,
+    "pottery_value": 2.0,
+    "basketmaker_value": 2.0,
+    "hubris_food_by_stage": [
+      [
+        1.5105888612897493,
+        1.947610434016618
+      ],
+      [
+        1.148719592257346,
+        0.5771801478977228
+      ],
+      [
+        0.5297401396735487,
+        0.7184776742246815
+      ],
+      [
+        1.7626033802196581,
+        0.15522587223008028
+      ],
+      [
+        0.39818951200833896,
+        0.05370862992030879
+      ],
+      [
+        0.0438751301236481,
+        0.03531625758290687
+      ]
+    ],
+    "hubris_begging_by_moves": [
+      -2.7097608001159394,
+      -1.6862425044416347,
+      -2.4376525234333313,
+      -0.215727773482614,
+      -1.370864102612325,
+      -0.5936623194736311
+    ]
+  },
+  "history": [
+    {
+      "generation": 1,
+      "best_margin_so_far": 2.450223936452598,
+      "best_x_so_far": [
+        1.6419465090523497,
+        1.402851460506114,
+        1.0571619034798403,
+        1.0385474052216566,
+        0.4427580226887794,
+        0.4339240922377555,
+        1.7923695884866249,
+        0.3194273229430602,
+        0.842331715487203,
+        0.6228448922225821,
+        0.06565837226311966,
+        0.1278125057348251,
+        -2.0392499371236448,
+        -2.031121663540425,
+        -2.8251113732641815,
+        -0.007635582565286184,
+        -1.3133725303942694,
+        -0.5491759127130712
+      ],
+      "gen_best_margin": 2.450223936452598,
+      "gen_mean_margin": 1.7538371937107156,
+      "elapsed_seconds": 565.5015679579228
+    },
+    {
+      "generation": 2,
+      "best_margin_so_far": 2.6674023263662825,
+      "best_x_so_far": [
+        1.5476843537944067,
+        1.5002603225930633,
+        0.6614329751384579,
+        1.7360780402805103,
+        0.6448705412349282,
+        0.04970747336385477,
+        1.9334970550608777,
+        0.3221320749634071,
+        0.7950434465606445,
+        0.3261662508723403,
+        0.17670501052130502,
+        0.2645901048079602,
+        -2.362316075331038,
+        -1.893576756170997,
+        -2.5737813996731416,
+        -0.409320584981137,
+        -1.3950747157933718,
+        -0.7732066602884582
+      ],
+      "gen_best_margin": 2.6674023263662825,
+      "gen_mean_margin": 2.108886355674693,
+      "elapsed_seconds": 1200.5821187079418
+    },
+    {
+      "generation": 3,
+      "best_margin_so_far": 2.6674023263662825,
+      "best_x_so_far": [
+        1.5476843537944067,
+        1.5002603225930633,
+        0.6614329751384579,
+        1.7360780402805103,
+        0.6448705412349282,
+        0.04970747336385477,
+        1.9334970550608777,
+        0.3221320749634071,
+        0.7950434465606445,
+        0.3261662508723403,
+        0.17670501052130502,
+        0.2645901048079602,
+        -2.362316075331038,
+        -1.893576756170997,
+        -2.5737813996731416,
+        -0.409320584981137,
+        -1.3950747157933718,
+        -0.7732066602884582
+      ],
+      "gen_best_margin": 2.6161176264306234,
+      "gen_mean_margin": 2.1647933676277082,
+      "elapsed_seconds": 1848.7509782908019
+    },
+    {
+      "generation": 4,
+      "best_margin_so_far": 2.6674023263662825,
+      "best_x_so_far": [
+        1.5476843537944067,
+        1.5002603225930633,
+        0.6614329751384579,
+        1.7360780402805103,
+        0.6448705412349282,
+        0.04970747336385477,
+        1.9334970550608777,
+        0.3221320749634071,
+        0.7950434465606445,
+        0.3261662508723403,
+        0.17670501052130502,
+        0.2645901048079602,
+        -2.362316075331038,
+        -1.893576756170997,
+        -2.5737813996731416,
+        -0.409320584981137,
+        -1.3950747157933718,
+        -0.7732066602884582
+      ],
+      "gen_best_margin": 2.621283618922335,
+      "gen_mean_margin": 2.1578118628620833,
+      "elapsed_seconds": 2461.097783832811
+    },
+    {
+      "generation": 5,
+      "best_margin_so_far": 2.8840878507577226,
+      "best_x_so_far": [
+        1.5105888612897493,
+        1.148719592257346,
+        0.5297401396735487,
+        1.7626033802196581,
+        0.39818951200833896,
+        0.0438751301236481,
+        1.947610434016618,
+        0.5771801478977228,
+        0.7184776742246815,
+        0.15522587223008028,
+        0.05370862992030879,
+        0.03531625758290687,
+        -2.7097608001159394,
+        -1.6862425044416347,
+        -2.4376525234333313,
+        -0.215727773482614,
+        -1.370864102612325,
+        -0.5936623194736311
+      ],
+      "gen_best_margin": 2.8840878507577226,
+      "gen_mean_margin": 2.4142097500907003,
+      "elapsed_seconds": 3080.2518376659136
+    },
+    {
+      "generation": 6,
+      "best_margin_so_far": 2.8840878507577226,
+      "best_x_so_far": [
+        1.5105888612897493,
+        1.148719592257346,
+        0.5297401396735487,
+        1.7626033802196581,
+        0.39818951200833896,
+        0.0438751301236481,
+        1.947610434016618,
+        0.5771801478977228,
+        0.7184776742246815,
+        0.15522587223008028,
+        0.05370862992030879,
+        0.03531625758290687,
+        -2.7097608001159394,
+        -1.6862425044416347,
+        -2.4376525234333313,
+        -0.215727773482614,
+        -1.370864102612325,
+        -0.5936623194736311
+      ],
+      "gen_best_margin": 2.5682563541875365,
+      "gen_mean_margin": 2.2091769825944,
+      "elapsed_seconds": 3751.7673641659785
+    },
+    {
+      "generation": 7,
+      "best_margin_so_far": 2.8840878507577226,
+      "best_x_so_far": [
+        1.5105888612897493,
+        1.148719592257346,
+        0.5297401396735487,
+        1.7626033802196581,
+        0.39818951200833896,
+        0.0438751301236481,
+        1.947610434016618,
+        0.5771801478977228,
+        0.7184776742246815,
+        0.15522587223008028,
+        0.05370862992030879,
+        0.03531625758290687,
+        -2.7097608001159394,
+        -1.6862425044416347,
+        -2.4376525234333313,
+        -0.215727773482614,
+        -1.370864102612325,
+        -0.5936623194736311
+      ],
+      "gen_best_margin": 2.788151638350859,
+      "gen_mean_margin": 2.40679121136966,
+      "elapsed_seconds": 4249.4882053330075
+    },
+    {
+      "generation": 8,
+      "best_margin_so_far": 2.8840878507577226,
+      "best_x_so_far": [
+        1.5105888612897493,
+        1.148719592257346,
+        0.5297401396735487,
+        1.7626033802196581,
+        0.39818951200833896,
+        0.0438751301236481,
+        1.947610434016618,
+        0.5771801478977228,
+        0.7184776742246815,
+        0.15522587223008028,
+        0.05370862992030879,
+        0.03531625758290687,
+        -2.7097608001159394,
+        -1.6862425044416347,
+        -2.4376525234333313,
+        -0.215727773482614,
+        -1.370864102612325,
+        -0.5936623194736311
+      ],
+      "gen_best_margin": 2.805041283272304,
+      "gen_mean_margin": 2.218218303376663,
+      "elapsed_seconds": 4796.2144452079665
+    },
+    {
+      "generation": 9,
+      "best_margin_so_far": 2.8840878507577226,
+      "best_x_so_far": [
+        1.5105888612897493,
+        1.148719592257346,
+        0.5297401396735487,
+        1.7626033802196581,
+        0.39818951200833896,
+        0.0438751301236481,
+        1.947610434016618,
+        0.5771801478977228,
+        0.7184776742246815,
+        0.15522587223008028,
+        0.05370862992030879,
+        0.03531625758290687,
+        -2.7097608001159394,
+        -1.6862425044416347,
+        -2.4376525234333313,
+        -0.215727773482614,
+        -1.370864102612325,
+        -0.5936623194736311
+      ],
+      "gen_best_margin": 2.6633041577024867,
+      "gen_mean_margin": 2.343636832393401,
+      "elapsed_seconds": 5434.919571082806
+    },
+    {
+      "generation": 10,
+      "best_margin_so_far": 2.8840878507577226,
+      "best_x_so_far": [
+        1.5105888612897493,
+        1.148719592257346,
+        0.5297401396735487,
+        1.7626033802196581,
+        0.39818951200833896,
+        0.0438751301236481,
+        1.947610434016618,
+        0.5771801478977228,
+        0.7184776742246815,
+        0.15522587223008028,
+        0.05370862992030879,
+        0.03531625758290687,
+        -2.7097608001159394,
+        -1.6862425044416347,
+        -2.4376525234333313,
+        -0.215727773482614,
+        -1.370864102612325,
+        -0.5936623194736311
+      ],
+      "gen_best_margin": 2.66247418148492,
+      "gen_mean_margin": 2.2907243576350664,
+      "elapsed_seconds": 6114.685266624903
+    }
+  ],
+  "holdout": {
+    "n_games": 100,
+    "p0_wins": 99,
+    "p1_wins": 1,
+    "draws": 0,
+    "avg_score_p0": 25.88,
+    "avg_score_p1": 14.36,
+    "avg_margin": 11.52,
+    "elapsed_seconds": 39.58754812506959,
+    "by_baseline": [
+      {
+        "baseline": "t2",
+        "baseline_arch": "v1",
+        "avg_margin": 11.52,
+        "p0_wins": 99,
+        "p1_wins": 1,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/v3_best.json",
+        "baseline_arch": "v3",
+        "avg_margin": 15.02,
+        "p0_wins": 79,
+        "p1_wins": 21,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/panel_gen_25.json",
+        "baseline_arch": "v3",
+        "avg_margin": 4.670000000000002,
+        "p0_wins": 81,
+        "p1_wins": 19,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/round1_resources_start.json",
+        "baseline_arch": "v3",
+        "avg_margin": 14.430000000000001,
+        "p0_wins": 91,
+        "p1_wins": 9,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/panel_gen47_wood020.json",
+        "baseline_arch": "v3",
+        "avg_margin": 16.49,
+        "p0_wins": 93,
+        "p1_wins": 7,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/panel_gen16_temp05.json",
+        "baseline_arch": "v3",
+        "avg_margin": 10.950000000000003,
+        "p0_wins": 92,
+        "p1_wins": 8,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/panel_gen47.json",
+        "baseline_arch": "v3",
+        "avg_margin": 12.190000000000001,
+        "p0_wins": 73,
+        "p1_wins": 27,
+        "draws": 0
+      },
+      {
+        "baseline": "tuned_configs/panel_wood_r1.json",
+        "baseline_arch": "v3",
+        "avg_margin": 2.539999999999999,
+        "p0_wins": 52,
+        "p1_wins": 47,
+        "draws": 1
+      }
+    ],
+    "regression": {
+      "baseline": "t2",
+      "baseline_arch": "v1",
+      "avg_margin": 11.52,
+      "p0_wins": 99,
+      "p1_wins": 1,
+      "draws": 0
+    }
+  },
+  "log_path": "tuned_configs/rot_woodr1_1779906327_v3_food.log",
+  "cma_pkl_path": "tuned_configs/rot_woodr1_1779906327_v3_food.cma.pkl",
+  "resumed_from": null,
+  "start_gen": 0
+}

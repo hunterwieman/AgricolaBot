@@ -1,0 +1,3969 @@
+{
+  "status": "in_progress",
+  "category": "v3_pastures_animals",
+  "candidate_arch": "v3",
+  "from_config": "tuned_configs/v3_best.json",
+  "baseline": "t2",
+  "baseline_arch": "v1",
+  "baselines": [
+    "t2",
+    "tuned_configs/v3_best.json",
+    "tuned_configs/panel_gen_25.json",
+    "tuned_configs/round1_resources_start.json",
+    "tuned_configs/panel_gen47_wood020.json",
+    "tuned_configs/panel_gen16_temp05.json",
+    "tuned_configs/panel_gen47.json"
+  ],
+  "baseline_archs": [
+    "v1",
+    "v3",
+    "v3",
+    "v3",
+    "v3",
+    "v3",
+    "v3"
+  ],
+  "regression_baseline": "t2",
+  "regression_baseline_arch": "v1",
+  "regression_history": [
+    {
+      "generation": 1,
+      "regression_margin": 10.966666666666665,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 2,
+      "regression_margin": 10.966666666666665,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 3,
+      "regression_margin": 10.966666666666665,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 4,
+      "regression_margin": 10.966666666666665,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 5,
+      "regression_margin": 10.966666666666665,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 6,
+      "regression_margin": 10.966666666666665,
+      "wins": 60,
+      "draws": 0,
+      "losses": 0
+    },
+    {
+      "generation": 7,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    },
+    {
+      "generation": 8,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    },
+    {
+      "generation": 9,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    },
+    {
+      "generation": 10,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    },
+    {
+      "generation": 11,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    },
+    {
+      "generation": 12,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    },
+    {
+      "generation": 13,
+      "regression_margin": 9.5,
+      "wins": 55,
+      "draws": 0,
+      "losses": 5
+    }
+  ],
+  "per_baseline_history": [
+    {
+      "generation": 1,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 10.966666666666665,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": -0.43333333333333357,
+          "wins": 30,
+          "losses": 30,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.81666666666667,
+          "wins": 42,
+          "losses": 18,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 22.316666666666663,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.966666666666667,
+          "wins": 57,
+          "losses": 3,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 6.066666666666666,
+          "wins": 46,
+          "losses": 14,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.233333333333334,
+          "wins": 55,
+          "losses": 4,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 2,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 10.966666666666665,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": -0.43333333333333357,
+          "wins": 30,
+          "losses": 30,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.81666666666667,
+          "wins": 42,
+          "losses": 18,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 22.316666666666663,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.966666666666667,
+          "wins": 57,
+          "losses": 3,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 6.066666666666666,
+          "wins": 46,
+          "losses": 14,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.233333333333334,
+          "wins": 55,
+          "losses": 4,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 3,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 10.966666666666665,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": -0.43333333333333357,
+          "wins": 30,
+          "losses": 30,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.81666666666667,
+          "wins": 42,
+          "losses": 18,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 22.316666666666663,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.966666666666667,
+          "wins": 57,
+          "losses": 3,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 6.066666666666666,
+          "wins": 46,
+          "losses": 14,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.233333333333334,
+          "wins": 55,
+          "losses": 4,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 4,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 10.966666666666665,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": -0.43333333333333357,
+          "wins": 30,
+          "losses": 30,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.81666666666667,
+          "wins": 42,
+          "losses": 18,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 22.316666666666663,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.966666666666667,
+          "wins": 57,
+          "losses": 3,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 6.066666666666666,
+          "wins": 46,
+          "losses": 14,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.233333333333334,
+          "wins": 55,
+          "losses": 4,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 5,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 10.966666666666665,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": -0.43333333333333357,
+          "wins": 30,
+          "losses": 30,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.81666666666667,
+          "wins": 42,
+          "losses": 18,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 22.316666666666663,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.966666666666667,
+          "wins": 57,
+          "losses": 3,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 6.066666666666666,
+          "wins": 46,
+          "losses": 14,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.233333333333334,
+          "wins": 55,
+          "losses": 4,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 6,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 10.966666666666665,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": -0.43333333333333357,
+          "wins": 30,
+          "losses": 30,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.81666666666667,
+          "wins": 42,
+          "losses": 18,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 22.316666666666663,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.966666666666667,
+          "wins": 57,
+          "losses": 3,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 6.066666666666666,
+          "wins": 46,
+          "losses": 14,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.233333333333334,
+          "wins": 55,
+          "losses": 4,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 7,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 8,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 9,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 10,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 11,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 12,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    },
+    {
+      "generation": 13,
+      "per_baseline": [
+        {
+          "baseline": "t2",
+          "margin": 9.5,
+          "wins": 55,
+          "losses": 5,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/v3_best.json",
+          "margin": 0.7666666666666693,
+          "wins": 29,
+          "losses": 31,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen_25.json",
+          "margin": 4.983333333333334,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/round1_resources_start.json",
+          "margin": 21.833333333333332,
+          "wins": 60,
+          "losses": 0,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47_wood020.json",
+          "margin": 11.933333333333334,
+          "wins": 56,
+          "losses": 4,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen16_temp05.json",
+          "margin": 5.916666666666668,
+          "wins": 44,
+          "losses": 16,
+          "draws": 0
+        },
+        {
+          "baseline": "tuned_configs/panel_gen47.json",
+          "margin": 8.183333333333334,
+          "wins": 56,
+          "losses": 3,
+          "draws": 1
+        }
+      ]
+    }
+  ],
+  "restricted": true,
+  "fitness_kind": "sublinear",
+  "fitness_k": 0.5,
+  "rotate_seeds": true,
+  "rotate_start": 10000,
+  "validation_pool": 60,
+  "validation_pool_start": 500,
+  "tunable_spec": [
+    {
+      "name": "pasture_value_all_0",
+      "default": -1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "pasture_value_all",
+        0
+      ]
+    },
+    {
+      "name": "pasture_value_all_1",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "pasture_value_all",
+        1
+      ]
+    },
+    {
+      "name": "pasture_value_all_2",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "pasture_value_all",
+        2
+      ]
+    },
+    {
+      "name": "pasture_value_all_3",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "pasture_value_all",
+        3
+      ]
+    },
+    {
+      "name": "pasture_value_all_4",
+      "default": 4.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "pasture_value_all",
+        4
+      ]
+    },
+    {
+      "name": "pasture_value_large_0",
+      "default": 0.0,
+      "lower": -1.0,
+      "upper": 5.0,
+      "path": [
+        "pasture_value_large",
+        0
+      ]
+    },
+    {
+      "name": "pasture_value_large_1",
+      "default": 0.0,
+      "lower": -1.0,
+      "upper": 5.0,
+      "path": [
+        "pasture_value_large",
+        1
+      ]
+    },
+    {
+      "name": "pasture_value_large_2",
+      "default": 0.0,
+      "lower": -1.0,
+      "upper": 5.0,
+      "path": [
+        "pasture_value_large",
+        2
+      ]
+    },
+    {
+      "name": "pasture_value_large_3",
+      "default": 0.0,
+      "lower": -1.0,
+      "upper": 5.0,
+      "path": [
+        "pasture_value_large",
+        3
+      ]
+    },
+    {
+      "name": "pasture_value_large_4",
+      "default": 0.0,
+      "lower": -1.0,
+      "upper": 5.0,
+      "path": [
+        "pasture_value_large",
+        4
+      ]
+    },
+    {
+      "name": "pasture_blend_alpha_stage1",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "pasture_blend_alpha_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "pasture_blend_alpha_stage2",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "pasture_blend_alpha_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "pasture_blend_alpha_stage3",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "pasture_blend_alpha_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "pasture_blend_alpha_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "pasture_blend_alpha_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "pasture_blend_alpha_stage5",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "pasture_blend_alpha_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "pasture_blend_alpha_stage6",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "pasture_blend_alpha_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "sheep_value_0",
+      "default": -1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        0
+      ]
+    },
+    {
+      "name": "sheep_value_1",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        1
+      ]
+    },
+    {
+      "name": "sheep_value_2",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        2
+      ]
+    },
+    {
+      "name": "sheep_value_3",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        3
+      ]
+    },
+    {
+      "name": "sheep_value_4",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        4
+      ]
+    },
+    {
+      "name": "sheep_value_5",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        5
+      ]
+    },
+    {
+      "name": "sheep_value_6",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        6
+      ]
+    },
+    {
+      "name": "sheep_value_7",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        7
+      ]
+    },
+    {
+      "name": "sheep_value_8",
+      "default": 4.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "sheep_value",
+        8
+      ]
+    },
+    {
+      "name": "sheep_blend_alpha_stage1",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "sheep_blend_alpha_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "sheep_blend_alpha_stage2",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "sheep_blend_alpha_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "sheep_blend_alpha_stage3",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "sheep_blend_alpha_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "sheep_blend_alpha_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "sheep_blend_alpha_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "sheep_blend_alpha_stage5",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "sheep_blend_alpha_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "sheep_blend_alpha_stage6",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "sheep_blend_alpha_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "boar_value_0",
+      "default": -1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        0
+      ]
+    },
+    {
+      "name": "boar_value_1",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        1
+      ]
+    },
+    {
+      "name": "boar_value_2",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        2
+      ]
+    },
+    {
+      "name": "boar_value_3",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        3
+      ]
+    },
+    {
+      "name": "boar_value_4",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        4
+      ]
+    },
+    {
+      "name": "boar_value_5",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        5
+      ]
+    },
+    {
+      "name": "boar_value_6",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        6
+      ]
+    },
+    {
+      "name": "boar_value_7",
+      "default": 4.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "boar_value",
+        7
+      ]
+    },
+    {
+      "name": "boar_blend_alpha_stage1",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "boar_blend_alpha_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "boar_blend_alpha_stage2",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "boar_blend_alpha_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "boar_blend_alpha_stage3",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "boar_blend_alpha_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "boar_blend_alpha_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "boar_blend_alpha_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "boar_blend_alpha_stage5",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "boar_blend_alpha_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "boar_blend_alpha_stage6",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "boar_blend_alpha_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "cattle_value_0",
+      "default": -1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        0
+      ]
+    },
+    {
+      "name": "cattle_value_1",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        1
+      ]
+    },
+    {
+      "name": "cattle_value_2",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        2
+      ]
+    },
+    {
+      "name": "cattle_value_3",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        3
+      ]
+    },
+    {
+      "name": "cattle_value_4",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        4
+      ]
+    },
+    {
+      "name": "cattle_value_5",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        5
+      ]
+    },
+    {
+      "name": "cattle_value_6",
+      "default": 4.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "cattle_value",
+        6
+      ]
+    },
+    {
+      "name": "cattle_blend_alpha_stage1",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "cattle_blend_alpha_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "cattle_blend_alpha_stage2",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "cattle_blend_alpha_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "cattle_blend_alpha_stage3",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "cattle_blend_alpha_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "cattle_blend_alpha_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "cattle_blend_alpha_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "cattle_blend_alpha_stage5",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "cattle_blend_alpha_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "cattle_blend_alpha_stage6",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "cattle_blend_alpha_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "fenced_stable_value_0",
+      "default": 0.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "fenced_stable_value",
+        0
+      ]
+    },
+    {
+      "name": "fenced_stable_value_1",
+      "default": 1.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "fenced_stable_value",
+        1
+      ]
+    },
+    {
+      "name": "fenced_stable_value_2",
+      "default": 2.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "fenced_stable_value",
+        2
+      ]
+    },
+    {
+      "name": "fenced_stable_value_3",
+      "default": 3.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "fenced_stable_value",
+        3
+      ]
+    },
+    {
+      "name": "fenced_stable_value_4",
+      "default": 4.0,
+      "lower": -3.0,
+      "upper": 8.0,
+      "path": [
+        "fenced_stable_value",
+        4
+      ]
+    },
+    {
+      "name": "fenced_stable_blend_alpha_stage1",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "fenced_stable_blend_alpha_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "fenced_stable_blend_alpha_stage2",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "fenced_stable_blend_alpha_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "fenced_stable_blend_alpha_stage3",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "fenced_stable_blend_alpha_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "fenced_stable_blend_alpha_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "fenced_stable_blend_alpha_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "fenced_stable_blend_alpha_stage5",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "fenced_stable_blend_alpha_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "fenced_stable_blend_alpha_stage6",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 1.0,
+      "path": [
+        "fenced_stable_blend_alpha_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "cattle_breeding_pair_value",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 5.0,
+      "path": [
+        "cattle_breeding_pair_value"
+      ]
+    },
+    {
+      "name": "cattle_breed_weight_stage1",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "cattle_breeding_pair_weight_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "cattle_breed_weight_stage2",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "cattle_breeding_pair_weight_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "cattle_breed_weight_stage3",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "cattle_breeding_pair_weight_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "cattle_breed_weight_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "cattle_breeding_pair_weight_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "cattle_breed_weight_stage5",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "cattle_breeding_pair_weight_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "cattle_breed_weight_stage6",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "cattle_breeding_pair_weight_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "boar_breeding_pair_value",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 5.0,
+      "path": [
+        "boar_breeding_pair_value"
+      ]
+    },
+    {
+      "name": "boar_breed_weight_stage1",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "boar_breeding_pair_weight_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "boar_breed_weight_stage2",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "boar_breeding_pair_weight_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "boar_breed_weight_stage3",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "boar_breeding_pair_weight_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "boar_breed_weight_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "boar_breeding_pair_weight_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "boar_breed_weight_stage5",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "boar_breeding_pair_weight_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "boar_breed_weight_stage6",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "boar_breeding_pair_weight_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "sheep_breeding_pair_value",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 5.0,
+      "path": [
+        "sheep_breeding_pair_value"
+      ]
+    },
+    {
+      "name": "sheep_breed_weight_stage1",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "sheep_breeding_pair_weight_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "sheep_breed_weight_stage2",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "sheep_breeding_pair_weight_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "sheep_breed_weight_stage3",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "sheep_breeding_pair_weight_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "sheep_breed_weight_stage4",
+      "default": 0.5,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "sheep_breeding_pair_weight_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "sheep_breed_weight_stage5",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "sheep_breeding_pair_weight_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "sheep_breed_weight_stage6",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "sheep_breeding_pair_weight_by_stage",
+        5
+      ]
+    },
+    {
+      "name": "unfenced_stable_value_0",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_value",
+        0
+      ]
+    },
+    {
+      "name": "unfenced_stable_value_1",
+      "default": 0.4,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_value",
+        1
+      ]
+    },
+    {
+      "name": "unfenced_stable_value_2",
+      "default": 0.8,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_value",
+        2
+      ]
+    },
+    {
+      "name": "unfenced_stable_value_3",
+      "default": 1.2,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_value",
+        3
+      ]
+    },
+    {
+      "name": "unfenced_stable_value_4",
+      "default": 1.6,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_value",
+        4
+      ]
+    },
+    {
+      "name": "unfenced_stable_weight_stage1",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_weight_by_stage",
+        0
+      ]
+    },
+    {
+      "name": "unfenced_stable_weight_stage2",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_weight_by_stage",
+        1
+      ]
+    },
+    {
+      "name": "unfenced_stable_weight_stage3",
+      "default": 1.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_weight_by_stage",
+        2
+      ]
+    },
+    {
+      "name": "unfenced_stable_weight_stage4",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_weight_by_stage",
+        3
+      ]
+    },
+    {
+      "name": "unfenced_stable_weight_stage5",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_weight_by_stage",
+        4
+      ]
+    },
+    {
+      "name": "unfenced_stable_weight_stage6",
+      "default": 0.0,
+      "lower": 0.0,
+      "upper": 3.0,
+      "path": [
+        "unfenced_stable_weight_by_stage",
+        5
+      ]
+    }
+  ],
+  "n_seeds": 40,
+  "training_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+  ],
+  "holdout_seeds": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1005,
+    1006,
+    1007,
+    1008,
+    1009,
+    1010,
+    1011,
+    1012,
+    1013,
+    1014,
+    1015,
+    1016,
+    1017,
+    1018,
+    1019,
+    1020,
+    1021,
+    1022,
+    1023,
+    1024,
+    1025,
+    1026,
+    1027,
+    1028,
+    1029,
+    1030,
+    1031,
+    1032,
+    1033,
+    1034,
+    1035,
+    1036,
+    1037,
+    1038,
+    1039,
+    1040,
+    1041,
+    1042,
+    1043,
+    1044,
+    1045,
+    1046,
+    1047,
+    1048,
+    1049,
+    1050,
+    1051,
+    1052,
+    1053,
+    1054,
+    1055,
+    1056,
+    1057,
+    1058,
+    1059,
+    1060,
+    1061,
+    1062,
+    1063,
+    1064,
+    1065,
+    1066,
+    1067,
+    1068,
+    1069,
+    1070,
+    1071,
+    1072,
+    1073,
+    1074,
+    1075,
+    1076,
+    1077,
+    1078,
+    1079,
+    1080,
+    1081,
+    1082,
+    1083,
+    1084,
+    1085,
+    1086,
+    1087,
+    1088,
+    1089,
+    1090,
+    1091,
+    1092,
+    1093,
+    1094,
+    1095,
+    1096,
+    1097,
+    1098,
+    1099
+  ],
+  "popsize": 16,
+  "max_gens": 20,
+  "sigma0": 0.3,
+  "cma_seed": 1,
+  "best_x": [
+    -0.4624930295968219,
+    0.09115110413918935,
+    2.8075065172141254,
+    2.973771882276376,
+    2.9638212966395057,
+    0.025355478739423565,
+    -0.3598354973662375,
+    -0.09172567267615024,
+    0.8743602381518548,
+    0.6197245038191113,
+    0.07641175641529276,
+    0.41056820472830224,
+    0.9902970991401091,
+    0.25208303570409646,
+    0.916995086147176,
+    0.42330222295212094,
+    -1.0336143121956693,
+    1.466187696393114,
+    0.5288893026257414,
+    1.0590073527065595,
+    2.650301779980609,
+    3.162902345461874,
+    2.97994483688866,
+    3.3585854995312387,
+    4.653865952771882,
+    0.07991518345543319,
+    0.06307422190726114,
+    0.6056490070263489,
+    0.7098443860251149,
+    0.6547513531840998,
+    0.8987304668701268,
+    -0.24386752546302146,
+    0.3123565073243688,
+    0.5401944876652904,
+    2.576283282656674,
+    1.5990842331309398,
+    2.8861444556077496,
+    3.0773276579306454,
+    4.673929174012819,
+    0.6148693007819027,
+    0.5275388954174911,
+    0.3416233429486416,
+    0.10345893682770001,
+    0.7298706480505895,
+    0.24371536249462308,
+    -0.3036705917024335,
+    1.1267938033997593,
+    2.2272188238631063,
+    2.440690716720594,
+    3.260890261026905,
+    3.0591129436452924,
+    4.6696652594759795,
+    0.19887021004884609,
+    0.6646984115529655,
+    0.43170715460875586,
+    0.01624284918125429,
+    0.5950418082764545,
+    0.6060706808128822,
+    -0.4384816589112238,
+    1.2735871274706454,
+    1.3926881651065828,
+    2.7309872759496616,
+    4.348672754387895,
+    0.7217447091469661,
+    0.6013399169524533,
+    0.9182466097312431,
+    0.4518562683201029,
+    0.6961536075933064,
+    0.9391886526576012,
+    0.7754522524230492,
+    1.2554501362841335,
+    1.7532909946188597,
+    0.9809333357247281,
+    1.0107602225929793,
+    0.0700811030529617,
+    0.014617588815129232,
+    0.7757183322424859,
+    1.179582498282757,
+    1.0339908935268833,
+    0.8027503005968339,
+    1.0533771834530266,
+    0.016579298795818924,
+    0.3364692396309786,
+    1.3797190003482511,
+    0.21002275566853384,
+    1.360054510232911,
+    0.8377323150597034,
+    0.5587494861193021,
+    0.04368550342037593,
+    0.4687731076648621,
+    0.4143796046615451,
+    0.473546996581038,
+    1.8107009480184382,
+    1.4449678310508522,
+    2.12869611680487,
+    1.471823226877588,
+    0.49098163962838914,
+    0.1542200894215405,
+    0.5249979454447556,
+    0.2539852977719531,
+    0.2855872593234149
+  ],
+  "best_margin": 2.5855914246939995,
+  "best_config": {
+    "plowed_field_value": [
+      -1.7266083212703964,
+      -0.5621920988244552,
+      0.7368614052285205,
+      2.4579362321761105,
+      3.103130690613365,
+      3.744525886836803,
+      3.4935707846452355
+    ],
+    "field_blend_alpha_by_stage": [
+      0.3043658501292843,
+      0.9251583100065973,
+      0.15339299127978415,
+      0.8130448813912364,
+      0.7097351558231692,
+      0.2961968947075374
+    ],
+    "grain_value": [
+      -0.9440554575033977,
+      0.16364808381857165,
+      1.9484860618859847,
+      1.1736392166026717,
+      2.2089380211691263,
+      1.7083084319808097,
+      3.616310104764947,
+      3.2136355101576535,
+      4.344043544090224,
+      5.313568812549403
+    ],
+    "grain_blend_alpha_by_stage": [
+      0.9876777623956252,
+      0.037590931615372726,
+      0.5943545909362872,
+      0.19567958119143736,
+      0.7573162315195521,
+      0.11712038089666482
+    ],
+    "veg_value": [
+      -0.9850506397143026,
+      0.9797007384641823,
+      2.5438273001728358,
+      3.311159361941631,
+      4.306245800700898
+    ],
+    "veg_blend_alpha_by_stage": [
+      0.9656402427151589,
+      0.4941201402670842,
+      0.7605862002549473,
+      0.3619474165172427,
+      0.33161808348896943,
+      0.8238853139402138
+    ],
+    "pasture_value_all": [
+      -0.4624930295968219,
+      0.09115110413918935,
+      2.8075065172141254,
+      2.973771882276376,
+      2.9638212966395057
+    ],
+    "pasture_value_large": [
+      0.025355478739423565,
+      -0.3598354973662375,
+      -0.09172567267615024,
+      0.8743602381518548,
+      0.6197245038191113
+    ],
+    "pasture_blend_alpha_by_stage": [
+      0.07641175641529276,
+      0.41056820472830224,
+      0.9902970991401091,
+      0.25208303570409646,
+      0.916995086147176,
+      0.42330222295212094
+    ],
+    "sheep_value": [
+      -1.0336143121956693,
+      1.466187696393114,
+      0.5288893026257414,
+      1.0590073527065595,
+      2.650301779980609,
+      3.162902345461874,
+      2.97994483688866,
+      3.3585854995312387,
+      4.653865952771882
+    ],
+    "sheep_blend_alpha_by_stage": [
+      0.07991518345543319,
+      0.06307422190726114,
+      0.6056490070263489,
+      0.7098443860251149,
+      0.6547513531840998,
+      0.8987304668701268
+    ],
+    "boar_value": [
+      -0.24386752546302146,
+      0.3123565073243688,
+      0.5401944876652904,
+      2.576283282656674,
+      1.5990842331309398,
+      2.8861444556077496,
+      3.0773276579306454,
+      4.673929174012819
+    ],
+    "boar_blend_alpha_by_stage": [
+      0.6148693007819027,
+      0.5275388954174911,
+      0.3416233429486416,
+      0.10345893682770001,
+      0.7298706480505895,
+      0.24371536249462308
+    ],
+    "cattle_value": [
+      -0.3036705917024335,
+      1.1267938033997593,
+      2.2272188238631063,
+      2.440690716720594,
+      3.260890261026905,
+      3.0591129436452924,
+      4.6696652594759795
+    ],
+    "cattle_blend_alpha_by_stage": [
+      0.19887021004884609,
+      0.6646984115529655,
+      0.43170715460875586,
+      0.01624284918125429,
+      0.5950418082764545,
+      0.6060706808128822
+    ],
+    "fenced_stable_value": [
+      -0.4384816589112238,
+      1.2735871274706454,
+      1.3926881651065828,
+      2.7309872759496616,
+      4.348672754387895
+    ],
+    "fenced_stable_blend_alpha_by_stage": [
+      0.7217447091469661,
+      0.6013399169524533,
+      0.9182466097312431,
+      0.4518562683201029,
+      0.6961536075933064,
+      0.9391886526576012
+    ],
+    "unused_spaces_alpha_by_stage": [
+      1.0,
+      0.7,
+      0.5,
+      0.3,
+      0.1,
+      0.0
+    ],
+    "grain_pair_value": [
+      0.16206435340531444,
+      1.323243503197304,
+      0.6715261719958664,
+      2.146203118911522
+    ],
+    "grain_pair_weight_by_stage": [
+      1.0817884679257834,
+      0.9858890733699476,
+      0.4278246781138142,
+      0.12737153797992645,
+      0.3153866560670566,
+      0.18202111351153874
+    ],
+    "veg_pair_value": [
+      0.8819766956114987,
+      0.06696972518525018,
+      2.0033424922935947,
+      1.4343677856644004
+    ],
+    "veg_pair_weight_by_stage": [
+      0.5931131632389852,
+      1.653438647675839,
+      0.9809282589833415,
+      1.2053488694141477,
+      0.2563406247983561,
+      0.30445435723788594
+    ],
+    "cattle_breeding_pair_value": 0.7754522524230492,
+    "cattle_breeding_pair_weight_by_stage": [
+      1.2554501362841335,
+      1.7532909946188597,
+      0.9809333357247281,
+      1.0107602225929793,
+      0.0700811030529617,
+      0.014617588815129232
+    ],
+    "boar_breeding_pair_value": 0.7757183322424859,
+    "boar_breeding_pair_weight_by_stage": [
+      1.179582498282757,
+      1.0339908935268833,
+      0.8027503005968339,
+      1.0533771834530266,
+      0.016579298795818924,
+      0.3364692396309786
+    ],
+    "sheep_breeding_pair_value": 1.3797190003482511,
+    "sheep_breeding_pair_weight_by_stage": [
+      0.21002275566853384,
+      1.360054510232911,
+      0.8377323150597034,
+      0.5587494861193021,
+      0.04368550342037593,
+      0.4687731076648621
+    ],
+    "unfenced_stable_value": [
+      0.4143796046615451,
+      0.473546996581038,
+      1.8107009480184382,
+      1.4449678310508522,
+      2.12869611680487
+    ],
+    "unfenced_stable_weight_by_stage": [
+      1.471823226877588,
+      0.49098163962838914,
+      0.1542200894215405,
+      0.5249979454447556,
+      0.2539852977719531,
+      0.2855872593234149
+    ],
+    "wood_fence_vector": [
+      0.3246938729178447,
+      0.520332223467572,
+      0.24097900244402154,
+      1.8629605559579439,
+      0.34788169073704955,
+      1.4849980247497048,
+      0.03278945983069954,
+      0.29907370633792785,
+      1.5580223289895092,
+      1.826669387316185,
+      0.319477269311897,
+      1.4415222397374878,
+      0.7614154168469672,
+      1.0413445905154672,
+      2.418316238108715
+    ],
+    "wood_pre_3rd_room_vector": [
+      0.6283698883532207,
+      0.5793549123724867,
+      0.8148619075838591,
+      0.48971047446959537,
+      0.6791932854066727
+    ],
+    "wood_generic_value": 0.013762997790978941,
+    "wood_weight_by_stage": [
+      1.0647081839876487,
+      0.9022621451084131,
+      0.06928170035153774,
+      1.0650655982939814,
+      0.7853259409452277,
+      0.056762253813550545
+    ],
+    "wood_flat_bonus": 0.0,
+    "temperature": 0.0,
+    "reed_room_vector": [
+      3.6116515207000086,
+      0.5014030378479477,
+      0.31071756635118897,
+      1.1743279872653312,
+      0.6088004865978759,
+      1.6557962439594283
+    ],
+    "reed_renovation_vector": [
+      0.36326242433194583,
+      0.8116135078730633
+    ],
+    "reed_generic_value": 0.019787335246017664,
+    "reed_weight_by_stage": [
+      2.7400098751474404,
+      0.2587437233930094,
+      0.5145184686935527,
+      1.6168130875428997,
+      0.279933001779872,
+      0.656130634887806
+    ],
+    "clay_cookware_vector": [
+      0.07018399159728292,
+      1.185396472271218,
+      0.8522563655164861,
+      1.07069394848706,
+      0.3412819643331977
+    ],
+    "clay_renovation_per_room": 0.37959427274899954,
+    "clay_generic_value": 0.822023070265842,
+    "clay_weight_by_stage": [
+      1.384492063337181,
+      0.4777391434271049,
+      1.2998465530073489,
+      0.7956975358160285,
+      0.6105867360090373,
+      0.2030498447851358
+    ],
+    "stone_renovation_per_room": 0.2948664312758073,
+    "stone_generic_value": 0.07861766886297361,
+    "stone_weight_by_stage": [
+      1.0255892712184442,
+      1.461856359365624,
+      2.4172207116070115,
+      2.042314317649033,
+      0.8980967874955763,
+      0.05040085705610156
+    ],
+    "score_joint_alpha_by_stage": [
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "family_per_round": [
+      3.292323267102328,
+      2.2556860160847774,
+      2.004865826860955
+    ],
+    "empty_room_rate_pre_basic_wish": 2.616157917681491,
+    "empty_room_rate_post_basic_wish": 2.922029893978679,
+    "starting_player_bonus": 1.2280813469772174,
+    "field_center_bonus": 0.1,
+    "pasture_location_bonus": 0.05,
+    "renovation_bonus_per_step_early": 0.0,
+    "renovation_bonus_per_step_late": 0.0,
+    "fireplace_value_by_stage": [
+      5.292838631258652,
+      5.999862689645461,
+      8.429852864867257,
+      4.057923171005331,
+      1.9573889403488849,
+      1.4573622435866178
+    ],
+    "hearth_value_by_stage": [
+      5.342619215685751,
+      6.094341689260205,
+      3.78289212633999,
+      4.7765682117598205,
+      2.6405715853030474,
+      2.1073655029309037
+    ],
+    "well_value_by_stage": [
+      4.485789795491342,
+      3.6735408411926427,
+      4.156924349705205,
+      4.158012099187837,
+      3.134430329180011,
+      3.48544501957924
+    ],
+    "clay_oven_value_by_stage": [
+      3.151759779119768,
+      0.8823859466171935,
+      3.4766469073238917,
+      1.8029423491695562,
+      2.1079897801734697,
+      3.30696688914349
+    ],
+    "stone_oven_value_by_stage": [
+      2.1623740132559885,
+      2.0525225425744553,
+      2.310180823953716,
+      3.793681064750031,
+      3.931093426106724,
+      3.222353398827942
+    ],
+    "joinery_value_by_stage": [
+      2.4114147066096203,
+      2.551589650530875,
+      3.5649331028368536,
+      1.47366364926657,
+      0.6124627339517025,
+      1.5088921048474389
+    ],
+    "pottery_value_by_stage": [
+      2.308040552090697,
+      0.6842792348317576,
+      0.6866981187389712,
+      0.6317243020511807,
+      1.5701124579009915,
+      0.9879172842553301
+    ],
+    "basketmaker_value_by_stage": [
+      1.4815969838294478,
+      2.1024786482577866,
+      0.3893119483876175,
+      2.667324223939516,
+      1.4570808645625901,
+      3.164792165495042
+    ],
+    "fireplace_value": 4.80973022568891,
+    "fireplace_value_mid": 2.471273053448844,
+    "fireplace_value_late": 0.1474925121229842,
+    "hearth_value": 5.246727936850129,
+    "hearth_value_mid": 2.718190472453053,
+    "hearth_value_late": 0.8213097609387353,
+    "cooking_secondary_vp": 0.48196317373922687,
+    "well_value": 4.0,
+    "well_food_per_future": 0.4,
+    "clay_oven_value": 2.0,
+    "stone_oven_value": 3.0,
+    "joinery_value": 2.0,
+    "pottery_value": 2.0,
+    "basketmaker_value": 2.0,
+    "hubris_food_by_stage": [
+      [
+        1.5939353882180005,
+        1.7233400173940456
+      ],
+      [
+        1.1400000540294648,
+        0.0908195237410181
+      ],
+      [
+        0.962470893247652,
+        0.909031640474397
+      ],
+      [
+        1.6452128254929614,
+        0.6830738186059195
+      ],
+      [
+        0.5346202471630035,
+        0.017813525632038613
+      ],
+      [
+        0.18552824953727975,
+        0.015011502711698863
+      ]
+    ],
+    "hubris_begging_by_moves": [
+      -2.0987418361919272,
+      -2.0668255465662706,
+      -2.6239048628319894,
+      -0.10235219369821866,
+      -1.3499205360114095,
+      -0.8880370864864837
+    ]
+  },
+  "history": [
+    {
+      "generation": 1,
+      "best_margin_so_far": 2.578906180586798,
+      "best_x_so_far": [
+        -0.4538953376225928,
+        0.9730466146522049,
+        1.9567720421445307,
+        2.9667579438149914,
+        2.8703524247633774,
+        0.5747148625114592,
+        -0.8164913073555095,
+        -0.04759993916820966,
+        0.7327531738238273,
+        0.2374677397106164,
+        0.37804440500796255,
+        0.9950103707531026,
+        0.9024095368955929,
+        0.137856581285,
+        0.8871526793786595,
+        0.40135163777009575,
+        -0.9216485224991587,
+        0.9743747383351263,
+        0.9688394855781761,
+        0.7941066637229702,
+        2.5674080022257435,
+        2.144732265757355,
+        3.1088577391085774,
+        3.218834746094894,
+        4.530844590514425,
+        0.9083998840732476,
+        0.0030184365231674427,
+        0.7807378100671836,
+        0.011535801316681875,
+        0.5332076034082495,
+        0.7015855241245547,
+        -1.057094344482664,
+        0.849845307970794,
+        0.727488449262033,
+        2.4842610812692865,
+        1.4322120427044904,
+        3.1069615972596996,
+        2.908902342816976,
+        4.266866552767188,
+        0.5327732877070539,
+        0.6282114622285754,
+        0.8047898140818183,
+        0.242362186895079,
+        0.9991333527350509,
+        0.5237700857485627,
+        -0.37200595975553546,
+        0.7672430643470615,
+        2.258548971336853,
+        2.3692387962419064,
+        2.9397056931998566,
+        2.5986274696793914,
+        4.6552745302615035,
+        0.48001630868191325,
+        0.9513290131126497,
+        0.001832863264990255,
+        0.14780460083297936,
+        0.9989180651033517,
+        0.8646670228909299,
+        -0.8416486146256552,
+        0.9448309621119036,
+        2.0206455278534605,
+        2.238277566952783,
+        4.016608963869733,
+        0.4516338862375389,
+        0.254964265790739,
+        0.9387574902132442,
+        0.7700429552936404,
+        0.9742821371754673,
+        0.681516566884866,
+        0.9499069675320433,
+        0.8609175478875393,
+        1.9621968404582069,
+        0.21106159414623904,
+        0.8557755778384928,
+        0.08699926071181752,
+        0.003074769801523349,
+        1.1608055791973586,
+        1.1584434138409199,
+        0.6899807964307839,
+        0.5048750523436603,
+        0.8894709686327008,
+        0.000511758299632086,
+        0.3636965962237982,
+        0.7174760393597392,
+        0.8627369781127762,
+        1.2272029094739352,
+        0.9094359775743064,
+        0.8524271180498557,
+        0.12496537306464522,
+        0.5580139628943194,
+        0.07818759219129881,
+        0.6463448849902176,
+        1.3703174651713763,
+        1.652434707604037,
+        1.7807801329762043,
+        0.6784612816022327,
+        0.8231491920545952,
+        0.43142591708606753,
+        0.35151666965097594,
+        0.02464827220717466,
+        0.6981564449508867
+      ],
+      "gen_best_margin": 2.578906180586798,
+      "gen_mean_margin": 2.2929495280521177,
+      "elapsed_seconds": 500.59898120816797
+    },
+    {
+      "generation": 2,
+      "best_margin_so_far": 2.578906180586798,
+      "best_x_so_far": [
+        -0.4538953376225928,
+        0.9730466146522049,
+        1.9567720421445307,
+        2.9667579438149914,
+        2.8703524247633774,
+        0.5747148625114592,
+        -0.8164913073555095,
+        -0.04759993916820966,
+        0.7327531738238273,
+        0.2374677397106164,
+        0.37804440500796255,
+        0.9950103707531026,
+        0.9024095368955929,
+        0.137856581285,
+        0.8871526793786595,
+        0.40135163777009575,
+        -0.9216485224991587,
+        0.9743747383351263,
+        0.9688394855781761,
+        0.7941066637229702,
+        2.5674080022257435,
+        2.144732265757355,
+        3.1088577391085774,
+        3.218834746094894,
+        4.530844590514425,
+        0.9083998840732476,
+        0.0030184365231674427,
+        0.7807378100671836,
+        0.011535801316681875,
+        0.5332076034082495,
+        0.7015855241245547,
+        -1.057094344482664,
+        0.849845307970794,
+        0.727488449262033,
+        2.4842610812692865,
+        1.4322120427044904,
+        3.1069615972596996,
+        2.908902342816976,
+        4.266866552767188,
+        0.5327732877070539,
+        0.6282114622285754,
+        0.8047898140818183,
+        0.242362186895079,
+        0.9991333527350509,
+        0.5237700857485627,
+        -0.37200595975553546,
+        0.7672430643470615,
+        2.258548971336853,
+        2.3692387962419064,
+        2.9397056931998566,
+        2.5986274696793914,
+        4.6552745302615035,
+        0.48001630868191325,
+        0.9513290131126497,
+        0.001832863264990255,
+        0.14780460083297936,
+        0.9989180651033517,
+        0.8646670228909299,
+        -0.8416486146256552,
+        0.9448309621119036,
+        2.0206455278534605,
+        2.238277566952783,
+        4.016608963869733,
+        0.4516338862375389,
+        0.254964265790739,
+        0.9387574902132442,
+        0.7700429552936404,
+        0.9742821371754673,
+        0.681516566884866,
+        0.9499069675320433,
+        0.8609175478875393,
+        1.9621968404582069,
+        0.21106159414623904,
+        0.8557755778384928,
+        0.08699926071181752,
+        0.003074769801523349,
+        1.1608055791973586,
+        1.1584434138409199,
+        0.6899807964307839,
+        0.5048750523436603,
+        0.8894709686327008,
+        0.000511758299632086,
+        0.3636965962237982,
+        0.7174760393597392,
+        0.8627369781127762,
+        1.2272029094739352,
+        0.9094359775743064,
+        0.8524271180498557,
+        0.12496537306464522,
+        0.5580139628943194,
+        0.07818759219129881,
+        0.6463448849902176,
+        1.3703174651713763,
+        1.652434707604037,
+        1.7807801329762043,
+        0.6784612816022327,
+        0.8231491920545952,
+        0.43142591708606753,
+        0.35151666965097594,
+        0.02464827220717466,
+        0.6981564449508867
+      ],
+      "gen_best_margin": 2.408925456699033,
+      "gen_mean_margin": 2.2546000382556657,
+      "elapsed_seconds": 1182.2618059171364
+    },
+    {
+      "generation": 3,
+      "best_margin_so_far": 2.578906180586798,
+      "best_x_so_far": [
+        -0.4538953376225928,
+        0.9730466146522049,
+        1.9567720421445307,
+        2.9667579438149914,
+        2.8703524247633774,
+        0.5747148625114592,
+        -0.8164913073555095,
+        -0.04759993916820966,
+        0.7327531738238273,
+        0.2374677397106164,
+        0.37804440500796255,
+        0.9950103707531026,
+        0.9024095368955929,
+        0.137856581285,
+        0.8871526793786595,
+        0.40135163777009575,
+        -0.9216485224991587,
+        0.9743747383351263,
+        0.9688394855781761,
+        0.7941066637229702,
+        2.5674080022257435,
+        2.144732265757355,
+        3.1088577391085774,
+        3.218834746094894,
+        4.530844590514425,
+        0.9083998840732476,
+        0.0030184365231674427,
+        0.7807378100671836,
+        0.011535801316681875,
+        0.5332076034082495,
+        0.7015855241245547,
+        -1.057094344482664,
+        0.849845307970794,
+        0.727488449262033,
+        2.4842610812692865,
+        1.4322120427044904,
+        3.1069615972596996,
+        2.908902342816976,
+        4.266866552767188,
+        0.5327732877070539,
+        0.6282114622285754,
+        0.8047898140818183,
+        0.242362186895079,
+        0.9991333527350509,
+        0.5237700857485627,
+        -0.37200595975553546,
+        0.7672430643470615,
+        2.258548971336853,
+        2.3692387962419064,
+        2.9397056931998566,
+        2.5986274696793914,
+        4.6552745302615035,
+        0.48001630868191325,
+        0.9513290131126497,
+        0.001832863264990255,
+        0.14780460083297936,
+        0.9989180651033517,
+        0.8646670228909299,
+        -0.8416486146256552,
+        0.9448309621119036,
+        2.0206455278534605,
+        2.238277566952783,
+        4.016608963869733,
+        0.4516338862375389,
+        0.254964265790739,
+        0.9387574902132442,
+        0.7700429552936404,
+        0.9742821371754673,
+        0.681516566884866,
+        0.9499069675320433,
+        0.8609175478875393,
+        1.9621968404582069,
+        0.21106159414623904,
+        0.8557755778384928,
+        0.08699926071181752,
+        0.003074769801523349,
+        1.1608055791973586,
+        1.1584434138409199,
+        0.6899807964307839,
+        0.5048750523436603,
+        0.8894709686327008,
+        0.000511758299632086,
+        0.3636965962237982,
+        0.7174760393597392,
+        0.8627369781127762,
+        1.2272029094739352,
+        0.9094359775743064,
+        0.8524271180498557,
+        0.12496537306464522,
+        0.5580139628943194,
+        0.07818759219129881,
+        0.6463448849902176,
+        1.3703174651713763,
+        1.652434707604037,
+        1.7807801329762043,
+        0.6784612816022327,
+        0.8231491920545952,
+        0.43142591708606753,
+        0.35151666965097594,
+        0.02464827220717466,
+        0.6981564449508867
+      ],
+      "gen_best_margin": 2.3295235445303613,
+      "gen_mean_margin": 2.097715338175646,
+      "elapsed_seconds": 1568.048295042012
+    },
+    {
+      "generation": 4,
+      "best_margin_so_far": 2.578906180586798,
+      "best_x_so_far": [
+        -0.4538953376225928,
+        0.9730466146522049,
+        1.9567720421445307,
+        2.9667579438149914,
+        2.8703524247633774,
+        0.5747148625114592,
+        -0.8164913073555095,
+        -0.04759993916820966,
+        0.7327531738238273,
+        0.2374677397106164,
+        0.37804440500796255,
+        0.9950103707531026,
+        0.9024095368955929,
+        0.137856581285,
+        0.8871526793786595,
+        0.40135163777009575,
+        -0.9216485224991587,
+        0.9743747383351263,
+        0.9688394855781761,
+        0.7941066637229702,
+        2.5674080022257435,
+        2.144732265757355,
+        3.1088577391085774,
+        3.218834746094894,
+        4.530844590514425,
+        0.9083998840732476,
+        0.0030184365231674427,
+        0.7807378100671836,
+        0.011535801316681875,
+        0.5332076034082495,
+        0.7015855241245547,
+        -1.057094344482664,
+        0.849845307970794,
+        0.727488449262033,
+        2.4842610812692865,
+        1.4322120427044904,
+        3.1069615972596996,
+        2.908902342816976,
+        4.266866552767188,
+        0.5327732877070539,
+        0.6282114622285754,
+        0.8047898140818183,
+        0.242362186895079,
+        0.9991333527350509,
+        0.5237700857485627,
+        -0.37200595975553546,
+        0.7672430643470615,
+        2.258548971336853,
+        2.3692387962419064,
+        2.9397056931998566,
+        2.5986274696793914,
+        4.6552745302615035,
+        0.48001630868191325,
+        0.9513290131126497,
+        0.001832863264990255,
+        0.14780460083297936,
+        0.9989180651033517,
+        0.8646670228909299,
+        -0.8416486146256552,
+        0.9448309621119036,
+        2.0206455278534605,
+        2.238277566952783,
+        4.016608963869733,
+        0.4516338862375389,
+        0.254964265790739,
+        0.9387574902132442,
+        0.7700429552936404,
+        0.9742821371754673,
+        0.681516566884866,
+        0.9499069675320433,
+        0.8609175478875393,
+        1.9621968404582069,
+        0.21106159414623904,
+        0.8557755778384928,
+        0.08699926071181752,
+        0.003074769801523349,
+        1.1608055791973586,
+        1.1584434138409199,
+        0.6899807964307839,
+        0.5048750523436603,
+        0.8894709686327008,
+        0.000511758299632086,
+        0.3636965962237982,
+        0.7174760393597392,
+        0.8627369781127762,
+        1.2272029094739352,
+        0.9094359775743064,
+        0.8524271180498557,
+        0.12496537306464522,
+        0.5580139628943194,
+        0.07818759219129881,
+        0.6463448849902176,
+        1.3703174651713763,
+        1.652434707604037,
+        1.7807801329762043,
+        0.6784612816022327,
+        0.8231491920545952,
+        0.43142591708606753,
+        0.35151666965097594,
+        0.02464827220717466,
+        0.6981564449508867
+      ],
+      "gen_best_margin": 2.295199248794853,
+      "gen_mean_margin": 2.125436013626789,
+      "elapsed_seconds": 1944.962197832996
+    },
+    {
+      "generation": 5,
+      "best_margin_so_far": 2.578906180586798,
+      "best_x_so_far": [
+        -0.4538953376225928,
+        0.9730466146522049,
+        1.9567720421445307,
+        2.9667579438149914,
+        2.8703524247633774,
+        0.5747148625114592,
+        -0.8164913073555095,
+        -0.04759993916820966,
+        0.7327531738238273,
+        0.2374677397106164,
+        0.37804440500796255,
+        0.9950103707531026,
+        0.9024095368955929,
+        0.137856581285,
+        0.8871526793786595,
+        0.40135163777009575,
+        -0.9216485224991587,
+        0.9743747383351263,
+        0.9688394855781761,
+        0.7941066637229702,
+        2.5674080022257435,
+        2.144732265757355,
+        3.1088577391085774,
+        3.218834746094894,
+        4.530844590514425,
+        0.9083998840732476,
+        0.0030184365231674427,
+        0.7807378100671836,
+        0.011535801316681875,
+        0.5332076034082495,
+        0.7015855241245547,
+        -1.057094344482664,
+        0.849845307970794,
+        0.727488449262033,
+        2.4842610812692865,
+        1.4322120427044904,
+        3.1069615972596996,
+        2.908902342816976,
+        4.266866552767188,
+        0.5327732877070539,
+        0.6282114622285754,
+        0.8047898140818183,
+        0.242362186895079,
+        0.9991333527350509,
+        0.5237700857485627,
+        -0.37200595975553546,
+        0.7672430643470615,
+        2.258548971336853,
+        2.3692387962419064,
+        2.9397056931998566,
+        2.5986274696793914,
+        4.6552745302615035,
+        0.48001630868191325,
+        0.9513290131126497,
+        0.001832863264990255,
+        0.14780460083297936,
+        0.9989180651033517,
+        0.8646670228909299,
+        -0.8416486146256552,
+        0.9448309621119036,
+        2.0206455278534605,
+        2.238277566952783,
+        4.016608963869733,
+        0.4516338862375389,
+        0.254964265790739,
+        0.9387574902132442,
+        0.7700429552936404,
+        0.9742821371754673,
+        0.681516566884866,
+        0.9499069675320433,
+        0.8609175478875393,
+        1.9621968404582069,
+        0.21106159414623904,
+        0.8557755778384928,
+        0.08699926071181752,
+        0.003074769801523349,
+        1.1608055791973586,
+        1.1584434138409199,
+        0.6899807964307839,
+        0.5048750523436603,
+        0.8894709686327008,
+        0.000511758299632086,
+        0.3636965962237982,
+        0.7174760393597392,
+        0.8627369781127762,
+        1.2272029094739352,
+        0.9094359775743064,
+        0.8524271180498557,
+        0.12496537306464522,
+        0.5580139628943194,
+        0.07818759219129881,
+        0.6463448849902176,
+        1.3703174651713763,
+        1.652434707604037,
+        1.7807801329762043,
+        0.6784612816022327,
+        0.8231491920545952,
+        0.43142591708606753,
+        0.35151666965097594,
+        0.02464827220717466,
+        0.6981564449508867
+      ],
+      "gen_best_margin": 2.253557270067079,
+      "gen_mean_margin": 2.1223723707409325,
+      "elapsed_seconds": 2326.1749729581643
+    },
+    {
+      "generation": 6,
+      "best_margin_so_far": 2.578906180586798,
+      "best_x_so_far": [
+        -0.4538953376225928,
+        0.9730466146522049,
+        1.9567720421445307,
+        2.9667579438149914,
+        2.8703524247633774,
+        0.5747148625114592,
+        -0.8164913073555095,
+        -0.04759993916820966,
+        0.7327531738238273,
+        0.2374677397106164,
+        0.37804440500796255,
+        0.9950103707531026,
+        0.9024095368955929,
+        0.137856581285,
+        0.8871526793786595,
+        0.40135163777009575,
+        -0.9216485224991587,
+        0.9743747383351263,
+        0.9688394855781761,
+        0.7941066637229702,
+        2.5674080022257435,
+        2.144732265757355,
+        3.1088577391085774,
+        3.218834746094894,
+        4.530844590514425,
+        0.9083998840732476,
+        0.0030184365231674427,
+        0.7807378100671836,
+        0.011535801316681875,
+        0.5332076034082495,
+        0.7015855241245547,
+        -1.057094344482664,
+        0.849845307970794,
+        0.727488449262033,
+        2.4842610812692865,
+        1.4322120427044904,
+        3.1069615972596996,
+        2.908902342816976,
+        4.266866552767188,
+        0.5327732877070539,
+        0.6282114622285754,
+        0.8047898140818183,
+        0.242362186895079,
+        0.9991333527350509,
+        0.5237700857485627,
+        -0.37200595975553546,
+        0.7672430643470615,
+        2.258548971336853,
+        2.3692387962419064,
+        2.9397056931998566,
+        2.5986274696793914,
+        4.6552745302615035,
+        0.48001630868191325,
+        0.9513290131126497,
+        0.001832863264990255,
+        0.14780460083297936,
+        0.9989180651033517,
+        0.8646670228909299,
+        -0.8416486146256552,
+        0.9448309621119036,
+        2.0206455278534605,
+        2.238277566952783,
+        4.016608963869733,
+        0.4516338862375389,
+        0.254964265790739,
+        0.9387574902132442,
+        0.7700429552936404,
+        0.9742821371754673,
+        0.681516566884866,
+        0.9499069675320433,
+        0.8609175478875393,
+        1.9621968404582069,
+        0.21106159414623904,
+        0.8557755778384928,
+        0.08699926071181752,
+        0.003074769801523349,
+        1.1608055791973586,
+        1.1584434138409199,
+        0.6899807964307839,
+        0.5048750523436603,
+        0.8894709686327008,
+        0.000511758299632086,
+        0.3636965962237982,
+        0.7174760393597392,
+        0.8627369781127762,
+        1.2272029094739352,
+        0.9094359775743064,
+        0.8524271180498557,
+        0.12496537306464522,
+        0.5580139628943194,
+        0.07818759219129881,
+        0.6463448849902176,
+        1.3703174651713763,
+        1.652434707604037,
+        1.7807801329762043,
+        0.6784612816022327,
+        0.8231491920545952,
+        0.43142591708606753,
+        0.35151666965097594,
+        0.02464827220717466,
+        0.6981564449508867
+      ],
+      "gen_best_margin": 2.4577835049143175,
+      "gen_mean_margin": 2.2742767650892612,
+      "elapsed_seconds": 2719.7795814999845
+    },
+    {
+      "generation": 7,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.5855914246939995,
+      "gen_mean_margin": 2.4110067080961115,
+      "elapsed_seconds": 3110.2254893751815
+    },
+    {
+      "generation": 8,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.410878176874353,
+      "gen_mean_margin": 2.298604989620573,
+      "elapsed_seconds": 3657.8118499580305
+    },
+    {
+      "generation": 9,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.063113490682861,
+      "gen_mean_margin": 1.8686181376622293,
+      "elapsed_seconds": 4046.318471792154
+    },
+    {
+      "generation": 10,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.2846794610616743,
+      "gen_mean_margin": 2.1029290787923087,
+      "elapsed_seconds": 4430.592672917061
+    },
+    {
+      "generation": 11,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.510998078085795,
+      "gen_mean_margin": 2.3924955003993444,
+      "elapsed_seconds": 4830.099363417132
+    },
+    {
+      "generation": 12,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.4840764073846047,
+      "gen_mean_margin": 2.38669136933295,
+      "elapsed_seconds": 5306.348543583183
+    },
+    {
+      "generation": 13,
+      "best_margin_so_far": 2.5855914246939995,
+      "best_x_so_far": [
+        -0.4624930295968219,
+        0.09115110413918935,
+        2.8075065172141254,
+        2.973771882276376,
+        2.9638212966395057,
+        0.025355478739423565,
+        -0.3598354973662375,
+        -0.09172567267615024,
+        0.8743602381518548,
+        0.6197245038191113,
+        0.07641175641529276,
+        0.41056820472830224,
+        0.9902970991401091,
+        0.25208303570409646,
+        0.916995086147176,
+        0.42330222295212094,
+        -1.0336143121956693,
+        1.466187696393114,
+        0.5288893026257414,
+        1.0590073527065595,
+        2.650301779980609,
+        3.162902345461874,
+        2.97994483688866,
+        3.3585854995312387,
+        4.653865952771882,
+        0.07991518345543319,
+        0.06307422190726114,
+        0.6056490070263489,
+        0.7098443860251149,
+        0.6547513531840998,
+        0.8987304668701268,
+        -0.24386752546302146,
+        0.3123565073243688,
+        0.5401944876652904,
+        2.576283282656674,
+        1.5990842331309398,
+        2.8861444556077496,
+        3.0773276579306454,
+        4.673929174012819,
+        0.6148693007819027,
+        0.5275388954174911,
+        0.3416233429486416,
+        0.10345893682770001,
+        0.7298706480505895,
+        0.24371536249462308,
+        -0.3036705917024335,
+        1.1267938033997593,
+        2.2272188238631063,
+        2.440690716720594,
+        3.260890261026905,
+        3.0591129436452924,
+        4.6696652594759795,
+        0.19887021004884609,
+        0.6646984115529655,
+        0.43170715460875586,
+        0.01624284918125429,
+        0.5950418082764545,
+        0.6060706808128822,
+        -0.4384816589112238,
+        1.2735871274706454,
+        1.3926881651065828,
+        2.7309872759496616,
+        4.348672754387895,
+        0.7217447091469661,
+        0.6013399169524533,
+        0.9182466097312431,
+        0.4518562683201029,
+        0.6961536075933064,
+        0.9391886526576012,
+        0.7754522524230492,
+        1.2554501362841335,
+        1.7532909946188597,
+        0.9809333357247281,
+        1.0107602225929793,
+        0.0700811030529617,
+        0.014617588815129232,
+        0.7757183322424859,
+        1.179582498282757,
+        1.0339908935268833,
+        0.8027503005968339,
+        1.0533771834530266,
+        0.016579298795818924,
+        0.3364692396309786,
+        1.3797190003482511,
+        0.21002275566853384,
+        1.360054510232911,
+        0.8377323150597034,
+        0.5587494861193021,
+        0.04368550342037593,
+        0.4687731076648621,
+        0.4143796046615451,
+        0.473546996581038,
+        1.8107009480184382,
+        1.4449678310508522,
+        2.12869611680487,
+        1.471823226877588,
+        0.49098163962838914,
+        0.1542200894215405,
+        0.5249979454447556,
+        0.2539852977719531,
+        0.2855872593234149
+      ],
+      "gen_best_margin": 2.4778612913859988,
+      "gen_mean_margin": 2.3209728514692305,
+      "elapsed_seconds": 5760.576899833046
+    }
+  ],
+  "holdout": null,
+  "log_path": "tuned_configs/round2_pastures_animals_1779849688.log",
+  "cma_pkl_path": "tuned_configs/round2_pastures_animals_1779849688.cma.pkl",
+  "resumed_from": null,
+  "start_gen": 0
+}

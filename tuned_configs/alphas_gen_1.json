@@ -144,12 +144,12 @@
       0.8374272667458318
     ],
     "unused_spaces_alpha_by_stage": [
-      0.9642329634004886,
-      0.789050757616085,
-      0.6783532700813477,
-      0.007956692199788121,
-      0.26862238944554806,
-      0.01043020549261981
+      1.0,
+      0.7,
+      0.5,
+      0.3,
+      0.1,
+      0.0
     ],
     "grain_pair_value": [
       0.043396686674097344,
@@ -306,25 +306,25 @@
       0.8372771217750825
     ],
     "score_joint_alpha_by_stage": [
-      1.4216399810706295,
-      0.9857780007520262,
-      0.7283824352068393,
-      0.4743286422707904,
-      1.286636678139356,
-      0.37156981649516463
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
     ],
     "family_per_round": [
-      3.202763694191621,
-      2.4067679631964194,
-      1.8076109336256265
+      3.292323267102328,
+      2.2556860160847774,
+      2.004865826860955
     ],
-    "empty_room_rate_pre_basic_wish": 2.9430629900786163,
-    "empty_room_rate_post_basic_wish": 3.7966479877815584,
-    "starting_player_bonus": 0.827958067478633,
-    "field_center_bonus": 0.4292232723471838,
-    "pasture_location_bonus": 0.17834455876945998,
-    "renovation_bonus_per_step_early": 0.09426576031268422,
-    "renovation_bonus_per_step_late": 0.028390790395105878,
+    "empty_room_rate_pre_basic_wish": 2.616157917681491,
+    "empty_room_rate_post_basic_wish": 2.922029893978679,
+    "starting_player_bonus": 1.2280813469772174,
+    "field_center_bonus": 0.1,
+    "pasture_location_bonus": 0.05,
+    "renovation_bonus_per_step_early": 0.0,
+    "renovation_bonus_per_step_late": 0.0,
     "fireplace_value_by_stage": [
       5.620216074096123,
       6.597811825690165,
@@ -439,91 +439,7 @@
     ]
   },
   "candidate_arch": "v3",
-  "label": "alphas_gen_7 manually promoted from wood_r1 rotation",
-  "note": "Chain-end config of the 6-category wood_r1 rotation (gens 7-10 of v3_alphas_and_carryovers all share this same session-best vector). r1_force_forest_bonus=1000 (baked in). Round-robin aggregate: 242/280 (86.4%). Beats v3_best (gen_16) 38-2 (95%). Holdout vs t2 (seeds 1000-1099, n=100): 100-0-0, margin +15.32. Sourced from rotation history: gen 7 best_x_so_far.",
-  "holdout": {
-    "n_games": 100,
-    "p0_wins": 100,
-    "p1_wins": 0,
-    "draws": 0,
-    "avg_score_p0": 27.59,
-    "avg_score_p1": 12.27,
-    "avg_margin": 15.32,
-    "elapsed_seconds": 41.413250415818766,
-    "by_baseline": [
-      {
-        "baseline": "t2",
-        "baseline_arch": "v1",
-        "avg_margin": 15.32,
-        "p0_wins": 100,
-        "p1_wins": 0,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/v3_best.json",
-        "baseline_arch": "v3",
-        "avg_margin": 20.41,
-        "p0_wins": 100,
-        "p1_wins": 0,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/panel_gen_25.json",
-        "baseline_arch": "v3",
-        "avg_margin": 5.77,
-        "p0_wins": 89,
-        "p1_wins": 11,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/round1_resources_start.json",
-        "baseline_arch": "v3",
-        "avg_margin": 16.240000000000002,
-        "p0_wins": 98,
-        "p1_wins": 2,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/panel_gen47_wood020.json",
-        "baseline_arch": "v3",
-        "avg_margin": 14.530000000000001,
-        "p0_wins": 97,
-        "p1_wins": 3,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/panel_gen16_temp05.json",
-        "baseline_arch": "v3",
-        "avg_margin": 11.530000000000001,
-        "p0_wins": 92,
-        "p1_wins": 8,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/panel_gen47.json",
-        "baseline_arch": "v3",
-        "avg_margin": 12.11,
-        "p0_wins": 76,
-        "p1_wins": 24,
-        "draws": 0
-      },
-      {
-        "baseline": "tuned_configs/panel_wood_r1.json",
-        "baseline_arch": "v3",
-        "avg_margin": 11.850000000000001,
-        "p0_wins": 94,
-        "p1_wins": 6,
-        "draws": 0
-      }
-    ],
-    "regression": {
-      "baseline": "t2",
-      "baseline_arch": "v1",
-      "avg_margin": 15.32,
-      "p0_wins": 100,
-      "p1_wins": 0,
-      "draws": 0
-    }
-  },
-  "promotion_note": "Manually promoted alphas_gen_7 from the wood_r1 6-category rotation (rot_woodr1_1779906327_v3_alphas_and_carryovers.json gen 7). Selected by round-robin dominance over the 8-config ensemble: 242/280 (86.4%) aggregate win rate; beats prior v3_best (gen_16) 38-2 (95%) in direct head-to-head. Canonical holdout vs t2 (seeds 1000-1099, n=100): 100-0-0, margin +15.32 \u2014 well above the previous stored regression of +10.93, so the auto-promote gate would have accepted this even without the manual override. The previous v3_best (gen_16) is preserved at tuned_configs/panel_gen16.json for the data-gen ensemble."
+  "label": "alphas_gen_1 (first session-best of the v3_alphas_and_carryovers tune in the wood_r1 rotation)",
+  "note": "First gen of the alphas category in the wood_r1 rotation. r1_force_forest_bonus=1000 (baked in). Round-robin aggregate: 227/280 (81.1%). Beats v3_best (gen_16) 36-4 (90%). Sourced from rotation history: gen 1 best_x_so_far.",
+  "promotion_note": "Not promoted to v3_best (alphas_gen_7 was stronger in the round robin)."
 }

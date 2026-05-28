@@ -1,0 +1,65 @@
+Tuning 18 parameters via CMA-ES
+  category: 'v3_food'  (arch: v3)
+  warm-start base: 'tuned_configs/v3_best.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_temp05.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 20 games per evaluation (training: 0..19)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 25, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  total evals: 400
+  jobs: 8; python -O: ON
+  estimated wall time: ~9.6 min (vs ~66.7 min if 1-job & no -O)
+  Output: tuned_configs/round1_food_1779831786.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/round1_food_1779831786.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 6 baselines) = +1.533
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+gen   1  best so far: +2.662  gen best: +2.662  gen mean: +1.238  (3.3 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   2  best so far: +2.662  gen best: +2.351  gen mean: +1.501  (6.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   3  best so far: +2.662  gen best: +2.442  gen mean: +1.814  (10.7 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   4  best so far: +2.662  gen best: +2.463  gen mean: +1.865  (15.7 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   5  best so far: +2.662  gen best: +2.635  gen mean: +2.185  (20.1 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   6  best so far: +2.662  gen best: +2.580  gen mean: +1.896  (23.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   7  best so far: +2.662  gen best: +2.645  gen mean: +1.957  (27.7 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+10.90  v3_best 19-0-1  m=+8.80  panel_gen_25 19-0-1  m=+7.05  round1_resources_start 20-0-0  m=+22.15  panel_gen47_wood020 13-0-7  m=+5.60  panel_gen47_temp05 16-0-4  m=+6.20
+           regression vs 't2': 20-0-0   m=+10.900
+gen   8  best so far: +2.812  gen best: +2.812  gen mean: +2.270  (31.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+13.65  v3_best 20-0-0  m=+10.05  panel_gen_25 12-0-8  m=+0.75  round1_resources_start 20-0-0  m=+21.55  panel_gen47_wood020 18-0-2  m=+7.65  panel_gen47_temp05 17-0-3  m=+12.00
+           regression vs 't2': 20-0-0   m=+13.650
+gen   9  best so far: +2.822  gen best: +2.822  gen mean: +1.952  (35.3 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+15.15  v3_best 19-0-1  m=+8.50  panel_gen_25 15-0-5  m=+2.65  round1_resources_start 20-0-0  m=+20.05  panel_gen47_wood020 19-0-1  m=+7.75  panel_gen47_temp05 17-0-3  m=+8.10
+           regression vs 't2': 20-0-0   m=+15.150
+gen  10  best so far: +2.822  gen best: +2.799  gen mean: +2.301  (39.2 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+15.15  v3_best 19-0-1  m=+8.50  panel_gen_25 15-0-5  m=+2.65  round1_resources_start 20-0-0  m=+20.05  panel_gen47_wood020 19-0-1  m=+7.75  panel_gen47_temp05 17-0-3  m=+8.10
+           regression vs 't2': 20-0-0   m=+15.150
+gen  11  best so far: +2.849  gen best: +2.849  gen mean: +2.271  (43.1 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+14.40  v3_best 18-0-2  m=+8.80  panel_gen_25 16-0-4  m=+2.75  round1_resources_start 20-0-0  m=+21.80  panel_gen47_wood020 18-0-2  m=+8.65  panel_gen47_temp05 15-0-5  m=+9.30
+           regression vs 't2': 20-0-0   m=+14.400
+gen  12  best so far: +2.849  gen best: +2.689  gen mean: +2.110  (47.3 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+14.40  v3_best 18-0-2  m=+8.80  panel_gen_25 16-0-4  m=+2.75  round1_resources_start 20-0-0  m=+21.80  panel_gen47_wood020 18-0-2  m=+8.65  panel_gen47_temp05 15-0-5  m=+9.30
+           regression vs 't2': 20-0-0   m=+14.400
+gen  13  best so far: +2.849  gen best: +2.781  gen mean: +2.426  (51.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 20-0-0  m=+14.40  v3_best 18-0-2  m=+8.80  panel_gen_25 16-0-4  m=+2.75  round1_resources_start 20-0-0  m=+21.80  panel_gen47_wood020 18-0-2  m=+8.65  panel_gen47_temp05 15-0-5  m=+9.30
+           regression vs 't2': 20-0-0   m=+14.400
+gen  14  best so far: +2.849  gen best: +2.841  gen mean: +2.492  (55.8 min)

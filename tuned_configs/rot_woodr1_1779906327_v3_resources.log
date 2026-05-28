@@ -1,0 +1,169 @@
+Tuning 63 parameters via CMA-ES
+  category: 'v3_resources'  (arch: v3)
+  warm-start base: 'tuned_configs/rot_woodr1_1779906327_v3_pastures_animals.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen16_temp05.json' (arch: v3)
+    - 'tuned_configs/panel_gen47.json' (arch: v3)
+    - 'tuned_configs/panel_wood_r1.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 40 games per evaluation (training: 0..39)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  rotate seeds: ON (each gen N uses seeds [10000+N·40, 10000+(N+1)·40))
+  validation pool: seeds 500..559 (stable per-baseline diagnostic across gens)
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~7.7 min (vs ~53.3 min if 1-job & no -O)
+  Output: tuned_configs/rot_woodr1_1779906327_v3_resources.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/rot_woodr1_1779906327_v3_resources.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 8 baselines) = +3.116
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+
+
+gen   1  best so far: +3.116  gen best: +1.535  gen mean: -0.658  (9.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   2  best so far: +3.116  gen best: +1.909  gen mean: -0.002  (21.2 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   3  best so far: +3.116  gen best: +2.083  gen mean: +0.047  (30.3 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   4  best so far: +3.116  gen best: +1.802  gen mean: +0.215  (39.1 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   5  best so far: +3.116  gen best: +2.327  gen mean: +0.596  (47.8 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   6  best so far: +3.116  gen best: +2.364  gen mean: +0.815  (56.8 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   7  best so far: +3.116  gen best: +2.170  gen mean: +0.683  (65.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   8  best so far: +3.116  gen best: +2.025  gen mean: -0.035  (73.4 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen   9  best so far: +3.116  gen best: +1.450  gen mean: +0.435  (81.4 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+
+gen  10  best so far: +3.116  gen best: +2.466  gen mean: +0.893  (88.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 58-0-2  m=+11.35  v3_best 59-0-1  m=+17.35  panel_gen_25 52-0-8  m=+7.58  round1_resources_start 58-0-2  m=+14.62  panel_gen47_wood020 55-0-5  m=+15.90  panel_gen16_temp05 49-0-11 m=+9.58  panel_gen47 45-0-15 m=+10.87  panel_wood_r1 43-0-17 m=+10.63 [cached: session_best unchanged]
+           regression vs 't2': 58-0-2   m=+11.350
+
+ℹ️  No CMA-ES sample beat x0 (warm-start base). Using x0 as best.
+   This run preserves the warm-start config for the 63 tuned fields. Likely either: (a) the category was already near-optimal in the warm-start, or (b) σ was too large/small for this generation budget.
+
+Optimization complete in 88.9 min.
+Best margin (training): +3.116
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+wood_fence_0                             0.474      0.474     +0.000
+wood_fence_1                             0.222      0.222     +0.000
+wood_fence_2                             0.473      0.473     +0.000
+wood_fence_3                             1.618      1.618     +0.000
+wood_fence_4                             1.137      1.137     +0.000
+wood_fence_5                             1.906      1.906     +0.000
+wood_fence_6                             0.826      0.826     +0.000
+wood_fence_7                             0.026      0.026     +0.000
+wood_fence_8                             1.752      1.752     +0.000
+wood_fence_9                             1.441      1.441     +0.000
+wood_fence_10                            0.896      0.896     +0.000
+wood_fence_11                            1.773      1.773     +0.000
+wood_fence_12                            0.252      0.252     +0.000
+wood_fence_13                            0.574      0.574     +0.000
+wood_fence_14                            2.883      2.883     +0.000
+wood_pre_3rd_room_0                      0.762      0.762     +0.000
+wood_pre_3rd_room_1                      1.461      1.461     +0.000
+wood_pre_3rd_room_2                      0.190      0.190     +0.000
+wood_pre_3rd_room_3                      0.062      0.062     +0.000
+wood_pre_3rd_room_4                      0.761      0.761     +0.000
+wood_generic_value                       0.139      0.139     +0.000
+wood_weight_stage1                       0.885      0.885     +0.000
+wood_weight_stage2                       0.703      0.703     +0.000
+wood_weight_stage3                       0.563      0.563     +0.000
+wood_weight_stage4                       1.104      1.104     +0.000
+wood_weight_stage5                       0.763      0.763     +0.000
+wood_weight_stage6                       0.003      0.003     +0.000
+reed_room_0                              3.329      3.329     +0.000
+reed_room_1                              0.069      0.069     +0.000
+reed_room_2                              1.126      1.126     +0.000
+reed_room_3                              0.009      0.009     +0.000
+reed_room_4                              0.788      0.788     +0.000
+reed_room_5                              1.177      1.177     +0.000
+reed_renovation_0                        0.635      0.635     +0.000
+reed_renovation_1                        0.954      0.954     +0.000
+reed_generic_value                       0.029      0.029     +0.000
+reed_weight_stage1                       2.888      2.888     +0.000
+reed_weight_stage2                       1.286      1.286     +0.000
+reed_weight_stage3                       0.387      0.387     +0.000
+reed_weight_stage4                       1.048      1.048     +0.000
+reed_weight_stage5                       0.346      0.346     +0.000
+reed_weight_stage6                       0.135      0.135     +0.000
+clay_cookware_0                          0.000      0.000     +0.000
+clay_cookware_1                          1.676      1.676     +0.000
+clay_cookware_2                          0.000      0.000     +0.000
+clay_cookware_3                          1.604      1.604     +0.000
+clay_cookware_4                          0.534      0.534     +0.000
+clay_renovation_per_room                 0.098      0.098     +0.000
+clay_generic_value                       1.492      1.492     +0.000
+clay_weight_stage1                       1.564      1.564     +0.000
+clay_weight_stage2                       0.605      0.605     +0.000
+clay_weight_stage3                       0.414      0.414     +0.000
+clay_weight_stage4                       0.630      0.630     +0.000
+clay_weight_stage5                       0.678      0.678     +0.000
+clay_weight_stage6                       0.020      0.020     +0.000
+stone_renovation_per_room                0.264      0.264     +0.000
+stone_generic_value                      0.262      0.262     +0.000
+stone_weight_stage1                      1.490      1.490     +0.000
+stone_weight_stage2                      1.370      1.370     +0.000
+stone_weight_stage3                      1.273      1.273     +0.000
+stone_weight_stage4                      1.017      1.017     +0.000
+stone_weight_stage5                      0.843      0.843     +0.000
+stone_weight_stage6                      0.837      0.837     +0.000
+
+Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
+  holdout P0 99-0-1 P1  avg +26.84 vs +13.69  margin +13.15  (100 games, 34.9s)
+  → consistent with training (within 1pt). Tuning generalizes.
+  vs 't2': margin +13.150  (99-0-1)
+  vs 'tuned_configs/v3_best.json': margin +20.410  (95-0-5)
+  vs 'tuned_configs/panel_gen_25.json': margin +7.440  (88-0-12)
+  vs 'tuned_configs/round1_resources_start.json': margin +17.150  (95-0-5)
+  vs 'tuned_configs/panel_gen47_wood020.json': margin +17.120  (96-0-4)
+  vs 'tuned_configs/panel_gen16_temp05.json': margin +11.770  (91-0-9)
+  vs 'tuned_configs/panel_gen47.json': margin +13.040  (76-0-24)
+  vs 'tuned_configs/panel_wood_r1.json': margin +9.810  (80-0-20)
+  regression vs 't2': margin +13.150  (99-0-1)
+
+Written: tuned_configs/rot_woodr1_1779906327_v3_resources.json
+Log:     tuned_configs/rot_woodr1_1779906327_v3_resources.log
+CMA pkl: tuned_configs/rot_woodr1_1779906327_v3_resources.cma.pkl  (use --resume tuned_configs/rot_woodr1_1779906327_v3_resources.cma.pkl to continue this run)
+Best:    skipped (--no-promote)

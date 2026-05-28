@@ -527,6 +527,7 @@ _WORKER_TUNABLE: list | None = None  # which TUNABLE list is active
 _WORKER_RESTRICTED: bool = False  # whether agents use restricted_legal_actions
 _WORKER_FITNESS_KIND: str = "margin"  # "margin" | "sublinear" | "truncated" | "win_rate"
 _WORKER_FITNESS_K: float = 0.5  # exponent for sublinear; cap for truncated
+_WORKER_CANDIDATE_R1_FOREST: bool = False  # wrap candidate evaluator with r1_force_forest_bonus
 
 
 def _init_worker(seeds: list[int],
@@ -535,7 +536,8 @@ def _init_worker(seeds: list[int],
                  tunable: list,
                  restricted: bool = False,
                  fitness_kind: str = "margin",
-                 fitness_k: float = 0.5) -> None:
+                 fitness_k: float = 0.5,
+                 candidate_r1_force_forest: bool = False) -> None:
     """Pool initializer: copy seeds, baselines (opponents), warm-start base,
     architecture labels, the active TUNABLE, and the restricted flag into
     worker globals.
@@ -556,6 +558,7 @@ def _init_worker(seeds: list[int],
     global _WORKER_SEEDS, _WORKER_BASELINE_CONFIGS, _WORKER_BASELINE_ARCHS
     global _WORKER_BASE_CONFIG, _WORKER_BASE_ARCH, _WORKER_TUNABLE
     global _WORKER_RESTRICTED, _WORKER_FITNESS_KIND, _WORKER_FITNESS_K
+    global _WORKER_CANDIDATE_R1_FOREST
     _WORKER_SEEDS = seeds
     _WORKER_BASELINE_CONFIGS = list(baseline_configs)
     _WORKER_BASELINE_ARCHS = list(baseline_archs)
@@ -565,6 +568,7 @@ def _init_worker(seeds: list[int],
     _WORKER_RESTRICTED = restricted
     _WORKER_FITNESS_KIND = fitness_kind
     _WORKER_FITNESS_K = fitness_k
+    _WORKER_CANDIDATE_R1_FOREST = candidate_r1_force_forest
 
 
 def _per_game_fitness(per_game, kind: str, k: float) -> float:
@@ -597,18 +601,27 @@ def _per_game_fitness(per_game, kind: str, k: float) -> float:
     raise ValueError(f"unknown fitness kind {kind!r}")
 
 
-def _eval_candidate(x: np.ndarray) -> float:
+def _eval_candidate(task) -> float:
     """Top-level fitness function. Returns -mean_aggregate_across_baselines,
     where the per-baseline aggregate is computed per `_WORKER_FITNESS_KIND`.
 
+    Accepts either:
+      - bare ndarray x (legacy): uses `_WORKER_SEEDS` (fixed across gens).
+      - tuple `(x, seeds)`: uses the supplied seeds. Enables per-gen seed
+        rotation without re-initializing the Pool.
+
     Top-level (not a closure) so `multiprocessing.Pool` can pickle it.
-    Reads seeds/baselines/fitness-kind from module-level globals populated
-    by `_init_worker` (parallel mode) or `main()` (sequential mode).
 
     Negative-margin convention: CMA-ES minimizes; we want to MAXIMIZE
     the candidate's aggregate over the baselines.
     """
-    assert _WORKER_SEEDS is not None, "worker globals not initialized"
+    if isinstance(task, tuple):
+        x, seeds = task
+        seeds = tuple(seeds)  # pickled as part of the task
+    else:
+        x = task
+        assert _WORKER_SEEDS is not None, "worker globals not initialized"
+        seeds = _WORKER_SEEDS
     assert _WORKER_BASELINE_CONFIGS, "worker globals not initialized"
     assert _WORKER_BASE_CONFIG is not None, "worker globals not initialized"
     candidate_cfg = vector_to_config(np.asarray(x), base=_WORKER_BASE_CONFIG)
@@ -619,12 +632,24 @@ def _eval_candidate(x: np.ndarray) -> float:
         _WORKER_BASELINE_CONFIGS, _WORKER_BASELINE_ARCHS,
     ):
         def p0_factory(seed: int, _cfg=candidate_cfg, _arch=candidate_arch):
-            return _make_agent(_arch, _cfg, seed, restricted=_WORKER_RESTRICTED)
+            agent = _make_agent(_arch, _cfg, seed, restricted=_WORKER_RESTRICTED)
+            # Optionally compose the candidate's evaluator with auxiliary
+            # bonuses (e.g., force a specific opening move during tuning so
+            # CMA-ES learns the corresponding follow-up). Only applies to V3
+            # candidates — V1's evaluator has a different signature path.
+            if _WORKER_CANDIDATE_R1_FOREST and _arch == "v3":
+                from agricola.agents.heuristic import (
+                    compose_evaluators, r1_force_forest_bonus,
+                )
+                agent.evaluator = compose_evaluators(
+                    agent.evaluator, r1_force_forest_bonus,
+                )
+            return agent
 
         def p1_factory(seed: int, _cfg=baseline_cfg, _arch=baseline_arch):
             return _make_agent(_arch, _cfg, seed + 1, restricted=_WORKER_RESTRICTED)
 
-        result = play_match(p0_factory, p1_factory, _WORKER_SEEDS)
+        result = play_match(p0_factory, p1_factory, seeds)
         margins.append(_per_game_fitness(result.per_game,
                                           _WORKER_FITNESS_KIND,
                                           _WORKER_FITNESS_K))
@@ -632,22 +657,66 @@ def _eval_candidate(x: np.ndarray) -> float:
     return -(sum(margins) / len(margins))
 
 
+def _eval_against_baseline_task(args):
+    """Pool-callable wrapper around `_eval_against_baseline`.
+
+    Tasks are tuples (candidate_cfg, candidate_arch, baseline_cfg,
+    baseline_arch, seeds, restricted, candidate_r1_force_forest).
+    Returns a MatchResult. Lets the per-baseline diagnostic run in
+    parallel across the worker pool instead of sequentially in the
+    master process. Each task plays n_diag_seeds games against one
+    baseline.
+
+    Backwards-compatible: accepts the old 6-tuple too (defaults
+    `candidate_r1_force_forest` to False) so old pickles still work."""
+    if len(args) == 7:
+        cand_cfg, cand_arch, base_cfg, base_arch, seeds, restricted, r1ff = args
+    else:
+        cand_cfg, cand_arch, base_cfg, base_arch, seeds, restricted = args
+        r1ff = False
+    return _eval_against_baseline(
+        candidate_cfg=cand_cfg, candidate_arch=cand_arch,
+        baseline_cfg=base_cfg, baseline_arch=base_arch,
+        seeds=list(seeds), restricted=restricted,
+        candidate_r1_force_forest=r1ff,
+    )
+
+
 def _eval_against_baseline(candidate_cfg, candidate_arch: str,
                             baseline_cfg, baseline_arch: str,
-                            seeds: list[int], restricted: bool) -> float:
-    """Single-baseline match returning the candidate's average margin.
-    Used by the regression-detector path (per-gen check against a fixed
-    reference opponent, NOT in the fitness aggregate).
+                            seeds: list[int], restricted: bool,
+                            *,
+                            candidate_r1_force_forest: bool = False):
+    """Single-baseline match. Returns the full `MatchResult` (avg_margin,
+    p0_wins, p1_wins, draws, per_game, ...). Used by the regression-detector
+    and per-baseline diagnostic paths — NOT in the fitness aggregate.
+
+    Callers that only need the margin should read `.avg_margin`. Callers
+    that want W/L counts read `.p0_wins / .p1_wins / .draws`.
+
+    When `candidate_r1_force_forest=True`, the candidate's evaluator is
+    composed with r1_force_forest_bonus — matching how the candidate is
+    constructed during fitness eval in `_eval_candidate`. Ensures the
+    diagnostic / regression / holdout measurements are TAKEN ON THE SAME
+    AGENT CMA-ES IS OPTIMIZING (no train/eval mismatch).
     """
     def p0_factory(seed: int):
-        return _make_agent(candidate_arch, candidate_cfg, seed,
-                            restricted=restricted)
+        agent = _make_agent(candidate_arch, candidate_cfg, seed,
+                             restricted=restricted)
+        if candidate_r1_force_forest and candidate_arch == "v3":
+            from agricola.agents.heuristic import (
+                compose_evaluators, r1_force_forest_bonus,
+            )
+            agent.evaluator = compose_evaluators(
+                agent.evaluator, r1_force_forest_bonus,
+            )
+        return agent
 
     def p1_factory(seed: int):
         return _make_agent(baseline_arch, baseline_cfg, seed + 1,
                             restricted=restricted)
 
-    return play_match(p0_factory, p1_factory, seeds).avg_margin
+    return play_match(p0_factory, p1_factory, seeds)
 
 
 def main() -> int:
@@ -747,10 +816,46 @@ def main() -> int:
                         help="Exponent for --fitness sublinear (default 0.5), or cap K for "
                              "--fitness truncated (default 5.0 — pass --fitness-k 5 then). "
                              "Ignored for margin and win_rate.")
+    parser.add_argument("--rotate-seeds", action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help="Rotate training seeds per generation. Each gen N uses "
+                             "seeds [rotate_start + N*n_seeds, rotate_start + (N+1)*n_seeds). "
+                             "All members of a gen face the same seeds, but seeds differ "
+                             "across gens — prevents CMA-ES from compounding seed-specific "
+                             "selection bias across generations. Default OFF (fixed seeds 0..n-1).")
+    parser.add_argument("--rotate-start", type=int, default=10000,
+                        help="Starting seed for rotation. Default 10000 (well clear of "
+                             "the canonical holdout window 1000..1099). Ignored when "
+                             "--rotate-seeds is OFF.")
+    parser.add_argument("--validation-pool", type=int, default=0,
+                        help="Number of fixed seeds used for the per-baseline + regression "
+                             "diagnostics each generation (independent of training seeds). "
+                             "0 (default) means reuse the training seeds (legacy behavior). "
+                             "Set e.g. 50 to use a separate validation pool — gives a stable "
+                             "diagnostic across gens even when --rotate-seeds is on.")
+    parser.add_argument("--validation-pool-start", type=int, default=500,
+                        help="Starting seed for the validation pool. Default 500. Should be "
+                             "disjoint from training seeds and the holdout window.")
+    parser.add_argument("--candidate-r1-force-forest",
+                        action=argparse.BooleanOptionalAction, default=False,
+                        help="Wrap the CANDIDATE's evaluator with r1_force_forest_bonus "
+                             "during fitness evaluation, so CMA-ES samples configs that "
+                             "learn the wood-rich post-R1 follow-up. Baselines play "
+                             "normally (no override). Used to test the strategic claim "
+                             "that wood-first R1 is stronger than V3's default reed-first "
+                             "preference: a tune with this flag converges to V3-wood-tuned "
+                             "configs that can then be head-to-head'd against V3-default. "
+                             "V3 candidates only — V1 candidates are unaffected.")
     args = parser.parse_args()
 
     seeds = list(range(args.n_seeds))
     holdout_seeds = list(range(args.holdout_start, args.holdout_start + args.holdout_n))
+    # Diagnostic seeds: fixed validation pool, OR training seeds (legacy).
+    if args.validation_pool > 0:
+        validation_seeds = list(range(args.validation_pool_start,
+                                        args.validation_pool_start + args.validation_pool))
+    else:
+        validation_seeds = None  # signal: use training seeds (per-gen)
 
     # Resolve TUNABLE + architectures.
     tunable, candidate_arch = CATEGORIES[args.category]
@@ -793,7 +898,8 @@ def main() -> int:
     _init_worker(seeds, baseline_configs, baseline_archs,
                   base_config, candidate_arch, tunable,
                   restricted=args.restricted,
-                  fitness_kind=args.fitness, fitness_k=args.fitness_k)
+                  fitness_kind=args.fitness, fitness_k=args.fitness_k,
+                  candidate_r1_force_forest=args.candidate_r1_force_forest)
 
     # CMA-ES starting vector: extract from `base_config` at each tuned
     # field's path. This means x0 EXACTLY corresponds to the warm-start
@@ -862,6 +968,20 @@ def main() -> int:
             print(f"  fitness: truncated  (per-game = clip(m, -{args.fitness_k}, +{args.fitness_k}))")
         elif args.fitness == "win_rate":
             print(f"  fitness: win_rate   (fraction-of-wins shifted to [-0.5, +0.5])")
+        if args.rotate_seeds:
+            print(f"  rotate seeds: ON (each gen N uses seeds "
+                  f"[{args.rotate_start}+N·{args.n_seeds}, {args.rotate_start}+(N+1)·{args.n_seeds}))")
+        else:
+            print(f"  rotate seeds: OFF (fixed training seeds 0..{args.n_seeds - 1})")
+        if validation_seeds is not None:
+            print(f"  validation pool: seeds {args.validation_pool_start}.."
+                  f"{args.validation_pool_start + args.validation_pool - 1} "
+                  f"(stable per-baseline diagnostic across gens)")
+        else:
+            print(f"  validation pool: OFF (per-baseline check uses training seeds)")
+        if args.candidate_r1_force_forest:
+            print(f"  candidate R1-force-forest: ON  (candidate's evaluator "
+                  f"composed with +1000 bonus for R1 wood≥3; baselines unaffected)")
         print(f"  total evals: {total_evals}")
         print(f"  jobs: {args.jobs}; python -O: {'ON' if sys.flags.optimize else 'OFF'}")
         print(f"  estimated wall time: ~{est_seconds_par / 60:.1f} min "
@@ -883,7 +1003,8 @@ def main() -> int:
         return _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch,
                                   baseline_configs, baseline_archs, baseline_specs,
                                   regression_cfg, regression_arch, tunable,
-                                  x0, lower, upper, log_path, sanity_f0=f0)
+                                  x0, lower, upper, log_path, sanity_f0=f0,
+                                  validation_seeds=validation_seeds)
     finally:
         sys.stdout = _original_stdout
         log_file.close()
@@ -894,7 +1015,8 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
                       baseline_specs: list,
                       regression_cfg, regression_arch,
                       tunable: list,
-                      x0, lower, upper, log_path: Path, *, sanity_f0: float) -> int:
+                      x0, lower, upper, log_path: Path, *, sanity_f0: float,
+                      validation_seeds: list[int] | None = None) -> int:
     # The CMA-ES state pickle lives next to the JSON output, sharing its stem.
     pkl_path = args.output.with_suffix(".cma.pkl")
 
@@ -987,6 +1109,11 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             "restricted":        bool(args.restricted),
             "fitness_kind":      args.fitness,
             "fitness_k":         float(args.fitness_k),
+            "rotate_seeds":      bool(args.rotate_seeds),
+            "rotate_start":      int(args.rotate_start),
+            "validation_pool":   int(args.validation_pool),
+            "validation_pool_start": int(args.validation_pool_start),
+            "candidate_r1_force_forest": bool(args.candidate_r1_force_forest),
             "tunable_spec": [
                 {"name": t[0], "default": t[1], "lower": t[2], "upper": t[3], "path": list(t[4])}
                 for t in tunable
@@ -1019,6 +1146,16 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     # Useful for post-mortems: "did fitness rise because we got better vs
     # every baseline, or did we trade wins on one for losses on another?"
     per_baseline_history: list[dict] = []
+    # Per-baseline cache: the per-baseline check is deterministic in
+    # (session_best["x"], seeds, baselines, restricted). When session_best
+    # doesn't change across a generation, the result is identical to the
+    # prior gen's. Cache and reuse to skip 6×n_seeds redundant games per
+    # idle generation (significant for popsize/n-seeds combos where
+    # session_best updates infrequently, e.g. small popsize on large
+    # categories).
+    cached_per_baseline_x: np.ndarray | None = None
+    cached_per_baseline: list[dict] | None = None
+    cached_diag_seeds: tuple | None = None  # invalidates cache when seeds rotate
 
     pool: Pool | None = None
     if args.jobs > 1:
@@ -1027,7 +1164,8 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             initializer=_init_worker,
             initargs=(seeds, baseline_configs, baseline_archs,
                       base_config, candidate_arch, tunable,
-                      args.restricted, args.fitness, args.fitness_k),
+                      args.restricted, args.fitness, args.fitness_k,
+                      args.candidate_r1_force_forest),
         )
 
     try:
@@ -1043,10 +1181,24 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         # its old maxiter cached and would short-circuit immediately.
         while not es.stop(ignore_list=["maxiter"]) and es.countiter < target_gen:
             X = es.ask()
-            if pool is not None:
-                fitnesses = pool.map(_eval_candidate, X)
+            # Compute this gen's training seeds (rotated or fixed).
+            gen_for_seeds = es.countiter + 1   # countiter is 0-indexed pre-ask
+            if args.rotate_seeds:
+                lo = args.rotate_start + gen_for_seeds * args.n_seeds
+                train_seeds = list(range(lo, lo + args.n_seeds))
             else:
-                fitnesses = [_eval_candidate(x) for x in X]
+                train_seeds = seeds
+            # Pack seeds into each task so workers use this gen's seed slice.
+            # Falls back to legacy bare-ndarray task when rotation is off
+            # (the worker globals already hold the right seeds).
+            if args.rotate_seeds:
+                tasks = [(np.asarray(x), train_seeds) for x in X]
+            else:
+                tasks = list(X)
+            if pool is not None:
+                fitnesses = pool.map(_eval_candidate, tasks)
+            else:
+                fitnesses = [_eval_candidate(t) for t in tasks]
             es.tell(X, fitnesses)
 
             # Update session-best from this generation's samples.
@@ -1059,14 +1211,28 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
             gen_best = min(fitnesses)
             gen_mean = sum(fitnesses) / len(fitnesses)
             elapsed = time.perf_counter() - t_start
+            print()
+            print()
             print(f"gen {gen:>3}  best so far: {-session_best['f']:+.3f}  "
                   f"gen best: {-gen_best:+.3f}  gen mean: {-gen_mean:+.3f}  "
                   f"({elapsed / 60:.1f} min)")
+            # Find the index of the gen-best sample so we can persist its
+            # vector. Without this, only the session-best vector is recorded
+            # and gens where session_best didn't update lose the gen-best
+            # candidate's specific config. Useful for post-hoc analysis:
+            # gen-bests with lower aggregate fitness may still be stronger
+            # against individual baselines (the aggregate is a mean, so a
+            # candidate that crushes one opponent and is mediocre on another
+            # can rank below a more-balanced session_best yet be a useful
+            # specialist to study).
+            gen_best_idx = fitnesses.index(gen_best)
+            gen_best_x = X[gen_best_idx]
             history.append({
                 "generation":         gen,
                 "best_margin_so_far": -session_best["f"],
                 "best_x_so_far":      list(map(float, session_best["x"])),
                 "gen_best_margin":    -float(gen_best),
+                "gen_best_x":         list(map(float, gen_best_x)),
                 "gen_mean_margin":    -float(gen_mean),
                 "elapsed_seconds":    elapsed,
             })
@@ -1082,56 +1248,118 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
                 np.asarray(session_best["x"]),
                 base=base_config, tunable=tunable,
             )
-            per_baseline = []
-            for spec, b_cfg, b_arch in zip(
-                baseline_specs, baseline_configs, baseline_archs,
-            ):
-                m = _eval_against_baseline(
-                    candidate_cfg=best_cfg_for_drift,
-                    candidate_arch=candidate_arch,
-                    baseline_cfg=b_cfg, baseline_arch=b_arch,
-                    seeds=seeds, restricted=args.restricted,
-                )
-                per_baseline.append({"baseline": spec, "margin": float(m)})
+            # Cache check: if session_best didn't change AND the diagnostic
+            # seeds didn't change, the per-baseline result is deterministic
+            # and identical to last gen's. Reuse and skip the redundant games.
+            # Diagnostic seeds change when --rotate-seeds is on AND no
+            # validation_pool is set (so diag seeds == per-gen train seeds).
+            # With validation_pool set, diag seeds are fixed → cache valid.
+            cur_x = np.asarray(session_best["x"])
+            cur_diag_seeds = tuple(validation_seeds) if validation_seeds is not None else tuple(train_seeds)
+            if (cached_per_baseline_x is not None
+                and np.array_equal(cur_x, cached_per_baseline_x)
+                and cached_diag_seeds == cur_diag_seeds):
+                per_baseline = cached_per_baseline
+                cached_this_gen = True
+            else:
+                # Diagnostic seeds: validation_pool if set (stable across
+                # gens), otherwise the current gen's training seeds (legacy).
+                diag_seeds = (validation_seeds if validation_seeds is not None
+                               else train_seeds)
+                # Parallelize across baselines via the worker pool when
+                # available (gen-end is post-pool.map so the pool is idle).
+                # Saves ~10 min per session-best-change generation: 7
+                # baselines × 60 seeds went from sequential-in-master to
+                # parallel-across-8-workers.
+                diag_tasks = [
+                    (best_cfg_for_drift, candidate_arch,
+                     b_cfg, b_arch, diag_seeds, args.restricted,
+                     bool(args.candidate_r1_force_forest))
+                    for b_cfg, b_arch in zip(baseline_configs, baseline_archs)
+                ]
+                if pool is not None:
+                    diag_results = pool.map(_eval_against_baseline_task, diag_tasks)
+                else:
+                    diag_results = [_eval_against_baseline_task(t) for t in diag_tasks]
+                per_baseline = []
+                for spec, r in zip(baseline_specs, diag_results):
+                    per_baseline.append({
+                        "baseline": spec,
+                        "margin":   float(r.avg_margin),
+                        "wins":     int(r.p0_wins),
+                        "losses":   int(r.p1_wins),
+                        "draws":    int(r.draws),
+                    })
+                cached_per_baseline_x = np.array(cur_x, copy=True)
+                cached_per_baseline = per_baseline
+                cached_diag_seeds = cur_diag_seeds
+                cached_this_gen = False
             per_baseline_history.append({
                 "generation":   gen,
                 "per_baseline": per_baseline,
             })
             if len(per_baseline) > 1:
+                # Compact label: strip "tuned_configs/" prefix and ".json"
+                # suffix from baseline spec strings so the line stays
+                # readable. "t2" / "default_v3" aliases pass through.
+                def _label(spec: str) -> str:
+                    s = spec
+                    if s.startswith("tuned_configs/"):
+                        s = s[len("tuned_configs/"):]
+                    if s.endswith(".json"):
+                        s = s[:-len(".json")]
+                    return s
                 breakdown = "  ".join(
-                    f"{row['baseline']}={row['margin']:+.2f}" for row in per_baseline
+                    f"{_label(row['baseline'])} {row['wins']:>2}-"
+                    f"{row['draws']}-{row['losses']:<2} m={row['margin']:+5.2f}"
+                    for row in per_baseline
                 )
-                print(f"           per-baseline: {breakdown}")
+                cache_note = " [cached: session_best unchanged]" if cached_this_gen else ""
+                print(f"           per-baseline (W-D-L  m=margin in raw score): "
+                      f"{breakdown}{cache_note}")
 
             # Regression-detector check: measure the session-best candidate
             # against the fixed reference opponent (typically V1+T2).
             # NOT part of the fitness aggregate — this is purely diagnostic.
-            # Output: a separate margin recorded in regression_history. If
-            # this trend goes DOWN while best_margin_so_far goes UP, the
-            # tuning is overfitting to the training baselines.
+            # Recorded as RAW MARGIN in regression_history (the auto-promote
+            # gate compares against this in margin units, regardless of what
+            # fitness CMA-ES is optimizing). If this trend goes DOWN while
+            # session_best fitness goes UP, the tuning is overfitting to the
+            # multi-baseline aggregate.
             if regression_cfg is not None:
                 # If the regression baseline is also one of the fitness
-                # baselines, reuse the just-computed per-baseline number
-                # instead of paying for the same 50-game match twice.
+                # baselines, reuse the just-computed per-baseline result
+                # instead of paying for the same match twice.
                 drift_margin = None
+                drift_record = None
                 for row in per_baseline:
                     if row["baseline"] == args.regression_baseline:
                         drift_margin = row["margin"]
+                        drift_record = (row["wins"], row["draws"], row["losses"])
                         break
                 if drift_margin is None:
-                    drift_margin = _eval_against_baseline(
+                    diag_seeds_reg = (validation_seeds if validation_seeds is not None
+                                       else train_seeds)
+                    r = _eval_against_baseline(
                         candidate_cfg=best_cfg_for_drift,
                         candidate_arch=candidate_arch,
                         baseline_cfg=regression_cfg,
                         baseline_arch=regression_arch,
-                        seeds=seeds, restricted=args.restricted,
+                        seeds=diag_seeds_reg, restricted=args.restricted,
+                        candidate_r1_force_forest=bool(args.candidate_r1_force_forest),
                     )
+                    drift_margin = r.avg_margin
+                    drift_record = (r.p0_wins, r.draws, r.p1_wins)
                 regression_history.append({
                     "generation":         gen,
                     "regression_margin":  float(drift_margin),
+                    "wins":               int(drift_record[0]),
+                    "draws":              int(drift_record[1]),
+                    "losses":             int(drift_record[2]),
                 })
+                wins, draws, losses = drift_record
                 print(f"           regression vs {args.regression_baseline!r}: "
-                      f"{drift_margin:+.3f}")
+                      f"{wins:>2}-{draws}-{losses:<2}  m={drift_margin:+.3f}")
 
             write_results(status="in_progress")
             save_cma_state()
@@ -1187,8 +1415,20 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
     best_cfg = vector_to_config(best_x, base=base_config, tunable=tunable)
 
     def tuned_factory(seed: int):
-        return _make_agent(candidate_arch, best_cfg, seed,
-                            restricted=args.restricted)
+        agent = _make_agent(candidate_arch, best_cfg, seed,
+                             restricted=args.restricted)
+        # End-of-run holdout: candidate plays as it was tuned. When
+        # --candidate-r1-force-forest is on, the candidate's evaluator
+        # must include the bonus in deployment too, or the measurement
+        # is on a different agent than CMA-ES optimized.
+        if args.candidate_r1_force_forest and candidate_arch == "v3":
+            from agricola.agents.heuristic import (
+                compose_evaluators, r1_force_forest_bonus,
+            )
+            agent.evaluator = compose_evaluators(
+                agent.evaluator, r1_force_forest_bonus,
+            )
+        return agent
 
     def baseline_factory(seed: int, _cfg=primary_cfg, _arch=primary_arch):
         return _make_agent(_arch, _cfg, seed, restricted=args.restricted)

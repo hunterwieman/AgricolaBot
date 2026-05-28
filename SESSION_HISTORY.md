@@ -34,6 +34,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Task 7 implementation — Harvest phases + rounds 5–14 + Cooking-Hearth fix + non-negative invariant](#task-7-impl)
 - [Hashability refactor — `BoardState.action_spaces` dict → canonical tuple](#hashability-refactor)
 - [Engine performance pass — profiling, `fast_replace`, `legal_actions_cache`, assertion gate](#perf-pass)
+- [Multi-baseline panel + R1-force-forest experiment + alphas_gen_7 champion + interactive-AI web UI (2026-05-26 / 2026-05-28)](#panel-and-r1-forest)
 - [Current State](#current-state)
 
 ---
@@ -2581,6 +2582,127 @@ The MCTS_DESIGN.md spec is ready for implementation. The natural sequence (per �
 2. **Phase 2:** implement `MCTSNode`, `MCTSSearch`, `MCTSAgent` in `agricola/agents/mcts.py`; ~400-500 LOC plus ~15 sanity tests. Single session.
 3. **Phase 3:** game integration — match driver `scripts/play_mcts_match.py`, export from `agricola/agents/__init__.py`, validate that MCTS-vs-heuristic and MCTS-vs-MCTS-shared-tree matches both complete. May combine with Phase 2.
 4. **Phase 4:** empirical validation and tuning. Target: MCTS margin > +3 over `HubrisHeuristicV3` in a 100-game match. If it does, scale up sims and start producing self-play games for the eventual learned-value-function phase.
+
+---
+
+<a name="panel-and-r1-forest"></a>
+## Multi-baseline panel + R1-force-forest experiment + alphas_gen_7 champion + interactive-AI web UI (2026-05-26 / 2026-05-28)
+
+A long, multi-day session that moved CMA-ES tuning from "produces ambiguous improvements that may or may not survive head-to-head" to "produces a clearly stronger champion (alphas_gen_7) that beats the prior gen_16 by 95-5." Also validated a user-supplied strategic intuition (wood-R1 openers are competitive) that an earlier naive test had appeared to refute, and built out interactive tooling for inspecting AI decisions in the browser. No engine-side changes; everything is in the agents/training-pipeline/UI layer.
+
+### Heuristic-tuning maturity — multi-baseline fitness panel
+
+The biggest single shift this session was moving from single-baseline CMA-ES fitness to a multi-opponent panel.
+
+**Panel composition.** Started with 3 baselines (t2 + v3_best + a wood-hoarder variant). Expanded incrementally to 6, then 7, then 8 as the session progressed. Composition matters: too-weak baselines saturate near 100% win-rate, too-strong saturate near 0% — neither discriminates candidates. Sweet spot is opponents that produce a wide spread of candidate win-rates. A temperature sweep showed T=0.5 sampling baselines discriminate best; both T=0.05 (near-deterministic) and T=1.0 (very noisy) compress the candidate-margin distribution.
+
+**Alternative fitness metrics — `--fitness {margin,sublinear,truncated,win_rate}` + `--fitness-k`.** Motivation: margin-based fitness lets CMA-ES find configs that crush easy opponents (e.g., wood-hoarder by +29) while losing close games against stronger opponents — misaligned with the actual game payoff (winning). Sublinear with k=0.5 maps margin M → sign(M) · |M|^0.5, smoothly bounding blowout influence (a +30 margin contributes ~5.5 instead of +30). Truncated clips to ±k. `win_rate` ignores margin entirely. Used `sublinear` for the food and pastures_animals runs.
+
+**Seed rotation (`--rotate-seeds`).** Each generation samples a fresh training-seed window. Prevents CMA-ES from compounding seed-specific selection bias (a candidate may be good only on the specific seeds it was first evaluated on). Trade-off: per-gen signal is noisier but long-run direction is unbiased. Default OFF for backwards compat.
+
+**Validation pool (`--validation-pool RANGE`).** Per-baseline diagnostic and the regression check use a fixed seed range independent of training seeds, giving stable diagnostics even when training seeds rotate. Without this, the diagnostic table re-shifts every generation and is uninterpretable.
+
+**Parallelized per-baseline diagnostic.** The per-baseline check (8 baselines × N seeds) had been running sequentially in the master process while the worker pool sat idle — ~10 min per session-best-update generation wasted. Fixed by mapping the diagnostic across the pool (`pool.map` over (baseline_idx, seeds)). ~7× speedup on 8 cores.
+
+**Cache invalidation bug fix.** Per-baseline cache key included only the candidate `x` and baseline path, not the seed window. When training seeds rotated *without* a fixed validation pool, the cache would falsely hit a stale (x, baseline) pair and report a margin from a different seed window. Surfaced when two consecutive generations reported identical diagnostics despite different candidates. Fixed by including the seed window in the cache key.
+
+**`gen_best_x` persistence.** Previously the per-generation `gen_best_x` was discarded if the candidate didn't update `session_best`; only `session_best_x` was archived. User pushed back when I justified this as "the discarded vectors are weaker by construction" — correctly pointing out that aggregate-fitness comparison doesn't imply per-baseline dominance. A candidate can have lower panel-aggregate but be strictly stronger against one specific baseline (per-baseline specialization). Now `gen_best_x` is recorded every generation alongside its panel breakdown, enabling later extraction of specialists.
+
+### R1-force-forest experiment — user intuition validated after proper test
+
+User had a long-standing intuition that wood-rich R1 openers (forest first, save reed for later) should be competitive with V3's reed-R1 default. An earlier session's naive test seemed to refute this.
+
+**Naive test (refuted hypothesis on the surface).** Took gen_16's tuned config and bolted on a deploy-time "R1-force-forest" wrapper that overrides the R1 placement. Played 300 paired-color games vs. gen_16-default. R1-forest lost 89.5%. I initially overclaimed this disproved the user's hypothesis. User pushed back: the test only showed that V3's evaluator — whose parameters were tuned for the reed-rich post-R1 state — doesn't navigate the wood-rich post-R1 state well. The R1 placement alone doesn't determine the strategic verdict; the surrounding parameters do.
+
+**Proper test (option 2: tune V3 with R1-forest applied).** Added `--candidate-r1-force-forest` flag to `tune_heuristic.py`. CMA-ES tunes V3 with the R1-forest override applied to the candidate during fitness eval — learning the wood-rich follow-up explicitly. Mid-run bug fix: initial implementation applied the bonus only in `_eval_candidate`, not in `_eval_against_baseline` or holdout, so the candidate "saw" R1-forest in fitness but the baseline match did not. Fixed by threading the flag through every legality consultation.
+
+A 60-gen run on `v3_resources` produced a config that beat gen_16 **82-0-18 (82%)** in end-of-run holdout. User's intuition validated: wood-R1 IS competitive when the surrounding parameters are co-tuned for it.
+
+**`r1_force_forest_bonus` config field.** To avoid having to compose the override at deploy time, baked the bonus into `HeuristicConfigV3` as a permanent field (default 0). The wood-tuned config is now a standalone JSON loadable through the normal `--v3-config` path with no external composition.
+
+### 6-category wood_r1 rotation → alphas_gen_7 champion
+
+Starting from the R1-forest-tuned `v3_resources` config, ran all 6 V3 categories × 10 gens each, chaining warm-start through each (each step resumes the previous step's CMA-ES state where the category aligns). The chain-end config (`alphas_gen_7`, named for the final category being `v3_alphas_and_carryovers` at gen 7) beat gen_16 by **38-2 (95%)** in direct head-to-head.
+
+### Round-robin and the alphas_gen_7 promotion
+
+To sanity-check the chain before promoting, ran a full round-robin matchup of 8 V3 configs at 40 games per pair (1120 games total, paired colors):
+
+```
+alphas_gen_7:           242 / 280  (86.4%)   ← strongest
+alphas_gen_1:           227 / 280  (81.1%)
+panel_wood_r1:          171 / 280  (61.1%)
+panel_gen16:            163 / 280  (58.2%)   ← prior champion
+panel_gen47_wood020:    112 / 280  (40.0%)
+panel_gen_25:           109 / 280  (38.9%)
+panel_gen47:             85 / 280  (30.4%)
+round1_resources_start:   8 / 280  ( 2.9%)
+```
+
+alphas_gen_7 manually promoted to `tuned_configs/v3_best.json`. Holdout vs t2: **100-0-0 with +15.32 margin**. The prior champion (gen_16) is now the second-strongest config in the ensemble, beaten 95-5 by alphas_gen_7.
+
+### Composable evaluator pattern
+
+Added `compose_evaluators(*evaluators)` helper to `agricola/agents/heuristic.py`. Returns a callable that sums the components additively. Used internally during the R1-force-forest experiment as `compose_evaluators(evaluate_hubris_v3, r1_force_forest_bonus)` before the bonus was baked into the config field. Generalizes to any scripted-move override or auxiliary value signal (e.g. a curriculum signal during training, or a debugging probe).
+
+Also added differential-evaluator wrappers (`make_differential_evaluator`, `evaluate_hubris_v3_differential`, `HubrisHeuristicV3Differential` and corresponding V1/V2 variants) that return `own − opp` at every state (not just terminal). The default evaluators still return only own-score mid-game (terminal-margin semantics from the previous session apply only at `BEFORE_SCORING`). Differential variants are useful for opponent-aware decisions and for debugging the "would V3 see this move differently if it valued the opponent's position?" question.
+
+### Web UI — interactive AI mode
+
+Added an interactive-AI mode to `play_web.py` for inspecting heuristic decisions in the browser:
+
+- New toggle separate from Fast mode: "Interactive AI." When ON, the auto-driver pauses before each AI top-level placement.
+- Per-action evaluator scores overlay each action-space tile as `+12.5`-style badges.
+- Top-choice tile gets a gold ring; close-call tiles (within 0.5 of top) get a dashed gold ring — a visual indicator of how decisive the agent's choice was.
+- Press Enter (or click Advance) to play the AI's chosen move.
+- New `GET /api/ai_preview` endpoint returns per-action scores via a new `HeuristicAgent.preview_top_actions(state)` method that runs the same lookahead the agent uses but returns the full ranked list instead of just sampling one.
+- New `POST /api/interactive_ai` endpoint toggles the mode.
+
+Plus: player-column color coding across all game modes (red P0 / blue P1 stripes + matching header underlines) — a small ergonomic fix that came up while testing the interactive mode and removes a frequent "whose column is this?" confusion.
+
+### MCTS-gen_47 vs heuristic-gen_47 empirical finding
+
+A 400-game paired-color match: MCTS+gen_47 evaluator vs heuristic-only gen_47, both at the same config. Win rate 51.0% over 400 games — statistically indistinguishable from 50/50. An earlier 100-game result (+2.40 margin, 55-45 wins) had suggested MCTS was beating its own heuristic; the 300-game follow-up regressed to mean. Consistent with the prior session's finding that at 200-500 sims with current evaluators, MCTS doesn't reliably outperform its own evaluator. Phase 5 (NN-based MCTS) remains the long-term direction.
+
+### 8-config ensemble for NN data generation
+
+End-of-session: heuristic tuning paused. Assembled an ensemble of 8 configs for Phase 5 NN-training-data bootstrap, spanning the strength range from ~5-15% (t2) to 86.4% (alphas_gen_7). Strength diversity is the point — state-distribution diversity is what the eventual learned-value-function needs, not 8 copies of the strongest play style. See `tuned_configs/DATA_GEN_ENSEMBLE.md` for the table.
+
+### Surfaced corrections worth remembering
+
+1. **The naive R1-forest test was a non-test, not a refutation.** User caught this. Pattern: when an override is added at deploy time against a config tuned for the unmodified default, a degradation isn't evidence the override is bad — it's evidence the surrounding parameters need re-tuning for the override. Proper test = tune V3 with the override applied to the candidate. The proper test confirmed the user's hypothesis.
+
+2. **`gen_best_x` discards lose per-baseline specialists.** User caught this. Aggregate-fitness comparison does not imply per-baseline dominance. Always archive per-generation bests.
+
+3. **Pre-existing pattern reinforced: parallel idle workers are silent waste.** The per-baseline diagnostic running serially in the master process was easy to miss — the bug presented as "session-best generations are slow" rather than as a CPU-utilization metric. Worth checking parallel utilization any time a CMA-ES loop has a synchronous master-side step.
+
+### Files touched
+
+**Modified:**
+- `agricola/agents/heuristic.py` — `compose_evaluators(*evaluators)` helper; differential-evaluator wrappers (`make_differential_evaluator`, `evaluate_hubris_v3_differential`, etc.); `r1_force_forest_bonus` field on `HeuristicConfigV3`; `HubrisHeuristicV3Differential` etc.
+- `agricola/agents/base.py` — `preview_top_actions(state)` method on `HeuristicAgent` returning the full ranked top-actions list with scores.
+- `agricola/agents/__init__.py` — new exports.
+- `scripts/tune_heuristic.py` — multi-baseline panel infrastructure (`--baselines` already existed; expanded to support per-baseline diagnostic and regression-history); `--fitness {margin,sublinear,truncated,win_rate}` + `--fitness-k`; `--rotate-seeds`; `--validation-pool`; parallelized per-baseline diagnostic; cache-key fix including seed window; `gen_best_x` persistence; `--candidate-r1-force-forest` flag.
+- `play_web.py` — interactive-AI mode toggle, action-score overlays, gold-ring top-choice highlight, dashed-ring close-call indicator, `/api/ai_preview` and `/api/interactive_ai` endpoints, player-column color coding.
+- `tuned_configs/v3_best.json` — promoted twice during the session (last = alphas_gen_7).
+
+**New configs:**
+- `tuned_configs/panel_gen16_temp05.json`, `panel_gen47.json`, `panel_wood_r1.json` — panel-member configs.
+- `tuned_configs/round1_food_*.json` (multiple), `round2_pastures_animals_*.json` (multiple), `r1forest_resources_*.json` (multiple) — intermediate tuning artifacts (each with companion `.log`).
+- `tuned_configs/rot_woodr1_*.json` (6 files for the 6-category rotation, each with `.log`).
+- `tuned_configs/DATA_GEN_ENSEMBLE.md` — the 8-config ensemble description (referenced for Phase 5 bootstrap).
+
+### Tests
+
+No new tests this session — the work was at the tuning/UI layer where the existing test suite already covers the engine-side correctness. All 704 existing tests remain green.
+
+### Next session
+
+- **NN data generation (Phase 5 bootstrap).** Use the 8-config ensemble to generate diverse self-play data. The ensemble's strength spread is intentional — a learned value function needs state-distribution coverage, not just strong play.
+- **Promote alphas_gen_7 to a `CONFIG_V3_T2` named constant** in `agricola/agents/heuristic.py` (mirror `CONFIG_V1_T2` / `CONFIG_V3_T1`). Currently still loaded via `--v3-config tuned_configs/v3_best.json`.
+- **Re-run round-robin including MCTS variants** — confirm or refute the "MCTS doesn't beat its own evaluator at current sim budgets" finding against the new champion specifically.
+- **`r1_force_forest_bonus` documentation** — the field works but is undocumented in V3_DESIGN.md.
+- **Compound card interactions** still deferred to whenever the card system lands.
 
 ---
 

@@ -439,7 +439,7 @@
     ]
   },
   "candidate_arch": "v3",
-  "label": "alphas_gen_7 manually promoted from wood_r1 rotation",
+  "label": "alphas_gen_7 (final session-best of the v3_alphas_and_carryovers tune in the wood_r1 rotation)",
   "note": "Chain-end config of the 6-category wood_r1 rotation (gens 7-10 of v3_alphas_and_carryovers all share this same session-best vector). r1_force_forest_bonus=1000 (baked in). Round-robin aggregate: 242/280 (86.4%). Beats v3_best (gen_16) 38-2 (95%). Holdout vs t2 (seeds 1000-1099, n=100): 100-0-0, margin +15.32. Sourced from rotation history: gen 7 best_x_so_far.",
   "holdout": {
     "n_games": 100,
@@ -524,6 +524,5 @@
       "p1_wins": 0,
       "draws": 0
     }
-  },
-  "promotion_note": "Manually promoted alphas_gen_7 from the wood_r1 6-category rotation (rot_woodr1_1779906327_v3_alphas_and_carryovers.json gen 7). Selected by round-robin dominance over the 8-config ensemble: 242/280 (86.4%) aggregate win rate; beats prior v3_best (gen_16) 38-2 (95%) in direct head-to-head. Canonical holdout vs t2 (seeds 1000-1099, n=100): 100-0-0, margin +15.32 \u2014 well above the previous stored regression of +10.93, so the auto-promote gate would have accepted this even without the manual override. The previous v3_best (gen_16) is preserved at tuned_configs/panel_gen16.json for the data-gen ensemble."
+  }
 }

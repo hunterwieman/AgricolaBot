@@ -26,3 +26,12 @@ Sanity: fitness(starting point, mean margin across 6 baselines) = +1.533
 gen   1  best so far: +2.662  gen best: +2.662  gen mean: +1.238  (3.1 min)
            per-baseline: t2=+10.90  tuned_configs/v3_best.json=+8.80  tuned_configs/panel_gen_25.json=+7.05  tuned_configs/round1_resources_start.json=+22.15  tuned_configs/panel_gen47_wood020.json=+5.60  tuned_configs/panel_gen47_temp05.json=+6.20
            regression vs 't2': +10.900
+gen   2  best so far: +2.662  gen best: +2.351  gen mean: +1.501  (7.2 min)
+           per-baseline: t2=+10.90  tuned_configs/v3_best.json=+8.80  tuned_configs/panel_gen_25.json=+7.05  tuned_configs/round1_resources_start.json=+22.15  tuned_configs/panel_gen47_wood020.json=+5.60  tuned_configs/panel_gen47_temp05.json=+6.20
+           regression vs 't2': +10.900
+gen   3  best so far: +2.662  gen best: +2.442  gen mean: +1.814  (11.0 min)
+           per-baseline: t2=+10.90  tuned_configs/v3_best.json=+8.80  tuned_configs/panel_gen_25.json=+7.05  tuned_configs/round1_resources_start.json=+22.15  tuned_configs/panel_gen47_wood020.json=+5.60  tuned_configs/panel_gen47_temp05.json=+6.20
+           regression vs 't2': +10.900
+gen   4  best so far: +2.662  gen best: +2.463  gen mean: +1.865  (15.5 min)
+           per-baseline: t2=+10.90  tuned_configs/v3_best.json=+8.80  tuned_configs/panel_gen_25.json=+7.05  tuned_configs/round1_resources_start.json=+22.15  tuned_configs/panel_gen47_wood020.json=+5.60  tuned_configs/panel_gen47_temp05.json=+6.20
+           regression vs 't2': +10.900

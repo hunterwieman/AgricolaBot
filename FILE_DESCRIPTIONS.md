@@ -426,6 +426,8 @@ The scoring tables (how many points for 0 fields, 1 field, 2 fields, etc.) are i
 
 Package marker for `agricola.agents`. Re-exports the public agent API: `Agent` protocol, `HeuristicAgent` infrastructure class, `RandomAgent`, `SimpleHeuristic`, `HubrisHeuristic` (alias to V1), `HubrisHeuristicV1`, `HubrisHeuristicV2`, **`HubrisHeuristicV3`**, the `HeuristicConfig` and **`HeuristicConfigV3`** dataclasses, named config constants **`DEFAULT_CONFIG`** / **`DEFAULT_CONFIG_V3`** / **`CONFIG_V1_T2`** / **`CONFIG_V3_T1`**, the four evaluator functions (`evaluate_simple`, `evaluate_hubris_v1`, `evaluate_hubris_v2`, `evaluate_hubris_v3`, plus `evaluate_hubris` alias), the `play_game(initial_state, agents)` driver, the **action-pruning wrappers** `restricted_legal_actions` / `strict_restricted_legal_actions` / `make_strict_restricted_legal_actions` + their priority constants (`STABLE_PRIORITY`, `ROOM_PRIORITY`, `PLOW_PRIORITY`, `FIRST_PASTURE_REQUIRED_CELLS`, `MAX_TOTAL_ROOMS`) + the `LegalActionsFn` type alias, and the **MCTS classes** `MCTSAgent` / `MCTSSearch` / `MCTSNode` / `MacroFencingAction`. Designed so that callers can write `from agricola.agents import HubrisHeuristicV3, CONFIG_V1_T2, MCTSAgent, MCTSSearch, restricted_legal_actions, play_game, ...` without dipping into submodules.
 
+**Additional exports (post-`267530c`)**: the composable-evaluator helpers (`compose_evaluators`, `r1_force_forest_bonus`) and the differential-evaluator family (`make_differential_evaluator`, `evaluate_hubris_v3_differential`, `evaluate_hubris_v1_differential`, `HubrisHeuristicV3Differential`, `HubrisHeuristicV1Differential`). See `agricola/agents/heuristic.py` for semantics.
+
 ---
 
 ### `agricola/agents/base.py`
@@ -464,6 +466,20 @@ All heuristic-agent code: Simple, Hubris V1, V2, V3 evaluators and agent classes
 **Shared V1/V3 helpers**: `_three_tier` for piecewise-linear resource valuation, `_stage_of_round`, `_next_harvest_round`, `_moves_left_before_harvest`, `_feeding_need`, `_max_convertible_food`, `_has_cooking`, `_can_afford_cooking`, `_basic_wish_revealed_round`, `_num_breeding_opportunities_from_farm`, `_types_with_2_plus_animals`, `_count_unfenced_stables`, `_count_cells_of_type`, `_empty_unenclosed_cells`. The carry-over V1 helpers (`_hubris_family_value` etc.) duck-type on the config's field names — same code, called by both `evaluate_hubris_v1` and `evaluate_hubris_v3`.
 
 All four agent subclasses (`SimpleHeuristic`, `HubrisHeuristicV1`, `HubrisHeuristicV2`, `HubrisHeuristicV3`) accept an optional `legal_actions_fn` kwarg and forward it to the base `HeuristicAgent` constructor.
+
+**New V3 config fields (post-`267530c`)**:
+- **`wood_flat_bonus: float = 0.0`** — adds `bonus * wood` to wood resource contribution OUTSIDE the per-stage weight gating. Lets baselines bias toward wood-hoarding regardless of stage. Read inside `_v3_resources_contribution`.
+- **`temperature: float = 0.0`** — action-selection softmax temperature lifted onto the config so baseline JSONs can pin per-agent stochasticity. Consumed by drivers/agents that respect config-supplied T.
+- **`r1_force_forest_bonus: float = 0.0`** — when > 0, `evaluate_hubris_v3` adds `bonus` at the very top of the evaluator iff `round_number == 1` and `p.resources.wood >= 3`. Effectively pins Round-1 first action to Forest (the only path to wood≥3 on R1) without distorting later-round evaluation.
+
+**Composable evaluator pattern** (new helpers):
+- **`compose_evaluators(*evaluators)`** — returns a callable `(state, player_idx, config) -> float` that sums the contributions of all input evaluators. Lets callers stack add-on evaluators (e.g. `compose_evaluators(evaluate_hubris_v3, r1_force_forest_bonus)`) without forking the V3 implementation.
+- **`r1_force_forest_bonus(state, p, cfg)`** — standalone Round-1-forest-forcing evaluator. Returns `1000.0` if `round_number == 1` and `p.resources.wood >= 3`, else `0.0`. Companion to `HeuristicConfigV3.r1_force_forest_bonus`; usable independently via `compose_evaluators`.
+
+**Differential evaluator wrappers** (new helpers). Wrap a base `(state, player_idx, config) -> float` evaluator to always return `own − opp` (instead of just `own` at non-terminal states). Useful when an agent should care about opponent's score at every node, not only at `BEFORE_SCORING`:
+- **`make_differential_evaluator(base)`** — generic factory: `lambda s, p, c: base(s, p, c) - base(s, 1 - p, c)`.
+- **`evaluate_hubris_v3_differential`** / **`evaluate_hubris_v1_differential`** — pre-built differential versions of the V3 and V1 evaluators.
+- **`HubrisHeuristicV3Differential`** / **`HubrisHeuristicV1Differential`** — thin `HeuristicAgent` subclasses binding the differential evaluators.
 
 ---
 
@@ -579,7 +595,20 @@ Per-generation: writes `<output>.json` (best config + history + holdout) and `<o
 
 End-of-run logic:
 - **x0 fallback**: if `es.best.f` is worse than `sanity_f0` (the fitness of x0 evaluated before the CMA-ES loop), the script overrides `best_x = x0` and reports `best_margin = sanity_margin`. Prevents chain-forward regression when a category's defaults were already near-optimal. Prints an explicit warning when triggered.
-- **Auto-update `<arch>_best.json`**: at the very end, `_maybe_update_best_pointer(new_json, candidate_arch, holdout_margin)` reads `tuned_configs/<arch>_best.json` (if exists) and copies the new JSON there iff the new holdout margin beats the existing one.
+- **Auto-update `<arch>_best.json`**: at the very end, **`_enable_best_pointer_update`** (renamed from `_maybe_update_best_pointer`) reads `tuned_configs/<arch>_best.json` (if exists) and copies the new JSON there iff the new run beats the existing one. **Comparison metric changed**: was `holdout.avg_margin`, now `holdout.regression.avg_margin` — measured against a fixed reference baseline (`--regression-baseline`, default `t2`) so chained-baseline drift can't fool the gate. Adds two safety gates: refuses to promote if `regression.n < 30` (insufficient sample), and refuses to promote if the saved best's regression anchor differs from the current run's anchor (`regression_baseline` mismatch).
+
+**Additional flags (post-`267530c`)**:
+- **`--fitness {margin,sublinear,truncated,win_rate}`** + **`--fitness-k`** (default `0.5`) — per-baseline fitness aggregation. `margin` (default; legacy) = `mean(m)`. `sublinear` = `mean(sign(m) * |m|**k)` (bounds blowout influence smoothly). `truncated` = `mean(clip(m, -k, +k))` (hard cap). `win_rate` = `wins / n - 0.5` (in `[-0.5, +0.5]`). Plumbed into worker globals via `_init_worker` so the choice is consistent across the Pool.
+- **`--rotate-seeds`** (default off) + **`--rotate-start INT`** (default `10000`) — each generation N uses seeds `[rotate_start + N*n_seeds, rotate_start + (N+1)*n_seeds)`. Prevents seed-specific selection bias from compounding across generations; CMA-ES gradient still well-defined within each generation's population.
+- **`--validation-pool INT`** (default `0` = off) + **`--validation-pool-start INT`** (default `500`) — per-baseline and regression diagnostics use this fixed seed range, independent of training seeds. Gives a stable diagnostic across generations when `--rotate-seeds` is on (otherwise diag seeds == training seeds and `--rotate-seeds` invalidates the per-baseline cache each gen).
+- **`--candidate-r1-force-forest`** (default off) — wraps the candidate's evaluator with `r1_force_forest_bonus` during fitness eval, per-baseline diagnostics, and the final holdout (baselines unaffected). Used when tuning V3 for the wood-rich post-R1 state.
+- **`--no-promote`** (default off) — skip the `<arch>_best.json` auto-promotion step entirely.
+
+**Other internal changes (post-`267530c`)**:
+- **Parallelized per-baseline diagnostic** — was sequential in master; now spreads diagnostic seeds across the existing worker Pool. Records W-D-L counts per (session-best, baseline) cell (was margin-only).
+- **`gen_best_x` in history** — the per-generation best sample's parameter vector is persisted alongside `best_x_so_far` (session-best) in the JSON `history` array. Lets later analysis recover any gen-best config even when session_best didn't update that generation.
+- **Per-baseline cache** keyed on `(tuple(session_best_x), tuple(diag_seeds))` — invalidated automatically when rotate-seeds is on without a validation pool, since diag seeds == training seeds in that mode.
+- **Baseline-label print** strips `tuned_configs/` prefix and `.json` suffix from path-style baseline specs for compact stdout/log output.
 
 Recommended invocation: `python -O scripts/tune_heuristic.py --category v3_resources --from default_v3 --baseline t2 --max-gens 10` (the `-O` flag strips debug asserts in the engine for ~2× speedup).
 
@@ -668,6 +697,32 @@ python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.jso
 ```
 
 (No flag change needed — `--restricted` is ON by default.)
+
+---
+
+## `tuned_configs/` — named configs (post-`267530c`)
+
+Persistent JSON artifacts written by `scripts/tune_heuristic.py`. Each completed tuning run produces `<label>_<timestamp>.json` (best config + history + holdout), `<label>_<timestamp>.log` (human-readable progress mirror), and `<label>_<timestamp>.cma.pkl` (full CMA-ES state for resume). The named configs below are the strategically meaningful ones — pointers used by drivers, training warm-starts, and the data-generation ensemble. Round-robin percentages refer to the 8-config data-gen ensemble round-robin. See **`tuned_configs/DATA_GEN_ENSEMBLE.md`** for the full ensemble write-up.
+
+- **`v3_best.json`** — current champion (auto-maintained by `scripts/tune_heuristic.py`'s `_enable_best_pointer_update`). NOW points to **alphas_gen_7** (was gen_16). Holdout vs `t2`: 100-0-0 +15.32.
+- **`alphas_gen_7.json`** — same config as `v3_best.json` (stable path mirror; survives future v3_best updates). Final session-best of the 6-category wood_r1 rotation; carries `r1_force_forest_bonus = 1000` baked in. Round-robin: 86.4%.
+- **`alphas_gen_1.json`** — first session-best of the alphas-category step in the same rotation. Also carries `r1_force_forest_bonus = 1000`. Round-robin: 81.1%.
+- **`panel_gen16.json`** — preserves the just-replaced `v3_best` (gen_16). Reed-first opener; canonical reed-tuned V3 lineage. Round-robin: 58.2%.
+- **`panel_gen47.json`** — earlier V3 champion (resources-tune output, gen_47). Round-robin: 30.4%.
+- **`panel_gen_25.json`** — alternative V3 (gen_25) from the original resources tune. Round-robin: 38.9%.
+- **`panel_gen47_wood020.json`** — gen_47 + `wood_flat_bonus = 0.2`; wood-hoarder exploit baseline. Round-robin: 40.0%.
+- **`panel_gen16_temp05.json`** — gen_47 + `temperature = 0.5`; playstyle-diversity baseline. NOT in the data-gen ensemble.
+- **`panel_wood_r1.json`** — gen_16 retuned on `v3_resources` only with R1-force-forest applied (60 gens). Pre-rotation wood-tuned variant. Round-robin: 61.1%.
+
+**Description file** alongside the JSONs:
+- **`DATA_GEN_ENSEMBLE.md`** — lists the 8-config data-generation ensemble (the round-robin members) with provenance and pairing notes.
+
+**Tuning-run artifacts** (not strategically named — produced by individual `scripts/tune_heuristic.py` invocations):
+- `rot_woodr1_*.json` / `rot_woodr1_*.log` / `rot_woodr1_*.cma.pkl` — outputs of the 6-category wood_r1 rotation, one set per `(category, timestamp)`.
+- `r1forest_resources_*.json` / `r1forest_resources_v2_*.json` and `.log` siblings — outputs of the R1-force-forest tuning runs on `v3_resources`.
+- `round1_food_*.json` / `round2_pastures_animals_*.json` and siblings — per-category run snapshots used as warm-starts for downstream categories.
+
+These artifact files are not separately load-bearing; they exist to support resume (`--resume <path>.cma.pkl`) and provenance auditing of the named configs above.
 
 ---
 

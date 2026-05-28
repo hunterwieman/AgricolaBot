@@ -403,3 +403,140 @@ When `--restricted` is ON (both sides), CMA-ES optimizes V3's coefficients in th
 - **Coefficients that the warm-start used to "buy" wrapper-forbidden plays settle elsewhere.** Any warm-start preference the wrapper now blocks gets re-optimized within the constrained set.
 - **Per-evaluation work is slightly cheaper** because the agent's argmax is over a smaller candidate set; effective wall-clock per generation is unchanged or marginally faster.
 - **Holdout comparisons stay valid.** `_maybe_update_best_pointer` compares the new run's holdout margin against the existing `v3_best.json`'s. The auto-update logic doesn't care whether the prior best was wrapped — it just compares margins on whatever opponents the matches used.
+
+## 11. Fitness shaping: `--fitness {margin,sublinear,truncated,win_rate}`
+
+Added to `scripts/tune_heuristic.py` to address a specific CMA-ES failure mode: **the wood-hoard exploit**. With `margin` fitness, CMA-ES discovered configs that crush weak baselines by huge margins (mostly via pathological wood-stockpiling endgames) instead of configs that win more games against stronger opponents. The +40 wins on the easy seat outweighed the close losses on the hard seat, so the "exploit" config beat broader-strength candidates.
+
+The fix is to shape per-game contribution before aggregating. The aggregate fitness is always `mean across baselines of mean across games of f(margin_i)`. The four modes are:
+
+| Mode | `f(m)` | Notes |
+|---|---|---|
+| `margin` (default) | `m` | Original behavior. Sensitive to blowout games. |
+| `sublinear` | `sign(m) · |m|^k` | Default `k=0.5`. Smooth bounding: a +30 margin contributes ~5.5 instead of +30. Preserves gradient direction throughout. **Designed for the wood-hoard exploit.** |
+| `truncated` | `clip(m, -k, +k)` | Default `k=5`. Hard cap; gradient outside ±k is zero. |
+| `win_rate` | `0.5 if m>0 else -0.5 if m<0 else 0` | Quantized 1/n signal. Robust but coarse. |
+
+`--fitness-k FLOAT` parameterizes both `sublinear` (exponent) and `truncated` (cap). Default `k=0.5` (set for sublinear, the most common use).
+
+Output JSON records `fitness_kind` and `fitness_k` alongside the existing `history` so post-hoc comparison across runs can account for the shape.
+
+**Choosing a mode.** Use `sublinear` when training under heterogeneous baselines where one baseline is much weaker than another — prevents the easy baseline's blowouts from dominating the aggregate. Use `margin` when baselines are similarly-skilled and the absolute margin is the meaningful signal. `win_rate` is suitable when the goal is "beat more opponents" rather than "win bigger" — coarsest but most aligned with tournament ranking.
+
+## 12. Seed handling: rotation + validation pool
+
+Two flags added to `tune_heuristic.py` to disentangle "seeds CMA-ES selects against" from "seeds we measure progress on."
+
+### 12.1 `--rotate-seeds` (default OFF) + `--rotate-start INT` (default 10000)
+
+When ON, generation N evaluates all candidates on seeds `[rotate_start + N·n_seeds, rotate_start + (N+1)·n_seeds)`. All members of a generation face the **same** seeds (so within-gen fitness comparisons stay valid), but seeds differ **across** generations.
+
+**Motivation.** Without rotation, every generation uses seeds 0..(n_seeds−1) for fitness. CMA-ES can compound seed-specific selection bias: configs that happen to play well on those exact seeds get amplified, even if they generalize poorly. With rotation, the long-run mean fitness is unbiased — each generation samples a fresh seed range.
+
+**Trade-off.** Per-generation fitness becomes noisier (the same x evaluated on different seeds returns different fitness). CMA-ES's covariance update can be poorly conditioned at small σ — the algorithm may struggle to converge cleanly. Pair with a larger `--n-seeds` if the fitness signal looks too noisy.
+
+### 12.2 `--validation-pool INT` (default 0=off) + `--validation-pool-start INT` (default 500)
+
+When `--validation-pool > 0`, the per-generation diagnostic and per-generation regression check use this **fixed** seed range `[validation_pool_start, validation_pool_start + validation_pool)` instead of the training seeds.
+
+**Motivation.** With `--rotate-seeds` ON, the per-generation diagnostic (which measures session-best vs each baseline) becomes meaningless across generations because the seeds change each gen — you can't tell whether per_baseline_history is moving because the policy improved or because the seeds got easier. A fixed validation pool gives stable diagnostics: any movement in per_baseline_history is policy-driven, not seed-driven.
+
+The validation pool is also independent of the training seeds (rotated or not), so the diagnostic measurement is decorrelated from the optimization signal — a cleaner "is this getting better?" check.
+
+**Default values.** `--rotate-start 10000` and `--validation-pool-start 500` are chosen to be disjoint from the standard holdout range (`--holdout-start 1000 --holdout-n 100` → seeds 1000-1099). All three ranges (training, validation, holdout) stay non-overlapping for clean post-hoc analysis.
+
+## 13. Candidate-side R1-force-forest wrapper
+
+`--candidate-r1-force-forest` (default OFF) wraps the **candidate's** evaluator with `r1_force_forest_bonus = 1000` during fitness evaluation, the per-generation diagnostic, the per-generation regression check, AND the end-of-run holdout match. Baselines are unaffected (they play their normal evaluators).
+
+**Purpose.** Tune V3 specifically for the **post-R1 wood-rich state**. The hypothesis is that wood-R1 is strategically viable when V3 is retuned for it — but you can't test that hypothesis just by setting `r1_force_forest_bonus=1000` on a V3 tuned without it (the rest of V3's coefficients are calibrated for V3's natural R1 choices). Tuning *with* the bonus active lets CMA-ES re-balance the downstream-of-R1 coefficients.
+
+**Important bug history** (recorded so future sessions don't reintroduce this regression): the initial implementation applied the bonus to the candidate in `_eval_candidate` (the fitness eval) but **not** in `_eval_against_baseline` (per-generation diagnostic) or the end-of-run holdout match. This caused a **train/deploy mismatch** — CMA-ES tuned with the bonus active but the diagnostic and final holdout measured the policy *without* the bonus, giving misleadingly-bad numbers and silently selecting against the very thing the run was supposed to optimize for. Fixed by threading the flag through `_eval_against_baseline` and the end-of-run holdout factory. If you add another candidate-only evaluator modifier in the future, audit every game-playing call site in the script for consistency.
+
+## 14. `--no-promote`
+
+Skip the `_maybe_update_best_pointer` step entirely. Used for exploratory / validation / R1-force-forest runs where the resulting config isn't intended to replace `v3_best.json` regardless of holdout result. Defaults OFF (auto-promotion stays the normal behavior).
+
+## 15. New `HeuristicConfigV3` fields
+
+Three fields added since the major-per-stage refactor. All default to `0.0` so existing JSONs load unchanged.
+
+| Field | Default | Effect |
+|---|---|---|
+| `wood_flat_bonus` | `0.0` | Adds `bonus · wood` to wood_pts **outside** the stage weighting. Used in `panel_gen47_wood020.json` (set to 0.2) to define the wood-hoarder exploit baseline — a config that hoards wood for its own sake, used as a stress-test baseline. |
+| `temperature` | `0.0` | Action-selection softmax temperature on the **config itself** (lives on the config so baseline JSONs can specify their own stochasticity, rather than requiring per-CLI tuning of `--temperature`). Used in `panel_gen16_temp05.json` (set to 0.5) as a soft-policy baseline in the standard panel. |
+| `r1_force_forest_bonus` | `0.0` | When > 0, `evaluate_hubris_v3` adds this value if it is round 1 AND wood ≥ 3. Default 0 = no effect. Used in `panel_wood_r1.json` (=1000) and `alphas_gen_*.json` (=1000) to define the deterministic-wood-opener V3 variants. Combined with `--candidate-r1-force-forest` (§13) for tuning. |
+
+## 16. The 6-category rotation pattern (wood_r1)
+
+A "rotation" is a chained sequence of single-category tunes where each category's output JSON is the next category's `--from`. Run within a single architecture, this is block-coordinate descent over the full V3 parameter space — but unlike `run_iterative_v3.py`, the rotation can target any subset of categories in any order with a hand-picked starting config.
+
+The current canonical rotation is the **wood_r1 rotation**: starting from `panel_wood_r1.json` (a V3 config with `r1_force_forest_bonus=1000`), it chains all 6 V3 categories in this order:
+
+  `panel_wood_r1.json → food → fields_crops → majors_per_stage → pastures_animals → resources → alphas_and_carryovers`
+
+Settings:
+- 10 generations per category
+- 8-baseline panel (see §17)
+- `--no-promote` on every step (the rotation is exploratory; promotion happens later via the round-robin in §19)
+- `--candidate-r1-force-forest` NOT set on these (the field is already non-zero on `panel_wood_r1`, so the bonus is active via the config itself)
+
+The chain-end config is `rot_woodr1_*_v3_alphas_and_carryovers.json`. It is also extracted as `alphas_gen_7.json` for convenience.
+
+## 17. Standard 7+1 baseline panel
+
+The standard fitness panel (used across most recent runs) is 7 configs:
+
+  `t2`, `v3_best`, `panel_gen_25`, `round1_resources_start`, `panel_gen47_wood020`, `panel_gen16_temp05`, `panel_gen47`
+
+For the wood_r1 rotation, `panel_wood_r1` is added as an 8th baseline (so the rotation's candidates also have to perform against the wood-R1 family).
+
+**Why these specific configs.** The panel spans a wide strength range and a wide *style* range:
+- `t2` — V1+T2, the universal strong reference
+- `v3_best` — current champion V3
+- `panel_gen_25` — earlier V3 generation, captures pre-refactor style
+- `round1_resources_start` — round-1-heavy resource-focused variant
+- `panel_gen47_wood020` — the wood-hoarder exploit baseline (config with `wood_flat_bonus=0.2`)
+- `panel_gen16_temp05` — softmax T=0.5 baseline (`temperature=0.5` on config); T=0.5 selected after a sweep showed it discriminates baselines best (widest spread of candidate win-rates against it)
+- `panel_gen47` — alt V3 generation for diversity
+- `panel_wood_r1` (rotation only) — wood-R1-forced V3
+
+Goal: a candidate that beats this panel-mean has generalized across opponent strength AND opponent style, not just learned to exploit one specific configuration.
+
+## 18. R1-force-forest empirical results
+
+The wood-R1 hypothesis was: **wood-R1 is strategically viable when V3 is retuned for it.** Two head-to-head matches answer this:
+
+- `panel_gen16` vs `panel_gen16` with `r1_force_forest_bonus=1000` forced on one side: the forced side lost **89.5%** of games. (Bonus on a config not tuned for it is strongly bad.)
+- `panel_gen16` vs `alphas_gen_7` (the wood_r1 rotation's chain-end, which IS tuned with the bonus): `alphas_gen_7` won **95%** of games (38-2 in 40-game match).
+
+**Conclusion.** Wood-R1 IS viable — but only when the rest of V3 has been re-tuned to match. A naive "set the bonus, don't retune" approach loses badly. The rotation produced a config that beats the previous champion decisively.
+
+## 19. Round-robin promotion (manual)
+
+The current `v3_best.json` is `alphas_gen_7`, promoted manually via round-robin rather than the standard auto-promote (which compares only one holdout margin against `v3_best`'s stored margin).
+
+**The round-robin.** Eight candidate V3 configs played C(8,2) = 28 pairs × 40 games/pair = **1120 games total**. Aggregate win-rate ranking:
+
+| Rank | Config | Aggregate win-rate |
+|---|---|---|
+| 1 | `alphas_gen_7` | 86.4% |
+| 2 | `alphas_gen_1` | 81.1% |
+| 3 | `panel_wood_r1` | 61.1% |
+| 4 | `panel_gen16` | 58.2% |
+| 5 | `panel_gen47_wood020` | 40.0% |
+| 6 | `panel_gen_25` | 38.9% |
+| 7 | `panel_gen47` | 30.4% |
+| 8 | `round1_resources_start` | 2.9% |
+
+`alphas_gen_7` vs `panel_gen16` head-to-head: **38-2 (95%)**. Decisively the strongest.
+
+**Why round-robin over auto-promote.** Round-robin is a stricter ranking criterion than "beats v3_best on holdout by margin X" — it requires the new champion to dominate the entire V3 population, not just incrementally improve against one frozen baseline. This catches the chained-baseline drift failure mode (§2.5) more robustly. The auto-promote mechanism remains in place for individual `tune_heuristic.py` runs; round-robin is the recommended **final** gate before manually overwriting `v3_best.json`.
+
+## 20. 8-config ensemble for NN data generation
+
+The same 8 configs from the round-robin (§19) are also used as an **ensemble for state-distribution diversity** when generating data for an eventual neural-network evaluator. The 8 span strength from ~5-15% (`t2` vs the stronger V3 configs) up to 86.4% (`alphas_gen_7`), and span style across wood-R1, wood-hoard, softmax-noise, and "normal" V3 variants.
+
+Generating data via a mixture rather than a single strong agent gives the NN a wider distribution of game states to learn from — avoiding the failure mode where the NN only sees the narrow trajectory the strongest agent reaches and fails to generalize when MCTS rollouts visit off-policy states.
+
+See **`tuned_configs/DATA_GEN_ENSEMBLE.md`** for the full ensemble table (per-config strength, style, and weight in the data-generation mixture).

@@ -1,0 +1,163 @@
+Tuning 60 parameters via CMA-ES
+  category: 'v3_fields_crops'  (arch: v3)
+  warm-start base: 'tuned_configs/rot_woodr1_1779906327_v3_food.json'
+  baseline opponents (mean margin across all):
+    - 't2' (arch: v1)
+    - 'tuned_configs/v3_best.json' (arch: v3)
+    - 'tuned_configs/panel_gen_25.json' (arch: v3)
+    - 'tuned_configs/round1_resources_start.json' (arch: v3)
+    - 'tuned_configs/panel_gen47_wood020.json' (arch: v3)
+    - 'tuned_configs/panel_gen16_temp05.json' (arch: v3)
+    - 'tuned_configs/panel_gen47.json' (arch: v3)
+    - 'tuned_configs/panel_wood_r1.json' (arch: v3)
+  regression detector: 't2' (arch: v1) — measured per-gen on session-best
+  restricted action set: ON (wrapper active for both sides)
+  seeds: 40 games per evaluation (training: 0..39)
+  holdout: 100 games (1000..1099)
+  popsize: 16, max_gens: 10, sigma0: 0.3
+  fitness: sublinear  (per-game = sign(m)·|m|^0.5)
+  rotate seeds: ON (each gen N uses seeds [10000+N·40, 10000+(N+1)·40))
+  validation pool: seeds 500..559 (stable per-baseline diagnostic across gens)
+  total evals: 160
+  jobs: 8; python -O: ON
+  estimated wall time: ~7.7 min (vs ~53.3 min if 1-job & no -O)
+  Output: tuned_configs/rot_woodr1_1779906327_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/rot_woodr1_1779906327_v3_fields_crops.log (human-readable progress mirror)
+
+Sanity: fitness(starting point, mean margin across 8 baselines) = +2.589
+  (sign/magnitude reflects warm-start config vs baseline strength gap)
+
+
+
+gen   1  best so far: +2.589  gen best: +2.369  gen mean: +2.217  (9.2 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+11.20  v3_best 56-0-4  m=+15.28  panel_gen_25 47-0-13 m=+4.43  round1_resources_start 53-0-7  m=+12.02  panel_gen47_wood020 52-0-8  m=+12.50  panel_gen16_temp05 53-0-7  m=+10.22  panel_gen47 39-0-21 m=+8.08  panel_wood_r1 45-1-14 m=+7.90
+           regression vs 't2': 60-0-0   m=+11.200
+
+
+gen   2  best so far: +2.628  gen best: +2.628  gen mean: +2.473  (19.7 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+11.42  v3_best 58-0-2  m=+16.05  panel_gen_25 42-3-15 m=+2.35  round1_resources_start 57-0-3  m=+14.98  panel_gen47_wood020 56-0-4  m=+15.35  panel_gen16_temp05 50-0-10 m=+8.47  panel_gen47 35-0-25 m=+8.28  panel_wood_r1 42-0-18 m=+7.28
+           regression vs 't2': 60-0-0   m=+11.417
+
+
+gen   3  best so far: +2.649  gen best: +2.649  gen mean: +2.470  (31.6 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+10.48  v3_best 58-0-2  m=+17.68  panel_gen_25 44-1-15 m=+2.87  round1_resources_start 50-0-10 m=+12.78  panel_gen47_wood020 54-0-6  m=+13.82  panel_gen16_temp05 54-0-6  m=+9.00  panel_gen47 37-0-23 m=+8.92  panel_wood_r1 45-0-15 m=+8.68
+           regression vs 't2': 60-0-0   m=+10.483
+
+
+gen   4  best so far: +2.649  gen best: +2.642  gen mean: +2.418  (43.9 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 60-0-0  m=+10.48  v3_best 58-0-2  m=+17.68  panel_gen_25 44-1-15 m=+2.87  round1_resources_start 50-0-10 m=+12.78  panel_gen47_wood020 54-0-6  m=+13.82  panel_gen16_temp05 54-0-6  m=+9.00  panel_gen47 37-0-23 m=+8.92  panel_wood_r1 45-0-15 m=+8.68 [cached: session_best unchanged]
+           regression vs 't2': 60-0-0   m=+10.483
+
+
+gen   5  best so far: +2.929  gen best: +2.929  gen mean: +2.709  (54.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.45  v3_best 57-0-3  m=+16.12  panel_gen_25 50-0-10 m=+4.60  round1_resources_start 51-0-9  m=+13.47  panel_gen47_wood020 52-0-8  m=+14.97  panel_gen16_temp05 52-0-8  m=+9.18  panel_gen47 47-0-13 m=+10.83  panel_wood_r1 41-0-19 m=+9.35
+           regression vs 't2': 59-0-1   m=+10.450
+
+
+gen   6  best so far: +2.929  gen best: +2.614  gen mean: +2.392  (66.3 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.45  v3_best 57-0-3  m=+16.12  panel_gen_25 50-0-10 m=+4.60  round1_resources_start 51-0-9  m=+13.47  panel_gen47_wood020 52-0-8  m=+14.97  panel_gen16_temp05 52-0-8  m=+9.18  panel_gen47 47-0-13 m=+10.83  panel_wood_r1 41-0-19 m=+9.35 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+10.450
+
+
+gen   7  best so far: +2.929  gen best: +2.643  gen mean: +2.492  (76.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.45  v3_best 57-0-3  m=+16.12  panel_gen_25 50-0-10 m=+4.60  round1_resources_start 51-0-9  m=+13.47  panel_gen47_wood020 52-0-8  m=+14.97  panel_gen16_temp05 52-0-8  m=+9.18  panel_gen47 47-0-13 m=+10.83  panel_wood_r1 41-0-19 m=+9.35 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+10.450
+
+
+gen   8  best so far: +2.929  gen best: +2.808  gen mean: +2.588  (85.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.45  v3_best 57-0-3  m=+16.12  panel_gen_25 50-0-10 m=+4.60  round1_resources_start 51-0-9  m=+13.47  panel_gen47_wood020 52-0-8  m=+14.97  panel_gen16_temp05 52-0-8  m=+9.18  panel_gen47 47-0-13 m=+10.83  panel_wood_r1 41-0-19 m=+9.35 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+10.450
+
+
+gen   9  best so far: +2.929  gen best: +2.645  gen mean: +2.452  (94.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.45  v3_best 57-0-3  m=+16.12  panel_gen_25 50-0-10 m=+4.60  round1_resources_start 51-0-9  m=+13.47  panel_gen47_wood020 52-0-8  m=+14.97  panel_gen16_temp05 52-0-8  m=+9.18  panel_gen47 47-0-13 m=+10.83  panel_wood_r1 41-0-19 m=+9.35 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+10.450
+
+
+gen  10  best so far: +2.929  gen best: +2.610  gen mean: +2.497  (103.5 min)
+           per-baseline (W-D-L  m=margin in raw score): t2 59-0-1  m=+10.45  v3_best 57-0-3  m=+16.12  panel_gen_25 50-0-10 m=+4.60  round1_resources_start 51-0-9  m=+13.47  panel_gen47_wood020 52-0-8  m=+14.97  panel_gen16_temp05 52-0-8  m=+9.18  panel_gen47 47-0-13 m=+10.83  panel_wood_r1 41-0-19 m=+9.35 [cached: session_best unchanged]
+           regression vs 't2': 59-0-1   m=+10.450
+
+Optimization complete in 103.5 min.
+Best margin (training): +2.929
+
+parameter                                start      tuned      delta
+----------------------------------------------------------------------
+plowed_field_value_0                    -1.727     -1.392     +0.334
+plowed_field_value_1                    -0.562      0.023     +0.585
+plowed_field_value_2                     0.737     -0.045     -0.782
+plowed_field_value_3                     2.458      2.270     -0.188
+plowed_field_value_4                     3.103      3.123     +0.020
+plowed_field_value_5                     3.745      4.311     +0.567
+plowed_field_value_6                     3.494      3.449     -0.044
+field_blend_alpha_stage1                 0.304      0.094     -0.211
+field_blend_alpha_stage2                 0.925      0.709     -0.216
+field_blend_alpha_stage3                 0.153      0.867     +0.714
+field_blend_alpha_stage4                 0.813      0.979     +0.166
+field_blend_alpha_stage5                 0.710      0.388     -0.322
+field_blend_alpha_stage6                 0.296      0.400     +0.104
+grain_value_0                           -0.944     -0.580     +0.364
+grain_value_1                            0.164      0.083     -0.081
+grain_value_2                            1.948      1.886     -0.063
+grain_value_3                            1.174      1.664     +0.490
+grain_value_4                            2.209      1.926     -0.283
+grain_value_5                            1.708      1.663     -0.045
+grain_value_6                            3.616      3.987     +0.371
+grain_value_7                            3.214      3.015     -0.199
+grain_value_8                            4.344      4.786     +0.442
+grain_value_9                            5.314      5.094     -0.219
+grain_blend_alpha_stage1                 0.988      0.436     -0.551
+grain_blend_alpha_stage2                 0.038      0.016     -0.022
+grain_blend_alpha_stage3                 0.594      0.457     -0.137
+grain_blend_alpha_stage4                 0.196      0.148     -0.047
+grain_blend_alpha_stage5                 0.757      0.732     -0.025
+grain_blend_alpha_stage6                 0.117      0.062     -0.055
+veg_value_0                             -0.985     -1.069     -0.084
+veg_value_1                              0.980      0.555     -0.424
+veg_value_2                              2.544      3.225     +0.681
+veg_value_3                              3.311      3.614     +0.303
+veg_value_4                              4.306      4.664     +0.358
+veg_blend_alpha_stage1                   0.966      0.991     +0.026
+veg_blend_alpha_stage2                   0.494      0.392     -0.102
+veg_blend_alpha_stage3                   0.761      0.594     -0.166
+veg_blend_alpha_stage4                   0.362      0.327     -0.035
+veg_blend_alpha_stage5                   0.332      0.004     -0.328
+veg_blend_alpha_stage6                   0.824      0.976     +0.152
+grain_pair_value_0                       0.162      0.043     -0.119
+grain_pair_value_1                       1.323      1.510     +0.186
+grain_pair_value_2                       0.672      0.490     -0.181
+grain_pair_value_3                       2.146      1.912     -0.234
+grain_pair_weight_stage1                 1.082      0.685     -0.397
+grain_pair_weight_stage2                 0.986      0.921     -0.065
+grain_pair_weight_stage3                 0.428      0.026     -0.401
+grain_pair_weight_stage4                 0.127      0.161     +0.034
+grain_pair_weight_stage5                 0.315      0.000     -0.315
+grain_pair_weight_stage6                 0.182      0.310     +0.128
+veg_pair_value_0                         0.882      0.002     -0.880
+veg_pair_value_1                         0.067      0.005     -0.062
+veg_pair_value_2                         2.003      2.102     +0.099
+veg_pair_value_3                         1.434      1.387     -0.047
+veg_pair_weight_stage1                   0.593      0.759     +0.166
+veg_pair_weight_stage2                   1.653      1.408     -0.245
+veg_pair_weight_stage3                   0.981      0.489     -0.491
+veg_pair_weight_stage4                   1.205      0.748     -0.457
+veg_pair_weight_stage5                   0.256      0.040     -0.216
+veg_pair_weight_stage6                   0.304      0.263     -0.042
+
+Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
+  holdout P0 100-0-0 P1  avg +25.41 vs +14.30  margin +11.11  (100 games, 40.3s)
+  → consistent with training (within 1pt). Tuning generalizes.
+  vs 't2': margin +11.110  (100-0-0)
+  vs 'tuned_configs/v3_best.json': margin +17.080  (81-0-19)
+  vs 'tuned_configs/panel_gen_25.json': margin +4.560  (84-0-16)
+  vs 'tuned_configs/round1_resources_start.json': margin +15.190  (87-0-13)
+  vs 'tuned_configs/panel_gen47_wood020.json': margin +16.790  (91-0-9)
+  vs 'tuned_configs/panel_gen16_temp05.json': margin +10.560  (89-0-11)
+  vs 'tuned_configs/panel_gen47.json': margin +13.040  (78-0-22)
+  vs 'tuned_configs/panel_wood_r1.json': margin +6.030  (52-0-48)
+  regression vs 't2': margin +11.110  (100-0-0)
+
+Written: tuned_configs/rot_woodr1_1779906327_v3_fields_crops.json
+Log:     tuned_configs/rot_woodr1_1779906327_v3_fields_crops.log
+CMA pkl: tuned_configs/rot_woodr1_1779906327_v3_fields_crops.cma.pkl  (use --resume tuned_configs/rot_woodr1_1779906327_v3_fields_crops.cma.pkl to continue this run)
+Best:    skipped (--no-promote)

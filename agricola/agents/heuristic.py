@@ -1556,6 +1556,14 @@ class HeuristicConfigV3:
     # opponents from JSON; not a TUNABLE field (must be set manually).
     temperature: float = 0.0
 
+    # Round-1-force-forest bonus. When > 0, evaluate_hubris_v3 adds this
+    # value if (round_number == 1 AND player has wood ≥ 3). Effectively
+    # pins R1 first action to Forest. Default 0.0 → no effect (all existing
+    # JSONs continue to play default V3). Set to 1000.0 in a config to make
+    # that config a deterministic-wood-opener V3 baseline / opponent /
+    # warm-start, without needing external evaluator composition.
+    r1_force_forest_bonus: float = 0.0
+
     # Reed: 3 components.
     # 1) reed_room_vector: indexed by reed count (first 6 owned).
     # 2) reed_renovation_vector: length 2. Applies for as many entries as
@@ -2085,6 +2093,15 @@ def evaluate_hubris_v3(
 
     pts = 0.0
 
+    # Optional R1-force-forest bonus. When config.r1_force_forest_bonus > 0,
+    # adds the bonus to the eval if (round 1 AND wood ≥ 3). At round 1 the
+    # only worker placement that yields ≥3 wood is Forest, so this pins
+    # R1's first action to Forest. After R1 the bonus is 0 → no effect on
+    # remaining decisions. Lets a wood-tuned config be deployed as a
+    # self-contained agent without external evaluator composition.
+    if config.r1_force_forest_bonus and state.round_number == 1 and p.resources.wood >= 3:
+        pts += config.r1_force_forest_bonus
+
     # ----- BLEND categories -----
 
     n_fields = _v3_count_field_tiles(p)
@@ -2283,6 +2300,47 @@ def make_differential_evaluator(base_evaluator):
 
 evaluate_hubris_v3_differential = make_differential_evaluator(evaluate_hubris_v3)
 evaluate_hubris_v1_differential = make_differential_evaluator(evaluate_hubris_v1)
+
+
+def compose_evaluators(*evaluators):
+    """Return a callable that sums the outputs of `evaluators`.
+
+    Lets an agent use multiple value signals additively. Each component
+    is independent and shares the (state, player_idx, cfg) signature.
+
+    Use for: scripted-move overrides (force a specific move via a +large
+    auxiliary that fires only on the target state); experimental probes
+    that test whether the heuristic's preferred play is locally correct
+    after tuning OR whether retuning from a forced state produces a
+    stronger overall agent.
+
+    Example:
+        agent = HubrisHeuristicV3(...)
+        agent.evaluator = compose_evaluators(
+            evaluate_hubris_v3, r1_force_forest_bonus,
+        )
+    """
+    def composed(state, player_idx, cfg):
+        return sum(e(state, player_idx, cfg) for e in evaluators)
+    composed.__name__ = "composed_" + "_".join(getattr(e, "__name__", "fn") for e in evaluators)
+    return composed
+
+
+def r1_force_forest_bonus(state, player_idx: int, cfg) -> float:
+    """Auxiliary evaluator: +1000 if this player has ≥3 wood in round 1, else 0.
+
+    Round 1 the only worker placement that yields ≥3 wood is Forest (3w
+    accumulation rate at game start). Composing this with V3's evaluator
+    effectively pins R1's first action to Forest. Used to test the
+    strategic hypothesis that wood-first R1 is stronger than V3's default
+    reed-first preference — see `task_files/` discussion. After R1 the
+    bonus stops firing (round_number != 1) so play returns to V3's normal
+    evaluation."""
+    if state.round_number != 1:
+        return 0.0
+    if state.players[player_idx].resources.wood >= 3:
+        return 1000.0
+    return 0.0
 
 
 class HubrisHeuristicV3Differential(HubrisHeuristicV3):

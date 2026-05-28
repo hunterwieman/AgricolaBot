@@ -61,6 +61,8 @@ from agricola.agents.heuristic import (
     evaluate_hubris_v3_differential,
     evaluate_simple,
     make_differential_evaluator,
+    compose_evaluators,
+    r1_force_forest_bonus,
 )
 from agricola.agents.mcts import (
     MCTSAgent,
@@ -95,6 +97,8 @@ __all__ = [
     "evaluate_hubris_v1_differential",
     "evaluate_hubris_v3_differential",
     "make_differential_evaluator",
+    "compose_evaluators",
+    "r1_force_forest_bonus",
     "play_game",
     "restricted_legal_actions",
     "strict_restricted_legal_actions",
