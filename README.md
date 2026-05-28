@@ -39,7 +39,7 @@ Then either play in the browser or watch a game in the terminal:
 python play_web.py --seats human hubris
 
 # Browser UI — watch two AIs play (step-through with Enter / Advance button)
-python play_web.py --seats hubris mcts
+python play_web.py --seats hubris hubris_v3
 
 # Terminal — watch a random-vs-random game with a per-round narrative
 python play_random_game.py --trace
@@ -85,9 +85,9 @@ This project has unusually thorough documentation. If you want to dig in:
 | [`STRATEGY.md`](STRATEGY.md) | AI strategy and algorithm decisions; rationale behind each project phase. |
 | [`RULES.md`](RULES.md) | Complete rules reference for the 2-player Family game, with design clarifications. |
 | [`MCTS_DESIGN.md`](MCTS_DESIGN.md) | Comprehensive design spec for the MCTS phase. |
-| [`V3_DESIGN.md`](V3_DESIGN.md) | Architecture of the V3 heuristic evaluator. |
+| [`HUBRIS_V1_NOTES.md`](HUBRIS_V1_NOTES.md) | Per-term breakdown of the V1 heuristic, the first non-random AI player. |
+| [`V3_DESIGN.md`](V3_DESIGN.md) | Architecture of the V3 heuristic evaluator, the second non-random AI player. |
 | [`V3_TRAINING_PIPELINE.md`](V3_TRAINING_PIPELINE.md) | Operational guide to the CMA-ES tuning pipeline. |
-| [`HUBRIS_V1_NOTES.md`](HUBRIS_V1_NOTES.md) | Per-term breakdown of the V1 heuristic. |
 | [`SESSION_HISTORY.md`](SESSION_HISTORY.md) | Running log of what was built each session, including design decisions and bugs caught. |
 | [`FILE_DESCRIPTIONS.md`](FILE_DESCRIPTIONS.md) | Per-file descriptions for every module. |
 | [`TEST_DESCRIPTIONS.md`](TEST_DESCRIPTIONS.md) | Per-file coverage descriptions for the test suite. |

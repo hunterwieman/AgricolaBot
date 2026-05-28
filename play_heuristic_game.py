@@ -24,6 +24,7 @@ import sys
 from agricola.agents import (
     CONFIG_V1_T2,
     CONFIG_V3_T1,
+    HeuristicConfigV3,
     HubrisHeuristic,
     HubrisHeuristicV1,
     HubrisHeuristicV2,
@@ -34,6 +35,27 @@ from agricola.agents import (
 )
 from agricola.scoring import score, tiebreaker
 from agricola.setup import setup
+
+# Tuned V3 config loaded at startup via --v3-config PATH. When None,
+# hubris_v3 falls back to CONFIG_V3_T1. See _load_v3_config_from_json.
+_TUNED_V3_CONFIG: HeuristicConfigV3 | None = None
+
+
+def _load_v3_config_from_json(path: str) -> HeuristicConfigV3:
+    """Load a HeuristicConfigV3 from a tune_heuristic.py JSON output file's
+    `best_config` field. Raises if the file isn't a V3 tuning artifact.
+    Mirrors play_web.py's helper of the same name."""
+    import json as _json
+    with open(path) as f:
+        data = _json.load(f)
+    if data.get("candidate_arch") != "v3":
+        raise ValueError(
+            f"{path}: candidate_arch is {data.get('candidate_arch')!r}, "
+            f"expected 'v3'. This JSON is not a V3 tuning result."
+        )
+    if "best_config" not in data:
+        raise ValueError(f"{path}: missing 'best_config' field.")
+    return HeuristicConfigV3(**data["best_config"])
 
 # Reuse the formatting helpers from play_random_game.py — same scoreboard,
 # same trace renderer.
@@ -79,9 +101,14 @@ def _make_agent(name: str, seed: int, temperature: float, lookahead: str):
     if name == "hubris_v2":
         return HubrisHeuristicV2(seed=seed, temperature=temperature, lookahead=lookahead)
     if name == "hubris_v3":
-        # V3 architecture with the tuned CONFIG_V3_T1 (current strongest V3).
+        # V3 architecture. Priority: --v3-config PATH (if set) > CONFIG_V3_T1
+        # (the older hardcoded V3 constant). The default --v3-config points
+        # at tuned_configs/v3_best.json so this picks up the current champion
+        # without per-command overrides. CONFIG_V3_T1 is kept as the
+        # fallback only if the user passes --v3-config "" or none.
+        cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
         return HubrisHeuristicV3(seed=seed, temperature=temperature, lookahead=lookahead,
-                                  config=CONFIG_V3_T1)
+                                  config=cfg)
     raise ValueError(f"Unknown agent type {name!r}; choose from {AGENT_TYPES}")
 
 
@@ -115,7 +142,27 @@ def main():
         "--trace", "-t", action="store_true",
         help="Print a per-round action log before the scoreboard.",
     )
+    parser.add_argument(
+        "--v3-config", default="tuned_configs/v3_best.json",
+        help="Path to a JSON file (from scripts/tune_heuristic.py) whose "
+             "'best_config' is loaded as the HubrisHeuristicV3 config when "
+             "'hubris_v3' is selected as a seat. Default: "
+             "tuned_configs/v3_best.json (the current promoted champion). "
+             "Pass empty string ('') to fall back to the hardcoded "
+             "CONFIG_V3_T1 (older V3 from earlier training rounds).",
+    )
     args = parser.parse_args()
+
+    # Load the tuned V3 config if a path was provided.
+    global _TUNED_V3_CONFIG
+    if args.v3_config:
+        try:
+            _TUNED_V3_CONFIG = _load_v3_config_from_json(args.v3_config)
+            print(f"Loaded V3 config from {args.v3_config}")
+        except (FileNotFoundError, ValueError) as e:
+            print(f"WARNING: --v3-config {args.v3_config} failed to load: {e}")
+            print(f"  Falling back to CONFIG_V3_T1 (hardcoded V3 constant).")
+            _TUNED_V3_CONFIG = None
 
     seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
     print(f"Agricola heuristic game, seed={seed}, P0={args.p0}, P1={args.p1}, "
