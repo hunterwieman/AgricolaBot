@@ -540,6 +540,52 @@ MCTS agent implementing the design in **`MCTS_DESIGN.md`**. Vanilla UCT + FPU + 
 
 ---
 
+### `agricola/agents/nn/__init__.py`
+
+Re-exports the NN subpackage's public surface so external code can `from agricola.agents.nn import X` regardless of internal layout. Exports: `DATA_VERSION`, `ENCODING_VERSION`, `DecisionSnapshot`, `GameRecord`, `DataVersionMismatch`, `compute_winner`, `load_game_records`, `play_recording_game`.
+
+The subpackage is split into `schema.py` (no PyTorch dep), `recording.py` (no PyTorch dep), `encoder.py` (future PyTorch dep), and planned-but-not-yet-implemented `model.py` / `agent.py`. Splitting keeps the dataset-handling code torch-free so data-generation scripts don't pay the import cost. See **`FIRST_NN.md`** §11.1 for the file-by-file rationale.
+
+---
+
+### `agricola/agents/nn/schema.py`
+
+On-disk schema for the NN training dataset. No PyTorch dependency.
+
+- **`DATA_VERSION: int = 1`** — guards the on-disk dataset shape. Stamped onto every `GameRecord`; verified hard-fail at load time. Bump policy in **`FIRST_NN.md`** §11.4.
+- **`DecisionSnapshot`** — frozen dataclass: `state, chosen_action, decider_idx`. One per non-singleton decision; the snapshot inclusion rule (§6.2) excludes singleton states.
+- **`GameRecord`** — frozen dataclass: per-game metadata (`game_idx, seed, p0_config_path, p1_config_path, p0_temperature, p1_temperature`), final scoring (`p0_final_score, p1_final_score, winner`), `terminal_state` (a `GameState` at `phase=BEFORE_SCORING`, stored once per game; used both as audit anchor and as one extra training pair per §5.1), and `decisions: tuple[DecisionSnapshot, ...]`.
+- **`DataVersionMismatch`** — raised on `load_game_records` when a record's `data_version` doesn't match the current `DATA_VERSION`. Hard fail so silent drift is impossible.
+- **`load_game_records(path)`** — pickle-load wrapper that runs the `DATA_VERSION` check on every loaded `GameRecord`. Returns `list[GameRecord]`.
+- **`compute_winner(s0, s1, tb0, tb1)`** — score-then-tiebreaker → winning player index (0 or 1) or `None` for true tie. Used by `play_recording_game` at game-end.
+
+---
+
+### `agricola/agents/nn/recording.py`
+
+Single-game recording driver. Plays one full game between two agents from an initial state to terminal; captures every non-singleton decision plus the terminal state plus final scoring into a complete `GameRecord`.
+
+- **`play_recording_game(initial_state, p0_agent, p1_agent, *, game_idx, seed, p0_config_path, p1_config_path, p0_temperature, p1_temperature, legal_actions_fn=restricted_legal_actions)`** — the public function. Plays the game, returns a `GameRecord` stamped with the current `DATA_VERSION`.
+
+Key invariants (documented in the function docstring):
+- The snapshot's `state` field is captured **before** the agent call so it matches what the agent saw — re-ordering this code would silently store the post-step state and break training data semantics.
+- Singleton states are skipped using the same `legal_actions_fn` the agent uses, so "non-singleton" matches between recorder and agent.
+- No additional randomness is introduced — given pre-seeded agents and a deterministic `initial_state`, the `GameRecord` is fully reproducible (load-bearing for the resume-on-existing protocol in `scripts/generate_nn_training_data.py`).
+
+No PyTorch dependency. Depends only on engine (`step`, `legal_actions`, `score`, `tiebreaker`) and the `Agent` protocol.
+
+---
+
+### `agricola/agents/nn/encoder.py`
+
+Input-vector encoder for the NN value function. Today contains only:
+
+- **`ENCODING_VERSION: int = 1`** — guards the encoder's output schema (input vector shape + feature ordering baked into a trained model's first layer). Stamped into model metadata sidecars at training time; bump whenever `encode_state` would produce a different output for the same input state. Bump policy in **`FIRST_NN.md`** §11.4.
+
+The encoder itself (`encode_state(state, player_idx) -> torch.Tensor`) is TBD pending architecture decisions. Will host a flat-feature encoder matching the ~170-feature spec in `FIRST_NN.md` §4 (per-player ×2 / shared / mid-action singletons / terminal-state encoding with `game_end_indicator`).
+
+---
+
 ### `tests/__init__.py`
 
 Empty package marker. Makes `tests` importable as a Python package. No code here.
@@ -670,6 +716,51 @@ Heuristic opponent always uses the same strict-restricted legality as MCTS (via 
 Recommended invocation: `python -O scripts/play_mcts_match.py --opponent hubris_v3 --v3-config tuned_configs/v3_best.json --sims 500 --n 64 --jobs 8`. The `-O` flag strips engine asserts for a meaningful speedup at the per-sim hot path.
 
 `CATEGORY_POPSIZE` maps each category to its CMA-ES popsize (`4 + ⌈3·ln(d)⌉`): 16, 13, 17, 18 for the four V3 categories respectively. `CATEGORY_ORDER` defines the fixed per-pass sequence.
+
+---
+
+### `scripts/generate_nn_training_data.py`
+
+Batch generator for NN training data. Plays N games between agents drawn from an approved-config ensemble and writes the resulting `GameRecord`s to disk under `data/nn_training/runs/<run_id>/games/worker_NN.pkl`. Default ensemble = the 8 configs from **`tuned_configs/DATA_GEN_ENSEMBLE.md`**. Design spec in **`FIRST_NN.md`** §6.
+
+Core mechanics:
+- **`compute_plan(n_games, base_seed, approved_configs)`** — deterministic per-game work-item list. Each game's RNG seeded by `base_seed * 100000 + game_idx` so per-game draws are independent of base seed magnitude. Draws P0/P1 configs (with replacement) + independent per-agent temperatures from a bimodal distribution (95% uniform [0.3, 1.0] + 5% T=4). Same arguments → same plan (load-bearing for resume).
+- **`partition_plan(plan, n_workers)`** — optimally-balanced contiguous slicing (max imbalance = 1 game). Contiguous (not strided) so each worker's pickle file holds a known range of game_idxs.
+- **`_resolve_config_cached(spec)`** + **`_build_agent(spec, seed, temperature, legal_actions_fn)`** — agent factory. Spec dispatch: `"random"` → `RandomAgent`, `"t2"` → `HubrisHeuristicV1` + `CONFIG_V1_T2`, JSON path → load `best_config`, dispatch on `candidate_arch` (`"v1"` → `HubrisHeuristicV1`, `"v3"` → `HubrisHeuristicV3`). Per-worker cache so JSON configs aren't reloaded each game.
+- **`_worker_play_games(args)`** — worker entry point. Resume: loads existing pickle (if any), skips game_idxs already complete. Atomic per-game pickle writes via `_write_pickle_atomic` (temp file + rename) so a killed mid-write doesn't corrupt the file. Per-game errors caught with full traceback, logged in the per-worker errored list, run continues.
+- **`generate_dataset(n_games, *, out_dir=None, n_workers=None, base_seed=1000000, approved_configs=None, restricted=True, verbose=True)`** — programmatic entry point. Returns the final metadata dict. CLI `main()` is a thin wrapper.
+
+CLI: `python scripts/generate_nn_training_data.py --n-games 5000 --n-workers 8`. Resume an interrupted run via `--out-dir data/nn_training/runs/<run_id>`. Other flags: `--base-seed`, `--approved-configs`, `--restricted` / `--no-restricted` (default ON).
+
+Empirical: 1000 games on 8 workers takes ~131s; 5000 games projected at ~11 min. Storage: ~48 KB per game (~240 MB for 5000 games).
+
+`metadata.json` records run-level state: `run_id`, `code_sha`, `host`, `approved_configs`, `temperature_distribution` (description string), `restricted`, `n_workers`, `planned_games`, `completed_games`, `errored_games`, `base_seed`, `data_version`. Updated once at startup, overwritten at end with final counts.
+
+---
+
+### `scripts/validate_nn_dataset.py`
+
+Post-generation invariant checker for NN training datasets per **`FIRST_NN.md`** §6.6.
+
+- **`discover_worker_pickles(run_dir)`** — lists `run_dir/games/worker_*.pkl` files.
+- **`load_all_records(pkl_paths)`** — loads all `GameRecord`s; `load_game_records` enforces `DATA_VERSION` during load.
+- **`sample_records(records, sample_size, seed)`** — optional random subset via deterministic `np.random.default_rng(seed)` sampling without replacement.
+- **`check_record(rec, pkl_path=None) -> list[ValidationFailure]`** — runs all per-record invariants on one record. Continues past individual failures so the full report shows everything wrong with the record, not just the first.
+- **`validate_run(run_dir, *, sample_size=None, sample_seed=0, verbose=True)`** — programmatic entry point. Returns the full failure list (empty = pass).
+
+Invariants checked (per FIRST_NN.md §6.6):
+1. `data_version == DATA_VERSION` (already enforced by loader; defensive double-check).
+2. `chosen_action ∈ filter_implemented(legal_actions(snap.state))` for every snapshot (engine consistency).
+3. `len(filter_implemented(legal_actions(snap.state))) > 1` for every snapshot (non-singleton snapshot inclusion rule).
+4. `snap.state.phase != BEFORE_SCORING` for every snapshot (terminal states should be in `terminal_state`, not in `decisions`).
+5. `len(rec.decisions) > 0` for every game.
+6. Stored `p0_final_score` / `p1_final_score` match `score(terminal_state, *)` — catches scoring drift between recording and validation.
+7. `snap.decider_idx == decider_of(snap.state)` for every snapshot.
+8. `rec.terminal_state.phase == BEFORE_SCORING`.
+
+Failure reports group by check type + locate offending `game_idx` + snapshot index + source `pkl_path`. Exit codes: 0 (pass), 1 (failures), 2 (invalid run dir).
+
+CLI: `python scripts/validate_nn_dataset.py --run-dir data/nn_training/runs/<run_id>`. `--sample-size N` for random-subset validation, `--quiet` for exit-code-only mode, `--max-failures-shown N` to cap the per-failure detail output (defaults to 20).
 
 ---
 

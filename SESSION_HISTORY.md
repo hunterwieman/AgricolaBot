@@ -2706,6 +2706,87 @@ No new tests this session — the work was at the tuning/UI layer where the exis
 
 ---
 
+<a name="first-nn-data-pipeline"></a>
+## First NN — design spec + data-generation pipeline (2026-05-28)
+
+A session focused on planning the project's first neural network value function and building the data-generation infrastructure to feed it. Output is one comprehensive design doc (`FIRST_NN.md`), a new subpackage (`agricola/agents/nn/`), two new scripts, three new test files, and several thousand validated training-game records on disk. No engine-side changes; everything is in the agents and tooling layer.
+
+### Phase context
+
+The heuristic-tuning pipeline (V3 with CMA-ES) is approaching saturation: each tuning round produces smaller gains, and the most recent retunes showed mild overfitting / parameter reversals. The fundamental ceiling isn't the tuner — it's the **evaluator paradigm** (V3 is a hand-designed linear-ish combiner; its expressiveness is bounded by what was thought to encode). A neural network is the natural next step, and aligns with phase 5 of the project roadmap (STRATEGY.md). MCTS is also live but loses to its own V3 leaf evaluator at current sim budgets (200-500), which is partly why a stronger leaf-evaluation function is the right next bet.
+
+### Design conversation — `FIRST_NN.md`
+
+A long collaborative design session produced **`FIRST_NN.md`** (~570 lines, 12 sections). The doc covers:
+
+- **Phase ordering** (§2): (a) supervised value NN with V3-superset inputs, (b) richer encoding (CNN over farmyard, etc.), (c) policy head + PUCT in MCTS, (d) AlphaZero-style iterative self-play. **This doc covers (a).**
+- **Five design principles** (§3): input encoding is information-rich but flat; pre-compute selectively (with three criteria for what makes a derived feature worth pre-computing — multi-step / non-trivially nonlinear / trustworthy); mid-action states encoded minimally via `subaction_available` + `stop_is_legal`; terminal-margin supervision target.
+- **Input encoding** (§4): ~170 features split across per-player ×2 (~108), shared/board (~54), mid-action singletons (8). Each feature individually motivated. Notable departures from V3's view: granular crop encoding (`n_grain_fields_with_3/2/1`, etc.) instead of total grain; pasture capacities as a sorted 5-slot list; pre-computed cooking rates and `food_owed_at_next_harvest`; breeding-pair indicators; accumulation amounts on each accumulation space; `subaction_available` computed by OR-ing across the full pending stack (not just the top); terminal-state encoding via zeros for next-decision features + a `game_end_indicator` bit. §4.6 lists 10 explicitly-considered-and-rejected encoding decisions with rationale.
+- **Supervision target** (§5): terminal margin in the decider's frame, MSE loss, normalized by training-set stdev. Win-prob and multi-head alternatives considered and deferred. §5.1: include one extra training pair per game from the terminal state itself (exact deterministic margin; anchors the late-game value scale; conjecture: forces the NN to internalize the scoring function).
+- **Data generation** (§6, fully specified): 8-config approved ensemble from `tuned_configs/DATA_GEN_ENSEMBLE.md`; bimodal per-agent temperature draw (95% uniform [0.3, 1.0] + 5% T=4); independent per-agent draws so the dataset spans the full (T0, T1) plane rather than just the diagonal; snapshot only at non-singleton agent calls; one terminal state per game; per-worker pickle files under `data/nn_training/runs/<run_id>/games/`; resume-on-existing via deterministic plan recomputation.
+- **Architecture / training / evaluation** (§7, §8, §9): placeholders pending subsequent design rounds. Initial expectations recorded (3-layer MLP at width 256, modern activation, LayerNorm, GELU, etc.) but not locked in.
+- **Implementation notes** (§11): file-layout-of-subpackage discussion, schema versioning protocol. **Two parallel version counters: `DATA_VERSION` guards `GameRecord` shape; `ENCODING_VERSION` guards `encode_state` output**. Both checked hard-fail at load. Bump policy explicit: "if the function's output for the same input differs in any way, bump."
+
+Doc reorganized once mid-session — initial draft had architecture before data generation; reordered chronologically (data format → data generation → architecture → training → evaluation) since data is what's been built and architecture is what's still TBD.
+
+### Code — `agricola/agents/nn/` subpackage
+
+Started in a single `nn.py` file, then refactored to a subpackage so the dataset-handling code (schema + recording) can stay PyTorch-free. Data-generation scripts don't need to import torch; the encoder/model code (when it lands) will be its own torch-dependent file.
+
+**`schema.py`** — `DATA_VERSION = 1`. Two frozen dataclasses: `DecisionSnapshot` (state + chosen_action + decider_idx) and `GameRecord` (game-level metadata + final scoring + winner + terminal_state + decisions tuple). `DataVersionMismatch` exception. `load_game_records(path)` loader that enforces the version check. `compute_winner(s0, s1, tb0, tb1)` helper that does score-then-tiebreaker resolution.
+
+**`recording.py`** — `play_recording_game(initial_state, p0_agent, p1_agent, *, ...) -> GameRecord`. The single-game recording driver. Records snapshots only when `len(filter_implemented(legal_actions_fn(state))) > 1` (non-singleton inclusion rule); captures state BEFORE the agent call (so the snapshot matches what the agent saw); captures terminal state + final scores + tiebreakers + winner at game end. Deterministic given pre-seeded agents.
+
+**`encoder.py`** — Hosts `ENCODING_VERSION = 1`. `encode_state` itself is TBD pending architecture decisions.
+
+**`__init__.py`** — re-exports the public surface so external code can `from agricola.agents.nn import GameRecord` etc., regardless of internal file layout.
+
+### Code — scripts
+
+**`scripts/generate_nn_training_data.py`** — batch generator. Multiprocessing pool; deterministic plan computation (`compute_plan(n_games, base_seed, approved_configs)`); optimally-balanced contiguous worker slicing; atomic per-game pickle writes via temp-file + rename so a killed mid-write doesn't corrupt anything; resume-on-existing (loads existing worker pickle, identifies completed game_idxs, skips them); bimodal per-agent T draws; per-game errors caught with full traceback. Config dispatch via `_resolve_config_cached` + `_build_agent` — handles `"random"` / `"t2"` sentinels and arbitrary JSON paths. Per-worker config cache so a JSON isn't reloaded each game. CLI `--n-games / --n-workers / --out-dir / --base-seed / --approved-configs / --restricted`.
+
+**`scripts/validate_nn_dataset.py`** — post-generation invariant checker per FIRST_NN.md §6.6. Loads records (with `DATA_VERSION` hard-fail check at load), optionally samples a random subset via `--sample-size N`, runs 8 invariants per record (chosen_action ∈ legal_actions, non-singleton, terminal-phase check, decider consistency, scoring drift check, etc.), continues past failures to report all issues. Failure reports group by check type and locate offending game_idx + snapshot. Exit codes 0/1/2 (pass / fail / invalid run dir).
+
+### Tests
+
+41 new tests, all passing. Total suite: 797.
+
+- **`tests/test_nn_records.py`** (16 tests): schema construction, frozen-dataclass invariant, pickle roundtrip preserves all fields (including nested GameState), `DATA_VERSION` mismatch raises hard-fail at load, `compute_winner` (score margin, tiebreaker fallback, true tie), `play_recording_game` (completeness, non-singleton invariant, decider correctness, winner consistency with scores, determinism across two identical-seed invocations, post-recording pickle roundtrip).
+- **`tests/test_generate_nn_training_data.py`** (15 tests): plan determinism (same args → same plan), plan size matches n_games, seed uniqueness, configs drawn from approved pool, temperatures in valid range (both modes hit across 1000 games), partition balanced + no overlap, agent factory dispatch for `random` / `t2` / V3 JSON, full-pipeline smoke (4 games × 2 workers with random agents), resume no-op (second run skips all 4 games), resume-and-extend (2-game run + 4-game run = 4 games not 6).
+- **`tests/test_validate_nn_dataset.py`** (10 tests): clean record passes all invariants, scoring drift (P0 and P1 cases) detected, empty decisions detected, wrong decider_idx detected, illegal chosen_action detected (using `PlaceWorker("urgent_wish_for_children")` which is only legal in Stage 5+ as the deliberate-impossible case), end-to-end validate_run failure aggregation, missing games dir raises FileNotFoundError, sample-size flag works.
+
+### Real data generated
+
+Three runs validated end-to-end:
+
+| Run | Games | Wall time | Disk | Validation |
+|---|---|---|---|---|
+| 20260528-025457-d3d4 | 50 (pipeline-check) | 7.3 s | 2.6 MB | All checks pass |
+| 20260528-031013-cdfe | 1000 (sanity-check) | 131 s | 48 MB | All checks pass |
+| 20260528-031528-9d6a | 5000 (production) | ~11 min (in progress at session end) | ~240 MB | TBD |
+
+Empirical findings worth knowing:
+
+- **~90 decisions per game on average** (range 67-103 on the 50-game sample) — higher than the 30-60 estimate written into the design doc. Total: ~4500 snapshots per 50 games.
+- **The 1000-game run took 131 seconds on 8 workers** — projected per-game cost ~1.3s, dominated by V3 turn-lookahead. Far faster than the design doc's "3-5 minutes" estimate.
+- **Storage: ~48 KB per game** with raw `GameState` pickled (not pre-encoded). 5000 games ≈ 240 MB; 10k ≈ 480 MB.
+- **Config draws are roughly uniform with small-sample variance** (e.g., 9-18 out of 100 draws each in the 50-game run vs 12.5 expected — fine at 100 draws, will tighten at 5000+).
+- **Temperature distribution matches spec exactly**: 5/100 draws at T=4 in the 50-game run (5% mode), 95 in [0.3, 1.0] (skilled mode).
+- **Game outcomes look healthy**: P0 wins ~29/50, P1 ~21/50, mean margin +2.4 (likely a small SP advantage; will average out at production scale).
+
+### Storage policy
+
+`data/nn_training/` added to `.gitignore`. Reasoning: deterministic from `(code_sha, base_seed, approved_configs)` per §6.8, so re-runnable rather than checked in. Each production run is >100 MB which would inflate the repo permanently and exceed GitHub's per-file soft limit.
+
+### What's next
+
+- Architecture conversation (§7) — depth/width/normalization/activation for the MLP. Locking this in unblocks writing `encode_state` (since the encoder needs to know the output tensor shape and normalization scheme).
+- Encoder implementation in `agricola/agents/nn/encoder.py`.
+- Model module (`model.py`) — PyTorch `nn.Module`.
+- Training loop (`scripts/train_first_nn.py`) + agent wrapper (`agent.py`) + evaluation harness (`scripts/eval_first_nn.py`).
+
+---
+
 <a name="current-state"></a>
 ## Current State
 
