@@ -16,7 +16,7 @@ Empty package marker. Makes `agricola` importable as a Python package. No code h
 
 Defines two small data containers that hold quantities of things:
 
-- **`Resources`** — holds counts of the seven goods a player can have in their personal supply: `wood`, `clay`, `reed`, `stone`, `food`, `grain`, `veg`. Supports addition (`r1 + r2`), subtraction (`r1 - r2`), and truthiness (`bool(r)` is `True` if any field is nonzero). All three operators return new instances; nothing mutates. Subtraction is used at pure-subtraction cost-debit sites (e.g. `p.resources - cost`); mixed subtract-and-add operations stay in the `r + Resources(field=-x, ...)` form (see CLAUDE.md "Code Conventions" → "Resource arithmetic").
+- **`Resources`** — holds counts of the seven goods a player can have in their personal supply: `wood`, `clay`, `reed`, `stone`, `food`, `grain`, `veg`. Supports addition (`r1 + r2`), subtraction (`r1 - r2`), and truthiness (`bool(r)` is `True` if any field is nonzero). All three operators return new instances; nothing mutates. Subtraction is used at pure-subtraction cost-debit sites (e.g. `p.resources - cost`); mixed subtract-and-add operations stay in the `r + Resources(field=-x, ...)` form (see ENGINE_IMPLEMENTATION.md §5 — Coding conventions, Resource arithmetic).
 
 - **`Animals`** — holds counts of the three animal types: `sheep`, `boar`, `cattle`.
 
@@ -82,11 +82,11 @@ All the frozen dataclasses that together represent a complete snapshot of a game
 
 - **`Cell`** — one cell of a player's 3×5 farmyard grid. Stores the cell type (`EMPTY`, `ROOM`, `FIELD`, `STABLE`) and any grain/veg counts if it is a field. House material is stored on `PlayerState`, not on `Cell` (see CLEANUP.md Cleanup 1).
 
-- **`Farmyard`** — the complete farmyard for one player. Contains the 3×5 `grid` of `Cell` objects (stored as a tuple of tuples), two fence arrays, and a cached `pastures: tuple[Pasture, ...]` decomposition. The two fence arrays are: `horizontal_fences` (shape 4×5, one bool per horizontal edge between rows) and `vertical_fences` (shape 3×6, one bool per vertical edge between columns). See `task_files/ARCHITECTURE.md` for the exact index conventions. The `pastures` cache is canonically ordered by `min(p.cells)` so equivalent farmyards always compare equal — required for `Farmyard.__eq__` and hashing across MCTS. The cache is maintained by caller discipline: the two pasture-changing effect functions — `_execute_build_stable` (used by Side Job and Farm Expansion via `CommitBuildStable`) and `_execute_build_pasture` (used by Fencing and Farm Redevelopment via `CommitBuildPasture`) — construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(new_grid, new_h, new_v)` kwarg. All other `Farmyard` mutations use `dataclasses.replace(farmyard, ...)` and leave `pastures` alone, which is correct because these mutations cannot change pastures. A fresh `Farmyard` constructed without any fences or stables (e.g. by `setup`) correctly has `pastures=()` via the placeholder default. This is the first accepted exception to "Derived data, not cached data" — see CHANGES.md Change 2 (and CHANGES.md Change 3 for why auto-fill in `__post_init__`, the obvious structural alternative, is not used).
+- **`Farmyard`** — the complete farmyard for one player. Contains the 3×5 `grid` of `Cell` objects (stored as a tuple of tuples), two fence arrays, and a cached `pastures: tuple[Pasture, ...]` decomposition. The two fence arrays are: `horizontal_fences` (shape 4×5, one bool per horizontal edge between rows) and `vertical_fences` (shape 3×6, one bool per vertical edge between columns). See `task_files/ARCHITECTURE.md` for the exact index conventions. The `pastures` cache is canonically ordered by `min(p.cells)` so equivalent farmyards always compare equal — required for `Farmyard.__eq__` and hashing across MCTS. The cache is maintained by caller discipline: the two pasture-changing effect functions — `_execute_build_stable` (used by Side Job and Farm Expansion via `CommitBuildStable`) and `_execute_build_pasture` (used by Fencing and Farm Redevelopment via `CommitBuildPasture`) — construct the new `Farmyard` with an explicit `pastures=compute_pastures_from_arrays(new_grid, new_h, new_v)` kwarg. All other `Farmyard` mutations use `dataclasses.replace(farmyard, ...)` and leave `pastures` alone, which is correct because these mutations cannot change pastures. A fresh `Farmyard` constructed without any fences or stables (e.g. by `setup`) correctly has `pastures=()` via the placeholder default. This is the first accepted exception to "Derived data, not cached data" (ENGINE_IMPLEMENTATION.md §4.1 — the Farmyard.pastures caching exception) — see CHANGES.md Change 2 (and CHANGES.md Change 3 for why auto-fill in `__post_init__`, the obvious structural alternative, is not used).
 
 - **`ActionSpaceState`** — the state of one action space on the board. Tracks how many workers each player has placed on it (`workers`, a 2-tuple of ints), any accumulated building resources (`accumulated`, a `Resources` object — used for the 5 building-resource spaces), any accumulated food/animals (`accumulated_amount`, a plain int — used for the 5 food/animal spaces), and which round the space is first revealed (`round_revealed`, 0 for permanent spaces).
 
-- **`PlayerState`** — everything about one player: their `Resources`, their `Animals`, their `Farmyard`, how many people they have in total and how many are currently at home, how many newborns were born during the current round (cleared by `_resolve_preparation` of the next round; if a harvest immediately follows, these newborns cost 1 food at that harvest instead of 2), begging markers, a `future_resources: tuple[Resources, ...]` of length 14 (per-round promised goods — populated by the Well major improvement when implemented), frozensets `minor_improvements` and `occupations` recording played card IDs, and `harvest_conversions_used: frozenset[str]` — the once-per-harvest conversion-decision budget (records both `use=True` and `use=False` decisions for joinery / pottery / basketmaker plus any future card-registered conversions, so the FEED enumerator stops offering a conversion once decided). Reset to `frozenset()` inside `engine._resolve_harvest_field` at the start of each harvest. Lives on `PlayerState` (not on `PendingHarvestFeed`) per the "per-card budgets that span multiple events live on `PlayerState`" convention.
+- **`PlayerState`** — everything about one player: their `Resources`, their `Animals`, their `Farmyard`, how many people they have in total and how many are currently at home, how many newborns were born during the current round (cleared by `_resolve_preparation` of the next round; if a harvest immediately follows, these newborns cost 1 food at that harvest instead of 2), begging markers, a `future_resources: tuple[Resources, ...]` of length 14 (per-round promised goods — populated by the Well major improvement when implemented), frozensets `minor_improvements` and `occupations` recording played card IDs, and `harvest_conversions_used: frozenset[str]` — the once-per-harvest conversion-decision budget (records both `use=True` and `use=False` decisions for joinery / pottery / basketmaker plus any future card-registered conversions, so the FEED enumerator stops offering a conversion once decided). Reset to `frozenset()` inside `engine._resolve_harvest_field` at the start of each harvest. Lives on `PlayerState` (not on `PendingHarvestFeed`) per the "per-card budgets that span events live on `PlayerState`" convention (ENGINE_IMPLEMENTATION.md §2).
 
 - **`BoardState`** — the shared board: a `tuple[ActionSpaceState, ...]` of length 25 indexed by `constants.SPACE_INDEX[space_id]` (canonical ordering — 11 permanent spaces in `PERMANENT_ACTION_SPACES` order, then 14 stage cards in stage order; same across all games regardless of stage-card shuffle), a tuple recording who owns each of the 10 major improvements, and the `round_card_order` tuple (the randomly-ordered stage cards). The tuple shape makes `BoardState` — and transitively `GameState` — fully hashable. Callers access spaces via the `get_space(board, space_id)` / `with_space(board, space_id, new_space)` free functions defined in this module (see also `resolution._update_space`, the higher-level wrapper that combines `dataclasses.replace` on the underlying `ActionSpaceState` with `with_space`). See CHANGES.md Change 8 for the refactor.
 
@@ -126,13 +126,13 @@ The `Pasture` dataclass and the BFS that builds the pasture decomposition live i
 **Animal accommodation:**
 - `extract_slots(player_state)` — returns `(pasture_capacities, num_flexible)`. Reads `player_state.farmyard.pastures` (the cached decomposition) and returns the list of pasture capacities plus the count of single-animal flexible slots (one per standalone (unfenced) stable, plus one always for the house pet).
 - `can_accommodate(pasture_capacities, num_flexible, sheep, boar, cattle)` — checks whether a given animal count is physically accommodatable on the farm. Each pasture holds exactly one animal type. The algorithm tries all possible type-to-pasture assignments (brute force over the small number of pastures) and returns `True` if any assignment leaves no more overflow animals than there are flexible slots.
-- `pareto_frontier(player_state, gained, rates)` — used when a player gains animals (e.g. takes the Sheep Market). Enumerates all achievable `(sheep, boar, cattle)` configurations (bounded by current inventory + gained, and by farm capacity), Pareto-filters over animal counts only, and returns a list of `(Animals, food_gained)` pairs. Food is the deterministic consequence of the chosen configuration and cooking rates — not a Pareto dimension; see CLAUDE.md "Preserving optionality" Key Design Principle. The agent picks one point from this frontier.
+- `pareto_frontier(player_state, gained, rates)` — used when a player gains animals (e.g. takes the Sheep Market). Enumerates all achievable `(sheep, boar, cattle)` configurations (bounded by current inventory + gained, and by farm capacity), Pareto-filters over animal counts only, and returns a list of `(Animals, food_gained)` pairs. Food is the deterministic consequence of the chosen configuration and cooking rates — not a Pareto dimension; see CLAUDE.md Foundations (Preserving optionality). The agent picks one point from this frontier.
 - `breeding_frontier(player_state, rates)` — same animal-counts-only Pareto logic as `pareto_frontier`, but for the breeding phase of harvest. The upper bound for each animal type is `current + 1` if the player has ≥ 2 (breeding fires), otherwise `current`. The food formula accounts for whether breeding fired when computing how many animals were consumed pre-breeding; the returned food value is the consequence of the chosen end-state, not a Pareto dimension.
 
 **Food-payment frontiers (Task 7).** General-purpose Pareto-frontier helpers for the harvest FEED phase. Marker comment in source notes these may move to a dedicated `harvest.py` if the harvest grows enough auxiliary helpers to warrant its own module.
 
 - `food_payment_frontier(player_state, food_owed, rates)` — Pareto-optimal `(grain_rem, veg_rem, sheep_rem, boar_rem, cattle_rem)` REMAINING-goods tuples for FULLY paying `food_owed` food. Per-good consumption caps trim the enumeration (e.g. `grain_cap = min(player.grain, food_owed)`; `veg_cap = min(player.veg, ceil(food_owed/vR))`); the Pareto-filter then drops over-conversion configs that are dominated by the same-amount-paid configs that consume fewer goods. `food_owed=0` short-circuits with the no-conversion config; `food_owed > 0` with insufficient player capacity returns `[]`. The general helper applies wherever food must be paid — harvest feeding (via `harvest_feed_frontier`) plus future card-cost payment actions.
-- `harvest_feed_frontier(player_state, food_owed, rates)` — Pareto-optimal `((remaining_goods), begging)` pairs for paying as much of `food_owed` as the player chooses and begging the rest. Composes `food_payment_frontier` across paid levels in `[0, food_owed]`, admitting each config exactly once at its natural fit (`paid == min(food_generated, food_owed)`) — a fast pre-filter that avoids ghost-begging duplicates before the 6-dim `(5 goods, -begging)` Pareto pass. Pareto dimensions exclude food_surplus per the "Preserving optionality" Key Design Principle, but include `-begging` as a strategic-cost dim (the player has a genuine choice to incur begging in exchange for goods preservation). Always non-empty for `food_owed > 0` (the no-conversion + max-begging entry is always on the frontier).
+- `harvest_feed_frontier(player_state, food_owed, rates)` — Pareto-optimal `((remaining_goods), begging)` pairs for paying as much of `food_owed` as the player chooses and begging the rest. Composes `food_payment_frontier` across paid levels in `[0, food_owed]`, admitting each config exactly once at its natural fit (`paid == min(food_generated, food_owed)`) — a fast pre-filter that avoids ghost-begging duplicates before the 6-dim `(5 goods, -begging)` Pareto pass. Pareto dimensions exclude food_surplus per CLAUDE.md Foundations (Preserving optionality), but include `-begging` as a strategic-cost dim (the player has a genuine choice to incur begging in exchange for goods preservation). Always non-empty for `food_owed > 0` (the no-conversion + max-begging entry is always on the frontier).
 
 ---
 
@@ -175,9 +175,9 @@ Frozen pending-decision dataclasses *and* the stack operations on them. The stac
 - **`PendingSow(player_idx, initiated_by_id)`** — `PENDING_ID = "sow"`. Pushed by `ChooseSubAction("sow")`. Pops on `CommitSow`.
 - **`PendingBakeBread(player_idx, initiated_by_id, triggers_resolved=frozenset())`** — `PENDING_ID = "bake_bread"`, `TRIGGER_EVENT = "before_bake_bread"`. `triggers_resolved` is scoped to this frame's lifetime.
 - **`PendingPlow(player_idx, initiated_by_id, triggers_resolved=frozenset())`** — `PENDING_ID = "plow"`, `TRIGGER_EVENT = "before_plow"`. Used by Farmland and Cultivation.
-- **`PendingBuildStables(player_idx, initiated_by_id, cost, max_builds, num_built=0)`** — `PENDING_ID = "build_stables"`. Multi-shot pending: each `CommitBuildStable` increments `num_built` and leaves the pending on top (`auto_pop=False`); `Stop` is the explicit exit. `cost: Resources` is per-commit (1 wood for Side Job; 2 wood for Farm Expansion; future cards may inject other costs). `max_builds: int | None` is a caller-imposed cap (`None` = no cap; Side Job sets 1; Farm Expansion sets None). Supply/affordability/cell checks live in the enumerator. No card-trigger fields yet (`triggers_resolved` / `TRIGGER_EVENT` deferred until a card needs them). See CLAUDE.md "Sub-action cost handling" → bucket 2, and "Multi-shot sub-action pendings".
+- **`PendingBuildStables(player_idx, initiated_by_id, cost, max_builds, num_built=0)`** — `PENDING_ID = "build_stables"`. Multi-shot pending: each `CommitBuildStable` increments `num_built` and leaves the pending on top (`auto_pop=False`); `Stop` is the explicit exit. `cost: Resources` is per-commit (1 wood for Side Job; 2 wood for Farm Expansion; future cards may inject other costs). `max_builds: int | None` is a caller-imposed cap (`None` = no cap; Side Job sets 1; Farm Expansion sets None). Supply/affordability/cell checks live in the enumerator. No card-trigger fields yet (`triggers_resolved` / `TRIGGER_EVENT` deferred until a card needs them). See ENGINE_IMPLEMENTATION.md §3 (sub-action cost handling → bucket 2, and multi-shot pendings).
 - **`PendingBuildRooms(player_idx, initiated_by_id, cost, max_builds, num_built=0)`** — `PENDING_ID = "build_rooms"`. Multi-shot pending mirroring `PendingBuildStables`. `cost: Resources` is set at push time from `ROOM_COSTS[p.house_material]`. Farm Expansion pushes with `max_builds=None`; future cards may set integer caps.
-- **`PendingBuildMajor(player_idx, initiated_by_id, build_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "build_major"`, `TRIGGER_EVENT = "before_build_major"`. `build_chosen` is set by `_execute_build_major` and matters only for oven majors (Clay/Stone Oven), where `PendingBuildMajor` lingers below the oven wrapper while the optional free bake resolves. Cost is NOT on this pending — it's looked up in `MAJOR_IMPROVEMENT_COSTS` by `commit.major_idx`. See CLAUDE.md "Sub-action cost handling" → bucket 3.
+- **`PendingBuildMajor(player_idx, initiated_by_id, build_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "build_major"`, `TRIGGER_EVENT = "before_build_major"`. `build_chosen` is set by `_execute_build_major` and matters only for oven majors (Clay/Stone Oven), where `PendingBuildMajor` lingers below the oven wrapper while the optional free bake resolves. Cost is NOT on this pending — it's looked up in `MAJOR_IMPROVEMENT_COSTS` by `commit.major_idx`. See ENGINE_IMPLEMENTATION.md §3 (sub-action cost handling → bucket 3).
 - **`PendingRenovate(player_idx, initiated_by_id, cost, triggers_resolved=frozenset())`** — `PENDING_ID = "renovate"`, `TRIGGER_EVENT = "before_renovate"`. `cost: Resources` is set at push time by `_choose_subaction_house_redevelopment` based on current house material and room count.
 
 **Parent pendings** host `ChooseSubAction` and (after a flag flips) `Stop`. Include both top-level pendings pushed by `PlaceWorker` and non-top-level wrapper pendings pushed by special-case commit handlers.
@@ -193,12 +193,12 @@ Frozen pending-decision dataclasses *and* the stack operations on them. The stac
 - **`PendingClayOven(player_idx, initiated_by_id, bake_chosen=False)`** — non-top-level wrapper pending pushed by `_execute_build_major` when `major_idx == 5`. Hosts the optional free Bake Bread offered by Clay Oven purchase. No `TRIGGER_EVENT` — cards that trigger on oven-purchase-bake attach to the inner `PendingBakeBread`'s `"before_bake_bread"` event.
 - **`PendingStoneOven(player_idx, initiated_by_id, bake_chosen=False)`** — mirror of `PendingClayOven` for Stone Oven (`major_idx == 6`).
 - **`PendingFencing(player_idx, initiated_by_id, build_fences_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "fencing"`, `TRIGGER_EVENT = "before_fencing"`. Thin top-level parent above `PendingBuildFences`. The space has a single sub-action category (`build_fences`); the parent exists for two reasons: (1) `build_fences_chosen` gates Stop-legality (matches the uniform parent-pending pattern across non-atomic spaces), and (2) the parent hosts the space-specific `before_fencing` trigger event for future cards — distinct from `before_build_fences`, which fires at the sub-action layer whenever Build Fences is reached (via Fencing, Farm Redevelopment, or a card effect). Stop on this pending is legal once `build_fences_chosen=True` (i.e., the player has entered and exited the inner Build Fences sub-action).
-- **`PendingBuildFences(player_idx, initiated_by_id, pastures_built=0, fences_built=0, subdivision_started=False, triggers_resolved=frozenset())`** — `PENDING_ID = "build_fences"`, `TRIGGER_EVENT = "before_build_fences"`. Multi-shot sub-action pending for fence building. Each `CommitBuildPasture` increments `pastures_built` (by 1) and `fences_built` (by the number of new edges placed) and leaves the pending on top (`auto_pop=False`); `Stop` is the explicit exit, legal once `pastures_built >= 1`. `subdivision_started` flips True the first time a subdivision commit lands; once True, new-pasture commits are no longer offered (the builds-before-subdivisions ordering rule — see CLAUDE.md "Fencing and Build Fences"). `fences_built` carries forward to satisfy card patterns like "every time you build N fences ≥ current round, get 1 vegetable". Cost is NOT on this pending — it is a pure function of `(state, commit.cells)` computed by `compute_new_fence_edges` (see CLAUDE.md "Sub-action cost handling" → bucket 4).
+- **`PendingBuildFences(player_idx, initiated_by_id, pastures_built=0, fences_built=0, subdivision_started=False, triggers_resolved=frozenset())`** — `PENDING_ID = "build_fences"`, `TRIGGER_EVENT = "before_build_fences"`. Multi-shot sub-action pending for fence building. Each `CommitBuildPasture` increments `pastures_built` (by 1) and `fences_built` (by the number of new edges placed) and leaves the pending on top (`auto_pop=False`); `Stop` is the explicit exit, legal once `pastures_built >= 1`. `subdivision_started` flips True the first time a subdivision commit lands; once True, new-pasture commits are no longer offered (the builds-before-subdivisions ordering rule — see ENGINE_IMPLEMENTATION.md §4.1 (Fencing & Build Fences)). `fences_built` carries forward to satisfy card patterns like "every time you build N fences ≥ current round, get 1 vegetable". Cost is NOT on this pending — it is a pure function of `(state, commit.cells)` computed by `compute_new_fence_edges` (see ENGINE_IMPLEMENTATION.md §3 — sub-action cost handling → bucket 4).
 - **`PendingFarmRedevelopment(player_idx, initiated_by_id, renovate_chosen=False, build_fences_chosen=False, triggers_resolved=frozenset())`** — `PENDING_ID = "farm_redevelopment"`, `TRIGGER_EVENT = "before_farm_redevelopment"`. Top-level parent for the Farm Redevelopment action space. Mirrors `PendingHouseRedevelopment` structurally — renovate mandatory first (Stop illegal until `renovate_chosen=True`), then optionally an "and afterward" sub-action. The optional sub-action here is `build_fences` (vs House Redev's `improvement`); it pushes the same `PendingBuildFences` as the Fencing space but with `initiated_by_id="farm_redevelopment"` (the parent's `PENDING_ID`), distinct from Fencing's `"fencing"`. The provenance lets future cards gate on entry point.
 
 **Phase-driven pendings (Task 7).** Pushed by phase resolvers (`engine._initiate_harvest_feed` and `engine._initiate_harvest_breed`), not by `PlaceWorker` or `ChooseSubAction`. Use the `"phase:<phase_id>"` provenance prefix — disjoint from `"space:"` and `"card:"` by construction.
 
-- **`PendingHarvestFeed(player_idx, initiated_by_id, conversion_done=False)`** — `PENDING_ID = "harvest_feed"`. One per player during HARVEST_FEED; `initiated_by_id="phase:harvest_feed"`. Hosts trigger-style opt-in sub-decisions (the three craft majors via `CommitHarvestConversion`) followed by one main `CommitConvert`. Food payment is deferred to `CommitConvert` (see `_execute_convert`); the pending carries no `food_owed` field. `food_owed` is a derived value (`max(0, need - p.resources.food)`), recomputed in `_enumerate_pending_harvest_feed` from the live player state on each legality call (per the "Derived data, not cached data" Key Design Principle — recomputing also means food-mutating card effects during feeding will reflect immediately in the next legal-actions call). `conversion_done` gates Stop legality — `Stop` is legal only after `CommitConvert`. No `triggers_resolved` / `TRIGGER_EVENT` yet (Task 5D precedent — natural future events: `before_harvest_feed`, `after_harvest_feed`).
+- **`PendingHarvestFeed(player_idx, initiated_by_id, conversion_done=False)`** — `PENDING_ID = "harvest_feed"`. One per player during HARVEST_FEED; `initiated_by_id="phase:harvest_feed"`. Hosts trigger-style opt-in sub-decisions (the three craft majors via `CommitHarvestConversion`) followed by one main `CommitConvert`. Food payment is deferred to `CommitConvert` (see `_execute_convert`); the pending carries no `food_owed` field. `food_owed` is a derived value (`max(0, need - p.resources.food)`), recomputed in `_enumerate_pending_harvest_feed` from the live player state on each legality call (per CLAUDE.md Foundations, Derived data, not cached data — recomputing also means food-mutating card effects during feeding will reflect immediately in the next legal-actions call). `conversion_done` gates Stop legality — `Stop` is legal only after `CommitConvert`. No `triggers_resolved` / `TRIGGER_EVENT` yet (Task 5D precedent — natural future events: `before_harvest_feed`, `after_harvest_feed`).
 - **`PendingHarvestBreed(player_idx, initiated_by_id, breed_chosen=False)`** — `PENDING_ID = "harvest_breed"`. One per player during HARVEST_BREED; `initiated_by_id="phase:harvest_breed"`. Simpler shape than FEED — one `CommitBreed` (chosen from `breeding_frontier`) followed by Stop. No pre-debit. `breed_chosen` gates Stop. No `triggers_resolved` / `TRIGGER_EVENT` yet.
 
 - **`PendingDecision`** — the union alias over all pending types above (now including `PendingHarvestFeed` and `PendingHarvestBreed`). Future pending types are added here as more non-atomic spaces' resolutions are implemented.
@@ -226,12 +226,12 @@ All three must point at the same universe; the `fences.py` construction guarante
 Internal structure:
 - `_is_available(state, space)` — the cross-cutting check shared by all spaces: the space must be unoccupied (`workers == (0, 0)`) and currently revealed (`round_revealed <= round_number`).
 - One private predicate function per space, adding space-specific checks on top of `_is_available`. Most accumulation spaces require at least one accumulated good to be present (it is illegal to take an empty accumulation space). The Wish for Children spaces additionally require that the current player has fewer than 5 people and (for Basic Wish) has more rooms than people. Non-atomic predicates check the player can actually execute at least one of the space's effects.
-- Shared helpers used across non-atomic predicates: `_owns_baker(state, p)`, `_can_bake_bread(state, p)`, `_can_sow(p)`, `_can_plow(p)`, `_can_build_stable(p, cost)`, `_can_afford(p, cost)`, `_can_afford_room(p)`, `_has_room_placement(p)`, `_can_build_room(p)`, `_can_renovate(p)`, `_can_afford_major(state, p, idx)`, `_can_afford_any_major_improvement(state, p)`. These follow the player-parameter convention in CLAUDE.md "Additional Design Principles". `BAKING_IMPROVEMENTS` lives in `constants.py`. `ROOM_COSTS` (per-material room cost dict) lives in `constants.py`. `_can_afford_room` is a one-liner over `_can_afford(p, ROOM_COSTS[p.house_material])`. `_can_build_stable(p, cost)` combines supply + cell-availability + affordability and replaces the deleted `_has_stable_placement` (which had no cost dimension).
+- Shared helpers used across non-atomic predicates: `_owns_baker(state, p)`, `_can_bake_bread(state, p)`, `_can_sow(p)`, `_can_plow(p)`, `_can_build_stable(p, cost)`, `_can_afford(p, cost)`, `_can_afford_room(p)`, `_has_room_placement(p)`, `_can_build_room(p)`, `_can_renovate(p)`, `_can_afford_major(state, p, idx)`, `_can_afford_any_major_improvement(state, p)`. These follow the player-parameter convention in ENGINE_IMPLEMENTATION.md §5 (Coding conventions). `BAKING_IMPROVEMENTS` lives in `constants.py`. `ROOM_COSTS` (per-material room cost dict) lives in `constants.py`. `_can_afford_room` is a one-liner over `_can_afford(p, ROOM_COSTS[p.house_material])`. `_can_build_stable(p, cost)` combines supply + cell-availability + affordability and replaces the deleted `_has_stable_placement` (which had no cost dimension).
 - Cell-enumeration helpers: `_legal_plow_cells(p)` (used by `_enumerate_pending_plow` and by `_can_plow`, which is now a one-liner over it), `_legal_stable_cells(p)` (used by `_enumerate_pending_build_stables` and by `_can_build_stable`), `_legal_room_cells(p)` (used by `_enumerate_pending_build_rooms` and by `_has_room_placement`, which is now a one-liner over it).
 - **Card extension registries**:
   - `BAKE_BREAD_ELIGIBILITY_EXTENSIONS: list[Callable]` — card-supplied predicates that may broaden `_can_bake_bread`. Cards register via `register_bake_bread_extension(fn)`. (Potter Ceramics registers an extension that accepts clay >= 1 as a valid baking precondition.)
   - `BAKING_SPEC_EXTENSIONS: list[Callable]` — card-supplied baking source contributors. Each registered fn takes `(state, player_idx)` and returns a list of `(max_grain_per_action, food_per_grain)` tuples. Cards register via `register_baking_spec_extension(fn)`. The helper `baking_specs_for_player(state, player_idx)` combines major-improvement specs (from `BAKING_IMPROVEMENT_SPECS`) with card-driven contributions; both `_execute_bake` and `_enumerate_pending_bake_bread` consume this combined list.
-- Per-pending enumerators: `_enumerate_pending_X` for each pending type, dispatched via `PENDING_ENUMERATORS`. Signature `(state, pending: PendingX) -> list[Action]` — see CLAUDE.md "Code Conventions" → "Per-pending enumerator signatures". The three fence-action enumerators are: `_enumerate_pending_fencing` (parent: offers `ChooseSubAction("build_fences")` if not yet chosen, else `Stop`), `_enumerate_pending_build_fences` (multi-shot — walks the active universe, applies the per-entry legality chain via `_check_entry_legal`, emits `CommitBuildPasture` per legal entry plus `Stop` once `pastures_built >= 1`; accepts `entries=` and `universe_set=` kwargs for per-call universe override), and `_enumerate_pending_farm_redevelopment` (parent: mirrors House Redev with `build_fences` as the optional second step, gated on `_any_legal_pasture_commit`). The two harvest enumerators (Task 7) are: `_enumerate_pending_harvest_feed` (offers undecided owned `HARVEST_CONVERSIONS` entries — both `use=True` (if affordable) and `use=False` — plus every Pareto-frontier `CommitConvert` point from `harvest_feed_frontier` (REMAINING-tuples inverted to CONSUMED amounts); once `conversion_done`, only `Stop`) and `_enumerate_pending_harvest_breed` (one `CommitBreed` per Pareto-frontier point from `breeding_frontier`; once `breed_chosen`, only `Stop`).
+- Per-pending enumerators: `_enumerate_pending_X` for each pending type, dispatched via `PENDING_ENUMERATORS`. Signature `(state, pending: PendingX) -> list[Action]` — see ENGINE_IMPLEMENTATION.md §5 (Coding conventions — per-pending enumerator signatures). The three fence-action enumerators are: `_enumerate_pending_fencing` (parent: offers `ChooseSubAction("build_fences")` if not yet chosen, else `Stop`), `_enumerate_pending_build_fences` (multi-shot — walks the active universe, applies the per-entry legality chain via `_check_entry_legal`, emits `CommitBuildPasture` per legal entry plus `Stop` once `pastures_built >= 1`; accepts `entries=` and `universe_set=` kwargs for per-call universe override), and `_enumerate_pending_farm_redevelopment` (parent: mirrors House Redev with `build_fences` as the optional second step, gated on `_any_legal_pasture_commit`). The two harvest enumerators (Task 7) are: `_enumerate_pending_harvest_feed` (offers undecided owned `HARVEST_CONVERSIONS` entries — both `use=True` (if affordable) and `use=False` — plus every Pareto-frontier `CommitConvert` point from `harvest_feed_frontier` (REMAINING-tuples inverted to CONSUMED amounts); once `conversion_done`, only `Stop`) and `_enumerate_pending_harvest_breed` (one `CommitBreed` per Pareto-frontier point from `breeding_frontier`; once `breed_chosen`, only `Stop`).
 - **Fence-action helpers** (TASK_6):
   - `_enclosable_cells_bm(farmyard) -> int` — bitmap of EMPTY/STABLE cells (rooms and fields excluded).
   - `_cells_bm_of_pasture(pasture) -> int` — cell-set of a `Pasture` as a bitmap.
@@ -309,7 +309,7 @@ The state-transition engine. Public API: `step(state, action) -> GameState`. Pur
 
 **Stack operations** (`push`, `pop`, `replace_top`) are imported from `pending.py`.
 
-See CLAUDE.md "Engine and Turn Resolution Architecture" for the design philosophies and task_files/TASK_5.md / task_files/TASK_5B_DISPATCH_CLEANUP.md for the full implementation breakdown.
+See ENGINE_IMPLEMENTATION.md §1 (Engine structure & dispatch) for the design philosophies and task_files/TASK_5.md / task_files/TASK_5B_DISPATCH_CLEANUP.md for the full implementation breakdown.
 
 ---
 
@@ -341,7 +341,7 @@ Module contents:
 - `_can_bake_bread_extension(state, p)` — broadens `_can_bake_bread` to accept "owns Potter Ceramics + owns baker + clay >= 1" as sufficient (the trigger will swap clay for grain mid-action).
 - Module-level `register(...)` and `register_bake_bread_extension(...)` calls fire at import time.
 
-See CLAUDE.md "Card implementation status" for the broader card-system design and the known limitation around compound card interactions.
+See ENGINE_IMPLEMENTATION.md §6 (card-trigger machinery & deferred design questions) for the broader card-system design and the known limitation around compound card interactions.
 
 ---
 
@@ -511,7 +511,7 @@ Every filter routes through `_safe_narrow(filtered, fallback)`: if narrowing wou
 
 The PlaceWorker layer (empty pending stack) is a no-op for both wrappers — no restriction is applied to top-level worker placement.
 
-See **`CHANGES.md`** Change 11 for the regular wrapper's design rationale and empirical evaluation, **`MCTS_DESIGN.md`** §7 for the strict additions, and CLAUDE.md "Additional Design Principles" → "Action-pruning wrapper" for the convention.
+See **`CHANGES.md`** Change 11 for the regular wrapper's design rationale and empirical evaluation, **`MCTS_DESIGN.md`** §7 for the strict additions, and CLAUDE.md Phase 2 (action-space restriction) for the convention.
 
 ---
 
@@ -542,9 +542,9 @@ MCTS agent implementing the design in **`MCTS_DESIGN.md`**. Vanilla UCT + FPU + 
 
 ### `agricola/agents/nn/__init__.py`
 
-Re-exports the NN subpackage's public surface so external code can `from agricola.agents.nn import X` regardless of internal layout. Exports: `DATA_VERSION`, `ENCODING_VERSION`, `DecisionSnapshot`, `GameRecord`, `DataVersionMismatch`, `compute_winner`, `load_game_records`, `play_recording_game`.
+Re-exports the NN subpackage's **torch-free** public surface so external code can `from agricola.agents.nn import X` regardless of internal layout. Exports: `DATA_VERSION`, `ENCODING_VERSION`, `ENCODED_DIM`, `DecisionSnapshot`, `GameRecord`, `DataVersionMismatch`, `compute_winner`, `load_game_records`, `play_recording_game`, `encode_state`, `feature_names`.
 
-The subpackage is split into `schema.py` (no PyTorch dep), `recording.py` (no PyTorch dep), `encoder.py` (future PyTorch dep), and planned-but-not-yet-implemented `model.py` / `agent.py`. Splitting keeps the dataset-handling code torch-free so data-generation scripts don't pay the import cost. See **`FIRST_NN.md`** §11.1 for the file-by-file rationale.
+The subpackage is split into torch-free modules (`schema.py`, `recording.py`, `encoder.py`) and torch-using modules (`dataset.py`, `model.py`, `training.py`, `agent.py`). The torch-using modules are intentionally **NOT** re-exported here — importing them eagerly would pull torch into the data-generation path, defeating the import-cost split. External code must import them explicitly: `from agricola.agents.nn.dataset import build_datasets`, `from agricola.agents.nn.model import NormalizedValueModel`, `from agricola.agents.nn.training import train`, `from agricola.agents.nn.agent import NNAgent`. See **`FIRST_NN.md`** §11.1 for the file-by-file rationale.
 
 ---
 
@@ -570,7 +570,7 @@ Single-game recording driver. Plays one full game between two agents from an ini
 Key invariants (documented in the function docstring):
 - The snapshot's `state` field is captured **before** the agent call so it matches what the agent saw — re-ordering this code would silently store the post-step state and break training data semantics.
 - Singleton states are skipped using the same `legal_actions_fn` the agent uses, so "non-singleton" matches between recorder and agent.
-- No additional randomness is introduced — given pre-seeded agents and a deterministic `initial_state`, the `GameRecord` is fully reproducible (load-bearing for the resume-on-existing protocol in `scripts/generate_nn_training_data.py`).
+- No additional randomness is introduced — given pre-seeded agents and a deterministic `initial_state`, the `GameRecord` is fully reproducible (load-bearing for the resume-on-existing protocol in `scripts/nn/generate_training_data.py`).
 
 No PyTorch dependency. Depends only on engine (`step`, `legal_actions`, `score`, `tiebreaker`) and the `Agent` protocol.
 
@@ -578,13 +578,71 @@ No PyTorch dependency. Depends only on engine (`step`, `legal_actions`, `score`,
 
 ### `agricola/agents/nn/encoder.py`
 
-Input-vector encoder for the NN value function. Today contains only:
+Input-vector encoder for the NN value function. No PyTorch dependency — output is `np.ndarray(float32)`; the training pipeline converts at the model boundary via `torch.from_numpy`.
 
-- **`ENCODING_VERSION: int = 1`** — guards the encoder's output schema (input vector shape + feature ordering baked into a trained model's first layer). Stamped into model metadata sidecars at training time; bump whenever `encode_state` would produce a different output for the same input state. Bump policy in **`FIRST_NN.md`** §11.4.
+- **`ENCODING_VERSION: int = 1`** — guards the encoder's output schema (input vector shape + feature ordering baked into a trained model's first layer). Stamped into `NormStats` saved alongside checkpoints; the model's `load` path raises `EncodingVersionMismatch` when versions disagree. Bump whenever `encode_state` would produce a different output for the same input state. Bump policy in **`FIRST_NN.md`** §11.4.
+- **`ENCODED_DIM: int = 170`** — flat feature-vector length. Used as the model's input dimension. Equals 54 (own-player block) + 54 (opponent block) + 54 (shared / board) + 8 (mid-action singletons).
+- **`encode_state(state, player_idx) -> np.ndarray`** — flat-feature encoder per **`FIRST_NN.md`** §4. Composes `_player_features(state, player_idx)` ×2 (own + opponent), `_shared_features(state)`, `_midaction_features(state)`. Terminal states (`phase == BEFORE_SCORING`) handled per §4.5: a `game_end_indicator` bit flips on and a fixed set of next-decision features is forced to zero. Returns a length-170 float32 array.
+- **`feature_names(state=None)`** — parallel list of names matching `encode_state`'s output indices. Used for per-feature debugging / interpretability / norm-stats audits. If `state` is provided, the names reflect the active pending frame's mid-action context; otherwise generic placeholders are used.
 
-The encoder itself (`encode_state(state, player_idx) -> torch.Tensor`) is TBD pending architecture decisions. Will host a flat-feature encoder matching the ~170-feature spec in `FIRST_NN.md` §4 (per-player ×2 / shared / mid-action singletons / terminal-state encoding with `game_end_indicator`).
+Internal helpers (`_player_features`, `_shared_features`, `_midaction_features`, `_frame_subaction_categories`, `_accum_amount`, `_assemble`) build the per-block feature tuples and flatten into the final array. The encoder is deterministic and side-effect-free.
 
 ---
+
+### `agricola/agents/nn/dataset.py`
+
+PyTorch dataset builders. Imports torch. Not re-exported from `__init__.py`.
+
+- **`NormStats`** — frozen dataclass: per-feature input mean (`np.ndarray`, shape `(ENCODED_DIM,)`) + per-feature input std + scalar target-margin std + `encoding_version`. Fit on the **training split only**, then applied to all three splits. Persisted alongside the model in `save(path)` / `load(path)` so inference normalizes identically.
+- **`_ExampleDescriptor`** — lightweight (game_idx, snapshot_idx_or_terminal, player_idx) tuple. Decoupled from games so descriptor enumeration is cheap and games are encoded just-in-time.
+- **`_enumerate_state_keys(games)`** — produces one `(game_idx, is_terminal, snapshot_idx)` key per (state, augmentation). Used for **paired sub-sampling at state-level** so any subset of descriptors includes both perspectives of any sampled state.
+- **`_expand_keys_to_descriptors(keys, games)`** / **`_expand_to_descriptors(games)`** — expand state-keys into dual-perspective `_ExampleDescriptor`s (one per player_idx).
+- **`_encode_one(desc, games)`** — encodes a single descriptor to `(features, target_margin)`. Target = `score(terminal_state, descriptor.player_idx) − score(terminal_state, 1 - descriptor.player_idx)` (perspective-margin).
+- **`_encode_descriptors(descriptors, games)`** — vectorized encoding loop; returns `(X, y_raw)` numpy arrays.
+- **`_compute_norm_stats(X_train, y_train_raw)`** — fits `NormStats` from the train split (per-feature mean/std on inputs; scalar std on the raw margin targets).
+- **`AgricolaValueDataset`** — `torch.utils.data.Dataset` wrapping a `(X, y)` pair plus its `NormStats`; `__getitem__` returns `(features, normalized_target)`. Long tensors stay on CPU; the DataLoader pins memory if GPU training is requested.
+- **`load_all_games_from_runs(run_dirs)`** — concats all `GameRecord`s across one-or-more run directories (each containing `games/worker_*.pkl`).
+- **`_split_games_by_index(games, train_frac, val_frac)`** — splits the game list by game-index (not by snapshot) so train/val/test never see the same game's terminal-margin.
+- **`build_datasets_from_games(games, *, train_frac, val_frac, ...)`** — full pipeline from in-memory games to `(train_ds, val_ds, test_ds, stats)`. Used by tests that build small game lists ad-hoc.
+- **`build_datasets(run_dirs, ...)`** — disk-side entry point. Calls `load_all_games_from_runs` then `build_datasets_from_games`. Used by `train(...)` and standalone analysis scripts.
+
+---
+
+### `agricola/agents/nn/model.py`
+
+PyTorch model + normalization wrapper. Imports torch. Not re-exported from `__init__.py`.
+
+- **`ConfigurableMLP`** — `nn.Module` with configurable input_dim, hidden_dims (list of layer widths), activation (`"gelu"` default), dropout (default 0), and optional LayerNorm between layers. The last linear projection is to `output_dim` (default 1); composable as a sub-encoder by giving a non-1 output_dim and stacking another module on top. Initialized with Kaiming-normal weights on Linear layers.
+- **`NET_REGISTRY: dict[str, callable]`** — name → factory map for nets. Lets training-config JSONs name an architecture (e.g. `"mlp"`) without hard-coding the class.
+- **`EncodingVersionMismatch`** — raised on `NormalizedValueModel.load(path)` when the saved checkpoint's `encoding_version` doesn't match the current `ENCODING_VERSION`. Hard fail so a model trained with a different feature layout can't be silently used.
+- **`NormalizedValueModel`** — `nn.Module` wrapping a `ConfigurableMLP` (or any net with `forward(x) -> y`) plus fixed input/output normalization. Three fields registered as buffers (so they move with `.to(device)` and persist across `state_dict()`): `input_mean`, `input_std`, `target_std`. `forward(x)` returns the **normalized** output (used in training MSE loss). `predict_margin(x)` returns the **raw margin** in points (used at inference): denormalizes by multiplying by `target_std`. `save(path)` writes `{state_dict, stats}` to one `.pt` file; `load(path)` reads back and reconstructs the model + `NormStats`, raising `EncodingVersionMismatch` on version skew.
+
+---
+
+### `agricola/agents/nn/training.py`
+
+Training-loop library. Imports torch + matplotlib. Not re-exported from `__init__.py`.
+
+- **`setup_seeds(seed)`** — sets numpy + torch RNGs.
+- **`make_run_id()`** — timestamp-based run id (e.g. `20260529_113000`).
+- **`current_git_sha()`** — best-effort `git rev-parse HEAD`; empty string on failure.
+- **`train_one_epoch(model, loader, optimizer, device)`** — one pass over the training loader. Returns mean-MSE for the epoch.
+- **`evaluate(model, loader, device)`** — `model.eval()` + `torch.no_grad()` pass. Returns `{"mse": ..., "mae": ..., "preds": ndarray, "targets": ndarray}` (preds/targets in raw margin units for downstream calibration plots).
+- **`print_header()` / `print_epoch_line(entry)`** — human-readable progress to stdout.
+- **`save_curves_plot(log, path)` / `save_calibration_plot(preds, targets, path)`** — matplotlib helpers that gracefully no-op if matplotlib isn't available (`return False`).
+- **`train(run_dirs, out_dir, *, hidden_dims=[256, 256], activation="gelu", dropout=0.0, lr=1e-3, weight_decay=1e-4, batch_size=512, max_epochs=50, early_stop_patience=8, train_frac=0.8, val_frac=0.1, ...) -> tuple[dict, Path]`** — the public programmatic entry. Loads games, builds datasets, fits `NormStats`, constructs `NormalizedValueModel`, runs AdamW + early-stop on val MSE, saves best checkpoint + training-curves plot + calibration plot + metadata JSON. Returns `(metadata_dict, best_checkpoint_path)`. The CLI wrapper at `scripts/nn/train_first.py` is just argparse + a `train(**kwargs)` call.
+
+---
+
+### `agricola/agents/nn/agent.py`
+
+`NNAgent` — drop-in `HeuristicAgent` subclass backed by a trained `NormalizedValueModel`. Imports torch. Not re-exported from `__init__.py`.
+
+- **`nn_evaluator(state, player_idx, model) -> float`** — single forward pass on `encode_state(state, player_idx)`. Returns the model's margin estimate from `player_idx`'s perspective. Relies on dual-perspective augmentation (A) at training time to handle either perspective; provides no antisymmetry guarantee at inference.
+- **`nn_evaluator_differential(state, player_idx, model) -> float`** — the differential (D) evaluator from **`FIRST_NN.md`** §8. Encodes both perspectives, runs ONE batched forward pass (batch-of-2), returns `V_diff = V(encode(s, 0)) - V(encode(s, 1))` for P0 and `-V_diff` for P1. Exactly antisymmetric by construction (test in `tests/test_nn_agent.py` asserts `V_diff(s, 0) == -V_diff(s, 1)` to 1e-5).
+- **`NNAgent(model, *, differential=True, lookahead="turn", seed=0, temperature=0.0, legal_actions_fn=None)`** — thin `HeuristicAgent` subclass selecting the evaluator based on `differential`. `model.eval()` set at construction; queries wrapped in `@torch.no_grad()` on both evaluators. Device queried once via `next(model.parameters()).device` so encoded inputs land on the same device.
+
+Drop-in compatibility: works with `play_match.py`, `play_game`, the per-seat restricted/strict flags. The only behavioral difference vs `HubrisHeuristicV3` is the evaluator function.
 
 ### `tests/__init__.py`
 
@@ -719,7 +777,7 @@ Recommended invocation: `python -O scripts/play_mcts_match.py --opponent hubris_
 
 ---
 
-### `scripts/generate_nn_training_data.py`
+### `scripts/nn/generate_training_data.py`
 
 Batch generator for NN training data. Plays N games between agents drawn from an approved-config ensemble and writes the resulting `GameRecord`s to disk under `data/nn_training/runs/<run_id>/games/worker_NN.pkl`. Default ensemble = the 8 configs from **`tuned_configs/DATA_GEN_ENSEMBLE.md`**. Design spec in **`FIRST_NN.md`** §6.
 
@@ -730,7 +788,7 @@ Core mechanics:
 - **`_worker_play_games(args)`** — worker entry point. Resume: loads existing pickle (if any), skips game_idxs already complete. Atomic per-game pickle writes via `_write_pickle_atomic` (temp file + rename) so a killed mid-write doesn't corrupt the file. Per-game errors caught with full traceback, logged in the per-worker errored list, run continues.
 - **`generate_dataset(n_games, *, out_dir=None, n_workers=None, base_seed=1000000, approved_configs=None, restricted=True, verbose=True)`** — programmatic entry point. Returns the final metadata dict. CLI `main()` is a thin wrapper.
 
-CLI: `python scripts/generate_nn_training_data.py --n-games 5000 --n-workers 8`. Resume an interrupted run via `--out-dir data/nn_training/runs/<run_id>`. Other flags: `--base-seed`, `--approved-configs`, `--restricted` / `--no-restricted` (default ON).
+CLI: `python scripts/nn/generate_training_data.py --n-games 5000 --n-workers 8`. Resume an interrupted run via `--out-dir data/nn_training/runs/<run_id>`. Other flags: `--base-seed`, `--approved-configs`, `--restricted` / `--no-restricted` (default ON).
 
 Empirical: 1000 games on 8 workers takes ~131s; 5000 games projected at ~11 min. Storage: ~48 KB per game (~240 MB for 5000 games).
 
@@ -738,7 +796,7 @@ Empirical: 1000 games on 8 workers takes ~131s; 5000 games projected at ~11 min.
 
 ---
 
-### `scripts/validate_nn_dataset.py`
+### `scripts/nn/validate_dataset.py`
 
 Post-generation invariant checker for NN training datasets per **`FIRST_NN.md`** §6.6.
 
@@ -760,7 +818,23 @@ Invariants checked (per FIRST_NN.md §6.6):
 
 Failure reports group by check type + locate offending `game_idx` + snapshot index + source `pkl_path`. Exit codes: 0 (pass), 1 (failures), 2 (invalid run dir).
 
-CLI: `python scripts/validate_nn_dataset.py --run-dir data/nn_training/runs/<run_id>`. `--sample-size N` for random-subset validation, `--quiet` for exit-code-only mode, `--max-failures-shown N` to cap the per-failure detail output (defaults to 20).
+CLI: `python scripts/nn/validate_dataset.py --run-dir data/nn_training/runs/<run_id>`. `--sample-size N` for random-subset validation, `--quiet` for exit-code-only mode, `--max-failures-shown N` to cap the per-failure detail output (defaults to 20).
+
+---
+
+### `scripts/nn/train_first.py`
+
+Thin CLI wrapper over `agricola.agents.nn.training.train(...)`. argparse for hyperparameters (`--run-dirs`, `--out-dir`, `--hidden-dims`, `--activation`, `--dropout`, `--lr`, `--weight-decay`, `--batch-size`, `--max-epochs`, `--early-stop-patience`, `--train-frac`, `--val-frac`, `--seed`, `--verbose`) and a single `train(**kwargs)` call. Output: best-model checkpoint (`.pt`) + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
+
+CLI: `python scripts/nn/train_first.py --run-dirs data/nn_training/runs/<run_id> --out-dir nn_runs/<label> --hidden-dims 256 256 --max-epochs 50`.
+
+---
+
+### `scripts/nn/eval_vs_ensemble.py`
+
+Round-robin evaluation of a trained NN checkpoint against the 8-config data-gen ensemble. Loads the checkpoint via `NormalizedValueModel.load`, wraps it in `NNAgent`, runs `play_match.py` against each ensemble entry, prints a per-opponent W-D-L + average-margin table.
+
+CLI: `python scripts/nn/eval_vs_ensemble.py --model nn_runs/<label>/best.pt --n-games 100`. Per-opponent results printed as games complete; aggregate summary at the end.
 
 ---
 
