@@ -118,7 +118,7 @@ Three candidate mechanisms documented in the design conversations: a resolve-on-
 
 ### J. Atomic-space trigger hosting
 
-Atomic spaces currently apply their effect immediately on `PlaceWorker`. For cards that attach to specific atomic spaces (Cottager fires before Day Laborer's food, Hardware Store fires after), atomic spaces need to push trigger-host pendings rather than resolve in one step. Two design questions documented in CLAUDE.md "Card implementation status":
+Atomic spaces currently apply their effect immediately on `PlaceWorker`. For cards that attach to specific atomic spaces (Cottager fires before Day Laborer's food, Hardware Store fires after), atomic spaces need to push trigger-host pendings rather than resolve in one step. Two design questions documented in ENGINE_IMPLEMENTATION.md §6 (card-trigger machinery & deferred design questions):
 
 - **Phase tracking.** Generic `primary_effect_applied: bool` on every space pending vs. a `phase: Literal["before", "after"]` field.
 - **Phase-transition mechanism.** Explicit transition action vs. overloaded `Stop` vs. nested pendings.

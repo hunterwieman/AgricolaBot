@@ -821,8 +821,8 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
     """Return all legal PlaceWorker actions across atomic and non-atomic spaces.
 
     Returns an empty list if the active player has no workers left to place.
-    Excludes `fencing` (deferred — requires fence enumeration) and `lessons`
-    (always illegal in the Family game).
+    Excludes `lessons` (always illegal in the Family game); every other space
+    in `ALL_LEGALITY` (including `fencing`) is surfaced when its predicate holds.
 
     Called by `legal_actions` when the pending stack is empty during WORK phase.
     """
@@ -1330,8 +1330,8 @@ def _enumerate_pending_harvest_feed(
     `food_owed` is derived on each call from the live player state:
         need      = 2*people_total - newborns
         food_owed = max(0, need - p.resources.food)
-    Not cached on the pending — see CLAUDE.md "Derived data, not cached
-    data" Key Design Principle. Recomputing here means any food the player
+    Not cached on the pending — see CLAUDE.md Foundations (Derived data,
+    not cached data). Recomputing here means any food the player
     spent/gained earlier in the feed phase (via crafts today, or food-side
     card effects in the future) is reflected immediately.
 

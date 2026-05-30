@@ -11,7 +11,8 @@ Card modules call `register(event, card_id, eligibility_fn, apply_fn)`
 at the bottom of their module body. Importing `agricola.cards` causes
 those calls to run.
 
-See CLAUDE.md "Card implementation status" for the broader design.
+See ENGINE_IMPLEMENTATION.md §6 (card-trigger machinery & deferred design
+questions) for the broader design.
 """
 from __future__ import annotations
 

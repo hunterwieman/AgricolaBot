@@ -20,7 +20,8 @@ Module contents (built once at module import):
   fence arrays and bitmap form.
 - `compute_new_fence_edges` shared helper consumed by legality and resolution.
 
-See FENCE_IDEAS.md, TASK_6_pre.md, TASK_6.md, and CLAUDE.md for design
+See FENCE_IDEAS.md, TASK_6_pre.md, TASK_6.md, and
+ENGINE_IMPLEMENTATION.md §4.1 (Fencing & Build Fences) for design
 rationale.
 """
 

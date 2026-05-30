@@ -434,8 +434,8 @@ def test_drain_wrapper_consumes_singleton_stop():
     search = _small_search()
     state = _state_at_fencing_placeworker()
     # Construct a post-PBF state: wrapper has build_fences_chosen=True
-    # (set by ChooseSubAction at choose time per CLAUDE.md "Choose-time
-    # parent-flag setting"), no PBF on top.
+    # (set by ChooseSubAction at choose time per ENGINE_IMPLEMENTATION.md §5,
+    # Choose-time flag-setting), no PBF on top.
     state_after_pbf_pop = with_pending_stack(state, [
         PendingFencing(
             player_idx=0, initiated_by_id="space:fencing",

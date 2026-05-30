@@ -18,7 +18,7 @@ The registry is imported from agricola.cards.__init__ so the three built-in
 entries register before any HARVEST_FEED resolution / enumeration reads
 HARVEST_CONVERSIONS.
 
-See CLAUDE.md "Engine and Turn Resolution Architecture" -> Harvest, and the
+See ENGINE_IMPLEMENTATION.md §4.3 (Harvest sub-phases), and the
 HARVEST_FEED legality enumerator / _execute_harvest_conversion effect function,
 for how this registry is consumed.
 """

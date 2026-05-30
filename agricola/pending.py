@@ -10,8 +10,8 @@ Each pending dataclass carries `player_idx: int`. This is usually equal to
 (not implemented in Task 5) would set `player_idx` to a non-active player,
 enabling opponent decisions mid-resolution.
 
-See CLAUDE.md "The pending-decision stack" for the full architecture and
-design philosophies.
+See ENGINE_IMPLEMENTATION.md §2 (The pending-decision stack) for the full
+architecture and design philosophies.
 """
 from __future__ import annotations
 
@@ -403,8 +403,8 @@ class PendingHarvestFeed:
         live supply throughout the feed sub-phase.
       - `food_owed` is a derived value, recomputed wherever needed as
         `max(0, need - p.resources.food)` with `need = 2*people_total - newborns`.
-        It is not stored on this pending — see CLAUDE.md "Derived data,
-        not cached data" Key Design Principle. Recomputing on each
+        It is not stored on this pending — see CLAUDE.md Foundations
+        (Derived data, not cached data). Recomputing on each
         legality call lets future cards that mutate food during feeding
         (e.g. food↔resource exchanges that chain into Pottery) be reflected
         immediately in the next legal-actions call.

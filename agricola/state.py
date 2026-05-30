@@ -94,8 +94,8 @@ class PlayerState:
     # commits. Reset to frozenset() inside engine._resolve_harvest_field at the
     # start of each harvest. Used by the HARVEST_FEED legality enumerator to
     # filter out already-decided conversions. Lives on PlayerState rather than
-    # on PendingHarvestFeed per CLAUDE.md guidance ("per-card budgets that span
-    # multiple events live on PlayerState").
+    # on PendingHarvestFeed per ENGINE_IMPLEMENTATION.md §2 guidance ("per-card
+    # budgets that span events live on PlayerState").
     harvest_conversions_used: frozenset = frozenset()  # frozenset[str]
 
     # TODO: Track animal locations explicitly if full-game cards require it.
@@ -151,5 +151,6 @@ class GameState:
     # Stack of pending sub-decisions (frozen dataclasses defined in
     # agricola/pending.py). Bottom-to-top; top is pending_stack[-1].
     # Empty tuple means no non-atomic action is in progress.
-    # See CLAUDE.md "The pending-decision stack" for the architecture.
+    # See CLAUDE.md Phase 1 (the pending-decision stack) for the concept;
+    # ENGINE_IMPLEMENTATION.md §2 for the full mechanics.
     pending_stack: tuple = ()  # tuple[PendingDecision, ...]

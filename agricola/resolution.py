@@ -774,10 +774,10 @@ def _execute_build_stable(
     existing pasture changes that pasture's num_stables (and capacity).
     Although no pasture can yet exist in current scope (Fencing is
     unimplemented and no other resolver builds fences), this is the
-    documented convention for pasture-changing resolvers (CLAUDE.md
-    "Current exception: Farmyard.pastures") — fixes the latent bug in
-    Task 5C's version and means Fencing won't have to revisit this
-    function later.
+    documented convention for pasture-changing resolvers
+    (ENGINE_IMPLEMENTATION.md §4.1 — the Farmyard.pastures caching
+    exception) — fixes the latent bug in Task 5C's version and means
+    Fencing won't have to revisit this function later.
     """
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildStables)

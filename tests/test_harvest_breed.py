@@ -7,7 +7,7 @@ plumbing.
 
 breeding_frontier returns post-breed configurations and Pareto-filters
 over animal counts only (food is a deterministic consequence, not a Pareto
-dim — see CLAUDE.md "Preserving optionality" Key Design Principle).
+dim — see ENGINE_IMPLEMENTATION.md §4.2, the optionality-bundling rule).
 """
 from __future__ import annotations
 

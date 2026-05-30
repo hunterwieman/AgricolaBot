@@ -148,7 +148,7 @@ The card-extension pattern above (item 10) handles single-card eligibility broad
 **What needs to change for compound interactions:**
 The legality system needs to apply "on placement" card effects speculatively before checking sub-action predicates. The trigger registry already supports arbitrary event names (e.g., `"on_take_space:grain_utilization"` for Pan-Baker-like cards), so the registration side is fine. The missing piece is the legality-side machinery: when checking `PlaceWorker(space)` legality, apply all owned cards' on-placement transformations to a hypothetical state, then ask the existing sub-action predicates against the hypothetical. If any reachable hypothetical state has a legal sub-action commit path, the placement is legal.
 
-**Out of scope for Task 5.** Flagged here, in CLAUDE.md's "Card implementation status" subsection, and in TASK_5.md's "Known limitation: compound card interactions" for whoever implements the broader card system.
+**Out of scope for Task 5.** Flagged here, in ENGINE_IMPLEMENTATION.md §6 (card-trigger machinery & deferred design questions), and in TASK_5.md's "Known limitation: compound card interactions" for whoever implements the broader card system.
 
 **File:** `agricola/legality.py` (legality predicates); `agricola/cards/` (per-card registration).
 

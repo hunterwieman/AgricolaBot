@@ -371,7 +371,7 @@ pkill -f "tune_heuristic.py"
 
 ## 10. Restricted action set (`--restricted`, default ON)
 
-The training pipeline runs by default with `restricted_legal_actions` wrapping every agent's legality consultation. `scripts/tune_heuristic.py` and `scripts/run_iterative_v3.py` carry a `--restricted` / `--no-restricted` flag (defaults to ON); `scripts/play_match.py` carries per-seat `--p0-restricted` / `--p1-restricted` flags for ad-hoc comparisons. See **`agricola/agents/restricted.py`** for the wrapper, **CLAUDE.md** "Additional Design Principles" → "Action-pruning wrapper" for the convention.
+The training pipeline runs by default with `restricted_legal_actions` wrapping every agent's legality consultation. `scripts/tune_heuristic.py` and `scripts/run_iterative_v3.py` carry a `--restricted` / `--no-restricted` flag (defaults to ON); `scripts/play_match.py` carries per-seat `--p0-restricted` / `--p1-restricted` flags for ad-hoc comparisons. See **`agricola/agents/restricted.py`** for the wrapper, **CLAUDE.md** Phase 2 (action-space restriction) for the convention.
 
 ### 10.1 What the wrapper does
 

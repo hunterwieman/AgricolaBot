@@ -268,8 +268,8 @@ def food_payment_frontier(
     1:1 (no rate). Pass the full 4-tuple from cooking_rates(state, player_idx).
 
     Pareto dimensions are the 5 remaining-goods counts. Food surplus is NOT
-    a Pareto dim — see CLAUDE.md "Preserving optionality" Key Design
-    Principle, specifically the "Pareto dominance over upstream goods"
+    a Pareto dim — see ENGINE_IMPLEMENTATION.md §4.2 (the optionality-bundling
+    rule), specifically the "Pareto dominance over upstream goods only"
     prescription. An over-converted config like (consume 3 grain) for
     food_owed=2 is dominated by (consume 2 grain) on (grain_rem); the +1
     surplus food contributes no Pareto value.
@@ -373,7 +373,7 @@ def harvest_feed_frontier(
 
     Pareto dimensions: the 5 remaining-goods counts AND -begging
     (fewer-is-better polarity). Food surplus is NOT a Pareto dim — see
-    CLAUDE.md "Preserving optionality" -> Pareto dominance over upstream
+    ENGINE_IMPLEMENTATION.md §4.2 -> Pareto dominance over upstream
     goods. Begging IS included as a Pareto dim because it represents a
     strategic cost the player has a genuine choice to incur — pay food and
     avoid the marker, or preserve goods and take the scoring penalty.

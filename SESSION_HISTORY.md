@@ -35,6 +35,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Hashability refactor — `BoardState.action_spaces` dict → canonical tuple](#hashability-refactor)
 - [Engine performance pass — profiling, `fast_replace`, `legal_actions_cache`, assertion gate](#perf-pass)
 - [Multi-baseline panel + R1-force-forest experiment + alphas_gen_7 champion + interactive-AI web UI (2026-05-26 / 2026-05-28)](#panel-and-r1-forest)
+- [Documentation restructure — phase-based CLAUDE.md + ENGINE_IMPLEMENTATION.md (2026-05-30)](#claude-restructure)
 - [Current State](#current-state)
 
 ---
@@ -2784,6 +2785,23 @@ Empirical findings worth knowing:
 - Encoder implementation in `agricola/agents/nn/encoder.py`.
 - Model module (`model.py`) — PyTorch `nn.Module`.
 - Training loop (`scripts/train_first_nn.py`) + agent wrapper (`agent.py`) + evaluation harness (`scripts/eval_first_nn.py`).
+
+---
+
+<a name="claude-restructure"></a>
+## Documentation restructure — phase-based CLAUDE.md + ENGINE_IMPLEMENTATION.md (2026-05-30)
+
+A documentation-only session — **no game logic changed**. `CLAUDE.md` was reorganized around the project's phases and the deep engine mechanics were split into a new reference doc.
+
+### What changed
+
+- **`CLAUDE.md` rewritten** (~120 KB → ~64 KB) around **Foundations → Phase 1 (engine) → Phase 2 (agent: 2.1 heuristic / 2.2 MCTS / 2.3 NN) → Phase 3 (cards)**, preceded by a Project Goal & Roadmap. Foundations gained a "Thinking about Agricola" block (subaction decomposition, action-space shaping, feeding) beside the engineering invariants. Phase 1 keeps only engine *orientation*; the mechanics moved out (next bullet).
+- **The ~50-row "Current Status" table was dropped** in favor of Roadmap status tags + a short "Status & boundaries" note. It had gone stale-by-accretion — it carried a now-false "V1 beats V3" claim (the tuned V3 ensemble, `alphas_gen_7` at 86.4%, now clearly surpasses `CONFIG_V1_T2`).
+- **New `ENGINE_IMPLEMENTATION.md`** — the deep engine reference that used to live in CLAUDE.md's "Engine and Turn Resolution Architecture" / "Additional Design Principles" / "Code Conventions": §1 dispatch & control flow, §2 the full pending-stack reference, §3 sub-action mechanics (the 4 cost buckets + multi-shot), §4 subsystems (Fencing, animal accommodation, harvest), §5 coding conventions, §6 card-trigger machinery + deferred design questions.
+- **New Phase-2 empirical finding captured:** `NNAgent` (supervised value NN + 1-turn lookahead) is the strongest agent to date, and MCTS using the NN as its leaf evaluator beats `NNAgent`'s plain lookahead head-to-head — early evidence the earlier "MCTS loses to its heuristic at 200–500 sims" result was leaf-evaluator-specific, not an MCTS flaw.
+- **Cross-reference cleanup** — ~19 code/doc files had docstring/comment references to old CLAUDE.md section names; each was repointed to the new CLAUDE.md section or an `ENGINE_IMPLEMENTATION.md §`. Comment/docstring-only; engine still imports clean. `CHANGES.md` changelog entries and this file's historical references were deliberately left as historical record.
+- **Two small comment fixes in passing:** `engine.py`'s non-negativity comment now notes `Animals` has no arithmetic operators (negatives arise only from direct construction); `legal_placements`'s docstring no longer claims `fencing` is excluded (Task 6 implemented it).
+- Old `CLAUDE.md` archived to `archive/CLAUDE_OLD.md` (git-ignored).
 
 ---
 

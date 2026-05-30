@@ -10,8 +10,8 @@ from typing import Union
 #
 # Flat tagged union: every action is its own frozen dataclass under the
 # `Action` alias. Dispatched by `isinstance` in agricola/engine.py's
-# `_apply_action`. See CLAUDE.md "Engine and Turn Resolution Architecture"
-# for the design rationale.
+# `_apply_action`. See ENGINE_IMPLEMENTATION.md §1 (Engine structure &
+# dispatch) for the design rationale.
 
 
 @dataclass(frozen=True)
@@ -141,7 +141,7 @@ class CommitBuildPasture(CommitSubAction):
     Cost is NOT a field on this commit — it is a pure function of
     (state, commit.cells) computed by `compute_new_fence_edges` in
     `agricola.fences`. This is the 4th sub-action cost-handling bucket
-    (CLAUDE.md "Additional Design Principles" → "Sub-action cost handling").
+    (ENGINE_IMPLEMENTATION.md §3 — sub-action cost handling).
 
     Dispatched via `auto_pop=False`: the effect function leaves
     PendingBuildFences on top with updated counters; Stop pops it.

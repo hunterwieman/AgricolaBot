@@ -15,8 +15,9 @@ pending-stack's trigger machinery. It exercises:
     PendingBakeBread has an empty `triggers_resolved` set).
 
 The card has no on-placement effect, so it does NOT participate in the
-"compound card interaction" limitation (see CLAUDE.md "Card implementation
-status"). It does its work entirely through the trigger machinery.
+"compound card interaction" limitation (see ENGINE_IMPLEMENTATION.md §6 —
+card-trigger machinery & deferred design questions). It does its work
+entirely through the trigger machinery.
 """
 from __future__ import annotations
 

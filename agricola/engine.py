@@ -4,7 +4,7 @@ Public API: `step(state, action) -> GameState`. Pure transition function;
 the loop that drives a game lives outside this module (typically in the
 agent loop / test harness).
 
-See CLAUDE.md "Engine and Turn Resolution Architecture" for the full
+See ENGINE_IMPLEMENTATION.md §1 (Engine structure & dispatch) for the full
 design rationale and TASK_5.md for the implementation breakdown.
 """
 from __future__ import annotations
@@ -134,9 +134,11 @@ def step(state: GameState, action: Action) -> GameState:
     state = _advance_until_decision(state)
 
     # 4. Engine invariant: no player has negative resources or animals.
-    #    `Resources.__sub__` and `Animals` arithmetic intentionally allow
-    #    negative intermediate values (it would be tedious to special-case
-    #    every operator), so the check has to live at a transition boundary.
+    #    `Resources.__sub__` / `__add__` intentionally allow negative result
+    #    components (no clamping — it would be tedious to special-case every
+    #    operator); `Animals` has no arithmetic operators, so negative animal
+    #    counts arise only from direct construction in effect code. Either
+    #    way the check has to live at a transition boundary.
     #    Catching the violation here, at the end of every step(), gives the
     #    tightest possible bug-localization: the assertion message names the
     #    action and the player, so the offending sub-action effect or
