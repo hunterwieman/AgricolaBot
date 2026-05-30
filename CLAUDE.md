@@ -456,6 +456,20 @@ AlphaZero-style self-play loop, plus more deliberate architecture and training d
 design — input encoding, supervision target, data pipeline, open questions — is in
 **`FIRST_NN.md`**.
 
+**Trained-model catalog: `nn_models/REGISTRY.md`.** The authoritative index of every checkpoint
+on disk — `ENCODING_VERSION` it was trained against, training data source, hyperparameters,
+test MAE, headline match results, and current Status (active / superseded / incompatible). The
+checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) are the
+source of truth for the numbers; the registry is the navigable index that ties them together
+and records which model is the current default.
+
+**Every NN training run must update `nn_models/REGISTRY.md`** as part of its completion — add a
+new row to the summary table and a brief per-model details subsection (purpose, hyperparameter
+delta from defaults, headline outcome, Status). If the new checkpoint supersedes an older one,
+flip the older one's Status in the same edit. This convention keeps the registry accurate by
+making "the run isn't complete until the registry knows about it" part of the workflow rather
+than a separate hygiene task. Full template + bump policy at the bottom of `REGISTRY.md`.
+
 ---
 
 ## Phase 3 — Cards (and maybe 4-player)
@@ -529,6 +543,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `V3_TRAINING_PIPELINE.md` | Operational guide for the V3 tuning pipeline: CMA-ES basics, `scripts/tune_heuristic.py` semantics (CLI flags, multi-baseline + regression-detector tooling, save/resume, x0 fallback, `<arch>_best.json` auto-update), the `scripts/run_iterative_v3.py` orchestrator (block-coordinate descent), `v3_best.json` convention, current training state, next steps. |
 | `MCTS_DESIGN.md` | Design spec for the MCTS phase (Phase 2.2). Architecture decisions (vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation + macro-enumeration for Fencing); data structures (MCTSNode / MCTSSearch / MCTSAgent); algorithm details (per-sim flow, UCB, sign-flip backprop, transposition table); strict-restrictions spec (new filters added to `agricola/agents/restricted.py`); implementation phases; open questions. Read before starting MCTS implementation. |
 | `FIRST_NN.md` | Design spec for the first NN value function (Phase 2.3). Sections: goals/non-goals, strategic context, design principles (input-encoding philosophy, pre-compute selectively, mid-action encoding, terminal-margin target), input encoding (~170 features split across per-player ×2 / shared / mid-action / terminal-state handling), supervision target (terminal margin + terminal-state training pairs), data generation pipeline (fully specified: 8-config ensemble, bimodal per-agent T, snapshot semantics, file layout, resume protocol, validation), architecture (TBD), training (TBD), evaluation (TBD), open questions, implementation notes (file layout + schema versioning `DATA_VERSION` + `ENCODING_VERSION`), status. Read before working on the NN. |
+| `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
 | `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
@@ -725,6 +740,8 @@ AgricolaBot/
     tuned_configs/                  # Persistent artifacts from tuning runs. Each completed run writes `<timestamp>.json` (best config, history, holdout), `<timestamp>.log` (human-readable progress mirror), and `<timestamp>.cma.pkl` (full CMA-ES state for resume). `v1_best.json` and `v3_best.json` are auto-maintained pointers to the strongest config per architecture. The 8-config data-gen ensemble (alphas_gen_1, alphas_gen_7, panel_gen16, panel_gen_25, panel_gen47, panel_gen47_wood020, panel_wood_r1 + t2) plus `panel_gen16_temp05.json` (panel-only diversity baseline) live here as named JSONs alongside the timestamped run outputs. `DATA_GEN_ENSEMBLE.md` describes the ensemble. See V3_TRAINING_PIPELINE.md.
 
     data/nn_training/runs/          # NN training-data datasets (gitignored — regenerable from the deterministic plan). Each generation invocation produces one run directory `<run_id>/` containing `games/worker_NN.pkl` (one per worker, holding `list[GameRecord]`) plus `metadata.json` (run-level metadata: code SHA, host, approved configs, T distribution, restricted flag, base_seed, planned/completed/errored game counts, data_version). See FIRST_NN.md §6.3.
+
+    nn_models/                      # Trained NN checkpoints. Each completed `train_first.py` run produces one subdirectory (`<timestamp>-<suffix>/`) containing `best.pt` (state_dict + NormStats buffers), `best.meta.json` (architecture config + encoding_version), `config.json` (full run configuration for reproducibility), `norm_stats.json` (separate JSON copy of NormStats), `train_log.jsonl` (per-epoch metrics), `train_curves.png`, `calibration.png` (test-split predicted-vs-actual), and `test_metrics.json` (final test MSE/MAE). Top-level `REGISTRY.md` is the authoritative catalog of every checkpoint here — **must be updated as part of every training run** (see CLAUDE.md §2.3).
 
     task_files/                     # Historical task specs and design artifacts — frozen at the time their task landed; referenced from SESSION_HISTORY.md / CHANGES.md as the design-rationale anchors. Not auto-read; consult when a session-history entry points here.
 

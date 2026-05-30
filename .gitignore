@@ -31,3 +31,9 @@ agricola-trace-seed*.json
 # so re-runnable rather than checked in. Each run dir under data/nn_training/runs/
 # has its own metadata.json + games/worker_NN.pkl(.tmp) files.
 data/nn_training/
+
+# Defensive belt-and-suspenders: any atomic-write temp files left behind by
+# generation or training scripts. The broader data/nn_training/ rule above
+# already masks the dataset variant; these cover nn_models/ and stray cases.
+nn_models/**/*.tmp
+nn_models/**/*.pt.tmp
