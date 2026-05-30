@@ -6,7 +6,7 @@ This is the working spec for the initial NN phase. It captures the input encodin
 
 > **For new sessions:** read CLAUDE.md (project status), V3_DESIGN.md (the heuristic this NN replaces and whose features inform this NN's inputs), MCTS_DESIGN.md (the consumer of this NN's outputs), and STRATEGY.md §5 (project-phase context for NN training).
 
-**Document order.** Sections are arranged chronologically with the build order: overview → input format → label format → how data is generated → how the network is structured → how it's trained → how it's evaluated → implementation notes → measured results → status → open questions. The design and implementation are complete for phase (a); §11 Results captures the measured outcomes and §13 Open questions captures what remains.
+**Document order.** Sections are arranged chronologically with the build order: overview → input format → label format → how data is generated → how the network is structured → how it's trained → how it's evaluated → implementation notes → experiments → status → open questions. The design and implementation are complete for phase (a); §11 Experiments tracks planned and completed experiments (with stable `P#`/`C#` IDs) and §13 Open questions captures what remains.
 
 ---
 
@@ -468,13 +468,13 @@ Implemented in `agricola/agents/nn/training.py`; the thin CLI wrapper is `script
 
 ### 8.2 Hyperparameters
 
-The reference §11.1 model used:
+The reference model (Experiment C1) used:
 
 | Knob | Value | Rationale |
 |---|---|---|
 | Optimizer | AdamW | Standard for MLPs; decoupled weight decay |
 | Learning rate | 1e-3 | Plain default |
-| Weight decay | 0.0 | First run; revisit if val curve creeps (it does — see §11.1) |
+| Weight decay | 0.0 | First run; revisit if val curve creeps (it does — see Experiment C1; addressed in C5/C6) |
 | Batch size | 512 | Whole training set fits in RAM, so batching is purely a noise/throughput knob |
 | Loss | MSE on normalized targets | Targets divided by `target_std` so the loss scale doesn't depend on the data |
 | Max epochs | 50 | Cap; never reached |
@@ -522,24 +522,24 @@ Four metrics, in increasing order of "what actually matters":
 
 Full results in §11. Headline figures:
 
-- Test MAE = **6.87 points** (§11.1)
-- `NNAgent` vs 8-config ensemble: **~60% aggregate win rate**; beats every V3 opponent; ties `t2` (V1) (§11.2)
-- MCTS-NN-500 vs `NNAgent`-1-turn: **68-32, +3.54 avg margin**, p < 0.001 (§11.3)
+- Test MAE = **6.87 points** (Experiment C1; best to date **6.73** at C6)
+- `NNAgent` vs 8-config ensemble: **~60% aggregate win rate**; beats every V3 opponent; ties `t2` (V1) (Experiment C2)
+- MCTS-NN-500 vs `NNAgent`-1-turn: **68-32, +3.54 avg margin**, p < 0.001 (Experiment C3)
 
 ### 9.3 Success criteria — design-phase targets, evaluated post-hoc
 
 | Criterion (from design phase) | Outcome |
 |---|---|
-| NN-1-turn-lookahead ≥ V3 standalone (≥0 avg margin, 200-game match) | **Passed** — beats every V3 in the ensemble (§11.2) |
-| NN-MCTS at 200 sims ≥ V3-MCTS at the same sim count | **Inverted finding** — V3-MCTS regressed against V3-standalone; NN-MCTS *lifts* against NN-standalone. The "≥ V3-MCTS" comparison is moot because V3-MCTS itself was below V3-standalone (§11.4). |
+| NN-1-turn-lookahead ≥ V3 standalone (≥0 avg margin, 200-game match) | **Passed** — beats every V3 in the ensemble (Experiment C2) |
+| NN-MCTS at 200 sims ≥ V3-MCTS at the same sim count | **Inverted finding** — V3-MCTS regressed against V3-standalone; NN-MCTS *lifts* against NN-standalone. The "≥ V3-MCTS" comparison is moot because V3-MCTS itself was below V3-standalone (Experiment C4). |
 
-Outstanding evaluation work is in §11.6.
+Outstanding evaluation work is itemized in §11.1 (planned experiments).
 
 ---
 
 ## 10. Implementation notes
 
-### 11.1 File layout
+### 10.1 File layout
 
 The NN code lives in a subpackage at `agricola/agents/nn/`. Splitting into modules keeps each concern small and lets the schema/recording code stay PyTorch-free (so data-generation scripts don't need to import torch).
 
@@ -565,18 +565,18 @@ Data and model artifacts:
 - `data/nn_training/runs/` — generated datasets, organized by run.
 - `nn_models/` — trained checkpoints + metadata sidecars.
 
-### 11.2 Determinism
+### 10.2 Determinism
 
 - Training is non-deterministic by default (CUDA + cuDNN). Capture and log seeds for reproducibility.
 - Inference must be deterministic given a fixed model — verify with a smoke test.
 - Data generation IS deterministic given (code SHA, configs, base seed) — see §6.8.
 
-### 11.3 Persistence format
+### 10.3 Persistence format
 
 - Model: `torch.save(model.state_dict(), path)` — state dict only, not full pickle (lets us evolve the model class).
 - Metadata: JSON sidecar with hyperparameters, training data hashes, **`ENCODING_VERSION`** and **`DATA_VERSION`** (see §10.4), normalization stats, code-commit SHA.
 
-### 11.4 Schema versioning
+### 10.4 Schema versioning
 
 Two parallel version counters guard against silently-broken inference / loading. They are independent — encoding can evolve while the dataset schema stays stable, or vice versa.
 
@@ -615,90 +615,75 @@ Mechanism mirrors `ENCODING_VERSION`:
 
 ---
 
-## 11. Results
+## 11. Experiments
 
-Measured outcomes of the trained NN value function — both standalone (`NNAgent`) and as a leaf evaluator for MCTS (`MCTSSearch` with `evaluator_fn=nn_evaluator_differential`).
+NN experiments tracked through their lifecycle: an idea graduates from §13 Open questions into **Planned** (§11.1) once it has a concrete design, then moves to **Completed** (§11.2) with results + takeaway once run. Entries carry stable IDs (`P#` planned, `C#` completed) so cross-references survive renumbering. Comparison metric for almost everything is **gameplay** (win rate / margin), not loss — see §9.1.
 
-### 12.1 Model under test
+### 11.1 Planned / in-flight
 
-The current reference checkpoint, trained per the default architecture in §10.1 on the 5000-game production dataset:
+**P1 — Data-distribution ablation (in flight).** *Hypothesis: model quality is limited by the training-data distribution (heuristic diversity, temperature spread) and/or size, not by architecture.* Five 10k-game sections varying the heuristic mix and temperature regime, fixed v2-dropout architecture for all trained models:
 
-| Property | Value |
-|---|---|
-| Path | `nn_models/20260529-162301-04fe/best.pt` |
-| Architecture | `ConfigurableMLP([256, 256])` + GELU + LayerNorm + dropout 0 |
-| Parameters | 110,849 |
-| Training examples | 727,254 (after dual-perspective + terminal augmentation; 80/10/10 by-game split) |
-| Best epoch | 1 (early stop fired soon after) |
-| Val MSE (normalized) | 0.422 |
-| **Test MAE (margin units)** | **6.87 points** |
-| `target_std` | 14.40 (margin scale) |
+| Section | Configs | Temp | Status |
+|---|---|---|---|
+| S1_standard_bimodal | all 8 | bimodal | done |
+| S2_no_v1_bimodal | 7 V3 | bimodal | done |
+| S3_strong3_bimodal | top-3 V3 | bimodal | done |
+| S4_all_lowT | all 8 | T=0.3 | done |
+| S5_no_v1_lowT | 7 V3 | T=0.3 | in flight |
 
-The val curve crept upward after epoch 1 (0.422 → 0.456 across 11 epochs before early stop) — the model fit the easy signal in one epoch and started memorizing noise afterward. Early stopping caught it cleanly; the test MAE is the epoch-1 checkpoint's, not a late epoch's. See the trained-curves plot and §6 / §8 for the data and training details.
+Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: S1-vs-S2 (does t2/V1 matter), S1-vs-S3 (heuristic diversity at fixed size), S1-vs-S4 / S2-vs-S5 (does T=4 exploration matter), 5k→15k→55k (data scaling). Status: generation nearly complete; training not started.
 
-### 12.2 NNAgent vs the 8-config ensemble
+**P2 — Supervision target / output head.** The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
-Round-robin matches of `NNAgent` (differential evaluator, 1-turn lookahead, default temperature) against each config in `tuned_configs/DATA_GEN_ENSEMBLE.md` (100 games per opponent, V3 strict-restricted legality on both seats).
+| Variant | Head | Target | Loss |
+|---|---|---|---|
+| **margin** (current) | linear | `score_p − score_opp` | MSE |
+| **outcome** | tanh | win/draw/loss `+1 / 0 / −1` | MSE |
+| **win-prob** | sigmoid | win/draw/loss `1 / 0.5 / 0` | BCE |
 
-- **Aggregate: ~60% win rate** across all 8 opponents (~480-320 W-L over 800 games).
-- `NNAgent` **beats every V3 opponent** in the ensemble, often by 3-8 average margin points.
-- `NNAgent` only **ties with `t2`** — the lone V1-architecture config in the ensemble.
+Notes: **margin** gives the richest gradient (distinguishes a safe win from a narrow one) but is unbounded — large leaf values can distort MCTS UCB backups. **outcome** (tanh+MSE) is the AlphaZero value-head form, already zero-sum centered in `[−1,+1]`, drops into the existing sign-flip backprop with no recentering, and is what phase-c PUCT will want. **win-prob** (sigmoid+BCE) yields a calibrated probability; BCE is the Bernoulli NLL, punishing confident-wrong harder than MSE. `outcome` and `win-prob` encode the same target (`2·sigmoid − 1` spans the same range as `tanh`) — they differ only in loss-landscape. Optional loss-only sibling: **Huber** on the margin variant (linear tails → blowout games pull the fit less). **Comparison must be gameplay, not loss** — the heads output in different units, so train/val losses aren't comparable; evaluate via ensemble win-rate, head-to-head, and as MCTS leaf. Antisymmetry holds for all three. Most relevant for the MCTS-leaf use case (search rewards calibration over argmax-sharpness — see C3/C4) and for phase-c PUCT. Run after P1 so the dataset variable is clean.
 
-Plausible interpretation: 7 of 8 training-data configs are V3, so the NN learned to value states roughly the way V3 evaluators do — outperforming them via better generalization across V3-styled trajectories, but not generalizing to V1's qualitatively different playstyle. A future ensemble more balanced across V1/V3 might fix this.
+**P3 — MCTS sim-count sweep.** Characterize the marginal-value-of-search curve for the NN leaf evaluator. Sweep e.g. 200 / 500 / 1500 / 5000 sims as head-to-heads (no shared tree when sims differ). Open sub-question: does the +3.54-to-+5.58 lift at 500 sims keep climbing or plateau? (From §13.3.)
 
-### 12.3 MCTS-NN-500 vs NNAgent-1-turn (key result)
+Other planned-but-unscoped checks (from §11 outstanding work): match `NNAgent` / `MCTS-NN` vs `HubrisHeuristicV1` (`CONFIG_V1_T2`, the standalone-strongest agent); re-run the ensemble eval with per-opponent breakdown logged (prior run logged aggregate only).
 
-The headline experiment for the NN+MCTS direction. **Same NN model on both sides**; the only difference is whether the seat searches with MCTS or relies on 1-turn lookahead. Configuration:
+### 11.2 Completed
 
-- **P0 (MCTS-NN-500):** `MCTSSearch(evaluator_fn=nn_evaluator_differential, evaluator_config=model, leaf_differential=False)` with V3 strict-restricted legality and V3 greedy-macro heuristic. 500 sims/move, `c_uct=1.4`, FPU 0, action-selection T=0.2, 4 random fencing macros + 1 greedy.
-- **P1 (NNAgent-1-turn):** `NNAgent(model, differential=True, temperature=0.0)`. Same V3 strict-restricted legality.
-- 100 games, seeds 0–99.
+**C1 — First full-data NN (reference model `04fe`).** Default architecture on the 5000-game dataset, 727,254 training examples (dual-perspective + terminal augmentation, 80/10/10 by-game split). Best epoch 1, val MSE 0.422, **test MAE 6.87**, `target_std` 14.40. Val curve crept up after epoch 1 (0.422 → 0.456 over 11 epochs) — fit the easy signal immediately, then memorized noise; early stop caught it. `nn_models/20260529-162301-04fe/best.pt` (ENCODING_VERSION=1, now incompatible).
 
-Result:
+**C2 — NNAgent vs 8-config ensemble.** `NNAgent` (differential, 1-turn) vs each config in `DATA_GEN_ENSEMBLE.md`, 100 games/opponent, V3 strict-restricted legality both seats. **~60% aggregate win rate**; beats every V3 opponent (often by 3-8 margin); **ties `t2`** (the lone V1 config). Likely cause: 7/8 training configs are V3, so the NN learned V3-style valuation — generalizes within V3 style, not to V1's. Motivates P1's V1-balance question.
 
-| Side | Wins |
-|---|---|
-| **MCTS-NN-500** (P0) | **68** |
-| NNAgent-1-turn (P1) | 32 |
-| Draws | 0 |
-| Avg margin (P0 − P1) | **+3.54** |
+**C3 — MCTS-NN-500 vs NNAgent-1-turn (on `04fe`).** Same model both sides; only difference is MCTS search vs 1-turn lookahead. MCTS: `leaf_differential=False`, 500 sims, c_uct=1.4, FPU 0, T=0.2, 4 random fencing macros + 1 greedy. 100 games. **68-32, +3.54 margin, p < 0.001.**
 
-Statistical significance: z = (68 − 50)/√(100 · 0.25) = 3.6 → two-sided p < 0.001 against the null of 50% win rate.
-
-### 12.4 Contrast with V3-evaluator MCTS
-
-**This is the first MCTS configuration in the project that lifts strength rather than regressing it.** The prior project finding (CLAUDE.md Phase 2.2 — MCTS) was that V3-evaluator MCTS *lost* to standalone V1/V3 at 200-500 sims:
+**C4 — Contrast with V3-evaluator MCTS.** C3 is the first MCTS config in the project that *lifts* strength rather than regressing it:
 
 | Setup | Avg margin (MCTS − standalone) |
 |---|---|
-| MCTS-V1 vs V1-heuristic, 500 sims | **−3.88** |
-| MCTS-V3 vs V3-heuristic, 200 sims | **−5.58** |
-| **MCTS-NN vs NN-1-turn, 500 sims** | **+3.54** |
+| MCTS-V1 vs V1-heuristic, 500 sims | −3.88 |
+| MCTS-V3 vs V3-heuristic, 200 sims | −5.58 |
+| **MCTS-NN vs NN-1-turn, 500 sims (C3)** | **+3.54** |
 
-Plausible explanation: V3 is hand-tuned (via CMA-ES over ~250 coefficients) to be a strong single-position evaluator — at 1-turn lookahead it's already near its skill ceiling, so extra MCTS search adds tree-search noise faster than it adds depth. The NN, with test MAE = 6.87, is noisier pointwise; MCTS averages over many noisy evaluations and recovers a cleaner value estimate from them. This is the AlphaZero-style synergy in miniature: tree search amplifies a "good enough" learned value function more than it amplifies a hand-tuned near-optimal one.
+Plausible read: V3 is CMA-ES-tuned to be near-optimal as a single-position evaluator, so MCTS adds search noise faster than depth; the NN is noisier pointwise (MAE 6.87) and MCTS averages many leaf evals into a cleaner estimate. AlphaZero-style synergy in miniature. Validates the NN+MCTS direction; PUCT + policy head + higher sims (P3) are the natural follow-ups.
 
-Implication for the project roadmap: the NN+MCTS direction is validated. PUCT + a policy head + higher sims are the natural next steps (project phase 5, AlphaZero-style self-play).
+**C5 — Encoder v2 retrain + weight decay (`v2wd`).** First retrain after the v2 encoder fix, adding `weight_decay=1e-4`. **Test MAE 6.866 — essentially unchanged from C1.** Confirms (a) the encoder fix doesn't move aggregate MSE (most non-harvest snapshots were already correct), (b) wd=1e-4 is too weak to flatten the val curve. `nn_models/20260530-012100-v2wd/`.
 
-### 12.5 Parallelization characteristics
+**C6 — Dropout 0.2 (`v2dropout02`).** Same as C5 plus `dropout=0.2`, max_epochs=100, patience=20. **Test MAE 6.731 (~2% better than C5).** Best epoch 3 (vs 1); val curve drops 3 epochs then plateaus broadly instead of creeping. First real movement of the test metric — breaks the "6.87 noise floor" hypothesis. `nn_models/20260530-013000-v2dropout02/`. Current best NN.
 
-For tuning future match / MCTS-sweep runs:
+**C7 — `v2wd` vs `v2dropout02` standalone (1000 games).** NNAgent-1-turn both sides, one model each. **No-dropout won 560-436** (avg margin −0.62 favoring no-dropout), p < 0.001. The dropout model is the *worse* standalone evaluator despite lower test MAE — MAE is not a reliable proxy for argmax-ranking quality.
 
-| Mode | Per-game wallclock (worker-side) | Per-game wallclock amortized | Effective speedup vs 1-worker |
+**C8 — MCTS-NN-dropout-500 vs NNAgent-dropout-1-turn (100 games).** Same as C3 but on the dropout model. **80-19, +5.58 margin** — a *larger* MCTS lift than C3's +3.54 on the no-dropout model. So the dropout model is worse standalone (C7) but better as an MCTS leaf — consistent with "search rewards calibration; standalone argmax rewards sharpness." Indirect chaining estimate: MCTS-dropout ≈ +1.4 over MCTS-no-dropout.
+
+**C9 — MCTS-dropout vs MCTS-no-dropout (partial, 52 of 100 games).** Direct head-to-head to test C8's indirect estimate. Killed before completion. Through 52 games: **27-24-1, +0.79 margin** — within noise of zero (SE ≈ ±2). Inconclusive but consistent with "very similar"; not yet rerun to completion.
+
+**C10 — Parallelization characteristics.** For sizing future match/sweep runs:
+
+| Mode | Per-game CPU | Per-game wallclock | Effective speedup |
 |---|---|---|---|
 | 1 worker | 62 s | 62 s | 1.0× |
-| **4 workers** | ~44 s | **11.3 s** | **~5.5× (warm steady-state); ~4× corrected for cold-start** |
-| 8 workers | ~156 s | 20.6 s | ~3.0× |
+| **4 workers** | ~44 s | **~11-19 s** | **~3-4× (the sweet spot)** |
+| 8 workers | ~156 s | ~21 s | ~3.0× |
 
-Past 4 workers, per-game-worker-wallclock blows up (~44 s → ~156 s) because workers contend for shared resources — OS allocator, page cache, memory bandwidth — even with `torch.set_num_threads(1)` pinned per worker. The model itself is tiny (170 → 256 → 256 → 1, comfortably L2-resident); the bottleneck is Python-side: tree walks, action enumeration, state encoding, all running 4-8× in parallel through the same allocator. On this machine (Apple Silicon, ~4 P-cores), **4 workers is the sweet spot for MCTS evaluation**; 8 workers is barely faster wallclock and uses 2× the CPU.
-
-This isn't NN-specific — the same parallelism wall applies to V3-evaluator MCTS, since both evaluators are Python-bound at the leaf. Real fix would be a vectorized batch encoder + batched leaf eval, but that's a sizeable refactor.
-
-### 12.6 Outstanding evaluation work
-
-- Match `NNAgent` and `MCTS-NN` against `HubrisHeuristicV1` (with `CONFIG_V1_T2` — the project's standalone-strongest agent) at varied sim budgets.
-- Sweep MCTS sims (100 / 200 / 500 / 1000 / 2000) to characterize the marginal-value-of-search curve for the NN evaluator.
-- Re-run NNAgent vs ensemble with the breakdown logged per-opponent (the prior eval logged aggregate-only).
-- Train a second NN on a more V1-balanced data-gen ensemble and check whether it closes the t2-tie gap.
+Past 4 workers, per-game CPU blows up because workers contend for the OS allocator / page cache / memory bandwidth even with `torch.set_num_threads(1)` pinned. The MLP is tiny and L2-resident; the bottleneck is Python-side (tree walks, action enumeration, encoding) run 4-8× in parallel. Not NN-specific — same wall hits V3-MCTS. Real fix is a vectorized batch encoder + batched leaf eval (sizeable refactor).
 
 ---
 
@@ -721,7 +706,7 @@ Current state:
   - `scripts/nn/validate_dataset.py` — post-generation invariant checker (§6.6) with optional random sampling
   - `scripts/nn/train_first.py` — thin CLI wrapper over `agricola.agents.nn.training.train(...)`
   - `scripts/nn/eval_vs_ensemble.py` — round-robin evaluation of a trained checkpoint vs the 8-config data-gen ensemble
-  - `scripts/nn/play_match.py` — NN-backed match driver with per-seat dispatch (`--p0 {mcts,nn} --p1 {mcts,nn}`); the key tool for the §11.3 MCTS-NN-vs-NNAgent experiment
+  - `scripts/nn/play_match.py` — NN-backed match driver with per-seat dispatch (`--p0 {mcts,nn} --p1 {mcts,nn}`); the key tool for the Experiment C3 MCTS-NN-vs-NNAgent comparison
 - **Tests:** 131 NN-related tests passing (16 schema/recording + 15 batch generator + 10 validation script + 28 encoder + 16 dataset + 27 model + 15 agent/training/integration). Full suite stays green.
 - **Datasets on disk:**
   - 50-game pipeline-check run (validated, all checks pass)
@@ -732,7 +717,7 @@ Current state:
   - `nn_models/20260529-162301-04fe/best.pt` — full-data production run on the 5000-game dataset; the current §11 reference checkpoint (test MAE = 6.87)
 - **Matches run** — see §11 for the headline outcomes.
 
-Outstanding evaluation / engineering work is tracked in §11.6 and §13.
+Outstanding evaluation / engineering work is tracked in §11.1 (planned experiments) and §13 (open questions).
 
 Possible near-term refinement: cache pre-encoded dataset arrays to disk (keyed by run + split_seed + sample_size + ENCODING_VERSION) so iterating training runs doesn't pay the ~2-min build each time.
 
@@ -744,26 +729,25 @@ Refreshed against current state — original items from the design phase (archit
 
 ### 13.1 Regularization / generalization
 
-- The val curve creeps upward after epoch 1 (0.422 → 0.456 across 11 epochs before early stop fires). Test MAE improved from 7.21 (50k-example smoke test) to 6.87 (full 727k), so more data still helps — but per-epoch overfitting is real. Should we add **weight decay > 0**, **non-zero dropout**, or a **smaller model** to extend the useful-training window?
-- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. Does this matter operationally, or is the early-stop discipline enough?
+- Dropout 0.2 helped (Experiment C6: test MAE 6.87 → 6.73, healthier val curve), but the curve still creeps after the early plateau. Is there more to gain from **higher dropout (0.3+)**, **stronger weight decay**, or a **smaller model**? And is there an irreducible label-noise floor near ~6.7 MAE that no regularization breaks through?
+- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. Does this matter operationally, or is the early-stop discipline enough? (P1's data-scaling arm probes this indirectly.)
 
 ### 13.2 Data distribution & V1 generalization
 
-- `NNAgent` ties `t2` (the V1 config) and beats every V3 in the ensemble (§11.2). The training ensemble is 7-of-8 V3 — the most likely cause. Would a **V1-V3-balanced data-gen ensemble** close the t2 gap?
+- `NNAgent` ties `t2` (the V1 config) and beats every V3 in the ensemble (Experiment C2). The training ensemble is 7-of-8 V3 — the most likely cause. Would a **V1-V3-balanced data-gen ensemble** close the t2 gap? (P1's S2/S5-vs-S1 arms probe the V1-presence axis.)
 - Should training data include some **MCTS-NN self-play** rollouts to expose the model to higher-quality states than the heuristic ensemble produces? (Phase-(b) work, but worth flagging.)
 
 ### 13.3 MCTS-NN scaling
 
-- At 500 sims, MCTS-NN beats NN-1-turn by +3.54 (§11.3). Does the lift scale with sim budget — does +3.54 at 500 become +6 at 1000, or does it plateau?
-- Does **PUCT** (a learned policy prior) further improve on vanilla UCT once we add a policy head? Existing project work flagged PUCT + learned-value-NN + higher sims as the natural follow-up — this is the question they'd answer.
+- Does **PUCT** (a learned policy prior) further improve on vanilla UCT once we add a policy head? Existing project work flagged PUCT + learned-value-NN + higher sims as the natural follow-up — this is the question it would answer. (The sim-budget half of this is operationalized as Experiment P3.)
 - The strict-restricted legality wrapper was tuned for V3 internals (Cultivation sow-max, fence-pattern table). Is it the right legality filter for an NN evaluator, or does the NN's smoothness/noise pattern suggest a different restriction set?
 
 ### 13.4 Architecture
 
 - Phase-(a) is locked at a flat MLP. The §7.1 directions — **Siamese encoder**, **spatial CNN over the farmyard**, **architecturally-antisymmetric output head**, **multi-head outputs** (value + win-probability, eventually value + policy) — are each a stronger inductive bias and worth a controlled comparison once the data pipeline matures.
-- Should the output head predict raw margin, **tanh-bounded margin**, or **win-probability** (Bradley-Terry-style)? The choice interacts with PUCT (which wants `[-1, +1]`-bounded values).
+- The output-head / supervision-target choice (raw margin vs bounded outcome vs win-probability) is operationalized as Experiment P2.
 
 ### 13.5 Trained-model lifecycle
 
-- Promotion gating: there's no analog of `tuned_configs/v3_best.json` for NN checkpoints yet. Should there be a `nn_models/best.pt` symlink with a regression-gated update rule analogous to the V3 pipeline?
+- Promotion gating: there's no analog of `tuned_configs/v3_best.json` for NN checkpoints yet. Should there be a `nn_models/best.pt` pointer with a regression-gated update rule analogous to the V3 pipeline? (`nn_models/REGISTRY.md` currently records the current-best by hand.)
 - Cross-run reproducibility: training is non-deterministic (CUDA + multi-threaded BLAS). Acceptable for now (early-stop catches the variance); revisit if checkpoint-to-checkpoint comparisons start mattering.
