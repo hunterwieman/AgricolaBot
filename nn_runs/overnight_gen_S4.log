@@ -1,0 +1,14 @@
+Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S4_all_lowT_10k
+Run id: S4_all_lowT_10k
+Resume: False
+N games planned: 10000
+N workers: 8
+Approved configs: ['t2', 'tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen47_wood020.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json']
+Restricted: True
+Fixed temperature: 0.3
+
+
+Done in 2806.4s
+  Completed (this run): 10000
+  Skipped (already done): 0
+  Errored: 0

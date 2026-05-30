@@ -1,0 +1,6 @@
+{
+  "best_epoch": 1,
+  "best_val_mse": 0.4221756564872564,
+  "test_mse_normalized": 0.4209869588610026,
+  "test_mae_margin": 6.866149544848558
+}

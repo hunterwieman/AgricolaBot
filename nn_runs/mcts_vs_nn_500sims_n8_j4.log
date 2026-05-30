@@ -1,0 +1,30 @@
+NN match: P0=mcts vs P1=nn
+  model:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/20260529-162301-04fe/best.pt
+  sims:     500 (mcts seats only)
+  c_uct:    1.4
+  n_random_fencing: 4
+  fpu_offset: 0.0
+  mcts_temperature: 0.2
+  nn_temperature: 0.0
+  games:    8 (seeds 0..7)
+  jobs:     4
+
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+[  1/8] seed=  3 SP=1 P0= 19 P1= 11 (P0)  P0W=1 P1W=0 D=0  avgM=+8.00  t=46.3s elapsed=48s eta=336s
+[  2/8] seed=  2 SP=1 P0= 25 P1= 17 (P0)  P0W=2 P1W=0 D=0  avgM=+8.00  t=52.4s elapsed=54s eta=162s
+[  3/8] seed=  0 SP=1 P0= 22 P1= 17 (P0)  P0W=3 P1W=0 D=0  avgM=+7.00  t=54.7s elapsed=56s eta=94s
+[  4/8] seed=  1 SP=0 P0= 26 P1= 25 (P0)  P0W=4 P1W=0 D=0  avgM=+5.50  t=77.9s elapsed=80s eta=80s
+[  5/8] seed=  6 SP=0 P0= 21 P1= 23 (P1)  P0W=4 P1W=1 D=0  avgM=+4.00  t=38.5s elapsed=95s eta=57s
+[  6/8] seed=  4 SP=1 P0= 25 P1=  5 (P0)  P0W=5 P1W=1 D=0  avgM=+6.67  t=54.6s elapsed=103s eta=34s
+[  7/8] seed=  7 SP=1 P0= 30 P1= 26 (P0)  P0W=6 P1W=1 D=0  avgM=+6.29  t=42.3s elapsed=122s eta=17s
+[  8/8] seed=  5 SP=1 P0= 29 P1=  9 (P0)  P0W=7 P1W=1 D=0  avgM=+8.00  t=101.5s elapsed=156s eta=0s
+
+Final: P0=7  P1=1  D=0  avg margin (P0-P1)=+8.00
+Total elapsed: 156s (19.4s/game avg)

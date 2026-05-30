@@ -1,0 +1,64 @@
+=== Phase 1: Data generation (5 sections × 10k games) ===
+Sat May 30 12:15:54 EDT 2026
+Run dir: data/nn_training/runs/S1_standard_bimodal_10k
+Run id: S1_standard_bimodal_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['t2', 'tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen47_wood020.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+
+Done in 1063.6s
+  Completed (this run): 1456
+  Skipped (already done): 8544
+  Errored: 0
+Run dir: data/nn_training/runs/S2_no_v1_bimodal_10k
+Run id: S2_no_v1_bimodal_10k
+Resume: False
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json', 'tuned_configs/panel_gen47_wood020.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+=== Phase 1: Data generation (5 sections × 10k games) ===
+Sat May 30 13:09:27 EDT 2026
+Run dir: data/nn_training/runs/S1_standard_bimodal_10k
+Run id: S1_standard_bimodal_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['t2', 'tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen47_wood020.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+
+Done in 33.0s
+  Completed (this run): 0
+  Skipped (already done): 10000
+  Errored: 0
+Run dir: data/nn_training/runs/S2_no_v1_bimodal_10k
+Run id: S2_no_v1_bimodal_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json', 'tuned_configs/panel_gen47_wood020.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+
+Done in 2341.5s
+  Completed (this run): 4142
+  Skipped (already done): 5858
+  Errored: 0
+Run dir: data/nn_training/runs/S3_strong3_bimodal_10k
+Run id: S3_strong3_bimodal_10k
+Resume: False
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+

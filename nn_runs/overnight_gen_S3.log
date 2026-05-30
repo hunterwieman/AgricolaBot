@@ -1,0 +1,32 @@
+Run dir: data/nn_training/runs/S3_strong3_bimodal_10k
+Run id: S3_strong3_bimodal_10k
+Resume: False
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S3_strong3_bimodal_10k
+Run id: S3_strong3_bimodal_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S3_strong3_bimodal_10k
+Run id: S3_strong3_bimodal_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+
+Done in 1577.8s
+  Completed (this run): 2293
+  Skipped (already done): 7707
+  Errored: 0

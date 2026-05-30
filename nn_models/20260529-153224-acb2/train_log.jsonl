@@ -1,0 +1,10 @@
+{"epoch": 1, "train_mse": 0.5432115100097656, "train_mae_margin": 7.939165412636838, "val_mse": 0.47991683462183626, "val_mae_margin": 7.312738703183163, "is_best": true, "patience": 0, "time_s": 1.341464415891096}
+{"epoch": 2, "train_mse": 0.4323143109130859, "train_mae_margin": 6.98160386415149, "val_mse": 0.47657271509910104, "val_mae_margin": 7.302341093287067, "is_best": true, "patience": 0, "time_s": 1.0696374168619514}
+{"epoch": 3, "train_mse": 0.4124047592163086, "train_mae_margin": 6.77572584554102, "val_mse": 0.457747553521594, "val_mae_margin": 7.089757397895914, "is_best": true, "patience": 0, "time_s": 1.0366035420447588}
+{"epoch": 4, "train_mse": 0.3925279193115234, "train_mae_margin": 6.575872965215545, "val_mse": 0.44745764830711326, "val_mae_margin": 7.024085194650494, "is_best": true, "patience": 0, "time_s": 1.075602333061397}
+{"epoch": 5, "train_mse": 0.37956998291015626, "train_mae_margin": 6.433344258683151, "val_mse": 0.45310249661136587, "val_mae_margin": 7.084555206643434, "is_best": false, "patience": 1, "time_s": 1.0214136668946594}
+{"epoch": 6, "train_mse": 0.3651534571838379, "train_mae_margin": 6.283854608373585, "val_mse": 0.44928736185927287, "val_mae_margin": 7.0447472270722695, "is_best": false, "patience": 2, "time_s": 1.037972749909386}
+{"epoch": 7, "train_mse": 0.35680945541381837, "train_mae_margin": 6.212603847982624, "val_mse": 0.4471895925809072, "val_mae_margin": 7.103961043115393, "is_best": true, "patience": 0, "time_s": 1.0579046658240259}
+{"epoch": 8, "train_mse": 0.3471888201904297, "train_mae_margin": 6.105965533168055, "val_mse": 0.45256918536624563, "val_mae_margin": 7.072894420975179, "is_best": false, "patience": 1, "time_s": 1.0464772919658571}
+{"epoch": 9, "train_mse": 0.34072143325805665, "train_mae_margin": 6.011331345647734, "val_mse": 0.4531855315849739, "val_mae_margin": 7.0929856554010975, "is_best": false, "patience": 2, "time_s": 1.0313709161709994}
+{"epoch": 10, "train_mse": 0.3291240301513672, "train_mae_margin": 5.8857845816949705, "val_mse": 0.4517298366762687, "val_mae_margin": 7.070252936291887, "is_best": false, "patience": 3, "time_s": 1.0407646670937538}

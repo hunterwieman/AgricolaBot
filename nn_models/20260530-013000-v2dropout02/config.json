@@ -1,0 +1,34 @@
+{
+  "hidden_dims": [
+    256,
+    256
+  ],
+  "activation": "gelu",
+  "norm": "layer",
+  "dropout": 0.2,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 512,
+  "max_epochs": 100,
+  "early_stop_patience": 20,
+  "train_sample_size": null,
+  "train_frac": 0.8,
+  "val_frac": 0.1,
+  "split_seed": 0,
+  "sample_seed": 1,
+  "torch_seed": 42,
+  "device": "cpu",
+  "loss": "mse",
+  "input_dim": 170,
+  "encoding_version": 2,
+  "data_version": 1,
+  "code_sha": "9e1b99083a070caf6e36e54739d92693d8cdb13c",
+  "run_dirs": [
+    "data/nn_training/runs/20260528-031528-9d6a"
+  ],
+  "train_size": 727254,
+  "val_size": 90858,
+  "test_size": 91708,
+  "param_count": 110849,
+  "target_std": 14.403564453125
+}

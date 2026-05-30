@@ -1,0 +1,14 @@
+Run dir: data/nn_training/runs/S1_standard_bimodal_10k
+Run id: S1_standard_bimodal_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['t2', 'tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen47_wood020.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json']
+Restricted: True
+Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))
+
+
+Done in 33.0s
+  Completed (this run): 0
+  Skipped (already done): 10000
+  Errored: 0

@@ -1,0 +1,40 @@
+Run dir: nn_models
+Device: cpu
+
+Loading games from 1 run(s)...
+Loaded 5000 games
+By-game split: train=4000 val=500 test=500
+Descriptors: train=727254 val=90858 test=91708
+Pre-encoding train...
+Pre-encoding val...
+Pre-encoding test...
+NormStats: target_std=14.404, encoding_version=2
+Examples: train=727254 val=90858 test=91708
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.0
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.4130 |         6.73 |    0.4222 |       6.75 |  *   |   0 |     7.3
+    2 |     0.3669 |         6.25 |    0.4238 |       6.78 |      |   1 |     7.2
+    3 |     0.3471 |         6.01 |    0.4231 |       6.79 |      |   2 |     7.2
+    4 |     0.3314 |         5.83 |    0.4320 |       6.86 |      |   3 |     7.3
+    5 |     0.3196 |         5.67 |    0.4358 |       6.91 |      |   4 |     7.4
+    6 |     0.3102 |         5.55 |    0.4398 |       6.97 |      |   5 |     7.7
+    7 |     0.3016 |         5.44 |    0.4402 |       6.98 |      |   6 |     7.5
+    8 |     0.2950 |         5.35 |    0.4437 |       7.00 |      |   7 |     7.5
+    9 |     0.2895 |         5.28 |    0.4494 |       7.05 |      |   8 |     7.5
+   10 |     0.2843 |         5.21 |    0.4509 |       7.07 |      |   9 |     7.4
+   11 |     0.2801 |         5.15 |    0.4550 |       7.10 |      |  10 |     7.6
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+
+Early stop at epoch 11: no improvement for 10 epochs.
+
+Loading best checkpoint for test eval...
+  best epoch: 1
+  test MSE (normalized): 0.4210
+  test MAE (margin):     6.866 points
+  saved: nn_models/train_curves.png
+  saved: nn_models/calibration.png
