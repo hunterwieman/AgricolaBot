@@ -6,7 +6,7 @@ This is the working spec for the initial NN phase. It captures the input encodin
 
 > **For new sessions:** read CLAUDE.md (project status), V3_DESIGN.md (the heuristic this NN replaces and whose features inform this NN's inputs), MCTS_DESIGN.md (the consumer of this NN's outputs), and STRATEGY.md §5 (project-phase context for NN training).
 
-**Document order.** Sections are arranged chronologically with the build order: overview → input format → label format → how data is generated → how the network is structured → how it's trained → how it's evaluated. Earlier sections are stable specs; later sections (§7 architecture, §8 training, §9 evaluation) are placeholders awaiting their own design rounds.
+**Document order.** Sections are arranged chronologically with the build order: overview → input format → label format → how data is generated → how the network is structured → how it's trained → how it's evaluated → implementation notes → measured results → status → open questions. The design and implementation are complete for phase (a); §11 Results captures the measured outcomes and §13 Open questions captures what remains.
 
 ---
 
@@ -104,6 +104,8 @@ The input vector has three groups: per-player features (mirrored for own and opp
 
 All features are continuous-valued floats (binary flags encoded as 0.0 / 1.0). Normalization strategy is TBD (see §8).
 
+**Output type: `np.ndarray` (float32), not `torch.Tensor`.** The encoder is numpy-only, which keeps the whole `agricola.agents.nn` package torch-free (only the eventual `model.py` imports torch). The training pipeline converts with `torch.from_numpy(arr)` at the model boundary — trivial and cheap. This preserves the §10.1 import-cost property: importing the package for data generation never pulls torch.
+
 ### 4.1 Per-player features (×2: own player + opponent)
 
 | Feature | Size | Notes |
@@ -123,7 +125,7 @@ All features are continuous-valued floats (binary flags encoded as 0.0 / 1.0). N
 | `n_unused_cells` | 1 | Farmyard cells not yet committed (scoring penalty: −1 each) |
 | Cooking rates (sheep, boar, cattle, veg → food) | 4 | Lookup over majors owned; 0 if no cooking implement |
 | Majors owned | 10 | Binary flag per major (indices 0-9 per `constants.MAJOR_IMPROVEMENT_COSTS` ordering) |
-| Breeding-pair indicators (sheep, boar, cattle) | 3 | True iff ≥2 of that animal AND accommodation for newborn |
+| Breeding-pair indicators (sheep, boar, cattle) | 3 | True iff ≥2 of that animal AND the farm can accommodate one more of it. **Independent** per type: each checked as if it's the only one breeding (i.e. `can_accommodate(caps, flex, ...this type +1...)`), not jointly. This deliberately differs from V3's `_v3_breeding_pair_counts`, which shares one capacity budget across types by priority. The independent version gives the NN raw per-type readiness and lets it learn the joint constraint from the capacity features. |
 | Harvest-conversions-used (joinery, pottery, basketmaker) | 3 | The 3 once-per-harvest craft budgets |
 | `is_starting_player` | 1 | Current SP (can change via Meeting Place) |
 | `has_fed` | 1 | True iff this player has completed harvest feeding this harvest |
@@ -136,9 +138,9 @@ All features are continuous-valued floats (binary flags encoded as 0.0 / 1.0). N
 | Feature | Size | Notes |
 |---|---|---|
 | `round_number` | 1 | Raw 1-14 |
-| `current_player` | 1 | 0 or 1; whose decision it is now |
+| `current_player_is_own` | 1 | 1.0 iff it's the perspective player's turn (`state.current_player == player_idx`). Perspective-relative rather than a raw 0/1 index, consistent with the own/opp block framing. |
 | `in_harvest` | 1 | True iff phase ∈ {HARVEST_FIELD, HARVEST_FEED, HARVEST_BREED} |
-| `is_harvest_round_now` | 1 | True iff `round_number ∈ {4, 7, 9, 11, 13, 14}` |
+| `rounds_until_next_harvest` | 1 | Distance to the next harvest round (0 on a harvest round). Sawtooth in `round_number`, non-monotonic — a textbook pre-compute candidate (§3.2). Replaces the earlier `is_harvest_round_now` bit, which it subsumes (`== 0`). Complements `food_owed` (magnitude) with timing. |
 | `accumulation_amounts` | 10 | Goods on each accumulation space (Forest, Clay Pit, Reed Bank, Fishing, Meeting Place, Sheep Market, Western Quarry, Pig Market, Cattle Market, Eastern Quarry) |
 | `stage_cards_revealed` | 14 | Binary flag per stage card; permanents are always available so don't need a revealed bit |
 | `space_available_now` | 25 | Binary per action space: 1 if revealed-and-not-occupied this round |
@@ -196,7 +198,7 @@ When the indicator is 1, the following features are forced to zero:
 - `current_player` (no decider — game's over)
 - `family_left_to_place_this_round` (no placements happening)
 - `food_owed_at_next_harvest` (no next harvest)
-- `in_harvest`, `has_fed`, `is_harvest_round_now` (no harvest)
+- `in_harvest`, `has_fed`, `rounds_until_next_harvest` (no harvest pending)
 - `future_food_from_round_spaces` (no future rounds)
 - All mid-action features (`subaction_available`, `stop_is_legal`) (no pending stack at terminal)
 
@@ -262,7 +264,7 @@ See §4.5 for how the encoder represents terminal states.
 
 ## 6. Data generation
 
-The data pipeline produces `GameRecord` pickles via heuristic self-play. This is the section most fleshed out today — the encoder, model, training, and evaluation sections below remain placeholders.
+The data pipeline produces `GameRecord` pickles via heuristic self-play. This is the section that was specified first and most thoroughly; the encoder, model, training, and evaluation pieces (§7-9) were built and validated against the §6.6 invariants.
 
 ### 6.1 Generation agents
 
@@ -324,7 +326,7 @@ Notes:
 - Store raw `GameState`, not pre-encoded — lets the encoder evolve without regenerating data.
 - Store final scores (P0 and P1), not "margin from decider perspective" — margin in any frame is derivable.
 - Store `winner` explicitly (derivable from `terminal_state` but useful as a non-ambiguous direct signal for analytics over tied-score games).
-- `data_version` integer in the schema; bumped on any change to the `GameRecord` shape (see §11.4). Loader refuses mismatched versions.
+- `data_version` integer in the schema; bumped on any change to the `GameRecord` shape (see §10.4). Loader refuses mismatched versions.
 
 No sampling at generation time — every agent-call state is saved. Sub-sampling for training happens at DataLoader time, decoupled from the dataset.
 
@@ -384,7 +386,7 @@ Per-game errors (engine bugs, unexpected states) are caught, logged with the fai
 
 ### 6.6 Validation pass
 
-After generation, a separate `scripts/validate_nn_dataset.py` script loads N random records and asserts invariants:
+After generation, a separate `scripts/nn/validate_dataset.py` script loads N random records and asserts invariants:
 
 - `data_version` matches the loader's current version
 - `chosen_action ∈ legal_actions(state)` for each snapshot (engine consistency)
@@ -399,7 +401,7 @@ Failing the validation halts and reports specific game files for investigation.
 Tiered approach:
 
 1. **Pipeline-check run**: 50-100 games. ~3-5 minutes on 8 workers. Verify file layout, schema, basic invariants. Catches schema bugs cheap.
-2. **Sanity-check run**: 500-1000 games. ~30-60 min. Spot-check records by eye; verify per-config distribution looks right; confirm `validate_nn_dataset.py` passes on a real-sized dataset.
+2. **Sanity-check run**: 500-1000 games. ~30-60 min. Spot-check records by eye; verify per-config distribution looks right; confirm `validate_dataset.py` passes on a real-sized dataset.
 3. **Production run**: 5000 games initially, scaling up to 10k-20k once the pipeline is validated and the architecture is ready.
 
 Don't move on to architecture work until the 500-game run produces clean data.
@@ -410,68 +412,132 @@ Each game's seed is `base_seed + game_idx`, with `base_seed` recorded in `metada
 
 ---
 
-## 7. Architecture (TBD)
+## 7. Architecture
 
-**This section is a placeholder.** The architecture has not been designed yet.
+The phase-(a) NN is a flat MLP value function — `state vector (170) → margin estimate (1)`. Intentionally simple to validate the full pipeline (data → encoder → model → evaluator → agent → match) before layering on structure. Implemented in `agricola/agents/nn/model.py`.
 
-Initial expectations:
-- Multi-layer perceptron with 2-3 hidden layers
-- Hidden width: 256-512
-- Modern activation (SiLU / GELU)
-- Layer norm or batch norm between layers (TBD)
-- Single scalar output head, no nonlinearity on the output (raw margin)
-- PyTorch framework (per STRATEGY.md decision)
+**Default architecture** (locked as the `ConfigurableMLP` defaults):
 
-To be designed:
-- Exact depth and width
-- Activation choice
-- Normalization layer choice and placement
-- Whether to use residual blocks
-- Output head form (e.g., does it predict raw margin, normalized margin, tanh-bounded margin?)
-- Input normalization / standardization scheme
+| Component | Choice |
+|---|---|
+| Topology | MLP, two hidden layers |
+| Hidden widths | `[256, 256]` |
+| Activation | GELU |
+| Normalization | LayerNorm between layers |
+| Dropout | 0.0 (no regularization in v1; revisit when val curve overfits) |
+| Output head | Single scalar, no nonlinearity (raw margin in normalized space) |
+| Total parameters | 110,849 |
+| Framework | PyTorch |
 
----
+LayerNorm was chosen over BatchNorm because MCTS-leaf inference is single-state (batch size 1), which BatchNorm handles poorly. Residual blocks were skipped because the network is shallow (2 hidden layers); they'd be worth revisiting only at 8+ layers (§7.1).
 
-## 8. Training (TBD)
+**Input/output normalization** lives in `NormalizedValueModel`, a wrapper module that registers fixed `input_mean`, `input_std`, and `target_std` buffers populated from a `NormStats` fit on the training split only. `forward(x)` returns normalized output (used in training MSE); `predict_margin(x)` denormalizes for inference. Burying normalization in the model means consumers can't forget to apply it and `.to(device)` moves the stats along with the weights.
 
-This section is a placeholder pending architecture decisions. Items still to specify:
+**Antisymmetric inference via the differential wrapper.** The model itself learns from both perspectives via dual-perspective augmentation (§8.A), but there's no architectural guarantee that `V(s, 0) = −V(s, 1)` exactly. The `nn_evaluator_differential` wrapper in `agricola/agents/nn/agent.py` enforces exact antisymmetry at inference: encodes both perspectives, runs ONE batched-2 forward pass, returns `V(s, 0) − V(s, 1)` in P0's frame (`−V_diff` in P1's). This is the runtime analog of `make_differential_evaluator` for V3.
 
-- Optimizer (Adam / AdamW), learning rate, weight decay
-- Batch size, number of epochs, early stopping rule
-- Train/val/test split by GAME (not by state — leakage). Proportions TBD.
-- Checkpointing strategy
-- Sub-sampling strategy at DataLoader time (every N-th snapshot per game vs K-per-game vs all)
-- Loss function (MSE vs Huber)
-- Normalization scheme (per-feature standardization computed from training split; baked into model metadata)
-- Augmentations, if any (note: player-swap is NOT a free symmetry due to SP starting-food asymmetry)
+`ConfigurableMLP` is composable: pass `output_dim` other than 1 and it works as a sub-encoder. That's the seed of the §7.1 structured-architecture directions, which will reuse the same module as a building block.
 
----
+### 7.1 Future / structured architecture directions (beyond the flat MLP)
 
-## 9. Evaluation (TBD)
+The phase-(a) `ConfigurableMLP` treats the input as an unstructured flat vector — a universal approximator, but with no architectural prior for structure in the input. These are the structured variants worth pursuing once the flat baseline is established. Each is a *better inductive bias*, not a representability gain.
 
-**This section is a placeholder.** Evaluation criteria are not fully designed yet.
+- **Shared per-player encoder (Siamese).** The own and opp blocks share identical feature layout. A shared sub-network `φ` could process each block with the *same weights* (`h_own = φ(own_block)`, `h_opp = φ(opp_block)`), then combine (`concat`, or the difference `h_own − h_opp`, or both sum and difference). Halves the per-player encoder parameters and biases the model toward treating players symmetrically. See §8 (Training) for the data-level and inference-level symmetry options that compose with this.
 
-Candidate metrics:
-- **Held-out MSE / MAE** on (state, terminal_margin) pairs from games not used in training.
-- **Match performance**: paired head-to-head matches of an `NNAgent` (1-turn lookahead, using the NN as evaluator) against `HubrisHeuristicV3` and `HubrisHeuristicV1` (with `CONFIG_V1_T2`). Win rate and average margin over N games (∼200 is sufficient given variance).
-- **Drop-in MCTS performance**: replace `evaluate_hubris_v3` with the NN inside `MCTSSearch.evaluate_leaf` and run matches against the current MCTS variants (`scripts/play_mcts_match.py`).
-- **Calibration**: scatter plot of predicted-margin vs actual-margin on the held-out set; ideal calibration is the identity line.
+- **Spatial CNN over the farmyard.** The 3×5 grid has real spatial structure (field/pasture adjacency, room chaining). A small CNN with one channel per cell type (`(channels, 3, 5)`) would exploit locality/adjacency automatically instead of forcing the MLP to learn it from flat per-cell features. This is the phase-b encoding change flagged in §1.2 / §4.6 — it changes the *encoder output shape*, but not the training loop.
 
-Success criteria (initial targets, subject to revision):
-- NN-1-turn-lookahead is statistically indistinguishable from or stronger than V3 standalone (≥0 average margin in 200-game match).
-- NN-MCTS at 200 sims is statistically indistinguishable from or stronger than V3-MCTS at the same sim count.
+- **Antisymmetric output construction.** Build the value head so `V(state from P0) = −V(state from P1)` *exactly* by construction (e.g., `V = f(own, opp, shared) − f(opp, own, shared)`), enforcing the true antisymmetry of a zero-sum margin. The architectural analog of the existing `make_differential_evaluator` wrapper. See §8.
+
+- **Multi-head outputs.** Value + win-probability, or (phase c) value + policy. A shared trunk with two heads; the secondary head acts as an auxiliary loss (§3.4). Changes the model class, not the training infrastructure.
 
 ---
 
-## 10. Open questions
+## 8. Training
 
-- **Architecture sizing**: depth/width/normalization, see §7.
-- **Training data volume**: how many games / state-snapshots are needed for the NN to plausibly match V3? Educated guess: 100k-1M (state, margin) pairs.
-- **Normalization**: per-feature standardization (zero mean, unit variance using training-set statistics) vs raw inputs. Standardization is the default safe choice but adds a fixed-stats artifact to be carried with the model.
+Implemented in `agricola/agents/nn/training.py`; the thin CLI wrapper is `scripts/nn/train_first.py`.
+
+### 8.1 Pipeline
+
+1. Load `GameRecord`s from one or more run directories via `load_all_games_from_runs`.
+2. Split games **by index** (80/10/10 train/val/test, deterministic via `--split-seed`). Splitting by game — not by snapshot — prevents the same game's terminal-margin from leaking between splits.
+3. Expand each game into descriptors:
+   - Per non-singleton snapshot: 2 dual-perspective descriptors (§8.A).
+   - Per terminal state: 2 dual-perspective descriptors (§5.1).
+4. Pre-encode the chosen descriptors once into a dense `float32` numpy array via `encode_state`. DataLoader access is then array slicing, not a per-call encode.
+5. Fit `NormStats` (per-feature input mean/std + scalar target_std) on the **training arrays only**; never peek at val/test.
+6. Build three `AgricolaValueDataset`s and the `NormalizedValueModel`; train.
+
+### 8.2 Hyperparameters
+
+The reference §11.1 model used:
+
+| Knob | Value | Rationale |
+|---|---|---|
+| Optimizer | AdamW | Standard for MLPs; decoupled weight decay |
+| Learning rate | 1e-3 | Plain default |
+| Weight decay | 0.0 | First run; revisit if val curve creeps (it does — see §11.1) |
+| Batch size | 512 | Whole training set fits in RAM, so batching is purely a noise/throughput knob |
+| Loss | MSE on normalized targets | Targets divided by `target_std` so the loss scale doesn't depend on the data |
+| Max epochs | 50 | Cap; never reached |
+| Early stopping | val MSE patience = 10 | Restore best-val weights at end |
+| Train fraction | 0.8 |  |
+| Val fraction | 0.1 | Test = remainder (0.1) |
+| Sub-sampling | None (all train descriptors) | 727k examples is small enough |
+
+### 8.A Dual-perspective augmentation (the load-bearing trick)
+
+For each non-singleton snapshot and each terminal state, **both** perspectives are added as training pairs: `(encode(s, 0), p0_margin)` and `(encode(s, 1), p1_margin)`. This is NOT a naive raw-state player-swap — it's a re-encoding of the same position from the other player's view, with SP asymmetry correctly preserved by per-player features (`is_starting_player`, starting-food deltas) and perspective-relative shared features (own/opp ordering). Both examples are valid, exact training pairs.
+
+Effect: doubles the data and balances the `current_player_is_own` feature. (An earlier draft of this doc incorrectly called the swap an invalid symmetry; it's valid *when done via re-encoding*, which `encode_state(state, 1 − decider)` already does.)
+
+Composes cleanly with the §7 differential-inference wrapper: training (§8.A) makes both perspectives valid examples; inference (the D wrapper) makes the answer antisymmetric by construction. Together they give a model that has *seen* both perspectives and *answers* antisymmetrically.
+
+### 8.3 Outputs
+
+Each `train(...)` invocation writes:
+
+- `best.pt` — best-val checkpoint (state dict + `NormStats` buffers)
+- `best.meta.json` — architecture config, `encoding_version`, hyperparams
+- `train_log.jsonl` — per-epoch train/val MSE
+- `train_curves.png` — train/val MSE plotted over epochs
+- `calibration.png` — predicted-margin vs actual-margin scatter on held-out test
+- `test_metrics.json` — final test MSE/MAE in raw-margin units
+- `config.json` — full run configuration for reproducibility
+- `norm_stats.json` — separate copy of `NormStats` as JSON
 
 ---
 
-## 11. Implementation notes
+## 9. Evaluation
+
+### 9.1 Methodology
+
+Four metrics, in increasing order of "what actually matters":
+
+- **Held-out MSE / MAE** on (state, terminal_margin) pairs from games never seen during training (the test split). Standard regression metric; useful for tracking model improvements without paying per-match cost.
+- **`NNAgent` vs the 8-config data-gen ensemble.** Round-robin (100 games per opponent) via `scripts/nn/eval_vs_ensemble.py`. Aggregated win rate + average margin. Tests whether the NN matches a "median trained heuristic" on its own training distribution.
+- **`NNAgent` vs `HubrisHeuristicV1` (with `CONFIG_V1_T2`).** The project's standalone-strongest agent. Tests whether the NN matches the best hand-crafted evaluator (the bar is high — V1 is the head-to-head winner against every V3 to date).
+- **MCTS-NN vs NNAgent-1-turn.** Same model on both sides, MCTS at varied sim budgets vs greedy 1-turn lookahead. Run via `scripts/nn/play_match.py --p0 mcts --p1 nn`. Isolates the lift (or regression) tree search provides on top of the learned evaluator.
+- **Calibration plot.** Predicted-margin vs actual-margin scatter on the test set; ideal is the identity line. A flatter line indicates the model is regressing toward the mean (predicting too conservatively).
+
+### 9.2 Measured outcomes
+
+Full results in §11. Headline figures:
+
+- Test MAE = **6.87 points** (§11.1)
+- `NNAgent` vs 8-config ensemble: **~60% aggregate win rate**; beats every V3 opponent; ties `t2` (V1) (§11.2)
+- MCTS-NN-500 vs `NNAgent`-1-turn: **68-32, +3.54 avg margin**, p < 0.001 (§11.3)
+
+### 9.3 Success criteria — design-phase targets, evaluated post-hoc
+
+| Criterion (from design phase) | Outcome |
+|---|---|
+| NN-1-turn-lookahead ≥ V3 standalone (≥0 avg margin, 200-game match) | **Passed** — beats every V3 in the ensemble (§11.2) |
+| NN-MCTS at 200 sims ≥ V3-MCTS at the same sim count | **Inverted finding** — V3-MCTS regressed against V3-standalone; NN-MCTS *lifts* against NN-standalone. The "≥ V3-MCTS" comparison is moot because V3-MCTS itself was below V3-standalone (§11.4). |
+
+Outstanding evaluation work is in §11.6.
+
+---
+
+## 10. Implementation notes
 
 ### 11.1 File layout
 
@@ -481,17 +547,18 @@ Implemented today:
 
 - `agricola/agents/nn/schema.py` — `DATA_VERSION`, `DecisionSnapshot`, `GameRecord`, `DataVersionMismatch`, `load_game_records`, `compute_winner`. No PyTorch dependency.
 - `agricola/agents/nn/recording.py` — `play_recording_game`. Depends on engine + Agent protocol. No PyTorch dependency.
-- `agricola/agents/nn/encoder.py` — `ENCODING_VERSION` (version constant only today). `encode_state` is TBD; will be added once the architecture is locked in. Future PyTorch dependency.
+- `agricola/agents/nn/encoder.py` — `encode_state(state, player_idx) -> np.ndarray` (float32, length `ENCODED_DIM = 170`), `ENCODING_VERSION`, `feature_names()`. Numpy-only (no torch). Implements the §4 spec including the OR-across-stack `subaction_available` walk and terminal-state zeroing. The `feature_names()` list doubles as the terminal-zeroing key set and as a debugging/golden-test aid.
+- `agricola/agents/nn/dataset.py` — `build_datasets(run_dirs, *, train_sample_size, train_frac, val_frac, ...)` → `(train_ds, val_ds, test_ds, NormStats)`. Loads `GameRecord` pickles, by-game train/val/test split, expands each snapshot into 2 dual-perspective examples + 2 terminal pairs per game (§5.1 + the A augmentation from §8), random-pool sampling for the train split (decorrelates batches; val/test use all for low-variance metrics), pre-encodes once into `float32` arrays for fast DataLoader access. `NormStats` (per-feature input mean/std + target std) is computed on the training split only, persisted alongside the model. Imports torch — not re-exported from `__init__.py` to preserve the torch-free data-generation path; explicit `from agricola.agents.nn.dataset import ...` required.
 - `agricola/agents/nn/__init__.py` — re-exports the public surface so external code can use `from agricola.agents.nn import GameRecord` etc.
-- `scripts/generate_nn_training_data.py` — orchestrates heuristic self-play via the 8-config ensemble from `tuned_configs/DATA_GEN_ENSEMBLE.md`. Multiprocessing pool, deterministic plan, bimodal per-agent temperature draws, atomic per-game pickle writes, resume-on-existing per §6.4.
-- `scripts/validate_nn_dataset.py` — post-generation invariant checker (§6.6). Supports random-sample validation for huge datasets via `--sample-size`. Failure reports group by check type and locate the offending game_idx + snapshot.
+- `scripts/nn/generate_training_data.py` — orchestrates heuristic self-play via the 8-config ensemble from `tuned_configs/DATA_GEN_ENSEMBLE.md`. Multiprocessing pool, deterministic plan, bimodal per-agent temperature draws, atomic per-game pickle writes, resume-on-existing per §6.4.
+- `scripts/nn/validate_dataset.py` — post-generation invariant checker (§6.6). Supports random-sample validation for huge datasets via `--sample-size`. Failure reports group by check type and locate the offending game_idx + snapshot.
 
 Planned but not yet implemented:
 
 - `agricola/agents/nn/model.py` — `FirstNNValueModel` (PyTorch `nn.Module`).
 - `agricola/agents/nn/agent.py` — `NNAgent` (Agent-protocol wrapper using the model).
-- `scripts/train_first_nn.py` — PyTorch training loop. Reads training data, trains, checkpoints.
-- `scripts/eval_first_nn.py` — matches NNAgent vs baselines, reports MSE / win-rate / margin.
+- `scripts/nn/train_first.py` — PyTorch training loop. Reads training data, trains, checkpoints.
+- `scripts/nn/eval_vs_ensemble.py` — matches NNAgent vs baselines, reports MSE / win-rate / margin.
 
 Data and model artifacts:
 
@@ -507,7 +574,7 @@ Data and model artifacts:
 ### 11.3 Persistence format
 
 - Model: `torch.save(model.state_dict(), path)` — state dict only, not full pickle (lets us evolve the model class).
-- Metadata: JSON sidecar with hyperparameters, training data hashes, **`ENCODING_VERSION`** and **`DATA_VERSION`** (see §11.4), normalization stats, code-commit SHA.
+- Metadata: JSON sidecar with hyperparameters, training data hashes, **`ENCODING_VERSION`** and **`DATA_VERSION`** (see §10.4), normalization stats, code-commit SHA.
 
 ### 11.4 Schema versioning
 
@@ -528,7 +595,9 @@ Mechanism:
 
 **Optional refinement:** maintain a CHANGES-style log of what each version added/removed/changed (inline near `ENCODING_VERSION` or in a dedicated section here). Makes it possible to write a one-off translator if you ever want to evaluate an older checkpoint against a newer engine without retraining.
 
-**Initial version:** `ENCODING_VERSION = 1` corresponds to the input vector specified in §4.
+**Version history:**
+- `v1` — initial encoder per §4. Bug: `current_player_is_own` used raw `state.current_player`, which is stale during harvest sub-phases (FEED/BREED) and any out-of-turn trigger frame. Affected ~15% of training snapshots; the model trained on v1 features remained internally consistent but the feature carried noise rather than signal in those snapshots.
+- `v2` — `current_player_is_own` now uses `decider_of(state)` (the pending-stack-aware canonical "who is to act?" query). Correct during harvest sub-phases and forward-compat with future cards that push out-of-turn trigger frames. The first v2 checkpoint will require a new training run; the v1 checkpoint `nn_models/20260529-162301-04fe/best.pt` will be rejected at load time by `EncodingVersionMismatch`, as designed.
 
 #### `DATA_VERSION`
 
@@ -538,11 +607,98 @@ Mechanism mirrors `ENCODING_VERSION`:
 
 1. Define `DATA_VERSION: int` as a module-level constant in `agricola/agents/nn/schema.py` (alongside `GameRecord`). Start at `1`.
 2. Every generated `GameRecord` stamps the current `DATA_VERSION` into its own `data_version` field.
-3. The dataset loader (`scripts/validate_nn_dataset.py` and the training-time loader) compares each `GameRecord.data_version` against the current `DATA_VERSION`. Mismatched records raise a clear error.
+3. The dataset loader (`scripts/nn/validate_dataset.py` and the training-time loader) compares each `GameRecord.data_version` against the current `DATA_VERSION`. Mismatched records raise a clear error.
 
 **Bump policy:** increment whenever the `GameRecord` or `DecisionSnapshot` schema changes in a way that affects on-disk shape. Adding a field bumps. Renaming a field bumps. Adding a new entry to a stored union type bumps.
 
 **Initial version:** `DATA_VERSION = 1` corresponds to the schema specified in §6.2.
+
+---
+
+## 11. Results
+
+Measured outcomes of the trained NN value function — both standalone (`NNAgent`) and as a leaf evaluator for MCTS (`MCTSSearch` with `evaluator_fn=nn_evaluator_differential`).
+
+### 12.1 Model under test
+
+The current reference checkpoint, trained per the default architecture in §10.1 on the 5000-game production dataset:
+
+| Property | Value |
+|---|---|
+| Path | `nn_models/20260529-162301-04fe/best.pt` |
+| Architecture | `ConfigurableMLP([256, 256])` + GELU + LayerNorm + dropout 0 |
+| Parameters | 110,849 |
+| Training examples | 727,254 (after dual-perspective + terminal augmentation; 80/10/10 by-game split) |
+| Best epoch | 1 (early stop fired soon after) |
+| Val MSE (normalized) | 0.422 |
+| **Test MAE (margin units)** | **6.87 points** |
+| `target_std` | 14.40 (margin scale) |
+
+The val curve crept upward after epoch 1 (0.422 → 0.456 across 11 epochs before early stop) — the model fit the easy signal in one epoch and started memorizing noise afterward. Early stopping caught it cleanly; the test MAE is the epoch-1 checkpoint's, not a late epoch's. See the trained-curves plot and §6 / §8 for the data and training details.
+
+### 12.2 NNAgent vs the 8-config ensemble
+
+Round-robin matches of `NNAgent` (differential evaluator, 1-turn lookahead, default temperature) against each config in `tuned_configs/DATA_GEN_ENSEMBLE.md` (100 games per opponent, V3 strict-restricted legality on both seats).
+
+- **Aggregate: ~60% win rate** across all 8 opponents (~480-320 W-L over 800 games).
+- `NNAgent` **beats every V3 opponent** in the ensemble, often by 3-8 average margin points.
+- `NNAgent` only **ties with `t2`** — the lone V1-architecture config in the ensemble.
+
+Plausible interpretation: 7 of 8 training-data configs are V3, so the NN learned to value states roughly the way V3 evaluators do — outperforming them via better generalization across V3-styled trajectories, but not generalizing to V1's qualitatively different playstyle. A future ensemble more balanced across V1/V3 might fix this.
+
+### 12.3 MCTS-NN-500 vs NNAgent-1-turn (key result)
+
+The headline experiment for the NN+MCTS direction. **Same NN model on both sides**; the only difference is whether the seat searches with MCTS or relies on 1-turn lookahead. Configuration:
+
+- **P0 (MCTS-NN-500):** `MCTSSearch(evaluator_fn=nn_evaluator_differential, evaluator_config=model, leaf_differential=False)` with V3 strict-restricted legality and V3 greedy-macro heuristic. 500 sims/move, `c_uct=1.4`, FPU 0, action-selection T=0.2, 4 random fencing macros + 1 greedy.
+- **P1 (NNAgent-1-turn):** `NNAgent(model, differential=True, temperature=0.0)`. Same V3 strict-restricted legality.
+- 100 games, seeds 0–99.
+
+Result:
+
+| Side | Wins |
+|---|---|
+| **MCTS-NN-500** (P0) | **68** |
+| NNAgent-1-turn (P1) | 32 |
+| Draws | 0 |
+| Avg margin (P0 − P1) | **+3.54** |
+
+Statistical significance: z = (68 − 50)/√(100 · 0.25) = 3.6 → two-sided p < 0.001 against the null of 50% win rate.
+
+### 12.4 Contrast with V3-evaluator MCTS
+
+**This is the first MCTS configuration in the project that lifts strength rather than regressing it.** The prior project finding (CLAUDE.md Phase 2.2 — MCTS) was that V3-evaluator MCTS *lost* to standalone V1/V3 at 200-500 sims:
+
+| Setup | Avg margin (MCTS − standalone) |
+|---|---|
+| MCTS-V1 vs V1-heuristic, 500 sims | **−3.88** |
+| MCTS-V3 vs V3-heuristic, 200 sims | **−5.58** |
+| **MCTS-NN vs NN-1-turn, 500 sims** | **+3.54** |
+
+Plausible explanation: V3 is hand-tuned (via CMA-ES over ~250 coefficients) to be a strong single-position evaluator — at 1-turn lookahead it's already near its skill ceiling, so extra MCTS search adds tree-search noise faster than it adds depth. The NN, with test MAE = 6.87, is noisier pointwise; MCTS averages over many noisy evaluations and recovers a cleaner value estimate from them. This is the AlphaZero-style synergy in miniature: tree search amplifies a "good enough" learned value function more than it amplifies a hand-tuned near-optimal one.
+
+Implication for the project roadmap: the NN+MCTS direction is validated. PUCT + a policy head + higher sims are the natural next steps (project phase 5, AlphaZero-style self-play).
+
+### 12.5 Parallelization characteristics
+
+For tuning future match / MCTS-sweep runs:
+
+| Mode | Per-game wallclock (worker-side) | Per-game wallclock amortized | Effective speedup vs 1-worker |
+|---|---|---|---|
+| 1 worker | 62 s | 62 s | 1.0× |
+| **4 workers** | ~44 s | **11.3 s** | **~5.5× (warm steady-state); ~4× corrected for cold-start** |
+| 8 workers | ~156 s | 20.6 s | ~3.0× |
+
+Past 4 workers, per-game-worker-wallclock blows up (~44 s → ~156 s) because workers contend for shared resources — OS allocator, page cache, memory bandwidth — even with `torch.set_num_threads(1)` pinned per worker. The model itself is tiny (170 → 256 → 256 → 1, comfortably L2-resident); the bottleneck is Python-side: tree walks, action enumeration, state encoding, all running 4-8× in parallel through the same allocator. On this machine (Apple Silicon, ~4 P-cores), **4 workers is the sweet spot for MCTS evaluation**; 8 workers is barely faster wallclock and uses 2× the CPU.
+
+This isn't NN-specific — the same parallelism wall applies to V3-evaluator MCTS, since both evaluators are Python-bound at the leaf. Real fix would be a vectorized batch encoder + batched leaf eval, but that's a sizeable refactor.
+
+### 12.6 Outstanding evaluation work
+
+- Match `NNAgent` and `MCTS-NN` against `HubrisHeuristicV1` (with `CONFIG_V1_T2` — the project's standalone-strongest agent) at varied sim budgets.
+- Sweep MCTS sims (100 / 200 / 500 / 1000 / 2000) to characterize the marginal-value-of-search curve for the NN evaluator.
+- Re-run NNAgent vs ensemble with the breakdown logged per-opponent (the prior eval logged aggregate-only).
+- Train a second NN on a more V1-balanced data-gen ensemble and check whether it closes the t2-tie gap.
 
 ---
 
@@ -552,23 +708,62 @@ Current state:
 
 - Input encoding specified (§4)
 - Supervision target chosen (§5)
-- Data generation pipeline specified AND implemented (§6, §11.1)
-- Schema versioning protocol defined (§11.4)
+- Data generation pipeline specified AND implemented (§6, §10.1)
+- Schema versioning protocol defined (§10.4)
 - **Code implemented:**
-  - `agricola/agents/nn/{schema,recording,encoder,__init__}.py` — schema dataclasses + recording driver + `ENCODING_VERSION` placeholder + public-surface re-exports
-  - `scripts/generate_nn_training_data.py` — batch generator with multiprocessing pool, resume-on-existing, atomic per-game writes, bimodal per-agent temperature draws, deterministic planning
-  - `scripts/validate_nn_dataset.py` — post-generation invariant checker (§6.6) with optional random sampling
-- **Tests:** 41 new NN-related tests (16 schema/recording + 15 batch generator + 10 validation script). Full suite: 797 passing.
+  - `agricola/agents/nn/{schema,recording,encoder,dataset,__init__}.py` — schema dataclasses + recording driver + the full input encoder + **the training-dataset builder** + public-surface re-exports
+  - `encode_state(state, player_idx) -> np.ndarray` (numpy float32, length 170) implementing the §4 spec: per-player ×2 + shared + mid-action + terminal-state zeroing. Validated by encoding all 33,899 snapshot states + 750 terminal states from the 1000-game run with zero crashes, all finite, terminal zeroing correct.
+  - `build_datasets(run_dirs, ...) → (train_ds, val_ds, test_ds, NormStats)`: by-game split, A augmentation + §5.1 terminal pairs, **paired sub-sampling** for train (state-level — dual-perspective pairs stay together), pre-encoded numpy arrays for fast DataLoader access. End-to-end run on the 5000-game production dataset: 200k train / 90k val / 91k test descriptors in ~2 min wall time; `target_std=14.39` (margin scale), input_std range [0.013, 7.777].
+  - `model.py` — `ConfigurableMLP(input_dim, hidden_dims, output_dim=1, activation, norm, dropout)` (composable: usable as the full value net, as a per-player sub-encoder in a future Siamese, or as a head on top of a trunk) + `NormalizedValueModel(net, norm_stats)` (wraps any net with fixed normalization buffers; `forward(x)` returns normalized output for training, `predict_margin(x)` denormalizes for inference). Persistence: `<path>.pt` (state_dict including buffers) + `<path>.meta.json` (architecture config + `encoding_version` + optional `extras`). Default architecture (`hidden_dims=[256, 256]`, GELU, LayerNorm, dropout 0) = 110,849 params.
+  - `training.py` — `train(run_dirs, out_dir, ...)` programmatic entry that builds datasets + model + optimizer, runs the per-epoch train/val loop with early stopping, saves best checkpoint + JSONL log + config + final test metrics + plots. Reusable from sweeps and custom scripts. Plus `train_one_epoch`, `evaluate`, `setup_seeds`, `make_run_id`, plot helpers.
+  - `agent.py` — `NNAgent` (HeuristicAgent-style 1-turn lookahead backed by a trained `NormalizedValueModel`); `nn_evaluator` (single forward pass) and `nn_evaluator_differential` (D wrapper — batched-into-one-pass exact-antisymmetric `V(s,0) − V(s,1)` from FIRST_NN.md §8). Drop-in compatible with the existing `play_match.py` / `play_game` machinery.
+  - `scripts/nn/generate_training_data.py` — batch generator with multiprocessing pool, resume-on-existing, atomic per-game writes, bimodal per-agent temperature draws, deterministic planning
+  - `scripts/nn/validate_dataset.py` — post-generation invariant checker (§6.6) with optional random sampling
+  - `scripts/nn/train_first.py` — thin CLI wrapper over `agricola.agents.nn.training.train(...)`
+  - `scripts/nn/eval_vs_ensemble.py` — round-robin evaluation of a trained checkpoint vs the 8-config data-gen ensemble
+  - `scripts/nn/play_match.py` — NN-backed match driver with per-seat dispatch (`--p0 {mcts,nn} --p1 {mcts,nn}`); the key tool for the §11.3 MCTS-NN-vs-NNAgent experiment
+- **Tests:** 131 NN-related tests passing (16 schema/recording + 15 batch generator + 10 validation script + 28 encoder + 16 dataset + 27 model + 15 agent/training/integration). Full suite stays green.
 - **Datasets on disk:**
   - 50-game pipeline-check run (validated, all checks pass)
   - 1000-game sanity-check run (validated, all checks pass, 48 MB, 131s wall time on 8 workers)
-  - 5000-game production run (in progress / completed depending on when you're reading this)
+  - 5000-game production run (validated, all checks pass, 247 MB, ~19 min on 8 workers)
+- **Trained checkpoints:**
+  - `nn_models/20260529-153224-acb2/best.pt` — first end-to-end smoke-test (50k example sub-sample); see training log for details
+  - `nn_models/20260529-162301-04fe/best.pt` — full-data production run on the 5000-game dataset; the current §11 reference checkpoint (test MAE = 6.87)
+- **Matches run** — see §11 for the headline outcomes.
 
-Outstanding:
+Outstanding evaluation / engineering work is tracked in §11.6 and §13.
 
-- Architecture (§7), training section (§8), and evaluation criteria (§9) remain placeholders for subsequent design sessions.
-- Encoder module (`agricola/agents/nn/encoder.py` currently holds only `ENCODING_VERSION`; `encode_state` itself is unimplemented pending architecture decisions).
-- Model module (`agricola/agents/nn/model.py`).
-- Agent-wrapper module (`agricola/agents/nn/agent.py`).
-- Training script (`scripts/train_first_nn.py`).
-- Evaluation script (`scripts/eval_first_nn.py`).
+Possible near-term refinement: cache pre-encoded dataset arrays to disk (keyed by run + split_seed + sample_size + ENCODING_VERSION) so iterating training runs doesn't pay the ~2-min build each time.
+
+---
+
+## 13. Open questions
+
+Refreshed against current state — original items from the design phase (architecture sizing, training data volume, normalization scheme) are now resolved (§7 / §8). What remains:
+
+### 13.1 Regularization / generalization
+
+- The val curve creeps upward after epoch 1 (0.422 → 0.456 across 11 epochs before early stop fires). Test MAE improved from 7.21 (50k-example smoke test) to 6.87 (full 727k), so more data still helps — but per-epoch overfitting is real. Should we add **weight decay > 0**, **non-zero dropout**, or a **smaller model** to extend the useful-training window?
+- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. Does this matter operationally, or is the early-stop discipline enough?
+
+### 13.2 Data distribution & V1 generalization
+
+- `NNAgent` ties `t2` (the V1 config) and beats every V3 in the ensemble (§11.2). The training ensemble is 7-of-8 V3 — the most likely cause. Would a **V1-V3-balanced data-gen ensemble** close the t2 gap?
+- Should training data include some **MCTS-NN self-play** rollouts to expose the model to higher-quality states than the heuristic ensemble produces? (Phase-(b) work, but worth flagging.)
+
+### 13.3 MCTS-NN scaling
+
+- At 500 sims, MCTS-NN beats NN-1-turn by +3.54 (§11.3). Does the lift scale with sim budget — does +3.54 at 500 become +6 at 1000, or does it plateau?
+- Does **PUCT** (a learned policy prior) further improve on vanilla UCT once we add a policy head? Existing project work flagged PUCT + learned-value-NN + higher sims as the natural follow-up — this is the question they'd answer.
+- The strict-restricted legality wrapper was tuned for V3 internals (Cultivation sow-max, fence-pattern table). Is it the right legality filter for an NN evaluator, or does the NN's smoothness/noise pattern suggest a different restriction set?
+
+### 13.4 Architecture
+
+- Phase-(a) is locked at a flat MLP. The §7.1 directions — **Siamese encoder**, **spatial CNN over the farmyard**, **architecturally-antisymmetric output head**, **multi-head outputs** (value + win-probability, eventually value + policy) — are each a stronger inductive bias and worth a controlled comparison once the data pipeline matures.
+- Should the output head predict raw margin, **tanh-bounded margin**, or **win-probability** (Bradley-Terry-style)? The choice interacts with PUCT (which wants `[-1, +1]`-bounded values).
+
+### 13.5 Trained-model lifecycle
+
+- Promotion gating: there's no analog of `tuned_configs/v3_best.json` for NN checkpoints yet. Should there be a `nn_models/best.pt` symlink with a regression-gated update rule analogous to the V3 pipeline?
+- Cross-run reproducibility: training is non-deterministic (CUDA + multi-threaded BLAS). Acceptable for now (early-stop catches the variance); revisit if checkpoint-to-checkpoint comparisons start mattering.
