@@ -1,0 +1,325 @@
+"""Tests for the NN training-dataset builder (`agricola/agents/nn/dataset.py`).
+
+Coverage:
+- Smoke: in-memory records → datasets with right shapes/dtypes.
+- Disk loading: tmp_path run directory → datasets via `build_datasets`.
+- Determinism: identical args → identical split + identical encoded arrays.
+- By-game split: no game's records appear in two splits.
+- A (dual-perspective augmentation): each snapshot produces exactly 2
+  examples (both perspectives, opposite raw targets).
+- §5.1 terminal pairs: each game contributes 2 terminal examples.
+- NormStats: target std is sane; features are RAW (binary stays 0/1);
+  zero-variance features handled (std clamped to 1).
+- NormStats save/load roundtrip.
+- Sub-sampling: train_sample_size limits train; val/test untouched.
+"""
+
+from __future__ import annotations
+
+import pickle
+from pathlib import Path
+
+import numpy as np
+import pytest
+import torch
+
+from agricola.agents.base import RandomAgent
+from agricola.agents.nn import GameRecord, play_recording_game
+from agricola.agents.nn.dataset import (
+    AgricolaValueDataset,
+    NormStats,
+    _expand_to_descriptors,
+    build_datasets,
+    build_datasets_from_games,
+)
+from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
+from agricola.legality import legal_actions
+from agricola.setup import setup
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: tiny in-memory record set
+# ---------------------------------------------------------------------------
+
+
+def _record_one_game(seed: int) -> GameRecord:
+    initial = setup(seed=seed)
+    return play_recording_game(
+        initial,
+        RandomAgent(seed=seed),
+        RandomAgent(seed=seed + 1),
+        game_idx=seed,  # use seed as a unique id within the fixture
+        seed=seed,
+        p0_config_path="random",
+        p1_config_path="random",
+        p0_temperature=0.0,
+        p1_temperature=0.0,
+        legal_actions_fn=legal_actions,
+    )
+
+
+@pytest.fixture(scope="module")
+def small_games() -> list[GameRecord]:
+    """12 random games — enough for the default 80/10/10 split to put
+    ≥1 game in every split (rounds to 10/1/1). Fixture is module-scoped
+    so the ~6s generation cost is paid once per test run."""
+    return [_record_one_game(seed) for seed in range(12)]
+
+
+# ---------------------------------------------------------------------------
+# Smoke: in-memory build
+# ---------------------------------------------------------------------------
+
+
+def test_build_from_games_smoke(small_games):
+    train, val, test, stats = build_datasets_from_games(small_games, verbose=False)
+    assert len(train) > 0 and len(val) > 0 and len(test) > 0
+
+    # __getitem__ returns torch tensors of the right shape and dtype.
+    x, y = train[0]
+    assert isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor)
+    assert x.shape == (ENCODED_DIM,)
+    assert x.dtype == torch.float32
+    assert y.shape == ()  # scalar target
+    assert y.dtype == torch.float32
+
+    # NormStats has the right shapes.
+    assert stats.input_mean.shape == (ENCODED_DIM,)
+    assert stats.input_std.shape == (ENCODED_DIM,)
+    assert stats.input_std.min() >= 1e-6
+    assert stats.target_std > 0
+    assert stats.encoding_version == ENCODING_VERSION
+
+
+# ---------------------------------------------------------------------------
+# Disk path: tmp_path run dir
+# ---------------------------------------------------------------------------
+
+
+def test_build_from_disk(tmp_path: Path, small_games):
+    """Write a fake run dir, point `build_datasets` at it, verify it loads."""
+    run_dir = tmp_path / "fake_run"
+    games_dir = run_dir / "games"
+    games_dir.mkdir(parents=True)
+    with (games_dir / "worker_00.pkl").open("wb") as f:
+        pickle.dump(small_games, f)
+
+    train, val, test, stats = build_datasets(run_dir, verbose=False)
+    # Same as in-memory build given the same games.
+    train_mem, val_mem, test_mem, stats_mem = build_datasets_from_games(
+        small_games, verbose=False
+    )
+    assert len(train) == len(train_mem)
+    assert len(val) == len(val_mem)
+    assert len(test) == len(test_mem)
+    assert stats.target_std == pytest.approx(stats_mem.target_std)
+
+
+def test_build_from_disk_missing_games_dir(tmp_path: Path):
+    """Pointing at a non-run directory raises FileNotFoundError."""
+    bare = tmp_path / "empty"
+    bare.mkdir()
+    with pytest.raises(FileNotFoundError):
+        build_datasets(bare, verbose=False)
+
+
+# ---------------------------------------------------------------------------
+# Determinism
+# ---------------------------------------------------------------------------
+
+
+def test_deterministic_split_and_encoding(small_games):
+    """Same args → same per-example outputs across two builds."""
+    a = build_datasets_from_games(small_games, split_seed=42, verbose=False)
+    b = build_datasets_from_games(small_games, split_seed=42, verbose=False)
+    for ds_a, ds_b in zip(a[:3], b[:3]):
+        assert len(ds_a) == len(ds_b)
+        # First example identical end-to-end.
+        xa, ya = ds_a[0]
+        xb, yb = ds_b[0]
+        assert torch.equal(xa, xb)
+        assert torch.equal(ya, yb)
+
+
+def test_different_split_seed_changes_split(small_games):
+    a_train, *_ = build_datasets_from_games(small_games, split_seed=0, verbose=False)
+    b_train, *_ = build_datasets_from_games(small_games, split_seed=1, verbose=False)
+    # Different splits should differ in *some* observable way for 6 games
+    # (different game allocations → at least one different first-example).
+    # Could in principle coincide; use multiple seeds if flaky.
+    same = (len(a_train) == len(b_train) and torch.equal(a_train[0][0], b_train[0][0]))
+    assert not same, "Different split seeds produced identical first train example"
+
+
+# ---------------------------------------------------------------------------
+# By-game split — no leakage
+# ---------------------------------------------------------------------------
+
+
+def test_split_is_by_game_no_leakage(small_games):
+    """Records from one game must never appear in two splits. We test
+    this at the descriptor level (game_idx_in_list within each split's
+    games-list is disjoint by construction; we verify the resulting
+    example counts are consistent with the per-split game counts)."""
+    train, val, test, _ = build_datasets_from_games(
+        small_games, train_frac=0.5, val_frac=0.25, verbose=False
+    )
+    # Per game: 2 × (n_snapshots + 1 terminal) examples.
+    expected_examples_per_game = lambda g: 2 * (len(g.decisions) + 1)
+    # We can't easily map back to which game produced which example without
+    # extra metadata, but we can check totals split-by-split using the
+    # split's game count. Recompute splits with the same seed/fracs.
+    from agricola.agents.nn.dataset import _split_games_by_index
+    ti, vi, te = _split_games_by_index(len(small_games), 0.5, 0.25, seed=0)
+    assert set(ti).isdisjoint(set(vi))
+    assert set(ti).isdisjoint(set(te))
+    assert set(vi).isdisjoint(set(te))
+    assert len(train) == sum(expected_examples_per_game(small_games[i]) for i in ti)
+    assert len(val) == sum(expected_examples_per_game(small_games[i]) for i in vi)
+    assert len(test) == sum(expected_examples_per_game(small_games[i]) for i in te)
+
+
+# ---------------------------------------------------------------------------
+# A augmentation + §5.1 terminal pairs
+# ---------------------------------------------------------------------------
+
+
+def test_descriptor_counts_match_augmentation_spec(small_games):
+    """Each snapshot → 2 descriptors (both perspectives); each terminal
+    → 2 descriptors. Total = 2 * (n_snapshots + 1) per game."""
+    descs = _expand_to_descriptors(small_games)
+    expected = 2 * sum(len(g.decisions) + 1 for g in small_games)
+    assert len(descs) == expected
+    # Each (game, snap or terminal) appears with both perspectives.
+    per_state_persps: dict = {}
+    for d in descs:
+        key = (d.game_idx_in_list, d.is_terminal, d.snap_idx)
+        per_state_persps.setdefault(key, set()).add(d.perspective)
+    for persps in per_state_persps.values():
+        assert persps == {0, 1}
+
+
+def test_dual_perspective_targets_are_negated(small_games):
+    """For any non-tied game, the two perspectives of the same state
+    produce targets that are exact negatives of each other in raw
+    margin units (before target normalization, but they're scaled by
+    the same target_std, so the negation persists after normalization)."""
+    train, val, test, stats = build_datasets_from_games(
+        small_games, train_frac=0.99, val_frac=0.005, split_seed=0, verbose=False,
+    )
+    # Re-derive raw targets from the train set by multiplying back.
+    ys_norm = train._y.numpy()
+    ys_raw = ys_norm * stats.target_std
+    # Descriptors are appended in pairs per state; check first pair is negated.
+    # (only true for non-tied games — if game ended in a tie both targets are 0).
+    pair_a, pair_b = ys_raw[0], ys_raw[1]
+    if pair_a != 0:
+        assert pair_a == -pair_b, (
+            f"Dual-perspective targets not negated: {pair_a} vs {pair_b}"
+        )
+
+
+def test_terminal_descriptors_present(small_games):
+    """Each game contributes exactly 2 terminal descriptors."""
+    descs = _expand_to_descriptors(small_games)
+    n_terminal = sum(1 for d in descs if d.is_terminal)
+    assert n_terminal == 2 * len(small_games)
+
+
+# ---------------------------------------------------------------------------
+# NormStats
+# ---------------------------------------------------------------------------
+
+
+def test_target_normalization_yields_unit_stdev_on_train(small_games):
+    """After dividing targets by training-set std, the training y has
+    stdev ~1.0."""
+    train, _, _, stats = build_datasets_from_games(small_games, verbose=False)
+    y_train = train._y.numpy()
+    # NOT exactly 1 (we divide by std, but std is computed over the SAME
+    # samples — so unbiased estimator differences are nil here). Expect
+    # very close to 1.
+    assert abs(y_train.std() - 1.0) < 1e-5
+
+
+def test_features_are_raw_not_normalized(small_games):
+    """Features must NOT be normalized in the Dataset — the model does
+    that. A binary feature must remain 0 or 1 in the dataset."""
+    train, _, _, _ = build_datasets_from_games(small_games, verbose=False)
+    # game_end_indicator is at a known index in the encoded vector; we
+    # don't need to find its index — just check that SOME feature value
+    # is exactly 1.0 somewhere in the dataset (would not survive
+    # standardization which mean-centers).
+    X = train._X.numpy()
+    assert (X == 1.0).any(), "No raw 1.0 in features — they look normalized"
+    assert (X == 0.0).any()
+
+
+def test_normstats_save_load_roundtrip(tmp_path: Path, small_games):
+    _, _, _, stats = build_datasets_from_games(small_games, verbose=False)
+    path = tmp_path / "norm.json"
+    stats.save(path)
+    loaded = NormStats.load(path)
+    assert np.allclose(loaded.input_mean, stats.input_mean)
+    assert np.allclose(loaded.input_std, stats.input_std)
+    assert loaded.target_std == pytest.approx(stats.target_std)
+    assert loaded.encoding_version == stats.encoding_version
+
+
+def test_normstats_handles_constant_features(small_games):
+    """Constant features in the training set (std=0) get std clamped to
+    1, never producing div-by-zero."""
+    _, _, _, stats = build_datasets_from_games(small_games, verbose=False)
+    assert np.all(np.isfinite(stats.input_std))
+    assert stats.input_std.min() >= 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Sub-sampling
+# ---------------------------------------------------------------------------
+
+
+def test_subsample_limits_train_only(small_games):
+    """train_sample_size affects only the train split; val/test unchanged."""
+    full = build_datasets_from_games(small_games, verbose=False)
+    sub = build_datasets_from_games(
+        small_games, train_sample_size=10, verbose=False
+    )
+    assert len(sub[0]) == 10                    # train sub-sampled
+    assert len(sub[1]) == len(full[1])          # val unchanged
+    assert len(sub[2]) == len(full[2])          # test unchanged
+
+
+def test_subsample_size_above_pool_is_noop(small_games):
+    """Asking for more samples than exist returns the full pool."""
+    full = build_datasets_from_games(small_games, verbose=False)
+    over = build_datasets_from_games(
+        small_games, train_sample_size=10**9, verbose=False
+    )
+    assert len(over[0]) == len(full[0])
+
+
+def test_subsample_is_paired(small_games):
+    """Paired sampling: when a state is selected, BOTH perspectives
+    must be present in the train split. Verified via:
+    (a) the train example count is even, and
+    (b) target values come in negation pairs (consecutive examples
+        with opposite signs, modulo true-tie games where both are 0).
+    """
+    train, _, _, _ = build_datasets_from_games(
+        small_games, train_sample_size=40, verbose=False
+    )
+    # Even count.
+    assert len(train) % 2 == 0, "Paired sampling should yield an even example count"
+    # Consecutive examples are perspectives of the same state and should
+    # be exact negatives (after target normalization, scaled identically
+    # by target_std, the relation persists).
+    ys = train._y.numpy()
+    pair_sums = ys[::2] + ys[1::2]   # ≈ 0 for paired-and-negated
+    # Allow exact ties (both targets = 0); flag if many pairs aren't negated.
+    n_pairs = len(ys) // 2
+    n_negated_or_tied = int((np.abs(pair_sums) < 1e-5).sum())
+    assert n_negated_or_tied == n_pairs, (
+        f"Only {n_negated_or_tied}/{n_pairs} pairs are negated — paired "
+        f"sampling broken (perspectives may have been split across pairs)."
+    )

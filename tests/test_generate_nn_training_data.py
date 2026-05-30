@@ -15,12 +15,12 @@ from pathlib import Path
 
 import pytest
 
-# Make scripts/ importable for the test.
+# Make scripts/nn/ importable for the test.
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "scripts" / "nn"))
 
 from agricola.agents.nn import GameRecord, load_game_records
-from generate_nn_training_data import (
+from generate_training_data import (  # noqa: E402
     GamePlan,
     _build_agent,
     _resolve_config_cached,

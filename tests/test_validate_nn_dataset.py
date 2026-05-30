@@ -18,16 +18,16 @@ from pathlib import Path
 
 import pytest
 
-# Make scripts/ importable for the test.
+# Make scripts/nn/ importable for the test.
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "scripts" / "nn"))
 
 from agricola.actions import Action, PlaceWorker
 from agricola.agents.base import RandomAgent
 from agricola.agents.nn import DecisionSnapshot, GameRecord, play_recording_game
 from agricola.legality import legal_actions
 from agricola.setup import setup
-from validate_nn_dataset import check_record, validate_run
+from validate_dataset import check_record, validate_run  # noqa: E402
 
 
 def _record_one_random_game(seed: int = 42) -> GameRecord:

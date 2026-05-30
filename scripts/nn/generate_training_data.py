@@ -44,7 +44,7 @@ from pathlib import Path
 import numpy as np
 
 # Make `agricola` importable when run directly.
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agricola.agents import (  # noqa: E402
@@ -199,16 +199,24 @@ def compute_plan(
     n_games: int,
     base_seed: int,
     approved_configs: tuple[str, ...],
+    fixed_temperature: float | None = None,
 ) -> list[GamePlan]:
     """Generate the full per-game work list deterministically.
 
     Same arguments → same plan. This is what makes resume-on-existing
-    work: a re-invocation with identical `n_games`/`base_seed`/configs
-    regenerates the same plan, and workers can identify which games
-    they've already completed via stored `game_idx`s.
+    work: a re-invocation with identical `n_games`/`base_seed`/configs/
+    `fixed_temperature` regenerates the same plan, and workers can
+    identify which games they've already completed via stored `game_idx`s.
 
     Each game's RNG is seeded by `base_seed * 100000 + game_idx` to
     keep per-game draws independent of `base_seed` magnitude.
+
+    Temperature handling:
+    - `fixed_temperature=None` (default): bimodal draw per `_draw_temperature`
+      (95% uniform [0.3, 1.0], 5% T=4.0), independently per agent.
+    - `fixed_temperature=T`: both agents use temperature `T` for every
+      game. Useful for ablation runs that hold temperature constant
+      while varying other axes (heuristic mix, etc).
     """
     plan = []
     for game_idx in range(n_games):
@@ -218,9 +226,13 @@ def compute_plan(
         p0_idx = int(game_rng.integers(len(approved_configs)))
         p1_idx = int(game_rng.integers(len(approved_configs)))
 
-        # Independent per-agent temperatures.
-        p0_temp = _draw_temperature(game_rng)
-        p1_temp = _draw_temperature(game_rng)
+        # Independent per-agent temperatures (or fixed if requested).
+        if fixed_temperature is None:
+            p0_temp = _draw_temperature(game_rng)
+            p1_temp = _draw_temperature(game_rng)
+        else:
+            p0_temp = float(fixed_temperature)
+            p1_temp = float(fixed_temperature)
 
         plan.append(GamePlan(
             game_idx=game_idx,
@@ -404,6 +416,7 @@ def _write_metadata(
     base_seed: int,
     approved_configs: tuple[str, ...],
     restricted: bool,
+    fixed_temperature: float | None = None,
     completed: int = 0,
     errored: list[dict] | None = None,
 ) -> None:
@@ -418,15 +431,20 @@ def _write_metadata(
     - `errored_games`: list of {game_idx, error message} from the most
       recent invocation only. (To see historical errors, look at logs.)
     """
+    if fixed_temperature is None:
+        temp_descriptor = (
+            "0.95 * uniform([0.3, 1.0]) + 0.05 * delta(4.0), "
+            "drawn independently per agent"
+        )
+    else:
+        temp_descriptor = f"fixed at T = {fixed_temperature} for both agents"
     data = {
         "run_id": run_id,
         "code_sha": _current_git_sha(),
         "host": platform.node(),
         "approved_configs": list(approved_configs),
-        "temperature_distribution": (
-            "0.95 * uniform([0.3, 1.0]) + 0.05 * delta(4.0), "
-            "drawn independently per agent"
-        ),
+        "temperature_distribution": temp_descriptor,
+        "fixed_temperature": fixed_temperature,
         "restricted": restricted,
         "n_workers": n_workers,
         "planned_games": n_games,
@@ -452,6 +470,7 @@ def generate_dataset(
     base_seed: int = 1000000,
     approved_configs: tuple[str, ...] | None = None,
     restricted: bool = True,
+    fixed_temperature: float | None = None,
     verbose: bool = True,
 ) -> dict:
     """Generate (or resume) an NN training dataset.
@@ -497,10 +516,14 @@ def generate_dataset(
         print(f"N workers: {n_workers}")
         print(f"Approved configs: {list(approved_configs)}")
         print(f"Restricted: {restricted}")
+        if fixed_temperature is not None:
+            print(f"Fixed temperature: {fixed_temperature}")
+        else:
+            print("Temperature: bimodal (95% uniform[0.3,1.0] + 5% delta(4))")
         print()
 
     # Build the plan (deterministic; same inputs always produce same plan).
-    plan = compute_plan(n_games, base_seed, approved_configs)
+    plan = compute_plan(n_games, base_seed, approved_configs, fixed_temperature)
     slices = partition_plan(plan, n_workers)
 
     # Write initial metadata. (Final state will overwrite at end.)
@@ -513,6 +536,7 @@ def generate_dataset(
             base_seed=base_seed,
             approved_configs=approved_configs,
             restricted=restricted,
+            fixed_temperature=fixed_temperature,
         )
 
     # Launch workers.
@@ -556,6 +580,7 @@ def generate_dataset(
         base_seed=base_seed,
         approved_configs=approved_configs,
         restricted=restricted,
+        fixed_temperature=fixed_temperature,
         completed=on_disk_completed,
         errored=all_errored,
     )
@@ -622,6 +647,14 @@ def main() -> int:
         "--no-restricted", action="store_false", dest="restricted",
         help="Disable restricted_legal_actions.",
     )
+    parser.add_argument(
+        "--fixed-temperature", type=float, default=None,
+        help=(
+            "If set, both agents use this temperature for every game "
+            "(overrides the bimodal default). Useful for ablation runs "
+            "that hold T constant while varying the heuristic mix."
+        ),
+    )
     args = parser.parse_args()
 
     generate_dataset(
@@ -631,6 +664,7 @@ def main() -> int:
         base_seed=args.base_seed,
         approved_configs=tuple(args.approved_configs) if args.approved_configs else None,
         restricted=args.restricted,
+        fixed_temperature=args.fixed_temperature,
     )
     return 0
 
