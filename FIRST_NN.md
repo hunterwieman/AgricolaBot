@@ -631,7 +631,7 @@ NN experiments tracked through their lifecycle: an idea graduates from §13 Open
 | S4_all_lowT | all 8 | T=0.3 | done |
 | S5_no_v1_lowT | 7 V3 | T=0.3 | done |
 
-All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; S1-vs-S3 (heuristic diversity at fixed size), S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4), `M_10k_no_v1_bimodal` (S2).
+All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; **S1-vs-S3 (config breadth) — run, Experiment C13**; S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4), `M_10k_no_v1_bimodal` (S2), `M_10k_strong3_bimodal` (S3).
 
 **P2 — Supervision target / output head.** The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
@@ -718,6 +718,21 @@ Test MAE: S1 = 6.47, S2 = 6.32 — closer to comparable than C11 (both bimodal, 
 | Avg margin (P0 − P1) | **+1.43** |
 
 59.6% win rate; z ≈ 6.1, p ≪ 0.001. **Including `t2` in the data mix helps** — clearly significant, though a smaller effect than the temperature regime (C11's 73.5%). Notable because `t2` is the *weakest* agent in the ensemble (C2: the NN ties t2 but beats every V3), yet its trajectories cover states the V3-only mix doesn't, and that diversity improves the model. Reinforces C11's lesson from a second axis: **data-distribution diversity helps, even when the diversity comes from a weaker or stylistically-distinct source** — the opposite of a naive "train only on the strongest play" intuition.
+
+**C13 — S1 vs S3: config breadth vs strength-concentration (P1 arm).** Same architecture, 10k size, bimodal temperature, differing *only* in the config mix:
+- **`M_10k_standard_bimodal`** (S1): all-8 configs (full strength/style spectrum, ~30%-86% round-robin + `t2`).
+- **`M_10k_strong3_bimodal`** (S3): top-3 V3 configs only (`alphas_gen_7`, `alphas_gen_1`, `panel_wood_r1` — the strongest).
+
+Test MAE: S1 = 6.47, S3 = 6.34. Head-to-head, NNAgent (1-turn) both sides, 1000 games:
+
+| Side | Wins |
+|---|---|
+| **S1 / all-8** (P0) | **669** |
+| S3 / top-3 V3 (P1) | 324 |
+| Draws | 7 |
+| Avg margin (P0 − P1) | **+3.20** |
+
+~67% win rate; z ≈ 10.7, p ≪ 0.001. **Config breadth beats strength-concentration.** S3's data is *higher quality on average* (only the 3 strongest configs) but narrower in style; the broad mix wins decisively. Strongest confirmation yet of the diversity theme — now robust across three independent axes: temperature (C11, +5.54), V1-presence (C12, +1.43), config-breadth (C13, +3.20). All three say the same thing: **broader/more-varied training data trains a stronger value network than narrower/higher-quality-but-concentrated data.** The practical implication for the data-gen pipeline is to maximize trajectory diversity (many configs across the strength spectrum, wide temperature spread) rather than curating for play quality.
 
 ---
 
