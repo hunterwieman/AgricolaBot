@@ -107,6 +107,42 @@ def test_mlp_bad_dropout_raises(bad_dropout):
         ConfigurableMLP(input_dim=10, hidden_dims=[16], dropout=bad_dropout)
 
 
+def test_mlp_bad_head_raises():
+    with pytest.raises(ValueError):
+        ConfigurableMLP(input_dim=10, hidden_dims=[16], head="softmax")
+
+
+@pytest.mark.parametrize("head,lo,hi", [
+    ("tanh", -1.0, 1.0),
+    ("sigmoid", 0.0, 1.0),
+])
+def test_mlp_head_bounds_output(head, lo, hi):
+    """tanh/sigmoid heads bound the output to (-1,1) / (0,1). The linear
+    default is unbounded (covered elsewhere)."""
+    torch.manual_seed(0)
+    mlp = ConfigurableMLP(input_dim=10, hidden_dims=[16], head=head)
+    # Large-magnitude inputs would blow past the bounds without the head.
+    x = torch.randn(64, 10) * 50.0
+    out = mlp(x)
+    assert out.min().item() >= lo
+    assert out.max().item() <= hi
+
+
+def test_mlp_head_in_config_dict_and_roundtrips():
+    """The head is persisted in config_dict so save/load reconstructs it."""
+    mlp = ConfigurableMLP(input_dim=10, hidden_dims=[8], head="sigmoid")
+    assert mlp.config_dict()["head"] == "sigmoid"
+    clone = ConfigurableMLP(**mlp.config_dict())
+    assert clone.head == "sigmoid"
+
+
+def test_mlp_head_defaults_linear():
+    """Omitting head (e.g. loading a pre-P2 checkpoint config) → linear."""
+    cfg = {"input_dim": 10, "hidden_dims": [8]}  # no 'head' key
+    mlp = ConfigurableMLP(**cfg)
+    assert mlp.head == "linear"
+
+
 def test_mlp_norm_none_uses_identity():
     """norm='none' → identity (skip normalization). Useful for bare
     linear stacks (e.g., classifier heads)."""

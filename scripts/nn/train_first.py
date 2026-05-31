@@ -71,7 +71,19 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--max-epochs", type=int, default=50)
     parser.add_argument("--early-stop-patience", type=int, default=10)
-    parser.add_argument("--loss", type=str, default="mse", choices=["mse", "huber"])
+    parser.add_argument("--loss", type=str, default="mse", choices=["mse", "huber"],
+                        help="Regression loss for margin/outcome modes. "
+                             "winprob always uses BCE regardless.")
+    parser.add_argument("--target-mode", type=str, default="margin",
+                        choices=["margin", "outcome", "winprob"],
+                        help="Supervision target (Experiment P2): margin "
+                             "(score-diff, linear head), outcome (+1/0/-1, "
+                             "tanh head), or winprob (1/0.5/0, sigmoid head). "
+                             "Head is auto-selected to match unless --head given.")
+    parser.add_argument("--head", type=str, default=None,
+                        choices=["linear", "tanh", "sigmoid"],
+                        help="Override the output-head activation. Default: "
+                             "auto from --target-mode.")
     # Dataset
     parser.add_argument("--train-sample-size", type=int, default=None,
                         help="Cap on train descriptors (paired). Default: use all.")
@@ -107,6 +119,8 @@ def main() -> int:
         torch_seed=args.torch_seed,
         device=args.device,
         loss_type=args.loss,
+        target_mode=args.target_mode,
+        head=args.head,
     )
     return 0
 

@@ -283,6 +283,8 @@ def train(
     torch_seed: int = 42,
     device: str = "cpu",
     loss_type: str = "mse",
+    target_mode: str = "margin",
+    head: str | None = None,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a value-function NN. Returns `(epoch_log, best_checkpoint_path)`.
@@ -297,9 +299,26 @@ def train(
     setup_seeds(torch_seed)
     device_obj = torch.device(device)
 
+    # Resolve the head + loss from target_mode (Experiment P2). The head can
+    # be overridden explicitly; otherwise it's the natural pairing:
+    #   margin  → linear head, MSE (or Huber) loss
+    #   outcome → tanh head,   MSE loss
+    #   winprob → sigmoid head, BCE loss
+    _DEFAULT_HEAD = {"margin": "linear", "outcome": "tanh", "winprob": "sigmoid"}
+    if target_mode not in _DEFAULT_HEAD:
+        raise ValueError(
+            f"Unknown target_mode {target_mode!r}; choose margin / outcome / winprob."
+        )
+    if head is None:
+        head = _DEFAULT_HEAD[target_mode]
+    # winprob requires the BCE loss regardless of loss_type; margin/outcome
+    # use the requested regression loss.
+    effective_loss = "bce" if target_mode == "winprob" else loss_type
+
     if verbose:
         print(f"Run dir: {out_dir}")
         print(f"Device: {device}")
+        print(f"Target mode: {target_mode} | head: {head} | loss: {effective_loss}")
         print()
 
     # ----- Datasets -----
@@ -311,6 +330,7 @@ def train(
         val_frac=val_frac,
         split_seed=split_seed,
         sample_seed=sample_seed,
+        target_mode=target_mode,
         verbose=verbose,
     )
     stats.save(out_dir / "norm_stats.json")  # reference copy
@@ -324,11 +344,12 @@ def train(
         activation=activation,
         norm=norm,
         dropout=dropout,
+        head=head,
     )
     model = NormalizedValueModel(mlp, stats).to(device_obj)
     if verbose:
         print(f"\nModel: {mlp.param_count():,} parameters")
-        print(f"  arch: {hidden_dims} / {activation} / norm={norm} / dropout={dropout}")
+        print(f"  arch: {hidden_dims} / {activation} / norm={norm} / dropout={dropout} / head={head}")
 
     # ----- Run config (persisted for reproducibility) -----
 
@@ -353,7 +374,9 @@ def train(
         "sample_seed": sample_seed,
         "torch_seed": torch_seed,
         "device": device,
-        "loss": loss_type,
+        "loss": effective_loss,
+        "target_mode": target_mode,
+        "head": head,
         "input_dim": ENCODED_DIM,
         "encoding_version": ENCODING_VERSION,
         "data_version": DATA_VERSION,
@@ -392,12 +415,18 @@ def train(
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=weight_decay,
     )
-    if loss_type == "mse":
+    if effective_loss == "mse":
         loss_fn: nn.Module = nn.MSELoss()
-    elif loss_type == "huber":
+    elif effective_loss == "huber":
         loss_fn = nn.HuberLoss()
+    elif effective_loss == "bce":
+        # Sigmoid head outputs probabilities in (0,1); BCELoss is the
+        # Bernoulli NLL against the {0,0.5,1} win/draw/loss targets.
+        loss_fn = nn.BCELoss()
     else:
-        raise ValueError(f"Unknown loss type {loss_type!r}; choose mse or huber.")
+        raise ValueError(
+            f"Unknown loss {effective_loss!r}; choose mse / huber / bce."
+        )
 
     # ----- Training loop -----
 

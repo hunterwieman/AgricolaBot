@@ -92,6 +92,59 @@ def test_build_from_games_smoke(small_games):
 
 
 # ---------------------------------------------------------------------------
+# Target modes (Experiment P2)
+# ---------------------------------------------------------------------------
+
+
+def test_target_mode_margin_default(small_games):
+    """Default target_mode is margin: target_std fitted (>0), targets
+    unbounded score-diffs, recorded in NormStats."""
+    _, _, _, stats = build_datasets_from_games(small_games, verbose=False)
+    assert stats.target_mode == "margin"
+    assert stats.target_std > 1.0  # margins span many points
+
+
+@pytest.mark.parametrize("mode,allowed", [
+    ("outcome", {-1.0, 0.0, 1.0}),
+    ("winprob", {0.0, 0.5, 1.0}),
+])
+def test_target_mode_bounded_targets(small_games, mode, allowed):
+    """outcome/winprob targets take only their discrete label values, and
+    target_std is forced to 1.0 (no target normalization)."""
+    train, _, _, stats = build_datasets_from_games(
+        small_games, target_mode=mode, verbose=False,
+    )
+    assert stats.target_mode == mode
+    assert stats.target_std == 1.0
+    ys = {round(float(train[i][1]), 3) for i in range(len(train))}
+    assert ys.issubset(allowed), f"{mode}: unexpected target values {ys - allowed}"
+
+
+def test_target_mode_dual_perspective_antisymmetry(small_games):
+    """outcome targets for the two perspectives of the same state are
+    negatives (win for one ⇒ loss for the other; draw ⇒ 0 both). The
+    dataset expands each state into adjacent perspective-0/1 descriptor
+    pairs, so even indices pair with the next odd index."""
+    train, _, _, _ = build_datasets_from_games(
+        small_games, target_mode="outcome", verbose=False,
+    )
+    for i in range(0, min(len(train), 40), 2):
+        y0 = float(train[i][1])
+        y1 = float(train[i + 1][1])
+        assert y0 == -y1, f"perspective targets not antisymmetric: {y0} vs {y1}"
+
+
+def test_normstats_target_mode_roundtrips(small_games, tmp_path):
+    _, _, _, stats = build_datasets_from_games(
+        small_games, target_mode="winprob", verbose=False,
+    )
+    p = tmp_path / "stats.json"
+    stats.save(p)
+    reloaded = NormStats.load(p)
+    assert reloaded.target_mode == "winprob"
+
+
+# ---------------------------------------------------------------------------
 # Disk path: tmp_path run dir
 # ---------------------------------------------------------------------------
 

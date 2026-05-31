@@ -72,6 +72,7 @@ class NormStats:
     input_std: np.ndarray    # shape (ENCODED_DIM,), float32
     target_std: float
     encoding_version: int
+    target_mode: str = "margin"   # "margin" | "outcome" | "winprob" (Experiment P2)
 
     def to_dict(self) -> dict:
         return {
@@ -79,6 +80,7 @@ class NormStats:
             "input_std": self.input_std.tolist(),
             "target_std": float(self.target_std),
             "encoding_version": int(self.encoding_version),
+            "target_mode": str(self.target_mode),
         }
 
     @classmethod
@@ -88,6 +90,7 @@ class NormStats:
             input_std=np.asarray(d["input_std"], dtype=np.float32),
             target_std=float(d["target_std"]),
             encoding_version=int(d["encoding_version"]),
+            target_mode=str(d.get("target_mode", "margin")),
         )
 
     def save(self, path: str | Path) -> None:
@@ -153,35 +156,60 @@ def _expand_to_descriptors(games: list[GameRecord]) -> list[_ExampleDescriptor]:
     return _expand_keys_to_descriptors(_enumerate_state_keys(games))
 
 
-def _encode_one(desc: _ExampleDescriptor, games: list[GameRecord]) -> tuple[np.ndarray, float]:
-    """Encode one descriptor → (features, raw_target_margin).
+def _encode_one(
+    desc: _ExampleDescriptor, games: list[GameRecord], target_mode: str = "margin",
+) -> tuple[np.ndarray, float]:
+    """Encode one descriptor → (features, raw_target), from `desc.perspective`'s frame.
 
-    Target is the perspective-frame margin: `score(perspective) − score(other)`.
-    Raw (not yet normalized by target_std).
+    Target depends on `target_mode` (Experiment P2):
+    - `margin`: `score(perspective) − score(other)` — the continuous score
+      diff (tiebreaker-blind), unbounded; later normalized by target_std.
+    - `outcome`: `+1 / 0 / −1` for win / draw / loss, using the
+      tiebreaker-aware `game.winner`. For the tanh head.
+    - `winprob`: `1.0 / 0.5 / 0.0` for win / draw / loss, same `winner`
+      source. For the sigmoid head.
     """
     game = games[desc.game_idx_in_list]
     state = game.terminal_state if desc.is_terminal else game.decisions[desc.snap_idx].state
     features = encode_state(state, desc.perspective)
-    if desc.perspective == 0:
-        target = float(game.p0_final_score - game.p1_final_score)
+
+    if target_mode == "margin":
+        if desc.perspective == 0:
+            target = float(game.p0_final_score - game.p1_final_score)
+        else:
+            target = float(game.p1_final_score - game.p0_final_score)
+    elif target_mode in ("outcome", "winprob"):
+        # game.winner is 0, 1, or None (true tie). Frame from perspective.
+        if game.winner is None:
+            won = None
+        else:
+            won = (game.winner == desc.perspective)
+        if target_mode == "outcome":
+            target = 0.0 if won is None else (1.0 if won else -1.0)
+        else:  # winprob
+            target = 0.5 if won is None else (1.0 if won else 0.0)
     else:
-        target = float(game.p1_final_score - game.p0_final_score)
+        raise ValueError(
+            f"Unknown target_mode {target_mode!r}; "
+            f"choose margin / outcome / winprob."
+        )
     return features, target
 
 
 def _encode_descriptors(
     descriptors: list[_ExampleDescriptor], games: list[GameRecord],
+    target_mode: str = "margin",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Bulk-encode all descriptors into `(X, y_raw)` numpy arrays.
 
     `X.shape == (n, ENCODED_DIM)`, `y_raw.shape == (n,)`, both float32.
-    `y_raw` is unnormalized margins (in original score-point units).
+    `y_raw` is the raw (un-normalized) target per `target_mode`.
     """
     n = len(descriptors)
     X = np.zeros((n, ENCODED_DIM), dtype=np.float32)
     y = np.zeros(n, dtype=np.float32)
     for i, desc in enumerate(descriptors):
-        feats, target = _encode_one(desc, games)
+        feats, target = _encode_one(desc, games, target_mode)
         X[i] = feats
         y[i] = target
     return X, y
@@ -192,24 +220,36 @@ def _encode_descriptors(
 # ---------------------------------------------------------------------------
 
 
-def _compute_norm_stats(X_train: np.ndarray, y_train_raw: np.ndarray) -> NormStats:
+def _compute_norm_stats(
+    X_train: np.ndarray, y_train_raw: np.ndarray, target_mode: str = "margin",
+) -> NormStats:
     """Compute per-feature input mean/std + target std on the TRAIN
     split only (never peek at val/test). Constant features get
     `std = 1` (so `(x - mean) / 1 == 0` for them — division-safe and
-    the feature carries no signal in this dataset)."""
+    the feature carries no signal in this dataset).
+
+    Target normalization applies only to `margin` mode (the target is
+    unbounded score-points, so we scale it to unit-ish variance). For
+    `outcome` (∈ {−1,0,+1}) and `winprob` (∈ {0,0.5,1}) the target is
+    already bounded and meaningful in its own units, so `target_std=1.0`
+    (a no-op) — the model's tanh/sigmoid output is used directly."""
     eps = np.float32(1e-6)
     input_mean = X_train.mean(axis=0).astype(np.float32)
     input_std = X_train.std(axis=0).astype(np.float32)
     input_std = np.where(input_std < eps, np.float32(1.0), input_std)
-    target_std = float(y_train_raw.std())
-    if target_std < eps:
-        # Pathological: all training games tied. Use 1 to avoid div-by-zero.
+    if target_mode == "margin":
+        target_std = float(y_train_raw.std())
+        if target_std < eps:
+            # Pathological: all training games tied. Use 1 to avoid div-by-zero.
+            target_std = 1.0
+    else:
         target_std = 1.0
     return NormStats(
         input_mean=input_mean,
         input_std=input_std,
         target_std=target_std,
         encoding_version=ENCODING_VERSION,
+        target_mode=target_mode,
     )
 
 
@@ -312,6 +352,7 @@ def build_datasets_from_games(
     val_frac: float = 0.1,
     split_seed: int = 0,
     sample_seed: int = 1,
+    target_mode: str = "margin",
     verbose: bool = True,
 ) -> tuple[AgricolaValueDataset, AgricolaValueDataset, AgricolaValueDataset, NormStats]:
     """Build (train, val, test) datasets + `NormStats` from an in-memory
@@ -321,6 +362,10 @@ def build_datasets_from_games(
     `train_sample_size`: if set, random-sample that many TRAIN
     descriptors from the full pool (decorrelates batches when records
     are correlated within a game). `None` uses all descriptors.
+
+    `target_mode`: supervision target — `margin` (default, score-diff
+    regression), `outcome` (±1/0 win/draw/loss for a tanh head), or
+    `winprob` (1/0.5/0 for a sigmoid head). See FIRST_NN.md Experiment P2.
 
     `split_seed` and `sample_seed` are independent so the split can be
     held fixed while exploring sample-size effects.
@@ -366,17 +411,18 @@ def build_datasets_from_games(
         print(f"Descriptors: train={len(train_descs)} "
               f"val={len(val_descs)} test={len(test_descs)}")
         print("Pre-encoding train...")
-    X_tr, y_tr_raw = _encode_descriptors(train_descs, train_games)
+    X_tr, y_tr_raw = _encode_descriptors(train_descs, train_games, target_mode)
     if verbose:
         print("Pre-encoding val...")
-    X_va, y_va_raw = _encode_descriptors(val_descs, val_games)
+    X_va, y_va_raw = _encode_descriptors(val_descs, val_games, target_mode)
     if verbose:
         print("Pre-encoding test...")
-    X_te, y_te_raw = _encode_descriptors(test_descs, test_games)
+    X_te, y_te_raw = _encode_descriptors(test_descs, test_games, target_mode)
 
-    stats = _compute_norm_stats(X_tr, y_tr_raw)
+    stats = _compute_norm_stats(X_tr, y_tr_raw, target_mode)
 
     # Targets normalized; features stay raw (model normalizes inputs).
+    # For outcome/winprob target_std=1.0, so this is a no-op there.
     y_tr = (y_tr_raw / stats.target_std).astype(np.float32)
     y_va = (y_va_raw / stats.target_std).astype(np.float32)
     y_te = (y_te_raw / stats.target_std).astype(np.float32)
@@ -386,7 +432,8 @@ def build_datasets_from_games(
     test_ds = AgricolaValueDataset(X_te, y_te)
 
     if verbose:
-        print(f"NormStats: target_std={stats.target_std:.3f}, "
+        print(f"NormStats: target_mode={stats.target_mode}, "
+              f"target_std={stats.target_std:.3f}, "
               f"encoding_version={stats.encoding_version}")
         print(f"Examples: train={len(train_ds)} val={len(val_ds)} "
               f"test={len(test_ds)}")
@@ -402,6 +449,7 @@ def build_datasets(
     val_frac: float = 0.1,
     split_seed: int = 0,
     sample_seed: int = 1,
+    target_mode: str = "margin",
     verbose: bool = True,
 ) -> tuple[AgricolaValueDataset, AgricolaValueDataset, AgricolaValueDataset, NormStats]:
     """Build datasets + NormStats from one or more on-disk generation
@@ -427,5 +475,6 @@ def build_datasets(
         val_frac=val_frac,
         split_seed=split_seed,
         sample_seed=sample_seed,
+        target_mode=target_mode,
         verbose=verbose,
     )

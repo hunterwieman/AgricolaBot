@@ -62,6 +62,16 @@ _NORMS = {
     "none": lambda dim: nn.Identity(),
 }
 
+# Final-layer activation ("head"). `linear` (default) = raw output for
+# unbounded regression (margin target). `tanh` bounds to (-1, 1) for the
+# zero-sum outcome target. `sigmoid` bounds to (0, 1) for the win-prob
+# target. See FIRST_NN.md Experiment P2.
+_HEADS: dict[str, Type[nn.Module]] = {
+    "linear": nn.Identity,
+    "tanh": nn.Tanh,
+    "sigmoid": nn.Sigmoid,
+}
+
 
 class ConfigurableMLP(nn.Module):
     """Parameterized MLP. Architecture:
@@ -92,6 +102,7 @@ class ConfigurableMLP(nn.Module):
         activation: str = "gelu",
         norm: str = "layer",
         dropout: float = 0.0,
+        head: str = "linear",
     ):
         super().__init__()
         if activation not in _ACTIVATIONS:
@@ -102,6 +113,10 @@ class ConfigurableMLP(nn.Module):
         if norm not in _NORMS:
             raise ValueError(
                 f"norm must be one of {sorted(_NORMS)}; got {norm!r}"
+            )
+        if head not in _HEADS:
+            raise ValueError(
+                f"head must be one of {sorted(_HEADS)}; got {head!r}"
             )
         if not 0.0 <= dropout < 1.0:
             raise ValueError(f"dropout must be in [0, 1); got {dropout}")
@@ -117,9 +132,11 @@ class ConfigurableMLP(nn.Module):
         self.activation = activation
         self.norm = norm
         self.dropout = float(dropout)
+        self.head = head
 
         act_cls = _ACTIVATIONS[activation]
         norm_factory = _NORMS[norm]
+        head_cls = _HEADS[head]
 
         layers: list[nn.Module] = []
         prev_dim = self.input_dim
@@ -131,6 +148,9 @@ class ConfigurableMLP(nn.Module):
                 layers.append(nn.Dropout(self.dropout))
             prev_dim = h
         layers.append(nn.Linear(prev_dim, self.output_dim))
+        # Final-layer activation. Identity for linear (margin); tanh/sigmoid
+        # bound the output for the outcome / win-prob targets (Experiment P2).
+        layers.append(head_cls())
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -149,6 +169,7 @@ class ConfigurableMLP(nn.Module):
             "activation": self.activation,
             "norm": self.norm,
             "dropout": self.dropout,
+            "head": self.head,
         }
 
     def param_count(self) -> int:
