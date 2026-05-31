@@ -137,6 +137,10 @@ def _build_mcts_agent(seed: int, seat: int) -> MCTSAgent:
         heuristic=heuristic,
         legal_actions_fn=strict_fn,
         leaf_differential=False,
+        # Normalize this model's leaf values to unit-ish scale so one
+        # c_uct is comparable across value heads (Experiment P2). 1.0 for
+        # models without a measured value_scale (pre-P2).
+        leaf_value_scale=getattr(model, "value_scale", 1.0),
         n_random_fencing=_WORKER_SPEC.n_random_fencing,
         rng_seed=s,
     )

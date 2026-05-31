@@ -44,6 +44,7 @@ from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
 from agricola.agents.nn.model import (
     ConfigurableMLP,
     NormalizedValueModel,
+    measure_leaf_value_scale,
 )
 from agricola.agents.nn.schema import DATA_VERSION
 
@@ -494,10 +495,25 @@ def train(
         test_mse, test_mae_norm = evaluate(best_model, test_loader, device_obj)
         test_mae_margin = test_mae_norm * target_std
         best_epoch = max((e["epoch"] for e in log if e["is_best"]), default=None)
+
+        # Measure the MCTS leaf-value scale (std of the leaf differential
+        # V(s,0)-V(s,1)) on the val features, and patch it into the meta
+        # sidecar so MCTS can normalize this head's leaf to unit scale
+        # (FIRST_NN.md Experiment P2). val_ds._X is in paired layout.
+        value_scale = measure_leaf_value_scale(best_model, val_ds._X.to(device_obj))
+        best_model.value_scale = value_scale
+        meta_path = best_path.with_suffix(".meta.json")
+        with meta_path.open("r") as f:
+            _meta = json.load(f)
+        _meta["value_scale"] = value_scale
+        with meta_path.open("w") as f:
+            json.dump(_meta, f, indent=2)
+
         if verbose:
             print(f"  best epoch: {best_epoch}")
             print(f"  test MSE (normalized): {test_mse:.4f}")
             print(f"  test MAE (margin):     {test_mae_margin:.3f} points")
+            print(f"  leaf value_scale (σ):  {value_scale:.4f}")
         with (out_dir / "test_metrics.json").open("w") as f:
             json.dump({
                 "best_epoch": best_epoch,

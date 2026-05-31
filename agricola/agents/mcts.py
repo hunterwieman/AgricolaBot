@@ -190,6 +190,7 @@ class MCTSSearch:
         n_random_fencing: int = 4,
         rng_seed: int = 0,
         leaf_differential: bool = True,
+        leaf_value_scale: float = 1.0,
     ):
         """Build an MCTSSearch.
 
@@ -224,9 +225,17 @@ class MCTSSearch:
           single-player evaluator and the subtraction amplifies biases
           rather than canceling them. Both modes still use P0-frame leaf
           values and the same sign-flip backprop.
+        - `leaf_value_scale`: divide every leaf value by this before
+          backprop, so leaf values feed UCB on a unit-ish scale. Defaults
+          to 1.0 (no-op — correct for V3, whose values are already on the
+          c_uct-calibrated margin scale). For an NN leaf evaluator, pass
+          the model's measured `value_scale` (std of its leaf differential)
+          so a single `c_uct` is comparable across value heads of
+          different magnitude. See FIRST_NN.md Experiment P2.
         """
         self.transpositions: dict[GameState, MCTSNode] = {}
         self.root: Optional[MCTSNode] = None
+        self.leaf_value_scale = float(leaf_value_scale)
         self.n_random_fencing = int(n_random_fencing)
         self.rng = np.random.default_rng(rng_seed)
 
@@ -358,11 +367,11 @@ class MCTSSearch:
         (defaults to `evaluate_hubris_v3`).
         """
         if state.phase == Phase.BEFORE_SCORING:
-            return self.evaluator_fn(state, 0, self.evaluator_config)
+            return self.evaluator_fn(state, 0, self.evaluator_config) / self.leaf_value_scale
         p0_val = self.evaluator_fn(state, 0, self.evaluator_config)
         if not self.leaf_differential:
-            return p0_val
-        return p0_val - self.evaluator_fn(state, 1, self.evaluator_config)
+            return p0_val / self.leaf_value_scale
+        return (p0_val - self.evaluator_fn(state, 1, self.evaluator_config)) / self.leaf_value_scale
 
     # ---- Macro-fencing ---------------------------------------------------
 

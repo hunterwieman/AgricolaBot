@@ -211,10 +211,20 @@ class NormalizedValueModel(nn.Module):
     `predict_margin(x)`: forward + multiply by `target_std` → returns
     values in **margin units**. This is what `NNAgent` calls.
 
+    `value_scale`: a plain float (default 1.0), the std of this model's
+    leaf-differential `V(s,0) − V(s,1)` over a representative state
+    sample. NOT used by `forward`/`predict_margin` (so standalone NNAgent
+    is unaffected) — it's read by MCTS to normalize leaf values to unit
+    scale so a single `c_uct` works across value heads of different
+    magnitude (margin ~tens of points vs tanh/sigmoid ~order 1). See
+    FIRST_NN.md Experiment P2 / §10.x. Measured post-training
+    (`measure_leaf_value_scale`) and persisted in the meta sidecar, NOT
+    the state_dict — so pre-P2 checkpoints load fine and default to 1.0.
+
     Buffers (`input_mean`, `input_std`, `target_std`) are stored in the
     `state_dict` (saved with weights, moved with `.to(device)`) but not
-    trained. `encoding_version` is stored in the metadata sidecar and
-    hard-checked at load time.
+    trained. `encoding_version` + `value_scale` are stored in the
+    metadata sidecar; `encoding_version` is hard-checked at load time.
     """
 
     def __init__(self, net: nn.Module, norm_stats: NormStats):
@@ -228,6 +238,10 @@ class NormalizedValueModel(nn.Module):
             )
         self.net = net
         self.encoding_version = int(norm_stats.encoding_version)
+        # Leaf-value scale for MCTS normalization (plain attr, set
+        # post-training; persisted in meta, not state_dict). Default 1.0
+        # = no normalization (correct for unmeasured / pre-P2 models).
+        self.value_scale: float = 1.0
 
         # Fixed (non-trainable) buffers. .clone() detaches from the source
         # numpy array in case the caller mutates it after construction.
@@ -282,6 +296,7 @@ class NormalizedValueModel(nn.Module):
             "net_type": net_type,
             "net_config": self.net.config_dict(),
             "encoding_version": int(self.encoding_version),
+            "value_scale": float(self.value_scale),
             "extras": dict(extras) if extras else {},
         }
         with path.with_suffix(".meta.json").open("w") as f:
@@ -329,4 +344,29 @@ class NormalizedValueModel(nn.Module):
         # code execution from the checkpoint).
         state = torch.load(weights_path, weights_only=True)
         model.load_state_dict(state)
+        # Restore the MCTS leaf-value scale (meta-stored, default 1.0 for
+        # pre-P2 checkpoints that predate this field).
+        model.value_scale = float(meta.get("value_scale", 1.0))
         return model
+
+
+@torch.no_grad()
+def measure_leaf_value_scale(
+    model: "NormalizedValueModel", x_paired: torch.Tensor,
+) -> float:
+    """Std of the leaf differential `V(s,0) − V(s,1)` over a state sample.
+
+    `x_paired` is a feature tensor in the dataset's paired layout — rows
+    `2i` and `2i+1` are the two perspective encodings of the same state
+    (as produced by `build_datasets`' val/test arrays). The differential
+    `predict_margin(x[2i]) − predict_margin(x[2i+1])` is exactly the
+    leaf value MCTS feeds to UCB (`nn_evaluator_differential(s, 0)`), so
+    its std is the right scale to normalize by. See FIRST_NN.md
+    Experiment P2 — a single `c_uct` works across heads once each head's
+    leaf is divided by this scale.
+    """
+    model.eval()
+    pred = model.predict_margin(x_paired)
+    diff = pred[0::2] - pred[1::2]
+    s = float(diff.std().item())
+    return s if s > 1e-9 else 1.0  # degenerate guard: never scale by ~0

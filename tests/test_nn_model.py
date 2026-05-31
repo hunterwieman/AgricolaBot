@@ -318,6 +318,60 @@ def test_save_load_preserves_normalization_buffers(tmp_path: Path):
     assert loaded.target_std.item() == pytest.approx(3.0)
 
 
+def test_value_scale_defaults_one_and_persists(tmp_path: Path):
+    """value_scale defaults to 1.0, survives save/load via the meta
+    sidecar, and does NOT affect predict_margin (MCTS-only knob)."""
+    stats = _make_stats(input_dim=ENCODED_DIM, target_std=1.0)
+    mlp = ConfigurableMLP(input_dim=ENCODED_DIM, hidden_dims=[16])
+    model = NormalizedValueModel(mlp, stats)
+    assert model.value_scale == 1.0  # default
+
+    x = torch.randn(4, ENCODED_DIM)
+    before = model.predict_margin(x).detach().clone()
+    model.value_scale = 7.5  # set post-hoc, as training does
+    after = model.predict_margin(x)
+    assert torch.equal(before, after), "value_scale must not affect predict_margin"
+
+    save_path = tmp_path / "checkpoint"
+    model.save(save_path)
+    loaded = NormalizedValueModel.load(save_path)
+    assert loaded.value_scale == pytest.approx(7.5)
+
+
+def test_load_pre_p2_checkpoint_defaults_value_scale(tmp_path: Path):
+    """A meta sidecar without a value_scale key (pre-P2 checkpoint) loads
+    with value_scale defaulting to 1.0 — no MCTS normalization, correct."""
+    import json
+    stats = _make_stats(input_dim=ENCODED_DIM, target_std=1.0)
+    mlp = ConfigurableMLP(input_dim=ENCODED_DIM, hidden_dims=[16])
+    model = NormalizedValueModel(mlp, stats)
+    save_path = tmp_path / "checkpoint"
+    model.save(save_path)
+    # Strip value_scale from the sidecar to simulate a pre-P2 checkpoint.
+    meta_path = save_path.with_suffix(".meta.json")
+    meta = json.load(meta_path.open())
+    del meta["value_scale"]
+    json.dump(meta, meta_path.open("w"))
+    loaded = NormalizedValueModel.load(save_path)
+    assert loaded.value_scale == 1.0
+
+
+def test_measure_leaf_value_scale_computes_differential_std():
+    """measure_leaf_value_scale returns the std of pred[0::2]-pred[1::2]."""
+    from agricola.agents.nn.model import measure_leaf_value_scale
+    stats = _make_stats(input_dim=ENCODED_DIM, target_std=10.0)
+    mlp = ConfigurableMLP(input_dim=ENCODED_DIM, hidden_dims=[16])
+    model = NormalizedValueModel(mlp, stats)
+    x = torch.randn(40, ENCODED_DIM)  # 20 paired states
+    s = measure_leaf_value_scale(model, x)
+    # Reproduce by hand.
+    with torch.no_grad():
+        pred = model.predict_margin(x)
+        expect = float((pred[0::2] - pred[1::2]).std().item())
+    assert s == pytest.approx(expect, rel=1e-5)
+    assert s > 0
+
+
 def test_load_with_stale_encoding_version_raises(tmp_path: Path):
     """Tamper with the sidecar to simulate encoder-schema drift; load
     must hard-fail rather than silently producing wrong inferences."""
