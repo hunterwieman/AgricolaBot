@@ -629,9 +629,9 @@ NN experiments tracked through their lifecycle: an idea graduates from §13 Open
 | S2_no_v1_bimodal | 7 V3 | bimodal | done |
 | S3_strong3_bimodal | top-3 V3 | bimodal | done |
 | S4_all_lowT | all 8 | T=0.3 | done |
-| S5_no_v1_lowT | 7 V3 | T=0.3 | in flight |
+| S5_no_v1_lowT | 7 V3 | T=0.3 | done |
 
-Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: S1-vs-S2 (does t2/V1 matter), S1-vs-S3 (heuristic diversity at fixed size), S1-vs-S4 / S2-vs-S5 (does T=4 exploration matter), 5k→15k→55k (data scaling). Status: generation nearly complete; training not started.
+All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, see Experiment C11**; S1-vs-S2 (does t2/V1 matter), S1-vs-S3 (heuristic diversity at fixed size), S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4).
 
 **P2 — Supervision target / output head.** The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
@@ -684,6 +684,25 @@ Plausible read: V3 is CMA-ES-tuned to be near-optimal as a single-position evalu
 | 8 workers | ~156 s | ~21 s | ~3.0× |
 
 Past 4 workers, per-game CPU blows up because workers contend for the OS allocator / page cache / memory bandwidth even with `torch.set_num_threads(1)` pinned. The MLP is tiny and L2-resident; the bottleneck is Python-side (tree walks, action enumeration, encoding) run 4-8× in parallel. Not NN-specific — same wall hits V3-MCTS. Real fix is a vectorized batch encoder + batched leaf eval (sizeable refactor).
+
+**C11 — S1 vs S4: training-data temperature regime (first P1 arm).** Two models, identical architecture (`[256,256]` GELU dropout-0.2 wd-1e-4) and identical 10k-game size, differing *only* in the temperature regime of the training data:
+- **`M_10k_standard_bimodal`** (S1): all-8 configs, bimodal T (95% uniform[0.3,1.0] + 5% T=4) — diverse / exploratory states.
+- **`M_10k_all_lowT`** (S4): all-8 configs, fixed T=0.3 — concentrated near-greedy states.
+
+Test MAE (per-model, **not comparable**): S1 = 6.47, S4 = 4.87. The gap is mostly the *test distribution*, not model quality — S4's near-greedy games have low-variance terminal margins that are inherently easier to predict. This is why the comparison is gameplay, not loss.
+
+Head-to-head, NNAgent (1-turn) both sides, same V3 strict-restricted legality, 1000 games:
+
+| Side | Wins |
+|---|---|
+| **S1 / bimodal** (P0) | **735** |
+| S4 / low-T (P1) | 264 |
+| Draws | 1 |
+| Avg margin (P0 − P1) | **+5.54** |
+
+73.5% win rate for the bimodal model; z ≈ 14.9, p ≪ 0.001.
+
+Takeaway: **diverse/exploratory training data trains a substantially stronger agent than concentrated near-greedy data**, despite the near-greedy model's far lower (but distribution-confounded) MAE — a sharp illustration that low test MAE ≠ strong play when the test distribution differs. The 5% T=4 exploration tail and the [0.3,1.0] temperature spread give the network a broader state distribution to learn from; the all-T=0.3 model overfits to a narrow near-greedy slice it rarely leaves at inference. First confirmation of P1's core hypothesis that data *distribution*, not just size, drives model quality — and a caution that future data-gen should preserve temperature diversity.
 
 ---
 

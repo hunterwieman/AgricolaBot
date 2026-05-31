@@ -16,6 +16,8 @@ Version conventions: `ENCODING_VERSION` defined in `agricola/agents/nn/encoder.p
 | `20260529-162301-04fe` | 2026-05-29 | 1 | 1 | 5k-game run `20260528-031528-9d6a` | `[256, 256]` GELU, dropout=0, wd=0 | 727k (full) | 6.867 | **incompatible** (v1 encoder); first full-data NN; §11.3 MCTS-lift +3.54 measured against this |
 | `20260530-012100-v2wd` | 2026-05-30 | 2 | 1 | 5k-game run `20260528-031528-9d6a` | `[256, 256]` GELU, dropout=0, wd=1e-4 | 727k | 6.866 | superseded (lost 436-560 head-to-head vs `v2dropout02`'s peer with same data; see §11) |
 | `20260530-013000-v2dropout02` | 2026-05-30 | 2 | 1 | 5k-game run `20260528-031528-9d6a` | `[256, 256]` GELU, **dropout=0.2**, wd=1e-4 | 727k | **6.731** | **current best NN** for MCTS leaf; better-calibrated than v2wd, +5.58 MCTS-lift over its own 1-turn (§11.3) |
+| `M_10k_standard_bimodal` | 2026-05-30 | 2 | 1 | S1: 10k games, all-8 configs, bimodal T | `[256, 256]` GELU, dropout=0.2, wd=1e-4 | ~1.45M | 6.473 | P1 ablation (Experiment P1); S1 arm. MAE not comparable across sections (different test-distribution variance). |
+| `M_10k_all_lowT` | 2026-05-30 | 2 | 1 | S4: 10k games, all-8 configs, fixed T=0.3 | `[256, 256]` GELU, dropout=0.2, wd=1e-4 | ~1.45M | 4.870 | P1 ablation; S4 arm. **Low MAE is mostly the easier (low-variance) test distribution, not a better model** — compare to S1 by gameplay only. |
 
 ---
 
