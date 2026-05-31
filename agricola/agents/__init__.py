@@ -24,6 +24,7 @@ For drivers that use these agents see `play_heuristic_game.py` at repo root.
 
 from agricola.agents.base import (
     Agent,
+    EvaluatorAgent,
     HeuristicAgent,
     LegalActionsFn,
     RandomAgent,
@@ -73,6 +74,7 @@ from agricola.agents.mcts import (
 
 __all__ = [
     "Agent",
+    "EvaluatorAgent",
     "HeuristicAgent",
     "LegalActionsFn",
     "RandomAgent",

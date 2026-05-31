@@ -40,7 +40,7 @@ Submodules:
   **Imports torch.** Not re-exported here; explicit import required:
   `from agricola.agents.nn.training import train`.
 
-- `agent` — `NNAgent` (HeuristicAgent-style 1-turn lookahead backed by
+- `agent` — `NNAgent` (EvaluatorAgent-based 1-turn lookahead backed by
   a trained NN) + evaluator functions (`nn_evaluator`,
   `nn_evaluator_differential`).
   **Imports torch.** Not re-exported here; explicit import required:

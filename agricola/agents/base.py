@@ -6,9 +6,15 @@ This module defines:
 - The `Agent` protocol — anything callable as `agent(state) -> Action` qualifies.
 - `RandomAgent` — uniform-random over legal actions; mirrors
   `tests/test_utils.random_agent_play`.
-- `HeuristicAgent` — generic 1-action-lookahead agent. Takes an evaluator
+- `EvaluatorAgent` — generic lookahead agent. Takes an evaluator
   `(state, player_idx, config) -> float` and a temperature; picks actions
-  by either argmax (`temperature == 0`) or softmax-sampling.
+  by either argmax (`temperature == 0`) or softmax-sampling. Evaluator-
+  agnostic: the source of the evaluator (hand-crafted vs learned) lives in
+  the subclasses, not here.
+- `HeuristicAgent` — `EvaluatorAgent` specialized to the hand-crafted
+  heuristic family (`SimpleHeuristic`, `HubrisHeuristic*`). Adds no
+  behavior; `NNAgent` (learned evaluator) subclasses `EvaluatorAgent`
+  directly rather than this.
 - `play_game` — drive a full game between two agents, returns
   `(final_state, trace)` like `random_agent_play` does.
 
@@ -168,8 +174,17 @@ class RandomAgent:
 Evaluator = Callable[[GameState, int, "object"], float]
 
 
-class HeuristicAgent:
-    """1-action-lookahead agent driven by an evaluator function.
+class EvaluatorAgent:
+    """Lookahead + action-selection agent driven by an evaluator function.
+
+    This is the evaluator-agnostic machinery shared by every agent that
+    picks actions by scoring candidate states: the singleton-skip rule, the
+    action/turn/exhaustive lookahead, and the argmax/softmax selection. It
+    knows nothing about *where* the evaluator comes from — a hand-crafted
+    heuristic (`HeuristicAgent` and its `Simple`/`Hubris*` subclasses) and a
+    learned network (`NNAgent`) both plug into the same base. "Heuristic"
+    describes the evaluator, not this machinery, which is why the base is
+    named for the evaluator contract rather than for heuristics.
 
     The evaluator's signature is `(state, player_idx, config) -> float`. At
     each decision point the agent:
@@ -224,7 +239,7 @@ class HeuristicAgent:
         actions = filter_implemented(self.legal_actions_fn(state))
         if not actions:
             raise RuntimeError(
-                f"HeuristicAgent stuck: no implemented legal actions. "
+                f"{type(self).__name__} stuck: no implemented legal actions. "
                 f"State: phase={state.phase}, "
                 f"current_player={state.current_player}, "
                 f"pending_stack={state.pending_stack}"
@@ -401,6 +416,18 @@ class HeuristicAgent:
         probs = [e / total for e in exps]
         idx = int(self.rng.choice(len(actions), p=probs))
         return actions[idx]
+
+
+class HeuristicAgent(EvaluatorAgent):
+    """`EvaluatorAgent` specialized to hand-crafted heuristic evaluators.
+
+    Adds no behavior — it exists to name the hand-crafted-evaluator family
+    (`SimpleHeuristic`, `HubrisHeuristicV1/V2/V3`, which subclass it) and to
+    keep that family distinct from the learned-evaluator `NNAgent`, which
+    inherits the same `EvaluatorAgent` base directly rather than posing as a
+    heuristic. All action-selection semantics live in `EvaluatorAgent`.
+    """
+    pass
 
 
 # ---------------------------------------------------------------------------

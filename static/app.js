@@ -114,13 +114,14 @@
   // --v3-config, 'mcts' = MCTS agent using V3 as leaf evaluator). The
   // backend understands additional types ('simple', 'hubris_v1',
   // 'hubris_v2') for CLI use but they're not surfaced here.
-  const SEAT_LABELS = ['human', 'random', 'v1', 'v3', 'mcts'];
+  const SEAT_LABELS = ['human', 'random', 'v1', 'v3', 'mcts', 'nn'];
   const LABEL_TO_BACKEND = {
     'human': 'human',
     'random': 'random',
     'v1':     'hubris',     // V1 architecture with tuned CONFIG_V1_T2
     'v3':     'hubris_v3',  // V3 architecture (loads --v3-config if set)
     'mcts':   'mcts',       // MCTS w/ V3 leaf evaluator + configurable sims
+    'nn':     'nn',         // trained value NN (M_10k_standard_bimodal)
   };
   const BACKEND_TO_LABEL = {
     'human': 'human',
@@ -131,6 +132,7 @@
     'hubris_v2': 'v2',
     'hubris_v3': 'v3',
     'mcts': 'mcts',
+    'nn': 'nn',
   };
 
   function backendToLabel(backend) {

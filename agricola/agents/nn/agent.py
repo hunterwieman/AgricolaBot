@@ -1,6 +1,6 @@
 """NNAgent — agent backed by a trained NN value function.
 
-Slots into the existing `HeuristicAgent` infrastructure (1-turn
+Slots into the existing `EvaluatorAgent` infrastructure (1-turn
 lookahead + singleton-skip + softmax action selection) by supplying an
 NN-backed evaluator function. Two evaluator variants are exposed:
 
@@ -13,9 +13,9 @@ NN-backed evaluator function. Two evaluator variants are exposed:
   Exact antisymmetry by construction; ~2× the per-call cost of the
   simple evaluator (one batched forward pass over 2 inputs).
 
-`NNAgent` is a thin `HeuristicAgent` subclass that picks the evaluator
+`NNAgent` is a thin `EvaluatorAgent` subclass that picks the evaluator
 based on a `differential` flag. Beyond the evaluator choice, behavior
-matches every other heuristic agent: it works with `play_match.py`,
+matches every other evaluator agent: it works with `play_match.py`,
 `play_game`, the per-seat restricted/strict flags, etc.
 
 Performance notes:
@@ -31,7 +31,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from agricola.agents.base import HeuristicAgent, LegalActionsFn
+from agricola.agents.base import EvaluatorAgent, LegalActionsFn
 from agricola.agents.nn.encoder import encode_state
 from agricola.agents.nn.model import NormalizedValueModel
 
@@ -90,11 +90,14 @@ def nn_evaluator_differential(
 # ---------------------------------------------------------------------------
 
 
-class NNAgent(HeuristicAgent):
+class NNAgent(EvaluatorAgent):
     """Agent backed by a trained `NormalizedValueModel`.
 
-    Uses the same `HeuristicAgent` lookahead + softmax-action-selection
-    machinery as `HubrisHeuristicV1` / `V3`. The only differences:
+    Subclasses `EvaluatorAgent` (the evaluator-agnostic lookahead +
+    softmax-action-selection machinery), the same base the hand-crafted
+    `HubrisHeuristicV1` / `V3` use via `HeuristicAgent`. It is deliberately
+    NOT a `HeuristicAgent` subclass: its evaluator is a learned network, not
+    a heuristic. The only differences from the heuristic agents:
 
     - The evaluator is one of `nn_evaluator` / `nn_evaluator_differential`
       depending on the `differential` flag.
@@ -123,7 +126,7 @@ class NNAgent(HeuristicAgent):
         RNG seed for tiebreaks and softmax sampling. Default 0.
     lookahead
         `"turn"` (default — 1-turn greedy rollout) or `"action"`
-        (1-action lookahead). See `HeuristicAgent` docstring.
+        (1-action lookahead). See `EvaluatorAgent` docstring.
     legal_actions_fn
         Optional override for the legality function. Default = the
         engine's `legal_actions` (full unrestricted). Pass

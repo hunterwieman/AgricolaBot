@@ -136,8 +136,34 @@ from agricola.state import GameState
 # config.
 AGENT_TYPES: tuple[str, ...] = (
     "human", "random", "simple", "hubris", "hubris_v1", "hubris_v2",
-    "hubris_v3", "mcts",
+    "hubris_v3", "mcts", "nn",
 )
+
+# Trained NN checkpoint backing the `nn` seat type. Path is the
+# `best` stem (NormalizedValueModel.load appends .pt / .meta.json).
+# Resolved relative to this file so it works regardless of CWD.
+_NN_MODEL_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "nn_models", "M_10k_standard_bimodal", "best",
+)
+
+# Lazily-loaded, process-wide cache of the loaded NN model. Loading pulls
+# in torch (heavy) and reads the checkpoint, so we do it once on first use
+# and share the (eval-mode, read-only) model across all `nn` seats/resets.
+_NN_MODEL = None
+
+
+def _load_nn_model():
+    """Load (and cache) the NN value model for the `nn` seat type.
+
+    Imports torch lazily so sessions that never use an `nn` seat don't pay
+    the import cost. The loaded model is shared across seats and resets —
+    it's used read-only under @torch.no_grad() in eval mode."""
+    global _NN_MODEL
+    if _NN_MODEL is None:
+        from agricola.agents.nn.model import NormalizedValueModel
+        _NN_MODEL = NormalizedValueModel.load(_NN_MODEL_PATH)
+    return _NN_MODEL
 
 
 def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
@@ -202,6 +228,14 @@ def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
             action_selection_temperature=0.2,
             rng_seed=seed,
         )
+    if seat_type == "nn":
+        # Trained value NN (M_10k_standard_bimodal). NNAgent is an
+        # EvaluatorAgent subclass (not a HeuristicAgent — its evaluator is
+        # learned, not hand-crafted), so it threads `legal_actions_fn` the
+        # same way and supports the per-action preview overlay. The model
+        # is loaded once (cached) and shared read-only across seats.
+        from agricola.agents.nn.agent import NNAgent
+        return NNAgent(_load_nn_model(), seed=seed, **extra)
     raise ValueError(f"unknown seat type {seat_type!r}; choose from {AGENT_TYPES}")
 
 # Reuse formatting helpers from play.py.
@@ -879,10 +913,12 @@ class Session:
         the top itself) — used by the frontend to render a gold ring
         on multiple tiles when the AI is near-indifferent.
 
-        Only HeuristicAgent (and its subclasses) is supported. Other
-        agent types (RandomAgent, MCTSAgent) return ok=False.
+        Only EvaluatorAgent (and its subclasses — the heuristic family
+        plus NNAgent) is supported, since `preview_top_actions` lives on
+        that base. Other agent types (RandomAgent, MCTSAgent) return
+        ok=False.
         """
-        from agricola.agents.base import HeuristicAgent
+        from agricola.agents.base import EvaluatorAgent
         with self.lock:
             if self.game_over:
                 return False, "game over", []
@@ -892,7 +928,7 @@ class Session:
             if self.state.pending_stack:
                 return False, "mid-resolution decision; preview only for top-level placement", []
             agent = self.agents[dec]
-            if not isinstance(agent, HeuristicAgent):
+            if not isinstance(agent, EvaluatorAgent):
                 return False, f"agent type {type(agent).__name__!r} does not support preview", []
             scored = agent.preview_top_actions(self.state)
         if not scored:
