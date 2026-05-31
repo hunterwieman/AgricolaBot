@@ -631,7 +631,7 @@ NN experiments tracked through their lifecycle: an idea graduates from §13 Open
 | S4_all_lowT | all 8 | T=0.3 | done |
 | S5_no_v1_lowT | 7 V3 | T=0.3 | done |
 
-All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, see Experiment C11**; S1-vs-S2 (does t2/V1 matter), S1-vs-S3 (heuristic diversity at fixed size), S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4).
+All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; S1-vs-S3 (heuristic diversity at fixed size), S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4), `M_10k_no_v1_bimodal` (S2).
 
 **P2 — Supervision target / output head.** The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
@@ -703,6 +703,21 @@ Head-to-head, NNAgent (1-turn) both sides, same V3 strict-restricted legality, 1
 73.5% win rate for the bimodal model; z ≈ 14.9, p ≪ 0.001.
 
 Takeaway: **diverse/exploratory training data trains a substantially stronger agent than concentrated near-greedy data**, despite the near-greedy model's far lower (but distribution-confounded) MAE — a sharp illustration that low test MAE ≠ strong play when the test distribution differs. The 5% T=4 exploration tail and the [0.3,1.0] temperature spread give the network a broader state distribution to learn from; the all-T=0.3 model overfits to a narrow near-greedy slice it rarely leaves at inference. First confirmation of P1's core hypothesis that data *distribution*, not just size, drives model quality — and a caution that future data-gen should preserve temperature diversity.
+
+**C12 — S1 vs S2: presence of the V1 config in the data mix (P1 arm).** Same architecture and 10k size, same bimodal temperature, differing *only* in whether the lone V1 config (`t2`) is in the data-gen mix:
+- **`M_10k_standard_bimodal`** (S1): all-8 configs (7 V3 + `t2`).
+- **`M_10k_no_v1_bimodal`** (S2): 7 V3 configs only.
+
+Test MAE: S1 = 6.47, S2 = 6.32 — closer to comparable than C11 (both bimodal, same variance regime; the small gap is the slight test-distribution difference from `t2`'s presence). Head-to-head, NNAgent (1-turn) both sides, 1000 games:
+
+| Side | Wins |
+|---|---|
+| **S1 / with `t2`** (P0) | **596** |
+| S2 / no V1 (P1) | 404 |
+| Draws | 0 |
+| Avg margin (P0 − P1) | **+1.43** |
+
+59.6% win rate; z ≈ 6.1, p ≪ 0.001. **Including `t2` in the data mix helps** — clearly significant, though a smaller effect than the temperature regime (C11's 73.5%). Notable because `t2` is the *weakest* agent in the ensemble (C2: the NN ties t2 but beats every V3), yet its trajectories cover states the V3-only mix doesn't, and that diversity improves the model. Reinforces C11's lesson from a second axis: **data-distribution diversity helps, even when the diversity comes from a weaker or stylistically-distinct source** — the opposite of a naive "train only on the strongest play" intuition.
 
 ---
 
