@@ -633,7 +633,7 @@ NN experiments tracked through their lifecycle: an idea graduates from §13 Open
 
 All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; **S1-vs-S3 (config breadth) — run, Experiment C13**; S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4), `M_10k_no_v1_bimodal` (S2), `M_10k_strong3_bimodal` (S3).
 
-**P2 — Supervision target / output head.** The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
+**P2 — Supervision target / output head.** *Standalone half run — see Experiment C14 (null result); MCTS-leaf half outstanding.* The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
 | Variant | Head | Target | Loss |
 |---|---|---|---|
@@ -733,6 +733,26 @@ Test MAE: S1 = 6.47, S3 = 6.34. Head-to-head, NNAgent (1-turn) both sides, 1000 
 | Avg margin (P0 − P1) | **+3.20** |
 
 ~67% win rate; z ≈ 10.7, p ≪ 0.001. **Config breadth beats strength-concentration.** S3's data is *higher quality on average* (only the 3 strongest configs) but narrower in style; the broad mix wins decisively. Strongest confirmation yet of the diversity theme — now robust across three independent axes: temperature (C11, +5.54), V1-presence (C12, +1.43), config-breadth (C13, +3.20). All three say the same thing: **broader/more-varied training data trains a stronger value network than narrower/higher-quality-but-concentrated data.** The practical implication for the data-gen pipeline is to maximize trajectory diversity (many configs across the strength spectrum, wide temperature spread) rather than curating for play quality.
+
+**C14 — Supervision target / output head, standalone (Experiment P2, partial).** Three models, identical S1 data (10k, all-8, bimodal) and architecture (`[256,256]` GELU dropout-0.2 wd-1e-4), differing *only* in supervision target + head + loss (the P2 design):
+
+| Model | Target | Head | Loss | Test MAE (own units) |
+|---|---|---|---|---|
+| `M_10k_standard_bimodal` | margin (score-diff) | linear | MSE | 6.47 (pts) |
+| `M_10k_S1_outcome` | ±1/0 | tanh | MSE | 0.562 (∈[-1,1]) |
+| `M_10k_S1_winprob` | 1/0.5/0 | sigmoid | BCE | 0.278 (prob) |
+
+(MAEs are in each head's own units — **not comparable**.) Pairwise NNAgent (1-turn) head-to-heads, 1000 games each:
+
+| Matchup | Result (P0-P1-D) | Avg margin (P0−P1) | Significance |
+|---|---|---|---|
+| margin (P0) vs outcome (P1) | 503-493-4 | +1.05 | z≈0.32, n.s. |
+| margin (P0) vs winprob (P1) | 495-503-2 | +0.86 | z≈0.25, n.s. |
+| outcome (P0) vs winprob (P1) | 484-511-5 | +0.39 | z≈0.86, n.s. |
+
+**Null result for standalone play: the three supervision targets train equally strong 1-turn agents.** Every matchup is within noise of 50-50 even at n=1000. (Faint, non-significant hint that winprob edges both opponents; not real at this n.)
+
+Caveat — this is the *standalone* half of P2 only. The primary motivation for the bounded heads was the **MCTS-leaf** use case: tanh/sigmoid give bounded, better-calibrated values that pair with UCB backups and (eventually) PUCT, where C3/C4 showed search rewards calibration over argmax-sharpness. A standalone wash says nothing about leaf quality under search. The MCTS-leaf comparison of the three heads is the outstanding half of P2.
 
 ---
 
