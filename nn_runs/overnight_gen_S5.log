@@ -16,3 +16,26 @@ Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_
 Restricted: True
 Fixed temperature: 0.3
 
+Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S5_no_v1_lowT_10k
+Run id: S5_no_v1_lowT_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json', 'tuned_configs/panel_gen47_wood020.json']
+Restricted: True
+Fixed temperature: 0.3
+
+Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S5_no_v1_lowT_10k
+Run id: S5_no_v1_lowT_10k
+Resume: True
+N games planned: 10000
+N workers: 8
+Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_1.json', 'tuned_configs/panel_wood_r1.json', 'tuned_configs/panel_gen16.json', 'tuned_configs/panel_gen_25.json', 'tuned_configs/panel_gen47.json', 'tuned_configs/panel_gen47_wood020.json']
+Restricted: True
+Fixed temperature: 0.3
+
+
+Done in 565.7s
+  Completed (this run): 366
+  Skipped (already done): 9634
+  Errored: 0

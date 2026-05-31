@@ -633,7 +633,7 @@ NN experiments tracked through their lifecycle: an idea graduates from §13 Open
 
 All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; **S1-vs-S3 (config breadth) — run, Experiment C13**; S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4), `M_10k_no_v1_bimodal` (S2), `M_10k_strong3_bimodal` (S3).
 
-**P2 — Supervision target / output head.** *Standalone half run — see Experiment C14 (null result); MCTS-leaf half outstanding.* The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
+**P2 — Supervision target / output head.** *Done — standalone in C14 (null), MCTS-leaf in C15 (null, after fixing a c_uct-scaling confound). Conclusion: target doesn't measurably matter at this scale; default to outcome/tanh for phase-c PUCT.* The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
 | Variant | Head | Target | Loss |
 |---|---|---|---|
@@ -752,7 +752,33 @@ Test MAE: S1 = 6.47, S3 = 6.34. Head-to-head, NNAgent (1-turn) both sides, 1000 
 
 **Null result for standalone play: the three supervision targets train equally strong 1-turn agents.** Every matchup is within noise of 50-50 even at n=1000. (Faint, non-significant hint that winprob edges both opponents; not real at this n.)
 
-Caveat — this is the *standalone* half of P2 only. The primary motivation for the bounded heads was the **MCTS-leaf** use case: tanh/sigmoid give bounded, better-calibrated values that pair with UCB backups and (eventually) PUCT, where C3/C4 showed search rewards calibration over argmax-sharpness. A standalone wash says nothing about leaf quality under search. The MCTS-leaf comparison of the three heads is the outstanding half of P2.
+Caveat — this is the *standalone* half of P2 only. The primary motivation for the bounded heads was the **MCTS-leaf** use case: tanh/sigmoid give bounded, better-calibrated values that pair with UCB backups and (eventually) PUCT, where C3/C4 showed search rewards calibration over argmax-sharpness. A standalone wash says nothing about leaf quality under search. The MCTS-leaf comparison of the three heads is C15.
+
+**C15 — Supervision target as MCTS leaf (Experiment P2, MCTS half) + a c_uct-scaling confound.** The three S1 heads (margin/outcome/winprob from C14) compared as MCTS leaf evaluators, 500 sims, pairwise head-to-head. **This experiment is also a cautionary tale: the first attempt produced a confidently-wrong result from an unnormalized exploration constant.**
+
+*First (flawed) attempt — fixed `c_uct=1.4`.* margin appeared to **demolish** both bounded heads: vs outcome +10.1 margin (42-14 through 56 games), vs winprob +20.3 (26-2 through 28 games), with the bounded-head agents scoring *negative* (begging penalties — not feeding their families). That "broken play, not weak play" signature was the tell. Root cause: `c_uct=1.4` is calibrated for margin-scale leaf values. Measured leaf-differential std `V(s,0)−V(s,1)` over 91k val states:
+
+| Head | leaf-diff σ | vs margin |
+|---|---|---|
+| margin | 22.87 | 1× |
+| outcome (tanh) | 1.32 | 17× smaller |
+| winprob (sigmoid) | 0.66 | 35× smaller |
+
+In UCB `Q + c_uct·√(log N/n)`, the exploration term (~c_uct·2.5 at first visit) must be comparable to the *spread of Q* to balance explore/exploit. With Q-spread ~23 for margin, `c_uct=1.4` exploits; with Q-spread ~1 for the bounded heads, the same `c_uct` makes exploration ~35× too strong → MCTS plays near-randomly. **Not a property of the value parameterization — a mis-scaled constant.**
+
+*Fix.* Normalize each head's leaf by its own σ so all feed UCB on unit scale; one global `c_uct = 1.4/σ_margin = 0.0612` reproduces margin's known-good balance for every head (equivalently, per-head `c_uct = 1.4·σ_head/σ_margin`). Implemented as a persisted per-model `value_scale` + `MCTSSearch.leaf_value_scale` (see §10 / commit). A 6-game smoke immediately confirmed the fix — winprob-MCTS scored a normal 21-28 (not −1), matchup 3-3.
+
+*Corrected result — fair `c_uct`, 100 games each:*
+
+| Matchup | Result (P0-P1-D) | Avg margin | Significance |
+|---|---|---|---|
+| margin (P0) vs outcome (P1) | 56-44-0 | +2.10 | z≈1.2, n.s. |
+| margin (P0) vs winprob (P1) | 49-51-0 | +0.68 | z≈0.2, n.s. |
+| outcome (P0) vs winprob (P1) | 46-54-0 | −0.87 | z≈0.8, n.s. |
+
+**Null result, matching standalone C14: once `c_uct` is fairly scaled, the three supervision targets are equivalent as MCTS leaves too.** The apparent +10/+20 margin superiority was 100% a c_uct artifact. (Faint, non-significant pattern continuing from C14: winprob is marginally ahead in all four of its matchups — 2 standalone + 2 MCTS — none individually significant; would need much larger n to confirm or dismiss.)
+
+Two takeaways: (1) **supervision target doesn't measurably affect strength at this scale**, standalone or under search — so we default to `outcome`/tanh on principle for phase-c PUCT (the AlphaZero value form). (2) **The leaf-value-normalization infrastructure is the durable win** — it's required for *any* fair comparison of value functions on different scales, and is exactly what PUCT will need; it nearly didn't get built because the bug masqueraded as a clean finding.
 
 ---
 

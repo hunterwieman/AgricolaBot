@@ -1,0 +1,1031 @@
+NN match: P0=nn vs P1=nn
+  P0 model: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_10k_standard_bimodal/best.pt
+  P1 model: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_10k_no_v1_bimodal/best.pt
+  sims:     500 (mcts seats only)
+  c_uct:    1.4
+  n_random_fencing: 4
+  fpu_offset: 0.0
+  mcts_temperature: 0.2
+  nn_temperature: 0.0
+  games:    1000 (seeds 0..999)
+  jobs:     8
+
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+[  1/1000] seed=  6 SP=0 P0= 16 P1= 16 (P1)  P0W=0 P1W=1 D=0  avgM=+0.00  t=2.7s elapsed=7s eta=7415s
+[  2/1000] seed=  5 SP=1 P0= 21 P1= 27 (P1)  P0W=0 P1W=2 D=0  avgM=-3.00  t=2.8s elapsed=8s eta=3760s
+[  3/1000] seed=  0 SP=1 P0= 30 P1= 25 (P0)  P0W=1 P1W=2 D=0  avgM=-0.33  t=3.7s elapsed=8s eta=2696s
+[  4/1000] seed=  4 SP=1 P0= 25 P1= 22 (P0)  P0W=2 P1W=2 D=0  avgM=+0.50  t=3.6s elapsed=8s eta=2045s
+[  5/1000] seed=  9 SP=0 P0= 11 P1= 27 (P1)  P0W=2 P1W=3 D=0  avgM=-2.80  t=1.9s elapsed=9s eta=1877s
+[  6/1000] seed=  1 SP=0 P0= 28 P1= 13 (P0)  P0W=3 P1W=3 D=0  avgM=+0.17  t=5.1s elapsed=9s eta=1573s
+[  7/1000] seed=  7 SP=1 P0= 26 P1= 11 (P0)  P0W=4 P1W=3 D=0  avgM=+2.29  t=4.8s elapsed=10s eta=1357s
+[  8/1000] seed=  8 SP=1 P0= 18 P1= 22 (P1)  P0W=4 P1W=4 D=0  avgM=+1.50  t=2.5s elapsed=10s eta=1231s
+[  9/1000] seed=  3 SP=1 P0= 32 P1= 24 (P0)  P0W=5 P1W=4 D=0  avgM=+2.22  t=5.9s elapsed=11s eta=1164s
+[ 10/1000] seed= 10 SP=1 P0= 31 P1= 22 (P0)  P0W=6 P1W=4 D=0  avgM=+2.90  t=2.6s elapsed=11s eta=1064s
+[ 11/1000] seed= 11 SP=0 P0= 15 P1=  7 (P0)  P0W=7 P1W=4 D=0  avgM=+3.36  t=2.7s elapsed=11s eta=981s
+[ 12/1000] seed= 14 SP=0 P0= 13 P1= 18 (P1)  P0W=7 P1W=5 D=0  avgM=+2.67  t=2.1s elapsed=12s eta=962s
+[ 13/1000] seed= 16 SP=1 P0= 29 P1= 25 (P0)  P0W=8 P1W=5 D=0  avgM=+2.77  t=2.3s elapsed=13s eta=973s
+[ 14/1000] seed= 17 SP=1 P0= 14 P1= 20 (P1)  P0W=8 P1W=6 D=0  avgM=+2.14  t=2.9s elapsed=14s eta=964s
+[ 15/1000] seed= 18 SP=1 P0= 26 P1= 31 (P1)  P0W=8 P1W=7 D=0  avgM=+1.67  t=3.3s elapsed=14s eta=935s
+[ 16/1000] seed= 13 SP=1 P0= 22 P1= 16 (P0)  P0W=9 P1W=7 D=0  avgM=+1.94  t=5.2s elapsed=15s eta=904s
+[ 17/1000] seed= 15 SP=1 P0= 19 P1= 14 (P0)  P0W=10 P1W=7 D=0  avgM=+2.12  t=5.0s elapsed=15s eta=864s
+[ 18/1000] seed= 12 SP=1 P0= 24 P1= 18 (P0)  P0W=11 P1W=7 D=0  avgM=+2.33  t=6.0s elapsed=15s eta=844s
+[ 19/1000] seed= 21 SP=0 P0= 25 P1= 22 (P0)  P0W=12 P1W=7 D=0  avgM=+2.37  t=2.0s elapsed=16s eta=808s
+[ 20/1000] seed= 20 SP=1 P0= 20 P1= 26 (P1)  P0W=12 P1W=8 D=0  avgM=+1.95  t=3.2s elapsed=16s eta=784s
+[ 21/1000] seed=  2 SP=1 P0= 32 P1= 18 (P0)  P0W=13 P1W=8 D=0  avgM=+2.52  t=12.4s elapsed=17s eta=789s
+[ 22/1000] seed= 24 SP=0 P0= 14 P1= 16 (P1)  P0W=13 P1W=9 D=0  avgM=+2.32  t=2.3s elapsed=17s eta=765s
+[ 23/1000] seed= 19 SP=1 P0= 33 P1= 19 (P0)  P0W=14 P1W=9 D=0  avgM=+2.83  t=5.9s elapsed=18s eta=748s
+[ 24/1000] seed= 26 SP=1 P0= 26 P1= 25 (P0)  P0W=15 P1W=9 D=0  avgM=+2.75  t=2.7s elapsed=18s eta=744s
+[ 25/1000] seed= 29 SP=1 P0= 27 P1= 17 (P0)  P0W=16 P1W=9 D=0  avgM=+3.04  t=2.8s elapsed=20s eta=781s
+[ 26/1000] seed= 25 SP=1 P0= 12 P1= 13 (P1)  P0W=16 P1W=10 D=0  avgM=+2.88  t=4.9s elapsed=20s eta=763s
+[ 27/1000] seed= 28 SP=1 P0= 28 P1= 20 (P0)  P0W=17 P1W=10 D=0  avgM=+3.07  t=3.5s elapsed=20s eta=735s
+[ 28/1000] seed= 31 SP=1 P0= 16 P1= 27 (P1)  P0W=17 P1W=11 D=0  avgM=+2.57  t=4.1s elapsed=22s eta=778s
+[ 29/1000] seed= 23 SP=0 P0= 26 P1= 18 (P0)  P0W=18 P1W=11 D=0  avgM=+2.76  t=7.7s elapsed=22s eta=752s
+[ 30/1000] seed= 27 SP=0 P0= 16 P1= 15 (P0)  P0W=19 P1W=11 D=0  avgM=+2.70  t=6.6s elapsed=23s eta=731s
+[ 31/1000] seed= 22 SP=1 P0= 31 P1= 15 (P0)  P0W=20 P1W=11 D=0  avgM=+3.13  t=8.8s elapsed=23s eta=721s
+[ 32/1000] seed= 33 SP=1 P0= 19 P1= 13 (P0)  P0W=21 P1W=11 D=0  avgM=+3.22  t=3.8s elapsed=24s eta=731s
+[ 33/1000] seed= 32 SP=1 P0= 25 P1= 25 (P1)  P0W=21 P1W=12 D=0  avgM=+3.12  t=4.6s elapsed=25s eta=723s
+[ 34/1000] seed= 30 SP=0 P0= 33 P1= 20 (P0)  P0W=22 P1W=12 D=0  avgM=+3.41  t=7.5s elapsed=25s eta=712s
+[ 35/1000] seed= 34 SP=0 P0= 13 P1=  5 (P0)  P0W=23 P1W=12 D=0  avgM=+3.54  t=5.3s elapsed=26s eta=708s
+[ 36/1000] seed= 37 SP=0 P0= 25 P1= 22 (P0)  P0W=24 P1W=12 D=0  avgM=+3.53  t=4.0s elapsed=27s eta=712s
+[ 37/1000] seed= 38 SP=0 P0= 13 P1=  5 (P0)  P0W=25 P1W=12 D=0  avgM=+3.65  t=4.3s elapsed=27s eta=714s
+[ 38/1000] seed= 40 SP=1 P0= 21 P1= 18 (P0)  P0W=26 P1W=12 D=0  avgM=+3.63  t=3.1s elapsed=28s eta=702s
+[ 39/1000] seed= 42 SP=0 P0= 27 P1= 20 (P0)  P0W=27 P1W=12 D=0  avgM=+3.72  t=2.8s elapsed=28s eta=702s
+[ 40/1000] seed= 39 SP=1 P0= 30 P1= 24 (P0)  P0W=28 P1W=12 D=0  avgM=+3.77  t=4.7s elapsed=29s eta=692s
+[ 41/1000] seed= 41 SP=1 P0= 28 P1= 18 (P0)  P0W=29 P1W=12 D=0  avgM=+3.93  t=4.0s elapsed=29s eta=680s
+[ 42/1000] seed= 43 SP=1 P0= 29 P1= 25 (P0)  P0W=30 P1W=12 D=0  avgM=+3.93  t=2.7s elapsed=29s eta=668s
+[ 43/1000] seed= 36 SP=0 P0= 26 P1= 22 (P0)  P0W=31 P1W=12 D=0  avgM=+3.93  t=7.7s elapsed=30s eta=671s
+[ 44/1000] seed= 44 SP=1 P0= 20 P1= 27 (P1)  P0W=31 P1W=13 D=0  avgM=+3.68  t=3.4s elapsed=31s eta=670s
+[ 45/1000] seed= 45 SP=1 P0= 30 P1= 21 (P0)  P0W=32 P1W=13 D=0  avgM=+3.80  t=3.9s elapsed=32s eta=672s
+[ 46/1000] seed= 48 SP=0 P0= 28 P1= 22 (P0)  P0W=33 P1W=13 D=0  avgM=+3.85  t=2.9s elapsed=32s eta=663s
+[ 47/1000] seed= 47 SP=0 P0= 21 P1= 14 (P0)  P0W=34 P1W=13 D=0  avgM=+3.91  t=3.7s elapsed=33s eta=659s
+[ 48/1000] seed= 46 SP=1 P0= 16 P1= 26 (P1)  P0W=34 P1W=14 D=0  avgM=+3.62  t=4.0s elapsed=33s eta=645s
+[ 49/1000] seed= 49 SP=0 P0= 17 P1= 29 (P1)  P0W=34 P1W=15 D=0  avgM=+3.31  t=4.2s elapsed=33s eta=649s
+[ 50/1000] seed= 50 SP=1 P0= 22 P1= 24 (P1)  P0W=34 P1W=16 D=0  avgM=+3.20  t=3.5s elapsed=34s eta=638s
+[ 51/1000] seed= 51 SP=0 P0= 17 P1= 12 (P0)  P0W=35 P1W=16 D=0  avgM=+3.24  t=2.9s elapsed=34s eta=628s
+[ 52/1000] seed= 55 SP=1 P0= 20 P1= 23 (P1)  P0W=35 P1W=17 D=0  avgM=+3.12  t=1.7s elapsed=34s eta=623s
+[ 53/1000] seed= 52 SP=1 P0= 20 P1= 24 (P1)  P0W=35 P1W=18 D=0  avgM=+2.98  t=2.8s elapsed=34s eta=616s
+[ 54/1000] seed= 53 SP=1 P0= 26 P1= 21 (P0)  P0W=36 P1W=18 D=0  avgM=+3.02  t=3.0s elapsed=35s eta=611s
+[ 55/1000] seed= 54 SP=0 P0= 21 P1= 22 (P1)  P0W=36 P1W=19 D=0  avgM=+2.95  t=3.7s elapsed=36s eta=623s
+[ 56/1000] seed= 58 SP=1 P0= 20 P1= 21 (P1)  P0W=36 P1W=20 D=0  avgM=+2.88  t=2.5s elapsed=36s eta=611s
+[ 57/1000] seed= 59 SP=1 P0= 19 P1= 32 (P1)  P0W=36 P1W=21 D=0  avgM=+2.60  t=2.1s elapsed=36s eta=600s
+[ 58/1000] seed= 61 SP=0 P0= 25 P1= 17 (P0)  P0W=37 P1W=21 D=0  avgM=+2.69  t=2.3s elapsed=37s eta=605s
+[ 59/1000] seed= 57 SP=0 P0= 28 P1= 23 (P0)  P0W=38 P1W=21 D=0  avgM=+2.73  t=3.9s elapsed=38s eta=599s
+[ 60/1000] seed= 63 SP=0 P0= 30 P1= 27 (P0)  P0W=39 P1W=21 D=0  avgM=+2.73  t=3.6s elapsed=40s eta=624s
+[ 61/1000] seed= 60 SP=0 P0= 13 P1= 23 (P1)  P0W=39 P1W=22 D=0  avgM=+2.52  t=5.4s elapsed=40s eta=614s
+[ 62/1000] seed= 65 SP=0 P0= 28 P1= 22 (P0)  P0W=40 P1W=22 D=0  avgM=+2.58  t=2.7s elapsed=40s eta=604s
+[ 63/1000] seed= 66 SP=1 P0= 24 P1= 24 (P0)  P0W=41 P1W=22 D=0  avgM=+2.54  t=2.8s elapsed=40s eta=600s
+[ 64/1000] seed= 56 SP=0 P0= 23 P1= 16 (P0)  P0W=42 P1W=22 D=0  avgM=+2.61  t=8.7s elapsed=42s eta=617s
+[ 65/1000] seed= 35 SP=0 P0= 32 P1= 10 (P0)  P0W=43 P1W=22 D=0  avgM=+2.91  t=20.0s elapsed=42s eta=610s
+[ 66/1000] seed= 64 SP=1 P0= 26 P1= 21 (P0)  P0W=44 P1W=22 D=0  avgM=+2.94  t=6.7s elapsed=43s eta=609s
+[ 67/1000] seed= 68 SP=0 P0= 24 P1= 26 (P1)  P0W=44 P1W=23 D=0  avgM=+2.87  t=3.2s elapsed=43s eta=600s
+[ 68/1000] seed= 67 SP=1 P0= 27 P1= 23 (P0)  P0W=45 P1W=23 D=0  avgM=+2.88  t=3.5s elapsed=43s eta=595s
+[ 69/1000] seed= 70 SP=1 P0= 27 P1= 26 (P0)  P0W=46 P1W=23 D=0  avgM=+2.86  t=3.1s elapsed=43s eta=585s
+[ 70/1000] seed= 73 SP=1 P0= 21 P1= 17 (P0)  P0W=47 P1W=23 D=0  avgM=+2.87  t=2.3s elapsed=45s eta=601s
+[ 71/1000] seed= 72 SP=1 P0= 19 P1= 31 (P1)  P0W=47 P1W=24 D=0  avgM=+2.66  t=3.1s elapsed=45s eta=595s
+[ 72/1000] seed= 71 SP=1 P0= 25 P1= 23 (P0)  P0W=48 P1W=24 D=0  avgM=+2.65  t=3.7s elapsed=46s eta=591s
+[ 73/1000] seed= 75 SP=1 P0= 19 P1= 27 (P1)  P0W=48 P1W=25 D=0  avgM=+2.51  t=2.7s elapsed=46s eta=585s
+[ 74/1000] seed= 76 SP=1 P0= 26 P1= 21 (P0)  P0W=49 P1W=25 D=0  avgM=+2.54  t=2.7s elapsed=46s eta=576s
+[ 75/1000] seed= 69 SP=0 P0= 14 P1= 10 (P0)  P0W=50 P1W=25 D=0  avgM=+2.56  t=6.2s elapsed=46s eta=569s
+[ 76/1000] seed= 81 SP=0 P0= 15 P1= 14 (P0)  P0W=51 P1W=25 D=0  avgM=+2.54  t=1.9s elapsed=48s eta=584s
+[ 77/1000] seed= 77 SP=0 P0= 15 P1= 26 (P1)  P0W=51 P1W=26 D=0  avgM=+2.36  t=2.8s elapsed=48s eta=577s
+[ 78/1000] seed= 82 SP=1 P0= 21 P1= 16 (P0)  P0W=52 P1W=26 D=0  avgM=+2.40  t=2.1s elapsed=48s eta=571s
+[ 79/1000] seed= 80 SP=1 P0= 29 P1= 25 (P0)  P0W=53 P1W=26 D=0  avgM=+2.42  t=2.3s elapsed=48s eta=564s
+[ 80/1000] seed= 79 SP=0 P0= 30 P1= 23 (P0)  P0W=54 P1W=26 D=0  avgM=+2.48  t=3.8s elapsed=50s eta=572s
+[ 81/1000] seed= 78 SP=1 P0= 29 P1= 24 (P0)  P0W=55 P1W=26 D=0  avgM=+2.51  t=4.5s elapsed=50s eta=567s
+[ 82/1000] seed= 86 SP=1 P0= 21 P1= 22 (P1)  P0W=55 P1W=27 D=0  avgM=+2.46  t=2.1s elapsed=50s eta=565s
+[ 83/1000] seed= 87 SP=1 P0=  2 P1= 18 (P1)  P0W=55 P1W=28 D=0  avgM=+2.24  t=1.9s elapsed=52s eta=570s
+[ 84/1000] seed= 83 SP=1 P0= 31 P1= 24 (P0)  P0W=56 P1W=28 D=0  avgM=+2.30  t=3.6s elapsed=52s eta=563s
+[ 85/1000] seed= 74 SP=0 P0= 26 P1= 27 (P1)  P0W=56 P1W=29 D=0  avgM=+2.26  t=8.8s elapsed=52s eta=558s
+[ 86/1000] seed= 88 SP=1 P0= 22 P1= 11 (P0)  P0W=57 P1W=29 D=0  avgM=+2.36  t=3.6s elapsed=54s eta=570s
+[ 87/1000] seed= 92 SP=0 P0=-17 P1= 19 (P1)  P0W=57 P1W=30 D=0  avgM=+1.92  t=2.0s elapsed=54s eta=566s
+[ 88/1000] seed= 89 SP=1 P0= 20 P1= 30 (P1)  P0W=57 P1W=31 D=0  avgM=+1.78  t=3.5s elapsed=54s eta=559s
+[ 89/1000] seed= 90 SP=1 P0= 20 P1= 29 (P1)  P0W=57 P1W=32 D=0  avgM=+1.66  t=2.9s elapsed=55s eta=558s
+[ 90/1000] seed= 91 SP=1 P0= 25 P1= 23 (P0)  P0W=58 P1W=32 D=0  avgM=+1.67  t=3.2s elapsed=55s eta=554s
+[ 91/1000] seed= 85 SP=1 P0= 28 P1= 38 (P1)  P0W=58 P1W=33 D=0  avgM=+1.54  t=8.7s elapsed=57s eta=570s
+[ 92/1000] seed= 93 SP=1 P0= 25 P1= 23 (P0)  P0W=59 P1W=33 D=0  avgM=+1.54  t=3.7s elapsed=57s eta=566s
+[ 93/1000] seed= 97 SP=0 P0= 25 P1= 22 (P0)  P0W=60 P1W=33 D=0  avgM=+1.56  t=3.1s elapsed=58s eta=565s
+[ 94/1000] seed= 95 SP=0 P0= 28 P1= 23 (P0)  P0W=61 P1W=33 D=0  avgM=+1.60  t=4.0s elapsed=58s eta=559s
+[ 95/1000] seed=101 SP=0 P0= 21 P1= 19 (P0)  P0W=62 P1W=33 D=0  avgM=+1.60  t=1.7s elapsed=60s eta=569s
+[ 96/1000] seed= 96 SP=1 P0= 32 P1= 20 (P0)  P0W=63 P1W=33 D=0  avgM=+1.71  t=5.7s elapsed=60s eta=567s
+[ 97/1000] seed= 98 SP=0 P0= 31 P1= 14 (P0)  P0W=64 P1W=33 D=0  avgM=+1.87  t=3.4s elapsed=60s eta=562s
+[ 98/1000] seed= 94 SP=0 P0= 33 P1= 18 (P0)  P0W=65 P1W=33 D=0  avgM=+2.00  t=6.8s elapsed=61s eta=559s
+[ 99/1000] seed= 99 SP=1 P0= 29 P1= 23 (P0)  P0W=66 P1W=33 D=0  avgM=+2.04  t=3.7s elapsed=61s eta=555s
+[100/1000] seed=100 SP=1 P0= 23 P1= 19 (P0)  P0W=67 P1W=33 D=0  avgM=+2.06  t=3.8s elapsed=62s eta=555s
+[101/1000] seed=106 SP=1 P0= 24 P1= 15 (P0)  P0W=68 P1W=33 D=0  avgM=+2.13  t=2.3s elapsed=63s eta=564s
+[102/1000] seed=105 SP=0 P0= 23 P1= 18 (P0)  P0W=69 P1W=33 D=0  avgM=+2.16  t=2.6s elapsed=63s eta=557s
+[103/1000] seed=104 SP=1 P0= 24 P1= 21 (P0)  P0W=70 P1W=33 D=0  avgM=+2.17  t=3.3s elapsed=64s eta=555s
+[104/1000] seed=103 SP=1 P0= 23 P1= 22 (P0)  P0W=71 P1W=33 D=0  avgM=+2.15  t=3.6s elapsed=64s eta=550s
+[105/1000] seed= 84 SP=1 P0= 23 P1= 22 (P0)  P0W=72 P1W=33 D=0  avgM=+2.14  t=16.0s elapsed=64s eta=546s
+[106/1000] seed=107 SP=0 P0= 22 P1= 24 (P1)  P0W=72 P1W=34 D=0  avgM=+2.10  t=2.7s elapsed=64s eta=543s
+[107/1000] seed=109 SP=1 P0= 22 P1= 20 (P0)  P0W=73 P1W=34 D=0  avgM=+2.10  t=2.8s elapsed=66s eta=552s
+[108/1000] seed=111 SP=0 P0= 24 P1= 21 (P0)  P0W=74 P1W=34 D=0  avgM=+2.11  t=2.4s elapsed=66s eta=547s
+[109/1000] seed=108 SP=0 P0= 29 P1= 25 (P0)  P0W=75 P1W=34 D=0  avgM=+2.13  t=3.0s elapsed=66s eta=542s
+[110/1000] seed=113 SP=0 P0= 17 P1= 32 (P1)  P0W=75 P1W=35 D=0  avgM=+1.97  t=3.2s elapsed=68s eta=547s
+[111/1000] seed=110 SP=1 P0= 33 P1= 25 (P0)  P0W=76 P1W=35 D=0  avgM=+2.03  t=4.3s elapsed=68s eta=544s
+[112/1000] seed=112 SP=0 P0= 14 P1= 16 (P1)  P0W=76 P1W=36 D=0  avgM=+1.99  t=4.7s elapsed=69s eta=545s
+[113/1000] seed=114 SP=0 P0= 26 P1= 25 (P0)  P0W=77 P1W=36 D=0  avgM=+1.98  t=3.3s elapsed=69s eta=545s
+[114/1000] seed=102 SP=0 P0= 31 P1= 14 (P0)  P0W=78 P1W=36 D=0  avgM=+2.11  t=10.1s elapsed=70s eta=542s
+[115/1000] seed=115 SP=1 P0= 28 P1= 21 (P0)  P0W=79 P1W=36 D=0  avgM=+2.16  t=3.6s elapsed=70s eta=538s
+[116/1000] seed=118 SP=0 P0= 27 P1= 25 (P0)  P0W=80 P1W=36 D=0  avgM=+2.16  t=2.3s elapsed=70s eta=536s
+[117/1000] seed=117 SP=0 P0= 23 P1= 36 (P1)  P0W=80 P1W=37 D=0  avgM=+2.03  t=3.2s elapsed=71s eta=535s
+[118/1000] seed=119 SP=0 P0= 20 P1= 24 (P1)  P0W=80 P1W=38 D=0  avgM=+1.97  t=2.9s elapsed=72s eta=535s
+[119/1000] seed=120 SP=0 P0= 19 P1= 12 (P0)  P0W=81 P1W=38 D=0  avgM=+2.02  t=2.6s elapsed=72s eta=533s
+[120/1000] seed=125 SP=0 P0= 21 P1= 18 (P0)  P0W=82 P1W=38 D=0  avgM=+2.02  t=2.5s elapsed=74s eta=543s
+[121/1000] seed=124 SP=1 P0= 25 P1= 20 (P0)  P0W=83 P1W=38 D=0  avgM=+2.05  t=4.1s elapsed=75s eta=544s
+[122/1000] seed=116 SP=0 P0= 28 P1= 19 (P0)  P0W=84 P1W=38 D=0  avgM=+2.11  t=8.7s elapsed=75s eta=540s
+[123/1000] seed=123 SP=0 P0= 18 P1= 22 (P1)  P0W=84 P1W=39 D=0  avgM=+2.06  t=4.9s elapsed=75s eta=536s
+[124/1000] seed=126 SP=0 P0= 16 P1= 19 (P1)  P0W=84 P1W=40 D=0  avgM=+2.02  t=3.3s elapsed=75s eta=532s
+[125/1000] seed=121 SP=0 P0= 29 P1= 24 (P0)  P0W=85 P1W=40 D=0  avgM=+2.04  t=6.3s elapsed=76s eta=533s
+[126/1000] seed=129 SP=1 P0= 21 P1= 28 (P1)  P0W=85 P1W=41 D=0  avgM=+1.97  t=2.7s elapsed=78s eta=539s
+[127/1000] seed=127 SP=1 P0= 29 P1= 23 (P0)  P0W=86 P1W=41 D=0  avgM=+2.00  t=3.7s elapsed=78s eta=535s
+[128/1000] seed=131 SP=0 P0= 21 P1= 22 (P1)  P0W=86 P1W=42 D=0  avgM=+1.98  t=2.6s elapsed=78s eta=531s
+[129/1000] seed=128 SP=1 P0= 18 P1= 29 (P1)  P0W=86 P1W=43 D=0  avgM=+1.88  t=3.8s elapsed=79s eta=532s
+[130/1000] seed=132 SP=1 P0= 28 P1= 24 (P0)  P0W=87 P1W=43 D=0  avgM=+1.89  t=3.1s elapsed=79s eta=530s
+[131/1000] seed=130 SP=1 P0= 27 P1= 21 (P0)  P0W=88 P1W=43 D=0  avgM=+1.92  t=4.0s elapsed=79s eta=525s
+[132/1000] seed=133 SP=1 P0= 21 P1= 29 (P1)  P0W=88 P1W=44 D=0  avgM=+1.85  t=2.4s elapsed=80s eta=527s
+[133/1000] seed=135 SP=0 P0= 29 P1= 23 (P0)  P0W=89 P1W=44 D=0  avgM=+1.88  t=2.3s elapsed=80s eta=523s
+[134/1000] seed=134 SP=1 P0= 27 P1= 19 (P0)  P0W=90 P1W=44 D=0  avgM=+1.93  t=3.0s elapsed=81s eta=522s
+[135/1000] seed=136 SP=1 P0= 17 P1= 21 (P1)  P0W=90 P1W=45 D=0  avgM=+1.88  t=2.6s elapsed=81s eta=521s
+[136/1000] seed=137 SP=0 P0= 29 P1= 28 (P0)  P0W=91 P1W=45 D=0  avgM=+1.88  t=2.8s elapsed=82s eta=521s
+[137/1000] seed=139 SP=0 P0= 15 P1= 14 (P0)  P0W=92 P1W=45 D=0  avgM=+1.87  t=2.0s elapsed=82s eta=517s
+[138/1000] seed=138 SP=1 P0= 24 P1= 19 (P0)  P0W=93 P1W=45 D=0  avgM=+1.89  t=3.0s elapsed=82s eta=514s
+[139/1000] seed=141 SP=0 P0= 27 P1= 18 (P0)  P0W=94 P1W=45 D=0  avgM=+1.94  t=2.5s elapsed=83s eta=516s
+[140/1000] seed=140 SP=1 P0= 27 P1= 19 (P0)  P0W=95 P1W=45 D=0  avgM=+1.99  t=3.0s elapsed=83s eta=512s
+[141/1000] seed=144 SP=0 P0= 21 P1= 22 (P1)  P0W=95 P1W=46 D=0  avgM=+1.96  t=1.7s elapsed=84s eta=510s
+[142/1000] seed=145 SP=1 P0= 28 P1= 22 (P0)  P0W=96 P1W=46 D=0  avgM=+1.99  t=1.9s elapsed=84s eta=509s
+[143/1000] seed=143 SP=1 P0= 21 P1= 30 (P1)  P0W=96 P1W=47 D=0  avgM=+1.92  t=3.2s elapsed=85s eta=511s
+[144/1000] seed=147 SP=0 P0= 15 P1=  7 (P0)  P0W=97 P1W=47 D=0  avgM=+1.96  t=2.4s elapsed=86s eta=510s
+[145/1000] seed=146 SP=1 P0= 20 P1= 29 (P1)  P0W=97 P1W=48 D=0  avgM=+1.88  t=2.6s elapsed=86s eta=507s
+[146/1000] seed=149 SP=0 P0= 27 P1= 32 (P1)  P0W=97 P1W=49 D=0  avgM=+1.84  t=3.0s elapsed=87s eta=510s
+[147/1000] seed=122 SP=1 P0= 26 P1= 14 (P0)  P0W=98 P1W=49 D=0  avgM=+1.90  t=18.1s elapsed=88s eta=510s
+[148/1000] seed=150 SP=1 P0= 27 P1= 26 (P0)  P0W=99 P1W=49 D=0  avgM=+1.90  t=2.9s elapsed=88s eta=507s
+[149/1000] seed=152 SP=1 P0= 23 P1= 13 (P0)  P0W=100 P1W=49 D=0  avgM=+1.95  t=2.7s elapsed=89s eta=506s
+[150/1000] seed=153 SP=1 P0= 31 P1= 22 (P0)  P0W=101 P1W=49 D=0  avgM=+2.00  t=2.4s elapsed=90s eta=508s
+[151/1000] seed=148 SP=0 P0= 23 P1= 17 (P0)  P0W=102 P1W=49 D=0  avgM=+2.03  t=6.5s elapsed=90s eta=508s
+[152/1000] seed=154 SP=0 P0= 32 P1= 24 (P0)  P0W=103 P1W=49 D=0  avgM=+2.07  t=3.3s elapsed=91s eta=509s
+[153/1000] seed=156 SP=1 P0= 23 P1= 17 (P0)  P0W=104 P1W=49 D=0  avgM=+2.09  t=3.0s elapsed=92s eta=507s
+[154/1000] seed=155 SP=0 P0= 15 P1= 26 (P1)  P0W=104 P1W=50 D=0  avgM=+2.01  t=4.1s elapsed=92s eta=506s
+[155/1000] seed=157 SP=0 P0= 19 P1=-13 (P0)  P0W=105 P1W=50 D=0  avgM=+2.20  t=2.9s elapsed=92s eta=504s
+[156/1000] seed=158 SP=0 P0= 18 P1= 17 (P0)  P0W=106 P1W=50 D=0  avgM=+2.19  t=2.4s elapsed=93s eta=501s
+[157/1000] seed=159 SP=1 P0= 21 P1= 18 (P0)  P0W=107 P1W=50 D=0  avgM=+2.20  t=2.6s elapsed=94s eta=504s
+[158/1000] seed=160 SP=0 P0= 22 P1= 21 (P0)  P0W=108 P1W=50 D=0  avgM=+2.19  t=2.5s elapsed=94s eta=502s
+[159/1000] seed=161 SP=1 P0= 26 P1= 15 (P0)  P0W=109 P1W=50 D=0  avgM=+2.25  t=2.4s elapsed=95s eta=500s
+[160/1000] seed=151 SP=1 P0= 29 P1= 19 (P0)  P0W=110 P1W=50 D=0  avgM=+2.29  t=8.8s elapsed=95s eta=497s
+[161/1000] seed=142 SP=0 P0= 33 P1= 19 (P0)  P0W=111 P1W=50 D=0  avgM=+2.37  t=13.4s elapsed=95s eta=494s
+[162/1000] seed=162 SP=1 P0= 14 P1= 20 (P1)  P0W=111 P1W=51 D=0  avgM=+2.31  t=2.8s elapsed=95s eta=493s
+[163/1000] seed=164 SP=1 P0= 18 P1= 20 (P1)  P0W=111 P1W=52 D=0  avgM=+2.29  t=1.8s elapsed=96s eta=491s
+[164/1000] seed=166 SP=1 P0= 26 P1= 23 (P0)  P0W=112 P1W=52 D=0  avgM=+2.29  t=1.7s elapsed=96s eta=491s
+[165/1000] seed=169 SP=1 P0= 25 P1= 23 (P0)  P0W=113 P1W=52 D=0  avgM=+2.29  t=1.6s elapsed=97s eta=491s
+[166/1000] seed=165 SP=1 P0= 26 P1= 18 (P0)  P0W=114 P1W=52 D=0  avgM=+2.33  t=2.8s elapsed=97s eta=487s
+[167/1000] seed=163 SP=0 P0= 10 P1= 21 (P1)  P0W=114 P1W=53 D=0  avgM=+2.25  t=4.4s elapsed=97s eta=484s
+[168/1000] seed=168 SP=0 P0= 22 P1= 22 (P1)  P0W=114 P1W=54 D=0  avgM=+2.23  t=2.4s elapsed=97s eta=481s
+[169/1000] seed=170 SP=1 P0= 24 P1= 15 (P0)  P0W=115 P1W=54 D=0  avgM=+2.27  t=1.9s elapsed=98s eta=479s
+[170/1000] seed= 62 SP=0 P0= 32 P1= 18 (P0)  P0W=116 P1W=54 D=0  avgM=+2.34  t=61.4s elapsed=98s eta=477s
+[171/1000] seed=167 SP=1 P0= 22 P1= 16 (P0)  P0W=117 P1W=54 D=0  avgM=+2.36  t=4.0s elapsed=99s eta=478s
+[172/1000] seed=171 SP=1 P0= 25 P1= 25 (P1)  P0W=117 P1W=55 D=0  avgM=+2.35  t=2.4s elapsed=99s eta=475s
+[173/1000] seed=175 SP=1 P0= 32 P1= 25 (P0)  P0W=118 P1W=55 D=0  avgM=+2.38  t=1.6s elapsed=99s eta=472s
+[174/1000] seed=172 SP=0 P0= 15 P1= 18 (P1)  P0W=118 P1W=56 D=0  avgM=+2.34  t=2.4s elapsed=99s eta=472s
+[175/1000] seed=177 SP=1 P0= 19 P1= 13 (P0)  P0W=119 P1W=56 D=0  avgM=+2.37  t=1.9s elapsed=100s eta=469s
+[176/1000] seed=173 SP=1 P0= 32 P1= 22 (P0)  P0W=120 P1W=56 D=0  avgM=+2.41  t=2.7s elapsed=100s eta=467s
+[177/1000] seed=181 SP=1 P0= 17 P1= 26 (P1)  P0W=120 P1W=57 D=0  avgM=+2.34  t=1.8s elapsed=101s eta=470s
+[178/1000] seed=176 SP=0 P0= 16 P1= 17 (P1)  P0W=120 P1W=58 D=0  avgM=+2.33  t=4.3s elapsed=102s eta=470s
+[179/1000] seed=183 SP=1 P0= 13 P1= 22 (P1)  P0W=120 P1W=59 D=0  avgM=+2.26  t=2.2s elapsed=102s eta=468s
+[180/1000] seed=178 SP=1 P0= 21 P1= 27 (P1)  P0W=120 P1W=60 D=0  avgM=+2.22  t=3.6s elapsed=102s eta=465s
+[181/1000] seed=179 SP=1 P0= 34 P1= 21 (P0)  P0W=121 P1W=60 D=0  avgM=+2.28  t=3.7s elapsed=102s eta=463s
+[182/1000] seed=182 SP=1 P0= 27 P1= 27 (P0)  P0W=122 P1W=60 D=0  avgM=+2.26  t=3.1s elapsed=103s eta=461s
+[183/1000] seed=174 SP=0 P0= 19 P1= 25 (P1)  P0W=122 P1W=61 D=0  avgM=+2.22  t=6.0s elapsed=103s eta=460s
+[184/1000] seed=186 SP=0 P0= 21 P1= 20 (P0)  P0W=123 P1W=61 D=0  avgM=+2.21  t=1.8s elapsed=104s eta=460s
+[185/1000] seed=189 SP=0 P0= 11 P1=  8 (P0)  P0W=124 P1W=61 D=0  avgM=+2.22  t=2.1s elapsed=105s eta=461s
+[186/1000] seed=191 SP=0 P0= 22 P1= 26 (P1)  P0W=124 P1W=62 D=0  avgM=+2.18  t=2.0s elapsed=106s eta=463s
+[187/1000] seed=187 SP=1 P0= 27 P1= 17 (P0)  P0W=125 P1W=62 D=0  avgM=+2.22  t=3.9s elapsed=106s eta=461s
+[188/1000] seed=184 SP=0 P0= 28 P1= 27 (P0)  P0W=126 P1W=62 D=0  avgM=+2.22  t=4.9s elapsed=106s eta=458s
+[189/1000] seed=190 SP=0 P0= 10 P1= 21 (P1)  P0W=126 P1W=63 D=0  avgM=+2.15  t=3.5s elapsed=107s eta=457s
+[190/1000] seed=193 SP=1 P0= 26 P1= 25 (P0)  P0W=127 P1W=63 D=0  avgM=+2.14  t=1.7s elapsed=107s eta=458s
+[191/1000] seed=192 SP=1 P0= 24 P1= 21 (P0)  P0W=128 P1W=63 D=0  avgM=+2.15  t=2.8s elapsed=108s eta=455s
+[192/1000] seed=188 SP=0 P0= 30 P1= 16 (P0)  P0W=129 P1W=63 D=0  avgM=+2.21  t=5.2s elapsed=108s eta=453s
+[193/1000] seed=194 SP=1 P0= 24 P1= 30 (P1)  P0W=129 P1W=64 D=0  avgM=+2.17  t=2.3s elapsed=108s eta=453s
+[194/1000] seed=185 SP=0 P0= 30 P1= 19 (P0)  P0W=130 P1W=64 D=0  avgM=+2.21  t=6.8s elapsed=109s eta=451s
+[195/1000] seed=198 SP=0 P0= 19 P1= 21 (P1)  P0W=130 P1W=65 D=0  avgM=+2.19  t=1.7s elapsed=109s eta=451s
+[196/1000] seed=199 SP=0 P0= 21 P1= 27 (P1)  P0W=130 P1W=66 D=0  avgM=+2.15  t=1.8s elapsed=109s eta=449s
+[197/1000] seed=195 SP=0 P0= 27 P1= 24 (P0)  P0W=131 P1W=66 D=0  avgM=+2.15  t=3.7s elapsed=110s eta=448s
+[198/1000] seed=197 SP=1 P0= 26 P1= 31 (P1)  P0W=131 P1W=67 D=0  avgM=+2.12  t=2.4s elapsed=110s eta=445s
+[199/1000] seed=196 SP=0 P0= 28 P1= 18 (P0)  P0W=132 P1W=67 D=0  avgM=+2.16  t=4.6s elapsed=111s eta=448s
+[200/1000] seed=200 SP=0 P0= 25 P1= 26 (P1)  P0W=132 P1W=68 D=0  avgM=+2.14  t=3.2s elapsed=112s eta=446s
+[201/1000] seed=204 SP=1 P0= 25 P1= 22 (P0)  P0W=133 P1W=68 D=0  avgM=+2.14  t=2.4s elapsed=112s eta=446s
+[202/1000] seed=203 SP=0 P0= 19 P1= 26 (P1)  P0W=133 P1W=69 D=0  avgM=+2.10  t=2.9s elapsed=112s eta=444s
+[203/1000] seed=207 SP=0 P0= 27 P1= 19 (P0)  P0W=134 P1W=69 D=0  avgM=+2.13  t=1.5s elapsed=113s eta=444s
+[204/1000] seed=206 SP=1 P0= 23 P1=  7 (P0)  P0W=135 P1W=69 D=0  avgM=+2.20  t=1.9s elapsed=113s eta=442s
+[205/1000] seed=209 SP=1 P0= 19 P1= 23 (P1)  P0W=135 P1W=70 D=0  avgM=+2.17  t=1.8s elapsed=114s eta=443s
+[206/1000] seed=205 SP=1 P0= 21 P1= 19 (P0)  P0W=136 P1W=70 D=0  avgM=+2.17  t=4.8s elapsed=115s eta=442s
+[207/1000] seed=208 SP=1 P0= 27 P1= 25 (P0)  P0W=137 P1W=70 D=0  avgM=+2.16  t=2.6s elapsed=115s eta=440s
+[208/1000] seed=201 SP=0 P0= 26 P1= 27 (P1)  P0W=137 P1W=71 D=0  avgM=+2.15  t=6.9s elapsed=115s eta=440s
+[209/1000] seed=212 SP=0 P0=  0 P1= 24 (P1)  P0W=137 P1W=72 D=0  avgM=+2.02  t=1.8s elapsed=116s eta=439s
+[210/1000] seed=211 SP=0 P0= 14 P1= 34 (P1)  P0W=137 P1W=73 D=0  avgM=+1.92  t=3.0s elapsed=116s eta=437s
+[211/1000] seed=214 SP=0 P0=  0 P1= 24 (P1)  P0W=137 P1W=74 D=0  avgM=+1.80  t=1.6s elapsed=116s eta=435s
+[212/1000] seed=215 SP=1 P0= 16 P1= 19 (P1)  P0W=137 P1W=75 D=0  avgM=+1.77  t=1.7s elapsed=117s eta=436s
+[213/1000] seed=217 SP=1 P0= 21 P1= 15 (P0)  P0W=138 P1W=75 D=0  avgM=+1.79  t=1.5s elapsed=118s eta=435s
+[214/1000] seed=210 SP=0 P0= 33 P1= 21 (P0)  P0W=139 P1W=75 D=0  avgM=+1.84  t=4.8s elapsed=118s eta=433s
+[215/1000] seed=180 SP=0 P0= 32 P1= 18 (P0)  P0W=140 P1W=75 D=0  avgM=+1.90  t=19.2s elapsed=118s eta=431s
+[216/1000] seed=218 SP=1 P0= 22 P1= 15 (P0)  P0W=141 P1W=75 D=0  avgM=+1.92  t=2.5s elapsed=119s eta=432s
+[217/1000] seed=222 SP=0 P0= 25 P1= 24 (P0)  P0W=142 P1W=75 D=0  avgM=+1.92  t=1.5s elapsed=119s eta=431s
+[218/1000] seed=220 SP=1 P0= 20 P1= 23 (P1)  P0W=142 P1W=76 D=0  avgM=+1.89  t=2.0s elapsed=120s eta=429s
+[219/1000] seed=202 SP=0 P0= 33 P1= 19 (P0)  P0W=143 P1W=76 D=0  avgM=+1.95  t=10.7s elapsed=120s eta=428s
+[220/1000] seed=221 SP=0 P0= 15 P1= 26 (P1)  P0W=143 P1W=77 D=0  avgM=+1.89  t=2.9s elapsed=121s eta=428s
+[221/1000] seed=223 SP=0 P0= 26 P1= 30 (P1)  P0W=143 P1W=78 D=0  avgM=+1.86  t=2.0s elapsed=121s eta=427s
+[222/1000] seed=224 SP=1 P0= 26 P1= 23 (P0)  P0W=144 P1W=78 D=0  avgM=+1.87  t=1.6s elapsed=121s eta=425s
+[223/1000] seed=219 SP=0 P0= 28 P1= 18 (P0)  P0W=145 P1W=78 D=0  avgM=+1.91  t=5.0s elapsed=122s eta=426s
+[224/1000] seed=226 SP=1 P0= 27 P1= 25 (P0)  P0W=146 P1W=78 D=0  avgM=+1.91  t=2.4s elapsed=122s eta=424s
+[225/1000] seed=216 SP=1 P0= 23 P1= 19 (P0)  P0W=147 P1W=78 D=0  avgM=+1.92  t=6.8s elapsed=123s eta=423s
+[226/1000] seed=229 SP=1 P0= 16 P1= 19 (P1)  P0W=147 P1W=79 D=0  avgM=+1.89  t=1.7s elapsed=123s eta=421s
+[227/1000] seed=231 SP=0 P0= 22 P1= 18 (P0)  P0W=148 P1W=79 D=0  avgM=+1.90  t=1.0s elapsed=123s eta=420s
+[228/1000] seed=227 SP=0 P0= 19 P1= 28 (P1)  P0W=148 P1W=80 D=0  avgM=+1.86  t=2.7s elapsed=124s eta=418s
+[229/1000] seed=230 SP=1 P0= 24 P1= 21 (P0)  P0W=149 P1W=80 D=0  avgM=+1.86  t=1.8s elapsed=124s eta=417s
+[230/1000] seed=228 SP=1 P0= 32 P1= 22 (P0)  P0W=150 P1W=80 D=0  avgM=+1.90  t=2.9s elapsed=124s eta=415s
+[231/1000] seed=232 SP=1 P0= 25 P1= 33 (P1)  P0W=150 P1W=81 D=0  avgM=+1.85  t=2.2s elapsed=125s eta=416s
+[232/1000] seed=234 SP=0 P0= 12 P1= 26 (P1)  P0W=150 P1W=82 D=0  avgM=+1.78  t=1.5s elapsed=125s eta=413s
+[233/1000] seed=235 SP=1 P0= 33 P1= 12 (P0)  P0W=151 P1W=82 D=0  avgM=+1.87  t=2.2s elapsed=126s eta=414s
+[234/1000] seed=237 SP=1 P0= 17 P1= 12 (P0)  P0W=152 P1W=82 D=0  avgM=+1.88  t=2.9s elapsed=127s eta=415s
+[235/1000] seed=233 SP=0 P0= 24 P1= 16 (P0)  P0W=153 P1W=82 D=0  avgM=+1.91  t=4.1s elapsed=127s eta=413s
+[236/1000] seed=238 SP=1 P0= 26 P1= 25 (P0)  P0W=154 P1W=82 D=0  avgM=+1.90  t=2.2s elapsed=127s eta=411s
+[237/1000] seed=236 SP=1 P0= 22 P1= 29 (P1)  P0W=154 P1W=83 D=0  avgM=+1.86  t=3.9s elapsed=128s eta=412s
+[238/1000] seed=240 SP=1 P0= 21 P1= 27 (P1)  P0W=154 P1W=84 D=0  avgM=+1.83  t=2.7s elapsed=128s eta=411s
+[239/1000] seed=241 SP=0 P0= 12 P1= 26 (P1)  P0W=154 P1W=85 D=0  avgM=+1.77  t=1.7s elapsed=129s eta=409s
+[240/1000] seed=239 SP=1 P0= 27 P1= 22 (P0)  P0W=155 P1W=85 D=0  avgM=+1.78  t=4.9s elapsed=130s eta=411s
+[241/1000] seed=243 SP=1 P0= 22 P1= 19 (P0)  P0W=156 P1W=85 D=0  avgM=+1.78  t=3.2s elapsed=130s eta=410s
+[242/1000] seed=242 SP=1 P0= 33 P1= 25 (P0)  P0W=157 P1W=85 D=0  avgM=+1.81  t=3.6s elapsed=130s eta=409s
+[243/1000] seed=244 SP=1 P0= 24 P1= 11 (P0)  P0W=158 P1W=85 D=0  avgM=+1.86  t=2.8s elapsed=131s eta=407s
+[244/1000] seed=245 SP=1 P0= 16 P1= 27 (P1)  P0W=158 P1W=86 D=0  avgM=+1.80  t=2.7s elapsed=131s eta=406s
+[245/1000] seed=246 SP=1 P0= 20 P1= 25 (P1)  P0W=158 P1W=87 D=0  avgM=+1.78  t=3.2s elapsed=132s eta=406s
+[246/1000] seed=248 SP=1 P0= 21 P1= 31 (P1)  P0W=158 P1W=88 D=0  avgM=+1.73  t=1.8s elapsed=132s eta=405s
+[247/1000] seed=247 SP=0 P0= 18 P1= 19 (P1)  P0W=158 P1W=89 D=0  avgM=+1.72  t=3.0s elapsed=133s eta=405s
+[248/1000] seed=251 SP=0 P0= 29 P1= 15 (P0)  P0W=159 P1W=89 D=0  avgM=+1.77  t=1.8s elapsed=133s eta=403s
+[249/1000] seed=249 SP=1 P0= 32 P1= 22 (P0)  P0W=160 P1W=89 D=0  avgM=+1.80  t=2.8s elapsed=133s eta=402s
+[250/1000] seed=252 SP=1 P0= 19 P1= 13 (P0)  P0W=161 P1W=89 D=0  avgM=+1.82  t=1.7s elapsed=134s eta=401s
+[251/1000] seed=254 SP=0 P0= 25 P1= 22 (P0)  P0W=162 P1W=89 D=0  avgM=+1.82  t=1.5s elapsed=134s eta=401s
+[252/1000] seed=250 SP=0 P0= 28 P1= 13 (P0)  P0W=163 P1W=89 D=0  avgM=+1.87  t=3.8s elapsed=134s eta=399s
+[253/1000] seed=256 SP=0 P0= 26 P1= 23 (P0)  P0W=164 P1W=89 D=0  avgM=+1.88  t=2.5s elapsed=136s eta=401s
+[254/1000] seed=257 SP=1 P0= 19 P1= 13 (P0)  P0W=165 P1W=89 D=0  avgM=+1.89  t=2.4s elapsed=136s eta=399s
+[255/1000] seed=259 SP=0 P0= 17 P1= 29 (P1)  P0W=165 P1W=90 D=0  avgM=+1.84  t=2.7s elapsed=137s eta=401s
+[256/1000] seed=258 SP=1 P0= 21 P1= 23 (P1)  P0W=165 P1W=91 D=0  avgM=+1.82  t=3.8s elapsed=138s eta=401s
+[257/1000] seed=261 SP=0 P0=  7 P1= 13 (P1)  P0W=165 P1W=92 D=0  avgM=+1.79  t=2.7s elapsed=139s eta=401s
+[258/1000] seed=260 SP=1 P0= 24 P1= 21 (P0)  P0W=166 P1W=92 D=0  avgM=+1.80  t=4.0s elapsed=140s eta=402s
+[259/1000] seed=253 SP=1 P0= 10 P1= 19 (P1)  P0W=166 P1W=93 D=0  avgM=+1.76  t=7.7s elapsed=140s eta=400s
+[260/1000] seed=262 SP=1 P0= 21 P1= 26 (P1)  P0W=166 P1W=94 D=0  avgM=+1.73  t=3.0s elapsed=140s eta=399s
+[261/1000] seed=263 SP=1 P0= 21 P1= 18 (P0)  P0W=167 P1W=94 D=0  avgM=+1.74  t=2.0s elapsed=140s eta=397s
+[262/1000] seed=255 SP=0 P0= 16 P1= 12 (P0)  P0W=168 P1W=94 D=0  avgM=+1.74  t=8.3s elapsed=141s eta=397s
+[263/1000] seed=265 SP=1 P0= 28 P1= 22 (P0)  P0W=169 P1W=94 D=0  avgM=+1.76  t=2.2s elapsed=142s eta=398s
+[264/1000] seed=268 SP=1 P0= 32 P1= 31 (P0)  P0W=170 P1W=94 D=0  avgM=+1.76  t=2.4s elapsed=143s eta=398s
+[265/1000] seed=269 SP=1 P0= 19 P1= 13 (P0)  P0W=171 P1W=94 D=0  avgM=+1.77  t=2.4s elapsed=144s eta=398s
+[266/1000] seed=266 SP=0 P0= 28 P1= 23 (P0)  P0W=172 P1W=94 D=0  avgM=+1.79  t=3.8s elapsed=144s eta=396s
+[267/1000] seed=267 SP=1 P0= 21 P1= 23 (P1)  P0W=172 P1W=95 D=0  avgM=+1.77  t=3.8s elapsed=144s eta=395s
+[268/1000] seed=225 SP=1 P0= 26 P1= 20 (P0)  P0W=173 P1W=95 D=0  avgM=+1.79  t=25.3s elapsed=145s eta=396s
+[269/1000] seed=264 SP=0 P0= 16 P1= 14 (P0)  P0W=174 P1W=95 D=0  avgM=+1.79  t=6.5s elapsed=145s eta=395s
+[270/1000] seed=270 SP=1 P0= 20 P1= 30 (P1)  P0W=174 P1W=96 D=0  avgM=+1.74  t=3.3s elapsed=145s eta=393s
+[271/1000] seed=275 SP=0 P0= 16 P1= 16 (P1)  P0W=174 P1W=97 D=0  avgM=+1.74  t=2.6s elapsed=147s eta=397s
+[272/1000] seed=274 SP=1 P0= 21 P1= 15 (P0)  P0W=175 P1W=97 D=0  avgM=+1.75  t=3.9s elapsed=148s eta=396s
+[273/1000] seed=271 SP=1 P0= 22 P1= 16 (P0)  P0W=176 P1W=97 D=0  avgM=+1.77  t=5.4s elapsed=148s eta=394s
+[274/1000] seed=277 SP=0 P0= 26 P1= 28 (P1)  P0W=176 P1W=98 D=0  avgM=+1.76  t=3.4s elapsed=149s eta=394s
+[275/1000] seed=273 SP=0 P0= 33 P1= 20 (P0)  P0W=177 P1W=98 D=0  avgM=+1.80  t=5.5s elapsed=149s eta=393s
+[276/1000] seed=278 SP=1 P0= 16 P1= 19 (P1)  P0W=177 P1W=99 D=0  avgM=+1.78  t=2.3s elapsed=150s eta=393s
+[277/1000] seed=272 SP=0 P0= 25 P1= 21 (P0)  P0W=178 P1W=99 D=0  avgM=+1.79  t=6.5s elapsed=150s eta=392s
+[278/1000] seed=280 SP=0 P0= 15 P1= 18 (P1)  P0W=178 P1W=100 D=0  avgM=+1.77  t=2.7s elapsed=151s eta=391s
+[279/1000] seed=276 SP=1 P0= 26 P1= 22 (P0)  P0W=179 P1W=100 D=0  avgM=+1.78  t=5.8s elapsed=151s eta=390s
+[280/1000] seed=282 SP=1 P0= 28 P1= 24 (P0)  P0W=180 P1W=100 D=0  avgM=+1.79  t=2.2s elapsed=151s eta=389s
+[281/1000] seed=284 SP=0 P0= 11 P1= 27 (P1)  P0W=180 P1W=101 D=0  avgM=+1.72  t=2.0s elapsed=152s eta=389s
+[282/1000] seed=283 SP=0 P0= 23 P1= 18 (P0)  P0W=181 P1W=101 D=0  avgM=+1.73  t=2.4s elapsed=152s eta=387s
+[283/1000] seed=281 SP=1 P0= 31 P1= 24 (P0)  P0W=182 P1W=101 D=0  avgM=+1.75  t=3.9s elapsed=153s eta=387s
+[284/1000] seed=285 SP=1 P0= 24 P1= 23 (P0)  P0W=183 P1W=101 D=0  avgM=+1.75  t=2.7s elapsed=153s eta=387s
+[285/1000] seed=286 SP=0 P0= 14 P1=-16 (P0)  P0W=184 P1W=101 D=0  avgM=+1.85  t=3.3s elapsed=154s eta=387s
+[286/1000] seed=288 SP=0 P0= 22 P1= 21 (P0)  P0W=185 P1W=101 D=0  avgM=+1.85  t=2.6s elapsed=155s eta=386s
+[287/1000] seed=290 SP=0 P0= 24 P1= 29 (P1)  P0W=185 P1W=102 D=0  avgM=+1.82  t=2.3s elapsed=155s eta=385s
+[288/1000] seed=291 SP=0 P0= 13 P1= 16 (P1)  P0W=185 P1W=103 D=0  avgM=+1.81  t=2.4s elapsed=156s eta=385s
+[289/1000] seed=294 SP=0 P0= 21 P1= 22 (P1)  P0W=185 P1W=104 D=0  avgM=+1.80  t=2.0s elapsed=157s eta=386s
+[290/1000] seed=287 SP=1 P0= 22 P1= 33 (P1)  P0W=185 P1W=105 D=0  avgM=+1.75  t=5.9s elapsed=157s eta=385s
+[291/1000] seed=293 SP=0 P0= 13 P1= 33 (P1)  P0W=185 P1W=106 D=0  avgM=+1.68  t=3.0s elapsed=157s eta=384s
+[292/1000] seed=289 SP=1 P0= 19 P1= 14 (P0)  P0W=186 P1W=106 D=0  avgM=+1.69  t=5.5s elapsed=158s eta=382s
+[293/1000] seed=292 SP=1 P0= 28 P1= 21 (P0)  P0W=187 P1W=106 D=0  avgM=+1.71  t=3.4s elapsed=158s eta=381s
+[294/1000] seed=279 SP=1 P0= 27 P1= 11 (P0)  P0W=188 P1W=106 D=0  avgM=+1.76  t=11.1s elapsed=159s eta=382s
+[295/1000] seed=297 SP=0 P0= 13 P1= 18 (P1)  P0W=188 P1W=107 D=0  avgM=+1.73  t=3.4s elapsed=161s eta=384s
+[296/1000] seed=213 SP=0 P0= 34 P1= 20 (P0)  P0W=189 P1W=107 D=0  avgM=+1.77  t=48.1s elapsed=163s eta=387s
+[297/1000] seed=300 SP=0 P0= 34 P1= 20 (P0)  P0W=190 P1W=107 D=0  avgM=+1.81  t=4.9s elapsed=163s eta=385s
+[298/1000] seed=299 SP=1 P0= 25 P1= 23 (P0)  P0W=191 P1W=107 D=0  avgM=+1.82  t=5.1s elapsed=163s eta=383s
+[299/1000] seed=295 SP=0 P0= 28 P1= 24 (P0)  P0W=192 P1W=107 D=0  avgM=+1.82  t=7.1s elapsed=163s eta=382s
+[300/1000] seed=302 SP=1 P0= 17 P1= 27 (P1)  P0W=192 P1W=108 D=0  avgM=+1.78  t=3.0s elapsed=164s eta=382s
+[301/1000] seed=296 SP=0 P0= 33 P1= 21 (P0)  P0W=193 P1W=108 D=0  avgM=+1.82  t=7.4s elapsed=164s eta=382s
+[302/1000] seed=306 SP=1 P0= 24 P1= 26 (P1)  P0W=193 P1W=109 D=0  avgM=+1.80  t=1.5s elapsed=164s eta=380s
+[303/1000] seed=303 SP=0 P0= 28 P1= 25 (P0)  P0W=194 P1W=109 D=0  avgM=+1.81  t=3.3s elapsed=166s eta=382s
+[304/1000] seed=307 SP=1 P0= 15 P1= 21 (P1)  P0W=194 P1W=110 D=0  avgM=+1.78  t=2.9s elapsed=167s eta=381s
+[305/1000] seed=308 SP=1 P0= 23 P1= 17 (P0)  P0W=195 P1W=110 D=0  avgM=+1.80  t=2.4s elapsed=167s eta=380s
+[306/1000] seed=305 SP=0 P0= 26 P1= 22 (P0)  P0W=196 P1W=110 D=0  avgM=+1.80  t=4.6s elapsed=167s eta=380s
+[307/1000] seed=304 SP=1 P0= 26 P1= 21 (P0)  P0W=197 P1W=110 D=0  avgM=+1.81  t=5.7s elapsed=168s eta=380s
+[308/1000] seed=298 SP=0 P0= 31 P1= 17 (P0)  P0W=198 P1W=110 D=0  avgM=+1.85  t=11.1s elapsed=169s eta=379s
+[309/1000] seed=309 SP=1 P0= 33 P1= 19 (P0)  P0W=199 P1W=110 D=0  avgM=+1.89  t=4.3s elapsed=169s eta=377s
+[310/1000] seed=311 SP=0 P0= 22 P1= 24 (P1)  P0W=199 P1W=111 D=0  avgM=+1.88  t=2.2s elapsed=169s eta=375s
+[311/1000] seed=301 SP=0 P0= 26 P1= 18 (P0)  P0W=200 P1W=111 D=0  avgM=+1.90  t=9.8s elapsed=169s eta=374s
+[312/1000] seed=312 SP=0 P0= 15 P1=  7 (P0)  P0W=201 P1W=111 D=0  avgM=+1.92  t=2.2s elapsed=169s eta=373s
+[313/1000] seed=310 SP=0 P0= 30 P1= 17 (P0)  P0W=202 P1W=111 D=0  avgM=+1.96  t=3.8s elapsed=170s eta=373s
+[314/1000] seed=313 SP=0 P0= 17 P1= 32 (P1)  P0W=202 P1W=112 D=0  avgM=+1.90  t=2.4s elapsed=170s eta=371s
+[315/1000] seed=315 SP=1 P0= 21 P1= 24 (P1)  P0W=202 P1W=113 D=0  avgM=+1.89  t=1.5s elapsed=170s eta=370s
+[316/1000] seed=314 SP=0 P0= 25 P1= 27 (P1)  P0W=202 P1W=114 D=0  avgM=+1.87  t=2.6s elapsed=171s eta=370s
+[317/1000] seed=318 SP=0 P0= 11 P1=  8 (P0)  P0W=203 P1W=114 D=0  avgM=+1.88  t=2.3s elapsed=171s eta=369s
+[318/1000] seed=316 SP=0 P0= 17 P1= 32 (P1)  P0W=203 P1W=115 D=0  avgM=+1.82  t=2.6s elapsed=171s eta=367s
+[319/1000] seed=317 SP=0 P0= 34 P1= 20 (P0)  P0W=204 P1W=115 D=0  avgM=+1.86  t=3.2s elapsed=172s eta=367s
+[320/1000] seed=321 SP=0 P0= 20 P1= 28 (P1)  P0W=204 P1W=116 D=0  avgM=+1.83  t=2.2s elapsed=172s eta=366s
+[321/1000] seed=319 SP=1 P0= 33 P1= 25 (P0)  P0W=205 P1W=116 D=0  avgM=+1.85  t=3.4s elapsed=172s eta=365s
+[322/1000] seed=323 SP=1 P0= 28 P1= 24 (P0)  P0W=206 P1W=116 D=0  avgM=+1.86  t=2.2s elapsed=173s eta=364s
+[323/1000] seed=325 SP=0 P0= 13 P1= 14 (P1)  P0W=206 P1W=117 D=0  avgM=+1.85  t=2.4s elapsed=174s eta=364s
+[324/1000] seed=320 SP=0 P0= 37 P1= 16 (P0)  P0W=207 P1W=117 D=0  avgM=+1.91  t=3.9s elapsed=174s eta=362s
+[325/1000] seed=327 SP=0 P0= 24 P1= 27 (P1)  P0W=207 P1W=118 D=0  avgM=+1.89  t=1.7s elapsed=174s eta=361s
+[326/1000] seed=322 SP=0 P0= 30 P1= 17 (P0)  P0W=208 P1W=118 D=0  avgM=+1.93  t=4.3s elapsed=174s eta=361s
+[327/1000] seed=326 SP=0 P0= 25 P1= 27 (P1)  P0W=208 P1W=119 D=0  avgM=+1.91  t=3.0s elapsed=175s eta=360s
+[328/1000] seed=328 SP=0 P0= 29 P1= 28 (P0)  P0W=209 P1W=119 D=0  avgM=+1.91  t=3.1s elapsed=175s eta=359s
+[329/1000] seed=330 SP=1 P0= 29 P1= 30 (P1)  P0W=209 P1W=120 D=0  avgM=+1.90  t=2.3s elapsed=176s eta=359s
+[330/1000] seed=332 SP=0 P0= 20 P1= 21 (P1)  P0W=209 P1W=121 D=0  avgM=+1.89  t=2.6s elapsed=176s eta=358s
+[331/1000] seed=324 SP=0 P0= 28 P1= 24 (P0)  P0W=210 P1W=121 D=0  avgM=+1.90  t=5.7s elapsed=177s eta=357s
+[332/1000] seed=333 SP=0 P0= 13 P1= 10 (P0)  P0W=211 P1W=121 D=0  avgM=+1.90  t=3.1s elapsed=177s eta=357s
+[333/1000] seed=331 SP=0 P0= 34 P1= 20 (P0)  P0W=212 P1W=121 D=0  avgM=+1.94  t=3.9s elapsed=178s eta=356s
+[334/1000] seed=334 SP=1 P0= 29 P1= 26 (P0)  P0W=213 P1W=121 D=0  avgM=+1.94  t=2.6s elapsed=178s eta=354s
+[335/1000] seed=329 SP=1 P0= 19 P1= 14 (P0)  P0W=214 P1W=121 D=0  avgM=+1.95  t=5.9s elapsed=179s eta=355s
+[336/1000] seed=335 SP=0 P0= 27 P1= 32 (P1)  P0W=214 P1W=122 D=0  avgM=+1.93  t=3.8s elapsed=179s eta=354s
+[337/1000] seed=336 SP=0 P0= 13 P1= 17 (P1)  P0W=214 P1W=123 D=0  avgM=+1.91  t=3.9s elapsed=180s eta=354s
+[338/1000] seed=337 SP=0 P0= 22 P1= 33 (P1)  P0W=214 P1W=124 D=0  avgM=+1.88  t=3.7s elapsed=180s eta=353s
+[339/1000] seed=340 SP=0 P0= 22 P1= 26 (P1)  P0W=214 P1W=125 D=0  avgM=+1.86  t=2.7s elapsed=180s eta=351s
+[340/1000] seed=338 SP=1 P0= 22 P1= 33 (P1)  P0W=214 P1W=126 D=0  avgM=+1.82  t=4.2s elapsed=181s eta=351s
+[341/1000] seed=343 SP=0 P0= 24 P1= 29 (P1)  P0W=214 P1W=127 D=0  avgM=+1.80  t=2.4s elapsed=182s eta=351s
+[342/1000] seed=339 SP=0 P0= 28 P1= 20 (P0)  P0W=215 P1W=127 D=0  avgM=+1.82  t=4.2s elapsed=182s eta=350s
+[343/1000] seed=345 SP=0 P0= 26 P1= 23 (P0)  P0W=216 P1W=127 D=0  avgM=+1.82  t=2.3s elapsed=182s eta=349s
+[344/1000] seed=342 SP=1 P0= 22 P1= 24 (P1)  P0W=216 P1W=128 D=0  avgM=+1.81  t=3.3s elapsed=182s eta=348s
+[345/1000] seed=344 SP=0 P0= 17 P1= 25 (P1)  P0W=216 P1W=129 D=0  avgM=+1.78  t=2.5s elapsed=182s eta=346s
+[346/1000] seed=346 SP=1 P0= 23 P1= 29 (P1)  P0W=216 P1W=130 D=0  avgM=+1.76  t=3.1s elapsed=183s eta=346s
+[347/1000] seed=341 SP=1 P0= 25 P1= 22 (P0)  P0W=217 P1W=130 D=0  avgM=+1.76  t=5.8s elapsed=183s eta=345s
+[348/1000] seed=347 SP=1 P0= 32 P1= 27 (P0)  P0W=218 P1W=130 D=0  avgM=+1.77  t=2.5s elapsed=183s eta=344s
+[349/1000] seed=351 SP=1 P0= 12 P1= 20 (P1)  P0W=218 P1W=131 D=0  avgM=+1.74  t=1.8s elapsed=184s eta=343s
+[350/1000] seed=352 SP=0 P0= 32 P1= 19 (P0)  P0W=219 P1W=131 D=0  avgM=+1.78  t=2.1s elapsed=185s eta=343s
+[351/1000] seed=350 SP=0 P0= 11 P1= 12 (P1)  P0W=219 P1W=132 D=0  avgM=+1.77  t=2.4s elapsed=185s eta=342s
+[352/1000] seed=349 SP=1 P0= 25 P1= 25 (P1)  P0W=219 P1W=133 D=0  avgM=+1.76  t=3.0s elapsed=185s eta=340s
+[353/1000] seed=353 SP=0 P0= 15 P1= 25 (P1)  P0W=219 P1W=134 D=0  avgM=+1.73  t=2.0s elapsed=185s eta=340s
+[354/1000] seed=354 SP=1 P0= 25 P1= 25 (P1)  P0W=219 P1W=135 D=0  avgM=+1.73  t=2.3s elapsed=186s eta=339s
+[355/1000] seed=357 SP=1 P0= 19 P1= 13 (P0)  P0W=220 P1W=135 D=0  avgM=+1.74  t=2.0s elapsed=187s eta=339s
+[356/1000] seed=348 SP=0 P0= 28 P1= 20 (P0)  P0W=221 P1W=135 D=0  avgM=+1.76  t=5.2s elapsed=187s eta=338s
+[357/1000] seed=356 SP=0 P0= 31 P1= 14 (P0)  P0W=222 P1W=135 D=0  avgM=+1.80  t=3.0s elapsed=187s eta=337s
+[358/1000] seed=358 SP=1 P0= 28 P1= 24 (P0)  P0W=223 P1W=135 D=0  avgM=+1.80  t=2.8s elapsed=188s eta=336s
+[359/1000] seed=355 SP=0 P0= 28 P1= 13 (P0)  P0W=224 P1W=135 D=0  avgM=+1.84  t=4.3s elapsed=188s eta=335s
+[360/1000] seed=360 SP=1 P0= 28 P1= 27 (P0)  P0W=225 P1W=135 D=0  avgM=+1.84  t=2.5s elapsed=188s eta=334s
+[361/1000] seed=364 SP=1 P0= 21 P1= 18 (P0)  P0W=226 P1W=135 D=0  avgM=+1.84  t=2.1s elapsed=189s eta=335s
+[362/1000] seed=365 SP=0 P0= 23 P1= 23 (P0)  P0W=227 P1W=135 D=0  avgM=+1.84  t=1.7s elapsed=189s eta=333s
+[363/1000] seed=363 SP=0 P0= 17 P1= 28 (P1)  P0W=227 P1W=136 D=0  avgM=+1.80  t=2.6s elapsed=189s eta=333s
+[364/1000] seed=366 SP=0 P0= 14 P1= 23 (P1)  P0W=227 P1W=137 D=0  avgM=+1.77  t=1.8s elapsed=190s eta=331s
+[365/1000] seed=367 SP=1 P0= 24 P1= 26 (P1)  P0W=227 P1W=138 D=0  avgM=+1.76  t=1.8s elapsed=190s eta=330s
+[366/1000] seed=361 SP=1 P0= 26 P1= 21 (P0)  P0W=228 P1W=138 D=0  avgM=+1.77  t=4.1s elapsed=190s eta=329s
+[367/1000] seed=359 SP=0 P0= 32 P1= 20 (P0)  P0W=229 P1W=138 D=0  avgM=+1.80  t=5.9s elapsed=191s eta=329s
+[368/1000] seed=369 SP=1 P0= 32 P1= 25 (P0)  P0W=230 P1W=138 D=0  avgM=+1.81  t=1.7s elapsed=191s eta=328s
+[369/1000] seed=368 SP=1 P0= 21 P1= 17 (P0)  P0W=231 P1W=138 D=0  avgM=+1.82  t=2.0s elapsed=191s eta=327s
+[370/1000] seed=372 SP=1 P0= 29 P1= 25 (P0)  P0W=232 P1W=138 D=0  avgM=+1.82  t=1.9s elapsed=191s eta=326s
+[371/1000] seed=375 SP=0 P0= 20 P1= 20 (P1)  P0W=232 P1W=139 D=0  avgM=+1.82  t=1.3s elapsed=192s eta=326s
+[372/1000] seed=371 SP=1 P0= 28 P1= 24 (P0)  P0W=233 P1W=139 D=0  avgM=+1.83  t=2.9s elapsed=192s eta=325s
+[373/1000] seed=373 SP=1 P0= 27 P1= 26 (P0)  P0W=234 P1W=139 D=0  avgM=+1.82  t=2.9s elapsed=193s eta=324s
+[374/1000] seed=362 SP=1 P0= 25 P1= 17 (P0)  P0W=235 P1W=139 D=0  avgM=+1.84  t=6.3s elapsed=193s eta=323s
+[375/1000] seed=377 SP=1 P0= 22 P1= 15 (P0)  P0W=236 P1W=139 D=0  avgM=+1.85  t=2.0s elapsed=193s eta=322s
+[376/1000] seed=370 SP=0 P0= 24 P1= 19 (P0)  P0W=237 P1W=139 D=0  avgM=+1.86  t=4.0s elapsed=193s eta=321s
+[377/1000] seed=374 SP=1 P0= 29 P1= 23 (P0)  P0W=238 P1W=139 D=0  avgM=+1.87  t=2.8s elapsed=193s eta=320s
+[378/1000] seed=380 SP=1 P0= 24 P1= 26 (P1)  P0W=238 P1W=140 D=0  avgM=+1.86  t=1.4s elapsed=194s eta=319s
+[379/1000] seed=378 SP=1 P0= 18 P1= 26 (P1)  P0W=238 P1W=141 D=0  avgM=+1.84  t=2.1s elapsed=194s eta=318s
+[380/1000] seed=379 SP=1 P0= 32 P1= 24 (P0)  P0W=239 P1W=141 D=0  avgM=+1.85  t=1.9s elapsed=194s eta=317s
+[381/1000] seed=381 SP=1 P0= 23 P1=  7 (P0)  P0W=240 P1W=141 D=0  avgM=+1.89  t=1.8s elapsed=195s eta=316s
+[382/1000] seed=383 SP=0 P0= 13 P1=  6 (P0)  P0W=241 P1W=141 D=0  avgM=+1.90  t=1.4s elapsed=195s eta=315s
+[383/1000] seed=386 SP=0 P0= 11 P1= 10 (P0)  P0W=242 P1W=141 D=0  avgM=+1.90  t=2.0s elapsed=196s eta=316s
+[384/1000] seed=384 SP=0 P0= 21 P1= 20 (P0)  P0W=243 P1W=141 D=0  avgM=+1.90  t=3.4s elapsed=197s eta=316s
+[385/1000] seed=388 SP=0 P0= 17 P1= 26 (P1)  P0W=243 P1W=142 D=0  avgM=+1.87  t=3.2s elapsed=198s eta=316s
+[386/1000] seed=382 SP=0 P0= 19 P1= 24 (P1)  P0W=243 P1W=143 D=0  avgM=+1.85  t=5.0s elapsed=198s eta=316s
+[387/1000] seed=376 SP=0 P0= 26 P1= 27 (P1)  P0W=243 P1W=144 D=0  avgM=+1.84  t=7.3s elapsed=198s eta=314s
+[388/1000] seed=390 SP=1 P0= 22 P1= 19 (P0)  P0W=244 P1W=144 D=0  avgM=+1.85  t=2.7s elapsed=199s eta=314s
+[389/1000] seed=389 SP=0 P0= 32 P1= 13 (P0)  P0W=245 P1W=144 D=0  avgM=+1.89  t=5.3s elapsed=200s eta=314s
+[390/1000] seed=387 SP=0 P0= 26 P1= 21 (P0)  P0W=246 P1W=144 D=0  avgM=+1.90  t=6.0s elapsed=200s eta=314s
+[391/1000] seed=391 SP=0 P0= 34 P1= 20 (P0)  P0W=247 P1W=144 D=0  avgM=+1.93  t=3.9s elapsed=201s eta=313s
+[392/1000] seed=392 SP=1 P0= 26 P1= 23 (P0)  P0W=248 P1W=144 D=0  avgM=+1.93  t=2.9s elapsed=201s eta=311s
+[393/1000] seed=393 SP=1 P0= 31 P1= 24 (P0)  P0W=249 P1W=144 D=0  avgM=+1.95  t=2.5s elapsed=201s eta=310s
+[394/1000] seed=385 SP=1 P0= 26 P1= 16 (P0)  P0W=250 P1W=144 D=0  avgM=+1.97  t=6.9s elapsed=201s eta=309s
+[395/1000] seed=398 SP=1 P0= 26 P1= 25 (P0)  P0W=251 P1W=144 D=0  avgM=+1.96  t=2.2s elapsed=203s eta=311s
+[396/1000] seed=401 SP=0 P0= 24 P1= 21 (P0)  P0W=252 P1W=144 D=0  avgM=+1.97  t=2.1s elapsed=203s eta=310s
+[397/1000] seed=394 SP=0 P0= 24 P1= 22 (P0)  P0W=253 P1W=144 D=0  avgM=+1.97  t=4.6s elapsed=203s eta=308s
+[398/1000] seed=397 SP=1 P0= 24 P1= 22 (P0)  P0W=254 P1W=144 D=0  avgM=+1.97  t=2.7s elapsed=203s eta=307s
+[399/1000] seed=399 SP=1 P0= 23 P1= 29 (P1)  P0W=254 P1W=145 D=0  avgM=+1.95  t=2.5s elapsed=203s eta=306s
+[400/1000] seed=400 SP=1 P0= 27 P1= 24 (P0)  P0W=255 P1W=145 D=0  avgM=+1.95  t=2.4s elapsed=203s eta=305s
+[401/1000] seed=396 SP=1 P0= 22 P1= 15 (P0)  P0W=256 P1W=145 D=0  avgM=+1.96  t=3.2s elapsed=203s eta=304s
+[402/1000] seed=395 SP=0 P0= 18 P1= 23 (P1)  P0W=256 P1W=146 D=0  avgM=+1.95  t=4.5s elapsed=203s eta=303s
+[403/1000] seed=404 SP=1 P0= 25 P1= 22 (P0)  P0W=257 P1W=146 D=0  avgM=+1.95  t=2.9s elapsed=206s eta=305s
+[404/1000] seed=405 SP=0 P0= 21 P1=-19 (P0)  P0W=258 P1W=146 D=0  avgM=+2.04  t=3.0s elapsed=206s eta=304s
+[405/1000] seed=403 SP=1 P0= 22 P1= 25 (P1)  P0W=258 P1W=147 D=0  avgM=+2.03  t=3.1s elapsed=206s eta=303s
+[406/1000] seed=402 SP=1 P0= 23 P1= 26 (P1)  P0W=258 P1W=148 D=0  avgM=+2.02  t=3.2s elapsed=206s eta=302s
+[407/1000] seed=406 SP=1 P0= 19 P1= 29 (P1)  P0W=258 P1W=149 D=0  avgM=+1.99  t=3.1s elapsed=206s eta=301s
+[408/1000] seed=409 SP=0 P0= 19 P1= 28 (P1)  P0W=258 P1W=150 D=0  avgM=+1.96  t=4.3s elapsed=208s eta=301s
+[409/1000] seed=410 SP=0 P0= 23 P1= 22 (P0)  P0W=259 P1W=150 D=0  avgM=+1.96  t=2.5s elapsed=208s eta=301s
+[410/1000] seed=412 SP=1 P0= 22 P1= 21 (P0)  P0W=260 P1W=150 D=0  avgM=+1.96  t=2.4s elapsed=209s eta=300s
+[411/1000] seed=408 SP=0 P0= 28 P1= 24 (P0)  P0W=261 P1W=150 D=0  avgM=+1.96  t=6.1s elapsed=209s eta=300s
+[412/1000] seed=407 SP=0 P0= 19 P1= 23 (P1)  P0W=261 P1W=151 D=0  avgM=+1.95  t=6.2s elapsed=210s eta=299s
+[413/1000] seed=411 SP=0 P0= 17 P1= 29 (P1)  P0W=261 P1W=152 D=0  avgM=+1.91  t=3.8s elapsed=210s eta=298s
+[414/1000] seed=413 SP=0 P0= 15 P1= 26 (P1)  P0W=261 P1W=153 D=0  avgM=+1.88  t=3.7s elapsed=210s eta=297s
+[415/1000] seed=416 SP=1 P0= 21 P1= 24 (P1)  P0W=261 P1W=154 D=0  avgM=+1.87  t=1.7s elapsed=210s eta=296s
+[416/1000] seed=421 SP=0 P0= 20 P1= 20 (P1)  P0W=261 P1W=155 D=0  avgM=+1.87  t=2.0s elapsed=212s eta=298s
+[417/1000] seed=419 SP=1 P0= 17 P1= 22 (P1)  P0W=261 P1W=156 D=0  avgM=+1.85  t=2.6s elapsed=212s eta=297s
+[418/1000] seed=417 SP=0 P0= 16 P1= 19 (P1)  P0W=261 P1W=157 D=0  avgM=+1.84  t=3.8s elapsed=212s eta=296s
+[419/1000] seed=422 SP=0 P0= 15 P1= 25 (P1)  P0W=261 P1W=158 D=0  avgM=+1.81  t=2.7s elapsed=213s eta=295s
+[420/1000] seed=420 SP=1 P0= 21 P1= 22 (P1)  P0W=261 P1W=159 D=0  avgM=+1.80  t=3.2s elapsed=213s eta=294s
+[421/1000] seed=418 SP=1 P0= 24 P1= 26 (P1)  P0W=261 P1W=160 D=0  avgM=+1.79  t=3.7s elapsed=213s eta=293s
+[422/1000] seed=425 SP=0 P0= 17 P1= 25 (P1)  P0W=261 P1W=161 D=0  avgM=+1.77  t=2.5s elapsed=215s eta=294s
+[423/1000] seed=415 SP=0 P0= 26 P1= 18 (P0)  P0W=262 P1W=161 D=0  avgM=+1.78  t=7.4s elapsed=215s eta=294s
+[424/1000] seed=426 SP=0 P0= 18 P1= 25 (P1)  P0W=262 P1W=162 D=0  avgM=+1.76  t=2.8s elapsed=216s eta=293s
+[425/1000] seed=427 SP=1 P0= 17 P1= 22 (P1)  P0W=262 P1W=163 D=0  avgM=+1.75  t=2.8s elapsed=216s eta=292s
+[426/1000] seed=424 SP=0 P0= 15 P1= 26 (P1)  P0W=262 P1W=164 D=0  avgM=+1.72  t=3.9s elapsed=216s eta=291s
+[427/1000] seed=423 SP=1 P0= 23 P1= 25 (P1)  P0W=262 P1W=165 D=0  avgM=+1.71  t=4.4s elapsed=216s eta=290s
+[428/1000] seed=429 SP=0 P0= 19 P1= 20 (P1)  P0W=262 P1W=166 D=0  avgM=+1.70  t=2.1s elapsed=217s eta=290s
+[429/1000] seed=431 SP=1 P0= 17 P1= 22 (P1)  P0W=262 P1W=167 D=0  avgM=+1.69  t=2.5s elapsed=218s eta=290s
+[430/1000] seed=434 SP=1 P0= 26 P1= 28 (P1)  P0W=262 P1W=168 D=0  avgM=+1.68  t=1.8s elapsed=218s eta=289s
+[431/1000] seed=432 SP=1 P0= 27 P1= 20 (P0)  P0W=263 P1W=168 D=0  avgM=+1.69  t=2.7s elapsed=219s eta=289s
+[432/1000] seed=428 SP=0 P0= 17 P1= 17 (P0)  P0W=264 P1W=168 D=0  avgM=+1.69  t=5.6s elapsed=219s eta=288s
+[433/1000] seed=430 SP=0 P0= 15 P1= 25 (P1)  P0W=264 P1W=169 D=0  avgM=+1.66  t=4.1s elapsed=219s eta=287s
+[434/1000] seed=435 SP=1 P0= 28 P1= 20 (P0)  P0W=265 P1W=169 D=0  avgM=+1.68  t=2.9s elapsed=220s eta=287s
+[435/1000] seed=436 SP=1 P0= 29 P1= 25 (P0)  P0W=266 P1W=169 D=0  avgM=+1.68  t=2.0s elapsed=220s eta=286s
+[436/1000] seed=437 SP=1 P0= 26 P1= 22 (P0)  P0W=267 P1W=169 D=0  avgM=+1.69  t=1.9s elapsed=220s eta=285s
+[437/1000] seed=433 SP=0 P0= 12 P1= 16 (P1)  P0W=267 P1W=170 D=0  avgM=+1.67  t=4.8s elapsed=221s eta=284s
+[438/1000] seed=439 SP=0 P0= 22 P1= 22 (P0)  P0W=268 P1W=170 D=0  avgM=+1.67  t=2.2s elapsed=221s eta=284s
+[439/1000] seed=440 SP=0 P0= 22 P1= 19 (P0)  P0W=269 P1W=170 D=0  avgM=+1.67  t=2.2s elapsed=222s eta=283s
+[440/1000] seed=438 SP=1 P0= 21 P1= 29 (P1)  P0W=269 P1W=171 D=0  avgM=+1.65  t=3.3s elapsed=222s eta=282s
+[441/1000] seed=414 SP=1 P0= 23 P1= 22 (P0)  P0W=270 P1W=171 D=0  avgM=+1.65  t=15.7s elapsed=222s eta=282s
+[442/1000] seed=441 SP=1 P0= 27 P1= 26 (P0)  P0W=271 P1W=171 D=0  avgM=+1.65  t=2.8s elapsed=223s eta=281s
+[443/1000] seed=444 SP=1 P0= 26 P1= 22 (P0)  P0W=272 P1W=171 D=0  avgM=+1.65  t=2.5s elapsed=223s eta=281s
+[444/1000] seed=442 SP=1 P0= 20 P1= 27 (P1)  P0W=272 P1W=172 D=0  avgM=+1.63  t=3.6s elapsed=224s eta=280s
+[445/1000] seed=447 SP=0 P0= 17 P1= 32 (P1)  P0W=272 P1W=173 D=0  avgM=+1.60  t=2.8s elapsed=225s eta=280s
+[446/1000] seed=448 SP=1 P0= 21 P1= 25 (P1)  P0W=272 P1W=174 D=0  avgM=+1.58  t=2.6s elapsed=225s eta=279s
+[447/1000] seed=449 SP=1 P0= 21 P1= 27 (P1)  P0W=272 P1W=175 D=0  avgM=+1.57  t=2.7s elapsed=225s eta=279s
+[448/1000] seed=450 SP=0 P0= 21 P1= 20 (P0)  P0W=273 P1W=175 D=0  avgM=+1.56  t=2.1s elapsed=225s eta=278s
+[449/1000] seed=443 SP=0 P0=  7 P1= 12 (P1)  P0W=273 P1W=176 D=0  avgM=+1.55  t=6.0s elapsed=226s eta=277s
+[450/1000] seed=445 SP=0 P0= 32 P1= 21 (P0)  P0W=274 P1W=176 D=0  avgM=+1.57  t=5.3s elapsed=226s eta=277s
+[451/1000] seed=452 SP=1 P0= 25 P1= 21 (P0)  P0W=275 P1W=176 D=0  avgM=+1.58  t=2.0s elapsed=227s eta=276s
+[452/1000] seed=451 SP=1 P0= 21 P1= 27 (P1)  P0W=275 P1W=177 D=0  avgM=+1.56  t=3.4s elapsed=227s eta=275s
+[453/1000] seed=446 SP=0 P0= 19 P1= 23 (P1)  P0W=275 P1W=178 D=0  avgM=+1.55  t=6.0s elapsed=227s eta=275s
+[454/1000] seed=455 SP=1 P0= 27 P1= 26 (P0)  P0W=276 P1W=178 D=0  avgM=+1.55  t=2.6s elapsed=228s eta=274s
+[455/1000] seed=456 SP=0 P0=  7 P1= 10 (P1)  P0W=276 P1W=179 D=0  avgM=+1.54  t=2.2s elapsed=228s eta=273s
+[456/1000] seed=460 SP=0 P0= 15 P1=-21 (P0)  P0W=277 P1W=179 D=0  avgM=+1.61  t=2.1s elapsed=230s eta=274s
+[457/1000] seed=459 SP=0 P0= 13 P1= 10 (P0)  P0W=278 P1W=179 D=0  avgM=+1.61  t=2.6s elapsed=230s eta=273s
+[458/1000] seed=458 SP=0 P0= 13 P1= 31 (P1)  P0W=278 P1W=180 D=0  avgM=+1.57  t=3.1s elapsed=230s eta=272s
+[459/1000] seed=461 SP=1 P0= 23 P1= 24 (P1)  P0W=278 P1W=181 D=0  avgM=+1.57  t=2.9s elapsed=231s eta=272s
+[460/1000] seed=457 SP=0 P0= 29 P1= 15 (P0)  P0W=279 P1W=181 D=0  avgM=+1.59  t=4.8s elapsed=231s eta=271s
+[461/1000] seed=463 SP=1 P0= 28 P1= 26 (P0)  P0W=280 P1W=181 D=0  avgM=+1.59  t=2.4s elapsed=232s eta=271s
+[462/1000] seed=465 SP=0 P0= 15 P1= 26 (P1)  P0W=280 P1W=182 D=0  avgM=+1.57  t=2.5s elapsed=232s eta=271s
+[463/1000] seed=467 SP=0 P0= 11 P1=  8 (P0)  P0W=281 P1W=182 D=0  avgM=+1.57  t=2.1s elapsed=233s eta=270s
+[464/1000] seed=466 SP=1 P0= 26 P1= 25 (P0)  P0W=282 P1W=182 D=0  avgM=+1.57  t=2.3s elapsed=233s eta=269s
+[465/1000] seed=454 SP=0 P0= 31 P1= 14 (P0)  P0W=283 P1W=182 D=0  avgM=+1.60  t=8.2s elapsed=234s eta=269s
+[466/1000] seed=453 SP=1 P0= 26 P1= 16 (P0)  P0W=284 P1W=182 D=0  avgM=+1.62  t=9.6s elapsed=234s eta=269s
+[467/1000] seed=468 SP=0 P0= 15 P1=  9 (P0)  P0W=285 P1W=182 D=0  avgM=+1.63  t=3.0s elapsed=235s eta=268s
+[468/1000] seed=470 SP=1 P0= 15 P1= 28 (P1)  P0W=285 P1W=183 D=0  avgM=+1.60  t=2.3s elapsed=235s eta=268s
+[469/1000] seed=471 SP=0 P0= 12 P1= 14 (P1)  P0W=285 P1W=184 D=0  avgM=+1.59  t=2.2s elapsed=235s eta=267s
+[470/1000] seed=462 SP=1 P0= 23 P1= 19 (P0)  P0W=286 P1W=184 D=0  avgM=+1.60  t=7.5s elapsed=236s eta=266s
+[471/1000] seed=469 SP=0 P0= 37 P1= 16 (P0)  P0W=287 P1W=184 D=0  avgM=+1.64  t=4.0s elapsed=236s eta=265s
+[472/1000] seed=472 SP=0 P0= 18 P1= 25 (P1)  P0W=287 P1W=185 D=0  avgM=+1.62  t=2.9s elapsed=236s eta=264s
+[473/1000] seed=474 SP=0 P0= 20 P1= 21 (P1)  P0W=287 P1W=186 D=0  avgM=+1.61  t=2.3s elapsed=237s eta=264s
+[474/1000] seed=476 SP=1 P0= 24 P1= 21 (P0)  P0W=288 P1W=186 D=0  avgM=+1.62  t=2.2s elapsed=238s eta=264s
+[475/1000] seed=477 SP=1 P0= 29 P1= 26 (P0)  P0W=289 P1W=186 D=0  avgM=+1.62  t=2.0s elapsed=238s eta=263s
+[476/1000] seed=473 SP=0 P0= 17 P1= 29 (P1)  P0W=289 P1W=187 D=0  avgM=+1.59  t=3.6s elapsed=238s eta=262s
+[477/1000] seed=479 SP=1 P0= 26 P1= 19 (P0)  P0W=290 P1W=187 D=0  avgM=+1.60  t=1.8s elapsed=238s eta=261s
+[478/1000] seed=478 SP=0 P0= 13 P1= 18 (P1)  P0W=290 P1W=188 D=0  avgM=+1.59  t=2.1s elapsed=238s eta=260s
+[479/1000] seed=464 SP=0 P0= 26 P1= 18 (P0)  P0W=291 P1W=188 D=0  avgM=+1.60  t=9.4s elapsed=239s eta=260s
+[480/1000] seed=483 SP=0 P0= 11 P1= 27 (P1)  P0W=291 P1W=189 D=0  avgM=+1.56  t=1.6s elapsed=239s eta=259s
+[481/1000] seed=475 SP=0 P0= 21 P1= 19 (P0)  P0W=292 P1W=189 D=0  avgM=+1.57  t=4.1s elapsed=239s eta=258s
+[482/1000] seed=481 SP=1 P0= 29 P1= 26 (P0)  P0W=293 P1W=189 D=0  avgM=+1.57  t=1.8s elapsed=240s eta=257s
+[483/1000] seed=484 SP=1 P0= 20 P1= 24 (P1)  P0W=293 P1W=190 D=0  avgM=+1.56  t=2.6s elapsed=241s eta=258s
+[484/1000] seed=480 SP=1 P0= 27 P1= 22 (P0)  P0W=294 P1W=190 D=0  avgM=+1.56  t=4.1s elapsed=241s eta=257s
+[485/1000] seed=486 SP=0 P0= 28 P1= 24 (P0)  P0W=295 P1W=190 D=0  avgM=+1.57  t=2.2s elapsed=241s eta=256s
+[486/1000] seed=485 SP=1 P0= 27 P1= 26 (P0)  P0W=296 P1W=190 D=0  avgM=+1.57  t=3.1s elapsed=242s eta=255s
+[487/1000] seed=488 SP=1 P0= 23 P1= 28 (P1)  P0W=296 P1W=191 D=0  avgM=+1.55  t=2.4s elapsed=242s eta=255s
+[488/1000] seed=487 SP=1 P0= 23 P1= 24 (P1)  P0W=296 P1W=192 D=0  avgM=+1.55  t=3.1s elapsed=243s eta=254s
+[489/1000] seed=489 SP=1 P0= 19 P1= 32 (P1)  P0W=296 P1W=193 D=0  avgM=+1.52  t=3.6s elapsed=243s eta=254s
+[490/1000] seed=492 SP=1 P0= 29 P1= 30 (P1)  P0W=296 P1W=194 D=0  avgM=+1.51  t=2.3s elapsed=244s eta=254s
+[491/1000] seed=482 SP=0 P0= 28 P1= 18 (P0)  P0W=297 P1W=194 D=0  avgM=+1.53  t=6.2s elapsed=244s eta=253s
+[492/1000] seed=493 SP=1 P0= 24 P1= 27 (P1)  P0W=297 P1W=195 D=0  avgM=+1.52  t=3.4s elapsed=245s eta=253s
+[493/1000] seed=490 SP=1 P0= 29 P1= 23 (P0)  P0W=298 P1W=195 D=0  avgM=+1.53  t=4.2s elapsed=245s eta=252s
+[494/1000] seed=491 SP=0 P0= 17 P1= 18 (P1)  P0W=298 P1W=196 D=0  avgM=+1.53  t=3.7s elapsed=245s eta=251s
+[495/1000] seed=497 SP=0 P0= 11 P1= 27 (P1)  P0W=298 P1W=197 D=0  avgM=+1.49  t=1.5s elapsed=245s eta=250s
+[496/1000] seed=495 SP=0 P0= 29 P1= 25 (P0)  P0W=299 P1W=197 D=0  avgM=+1.50  t=2.6s elapsed=245s eta=249s
+[497/1000] seed=494 SP=1 P0= 25 P1= 22 (P0)  P0W=300 P1W=197 D=0  avgM=+1.50  t=4.8s elapsed=247s eta=250s
+[498/1000] seed=501 SP=1 P0= 18 P1= 22 (P1)  P0W=300 P1W=198 D=0  avgM=+1.49  t=2.2s elapsed=247s eta=249s
+[499/1000] seed=499 SP=1 P0= 27 P1= 23 (P0)  P0W=301 P1W=198 D=0  avgM=+1.49  t=2.4s elapsed=247s eta=248s
+[500/1000] seed=503 SP=0 P0= 13 P1= 14 (P1)  P0W=301 P1W=199 D=0  avgM=+1.49  t=2.4s elapsed=248s eta=248s
+[501/1000] seed=504 SP=1 P0= 25 P1= 21 (P0)  P0W=302 P1W=199 D=0  avgM=+1.49  t=1.8s elapsed=249s eta=248s
+[502/1000] seed=498 SP=0 P0= 18 P1= 23 (P1)  P0W=302 P1W=200 D=0  avgM=+1.48  t=4.7s elapsed=249s eta=247s
+[503/1000] seed=505 SP=1 P0= 26 P1= 31 (P1)  P0W=302 P1W=201 D=0  avgM=+1.47  t=2.8s elapsed=250s eta=247s
+[504/1000] seed=507 SP=1 P0= 13 P1= 22 (P1)  P0W=302 P1W=202 D=0  avgM=+1.45  t=2.5s elapsed=250s eta=246s
+[505/1000] seed=502 SP=0 P0= 18 P1= 23 (P1)  P0W=302 P1W=203 D=0  avgM=+1.43  t=5.0s elapsed=250s eta=245s
+[506/1000] seed=506 SP=1 P0= 27 P1= 26 (P0)  P0W=303 P1W=203 D=0  avgM=+1.43  t=2.8s elapsed=250s eta=244s
+[507/1000] seed=508 SP=1 P0= 26 P1= 25 (P0)  P0W=304 P1W=203 D=0  avgM=+1.43  t=2.6s elapsed=251s eta=244s
+[508/1000] seed=509 SP=1 P0= 21 P1= 27 (P1)  P0W=304 P1W=204 D=0  avgM=+1.42  t=2.6s elapsed=251s eta=243s
+[509/1000] seed=512 SP=0 P0= 27 P1= 19 (P0)  P0W=305 P1W=204 D=0  avgM=+1.43  t=1.9s elapsed=252s eta=243s
+[510/1000] seed=500 SP=1 P0= 10 P1= 19 (P1)  P0W=305 P1W=205 D=0  avgM=+1.41  t=7.3s elapsed=252s eta=242s
+[511/1000] seed=513 SP=1 P0= 27 P1= 20 (P0)  P0W=306 P1W=205 D=0  avgM=+1.42  t=2.2s elapsed=252s eta=242s
+[512/1000] seed=510 SP=0 P0= 28 P1= 18 (P0)  P0W=307 P1W=205 D=0  avgM=+1.44  t=3.6s elapsed=254s eta=242s
+[513/1000] seed=515 SP=0 P0= 26 P1= 28 (P1)  P0W=307 P1W=206 D=0  avgM=+1.43  t=2.5s elapsed=254s eta=241s
+[514/1000] seed=518 SP=0 P0= 19 P1= 12 (P0)  P0W=308 P1W=206 D=0  avgM=+1.44  t=1.9s elapsed=254s eta=240s
+[515/1000] seed=516 SP=0 P0= 15 P1= 18 (P1)  P0W=308 P1W=207 D=0  avgM=+1.43  t=2.4s elapsed=254s eta=240s
+[516/1000] seed=511 SP=1 P0= 17 P1= 15 (P0)  P0W=309 P1W=207 D=0  avgM=+1.43  t=4.4s elapsed=254s eta=239s
+[517/1000] seed=514 SP=1 P0= 30 P1= 24 (P0)  P0W=310 P1W=207 D=0  avgM=+1.44  t=3.6s elapsed=255s eta=238s
+[518/1000] seed=517 SP=1 P0= 28 P1= 20 (P0)  P0W=311 P1W=207 D=0  avgM=+1.46  t=2.5s elapsed=255s eta=237s
+[519/1000] seed=521 SP=0 P0= 13 P1= 18 (P1)  P0W=311 P1W=208 D=0  avgM=+1.44  t=1.9s elapsed=256s eta=237s
+[520/1000] seed=519 SP=1 P0= 24 P1= 20 (P0)  P0W=312 P1W=208 D=0  avgM=+1.45  t=2.7s elapsed=256s eta=237s
+[521/1000] seed=520 SP=0 P0= 25 P1= 27 (P1)  P0W=312 P1W=209 D=0  avgM=+1.44  t=2.9s elapsed=257s eta=236s
+[522/1000] seed=523 SP=0 P0= 15 P1=  7 (P0)  P0W=313 P1W=209 D=0  avgM=+1.45  t=2.8s elapsed=257s eta=236s
+[523/1000] seed=525 SP=1 P0= 24 P1= 23 (P0)  P0W=314 P1W=209 D=0  avgM=+1.45  t=2.8s elapsed=258s eta=235s
+[524/1000] seed=524 SP=0 P0= 16 P1= 25 (P1)  P0W=314 P1W=210 D=0  avgM=+1.43  t=3.1s elapsed=258s eta=234s
+[525/1000] seed=527 SP=1 P0= 25 P1= 24 (P0)  P0W=315 P1W=210 D=0  avgM=+1.43  t=2.9s elapsed=259s eta=235s
+[526/1000] seed=529 SP=0 P0= 23 P1= 19 (P0)  P0W=316 P1W=210 D=0  avgM=+1.44  t=2.4s elapsed=260s eta=234s
+[527/1000] seed=530 SP=0 P0= -8 P1= 20 (P1)  P0W=316 P1W=211 D=0  avgM=+1.38  t=2.1s elapsed=260s eta=233s
+[528/1000] seed=528 SP=0 P0= 24 P1= 18 (P0)  P0W=317 P1W=211 D=0  avgM=+1.39  t=3.6s elapsed=260s eta=233s
+[529/1000] seed=531 SP=1 P0= 32 P1= 24 (P0)  P0W=318 P1W=211 D=0  avgM=+1.40  t=2.7s elapsed=261s eta=232s
+[530/1000] seed=522 SP=0 P0= 23 P1= 15 (P0)  P0W=319 P1W=211 D=0  avgM=+1.42  t=6.5s elapsed=261s eta=231s
+[531/1000] seed=532 SP=1 P0= 17 P1= 26 (P1)  P0W=319 P1W=212 D=0  avgM=+1.40  t=2.4s elapsed=262s eta=231s
+[532/1000] seed=534 SP=1 P0= 23 P1= 22 (P0)  P0W=320 P1W=212 D=0  avgM=+1.39  t=2.4s elapsed=262s eta=230s
+[533/1000] seed=526 SP=1 P0= 28 P1= 22 (P0)  P0W=321 P1W=212 D=0  avgM=+1.40  t=6.4s elapsed=263s eta=230s
+[534/1000] seed=533 SP=1 P0= 28 P1= 20 (P0)  P0W=322 P1W=212 D=0  avgM=+1.42  t=3.1s elapsed=263s eta=229s
+[535/1000] seed=536 SP=1 P0= 28 P1= 24 (P0)  P0W=323 P1W=212 D=0  avgM=+1.42  t=2.5s elapsed=263s eta=229s
+[536/1000] seed=539 SP=0 P0=  0 P1= 24 (P1)  P0W=323 P1W=213 D=0  avgM=+1.37  t=2.9s elapsed=265s eta=229s
+[537/1000] seed=542 SP=1 P0= 23 P1= 10 (P0)  P0W=324 P1W=213 D=0  avgM=+1.39  t=3.1s elapsed=266s eta=229s
+[538/1000] seed=540 SP=0 P0= 27 P1= 21 (P0)  P0W=325 P1W=213 D=0  avgM=+1.40  t=4.1s elapsed=267s eta=229s
+[539/1000] seed=543 SP=1 P0= 17 P1= 22 (P1)  P0W=325 P1W=214 D=0  avgM=+1.39  t=2.4s elapsed=267s eta=229s
+[540/1000] seed=537 SP=0 P0= 23 P1= 15 (P0)  P0W=326 P1W=214 D=0  avgM=+1.40  t=7.4s elapsed=268s eta=229s
+[541/1000] seed=545 SP=0 P0= 21 P1= 14 (P0)  P0W=327 P1W=214 D=0  avgM=+1.41  t=3.0s elapsed=270s eta=229s
+[542/1000] seed=496 SP=0 P0= 27 P1= 15 (P0)  P0W=328 P1W=214 D=0  avgM=+1.43  t=27.2s elapsed=270s eta=228s
+[543/1000] seed=538 SP=0 P0= 28 P1= 19 (P0)  P0W=329 P1W=214 D=0  avgM=+1.45  t=8.8s elapsed=270s eta=228s
+[544/1000] seed=547 SP=0 P0= 16 P1= 30 (P1)  P0W=329 P1W=215 D=0  avgM=+1.42  t=2.6s elapsed=271s eta=227s
+[545/1000] seed=541 SP=0 P0= 26 P1= 21 (P0)  P0W=330 P1W=215 D=0  avgM=+1.43  t=8.2s elapsed=271s eta=226s
+[546/1000] seed=548 SP=0 P0= 21 P1= 19 (P0)  P0W=331 P1W=215 D=0  avgM=+1.43  t=2.0s elapsed=272s eta=226s
+[547/1000] seed=544 SP=0 P0= 33 P1= 15 (P0)  P0W=332 P1W=215 D=0  avgM=+1.46  t=6.3s elapsed=272s eta=226s
+[548/1000] seed=552 SP=0 P0= 26 P1= 19 (P0)  P0W=333 P1W=215 D=0  avgM=+1.47  t=2.1s elapsed=273s eta=225s
+[549/1000] seed=546 SP=0 P0= 28 P1= 27 (P0)  P0W=334 P1W=215 D=0  avgM=+1.47  t=6.0s elapsed=273s eta=225s
+[550/1000] seed=549 SP=0 P0= 16 P1= 25 (P1)  P0W=334 P1W=216 D=0  avgM=+1.45  t=3.3s elapsed=274s eta=224s
+[551/1000] seed=551 SP=0 P0= 21 P1=-19 (P0)  P0W=335 P1W=216 D=0  avgM=+1.52  t=2.9s elapsed=274s eta=223s
+[552/1000] seed=554 SP=1 P0= 21 P1= 24 (P1)  P0W=335 P1W=217 D=0  avgM=+1.51  t=1.8s elapsed=274s eta=223s
+[553/1000] seed=550 SP=1 P0= 23 P1= 28 (P1)  P0W=335 P1W=218 D=0  avgM=+1.50  t=4.3s elapsed=275s eta=222s
+[554/1000] seed=553 SP=1 P0= 22 P1= 15 (P0)  P0W=336 P1W=218 D=0  avgM=+1.51  t=3.4s elapsed=275s eta=221s
+[555/1000] seed=555 SP=0 P0=  7 P1= 13 (P1)  P0W=336 P1W=219 D=0  avgM=+1.49  t=2.5s elapsed=275s eta=221s
+[556/1000] seed=556 SP=0 P0= 15 P1= 26 (P1)  P0W=336 P1W=220 D=0  avgM=+1.47  t=3.4s elapsed=277s eta=221s
+[557/1000] seed=559 SP=0 P0= 25 P1= 32 (P1)  P0W=336 P1W=221 D=0  avgM=+1.46  t=3.4s elapsed=278s eta=221s
+[558/1000] seed=561 SP=0 P0= 24 P1= 31 (P1)  P0W=336 P1W=222 D=0  avgM=+1.44  t=2.7s elapsed=278s eta=220s
+[559/1000] seed=557 SP=1 P0= 23 P1= 25 (P1)  P0W=336 P1W=223 D=0  avgM=+1.43  t=4.1s elapsed=278s eta=219s
+[560/1000] seed=560 SP=1 P0= 29 P1= 23 (P0)  P0W=337 P1W=223 D=0  avgM=+1.44  t=3.5s elapsed=278s eta=219s
+[561/1000] seed=563 SP=0 P0= 13 P1= 18 (P1)  P0W=337 P1W=224 D=0  avgM=+1.43  t=1.7s elapsed=278s eta=218s
+[562/1000] seed=562 SP=0 P0= 21 P1= 26 (P1)  P0W=337 P1W=225 D=0  avgM=+1.42  t=3.0s elapsed=279s eta=217s
+[563/1000] seed=566 SP=1 P0= 22 P1= 21 (P0)  P0W=338 P1W=225 D=0  avgM=+1.42  t=2.0s elapsed=280s eta=217s
+[564/1000] seed=535 SP=0 P0= 34 P1= 16 (P0)  P0W=339 P1W=225 D=0  avgM=+1.45  t=19.5s elapsed=280s eta=216s
+[565/1000] seed=568 SP=1 P0= 19 P1= 31 (P1)  P0W=339 P1W=226 D=0  avgM=+1.42  t=2.6s elapsed=281s eta=216s
+[566/1000] seed=565 SP=1 P0= 26 P1= 23 (P0)  P0W=340 P1W=226 D=0  avgM=+1.43  t=3.9s elapsed=282s eta=216s
+[567/1000] seed=571 SP=1 P0= 21 P1= 18 (P0)  P0W=341 P1W=226 D=0  avgM=+1.43  t=2.0s elapsed=282s eta=215s
+[568/1000] seed=567 SP=0 P0= 32 P1= 20 (P0)  P0W=342 P1W=226 D=0  avgM=+1.45  t=4.8s elapsed=283s eta=215s
+[569/1000] seed=564 SP=0 P0= 20 P1=  9 (P0)  P0W=343 P1W=226 D=0  avgM=+1.47  t=5.5s elapsed=283s eta=215s
+[570/1000] seed=558 SP=0 P0= 26 P1= 18 (P0)  P0W=344 P1W=226 D=0  avgM=+1.48  t=9.5s elapsed=283s eta=214s
+[571/1000] seed=574 SP=0 P0= 26 P1= 20 (P0)  P0W=345 P1W=226 D=0  avgM=+1.49  t=1.7s elapsed=283s eta=213s
+[572/1000] seed=573 SP=1 P0= 21 P1= 18 (P0)  P0W=346 P1W=226 D=0  avgM=+1.49  t=1.9s elapsed=283s eta=212s
+[573/1000] seed=572 SP=1 P0= 17 P1= 12 (P0)  P0W=347 P1W=226 D=0  avgM=+1.49  t=3.1s elapsed=284s eta=212s
+[574/1000] seed=570 SP=0 P0= 13 P1= 23 (P1)  P0W=347 P1W=227 D=0  avgM=+1.47  t=4.9s elapsed=285s eta=211s
+[575/1000] seed=569 SP=0 P0= 23 P1= 15 (P0)  P0W=348 P1W=227 D=0  avgM=+1.49  t=6.5s elapsed=285s eta=211s
+[576/1000] seed=575 SP=1 P0= 19 P1= 31 (P1)  P0W=348 P1W=228 D=0  avgM=+1.46  t=2.7s elapsed=286s eta=210s
+[577/1000] seed=577 SP=0 P0= 22 P1= 22 (P1)  P0W=348 P1W=229 D=0  avgM=+1.46  t=2.5s elapsed=286s eta=210s
+[578/1000] seed=578 SP=1 P0= 30 P1= 26 (P0)  P0W=349 P1W=229 D=0  avgM=+1.46  t=2.4s elapsed=286s eta=209s
+[579/1000] seed=576 SP=0 P0=  8 P1= 13 (P1)  P0W=349 P1W=230 D=0  avgM=+1.45  t=3.1s elapsed=286s eta=208s
+[580/1000] seed=581 SP=0 P0= 12 P1= 26 (P1)  P0W=349 P1W=231 D=0  avgM=+1.43  t=1.8s elapsed=286s eta=207s
+[581/1000] seed=580 SP=0 P0= 11 P1= 10 (P0)  P0W=350 P1W=231 D=0  avgM=+1.43  t=2.4s elapsed=287s eta=207s
+[582/1000] seed=582 SP=1 P0= 26 P1= 28 (P1)  P0W=350 P1W=232 D=0  avgM=+1.42  t=1.7s elapsed=287s eta=206s
+[583/1000] seed=583 SP=0 P0= 21 P1= 20 (P0)  P0W=351 P1W=232 D=0  avgM=+1.42  t=1.8s elapsed=287s eta=206s
+[584/1000] seed=579 SP=1 P0= 23 P1= 28 (P1)  P0W=351 P1W=233 D=0  avgM=+1.41  t=4.2s elapsed=288s eta=205s
+[585/1000] seed=588 SP=0 P0= 19 P1= 20 (P1)  P0W=351 P1W=234 D=0  avgM=+1.40  t=2.0s elapsed=288s eta=205s
+[586/1000] seed=587 SP=1 P0= 19 P1= 13 (P0)  P0W=352 P1W=234 D=0  avgM=+1.41  t=2.3s elapsed=289s eta=204s
+[587/1000] seed=584 SP=0 P0= 17 P1= 30 (P1)  P0W=352 P1W=235 D=0  avgM=+1.39  t=3.1s elapsed=289s eta=203s
+[588/1000] seed=586 SP=1 P0= 14 P1= 20 (P1)  P0W=352 P1W=236 D=0  avgM=+1.37  t=2.7s elapsed=289s eta=202s
+[589/1000] seed=585 SP=0 P0= 17 P1= 29 (P1)  P0W=352 P1W=237 D=0  avgM=+1.35  t=3.1s elapsed=289s eta=202s
+[590/1000] seed=595 SP=1 P0= 26 P1= 22 (P0)  P0W=353 P1W=237 D=0  avgM=+1.36  t=2.4s elapsed=291s eta=202s
+[591/1000] seed=593 SP=1 P0= 23 P1= 26 (P1)  P0W=353 P1W=238 D=0  avgM=+1.35  t=2.7s elapsed=291s eta=202s
+[592/1000] seed=594 SP=1 P0= 29 P1= 14 (P0)  P0W=354 P1W=238 D=0  avgM=+1.37  t=2.6s elapsed=292s eta=201s
+[593/1000] seed=592 SP=0 P0= 27 P1= 21 (P0)  P0W=355 P1W=238 D=0  avgM=+1.38  t=3.1s elapsed=292s eta=200s
+[594/1000] seed=589 SP=0 P0= 18 P1= 23 (P1)  P0W=355 P1W=239 D=0  avgM=+1.37  t=5.1s elapsed=292s eta=199s
+[595/1000] seed=596 SP=1 P0= 18 P1= 29 (P1)  P0W=355 P1W=240 D=0  avgM=+1.35  t=3.7s elapsed=293s eta=199s
+[596/1000] seed=601 SP=0 P0= 26 P1= 23 (P0)  P0W=356 P1W=240 D=0  avgM=+1.35  t=2.0s elapsed=294s eta=199s
+[597/1000] seed=599 SP=1 P0= 27 P1= 25 (P0)  P0W=357 P1W=240 D=0  avgM=+1.35  t=2.5s elapsed=294s eta=198s
+[598/1000] seed=597 SP=1 P0= 34 P1= 21 (P0)  P0W=358 P1W=240 D=0  avgM=+1.37  t=3.1s elapsed=294s eta=198s
+[599/1000] seed=598 SP=0 P0= 18 P1= 19 (P1)  P0W=358 P1W=241 D=0  avgM=+1.37  t=3.3s elapsed=295s eta=197s
+[600/1000] seed=600 SP=0 P0= 28 P1= 25 (P0)  P0W=359 P1W=241 D=0  avgM=+1.37  t=3.2s elapsed=295s eta=197s
+[601/1000] seed=590 SP=1 P0= 28 P1= 38 (P1)  P0W=359 P1W=242 D=0  avgM=+1.35  t=7.7s elapsed=295s eta=196s
+[602/1000] seed=591 SP=0 P0= 30 P1= 22 (P0)  P0W=360 P1W=242 D=0  avgM=+1.36  t=7.9s elapsed=296s eta=195s
+[603/1000] seed=604 SP=0 P0=-17 P1= 19 (P1)  P0W=360 P1W=243 D=0  avgM=+1.30  t=1.7s elapsed=296s eta=195s
+[604/1000] seed=606 SP=1 P0= 21 P1= 22 (P1)  P0W=360 P1W=244 D=0  avgM=+1.30  t=2.2s elapsed=297s eta=195s
+[605/1000] seed=603 SP=0 P0= 25 P1= 32 (P1)  P0W=360 P1W=245 D=0  avgM=+1.28  t=3.1s elapsed=297s eta=194s
+[606/1000] seed=602 SP=0 P0= 26 P1= 22 (P0)  P0W=361 P1W=245 D=0  avgM=+1.29  t=5.0s elapsed=298s eta=194s
+[607/1000] seed=605 SP=0 P0= 28 P1= 23 (P0)  P0W=362 P1W=245 D=0  avgM=+1.29  t=3.5s elapsed=298s eta=193s
+[608/1000] seed=607 SP=1 P0= 20 P1= 27 (P1)  P0W=362 P1W=246 D=0  avgM=+1.28  t=3.3s elapsed=298s eta=192s
+[609/1000] seed=609 SP=1 P0= 14 P1= 20 (P1)  P0W=362 P1W=247 D=0  avgM=+1.27  t=2.5s elapsed=298s eta=191s
+[610/1000] seed=608 SP=0 P0= 25 P1= 15 (P0)  P0W=363 P1W=247 D=0  avgM=+1.28  t=4.3s elapsed=299s eta=191s
+[611/1000] seed=611 SP=1 P0= 26 P1= 32 (P1)  P0W=363 P1W=248 D=0  avgM=+1.27  t=2.5s elapsed=299s eta=191s
+[612/1000] seed=612 SP=1 P0= 24 P1= 23 (P0)  P0W=364 P1W=248 D=0  avgM=+1.27  t=2.5s elapsed=300s eta=190s
+[613/1000] seed=615 SP=1 P0= 28 P1= 26 (P0)  P0W=365 P1W=248 D=0  avgM=+1.27  t=2.6s elapsed=301s eta=190s
+[614/1000] seed=610 SP=0 P0= 18 P1= 23 (P1)  P0W=365 P1W=249 D=0  avgM=+1.26  t=5.3s elapsed=301s eta=189s
+[615/1000] seed=617 SP=1 P0= 25 P1= 20 (P0)  P0W=366 P1W=249 D=0  avgM=+1.27  t=2.7s elapsed=302s eta=189s
+[616/1000] seed=619 SP=0 P0= 32 P1= 23 (P0)  P0W=367 P1W=249 D=0  avgM=+1.28  t=3.1s elapsed=303s eta=189s
+[617/1000] seed=614 SP=1 P0= 22 P1= 16 (P0)  P0W=368 P1W=249 D=0  avgM=+1.29  t=4.8s elapsed=303s eta=188s
+[618/1000] seed=620 SP=1 P0= 29 P1= 25 (P0)  P0W=369 P1W=249 D=0  avgM=+1.29  t=2.1s elapsed=303s eta=187s
+[619/1000] seed=613 SP=0 P0= 13 P1= 23 (P1)  P0W=369 P1W=250 D=0  avgM=+1.27  t=5.2s elapsed=303s eta=186s
+[620/1000] seed=616 SP=0 P0= 30 P1= 17 (P0)  P0W=370 P1W=250 D=0  avgM=+1.29  t=4.8s elapsed=303s eta=186s
+[621/1000] seed=618 SP=0 P0= 14 P1= 34 (P1)  P0W=370 P1W=251 D=0  avgM=+1.26  t=3.6s elapsed=303s eta=185s
+[622/1000] seed=621 SP=0 P0= 22 P1= 33 (P1)  P0W=370 P1W=252 D=0  avgM=+1.24  t=3.1s elapsed=304s eta=185s
+[623/1000] seed=624 SP=0 P0= 12 P1= 26 (P1)  P0W=370 P1W=253 D=0  avgM=+1.21  t=1.7s elapsed=304s eta=184s
+[624/1000] seed=623 SP=1 P0= 16 P1= 23 (P1)  P0W=370 P1W=254 D=0  avgM=+1.20  t=2.4s elapsed=305s eta=184s
+[625/1000] seed=626 SP=1 P0= 19 P1= 23 (P1)  P0W=370 P1W=255 D=0  avgM=+1.19  t=2.3s elapsed=305s eta=183s
+[626/1000] seed=628 SP=0 P0= 23 P1= 25 (P1)  P0W=370 P1W=256 D=0  avgM=+1.19  t=3.0s elapsed=306s eta=183s
+[627/1000] seed=627 SP=1 P0= 29 P1= 32 (P1)  P0W=370 P1W=257 D=0  avgM=+1.18  t=3.1s elapsed=306s eta=182s
+[628/1000] seed=622 SP=0 P0= 37 P1= 16 (P0)  P0W=371 P1W=257 D=0  avgM=+1.21  t=4.1s elapsed=306s eta=181s
+[629/1000] seed=632 SP=0 P0=-17 P1= 19 (P1)  P0W=371 P1W=258 D=0  avgM=+1.15  t=1.6s elapsed=307s eta=181s
+[630/1000] seed=629 SP=1 P0= 22 P1= 24 (P1)  P0W=371 P1W=259 D=0  avgM=+1.15  t=2.8s elapsed=307s eta=180s
+[631/1000] seed=625 SP=0 P0= 10 P1= 21 (P1)  P0W=371 P1W=260 D=0  avgM=+1.13  t=4.3s elapsed=307s eta=180s
+[632/1000] seed=630 SP=0 P0= 24 P1= 22 (P0)  P0W=372 P1W=260 D=0  avgM=+1.13  t=3.9s elapsed=308s eta=180s
+[633/1000] seed=635 SP=1 P0= 19 P1= 29 (P1)  P0W=372 P1W=261 D=0  avgM=+1.11  t=2.4s elapsed=309s eta=179s
+[634/1000] seed=638 SP=1 P0= 25 P1= 23 (P0)  P0W=373 P1W=261 D=0  avgM=+1.11  t=1.7s elapsed=309s eta=178s
+[635/1000] seed=633 SP=1 P0= 28 P1= 25 (P0)  P0W=374 P1W=261 D=0  avgM=+1.12  t=3.3s elapsed=309s eta=178s
+[636/1000] seed=637 SP=0 P0= 17 P1= 28 (P1)  P0W=374 P1W=262 D=0  avgM=+1.10  t=2.7s elapsed=310s eta=177s
+[637/1000] seed=639 SP=1 P0= 28 P1= 27 (P0)  P0W=375 P1W=262 D=0  avgM=+1.10  t=2.4s elapsed=311s eta=177s
+[638/1000] seed=636 SP=0 P0= 29 P1= 15 (P0)  P0W=376 P1W=262 D=0  avgM=+1.12  t=4.0s elapsed=311s eta=176s
+[639/1000] seed=640 SP=1 P0= 22 P1= 24 (P1)  P0W=376 P1W=263 D=0  avgM=+1.11  t=2.4s elapsed=311s eta=176s
+[640/1000] seed=642 SP=0 P0= 15 P1= 25 (P1)  P0W=376 P1W=264 D=0  avgM=+1.10  t=2.0s elapsed=311s eta=175s
+[641/1000] seed=641 SP=1 P0= 30 P1= 21 (P0)  P0W=377 P1W=264 D=0  avgM=+1.11  t=3.0s elapsed=312s eta=175s
+[642/1000] seed=631 SP=0 P0= 35 P1= 19 (P0)  P0W=378 P1W=264 D=0  avgM=+1.13  t=7.6s elapsed=313s eta=174s
+[643/1000] seed=645 SP=0 P0= 23 P1= 24 (P1)  P0W=378 P1W=265 D=0  avgM=+1.13  t=2.2s elapsed=313s eta=174s
+[644/1000] seed=646 SP=1 P0= 25 P1= 29 (P1)  P0W=378 P1W=266 D=0  avgM=+1.12  t=2.6s elapsed=313s eta=173s
+[645/1000] seed=648 SP=0 P0= 29 P1= 23 (P0)  P0W=379 P1W=266 D=0  avgM=+1.13  t=2.2s elapsed=314s eta=173s
+[646/1000] seed=647 SP=0 P0= 24 P1= 18 (P0)  P0W=380 P1W=266 D=0  avgM=+1.13  t=2.9s elapsed=314s eta=172s
+[647/1000] seed=643 SP=1 P0= 20 P1= 18 (P0)  P0W=381 P1W=266 D=0  avgM=+1.14  t=4.7s elapsed=314s eta=171s
+[648/1000] seed=650 SP=1 P0= 22 P1= 18 (P0)  P0W=382 P1W=266 D=0  avgM=+1.14  t=1.8s elapsed=315s eta=171s
+[649/1000] seed=644 SP=1 P0= 33 P1= 21 (P0)  P0W=383 P1W=266 D=0  avgM=+1.16  t=4.7s elapsed=315s eta=171s
+[650/1000] seed=651 SP=1 P0= 27 P1= 26 (P0)  P0W=384 P1W=266 D=0  avgM=+1.16  t=2.2s elapsed=316s eta=170s
+[651/1000] seed=649 SP=1 P0= 21 P1= 15 (P0)  P0W=385 P1W=266 D=0  avgM=+1.16  t=3.5s elapsed=316s eta=169s
+[652/1000] seed=653 SP=0 P0= 25 P1= 22 (P0)  P0W=386 P1W=266 D=0  avgM=+1.17  t=2.9s elapsed=317s eta=169s
+[653/1000] seed=652 SP=1 P0= 20 P1= 27 (P1)  P0W=386 P1W=267 D=0  avgM=+1.15  t=3.3s elapsed=317s eta=169s
+[654/1000] seed=655 SP=0 P0= 17 P1= 12 (P0)  P0W=387 P1W=267 D=0  avgM=+1.16  t=2.7s elapsed=318s eta=168s
+[655/1000] seed=656 SP=0 P0= 23 P1= 18 (P0)  P0W=388 P1W=267 D=0  avgM=+1.17  t=2.9s elapsed=318s eta=168s
+[656/1000] seed=657 SP=0 P0= 25 P1= 22 (P0)  P0W=389 P1W=267 D=0  avgM=+1.17  t=3.1s elapsed=319s eta=167s
+[657/1000] seed=654 SP=0 P0= 28 P1= 13 (P0)  P0W=390 P1W=267 D=0  avgM=+1.19  t=5.1s elapsed=319s eta=167s
+[658/1000] seed=660 SP=0 P0= 28 P1= 24 (P0)  P0W=391 P1W=267 D=0  avgM=+1.19  t=2.3s elapsed=320s eta=166s
+[659/1000] seed=659 SP=1 P0= 27 P1= 23 (P0)  P0W=392 P1W=267 D=0  avgM=+1.20  t=2.9s elapsed=320s eta=166s
+[660/1000] seed=661 SP=0 P0= 15 P1= 26 (P1)  P0W=392 P1W=268 D=0  avgM=+1.18  t=2.7s elapsed=320s eta=165s
+[661/1000] seed=665 SP=1 P0= 21 P1= 18 (P0)  P0W=393 P1W=268 D=0  avgM=+1.18  t=1.7s elapsed=321s eta=165s
+[662/1000] seed=666 SP=1 P0= 31 P1= 24 (P0)  P0W=394 P1W=268 D=0  avgM=+1.19  t=3.2s elapsed=323s eta=165s
+[663/1000] seed=634 SP=0 P0= 32 P1= 10 (P0)  P0W=395 P1W=268 D=0  avgM=+1.22  t=17.1s elapsed=323s eta=164s
+[664/1000] seed=664 SP=1 P0= 25 P1= 22 (P0)  P0W=396 P1W=268 D=0  avgM=+1.23  t=4.7s elapsed=324s eta=164s
+[665/1000] seed=669 SP=1 P0= 30 P1= 27 (P0)  P0W=397 P1W=268 D=0  avgM=+1.23  t=1.5s elapsed=325s eta=164s
+[666/1000] seed=670 SP=0 P0= 13 P1= 18 (P1)  P0W=397 P1W=269 D=0  avgM=+1.22  t=1.5s elapsed=325s eta=163s
+[667/1000] seed=658 SP=0 P0= 31 P1= 17 (P0)  P0W=398 P1W=269 D=0  avgM=+1.24  t=9.7s elapsed=326s eta=163s
+[668/1000] seed=668 SP=1 P0= 32 P1= 26 (P0)  P0W=399 P1W=269 D=0  avgM=+1.25  t=4.6s elapsed=326s eta=162s
+[669/1000] seed=671 SP=0 P0= 11 P1=  8 (P0)  P0W=400 P1W=269 D=0  avgM=+1.25  t=2.0s elapsed=326s eta=161s
+[670/1000] seed=672 SP=1 P0= 22 P1= 20 (P0)  P0W=401 P1W=269 D=0  avgM=+1.25  t=2.1s elapsed=327s eta=161s
+[671/1000] seed=673 SP=1 P0= 21 P1= 27 (P1)  P0W=401 P1W=270 D=0  avgM=+1.24  t=2.2s elapsed=327s eta=160s
+[672/1000] seed=667 SP=1 P0= 31 P1= 12 (P0)  P0W=402 P1W=270 D=0  avgM=+1.26  t=6.7s elapsed=327s eta=160s
+[673/1000] seed=662 SP=0 P0= 31 P1= 17 (P0)  P0W=403 P1W=270 D=0  avgM=+1.28  t=9.1s elapsed=327s eta=159s
+[674/1000] seed=678 SP=1 P0=  2 P1= 18 (P1)  P0W=403 P1W=271 D=0  avgM=+1.26  t=1.3s elapsed=328s eta=159s
+[675/1000] seed=677 SP=0 P0= 17 P1= 10 (P0)  P0W=404 P1W=271 D=0  avgM=+1.27  t=1.7s elapsed=328s eta=158s
+[676/1000] seed=675 SP=1 P0= 21 P1= 28 (P1)  P0W=404 P1W=272 D=0  avgM=+1.25  t=2.6s elapsed=328s eta=157s
+[677/1000] seed=674 SP=1 P0= 26 P1= 23 (P0)  P0W=405 P1W=272 D=0  avgM=+1.26  t=3.1s elapsed=329s eta=157s
+[678/1000] seed=676 SP=0 P0= 20 P1=  7 (P0)  P0W=406 P1W=272 D=0  avgM=+1.27  t=2.8s elapsed=329s eta=156s
+[679/1000] seed=663 SP=1 P0= 32 P1= 18 (P0)  P0W=407 P1W=272 D=0  avgM=+1.29  t=10.2s elapsed=329s eta=156s
+[680/1000] seed=680 SP=1 P0= 23 P1= 10 (P0)  P0W=408 P1W=272 D=0  avgM=+1.31  t=2.0s elapsed=329s eta=155s
+[681/1000] seed=679 SP=1 P0= 29 P1= 32 (P1)  P0W=408 P1W=273 D=0  avgM=+1.30  t=2.7s elapsed=330s eta=154s
+[682/1000] seed=684 SP=0 P0= 16 P1= 16 (P1)  P0W=408 P1W=274 D=0  avgM=+1.30  t=1.8s elapsed=331s eta=154s
+[683/1000] seed=681 SP=1 P0= 22 P1= 21 (P0)  P0W=409 P1W=274 D=0  avgM=+1.30  t=2.6s elapsed=331s eta=154s
+[684/1000] seed=682 SP=1 P0= 21 P1= 28 (P1)  P0W=409 P1W=275 D=0  avgM=+1.29  t=2.4s elapsed=331s eta=153s
+[685/1000] seed=686 SP=1 P0= 15 P1= 28 (P1)  P0W=409 P1W=276 D=0  avgM=+1.27  t=2.4s elapsed=331s eta=152s
+[686/1000] seed=685 SP=1 P0= 21 P1= 29 (P1)  P0W=409 P1W=277 D=0  avgM=+1.26  t=2.6s elapsed=332s eta=152s
+[687/1000] seed=683 SP=1 P0= 28 P1= 25 (P0)  P0W=410 P1W=277 D=0  avgM=+1.26  t=3.1s elapsed=332s eta=151s
+[688/1000] seed=687 SP=1 P0= 26 P1= 27 (P1)  P0W=410 P1W=278 D=0  avgM=+1.25  t=2.2s elapsed=332s eta=150s
+[689/1000] seed=689 SP=0 P0= 22 P1= 22 (P1)  P0W=410 P1W=279 D=0  avgM=+1.25  t=2.1s elapsed=333s eta=150s
+[690/1000] seed=692 SP=1 P0= 23 P1=  7 (P0)  P0W=411 P1W=279 D=0  avgM=+1.27  t=2.1s elapsed=333s eta=150s
+[691/1000] seed=694 SP=1 P0= 30 P1= 26 (P0)  P0W=412 P1W=279 D=0  avgM=+1.28  t=2.4s elapsed=334s eta=149s
+[692/1000] seed=696 SP=0 P0= 23 P1= 23 (P0)  P0W=413 P1W=279 D=0  avgM=+1.28  t=1.6s elapsed=334s eta=149s
+[693/1000] seed=693 SP=1 P0= 23 P1= 10 (P0)  P0W=414 P1W=279 D=0  avgM=+1.29  t=2.9s elapsed=334s eta=148s
+[694/1000] seed=690 SP=1 P0= 32 P1= 24 (P0)  P0W=415 P1W=279 D=0  avgM=+1.30  t=4.2s elapsed=335s eta=148s
+[695/1000] seed=695 SP=0 P0= 10 P1= 21 (P1)  P0W=415 P1W=280 D=0  avgM=+1.28  t=3.9s elapsed=336s eta=147s
+[696/1000] seed=698 SP=1 P0= 26 P1= 24 (P0)  P0W=416 P1W=280 D=0  avgM=+1.29  t=2.2s elapsed=336s eta=147s
+[697/1000] seed=688 SP=0 P0= 16 P1= 12 (P0)  P0W=417 P1W=280 D=0  avgM=+1.29  t=7.3s elapsed=337s eta=146s
+[698/1000] seed=699 SP=1 P0= 26 P1= 27 (P1)  P0W=417 P1W=281 D=0  avgM=+1.29  t=3.2s elapsed=337s eta=146s
+[699/1000] seed=700 SP=0 P0= 14 P1= 34 (P1)  P0W=417 P1W=282 D=0  avgM=+1.26  t=3.3s elapsed=338s eta=145s
+[700/1000] seed=702 SP=0 P0= 24 P1= 20 (P0)  P0W=418 P1W=282 D=0  avgM=+1.26  t=2.5s elapsed=338s eta=145s
+[701/1000] seed=703 SP=1 P0= 17 P1=  8 (P0)  P0W=419 P1W=282 D=0  avgM=+1.27  t=2.1s elapsed=338s eta=144s
+[702/1000] seed=706 SP=1 P0= 17 P1= 26 (P1)  P0W=419 P1W=283 D=0  avgM=+1.26  t=1.6s elapsed=339s eta=144s
+[703/1000] seed=701 SP=0 P0= 33 P1= 20 (P0)  P0W=420 P1W=283 D=0  avgM=+1.27  t=4.5s elapsed=339s eta=143s
+[704/1000] seed=707 SP=0 P0=  0 P1= 24 (P1)  P0W=420 P1W=284 D=0  avgM=+1.24  t=1.6s elapsed=340s eta=143s
+[705/1000] seed=708 SP=0 P0= 24 P1= 18 (P0)  P0W=421 P1W=284 D=0  avgM=+1.24  t=2.7s elapsed=341s eta=143s
+[706/1000] seed=705 SP=0 P0= 13 P1= 23 (P1)  P0W=421 P1W=285 D=0  avgM=+1.23  t=3.7s elapsed=341s eta=142s
+[707/1000] seed=704 SP=1 P0= 26 P1= 31 (P1)  P0W=421 P1W=286 D=0  avgM=+1.22  t=4.6s elapsed=342s eta=142s
+[708/1000] seed=710 SP=0 P0= 20 P1= 28 (P1)  P0W=421 P1W=287 D=0  avgM=+1.21  t=2.1s elapsed=342s eta=141s
+[709/1000] seed=711 SP=0 P0= 11 P1=  8 (P0)  P0W=422 P1W=287 D=0  avgM=+1.21  t=2.4s elapsed=342s eta=140s
+[710/1000] seed=709 SP=1 P0= 26 P1= 18 (P0)  P0W=423 P1W=287 D=0  avgM=+1.22  t=2.8s elapsed=342s eta=140s
+[711/1000] seed=697 SP=1 P0= 32 P1= 18 (P0)  P0W=424 P1W=287 D=0  avgM=+1.24  t=9.6s elapsed=343s eta=139s
+[712/1000] seed=714 SP=1 P0= 26 P1= 25 (P0)  P0W=425 P1W=287 D=0  avgM=+1.24  t=1.9s elapsed=343s eta=139s
+[713/1000] seed=717 SP=0 P0= 25 P1= 22 (P0)  P0W=426 P1W=287 D=0  avgM=+1.24  t=2.2s elapsed=344s eta=139s
+[714/1000] seed=718 SP=1 P0=  2 P1= 18 (P1)  P0W=426 P1W=288 D=0  avgM=+1.21  t=1.3s elapsed=344s eta=138s
+[715/1000] seed=719 SP=1 P0= 28 P1= 20 (P0)  P0W=427 P1W=288 D=0  avgM=+1.22  t=2.4s elapsed=346s eta=138s
+[716/1000] seed=716 SP=0 P0= 25 P1= 15 (P0)  P0W=428 P1W=288 D=0  avgM=+1.24  t=3.8s elapsed=346s eta=137s
+[717/1000] seed=720 SP=1 P0= 19 P1= 13 (P0)  P0W=429 P1W=288 D=0  avgM=+1.24  t=1.8s elapsed=346s eta=137s
+[718/1000] seed=715 SP=0 P0= 19 P1= 23 (P1)  P0W=429 P1W=289 D=0  avgM=+1.24  t=4.8s elapsed=346s eta=136s
+[719/1000] seed=712 SP=0 P0= 29 P1= 19 (P0)  P0W=430 P1W=289 D=0  avgM=+1.25  t=5.7s elapsed=347s eta=135s
+[720/1000] seed=721 SP=1 P0= 25 P1= 21 (P0)  P0W=431 P1W=289 D=0  avgM=+1.25  t=2.7s elapsed=347s eta=135s
+[721/1000] seed=725 SP=0 P0= 27 P1= 19 (P0)  P0W=432 P1W=289 D=0  avgM=+1.26  t=1.5s elapsed=348s eta=135s
+[722/1000] seed=724 SP=0 P0= 21 P1= 25 (P1)  P0W=432 P1W=290 D=0  avgM=+1.25  t=1.8s elapsed=348s eta=134s
+[723/1000] seed=727 SP=0 P0= 27 P1= 18 (P0)  P0W=433 P1W=290 D=0  avgM=+1.26  t=1.6s elapsed=349s eta=134s
+[724/1000] seed=713 SP=0 P0= 33 P1= 22 (P0)  P0W=434 P1W=290 D=0  avgM=+1.28  t=7.9s elapsed=349s eta=133s
+[725/1000] seed=729 SP=0 P0= 13 P1= 18 (P1)  P0W=434 P1W=291 D=0  avgM=+1.27  t=1.5s elapsed=349s eta=133s
+[726/1000] seed=728 SP=1 P0= 26 P1= 25 (P0)  P0W=435 P1W=291 D=0  avgM=+1.27  t=1.8s elapsed=350s eta=132s
+[727/1000] seed=730 SP=1 P0= 26 P1= 19 (P0)  P0W=436 P1W=291 D=0  avgM=+1.28  t=1.5s elapsed=350s eta=131s
+[728/1000] seed=731 SP=1 P0= 24 P1= 19 (P0)  P0W=437 P1W=291 D=0  avgM=+1.28  t=2.4s elapsed=351s eta=131s
+[729/1000] seed=722 SP=0 P0= 29 P1= 18 (P0)  P0W=438 P1W=291 D=0  avgM=+1.29  t=5.8s elapsed=352s eta=131s
+[730/1000] seed=732 SP=0 P0= 31 P1= 29 (P0)  P0W=439 P1W=291 D=0  avgM=+1.30  t=2.4s elapsed=352s eta=130s
+[731/1000] seed=723 SP=1 P0= 23 P1= 19 (P0)  P0W=440 P1W=291 D=0  avgM=+1.30  t=6.9s elapsed=353s eta=130s
+[732/1000] seed=733 SP=1 P0= 21 P1= 27 (P1)  P0W=440 P1W=292 D=0  avgM=+1.29  t=3.5s elapsed=353s eta=129s
+[733/1000] seed=734 SP=0 P0= 25 P1= 17 (P0)  P0W=441 P1W=292 D=0  avgM=+1.30  t=3.9s elapsed=354s eta=129s
+[734/1000] seed=735 SP=0 P0= 18 P1= 19 (P1)  P0W=441 P1W=293 D=0  avgM=+1.30  t=2.7s elapsed=354s eta=128s
+[735/1000] seed=737 SP=0 P0= 17 P1= 28 (P1)  P0W=441 P1W=294 D=0  avgM=+1.28  t=2.4s elapsed=354s eta=128s
+[736/1000] seed=739 SP=1 P0= 16 P1= 19 (P1)  P0W=441 P1W=295 D=0  avgM=+1.27  t=1.7s elapsed=355s eta=127s
+[737/1000] seed=738 SP=1 P0= 20 P1= 27 (P1)  P0W=441 P1W=296 D=0  avgM=+1.26  t=2.6s elapsed=355s eta=127s
+[738/1000] seed=741 SP=1 P0= 27 P1= 23 (P0)  P0W=442 P1W=296 D=0  avgM=+1.27  t=2.3s elapsed=356s eta=127s
+[739/1000] seed=743 SP=1 P0= 29 P1= 29 (P0)  P0W=443 P1W=296 D=0  avgM=+1.26  t=1.8s elapsed=357s eta=126s
+[740/1000] seed=736 SP=0 P0= 25 P1= 21 (P0)  P0W=444 P1W=296 D=0  avgM=+1.27  t=5.1s elapsed=357s eta=125s
+[741/1000] seed=744 SP=1 P0= 17 P1= 21 (P1)  P0W=444 P1W=297 D=0  avgM=+1.26  t=1.7s elapsed=357s eta=125s
+[742/1000] seed=740 SP=0 P0= 28 P1= 13 (P0)  P0W=445 P1W=297 D=0  avgM=+1.28  t=3.8s elapsed=358s eta=124s
+[743/1000] seed=745 SP=1 P0= 23 P1= 22 (P0)  P0W=446 P1W=297 D=0  avgM=+1.28  t=2.8s elapsed=359s eta=124s
+[744/1000] seed=746 SP=1 P0= 25 P1= 20 (P0)  P0W=447 P1W=297 D=0  avgM=+1.28  t=2.8s elapsed=359s eta=124s
+[745/1000] seed=749 SP=0 P0= 17 P1= 10 (P0)  P0W=448 P1W=297 D=0  avgM=+1.29  t=1.7s elapsed=360s eta=123s
+[746/1000] seed=748 SP=1 P0= 24 P1= 29 (P1)  P0W=448 P1W=298 D=0  avgM=+1.28  t=2.7s elapsed=360s eta=122s
+[747/1000] seed=750 SP=1 P0= 26 P1= 19 (P0)  P0W=449 P1W=298 D=0  avgM=+1.29  t=1.5s elapsed=361s eta=122s
+[748/1000] seed=751 SP=1 P0= 27 P1= 20 (P0)  P0W=450 P1W=298 D=0  avgM=+1.30  t=1.7s elapsed=361s eta=122s
+[749/1000] seed=742 SP=0 P0= 30 P1= 19 (P0)  P0W=451 P1W=298 D=0  avgM=+1.31  t=6.9s elapsed=361s eta=121s
+[750/1000] seed=753 SP=0 P0= 24 P1= 32 (P1)  P0W=451 P1W=299 D=0  avgM=+1.30  t=2.6s elapsed=362s eta=121s
+[751/1000] seed=752 SP=0 P0= 28 P1= 20 (P0)  P0W=452 P1W=299 D=0  avgM=+1.31  t=3.2s elapsed=363s eta=120s
+[752/1000] seed=756 SP=1 P0= 20 P1= 23 (P1)  P0W=452 P1W=300 D=0  avgM=+1.30  t=1.9s elapsed=363s eta=120s
+[753/1000] seed=747 SP=0 P0= 29 P1= 15 (P0)  P0W=453 P1W=300 D=0  avgM=+1.32  t=6.3s elapsed=363s eta=119s
+[754/1000] seed=726 SP=0 P0= 34 P1= 16 (P0)  P0W=454 P1W=300 D=0  avgM=+1.34  t=16.8s elapsed=363s eta=119s
+[755/1000] seed=754 SP=0 P0= 15 P1= 20 (P1)  P0W=454 P1W=301 D=0  avgM=+1.33  t=2.9s elapsed=364s eta=118s
+[756/1000] seed=755 SP=0 P0= 14 P1= 16 (P1)  P0W=454 P1W=302 D=0  avgM=+1.33  t=3.7s elapsed=365s eta=118s
+[757/1000] seed=758 SP=1 P0= 24 P1= 20 (P0)  P0W=455 P1W=302 D=0  avgM=+1.33  t=2.2s elapsed=365s eta=117s
+[758/1000] seed=757 SP=1 P0= 22 P1= 19 (P0)  P0W=456 P1W=302 D=0  avgM=+1.33  t=2.8s elapsed=365s eta=117s
+[759/1000] seed=760 SP=0 P0= 32 P1= 19 (P0)  P0W=457 P1W=302 D=0  avgM=+1.35  t=3.0s elapsed=366s eta=116s
+[760/1000] seed=761 SP=1 P0= 20 P1= 21 (P1)  P0W=457 P1W=303 D=0  avgM=+1.35  t=2.8s elapsed=366s eta=116s
+[761/1000] seed=764 SP=1 P0= 29 P1= 30 (P1)  P0W=457 P1W=304 D=0  avgM=+1.34  t=1.6s elapsed=367s eta=115s
+[762/1000] seed=765 SP=1 P0= 21 P1= 18 (P0)  P0W=458 P1W=304 D=0  avgM=+1.35  t=1.5s elapsed=367s eta=114s
+[763/1000] seed=766 SP=1 P0= 25 P1= 21 (P0)  P0W=459 P1W=304 D=0  avgM=+1.35  t=1.7s elapsed=368s eta=114s
+[764/1000] seed=768 SP=1 P0= 21 P1= 23 (P1)  P0W=459 P1W=305 D=0  avgM=+1.34  t=1.7s elapsed=368s eta=114s
+[765/1000] seed=759 SP=1 P0= 25 P1= 17 (P0)  P0W=460 P1W=305 D=0  avgM=+1.35  t=6.1s elapsed=369s eta=113s
+[766/1000] seed=762 SP=0 P0= 32 P1= 20 (P0)  P0W=461 P1W=305 D=0  avgM=+1.37  t=5.4s elapsed=369s eta=113s
+[767/1000] seed=770 SP=1 P0= 27 P1= 25 (P0)  P0W=462 P1W=305 D=0  avgM=+1.37  t=2.5s elapsed=370s eta=112s
+[768/1000] seed=769 SP=1 P0= 19 P1= 14 (P0)  P0W=463 P1W=305 D=0  avgM=+1.37  t=4.0s elapsed=371s eta=112s
+[769/1000] seed=772 SP=0 P0= 28 P1= 18 (P0)  P0W=464 P1W=305 D=0  avgM=+1.38  t=1.7s elapsed=371s eta=111s
+[770/1000] seed=767 SP=0 P0= 15 P1= 19 (P1)  P0W=464 P1W=306 D=0  avgM=+1.38  t=4.5s elapsed=371s eta=111s
+[771/1000] seed=771 SP=1 P0= 16 P1= 22 (P1)  P0W=464 P1W=307 D=0  avgM=+1.37  t=3.0s elapsed=371s eta=110s
+[772/1000] seed=763 SP=1 P0= 29 P1= 19 (P0)  P0W=465 P1W=307 D=0  avgM=+1.38  t=7.2s elapsed=372s eta=110s
+[773/1000] seed=774 SP=1 P0= 26 P1= 25 (P0)  P0W=466 P1W=307 D=0  avgM=+1.38  t=2.3s elapsed=372s eta=109s
+[774/1000] seed=776 SP=1 P0= 19 P1= 27 (P1)  P0W=466 P1W=308 D=0  avgM=+1.37  t=2.1s elapsed=373s eta=109s
+[775/1000] seed=777 SP=1 P0= 17 P1= 21 (P1)  P0W=466 P1W=309 D=0  avgM=+1.36  t=2.2s elapsed=373s eta=108s
+[776/1000] seed=778 SP=1 P0= 22 P1= 21 (P0)  P0W=467 P1W=309 D=0  avgM=+1.36  t=1.7s elapsed=373s eta=108s
+[777/1000] seed=775 SP=1 P0= 18 P1= 11 (P0)  P0W=468 P1W=309 D=0  avgM=+1.37  t=2.4s elapsed=373s eta=107s
+[778/1000] seed=773 SP=1 P0= 32 P1= 24 (P0)  P0W=469 P1W=309 D=0  avgM=+1.37  t=4.3s elapsed=373s eta=107s
+[779/1000] seed=779 SP=1 P0= 19 P1= 31 (P1)  P0W=469 P1W=310 D=0  avgM=+1.36  t=2.3s elapsed=374s eta=106s
+[780/1000] seed=780 SP=1 P0= 24 P1= 23 (P0)  P0W=470 P1W=310 D=0  avgM=+1.36  t=2.0s elapsed=375s eta=106s
+[781/1000] seed=782 SP=0 P0=  0 P1= 24 (P1)  P0W=470 P1W=311 D=0  avgM=+1.32  t=1.8s elapsed=375s eta=105s
+[782/1000] seed=783 SP=1 P0= 21 P1= 18 (P0)  P0W=471 P1W=311 D=0  avgM=+1.33  t=1.8s elapsed=375s eta=104s
+[783/1000] seed=781 SP=1 P0= 25 P1= 33 (P1)  P0W=471 P1W=312 D=0  avgM=+1.31  t=2.5s elapsed=375s eta=104s
+[784/1000] seed=784 SP=1 P0= 29 P1= 24 (P0)  P0W=472 P1W=312 D=0  avgM=+1.32  t=2.7s elapsed=376s eta=104s
+[785/1000] seed=787 SP=1 P0= 20 P1= 23 (P1)  P0W=472 P1W=313 D=0  avgM=+1.31  t=1.3s elapsed=376s eta=103s
+[786/1000] seed=786 SP=0 P0= 21 P1= 19 (P0)  P0W=473 P1W=313 D=0  avgM=+1.31  t=1.7s elapsed=376s eta=102s
+[787/1000] seed=785 SP=1 P0= 29 P1= 32 (P1)  P0W=473 P1W=314 D=0  avgM=+1.31  t=2.7s elapsed=376s eta=102s
+[788/1000] seed=791 SP=0 P0= 24 P1= 21 (P0)  P0W=474 P1W=314 D=0  avgM=+1.31  t=1.8s elapsed=378s eta=102s
+[789/1000] seed=789 SP=1 P0= 24 P1= 29 (P1)  P0W=474 P1W=315 D=0  avgM=+1.30  t=2.7s elapsed=378s eta=101s
+[790/1000] seed=793 SP=1 P0= 19 P1= 13 (P0)  P0W=475 P1W=315 D=0  avgM=+1.31  t=1.9s elapsed=378s eta=100s
+[791/1000] seed=788 SP=1 P0= 33 P1= 13 (P0)  P0W=476 P1W=315 D=0  avgM=+1.33  t=3.3s elapsed=378s eta=100s
+[792/1000] seed=794 SP=1 P0= 12 P1= 24 (P1)  P0W=476 P1W=316 D=0  avgM=+1.32  t=2.3s elapsed=378s eta=99s
+[793/1000] seed=792 SP=1 P0= 19 P1= 32 (P1)  P0W=476 P1W=317 D=0  avgM=+1.30  t=3.0s elapsed=379s eta=99s
+[794/1000] seed=795 SP=1 P0= 18 P1= 22 (P1)  P0W=476 P1W=318 D=0  avgM=+1.29  t=1.9s elapsed=379s eta=98s
+[795/1000] seed=797 SP=1 P0= 22 P1= 20 (P0)  P0W=477 P1W=318 D=0  avgM=+1.29  t=2.0s elapsed=380s eta=98s
+[796/1000] seed=790 SP=0 P0= 29 P1= 17 (P0)  P0W=478 P1W=318 D=0  avgM=+1.31  t=5.5s elapsed=381s eta=98s
+[797/1000] seed=801 SP=0 P0= 15 P1= 14 (P0)  P0W=479 P1W=318 D=0  avgM=+1.30  t=1.7s elapsed=381s eta=97s
+[798/1000] seed=796 SP=0 P0= 13 P1= 23 (P1)  P0W=479 P1W=319 D=0  avgM=+1.29  t=4.0s elapsed=382s eta=97s
+[799/1000] seed=798 SP=0 P0= 21 P1= 20 (P0)  P0W=480 P1W=319 D=0  avgM=+1.29  t=3.7s elapsed=382s eta=96s
+[800/1000] seed=802 SP=0 P0= 12 P1= 14 (P1)  P0W=480 P1W=320 D=0  avgM=+1.29  t=2.0s elapsed=382s eta=95s
+[801/1000] seed=799 SP=0 P0= 18 P1= 21 (P1)  P0W=480 P1W=321 D=0  avgM=+1.28  t=3.8s elapsed=382s eta=95s
+[802/1000] seed=800 SP=0 P0= 15 P1= 25 (P1)  P0W=480 P1W=322 D=0  avgM=+1.27  t=3.5s elapsed=382s eta=94s
+[803/1000] seed=805 SP=0 P0= 24 P1= 21 (P0)  P0W=481 P1W=322 D=0  avgM=+1.27  t=1.6s elapsed=383s eta=94s
+[804/1000] seed=804 SP=0 P0= 13 P1= 10 (P0)  P0W=482 P1W=322 D=0  avgM=+1.27  t=2.2s elapsed=383s eta=93s
+[805/1000] seed=691 SP=0 P0= 32 P1= 18 (P0)  P0W=483 P1W=322 D=0  avgM=+1.29  t=52.8s elapsed=384s eta=93s
+[806/1000] seed=806 SP=0 P0= 21 P1= 22 (P1)  P0W=483 P1W=323 D=0  avgM=+1.28  t=2.1s elapsed=384s eta=92s
+[807/1000] seed=807 SP=1 P0= 19 P1= 29 (P1)  P0W=483 P1W=324 D=0  avgM=+1.27  t=2.2s elapsed=384s eta=92s
+[808/1000] seed=809 SP=0 P0= 19 P1= 21 (P1)  P0W=483 P1W=325 D=0  avgM=+1.27  t=2.2s elapsed=384s eta=91s
+[809/1000] seed=808 SP=1 P0= 29 P1= 23 (P0)  P0W=484 P1W=325 D=0  avgM=+1.27  t=3.1s elapsed=385s eta=91s
+[810/1000] seed=810 SP=0 P0= 20 P1= 24 (P1)  P0W=484 P1W=326 D=0  avgM=+1.27  t=2.1s elapsed=385s eta=90s
+[811/1000] seed=812 SP=1 P0= 28 P1= 24 (P0)  P0W=485 P1W=326 D=0  avgM=+1.27  t=1.9s elapsed=386s eta=90s
+[812/1000] seed=814 SP=0 P0= 16 P1= 30 (P1)  P0W=485 P1W=327 D=0  avgM=+1.25  t=2.0s elapsed=386s eta=89s
+[813/1000] seed=815 SP=1 P0= 26 P1= 25 (P0)  P0W=486 P1W=327 D=0  avgM=+1.25  t=2.2s elapsed=387s eta=89s
+[814/1000] seed=817 SP=1 P0= 19 P1= 32 (P1)  P0W=486 P1W=328 D=0  avgM=+1.23  t=1.6s elapsed=387s eta=88s
+[815/1000] seed=811 SP=0 P0= 25 P1= 15 (P0)  P0W=487 P1W=328 D=0  avgM=+1.24  t=3.8s elapsed=387s eta=88s
+[816/1000] seed=816 SP=0 P0= 11 P1= 10 (P0)  P0W=488 P1W=328 D=0  avgM=+1.24  t=2.3s elapsed=387s eta=87s
+[817/1000] seed=818 SP=1 P0= 22 P1= 20 (P0)  P0W=489 P1W=328 D=0  avgM=+1.24  t=2.0s elapsed=388s eta=87s
+[818/1000] seed=803 SP=1 P0= 23 P1= 19 (P0)  P0W=490 P1W=328 D=0  avgM=+1.25  t=7.4s elapsed=388s eta=86s
+[819/1000] seed=820 SP=1 P0= 24 P1= 15 (P0)  P0W=491 P1W=328 D=0  avgM=+1.26  t=1.8s elapsed=389s eta=86s
+[820/1000] seed=823 SP=0 P0= 24 P1= 27 (P1)  P0W=491 P1W=329 D=0  avgM=+1.25  t=1.4s elapsed=389s eta=85s
+[821/1000] seed=824 SP=1 P0= 20 P1= 10 (P0)  P0W=492 P1W=329 D=0  avgM=+1.26  t=1.8s elapsed=389s eta=85s
+[822/1000] seed=819 SP=1 P0= 26 P1= 27 (P1)  P0W=492 P1W=330 D=0  avgM=+1.26  t=3.5s elapsed=390s eta=84s
+[823/1000] seed=822 SP=1 P0= 20 P1=  7 (P0)  P0W=493 P1W=330 D=0  avgM=+1.27  t=2.5s elapsed=390s eta=84s
+[824/1000] seed=821 SP=0 P0= 28 P1= 23 (P0)  P0W=494 P1W=330 D=0  avgM=+1.28  t=2.9s elapsed=390s eta=83s
+[825/1000] seed=813 SP=0 P0= 26 P1= 27 (P1)  P0W=494 P1W=331 D=0  avgM=+1.28  t=7.0s elapsed=391s eta=83s
+[826/1000] seed=826 SP=1 P0= 25 P1= 23 (P0)  P0W=495 P1W=331 D=0  avgM=+1.28  t=2.5s elapsed=391s eta=82s
+[827/1000] seed=827 SP=0 P0= 24 P1= 18 (P0)  P0W=496 P1W=331 D=0  avgM=+1.28  t=2.7s elapsed=392s eta=82s
+[828/1000] seed=828 SP=0 P0= 24 P1= 31 (P1)  P0W=496 P1W=332 D=0  avgM=+1.27  t=2.3s elapsed=392s eta=81s
+[829/1000] seed=829 SP=1 P0= 27 P1= 26 (P0)  P0W=497 P1W=332 D=0  avgM=+1.27  t=2.2s elapsed=392s eta=81s
+[830/1000] seed=830 SP=0 P0= 24 P1= 18 (P0)  P0W=498 P1W=332 D=0  avgM=+1.28  t=2.4s elapsed=392s eta=80s
+[831/1000] seed=831 SP=0 P0= 25 P1= 27 (P1)  P0W=498 P1W=333 D=0  avgM=+1.27  t=2.6s elapsed=392s eta=80s
+[832/1000] seed=825 SP=0 P0= 30 P1= 17 (P0)  P0W=499 P1W=333 D=0  avgM=+1.29  t=4.3s elapsed=393s eta=79s
+[833/1000] seed=832 SP=1 P0= 20 P1= 35 (P1)  P0W=499 P1W=334 D=0  avgM=+1.27  t=2.6s elapsed=394s eta=79s
+[834/1000] seed=833 SP=0 P0= 18 P1= 26 (P1)  P0W=499 P1W=335 D=0  avgM=+1.26  t=2.7s elapsed=394s eta=78s
+[835/1000] seed=835 SP=1 P0= 20 P1= 26 (P1)  P0W=499 P1W=336 D=0  avgM=+1.25  t=2.9s elapsed=395s eta=78s
+[836/1000] seed=837 SP=0 P0= 19 P1= 26 (P1)  P0W=499 P1W=337 D=0  avgM=+1.24  t=3.1s elapsed=395s eta=78s
+[837/1000] seed=840 SP=0 P0= 24 P1= 26 (P1)  P0W=499 P1W=338 D=0  avgM=+1.23  t=1.7s elapsed=395s eta=77s
+[838/1000] seed=839 SP=1 P0= 27 P1= 19 (P0)  P0W=500 P1W=338 D=0  avgM=+1.24  t=2.8s elapsed=395s eta=76s
+[839/1000] seed=836 SP=0 P0= 22 P1= 16 (P0)  P0W=501 P1W=338 D=0  avgM=+1.25  t=3.8s elapsed=396s eta=76s
+[840/1000] seed=838 SP=0 P0= 21 P1= 20 (P0)  P0W=502 P1W=338 D=0  avgM=+1.25  t=4.0s elapsed=396s eta=75s
+[841/1000] seed=841 SP=1 P0= 33 P1= 12 (P0)  P0W=503 P1W=338 D=0  avgM=+1.27  t=2.6s elapsed=396s eta=75s
+[842/1000] seed=834 SP=1 P0= 30 P1= 22 (P0)  P0W=504 P1W=338 D=0  avgM=+1.28  t=5.1s elapsed=397s eta=74s
+[843/1000] seed=842 SP=0 P0= 11 P1= 10 (P0)  P0W=505 P1W=338 D=0  avgM=+1.28  t=2.2s elapsed=397s eta=74s
+[844/1000] seed=843 SP=1 P0= 26 P1= 25 (P0)  P0W=506 P1W=338 D=0  avgM=+1.28  t=2.3s elapsed=397s eta=73s
+[845/1000] seed=846 SP=0 P0= 11 P1=  8 (P0)  P0W=507 P1W=338 D=0  avgM=+1.28  t=2.1s elapsed=398s eta=73s
+[846/1000] seed=844 SP=0 P0= 20 P1= 28 (P1)  P0W=507 P1W=339 D=0  avgM=+1.27  t=2.4s elapsed=398s eta=72s
+[847/1000] seed=845 SP=0 P0= 22 P1= 22 (P1)  P0W=507 P1W=340 D=0  avgM=+1.27  t=2.3s elapsed=398s eta=72s
+[848/1000] seed=849 SP=1 P0= 18 P1= 26 (P1)  P0W=507 P1W=341 D=0  avgM=+1.26  t=2.4s elapsed=399s eta=72s
+[849/1000] seed=853 SP=0 P0= 13 P1= 18 (P1)  P0W=507 P1W=342 D=0  avgM=+1.25  t=1.5s elapsed=399s eta=71s
+[850/1000] seed=852 SP=0 P0= 15 P1= 26 (P1)  P0W=507 P1W=343 D=0  avgM=+1.24  t=1.9s elapsed=400s eta=71s
+[851/1000] seed=850 SP=0 P0= 13 P1= 13 (P0)  P0W=508 P1W=343 D=0  avgM=+1.23  t=4.1s elapsed=401s eta=70s
+[852/1000] seed=855 SP=1 P0= 17 P1= 26 (P1)  P0W=508 P1W=344 D=0  avgM=+1.22  t=1.8s elapsed=401s eta=70s
+[853/1000] seed=856 SP=0 P0= 30 P1= 26 (P0)  P0W=509 P1W=344 D=0  avgM=+1.23  t=1.7s elapsed=401s eta=69s
+[854/1000] seed=847 SP=0 P0= 24 P1= 14 (P0)  P0W=510 P1W=344 D=0  avgM=+1.24  t=4.8s elapsed=401s eta=69s
+[855/1000] seed=854 SP=0 P0= 25 P1= 15 (P0)  P0W=511 P1W=344 D=0  avgM=+1.25  t=3.7s elapsed=401s eta=68s
+[856/1000] seed=857 SP=1 P0= 24 P1= 21 (P0)  P0W=512 P1W=344 D=0  avgM=+1.25  t=2.4s elapsed=402s eta=68s
+[857/1000] seed=858 SP=0 P0= 21 P1=-19 (P0)  P0W=513 P1W=344 D=0  avgM=+1.29  t=2.0s elapsed=403s eta=67s
+[858/1000] seed=860 SP=1 P0= 31 P1= 22 (P0)  P0W=514 P1W=344 D=0  avgM=+1.30  t=2.0s elapsed=403s eta=67s
+[859/1000] seed=862 SP=1 P0= 16 P1= 11 (P0)  P0W=515 P1W=344 D=0  avgM=+1.31  t=2.3s elapsed=404s eta=66s
+[860/1000] seed=863 SP=1 P0= 19 P1= 13 (P0)  P0W=516 P1W=344 D=0  avgM=+1.31  t=1.9s elapsed=404s eta=66s
+[861/1000] seed=864 SP=1 P0= 24 P1= 15 (P0)  P0W=517 P1W=344 D=0  avgM=+1.32  t=1.7s elapsed=405s eta=65s
+[862/1000] seed=861 SP=1 P0= 22 P1= 16 (P0)  P0W=518 P1W=344 D=0  avgM=+1.33  t=4.0s elapsed=405s eta=65s
+[863/1000] seed=867 SP=1 P0= 28 P1= 20 (P0)  P0W=519 P1W=344 D=0  avgM=+1.33  t=2.3s elapsed=406s eta=64s
+[864/1000] seed=866 SP=1 P0= 17 P1= 12 (P0)  P0W=520 P1W=344 D=0  avgM=+1.34  t=2.7s elapsed=406s eta=64s
+[865/1000] seed=869 SP=1 P0= 24 P1= 15 (P0)  P0W=521 P1W=344 D=0  avgM=+1.35  t=1.7s elapsed=407s eta=63s
+[866/1000] seed=865 SP=0 P0= 10 P1= 21 (P1)  P0W=521 P1W=345 D=0  avgM=+1.33  t=4.0s elapsed=407s eta=63s
+[867/1000] seed=871 SP=0 P0= 22 P1= 19 (P0)  P0W=522 P1W=345 D=0  avgM=+1.33  t=2.3s elapsed=409s eta=63s
+[868/1000] seed=870 SP=1 P0= 20 P1= 25 (P1)  P0W=522 P1W=346 D=0  avgM=+1.33  t=2.8s elapsed=409s eta=62s
+[869/1000] seed=872 SP=1 P0= 26 P1= 32 (P1)  P0W=522 P1W=347 D=0  avgM=+1.32  t=2.3s elapsed=409s eta=62s
+[870/1000] seed=868 SP=0 P0= 37 P1= 16 (P0)  P0W=523 P1W=347 D=0  avgM=+1.34  t=4.6s elapsed=409s eta=61s
+[871/1000] seed=873 SP=0 P0= 13 P1= 33 (P1)  P0W=523 P1W=348 D=0  avgM=+1.32  t=3.2s elapsed=410s eta=61s
+[872/1000] seed=851 SP=0 P0= 34 P1= 18 (P0)  P0W=524 P1W=348 D=0  avgM=+1.33  t=12.8s elapsed=410s eta=60s
+[873/1000] seed=874 SP=1 P0= 21 P1= 18 (P0)  P0W=525 P1W=348 D=0  avgM=+1.34  t=2.4s elapsed=411s eta=60s
+[874/1000] seed=876 SP=0 P0= 19 P1= 16 (P0)  P0W=526 P1W=348 D=0  avgM=+1.34  t=2.4s elapsed=411s eta=59s
+[875/1000] seed=878 SP=1 P0= 21 P1= 24 (P1)  P0W=526 P1W=349 D=0  avgM=+1.33  t=2.0s elapsed=412s eta=59s
+[876/1000] seed=877 SP=1 P0= 24 P1= 25 (P1)  P0W=526 P1W=350 D=0  avgM=+1.33  t=3.0s elapsed=412s eta=58s
+[877/1000] seed=875 SP=1 P0= 27 P1= 25 (P0)  P0W=527 P1W=350 D=0  avgM=+1.33  t=3.7s elapsed=413s eta=58s
+[878/1000] seed=879 SP=0 P0= 23 P1= 36 (P1)  P0W=527 P1W=351 D=0  avgM=+1.31  t=3.2s elapsed=413s eta=57s
+[879/1000] seed=883 SP=1 P0= 20 P1= 23 (P1)  P0W=527 P1W=352 D=0  avgM=+1.31  t=2.6s elapsed=415s eta=57s
+[880/1000] seed=882 SP=0 P0= 13 P1= 14 (P1)  P0W=527 P1W=353 D=0  avgM=+1.31  t=2.6s elapsed=415s eta=57s
+[881/1000] seed=880 SP=1 P0= 27 P1= 31 (P1)  P0W=527 P1W=354 D=0  avgM=+1.30  t=3.7s elapsed=415s eta=56s
+[882/1000] seed=886 SP=1 P0= 27 P1= 29 (P1)  P0W=527 P1W=355 D=0  avgM=+1.30  t=2.1s elapsed=417s eta=56s
+[883/1000] seed=885 SP=0 P0= 13 P1= 20 (P1)  P0W=527 P1W=356 D=0  avgM=+1.29  t=3.6s elapsed=417s eta=55s
+[884/1000] seed=881 SP=0 P0= 33 P1= 20 (P0)  P0W=528 P1W=356 D=0  avgM=+1.30  t=5.5s elapsed=417s eta=55s
+[885/1000] seed=884 SP=0 P0= 10 P1= 21 (P1)  P0W=528 P1W=357 D=0  avgM=+1.29  t=4.8s elapsed=417s eta=54s
+[886/1000] seed=887 SP=1 P0= 23 P1= 24 (P1)  P0W=528 P1W=358 D=0  avgM=+1.28  t=3.1s elapsed=418s eta=54s
+[887/1000] seed=888 SP=1 P0= 28 P1= 18 (P0)  P0W=529 P1W=358 D=0  avgM=+1.29  t=3.2s elapsed=418s eta=53s
+[888/1000] seed=892 SP=1 P0= 32 P1= 24 (P0)  P0W=530 P1W=358 D=0  avgM=+1.30  t=2.5s elapsed=420s eta=53s
+[889/1000] seed=891 SP=1 P0= 30 P1= 24 (P0)  P0W=531 P1W=358 D=0  avgM=+1.31  t=4.1s elapsed=421s eta=53s
+[890/1000] seed=895 SP=1 P0= 21 P1= 24 (P1)  P0W=531 P1W=359 D=0  avgM=+1.30  t=1.8s elapsed=422s eta=52s
+[891/1000] seed=859 SP=0 P0= 32 P1= 18 (P0)  P0W=532 P1W=359 D=0  avgM=+1.32  t=21.1s elapsed=422s eta=52s
+[892/1000] seed=893 SP=1 P0= 32 P1= 20 (P0)  P0W=533 P1W=359 D=0  avgM=+1.33  t=4.3s elapsed=422s eta=51s
+[893/1000] seed=894 SP=0 P0= 19 P1= 23 (P1)  P0W=533 P1W=360 D=0  avgM=+1.32  t=6.0s elapsed=424s eta=51s
+[894/1000] seed=896 SP=1 P0= 28 P1= 18 (P0)  P0W=534 P1W=360 D=0  avgM=+1.33  t=3.1s elapsed=424s eta=50s
+[895/1000] seed=889 SP=0 P0= 24 P1= 16 (P0)  P0W=535 P1W=360 D=0  avgM=+1.34  t=7.5s elapsed=424s eta=50s
+[896/1000] seed=898 SP=0 P0= 22 P1= 22 (P1)  P0W=535 P1W=361 D=0  avgM=+1.34  t=2.8s elapsed=425s eta=49s
+[897/1000] seed=899 SP=1 P0= 28 P1= 18 (P0)  P0W=536 P1W=361 D=0  avgM=+1.35  t=3.0s elapsed=425s eta=49s
+[898/1000] seed=897 SP=0 P0= 25 P1= 26 (P1)  P0W=536 P1W=362 D=0  avgM=+1.35  t=4.2s elapsed=426s eta=48s
+[899/1000] seed=890 SP=0 P0= 26 P1= 18 (P0)  P0W=537 P1W=362 D=0  avgM=+1.35  t=9.7s elapsed=427s eta=48s
+[900/1000] seed=902 SP=1 P0= 18 P1= 22 (P1)  P0W=537 P1W=363 D=0  avgM=+1.35  t=2.4s elapsed=427s eta=47s
+[901/1000] seed=901 SP=1 P0= 22 P1= 25 (P1)  P0W=537 P1W=364 D=0  avgM=+1.34  t=2.7s elapsed=427s eta=47s
+[902/1000] seed=903 SP=1 P0= 26 P1= 24 (P0)  P0W=538 P1W=364 D=0  avgM=+1.34  t=2.7s elapsed=428s eta=46s
+[903/1000] seed=900 SP=1 P0= 27 P1= 19 (P0)  P0W=539 P1W=364 D=0  avgM=+1.35  t=3.6s elapsed=428s eta=46s
+[904/1000] seed=904 SP=1 P0= 23 P1= 24 (P1)  P0W=539 P1W=365 D=0  avgM=+1.35  t=3.2s elapsed=428s eta=45s
+[905/1000] seed=908 SP=1 P0= 29 P1= 25 (P0)  P0W=540 P1W=365 D=0  avgM=+1.35  t=1.8s elapsed=429s eta=45s
+[906/1000] seed=905 SP=1 P0= 23 P1= 27 (P1)  P0W=540 P1W=366 D=0  avgM=+1.34  t=3.6s elapsed=430s eta=45s
+[907/1000] seed=911 SP=1 P0= 21 P1= 24 (P1)  P0W=540 P1W=367 D=0  avgM=+1.34  t=2.0s elapsed=430s eta=44s
+[908/1000] seed=906 SP=1 P0= 32 P1= 22 (P0)  P0W=541 P1W=367 D=0  avgM=+1.35  t=3.9s elapsed=431s eta=44s
+[909/1000] seed=909 SP=0 P0= 27 P1= 32 (P1)  P0W=541 P1W=368 D=0  avgM=+1.34  t=3.4s elapsed=431s eta=43s
+[910/1000] seed=910 SP=1 P0= 29 P1= 24 (P0)  P0W=542 P1W=368 D=0  avgM=+1.35  t=3.5s elapsed=431s eta=43s
+[911/1000] seed=907 SP=0 P0= 32 P1= 22 (P0)  P0W=543 P1W=368 D=0  avgM=+1.36  t=5.0s elapsed=432s eta=42s
+[912/1000] seed=915 SP=1 P0= 17 P1=  8 (P0)  P0W=544 P1W=368 D=0  avgM=+1.36  t=2.7s elapsed=433s eta=42s
+[913/1000] seed=917 SP=1 P0= 22 P1= 20 (P0)  P0W=545 P1W=368 D=0  avgM=+1.36  t=2.9s elapsed=434s eta=41s
+[914/1000] seed=913 SP=0 P0= 32 P1= 22 (P0)  P0W=546 P1W=368 D=0  avgM=+1.37  t=4.7s elapsed=434s eta=41s
+[915/1000] seed=914 SP=1 P0= 23 P1= 24 (P1)  P0W=546 P1W=369 D=0  avgM=+1.37  t=4.0s elapsed=434s eta=40s
+[916/1000] seed=916 SP=1 P0= 19 P1= 32 (P1)  P0W=546 P1W=370 D=0  avgM=+1.36  t=4.0s elapsed=435s eta=40s
+[917/1000] seed=918 SP=1 P0= 33 P1= 25 (P0)  P0W=547 P1W=370 D=0  avgM=+1.36  t=4.0s elapsed=436s eta=39s
+[918/1000] seed=912 SP=1 P0= 26 P1= 21 (P0)  P0W=548 P1W=370 D=0  avgM=+1.37  t=7.3s elapsed=436s eta=39s
+[919/1000] seed=920 SP=1 P0= 32 P1= 25 (P0)  P0W=549 P1W=370 D=0  avgM=+1.37  t=2.0s elapsed=436s eta=38s
+[920/1000] seed=919 SP=0 P0= 21 P1= 26 (P1)  P0W=549 P1W=371 D=0  avgM=+1.37  t=3.6s elapsed=437s eta=38s
+[921/1000] seed=923 SP=1 P0= 22 P1= 23 (P1)  P0W=549 P1W=372 D=0  avgM=+1.36  t=2.0s elapsed=437s eta=37s
+[922/1000] seed=921 SP=0 P0= 16 P1= 30 (P1)  P0W=549 P1W=373 D=0  avgM=+1.35  t=3.0s elapsed=437s eta=37s
+[923/1000] seed=922 SP=1 P0= 29 P1= 25 (P0)  P0W=550 P1W=373 D=0  avgM=+1.35  t=3.2s elapsed=437s eta=36s
+[924/1000] seed=926 SP=1 P0= 21 P1= 26 (P1)  P0W=550 P1W=374 D=0  avgM=+1.34  t=3.1s elapsed=439s eta=36s
+[925/1000] seed=925 SP=0 P0= 16 P1= 19 (P1)  P0W=550 P1W=375 D=0  avgM=+1.34  t=4.1s elapsed=440s eta=36s
+[926/1000] seed=924 SP=1 P0= 29 P1= 23 (P0)  P0W=551 P1W=375 D=0  avgM=+1.34  t=4.8s elapsed=440s eta=35s
+[927/1000] seed=930 SP=0 P0= 21 P1= 24 (P1)  P0W=551 P1W=376 D=0  avgM=+1.34  t=3.1s elapsed=440s eta=35s
+[928/1000] seed=932 SP=0 P0= 22 P1= 18 (P0)  P0W=552 P1W=376 D=0  avgM=+1.34  t=1.7s elapsed=442s eta=34s
+[929/1000] seed=927 SP=1 P0= 32 P1= 20 (P0)  P0W=553 P1W=376 D=0  avgM=+1.35  t=6.2s elapsed=443s eta=34s
+[930/1000] seed=931 SP=1 P0= 17 P1= 12 (P0)  P0W=554 P1W=376 D=0  avgM=+1.36  t=3.9s elapsed=443s eta=33s
+[931/1000] seed=928 SP=0 P0= 26 P1= 22 (P0)  P0W=555 P1W=376 D=0  avgM=+1.36  t=6.5s elapsed=443s eta=33s
+[932/1000] seed=933 SP=1 P0= 23 P1= 19 (P0)  P0W=556 P1W=376 D=0  avgM=+1.36  t=3.2s elapsed=444s eta=32s
+[933/1000] seed=934 SP=1 P0= 20 P1= 35 (P1)  P0W=556 P1W=377 D=0  avgM=+1.35  t=3.3s elapsed=444s eta=32s
+[934/1000] seed=935 SP=1 P0= 17 P1= 21 (P1)  P0W=556 P1W=378 D=0  avgM=+1.34  t=2.7s elapsed=444s eta=31s
+[935/1000] seed=929 SP=0 P0= 33 P1= 18 (P0)  P0W=557 P1W=378 D=0  avgM=+1.35  t=7.7s elapsed=445s eta=31s
+[936/1000] seed=938 SP=0 P0= 15 P1= 25 (P1)  P0W=557 P1W=379 D=0  avgM=+1.34  t=2.1s elapsed=445s eta=30s
+[937/1000] seed=937 SP=1 P0= 22 P1= 25 (P1)  P0W=557 P1W=380 D=0  avgM=+1.34  t=3.0s elapsed=446s eta=30s
+[938/1000] seed=936 SP=1 P0= 22 P1= 24 (P1)  P0W=557 P1W=381 D=0  avgM=+1.33  t=3.2s elapsed=446s eta=29s
+[939/1000] seed=940 SP=1 P0= 25 P1= 25 (P1)  P0W=557 P1W=382 D=0  avgM=+1.33  t=2.8s elapsed=447s eta=29s
+[940/1000] seed=941 SP=0 P0= 24 P1= 26 (P1)  P0W=557 P1W=383 D=0  avgM=+1.33  t=2.2s elapsed=447s eta=29s
+[941/1000] seed=939 SP=0 P0= 31 P1= 14 (P0)  P0W=558 P1W=383 D=0  avgM=+1.35  t=3.6s elapsed=447s eta=28s
+[942/1000] seed=943 SP=1 P0= 24 P1= 26 (P1)  P0W=558 P1W=384 D=0  avgM=+1.34  t=2.2s elapsed=448s eta=28s
+[943/1000] seed=942 SP=1 P0= 27 P1= 24 (P0)  P0W=559 P1W=384 D=0  avgM=+1.34  t=2.9s elapsed=448s eta=27s
+[944/1000] seed=947 SP=0 P0= 13 P1=  6 (P0)  P0W=560 P1W=384 D=0  avgM=+1.35  t=2.1s elapsed=449s eta=27s
+[945/1000] seed=946 SP=1 P0= 28 P1= 24 (P0)  P0W=561 P1W=384 D=0  avgM=+1.35  t=3.0s elapsed=450s eta=26s
+[946/1000] seed=944 SP=0 P0= 30 P1= 23 (P0)  P0W=562 P1W=384 D=0  avgM=+1.36  t=3.9s elapsed=450s eta=26s
+[947/1000] seed=948 SP=1 P0= 27 P1= 26 (P0)  P0W=563 P1W=384 D=0  avgM=+1.36  t=3.0s elapsed=450s eta=25s
+[948/1000] seed=950 SP=1 P0= 27 P1= 24 (P0)  P0W=564 P1W=384 D=0  avgM=+1.36  t=2.9s elapsed=451s eta=25s
+[949/1000] seed=951 SP=1 P0= 29 P1= 25 (P0)  P0W=565 P1W=384 D=0  avgM=+1.36  t=2.3s elapsed=451s eta=24s
+[950/1000] seed=949 SP=0 P0= 13 P1= 17 (P1)  P0W=565 P1W=385 D=0  avgM=+1.36  t=3.5s elapsed=451s eta=24s
+[951/1000] seed=945 SP=1 P0= 32 P1= 24 (P0)  P0W=566 P1W=385 D=0  avgM=+1.36  t=5.6s elapsed=452s eta=23s
+[952/1000] seed=952 SP=1 P0= 23 P1= 10 (P0)  P0W=567 P1W=385 D=0  avgM=+1.38  t=2.5s elapsed=452s eta=23s
+[953/1000] seed=956 SP=0 P0= 20 P1= 20 (P1)  P0W=567 P1W=386 D=0  avgM=+1.37  t=1.4s elapsed=452s eta=22s
+[954/1000] seed=954 SP=1 P0= 28 P1= 24 (P0)  P0W=568 P1W=386 D=0  avgM=+1.38  t=2.1s elapsed=452s eta=22s
+[955/1000] seed=953 SP=1 P0= 28 P1= 20 (P0)  P0W=569 P1W=386 D=0  avgM=+1.38  t=2.8s elapsed=453s eta=21s
+[956/1000] seed=957 SP=1 P0= 28 P1= 19 (P0)  P0W=570 P1W=386 D=0  avgM=+1.39  t=3.3s elapsed=454s eta=21s
+[957/1000] seed=955 SP=0 P0= 16 P1= 19 (P1)  P0W=570 P1W=387 D=0  avgM=+1.39  t=3.8s elapsed=455s eta=20s
+[958/1000] seed=960 SP=0 P0= 22 P1= 19 (P0)  P0W=571 P1W=387 D=0  avgM=+1.39  t=2.7s elapsed=455s eta=20s
+[959/1000] seed=961 SP=0 P0= 15 P1= 26 (P1)  P0W=571 P1W=388 D=0  avgM=+1.38  t=3.0s elapsed=456s eta=19s
+[960/1000] seed=962 SP=0 P0= 22 P1= 19 (P0)  P0W=572 P1W=388 D=0  avgM=+1.38  t=3.0s elapsed=456s eta=19s
+[961/1000] seed=959 SP=0 P0= 24 P1= 18 (P0)  P0W=573 P1W=388 D=0  avgM=+1.38  t=4.0s elapsed=456s eta=19s
+[962/1000] seed=848 SP=0 P0= 32 P1= 18 (P0)  P0W=574 P1W=388 D=0  avgM=+1.40  t=60.6s elapsed=457s eta=18s
+[963/1000] seed=963 SP=0 P0= 21 P1= 24 (P1)  P0W=574 P1W=389 D=0  avgM=+1.39  t=2.7s elapsed=457s eta=18s
+[964/1000] seed=958 SP=0 P0= 19 P1= 32 (P1)  P0W=574 P1W=390 D=0  avgM=+1.38  t=6.3s elapsed=458s eta=17s
+[965/1000] seed=968 SP=0 P0= 19 P1= 21 (P1)  P0W=574 P1W=391 D=0  avgM=+1.37  t=2.6s elapsed=459s eta=17s
+[966/1000] seed=964 SP=0 P0= 15 P1= 20 (P1)  P0W=574 P1W=392 D=0  avgM=+1.37  t=4.3s elapsed=459s eta=16s
+[967/1000] seed=966 SP=1 P0= 18 P1= 29 (P1)  P0W=574 P1W=393 D=0  avgM=+1.35  t=3.7s elapsed=459s eta=16s
+[968/1000] seed=971 SP=0 P0= 19 P1= 12 (P0)  P0W=575 P1W=393 D=0  avgM=+1.36  t=2.3s elapsed=460s eta=15s
+[969/1000] seed=975 SP=1 P0= 24 P1= 28 (P1)  P0W=575 P1W=394 D=0  avgM=+1.35  t=1.8s elapsed=462s eta=15s
+[970/1000] seed=970 SP=0 P0= 26 P1= 22 (P0)  P0W=576 P1W=394 D=0  avgM=+1.36  t=5.1s elapsed=462s eta=14s
+[971/1000] seed=972 SP=0 P0= 24 P1= 16 (P0)  P0W=577 P1W=394 D=0  avgM=+1.36  t=4.5s elapsed=463s eta=14s
+[972/1000] seed=974 SP=1 P0= 30 P1= 24 (P0)  P0W=578 P1W=394 D=0  avgM=+1.37  t=4.1s elapsed=463s eta=13s
+[973/1000] seed=973 SP=0 P0= 14 P1= 16 (P1)  P0W=578 P1W=395 D=0  avgM=+1.36  t=4.6s elapsed=463s eta=13s
+[974/1000] seed=965 SP=1 P0= 27 P1= 11 (P0)  P0W=579 P1W=395 D=0  avgM=+1.38  t=9.6s elapsed=465s eta=12s
+[975/1000] seed=977 SP=1 P0= 14 P1= 20 (P1)  P0W=579 P1W=396 D=0  avgM=+1.37  t=3.2s elapsed=465s eta=12s
+[976/1000] seed=979 SP=1 P0= 21 P1= 17 (P0)  P0W=580 P1W=396 D=0  avgM=+1.38  t=2.4s elapsed=466s eta=11s
+[977/1000] seed=976 SP=0 P0= 15 P1=  9 (P0)  P0W=581 P1W=396 D=0  avgM=+1.38  t=3.7s elapsed=466s eta=11s
+[978/1000] seed=967 SP=0 P0= 31 P1= 17 (P0)  P0W=582 P1W=396 D=0  avgM=+1.39  t=10.4s elapsed=466s eta=10s
+[979/1000] seed=969 SP=0 P0= 31 P1= 17 (P0)  P0W=583 P1W=396 D=0  avgM=+1.41  t=10.7s elapsed=468s eta=10s
+[980/1000] seed=978 SP=0 P0= 14 P1= 16 (P1)  P0W=583 P1W=397 D=0  avgM=+1.40  t=5.0s elapsed=468s eta=10s
+[981/1000] seed=980 SP=0 P0= 10 P1= 21 (P1)  P0W=583 P1W=398 D=0  avgM=+1.39  t=4.7s elapsed=468s eta=9s
+[982/1000] seed=981 SP=1 P0= 24 P1= 22 (P0)  P0W=584 P1W=398 D=0  avgM=+1.39  t=3.5s elapsed=468s eta=9s
+[983/1000] seed=985 SP=1 P0= 26 P1= 22 (P0)  P0W=585 P1W=398 D=0  avgM=+1.39  t=2.5s elapsed=469s eta=8s
+[984/1000] seed=982 SP=1 P0= 30 P1= 24 (P0)  P0W=586 P1W=398 D=0  avgM=+1.40  t=4.0s elapsed=469s eta=8s
+[985/1000] seed=983 SP=0 P0= 17 P1= 29 (P1)  P0W=586 P1W=399 D=0  avgM=+1.38  t=3.9s elapsed=470s eta=7s
+[986/1000] seed=988 SP=0 P0= 17 P1= 10 (P0)  P0W=587 P1W=399 D=0  avgM=+1.39  t=2.3s elapsed=471s eta=7s
+[987/1000] seed=989 SP=1 P0= 19 P1= 13 (P0)  P0W=588 P1W=399 D=0  avgM=+1.39  t=2.5s elapsed=471s eta=6s
+[988/1000] seed=984 SP=0 P0= 29 P1= 15 (P0)  P0W=589 P1W=399 D=0  avgM=+1.41  t=4.8s elapsed=471s eta=6s
+[989/1000] seed=990 SP=1 P0= 17 P1= 22 (P1)  P0W=589 P1W=400 D=0  avgM=+1.40  t=2.6s elapsed=471s eta=5s
+[990/1000] seed=986 SP=1 P0= 29 P1= 23 (P0)  P0W=590 P1W=400 D=0  avgM=+1.41  t=4.1s elapsed=472s eta=5s
+[991/1000] seed=995 SP=1 P0= 22 P1= 21 (P0)  P0W=591 P1W=400 D=0  avgM=+1.40  t=2.5s elapsed=473s eta=4s
+[992/1000] seed=993 SP=1 P0= 23 P1= 24 (P1)  P0W=591 P1W=401 D=0  avgM=+1.40  t=3.2s elapsed=474s eta=4s
+[993/1000] seed=994 SP=1 P0= 23 P1= 21 (P0)  P0W=592 P1W=401 D=0  avgM=+1.40  t=3.6s elapsed=474s eta=3s
+[994/1000] seed=997 SP=1 P0= 29 P1= 30 (P1)  P0W=592 P1W=402 D=0  avgM=+1.40  t=2.5s elapsed=474s eta=3s
+[995/1000] seed=996 SP=1 P0= 33 P1= 25 (P0)  P0W=593 P1W=402 D=0  avgM=+1.41  t=3.5s elapsed=475s eta=2s
+[996/1000] seed=998 SP=1 P0= 22 P1= 24 (P1)  P0W=593 P1W=403 D=0  avgM=+1.40  t=2.4s elapsed=476s eta=2s
+[997/1000] seed=992 SP=0 P0= 19 P1= 25 (P1)  P0W=593 P1W=404 D=0  avgM=+1.40  t=6.2s elapsed=476s eta=1s
+[998/1000] seed=987 SP=0 P0= 28 P1= 19 (P0)  P0W=594 P1W=404 D=0  avgM=+1.40  t=7.7s elapsed=476s eta=1s
+[999/1000] seed=999 SP=1 P0= 22 P1=  9 (P0)  P0W=595 P1W=404 D=0  avgM=+1.42  t=3.6s elapsed=477s eta=0s
+[1000/1000] seed=991 SP=1 P0= 28 P1= 16 (P0)  P0W=596 P1W=404 D=0  avgM=+1.43  t=9.1s elapsed=479s eta=0s
+
+Final: P0=596  P1=404  D=0  avg margin (P0-P1)=+1.43
+Total elapsed: 479s (0.5s/game avg)

@@ -1,0 +1,67 @@
+Run dir: nn_models/M_10k_strong3_bimodal
+Device: cpu
+
+Loading games from 1 run(s)...
+Loaded 10000 games
+By-game split: train=8000 val=1000 test=1000
+Descriptors: train=1451394 val=181758 test=181696
+Pre-encoding train...
+Pre-encoding val...
+Pre-encoding test...
+NormStats: target_std=14.394, encoding_version=2
+Examples: train=1451394 val=181758 test=181696
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.4038 |         6.66 |    0.3732 |       6.37 |  *   |   0 |    16.8
+    2 |     0.3705 |         6.32 |    0.3644 |       6.27 |  *   |   0 |    17.2
+    3 |     0.3605 |         6.22 |    0.3636 |       6.25 |  *   |   0 |    16.8
+    4 |     0.3544 |         6.16 |    0.3576 |       6.20 |  *   |   0 |    17.3
+    5 |     0.3503 |         6.12 |    0.3548 |       6.15 |  *   |   0 |    17.0
+    6 |     0.3460 |         6.07 |    0.3563 |       6.19 |      |   1 |    17.0
+    7 |     0.3432 |         6.04 |    0.3556 |       6.18 |      |   2 |    17.0
+    8 |     0.3405 |         6.01 |    0.3524 |       6.15 |  *   |   0 |    17.7
+    9 |     0.3384 |         5.99 |    0.3536 |       6.16 |      |   1 |    18.4
+   10 |     0.3365 |         5.97 |    0.3552 |       6.18 |      |   2 |    17.4
+   11 |     0.3341 |         5.95 |    0.3526 |       6.15 |      |   3 |    16.5
+   12 |     0.3328 |         5.94 |    0.3525 |       6.14 |      |   4 |    16.5
+   13 |     0.3314 |         5.92 |    0.3506 |       6.15 |  *   |   0 |    16.9
+   14 |     0.3299 |         5.91 |    0.3507 |       6.13 |      |   1 |    16.5
+   15 |     0.3290 |         5.90 |    0.3504 |       6.15 |  *   |   0 |    16.6
+   16 |     0.3275 |         5.88 |    0.3509 |       6.15 |      |   1 |    16.5
+   17 |     0.3263 |         5.87 |    0.3512 |       6.15 |      |   2 |    16.9
+   18 |     0.3254 |         5.86 |    0.3489 |       6.13 |  *   |   0 |    16.4
+   19 |     0.3244 |         5.85 |    0.3518 |       6.17 |      |   1 |    18.1
+   20 |     0.3236 |         5.84 |    0.3495 |       6.13 |      |   2 |    17.4
+   21 |     0.3227 |         5.83 |    0.3493 |       6.14 |      |   3 |    16.8
+   22 |     0.3223 |         5.83 |    0.3507 |       6.16 |      |   4 |    16.5
+   23 |     0.3212 |         5.82 |    0.3506 |       6.16 |      |   5 |    16.6
+   24 |     0.3204 |         5.81 |    0.3496 |       6.15 |      |   6 |    17.0
+   25 |     0.3197 |         5.80 |    0.3504 |       6.16 |      |   7 |    16.6
+   26 |     0.3193 |         5.80 |    0.3521 |       6.17 |      |   8 |    16.5
+   27 |     0.3186 |         5.79 |    0.3506 |       6.17 |      |   9 |    16.5
+   28 |     0.3181 |         5.79 |    0.3506 |       6.16 |      |  10 |    17.3
+   29 |     0.3175 |         5.78 |    0.3494 |       6.15 |      |  11 |    16.4
+   30 |     0.3167 |         5.77 |    0.3504 |       6.16 |      |  12 |    20.0
+   31 |     0.3164 |         5.77 |    0.3507 |       6.17 |      |  13 |    17.7
+   32 |     0.3158 |         5.76 |    0.3493 |       6.15 |      |  14 |    18.4
+   33 |     0.3155 |         5.76 |    0.3504 |       6.17 |      |  15 |    17.7
+   34 |     0.3151 |         5.76 |    0.3520 |       6.19 |      |  16 |    19.1
+   35 |     0.3143 |         5.75 |    0.3510 |       6.18 |      |  17 |    16.7
+   36 |     0.3142 |         5.74 |    0.3529 |       6.18 |      |  18 |    16.8
+   37 |     0.3135 |         5.74 |    0.3533 |       6.19 |      |  19 |    17.1
+   38 |     0.3137 |         5.74 |    0.3535 |       6.19 |      |  20 |    17.1
+
+Early stop at epoch 38: no improvement for 20 epochs.
+
+Loading best checkpoint for test eval...
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+  best epoch: 18
+  test MSE (normalized): 0.3745
+  test MAE (margin):     6.343 points
+  saved: nn_models/M_10k_strong3_bimodal/train_curves.png
+  saved: nn_models/M_10k_strong3_bimodal/calibration.png

@@ -1,0 +1,51 @@
+Run dir: nn_models/M_10k_S1_winprob
+Device: cpu
+Target mode: winprob | head: sigmoid | loss: bce
+
+Loading games from 1 run(s)...
+Loaded 10000 games
+By-game split: train=8000 val=1000 test=1000
+Descriptors: train=1460792 val=182806 test=183984
+Pre-encoding train...
+Pre-encoding val...
+Pre-encoding test...
+NormStats: target_mode=winprob, target_std=1.000, encoding_version=2
+Examples: train=1460792 val=182806 test=183984
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=sigmoid
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.1423 |         0.28 |    0.1396 |       0.28 |  *   |   0 |    17.6
+    2 |     0.1321 |         0.26 |    0.1407 |       0.27 |      |   1 |    15.9
+    3 |     0.1270 |         0.25 |    0.1410 |       0.27 |      |   2 |    16.0
+    4 |     0.1230 |         0.25 |    0.1439 |       0.27 |      |   3 |    16.3
+    5 |     0.1199 |         0.24 |    0.1445 |       0.27 |      |   4 |    16.6
+    6 |     0.1174 |         0.24 |    0.1474 |       0.27 |      |   5 |    16.5
+    7 |     0.1153 |         0.23 |    0.1468 |       0.27 |      |   6 |    16.5
+    8 |     0.1137 |         0.23 |    0.1482 |       0.27 |      |   7 |    16.7
+    9 |     0.1121 |         0.22 |    0.1483 |       0.27 |      |   8 |    16.5
+   10 |     0.1108 |         0.22 |    0.1491 |       0.27 |      |   9 |    16.5
+   11 |     0.1098 |         0.22 |    0.1480 |       0.26 |      |  10 |    16.5
+   12 |     0.1087 |         0.22 |    0.1490 |       0.27 |      |  11 |    16.5
+   13 |     0.1079 |         0.22 |    0.1497 |       0.26 |      |  12 |    16.4
+   14 |     0.1072 |         0.21 |    0.1491 |       0.26 |      |  13 |    16.5
+   15 |     0.1064 |         0.21 |    0.1509 |       0.26 |      |  14 |    16.4
+   16 |     0.1058 |         0.21 |    0.1503 |       0.26 |      |  15 |    17.5
+   17 |     0.1050 |         0.21 |    0.1514 |       0.26 |      |  16 |    16.4
+   18 |     0.1046 |         0.21 |    0.1515 |       0.27 |      |  17 |    16.1
+   19 |     0.1041 |         0.21 |    0.1520 |       0.26 |      |  18 |    19.3
+   20 |     0.1037 |         0.21 |    0.1525 |       0.27 |      |  19 |    17.5
+   21 |     0.1031 |         0.21 |    0.1519 |       0.26 |      |  20 |    16.2
+
+Early stop at epoch 21: no improvement for 20 epochs.
+
+Loading best checkpoint for test eval...
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+  best epoch: 1
+  test MSE (normalized): 0.1422
+  test MAE (margin):     0.278 points
+  saved: nn_models/M_10k_S1_winprob/train_curves.png
+  saved: nn_models/M_10k_S1_winprob/calibration.png
