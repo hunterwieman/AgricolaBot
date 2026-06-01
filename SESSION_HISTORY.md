@@ -2766,6 +2766,14 @@ Three runs validated end-to-end:
 | 20260528-031013-cdfe | 1000 (sanity-check) | 131 s | 48 MB | All checks pass |
 | 20260528-031528-9d6a | 5000 (production) | ~11 min (in progress at session end) | ~240 MB | TBD |
 
+> **Later cleanup (subsequent session):** the production 5k run was renamed
+> `20260528-031528-9d6a` → `standard_bimodal_5k`, and the 50- and
+> 1000-game runs were deleted as subsumed (all three shared
+> `base_seed=1000000`, so the smaller two are exact prefixes of the 5k —
+> no unique data lost, and regenerable from the deterministic plan if ever
+> needed). The 5k remains the training data behind `v2dropout02` and is a
+> component of `M_15k_standard` / `M_55k_all`.
+
 Empirical findings worth knowing:
 
 - **~90 decisions per game on average** (range 67-103 on the 50-game sample) — higher than the 30-60 estimate written into the design doc. Total: ~4500 snapshots per 50 games.

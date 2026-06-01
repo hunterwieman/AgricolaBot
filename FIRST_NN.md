@@ -613,6 +613,72 @@ Mechanism mirrors `ENCODING_VERSION`:
 
 **Initial version:** `DATA_VERSION = 1` corresponds to the schema specified in §6.2.
 
+### 10.5 Encoded-vector cache (per-run-dir)
+
+**Status: design spec — to be implemented.** Encoding is the slow part of every training run (`encode_state` over millions of descriptors, single-threaded Python; ~10-15 min for the 55k set before epoch 1). Today nothing persists the encoded arrays — every training run re-encodes from the pickles, even when it reuses the same games. This cache persists the encoding so re-runs skip it.
+
+**Core principle: encoding is context-free, so it belongs to the run dir.** `encode_state(state, perspective)` depends only on the state — not on the train/val/test split, the target mode, or which *other* run dirs it's combined with. So a run dir's encoded vectors are computed **once** and reused by *any* training run that includes that run dir (15k, 55k, the supervision-target variants, future ablations on any subset). This is strictly better than a monolithic cache keyed on the whole `(run_dirs, split, target_mode)` combination, which would re-encode for every new combination.
+
+#### Storage layout
+
+One cache file per run dir, living **inside** the run dir so it moves with renames and is gitignored automatically:
+
+```
+data/nn_training/runs/<run>/encoded_v<ENCODING_VERSION>.npz
+```
+
+Version-tagged in the filename so an `ENCODING_VERSION` bump simply misses the cache and triggers a clean re-encode (old cache files can be deleted lazily).
+
+Contents (one row per descriptor — both perspectives of every non-singleton snapshot + every terminal, in the existing paired layout):
+
+| Array | dtype | purpose |
+|---|---|---|
+| `X` | float16 | the encoded features (the expensive artifact; f16 halves disk + RAM) |
+| `y_margin` | float32 | per-descriptor margin target (score-diff, perspective-framed) |
+| `y_outcome` | int8 | per-descriptor outcome target (+1/0/−1) |
+| `y_winprob` | float32 | per-descriptor win-prob target (1/0.5/0) |
+| `game_seed` | int64 | the game's `GameRecord.seed` (for split assignment — see below) |
+| `is_terminal` | bool | terminal vs decision-snapshot descriptor |
+
+Plus a small header (npz scalars) used for invalidation, written once per cache: `encoding_version`, `data_version`, `completed_games`, and `base_seed` (read from the run dir's `metadata.json` at write time).
+
+Storing all three target modes (a few bytes/descriptor) makes the cache **target-mode-agnostic** — one cache serves margin, outcome, and winprob training without re-encoding. **float16 for X is effectively lossless here:** the features are small integer-valued counts (resources <100, round 1-14, accumulation amounts, one-hot flags), all exactly representable in f16; the per-item upcast to f32 at access is therefore exact. (Targets stay f32/int8 regardless.) Size ≈ 500 MB per 10k-game run dir (f16-dominated); ~2.75 GB across the current six dirs.
+
+#### What is computed at *load* time (cheap, from cached X — no re-encoding, no game loading)
+
+- **Split (train/val/test):** assigned by hashing the game's **`GameRecord.seed`**, NOT the folder name or a global index. This is the load-bearing correctness choice. `seed = base_seed + game_idx`, so it's **stable per game** (rename-proof — we renamed a run folder this session) and stable across combinations (doesn't depend on which other run dirs are loaded). Keying on it makes a game's train/val/test membership fixed forever, which keeps cross-combination comparisons clean. (Contrast: folder name re-splits on rename; global index re-splits whenever the run-dir set changes.) Caveat: seeds are unique only by the *disjoint-base_seed convention*, not by construction — and the generator's **default `base_seed=1000000` collides with `standard_bimodal_5k`**. A collision is harmless *for splitting* (deterministic, and there's no within-game leakage to worry about), but new runs should use a fresh base_seed anyway.
+- **NormStats:** input mean/std + target_std computed over the *train* rows **after `train_keep_frac` subsampling** (matches `build_datasets`, which fits stats on the post-subsample train set). Fast array ops; no games needed.
+- **Target selection:** pick `y_margin` / `y_outcome` / `y_winprob` per the run's `target_mode`.
+- **`train_keep_frac` subsampling:** drop train rows per the deterministic per-descriptor rule.
+
+So the cache stores *only the encoding*; every per-training-run choice (split, target, normalization, sampling) is applied on top at load. This is what lets one cache serve every training configuration. Note this split rule is the chunked builder's per-seed hash (~80/10/10), not `build_datasets`'s exact-`round(0.8N)` permutation — so a cache-trained model and a (non-cached) `build_datasets`-trained model on the same games get slightly different splits. The cache path is the standard for large/multi-run data; don't mix the two builders expecting identical splits.
+
+#### Invalidation (cheap — must NOT require loading the games)
+
+The check has to be doable without reading the pickles (loading them is the cost the cache removes). So:
+
+- **Encoder change** → `ENCODING_VERSION` is in the filename (`encoded_v<N>.npz`) → automatic miss + clean re-encode. (Stale `encoded_v<old>.npz` is dead weight; delete lazily.)
+- **Regenerated games** → two cheap signals, no pickle load:
+  1. **mtime (make-style):** the cache is stale if any `worker_*.pkl` in the dir is newer than `encoded_v<N>.npz`. Pure `stat`.
+  2. **metadata cross-check:** compare the cache header's `(completed_games, base_seed, data_version)` against the run dir's current `metadata.json` (tiny read). Mismatch → rebuild.
+- **`DATA_VERSION` change** → also tracked in the header (and the pickles would fail the existing load-time guard anyway).
+
+Deliberately *not* used: hashing the games' seeds/content — that needs loading every game, defeating the cache.
+
+#### Integration
+
+A cache **hit short-circuits game loading entirely** — the build loads the npz and never calls `load_all_games_from_runs` for that run dir. This is the main payoff and it also makes the *non-chunked* `build_datasets` memory-safe for large data when the cache is warm (no 12 GB of games materialized). The check runs at the top of the build, **per run dir**; mixed hit/miss across run dirs is handled independently (cached dirs load their npz; missed dirs encode-and-write via the chunked path). `build_datasets_chunked` is the producer: as it encodes each run dir, write that dir's `encoded_v<N>.npz` before freeing the chunk. Wire a `use_cache=True` flag through `build_datasets` / `build_datasets_chunked` / `train()` / the CLI. Peak memory stays bounded (one run dir's arrays at a time).
+
+#### Codebase impact — the split convention changes (not a transparent speedup)
+
+The cache is insulated from the whole inference/model/MCTS/engine stack (it only accelerates dataset *construction*; the output `AgricolaValueDataset` + `NormStats` interface is unchanged). The one non-trivial consequence is the split rule:
+
+- Implementing the cache means **`build_datasets_chunked`'s split changes from global-index to seed-hash** (§10.5 above; see also the global-index-vs-seed-hash discussion). Already-trained models are unaffected, but a *re-run* of e.g. `M_55k_all` would get a different (now stable) split.
+- **`use_cache=True` therefore also changes the split** — it is NOT a transparent accelerator. A cache/seed-hash-trained model has different val/test sets than a permutation-split (`build_datasets`) model on the same games, so their **MAEs aren't directly comparable** (gameplay still is). Recommend `use_cache` default **off**, opt-in, with seed-hash as the standard for the large/multi-run path going forward.
+- Doc-sync when implemented: §10.1 file layout + new functions, this section's status flag, §12 status list, and the `dataset.py` entries in CLAUDE.md / FILE_DESCRIPTIONS.md. No logic changes elsewhere.
+
+**Live example of why this matters (the global-index fragility, observed):** when we renamed `20260528-031528-9d6a` → `standard_bimodal_5k`, run dirs load in *sorted* order, so the rename shifted every game's global index → the global-index split moved. As a result `M_55k`'s training val/test split (computed at train time, pre-relevant-ordering) can no longer be cleanly reproduced post-rename — its finalization measures `value_scale` over states that may include some training games, and a re-measured "test MAE" would be optimistic/contaminated. (`value_scale` is a scale statistic, unaffected; the held-out *test* set is the casualty.) Seed-hash makes the split a property of the game, immune to renames and run-set changes — exactly this failure mode is why the cache requires it.
+
 ---
 
 ## 11. Experiments
@@ -803,10 +869,9 @@ Current state:
   - `scripts/nn/eval_vs_ensemble.py` — round-robin evaluation of a trained checkpoint vs the 8-config data-gen ensemble
   - `scripts/nn/play_match.py` — NN-backed match driver with per-seat dispatch (`--p0 {mcts,nn} --p1 {mcts,nn}`); the key tool for the Experiment C3 MCTS-NN-vs-NNAgent comparison
 - **Tests:** 131 NN-related tests passing (16 schema/recording + 15 batch generator + 10 validation script + 28 encoder + 16 dataset + 27 model + 15 agent/training/integration). Full suite stays green.
-- **Datasets on disk:**
-  - 50-game pipeline-check run (validated, all checks pass)
-  - 1000-game sanity-check run (validated, all checks pass, 48 MB, 131s wall time on 8 workers)
-  - 5000-game production run (validated, all checks pass, 247 MB, ~19 min on 8 workers)
+- **Datasets on disk** (`data/nn_training/runs/`, gitignored):
+  - `standard_bimodal_5k` — the 5000-game production run (all-8 configs, bimodal T); training data behind `v2dropout02` and a component of `M_15k_standard` / `M_55k_all`. (Renamed from its original timestamp id; the earlier 50- and 1000-game smoke/sanity runs were deleted as subsumed — same base_seed, so they were exact prefixes of the 5k.)
+  - `S1_standard_bimodal_10k` … `S5_no_v1_lowT_10k` — the five 10k-game P1 ablation sections (disjoint seed ranges from the 5k and each other; see C11-C13).
 - **Trained checkpoints:**
   - `nn_models/20260529-153224-acb2/best.pt` — first end-to-end smoke-test (50k example sub-sample); see training log for details
   - `nn_models/20260529-162301-04fe/best.pt` — full-data production run on the 5000-game dataset; the current §11 reference checkpoint (test MAE = 6.87)

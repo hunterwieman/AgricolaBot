@@ -40,7 +40,7 @@
     "data_version": 1,
     "code_sha": "9e1b99083a070caf6e36e54739d92693d8cdb13c",
     "run_dirs": [
-      "data/nn_training/runs/20260528-031528-9d6a"
+      "data/nn_training/runs/standard_bimodal_5k"
     ],
     "train_size": 727254,
     "val_size": 90858,
