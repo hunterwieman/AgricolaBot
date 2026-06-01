@@ -630,7 +630,11 @@ def _write_cache(run_dir: Path, arrays: dict, verbose: bool = False) -> None:
     # tmp must end in .npz, else np.savez appends ".npz" and the rename target
     # is wrong (np.savez auto-suffix gotcha).
     tmp = cp.parent / (cp.name + ".tmp.npz")
-    np.savez(
+    # Compressed: X is overwhelmingly zeros + small repeated ints, so it shrinks
+    # ~25x (329 MB -> 13 MB per 5k dir). Reads come out *faster* than
+    # uncompressed (less disk I/O beats zlib-inflate cost); only the one-time
+    # write pays ~5 s/dir of CPU, negligible against the multi-minute encode.
+    np.savez_compressed(
         tmp, **arrays,
         encoding_version=np.int64(ENCODING_VERSION),
         completed_games=np.int64(meta[0]), base_seed=np.int64(meta[1]),
@@ -655,6 +659,7 @@ def build_datasets_chunked(
     sample_seed: int = 1,
     target_mode: str = "margin",
     train_keep_frac: float = 1.0,
+    train_game_frac: float = 1.0,
     store_dtype: str = "float16",
     use_cache: bool = False,
     verbose: bool = True,
@@ -672,7 +677,8 @@ def build_datasets_chunked(
     Then, in memory (float16-dominated, fits where the all-games build
     can't): assign the train/val/test split per game via `_seed_split`
     (stable per game — rename-proof, combination-invariant), select the
-    `target_mode` targets, apply `train_keep_frac` to train, and fit
+    `target_mode` targets, apply `train_game_frac` (drop whole train games)
+    and/or `train_keep_frac` (drop train snapshots) to train, and fit
     `NormStats` on the surviving train rows.
 
     NB: the split is seed-hash, NOT `build_datasets`'s exact permutation —
@@ -721,9 +727,28 @@ def build_datasets_chunked(
             split_of_seed[s] = sp
         split[i] = sp
 
+    # ----- train_game_frac: drop a fraction of TRAIN *games* whole (keep
+    #       every snapshot of surviving games; deterministic per game_seed).
+    #       The control arm for the within-game-redundancy experiment
+    #       (FIRST_NN §13.1): subsampling games vs subsampling snapshots at a
+    #       matched descriptor budget. Independent rng stream from
+    #       train_keep_frac (distinct key salt) so the two compose cleanly. -----
+    train_mask = split == 0
+    if train_game_frac < 1.0:
+        game_keep: dict[int, bool] = {}
+        for i in np.nonzero(train_mask)[0]:
+            s = int(game_seed[i])
+            k = game_keep.get(s)
+            if k is None:
+                roll = float(np.random.default_rng(
+                    [sample_seed, 7919, s]).random())
+                k = roll < train_game_frac
+                game_keep[s] = k
+            if not k:
+                train_mask[i] = False
+
     # ----- train_keep_frac: drop a fraction of TRAIN state-keys (both
     #       perspectives together; deterministic per (game_seed, snap_idx)) -----
-    train_mask = split == 0
     if train_keep_frac < 1.0:
         for i in np.nonzero(train_mask)[0]:
             keep = float(np.random.default_rng(

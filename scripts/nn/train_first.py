@@ -94,6 +94,12 @@ def main() -> int:
                         help="(chunked only) Randomly keep this fraction of "
                              "TRAIN state-keys — shrinks the array / cuts "
                              "within-game redundancy. Default 1.0 = keep all.")
+    parser.add_argument("--train-game-frac", type=float, default=1.0,
+                        help="(chunked only) Randomly keep this fraction of "
+                             "TRAIN *games* whole (every snapshot of surviving "
+                             "games). The control arm vs --train-keep-frac for "
+                             "the within-game-redundancy experiment (FIRST_NN "
+                             "§13.1). Default 1.0 = keep all.")
     parser.add_argument("--store-dtype", type=str, default="float16",
                         choices=["float16", "float32"],
                         help="(chunked only) Encoded-array dtype. float16 "
@@ -142,6 +148,7 @@ def main() -> int:
         head=args.head,
         chunked=args.chunked,
         train_keep_frac=args.train_keep_frac,
+        train_game_frac=args.train_game_frac,
         store_dtype=args.store_dtype,
         use_cache=args.use_cache,
     )

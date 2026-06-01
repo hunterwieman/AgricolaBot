@@ -1,0 +1,99 @@
+Run dir: nn_models/M_55k_snap6th
+Device: cpu
+Target mode: margin | head: linear | loss: mse
+
+  cache HIT: standard_bimodal_5k/encoded_v2.npz
+  cache MISS: encoding S1_standard_bimodal_10k
+  encoded S1_standard_bimodal_10k/worker_00.pkl: descs so far=228472
+  encoded S1_standard_bimodal_10k/worker_01.pkl: descs so far=456562
+  encoded S1_standard_bimodal_10k/worker_02.pkl: descs so far=685248
+  encoded S1_standard_bimodal_10k/worker_03.pkl: descs so far=913598
+  encoded S1_standard_bimodal_10k/worker_04.pkl: descs so far=1142148
+  encoded S1_standard_bimodal_10k/worker_05.pkl: descs so far=1370810
+  encoded S1_standard_bimodal_10k/worker_06.pkl: descs so far=1598580
+  encoded S1_standard_bimodal_10k/worker_07.pkl: descs so far=1827582
+  wrote cache encoded_v2.npz (662 MB)
+  cache MISS: encoding S2_no_v1_bimodal_10k
+  encoded S2_no_v1_bimodal_10k/worker_00.pkl: descs so far=228964
+  encoded S2_no_v1_bimodal_10k/worker_01.pkl: descs so far=459038
+  encoded S2_no_v1_bimodal_10k/worker_02.pkl: descs so far=688832
+  encoded S2_no_v1_bimodal_10k/worker_03.pkl: descs so far=918900
+  encoded S2_no_v1_bimodal_10k/worker_04.pkl: descs so far=1148422
+  encoded S2_no_v1_bimodal_10k/worker_05.pkl: descs so far=1378202
+  encoded S2_no_v1_bimodal_10k/worker_06.pkl: descs so far=1608126
+  encoded S2_no_v1_bimodal_10k/worker_07.pkl: descs so far=1837468
+  wrote cache encoded_v2.npz (665 MB)
+  cache MISS: encoding S3_strong3_bimodal_10k
+  encoded S3_strong3_bimodal_10k/worker_00.pkl: descs so far=227598
+  encoded S3_strong3_bimodal_10k/worker_01.pkl: descs so far=454240
+  encoded S3_strong3_bimodal_10k/worker_02.pkl: descs so far=679986
+  encoded S3_strong3_bimodal_10k/worker_03.pkl: descs so far=906990
+  encoded S3_strong3_bimodal_10k/worker_04.pkl: descs so far=1133070
+  encoded S3_strong3_bimodal_10k/worker_05.pkl: descs so far=1360220
+  encoded S3_strong3_bimodal_10k/worker_06.pkl: descs so far=1587102
+  encoded S3_strong3_bimodal_10k/worker_07.pkl: descs so far=1814848
+  wrote cache encoded_v2.npz (657 MB)
+  cache MISS: encoding S4_all_lowT_10k
+  encoded S4_all_lowT_10k/worker_00.pkl: descs so far=232010
+  encoded S4_all_lowT_10k/worker_01.pkl: descs so far=463638
+  encoded S4_all_lowT_10k/worker_02.pkl: descs so far=694890
+  encoded S4_all_lowT_10k/worker_03.pkl: descs so far=926210
+  encoded S4_all_lowT_10k/worker_04.pkl: descs so far=1156984
+  encoded S4_all_lowT_10k/worker_05.pkl: descs so far=1388192
+  encoded S4_all_lowT_10k/worker_06.pkl: descs so far=1620266
+  encoded S4_all_lowT_10k/worker_07.pkl: descs so far=1852682
+  wrote cache encoded_v2.npz (671 MB)
+  cache MISS: encoding S5_no_v1_lowT_10k
+  encoded S5_no_v1_lowT_10k/worker_00.pkl: descs so far=235152
+  encoded S5_no_v1_lowT_10k/worker_01.pkl: descs so far=468654
+  encoded S5_no_v1_lowT_10k/worker_02.pkl: descs so far=702918
+  encoded S5_no_v1_lowT_10k/worker_03.pkl: descs so far=938248
+  encoded S5_no_v1_lowT_10k/worker_04.pkl: descs so far=1172754
+  encoded S5_no_v1_lowT_10k/worker_05.pkl: descs so far=1406496
+  encoded S5_no_v1_lowT_10k/worker_06.pkl: descs so far=1641026
+  encoded S5_no_v1_lowT_10k/worker_07.pkl: descs so far=1875810
+  wrote cache encoded_v2.npz (679 MB)
+Chunked build: train=1339426 val=1039712 test=1028000 | dtype=float16 | use_cache=True | target_mode=margin target_std=13.160
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.4431 |         6.41 |    0.4036 |       6.05 |  *   |   0 |    31.2
+    2 |     0.4112 |         6.13 |    0.3921 |       5.95 |  *   |   0 |    25.1
+    3 |     0.4032 |         6.06 |    0.3926 |       5.96 |      |   1 |    28.1
+    4 |     0.3978 |         6.01 |    0.3875 |       5.89 |  *   |   0 |    24.2
+    5 |     0.3949 |         5.98 |    0.3836 |       5.86 |  *   |   0 |    23.9
+    6 |     0.3917 |         5.95 |    0.3789 |       5.82 |  *   |   0 |    23.9
+    7 |     0.3896 |         5.93 |    0.3783 |       5.80 |  *   |   0 |    23.8
+    8 |     0.3876 |         5.91 |    0.3775 |       5.80 |  *   |   0 |    23.9
+    9 |     0.3858 |         5.90 |    0.3745 |       5.78 |  *   |   0 |    23.9
+   10 |     0.3843 |         5.88 |    0.3758 |       5.78 |      |   1 |    23.9
+   11 |     0.3829 |         5.87 |    0.3743 |       5.78 |  *   |   0 |    24.2
+   12 |     0.3816 |         5.86 |    0.3723 |       5.76 |  *   |   0 |    23.8
+   13 |     0.3805 |         5.85 |    0.3737 |       5.77 |      |   1 |    23.7
+   14 |     0.3796 |         5.84 |    0.3736 |       5.76 |      |   2 |    23.9
+   15 |     0.3788 |         5.83 |    0.3716 |       5.74 |  *   |   0 |    23.5
+   16 |     0.3780 |         5.83 |    0.3710 |       5.74 |  *   |   0 |    23.9
+   17 |     0.3770 |         5.82 |    0.3711 |       5.74 |      |   1 |    23.8
+   18 |     0.3764 |         5.82 |    0.3743 |       5.76 |      |   2 |    24.0
+   19 |     0.3757 |         5.81 |    0.3708 |       5.75 |  *   |   0 |    23.7
+   20 |     0.3750 |         5.80 |    0.3709 |       5.75 |      |   1 |    23.9
+   21 |     0.3746 |         5.80 |    0.3703 |       5.73 |  *   |   0 |    24.1
+   22 |     0.3744 |         5.80 |    0.3710 |       5.74 |      |   1 |    24.1
+   23 |     0.3733 |         5.79 |    0.3696 |       5.72 |  *   |   0 |    24.0
+   24 |     0.3728 |         5.78 |    0.3698 |       5.73 |      |   1 |    23.9
+   25 |     0.3723 |         5.78 |    0.3694 |       5.73 |  *   |   0 |    23.8
+   26 |     0.3722 |         5.78 |    0.3698 |       5.73 |      |   1 |    24.3
+   27 |     0.3716 |         5.77 |    0.3689 |       5.72 |  *   |   0 |    26.7
+   28 |     0.3714 |         5.77 |    0.3697 |       5.73 |      |   1 |    25.6
+   29 |     0.3709 |         5.77 |    0.3688 |       5.72 |  *   |   0 |    27.1
+   30 |     0.3703 |         5.77 |    0.3687 |       5.72 |  *   |   0 |    27.4
+   31 |     0.3702 |         5.76 |    0.3676 |       5.71 |  *   |   0 |    27.6
+   32 |     0.3697 |         5.76 |    0.3695 |       5.74 |      |   1 |    30.1
+   33 |     0.3693 |         5.76 |    0.3684 |       5.72 |      |   2 |    29.8
+   34 |     0.3690 |         5.76 |    0.3704 |       5.72 |      |   3 |    29.6
+   35 |     0.3687 |         5.75 |    0.3693 |       5.72 |      |   4 |    29.8
+   36 |     0.3686 |         5.75 |    0.3691 |       5.72 |      |   5 |    28.5
+   37 |     0.3681 |         5.75 |    0.3684 |       5.72 |      |   6 |    25.5

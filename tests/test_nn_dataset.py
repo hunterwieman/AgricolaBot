@@ -199,6 +199,23 @@ def test_chunked_train_keep_frac_shrinks_train(chunk_games, tmp_path):
     assert len(va_half) == len(va_full)         # val unchanged
 
 
+def test_chunked_train_game_frac_drops_whole_games(chunk_games, tmp_path):
+    """train_game_frac < 1 drops whole train games (C17 control arm);
+    val/test unaffected, and the drop is deterministic per game_seed."""
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    tr_full, va_full, te_full, _ = build_datasets_chunked(
+        run_dir, train_game_frac=1.0, verbose=False)
+    tr_half, va_half, te_half, _ = build_datasets_chunked(
+        run_dir, train_game_frac=0.5, verbose=False)
+    assert len(tr_half) < len(tr_full)          # train shrank
+    assert len(va_half) == len(va_full)         # val unchanged
+    assert len(te_half) == len(te_full)         # test unchanged
+    # deterministic: same flag → same train size on a rebuild
+    tr_half2, _, _, _ = build_datasets_chunked(
+        run_dir, train_game_frac=0.5, verbose=False)
+    assert len(tr_half2) == len(tr_half)
+
+
 def test_chunked_outcome_mode_targets_bounded(chunk_games, tmp_path):
     run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
     tr, _, _, stats = build_datasets_chunked(

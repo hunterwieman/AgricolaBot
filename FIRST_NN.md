@@ -642,7 +642,9 @@ Contents (one row per descriptor — both perspectives of every non-singleton sn
 
 Plus a small header (npz scalars) used for invalidation, written once per cache: `encoding_version`, `data_version`, `completed_games`, and `base_seed` (read from the run dir's `metadata.json` at write time).
 
-Storing all three target modes (a few bytes/descriptor) makes the cache **target-mode-agnostic** — one cache serves margin, outcome, and winprob training without re-encoding. **float16 for X is effectively lossless here:** the features are small integer-valued counts (resources <100, round 1-14, accumulation amounts, one-hot flags), all exactly representable in f16; the per-item upcast to f32 at access is therefore exact. (Targets stay f32/int8 regardless.) Size ≈ 500 MB per 10k-game run dir (f16-dominated); ~2.75 GB across the current six dirs.
+Storing all three target modes (a few bytes/descriptor) makes the cache **target-mode-agnostic** — one cache serves margin, outcome, and winprob training without re-encoding. **float16 for X is effectively lossless here:** the features are small integer-valued counts (resources <100, round 1-14, accumulation amounts, one-hot flags), all exactly representable in f16; the per-item upcast to f32 at access is therefore exact. (Targets stay f32/int8 regardless.)
+
+**The writer uses `np.savez_compressed`** (not plain `savez`). X is overwhelmingly zeros + small repeated ints, so it compresses **~26×**: a 10k-game dir is **~26 MB** (was ~660 MB uncompressed), ~140 MB across the current six dirs (was ~3.66 GB). Counterintuitively, compressed reads are *faster*, not slower — inflating 26 MB beats reading 660 MB off disk (measured: 5k dir read+materialize 0.74-0.86 s compressed vs 1.07 s raw). The only added cost is ~5 s/dir of CPU on *write*, negligible against the multi-minute encode it sits inside. `np.load` reads compressed and uncompressed npz transparently, so old uncompressed caches keep working; they were recompressed in place once. The cache's whole point is to save minutes of encoding, so a sub-second decompression is free.
 
 #### What is computed at *load* time (cheap, from cached X — no re-encoding, no game loading)
 
@@ -875,6 +877,26 @@ Test MAE falls monotonically with data (6.73 → 6.47 → 6.37), and the *larger
 
 Both this run and C2 used **regular** restricted legality (verified: `eval_vs_ensemble.py` — which produced C2 — has only ever used regular; `git log -S "strict_restricted"` on it finds nothing). So the **~60% (C2) → 96.4% (here) improvement is clean apples-to-apples** on legality, lookahead (both 1-turn), and opponent set — it reflects model quality (5k → 55k, encoder v2, dropout, diversity), not a setup change.
 
+**C17 — Data-efficiency: snapshot-thinning vs game-dropping at matched budget.** Directly probes the §13.1 within-game-label-redundancy question. Training on 55k games is slow; if the ~150 snapshots/game that share one terminal margin are largely redundant, a fraction of them should train a near-full-strength model. Two arms at a **matched ~1/6 training-descriptor budget**, identical architecture (= `M_55k_all`), identical seed-hash split, **identical (shared) val/test sets**, differing *only* in how train is subsampled:
+
+- **`snap6th`** (`--train-keep-frac 0.16667`): keep 1/6 of snapshots from *every* game (all 55k games represented, ~25 snapshots each). train=1.34M, test MAE 5.717, epoch 31.
+- **`game6th`** (`--train-game-frac 0.16667`, a flag added for this experiment): keep *all* snapshots of 1/6 of the games (~9k games, dense). train=1.36M, test MAE 5.919, epoch 6.
+
+All NNAgent (1-turn) head-to-heads, strict legality, single seat:
+
+| Matchup | Result (P0-P1-D) | Win% | Avg margin |
+|---|---|---|---|
+| `M_55k_all` (full) vs `snap6th` | 149-49-2 | 75.3% | +4.30 |
+| **`snap6th` vs `game6th`** | **145-55-0** | **72.5%** | **+3.96** |
+| `M_55k_all` (full) vs `game6th` | 80-20-0 | 80.0% | +6.25 |
+
+Strict, consistent ordering: **full ≫ snap ≫ game** (gameplay and shared-test MAE agree: 5.717 < 5.919). Two takeaways:
+
+1. **Within-game snapshots are substantially redundant.** At a matched 1/6 budget, thinning snapshots across *all* games beats keeping *fewer* games whole by +3.96 (72.5%, z≈6.4, p≪0.001). Effective sample size tracks the count of distinct games/terminal-labels far more than the raw snapshot count — keeping all 55k labels, even sampled to 1/6, retains far more signal than densely covering ~9k. **Practical rule: to shrink the train set, thin snapshots per game; don't drop games.**
+2. **But the redundancy is partial, not total — 1/6 is not "free."** `snap6th` still loses to full `M_55k_all` by +4.30 (75.3%). The extra 5/6 of snapshots carry real signal; you get a much cheaper but clearly weaker model, not a free lunch. So the §13.1 hypothesis ("effective N ≈ 2·n_games, so snapshot count barely matters") is *directionally* right (snap ≫ game) but quantitatively incomplete (snap < full).
+
+Caveats: `snap6th`'s run was killed at epoch 31 on the val plateau (32-37 flat in a 5.71-5.74 band); `best.pt` was salvaged and finalized post-hoc (test_metrics + value_scale backfilled from the warm cache). Both arms' test MAE is comparable to *each other* (shared seed-hash split) but not to `M_55k_all` (global-index split) or permutation-split models. Single training seed per arm — the multi-seed control (§11.1 loose ends) would tighten the snap-vs-full gap estimate but not the snap-vs-game direction (effect is large). Infrastructure side-effect: this experiment added `--train-game-frac` and switched the encoded-cache writer to `np.savez_compressed` (§10.5).
+
 ---
 
 ## 12. Status
@@ -919,7 +941,7 @@ Refreshed against current state — original items from the design phase (archit
 ### 13.1 Regularization / generalization
 
 - Dropout 0.2 helped (Experiment C6: test MAE 6.87 → 6.73, healthier val curve), but the curve still creeps after the early plateau. Is there more to gain from **higher dropout (0.3+)**, **stronger weight decay**, or a **smaller model**? And is there an irreducible label-noise floor near ~6.7 MAE that no regularization breaks through?
-- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. Does this matter operationally, or is the early-stop discipline enough? (P1's data-scaling arm probes this indirectly.)
+- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. **Partly answered by C17:** at a matched 1/6 budget, thinning snapshots across all games beats keeping fewer whole games +3.96 (72.5%) — confirming snapshots are substantially redundant and effective N tracks game count. *But* the thinned model still loses to full data (+4.30 against it), so the redundancy is partial — extra snapshots carry real signal. Open remainder: where does the snapshot-thinning curve saturate (1/6 vs 1/3 vs 1/2), and is it cheaper to reach a target strength by thinning + more games than by full snapshots + fewer games?
 
 ### 13.2 Data distribution & V1 generalization
 

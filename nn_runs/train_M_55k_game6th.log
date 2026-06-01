@@ -1,0 +1,55 @@
+Run dir: nn_models/M_55k_game6th
+Device: cpu
+Target mode: margin | head: linear | loss: mse
+
+  cache HIT: standard_bimodal_5k/encoded_v2.npz
+  cache HIT: S1_standard_bimodal_10k/encoded_v2.npz
+  cache HIT: S2_no_v1_bimodal_10k/encoded_v2.npz
+  cache HIT: S3_strong3_bimodal_10k/encoded_v2.npz
+  cache HIT: S4_all_lowT_10k/encoded_v2.npz
+  cache HIT: S5_no_v1_lowT_10k/encoded_v2.npz
+Chunked build: train=1357966 val=1039712 test=1028000 | dtype=float16 | use_cache=True | target_mode=margin target_std=13.287
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.4342 |         6.41 |    0.3966 |       6.08 |  *   |   0 |    24.7
+    2 |     0.3974 |         6.09 |    0.3884 |       6.00 |  *   |   0 |    24.7
+    3 |     0.3867 |         5.98 |    0.3859 |       5.97 |  *   |   0 |    25.3
+    4 |     0.3800 |         5.92 |    0.3830 |       5.95 |  *   |   0 |    24.5
+    5 |     0.3746 |         5.87 |    0.3822 |       5.94 |  *   |   0 |    24.3
+    6 |     0.3705 |         5.83 |    0.3803 |       5.91 |  *   |   0 |    27.6
+    7 |     0.3662 |         5.79 |    0.3868 |       5.95 |      |   1 |    25.0
+    8 |     0.3636 |         5.76 |    0.3804 |       5.92 |      |   2 |    24.4
+    9 |     0.3613 |         5.74 |    0.3803 |       5.92 |      |   3 |    23.4
+   10 |     0.3584 |         5.71 |    0.3813 |       5.93 |      |   4 |    23.6
+   11 |     0.3562 |         5.69 |    0.3829 |       5.95 |      |   5 |    23.3
+   12 |     0.3544 |         5.67 |    0.3815 |       5.93 |      |   6 |    23.5
+   13 |     0.3528 |         5.66 |    0.3815 |       5.93 |      |   7 |    25.1
+   14 |     0.3512 |         5.64 |    0.3838 |       5.95 |      |   8 |    28.1
+   15 |     0.3494 |         5.62 |    0.3820 |       5.93 |      |   9 |    26.3
+   16 |     0.3482 |         5.61 |    0.3824 |       5.94 |      |  10 |    26.3
+   17 |     0.3469 |         5.60 |    0.3822 |       5.94 |      |  11 |    27.2
+   18 |     0.3460 |         5.59 |    0.3827 |       5.95 |      |  12 |    29.0
+   19 |     0.3443 |         5.58 |    0.3822 |       5.94 |      |  13 |    26.8
+   20 |     0.3435 |         5.57 |    0.3830 |       5.95 |      |  14 |    25.0
+   21 |     0.3425 |         5.56 |    0.3818 |       5.94 |      |  15 |    26.7
+   22 |     0.3414 |         5.55 |    0.3851 |       5.96 |      |  16 |    55.7
+   23 |     0.3409 |         5.54 |    0.3826 |       5.94 |      |  17 |    67.0
+   24 |     0.3398 |         5.53 |    0.3822 |       5.94 |      |  18 |    32.4
+   25 |     0.3393 |         5.53 |    0.3827 |       5.95 |      |  19 |    29.2
+   26 |     0.3385 |         5.52 |    0.3837 |       5.96 |      |  20 |    28.1
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+
+Early stop at epoch 26: no improvement for 20 epochs.
+
+Loading best checkpoint for test eval...
+  best epoch: 6
+  test MSE (normalized): 0.3758
+  test MAE (margin):     5.919 points
+  leaf value_scale (σ):  19.7860
+  saved: nn_models/M_55k_game6th/train_curves.png
+  saved: nn_models/M_55k_game6th/calibration.png
