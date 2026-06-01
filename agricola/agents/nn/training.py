@@ -39,7 +39,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from agricola.agents.nn.dataset import build_datasets
+from agricola.agents.nn.dataset import build_datasets, build_datasets_chunked
 from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
 from agricola.agents.nn.model import (
     ConfigurableMLP,
@@ -286,6 +286,9 @@ def train(
     loss_type: str = "mse",
     target_mode: str = "margin",
     head: str | None = None,
+    chunked: bool = False,
+    train_keep_frac: float = 1.0,
+    store_dtype: str = "float16",
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a value-function NN. Returns `(epoch_log, best_checkpoint_path)`.
@@ -324,16 +327,31 @@ def train(
 
     # ----- Datasets -----
 
-    train_ds, val_ds, test_ds, stats = build_datasets(
-        run_dirs,
-        train_sample_size=train_sample_size,
-        train_frac=train_frac,
-        val_frac=val_frac,
-        split_seed=split_seed,
-        sample_seed=sample_seed,
-        target_mode=target_mode,
-        verbose=verbose,
-    )
+    if chunked:
+        # Low-memory path for large game collections (loads one pickle at a
+        # time, accumulates float16 arrays). See build_datasets_chunked.
+        train_ds, val_ds, test_ds, stats = build_datasets_chunked(
+            run_dirs,
+            train_frac=train_frac,
+            val_frac=val_frac,
+            split_seed=split_seed,
+            sample_seed=sample_seed,
+            target_mode=target_mode,
+            train_keep_frac=train_keep_frac,
+            store_dtype=store_dtype,
+            verbose=verbose,
+        )
+    else:
+        train_ds, val_ds, test_ds, stats = build_datasets(
+            run_dirs,
+            train_sample_size=train_sample_size,
+            train_frac=train_frac,
+            val_frac=val_frac,
+            split_seed=split_seed,
+            sample_seed=sample_seed,
+            target_mode=target_mode,
+            verbose=verbose,
+        )
     stats.save(out_dir / "norm_stats.json")  # reference copy
 
     # ----- Model -----
@@ -378,6 +396,9 @@ def train(
         "loss": effective_loss,
         "target_mode": target_mode,
         "head": head,
+        "chunked": chunked,
+        "train_keep_frac": train_keep_frac,
+        "store_dtype": store_dtype if chunked else "float32",
         "input_dim": ENCODED_DIM,
         "encoding_version": ENCODING_VERSION,
         "data_version": DATA_VERSION,
@@ -500,7 +521,8 @@ def train(
         # V(s,0)-V(s,1)) on the val features, and patch it into the meta
         # sidecar so MCTS can normalize this head's leaf to unit scale
         # (FIRST_NN.md Experiment P2). val_ds._X is in paired layout.
-        value_scale = measure_leaf_value_scale(best_model, val_ds._X.to(device_obj))
+        value_scale = measure_leaf_value_scale(
+            best_model, val_ds._X.float().to(device_obj))
         best_model.value_scale = value_scale
         meta_path = best_path.with_suffix(".meta.json")
         with meta_path.open("r") as f:

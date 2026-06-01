@@ -85,6 +85,19 @@ def main() -> int:
                         help="Override the output-head activation. Default: "
                              "auto from --target-mode.")
     # Dataset
+    parser.add_argument("--chunked", action="store_true", default=False,
+                        help="Low-memory build: load one worker pickle at a "
+                             "time, accumulate float16 arrays. Needed for "
+                             "large game collections (~55k+) that don't fit in "
+                             "RAM all at once.")
+    parser.add_argument("--train-keep-frac", type=float, default=1.0,
+                        help="(chunked only) Randomly keep this fraction of "
+                             "TRAIN state-keys — shrinks the array / cuts "
+                             "within-game redundancy. Default 1.0 = keep all.")
+    parser.add_argument("--store-dtype", type=str, default="float16",
+                        choices=["float16", "float32"],
+                        help="(chunked only) Encoded-array dtype. float16 "
+                             "halves RAM; upcast to f32 per-item at access.")
     parser.add_argument("--train-sample-size", type=int, default=None,
                         help="Cap on train descriptors (paired). Default: use all.")
     parser.add_argument("--train-frac", type=float, default=0.8)
@@ -121,6 +134,9 @@ def main() -> int:
         loss_type=args.loss,
         target_mode=args.target_mode,
         head=args.head,
+        chunked=args.chunked,
+        train_keep_frac=args.train_keep_frac,
+        store_dtype=args.store_dtype,
     )
     return 0
 

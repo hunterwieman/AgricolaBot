@@ -30,6 +30,7 @@ from agricola.agents.nn.dataset import (
     NormStats,
     _expand_to_descriptors,
     build_datasets,
+    build_datasets_chunked,
     build_datasets_from_games,
 )
 from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
@@ -132,6 +133,73 @@ def test_target_mode_dual_perspective_antisymmetry(small_games):
         y0 = float(train[i][1])
         y1 = float(train[i + 1][1])
         assert y0 == -y1, f"perspective targets not antisymmetric: {y0} vs {y1}"
+
+
+@pytest.fixture(scope="module")
+def chunk_games() -> list[GameRecord]:
+    """More games than `small_games` (40) so the chunked builder's
+    per-index random split reliably populates all three of train/val/test."""
+    return [_record_one_game(seed) for seed in range(100, 140)]
+
+
+def _write_run_dir(tmp_path, games, n_workers=2, name="run"):
+    """Write `games` across `n_workers` worker pickles under tmp/<name>/games/
+    so the chunked builder (which iterates pickles) can read them."""
+    run_dir = tmp_path / name
+    gdir = run_dir / "games"
+    gdir.mkdir(parents=True)
+    for w in range(n_workers):
+        chunk = games[w::n_workers]  # strided split across workers
+        with (gdir / f"worker_{w:02d}.pkl").open("wb") as f:
+            pickle.dump(chunk, f)
+    return run_dir
+
+
+def test_chunked_builder_shapes_and_dtype(chunk_games, tmp_path):
+    """build_datasets_chunked produces non-empty train/val/test, float16
+    X storage by default, and a fitted NormStats."""
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    tr, va, te, stats = build_datasets_chunked(run_dir, verbose=False)
+    assert len(tr) > 0 and len(va) > 0 and len(te) > 0
+    # X stored as float16 by default; __getitem__ upcasts to float32.
+    assert tr._X.dtype == torch.float16
+    x, y = tr[0]
+    assert x.dtype == torch.float32 and x.shape == (ENCODED_DIM,)
+    assert stats.input_mean.shape == (ENCODED_DIM,)
+    assert stats.target_std > 0
+
+
+def test_chunked_builder_matches_full_on_stats(chunk_games, tmp_path):
+    """Chunked streaming NormStats should closely match the full builder's
+    (same games, same target). Splits differ (per-index vs permutation), so
+    we compare aggregate input statistics over a shared encoding, loosely."""
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=3)
+    _, _, _, stats_chunk = build_datasets_chunked(run_dir, store_dtype="float32", verbose=False)
+    # target_std is over the train split; both builders see the same games,
+    # so the margin scale should be in the same ballpark.
+    _, _, _, stats_full = build_datasets_from_games(chunk_games, verbose=False)
+    assert stats_chunk.target_std == pytest.approx(stats_full.target_std, rel=0.5)
+    assert stats_chunk.input_mean.shape == stats_full.input_mean.shape
+
+
+def test_chunked_train_keep_frac_shrinks_train(chunk_games, tmp_path):
+    """train_keep_frac < 1 drops train state-keys; val/test unaffected."""
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    tr_full, va_full, _, _ = build_datasets_chunked(
+        run_dir, train_keep_frac=1.0, verbose=False)
+    tr_half, va_half, _, _ = build_datasets_chunked(
+        run_dir, train_keep_frac=0.5, verbose=False)
+    assert len(tr_half) < len(tr_full)          # train shrank
+    assert len(va_half) == len(va_full)         # val unchanged
+
+
+def test_chunked_outcome_mode_targets_bounded(chunk_games, tmp_path):
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    tr, _, _, stats = build_datasets_chunked(
+        run_dir, target_mode="outcome", verbose=False)
+    assert stats.target_mode == "outcome" and stats.target_std == 1.0
+    ys = {round(float(tr[i][1]), 3) for i in range(len(tr))}
+    assert ys.issubset({-1.0, 0.0, 1.0})
 
 
 def test_normstats_target_mode_roundtrips(small_games, tmp_path):

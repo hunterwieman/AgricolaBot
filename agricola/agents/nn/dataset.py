@@ -271,7 +271,9 @@ class AgricolaValueDataset(Dataset):
     """
 
     def __init__(self, X: np.ndarray, y_normalized: np.ndarray):
-        assert X.dtype == np.float32, f"X dtype is {X.dtype}, expected float32"
+        assert X.dtype in (np.float32, np.float16), (
+            f"X dtype is {X.dtype}, expected float32 or float16"
+        )
         assert y_normalized.dtype == np.float32, (
             f"y dtype is {y_normalized.dtype}, expected float32"
         )
@@ -282,15 +284,22 @@ class AgricolaValueDataset(Dataset):
             f"X has {X.shape[1]} feature columns, expected {ENCODED_DIM}"
         )
         # Convert to torch tensors once at construction. `from_numpy`
-        # shares the underlying buffer (zero-copy); cheap.
+        # shares the underlying buffer (zero-copy); cheap. X may be float16
+        # (the chunked builder stores it half-precision to fit large
+        # datasets in RAM); __getitem__ upcasts to float32 per item so the
+        # model's f32 normalization buffers see f32 input.
         self._X = torch.from_numpy(X)
         self._y = torch.from_numpy(y_normalized)
+        self._x_is_half = X.dtype == np.float16
 
     def __len__(self) -> int:
         return self._y.shape[0]
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        return self._X[idx], self._y[idx]
+        x = self._X[idx]
+        if self._x_is_half:
+            x = x.float()
+        return x, self._y[idx]
 
 
 # ---------------------------------------------------------------------------
@@ -477,4 +486,177 @@ def build_datasets(
         sample_seed=sample_seed,
         target_mode=target_mode,
         verbose=verbose,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Chunked (low-memory) builder — for datasets too large to hold all games
+# in RAM at once (e.g. 55k+ games on an 8 GB machine).
+# ---------------------------------------------------------------------------
+
+
+def _iter_worker_pickles(run_dirs: Sequence[Path]):
+    """Yield worker-pickle paths in the same stable order as
+    `load_all_games_from_runs` (sorted run dir, then sorted pickle)."""
+    for run_dir in run_dirs:
+        games_dir = Path(run_dir) / "games"
+        if not games_dir.is_dir():
+            raise FileNotFoundError(
+                f"{run_dir} has no 'games/' subdirectory — not a run directory?"
+            )
+        for pkl in sorted(games_dir.glob("worker_*.pkl")):
+            yield pkl
+
+
+def _assign_split(gi: int, split_seed: int, train_frac: float, val_frac: float) -> int:
+    """Deterministic per-game split: 0=train, 1=val, 2=test. Uses a
+    per-(seed, game-index) RNG draw so no global game count is needed
+    (the chunked builder never holds all games at once). Proportions match
+    train_frac / val_frac in expectation. NB: this is a *different* split
+    rule than `_split_games_by_index`'s global permutation — the chunked
+    path is a separate builder for large data, so a different but
+    deterministic split is acceptable; don't mix checkpoints across the
+    two builders expecting identical splits."""
+    r = float(np.random.default_rng([split_seed, gi]).random())
+    if r < train_frac:
+        return 0
+    if r < train_frac + val_frac:
+        return 1
+    return 2
+
+
+def build_datasets_chunked(
+    run_dirs: Sequence[Path] | Path | str,
+    *,
+    train_frac: float = 0.8,
+    val_frac: float = 0.1,
+    split_seed: int = 0,
+    sample_seed: int = 1,
+    target_mode: str = "margin",
+    train_keep_frac: float = 1.0,
+    store_dtype: str = "float16",
+    verbose: bool = True,
+) -> tuple[AgricolaValueDataset, AgricolaValueDataset, AgricolaValueDataset, NormStats]:
+    """Memory-frugal dataset builder for large game collections.
+
+    Loads ONE worker pickle at a time, encodes its games' descriptors into
+    arrays, and frees the games before moving on — so peak memory is one
+    pickle's games (~hundreds of MB) plus the accumulating encoded arrays
+    (stored as `store_dtype`, default float16 → ~half the RAM of float32).
+    Contrast `build_datasets`, which loads *all* games at once (fine up to
+    ~15-20k games on an 8 GB box, but thrashes swap beyond that).
+
+    Differences from `build_datasets` (documented, intentional):
+    - Per-game split via `_assign_split` (per-index RNG), not a global
+      permutation — so the chunked path needs no upfront game count.
+    - `train_keep_frac < 1.0` randomly drops that fraction of TRAIN
+      state-keys (both perspectives kept together) to shrink the array and
+      cut within-game redundancy. Val/test always keep everything.
+    - X stored as `store_dtype` (float16 by default); `AgricolaValueDataset`
+      upcasts to float32 per item at access.
+
+    `NormStats` (input mean/std + target std) is accumulated streaming over
+    the train descriptors during the single pass — no second pass over games.
+    """
+    if isinstance(run_dirs, (str, Path)):
+        run_dirs = [Path(run_dirs)]
+    else:
+        run_dirs = [Path(r) for r in run_dirs]
+    dt = np.float16 if store_dtype == "float16" else np.float32
+
+    # Per-split accumulators: lists of (X_chunk, y_raw_chunk) arrays.
+    bufs: dict[int, list[tuple[np.ndarray, np.ndarray]]] = {0: [], 1: [], 2: []}
+    # Streaming stats over TRAIN (computed in float64 for stability).
+    n_train = 0
+    sum_x = np.zeros(ENCODED_DIM, dtype=np.float64)
+    sumsq_x = np.zeros(ENCODED_DIM, dtype=np.float64)
+    sum_y = 0.0
+    sumsq_y = 0.0
+
+    gi = 0
+    for pkl in _iter_worker_pickles(run_dirs):
+        games = load_game_records(pkl)  # enforces DATA_VERSION
+        # Group descriptors by split for this chunk, encode, accumulate.
+        per_split_descs: dict[int, list[_ExampleDescriptor]] = {0: [], 1: [], 2: []}
+        local_games: list[GameRecord] = []
+        for game in games:
+            split = _assign_split(gi, split_seed, train_frac, val_frac)
+            li = len(local_games)
+            local_games.append(game)
+            keys = _enumerate_state_keys([game])  # keys for THIS game (gi-local idx 0)
+            for (_g, is_term, si) in keys:
+                if split == 0 and train_keep_frac < 1.0:
+                    # si is -1 for terminal states; shift to keep the seed
+                    # sequence non-negative (default_rng rejects negatives).
+                    keep = float(np.random.default_rng([sample_seed, gi, si + 1]).random())
+                    if keep >= train_keep_frac:
+                        continue
+                per_split_descs[split].append(_ExampleDescriptor(li, is_term, si, 0))
+                per_split_descs[split].append(_ExampleDescriptor(li, is_term, si, 1))
+            gi += 1
+        for split, descs in per_split_descs.items():
+            if not descs:
+                continue
+            Xc, yc = _encode_descriptors(descs, local_games, target_mode)
+            if split == 0:
+                n_train += Xc.shape[0]
+                sum_x += Xc.sum(axis=0, dtype=np.float64)
+                sumsq_x += np.square(Xc, dtype=np.float64).sum(axis=0)
+                sum_y += float(yc.sum(dtype=np.float64))
+                sumsq_y += float(np.square(yc, dtype=np.float64).sum())
+            bufs[split].append((Xc.astype(dt), yc.astype(np.float32)))
+        del games, local_games, per_split_descs
+        if verbose:
+            print(f"  encoded {pkl.parent.parent.name}/{pkl.name}: "
+                  f"games so far={gi}, train descs={n_train}", flush=True)
+
+    if n_train == 0:
+        raise ValueError("Chunked build produced no training descriptors.")
+
+    # Finalize streaming NormStats over train.
+    eps = 1e-6
+    mean = (sum_x / n_train)
+    var = np.maximum(sumsq_x / n_train - mean * mean, 0.0)
+    std = np.sqrt(var).astype(np.float32)
+    std = np.where(std < eps, np.float32(1.0), std)
+    input_mean = mean.astype(np.float32)
+    if target_mode == "margin":
+        y_mean = sum_y / n_train
+        y_var = max(sumsq_y / n_train - y_mean * y_mean, 0.0)
+        target_std = float(np.sqrt(y_var))
+        if target_std < eps:
+            target_std = 1.0
+    else:
+        target_std = 1.0
+    stats = NormStats(
+        input_mean=input_mean, input_std=std,
+        target_std=target_std, encoding_version=ENCODING_VERSION,
+        target_mode=target_mode,
+    )
+
+    def _assemble(split: int) -> tuple[np.ndarray, np.ndarray]:
+        chunks = bufs[split]
+        if not chunks:
+            # Empty split (only happens on tiny inputs where the per-index
+            # random split starved a 10% bucket). Return well-shaped empties.
+            return (np.zeros((0, ENCODED_DIM), dtype=dt),
+                    np.zeros((0,), dtype=np.float32))
+        X = np.concatenate([c[0] for c in chunks], axis=0)
+        y_raw = np.concatenate([c[1] for c in chunks], axis=0)
+        y = (y_raw / stats.target_std).astype(np.float32)
+        return X, y
+
+    X_tr, y_tr = _assemble(0)
+    X_va, y_va = _assemble(1)
+    X_te, y_te = _assemble(2)
+    if verbose:
+        print(f"Chunked build: train={X_tr.shape[0]} val={X_va.shape[0]} "
+              f"test={X_te.shape[0]} | dtype={dt.__name__} | "
+              f"target_mode={target_mode} target_std={target_std:.3f}", flush=True)
+
+    return (
+        AgricolaValueDataset(X_tr, y_tr),
+        AgricolaValueDataset(X_va, y_va),
+        AgricolaValueDataset(X_te, y_te),
+        stats,
     )
