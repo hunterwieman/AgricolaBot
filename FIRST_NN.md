@@ -712,7 +712,7 @@ Notes: **margin** gives the richest gradient (distinguishes a safe win from a na
 **P3 — MCTS sim-count sweep.** Characterize the marginal-value-of-search curve for the NN leaf evaluator. Sweep e.g. 200 / 500 / 1500 / 5000 sims as head-to-heads (no shared tree when sims differ). Open sub-question: does the +3.54-to-+5.58 lift at 500 sims keep climbing or plateau? (From §13.3.)
 
 **Loose ends / TODO (carry across sessions):**
-- **Verify C2's legality wrapper.** C2's writeup says strict-restricted; `eval_vs_ensemble.py` uses *regular*. If C2 was actually regular, the "~60% (C2) → 96.4% (C16)" improvement is clean apples-to-apples; if strict, it isn't. Quick to check the C2 run command / eval_vs_ensemble history.
+- ~~Verify C2's legality wrapper.~~ **Done:** C2 used regular (eval_vs_ensemble.py has only ever used regular), so the ~60%→96.4% improvement is clean apples-to-apples (C2/C16 updated).
 - **Refold `eval_vs_ensemble.py` onto the parallel `play_match` engine.** `play_match.py` now has a heuristic seat + parallel pool + single-seat; `eval_vs_ensemble.py` is still serial + seat-swaps. Make it a thin wrapper over the engine (one match-runner, keep its ensemble list + per-opponent table). Removes duplication.
 - **Multi-seed scaling** to resolve the 5k>10k anomaly (C16): 2-3 training seeds per data size, round-robin, to separate the data-volume effect from single-checkpoint variance.
 - **MCTS-NN on M_55k** + **M_55k vs `HubrisHeuristicV1`** — the standalone-strongest hand agent at higher sims; and re-run the ensemble eval with `MCTS-NN` (not just 1-turn) once P3's sim curve is known.
@@ -721,7 +721,7 @@ Notes: **margin** gives the richest gradient (distinguishes a safe win from a na
 
 **C1 — First full-data NN (reference model `04fe`).** Default architecture on the 5000-game dataset, 727,254 training examples (dual-perspective + terminal augmentation, 80/10/10 by-game split). Best epoch 1, val MSE 0.422, **test MAE 6.87**, `target_std` 14.40. Val curve crept up after epoch 1 (0.422 → 0.456 over 11 epochs) — fit the easy signal immediately, then memorized noise; early stop caught it. `nn_models/20260529-162301-04fe/best.pt` (ENCODING_VERSION=1, now incompatible).
 
-**C2 — NNAgent vs 8-config ensemble.** `NNAgent` (differential, 1-turn) vs each config in `DATA_GEN_ENSEMBLE.md`, 100 games/opponent, V3 strict-restricted legality both seats. **~60% aggregate win rate**; beats every V3 opponent (often by 3-8 margin); **ties `t2`** (the lone V1 config). Likely cause: 7/8 training configs are V3, so the NN learned V3-style valuation — generalizes within V3 style, not to V1's. Motivates P1's V1-balance question.
+**C2 — NNAgent vs 8-config ensemble.** `NNAgent` (differential, 1-turn) vs each config in `DATA_GEN_ENSEMBLE.md`, 100 games/opponent, **regular `restricted_legal_actions` both seats** (via `eval_vs_ensemble.py`, which has only ever used regular — an earlier draft of this entry said "strict", corrected). **~60% aggregate win rate**; beats every V3 opponent (often by 3-8 margin); **ties `t2`** (the lone V1 config). Likely cause: 7/8 training configs are V3, so the NN learned V3-style valuation — generalizes within V3 style, not to V1's. Motivates P1's V1-balance question.
 
 **C3 — MCTS-NN-500 vs NNAgent-1-turn (on `04fe`).** Same model both sides; only difference is MCTS search vs 1-turn lookahead. MCTS: `leaf_differential=False`, 500 sims, c_uct=1.4, FPU 0, T=0.2, 4 random fencing macros + 1 greedy. 100 games. **68-32, +3.54 margin, p < 0.001.**
 
@@ -873,7 +873,7 @@ Test MAE falls monotonically with data (6.73 → 6.47 → 6.37), and the *larger
 
 **M_55k beats every member of the ensemble it learned from, by +12 to +18 margin — including `t2`, the V1 config the first NN (C2) only *tied*.** The student decisively surpasses its teachers. This is the culmination of the P1/scaling arc: maximal data + maximal diversity → a model far stronger than any single heuristic that generated its data.
 
-Caveat: this ensemble run used **regular** restricted legality (the `eval_vs_ensemble` / tuning convention); C2's writeup says *strict* — likely an error (eval_vs_ensemble uses regular), but until verified, the headline "~60% (C2) → 96.4%" jump isn't confirmed strictly apples-to-apples on legality. The within-this-run comparison (all regular, all 1-turn) is unambiguous.
+Both this run and C2 used **regular** restricted legality (verified: `eval_vs_ensemble.py` — which produced C2 — has only ever used regular; `git log -S "strict_restricted"` on it finds nothing). So the **~60% (C2) → 96.4% (here) improvement is clean apples-to-apples** on legality, lookahead (both 1-turn), and opponent set — it reflects model quality (5k → 55k, encoder v2, dropout, diversity), not a setup change.
 
 ---
 
