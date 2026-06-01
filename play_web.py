@@ -7,9 +7,11 @@ Run:
 `AGENT` is one of: human, random, simple, hubris, hubris_v3, mcts, nn.
 Defaults: ["human", "random"].
 
-The `nn` seat loads a trained value network. Which checkpoint it uses is
-fixed at startup via --nn-model (default: nn_models/M_10k_standard_bimodal)
-— every new game in the session uses the same model; restart to switch.
+The `nn` seat plays a trained value network directly (1-turn lookahead);
+the `mcts` seat uses the same network as its tree-search leaf evaluator.
+Which checkpoint both use is fixed at startup via --nn-model (default:
+nn_models/M_55k_all/epoch_47) — every new game in the session uses the
+same model; restart to switch.
 
 Examples:
     python play_web.py --seats human hubris        # play vs the Hubris heuristic
@@ -88,6 +90,7 @@ from agricola.agents import (
     MCTSSearch,
     RandomAgent,
     SimpleHeuristic,
+    make_strict_restricted_legal_actions,
     restricted_legal_actions,
 )
 
@@ -145,17 +148,19 @@ AGENT_TYPES: tuple[str, ...] = (
     "hubris_v3", "mcts", "nn",
 )
 
-# Default checkpoint backing the `nn` seat type when --nn-model is not
-# passed. A `best` stem (NormalizedValueModel.load appends .pt/.meta.json),
-# resolved relative to this file so it works regardless of CWD.
+# Default checkpoint backing the NN-based seats (`nn` and the `mcts` leaf
+# evaluator) when --nn-model is not passed. A stem
+# (NormalizedValueModel.load appends .pt/.meta.json), resolved relative to
+# this file so it works regardless of CWD. epoch_47 of the M_55k_all run is
+# the strongest checkpoint to date (linear/margin head).
 _DEFAULT_NN_MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "nn_models", "M_10k_standard_bimodal", "best",
+    "nn_models", "M_55k_all", "epoch_47",
 )
 
-# Checkpoint the `nn` seat loads. Set once at startup from --nn-model (see
-# main); fixed for the process lifetime, so every new game uses the same
-# model — to play a different NN, restart the UI. Stem or directory: a
+# Checkpoint the NN-based seats load. Set once at startup from --nn-model
+# (see main); fixed for the process lifetime, so every new game uses the
+# same model — to use a different NN, restart the UI. Stem or directory: a
 # directory is resolved to "<dir>/best" by _resolve_nn_model_path.
 _NN_MODEL_PATH: str = _DEFAULT_NN_MODEL_PATH
 
@@ -202,9 +207,10 @@ def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
     way they do during fitness evaluation.
 
     `mcts_sims` is consulted only when `seat_type == "mcts"`. If None, the
-    module-level `_MCTS_SIMS_DEFAULT` is used. MCTS uses the loaded V3
-    config (priority: --v3-config PATH > CONFIG_V3_T1 > DEFAULT_CONFIG_V3)
-    as its leaf evaluator config — same precedence as `hubris_v3`.
+    module-level `_MCTS_SIMS_DEFAULT` is used. MCTS uses the trained NN
+    (`_NN_MODEL_PATH`, epoch_47 by default; --nn-model overrides) as its
+    leaf evaluator, while keeping the V3 config (priority: --v3-config PATH
+    > CONFIG_V3_T1) for strict-restricted legality and greedy macro-fencing.
     """
     if seat_type == "human":
         return None
@@ -229,15 +235,37 @@ def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
         cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
         return HubrisHeuristicV3(seed=seed, config=cfg, **extra)
     if seat_type == "mcts":
-        # MCTS uses the same V3 config as `hubris_v3` for its leaf evaluator.
-        # The strict-restricted wrapper isn't tied to the `_RESTRICTED` flag
-        # here — MCTSSearch constructs its own strict wrapper internally
-        # with a per-search RNG (so the harvest-feed cap's random samples
-        # are deterministic per session).
+        # MCTS with the trained NN as its leaf evaluator (epoch_47 by
+        # default; --nn-model overrides). epoch_47's linear/margin head
+        # already outputs a P0-frame margin in points, so we use the NN
+        # evaluator with leaf_differential=False (no opponent subtraction —
+        # the value IS the margin) and leaf_value_scale=1.0 (default), the
+        # same point scale V3 uses, so c_uct=1.4 stays calibrated.
+        #
+        # Legality (the strict-restricted wrapper's harvest-feed cap) and the
+        # greedy macro-fencing chains still use the V3 config: the cap ranks
+        # with V3 as a legality concern, and the macro chains only generate
+        # candidate fence layouts that the NN leaf then judges. We build the
+        # strict wrapper here (rather than letting MCTSSearch default it from
+        # evaluator_config, which is now the NN model, not a V3 config).
+        import numpy as _np
+
+        from agricola.agents.nn.agent import nn_evaluator
+        model = _load_nn_model()
         cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
         sims = int(mcts_sims) if mcts_sims is not None else _MCTS_SIMS_DEFAULT
+        rng = _np.random.default_rng(seed)
+        strict_legal = make_strict_restricted_legal_actions(config=cfg, rng=rng)
+        macro_heuristic = HubrisHeuristicV3(
+            config=cfg, seed=seed, lookahead="turn",
+            legal_actions_fn=strict_legal,
+        )
         search = MCTSSearch(
-            evaluator_config=cfg,
+            evaluator_fn=nn_evaluator,
+            evaluator_config=model,
+            heuristic=macro_heuristic,
+            legal_actions_fn=strict_legal,
+            leaf_differential=False,
             n_random_fencing=4,
             rng_seed=seed,
         )
@@ -1334,11 +1362,13 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument(
         "--nn-model", default=None, metavar="PATH",
-        help="Checkpoint the 'nn' seat loads — either a checkpoint directory "
-             "(e.g. nn_models/M_10k_all_lowT, resolved to '<dir>/best') or an "
-             "explicit '<dir>/best' stem. Fixed for the process: every new "
+        help="Checkpoint the NN-based seats use — the 'nn' seat (played "
+             "directly) and the 'mcts' seat's leaf evaluator. Either a "
+             "checkpoint directory (e.g. nn_models/M_10k_all_lowT, resolved "
+             "to '<dir>/best') or an explicit stem (e.g. "
+             "nn_models/M_55k_all/epoch_47). Fixed for the process: every new "
              "game uses the same model; restart the UI to switch. Defaults to "
-             "nn_models/M_10k_standard_bimodal.",
+             "nn_models/M_55k_all/epoch_47.",
     )
     return ap.parse_args()
 
@@ -1373,7 +1403,7 @@ def main() -> None:
         print(f"  hubris_v3 / mcts will use tuned V3 config from: {_TUNED_V3_SOURCE_PATH}")
     print(f"  AI seats use restricted_legal_actions: {'ON' if _RESTRICTED else 'OFF'}")
     print(f"  MCTS default sims/move: {_MCTS_SIMS_DEFAULT}  (override per session via New-game dialog)")
-    print(f"  nn seat loads checkpoint: {_NN_MODEL_PATH}")
+    print(f"  nn seat + mcts leaf evaluator use NN checkpoint: {_NN_MODEL_PATH}")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:

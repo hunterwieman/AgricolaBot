@@ -19,7 +19,7 @@ On top of the engine sits a stack of AI agents you can play against in the brows
 | `hubris` | Round-2 CMA-ES-tuned V1 heuristic. One of the strongest standalone agents. |
 | `hubris_v3` | Larger ~250-parameter heuristic, iteratively tuned via block-coordinate descent. |
 | `nn` | Trained value network used as a 1-turn-lookahead evaluator (value-only, terminal-margin target). **The strongest agent to date** — on par with `hubris` and beats `hubris_v3`. |
-| `mcts` | Vanilla UCT + FPU + DAG with transpositions + macro-enumeration for Fencing. Currently weaker than the heuristic alone at low sim counts — the natural follow-up is PUCT with a learned value network. |
+| `mcts` | Vanilla UCT + FPU + DAG with transpositions + macro-enumeration for Fencing, using the trained NN as its leaf evaluator. Amplifies the NN with tree search; stronger with more simulations, at the cost of speed. (Legality and greedy fence-layout generation still use the V3 heuristic.) |
 
 Cards, occupation/minor-improvement support, and the AlphaZero-style training loop are future work.
 
@@ -72,23 +72,24 @@ python play_web.py --seats human hubris_v3
 **Neural network, 1-turn lookahead — the strongest agent:**
 
 ```bash
-python play_web.py --seats human nn --nn-model nn_models/M_55k_all/epoch_47
+python play_web.py --seats human nn
 ```
 
-The `nn` seat scores each candidate move with a trained value network and plays greedily (1-turn lookahead). `--nn-model` points it at a checkpoint — either a directory (loads that dir's `best`) or an explicit stem like `nn_models/M_55k_all/epoch_47` above. The model is fixed for the session; restart the UI to switch checkpoints.
+The `nn` seat scores each candidate move with a trained value network and plays greedily (1-turn lookahead). It loads `nn_models/M_55k_all/epoch_47` (the strongest checkpoint to date) by default; pass `--nn-model PATH` to use a different one — either a checkpoint directory (loads that dir's `best`) or an explicit stem like `nn_models/M_55k_all/epoch_47`. The model is fixed for the session; restart the UI to switch checkpoints.
 
-**MCTS — search-based, much slower:**
+**MCTS — search on top of the NN, much slower:**
 
 ```bash
 python play_web.py --seats human mcts --mcts-sims 300
 ```
 
-MCTS amplifies an evaluator by wrapping it in tree search — it can run on top of either the heuristic or the NN, and more simulations generally mean stronger play (the `mcts` seat here uses the heuristic evaluator). The cost is speed: it runs many simulated rollouts per move, so it is **significantly slower** than the 1-turn agents. **Start with fewer than 400 simulations** (`--mcts-sims 300` is a good baseline) and increase only if your machine keeps up. Sims per move can also be adjusted in the browser's New-game dialog.
+MCTS amplifies an evaluator by wrapping it in tree search — more simulations generally mean stronger play. The `mcts` seat uses the **same NN as its leaf evaluator** (the `--nn-model` checkpoint, default `epoch_47`), so it's "the NN, but searched." The cost is speed: it runs many simulated rollouts per move, so it is **significantly slower** than the 1-turn agents. **Start with fewer than 400 simulations** (`--mcts-sims 300` is a good baseline) and increase only if your machine keeps up. Sims per move can also be adjusted in the browser's New-game dialog.
 
 **Other options:**
 
-- **Play as the second player** — swap the seat order, e.g. `--seats nn human --nn-model nn_models/M_55k_all/epoch_47`.
-- **Watch two AIs play** — assign both seats; step through with Enter or the Advance button, e.g. `--seats hubris_v3 nn --nn-model nn_models/M_55k_all/epoch_47`.
+- **Play as the second player** — swap the seat order, e.g. `--seats nn human`.
+- **Watch two AIs play** — assign both seats; step through with Enter or the Advance button, e.g. `--seats hubris_v3 nn`.
+- **Use a different NN checkpoint** — `--nn-model PATH` applies to both the `nn` seat and the `mcts` leaf evaluator.
 - **Change seats or MCTS sims mid-session** — use the in-browser **New game** dialog instead of restarting.
 
 ---
