@@ -289,6 +289,7 @@ def train(
     chunked: bool = False,
     train_keep_frac: float = 1.0,
     store_dtype: str = "float16",
+    use_cache: bool = False,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a value-function NN. Returns `(epoch_log, best_checkpoint_path)`.
@@ -327,7 +328,7 @@ def train(
 
     # ----- Datasets -----
 
-    if chunked:
+    if chunked or use_cache:  # the cache lives in the chunked builder
         # Low-memory path for large game collections (loads one pickle at a
         # time, accumulates float16 arrays). See build_datasets_chunked.
         train_ds, val_ds, test_ds, stats = build_datasets_chunked(
@@ -339,6 +340,7 @@ def train(
             target_mode=target_mode,
             train_keep_frac=train_keep_frac,
             store_dtype=store_dtype,
+            use_cache=use_cache,
             verbose=verbose,
         )
     else:
@@ -396,9 +398,10 @@ def train(
         "loss": effective_loss,
         "target_mode": target_mode,
         "head": head,
-        "chunked": chunked,
+        "chunked": chunked or use_cache,
+        "use_cache": use_cache,
         "train_keep_frac": train_keep_frac,
-        "store_dtype": store_dtype if chunked else "float32",
+        "store_dtype": store_dtype if (chunked or use_cache) else "float32",
         "input_dim": ENCODED_DIM,
         "encoding_version": ENCODING_VERSION,
         "data_version": DATA_VERSION,

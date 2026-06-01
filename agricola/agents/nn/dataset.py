@@ -508,21 +508,142 @@ def _iter_worker_pickles(run_dirs: Sequence[Path]):
             yield pkl
 
 
-def _assign_split(gi: int, split_seed: int, train_frac: float, val_frac: float) -> int:
-    """Deterministic per-game split: 0=train, 1=val, 2=test. Uses a
-    per-(seed, game-index) RNG draw so no global game count is needed
-    (the chunked builder never holds all games at once). Proportions match
-    train_frac / val_frac in expectation. NB: this is a *different* split
-    rule than `_split_games_by_index`'s global permutation — the chunked
-    path is a separate builder for large data, so a different but
-    deterministic split is acceptable; don't mix checkpoints across the
-    two builders expecting identical splits."""
-    r = float(np.random.default_rng([split_seed, gi]).random())
+def _seed_split(game_seed: int, split_seed: int, train_frac: float, val_frac: float) -> int:
+    """Deterministic per-GAME split keyed on the game's intrinsic `seed`
+    (0=train, 1=val, 2=test). Stable per game — rename-proof and invariant
+    to which other run dirs are loaded (FIRST_NN §10.5). Proportions match
+    train_frac / val_frac in expectation. Differs from `_split_games_by_index`'s
+    exact permutation; the chunked/cache path is the standard for large data."""
+    r = float(np.random.default_rng([split_seed, int(game_seed)]).random())
     if r < train_frac:
         return 0
     if r < train_frac + val_frac:
         return 1
     return 2
+
+
+def _targets_all_modes(game: GameRecord, perspective: int) -> tuple[float, int, float]:
+    """(margin, outcome, winprob) targets for one descriptor, from
+    `perspective`'s frame. Margin = score-diff (tiebreaker-blind);
+    outcome/winprob use the tiebreaker-aware `game.winner`. Stored
+    together so the cache is target-mode-agnostic (§10.5)."""
+    if perspective == 0:
+        margin = float(game.p0_final_score - game.p1_final_score)
+    else:
+        margin = float(game.p1_final_score - game.p0_final_score)
+    if game.winner is None:
+        outcome, winprob = 0, 0.5
+    elif game.winner == perspective:
+        outcome, winprob = 1, 1.0
+    else:
+        outcome, winprob = -1, 0.0
+    return margin, outcome, winprob
+
+
+# Per-descriptor cache arrays (the npz field set). `X` is the expensive
+# encoding; the rest are cheap metadata that let split / target / sampling
+# be chosen at load time without re-encoding.
+_CACHE_FIELDS = ("X", "y_margin", "y_outcome", "y_winprob",
+                 "game_seed", "is_terminal", "snap_idx")
+
+
+def _encode_run_dir_arrays(run_dir: Path, dt, verbose: bool = False) -> dict:
+    """Encode ALL descriptors of one run dir into the cache arrays
+    (per-pickle chunked, freeing games as it goes). Returns a dict with the
+    `_CACHE_FIELDS`. Split-agnostic and target-agnostic — that's what makes
+    the result reusable across any combination / target_mode (§10.5)."""
+    games_dir = Path(run_dir) / "games"
+    if not games_dir.is_dir():
+        raise FileNotFoundError(f"{run_dir} has no 'games/' subdirectory.")
+    parts: dict[str, list] = {f: [] for f in _CACHE_FIELDS}
+    total = 0
+    for pkl in sorted(games_dir.glob("worker_*.pkl")):
+        games = load_game_records(pkl)  # enforces DATA_VERSION
+        descs = _expand_to_descriptors(games)  # both perspectives, paired
+        n = len(descs)
+        X = np.zeros((n, ENCODED_DIM), dtype=dt)
+        ym = np.zeros(n, np.float32); yo = np.zeros(n, np.int8)
+        yw = np.zeros(n, np.float32); gs = np.zeros(n, np.int64)
+        it = np.zeros(n, np.bool_); sx = np.zeros(n, np.int32)
+        for i, d in enumerate(descs):
+            g = games[d.game_idx_in_list]
+            state = g.terminal_state if d.is_terminal else g.decisions[d.snap_idx].state
+            X[i] = encode_state(state, d.perspective).astype(dt)
+            m, o, w = _targets_all_modes(g, d.perspective)
+            ym[i] = m; yo[i] = o; yw[i] = w
+            gs[i] = g.seed; it[i] = d.is_terminal; sx[i] = d.snap_idx
+        for f, a in zip(_CACHE_FIELDS, (X, ym, yo, yw, gs, it, sx)):
+            parts[f].append(a)
+        total += n
+        del games, descs
+        if verbose:
+            print(f"  encoded {run_dir.name}/{pkl.name}: descs so far={total}", flush=True)
+    return {f: np.concatenate(parts[f], axis=0) for f in _CACHE_FIELDS}
+
+
+def _cache_path(run_dir: Path) -> Path:
+    return Path(run_dir) / f"encoded_v{ENCODING_VERSION}.npz"
+
+
+def _run_dir_meta(run_dir: Path) -> tuple[int, int, int] | None:
+    """(completed_games, base_seed, data_version) from metadata.json, or None."""
+    mp = Path(run_dir) / "metadata.json"
+    if not mp.is_file():
+        return None
+    with mp.open() as f:
+        d = json.load(f)
+    return (int(d.get("completed_games", -1)), int(d.get("base_seed", -1)),
+            int(d.get("data_version", -1)))
+
+
+def _cache_is_valid(run_dir: Path) -> bool:
+    """Cheap validity check — never loads the games (that's the cost the
+    cache removes). Valid iff: cache exists, is newer than every worker
+    pickle (mtime), its ENCODING_VERSION matches, and its stored
+    (completed_games, base_seed, data_version) header matches the run dir's
+    current metadata.json (§10.5 invalidation)."""
+    cp = _cache_path(run_dir)
+    if not cp.is_file():
+        return False
+    pkls = sorted((Path(run_dir) / "games").glob("worker_*.pkl"))
+    if not pkls:
+        return False
+    cmt = cp.stat().st_mtime
+    if any(p.stat().st_mtime > cmt for p in pkls):
+        return False
+    try:
+        with np.load(cp) as z:  # reading scalars does not load X
+            if int(z["encoding_version"]) != ENCODING_VERSION:
+                return False
+            hdr = (int(z["completed_games"]), int(z["base_seed"]), int(z["data_version"]))
+    except Exception:
+        return False
+    meta = _run_dir_meta(run_dir)
+    if meta is not None and hdr != meta:
+        return False
+    return True
+
+
+def _write_cache(run_dir: Path, arrays: dict, verbose: bool = False) -> None:
+    meta = _run_dir_meta(run_dir) or (-1, -1, -1)
+    cp = _cache_path(run_dir)
+    # tmp must end in .npz, else np.savez appends ".npz" and the rename target
+    # is wrong (np.savez auto-suffix gotcha).
+    tmp = cp.parent / (cp.name + ".tmp.npz")
+    np.savez(
+        tmp, **arrays,
+        encoding_version=np.int64(ENCODING_VERSION),
+        completed_games=np.int64(meta[0]), base_seed=np.int64(meta[1]),
+        data_version=np.int64(meta[2]),
+    )
+    tmp.replace(cp)  # atomic
+    if verbose:
+        print(f"  wrote cache {cp.name} ({cp.stat().st_size / 1e6:.0f} MB)", flush=True)
+
+
+def _load_cache(run_dir: Path) -> dict:
+    with np.load(_cache_path(run_dir)) as z:
+        return {f: z[f] for f in _CACHE_FIELDS}
 
 
 def build_datasets_chunked(
@@ -535,28 +656,28 @@ def build_datasets_chunked(
     target_mode: str = "margin",
     train_keep_frac: float = 1.0,
     store_dtype: str = "float16",
+    use_cache: bool = False,
     verbose: bool = True,
 ) -> tuple[AgricolaValueDataset, AgricolaValueDataset, AgricolaValueDataset, NormStats]:
-    """Memory-frugal dataset builder for large game collections.
+    """Memory-frugal dataset builder for large game collections, with an
+    optional per-run-dir encoded-vector cache (FIRST_NN §10.5).
 
-    Loads ONE worker pickle at a time, encodes its games' descriptors into
-    arrays, and frees the games before moving on — so peak memory is one
-    pickle's games (~hundreds of MB) plus the accumulating encoded arrays
-    (stored as `store_dtype`, default float16 → ~half the RAM of float32).
-    Contrast `build_datasets`, which loads *all* games at once (fine up to
-    ~15-20k games on an 8 GB box, but thrashes swap beyond that).
+    Per run dir: if `use_cache` and a valid cache exists, load its npz
+    (seconds, no game loading); else encode the run dir's descriptors
+    (one pickle at a time, freeing games) and — if `use_cache` — write the
+    cache. The encoding is split- and target-agnostic (stores all three
+    target modes + each descriptor's game seed), so one cache serves every
+    split / target_mode / `train_keep_frac` combination.
 
-    Differences from `build_datasets` (documented, intentional):
-    - Per-game split via `_assign_split` (per-index RNG), not a global
-      permutation — so the chunked path needs no upfront game count.
-    - `train_keep_frac < 1.0` randomly drops that fraction of TRAIN
-      state-keys (both perspectives kept together) to shrink the array and
-      cut within-game redundancy. Val/test always keep everything.
-    - X stored as `store_dtype` (float16 by default); `AgricolaValueDataset`
-      upcasts to float32 per item at access.
+    Then, in memory (float16-dominated, fits where the all-games build
+    can't): assign the train/val/test split per game via `_seed_split`
+    (stable per game — rename-proof, combination-invariant), select the
+    `target_mode` targets, apply `train_keep_frac` to train, and fit
+    `NormStats` on the surviving train rows.
 
-    `NormStats` (input mean/std + target std) is accumulated streaming over
-    the train descriptors during the single pass — no second pass over games.
+    NB: the split is seed-hash, NOT `build_datasets`'s exact permutation —
+    so `use_cache`/chunked models aren't MAE-comparable to permutation-split
+    models (gameplay still is). See FIRST_NN §10.5.
     """
     if isinstance(run_dirs, (str, Path)):
         run_dirs = [Path(run_dirs)]
@@ -564,99 +685,90 @@ def build_datasets_chunked(
         run_dirs = [Path(r) for r in run_dirs]
     dt = np.float16 if store_dtype == "float16" else np.float32
 
-    # Per-split accumulators: lists of (X_chunk, y_raw_chunk) arrays.
-    bufs: dict[int, list[tuple[np.ndarray, np.ndarray]]] = {0: [], 1: [], 2: []}
-    # Streaming stats over TRAIN (computed in float64 for stability).
-    n_train = 0
-    sum_x = np.zeros(ENCODED_DIM, dtype=np.float64)
-    sumsq_x = np.zeros(ENCODED_DIM, dtype=np.float64)
-    sum_y = 0.0
-    sumsq_y = 0.0
+    # ----- Gather each run dir's full arrays (cache hit or encode[+write]) -----
+    parts: list[dict] = []
+    for rd in run_dirs:
+        if use_cache and _cache_is_valid(rd):
+            if verbose:
+                print(f"  cache HIT: {rd.name}/{_cache_path(rd).name}", flush=True)
+            parts.append(_load_cache(rd))
+        else:
+            if verbose:
+                print(f"  cache MISS: encoding {rd.name}", flush=True)
+            arr = _encode_run_dir_arrays(rd, dt, verbose=verbose)
+            if use_cache:
+                _write_cache(rd, arr, verbose=verbose)
+            parts.append(arr)
 
-    gi = 0
-    for pkl in _iter_worker_pickles(run_dirs):
-        games = load_game_records(pkl)  # enforces DATA_VERSION
-        # Group descriptors by split for this chunk, encode, accumulate.
-        per_split_descs: dict[int, list[_ExampleDescriptor]] = {0: [], 1: [], 2: []}
-        local_games: list[GameRecord] = []
-        for game in games:
-            split = _assign_split(gi, split_seed, train_frac, val_frac)
-            li = len(local_games)
-            local_games.append(game)
-            keys = _enumerate_state_keys([game])  # keys for THIS game (gi-local idx 0)
-            for (_g, is_term, si) in keys:
-                if split == 0 and train_keep_frac < 1.0:
-                    # si is -1 for terminal states; shift to keep the seed
-                    # sequence non-negative (default_rng rejects negatives).
-                    keep = float(np.random.default_rng([sample_seed, gi, si + 1]).random())
-                    if keep >= train_keep_frac:
-                        continue
-                per_split_descs[split].append(_ExampleDescriptor(li, is_term, si, 0))
-                per_split_descs[split].append(_ExampleDescriptor(li, is_term, si, 1))
-            gi += 1
-        for split, descs in per_split_descs.items():
-            if not descs:
-                continue
-            Xc, yc = _encode_descriptors(descs, local_games, target_mode)
-            if split == 0:
-                n_train += Xc.shape[0]
-                sum_x += Xc.sum(axis=0, dtype=np.float64)
-                sumsq_x += np.square(Xc, dtype=np.float64).sum(axis=0)
-                sum_y += float(yc.sum(dtype=np.float64))
-                sumsq_y += float(np.square(yc, dtype=np.float64).sum())
-            bufs[split].append((Xc.astype(dt), yc.astype(np.float32)))
-        del games, local_games, per_split_descs
-        if verbose:
-            print(f"  encoded {pkl.parent.parent.name}/{pkl.name}: "
-                  f"games so far={gi}, train descs={n_train}", flush=True)
+    X = np.concatenate([p["X"] for p in parts], axis=0).astype(dt)
+    y_margin = np.concatenate([p["y_margin"] for p in parts])
+    y_outcome = np.concatenate([p["y_outcome"] for p in parts]).astype(np.float32)
+    y_winprob = np.concatenate([p["y_winprob"] for p in parts])
+    game_seed = np.concatenate([p["game_seed"] for p in parts])
+    snap_idx = np.concatenate([p["snap_idx"] for p in parts])
+    del parts
 
-    if n_train == 0:
+    y_raw = {"margin": y_margin, "outcome": y_outcome, "winprob": y_winprob}[target_mode]
+
+    # ----- Split per game (seed-hash); cache the per-seed decision -----
+    split_of_seed: dict[int, int] = {}
+    split = np.empty(len(game_seed), dtype=np.int8)
+    for i, s in enumerate(game_seed):
+        s = int(s)
+        sp = split_of_seed.get(s)
+        if sp is None:
+            sp = _seed_split(s, split_seed, train_frac, val_frac)
+            split_of_seed[s] = sp
+        split[i] = sp
+
+    # ----- train_keep_frac: drop a fraction of TRAIN state-keys (both
+    #       perspectives together; deterministic per (game_seed, snap_idx)) -----
+    train_mask = split == 0
+    if train_keep_frac < 1.0:
+        for i in np.nonzero(train_mask)[0]:
+            keep = float(np.random.default_rng(
+                [sample_seed, int(game_seed[i]), int(snap_idx[i]) + 1]).random())
+            if keep >= train_keep_frac:
+                train_mask[i] = False
+    val_mask = split == 1
+    test_mask = split == 2
+
+    Xtr, ytr_raw = X[train_mask], y_raw[train_mask]
+    if Xtr.shape[0] == 0:
         raise ValueError("Chunked build produced no training descriptors.")
 
-    # Finalize streaming NormStats over train.
+    # ----- NormStats over surviving train rows -----
     eps = 1e-6
-    mean = (sum_x / n_train)
-    var = np.maximum(sumsq_x / n_train - mean * mean, 0.0)
-    std = np.sqrt(var).astype(np.float32)
-    std = np.where(std < eps, np.float32(1.0), std)
-    input_mean = mean.astype(np.float32)
+    input_mean = Xtr.mean(axis=0, dtype=np.float64).astype(np.float32)
+    input_std = Xtr.std(axis=0, dtype=np.float64).astype(np.float32)
+    input_std = np.where(input_std < eps, np.float32(1.0), input_std)
     if target_mode == "margin":
-        y_mean = sum_y / n_train
-        y_var = max(sumsq_y / n_train - y_mean * y_mean, 0.0)
-        target_std = float(np.sqrt(y_var))
+        target_std = float(ytr_raw.std())
         if target_std < eps:
             target_std = 1.0
     else:
         target_std = 1.0
     stats = NormStats(
-        input_mean=input_mean, input_std=std,
+        input_mean=input_mean, input_std=input_std,
         target_std=target_std, encoding_version=ENCODING_VERSION,
         target_mode=target_mode,
     )
 
-    def _assemble(split: int) -> tuple[np.ndarray, np.ndarray]:
-        chunks = bufs[split]
-        if not chunks:
-            # Empty split (only happens on tiny inputs where the per-index
-            # random split starved a 10% bucket). Return well-shaped empties.
-            return (np.zeros((0, ENCODED_DIM), dtype=dt),
-                    np.zeros((0,), dtype=np.float32))
-        X = np.concatenate([c[0] for c in chunks], axis=0)
-        y_raw = np.concatenate([c[1] for c in chunks], axis=0)
-        y = (y_raw / stats.target_std).astype(np.float32)
-        return X, y
+    def _ds(mask) -> AgricolaValueDataset:
+        Xm = X[mask].astype(dt)
+        ym = (y_raw[mask] / stats.target_std).astype(np.float32)
+        if Xm.shape[0] == 0:
+            Xm = np.zeros((0, ENCODED_DIM), dtype=dt)
+            ym = np.zeros((0,), dtype=np.float32)
+        return AgricolaValueDataset(Xm, ym)
 
-    X_tr, y_tr = _assemble(0)
-    X_va, y_va = _assemble(1)
-    X_te, y_te = _assemble(2)
+    train_ds = AgricolaValueDataset(Xtr.astype(dt),
+                                    (ytr_raw / stats.target_std).astype(np.float32))
+    val_ds = _ds(val_mask)
+    test_ds = _ds(test_mask)
     if verbose:
-        print(f"Chunked build: train={X_tr.shape[0]} val={X_va.shape[0]} "
-              f"test={X_te.shape[0]} | dtype={dt.__name__} | "
-              f"target_mode={target_mode} target_std={target_std:.3f}", flush=True)
+        print(f"Chunked build: train={len(train_ds)} val={len(val_ds)} "
+              f"test={len(test_ds)} | dtype={dt.__name__} | use_cache={use_cache} "
+              f"| target_mode={target_mode} target_std={target_std:.3f}", flush=True)
 
-    return (
-        AgricolaValueDataset(X_tr, y_tr),
-        AgricolaValueDataset(X_va, y_va),
-        AgricolaValueDataset(X_te, y_te),
-        stats,
-    )
+    return train_ds, val_ds, test_ds, stats

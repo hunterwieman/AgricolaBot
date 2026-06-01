@@ -98,6 +98,12 @@ def main() -> int:
                         choices=["float16", "float32"],
                         help="(chunked only) Encoded-array dtype. float16 "
                              "halves RAM; upcast to f32 per-item at access.")
+    parser.add_argument("--use-cache", action="store_true", default=False,
+                        help="Per-run-dir encoded-vector cache (FIRST_NN §10.5): "
+                             "skip re-encoding when a valid <run>/encoded_vN.npz "
+                             "exists; write it on a miss. Implies the chunked path "
+                             "+ seed-hash split (NOT MAE-comparable to the "
+                             "permutation-split build_datasets).")
     parser.add_argument("--train-sample-size", type=int, default=None,
                         help="Cap on train descriptors (paired). Default: use all.")
     parser.add_argument("--train-frac", type=float, default=0.8)
@@ -137,6 +143,7 @@ def main() -> int:
         chunked=args.chunked,
         train_keep_frac=args.train_keep_frac,
         store_dtype=args.store_dtype,
+        use_cache=args.use_cache,
     )
     return 0
 

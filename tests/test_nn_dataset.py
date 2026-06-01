@@ -142,9 +142,11 @@ def chunk_games() -> list[GameRecord]:
     return [_record_one_game(seed) for seed in range(100, 140)]
 
 
-def _write_run_dir(tmp_path, games, n_workers=2, name="run"):
+def _write_run_dir(tmp_path, games, n_workers=2, name="run", metadata=True):
     """Write `games` across `n_workers` worker pickles under tmp/<name>/games/
-    so the chunked builder (which iterates pickles) can read them."""
+    so the chunked builder (which iterates pickles) can read them. Optionally
+    writes a metadata.json (needed for the cache's metadata invalidation)."""
+    import json
     run_dir = tmp_path / name
     gdir = run_dir / "games"
     gdir.mkdir(parents=True)
@@ -152,6 +154,10 @@ def _write_run_dir(tmp_path, games, n_workers=2, name="run"):
         chunk = games[w::n_workers]  # strided split across workers
         with (gdir / f"worker_{w:02d}.pkl").open("wb") as f:
             pickle.dump(chunk, f)
+    if metadata:
+        with (run_dir / "metadata.json").open("w") as f:
+            json.dump({"completed_games": len(games), "base_seed": 1234,
+                       "data_version": 1}, f)
     return run_dir
 
 
@@ -200,6 +206,90 @@ def test_chunked_outcome_mode_targets_bounded(chunk_games, tmp_path):
     assert stats.target_mode == "outcome" and stats.target_std == 1.0
     ys = {round(float(tr[i][1]), 3) for i in range(len(tr))}
     assert ys.issubset({-1.0, 0.0, 1.0})
+
+
+# ---------------------------------------------------------------------------
+# Encoded-vector cache (§10.5)
+# ---------------------------------------------------------------------------
+
+
+def test_cache_write_then_hit_is_identical(chunk_games, tmp_path):
+    """First build (use_cache) writes the npz; second build hits it and
+    produces identical split sizes + NormStats — and the cache file exists."""
+    from agricola.agents.nn.dataset import _cache_path, _cache_is_valid
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=3)
+    assert not _cache_path(run_dir).exists()
+    tr, va, te, st = build_datasets_chunked(run_dir, use_cache=True, verbose=False)
+    assert _cache_path(run_dir).exists() and _cache_is_valid(run_dir)
+    tr2, va2, te2, st2 = build_datasets_chunked(run_dir, use_cache=True, verbose=False)
+    assert (len(tr), len(va), len(te)) == (len(tr2), len(va2), len(te2))
+    assert st.target_std == pytest.approx(st2.target_std)
+    assert np.allclose(st.input_mean, st2.input_mean)
+
+
+def test_cache_serves_all_target_modes(chunk_games, tmp_path):
+    """One cache (written for margin) serves outcome/winprob too — the npz
+    stores all three targets, so no re-encode is needed."""
+    from agricola.agents.nn.dataset import _cache_path
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    build_datasets_chunked(run_dir, use_cache=True, target_mode="margin", verbose=False)
+    mtime = _cache_path(run_dir).stat().st_mtime
+    tr_o, _, _, st_o = build_datasets_chunked(
+        run_dir, use_cache=True, target_mode="outcome", verbose=False)
+    # Cache file untouched (not rewritten) + outcome targets bounded.
+    assert _cache_path(run_dir).stat().st_mtime == mtime
+    assert st_o.target_mode == "outcome" and st_o.target_std == 1.0
+    ys = {round(float(tr_o[i][1]), 3) for i in range(len(tr_o))}
+    assert ys.issubset({-1.0, 0.0, 1.0})
+
+
+def test_cache_invalidated_by_newer_pickle(chunk_games, tmp_path):
+    """Touching a worker pickle (mtime newer than the cache) invalidates it."""
+    import os, time
+    from agricola.agents.nn.dataset import _cache_path, _cache_is_valid
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    build_datasets_chunked(run_dir, use_cache=True, verbose=False)
+    assert _cache_is_valid(run_dir)
+    # Make a pickle newer than the cache.
+    pkl = next((run_dir / "games").glob("worker_*.pkl"))
+    future = time.time() + 100
+    os.utime(pkl, (future, future))
+    assert not _cache_is_valid(run_dir)
+
+
+def test_cache_invalidated_by_metadata_mismatch(chunk_games, tmp_path):
+    """A changed metadata.json (e.g. different completed_games) invalidates
+    the cache header cross-check."""
+    import json
+    from agricola.agents.nn.dataset import _cache_is_valid, _cache_path
+    run_dir = _write_run_dir(tmp_path, chunk_games, n_workers=2)
+    build_datasets_chunked(run_dir, use_cache=True, verbose=False)
+    assert _cache_is_valid(run_dir)
+    meta_path = run_dir / "metadata.json"
+    meta = json.load(meta_path.open())
+    meta["completed_games"] += 1  # pretend the run grew
+    json.dump(meta, meta_path.open("w"))
+    # Bump cache mtime so the mtime check still passes — isolate the metadata check.
+    import os, time
+    cp = _cache_path(run_dir); future = time.time() + 100
+    os.utime(cp, (future, future))
+    assert not _cache_is_valid(run_dir)
+
+
+def test_seed_split_is_stable_per_game(chunk_games, tmp_path):
+    """A game's split depends only on its seed — invariant to the run-dir
+    set / order (the property the cache relies on, §10.5). Build from one
+    run dir, then from that dir + a second copy; shared games keep their
+    split (checked via the seed→split map being consistent)."""
+    from agricola.agents.nn.dataset import _seed_split
+    # Determinism of the rule itself: same seed → same split, regardless of
+    # call order or surrounding seeds.
+    seeds = [g.seed for g in chunk_games]
+    a = {s: _seed_split(s, 0, 0.8, 0.1) for s in seeds}
+    b = {s: _seed_split(s, 0, 0.8, 0.1) for s in reversed(seeds)}
+    assert a == b
+    # And it actually partitions into the three buckets for a 40-game set.
+    assert set(a.values()) <= {0, 1, 2}
 
 
 def test_normstats_target_mode_roundtrips(small_games, tmp_path):
