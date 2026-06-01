@@ -2,15 +2,21 @@
 
 Run:
     python play_web.py [--seed N] [--seats AGENT AGENT] [--mcts-sims N]
-        [--host 127.0.0.1] [--port 8000] [--no-browser]
+        [--nn-model PATH] [--host 127.0.0.1] [--port 8000] [--no-browser]
 
-`AGENT` is one of: human, random, simple, hubris, hubris_v3, mcts.
+`AGENT` is one of: human, random, simple, hubris, hubris_v3, mcts, nn.
 Defaults: ["human", "random"].
+
+The `nn` seat loads a trained value network. Which checkpoint it uses is
+fixed at startup via --nn-model (default: nn_models/M_10k_standard_bimodal)
+— every new game in the session uses the same model; restart to switch.
 
 Examples:
     python play_web.py --seats human hubris        # play vs the Hubris heuristic
     python play_web.py --seats human mcts          # play vs MCTS (default 500 sims)
     python play_web.py --seats human mcts --mcts-sims 1000
+    python play_web.py --seats human nn            # play vs the default NN
+    python play_web.py --seats human nn --nn-model nn_models/M_10k_all_lowT
     python play_web.py --seats hubris hubris       # watch self-play
     python play_web.py --seats simple random       # watch Simple vs Random
 
@@ -139,18 +145,33 @@ AGENT_TYPES: tuple[str, ...] = (
     "hubris_v3", "mcts", "nn",
 )
 
-# Trained NN checkpoint backing the `nn` seat type. Path is the
-# `best` stem (NormalizedValueModel.load appends .pt / .meta.json).
-# Resolved relative to this file so it works regardless of CWD.
-_NN_MODEL_PATH = os.path.join(
+# Default checkpoint backing the `nn` seat type when --nn-model is not
+# passed. A `best` stem (NormalizedValueModel.load appends .pt/.meta.json),
+# resolved relative to this file so it works regardless of CWD.
+_DEFAULT_NN_MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "nn_models", "M_10k_standard_bimodal", "best",
 )
+
+# Checkpoint the `nn` seat loads. Set once at startup from --nn-model (see
+# main); fixed for the process lifetime, so every new game uses the same
+# model — to play a different NN, restart the UI. Stem or directory: a
+# directory is resolved to "<dir>/best" by _resolve_nn_model_path.
+_NN_MODEL_PATH: str = _DEFAULT_NN_MODEL_PATH
 
 # Lazily-loaded, process-wide cache of the loaded NN model. Loading pulls
 # in torch (heavy) and reads the checkpoint, so we do it once on first use
 # and share the (eval-mode, read-only) model across all `nn` seats/resets.
 _NN_MODEL = None
+
+
+def _resolve_nn_model_path(path: str) -> str:
+    """Map a --nn-model argument to the stem NormalizedValueModel.load wants.
+
+    Accepts either a checkpoint directory (e.g. nn_models/M_10k_all_lowT) —
+    resolved to "<dir>/best" — or an explicit stem (e.g.
+    nn_models/M_10k_all_lowT/best), used as-is."""
+    return os.path.join(path, "best") if os.path.isdir(path) else path
 
 
 def _load_nn_model():
@@ -1311,17 +1332,36 @@ def parse_args() -> argparse.Namespace:
              "browser UI. Defaults to 500. Approximate per-move wall on an "
              "M-series Mac core: 500 sims ≈ 50-100ms, 1000 sims ≈ 100-200ms.",
     )
+    ap.add_argument(
+        "--nn-model", default=None, metavar="PATH",
+        help="Checkpoint the 'nn' seat loads — either a checkpoint directory "
+             "(e.g. nn_models/M_10k_all_lowT, resolved to '<dir>/best') or an "
+             "explicit '<dir>/best' stem. Fixed for the process: every new "
+             "game uses the same model; restart the UI to switch. Defaults to "
+             "nn_models/M_10k_standard_bimodal.",
+    )
     return ap.parse_args()
 
 
 def main() -> None:
-    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH, _RESTRICTED, _MCTS_SIMS_DEFAULT
+    global _TUNED_V3_CONFIG, _TUNED_V3_SOURCE_PATH, _RESTRICTED
+    global _MCTS_SIMS_DEFAULT, _NN_MODEL_PATH
     args = parse_args()
     if args.v3_config is not None:
         _TUNED_V3_CONFIG = _load_v3_config_from_json(args.v3_config)
         _TUNED_V3_SOURCE_PATH = args.v3_config
     _RESTRICTED = bool(args.restricted)
     _MCTS_SIMS_DEFAULT = int(args.mcts_sims)
+    if args.nn_model is not None:
+        _NN_MODEL_PATH = _resolve_nn_model_path(args.nn_model)
+    # Fail fast on a bad checkpoint path rather than at first `nn`-seat use.
+    if not (os.path.exists(_NN_MODEL_PATH + ".pt")
+            and os.path.exists(_NN_MODEL_PATH + ".meta.json")):
+        print(f"error: NN checkpoint not found at {_NN_MODEL_PATH!r} "
+              f"(expected {_NN_MODEL_PATH}.pt + .meta.json). "
+              f"Pass a checkpoint dir or '<dir>/best' stem via --nn-model.",
+              file=sys.stderr)
+        sys.exit(2)
     seed = args.seed if args.seed is not None else int(time.time())
     seats = (args.seats[0], args.seats[1])
     session = Session(seed=seed, seats=seats)
@@ -1333,6 +1373,7 @@ def main() -> None:
         print(f"  hubris_v3 / mcts will use tuned V3 config from: {_TUNED_V3_SOURCE_PATH}")
     print(f"  AI seats use restricted_legal_actions: {'ON' if _RESTRICTED else 'OFF'}")
     print(f"  MCTS default sims/move: {_MCTS_SIMS_DEFAULT}  (override per session via New-game dialog)")
+    print(f"  nn seat loads checkpoint: {_NN_MODEL_PATH}")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:
