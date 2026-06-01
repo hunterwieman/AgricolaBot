@@ -8,7 +8,7 @@ The long-term goal is an AlphaZero-style self-play agent. The current focus is t
 
 ## Status
 
-The engine is complete and well-tested. Every action space in the Family game — including the heavyweight ones like Fencing, Farm Expansion, the harvest sub-phases, and Major Improvements — is fully implemented. The pending-decision stack handles multi-step turns and card triggers, with one card (Potter Ceramics) wired in to validate the trigger machinery end-to-end.
+The engine is complete and well-tested. The entirity of the Family game — the version without cards — is fully implemented. The pending-decision stack handles multi-step turns and card triggers, with one card (Potter Ceramics) wired in to validate the trigger machinery end-to-end.
 
 On top of the engine sits a stack of AI agents you can play against in the browser:
 
@@ -16,9 +16,9 @@ On top of the engine sits a stack of AI agents you can play against in the brows
 |---|---|
 | `random` | Picks legal actions uniformly at random. |
 | `simple` | Small hand-tuned evaluation function. |
-| `hubris` | Round-2 CMA-ES-tuned V1 heuristic. One of the strongest standalone agents. |
-| `hubris_v3` | Larger ~250-parameter heuristic, iteratively tuned via block-coordinate descent. |
-| `nn` | Trained value network used as a 1-turn-lookahead evaluator (value-only, terminal-margin target). **The strongest agent to date** — on par with `hubris` and beats `hubris_v3`. |
+| `hubris` | Round-2 CMA-ES-tuned V1 heuristic. |
+| `hubris_v3` | Larger ~250-parameter heuristic, iteratively tuned via block-coordinate descent. The strongest heuristic agents. |
+| `nn` | Trained value network used as a 1-turn-lookahead evaluator (value-only, terminal-margin target). **The strongest agent to date**. |
 | `mcts` | Vanilla UCT + FPU + DAG with transpositions + macro-enumeration for Fencing, using the trained NN as its leaf evaluator. Amplifies the NN with tree search; stronger with more simulations, at the cost of speed. (Legality and greedy fence-layout generation still use the V3 heuristic.) |
 
 Cards, occupation/minor-improvement support, and the AlphaZero-style training loop are future work.
