@@ -50,12 +50,19 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
+import json  # noqa: E402
+
 from agricola.agents import (  # noqa: E402
+    CONFIG_V1_T2,
     DEFAULT_CONFIG_V3,
+    HeuristicConfig,
+    HeuristicConfigV3,
+    HubrisHeuristicV1,
     HubrisHeuristicV3,
     MCTSAgent,
     MCTSSearch,
     make_strict_restricted_legal_actions,
+    restricted_legal_actions,
 )
 from agricola.agents.base import Agent, play_game  # noqa: E402
 from agricola.agents.nn.agent import NNAgent, nn_evaluator_differential  # noqa: E402
@@ -64,7 +71,21 @@ from agricola.scoring import score, tiebreaker  # noqa: E402
 from agricola.setup import setup  # noqa: E402
 
 
-SEAT_TYPES = ("mcts", "nn")
+# Seat types: model-based (need a checkpoint) vs config-based (need a config).
+SEAT_TYPES = ("mcts", "nn", "heuristic")
+_MODEL_SEATS = ("mcts", "nn")
+
+
+def _load_heuristic_config(spec: str, arch: str):
+    """Resolve a heuristic config spec → config object. `spec` is either
+    the 't2' sentinel (→ V1 CONFIG_V1_T2) or a path to a tuned JSON whose
+    `best_config` is loaded as a V3 (or V1) config. Mirrors
+    eval_vs_ensemble._load_config."""
+    if spec == "t2":
+        return CONFIG_V1_T2
+    with Path(spec).open("r") as f:
+        cfg_dict = json.load(f)["best_config"]
+    return HeuristicConfigV3(**cfg_dict) if arch == "v3" else HeuristicConfig(**cfg_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -75,16 +96,21 @@ SEAT_TYPES = ("mcts", "nn")
 @dataclass(frozen=True)
 class _Spec:
     """Per-match config. Picklable — passed to worker init."""
-    p0_model_path: str
-    p1_model_path: str
-    p0_type: str   # "mcts" or "nn"
+    p0_model_path: str | None   # None for heuristic seats
+    p1_model_path: str | None
+    p0_type: str   # "mcts" | "nn" | "heuristic"
     p1_type: str
+    p0_config: str | None       # heuristic config spec ("t2" or json path)
+    p1_config: str | None
+    p0_arch: str                # "v1" | "v3" (heuristic seats)
+    p1_arch: str
     sims_per_move: int
     c_uct: float
     n_random_fencing: int
     fpu_offset: float
     temperature: float
     nn_temperature: float
+    nn_legality: str = "strict"   # "strict" | "regular" — NNAgent seat's legality wrapper
 
 
 # Worker globals. Two model slots; if the spec's two paths are equal,
@@ -95,19 +121,25 @@ _WORKER_SPEC: _Spec | None = None
 
 
 def _init_worker(spec: _Spec) -> None:
-    """Pool initializer. Load each seat's model once per worker and pin
-    BLAS to 1 thread so the N workers don't fight for the shared thread
-    pool."""
+    """Pool initializer. Load each model-based seat's checkpoint once per
+    worker (heuristic seats need no model) and pin BLAS to 1 thread so the
+    N workers don't fight for the shared thread pool."""
     global _WORKER_MODEL_P0, _WORKER_MODEL_P1, _WORKER_SPEC
     torch.set_num_threads(1)
     _WORKER_SPEC = spec
-    _WORKER_MODEL_P0 = NormalizedValueModel.load(spec.p0_model_path)
-    _WORKER_MODEL_P0.eval()
-    if spec.p1_model_path == spec.p0_model_path:
-        _WORKER_MODEL_P1 = _WORKER_MODEL_P0  # share the loaded model
-    else:
-        _WORKER_MODEL_P1 = NormalizedValueModel.load(spec.p1_model_path)
-        _WORKER_MODEL_P1.eval()
+    p0_needs = spec.p0_type in _MODEL_SEATS
+    p1_needs = spec.p1_type in _MODEL_SEATS
+    _WORKER_MODEL_P0 = None
+    _WORKER_MODEL_P1 = None
+    if p0_needs:
+        _WORKER_MODEL_P0 = NormalizedValueModel.load(spec.p0_model_path)
+        _WORKER_MODEL_P0.eval()
+    if p1_needs:
+        if p0_needs and spec.p1_model_path == spec.p0_model_path:
+            _WORKER_MODEL_P1 = _WORKER_MODEL_P0  # share the loaded model
+        else:
+            _WORKER_MODEL_P1 = NormalizedValueModel.load(spec.p1_model_path)
+            _WORKER_MODEL_P1.eval()
 
 
 def _model_for_seat(seat: int) -> NormalizedValueModel:
@@ -159,16 +191,38 @@ def _build_nn_agent(seed: int, seat: int) -> NNAgent:
     assert _WORKER_SPEC is not None
     model = _model_for_seat(seat)
     s = seed * 2 + seat
-    rng = np.random.default_rng(s ^ 0xC0FFEE)
-    strict_fn = make_strict_restricted_legal_actions(
-        config=DEFAULT_CONFIG_V3, rng=rng,
-    )
+    if _WORKER_SPEC.nn_legality == "regular":
+        # Matches eval_vs_ensemble / how the ensemble configs are evaluated —
+        # use for a fair NN-vs-heuristic comparison (both seats regular).
+        legal_fn = restricted_legal_actions
+    else:
+        rng = np.random.default_rng(s ^ 0xC0FFEE)
+        legal_fn = make_strict_restricted_legal_actions(
+            config=DEFAULT_CONFIG_V3, rng=rng,
+        )
     return NNAgent(
         model,
         differential=True,
         seed=s,
         temperature=_WORKER_SPEC.nn_temperature,
-        legal_actions_fn=strict_fn,
+        legal_actions_fn=legal_fn,
+    )
+
+
+def _build_heuristic_agent(seed: int, seat: int) -> Agent:
+    """Heuristic opponent seat (V3 or V1 from a tuned config). Uses the
+    regular `restricted_legal_actions` — matching how these configs were
+    evaluated during tuning and in eval_vs_ensemble."""
+    assert _WORKER_SPEC is not None
+    spec = _WORKER_SPEC
+    cfg_spec = spec.p0_config if seat == 0 else spec.p1_config
+    arch = spec.p0_arch if seat == 0 else spec.p1_arch
+    cfg = _load_heuristic_config(cfg_spec, arch)
+    s = seed * 2 + seat
+    cls = HubrisHeuristicV1 if arch == "v1" else HubrisHeuristicV3
+    return cls(
+        seed=s, temperature=0.0, lookahead="turn",
+        config=cfg, legal_actions_fn=restricted_legal_actions,
     )
 
 
@@ -177,6 +231,8 @@ def _build_seat(kind: str, seed: int, seat: int) -> Agent:
         return _build_mcts_agent(seed, seat)
     if kind == "nn":
         return _build_nn_agent(seed, seat)
+    if kind == "heuristic":
+        return _build_heuristic_agent(seed, seat)
     raise ValueError(f"Unknown seat kind: {kind!r}")
 
 
@@ -233,6 +289,15 @@ def main() -> int:
                    help="Agent type for P0 (default: mcts)")
     p.add_argument("--p1", choices=SEAT_TYPES, default="nn",
                    help="Agent type for P1 (default: nn)")
+    p.add_argument("--p0-config", type=str, default=None,
+                   help="Heuristic config for a 'heuristic' P0 seat: 't2' "
+                        "or a tuned JSON path.")
+    p.add_argument("--p1-config", type=str, default=None,
+                   help="Heuristic config for a 'heuristic' P1 seat.")
+    p.add_argument("--p0-arch", choices=["v1", "v3"], default="v3",
+                   help="Arch for a 'heuristic' P0 seat (default v3).")
+    p.add_argument("--p1-arch", choices=["v1", "v3"], default="v3",
+                   help="Arch for a 'heuristic' P1 seat (default v3).")
     p.add_argument("--n", type=int, default=100)
     p.add_argument("--sims", type=int, default=500,
                    help="MCTS sims/move (only used for mcts seats)")
@@ -243,49 +308,74 @@ def main() -> int:
                    help="MCTS action-selection softmax T")
     p.add_argument("--nn-temperature", type=float, default=0.0,
                    help="NNAgent softmax T (0.0 = argmax greedy)")
+    p.add_argument("--nn-legality", choices=["strict", "regular"], default="strict",
+                   help="NNAgent seat's legality wrapper. 'strict' (default) "
+                        "matches prior NN-vs-NN/MCTS runs; 'regular' matches "
+                        "eval_vs_ensemble — use for fair NN-vs-heuristic.")
     p.add_argument("--jobs", type=int, default=mp.cpu_count())
     p.add_argument("--seed-start", type=int, default=0)
     args = p.parse_args()
 
-    # Resolve per-seat model paths.
-    if args.model is not None:
-        if args.p0_model is not None or args.p1_model is not None:
-            print("ERROR: --model is mutually exclusive with --p0-model / --p1-model",
-                  file=sys.stderr)
-            return 1
-        p0_model_path = p1_model_path = str(Path(args.model).resolve())
-    else:
-        if args.p0_model is None or args.p1_model is None:
-            print("ERROR: must supply either --model OR both --p0-model and --p1-model",
-                  file=sys.stderr)
-            return 1
-        p0_model_path = str(Path(args.p0_model).resolve())
-        p1_model_path = str(Path(args.p1_model).resolve())
-    for label, path in (("P0", p0_model_path), ("P1", p1_model_path)):
+    # Resolve per-seat resources: model-based seats (nn/mcts) need a
+    # checkpoint; heuristic seats need a config. `--model` is a shorthand
+    # that fills any model-based seat that wasn't given an explicit path.
+    def _resolve_model(seat_type, explicit):
+        if seat_type not in _MODEL_SEATS:
+            return None  # heuristic seat — no model
+        path = explicit or args.model
+        if path is None:
+            print(f"ERROR: seat type '{seat_type}' needs a model "
+                  f"(--model or the per-seat --pX-model).", file=sys.stderr)
+            sys.exit(1)
+        path = str(Path(path).resolve())
         if not Path(path).is_file():
-            print(f"ERROR: {label} model not found at {path}", file=sys.stderr)
-            return 1
+            print(f"ERROR: model not found at {path}", file=sys.stderr)
+            sys.exit(1)
+        return path
+
+    def _resolve_config(seat, seat_type, cfg):
+        if seat_type != "heuristic":
+            return None
+        if cfg is None:
+            print(f"ERROR: {seat} is 'heuristic' but no --{seat.lower()}-config given.",
+                  file=sys.stderr)
+            sys.exit(1)
+        if cfg != "t2" and not Path(cfg).is_file():
+            print(f"ERROR: {seat} config not found: {cfg}", file=sys.stderr)
+            sys.exit(1)
+        return cfg
+
+    p0_model_path = _resolve_model(args.p0, args.p0_model)
+    p1_model_path = _resolve_model(args.p1, args.p1_model)
+    p0_config = _resolve_config("P0", args.p0, args.p0_config)
+    p1_config = _resolve_config("P1", args.p1, args.p1_config)
 
     spec = _Spec(
         p0_model_path=p0_model_path,
         p1_model_path=p1_model_path,
         p0_type=args.p0,
         p1_type=args.p1,
+        p0_config=p0_config,
+        p1_config=p1_config,
+        p0_arch=args.p0_arch,
+        p1_arch=args.p1_arch,
         sims_per_move=args.sims,
         c_uct=args.c_uct,
         n_random_fencing=args.n_random_fencing,
         fpu_offset=args.fpu_offset,
         temperature=args.temperature,
         nn_temperature=args.nn_temperature,
+        nn_legality=args.nn_legality,
     )
     seeds = list(range(args.seed_start, args.seed_start + args.n))
 
+    def _seat_desc(t, model, cfg, arch):
+        if t == "heuristic":
+            return f"heuristic[{arch}] {cfg}"
+        return f"{t} {model}"
     print(f"NN match: P0={args.p0} vs P1={args.p1}")
-    if p0_model_path == p1_model_path:
-        print(f"  model:    {p0_model_path}")
-    else:
-        print(f"  P0 model: {p0_model_path}")
-        print(f"  P1 model: {p1_model_path}")
+    print(f"  P0: {_seat_desc(args.p0, p0_model_path, p0_config, args.p0_arch)}")
+    print(f"  P1: {_seat_desc(args.p1, p1_model_path, p1_config, args.p1_arch)}")
     print(f"  sims:     {args.sims} (mcts seats only)")
     print(f"  c_uct:    {args.c_uct}")
     print(f"  n_random_fencing: {args.n_random_fencing}")
