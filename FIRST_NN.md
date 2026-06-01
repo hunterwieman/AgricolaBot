@@ -897,6 +897,22 @@ Strict, consistent ordering: **full ≫ snap ≫ game** (gameplay and shared-tes
 
 Caveats: `snap6th`'s run was killed at epoch 31 on the val plateau (32-37 flat in a 5.71-5.74 band); `best.pt` was salvaged and finalized post-hoc (test_metrics + value_scale backfilled from the warm cache). Both arms' test MAE is comparable to *each other* (shared seed-hash split) but not to `M_55k_all` (global-index split) or permutation-split models. Single training seed per arm — the multi-seed control (§11.1 loose ends) would tighten the snap-vs-full gap estimate but not the snap-vs-game direction (effect is large). Infrastructure side-effect: this experiment added `--train-game-frac` and switched the encoded-cache writer to `np.savez_compressed` (§10.5).
 
+**C18 — Snapshot-scaling, and a convergence cautionary tale (follow-up to C17).** Extends the snapshot axis to **1/2** (`M_55k_snap_half`, `--train-keep-frac 0.5` over the 55k, ~4.0M train descriptors). Two questions: does 1/2 close more of the gap to full data than 1/6, and how much does *convergence* matter for these subsample comparisons?
+
+The convergence story is the headline. `snap_half` was first head-to-headed at an **early** checkpoint (epoch_22, before the run converged): it lost to `M_55k_all` **23-77 (+4.05)** at n=100 — essentially identical to `snap6th` (1/6, 24.7%), which would have (wrongly) concluded *"1/6 ≈ 1/2, snapshot count is a dead lever."* But the run kept improving to **epoch 95** (test MAE 5.641). The **converged** `snap_half` vs `M_55k_all`, n=400 strict:
+
+| vs full `M_55k_all` | snapshots/game | checkpoint | snap win% | margin against |
+|---|---|---|---|---|
+| `snap6th` | 1/6 | epoch 31 | 24.7% | +4.30 |
+| `snap_half` (early) | 1/2 | epoch 22 | 23.0% | +4.05 |
+| **`snap_half` (converged)** | **1/2** | **epoch 95** | **40.3%** | **+2.24** |
+
+Two takeaways:
+1. **More snapshots *do* help — once converged.** 1/2 recovers to 40.3% of full-data strength vs 1/6's 24.7%. The C17 "snapshots are substantially redundant" framing stands (1/2 still loses to full), but the redundancy is *less* total than the early-checkpoint read implied — the extra snapshots measurably narrow the gap.
+2. **Fixed-checkpoint comparisons of differently-sized datasets are treacherous.** Smaller-data models converge *earlier* (snap6th best @ epoch 31, snap_half @ epoch 95): a model tested before it converges looks deceptively weak. The epoch_22→epoch_95 swing (23%→40.3% from the *same* data) is the same MAE≠strength / checkpoint-selection hazard seen in C16, now in a form that nearly produced a wrong scaling conclusion.
+
+Caveat: this is **not** a clean matched-effort scaling curve — `snap6th` was epoch 31 (killed at its plateau, possibly itself short of its ceiling). A rigorous snapshot-scaling curve needs each point trained to full convergence (ideally multi-seed). The *directional* claim (more snapshots → closer to full, once converged) is solid; the precise 1/6-vs-1/2 ratio is not.
+
 ---
 
 ## 12. Status
@@ -941,7 +957,7 @@ Refreshed against current state — original items from the design phase (archit
 ### 13.1 Regularization / generalization
 
 - Dropout 0.2 helped (Experiment C6: test MAE 6.87 → 6.73, healthier val curve), but the curve still creeps after the early plateau. Is there more to gain from **higher dropout (0.3+)**, **stronger weight decay**, or a **smaller model**? And is there an irreducible label-noise floor near ~6.7 MAE that no regularization breaks through?
-- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. **Partly answered by C17:** at a matched 1/6 budget, thinning snapshots across all games beats keeping fewer whole games +3.96 (72.5%) — confirming snapshots are substantially redundant and effective N tracks game count. *But* the thinned model still loses to full data (+4.30 against it), so the redundancy is partial — extra snapshots carry real signal. Open remainder: where does the snapshot-thinning curve saturate (1/6 vs 1/3 vs 1/2), and is it cheaper to reach a target strength by thinning + more games than by full snapshots + fewer games?
+- Within-game label correlation: ~150 snapshots per game share the same terminal margin, so the effective number of iid labels is closer to 2 × n_games than to n_descriptors. **Partly answered by C17:** at a matched 1/6 budget, thinning snapshots across all games beats keeping fewer whole games +3.96 (72.5%) — confirming snapshots are substantially redundant and effective N tracks game count. *But* the thinned model still loses to full data, so the redundancy is partial — extra snapshots carry real signal. **C18 extends this to 1/2:** once converged, 1/2-snapshots recovers to 40.3% vs full (vs 1/6's 24.7%) — more snapshots *do* help, and the redundancy is less total than the 1/6 point alone suggested. C18 also surfaced a hazard: smaller-data models converge earlier, so an early-checkpoint comparison badly understated 1/2 (23% at epoch_22 → 40.3% at epoch_95). Open remainder: a clean matched-convergence (and multi-seed) snapshot-scaling curve; and whether it's cheaper to reach a target strength by thinning + more games than by full snapshots + fewer games.
 
 ### 13.2 Data distribution & V1 generalization
 
