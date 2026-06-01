@@ -1,0 +1,6 @@
+{
+  "best_epoch": 22,
+  "test_mse_normalized": 0.3837013936607578,
+  "test_mae_margin": 6.369515589363014,
+  "note": "finalized post-kill from saved best.pt (epoch 22)"
+}

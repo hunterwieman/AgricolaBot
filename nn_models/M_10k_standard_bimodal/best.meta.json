@@ -1,0 +1,52 @@
+{
+  "net_type": "ConfigurableMLP",
+  "net_config": {
+    "input_dim": 170,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "output_dim": 1,
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2
+  },
+  "encoding_version": 2,
+  "extras": {
+    "epoch": 14,
+    "val_mse": 0.41722255026548277,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 512,
+    "max_epochs": 100,
+    "early_stop_patience": 20,
+    "train_sample_size": null,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "split_seed": 0,
+    "sample_seed": 1,
+    "torch_seed": 42,
+    "device": "cpu",
+    "loss": "mse",
+    "input_dim": 170,
+    "encoding_version": 2,
+    "data_version": 1,
+    "code_sha": "c235095b0a4e781ebe7ab7bd193c7c1277d0d0f6",
+    "run_dirs": [
+      "data/nn_training/runs/S1_standard_bimodal_10k"
+    ],
+    "train_size": 1460792,
+    "val_size": 182806,
+    "test_size": 183984,
+    "param_count": 110849,
+    "target_std": 14.157034873962402
+  },
+  "value_scale": 22.8717
+}

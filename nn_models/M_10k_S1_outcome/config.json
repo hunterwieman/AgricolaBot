@@ -1,0 +1,36 @@
+{
+  "hidden_dims": [
+    256,
+    256
+  ],
+  "activation": "gelu",
+  "norm": "layer",
+  "dropout": 0.2,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 512,
+  "max_epochs": 100,
+  "early_stop_patience": 20,
+  "train_sample_size": null,
+  "train_frac": 0.8,
+  "val_frac": 0.1,
+  "split_seed": 0,
+  "sample_seed": 1,
+  "torch_seed": 42,
+  "device": "cpu",
+  "loss": "mse",
+  "target_mode": "outcome",
+  "head": "tanh",
+  "input_dim": 170,
+  "encoding_version": 2,
+  "data_version": 1,
+  "code_sha": "d6322cbd7af0404cafb794b6b745d2c15dafc2f8",
+  "run_dirs": [
+    "data/nn_training/runs/S1_standard_bimodal_10k"
+  ],
+  "train_size": 1460792,
+  "val_size": 182806,
+  "test_size": 183984,
+  "param_count": 110849,
+  "target_std": 1.0
+}

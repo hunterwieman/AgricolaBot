@@ -1,0 +1,144 @@
+Run dir: nn_models/M_55k_all
+Device: cpu
+Target mode: margin | head: linear | loss: mse
+
+  encoded 20260528-031528-9d6a/worker_00.pkl: games so far=625, train descs=93724
+  encoded 20260528-031528-9d6a/worker_01.pkl: games so far=1250, train descs=185388
+  encoded 20260528-031528-9d6a/worker_02.pkl: games so far=1875, train descs=276114
+  encoded 20260528-031528-9d6a/worker_03.pkl: games so far=2500, train descs=367432
+  encoded 20260528-031528-9d6a/worker_04.pkl: games so far=3125, train descs=458392
+  encoded 20260528-031528-9d6a/worker_05.pkl: games so far=3750, train descs=548526
+  encoded 20260528-031528-9d6a/worker_06.pkl: games so far=4375, train descs=641330
+  encoded 20260528-031528-9d6a/worker_07.pkl: games so far=5000, train descs=731490
+  encoded S1_standard_bimodal_10k/worker_00.pkl: games so far=6250, train descs=916166
+  encoded S1_standard_bimodal_10k/worker_01.pkl: games so far=7500, train descs=1098478
+  encoded S1_standard_bimodal_10k/worker_02.pkl: games so far=8750, train descs=1278202
+  encoded S1_standard_bimodal_10k/worker_03.pkl: games so far=10000, train descs=1461820
+  encoded S1_standard_bimodal_10k/worker_04.pkl: games so far=11250, train descs=1647790
+  encoded S1_standard_bimodal_10k/worker_05.pkl: games so far=12500, train descs=1829918
+  encoded S1_standard_bimodal_10k/worker_06.pkl: games so far=13750, train descs=2012076
+  encoded S1_standard_bimodal_10k/worker_07.pkl: games so far=15000, train descs=2194226
+  encoded S2_no_v1_bimodal_10k/worker_00.pkl: games so far=16250, train descs=2374790
+  encoded S2_no_v1_bimodal_10k/worker_01.pkl: games so far=17500, train descs=2556090
+  encoded S2_no_v1_bimodal_10k/worker_02.pkl: games so far=18750, train descs=2738380
+  encoded S2_no_v1_bimodal_10k/worker_03.pkl: games so far=20000, train descs=2922032
+  encoded S2_no_v1_bimodal_10k/worker_04.pkl: games so far=21250, train descs=3102990
+  encoded S2_no_v1_bimodal_10k/worker_05.pkl: games so far=22500, train descs=3280706
+  encoded S2_no_v1_bimodal_10k/worker_06.pkl: games so far=23750, train descs=3458948
+  encoded S2_no_v1_bimodal_10k/worker_07.pkl: games so far=25000, train descs=3642572
+  encoded S3_strong3_bimodal_10k/worker_00.pkl: games so far=26250, train descs=3824038
+  encoded S3_strong3_bimodal_10k/worker_01.pkl: games so far=27500, train descs=4005220
+  encoded S3_strong3_bimodal_10k/worker_02.pkl: games so far=28750, train descs=4185420
+  encoded S3_strong3_bimodal_10k/worker_03.pkl: games so far=30000, train descs=4372296
+  encoded S3_strong3_bimodal_10k/worker_04.pkl: games so far=31250, train descs=4549956
+  encoded S3_strong3_bimodal_10k/worker_05.pkl: games so far=32500, train descs=4730826
+  encoded S3_strong3_bimodal_10k/worker_06.pkl: games so far=33750, train descs=4914466
+  encoded S3_strong3_bimodal_10k/worker_07.pkl: games so far=35000, train descs=5096486
+  encoded S4_all_lowT_10k/worker_00.pkl: games so far=36250, train descs=5284516
+  encoded S4_all_lowT_10k/worker_01.pkl: games so far=37500, train descs=5470136
+  encoded S4_all_lowT_10k/worker_02.pkl: games so far=38750, train descs=5656796
+  encoded S4_all_lowT_10k/worker_03.pkl: games so far=40000, train descs=5847294
+  encoded S4_all_lowT_10k/worker_04.pkl: games so far=41250, train descs=6033558
+  encoded S4_all_lowT_10k/worker_05.pkl: games so far=42500, train descs=6217324
+  encoded S4_all_lowT_10k/worker_06.pkl: games so far=43750, train descs=6404504
+  encoded S4_all_lowT_10k/worker_07.pkl: games so far=45000, train descs=6588754
+  encoded S5_no_v1_lowT_10k/worker_00.pkl: games so far=46250, train descs=6781212
+  encoded S5_no_v1_lowT_10k/worker_01.pkl: games so far=47500, train descs=6967734
+  encoded S5_no_v1_lowT_10k/worker_02.pkl: games so far=48750, train descs=7157096
+  encoded S5_no_v1_lowT_10k/worker_03.pkl: games so far=50000, train descs=7343836
+  encoded S5_no_v1_lowT_10k/worker_04.pkl: games so far=51250, train descs=7531124
+  encoded S5_no_v1_lowT_10k/worker_05.pkl: games so far=52500, train descs=7718052
+  encoded S5_no_v1_lowT_10k/worker_06.pkl: games so far=53750, train descs=7904470
+  encoded S5_no_v1_lowT_10k/worker_07.pkl: games so far=55000, train descs=8091650
+Chunked build: train=8091650 val=1021560 test=1005000 | dtype=float16 | target_mode=margin target_std=13.093
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.4102 |         6.09 |    0.3884 |       5.89 |  *   |   0 |   116.8
+    2 |     0.3897 |         5.90 |    0.3849 |       5.83 |  *   |   0 |   118.0
+    3 |     0.3839 |         5.85 |    0.3777 |       5.77 |  *   |   0 |   119.0
+    4 |     0.3803 |         5.82 |    0.3780 |       5.78 |      |   1 |   119.5
+    5 |     0.3778 |         5.79 |    0.3749 |       5.75 |  *   |   0 |   121.3
+    6 |     0.3759 |         5.78 |    0.3737 |       5.74 |  *   |   0 |   121.2
+    7 |     0.3745 |         5.77 |    0.3758 |       5.76 |      |   1 |   121.4
+    8 |     0.3735 |         5.76 |    0.3730 |       5.74 |  *   |   0 |   122.9
+    9 |     0.3725 |         5.75 |    0.3720 |       5.72 |  *   |   0 |   122.9
+   10 |     0.3717 |         5.74 |    0.3710 |       5.72 |  *   |   0 |   125.9
+   11 |     0.3709 |         5.73 |    0.3711 |       5.72 |      |   1 |   126.8
+   12 |     0.3701 |         5.73 |    0.3706 |       5.71 |  *   |   0 |   172.0
+   13 |     0.3698 |         5.72 |    0.3715 |       5.72 |      |   1 |   200.9
+   14 |     0.3691 |         5.72 |    0.3699 |       5.70 |  *   |   0 |   203.3
+   15 |     0.3686 |         5.71 |    0.3707 |       5.71 |      |   1 |   186.3
+   16 |     0.3682 |         5.71 |    0.3700 |       5.69 |      |   2 |   185.2
+   17 |     0.3678 |         5.71 |    0.3705 |       5.70 |      |   3 |   196.4
+   18 |     0.3674 |         5.70 |    0.3718 |       5.71 |      |   4 |   160.3
+   19 |     0.3671 |         5.70 |    0.3699 |       5.70 |      |   5 |   134.6
+   20 |     0.3667 |         5.70 |    0.3699 |       5.70 |  *   |   0 |   143.4
+   21 |     0.3665 |         5.70 |    0.3691 |       5.69 |  *   |   0 |   145.5
+   22 |     0.3662 |         5.69 |    0.3700 |       5.70 |      |   1 |   146.2
+   23 |     0.3660 |         5.69 |    0.3698 |       5.70 |      |   2 |   148.8
+   24 |     0.3656 |         5.69 |    0.3702 |       5.70 |      |   3 |   148.4
+   25 |     0.3654 |         5.69 |    0.3691 |       5.70 |      |   4 |   148.9
+   26 |     0.3651 |         5.68 |    0.3702 |       5.70 |      |   5 |   150.4
+   27 |     0.3650 |         5.68 |    0.3688 |       5.69 |  *   |   0 |   151.8
+   28 |     0.3648 |         5.68 |    0.3687 |       5.69 |  *   |   0 |   150.3
+   29 |     0.3647 |         5.68 |    0.3683 |       5.68 |  *   |   0 |   151.4
+   30 |     0.3644 |         5.68 |    0.3683 |       5.68 |  *   |   0 |   151.1
+   31 |     0.3643 |         5.68 |    0.3695 |       5.69 |      |   1 |   151.8
+   32 |     0.3640 |         5.68 |    0.3681 |       5.68 |  *   |   0 |   151.4
+   33 |     0.3640 |         5.67 |    0.3684 |       5.68 |      |   1 |   151.5
+   34 |     0.3638 |         5.67 |    0.3681 |       5.68 |      |   2 |   152.0
+   35 |     0.3636 |         5.67 |    0.3690 |       5.69 |      |   3 |   161.5
+   36 |     0.3634 |         5.67 |    0.3681 |       5.68 |  *   |   0 |   156.8
+   37 |     0.3634 |         5.67 |    0.3696 |       5.70 |      |   1 |   157.1
+   38 |     0.3631 |         5.67 |    0.3679 |       5.68 |  *   |   0 |   157.5
+   39 |     0.3632 |         5.67 |    0.3693 |       5.70 |      |   1 |   157.3
+   40 |     0.3629 |         5.67 |    0.3688 |       5.69 |      |   2 |   157.7
+   41 |     0.3629 |         5.66 |    0.3677 |       5.68 |  *   |   0 |   156.8
+   42 |     0.3628 |         5.66 |    0.3677 |       5.67 |      |   1 |   156.8
+   43 |     0.3626 |         5.66 |    0.3679 |       5.68 |      |   2 |   165.8
+   44 |     0.3626 |         5.66 |    0.3695 |       5.70 |      |   3 |   200.0
+   45 |     0.3624 |         5.66 |    0.3679 |       5.68 |      |   4 |   162.2
+   46 |     0.3623 |         5.66 |    0.3679 |       5.68 |      |   5 |   162.5
+   47 |     0.3623 |         5.66 |    0.3675 |       5.67 |  *   |   0 |   182.2
+   48 |     0.3621 |         5.66 |    0.3679 |       5.68 |      |   1 |   174.5
+   49 |     0.3620 |         5.66 |    0.3679 |       5.68 |      |   2 |   169.6
+   50 |     0.3619 |         5.66 |    0.3679 |       5.67 |      |   3 |   171.0
+   51 |     0.3618 |         5.66 |    0.3680 |       5.68 |      |   4 |   171.1
+   52 |     0.3618 |         5.66 |    0.3679 |       5.68 |      |   5 |   166.9
+   53 |     0.3617 |         5.65 |    0.3676 |       5.67 |      |   6 |   166.5
+   54 |     0.3616 |         5.65 |    0.3681 |       5.68 |      |   7 |   177.0
+   55 |     0.3615 |         5.65 |    0.3677 |       5.68 |      |   8 |   172.2
+   56 |     0.3615 |         5.65 |    0.3676 |       5.68 |      |   9 |   161.0
+   57 |     0.3614 |         5.65 |    0.3679 |       5.68 |      |  10 |   171.3
+   58 |     0.3614 |         5.65 |    0.3679 |       5.69 |      |  11 |   156.0
+   59 |     0.3613 |         5.65 |    0.3675 |       5.67 |      |  12 |   171.3
+   60 |     0.3612 |         5.65 |    0.3683 |       5.68 |      |  13 |   173.3
+   61 |     0.3611 |         5.65 |    0.3671 |       5.67 |  *   |   0 |   176.9
+   62 |     0.3611 |         5.65 |    0.3675 |       5.68 |      |   1 |   180.2
+   63 |     0.3610 |         5.65 |    0.3695 |       5.70 |      |   2 |   171.8
+   64 |     0.3610 |         5.65 |    0.3682 |       5.69 |      |   3 |   176.5
+   65 |     0.3608 |         5.65 |    0.3699 |       5.71 |      |   4 |   182.2
+   66 |     0.3607 |         5.65 |    0.3682 |       5.68 |      |   5 |   170.8
+   67 |     0.3607 |         5.65 |    0.3686 |       5.68 |      |   6 |   166.4
+   68 |     0.3607 |         5.65 |    0.3669 |       5.66 |  *   |   0 |   186.6
+   69 |     0.3606 |         5.65 |    0.3676 |       5.67 |      |   1 |   173.2
+   70 |     0.3605 |         5.65 |    0.3675 |       5.67 |      |   2 |   172.0
+   71 |     0.3605 |         5.64 |    0.3669 |       5.67 |      |   3 |   169.2
+   72 |     0.3604 |         5.64 |    0.3685 |       5.68 |      |   4 |   167.5
+   73 |     0.3603 |         5.64 |    0.3674 |       5.67 |      |   5 |   169.3
+   74 |     0.3604 |         5.64 |    0.3670 |       5.67 |      |   6 |   169.2
+   75 |     0.3601 |         5.64 |    0.3670 |       5.67 |      |   7 |   175.4
+   76 |     0.3602 |         5.64 |    0.3681 |       5.69 |      |   8 |   169.6
+   77 |     0.3601 |         5.64 |    0.3673 |       5.68 |      |   9 |   170.3
+   78 |     0.3600 |         5.64 |    0.3670 |       5.66 |      |  10 |   158.7
+   79 |     0.3600 |         5.64 |    0.3677 |       5.68 |      |  11 |   185.6
+   80 |     0.3599 |         5.64 |    0.3671 |       5.67 |      |  12 |   184.7
+   81 |     0.3599 |         5.64 |    0.3671 |       5.67 |      |  13 |   170.5
+   82 |     0.3599 |         5.64 |    0.3678 |       5.68 |      |  14 |   207.2
+   83 |     0.3599 |         5.64 |    0.3680 |       5.68 |      |  15 |   172.8
+   84 |     0.3599 |         5.64 |    0.3672 |       5.67 |      |  16 |   197.1
+   85 |     0.3598 |         5.64 |    0.3669 |       5.67 |      |  17 |   206.5
