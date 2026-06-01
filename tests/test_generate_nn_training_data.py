@@ -96,6 +96,55 @@ def test_compute_plan_temperatures_include_both_modes():
         f"Only {n_exploration} exploration-mode draws in 2000 attempts"
 
 
+def test_compute_plan_default_restriction_from_bool():
+    """With no restriction_mix, every game uses the constant restriction
+    implied by the `restricted` bool."""
+    p_on = compute_plan(n_games=20, base_seed=0, approved_configs=("random",),
+                        restricted=True)
+    p_off = compute_plan(n_games=20, base_seed=0, approved_configs=("random",),
+                         restricted=False)
+    assert all(g.restriction == "restricted" for g in p_on)
+    assert all(g.restriction == "unrestricted" for g in p_off)
+
+
+def test_compute_plan_weighted_config_shares():
+    """config_weights skews the seat draw toward heavier configs."""
+    configs = ("a", "b")
+    plan = compute_plan(n_games=4000, base_seed=0, approved_configs=configs,
+                        config_weights=(0.9, 0.1))
+    seats = [c for g in plan for c in (g.p0_config, g.p1_config)]
+    frac_a = seats.count("a") / len(seats)
+    assert 0.85 < frac_a < 0.95, frac_a  # ~0.9, robust to sampling noise
+
+
+def test_compute_plan_restriction_mix_shares():
+    """restriction_mix draws each level at ~its probability; all 3 appear."""
+    plan = compute_plan(n_games=5000, base_seed=0, approved_configs=("random",),
+                        restriction_mix=(0.2, 0.4, 0.4))
+    from collections import Counter
+    c = Counter(g.restriction for g in plan)
+    n = len(plan)
+    assert 0.17 < c["unrestricted"] / n < 0.23
+    assert 0.36 < c["restricted"] / n < 0.44
+    assert 0.36 < c["strict"] / n < 0.44
+
+
+def test_compute_plan_bad_weights_and_mix_raise():
+    with pytest.raises(ValueError):
+        compute_plan(10, 0, ("a", "b"), config_weights=(1.0,))  # length mismatch
+    with pytest.raises(ValueError):
+        compute_plan(10, 0, ("a",), restriction_mix=(0.5, 0.4, 0.4))  # !=1
+
+
+def test_resolve_nn_spec_is_torch_free():
+    """An 'nn:<path>' spec resolves to (path, 'nn') without loading torch
+    or the checkpoint (model load is deferred to _build_agent)."""
+    from generate_training_data import _resolve_config_cached
+    cfg, arch = _resolve_config_cached("nn:nn_models/whatever/best.pt")
+    assert arch == "nn"
+    assert cfg == "nn_models/whatever/best.pt"
+
+
 # ---------------------------------------------------------------------------
 # Partition
 # ---------------------------------------------------------------------------

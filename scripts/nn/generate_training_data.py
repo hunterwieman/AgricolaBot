@@ -54,6 +54,7 @@ from agricola.agents import (  # noqa: E402
     HubrisHeuristicV1,
     HubrisHeuristicV3,
     RandomAgent,
+    make_strict_restricted_legal_actions,
     restricted_legal_actions,
 )
 from agricola.agents.base import Agent, LegalActionsFn  # noqa: E402
@@ -89,6 +90,41 @@ DEFAULT_APPROVED_CONFIGS: tuple[str, ...] = (
 # Holds (config_obj, arch) tuples keyed by spec string.
 _CONFIG_CACHE: dict[str, tuple] = {}
 
+# Per-worker cache of loaded NN models (torch), keyed by checkpoint path.
+_MODEL_CACHE: dict[str, object] = {}
+
+# The margin reference scale for NN-seat temperature normalization.
+# M_55k's measured leaf value_scale (σ of V(s,0)-V(s,1)) ≈ 22.72 — the scale
+# the bimodal T_base distribution was implicitly calibrated for (heuristics and
+# the margin NN both output margin-scale values). An NN seat's effective
+# temperature is T_base * (its value_scale / this), so a single T_base draw
+# means the same softmax selectivity across heads regardless of output units
+# (margin σ≈22.7, tanh σ≈1.3, sigmoid σ≈0.66). This is the C15 leaf-value
+# normalization lesson applied to the generation softmax instead of UCB —
+# without it the tanh/sigmoid seats would play near-randomly at the same
+# nominal T and pollute the data.
+NN_TEMP_REFERENCE_SCALE = 22.72
+
+
+def _load_nn_model(path_str: str):
+    """Load (and cache per-process) a NormalizedValueModel checkpoint.
+
+    Lazy torch import so non-NN generation runs stay torch-free. Pins BLAS
+    to one thread so N pool workers don't spawn N² total threads.
+    """
+    if path_str in _MODEL_CACHE:
+        return _MODEL_CACHE[path_str]
+    import torch  # lazy: only NN seats pull torch into the worker
+    torch.set_num_threads(1)
+    from agricola.agents.nn.model import NormalizedValueModel
+    path = Path(path_str)
+    if not path.is_absolute():
+        path = ROOT / path
+    model = NormalizedValueModel.load(path)
+    model.eval()
+    _MODEL_CACHE[path_str] = model
+    return model
+
 
 def _resolve_config_cached(spec: str) -> tuple:
     """Resolve a config spec to (config_obj, arch).
@@ -111,6 +147,10 @@ def _resolve_config_cached(spec: str) -> tuple:
         result = (None, "random")
     elif spec == "t2":
         result = (CONFIG_V1_T2, "v1")
+    elif spec.startswith("nn:"):
+        # NN seat: spec is "nn:<checkpoint path>". Carry the path through;
+        # the model itself is loaded + cached lazily in _build_agent (torch).
+        result = (spec[len("nn:"):], "nn")
     else:
         path = Path(spec)
         if not path.is_absolute():
@@ -146,6 +186,22 @@ def _build_agent(
     """Construct an Agent for the given spec + per-agent seed."""
     cfg, arch = _resolve_config_cached(spec)
 
+    if arch == "nn":
+        # cfg is the checkpoint path string (from the "nn:" spec).
+        from agricola.agents.nn.agent import NNAgent
+        model = _load_nn_model(cfg)
+        # Normalize the softmax temperature by the head's value_scale so a
+        # single T_base means the same selectivity across margin/tanh/sigmoid.
+        vs = getattr(model, "value_scale", 1.0) or 1.0
+        t_eff = temperature * (vs / NN_TEMP_REFERENCE_SCALE)
+        return NNAgent(
+            model,
+            differential=True,
+            temperature=t_eff,
+            seed=seed,
+            lookahead="turn",
+            legal_actions_fn=legal_actions_fn,
+        )
     if arch == "random":
         return RandomAgent(seed=seed, legal_actions_fn=legal_actions_fn)
     if arch == "v1":
@@ -183,6 +239,11 @@ class GamePlan:
     p1_config: str
     p0_temperature: float
     p1_temperature: float
+    restriction: str = "restricted"  # one of: unrestricted / restricted / strict
+
+
+# Restriction level -> (this is mapped to a legal_actions_fn in the worker).
+RESTRICTION_LEVELS = ("unrestricted", "restricted", "strict")
 
 
 def _draw_temperature(rng: np.random.Generator) -> float:
@@ -195,11 +256,27 @@ def _draw_temperature(rng: np.random.Generator) -> float:
     return float(rng.uniform(0.3, 1.0))
 
 
+def _draw_restriction(rng: np.random.Generator, mix: tuple[float, float, float]) -> str:
+    """Draw a per-game restriction level from `mix`
+    (p_unrestricted, p_restricted, p_strict). Varying the legality wrapper
+    per game broadens the state distribution: unrestricted games visit states
+    the wrappers prune; strict games match the MCTS deployment legality."""
+    r = rng.random()
+    if r < mix[0]:
+        return "unrestricted"
+    if r < mix[0] + mix[1]:
+        return "restricted"
+    return "strict"
+
+
 def compute_plan(
     n_games: int,
     base_seed: int,
     approved_configs: tuple[str, ...],
     fixed_temperature: float | None = None,
+    config_weights: tuple[float, ...] | None = None,
+    restricted: bool = True,
+    restriction_mix: tuple[float, float, float] | None = None,
 ) -> list[GamePlan]:
     """Generate the full per-game work list deterministically.
 
@@ -218,13 +295,41 @@ def compute_plan(
       game. Useful for ablation runs that hold temperature constant
       while varying other axes (heuristic mix, etc).
     """
+    # Normalize config weights once (None → uniform).
+    if config_weights is None:
+        weights = None
+    else:
+        if len(config_weights) != len(approved_configs):
+            raise ValueError(
+                f"config_weights length {len(config_weights)} != "
+                f"approved_configs length {len(approved_configs)}.")
+        w = np.asarray(config_weights, dtype=float)
+        if (w < 0).any() or w.sum() <= 0:
+            raise ValueError("config_weights must be non-negative and sum > 0.")
+        weights = w / w.sum()
+
+    if restriction_mix is not None:
+        rm = tuple(float(x) for x in restriction_mix)
+        if len(rm) != 3 or any(x < 0 for x in rm) or abs(sum(rm) - 1.0) > 1e-6:
+            raise ValueError(
+                "restriction_mix must be 3 non-negative floats summing to 1 "
+                "(p_unrestricted, p_restricted, p_strict).")
+    else:
+        rm = None
+    default_restriction = "restricted" if restricted else "unrestricted"
+
+    n_cfg = len(approved_configs)
     plan = []
     for game_idx in range(n_games):
         game_rng = np.random.default_rng(base_seed * 100000 + game_idx)
 
-        # Configs with replacement.
-        p0_idx = int(game_rng.integers(len(approved_configs)))
-        p1_idx = int(game_rng.integers(len(approved_configs)))
+        # Configs with replacement (weighted if config_weights given).
+        if weights is None:
+            p0_idx = int(game_rng.integers(n_cfg))
+            p1_idx = int(game_rng.integers(n_cfg))
+        else:
+            p0_idx = int(game_rng.choice(n_cfg, p=weights))
+            p1_idx = int(game_rng.choice(n_cfg, p=weights))
 
         # Independent per-agent temperatures (or fixed if requested).
         if fixed_temperature is None:
@@ -234,6 +339,11 @@ def compute_plan(
             p0_temp = float(fixed_temperature)
             p1_temp = float(fixed_temperature)
 
+        # Per-game restriction level (drawn last so adding it doesn't perturb
+        # the config/temperature draws of a restriction_mix=None plan).
+        restriction = _draw_restriction(game_rng, rm) if rm is not None \
+            else default_restriction
+
         plan.append(GamePlan(
             game_idx=game_idx,
             seed=base_seed + game_idx,
@@ -241,6 +351,7 @@ def compute_plan(
             p1_config=approved_configs[p1_idx],
             p0_temperature=p0_temp,
             p1_temperature=p1_temp,
+            restriction=restriction,
         ))
     return plan
 
@@ -287,6 +398,21 @@ def _write_pickle_atomic(path: Path, obj) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _legal_actions_fn_for(restriction: str, seed: int) -> LegalActionsFn:
+    """Map a per-game restriction level to a legal_actions_fn.
+
+    `strict` is built per game with a seed-derived RNG so its internal random
+    samples (harvest-feed cap, fence-pattern choice) are reproducible.
+    """
+    if restriction == "unrestricted":
+        return legal_actions
+    if restriction == "restricted":
+        return restricted_legal_actions
+    if restriction == "strict":
+        return make_strict_restricted_legal_actions(rng=np.random.default_rng(seed))
+    raise ValueError(f"Unknown restriction level {restriction!r}.")
+
+
 def _worker_play_games(args: dict) -> dict:
     """Worker entry point: play the assigned slice of the plan.
 
@@ -320,7 +446,6 @@ def _worker_play_games(args: dict) -> dict:
             records = pickle.load(f)
     completed_idxs = {rec.game_idx for rec in records}
 
-    legal_actions_fn = restricted_legal_actions if restricted else legal_actions
     errored: list[tuple[int, str]] = []
     n_completed = 0
     n_skipped = 0
@@ -333,6 +458,12 @@ def _worker_play_games(args: dict) -> dict:
 
         try:
             initial = setup(seed=item["seed"])
+
+            # Per-game legality wrapper (varies across games when a
+            # restriction_mix was used; constant otherwise). Both seats and
+            # the recorder share it.
+            legal_actions_fn = _legal_actions_fn_for(
+                item.get("restriction", "restricted"), item["seed"])
 
             # Per-agent seeds: derived from the game seed so that swapping
             # agents (e.g., for a resume of the SAME config draws) is
@@ -417,6 +548,8 @@ def _write_metadata(
     approved_configs: tuple[str, ...],
     restricted: bool,
     fixed_temperature: float | None = None,
+    config_weights: tuple[float, ...] | None = None,
+    restriction_mix: tuple[float, float, float] | None = None,
     completed: int = 0,
     errored: list[dict] | None = None,
 ) -> None:
@@ -443,9 +576,11 @@ def _write_metadata(
         "code_sha": _current_git_sha(),
         "host": platform.node(),
         "approved_configs": list(approved_configs),
+        "config_weights": list(config_weights) if config_weights is not None else None,
         "temperature_distribution": temp_descriptor,
         "fixed_temperature": fixed_temperature,
         "restricted": restricted,
+        "restriction_mix": list(restriction_mix) if restriction_mix is not None else None,
         "n_workers": n_workers,
         "planned_games": n_games,
         "completed_games": completed,
@@ -469,7 +604,9 @@ def generate_dataset(
     n_workers: int | None = None,
     base_seed: int = 1000000,
     approved_configs: tuple[str, ...] | None = None,
+    config_weights: tuple[float, ...] | None = None,
     restricted: bool = True,
+    restriction_mix: tuple[float, float, float] | None = None,
     fixed_temperature: float | None = None,
     verbose: bool = True,
 ) -> dict:
@@ -515,7 +652,13 @@ def generate_dataset(
         print(f"N games planned: {n_games}")
         print(f"N workers: {n_workers}")
         print(f"Approved configs: {list(approved_configs)}")
-        print(f"Restricted: {restricted}")
+        if config_weights is not None:
+            print(f"Config weights: {list(config_weights)}")
+        if restriction_mix is not None:
+            print(f"Restriction mix (unrestricted/restricted/strict): "
+                  f"{list(restriction_mix)}")
+        else:
+            print(f"Restricted: {restricted}")
         if fixed_temperature is not None:
             print(f"Fixed temperature: {fixed_temperature}")
         else:
@@ -523,7 +666,13 @@ def generate_dataset(
         print()
 
     # Build the plan (deterministic; same inputs always produce same plan).
-    plan = compute_plan(n_games, base_seed, approved_configs, fixed_temperature)
+    plan = compute_plan(
+        n_games, base_seed, approved_configs,
+        fixed_temperature=fixed_temperature,
+        config_weights=config_weights,
+        restricted=restricted,
+        restriction_mix=restriction_mix,
+    )
     slices = partition_plan(plan, n_workers)
 
     # Write initial metadata. (Final state will overwrite at end.)
@@ -537,6 +686,8 @@ def generate_dataset(
             approved_configs=approved_configs,
             restricted=restricted,
             fixed_temperature=fixed_temperature,
+            config_weights=config_weights,
+            restriction_mix=restriction_mix,
         )
 
     # Launch workers.
@@ -581,6 +732,8 @@ def generate_dataset(
         approved_configs=approved_configs,
         restricted=restricted,
         fixed_temperature=fixed_temperature,
+        config_weights=config_weights,
+        restriction_mix=restriction_mix,
         completed=on_disk_completed,
         errored=all_errored,
     )
@@ -640,8 +793,26 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--config-weights", type=float, nargs="+", default=None,
+        help=(
+            "Per-config sampling weights (parallel to --approved-configs; "
+            "need not sum to 1, normalized internally). Default: uniform."
+        ),
+    )
+    parser.add_argument(
+        "--restriction-mix", type=float, nargs=3, default=None,
+        metavar=("P_UNRESTRICTED", "P_RESTRICTED", "P_STRICT"),
+        help=(
+            "Per-game legality-wrapper mix as 3 probabilities summing to 1: "
+            "(unrestricted, restricted, strict). If set, each game draws its "
+            "restriction level and both seats use it. Default: all games use "
+            "the --restricted/--no-restricted setting."
+        ),
+    )
+    parser.add_argument(
         "--restricted", action="store_true", default=True,
-        help="Use restricted_legal_actions (default ON).",
+        help="Use restricted_legal_actions (default ON). Ignored if "
+             "--restriction-mix is given.",
     )
     parser.add_argument(
         "--no-restricted", action="store_false", dest="restricted",
@@ -663,7 +834,9 @@ def main() -> int:
         n_workers=args.n_workers,
         base_seed=args.base_seed,
         approved_configs=tuple(args.approved_configs) if args.approved_configs else None,
+        config_weights=tuple(args.config_weights) if args.config_weights else None,
         restricted=args.restricted,
+        restriction_mix=tuple(args.restriction_mix) if args.restriction_mix else None,
         fixed_temperature=args.fixed_temperature,
     )
     return 0
