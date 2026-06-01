@@ -697,7 +697,7 @@ NN experiments tracked through their lifecycle: an idea graduates from §13 Open
 | S4_all_lowT | all 8 | T=0.3 | done |
 | S5_no_v1_lowT | 7 V3 | T=0.3 | done |
 
-All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; **S1-vs-S3 (config breadth) — run, Experiment C13**; S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T), 5k→15k→55k (data scaling) — pending. Models trained so far: `M_10k_standard_bimodal` (S1), `M_10k_all_lowT` (S4), `M_10k_no_v1_bimodal` (S2), `M_10k_strong3_bimodal` (S3).
+All five sections generated. Models to train: per-section 10k models (M_10k_*) + M_15k_standard (existing 5k + S1) + M_55k_all (everything). Comparisons: **S1-vs-S4 (temperature regime) — run, Experiment C11**; **S1-vs-S2 (does t2/V1 matter) — run, Experiment C12**; **S1-vs-S3 (config breadth) — run, Experiment C13**; **5k→15k→55k (data scaling) + M_55k-vs-ensemble — run, Experiment C16**; S2-vs-S5 (T-regime among 7-V3), S4-vs-S5 (V1 among low-T) — pending. All section models + M_15k_standard + M_55k_all trained (see REGISTRY). **P1 verdict: data diversity (C11-C13) AND volume (C16) both help; the everything-model M_55k beats the entire ensemble 96.4%.**
 
 **P2 — Supervision target / output head.** *Done — standalone in C14 (null), MCTS-leaf in C15 (null, after fixing a c_uct-scaling confound). Conclusion: target doesn't measurably matter at this scale; default to outcome/tanh for phase-c PUCT.* The current model regresses on **terminal margin** (linear head, MSE; §3.4/§5). Two bounded alternatives, same dataset and architecture, varying only head + loss:
 
@@ -711,7 +711,11 @@ Notes: **margin** gives the richest gradient (distinguishes a safe win from a na
 
 **P3 — MCTS sim-count sweep.** Characterize the marginal-value-of-search curve for the NN leaf evaluator. Sweep e.g. 200 / 500 / 1500 / 5000 sims as head-to-heads (no shared tree when sims differ). Open sub-question: does the +3.54-to-+5.58 lift at 500 sims keep climbing or plateau? (From §13.3.)
 
-Other planned-but-unscoped checks (from §11 outstanding work): match `NNAgent` / `MCTS-NN` vs `HubrisHeuristicV1` (`CONFIG_V1_T2`, the standalone-strongest agent); re-run the ensemble eval with per-opponent breakdown logged (prior run logged aggregate only).
+**Loose ends / TODO (carry across sessions):**
+- **Verify C2's legality wrapper.** C2's writeup says strict-restricted; `eval_vs_ensemble.py` uses *regular*. If C2 was actually regular, the "~60% (C2) → 96.4% (C16)" improvement is clean apples-to-apples; if strict, it isn't. Quick to check the C2 run command / eval_vs_ensemble history.
+- **Refold `eval_vs_ensemble.py` onto the parallel `play_match` engine.** `play_match.py` now has a heuristic seat + parallel pool + single-seat; `eval_vs_ensemble.py` is still serial + seat-swaps. Make it a thin wrapper over the engine (one match-runner, keep its ensemble list + per-opponent table). Removes duplication.
+- **Multi-seed scaling** to resolve the 5k>10k anomaly (C16): 2-3 training seeds per data size, round-robin, to separate the data-volume effect from single-checkpoint variance.
+- **MCTS-NN on M_55k** + **M_55k vs `HubrisHeuristicV1`** — the standalone-strongest hand agent at higher sims; and re-run the ensemble eval with `MCTS-NN` (not just 1-turn) once P3's sim curve is known.
 
 ### 11.2 Completed
 
@@ -845,6 +849,31 @@ In UCB `Q + c_uct·√(log N/n)`, the exploration term (~c_uct·2.5 at first vis
 **Null result, matching standalone C14: once `c_uct` is fairly scaled, the three supervision targets are equivalent as MCTS leaves too.** The apparent +10/+20 margin superiority was 100% a c_uct artifact. (Faint, non-significant pattern continuing from C14: winprob is marginally ahead in all four of its matchups — 2 standalone + 2 MCTS — none individually significant; would need much larger n to confirm or dismiss.)
 
 Two takeaways: (1) **supervision target doesn't measurably affect strength at this scale**, standalone or under search — so we default to `outcome`/tanh on principle for phase-c PUCT (the AlphaZero value form). (2) **The leaf-value-normalization infrastructure is the durable win** — it's required for *any* fair comparison of value functions on different scales, and is exactly what PUCT will need; it nearly didn't get built because the bug masqueraded as a clean finding.
+
+**C16 — Data scaling + the everything-model (M_55k) beats the whole ensemble.** Extends P1 along the *volume* axis (P1's C11-C13 settled the *distribution* axis). All NNAgent (1-turn) head-to-heads, V3 strict-restricted legality unless noted.
+
+*Scaling curve (fixed all-8-bimodal distribution; 5k=`v2dropout02`, 10k/15k = `M_10k_standard_bimodal`/`M_15k_standard`):*
+
+| Matchup | Result | Read |
+|---|---|---|
+| 5k vs 10k | 5k 119-80 | anomaly — likely single-checkpoint noise at the small gap (10k has *better* MAE 6.47 yet loses; the recurring MAE≠strength theme) |
+| 10k vs 15k | 15k 108-91 | marginal (z≈1.1) |
+| 5k vs 15k | 15k 132-67 | strong (z≈4.5) |
+| 15k vs 55k | 55k 73-27 | strong |
+
+Test MAE falls monotonically with data (6.73 → 6.47 → 6.37), and the *larger* steps (5k→15k→55k) clearly improve in gameplay. The lone non-monotonic spot is 5k>10k; a clean curve would need multiple training seeds per size (single-checkpoint variance ≈ the volume effect at that gap). **M_55k is the strongest model** (built via `build_datasets_chunked` — 55k = 12 GB of games is impossible to hold in 8.6 GB RAM otherwise): beats 5k 67-33 and 15k 73-27.
+
+*Checkpoint-selection finding:* M_55k's val-MSE-best checkpoint was epoch 68, but an earlier checkpoint (epoch 47, val MSE only ~0.5% higher) **beat it 226-170 over 400 games** (p≈0.005). On a flat val plateau, val MSE can't rank checkpoints by playing strength — they were a coin-flip, and epoch 47 happened to play better. M_55k's checkpoint of record is now epoch 47 (`best.pt`; epoch 68 kept as `epoch_68_valbest.pt`). Practical note: early-stop's `best.pt` isn't reliably the strongest *player*.
+
+*M_55k vs the 8-config data-gen ensemble* (NNAgent 1-turn, **regular** legality both seats, 100 games/opponent, single-seat):
+
+| | t2 | a_g7 | a_g1 | p_wr1 | p_g16 | p47w020 | p_g25 | p47 | **agg** |
+|---|---|---|---|---|---|---|---|---|---|
+| M_55k W-L | 89-11 | 96-4 | 95-5 | 97-3 | 97-3 | 97-3 | 100-0 | 100-0 | **771-29 (96.4%)** |
+
+**M_55k beats every member of the ensemble it learned from, by +12 to +18 margin — including `t2`, the V1 config the first NN (C2) only *tied*.** The student decisively surpasses its teachers. This is the culmination of the P1/scaling arc: maximal data + maximal diversity → a model far stronger than any single heuristic that generated its data.
+
+Caveat: this ensemble run used **regular** restricted legality (the `eval_vs_ensemble` / tuning convention); C2's writeup says *strict* — likely an error (eval_vs_ensemble uses regular), but until verified, the headline "~60% (C2) → 96.4%" jump isn't confirmed strictly apples-to-apples on legality. The within-this-run comparison (all regular, all 1-turn) is unambiguous.
 
 ---
 
