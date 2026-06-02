@@ -845,9 +845,9 @@ CLI: `python scripts/nn/train_first.py --run-dirs data/nn_training/runs/<run_id>
 
 ### `scripts/nn/eval_vs_ensemble.py`
 
-Round-robin evaluation of a trained NN checkpoint against the 8-config data-gen ensemble. Loads the checkpoint via `NormalizedValueModel.load`, wraps it in `NNAgent`, runs `play_match.py` against each ensemble entry, prints a per-opponent W-D-L + average-margin table.
+Parallel, single-seat evaluation of a trained NN checkpoint against the 8-config data-gen ensemble. Subprocess-drives `scripts/nn/play_match.py` (multiprocessing, `--jobs`) once per opponent with the NN always P0 and regular `restricted_legal_actions` both seats; parses each match's `Final:` line and prints a per-opponent W-L-D + win% + avg-margin table plus an aggregate. Single-seat by design (P0/P1 are symmetric; one consistent seat over many seeds averages the SP advantage), which replaces the older serial **seat-swapped** implementation (the §13 refold) — so aggregates here are NOT directly comparable to pre-existing seat-swapped numbers; re-baseline a reference model through this tool for an apples-to-apples comparison.
 
-CLI: `python scripts/nn/eval_vs_ensemble.py --model nn_runs/<label>/best.pt --n-games 100`. Per-opponent results printed as games complete; aggregate summary at the end.
+CLI: `python scripts/nn/eval_vs_ensemble.py --model nn_models/<run>/best.pt --n 100 --jobs 8`. Per-opponent line printed as each opponent's match completes; aggregate at the end.
 
 ---
 
