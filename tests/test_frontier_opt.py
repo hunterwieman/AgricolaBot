@@ -123,3 +123,38 @@ def test_default_level_is_zero():
     """The default must stay baseline so current scripts are unchanged."""
     assert opt_config.PARETO_OPT_LEVEL == 0
     assert opt_config.FENCE_SCAN_CACHE is False
+
+
+# ----------------------- fence-scan cache (independent) ----------------------
+
+def _trace_actions(seed):
+    """Action-type trace of a full random game (exercises fencing naturally)."""
+    from tests.test_utils import random_agent_play
+    _, trace = random_agent_play(setup(seed), seed)
+    return [(type(a).__name__, repr(a)) for a in trace]
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+def test_fence_scan_cache_transparent(seed):
+    """FENCE_SCAN_CACHE on/off must produce byte-identical games (same seed):
+    the cache only fronts the fence-universe scan and must change nothing.
+    Random games build fences, so this exercises both the placement predicate
+    and the build-fences enumerator end-to-end.
+    """
+    opt_config.FENCE_SCAN_CACHE = False
+    trace_off = _trace_actions(seed)
+    opt_config.FENCE_SCAN_CACHE = True
+    trace_on = _trace_actions(seed)
+    assert trace_off == trace_on
+
+
+def test_any_legal_pasture_commit_parity():
+    """Direct parity on the placement predicate over the prefab corpus."""
+    from agricola import legality
+    for name, state in _states():
+        for ps in state.players:
+            opt_config.FENCE_SCAN_CACHE = False
+            off = legality._any_legal_pasture_commit(state, ps)
+            opt_config.FENCE_SCAN_CACHE = True
+            on = legality._any_legal_pasture_commit(state, ps)
+            assert off == on, f"{name}: predicate differs (off={off}, on={on})"

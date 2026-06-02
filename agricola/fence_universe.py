@@ -164,6 +164,10 @@ def active_universe(spec: UniverseSpec) -> Iterator[Universe]:
         legality.ACTIVE_FENCE_UNIVERSE_ENTRIES = entries
         legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES = smallest_entries
         legality.ACTIVE_FENCE_UNIVERSE_SET = universe_set
+        # The fence-scan cache (FENCE_SCAN_CACHE) keys only on (farmyard, wood,
+        # subdivision_started), not the universe — clear it across the swap so it
+        # never serves entries from the wrong universe.
+        legality._legal_pasture_commits_cached.cache_clear()
         yield (entries, smallest_entries, universe_set)
     finally:
         (
@@ -171,6 +175,7 @@ def active_universe(spec: UniverseSpec) -> Iterator[Universe]:
             legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES,
             legality.ACTIVE_FENCE_UNIVERSE_SET,
         ) = saved
+        legality._legal_pasture_commits_cached.cache_clear()
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import threading
 from typing import Callable
 
+from agricola import opt_config
 from agricola.actions import (
     Action,
     ChooseSubAction,
@@ -697,6 +699,54 @@ def _check_entry_legal(
     return True, h_new, v_new
 
 
+def _legal_pasture_commits_compute(farmyard, wood, subdivision_started):
+    """The fence-universe scan, factored out of the two callers so a cache can
+    front it. Returns a tuple of legal `PastureCandidate` entries in active-
+    universe order. Shared by `_any_legal_pasture_commit` (length check) and
+    `_enumerate_pending_build_fences` (one CommitBuildPasture per entry). Pure
+    function of (farmyard, wood, subdivision_started) under the active universe.
+    """
+    entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
+    universe_set = ACTIVE_FENCE_UNIVERSE_SET
+    enclosable_bm = _enclosable_cells_bm(farmyard)
+    pasture_bms = tuple(_cells_bm_of_pasture(P) for P in farmyard.pastures)
+    existing_pasture_cells_bm = 0
+    for P_bm in pasture_bms:
+        existing_pasture_cells_bm |= P_bm
+    h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
+    v_fences_bm = pack_fences_v(farmyard.vertical_fences)
+    fences_left = fences_in_supply(farmyard)
+    has_existing_pastures = bool(pasture_bms)
+    common = dict(
+        enclosable_bm=enclosable_bm,
+        pasture_bms=pasture_bms,
+        existing_pasture_cells_bm=existing_pasture_cells_bm,
+        has_existing_pastures=has_existing_pastures,
+        subdivision_started=subdivision_started,
+        h_fences_bm=h_fences_bm,
+        v_fences_bm=v_fences_bm,
+        wood=wood,
+        fences_left=fences_left,
+        universe_set=universe_set,
+    )
+    return tuple(
+        entry for entry in entries
+        if _check_entry_legal(entry, **common)[0]
+    )
+
+
+@functools.lru_cache(maxsize=50_000)
+def _legal_pasture_commits_cached(farmyard, wood, subdivision_started):
+    """Projection-keyed cache (S7 / FENCE_SCAN_CACHE) of the legal pasture-commit
+    scan. Pure over (farmyard, wood, subdivision_started); see
+    POSSIBLE_SPEEDUPS.md S7 and FRONTIER_OPT_DESIGN.md §7. Key changes (i.e.
+    invalidation) on: plow, build-rooms, build-fences, any wood change.
+    `active_universe(...)` clears this cache on entry/exit so it stays correct
+    under universe swaps.
+    """
+    return _legal_pasture_commits_compute(farmyard, wood, subdivision_started)
+
+
 def _any_legal_pasture_commit(
     state: GameState, p: PlayerState,
     *,
@@ -722,6 +772,10 @@ def _any_legal_pasture_commit(
     module constant is read at call time. This lets `active_universe(...)`
     reassignments affect this call site without requiring an explicit kwarg.
     """
+    if (opt_config.FENCE_SCAN_CACHE
+            and entries is None and smallest_entries is None and universe_set is None):
+        return bool(_legal_pasture_commits_cached(p.farmyard, p.resources.wood, False))
+
     if entries is None:
         entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
     if smallest_entries is None:
@@ -1243,6 +1297,16 @@ def _enumerate_pending_build_fences(
     time. This lets `active_universe(...)` reassignments affect this call
     site without requiring an explicit kwarg.
     """
+    if opt_config.FENCE_SCAN_CACHE and entries is None and universe_set is None:
+        p = state.players[pending.player_idx]
+        legal = _legal_pasture_commits_cached(
+            p.farmyard, p.resources.wood, pending.subdivision_started,
+        )
+        actions: list[Action] = [CommitBuildPasture(cells=e.cells) for e in legal]
+        if pending.pastures_built >= 1:
+            actions.append(Stop())
+        return actions
+
     if entries is None:
         entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
     if universe_set is None:

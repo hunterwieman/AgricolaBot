@@ -9,15 +9,16 @@ fixture is a cheap safety net for the cross-level tests that flip them
 """
 import pytest
 
-from agricola import helpers, opt_config
+from agricola import helpers, legality, opt_config
 
-# lru_cache-decorated frontier caches added in later phases; clearing is a no-op
-# until they exist (getattr guard).
-_CACHE_NAMES = (
-    "_animal_points_cached",
-    "_phi_cached",
-    "_harvest_feed_cached",
-    "_food_payment_cached",
+# lru_cache-decorated caches to clear between tests; the getattr guard makes
+# clearing a no-op for any not yet present. Keyed by (module, attr-name).
+_CACHES = (
+    (helpers, "_animal_points_cached"),
+    (helpers, "_phi_cached"),
+    (helpers, "_harvest_feed_cached"),
+    (helpers, "_food_payment_cached"),
+    (legality, "_legal_pasture_commits_cached"),
 )
 
 
@@ -30,7 +31,7 @@ def _reset_opt_config():
     finally:
         opt_config.PARETO_OPT_LEVEL = saved_level
         opt_config.FENCE_SCAN_CACHE = saved_fence
-        for name in _CACHE_NAMES:
-            fn = getattr(helpers, name, None)
+        for module, name in _CACHES:
+            fn = getattr(module, name, None)
             if fn is not None and hasattr(fn, "cache_clear"):
                 fn.cache_clear()
