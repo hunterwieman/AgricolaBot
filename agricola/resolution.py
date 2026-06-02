@@ -32,7 +32,7 @@ from agricola.fences import (
     apply_fence_edges_v,
     compute_new_fence_edges,
 )
-from agricola.helpers import breeding_frontier, cooking_rates, pareto_frontier
+from agricola.helpers import breeding_food_gained, cooking_rates
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBakeBread,
@@ -1160,10 +1160,14 @@ def _execute_breed(
 ) -> GameState:
     """Apply the chosen post-breed configuration on PendingHarvestBreed.
 
-    `commit.(sheep, boar, cattle)` must match a Pareto-optimal point from
-    `breeding_frontier(p, rates[:3])`. Sets the player's animals to the
-    chosen counts and adds the frontier's food_gained to supply (the food
-    formula is owned by breeding_frontier — a single source of truth).
+    `commit.(sheep, boar, cattle)` is a Pareto-optimal point from
+    `breeding_frontier(p, rates[:3])` (the legality enumerator guarantees this;
+    per the engine's "step does not verify legality" rule we do not re-check it).
+    Sets the player's animals to the chosen counts and adds the breeding food to
+    supply, computed via `breeding_food_gained` — the same formula
+    `breeding_frontier` tabulates, so the value matches the frontier entry by
+    construction without recomputing the whole frontier. Mirrors the direct-formula
+    style of the sibling `_execute_accommodate` / `_execute_convert` handlers.
 
     auto_pop=False; trailing Stop is the explicit exit.
     """
@@ -1173,15 +1177,7 @@ def _execute_breed(
 
     rates_3 = cooking_rates(state, player_idx)[:3]
     chosen  = Animals(sheep=commit.sheep, boar=commit.boar, cattle=commit.cattle)
-
-    food_gained = None
-    for (cfg, fg) in breeding_frontier(p, rates_3):
-        if cfg == chosen:
-            food_gained = fg
-            break
-    assert food_gained is not None, (
-        f"CommitBreed {chosen} not in breeding_frontier for player {player_idx}"
-    )
+    food_gained = breeding_food_gained(p.animals, chosen, rates_3)
 
     new_player = fast_replace(
         p,

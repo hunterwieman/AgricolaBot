@@ -575,8 +575,10 @@ is still excluded, per the principle.
 **`HARVEST_BREED`.** `_initiate_harvest_breed` pushes one `PendingHarvestBreed` per player; the
 agent commits one `CommitBreed(sheep, boar, cattle)` (post-breed counts) chosen from
 `breeding_frontier`, which already encodes pre-breed eating + per-type breed rules.
-`_execute_breed` looks up the chosen point's `food_gained` rather than recomputing — the frontier
-helper is the single source of truth.
+`_execute_breed` applies the chosen point's food via `breeding_food_gained(pre, post, rates)` — the
+shared formula helper that `breeding_frontier` also calls to tabulate each point — rather than
+re-enumerating the frontier to look the value up. The helper is the single source of truth for the
+breeding food formula.
 
 **Dual-meaning phases & gratuitous Stop.** Both HARVEST_FEED and HARVEST_BREED carry two meanings
 by stack state (non-empty = a player is deciding; empty = phase-exit signal — see §1, cases 6–7).

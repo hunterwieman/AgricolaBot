@@ -9,6 +9,7 @@ Small, targeted improvements that don't warrant a full TASK_*.md file. Each entr
 - [5/8/2026 Cleanup 1 — Move `house_material` from `Cell` to `PlayerState`](#cleanup-1)
 - [5/8/2026 Cleanup 2 — Rename `accumulated_goods` to `accumulated_amount`](#cleanup-2)
 - [5/8/2026 Cleanup 3 — Remove `next_starting_player` from `GameState`](#cleanup-3)
+- [6/1/2026 Cleanup 4 — Extract `breeding_food_gained`; stop re-enumerating the frontier in `_execute_breed`](#cleanup-4)
 
 ---
 
@@ -71,3 +72,25 @@ Small, targeted improvements that don't warrant a full TASK_*.md file. Each entr
 - `ARCHITECTURE.md` — update `GameState` dataclass spec
 - `SESSION_HISTORY.md` — update Task 4a-i entry which describes adding this field
 - `IMPLEMENTATION_CHOICES.md` — no entry exists for this field; none needed
+
+---
+
+<a name="cleanup-4"></a>
+## 6/1/2026 Cleanup 4 — Extract `breeding_food_gained`; stop re-enumerating the frontier in `_execute_breed`
+
+**Motivation:**
+`_execute_breed` (the `CommitBreed` resolver) needed the food gained by the chosen post-breed configuration, but the only place that knew the breeding food formula was `breeding_frontier`. To respect "the formula has a single source of truth," `_execute_breed` re-called `breeding_frontier(p, rates_3)` and linearly scanned its output for the entry matching the chosen `(sheep, boar, cattle)`, reading that entry's `food_gained`. This recomputed the entire Pareto frontier — `can_accommodate` enumeration plus an O(n²) dominance pass — purely to look up a value the formula could produce directly from `(pre_animals, post_animals, rates)`, all of which were already in hand.
+
+This also made `_execute_breed` the odd one out among the three harvest/animal resolvers: its siblings `_execute_accommodate` (animal markets) and `_execute_convert` (harvest feeding) already compute food via a direct inline formula with no frontier scan.
+
+The fix preserves the single-source-of-truth invariant by extracting the formula into a small helper, `breeding_food_gained(pre, post, rates)`, that **both** `breeding_frontier` and `_execute_breed` call. The frontier still owns the *enumeration*; the new helper owns the *formula*. `breeding_frontier` is unchanged in behavior (it now calls the helper per frontier point instead of inlining the arithmetic), and `_execute_breed` computes the food in O(1) instead of re-enumerating.
+
+The previous frontier scan doubled as a defensive assertion (`CommitBreed not in breeding_frontier`). Dropping it is consistent with the engine's "`step` does not verify legality" principle (CLAUDE.md / ENGINE_IMPLEMENTATION.md): callers ensure `action in legal_actions(state)`, and the two sibling resolvers already omit any such check. The value computed is identical for every legal commit, since the helper *is* the formula the frontier tabulated.
+
+**Files affected:**
+
+- `agricola/helpers.py` — add `breeding_food_gained(pre, post, rates) -> int`; rewrite `breeding_frontier`'s per-point food computation to call it (removing the inlined formula + the now-unused `sR, bR, cR = rates` unpack)
+- `agricola/resolution.py` — in `_execute_breed`, replace the `breeding_frontier` re-enumeration + scan + assertion with a single `breeding_food_gained(p.animals, chosen, rates_3)` call; swap the `breeding_frontier` import for `breeding_food_gained`; update the docstring
+- `ENGINE_IMPLEMENTATION.md` — §4 Harvest `HARVEST_BREED` paragraph: note that the formula lives in the shared `breeding_food_gained` helper (the single source of truth) and that `_execute_breed` applies it directly rather than re-enumerating
+
+**No new tests required** — the change is behavior-preserving for all legal commits; the existing `test_harvest_breed.py` / `test_harvest_integration.py` / `test_helpers.py` suites cover the breeding food values and continue to pass (full suite: 918 passed).
