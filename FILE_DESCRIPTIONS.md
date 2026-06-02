@@ -60,6 +60,15 @@ Small standalone module that owns the `Pasture` dataclass and the BFS that turns
 
 ---
 
+### `agricola/opt_config.py`
+
+Runtime toggles for the frontier/accommodation optimizations (see `FRONTIER_OPT_DESIGN.md`). Imports nothing from `agricola`, so `helpers.py` / `legality.py` import it without cycles.
+
+- **`PARETO_OPT_LEVEL: int = 0`** — cumulative knob for the Pareto/accommodation helpers. `0` = baseline (today's code, untouched — the default); `1` = algorithmic fast paths (rate-descending `food_payment`, max-corner animal frontiers) + canonical sort; `2` = exact projection cache (animals) / clipped outer cache (feeding); `3` = Φ farm-shape cache (animals). Read at the top of each helper in `helpers.py` Part 5.
+- **`FENCE_SCAN_CACHE: bool = False`** — independent of the level; gates the fence-universe scan cache (`_legal_pasture_commits_cached`) in `legality.py`.
+
+Both default to the no-op baseline, so any code that doesn't set them behaves exactly as before. Cross-level equivalence is enforced by `tests/test_frontier_opt.py`.
+
 ### `agricola/replace.py`
 
 Performance helper for frozen-dataclass field updates. Exports a single function — `fast_replace(obj, /, **changes)` — that is a drop-in faster equivalent of stdlib `dataclasses.replace(obj, **changes)`. Used at every state-mutation site in production code (`engine.py`, `resolution.py`, `pending.py`, `cards/`).
@@ -111,6 +120,8 @@ The private helpers inside this file are:
 ### `agricola/helpers.py`
 
 Pure functions for derived quantities and the animal accommodation logic. These are the computational workhorses that other modules call; none of them mutate state.
+
+The four Pareto-frontier helpers (`pareto_frontier`, `breeding_frontier`, `food_payment_frontier`, `harvest_feed_frontier`) dispatch on `opt_config.PARETO_OPT_LEVEL`: level 0 runs the baseline bodies described below (untouched); level ≥ 1 takes the optimized paths in "Part 5" of the module (rate-descending `food_payment`, max-corner animal frontiers, exact/clipped caches, and the Φ farm-shape cache — `_animal_points_cached` / `_phi_cached` / `_harvest_feed_cached`). All levels are set-identical (validated by `tests/test_frontier_opt.py`); see `FRONTIER_OPT_DESIGN.md`. `breeding_food_gained(pre, post, rates)` is the shared breeding food formula (CLEANUP.md Cleanup 4).
 
 **Simple derived quantities:**
 - `fences_in_supply(farmyard)` — counts True values in both fence arrays, subtracts from 15.

@@ -4,10 +4,17 @@ Design spec for speeding up the Pareto-frontier / accommodation helpers that dom
 self-time. Everything here is **toggleable** so each layer can be A/B-profiled and disabled
 independently if it regresses or is ever suspected of a correctness bug.
 
-> **Status:** design only, with two pieces already in place: the `breeding_food_gained` extraction
-> (CLEANUP.md Cleanup 4, a prerequisite) and the measurement harness
-> `scripts/profile_frontier_helpers.py` (§8.2 — microbench + projection-collision profiler, runnable
-> today). The fencing-scan cache is also pre-described as S7 in `POSSIBLE_SPEEDUPS.md`.
+> **Status: IMPLEMENTED.** All levels are live behind `agricola/opt_config.py`
+> (`PARETO_OPT_LEVEL` 0-3, `FENCE_SCAN_CACHE`), **default off so the baseline is unchanged**. Landed:
+> Phase 0 (`breeding_food_gained`, CLEANUP.md Cleanup 4); Phase 1 (Level-1 algorithmic); Phase 2+3
+> (Level-2 exact/clipped caches + Level-3 Φ); the S7 fence-scan cache; and the measurement harness
+> `scripts/profile_frontier_helpers.py` (§8.2). Validated by `tests/test_frontier_opt.py` (cross-level
+> equivalence at all levels + fence on/off trace parity) — full suite 935 pass. **Measured:**
+> per-call food_payment ~53×, harvest_feed ~7×, pareto/breeding ~1.8×; end-to-end MCTS ~8-9% wall-clock
+> (level 3 + fence cache vs baseline, 150 sims). **Deferred (profile-gated, not worth it yet):** the
+> feeding inner `food_payment` cache (§6.5 — the 95% outer hit rate doesn't justify it) and the
+> structured Φ build (§6.2 — the shipped Φ uses the naive `can_accommodate` build, a deferred speed
+> refinement).
 
 ---
 
@@ -575,36 +582,37 @@ Phase 2, the hit-rate measurement says whether Level 3 is worth building — if 
 
 ---
 
-## 9. Implementation phasing
+## 9. Implementation phasing — **all landed**
 
-Each phase is independently shippable, default-off, and profile-gated before turning up the level.
+Each phase shipped independently, default-off, behind `opt_config`. What actually landed:
 
-1. **Phase 0 (done).** `breeding_food_gained` extraction (CLEANUP.md Cleanup 4).
-2. **Phase 1 — Level 1 algorithmic.** `food_payment` rate-descending (correctness in Appendix A;
-   keep the equivalence test as a numerical check); max-corner + anchor for pareto/breeding. Land
-   behind level 1. Profile.
-3. **Phase 2 — Level 2 caches.** Rates-free exact projection cache at the enumerator level for
-   animal markets + breeding; clipped outer `harvest_feed_frontier` cache (helper-level) for
-   feeding. Add the cross-level equivalence test + conftest cache-clear. Profile the hit/miss split
-   (farm-vs-caps for animals; clipped-supplies/food_owed for feeding) — this tells you whether
-   Level 3 is worth it.
-4. **Phase 3 — Level 3 coarsening.** Animals: `build_phi` (structured or naive),
-   `frontier_from_phi`, the L2/L3 hierarchy wiring. Feeding: add the clipped inner `food_payment`
-   cache (clip-by-`paid`, `⊕ excess`) — outer clipping already landed in Phase 2. Land each only
-   if Phase 2's profile shows the corresponding coarse-recurrence misses (same-farm/different-caps
-   for animals; different-`food_owed` for feeding) are a material cost.
-5. **Fencing track (any time).** S7 behind `FENCE_SCAN_CACHE` — independent of the above.
+1. **Phase 0 — done.** `breeding_food_gained` extraction (CLEANUP.md Cleanup 4).
+2. **Phase 1 — done.** Level-1 algorithmic behind `PARETO_OPT_LEVEL >= 1`: `food_payment`
+   rate-descending (Appendix A) + max-corner fast path for pareto/breeding + the canonical sort.
+   Implemented in `agricola/helpers.py` Part 5 (level 0 = baseline, untouched, via an early-return
+   guard). *Anchor pruning (S1) was not implemented* — max-corner captures the dominant win and the
+   brute fallback keeps correctness; anchor remains a future speed-only refinement.
+3. **Phase 2+3 — done together.** Level-2 exact `lru_cache` for the animal frontiers + clipped outer
+   `harvest_feed` cache (`⊕ excess` reconstruction); Level-3 Φ shared by pareto/breeding (naive
+   `can_accommodate` build, the structured §6.2 build deferred). The cross-level equivalence test +
+   conftest cache-clear landed with Phase 1.
+4. **Fencing track — done.** S7 behind `FENCE_SCAN_CACHE` (`agricola/legality.py`), with
+   `active_universe(...)` clearing the cache on swap. Independent of the pareto level.
+
+**Deferred (profile-gated, not justified):** the feeding inner `food_payment` cache (§6.5 — the
+measured 95% outer hit rate doesn't justify a second layer) and the structured Φ build (§6.2 — a
+speed refinement; the naive build already amortizes per farm shape).
 
 ---
 
 ## 10. Open questions & uncertainties
 
-- **Hit rates: preliminary, promising; confirm at scale.** Now measurable *before* implementing
-  via `scripts/profile_frontier_helpers.py --mode collision`. A 60-sim single-game smoke run shows
-  68–99% projection hit rates (harvest_feed 99% clipped, fence scan 94%, breeding 83%, pareto 68%).
-  Promising, but confirm at realistic sim counts (200–500) over several seeds before trusting the
-  wall-clock estimate (MCTS plausibly 5–20%, late-game weighted). Random play benefits ~nothing
-  (no recurrence). The whole doc stays profile-gated.
+- **Hit rates: measured, good.** `--mode collision` projection prediction (60-sim smoke): 68–99%.
+  Confirmed live via `cache_info()` in an 80-sim MCTS game: animal exact 75%, Φ 89% (only 5 distinct
+  farm shapes built), harvest_feed clipped 95%. End-to-end MCTS wall-clock came in at ~8–9% (150
+  sims, level 3 + fence cache vs baseline) — within the predicted 5–20%, modest because the helpers
+  are only a fraction of total MCTS time (leaf eval / UCB / hashing dominate the rest). Worth a
+  cProfile pass to see if a different subsystem is now the ceiling. Random play benefits ~nothing.
 - **Φ keyspace / hit rate.** How many distinct `(pasture_capacities, num_flexible)` shapes recur
   in a search is the gating unknown for Level 3. Within-rollout animal progression on a stable
   farm argues for high hits, but it's unverified. Memory isn't a concern (Φ is tiny).
