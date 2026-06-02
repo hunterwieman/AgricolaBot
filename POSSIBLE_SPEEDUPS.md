@@ -419,6 +419,28 @@ The complexity is significant. The CHANGES.md design principle "derived data, no
 
 ---
 
+## Pasture decomposition
+
+### S9. Incremental / memoized `compute_pastures_from_arrays`
+
+**Target.** `agricola/pasture.py:compute_pastures_from_arrays` — the flood-fill BFS that derives the pasture decomposition from the fence arrays. The **first MCTS cProfile** (PROFILING.md "MCTS profile", 2026-06-02) makes it the **#1 self-time function** in MCTS: ~4.8 s self over 222k calls in a 3-game / 120-sim profile, called ~1:1 from `resolution.py:_execute_build_pasture` (every fence-build commit re-runs the full BFS from scratch). Random-play profiling had it at a benign ~2 ms (Workload B, 82 calls) — MCTS exposes it because the search explores enormously many fence-build sequences.
+
+Note this is **distinct from the S7 fence-scan cache**, which already landed: S7 caches the *legality enumeration* (which pasture commits are legal); S9 attacks the *state mutation* (recomputing the decomposition when a fence is actually committed). S7 does not touch this path.
+
+**Implementation sketch.** Two independent options, cheapest first:
+
+1. **Memoize on the fence arrays.** `compute_pastures_from_arrays(grid, h_fences, v_fences)` is a pure function of its three array args. An `lru_cache` keyed on them (they're already tuples of tuples — hashable) collapses the many MCTS paths that reach the same fence layout. The decomposition only depends on `grid` cell types (enclosable vs not) and the two fence arrays, so the key is exact. Hit rate should be high for the same reason S7's was (~94%): fence layouts recur heavily across rollouts. Lowest-effort; reuses the S7-style projection-cache pattern.
+
+2. **Incremental update.** A fence-build commit adds a known set of edges to an existing decomposition. Only the pasture(s) touching those edges can change (split or merge); the rest are unaffected. Recomputing just the affected connected component(s) instead of the whole 3×5 grid avoids the full BFS. More code and more correctness surface (the merge/split logic), but no cache memory and no key-hashing cost.
+
+**Estimated speedup.** `compute_pastures_from_arrays` is ~7% of MCTS self-time in the profile (4.8 s of ~62 s). Memoization (option 1) at a high hit rate could remove most of it → **~3–6% MCTS wall-clock**, comparable to the S7 fence-scan win. Incremental (option 2) could go further on the miss path but with more risk. **Profile-gated** like everything here — verify the hit rate first with a collision-style instrument (cf. `scripts/profile_frontier_helpers.py --mode collision`).
+
+**Difficulty.** Option 1: low (one decorator + a hashable-key check; `pasture.py` is already a clean standalone module). Option 2: medium-high (component-level merge/split logic + tests).
+
+**When to do it.** It's currently the top MCTS self-time entry, so it's the natural next item after the frontier-opt work — but **`evaluate_hubris_v3` (~half of MCTS cumulative) is the bigger lever**; do the leaf-evaluator work (or move to the NN evaluator) first unless the pasture BFS is easier to land. Sequence with the PROFILING.md "Next levers" list.
+
+---
+
 ## How to use this doc
 
 1. Re-profile after each landed optimization (`scripts/profile_engine.py --no-profile` for headline numbers; `--workload C` for per-state breakdown; cProfile for hot-path identification).

@@ -167,13 +167,75 @@ After R1–R4 land, re-run the profiler from this same harness (`scripts/profile
 
 ---
 
+## MCTS profile (frontier-opt, 2026-06-02)
+
+The original profile above is **random-play** (Workloads A/B/C). This section adds the first
+**MCTS** profile, taken while landing the frontier/accommodation optimizations
+(`FRONTIER_OPT_DESIGN.md`). Workload: MCTS (V3-evaluator leaf) vs strict-restricted HubrisV3,
+150 sims/move for the wall-clock A/B and 120 sims for the cProfile.
+
+### Wall-clock A/B — baseline vs all optimizations on (paired, 16 seeds)
+
+`PARETO_OPT_LEVEL=0` (baseline) vs `=3` + `FENCE_SCAN_CACHE=True`, same seed both settings,
+single-thread, median of per-seed ratios:
+
+| | mean | median |
+|---|---:|---:|
+| L0 (baseline) | 17.36 s/game | 17.63 s |
+| L3 + fence cache | 15.99 s/game | 16.02 s |
+
+**Paired speedup median 1.094× → ~9.1% wall-clock.** 15/16 seeds faster (range 0.98–1.19×; the
+one <1.0 is the tie-break tree-confound — level ≥1's canonical sort steers a slightly different
+trajectory). Per-game time spans 8–25 s purely from trajectory complexity, which is why the
+comparison must be **paired by seed** — an unpaired "N games each" would be swamped by that
+variance. Reproduce with the §8.2 harness / `scripts/profile_frontier_helpers.py`.
+
+### cProfile (3 games, 120 sims) — where the time actually goes
+
+Top self-time at **level 3** (the current ceiling):
+
+| function | self | calls | note |
+|---|---:|---:|---|
+| `compute_pastures_from_arrays` | 4.8 s | 222k | pasture BFS, one per fence-build **commit** |
+| `builtins.sum` / `builtins.hash` | 3.7 / 3.5 s | 11M / 27M | ubiquitous; hash drives the transposition table |
+| `evaluate_hubris_v3` | 3.0 s self / **29 s cumulative** | 300k | the leaf evaluator — **~half the run** |
+| `fast_replace` (+ its genexpr) | ~5.4 s | 2.2M | state construction |
+| `score` | 1.8 s / 7.3 s cum | 301k | terminal scoring at leaves |
+
+**Key finding — the ~9% win is essentially all the fence cache (S7), not the Pareto/feeding/Φ
+work.** At level 0 the fence scan (`_check_entry_legal` 3.35 s + `_enumerate_pending_build_fences`
+3.26 s) was #3–#4; at level 3 both **drop out of the top 30** (the cache removes ~6.6 s ≈ the entire
+5.6 s level-0→level-3 delta). The four Pareto/feeding helpers (`food_payment`, `harvest_feed`,
+`pareto`, `breeding`) **never appear in the top 30 at either level**: they are expensive *per call*
+(microbench: 7–53× faster optimized) but **rarely called in MCTS** (`harvest_feed` ~hundreds of
+calls vs `evaluate_hubris_v3` 300k / `fast_replace` 2.2M). So `harvest_feed` "dominates" *among the
+four helpers per call*, but the **fence scan dominates by call frequency** (it's on the hot path —
+every worker-placement legality check walks the universe). The Pareto/feeding paths remain correct,
+proven, and a per-call win that would matter in animal/feeding-heavy contexts (other agents, the
+heuristic data-gen games, future card games); they just don't move *this* MCTS workload.
+
+**Next levers (the real ceiling), in priority order:**
+1. `evaluate_hubris_v3` — ~half of MCTS (cum). Cache leaf evals, optimize its hot inner functions
+   (`_v3_resources_contribution`, `_v3_clip_index`), or move to the NN evaluator (the AlphaZero
+   direction anyway).
+2. `compute_pastures_from_arrays` — 4.8 s, one BFS per fence-build commit → incremental/memoized
+   update (POSSIBLE_SPEEDUPS.md **S9**).
+3. State plumbing — `fast_replace` (S4 per-shape replacers) and `hash` (S5 cached `__hash__` /
+   S6 Zobrist, targeting the 27M transposition-table hash calls).
+
+---
+
 ## Re-running
 
 ```
-python scripts/profile_engine.py                  # all three workloads + cProfile
+python scripts/profile_engine.py                  # all three workloads + cProfile (random play)
 python scripts/profile_engine.py --no-profile     # wall-clock only (cleaner numbers)
 python scripts/profile_engine.py --workload C     # just micro-bench
 python scripts/profile_states.py                  # validate prefab states + coverage
+python scripts/profile_frontier_helpers.py        # frontier-helper microbench + projection-collision (MCTS)
 ```
 
-Workload definitions, prefab states, and the cProfile invocation are all in `scripts/`. Nothing under `agricola/` or `tests/` was modified.
+The MCTS A/B + cProfile above were one-off harnesses (paired full games at level 0 vs 3, single-
+thread); `scripts/profile_frontier_helpers.py` covers the per-call microbench and the
+projection-collision hit-rate prediction. The original engine workloads under `scripts/` were not
+modified.
