@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import math
 from itertools import product as iproduct
 
@@ -503,11 +504,35 @@ def _animal_frontier_points(
     """Rate-free Pareto frontier of feasible (s, b, c) with each <= its cap,
     canonically sorted. Shared by pareto / breeding (same can_accommodate).
 
-    Max-corner fast path: if keeping everything is accommodatable it dominates
-    every other config (food is not a Pareto dim), so the frontier is the
-    singleton {caps}. Otherwise fall back to the brute feasible-set enumeration
-    + 3-D Pareto filter — the same can_accommodate as the baseline, so the
-    returned SET is identical.
+    Dispatches on the opt level: level >= 2 routes through the exact projection
+    cache (these args ARE the key); level 1 calls the generator directly. The
+    Level-3 Phi path is wired inside `_animal_points_cached`.
+    """
+    if opt_config.PARETO_OPT_LEVEL >= 2:
+        return _animal_points_cached(caps_tuple, num_flexible, s_cap, b_cap, c_cap)
+    return _animal_points_l1gen(caps_tuple, num_flexible, s_cap, b_cap, c_cap)
+
+
+@functools.lru_cache(maxsize=100_000)
+def _animal_points_cached(caps_tuple, num_flexible, s_cap, b_cap, c_cap):
+    """Exact projection cache (Level 2). The result is level-invariant (the same
+    set/sorted list at every level), so an entry computed under one level is
+    valid under another; the conftest fixture clears it between tests. Phase 3
+    branches to the Phi path here on a miss when PARETO_OPT_LEVEL >= 3.
+    """
+    if opt_config.PARETO_OPT_LEVEL >= 3:
+        phi = _phi_cached(caps_tuple, num_flexible)
+        return _frontier_from_phi(phi, s_cap, b_cap, c_cap)
+    return _animal_points_l1gen(caps_tuple, num_flexible, s_cap, b_cap, c_cap)
+
+
+def _animal_points_l1gen(caps_tuple, num_flexible, s_cap, b_cap, c_cap):
+    """Level-1 generator: max-corner fast path + brute feasible-set + 3-D Pareto
+    filter (same can_accommodate as the baseline, so set-identical). Returns a
+    canonically-sorted tuple of (s, b, c).
+
+    Max-corner: if keeping everything is accommodatable it dominates every other
+    config (food is not a Pareto dim), so the frontier is the singleton {caps}.
     """
     pasture_capacities = list(caps_tuple)
     if can_accommodate(pasture_capacities, num_flexible, s_cap, b_cap, c_cap):
@@ -520,6 +545,49 @@ def _animal_frontier_points(
         if can_accommodate(pasture_capacities, num_flexible, s, b, c)
     ]
     return _pareto_max_3d(feasible)
+
+
+@functools.lru_cache(maxsize=20_000)
+def _phi_cached(caps_tuple, num_flexible):
+    return _build_phi(caps_tuple, num_flexible)
+
+
+def _build_phi(caps_tuple, num_flexible):
+    """Phi(farm) = Pareto-max of the feasible animal set for this farm shape,
+    independent of animal caps (Level 3, FRONTIER_OPT_DESIGN.md §6.2).
+
+    Naive build: a triangular box sweep (s+b+c <= max single-type capacity)
+    filtered by the SAME `can_accommodate` oracle as the baseline — so Phi is
+    guaranteed to match, with no separate correctness surface. The structured
+    grouped build (§6.2) is a deferred speed refinement; this is one-time per
+    farm shape and then reused across every animal-cap query.
+    """
+    pasture_capacities = list(caps_tuple)
+    ub = sum(caps_tuple) + num_flexible       # max animals of a single type
+    feasible = [
+        (s, b, c)
+        for s in range(ub + 1)
+        for b in range(ub + 1 - s)            # total can't exceed ub
+        for c in range(ub + 1 - s - b)
+        if can_accommodate(pasture_capacities, num_flexible, s, b, c)
+    ]
+    return _pareto_max_3d(feasible)
+
+
+def _frontier_from_phi(phi, s_cap, b_cap, c_cap):
+    """Per-call frontier from cached Phi (§6.2/§6.3): max-corner short-circuit,
+    else clip Phi to the caps and re-Pareto. Returns a canonically-sorted tuple.
+
+    Correctness: `can_accommodate` is downward-closed, so the clipped Phi
+    generates exactly the query frontier (§6.3 lemma). Clipping is a `min`
+    projection that can create dominations, so the re-Pareto is mandatory.
+    """
+    if any(p[0] >= s_cap and p[1] >= b_cap and p[2] >= c_cap for p in phi):
+        return ((s_cap, b_cap, c_cap),)
+    clipped = {
+        (min(p[0], s_cap), min(p[1], b_cap), min(p[2], c_cap)) for p in phi
+    }
+    return _pareto_max_3d(clipped)
 
 
 def _pareto_frontier_opt(player_state, gained, rates):
@@ -608,24 +676,36 @@ def _food_payment_frontier_opt(player_state, food_owed, rates):
 
 
 def _harvest_feed_frontier_opt(player_state, food_owed, rates):
+    grain = player_state.resources.grain
+    veg = player_state.resources.veg
+    sheep = player_state.animals.sheep
+    boar = player_state.animals.boar
+    cattle = player_state.animals.cattle
+    if opt_config.PARETO_OPT_LEVEL >= 2:
+        return _harvest_feed_clipped(grain, veg, sheep, boar, cattle, food_owed, rates)
+    return _harvest_feed_compute(grain, veg, sheep, boar, cattle, food_owed, rates)
+
+
+def _harvest_feed_compute(grain, veg, sheep, boar, cattle, food_owed, rates):
+    """harvest_feed frontier over EXPLICIT supplies; canonically sorted.
+
+    Wraps the rate-descending food_payment over each paid level + the natural-fit
+    filter + the 6-D Pareto pass (5 goods + -begging) — the same algorithm as the
+    baseline, so the returned SET is identical.
+    """
     sR, bR, cR, vR = rates
-    grain_max = player_state.resources.grain
-    veg_max = player_state.resources.veg
-    sheep_max = player_state.animals.sheep
-    boar_max = player_state.animals.boar
-    cattle_max = player_state.animals.cattle
     if food_owed == 0:
-        return [((grain_max, veg_max, sheep_max, boar_max, cattle_max), 0)]
+        return [((grain, veg, sheep, boar, cattle), 0)]
 
     candidates: list = []
     for paid in range(food_owed + 1):
-        for remaining in food_payment_frontier(player_state, paid, rates):
+        for remaining in _food_payment_points(grain, veg, sheep, boar, cattle, paid, rates):
             food_generated = (
-                (grain_max - remaining[0])
-                + (veg_max - remaining[1]) * vR
-                + (sheep_max - remaining[2]) * sR
-                + (boar_max - remaining[3]) * bR
-                + (cattle_max - remaining[4]) * cR
+                (grain - remaining[0])
+                + (veg - remaining[1]) * vR
+                + (sheep - remaining[2]) * sR
+                + (boar - remaining[3]) * bR
+                + (cattle - remaining[4]) * cR
             )
             if paid == min(food_generated, food_owed):
                 candidates.append((remaining, food_owed - paid))
@@ -639,3 +719,44 @@ def _harvest_feed_frontier_opt(player_state, food_owed, rates):
         if not any(_dom(end[j], end[i]) for j in range(len(candidates)) if j != i)
     ]
     return sorted(frontier)
+
+
+def _feed_caps(grain, veg, sheep, boar, cattle, food_owed, rates):
+    """Per-good 'max useful consumption' caps (§6.5): no good is consumed beyond
+    min(supply, ceil(food_owed / rate)). These are exactly the caps the baseline
+    food_payment_frontier already computes.
+    """
+    sR, bR, cR, vR = rates
+    return (
+        min(grain,  food_owed),
+        min(veg,    math.ceil(food_owed / vR)) if vR > 0 else 0,
+        min(sheep,  math.ceil(food_owed / sR)) if sR > 0 else 0,
+        min(boar,   math.ceil(food_owed / bR)) if bR > 0 else 0,
+        min(cattle, math.ceil(food_owed / cR)) if cR > 0 else 0,
+    )
+
+
+def _harvest_feed_clipped(grain, veg, sheep, boar, cattle, food_owed, rates):
+    """Level-2 feeding cache (§6.5): key on the CLIPPED supplies (collapses
+    strategically-dead excess goods → higher hit rate), then reconstruct by a
+    uniform +excess translation. The translation preserves both feasibility and
+    lexicographic order, so NO re-Pareto is needed and the sorted output matches
+    the level-1 result exactly.
+    """
+    if food_owed == 0:
+        return [((grain, veg, sheep, boar, cattle), 0)]
+    cg, cv, cs, cb, cc = _feed_caps(grain, veg, sheep, boar, cattle, food_owed, rates)
+    ex = (grain - cg, veg - cv, sheep - cs, boar - cb, cattle - cc)
+    clipped = _harvest_feed_cached(cg, cv, cs, cb, cc, food_owed, rates)
+    if ex == (0, 0, 0, 0, 0):
+        return list(clipped)
+    return [
+        ((rem[0] + ex[0], rem[1] + ex[1], rem[2] + ex[2], rem[3] + ex[3], rem[4] + ex[4]), beg)
+        for (rem, beg) in clipped
+    ]
+
+
+@functools.lru_cache(maxsize=100_000)
+def _harvest_feed_cached(cg, cv, cs, cb, cc, food_owed, rates):
+    # Cached over clipped supplies; tuple so the shared value is immutable.
+    return tuple(_harvest_feed_compute(cg, cv, cs, cb, cc, food_owed, rates))
