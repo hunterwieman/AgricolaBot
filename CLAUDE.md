@@ -440,6 +440,27 @@ evidence that the loss was tied to the *weak heuristic leaf*, not to MCTS itself
 pays off once the evaluator is strong enough. That is exactly the long-term thesis: PUCT, a
 learned value/policy network, and higher simulation counts are the natural next steps.
 
+**Speeding up MCTS (toggleable, default-off).** Legal-action enumeration has optional speedups
+behind **`agricola/opt_config.py`** — flip these when MCTS runs feel slow:
+
+- `PARETO_OPT_LEVEL` (int, 0–3, cumulative): algorithmic fast paths + projection-keyed caches for
+  the Pareto/accommodation helpers (rate-descending `food_payment`, max-corner animal frontiers,
+  exact/clipped caches, Φ farm-shape cache).
+- `FENCE_SCAN_CACHE` (bool): caches the fence-universe legality scan.
+
+Enable by setting the module globals before a run, e.g.
+`from agricola import opt_config; opt_config.PARETO_OPT_LEVEL = 3; opt_config.FENCE_SCAN_CACHE = True`
+(not yet wired to the MCTS CLI flags — set them in-process). They are **behavior-transparent**
+(set-identical frontiers, cross-level-tested in `tests/test_frontier_opt.py`): toggling never
+changes which actions are legal, only how fast they're enumerated, and the default (0 / off) is
+byte-identical to the original engine. Measured **~9% MCTS wall-clock** at level 3 + fence cache
+(150 sims, paired). Important caveat from the live profile: that win is **dominated by the fence
+cache** — the Pareto/feeding helpers are fast per-call but rarely called in MCTS, so the remaining
+ceiling is the **leaf evaluator (`evaluate_hubris_v3`, ~half of MCTS) and the pasture-decomposition
+BFS**, not the frontier helpers. Full design + correctness proofs + benchmarks: **`FRONTIER_OPT_DESIGN.md`**;
+the MCTS profile is in **`PROFILING.md`**; further candidates (incl. S9 pasture-BFS memoization) in
+**`POSSIBLE_SPEEDUPS.md`**.
+
 ### 2.3 — Neural network
 
 The end-goal agent: a network with a **value head and a policy head**, trained by AlphaZero-style
@@ -671,6 +692,8 @@ AgricolaBot/
 
         __init__.py                 # Empty package marker.
 
+        conftest.py                 # Shared pytest fixtures. Autouse `_reset_opt_config` snapshots/restores `agricola.opt_config` flags and clears the frontier/fence lru_caches between tests, so the cross-level tests that flip `PARETO_OPT_LEVEL` / `FENCE_SCAN_CACHE` never leak state.
+
         factories.py                # Prefabricated-state helpers (with_resources, with_animals, with_majors, with_grid, with_pending_stack, etc.) for composing test states — including states unreachable through gameplay. Project-wide convention for test setup.
 
         test_utils.py               # Test infrastructure (not a test file): run_actions for scripted multi-action walks, random_agent_play driver, and the IMPLEMENTED_NON_ATOMIC_SPACES / filter_implemented action filter (forward-compat as new action types land).
@@ -703,6 +726,7 @@ AgricolaBot/
         test_agents_heuristic.py
         test_restricted_actions.py
         test_mcts.py
+        test_frontier_opt.py
         test_nn_records.py
         test_nn_encoder.py
         test_nn_dataset.py
@@ -721,6 +745,8 @@ AgricolaBot/
         count_replaces.py           # Monkey-patch counter for `dataclasses.replace` / `fast_replace` call shapes.
 
         bench_replace.py            # `timeit`-based microbenchmark comparing stdlib replace vs `fast_replace`.
+
+        profile_frontier_helpers.py # Frontier/accommodation optimization profiler (FRONTIER_OPT_DESIGN.md §8.2). `--mode microbench` times each Pareto/feeding helper per-call over the 9 prefab states at a given `--level`; `--mode collision` wraps the helpers during one MCTS game and reports the projection-collision hit rate a perfect cache would achieve (the Phase-2/3 gate). Runnable independent of whether the optimizations are enabled.
 
         play_match.py               # Match-runner library + CLI. `play_match(p0_factory, p1_factory, seeds)` returns `MatchResult` (win/draw/loss counts, score sums, per-game records). Used by `tune_heuristic.py` and as a standalone head-to-head tool (CLI: `--p0 hubris_v3 --p1 hubris --n 100`). Per-seat `--p0-restricted` / `--p1-restricted` flags wrap each seat's agent in `restricted_legal_actions` independently.
 
