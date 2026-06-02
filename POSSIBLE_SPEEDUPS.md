@@ -67,6 +67,112 @@ if (s_pre is not None
 
 **Correctness caveat.** Both forms are valid iff the Pareto dimensions are exactly the upstream-goods counts (animals for `pareto_frontier` / `breeding_frontier`; the 5-tuple remaining-goods vector for `food_payment_frontier`). This holds today per the "Preserving optionality" Key Design Principle. If a future card makes some non-food byproduct into a strategic resource that *should* be a Pareto dim, the invariant must be re-examined.
 
+### S8. Direct-enumeration rewrite of `food_payment_frontier`
+
+**Target.** `food_payment_frontier` currently enumerates the full 5-D box `[0, grain_cap] × [0, veg_cap] × [0, sheep_cap] × [0, boar_cap] × [0, cattle_cap]` of consumption tuples, filters survivors by `food_produced ≥ food_owed`, then runs an O(n²) Pareto dominance pass on what's left. For typical mid-game inputs the box is small. For late-game inputs (food_owed = 15+, larger supplies, full cooking rates) the box grows polynomially and dominates the helper's wall-clock cost.
+
+`harvest_feed_frontier` wraps `food_payment_frontier` — it calls it once per `paid ∈ [0, food_owed]`. Any speedup to the inner helper transfers proportionally to the outer with zero changes.
+
+**The structural insight.** Sort the goods by conversion rate descending (highest-rate good first; rate-0 goods excluded). Recursive enumeration with a tight per-level upper bound emits exactly the Pareto frontier — no post-hoc dominance pass needed. At level i, the loop runs `x ∈ [0, min(supply_i, ⌈remaining / rate_i⌉)]` where `remaining = food_owed − Σⱼ<ᵢ xⱼ · rateⱼ`. Once `remaining ≤ 0` the algorithm emits immediately (deeper goods stay at zero) and returns without recursing further.
+
+The rate-descending ordering is **correctness-critical, not just an efficiency choice.** With low-rate-first ordering the algorithm over-emits dominated configurations. Concrete counterexample: rates=(1, 3), food_owed=4, supplies=(10, 10):
+
+```
+x₁=0: remaining=4; x₂ ∈ [0, ⌈4/3⌉=2]; emit (0, 2) at x₂=2
+x₁=1: remaining=3; x₂ ∈ [0, 1];        emit (1, 1) at x₂=1
+x₁=2: remaining=2; x₂ ∈ [0, 1];        emit (2, 1) at x₂=1   ← dominated by (1,1)
+x₁=3: remaining=1; x₂ ∈ [0, 1];        emit (3, 1) at x₂=1   ← dominated by (1,1)
+x₁=4: remaining=0; x₂ ∈ [0, 0];        emit (4, 0) at x₂=0
+```
+
+Remainings (cap−consumed): (10, 8), (9, 9), (8, 9), (7, 9), (6, 10). Both (8, 9) and (7, 9) are strictly dominated by (9, 9). Swap to rates=(3, 1) (high first):
+
+```
+x₁=0: remaining=4; x₂ ∈ [0, 4]; emit (0, 4)
+x₁=1: remaining=1; x₂ ∈ [0, 1]; emit (1, 1)
+x₁=2: remaining=-2; early-emit (2, 0)
+```
+
+Remainings: (10, 6), (9, 9), (8, 10). All pairwise Pareto-incomparable.
+
+**Why the ordering works (sketch).** With rate descending, incrementing the level-i loop variable by 1 displaces `rate_i` food. Since `rate_i ≥ rate_j` for any inner level j, no inner level can fully compensate by reducing its own consumption by 1 — each inner unit reduction recovers at most `rate_j ≤ rate_i` food. So the emit at x=k+1 trades off against the emit at x=k along the level-i dim (more level-i consumed, less inner consumed) rather than being dominated by it. Case-checked across 2- and 3-good examples with diverse rate ratios; a real proof would tighten "trades off against, not dominated by" into the formal Pareto-incomparable statement and induct over goods.
+
+**Implementation sketch.** A standalone recursive enumerator replaces the existing 5-deep loop:
+
+```python
+def food_payment_frontier(player_state, food_owed, rates):
+    sR, bR, cR, vR = rates
+    grain_max  = player_state.resources.grain
+    veg_max    = player_state.resources.veg
+    sheep_max  = player_state.animals.sheep
+    boar_max   = player_state.animals.boar
+    cattle_max = player_state.animals.cattle
+
+    if food_owed == 0:
+        return [(grain_max, veg_max, sheep_max, boar_max, cattle_max)]
+
+    # (rate, supply, canonical-dim-index) — canonical dim order is
+    # (grain=0, veg=1, sheep=2, boar=3, cattle=4) for the rem-tuple emit.
+    goods = [
+        (sR, sheep_max,  2),
+        (bR, boar_max,   3),
+        (cR, cattle_max, 4),
+        (vR, veg_max,    1),
+        (1,  grain_max,  0),   # grain rate is always 1
+    ]
+    goods = sorted([g for g in goods if g[0] > 0], key=lambda g: -g[0])
+
+    canonical_max = (grain_max, veg_max, sheep_max, boar_max, cattle_max)
+    consumed = [0, 0, 0, 0, 0]
+    frontier = []
+
+    def recurse(level, remaining):
+        if remaining <= 0:
+            frontier.append(tuple(canonical_max[d] - consumed[d] for d in range(5)))
+            return
+        if level == len(goods):
+            return  # remaining > 0 but no more goods → can't fully pay → not emitted
+        rate, supply, dim = goods[level]
+        upper = min(supply, -(-remaining // rate))  # ceil(remaining / rate)
+        for x in range(upper + 1):
+            consumed[dim] = x
+            recurse(level + 1, remaining - x * rate)
+        consumed[dim] = 0   # reset so siblings & parent unwind see 0
+
+    recurse(0, food_owed)
+    return frontier
+```
+
+Notes:
+- `-(-remaining // rate)` is integer ceiling division — faster than `math.ceil(remaining / rate)`.
+- The shared mutable `consumed` array with explicit reset after each for-loop is a small perf nit over passing a partial tuple down the recursion. The reset is what keeps deeper dims at 0 when an outer level triggers the early emit.
+- Rate-0 goods (animals when the player has no cooking improvement) are excluded from the loop and stay at full supply in the emit — they could never reduce begging anyway.
+- The food_owed == 0 short-circuit is preserved.
+
+**What goes away.**
+1. The full 5-D box enumeration (replaced by tight recursion: ~|frontier| leaves instead of `∏ caps`).
+2. The `food_produced ≥ food_owed` filter inside the inner loop (implicit via the `remaining ≤ 0` emit gate).
+3. The O(n²) post-hoc Pareto dominance pass (every emit is on the frontier by construction).
+
+**Estimated speedup.** Per call: **plausibly 10–50×** on typical inputs; more on late-game inputs where the 5-D box gets large. `harvest_feed_frontier` rides on this proportionally — its `paid ∈ [0, food_owed]` outer loop is unchanged but each iteration is correspondingly faster. Wall-clock impact depends on how often these helpers fire in the target workload. From the existing PROFILING.md baseline they aren't in the top 5 self-time slots on random play, but the surface grows in MCTS workloads (every harvest expansion calls them) and in late-game states.
+
+**Caveat: does not apply directly to `harvest_feed_frontier`.** Begging is allowed there, so under-paying configurations (food_produced < food_owed, begging = food_owed − food_produced) are also frontier candidates. The rate-descending tight-bound trick skips exactly those configs (it emits only when remaining ≤ 0). Two paths:
+
+1. *(Recommended.)* Keep the existing wrapper that iterates `food_payment_frontier(paid)` over `paid ∈ [0, food_owed]`. Gets the speedup for free with zero code change to the wrapper. The natural-fit filter and outer Pareto pass stay as-is.
+2. Write a direct-enumeration variant that emits under-paying configs too. Possible but the Pareto structure across the begging dim is messier — the elegant "every emit is on the frontier" property doesn't transfer cleanly because under-payment configs change shape on the −begging dim.
+
+Start with (1). Only consider (2) if profiling shows the outer wrapper itself is hot after (1) lands.
+
+**Test discipline.** This change replaces the implementation while preserving the contract (input projection, output set). Land a property-test scaffold during development that runs both the old and new implementations on randomized `(player_state, food_owed, rates)` inputs and asserts equality of the output sets (treating each as a set of tuples, since the emit order may differ). Run it through hundreds of seeds before the swap. Drop the side-by-side and remove the old implementation once the new one is verified. The existing unit tests for `food_payment_frontier` and the downstream `harvest_feed_frontier` tests should continue to pass without modification.
+
+**Difficulty.** Medium. The core algorithm is short, but two pieces need care:
+1. The rate-descending correctness argument — should be tightened to a real proof, not just case analysis, before landing.
+2. The dim-index bookkeeping in the recursion — getting the goods list and the canonical-dim mapping right under the sort needs a small test exercising at least one input where rates are non-monotonic in canonical-dim order (typical, since animal rates depend on cooking improvements while veg is fixed at vR).
+
+Risk surface is otherwise small: pure function, projection-keyed, output type unchanged.
+
+**When to do it.** Standalone — no dependencies. Complements any caching work (caching reduces miss count; this reduces miss cost). Land before adding LRU caches over the frontier helpers, so the cache is over the fast implementation rather than the slow one.
+
 ---
 
 ## Legality enumeration
@@ -99,6 +205,104 @@ The uncertainty is around "how much of the predicate body actually runs after th
 **Difficulty.** Low-medium. The dispatch rewrite is ~10 lines. The predicate-body refactor (removing redundant `_is_available` calls) is mechanical but touches ~24 functions. Risk: easy to forget to remove the inner `_is_available` from one predicate, leaving it correct but doing redundant work — a regression test that asserts a known-impossible space stays out of `legal_placements` would catch this.
 
 **When to do it.** After S1/S2 if Pareto stops dominating. Or before, if you want a quick easy win — it doesn't depend on anything.
+
+### S7. Project-keyed cache on the fence-universe legality scan
+
+**Target.** `_any_legal_pasture_commit` (placement-time predicate for `_legal_fencing`) and `_enumerate_pending_build_fences` (mid-chain enumerator during a Build Fences action). Both walk the active fence universe — ~109 entries under RESTRICTED, all 1518 under FULL — and apply `_check_entry_legal` per entry (bit-ops over enclosable / pasture / fence / adjacency bitmaps, plus a subdivision-canonicalization step). Per call: estimated ~30–100 μs in late game, scaling with universe size and the number of existing pastures. Fired on every `legal_placements(state)` call where fencing is still available (the placement predicate), and on every `legal_actions(state)` call mid-chain (the enumerator). In MCTS-heavy workloads this is plausibly one of the two or three largest single-call costs inside `legal_actions`.
+
+**Why this is a cache candidate.** The scan reads a small, well-defined projection of state:
+
+| Field | Source | Changed by |
+|---|---|---|
+| `enclosable_bm` (cell types) | `farmyard.grid` | plow, build-rooms |
+| `pasture_bms` (cell-sets only — not `num_stables`) | `farmyard.pastures` | build-fences (creates / subdivides pastures) |
+| `h_fences_bm` / `v_fences_bm`, `fences_left` | `farmyard.horizontal_fences` / `vertical_fences` | build-fences |
+| `wood` | `p.resources.wood` | any wood gain or spend |
+| `subdivision_started` | `PendingBuildFences` (False at placement-time) | build-fences (monotonic False → True) |
+| Active universe | `ACTIVE_FENCE_UNIVERSE_*` module constants | effectively immutable in production |
+
+Nothing else is read. Animals, crops, food, non-wood resources, house material, the other player's entire state, board state, phase, current player — all invisible. In MCTS, every path that reaches the same player's fencing decision via a different ordering of irrelevant actions hits the same projection.
+
+Notable consequence: **stable builds don't invalidate the cache.** STABLE cells are still enclosable, and `pasture_bms` reads `.cells` (not `.num_stables`), so a stable build inside an existing pasture leaves the projection untouched. Stable builds invalidate only via the wood-change axis (they spend wood), not via the build itself.
+
+**Implementation sketch.** Refactor the two call sites to share a single LRU-cached helper that returns the full result of the universe scan; the placement predicate gets its bool answer via length check:
+
+```python
+@functools.lru_cache(maxsize=50_000)
+def _legal_pasture_commits_cached(
+    farmyard: Farmyard, wood: int, subdivision_started: bool,
+) -> tuple[tuple[PastureCandidate, int, int], ...]:
+    """Return tuple of (entry, h_new_bm, v_new_bm) for every legal pasture
+    commit under the active universe at this projection.
+
+    Pure function of (farmyard, wood, subdivision_started). Both fencing call
+    sites consume this — `_any_legal_pasture_commit` via length check,
+    `_enumerate_pending_build_fences` via per-entry action construction.
+    """
+    enclosable_bm = _enclosable_cells_bm(farmyard)
+    pasture_bms = tuple(_cells_bm_of_pasture(P) for P in farmyard.pastures)
+    existing_pasture_cells_bm = 0
+    for P_bm in pasture_bms:
+        existing_pasture_cells_bm |= P_bm
+    h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
+    v_fences_bm = pack_fences_v(farmyard.vertical_fences)
+    fences_left = fences_in_supply(farmyard)
+    has_existing_pastures = bool(pasture_bms)
+
+    common = dict(
+        enclosable_bm=enclosable_bm,
+        pasture_bms=pasture_bms,
+        existing_pasture_cells_bm=existing_pasture_cells_bm,
+        has_existing_pastures=has_existing_pastures,
+        subdivision_started=subdivision_started,
+        h_fences_bm=h_fences_bm, v_fences_bm=v_fences_bm,
+        wood=wood, fences_left=fences_left,
+        universe_set=ACTIVE_FENCE_UNIVERSE_SET,
+    )
+
+    out = []
+    for entry in ACTIVE_FENCE_UNIVERSE_ENTRIES:
+        ok, h_new, v_new = _check_entry_legal(entry, **common)
+        if ok:
+            out.append((entry, h_new, v_new))
+    return tuple(out)
+
+
+def _any_legal_pasture_commit(state, p):
+    return bool(_legal_pasture_commits_cached(p.farmyard, p.resources.wood, False))
+
+
+def _enumerate_pending_build_fences(state, pending):
+    p = state.players[pending.player_idx]
+    legal = _legal_pasture_commits_cached(
+        p.farmyard, p.resources.wood, pending.subdivision_started,
+    )
+    return [CommitBuildPasture(cells_bm=e.cells_bm, h_new=h, v_new=v)
+            for (e, h, v) in legal]
+```
+
+Design choices baked into the sketch:
+
+- **Cache key.** `(Farmyard, int, bool)` — `Farmyard` is already a frozen hashable dataclass; no projection-extraction step at the call site. Two players' fencing queries occupy independent cache entries because each player owns their own `Farmyard` object.
+- **Cache value.** Tuple of `(entry, h_new_bm, v_new_bm)` triples, not the final `CommitBuildPasture` list. The h_new / v_new bitmaps are needed by the eventual fence-build commit, so caching them avoids recomputation downstream. The per-call action construction (~100 ns × ~10–50 entries) is cheap enough that storing pre-built action lists is not worth the loss in cache-value abstractness. Tuples (not lists) so the cached value is immutable and safe to share by reference across all callers.
+- **No more two-pass iteration.** `_any_legal_pasture_commit`'s precomputed-1×1 fast-path is a short-circuit optimization for the *uncached* bool query (avoid scanning the full universe just to learn "yes, at least one is legal"). With caching, the full scan amortizes over many bool queries, and the fast-path becomes dead code. Remove it in the same patch — keeping it would force the cached helper to also short-circuit, which defeats the cache.
+- **No explicit invalidation.** The projection-keyed LRU naturally returns a different entry whenever any input changes. The actions that *do* shift the key are the four invalidators already enumerated: plow, build-rooms, build-fences, any wood change. Everything else (renovate, all non-wood resource changes, animals/crops/food, the other player's turn, stage card reveals, harvest sub-phases) hits the cache.
+- **Active-universe caveat.** `ACTIVE_FENCE_UNIVERSE_*` is read inside the function but not part of the key. In production it's set to RESTRICTED at startup and never changes. If `active_universe(...)` is used experimentally, the cache must be cleared on context entry and exit — hook `_legal_pasture_commits_cached.cache_clear()` into the context manager's `__enter__` / `__exit__`. This is one line; including universe identity in the key would also work but is more invasive.
+
+**Test discipline.** `lru_cache` shares state across pytest runs in the same process. Two options:
+
+1. *(Recommended.)* Autouse `conftest.py` fixture calls `_legal_pasture_commits_cached.cache_clear()` between tests. One line. Pure functions of frozen inputs shouldn't cause cross-test pollution in principle, but the fixture is a cheap safety net.
+2. Opt-in context manager (matching the existing `legal_actions_cache()` pattern). More invasive — every consumer must wrap calls in a `with` block — but eliminates cache state outside searches. Defer to option 2 only if profiling shows lru_cache lookup overhead is non-trivial on random-play workloads.
+
+**Estimated speedup.** Per cache hit: ~200 ns (tuple hash + dict lookup) vs ~30–100 μs to rescan. **~150–500× per hit on the function call itself.**
+
+Aggregate wall-clock impact depends on hit rate, which is hard to predict pre-measurement. Lower bound: random-play workloads benefit little — there are no transposition-like recurrences to hit. MCTS workloads should benefit substantially: every legal_placements call where fencing is available currently triggers a fresh scan, and most are at the same farm + wood projection as their siblings in the search tree.
+
+Educated guess: **~5–15% wall-clock improvement on MCTS workloads**, weighted toward late game (where the fencing predicate is more often live) and toward higher MCTS budgets (more sims → more hits per unique projection). Random-play workloads probably <1%.
+
+**Difficulty.** Low–medium. The cached helper's body is mostly a refactor of `_any_legal_pasture_commit`'s loop, swapping short-circuit-on-first-legal for collect-all. Two call sites to rewire. One conftest fixture. The risk surface is small — `_check_entry_legal` is already a pure function of explicit arguments, so the refactor doesn't change semantics. The one non-trivial decision is whether to plumb `subdivision_started` correctly into the enumerator's call (it lives on `PendingBuildFences`; a single test exercising a mid-chain subdivision-rejection path is enough to catch a mistake here).
+
+**When to do it.** Standalone — no dependencies on other items in this doc. Independent of S1/S2 (Pareto helpers); landing both in sequence is fine. Probably the highest-ROI non-Pareto item for MCTS workloads. Profile `_enumerate_pending_build_fences` and `_any_legal_pasture_commit` self-time before and after to confirm the predicted gain.
 
 ---
 
