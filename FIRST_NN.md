@@ -558,7 +558,7 @@ Planned but not yet implemented:
 - `agricola/agents/nn/model.py` — `FirstNNValueModel` (PyTorch `nn.Module`).
 - `agricola/agents/nn/agent.py` — `NNAgent` (Agent-protocol wrapper using the model).
 - `scripts/nn/train_first.py` — PyTorch training loop. Reads training data, trains, checkpoints.
-- `scripts/nn/eval_vs_ensemble.py` — matches NNAgent vs baselines, reports MSE / win-rate / margin.
+- `scripts/nn/eval_vs_ensemble.py` — parallel, single-seat (NN=P0) evaluation vs the 8-config ensemble; subprocess-drives `play_match.py` per opponent and reports a per-opponent win-rate + avg-margin table + aggregate.
 
 Data and model artifacts:
 
@@ -715,7 +715,7 @@ Notes: **margin** gives the richest gradient (distinguishes a safe win from a na
 
 **Loose ends / TODO (carry across sessions):**
 - ~~Verify C2's legality wrapper.~~ **Done:** C2 used regular (eval_vs_ensemble.py has only ever used regular), so the ~60%→96.4% improvement is clean apples-to-apples (C2/C16 updated).
-- **Refold `eval_vs_ensemble.py` onto the parallel `play_match` engine.** `play_match.py` now has a heuristic seat + parallel pool + single-seat; `eval_vs_ensemble.py` is still serial + seat-swaps. Make it a thin wrapper over the engine (one match-runner, keep its ensemble list + per-opponent table). Removes duplication.
+- ~~**Refold `eval_vs_ensemble.py` onto the parallel `play_match` engine.**~~ **Done:** `eval_vs_ensemble.py` is now a thin parallel driver that subprocess-calls `scripts/nn/play_match.py` once per opponent, **single-seat** (NN=P0), regular legality (also fixed a `play_match.py` bug where the worker asserted *both* seat models were loaded, breaking nn-vs-heuristic). It's no longer seat-swapped — so its aggregates aren't comparable to the older seat-swapped C2/C16 numbers without re-baselining the reference model through it.
 - **Multi-seed scaling** to resolve the 5k>10k anomaly (C16): 2-3 training seeds per data size, round-robin, to separate the data-volume effect from single-checkpoint variance.
 - **MCTS-NN on M_55k** + **M_55k vs `HubrisHeuristicV1`** — the standalone-strongest hand agent at higher sims; and re-run the ensemble eval with `MCTS-NN` (not just 1-turn) once P3's sim curve is known.
 
@@ -912,6 +912,17 @@ Two takeaways:
 2. **Fixed-checkpoint comparisons of differently-sized datasets are treacherous.** Smaller-data models converge *earlier* (snap6th best @ epoch 31, snap_half @ epoch 95): a model tested before it converges looks deceptively weak. The epoch_22→epoch_95 swing (23%→40.3% from the *same* data) is the same MAE≠strength / checkpoint-selection hazard seen in C16, now in a form that nearly produced a wrong scaling conclusion.
 
 Caveat: this is **not** a clean matched-effort scaling curve — `snap6th` was epoch 31 (killed at its plateau, possibly itself short of its ceiling). A rigorous snapshot-scaling curve needs each point trained to full convergence (ideally multi-seed). The *directional* claim (more snapshots → closer to full, once converged) is solid; the precise 1/6-vs-1/2 ratio is not.
+
+**C19 — `M_62k_warmM55k`: the blend, on top of M_55k, makes a new champion.** After the blend tested *weak standalone* (C-series: blend-only loses to heuristic data at matched size; strict-only blend is *worse* than the mixed blend — the unrestricted games help via state diversity, not hurt), the open question was whether the blend *augments* the strong M_55k base. This run answers it. Config: `[256,256]`, **62k games** (5k + S1+S2+S3 + the three NN-forward blend dirs; S4/S5 low-T dropped, full snapshots), **full warm-start from `M_55k_all`**, fast-loader (change A), trained to early-stop.
+
+Result — the new strongest model:
+- **vs M_55k head-to-head: 280-118-2 (+3.81, 70.4%, n=400, strict).**
+- **vs the 8-config ensemble: 784-16 = 98.0%** (+15.39; single-seat, regular legality) vs M_55k's **re-baselined 771-29 = 96.4%** through the same tool. (The single-seat re-baseline reproduced C16's 771-29 exactly → single-seat ≈ seat-swap, comparison is apples-to-apples.)
+
+Three notes:
+1. **MAE≠strength, sharpest instance yet.** Warm-started, val MAE bottomed at **epoch 4** and never improved (early-stopped at 24) — by the loss curve it looked "done immediately / blend added nothing." In *gameplay* those epochs made it clearly stronger than M_55k. The loss said stop; the games said keep going.
+2. **Confounded** — `M_62k_warmM55k` = M_55k warm-start + 62k fine-tune (blend + S4/S5-drop). Can't cleanly attribute the gain to the blend alone; the honest claim is *this process beats M_55k by +3.81*. Single training seed.
+3. **Two infra myths busted this run** (both had been driving earlier decisions): the recurring training **kills were environmental** (this long run finished clean on a quiet, no-sleep, apps-closed machine), and the **build-memory ceiling was a phantom** — measured peak RSS was **3.13 GB**, not the 6–8 GB projected, so the full 82k at full snapshots would fit and the S4/S5-drop/subsampling were unnecessary.
 
 ---
 

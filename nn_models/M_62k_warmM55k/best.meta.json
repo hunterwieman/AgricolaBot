@@ -1,0 +1,69 @@
+{
+  "net_type": "ConfigurableMLP",
+  "net_config": {
+    "input_dim": 170,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "output_dim": 1,
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "head": "linear"
+  },
+  "encoding_version": 2,
+  "value_scale": 21.289825439453125,
+  "extras": {
+    "epoch": 4,
+    "val_mse": 0.37221506237983704,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 512,
+    "max_epochs": 100,
+    "early_stop_patience": 20,
+    "train_sample_size": null,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "split_seed": 0,
+    "sample_seed": 1,
+    "torch_seed": 42,
+    "device": "cpu",
+    "loss": "mse",
+    "target_mode": "margin",
+    "head": "linear",
+    "chunked": true,
+    "use_cache": true,
+    "train_keep_frac": 1.0,
+    "train_game_frac": 1.0,
+    "init_from": "nn_models/M_55k_all/best.pt",
+    "fast_loader": true,
+    "data_on_device": false,
+    "store_dtype": "float16",
+    "input_dim": 170,
+    "encoding_version": 2,
+    "data_version": 1,
+    "code_sha": "ca11f883454c951ee995fe708e1e4e20b3878e1b",
+    "run_dirs": [
+      "data/nn_training/runs/standard_bimodal_5k",
+      "data/nn_training/runs/S1_standard_bimodal_10k",
+      "data/nn_training/runs/S2_no_v1_bimodal_10k",
+      "data/nn_training/runs/S3_strong3_bimodal_10k",
+      "data/nn_training/runs/blend_nnforward_10k",
+      "data/nn_training/runs/blend_nnforward_10k_b",
+      "data/nn_training/runs/blend_nnforward_strict_10k"
+    ],
+    "train_size": 9073646,
+    "val_size": 1179184,
+    "test_size": 1140170,
+    "param_count": 110849,
+    "target_std": 14.02398681640625
+  }
+}

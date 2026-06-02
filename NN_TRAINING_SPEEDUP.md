@@ -13,6 +13,17 @@
 > PyTorch `2.1.0.dev` nightly; `torch.backends.mps.is_available() == True`; `cpu_count == 8`;
 > `torch.get_num_threads() == 8`.
 
+> **Implementation status (2026-06-02):** Changes **A (batched-index) and B (large batch) are
+> implemented** behind `--fast-loader` / `--data-on-device` (with `train_one_epoch_batched` /
+> `evaluate_batched` in `training.py`); defaults unchanged, 41 NN tests green. **Validation is
+> partial:** on CPU, `--fast-loader` at `bs=512` reproduced the default-path val/test MAE within
+> noise (6.402 vs 6.471 — correctness of change **A** confirmed). The **bs=8192 LR sweep (change B)
+> was interrupted before completing**, so the quality-preserving LR is *not yet established* — do
+> **not** trust a bs=8192 model until that sweep finishes (see §6.1, §7). Change **C (MPS)** is not
+> yet implemented/tested. NB: real-machine *timing* comparisons here are unreliable (the validation
+> ran under user CPU contention + thermal throttling) — quality (MAE) is load-independent and is the
+> validated part.
+
 ---
 
 ## TL;DR

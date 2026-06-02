@@ -1,0 +1,74 @@
+Run dir: nn_models/M_62k_warmM55k
+Device: cpu
+Target mode: margin | head: linear | loss: mse
+
+  cache HIT: standard_bimodal_5k/encoded_v2.npz
+  cache HIT: S1_standard_bimodal_10k/encoded_v2.npz
+  cache HIT: S2_no_v1_bimodal_10k/encoded_v2.npz
+  cache HIT: S3_strong3_bimodal_10k/encoded_v2.npz
+  cache HIT: blend_nnforward_10k/encoded_v2.npz
+  cache HIT: blend_nnforward_10k_b/encoded_v2.npz
+  cache HIT: blend_nnforward_strict_10k/encoded_v2.npz
+Chunked build: train=9073646 val=1179184 test=1140170 | dtype=float16 | use_cache=True | target_mode=margin target_std=14.024
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
+  warm-start from nn_models/M_55k_all/best.pt: loaded 10 matching param tensors, kept 0 at random init (arch/shape mismatch)
+  fast_loader ON (batched-index, bs=512, data_on_device=False)
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.3888 |         6.24 |    0.3729 |       6.08 |  *   |   0 |    92.8
+    2 |     0.3845 |         6.20 |    0.3725 |       6.07 |  *   |   0 |    83.9
+    3 |     0.3828 |         6.18 |    0.3724 |       6.07 |  *   |   0 |    86.2
+    4 |     0.3818 |         6.18 |    0.3722 |       6.07 |  *   |   0 |    84.1
+    5 |     0.3810 |         6.17 |    0.3727 |       6.07 |      |   1 |    83.3
+    6 |     0.3803 |         6.16 |    0.3732 |       6.08 |      |   2 |    86.7
+    7 |     0.3799 |         6.16 |    0.3727 |       6.07 |      |   3 |    96.2
+    8 |     0.3795 |         6.16 |    0.3729 |       6.08 |      |   4 |    96.7
+    9 |     0.3790 |         6.15 |    0.3730 |       6.08 |      |   5 |   102.4
+   10 |     0.3787 |         6.15 |    0.3727 |       6.07 |      |   6 |   100.2
+   11 |     0.3783 |         6.15 |    0.3734 |       6.08 |      |   7 |    97.6
+   12 |     0.3781 |         6.15 |    0.3738 |       6.09 |      |   8 |    99.7
+   13 |     0.3779 |         6.14 |    0.3727 |       6.08 |      |   9 |   113.4
+   14 |     0.3777 |         6.14 |    0.3727 |       6.08 |      |  10 |   109.8
+   15 |     0.3773 |         6.14 |    0.3728 |       6.08 |      |  11 |   111.7
+   16 |     0.3771 |         6.14 |    0.3734 |       6.08 |      |  12 |   114.6
+   17 |     0.3769 |         6.14 |    0.3730 |       6.08 |      |  13 |   103.9
+   18 |     0.3767 |         6.13 |    0.3730 |       6.08 |      |  14 |   100.7
+   19 |     0.3767 |         6.13 |    0.3734 |       6.08 |      |  15 |   100.3
+   20 |     0.3765 |         6.13 |    0.3730 |       6.08 |      |  16 |   100.0
+   21 |     0.3763 |         6.13 |    0.3732 |       6.08 |      |  17 |   100.4
+   22 |     0.3761 |         6.13 |    0.3733 |       6.08 |      |  18 |   101.0
+   23 |     0.3760 |         6.13 |    0.3741 |       6.09 |      |  19 |   101.0
+   24 |     0.3759 |         6.13 |    0.3726 |       6.07 |      |  20 |   101.3
+
+Early stop at epoch 24: no improvement for 20 epochs.
+
+Loading best checkpoint for test eval...
+  best epoch: 4
+  test MSE (normalized): 0.3755
+  test MAE (margin):     6.099 points
+  leaf value_scale (σ):  21.2898
+  saved: nn_models/M_62k_warmM55k/train_curves.png
+  saved: nn_models/M_62k_warmM55k/calibration.png
+     2587.06 real      2944.87 user      1670.81 sys
+          3360391168  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+            99082240  page reclaims
+                7069  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+              926169  voluntary context switches
+           114955377  involuntary context switches
+      34897622950251  instructions retired
+      13002913440325  cycles elapsed
+         19830103616  peak memory footprint

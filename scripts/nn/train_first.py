@@ -110,6 +110,14 @@ def main() -> int:
                              "exists; write it on a miss. Implies the chunked path "
                              "+ seed-hash split (NOT MAE-comparable to the "
                              "permutation-split build_datasets).")
+    parser.add_argument("--fast-loader", action="store_true", default=False,
+                        help="Batched-index training loop (skips the per-sample "
+                             "DataLoader). Recommended with large batch / MPS. "
+                             "Numerically ~equivalent to the default on CPU.")
+    parser.add_argument("--data-on-device", action="store_true", default=False,
+                        help="(fast-loader) Hold train/val/test tensors resident "
+                             "on --device. Fastest on MPS; ~2.8 GB f16 total for "
+                             "a 6M-row run — watch RAM on 8 GB.")
     parser.add_argument("--init-from", type=Path, default=None,
                         help="Warm-start: initialize the net weights from this "
                              "checkpoint (.pt) before training (e.g. a killed "
@@ -157,6 +165,8 @@ def main() -> int:
         store_dtype=args.store_dtype,
         use_cache=args.use_cache,
         init_from=args.init_from,
+        fast_loader=args.fast_loader,
+        data_on_device=args.data_on_device,
     )
     return 0
 

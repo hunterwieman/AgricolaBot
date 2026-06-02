@@ -1,0 +1,29 @@
+Run dir: nn_models/M_65k_blend_snaphalf
+Device: cpu
+Target mode: margin | head: linear | loss: mse
+
+  cache HIT: standard_bimodal_5k/encoded_v2.npz
+  cache HIT: S1_standard_bimodal_10k/encoded_v2.npz
+  cache HIT: S2_no_v1_bimodal_10k/encoded_v2.npz
+  cache HIT: S3_strong3_bimodal_10k/encoded_v2.npz
+  cache HIT: S4_all_lowT_10k/encoded_v2.npz
+  cache HIT: S5_no_v1_lowT_10k/encoded_v2.npz
+  cache HIT: blend_nnforward_10k/encoded_v2.npz
+Chunked build: train=4763018 val=1231022 test=1213514 | dtype=float16 | use_cache=True | target_mode=margin target_std=13.260
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
+  warm-start: net weights initialized from nn_models/M_65k_blend_snaphalf/init_epoch22.pt
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.3779 |         5.84 |    0.3720 |       5.76 |  *   |   0 |   108.4
+    2 |     0.3775 |         5.83 |    0.3710 |       5.76 |  *   |   0 |    99.4
+    3 |     0.3774 |         5.83 |    0.3715 |       5.77 |      |   1 |   102.2
+    4 |     0.3771 |         5.83 |    0.3703 |       5.75 |  *   |   0 |    91.3
+    5 |     0.3768 |         5.83 |    0.3713 |       5.76 |      |   1 |    80.6
+    6 |     0.3766 |         5.82 |    0.3714 |       5.76 |      |   2 |    96.3
+    7 |     0.3763 |         5.82 |    0.3699 |       5.75 |  *   |   0 |    98.4
+    8 |     0.3761 |         5.82 |    0.3692 |       5.75 |  *   |   0 |   105.9

@@ -641,9 +641,10 @@ Training-loop library. Imports torch + matplotlib. Not re-exported from `__init_
 - **`current_git_sha()`** — best-effort `git rev-parse HEAD`; empty string on failure.
 - **`train_one_epoch(model, loader, optimizer, device)`** — one pass over the training loader. Returns mean-MSE for the epoch.
 - **`evaluate(model, loader, device)`** — `model.eval()` + `torch.no_grad()` pass. Returns `{"mse": ..., "mae": ..., "preds": ndarray, "targets": ndarray}` (preds/targets in raw margin units for downstream calibration plots).
+- **`train_one_epoch_batched(...)` / `evaluate_batched(...)`** — drop-in fast-path replacements that bypass the per-sample `DataLoader`, indexing in-memory tensors batch-wise (one gather per batch, accumulators kept on-device, one `.item()` sync per epoch). Numerically ~equivalent to the `DataLoader` path on CPU; the speed lever for large batch / MPS (see `NN_TRAINING_SPEEDUP.md`). Gated by `train(fast_loader=...)`.
 - **`print_header()` / `print_epoch_line(entry)`** — human-readable progress to stdout.
 - **`save_curves_plot(log, path)` / `save_calibration_plot(preds, targets, path)`** — matplotlib helpers that gracefully no-op if matplotlib isn't available (`return False`).
-- **`train(run_dirs, out_dir, *, hidden_dims=[256, 256], activation="gelu", dropout=0.0, lr=1e-3, weight_decay=1e-4, batch_size=512, max_epochs=50, early_stop_patience=8, train_frac=0.8, val_frac=0.1, ...) -> tuple[dict, Path]`** — the public programmatic entry. Loads games, builds datasets, fits `NormStats`, constructs `NormalizedValueModel`, runs AdamW + early-stop on val MSE, saves best checkpoint + training-curves plot + calibration plot + metadata JSON. Returns `(metadata_dict, best_checkpoint_path)`. The CLI wrapper at `scripts/nn/train_first.py` is just argparse + a `train(**kwargs)` call.
+- **`train(run_dirs, out_dir, *, hidden_dims=[256, 256], activation="gelu", dropout=0.0, lr=1e-3, weight_decay=1e-4, batch_size=512, max_epochs=50, early_stop_patience=8, train_frac=0.8, val_frac=0.1, ...) -> tuple[dict, Path]`** — the public programmatic entry. Loads games, builds datasets, fits `NormStats`, constructs `NormalizedValueModel`, runs AdamW + early-stop on val MSE, saves best checkpoint + training-curves plot + calibration plot + metadata JSON. Returns `(metadata_dict, best_checkpoint_path)`. The CLI wrapper at `scripts/nn/train_first.py` is just argparse + a `train(**kwargs)` call. Additional opt-in kwargs (defaults preserve behavior): `chunked` / `use_cache` (low-memory + encoded-vector-cache build), `train_keep_frac` / `train_game_frac` (snapshot/game subsampling), `target_mode` / `head` (P2 supervision heads), `init_from` (warm-start net weights from a checkpoint; shape-tolerant → partial cross-arch transfer), `fast_loader` / `data_on_device` (the batched fast-path; `NN_TRAINING_SPEEDUP.md`).
 
 ---
 
@@ -837,9 +838,9 @@ CLI: `python scripts/nn/validate_dataset.py --run-dir data/nn_training/runs/<run
 
 ### `scripts/nn/train_first.py`
 
-Thin CLI wrapper over `agricola.agents.nn.training.train(...)`. argparse for hyperparameters (`--run-dirs`, `--out-dir`, `--hidden-dims`, `--activation`, `--dropout`, `--lr`, `--weight-decay`, `--batch-size`, `--max-epochs`, `--early-stop-patience`, `--train-frac`, `--val-frac`, `--seed`, `--verbose`) and a single `train(**kwargs)` call. Output: best-model checkpoint (`.pt`) + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
+Thin CLI wrapper over `agricola.agents.nn.training.train(...)`. argparse for hyperparameters (`--run-dir`, `--out-dir`, `--hidden-dims`, `--activation`, `--dropout`, `--lr`, `--weight-decay`, `--batch-size`, `--max-epochs`, `--early-stop-patience`, `--train-frac`, `--val-frac`) plus the opt-in flags threaded into `train()`: `--use-cache` / `--chunked` (build path), `--train-keep-frac` / `--train-game-frac` (subsampling), `--target-mode` / `--head` (supervision head), `--init-from` (warm-start), and `--fast-loader` / `--data-on-device` (batched fast-path; `NN_TRAINING_SPEEDUP.md`). A single `train(**kwargs)` call. Output: best-model checkpoint (`.pt`) + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
 
-CLI: `python scripts/nn/train_first.py --run-dirs data/nn_training/runs/<run_id> --out-dir nn_runs/<label> --hidden-dims 256 256 --max-epochs 50`.
+CLI: `python scripts/nn/train_first.py --run-dir data/nn_training/runs/<run_id> --out-dir nn_models/<label> --hidden-dims 256,256 --max-epochs 50`.
 
 ---
 

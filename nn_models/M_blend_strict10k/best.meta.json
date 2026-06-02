@@ -1,0 +1,61 @@
+{
+  "net_type": "ConfigurableMLP",
+  "net_config": {
+    "input_dim": 170,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "output_dim": 1,
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "head": "linear"
+  },
+  "encoding_version": 2,
+  "value_scale": 20.138376235961914,
+  "extras": {
+    "epoch": 15,
+    "val_mse": 0.43950143522693785,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 512,
+    "max_epochs": 100,
+    "early_stop_patience": 20,
+    "train_sample_size": null,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "split_seed": 0,
+    "sample_seed": 1,
+    "torch_seed": 42,
+    "device": "cpu",
+    "loss": "mse",
+    "target_mode": "margin",
+    "head": "linear",
+    "chunked": true,
+    "use_cache": true,
+    "train_keep_frac": 1.0,
+    "train_game_frac": 1.0,
+    "init_from": null,
+    "store_dtype": "float16",
+    "input_dim": 170,
+    "encoding_version": 2,
+    "data_version": 1,
+    "code_sha": "2bc8ec322002912fa8e49741627c26e055e5bd3e",
+    "run_dirs": [
+      "data/nn_training/runs/blend_nnforward_strict_10k"
+    ],
+    "train_size": 1371868,
+    "val_size": 180070,
+    "test_size": 168368,
+    "param_count": 110849,
+    "target_std": 13.484723091125488
+  }
+}

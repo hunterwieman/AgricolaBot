@@ -1,0 +1,82 @@
+Run dir: nn_models/M_blend17k
+Device: cpu
+Target mode: margin | head: linear | loss: mse
+
+  cache HIT: blend_nnforward_10k/encoded_v2.npz
+  cache MISS: encoding blend_nnforward_10k_b
+  encoded blend_nnforward_10k_b/worker_00.pkl: descs so far=206960
+  encoded blend_nnforward_10k_b/worker_01.pkl: descs so far=356578
+  encoded blend_nnforward_10k_b/worker_02.pkl: descs so far=566644
+  encoded blend_nnforward_10k_b/worker_03.pkl: descs so far=714802
+  encoded blend_nnforward_10k_b/worker_04.pkl: descs so far=920984
+  encoded blend_nnforward_10k_b/worker_05.pkl: descs so far=1074318
+  encoded blend_nnforward_10k_b/worker_06.pkl: descs so far=1282948
+  encoded blend_nnforward_10k_b/worker_07.pkl: descs so far=1427964
+  wrote cache encoded_v2.npz (20 MB)
+Chunked build: train=2617358 val=335418 test=330200 | dtype=float16 | use_cache=True | target_mode=margin target_std=13.736
+
+Model: 110,849 parameters
+  arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
+
+epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s)
+-----------------------------------------------------------------------------------------------
+    1 |     0.4727 |         6.67 |    0.4465 |       6.48 |  *   |   0 |    38.7
+    2 |     0.4366 |         6.37 |    0.4351 |       6.42 |  *   |   0 |    38.3
+    3 |     0.4247 |         6.27 |    0.4316 |       6.37 |  *   |   0 |    38.3
+    4 |     0.4166 |         6.21 |    0.4339 |       6.38 |      |   1 |    44.8
+    5 |     0.4109 |         6.16 |    0.4305 |       6.37 |  *   |   0 |    43.3
+    6 |     0.4067 |         6.13 |    0.4270 |       6.36 |  *   |   0 |    47.5
+    7 |     0.4026 |         6.09 |    0.4258 |       6.34 |  *   |   0 |    47.9
+    8 |     0.3993 |         6.07 |    0.4264 |       6.37 |      |   1 |    46.9
+    9 |     0.3965 |         6.05 |    0.4243 |       6.33 |  *   |   0 |    45.3
+   10 |     0.3942 |         6.03 |    0.4280 |       6.35 |      |   1 |    44.4
+   11 |     0.3921 |         6.01 |    0.4237 |       6.34 |  *   |   0 |    54.9
+   12 |     0.3904 |         6.00 |    0.4230 |       6.33 |  *   |   0 |    52.0
+   13 |     0.3885 |         5.99 |    0.4229 |       6.33 |  *   |   0 |    43.9
+   14 |     0.3870 |         5.97 |    0.4234 |       6.33 |      |   1 |    47.4
+   15 |     0.3856 |         5.96 |    0.4240 |       6.32 |      |   2 |    52.2
+   16 |     0.3845 |         5.95 |    0.4231 |       6.32 |      |   3 |    45.6
+   17 |     0.3832 |         5.94 |    0.4223 |       6.32 |  *   |   0 |    49.9
+   18 |     0.3821 |         5.94 |    0.4229 |       6.34 |      |   1 |    44.0
+   19 |     0.3811 |         5.93 |    0.4219 |       6.32 |  *   |   0 |    50.5
+   20 |     0.3803 |         5.92 |    0.4237 |       6.31 |      |   1 |    46.7
+   21 |     0.3795 |         5.92 |    0.4230 |       6.33 |      |   2 |    48.5
+   22 |     0.3786 |         5.91 |    0.4240 |       6.33 |      |   3 |    44.3
+   23 |     0.3778 |         5.90 |    0.4217 |       6.31 |  *   |   0 |    47.6
+   24 |     0.3772 |         5.90 |    0.4224 |       6.31 |      |   1 |    47.5
+   25 |     0.3763 |         5.89 |    0.4221 |       6.31 |      |   2 |    44.0
+   26 |     0.3761 |         5.89 |    0.4217 |       6.31 |      |   3 |    42.9
+   27 |     0.3751 |         5.88 |    0.4241 |       6.32 |      |   4 |    44.5
+   28 |     0.3747 |         5.88 |    0.4212 |       6.32 |  *   |   0 |    43.6
+   29 |     0.3742 |         5.87 |    0.4226 |       6.32 |      |   1 |    49.0
+   30 |     0.3738 |         5.87 |    0.4221 |       6.31 |      |   2 |    44.8
+   31 |     0.3732 |         5.86 |    0.4228 |       6.33 |      |   3 |    46.8
+   32 |     0.3726 |         5.86 |    0.4230 |       6.32 |      |   4 |    42.7
+   33 |     0.3721 |         5.86 |    0.4219 |       6.32 |      |   5 |    49.2
+   34 |     0.3717 |         5.85 |    0.4231 |       6.32 |      |   6 |    47.4
+   35 |     0.3712 |         5.85 |    0.4230 |       6.33 |      |   7 |    45.4
+   36 |     0.3708 |         5.85 |    0.4238 |       6.33 |      |   8 |    52.2
+   37 |     0.3705 |         5.84 |    0.4224 |       6.32 |      |   9 |    44.7
+   38 |     0.3702 |         5.84 |    0.4246 |       6.33 |      |  10 |    70.1
+   39 |     0.3696 |         5.84 |    0.4227 |       6.32 |      |  11 |    53.8
+   40 |     0.3694 |         5.84 |    0.4240 |       6.34 |      |  12 |    54.8
+   41 |     0.3689 |         5.83 |    0.4228 |       6.32 |      |  13 |    52.2
+   42 |     0.3687 |         5.83 |    0.4224 |       6.33 |      |  14 |    65.4
+   43 |     0.3685 |         5.83 |    0.4236 |       6.33 |      |  15 |    46.0
+   44 |     0.3680 |         5.82 |    0.4235 |       6.35 |      |  16 |    46.3
+   45 |     0.3676 |         5.82 |    0.4241 |       6.34 |      |  17 |    48.5
+   46 |     0.3673 |         5.82 |    0.4236 |       6.33 |      |  18 |    47.7
+   47 |     0.3672 |         5.82 |    0.4253 |       6.35 |      |  19 |    43.1
+   48 |     0.3666 |         5.81 |    0.4239 |       6.34 |      |  20 |    42.8
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+
+Early stop at epoch 48: no improvement for 20 epochs.
+
+Loading best checkpoint for test eval...
+  best epoch: 28
+  test MSE (normalized): 0.4234
+  test MAE (margin):     6.248 points
+  leaf value_scale (σ):  20.3399
+  saved: nn_models/M_blend17k/train_curves.png
+  saved: nn_models/M_blend17k/calibration.png

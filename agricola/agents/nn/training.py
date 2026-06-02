@@ -153,6 +153,68 @@ def evaluate(
     return sum_sq / n, sum_abs / n
 
 
+def train_one_epoch_batched(
+    model, X, y, optimizer, loss_fn, device, batch_size, generator,
+):
+    """Batched-index training epoch — drop-in for `train_one_epoch` that
+    bypasses the per-sample DataLoader (NN_TRAINING_SPEEDUP.md §3a).
+
+    X: raw feature tensor (float16 or float32), shape (N, ENCODED_DIM).
+    y: normalized target tensor (float32), shape (N,). Both may live on
+    CPU or on `device`. One gather per batch (not one __getitem__ per
+    row); accumulators stay on-device and sync once per epoch (not twice
+    per batch — matters a lot on MPS). Returns (train_mse, train_mae) in
+    NORMALIZED space, same as train_one_epoch.
+    """
+    model.train()
+    n = X.shape[0]
+    is_half = X.dtype == torch.float16
+    perm = torch.randperm(n, generator=generator).to(X.device)
+    sum_sq = torch.zeros((), device=device)
+    sum_abs = torch.zeros((), device=device)
+    for s in range(0, n, batch_size):
+        idx = perm[s : s + batch_size]
+        xb = X[idx]
+        yb = y[idx]
+        if is_half:
+            xb = xb.float()                       # upcast the BATCH, not per row
+        xb = xb.to(device, non_blocking=True)     # no-op if already on device
+        yb = yb.to(device, non_blocking=True)
+        optimizer.zero_grad()
+        pred = model(xb)
+        loss = loss_fn(pred, yb)
+        loss.backward()
+        optimizer.step()
+        with torch.no_grad():
+            err = pred.detach() - yb
+            sum_sq += (err * err).sum()
+            sum_abs += err.abs().sum()
+    return (sum_sq / n).item(), (sum_abs / n).item()
+
+
+@torch.no_grad()
+def evaluate_batched(model, X, y, device, batch_size):
+    """Batched-index eval — drop-in for `evaluate`. No shuffle (sequential
+    slices). Returns (mse, mae) in NORMALIZED space."""
+    model.eval()
+    n = X.shape[0]
+    is_half = X.dtype == torch.float16
+    sum_sq = torch.zeros((), device=device)
+    sum_abs = torch.zeros((), device=device)
+    for s in range(0, n, batch_size):
+        xb = X[s : s + batch_size]
+        yb = y[s : s + batch_size]
+        if is_half:
+            xb = xb.float()
+        xb = xb.to(device, non_blocking=True)
+        yb = yb.to(device, non_blocking=True)
+        pred = model(xb)
+        err = pred - yb
+        sum_sq += (err * err).sum()
+        sum_abs += err.abs().sum()
+    return (sum_sq / n).item(), (sum_abs / n).item()
+
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -292,6 +354,8 @@ def train(
     store_dtype: str = "float16",
     use_cache: bool = False,
     init_from: str | Path | None = None,
+    fast_loader: bool = False,
+    data_on_device: bool = False,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a value-function NN. Returns `(epoch_log, best_checkpoint_path)`.
@@ -382,11 +446,27 @@ def train(
     #       are identical for identical data/split, and re-using the fresh
     #       fit avoids any drift. The AdamW optimizer state is NOT restored
     #       (re-warms in a few steps); early-stop preserves the best epoch.
+    #       Shape-tolerant: only tensors whose name AND shape match are
+    #       copied; any that don't (e.g. warm-starting a deeper architecture
+    #       from a shallower checkpoint) are left at their fresh random init.
+    #       This makes partial transfer across architectures possible, and
+    #       degrades to a full warm-start when the architectures match.
     if init_from is not None:
         init_model = NormalizedValueModel.load(Path(init_from)).to(device_obj)
-        model.net.load_state_dict(init_model.net.state_dict())
+        src = init_model.net.state_dict()
+        dst = model.net.state_dict()
+        loaded, skipped = [], []
+        for k, v in dst.items():
+            if k in src and src[k].shape == v.shape:
+                dst[k] = src[k]
+                loaded.append(k)
+            else:
+                skipped.append(k)
+        model.net.load_state_dict(dst)
         if verbose:
-            print(f"  warm-start: net weights initialized from {init_from}")
+            print(f"  warm-start from {init_from}: loaded {len(loaded)} "
+                  f"matching param tensors, kept {len(skipped)} at random init "
+                  f"(arch/shape mismatch)")
 
     # ----- Run config (persisted for reproducibility) -----
 
@@ -419,6 +499,8 @@ def train(
         "train_keep_frac": train_keep_frac,
         "train_game_frac": train_game_frac,
         "init_from": str(init_from) if init_from is not None else None,
+        "fast_loader": fast_loader,
+        "data_on_device": data_on_device,
         "store_dtype": store_dtype if (chunked or use_cache) else "float32",
         "input_dim": ENCODED_DIM,
         "encoding_version": ENCODING_VERSION,
@@ -442,16 +524,32 @@ def train(
 
     g = torch.Generator()
     g.manual_seed(torch_seed)
-    train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True,
-        drop_last=False, generator=g,
-    )
-    val_loader = DataLoader(
-        val_ds, batch_size=batch_size, shuffle=False, drop_last=False,
-    )
-    test_loader = DataLoader(
-        test_ds, batch_size=batch_size, shuffle=False, drop_last=False,
-    )
+    train_loader = val_loader = test_loader = None
+    if fast_loader:
+        # Batched-index path (NN_TRAINING_SPEEDUP.md §3b): feed batches by
+        # slicing the in-memory tensors directly. Optionally hold them
+        # resident on `device` (fastest on MPS; watch RAM on 8 GB).
+        Xtr, ytr = train_ds._X, train_ds._y
+        Xva, yva = val_ds._X, val_ds._y
+        Xte, yte = test_ds._X, test_ds._y
+        if data_on_device:
+            Xtr, ytr = Xtr.to(device_obj), ytr.to(device_obj)
+            Xva, yva = Xva.to(device_obj), yva.to(device_obj)
+            Xte, yte = Xte.to(device_obj), yte.to(device_obj)
+        if verbose:
+            print(f"  fast_loader ON (batched-index, bs={batch_size}, "
+                  f"data_on_device={data_on_device})")
+    else:
+        train_loader = DataLoader(
+            train_ds, batch_size=batch_size, shuffle=True,
+            drop_last=False, generator=g,
+        )
+        val_loader = DataLoader(
+            val_ds, batch_size=batch_size, shuffle=False, drop_last=False,
+        )
+        test_loader = DataLoader(
+            test_ds, batch_size=batch_size, shuffle=False, drop_last=False,
+        )
 
     # ----- Optimizer + Loss -----
 
@@ -487,10 +585,16 @@ def train(
 
     for epoch in range(1, max_epochs + 1):
         epoch_start = time.perf_counter()
-        train_mse, train_mae_norm = train_one_epoch(
-            model, train_loader, optimizer, loss_fn, device_obj,
-        )
-        val_mse, val_mae_norm = evaluate(model, val_loader, device_obj)
+        if fast_loader:
+            train_mse, train_mae_norm = train_one_epoch_batched(
+                model, Xtr, ytr, optimizer, loss_fn, device_obj, batch_size, g)
+            val_mse, val_mae_norm = evaluate_batched(
+                model, Xva, yva, device_obj, batch_size)
+        else:
+            train_mse, train_mae_norm = train_one_epoch(
+                model, train_loader, optimizer, loss_fn, device_obj,
+            )
+            val_mse, val_mae_norm = evaluate(model, val_loader, device_obj)
         epoch_time = time.perf_counter() - epoch_start
 
         is_best = val_mse < best_val_mse
@@ -534,7 +638,11 @@ def train(
         if verbose:
             print("\nLoading best checkpoint for test eval...")
         best_model = NormalizedValueModel.load(best_path).to(device_obj)
-        test_mse, test_mae_norm = evaluate(best_model, test_loader, device_obj)
+        if fast_loader:
+            test_mse, test_mae_norm = evaluate_batched(
+                best_model, Xte, yte, device_obj, batch_size)
+        else:
+            test_mse, test_mae_norm = evaluate(best_model, test_loader, device_obj)
         test_mae_margin = test_mae_norm * target_std
         best_epoch = max((e["epoch"] for e in log if e["is_best"]), default=None)
 
@@ -568,8 +676,13 @@ def train(
         if save_curves_plot(log, out_dir / "train_curves.png"):
             if verbose:
                 print(f"  saved: {out_dir / 'train_curves.png'}")
+        # save_calibration_plot needs a DataLoader; on the fast path
+        # val_loader is None, so build a throwaway one just for the plot.
+        cal_loader = val_loader if val_loader is not None else DataLoader(
+            val_ds, batch_size=batch_size, shuffle=False, drop_last=False,
+        )
         if save_calibration_plot(
-            best_model, val_loader, target_std, device_obj,
+            best_model, cal_loader, target_std, device_obj,
             out_dir / "calibration.png",
         ):
             if verbose:

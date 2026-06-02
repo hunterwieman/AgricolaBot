@@ -143,8 +143,11 @@ def _init_worker(spec: _Spec) -> None:
 
 
 def _model_for_seat(seat: int) -> NormalizedValueModel:
-    assert _WORKER_MODEL_P0 is not None and _WORKER_MODEL_P1 is not None
-    return _WORKER_MODEL_P0 if seat == 0 else _WORKER_MODEL_P1
+    # Only the requested seat needs a loaded model — the other seat may be a
+    # heuristic (no model). Asserting both broke nn-vs-heuristic matches.
+    m = _WORKER_MODEL_P0 if seat == 0 else _WORKER_MODEL_P1
+    assert m is not None
+    return m
 
 
 def _build_mcts_agent(seed: int, seat: int) -> MCTSAgent:

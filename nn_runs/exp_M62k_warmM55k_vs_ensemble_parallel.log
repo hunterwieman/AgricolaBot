@@ -1,0 +1,14 @@
+NN nn_models/M_62k_warmM55k/best.pt vs 8-config ensemble | 100 games/opp, single-seat (NN=P0), regular legality, 8 workers
+
+opponent                     NN W-L-D    win%   margin
+--------------------------------------------------------
+t2                         93-7  -0     93.0%  +13.37
+alphas_gen_7               96-4  -0     96.0%  +13.59
+alphas_gen_1               96-4  -0     96.0%  +13.94
+panel_wood_r1             100-0  -0    100.0%  +17.33
+panel_gen16               100-0  -0    100.0%  +15.25
+panel_gen47_wood020        99-1  -0     99.0%  +15.17
+panel_gen_25              100-0  -0    100.0%  +17.21
+panel_gen47               100-0  -0    100.0%  +17.30
+--------------------------------------------------------
+AGGREGATE                784-16-0  98.0%  avg margin +15.39  (800 games)
