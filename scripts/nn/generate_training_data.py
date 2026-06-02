@@ -36,6 +36,7 @@ import pickle
 import platform
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from dataclasses import asdict, dataclass
@@ -89,6 +90,18 @@ DEFAULT_APPROVED_CONFIGS: tuple[str, ...] = (
 # Per-worker cache so a config JSON isn't reloaded each game.
 # Holds (config_obj, arch) tuples keyed by spec string.
 _CONFIG_CACHE: dict[str, tuple] = {}
+
+# Shared per-game progress counter, set in each pool worker via the Pool
+# initializer. A parent monitor thread reads it to print live progress
+# (the count is already in memory, so reporting it is free — no extra
+# pickle loads, unlike an external polling watcher).
+_PROGRESS_COUNTER = None
+
+
+def _pool_init(counter) -> None:
+    """Pool initializer: bind the shared progress counter in each worker."""
+    global _PROGRESS_COUNTER
+    _PROGRESS_COUNTER = counter
 
 # Per-worker cache of loaded NN models (torch), keyed by checkpoint path.
 _MODEL_CACHE: dict[str, object] = {}
@@ -502,6 +515,11 @@ def _worker_play_games(args: dict) -> dict:
             # Atomic write after every completed game.
             _write_pickle_atomic(pkl_path, records)
 
+            # Bump the shared live-progress counter (if running under a pool).
+            if _PROGRESS_COUNTER is not None:
+                with _PROGRESS_COUNTER.get_lock():
+                    _PROGRESS_COUNTER.value += 1
+
         except Exception as exc:
             tb = traceback.format_exc()
             errored.append((game_idx, f"{type(exc).__name__}: {exc}\n{tb}"))
@@ -706,8 +724,26 @@ def generate_dataset(
         # Single-process path useful for debugging and tests.
         results = [_worker_play_games(worker_args[0])]
     else:
-        with mp.Pool(processes=n_workers) as pool:
-            results = pool.map(_worker_play_games, worker_args)
+        # Shared per-game counter + a daemon monitor thread that prints
+        # aggregate live progress every 10s (the parent blocks on pool.map,
+        # so a separate thread is what surfaces progress to the log).
+        counter = mp.Value("i", 0)
+        stop = threading.Event()
+
+        def _monitor() -> None:
+            while not stop.wait(10.0):
+                print(f"  [progress] {counter.value} games completed this run "
+                      f"(planned {n_games}, {n_workers} workers)", flush=True)
+
+        mon = threading.Thread(target=_monitor, daemon=True)
+        mon.start()
+        try:
+            with mp.Pool(processes=n_workers, initializer=_pool_init,
+                         initargs=(counter,)) as pool:
+                results = pool.map(_worker_play_games, worker_args)
+        finally:
+            stop.set()
+            mon.join(timeout=1.0)
 
     elapsed = time.perf_counter() - t_start
 

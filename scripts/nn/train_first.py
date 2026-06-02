@@ -110,6 +110,11 @@ def main() -> int:
                              "exists; write it on a miss. Implies the chunked path "
                              "+ seed-hash split (NOT MAE-comparable to the "
                              "permutation-split build_datasets).")
+    parser.add_argument("--init-from", type=Path, default=None,
+                        help="Warm-start: initialize the net weights from this "
+                             "checkpoint (.pt) before training (e.g. a killed "
+                             "run's best.pt) for faster convergence. Freshly-fit "
+                             "NormStats are kept; optimizer state is not restored.")
     parser.add_argument("--train-sample-size", type=int, default=None,
                         help="Cap on train descriptors (paired). Default: use all.")
     parser.add_argument("--train-frac", type=float, default=0.8)
@@ -151,6 +156,7 @@ def main() -> int:
         train_game_frac=args.train_game_frac,
         store_dtype=args.store_dtype,
         use_cache=args.use_cache,
+        init_from=args.init_from,
     )
     return 0
 

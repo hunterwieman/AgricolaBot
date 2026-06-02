@@ -291,6 +291,7 @@ def train(
     train_game_frac: float = 1.0,
     store_dtype: str = "float16",
     use_cache: bool = False,
+    init_from: str | Path | None = None,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a value-function NN. Returns `(epoch_log, best_checkpoint_path)`.
@@ -374,6 +375,19 @@ def train(
         print(f"\nModel: {mlp.param_count():,} parameters")
         print(f"  arch: {hidden_dims} / {activation} / norm={norm} / dropout={dropout} / head={head}")
 
+    # ----- Optional warm-start: initialize the net weights from a prior
+    #       checkpoint (e.g. a killed run's best.pt) for faster convergence.
+    #       Only the learnable net weights are copied; the freshly-fit
+    #       NormStats buffers (input/target normalization) are kept — they
+    #       are identical for identical data/split, and re-using the fresh
+    #       fit avoids any drift. The AdamW optimizer state is NOT restored
+    #       (re-warms in a few steps); early-stop preserves the best epoch.
+    if init_from is not None:
+        init_model = NormalizedValueModel.load(Path(init_from)).to(device_obj)
+        model.net.load_state_dict(init_model.net.state_dict())
+        if verbose:
+            print(f"  warm-start: net weights initialized from {init_from}")
+
     # ----- Run config (persisted for reproducibility) -----
 
     if isinstance(run_dirs, (str, Path)):
@@ -404,6 +418,7 @@ def train(
         "use_cache": use_cache,
         "train_keep_frac": train_keep_frac,
         "train_game_frac": train_game_frac,
+        "init_from": str(init_from) if init_from is not None else None,
         "store_dtype": store_dtype if (chunked or use_cache) else "float32",
         "input_dim": ENCODED_DIM,
         "encoding_version": ENCODING_VERSION,
