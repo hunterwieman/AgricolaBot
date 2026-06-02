@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from itertools import product as iproduct
 
+from agricola import opt_config
 from agricola.constants import CellType
 from agricola.resources import Animals
 from agricola.state import Farmyard, GameState, PlayerState
@@ -149,6 +150,9 @@ def pareto_frontier(
 
     Returns list of (Animals, food_gained) tuples.
     """
+    if opt_config.PARETO_OPT_LEVEL >= 1:
+        return _pareto_frontier_opt(player_state, gained, rates)
+
     pasture_capacities, num_flexible = extract_slots(player_state)
 
     s_available = player_state.animals.sheep  + gained.sheep
@@ -233,6 +237,9 @@ def breeding_frontier(
     3. Keep only Pareto-optimal configurations (over animal counts).
     4. Compute food for each via `breeding_food_gained` (the shared formula).
     """
+    if opt_config.PARETO_OPT_LEVEL >= 1:
+        return _breeding_frontier_opt(player_state, rates)
+
     s = player_state.animals.sheep
     b = player_state.animals.boar
     c = player_state.animals.cattle
@@ -316,6 +323,9 @@ def food_payment_frontier(
     which always has at least the (all-goods-remaining, begging=food_owed)
     entry.
     """
+    if opt_config.PARETO_OPT_LEVEL >= 1:
+        return _food_payment_frontier_opt(player_state, food_owed, rates)
+
     sR, bR, cR, vR = rates
     grain_max  = player_state.resources.grain
     veg_max    = player_state.resources.veg
@@ -407,6 +417,9 @@ def harvest_feed_frontier(
     begging=food_owed config (from paid=0, where it's the unique natural
     fit) is always a candidate and always on the frontier.
     """
+    if opt_config.PARETO_OPT_LEVEL >= 1:
+        return _harvest_feed_frontier_opt(player_state, food_owed, rates)
+
     sR, bR, cR, vR = rates
     grain_max  = player_state.resources.grain
     veg_max    = player_state.resources.veg
@@ -450,3 +463,179 @@ def harvest_feed_frontier(
             frontier.append(cand)
 
     return frontier
+
+
+# ---------------------------------------------------------------------------
+# Part 5: Optimization paths (FRONTIER_OPT_DESIGN.md)
+# ---------------------------------------------------------------------------
+#
+# Active only when opt_config.PARETO_OPT_LEVEL >= 1. Level 0 (the default) never
+# reaches this code — the public helpers above run their baseline bodies
+# untouched. Every function here is set-identical to the corresponding baseline
+# (validated across all levels by tests/test_frontier_opt.py) and additionally
+# returns a canonically-sorted list, so levels 1-3 are mutually list-identical.
+#
+# Phase 1 implements the Level-1 algorithmic fast paths (max-corner for the
+# animal frontiers; rate-descending enumeration for food payment) plus the
+# canonical sort. The Level-2/3 caches layer on top in later phases.
+
+
+def _pareto_max_3d(points) -> tuple:
+    """Pareto-maximal subset of an iterable of (s, b, c) tuples, sorted.
+
+    "Maximal" = not componentwise-dominated by another point. Returns a sorted
+    tuple (lexicographic on (sheep, boar, cattle)) — the canonical order.
+    """
+    pts = list(points)
+    out = [
+        p for p in pts
+        if not any(
+            o != p and o[0] >= p[0] and o[1] >= p[1] and o[2] >= p[2]
+            for o in pts
+        )
+    ]
+    return tuple(sorted(out))
+
+
+def _animal_frontier_points(
+    caps_tuple: tuple, num_flexible: int, s_cap: int, b_cap: int, c_cap: int,
+) -> tuple:
+    """Rate-free Pareto frontier of feasible (s, b, c) with each <= its cap,
+    canonically sorted. Shared by pareto / breeding (same can_accommodate).
+
+    Max-corner fast path: if keeping everything is accommodatable it dominates
+    every other config (food is not a Pareto dim), so the frontier is the
+    singleton {caps}. Otherwise fall back to the brute feasible-set enumeration
+    + 3-D Pareto filter — the same can_accommodate as the baseline, so the
+    returned SET is identical.
+    """
+    pasture_capacities = list(caps_tuple)
+    if can_accommodate(pasture_capacities, num_flexible, s_cap, b_cap, c_cap):
+        return ((s_cap, b_cap, c_cap),)
+    feasible = [
+        (s, b, c)
+        for s in range(s_cap + 1)
+        for b in range(b_cap + 1)
+        for c in range(c_cap + 1)
+        if can_accommodate(pasture_capacities, num_flexible, s, b, c)
+    ]
+    return _pareto_max_3d(feasible)
+
+
+def _pareto_frontier_opt(player_state, gained, rates):
+    pasture_capacities, num_flexible = extract_slots(player_state)
+    s_av = player_state.animals.sheep + gained.sheep
+    b_av = player_state.animals.boar + gained.boar
+    c_av = player_state.animals.cattle + gained.cattle
+    sR, bR, cR = rates
+    pts = _animal_frontier_points(
+        tuple(sorted(pasture_capacities)), num_flexible, s_av, b_av, c_av,
+    )
+    return [
+        (Animals(sheep=s, boar=b, cattle=c),
+         (s_av - s) * sR + (b_av - b) * bR + (c_av - c) * cR)
+        for (s, b, c) in pts
+    ]
+
+
+def _breeding_frontier_opt(player_state, rates):
+    s = player_state.animals.sheep
+    b = player_state.animals.boar
+    c = player_state.animals.cattle
+    s_des = s + 1 if s >= 2 else s
+    b_des = b + 1 if b >= 2 else b
+    c_des = c + 1 if c >= 2 else c
+    pasture_capacities, num_flexible = extract_slots(player_state)
+    pts = _animal_frontier_points(
+        tuple(sorted(pasture_capacities)), num_flexible, s_des, b_des, c_des,
+    )
+    pre = player_state.animals
+    return [
+        (Animals(sheep=ss, boar=bb, cattle=cc),
+         breeding_food_gained(pre, Animals(sheep=ss, boar=bb, cattle=cc), rates))
+        for (ss, bb, cc) in pts
+    ]
+
+
+def _food_payment_points(
+    grain_max, veg_max, sheep_max, boar_max, cattle_max, food_owed, rates,
+) -> list:
+    """Rate-descending nested enumeration → the FULL-payment Pareto frontier as
+    a sorted list of remaining 5-tuples, with NO post-Pareto filter.
+
+    Goods are ordered by conversion rate descending (grain is rate 1; rate-0
+    goods are excluded — they can never reduce begging). Proven sound + complete
+    in FRONTIER_OPT_DESIGN.md Appendix A.
+    """
+    sR, bR, cR, vR = rates
+    maxes = (grain_max, veg_max, sheep_max, boar_max, cattle_max)
+    # (5-tuple index, rate, supply); grain is rate 1.
+    goods = [
+        (0, 1, grain_max), (1, vR, veg_max), (2, sR, sheep_max),
+        (3, bR, boar_max), (4, cR, cattle_max),
+    ]
+    active = sorted((g for g in goods if g[1] > 0), key=lambda g: -g[1])
+    consumed = [0, 0, 0, 0, 0]
+    out: list = []
+
+    def emit(i: int, remaining: int) -> None:
+        if i == len(active):
+            if remaining <= 0:
+                out.append(tuple(maxes[k] - consumed[k] for k in range(5)))
+            return
+        idx, rate, supply = active[i]
+        upper = min(supply, math.ceil(max(0, remaining) / rate))
+        for x in range(upper + 1):
+            consumed[idx] = x
+            emit(i + 1, remaining - x * rate)
+        consumed[idx] = 0
+
+    emit(0, food_owed)
+    return sorted(out)
+
+
+def _food_payment_frontier_opt(player_state, food_owed, rates):
+    grain_max = player_state.resources.grain
+    veg_max = player_state.resources.veg
+    sheep_max = player_state.animals.sheep
+    boar_max = player_state.animals.boar
+    cattle_max = player_state.animals.cattle
+    if food_owed == 0:
+        return [(grain_max, veg_max, sheep_max, boar_max, cattle_max)]
+    return _food_payment_points(
+        grain_max, veg_max, sheep_max, boar_max, cattle_max, food_owed, rates,
+    )
+
+
+def _harvest_feed_frontier_opt(player_state, food_owed, rates):
+    sR, bR, cR, vR = rates
+    grain_max = player_state.resources.grain
+    veg_max = player_state.resources.veg
+    sheep_max = player_state.animals.sheep
+    boar_max = player_state.animals.boar
+    cattle_max = player_state.animals.cattle
+    if food_owed == 0:
+        return [((grain_max, veg_max, sheep_max, boar_max, cattle_max), 0)]
+
+    candidates: list = []
+    for paid in range(food_owed + 1):
+        for remaining in food_payment_frontier(player_state, paid, rates):
+            food_generated = (
+                (grain_max - remaining[0])
+                + (veg_max - remaining[1]) * vR
+                + (sheep_max - remaining[2]) * sR
+                + (boar_max - remaining[3]) * bR
+                + (cattle_max - remaining[4]) * cR
+            )
+            if paid == min(food_generated, food_owed):
+                candidates.append((remaining, food_owed - paid))
+
+    def _dom(a, b):
+        return all(ax >= bx for ax, bx in zip(a, b)) and any(ax > bx for ax, bx in zip(a, b))
+
+    end = [(*rem, -beg) for (rem, beg) in candidates]
+    frontier = [
+        candidates[i] for i in range(len(candidates))
+        if not any(_dom(end[j], end[i]) for j in range(len(candidates)) if j != i)
+    ]
+    return sorted(frontier)
