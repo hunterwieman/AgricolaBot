@@ -146,8 +146,28 @@ cached data") is a default with explicit guidance for when to deviate.
   set of analytical factors, not a hard rule. A well-reasoned caching proposal that addresses
   the three factors above can override this default.
 
-  The one current accepted exception — `Farmyard.pastures` (the pasture decomposition) — and
-  its caller-discipline maintenance contract are documented in `ENGINE_IMPLEMENTATION.md`.
+  **Two kinds of caching — and the three factors above are about the riskier one.** Those
+  factors govern caches *stored on a state object* (like `Farmyard.pastures`), where the
+  sync-invariant footgun is real. A second technique sidesteps that footgun entirely:
+  **projection-keyed memoization of a pure function** (`functools.lru_cache` on a helper, keyed
+  on the small slice of state it actually reads). There is no sync invariant to maintain because
+  the key *is* the inputs — a stale entry is impossible, since any change to the inputs yields a
+  different key. This is the preferred form when the expensive thing is a *computation*
+  (legality enumeration, a Pareto/accommodation frontier, the fence-universe scan) rather than a
+  *field of a state object*, and it is exactly the form that makes "speed up MCTS" — factor 1 —
+  a first-class reason to cache rather than a reluctant deviation. The first wave is **landed**:
+  the frontier/accommodation helpers and the fence-universe scan are memoized this way behind
+  default-off toggles in `agricola/opt_config.py` (full design, correctness proofs, and the
+  cross-level equivalence testing pattern in **`FRONTIER_OPT_DESIGN.md`**; the worked numbers in
+  Phase 2.2 "Speeding up MCTS" and `PROFILING.md`). The one caveat for this form is a *hidden*
+  global input not in the key (e.g. the active fence universe) — flush the cache when it changes,
+  as `active_universe(...)` does. So the standing guidance is: for a hot **field of state**, weigh
+  the three factors; for a hot **pure computation**, reach for projection-keyed memoization by
+  default.
+
+  The one current accepted exception *of the on-object kind* — `Farmyard.pastures` (the pasture
+  decomposition) — and its caller-discipline maintenance contract are documented in
+  `ENGINE_IMPLEMENTATION.md`.
 
 ---
 
@@ -684,7 +704,7 @@ AgricolaBot/
 
                 model.py            # PyTorch model + normalization wrapper. `ConfigurableMLP` (configurable input_dim / hidden_dims / activation / dropout / norm; composable as a sub-encoder via `output_dim`), `NormalizedValueModel(net, stats)` (wraps a net with fixed input/output normalization buffers; `forward` returns normalized output, `predict_margin` returns raw margin units), `NET_REGISTRY` (name → factory), `EncodingVersionMismatch`. `save(path)` / `load(path)` checkpoint helpers preserve the `NormStats` + the model state in one file. Imports torch.
 
-                training.py         # Training-loop library. `train(run_dirs, out_dir, ...)` programmatic entry runs the full pipeline (load → split → fit norm → AdamW + early-stop on val MSE → checkpoint + curves + calibration plot + metadata JSON). Smaller helpers (`train_one_epoch`, `evaluate`, `setup_seeds`, `make_run_id`, `current_git_sha`, `print_header`, `print_epoch_line`, `save_curves_plot`, `save_calibration_plot`) factored out so future training experiments can compose differently. Library — the CLI wrapper lives at `scripts/nn/train_first.py`. Imports torch.
+                training.py         # Training-loop library. `train(run_dirs, out_dir, ...)` programmatic entry runs the full pipeline (load → split → fit norm → AdamW + early-stop on val MSE → checkpoint + curves + calibration plot + metadata JSON). Smaller helpers (`train_one_epoch`, `evaluate`, `setup_seeds`, `make_run_id`, `current_git_sha`, `print_header`, `print_epoch_line`, `save_curves_plot`, `save_calibration_plot`) factored out so future training experiments can compose differently. `l2sp` (L2-SP anchor `λ·‖θ−θ₀‖²` toward the `init_from` warm-start weights — a trust region; requires a warm-start) and `save_all_epochs` (write `epoch_NNN.pt` each epoch for gameplay-based checkpoint selection) added for the FIRST_NN C20 self-play fine-tunes. Library — the CLI wrapper lives at `scripts/nn/train_first.py`. Imports torch.
 
                 agent.py            # `NNAgent(model, *, differential=True, ...)` — `HeuristicAgent` subclass using an NN-backed evaluator. Two evaluators: `nn_evaluator` (single forward pass), `nn_evaluator_differential` (batched 2-input forward; exactly antisymmetric `V_diff(s, 0) = -V_diff(s, 1)` by construction). `model.eval()` set at construction; queries run under `@torch.no_grad()`. Drop-in replacement for `HubrisHeuristicV3` in `play_game` / `play_match.py`. Imports torch.
 
@@ -758,13 +778,15 @@ AgricolaBot/
 
         nn/                         # NN-specific scripts (subdirectory to keep NN tooling separate from general utilities). All are re-runnable CLIs; the underlying libraries live in `agricola/agents/nn/`.
 
-            generate_training_data.py # NN training-data batch generator. Plays many games between agents drawn from an approved-config ensemble (default: 8 configs from `tuned_configs/DATA_GEN_ENSEMBLE.md`); writes `GameRecord`s to per-worker pickle files under `data/nn_training/runs/<run_id>/games/`. Multiprocessing pool, deterministic plan computation from (n_games, base_seed, approved_configs), balanced contiguous worker slicing, atomic per-game pickle writes, resume-on-existing (loads existing pickle + skips completed game_idxs), bimodal per-agent T draws (95% uniform [0.3, 1.0] + 5% T=4 — independently per agent). Config dispatch: `"random"` / `"t2"` sentinels + JSON paths. Per-game errors caught, logged in metadata.json's `errored_games`, run continues. CLI `--n-games / --n-workers / --out-dir (resume if exists) / --base-seed / --approved-configs / --restricted`. See FIRST_NN.md §6.
+            generate_training_data.py # NN training-data batch generator. Plays many games between agents drawn from an approved-config ensemble (default: 8 configs from `tuned_configs/DATA_GEN_ENSEMBLE.md`); writes `GameRecord`s to per-worker pickle files under `data/nn_training/runs/<run_id>/games/`. Multiprocessing pool, deterministic plan computation from (n_games, base_seed, approved_configs), balanced contiguous worker slicing, atomic per-game pickle writes, resume-on-existing (loads existing pickle + skips completed game_idxs), bimodal per-agent T draws (95% uniform [0.3, 1.0] + 5% T=4 — independently per agent). Config dispatch: `"random"` / `"t2"` sentinels + JSON paths + `nn:<checkpoint>` for NN seats. Per-game errors caught, logged in metadata.json's `errored_games`, run continues. CLI `--n-games / --n-workers / --out-dir (resume if exists) / --base-seed / --approved-configs / --config-weights / --restricted`, plus `--p0-fixed-config` (pin seat 0 to one config; `--approved-configs`/`--config-weights` then sample P1 only — the asymmetric hard-mining scheme behind `e14_hardmix_1k`, FIRST_NN C21). See FIRST_NN.md §6.
 
             validate_dataset.py     # Post-generation invariant checker per FIRST_NN.md §6.6. Loads all (or `--sample-size N` random subset of) records from a run dir's worker pickles; runs invariants: `data_version` matches, `chosen_action ∈ legal_actions(state)`, non-singleton snapshots, `state.phase != BEFORE_SCORING`, non-empty `decisions`, `decider_idx == decider_of(state)`, `terminal_state.phase == BEFORE_SCORING`, stored-vs-recomputed final scores. Continues past individual failures to report all issues. Failure summary groups by check type + locates offending game_idx + snapshot. Exit codes 0/1/2 (pass / fail / invalid run dir).
 
-            train_first.py          # Thin CLI wrapper over `agricola.agents.nn.training.train(...)` — argparse for hyperparameters (run-dir, hidden_dims, lr, batch_size, max_epochs, early-stop patience, …) and dispatches into the library. Output: best-model checkpoint + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
+            train_first.py          # Thin CLI wrapper over `agricola.agents.nn.training.train(...)` — argparse for hyperparameters (run-dir, hidden_dims, lr, batch_size, max_epochs, early-stop patience, `--init-from` warm-start, `--l2sp <λ>` L2-SP anchor, `--save-all-epochs`, …) and dispatches into the library. Output: best-model checkpoint + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
 
-            eval_vs_ensemble.py     # Parallel, single-seat evaluation of a trained NN checkpoint vs the 8-config data-gen ensemble. Subprocess-drives `scripts/nn/play_match.py` (multiprocessing `--jobs`) once per opponent, NN as P0, regular legality; prints a per-opponent win%/margin table + aggregate. Single-seat (P0/P1 symmetric, one seat averages SP), so aggregates are NOT comparable to older seat-swapped numbers. `--model <best.pt> --n 100 --jobs 8`.
+            eval_vs_ensemble.py     # Parallel, single-seat evaluation of a trained NN checkpoint vs the 8-config data-gen ensemble. Subprocess-drives `scripts/nn/play_match.py` (multiprocessing `--jobs`) once per opponent, NN as P0, regular legality; prints a per-opponent win%/margin table + aggregate. Single-seat (P0/P1 symmetric, one seat averages SP), so aggregates are NOT comparable to older seat-swapped numbers. `--model <best.pt> --n 100 --jobs 8`. This fixed ensemble is the cleanest *uncontaminated* objective yardstick (see FIRST_NN C22): gate on it, not head-to-head-vs-parent.
+
+            retention_eval.py       # Post-hoc retention sweep (FIRST_NN C20): encode a fixed held-out slice of a BROAD-distribution run dir once (`--probe-dir`/`--probe-games`), then compute raw-margin MAE for any list of checkpoints (`--sweep` globs, e.g. every epoch of a fine-tune) with a `--baseline` model as the reference line. `predict_margin` denormalizes per-model so MAE-in-points is comparable across checkpoints with different NormStats. The instrument that exposes self-play forgetting that a fine-tune's own val split cannot — though MAE≠strength, so it diagnoses, it doesn't gate.
 
     tuned_configs/                  # Persistent artifacts from tuning runs. Each completed run writes `<timestamp>.json` (best config, history, holdout), `<timestamp>.log` (human-readable progress mirror), and `<timestamp>.cma.pkl` (full CMA-ES state for resume). `v1_best.json` and `v3_best.json` are auto-maintained pointers to the strongest config per architecture. The 8-config data-gen ensemble (alphas_gen_1, alphas_gen_7, panel_gen16, panel_gen_25, panel_gen47, panel_gen47_wood020, panel_wood_r1 + t2) plus `panel_gen16_temp05.json` (panel-only diversity baseline) live here as named JSONs alongside the timestamped run outputs. `DATA_GEN_ENSEMBLE.md` describes the ensemble. See V3_TRAINING_PIPELINE.md.
 
