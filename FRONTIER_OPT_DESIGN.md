@@ -231,9 +231,14 @@ dominated and skippable at emit time. (S2 geometric pruning — every confirmed-
 carves its own dominated prism, swept high-corner-first — is a further extension; defer unless
 profiling still flags `can_accommodate`.)
 
-See `POSSIBLE_SPEEDUPS.md` S1/S2 for the original framing. At Level ≥ 3 the structured Φ build
-(§6.2) supersedes (b) entirely — it generates only maximal corners by construction — so anchor
-pruning matters only at Level 1–2.
+See `POSSIBLE_SPEEDUPS.md` S1/S2 for the original framing. At Level ≥ 3 the Φ build (§6.2)
+supersedes (b) entirely — Φ generates only maximal corners by construction — so anchor pruning
+would matter only at Level 1–2.
+
+> **Shipped:** (a) max-corner only. **Anchor pruning (b) was *not* implemented** — the max-corner
+> short-circuit captured the win and the brute fallback keeps correctness, so Level 1–2 use
+> max-corner + brute enumeration. (b)/S2 remain a future speed-only refinement, unlikely to be
+> worth it since these helpers are cold in MCTS (§10). See §9.
 
 Both (a) and (b) are **capacity-specific** — they exploit "maximize animals subject to a capacity
 bound." Feeding inverts that (minimize goods spent subject to a food *floor*) and adds a begging
@@ -273,12 +278,15 @@ Key points:
   point. Honest note: the hit-rate gain from dropping `rates` is marginal (a player rarely owns
   different cooking improvements across nodes in one search) — do it for cleanliness and because
   it's the natural form for Level 3, not for a big win.
-- **Placement — enumerator level is better than helper level.** For animal markets and breeding,
+- **Placement — enumerator level vs helper level.** For animal markets and breeding,
   `legal_actions(state)` at that pending *is* the frontier (one `CommitX` per point), so caching
   the **enumerator's output list** (`_enumerate_pending_animal_market`,
-  `_enumerate_pending_harvest_breed`) also amortizes the `CommitX` wrapper construction. Caching
-  the bare helper is the simpler fallback if you'd rather not touch the enumerators. Either is
-  valid; the doc recommends enumerator-level.
+  `_enumerate_pending_harvest_breed`) would also amortize the `CommitX` wrapper construction;
+  caching the bare helper is the simpler fallback. **Shipped: the helper-level form** —
+  `_animal_points_cached` in `helpers.py` wraps the rates-free frontier generation. The
+  enumerator-level amortization was not pursued: the helper cache already removes the frontier
+  cost, the `CommitX` build is cheap, and the profile later showed these helpers are cold in MCTS
+  anyway (§10), so it wasn't worth touching `legality.py`.
 - `breeding_frontier`'s key uses `(pasture_caps, num_flexible, s, b, c)` (current animals; the
   desired bounds derive from them) and annotates food via `breeding_food_gained`.
 
@@ -330,9 +338,11 @@ def build_phi(pasture_capacities, num_flexible):
   worst realistic case (5 cap-2 pastures + 5 flexible): `C(7,2)·C(7,2) = 441` candidates vs the
   naive `3⁵·C(7,2) = 5103` — grouping by capacity is the key reduction (Agricola caps pastures at
   5, and many share a capacity). Sub-millisecond, paid once per farm shape.
-- **Fallback:** if you don't want to write `build_phi`, compute Φ by the naive box sweep +
-  `can_accommodate` then `pareto_max`. It's a one-time-per-shape cost, so "fast enough" — swap in
-  the structured build only if Φ-misses show in a profile.
+- **Fallback — and what shipped.** The **naive box sweep** (`_build_phi`: a triangular
+  `s+b+c ≤ max-single-type-capacity` sweep filtered by `can_accommodate`, then `pareto_max`) **is
+  what shipped** — the same feasibility oracle as the baseline, so guaranteed correct, one-time per
+  farm shape. The structured grouped build sketched above is the deferred speed refinement; adopt
+  it only if Φ-misses show in a profile (§9).
 
 ### 6.3 Φ correctness lemma
 
@@ -450,9 +460,10 @@ inner `food_payment` cache helps *only* on a feed **miss** (cross-`food_owed` re
 deferred to Level 3. The Level-1 rate-descending rewrite of `food_payment` still pays off here — it
 speeds the feed **miss** path, which re-runs the wrapper.
 
-**Helper-level, not enumerator-level**: unlike the animal markets (where
-the enumerator output *is* the frontier and caching there also amortizes `CommitX` construction),
-the feed enumerator additionally offers the cheap craft-conversion decisions
+**Helper-level** (both feeding and the animal frontiers shipped at the helper level — §6.1). The
+*structural* reason feeding couldn't even be enumerator-level if we wanted: unlike the animal
+markets (whose enumerator output *is* purely the frontier), the feed enumerator additionally offers
+the cheap craft-conversion decisions
 (joinery/pottery/basketmaker `use=True/False`, gated on `harvest_conversions_used` +
 affordability). Those are trivial to re-enumerate; folding them in would only widen the key with
 conversion-availability for no real saving. So cache the expensive helper and leave the cheap
@@ -631,8 +642,8 @@ speed refinement; the naive build already amortizes per farm shape).
 | File | Change |
 |---|---|
 | `agricola/opt_config.py` (new) | `PARETO_OPT_LEVEL`, `FENCE_SCAN_CACHE` |
-| `agricola/helpers.py` | level branches in `pareto_frontier` / `breeding_frontier` / `food_payment_frontier`; `build_phi`, `frontier_from_phi`, the rates-free `_pareto_points` / food-annotation split; clipped `harvest_feed_frontier` cache (+ optional inner `food_payment` cache) |
-| `agricola/legality.py` | enumerator-level caches for animal markets / breed; `_legal_pasture_commits` cache for the fencing track |
+| `agricola/helpers.py` | **(landed, Part 5)** level branches in `pareto_frontier` / `breeding_frontier` / `food_payment_frontier`; `_animal_points_cached` (exact, L2) + `_build_phi` / `_frontier_from_phi` (naive Φ, L3); rate-descending `_food_payment_points`; clipped `_harvest_feed_cached` (`⊕ excess`). Inner `food_payment` cache deferred (§6.5). |
+| `agricola/legality.py` | **(landed)** `_legal_pasture_commits_compute` / `_legal_pasture_commits_cached` — the fencing track only. (The animal/breed caches live in `helpers.py`, not the enumerators — see §6.1.) |
 | `tests/conftest.py` | autouse cache-clear + flag-reset fixture |
 | `tests/test_frontier_opt.py` (new) | cross-level equivalence + Φ unit tests + `food_payment` equivalence |
 | `scripts/profile_frontier_helpers.py` (**done**) | microbench + projection-collision profiler (§8.2); runnable today for the baseline + Phase-2/3 gate |

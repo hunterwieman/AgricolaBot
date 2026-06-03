@@ -22,6 +22,12 @@ Numbers cited are from the Workload A/B/C profiling baseline in PROFILING.md unl
 
 ### S1. Anchor pruning on `pareto_frontier` and `breeding_frontier`
 
+> **Partially superseded (2026-06).** The broader `pareto_frontier` / `breeding_frontier`
+> optimization landed — a max-corner fast path + Level-2/3 projection caches
+> (`FRONTIER_OPT_DESIGN.md` §5.2 / §6). Anchor pruning *specifically* was **not** implemented: the
+> max-corner short-circuit captured the win, and these helpers turned out to be cold in MCTS anyway
+> (PROFILING.md "MCTS profile"), so the anchor sketch below is unlikely to be worth pursuing.
+
 **Target.** `can_accommodate` + Pareto inner generators are now the dominant cost cluster after Change 9 — ~9 ms self-time per Workload-A run, ~22 ms per Workload-B run (mid/late game). `pareto_frontier` is called on every animal-market resolution; `breeding_frontier` fires every harvest. Each call enumerates a (possibly large) candidate set and runs an O(n²) Pareto filter over it.
 
 **Implementation sketch.** When a player gains animals through an action space, the pre-gain animal arrangement is feasible by definition — the player was already accommodating it. The "release all gained" option always lands at exactly the pre-gain state, so it's a frontier candidate. Any post-gain config `(s', b', c')` with `s' ≤ s_current AND b' ≤ b_current AND c' ≤ c_current` (at least one strict inequality) is strictly Pareto-dominated on animal dims; food is excluded from the Pareto check per the "Preserving optionality" Key Design Principle. The entire lower-left rectangular prism in animal-space under the pre-gain anchor can therefore be skipped at enumeration time.
@@ -68,6 +74,10 @@ if (s_pre is not None
 **Correctness caveat.** Both forms are valid iff the Pareto dimensions are exactly the upstream-goods counts (animals for `pareto_frontier` / `breeding_frontier`; the 5-tuple remaining-goods vector for `food_payment_frontier`). This holds today per the "Preserving optionality" Key Design Principle. If a future card makes some non-food byproduct into a strategic resource that *should* be a Pareto dim, the invariant must be re-examined.
 
 ### S8. Direct-enumeration rewrite of `food_payment_frontier`
+
+> **LANDED (2026-06)**, behind `PARETO_OPT_LEVEL >= 1` (default off). This is the rate-descending
+> rewrite specified in `FRONTIER_OPT_DESIGN.md` §5.1, proven sound + complete in its Appendix A.
+> Microbench ~53× per call. The sketch below is the original proposal, kept for rationale.
 
 **Target.** `food_payment_frontier` currently enumerates the full 5-D box `[0, grain_cap] × [0, veg_cap] × [0, sheep_cap] × [0, boar_cap] × [0, cattle_cap]` of consumption tuples, filters survivors by `food_produced ≥ food_owed`, then runs an O(n²) Pareto dominance pass on what's left. For typical mid-game inputs the box is small. For late-game inputs (food_owed = 15+, larger supplies, full cooking rates) the box grows polynomially and dominates the helper's wall-clock cost.
 
@@ -207,6 +217,12 @@ The uncertainty is around "how much of the predicate body actually runs after th
 **When to do it.** After S1/S2 if Pareto stops dominating. Or before, if you want a quick easy win — it doesn't depend on anything.
 
 ### S7. Project-keyed cache on the fence-universe legality scan
+
+> **LANDED (2026-06)**, behind `FENCE_SCAN_CACHE` (default off). Implemented as
+> `legality._legal_pasture_commits_cached` (+ `_legal_pasture_commits_compute`); see
+> `FRONTIER_OPT_DESIGN.md` §7. Measured ~94% projection hit rate, and per the MCTS cProfile it is
+> the **dominant** contributor to the ~9% MCTS wall-clock win (PROFILING.md). The sketch below is
+> the original proposal.
 
 **Target.** `_any_legal_pasture_commit` (placement-time predicate for `_legal_fencing`) and `_enumerate_pending_build_fences` (mid-chain enumerator during a Build Fences action). Both walk the active fence universe — ~109 entries under RESTRICTED, all 1518 under FULL — and apply `_check_entry_legal` per entry (bit-ops over enclosable / pasture / fence / adjacency bitmaps, plus a subdivision-canonicalization step). Per call: estimated ~30–100 μs in late game, scaling with universe size and the number of existing pastures. Fired on every `legal_placements(state)` call where fencing is still available (the placement predicate), and on every `legal_actions(state)` call mid-chain (the enumerator). In MCTS-heavy workloads this is plausibly one of the two or three largest single-call costs inside `legal_actions`.
 
