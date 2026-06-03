@@ -40,16 +40,16 @@ def _reveal_space(state, space_id: str, accumulated=None):
     or None to leave the accumulation field at its default (empty).
     """
     if isinstance(accumulated, Resources):
-        return _set_space(state, space_id, round_revealed=state.round_number, accumulated=accumulated)
+        return _set_space(state, space_id, revealed=True, accumulated=accumulated)
     elif isinstance(accumulated, int):
-        return _set_space(state, space_id, round_revealed=state.round_number, accumulated_amount=accumulated)
+        return _set_space(state, space_id, revealed=True, accumulated_amount=accumulated)
     else:
-        return _set_space(state, space_id, round_revealed=state.round_number)
+        return _set_space(state, space_id, revealed=True)
 
 
 def _reveal_space_no_goods(state, space_id: str):
     """Return a new state with the named stage card revealed but no accumulated goods."""
-    return _set_space(state, space_id, round_revealed=state.round_number)
+    return _set_space(state, space_id, revealed=True)
 
 
 def _set_player(state, player_idx: int, **kwargs):
@@ -241,10 +241,10 @@ def test_occupied_space_illegal(state):
 
 
 def test_unrevealed_stage_space_illegal(state):
-    # At round 1, western_quarry has round_revealed > 1. Even with goods it is illegal.
-    assert get_space(state.board, "western_quarry").round_revealed > 1
+    # At round 1, western_quarry (a stage-2 card) is unrevealed. Even with goods it is illegal.
+    assert not get_space(state.board, "western_quarry").revealed
     state2 = _set_space(state, "western_quarry", accumulated=Resources(stone=3))
-    # round_revealed is unchanged (still > 1), so it remains unrevealed.
+    # `revealed` is unchanged (still False), so it remains unrevealed.
     assert PlaceWorker(space="western_quarry") not in legal_placements(state2)
 
 

@@ -95,6 +95,12 @@ of what to pay with is presented as a Pareto frontier over (goods converted, beg
 with food surplus excluded. It is the single most subtle decision point in the engine and the
 clearest illustration of why the action set is shaped as it is.
 
+**The round-card reveal is nature's move.** Each round's stage card is turned up by a *chance
+event* — nature's shuffle, not any player's choice — so the engine state carries only common
+knowledge: the public `revealed` status of each card, never the hidden future order. A reveal is
+modeled as an explicit nature step (Phase 1 — the reveal transition; Phase 2.2 — MCTS chance
+nodes).
+
 ### Engineering invariants
 
 The first three are near-absolute — they are load-bearing for MCTS and self-play, and
@@ -110,9 +116,19 @@ cached data") is a default with explicit guidance for when to deviate.
 - **Functional core.** Game logic lives in plain functions (`setup`, `legal_actions`,
   `resolve`, `score`). State objects have no methods that modify state.
 
-- **Determinism after setup.** All randomness (starting player, stage card ordering) is
+- **Determinism after setup.** All randomness (starting player, the per-stage card shuffle) is
   resolved in `setup(seed)` using a seeded NumPy RNG. After `setup` returns, the engine is
-  fully deterministic. Because the seed also assigns the starting-player advantage — the only
+  fully deterministic. The resulting reveal order is *hidden* — it does not live in `GameState`,
+  which holds only common knowledge. Game state, hidden ground truth, and per-player observation
+  are split across three layers: **`GameState`** carries common knowledge (the public `revealed`
+  bool per card, public resources/farmyard); the **`Environment`** (`agricola/environment.py`,
+  built at `setup`) holds the hidden ground truth + nature policy — today the round-card reveal
+  order; **`observe(state, env, i)`** projects the partial state known to player `i` (the
+  identity today, since the only hidden info is symmetric). Each round's stage card is turned up
+  by an explicit nature step — a `RevealCard` that consumes the next entry of the hidden order —
+  driven by the `Environment` in real games and by chance nodes in MCTS. "All randomness resolved
+  in `setup`" still holds; the order is simply carried in the `Environment` rather than baked into
+  the public state. Because the seed also assigns the starting-player advantage — the only
   positional asymmetry in the game — P0 and P1 are otherwise symmetric labels: don't seat-swap
   in agent evaluation (one consistent-seat run over many seeds already averages the SP
   advantage) and don't read a per-seat W-D-L split as seat bias.
@@ -203,7 +219,13 @@ Foundations). Its fields:
 A `PlayerState` carries that player's resources, animals, `Farmyard` (with its cached pasture
 decomposition), house material and rooms, family members / workers, played cards
 (`minor_improvements`, `occupations`), and per-game budgets such as `harvest_conversions_used`.
-`BoardState` carries the action spaces and the goods sitting on accumulation spaces.
+`BoardState` carries the action spaces and the goods sitting on accumulation spaces. Each
+`ActionSpaceState` carries `revealed: bool` (common knowledge — `True` once the card has been
+turned up; permanents are `True` from setup); the *hidden* reveal order is **not** on
+`BoardState` — it lives in the `Environment` (Foundations — "Determinism after setup"). The
+full constructor is `setup_env(seed) -> (GameState, Environment)`, which builds the order, deals
+round 1, and returns the round-1 WORK state plus the env that deals rounds 2–14; `setup(seed)`
+is the thin wrapper `setup_env(seed)[0]` for callers that only inspect or build on that state.
 
 The first five fields describe the *game and player situation*. The sixth, `pending_stack`,
 describes *turn execution* — the state the engine keeps while it pauses a non-atomic turn to
@@ -226,7 +248,9 @@ union over them. There is **one frame per sub-action category**: a frame's prese
 stack *is* the record that its decision is in progress (no separate "intent" and "execution"
 frames). Even a non-atomic space offering only one sub-action pushes a parent frame, because
 the parent both tracks which sub-action categories have been chosen and hosts the trigger
-events that cards will attach to that space.
+events that cards will attach to that space. A few frames are *phase* frames rather than
+sub-action frames — notably `PendingReveal`, the nature/phase frame for the round-card reveal
+(`player_idx = None`).
 
 **What a frame carries.** Every frame has a `player_idx` (whose decision this frame is for) and
 provenance (`initiated_by_id` + a class-level `PENDING_ID`), plus its own sub-action fields.
@@ -240,13 +264,18 @@ sessions get wrong:
 > - **Empty stack** → `state.current_player` is the decider.
 > - **Non-empty stack** → `pending_stack[-1].player_idx` is the decider.
 
+So `decider_of(state)` returns `0`, `1`, or **`None`**. `None` is the nature case: a
+`PendingReveal` (the round-card reveal) carries `player_idx = None`, so its decider is no player
+— the driver routes it to the dealer (`env.resolve`), never to a strategic agent. (`None` is not
+a valid list index, so a forgotten guard fails loudly rather than silently routing to player 1.)
+
 `current_player` records "whose worker placement is being resolved"; a frame's `player_idx`
 records "whose decision this frame is for." They are usually the same, and diverge when a
 frame's decider isn't the active player. This is not hypothetical: the harvest pushes one
 feeding frame and one breeding frame *per player*, so frames belonging to both players coexist
 on the stack — that is the live, already-implemented case where `player_idx`, not
-`current_player`, is the source of truth. (Future out-of-turn card triggers are the other
-case.)
+`current_player`, is the source of truth. (`PendingReveal`'s `player_idx = None` is the nature
+case; future out-of-turn card triggers are another.)
 
 How the stack *evolves* — push and pop — is part of the transition model below, since that is
 driven by actions.
@@ -307,7 +336,12 @@ top frame's legal sub-actions (a per-pending enumerator).
 **`_advance_until_decision(state)`**, called at the end of every `step`, walks *system*
 transitions — phase changes (WORK → RETURN_HOME → PREPARATION → WORK), terminal detection —
 until the state is at a real agent decision or game-over. It does not advance the current player
-and does not auto-resolve agent decisions.
+and does not auto-resolve agent decisions. The **PREPARATION** phase hosts the round-card reveal
+as a nature step: a two-state walk pushes a `PendingReveal` for the round being entered (the
+nature decision pauses here), then on resume `_complete_preparation` increments `round_number`,
+refills every `revealed` accumulation space, and returns to WORK. `RevealCard` is dispatched in
+`_apply_action` (turning the named card's `revealed` to `True` and popping the frame) — a
+top-level transition like `PlaceWorker`, not a `CommitSubAction`.
 
 **How the stack evolves.** Within a non-atomic turn:
 
@@ -452,6 +486,14 @@ pasture-commits, so a `MacroFencingAction` collapses the whole layout to one nod
 tree from exploding in depth. MCTS consumes the strict-restriction wrapper; self-play and
 head-to-head matches can share a tree or use separate ones.
 
+**Chance nodes for hidden reveals.** Because the round-card order is hidden (Foundations —
+"Determinism after setup"), a reveal state is an explicit **chance node**: search routes through
+it via a deterministic round-robin over the ≤3 candidate `RevealCard`s (reconstructed from public
+state — MCTS reads no `Environment`), never leaf-evaluates it, and takes the expectation over its
+children rather than maxing. A chance node carries a P0 frame label (`decider = 0`) so the
+backprop sign-flip and UCB reads stay unchanged; `is_chance` — not `decider` — flags the routing.
+The search therefore no longer conditions on the hidden future across a round boundary.
+
 **Where it stands (empirical).** At the current 200–500-simulation budgets, with vanilla UCT and
 the *heuristic* as leaf evaluator, MCTS **loses ~3–5 points to the same heuristic used
 standalone**. But that appears to be leaf-evaluator-specific: with the **value NN** as the leaf
@@ -584,6 +626,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `V3_DESIGN.md` | Comprehensive design reference for HubrisHeuristicV3: three combination styles (blend / additive / joint-alpha), per-category specs (fields/crops/pastures/animals/resources/food/joint-alpha), three-component resource pattern (wood/clay/reed/stone), V1 carry-overs and what V3 deletes, known limitations. Read before modifying V3. |
 | `V3_TRAINING_PIPELINE.md` | Operational guide for the V3 tuning pipeline: CMA-ES basics, `scripts/tune_heuristic.py` semantics (CLI flags, multi-baseline + regression-detector tooling, save/resume, x0 fallback, `<arch>_best.json` auto-update), the `scripts/run_iterative_v3.py` orchestrator (block-coordinate descent), `v3_best.json` convention, current training state, next steps. |
 | `MCTS_DESIGN.md` | Design spec for the MCTS phase (Phase 2.2). Architecture decisions (vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation + macro-enumeration for Fencing); data structures (MCTSNode / MCTSSearch / MCTSAgent); algorithm details (per-sim flow, UCB, sign-flip backprop, transposition table); strict-restrictions spec (new filters added to `agricola/agents/restricted.py`); implementation phases; open questions. Read before starting MCTS implementation. |
+| `HIDDEN_INFO_DESIGN.md` | Design + implementation reference for the hidden-information refactor: the round-card reveal as an explicit nature/chance step, the public-state / Environment / observe split, the MCTS chance-node handling, the full file impact map, and the action plan. |
 | `FIRST_NN.md` | Design spec for the first NN value function (Phase 2.3). Sections: goals/non-goals, strategic context, design principles (input-encoding philosophy, pre-compute selectively, mid-action encoding, terminal-margin target), input encoding (~170 features split across per-player ×2 / shared / mid-action / terminal-state handling), supervision target (terminal margin + terminal-state training pairs), data generation pipeline (fully specified: 8-config ensemble, bimodal per-agent T, snapshot semantics, file layout, resume protocol, validation), architecture (TBD), training (TBD), evaluation (TBD), open questions, implementation notes (file layout + schema versioning `DATA_VERSION` + `ENCODING_VERSION`), status. Read before working on the NN. |
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
 | `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
@@ -636,7 +679,7 @@ AgricolaBot/
 
         __init__.py                 # Empty package marker.
 
-        constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces.
+        constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces. stage_of_round(round) / STAGE_OF_ROUND map each round to its stage (used by the reveal enumerator to pick the candidate stage cards).
 
         resources.py                # Resources (wood/clay/reed/stone/food/grain/veg) and Animals (sheep/boar/cattle) frozen dataclasses with __add__/__sub__/__bool__ operators. Extracted from state.py to avoid circular imports with constants.py.
 
@@ -646,23 +689,25 @@ AgricolaBot/
 
         opt_config.py               # Runtime toggles for the frontier/accommodation optimizations: PARETO_OPT_LEVEL (0–3, cumulative) and FENCE_SCAN_CACHE (bool). Both default to the no-op baseline so the default behavior is unchanged; helpers.py / legality.py read them to dispatch to optimized (caching / algorithmic) paths. See FRONTIER_OPT_DESIGN.md.
 
-        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState, PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable.
+        environment.py              # The Environment frozen dataclass — the hidden ground truth + nature policy for one game. Holds the per-game stage-card reveal order (NOT in GameState); exposes resolve(state) (the driver-facing nature seam) and reveal_action(state) -> RevealCard. The dealer in real games; agents and MCTS never see it. Forward-compat home for future private hands / draw deck + the observe(state, env, i) projection (identity today). See HIDDEN_INFO_DESIGN.md §3.4 / §3.6.
 
-        setup.py                    # setup(seed) -> GameState — builds the initial 2-player Family game state. All randomness (starting player, stage card shuffle per stage) is resolved here via a seeded NumPy RNG; engine is fully deterministic afterward.
+        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable.
+
+        setup.py                    # setup_env(seed) -> (GameState, Environment) — the full constructor for the initial 2-player Family game: builds the per-stage shuffled reveal order into the Environment, pre-deals round 1 (via env.reveal_action), and returns the round-1 WORK state. setup(seed) = setup_env(seed)[0] (drops the env). All randomness (starting player, per-stage card shuffle) is resolved here via a seeded NumPy RNG; the order is hidden in the Environment and the engine is fully deterministic afterward.
 
         helpers.py                  # Pure derived-quantity functions (fences_in_supply, stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
 
-        actions.py                  # All Action dataclasses (PlaceWorker, ChooseSubAction, the full Commit* family, FireTrigger, Stop) plus the CommitSubAction marker base used by the generic commit dispatcher.
+        actions.py                  # All Action dataclasses (PlaceWorker, ChooseSubAction, the full Commit* family, FireTrigger, Stop, RevealCard) plus the CommitSubAction marker base used by the generic commit dispatcher. RevealCard (nature's round-card reveal) is a top-level transition, not a CommitSubAction.
 
-        pending.py                  # All Pending* frozen dataclasses (sub-action + parent + wrapper variants), the PendingDecision union alias, and the three pure stack ops (push, pop, replace_top).
+        pending.py                  # All Pending* frozen dataclasses (sub-action + parent + wrapper variants, plus the PendingReveal nature/phase frame with player_idx=None), the PendingDecision union alias, and the three pure stack ops (push, pop, replace_top).
 
-        legality.py                 # Top-level legal_actions (stack-state dispatch) + legal_placements + per-space placement predicates + shared helpers (_can_bake_bread, _can_build_stable, …) + per-pending sub-action enumerators + card extension registries.
+        legality.py                 # Top-level legal_actions (stack-state dispatch) + legal_placements + per-space placement predicates + shared helpers (_can_bake_bread, _can_build_stable, …) + per-pending sub-action enumerators (incl. _enumerate_pending_reveal, the ≤3 candidate RevealCards for the round being entered, derived purely from public state) + card extension registries.
 
         resolution.py               # Atomic _resolve_<space> handlers, non-atomic _initiate_<space> + _choose_subaction_<space> handlers, sub-action _execute_<sub_action> effect functions, and the function-pointer dispatch tables (ATOMIC_HANDLERS, NONATOMIC_HANDLERS, CHOOSE_SUBACTION_HANDLERS).
 
         scoring.py                  # score(state, player_idx) -> (total, ScoreBreakdown) and tiebreaker — end-game evaluation across all categories (fields, pastures, animals, rooms, people, majors, craft bonuses, begging penalties).
 
-        engine.py                   # The transition engine: step + _apply_action dispatch + _advance_until_decision + phase resolvers (_resolve_return_home, _resolve_preparation, _resolve_harvest_field, _initiate_harvest_feed, _initiate_harvest_breed) + the COMMIT_SUBACTION_HANDLERS metadata table for generic commit dispatch.
+        engine.py                   # The transition engine: step + _apply_action dispatch (incl. the RevealCard branch) + _advance_until_decision + phase resolvers (_resolve_return_home, the two-state PREPARATION reveal walk — push PendingReveal then _complete_preparation — _resolve_harvest_field, _initiate_harvest_feed, _initiate_harvest_breed) + the COMMIT_SUBACTION_HANDLERS metadata table for generic commit dispatch.
 
         fences.py                   # Four layered pasture-shape universes (FULL=1518 / FAMILY=762 / EXTENDED=193 / RESTRICTED=109) with PastureCandidate edge-metadata entries, fence-array pack/apply helpers, and the compute_new_fence_edges cost helper. Standalone module, no engine dependencies.
 
@@ -682,13 +727,13 @@ AgricolaBot/
 
             __init__.py             # Re-exports Agent / HeuristicAgent / RandomAgent / SimpleHeuristic / HubrisHeuristic[V1,V2,V3] / HubrisHeuristicV1Differential / HubrisHeuristicV3Differential / HeuristicConfig / HeuristicConfigV3 / DEFAULT_CONFIG / DEFAULT_CONFIG_V3 / CONFIG_V1_T2 / evaluator functions (+ differential variants + `compose_evaluators`, `make_differential_evaluator`, `r1_force_forest_bonus`) / play_game / restricted_legal_actions / strict_restricted_legal_actions / make_strict_restricted_legal_actions / MCTSAgent / MCTSSearch / MCTSNode / MacroFencingAction + priority constants.
 
-            base.py                 # `Agent` Protocol, decider_of helper, RandomAgent, generic HeuristicAgent (1-turn or 1-action lookahead, singleton-skip always on, softmax-with-temperature action selection), play_game(initial, agents) game-driver. Both agent classes accept a `legal_actions_fn` kwarg (default = unrestricted `legal_actions`) threaded through every legality consultation.
+            base.py                 # `Agent` Protocol, decider_of helper (-> int | None; None = nature's round-card reveal, routed to the dealer), RandomAgent, generic HeuristicAgent (1-turn or 1-action lookahead, singleton-skip always on, softmax-with-temperature action selection; its `_eval` helper averages the evaluator over the ≤3 reveal outcomes at a nature node rather than evaluating the between-rounds state), play_game(initial, agents, dealer) game-driver (the dealer — typically env.resolve — resolves reveals; agents never see a nature node). Both agent classes accept a `legal_actions_fn` kwarg (default = unrestricted `legal_actions`) threaded through every legality consultation.
 
             heuristic.py            # All heuristic agent code. HeuristicConfig + evaluate_simple/evaluate_hubris_v1/_v2 + SimpleHeuristic / HubrisHeuristicV1 / V2 (V1-era). CONFIG_V1_T2 (round-2-tuned V1 constant). HeuristicConfigV3 + evaluate_hubris_v3 + HubrisHeuristicV3 (current main heuristic). Opt-in V3 config fields default 0: `wood_flat_bonus`, `temperature`, `r1_force_forest_bonus`. `compose_evaluators(*evaluators)` sums callables additively. Standalone `r1_force_forest_bonus(state, p, cfg)` helper available alongside the config field. Differential wrappers: `make_differential_evaluator(base)`, `evaluate_hubris_v3_differential`, `evaluate_hubris_v1_differential`, `HubrisHeuristicV3Differential`, `HubrisHeuristicV1Differential`. All V1 helpers (family-future, empty-room, location bonuses, SP, renovation, major-override, food/begging) are shared duck-typed across V1/V3 configs. Subclasses forward the `legal_actions_fn` kwarg to the base. See V3_DESIGN.md and HUBRIS_V1_NOTES.md.
 
             restricted.py           # Action-pruning wrappers over `legal_actions(state)`. Exports `restricted_legal_actions(state)` (regular: ordering / cell-priority / room-cap / first-pasture / min-begging / drop-`use=False`-craft), `strict_restricted_legal_actions(state)` (strict MCTS variant adding Cultivation sow-max, Grain-Util veggie auto-max, 9 fencing patterns, harvest-feed cap of top-5-V3 + 2 random), and `make_strict_restricted_legal_actions(*, config, rng)` factory for injected RNG/config. Priority constants (STABLE_PRIORITY, ROOM_PRIORITY, PLOW_PRIORITY, FIRST_PASTURE_REQUIRED_CELLS, MAX_TOTAL_ROOMS). Every filter routes through `_safe_narrow` so neither wrapper empties a non-empty input. See CHANGES.md Change 11 (regular wrapper) and MCTS_DESIGN.md §7 (strict additions).
 
-            mcts.py                 # MCTS agent. `MCTSNode` (identity equality, lazy `_legal_actions` cache, `macro_sequences` on fencing-trigger parents), `MCTSSearch` (transposition table + per-search RNG + cached HubrisHeuristicV3 for greedy macros), `MCTSAgent` (vanilla UCT with FPU, path-only backprop, softmax action selection at T=0.2). Macro-fencing for both trigger points (PlaceWorker("fencing") + ChooseSubAction("build_fences") at PendingFarmRedev), with explicit entry/exit phases handling the outer PendingFencing wrapper. Tree reuse via `re_root(new_root)` (prunes transpositions to live subtree). `MacroFencingAction` is the MCTS-internal action type; the engine never sees it. See MCTS_DESIGN.md §4-5.
+            mcts.py                 # MCTS agent. `MCTSNode` (identity equality, lazy `_legal_actions` cache, `macro_sequences` on fencing-trigger parents, `is_chance` + `chance_counts` for round-card reveal nodes), `MCTSSearch` (transposition table + per-search RNG + cached HubrisHeuristicV3 for greedy macros), `MCTSAgent` (vanilla UCT with FPU, path-only backprop, softmax action selection at T=0.2). Hidden reveals are explicit chance nodes: `_chance_route` round-robins over the ≤3 candidate RevealCards (reconstructed from public state — no Environment), they are never leaf-evaluated, and carry a P0 frame label (decider=0) so backprop/UCB are unchanged. Macro-fencing for both trigger points (PlaceWorker("fencing") + ChooseSubAction("build_fences") at PendingFarmRedev), with explicit entry/exit phases handling the outer PendingFencing wrapper. Tree reuse via `re_root(new_root)` (prunes transpositions to live subtree). `MacroFencingAction` is the MCTS-internal action type; the engine never sees it. See MCTS_DESIGN.md §4-5.
 
             nn/                     # NN value-function infrastructure (subpackage). Schema, recording, and encoder are torch-free so data-generation scripts don't pay the import cost; dataset / model / training / agent import torch and must be imported explicitly (not re-exported from `__init__.py`). See FIRST_NN.md §11.1 for the file-by-file rationale.
 
@@ -725,6 +770,7 @@ AgricolaBot/
         test_legality_non_atomic.py
         test_resolution_atomic.py
         test_engine.py
+        test_reveal.py
         test_grain_utilization.py
         test_potter_ceramics.py
         test_bake_bread.py

@@ -46,7 +46,7 @@ from agricola.agents.mcts import (
 from agricola.constants import Phase
 from agricola.engine import step
 from agricola.pending import PendingBuildFences, PendingFencing
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 from tests.factories import (
     with_current_player,
@@ -334,8 +334,8 @@ def test_mcts_vs_random_completes_full_game():
     search = _small_search(rng_seed=0, n_random_fencing=1)
     mcts = MCTSAgent(search, sims_per_move=5, rng_seed=0)
     random_agent = RandomAgent(seed=1, legal_actions_fn=restricted_legal_actions)
-    initial = setup(seed=0)
-    final, trace = play_game(initial, (mcts, random_agent))
+    initial, env = setup_env(seed=0)
+    final, trace = play_game(initial, (mcts, random_agent), env.resolve)
     assert final.phase == Phase.BEFORE_SCORING
     assert len(trace) > 50  # games are at least this long
 
@@ -352,8 +352,8 @@ def test_mcts_vs_heuristic_v3_completes_full_game():
         config=search.evaluator_config, rng=np.random.default_rng(99),
     )
     heur = HubrisHeuristicV3(seed=1, legal_actions_fn=strict_fn)
-    initial = setup(seed=1)
-    final, trace = play_game(initial, (mcts, heur))
+    initial, env = setup_env(seed=1)
+    final, trace = play_game(initial, (mcts, heur), env.resolve)
     assert final.phase == Phase.BEFORE_SCORING
     assert len(trace) > 50
 
@@ -362,8 +362,8 @@ def test_shared_tree_self_play_completes():
     """Self-play with a single shared MCTSAgent on both seats finishes."""
     search = _small_search(rng_seed=0, n_random_fencing=1)
     agent = MCTSAgent(search, sims_per_move=5, rng_seed=0)
-    initial = setup(seed=2)
-    final, _ = play_game(initial, (agent, agent))
+    initial, env = setup_env(seed=2)
+    final, _ = play_game(initial, (agent, agent), env.resolve)
     assert final.phase == Phase.BEFORE_SCORING
 
 
@@ -380,7 +380,7 @@ def _state_at_fencing_placeworker():
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = with_resources(state, 0, wood=10)
-    state = with_space(state, "fencing", round_revealed=1)
+    state = with_space(state, "fencing", revealed=True)
     return state
 
 

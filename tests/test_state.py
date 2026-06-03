@@ -10,7 +10,7 @@ from agricola.constants import (
     STAGE_ROUNDS,
 )
 from agricola.resources import Resources
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 from agricola.state import Farmyard, Cell
 
 
@@ -92,16 +92,16 @@ def test_setup_major_improvements_available():
 
 
 def test_setup_round_card_count():
-    state = setup(seed=0)
+    _state, env = setup_env(seed=0)
     all_stage_cards = [card for cards in STAGE_CARDS.values() for card in cards]
-    order = state.board.round_card_order
+    order = env.round_card_order
     assert len(order) == 14
     assert sorted(order) == sorted(all_stage_cards)
 
 
 def test_setup_stage_ordering():
-    state = setup(seed=0)
-    order = state.board.round_card_order  # index i -> round i+1
+    _state, env = setup_env(seed=0)
+    order = env.round_card_order  # index i -> round i+1
     for stage, (first_round, last_round) in STAGE_ROUNDS.items():
         stage_card_ids = set(STAGE_CARDS[stage])
         for i, card_id in enumerate(order):
@@ -120,13 +120,13 @@ def test_setup_deterministic():
 
 
 def test_setup_different_seeds():
-    state_a = setup(seed=0)
-    state_b = setup(seed=1)
+    state_a, env_a = setup_env(seed=0)
+    state_b, env_b = setup_env(seed=1)
     # Different seeds must produce a different starting player or different card order
     # (in practice both will differ, but either suffices)
     assert (
         state_a.starting_player != state_b.starting_player
-        or state_a.board.round_card_order != state_b.board.round_card_order
+        or env_a.round_card_order != env_b.round_card_order
     )
 
 

@@ -39,7 +39,7 @@ from agricola.agents import (
 )
 from agricola.agents.base import Agent
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 
 AgentFactory = Callable[[int], Agent]  # game_seed -> Agent
@@ -109,9 +109,9 @@ def play_match(
     t_start = time.perf_counter()
 
     for seed in seeds:
-        initial = setup(seed=seed)
+        initial, env = setup_env(seed=seed)
         agents = (p0_factory(seed), p1_factory(seed))
-        state, _trace = play_game(initial, agents)
+        state, _trace = play_game(initial, agents, env.resolve)
         s0, _ = score(state, 0)
         s1, _ = score(state, 1)
         tb0 = tiebreaker(state, 0)

@@ -50,7 +50,7 @@ def _set_space(state, space_id: str, **kwargs):
 
 
 def _reveal_space(state, space_id: str):
-    return _set_space(state, space_id, round_revealed=state.round_number)
+    return _set_space(state, space_id, revealed=True)
 
 
 def _set_player(state, player_idx: int, **kwargs):
@@ -554,21 +554,21 @@ def test_grain_utilization_legal_can_bake_bread(state, active):
 
 def test_sheep_market_legal(state):
     state = _set_space(state, "sheep_market",
-                       round_revealed=state.round_number,
+                       revealed=True,
                        accumulated_amount=1)
     assert PlaceWorker(space="sheep_market") in legal_placements(state)
 
 
 def test_pig_market_legal(state):
     state = _set_space(state, "pig_market",
-                       round_revealed=state.round_number,
+                       revealed=True,
                        accumulated_amount=1)
     assert PlaceWorker(space="pig_market") in legal_placements(state)
 
 
 def test_cattle_market_legal(state):
     state = _set_space(state, "cattle_market",
-                       round_revealed=state.round_number,
+                       revealed=True,
                        accumulated_amount=1)
     assert PlaceWorker(space="cattle_market") in legal_placements(state)
 
@@ -658,21 +658,21 @@ def test_grain_utilization_illegal_neither_option(state, active):
 
 def test_sheep_market_illegal_zero_accumulation(state):
     state = _set_space(state, "sheep_market",
-                       round_revealed=state.round_number,
+                       revealed=True,
                        accumulated_amount=0)
     assert PlaceWorker(space="sheep_market") not in legal_placements(state)
 
 
 def test_pig_market_illegal_zero_accumulation(state):
     state = _set_space(state, "pig_market",
-                       round_revealed=state.round_number,
+                       revealed=True,
                        accumulated_amount=0)
     assert PlaceWorker(space="pig_market") not in legal_placements(state)
 
 
 def test_cattle_market_illegal_zero_accumulation(state):
     state = _set_space(state, "cattle_market",
-                       round_revealed=state.round_number,
+                       revealed=True,
                        accumulated_amount=0)
     assert PlaceWorker(space="cattle_market") not in legal_placements(state)
 

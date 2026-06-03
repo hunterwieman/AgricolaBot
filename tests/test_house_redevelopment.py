@@ -39,7 +39,7 @@ def _hr_setup(*, material=HouseMaterial.WOOD, resources=None):
     state = with_house(state, 0, material)
     if resources:
         state = with_resources(state, 0, **resources)
-    state = with_space(state, "house_redevelopment", round_revealed=1)
+    state = with_space(state, "house_redevelopment", revealed=True)
     return state
 
 

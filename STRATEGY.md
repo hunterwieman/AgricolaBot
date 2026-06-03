@@ -184,3 +184,13 @@ the breeding phase, it chooses a final (sheep, boar, cattle) configuration from
 the Pareto frontier: non-dominated achievable total animal counts given farm
 capacity and inventory bounds. Food generated is computed deterministically from
 the frontier point and the player's cooking improvement rates.
+
+---
+
+## Hidden-information handling (round-card reveal)
+
+The per-game stage-card reveal order is hidden information, modelled as an explicit nature/chance event rather than baked into the public state (full design: `HIDDEN_INFO_DESIGN.md`).
+
+- **Explicit chance nodes, not ISMCTS / determinization.** In the Family game the hidden order is *symmetric* (neither player knows it), *exogenous* (nature's shuffle), and *uniform*, so an information set is observer-independent and ISMCTS collapses onto ordinary MCTS with chance nodes — the simplest exact tool. The in-search fan-out is ≤3 and uniform, so chance nodes are cheap and bias-free (no strategy fusion).
+- **Public / hidden / observation split (forward-compat for cards).** `GameState` holds only common knowledge; the hidden reveal order lives in an `Environment`; a player's view is `observe(state, env, i)` (identity today). When cards add asymmetric private hands, the private state joins the `Environment` and `observe` becomes a real per-player projection — at which point the chance-node infrastructure generalizes to determinization / ISMCTS keyed on the information set. Today's chance nodes are the symmetric special case and the deck-reveal mechanism that survives into that future.
+- **Evaluator honesty.** Both the greedy lookahead and MCTS average over reveal outcomes at a nature node (never evaluating the between-turns state, never conditioning on the hidden future), so neither search nor leaf evaluation can peek at the order.

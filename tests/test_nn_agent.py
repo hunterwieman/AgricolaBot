@@ -35,7 +35,7 @@ from agricola.agents.nn.model import ConfigurableMLP, NormalizedValueModel
 from agricola.agents.nn.training import train
 from agricola.constants import Phase
 from agricola.legality import legal_actions
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 
 # ---------------------------------------------------------------------------
@@ -44,11 +44,12 @@ from agricola.setup import setup
 
 
 def _record_one_game(seed: int):
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     return play_recording_game(
         initial,
         RandomAgent(seed=seed),
         RandomAgent(seed=seed + 1),
+        dealer=env.resolve,
         game_idx=seed, seed=seed,
         p0_config_path="random", p1_config_path="random",
         p0_temperature=0.0, p1_temperature=0.0,
@@ -186,10 +187,10 @@ def test_nnagent_returns_legal_action(fresh_untrained_model):
 def test_nnagent_plays_full_game_vs_random(fresh_untrained_model, differential):
     """Drop-in compatibility: NNAgent works with `play_game` against
     a RandomAgent. Plays to BEFORE_SCORING without raising."""
-    initial = setup(seed=0)
+    initial, env = setup_env(seed=0)
     nn_agent = NNAgent(fresh_untrained_model, differential=differential, seed=1)
     random_agent = RandomAgent(seed=2)
-    terminal_state, _ = play_game(initial, (nn_agent, random_agent))
+    terminal_state, _ = play_game(initial, (nn_agent, random_agent), env.resolve)
     assert terminal_state.phase == Phase.BEFORE_SCORING
 
 
@@ -211,10 +212,10 @@ def test_nnagent_deterministic_given_seed(fresh_untrained_model):
 def test_nnagent_with_trained_model_runs_full_game(trained_model):
     """Real end-to-end check: a model that actually completed training
     can be wrapped in NNAgent and play a game."""
-    initial = setup(seed=11)
+    initial, env = setup_env(seed=11)
     nn_agent = NNAgent(trained_model, seed=0)
     opp = RandomAgent(seed=1)
-    terminal, _ = play_game(initial, (nn_agent, opp))
+    terminal, _ = play_game(initial, (nn_agent, opp), env.resolve)
     assert terminal.phase == Phase.BEFORE_SCORING
 
 

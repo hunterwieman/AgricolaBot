@@ -2841,3 +2841,31 @@ All 661 tests pass. The codebase has:
 - Performance harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) — re-runnable from the repo root; no dependencies under `agricola/` or `tests/`. Used to produce the PROFILING.md snapshot and to validate that subsequent changes don't regress.
 
 **Next task**: the engine is feature-complete for the Family game, and the agent stack is well underway — heuristics (V1/V3 + the CMA-ES tuning pipeline and 8-config data-gen ensemble), MCTS scaffolding, and a supervised value NN (`NNAgent`, the current strongest agent) are all built. The natural next steps are the NN **policy head** + the AlphaZero-style **self-play loop** (the project's end-goal), and — separately, and larger — the **full card system** (Phase 3 in CLAUDE.md; the deferred design questions live in `ENGINE_IMPLEMENTATION.md` §6), which then repeats the agent-building process for the richer game. Remaining performance candidates are catalogued in **POSSIBLE_SPEEDUPS.md**.
+
+---
+
+## Hidden-Information Refactor — round-card reveal as a nature step (later session)
+
+### What was built
+
+The per-game stage-card reveal order was hidden information that nonetheless sat in every `GameState`, letting any cross-boundary lookahead (MCTS, end-of-round greedy) plan against the true future — a cheat. This refactor removes the order from the public state and models each reveal as an explicit chance event. Full design + impact map in **`HIDDEN_INFO_DESIGN.md`**; the cross-cutting delta is **CHANGES.md Change 12**.
+
+- **State split:** `ActionSpaceState.revealed: bool` (memoryless) replaces `round_revealed: int`; `BoardState.round_card_order` removed and the shuffled order moved into a new `Environment` (`agricola/environment.py`) — hidden ground truth + nature policy. `GameState` holds only common knowledge.
+- **Reveal as an action:** `RevealCard` action + `PendingReveal` nature frame (`player_idx = None`); `decider_of -> int | None`. The PREPARATION phase walk became two-state (push the reveal vs. complete prep) with `_apply_reveal_card` + `_complete_preparation`.
+- **Setup:** `setup_env(seed) -> (GameState, Environment)` pre-deals round 1 and returns a round-1 WORK state; `setup = setup_env()[0]`.
+- **Evaluators / drivers:** `play_game` gained a `dealer`; `EvaluatorAgent._eval` averages over reveal outcomes at a nature node (heuristic + NN); `_basic_wish_revealed_round` de-cheated to the expected reveal round; the NN encoder migrated to `revealed` with byte-identical output; `play_recording_game` gained a `dealer`.
+- **MCTS chance nodes:** `MCTSNode.is_chance`/`chance_counts`; chance nodes routed by deterministic round-robin and never leaf-evaluated (`decider = 0` frame label keeps backprop/UCB unchanged).
+
+### Key design decisions
+
+- **Explicit chance nodes** (not ISMCTS/determinization): the hidden order is symmetric + exogenous + uniform, so an information set is observer-independent and chance nodes are exact and cheap. The asymmetric private-hand future (cards) is anticipated by the `observe(state, env, i)` seam (identity today).
+- **`revealed: bool`, not `revealed_at: int`:** the round of reveal is non-Markov history; the only forward-relevant consequence (accumulated goods) already lives in the `accumulated` fields, so the bool lets same-revealed-set states recombine in the DAG.
+- **Round 1 as a (pre-dealt) nature step:** uniform with rounds 2–14, which also subsumed the bug below.
+
+### Bug caught and fixed
+
+A round-1-revealed accumulation space (only `sheep_market`, ~25% of games) previously started with **0 goods** at round 1 — `setup` pre-loaded permanents but left stage cards empty, and round 1 never ran `_resolve_preparation`. Routing round 1 through the uniform reveal → `_complete_preparation` path now loads its round-1 accumulation correctly (asserted in `tests/test_reveal.py`).
+
+### Outcome
+
+Full suite green: **949 tests** (935 migrated + 14 new in `tests/test_reveal.py`). Aggregate sanity: HubrisHeuristicV3 beat RandomAgent 12/12; MCTS-vs-HubrisHeuristicV3 over 6 games averaged −5.83 (the documented MCTS-with-heuristic-leaf ballpark). Still pending: the V3 re-validation vs the 8-config ensemble.

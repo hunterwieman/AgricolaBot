@@ -68,10 +68,18 @@ ChooseSubAction  -> _apply_choose_sub_action
 CommitSubAction  -> _apply_commit_subaction      (all Commit* subclasses)
 FireTrigger      -> _apply_fire_trigger
 Stop             -> _apply_stop
+RevealCard       -> _apply_reveal_card
 ```
 
 `CommitSubAction` is a marker base; every concrete `Commit*` routes through the one generic
 commit handler, so adding a commit type never touches `_apply_action`.
+
+`RevealCard` is a top-level transition (like `PlaceWorker`, not a `CommitSubAction`) — nature's
+action turning up the round's stage card. It is dispatched directly in `_apply_action` to
+`_apply_reveal_card`, which does exactly one thing: set the named card's `revealed=True` and pop
+the `PendingReveal` frame. It leaves `phase = PREPARATION` untouched (the round increment and
+accumulation refill happen later, in the phase walk — see below), so the `step` alternation guard
+(WORK-only) never sees a reveal step.
 
 Those handlers map onto four dispatch tables, one per turn stage:
 
@@ -96,9 +104,12 @@ Every placement action is `PlaceWorker(space=<space_id>)` — the bare id. (The 
 `"space:<id>"` form is the pushed pending's `initiated_by_id`, not the action's `space` field;
 see §2.)
 
-25 spaces live in `SPACE_IDS` (11 permanent + 14 stage cards, canonical fixed order; the per-game
-stage-card shuffle is recorded separately as `round_card_order` so equal-content states hash
-equal). 12 are atomic, 12 are non-atomic, and `lessons` is registered in neither table.
+25 spaces live in `SPACE_IDS` (11 permanent + 14 stage cards, canonical fixed order). Each
+`ActionSpaceState` carries a `revealed: bool` — permanents are `revealed=True` from setup, stage
+cards start `revealed=False` and flip to `True` when their `RevealCard` fires. The hidden per-game
+reveal order does **not** live in `GameState` at all (it sits in the `Environment` — §6), so
+`GameState` holds only common knowledge and two info-equivalent states hash equal. 12 spaces are
+atomic, 12 are non-atomic, and `lessons` is registered in neither table.
 
 **Atomic** (`ATOMIC_HANDLERS` → `_resolve_<space>`; apply effect, done — effects are in RULES.md):
 
@@ -162,7 +173,19 @@ decision is pending, otherwise drives system transitions. **State-driven and ide
 re-running it on a returned state is a no-op. The cases, in order:
 
 1. **Pending stack non-empty** → return (agent decision awaiting).
-2. **PREPARATION** → `_resolve_preparation`; continue.
+2. **PREPARATION** → the round-card reveal lives here, as a two-state case discriminated by
+   `_count_revealed_stage_cards(state) == round_number`. While the reveal is pending,
+   `round_number` still names the round just *completed* (the increment is deferred to
+   `_complete_preparation`), so the count of revealed stage cards equals `round_number`:
+   - **Next round's card not up yet** (`count == round_number`): push a `PendingReveal()`
+     (`player_idx=None`) — case 1 then returns on the non-empty stack, pausing at the nature
+     decision so the dealer / chance node turns up the next round's card.
+   - **Card up** (`count > round_number`, the reveal has fired): run `_complete_preparation` —
+     increment `round_number`, refill every accumulation space where `sp.revealed` (the
+     just-revealed card included), distribute the new round's `future_resources`, clear newborns,
+     and transition to WORK with `current_player = starting_player`.
+
+   Continue.
 3. **WORK** → if all players have `people_home == 0`, set phase `RETURN_HOME` and continue;
    else return (a placement decision is awaiting).
 4. **RETURN_HOME** → `_resolve_return_home` (end-of-round bookkeeping; routes to HARVEST_FIELD
@@ -193,7 +216,10 @@ phase == WORK            -> legal_placements(state)
 ```
 
 `_enumerate_pending` dispatches on the **type** of the top frame via the `PENDING_ENUMERATORS`
-table (24 entries; the three animal markets share `_enumerate_pending_animal_market`). Each
+table (25 entries; the three animal markets share `_enumerate_pending_animal_market`). A
+`PendingReveal` on top routes to `_enumerate_pending_reveal`, which returns one `RevealCard` per
+still-unrevealed card of `stage_of_round(round_number + 1)` (the candidate set derived purely from
+public state — a single trivial outcome on k=1 rounds). Each
 enumerator follows the signature convention `(state, pending: PendingX) -> list[Action]` — the
 dispatcher passes `pending` explicitly, so enumerators read `pending.X` directly and are
 testable without building a stack. Per-enumerator legality/ordering is documented at each
@@ -242,7 +268,7 @@ cross-cutting namespaces (spaces, cards) cannot collide:
 |---|---|---|
 | `PlaceWorker` (top-level) | `"space:<id>"` | `"space:grain_utilization"` |
 | `ChooseSubAction` at a parent | parent's `PENDING_ID` (no prefix) | `PendingSow.initiated_by_id = "grain_utilization"` |
-| A phase resolver (harvest) | `"phase:<id>"` | `"phase:harvest_feed"` |
+| A phase resolver (harvest, reveal) | `"phase:<id>"` | `"phase:harvest_feed"`, `"phase:reveal"` |
 | A card trigger's effect | `"card:<id>"` | `"card:swing_plow"` |
 
 The `space:` / `phase:` / `card:` prefixes make the namespaces disjoint by construction.
@@ -257,7 +283,8 @@ The `space:` / `phase:` / `card:` prefixes make the namespaces disjoint by const
 3. **There is no `SkipTrigger`.** Declining is implicit — picking a commit (or another trigger)
    skips. Removing it eliminates a thorny one-ply-lookahead helper and adds no expressive power.
 4. **Every pending carries `player_idx`.** Always set, never derived — enables out-of-turn
-   trigger frames without retrofitting.
+   trigger frames without retrofitting. The one frame with no owning player is `PendingReveal`,
+   whose `player_idx` is `None` — the nature sentinel (see the decider rule below and §6).
 5. **Non-atomic spaces push a parent pending**, even single-sub-action ones. The parent (a)
    tracks `*_chosen` flags (used by Stop-legality) and (b) hosts the space's trigger events.
 6. **`PlaceWorker` and each `ChooseSubAction` push exactly one frame** — so triggers fire
@@ -294,10 +321,18 @@ parent, with no stack-walking.
 
 ### The decider rule (restated)
 
-Empty stack → `state.current_player`. Non-empty stack → `pending_stack[-1].player_idx`.
-`current_player` = "whose worker placement is being resolved"; `player_idx` = "whose decision
-this frame is for." They diverge today during the harvest (one FEED and one BREED frame per
-player) and will diverge for future out-of-turn card triggers.
+Empty stack → `state.current_player`. Non-empty stack → `pending_stack[-1].player_idx`
+(`decider_of`, `agents/base.py`, returns `int | None`). `current_player` = "whose worker
+placement is being resolved"; `player_idx` = "whose decision this frame is for." They diverge
+today during the harvest (one FEED and one BREED frame per player) and will diverge for future
+out-of-turn card triggers.
+
+A `PendingReveal` on top makes `player_idx` — and thus `decider_of` — `None`: **nature** decides,
+not a strategic agent. The driver routes such a decision to the dealer (the `Environment` — §6),
+never to `agents[...]`; `None` is not a valid list index, so a forgotten guard fails loudly rather
+than silently routing to player 1. The `PendingReveal` frame itself is a nature/phase frame:
+`PENDING_ID = "reveal"`, `initiated_by_id = "phase:reveal"`, `player_idx = None`. It is pushed by
+the PREPARATION phase walk (§1, case 2), hosts exactly one `RevealCard`, and pops.
 
 ### Built with cards in mind
 
@@ -596,6 +631,16 @@ Every player gets a frame in each sub-phase even with no decision to make (no co
 breeding animals): it matches "no auto-resolved singleton decisions," provides stable trigger-host
 frames for future cards, and is symmetric with the parent-pending pattern atomic spaces will adopt.
 
+**The round-card reveal sits at the start of each round.** After HARVEST_BREED drains (round < 14),
+the walk transitions to PREPARATION, where the reveal nature step is the first thing that happens
+(§1, case 2): a `PendingReveal` is pushed, the dealer / chance node turns up the next round's stage
+card, then `_complete_preparation` increments the round and refills accumulation. So on harvest
+rounds the full span is RETURN_HOME → HARVEST_FIELD → FEED → BREED → PREPARATION (reveal) → WORK;
+on non-harvest rounds it is RETURN_HOME → PREPARATION (reveal) → WORK. A reveal happens entering
+**every** round 1–14 — round 1's is dealt inside `setup_env` (the round-1 nature node is resolved
+at game construction, so it never reaches search; §6), rounds 2–14's by the game driver. After
+round 14's harvest, case 7 goes straight to BEFORE_SCORING — there is no round-15 reveal.
+
 Implementation: `engine.py` (`_resolve_harvest_field`, `_initiate_harvest_feed`,
 `_initiate_harvest_breed`, the three branches in `_advance_until_decision`); `resolution.py`
 (`_execute_harvest_conversion`, `_execute_convert`, `_execute_breed`); `legality.py`
@@ -726,3 +771,39 @@ scaffolding.
 - **Trigger events on harvest pendings.** `PendingHarvestFeed`/`Breed` omit
   `triggers_resolved`/`TRIGGER_EVENT` today (added per-pending when the first card needs them).
   Natural future events: `before_/after_harvest_feed`, `before_/after_harvest_breed`.
+
+### The `Environment` and the nature-policy seam
+
+The hidden per-game ground truth lives outside `GameState`, in a frozen `Environment`
+(`agricola/environment.py`). Today it holds exactly the round-card reveal order
+(`round_card_order`, length 14, `order[i]` is round `i+1`'s card), built once at `setup` (so
+"all randomness resolved in setup" still holds — the order is just carried in the env rather than
+baked into the public state). `setup_env(seed) -> (GameState, Environment)` is the full
+constructor; `setup(seed)` is `setup_env(seed)[0]` and returns a round-1 WORK state (the round-1
+reveal is pre-resolved inside `setup_env`). `GameState` itself carries only **common knowledge**.
+
+The driver-facing seam is **`env.resolve(state) -> Action`**: the **nature policy**. Whenever
+`decider_of(state) is None` (a `PendingReveal` is on top — nature decides), the game driver calls
+`env.resolve(state)` to obtain the true action instead of consulting an agent. Today `resolve`
+delegates to `reveal_action`, which returns `RevealCard(order[round_number])` (the next round's
+card). New nature events (a card draft, a deck draw) will add branches to `resolve` and their own
+`Pending*` frames; nothing structural in the engine changes — the seam is already the single point
+where nature's choices enter.
+
+This is the symmetric special case of a general world-state / information-state split. Two layers
+are built now as forward-compat for the eventual card phase:
+
+- **`GameState` holds only common knowledge; anything hidden from anyone lives in `Environment`.**
+  Today that is the reveal order; later it is each player's private hand and the draw deck. This
+  invariant is exactly why the order is externalized.
+- **`observe(state, env, i)`** is the projection of the full state down to what player *i* knows —
+  the identity (`== state`) today, since the only hidden info is symmetric and revealed to both.
+  New MCTS / NN-encoder code is written against `observe` rather than against `state` directly, so
+  when asymmetric private hands arrive only `observe` changes (splicing player *i*'s own slice back
+  in, masking the rest), not every consumer.
+
+A future **pre-round-1 card draft** would be another pre-round-1 nature/decision phase, resolved
+the same way the round-1 reveal is — `setup_env` would simply stop being able to pre-resolve it and
+would hand back the draft node, moving the game's start point earlier. (Full design,
+forward-compat framing, and the asymmetric-info / determinization direction: `HIDDEN_INFO_DESIGN.md`
+§3.4, §3.6, §4.)

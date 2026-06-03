@@ -26,17 +26,18 @@ from agricola.actions import Action, PlaceWorker
 from agricola.agents.base import RandomAgent
 from agricola.agents.nn import DecisionSnapshot, GameRecord, play_recording_game
 from agricola.legality import legal_actions
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 from validate_dataset import check_record, validate_run  # noqa: E402
 
 
 def _record_one_random_game(seed: int = 42) -> GameRecord:
     """Produce a single clean GameRecord via the recording driver."""
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     return play_recording_game(
         initial,
         RandomAgent(seed=seed),
         RandomAgent(seed=seed + 1),
+        dealer=env.resolve,
         game_idx=0,
         seed=seed,
         p0_config_path="random",

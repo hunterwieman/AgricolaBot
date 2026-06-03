@@ -89,7 +89,7 @@ def test_game_state_multi_field():
 def test_board_state():
     state = setup(seed=0)
     board = state.board
-    got = fast_replace(board, round_card_order=board.round_card_order)
+    got = fast_replace(board, major_improvement_owners=board.major_improvement_owners)
     assert got == board  # no actual change → equal
 
 

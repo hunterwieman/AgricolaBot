@@ -63,6 +63,9 @@ Both must work end-to-end via the existing `play_game(initial, agents)` driver i
 - **DAG-MCTS / Transposition table**: identify equivalent states (via `GameState.__hash__`) and reuse statistics across paths. Tree becomes a DAG.
 - **Macro-action**: a pre-computed action sequence representing one full sub-action chain. Used for Fencing only. (Note: CommitConvert at harvest uses a separate ranking-cap mechanism — §7.4 — not a macro.)
 - **Decider**: player whose decision is awaited at a state. Computed via `decider_of(state)` from `agricola/agents/base.py` — either `state.current_player` (empty pending stack) or `state.pending_stack[-1].player_idx`.
+- **Nature decider (`decider_of` returns `None`)**: at a round-card reveal state the pending stack's top is a `PendingReveal` whose `player_idx` is `None`, so `decider_of(state)` returns `None` — no player decides; nature does. This is the signal that a node is a chance node.
+- **Chance node**: the MCTSNode for a reveal state (`decider_of(state) is None` — nature decides which round card is revealed). A chance node is *routed through* by deterministic round-robin over its reveal outcomes — never UCB-selected and never leaf-evaluated. Its value *is* the expectation over its outcome children; the search reaches that expectation by averaging the values backed up through it across many sims.
+- **Determinization / ISMCTS**: hidden-information techniques that either sample a concrete world (determinization) or maintain observer-specific information sets (ISMCTS). **Not used here.** Agricola's hidden round-card order is symmetric (neither player knows it), exogenous (nature's shuffle, not a function of any private choice), revealed identically to both players, and uniform over outcomes. Under those conditions an information set is observer-independent and ISMCTS collapses onto ordinary MCTS with explicit chance nodes — so plain chance nodes are exactly correct and the cheapest tool (see §3.15 and HIDDEN_INFO_DESIGN.md §2).
 
 ---
 
@@ -239,6 +242,20 @@ Per-sim cost is roughly bounded by leaf evaluation (~50-100us) plus expansion ov
 
 **Rationale:** simpler. Parallel MCTS (virtual loss, root parallelism, leaf parallelism) is a significant code complication. Defer until profiling shows MCTS is the bottleneck.
 
+### 3.15 Chance nodes for hidden round-card reveals
+
+**Decision:** the hidden round-card order is modeled with **explicit chance nodes**. A reveal state — where the engine's top pending frame is a `PendingReveal` with `player_idx = None`, so `decider_of(state)` is `None` — becomes a chance node (`MCTSNode.is_chance == True`). The chance node's reveal outcomes are routed by **deterministic round-robin** over the ≤3 in-search candidates; the chance node is **never UCB-selected** and **never leaf-evaluated** (the leaf is always a decision or terminal node descended to *past* the reveal).
+
+**Why chance nodes, not ISMCTS / determinization.** The hidden order is symmetric (neither player knows it), exogenous (nature's shuffle, not a function of any private choice), revealed identically to both players, and uniform over outcomes. Under those conditions the information set is observer-independent and ISMCTS collapses onto ordinary MCTS with chance nodes — so plain chance nodes are exactly correct and the cheapest tool. The in-search fan-out is tiny (≤3; round 1's k=4 reveal is dealer-resolved at game start and never reaches search) and the reveal distribution is exactly uniform, so chance nodes are cheap *and* bias-free (no strategy fusion). See HIDDEN_INFO_DESIGN.md §2.
+
+**Round-robin, never UCB.** Routing picks the least-routed outcome (RNG tiebreak), keeping the visit mix over outcomes exactly uniform — so the chance node's plain `value_sum / visits` converges to the uniform reveal expectation `Σ (1/k) V(child)` with no weighted estimator. UCB is never run at a chance node: nature is not an adversary to exploit, and round-robin guarantees coverage of all ≤3 outcomes plus variance reduction at low visit counts.
+
+**Never the leaf.** A chance node's value *is* the expectation over its outcome children, so evaluating it directly would be meaningless; we always descend to a post-reveal decision child and evaluate there (which also keeps an NN leaf evaluator in-distribution). Both ways a chance node is reached — SELECT descending into an existing one, or EXPAND creating one from a round-ending action — route *through* it rather than evaluating it (see §5.6).
+
+**Frame convention: `decider = 0`, meaning carried by `is_chance`.** A chance node's `decider` field is set to `0` — a P0 value-frame label, **not** a real player. `evaluate_leaf` already returns P0-frame values, so a chance node accumulates `+leaf_p0` and its decision-node parent reads it with the standard `child.decider != parent.decider` sign-flip (which flips iff the parent is P1, correct for a P0-frame value). This keeps the backprop loop and the UCB read **unchanged** — the only thing that distinguishes a chance node is the `is_chance` flag, which gates routing, not `decider`.
+
+**No hidden state read.** The reveal candidates are reconstructed from public state (the unrevealed action spaces and the current stage), and the distribution is uniform — so MCTS reads no hidden `Environment` ground truth. The chance node fans out over *which card could be revealed*, exactly the common-knowledge information set.
+
 ---
 
 ## 4. Data structures
@@ -262,6 +279,18 @@ class MCTSNode:
     
     visits: int = 0
     value_sum: float = 0.0  # cumulative reward from decider's perspective
+    
+    # Chance-node (round-card reveal) state. `is_chance` is True iff this node
+    # is a nature decision (decider_of(state) is None). For a chance node,
+    # `decider` is set to 0 as a P0 value-frame label (NOT a real player), so
+    # the backprop / UCB sign-flip math is unchanged; `is_chance` carries the
+    # "nature" meaning and gates routing. See §3.15 / §5.6.
+    is_chance: bool = False
+    # Per-outcome round-robin counter, keyed by RevealCard action. Bumped on
+    # each route through this chance node. Used INSTEAD of child.visits because
+    # a post-reveal child shared by another DAG path inflates child.visits,
+    # which would skew routing away from uniform. See §5.6.
+    chance_counts: dict[Action, int] = field(default_factory=dict)
     
     # Populated only if this node generated macros (via _compute_legal_actions
     # → expand_macros). Maps MacroFencingAction → full engine-action sequence
@@ -539,51 +568,70 @@ The path-building during SELECT is just a sequence of dict lookups, one per desc
 
 ```
 def simulate(search, root_node):
-    # ---------------- 1. SELECT ----------------
-    # Descend via UCT (with FPU) until reaching a node with at least one
-    # unvisited child OR a terminal node. Build `path` as we go — this
-    # local list is what backprop will iterate over.
+    # ---------------- 1. SELECT + EXPAND ----------------
+    # Descend until we reach the node to EVALUATE: a freshly-created decision
+    # leaf or a terminal node. Build `path` as we go — this local list is what
+    # backprop will iterate over. CHANCE nodes (round-card reveals) are
+    # transparent: routed through by round-robin, never expanded-as-leaf,
+    # never evaluated (§5.6).
     #
-    # COST: per descent step is ~sub-microsecond:
-    #   - has_all_children_visited(): set length check
-    #   - select_via_ucb(): UCB arithmetic over ~14 children
-    #   - node.children[action]: dict lookup (cheap)
-    #   - path.append(): list append
-    # Total descent cost for K nodes: ~K × few-microseconds.
-    # No engine step, no legal_actions, no hashing during descent.
+    # COST: per descent step is ~sub-microsecond (set check / UCB arithmetic
+    # over ~14 children / dict lookup / list append). Total descent cost for K
+    # nodes: ~K × few-microseconds. No engine step / legal_actions / hashing
+    # during descent of existing nodes.
     path = [root_node]
     node = root_node
-    while not node.is_terminal() and node.has_all_children_visited():
+    while True:
+        if node.is_terminal():
+            break
+        if node.is_chance:
+            # Route round-robin to one reveal outcome (created on first route).
+            # A freshly-created outcome is the new leaf; an existing one we
+            # keep descending into. The chance node is on the path (gets
+            # visits / value) but is never the eval target. See §5.6.
+            action = chance_route(node)              # round-robin pick + counter bump
+            child = node.children.get(action)
+            is_new = child is None
+            if is_new:
+                child = search.find_or_create_node(
+                    step(node.state, action), parent=node, action_from_parent=action,
+                )
+            path.append(child)
+            node = child
+            if is_new:
+                break          # fresh post-reveal decision node = leaf
+            continue           # existing outcome → keep descending
+        # ---- decision node ----
+        if not node.has_all_children_visited():
+            # EXPAND one unvisited action at this node.
+            action = pick_unvisited_action(node)         # random pick from set, sub-us
+            node._unvisited_actions.discard(action)      # set discard, sub-us
+            if isinstance(action, MacroFencingAction):
+                # Macro children are pre-created at parent's
+                # _compute_legal_actions time (eager generation, §5.4). Just
+                # look it up. COST: dict lookup, sub-us.
+                child = node.children[action]
+            else:
+                # Normal action: step (~10us) + transposition lookup (~26us).
+                child_state = step(node.state, action)          # ~10us
+                child = search.find_or_create_node(             # ~26us GameState hash
+                    child_state, parent=node, action_from_parent=action,
+                )
+            path.append(child)                            # sub-us
+            node = child
+            if node.is_chance:
+                continue       # expanded into a chance node → route through it
+            break              # decision / terminal leaf for evaluation
+        # Fully expanded → UCB descend one step and loop.
         action = select_via_ucb(node)      # arithmetic over N children, sub-us
         node = node.children[action]        # dict lookup, sub-us
         path.append(node)                   # list append, sub-us
     
-    # ---------------- 2. EXPAND (only if not terminal) ----------------
-    # Pick one unvisited action at the leaf, get/create the child node.
-    if not node.is_terminal():
-        action = pick_unvisited_action(node)         # random pick from set, sub-us
-        node._unvisited_actions.discard(action)      # set discard, sub-us
-        
-        if isinstance(action, MacroFencingAction):
-            # Macro children are pre-created at parent's _compute_legal_actions
-            # time (eager generation, see §5.4). Just look it up.
-            # COST: dict lookup, sub-us. No step, no transposition hash.
-            child = node.children[action]
-        else:
-            # Normal action: step (~10us) + transposition lookup (~26us).
-            child_state = step(node.state, action)          # ~10us
-            child = search.find_or_create_node(             # ~26us GameState hash
-                child_state, parent=node, action_from_parent=action,
-            )
-            # find_or_create_node calls add_edge internally, which sets
-            # node.children[action] = child (and dedups child.parents).
-        
-        path.append(child)                            # sub-us
-        node = child                                  # leaf for evaluation
-    
     # ---------------- 3. EVALUATE ----------------
-    # Heuristic evaluation of the leaf state. Returns the value in P0's
-    # perspective. See MCTSSearch.evaluate_leaf (§4.2) — terminal uses
+    # Heuristic evaluation of the leaf state. `node` is never a chance node
+    # here — the descent breaks only at a decision / terminal leaf. Returns
+    # the value in P0's perspective. See MCTSSearch.evaluate_leaf (§4.2) —
+    # terminal uses
     # raw score margin (score(P0) - score(P1)); mid-game uses heuristic
     # margin (evaluate_hubris_v3(state, 0) - evaluate_hubris_v3(state, 1)).
     #
@@ -806,10 +854,15 @@ class MCTSSearch:
             if parent is not None:
                 self.add_edge(parent, existing, action_from_parent)
             return existing
-        # New node
+        # New node. A reveal state has decider_of(state) is None (nature);
+        # flag it as a chance node and label its frame as P0 (decider=0) so
+        # the backprop / UCB sign-flip math is unchanged. See §3.15 / §5.6.
+        d = decider_of(state)
+        is_chance = d is None
         node = MCTSNode(
             state=state,
-            decider=decider_of(state),
+            decider=0 if is_chance else d,   # frame label when is_chance; real player otherwise
+            is_chance=is_chance,
             parents=[],
             children={},
             action_from_parent=action_from_parent,
@@ -863,6 +916,39 @@ def re_root(self, new_root):
 Uses `id(node)` for the reachability set (identity-based, sub-us per check) since MCTSNode has identity equality via `@dataclass(eq=False)`.
 
 Optional optimization for later: lazy pruning (only prune when table grows beyond a threshold).
+
+### 5.6 Chance-node routing
+
+A reveal state — where `decider_of(state) is None` because the top pending frame is a `PendingReveal` with `player_idx = None` — is a chance node (§3.15). Chance nodes are **transparent** to the descent: always routed through, never expanded-as-leaf, never evaluated. The `_simulate` loop (§5.1) handles them in its SELECT+EXPAND phase; this section gives the routing detail.
+
+**Where a chance node is entered.** Two places:
+
+1. **SELECT** descends into an already-existing chance node (top of the `while` loop).
+2. **EXPAND** of a decision node's round-ending action *creates* a chance node — handled by the `if node.is_chance: continue` immediately after expansion, so the next loop iteration routes through it rather than evaluating it.
+
+**`_chance_route(node)`** picks one reveal outcome by deterministic round-robin:
+
+```python
+def chance_route(node):
+    # node._legal_actions are the RevealCard outcomes (≤3 in search).
+    if node._legal_actions is None:
+        node._compute_legal_actions()
+    candidates = node._legal_actions
+    counts = node.chance_counts
+    min_count = min(counts.get(a, 0) for a in candidates)
+    least = [a for a in candidates if counts.get(a, 0) == min_count]
+    action = least[0] if len(least) == 1 else least[rng.integers(len(least))]
+    counts[action] = counts.get(action, 0) + 1   # bump THIS node's counter
+    return action
+```
+
+The first k routes create the k outcome children (each a leaf the first time it is created); later routes balance the visit mix and descend into existing outcomes.
+
+**Why `chance_counts`, not `child.visits`.** Round-robin reads a per-node counter `chance_counts[outcome]`, not `child.visits`. Under the transposition DAG a post-reveal child can have other parents, so `child.visits` is inflated by sims that never came through this chance node — using it would skew the routing away from uniform. The per-node counter records only this node's own routing, so the outcome mix stays exactly uniform regardless of sharing (≤3 ints per chance node). Because the mix is uniform, the chance node's plain `value_sum / visits` converges to the uniform reveal expectation `Σ (1/k) V(child)` — no weighted estimator needed.
+
+**Backprop and frame.** A chance node is on the path and receives `visits` / `value_sum` like any node; with `decider = 0` it accumulates P0-frame leaf values, and its parent reads it through the unchanged sign-flip (§5.3). No special-casing in the backprop loop.
+
+**Re-root across a real reveal.** After the real game reveals the true card (resolved by the dealer, not the agent), the agent's next call is at the post-reveal decision state. `find_or_create_node` returns that state's node (created during search if a sim routed through that outcome; fresh otherwise) and `re_root` (§5.5) prunes the transposition table to its live subtree — the chance node becomes an ancestor of the new root and is dropped along with the counterfactual outcome subtrees, by the existing reachability walk. **No new code.** Tree-reuse benefit across the boundary exists only if search reached past it; shared-tree self-play is unaffected (the chance node is just another shared node). `MCTSAgent.__call__` is only ever invoked at decision states — the driver routes reveals to the dealer — which a defensive `decider_of(state) is not None` assert documents.
 
 ---
 

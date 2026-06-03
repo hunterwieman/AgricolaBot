@@ -30,7 +30,7 @@ from agricola.agents.nn import (
 )
 from agricola.constants import Phase
 from agricola.legality import legal_actions
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 from tests.test_utils import filter_implemented
 
 
@@ -225,11 +225,12 @@ def test_compute_winner_true_tie_returns_none():
 def _play_one_random_game(seed: int = 42) -> GameRecord:
     """Convenience: full RandomAgent vs RandomAgent game with the
     recording driver. Used by multiple tests below."""
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     return play_recording_game(
         initial,
         RandomAgent(seed=seed),
         RandomAgent(seed=seed + 1),
+        dealer=env.resolve,
         game_idx=0,
         seed=seed,
         p0_config_path="random",

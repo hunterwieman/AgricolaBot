@@ -171,14 +171,26 @@ Per-card budgets that DO span multiple events (once-per-round, once-per-game, on
 
 ## 13. Sub-phase decomposition deferred for phase resolvers
 
-**Current choice (`engine.py` — `_resolve_return_home`, `_resolve_preparation`):**
+**Current choice (`engine.py` — `_resolve_return_home`, `_complete_preparation`):**
 Each phase resolver does its entire phase's mechanical work in a single function call. This works for Task 5 because nothing during these phases requires an agent decision.
 
 **What might need to change:**
-Once cards introduce triggers during RETURN_HOME / PREPARATION (e.g., occupations with "at the start of each round" effects), some triggers will require agent input. A resolver that's "in the middle of doing its work" can't simply terminate and re-enter cleanly — if `_resolve_preparation` ran its refill, then encountered a trigger needing agent input, and returned partway through, the next call would re-run the refill (accumulating goods twice).
+Once cards introduce triggers during RETURN_HOME / PREPARATION (e.g., occupations with "at the start of each round" effects), some triggers will require agent input. A resolver that's "in the middle of doing its work" can't simply terminate and re-enter cleanly — if `_complete_preparation` ran its refill, then encountered a trigger needing agent input, and returned partway through, the next call would re-run the refill (accumulating goods twice).
 
 The forward-compatible fix is to split each phase into **sub-phases**, each a separate `Phase` enum value (e.g., `Phase.RETURN_HOME_TRIGGER_PRE`, `Phase.RETURN_HOME_MECHANICAL`, `Phase.RETURN_HOME_TRIGGER_POST`, similar for `PREPARATION`). Each sub-phase does exactly one piece of work and transitions to the next. The engine never re-enters a completed sub-phase because sub-phase identity advances after each step.
 
 Don't add these now — they would clutter Task 5 without serving any purpose. Plan when cards arrive: split as needed, update `_advance_until_decision` to handle the new phases.
 
-**File:** `agricola/engine.py` — `_resolve_return_home`, `_resolve_preparation`; `agricola/constants.py` — `Phase`.
+**File:** `agricola/engine.py` — `_resolve_return_home`, `_complete_preparation`; `agricola/constants.py` — `Phase`.
+
+---
+
+## 14. Hidden-information handling tuned for the symmetric (Family) case
+
+The round-card reveal is modelled as an explicit nature/chance step (see `HIDDEN_INFO_DESIGN.md`). Several choices are correct for the 2-player Family game — where the only hidden information is the symmetric, exogenous, uniformly-shuffled reveal order — but may need revisiting once cards introduce **asymmetric** private hands:
+
+- **Explicit chance nodes, not ISMCTS / determinization.** Symmetric + exogenous + uniform hidden info means an information set is observer-independent, so chance nodes are exact and cheap. Private hands break that symmetry; the asymmetric future needs determinization / ISMCTS keyed on `observe(state, env, i)`. **File:** `agricola/agents/mcts.py`.
+- **`observe(state, env, i)` is the identity today.** The seam exists (common-knowledge `GameState` + hidden-ground-truth `Environment`) but `observe` is trivial because both players see the same public state. With private hands it becomes a real per-player projection. **File:** `agricola/environment.py`.
+- **Round 1 is pre-dealt in `setup_env`.** Round 1's reveal is resolved at construction (returning a round-1 WORK state), the lone reveal resolved outside the game loop. When cards add a pre-round-1 draft, the start point moves to the draft node and `setup_env` stops pre-resolving. **File:** `agricola/setup.py`.
+- **`decider = None` is the nature sentinel.** `decider_of -> int | None`; `None` is not a valid index, so a missed guard fails loudly. Generalizes to any future nature event (draft, draw). **File:** `agricola/agents/base.py`.
+- **MCTS chance routing uses a per-node `chance_counts` counter, not `child.visits`** (a shared post-reveal child inflates `child.visits` under the transposition DAG). **File:** `agricola/agents/mcts.py`.

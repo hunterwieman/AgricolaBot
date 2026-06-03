@@ -35,6 +35,7 @@ def play_recording_game(
     p0_agent: Agent,
     p1_agent: Agent,
     *,
+    dealer,                       # Callable[[GameState], Action]: resolves nature reveals
     game_idx: int,
     seed: int,
     p0_config_path: str,
@@ -76,6 +77,11 @@ def play_recording_game(
 
     while state.phase != Phase.BEFORE_SCORING:
         decider = decider_of(state)
+        if decider is None:
+            # Nature's round-card reveal — resolved by the dealer, never recorded
+            # (not a player-decision snapshot, so dataset content is unchanged).
+            state = step(state, dealer(state))
+            continue
         agent = (p0_agent, p1_agent)[decider]
 
         # Decide whether to record. Use the same legal_actions_fn the

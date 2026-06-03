@@ -37,11 +37,11 @@ def _reveal_space(state, space_id: str, accumulated=None):
     or None to leave accumulation at default.
     """
     if isinstance(accumulated, Resources):
-        return _set_space(state, space_id, round_revealed=state.round_number, accumulated=accumulated)
+        return _set_space(state, space_id, revealed=True, accumulated=accumulated)
     elif isinstance(accumulated, int):
-        return _set_space(state, space_id, round_revealed=state.round_number, accumulated_amount=accumulated)
+        return _set_space(state, space_id, revealed=True, accumulated_amount=accumulated)
     else:
-        return _set_space(state, space_id, round_revealed=state.round_number)
+        return _set_space(state, space_id, revealed=True)
 
 
 def _set_player(state, player_idx: int, **kwargs):

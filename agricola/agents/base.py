@@ -116,12 +116,16 @@ class Agent(Protocol):
 # Decider helper
 # ---------------------------------------------------------------------------
 
-def decider_of(state: GameState) -> int:
-    """Return the player index whose decision is currently being awaited.
+def decider_of(state: GameState) -> int | None:
+    """Return the player index whose decision is awaited, or `None` when nature
+    decides (a round-card reveal).
 
     Empty stack → `state.current_player` (whose worker placement is being
     resolved). Non-empty stack → `pending_stack[-1].player_idx` (the frame's
-    owner; may differ from the active player for opponent-triggered frames).
+    owner; may differ from the active player for opponent-triggered frames, and
+    is `None` for a `PendingReveal` — nature's reveal, routed to the dealer, not
+    a strategic agent). `None` is not a valid list index, so a forgotten guard
+    fails loudly rather than silently routing to player 1.
     """
     if state.pending_stack:
         return state.pending_stack[-1].player_idx
@@ -270,6 +274,25 @@ class EvaluatorAgent:
         scored.sort(key=lambda pair: pair[1], reverse=True)
         return scored
 
+    def _eval(self, state: GameState, decider: int) -> float:
+        """Score a state from `decider`'s perspective, averaging over reveal
+        outcomes at a nature node.
+
+        If the state is a nature node — a round-card reveal, `decider_of` is
+        None — the evaluator can neither see the unrevealed card nor judge a
+        between-turns state, so we expand the ≤3 reveal outcomes, evaluate each
+        resulting (player-decision) state, and average. That uniform mean IS the
+        action's true value (the expectation over reveals) — the same "never
+        evaluate a chance node" rule MCTS uses — and is exactly one level deep
+        (a post-reveal state is a normal WORK decision). See
+        HIDDEN_INFO_DESIGN.md §7.
+        """
+        if decider_of(state) is None:
+            outcomes = filter_implemented(self.legal_actions_fn(state))
+            vals = [self._eval(step(state, a), decider) for a in outcomes]
+            return sum(vals) / len(vals)
+        return self.evaluator(state, decider, self.config)
+
     def _lookahead_value(self, state: GameState, decider: int) -> float:
         """Score a candidate state from the decider's perspective.
 
@@ -284,7 +307,7 @@ class EvaluatorAgent:
         """
         state = self._skip_singletons(state, decider)
         if self.lookahead == "action":
-            return self.evaluator(state, decider, self.config)
+            return self._eval(state, decider)
         if self.lookahead == "exhaustive":
             return self._exhaustive_value(state, decider)
         return self._rollout_value(state, decider)
@@ -335,14 +358,14 @@ class EvaluatorAgent:
         while True:
             if state.phase == Phase.BEFORE_SCORING:
                 counter[0] += 1
-                return self.evaluator(state, decider, self.config)
+                return self._eval(state, decider)
             if decider_of(state) != decider:
                 counter[0] += 1
-                return self.evaluator(state, decider, self.config)
+                return self._eval(state, decider)
             actions = filter_implemented(self.legal_actions_fn(state))
             if not actions:
                 counter[0] += 1
-                return self.evaluator(state, decider, self.config)
+                return self._eval(state, decider)
             if len(actions) == 1:
                 state = step(state, actions[0])
                 continue
@@ -395,7 +418,7 @@ class EvaluatorAgent:
             best_state = None
             for a in actions:
                 cand = step(state, a)
-                s = self.evaluator(cand, decider, self.config)
+                s = self._eval(cand, decider)
                 if s > best_score:
                     best_score = s
                     best_state = cand
@@ -437,23 +460,29 @@ class HeuristicAgent(EvaluatorAgent):
 def play_game(
     initial_state: GameState,
     agents: tuple[Agent, Agent],
+    dealer: Callable[[GameState], Action],
 ) -> tuple[GameState, list[Action]]:
     """Drive a full game between two agents from `initial_state` to
     `BEFORE_SCORING`. Returns (terminal_state, trace).
 
-    `agents[i]` plays as player i. The decider's agent is queried at each
-    decision (uses `decider_of(state)`). Returns when the engine reports
-    `BEFORE_SCORING` (game over, no actions remaining).
+    `agents[i]` plays as player i. The decider at each decision is
+    `decider_of(state)`: a player index queries `agents[d]`; `None` is nature's
+    round-card reveal, resolved by `dealer` (typically `env.resolve` from
+    `setup_env`). `initial_state` is a round-1 WORK state (from `setup_env`), so
+    the loop's first action is a player placement; the dealer fires at the
+    round-boundary reveals for rounds 2–14. Returns when the engine reports
+    `BEFORE_SCORING` (game over).
 
-    Mirrors `tests/test_utils.random_agent_play` but lets you mix agent
-    types — e.g. random vs heuristic, simple vs hubris, or self-play with
-    a single shared agent object.
+    Mirrors `tests/test_utils.random_agent_play` but lets you mix agent types —
+    e.g. random vs heuristic, simple vs hubris, or self-play with one shared
+    agent object. (Unlike `random_agent_play`, which self-samples reveals, this
+    takes an explicit `dealer` so both seats face one consistent reveal order.)
     """
     state = initial_state
     trace: list[Action] = []
     while state.phase != Phase.BEFORE_SCORING:
-        agent = agents[decider_of(state)]
-        action = agent(state)
+        d = decider_of(state)
+        action = dealer(state) if d is None else agents[d](state)
         trace.append(action)
         state = step(state, action)
     return state, trace

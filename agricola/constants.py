@@ -52,12 +52,37 @@ STAGE_CARDS = {
     6: ["farm_redevelopment"],
 }
 
+
+def _build_stage_of_round() -> dict:
+    """Map each round (1–14) to its stage (1–6), derived from STAGE_CARDS
+    sizes (4, 3, 2, 2, 2, 1): rounds 1–4 → 1, 5–7 → 2, 8–9 → 3, 10–11 → 4,
+    12–13 → 5, 14 → 6."""
+    out: dict = {}
+    r = 1
+    for stage in sorted(STAGE_CARDS):
+        for _ in STAGE_CARDS[stage]:
+            out[r] = stage
+            r += 1
+    return out
+
+
+# Round (1–14) → stage (1–6). Used by the reveal enumerator
+# (legality._enumerate_pending_reveal) to find the candidate cards for the
+# round being entered.
+STAGE_OF_ROUND: dict = _build_stage_of_round()
+
+
+def stage_of_round(round_number: int) -> int:
+    """Stage (1–6) that `round_number` (1–14) belongs to."""
+    return STAGE_OF_ROUND[round_number]
+
+
 # Canonical ordering of all 25 action space IDs. Used to index
 # BoardState.action_spaces (a tuple). Permanent spaces first in the order
 # they appear in PERMANENT_ACTION_SPACES, then stage cards in stage order.
-# The order is fixed across all games — `round_card_order` (per-game stage-card
-# shuffle) is recorded separately on BoardState — so two states reached by
-# different paths can compare equal and hash to the same bucket.
+# The order is fixed across all games — the per-game stage-card shuffle lives
+# in the Environment, not in BoardState — so two states reached by different
+# paths can compare equal and hash to the same bucket.
 SPACE_IDS: tuple[str, ...] = tuple(PERMANENT_ACTION_SPACES) + tuple(
     card_id
     for stage in sorted(STAGE_CARDS)

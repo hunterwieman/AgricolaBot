@@ -90,7 +90,6 @@ def _set_major_owner(state: GameState, imp_idx: int, owner: int) -> GameState:
     new_board = BoardState(
         action_spaces=state.board.action_spaces,
         major_improvement_owners=tuple(owners),
-        round_card_order=state.board.round_card_order,
     )
     return _replace_board(state, new_board)
 

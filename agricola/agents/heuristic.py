@@ -60,7 +60,7 @@ from agricola.scoring import (
     _score_veg,
     score,
 )
-from agricola.state import GameState, PlayerState
+from agricola.state import GameState, PlayerState, get_space
 
 
 # ---------------------------------------------------------------------------
@@ -471,15 +471,21 @@ def _can_afford_cooking(state: GameState, p: PlayerState) -> bool:
     return any_fireplace_free and p.resources.clay >= 2
 
 
-def _basic_wish_revealed_round(state: GameState) -> int | None:
-    """Round at which `basic_wish_for_children` is/was revealed, or None
-    if it's not in the round_card_order (shouldn't happen — it's always
-    a stage-2 card). Round is 1-indexed."""
-    order = state.board.round_card_order
-    for i, card in enumerate(order):
-        if card == "basic_wish_for_children":
-            return i + 1
-    return None
+def _basic_wish_revealed_round(state: GameState) -> float:
+    """Expected round at which Basic Wish for Children becomes available, for
+    the empty-room valuation.
+
+    If it is already revealed, return the current round (it is available now;
+    the caller only uses this value while basic_wish is still in the *future*,
+    and its historical reveal round is non-Markov history). Otherwise return the
+    honest belief E[reveal round | still unrevealed]: basic_wish is a stage-2
+    card (rounds 5–7), giving 6.0 (rounds 1–4), 6.5 (round 5), 7.0 (round 6).
+    See HIDDEN_INFO_DESIGN.md §9.
+    """
+    if get_space(state.board, "basic_wish_for_children").revealed:
+        return state.round_number
+    future = [s for s in (5, 6, 7) if s > state.round_number]
+    return sum(future) / len(future)
 
 
 def _num_breeding_opportunities_from_farm(p: PlayerState) -> int:

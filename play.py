@@ -38,6 +38,7 @@ from agricola.constants import (
     FOOD_ANIMAL_ACCUMULATION_RATES,
     HARVEST_ROUNDS,
     NUM_ROUNDS,
+    STAGE_CARDS,
     STAGE_ROUNDS,
     CellType,
     HouseMaterial,
@@ -46,7 +47,7 @@ from agricola.constants import (
 from agricola.engine import step
 from agricola.legality import legal_actions
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 from agricola.state import GameState, get_space
 
 # ---------------------------------------------------------------------------
@@ -106,7 +107,8 @@ ENUMERATE_THRESHOLD = 8
 # Decider + header
 # ---------------------------------------------------------------------------
 
-def decider_of(state: GameState) -> int:
+def decider_of(state: GameState) -> "int | None":
+    # None at a round-card reveal (a PendingReveal — nature decides).
     return state.pending_stack[-1].player_idx if state.pending_stack else state.current_player
 
 
@@ -177,11 +179,8 @@ def render_action_board(state: GameState) -> list[str]:
             break
         lines.append(f"  -- stage {stage} --")
         revealed_in_stage = sorted(
-            (sid for sid, ss in spaces.items()
-             if ss.round_revealed != 0
-             and first <= ss.round_revealed <= last
-             and ss.round_revealed <= rnd),
-            key=lambda sid: spaces[sid].round_revealed,
+            sid for sid in STAGE_CARDS[stage]
+            if spaces[sid].revealed
         )
         for sid in revealed_in_stage:
             emit(sid)
@@ -545,12 +544,7 @@ def _group_actions(actions: list[Action]) -> dict[str, list[Action]]:
 def _placeworker_sort_key(space_id: str, state: GameState) -> tuple:
     if space_id in PERMANENT_DISPLAY_ORDER:
         return (0, PERMANENT_DISPLAY_ORDER.index(space_id))
-    try:
-        ss = get_space(state.board, space_id)
-        rr = ss.round_revealed
-    except KeyError:
-        rr = 999
-    return (1, rr, space_id)
+    return (1, space_id)
 
 
 def render_action_menu(actions: list[Action], state: GameState) -> tuple[list[str], list]:
@@ -882,11 +876,18 @@ def render_round_log(round_number: int, log: RoundLog) -> None:
 
 def play(seed: int, humans: set[int]) -> None:
     rng = random.Random(seed ^ 0xA6C01A)  # decorrelate from engine RNG
-    state = setup(seed)
+    state, env = setup_env(seed)
     log = RoundLog(humans)
     current_round = state.round_number
 
     while state.phase != Phase.BEFORE_SCORING:
+        dec = decider_of(state)
+        if dec is None:
+            # Nature's round-card reveal — resolved by the env dealer, not shown
+            # as a player turn.
+            state = step(state, env.resolve(state))
+            continue
+
         actions = legal_actions(state)
         if not actions:
             print("(no legal actions — engine state)")
@@ -895,8 +896,6 @@ def play(seed: int, humans: set[int]) -> None:
         if state.round_number != current_round:
             log.round_transition()
             current_round = state.round_number
-
-        dec = decider_of(state)
 
         if dec in humans:
             clear_screen()

@@ -29,6 +29,7 @@ from agricola.actions import (
     CommitSubAction,
     FireTrigger,
     PlaceWorker,
+    RevealCard,
     Stop,
 )
 from agricola.constants import (
@@ -37,6 +38,7 @@ from agricola.constants import (
     HARVEST_ROUNDS,
     NUM_ROUNDS,
     SPACE_IDS,
+    STAGE_CARDS,
     CellType,
     Phase,
 )
@@ -52,6 +54,7 @@ from agricola.pending import (
     PendingPigMarket,
     PendingPlow,
     PendingRenovate,
+    PendingReveal,
     PendingSheepMarket,
     PendingSow,
     pop,
@@ -60,7 +63,7 @@ from agricola.pending import (
 )
 from agricola.replace import fast_replace
 from agricola.resources import Resources
-from agricola.state import GameState
+from agricola.state import GameState, get_space, with_space
 from agricola.resolution import (
     ATOMIC_HANDLERS,
     CHOOSE_SUBACTION_HANDLERS,
@@ -194,6 +197,8 @@ def _apply_action(state: GameState, action: Action) -> GameState:
         return _apply_fire_trigger(state, action)
     if isinstance(action, Stop):
         return _apply_stop(state)
+    if isinstance(action, RevealCard):
+        return _apply_reveal_card(state, action)
     raise TypeError(f"Unknown action type: {type(action).__name__}")
 
 
@@ -367,9 +372,18 @@ def _advance_until_decision(state: GameState) -> GameState:
         if state.pending_stack:
             return state
 
-        # Case 2: PREPARATION phase. Setup for the next round.
+        # Case 2: PREPARATION phase, around the round-card reveal. Two-state,
+        # discriminated by the `count == round_number` invariant (round_number
+        # still names the round just completed; the reveal is deferred to the
+        # RevealCard step, the increment to _complete_preparation):
+        #   - card not up yet (count == round_number): push the reveal nature
+        #     node; Case 1 returns on the non-empty stack next iteration.
+        #   - card up (count > round_number): finish the round setup.
         if state.phase == Phase.PREPARATION:
-            state = _resolve_preparation(state)
+            if _count_revealed_stage_cards(state) == state.round_number:
+                state = push(state, PendingReveal())
+            else:
+                state = _complete_preparation(state)
             continue
 
         # Case 3: WORK phase. If any player has workers, an agent decision
@@ -467,26 +481,55 @@ def _resolve_return_home(state: GameState) -> GameState:
     return fast_replace(state, phase=Phase.PREPARATION)
 
 
-def _resolve_preparation(state: GameState) -> GameState:
-    """Set up the new round: increment round_number, refill revealed
-    accumulation spaces, distribute future_resources for this round,
-    clear newborns, and reset current_player to starting_player.
-
-    Not called for round 1 (setup pre-loads round-1 accumulation goods
-    and the engine starts at Phase.WORK).
+def _count_revealed_stage_cards(state: GameState) -> int:
+    """Number of stage cards turned up so far (permanents excluded — they are
+    always revealed). Equals `round_number` at every WORK decision state: the
+    `count == round_number` invariant that drives the PREPARATION two-state walk
+    (push reveal vs. complete prep). See HIDDEN_INFO_DESIGN.md §4.3.
     """
-    # Future: card triggers fire here ("at the start of each round, may
-    # do X"). Stub for Task 5.
+    return sum(
+        1
+        for cards in STAGE_CARDS.values()
+        for card_id in cards
+        if get_space(state.board, card_id).revealed
+    )
+
+
+def _apply_reveal_card(state: GameState, action: RevealCard) -> GameState:
+    """Turn up the named stage card and pop the PendingReveal frame.
+
+    Does ONE thing: set `revealed=True` and pop. It leaves `phase = PREPARATION`
+    and does NOT touch round_number / current_player / accumulation — those are
+    `_complete_preparation`'s job, run afterwards in the system walk (so the
+    `step` alternation guard, which only fires in WORK, is untouched). See
+    HIDDEN_INFO_DESIGN.md §4.3–4.4.
+    """
+    sp = get_space(state.board, action.card)
+    new_board = with_space(state.board, action.card, fast_replace(sp, revealed=True))
+    return pop(fast_replace(state, board=new_board))
+
+
+def _complete_preparation(state: GameState) -> GameState:
+    """Finish setting up the round whose card has just been revealed.
+
+    Runs in `_advance_until_decision` Case 2 once the round-card reveal has fired
+    (count > round_number). Increments round_number, refills every revealed
+    accumulation space, distributes future_resources for the new round, clears
+    newborns, and transitions to WORK with starting_player active. (Replaces the
+    old monolithic `_resolve_preparation`, whose implicit "refill where
+    round_revealed <= new_round" reveal is now the explicit RevealCard step;
+    this is the post-reveal remainder.)
+    """
+    # Future: card triggers fire here ("at the start of each round, may do X").
 
     new_round = state.round_number + 1
 
-    # 1. Refill revealed accumulation spaces. After incrementing the
-    #    round counter, the comparison `round_revealed <= new_round`
-    #    correctly identifies the just-revealed stage card too.
+    # 1. Refill every revealed accumulation space (the just-revealed card
+    #    included — its `revealed` was set by _apply_reveal_card).
     new_spaces_list = list(state.board.action_spaces)
     for i, action_space in enumerate(new_spaces_list):
-        if action_space.round_revealed > new_round:
-            continue   # not yet revealed
+        if not action_space.revealed:
+            continue
         space_id = SPACE_IDS[i]
         if space_id in BUILDING_ACCUMULATION_RATES:
             rate = BUILDING_ACCUMULATION_RATES[space_id]

@@ -50,7 +50,7 @@ from agricola.agents import (
 )
 from agricola.agents.base import play_game
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 from play_match import GameResult, MatchResult, _winner
 
@@ -139,14 +139,14 @@ def _build_v1_mcts(seed: int, spec: _Spec) -> MCTSAgent:
 def _play_one_game(seed: int) -> GameResult:
     assert _WORKER_SPEC is not None
     spec = _WORKER_SPEC
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     if spec.v1_as_p1:
         p0 = _build_v3_mcts(seed + 0, spec)
         p1 = _build_v1_mcts(seed + 1, spec)
     else:
         p0 = _build_v1_mcts(seed + 0, spec)
         p1 = _build_v3_mcts(seed + 1, spec)
-    final, _trace = play_game(initial, (p0, p1))
+    final, _trace = play_game(initial, (p0, p1), env.resolve)
     s0, _ = score(final, 0)
     s1, _ = score(final, 1)
     tb0 = tiebreaker(final, 0)

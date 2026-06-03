@@ -35,7 +35,7 @@ from agricola.agents.nn.dataset import (
 )
 from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
 from agricola.legality import legal_actions
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 
 # ---------------------------------------------------------------------------
@@ -44,11 +44,12 @@ from agricola.setup import setup
 
 
 def _record_one_game(seed: int) -> GameRecord:
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     return play_recording_game(
         initial,
         RandomAgent(seed=seed),
         RandomAgent(seed=seed + 1),
+        dealer=env.resolve,
         game_idx=seed,  # use seed as a unique id within the fixture
         seed=seed,
         p0_config_path="random",

@@ -311,15 +311,15 @@ def _shared_features(state: GameState, player_idx: int) -> list[tuple[str, float
     for sid in _ACCUMULATION_SPACES:
         feats.append((f"accum_{sid}", float(_accum_amount(get_space(board, sid)))))
 
-    # Stage cards revealed (14): round_revealed <= current round.
+    # Stage cards revealed (14).
     for sid in _STAGE_CARD_IDS:
         sp = get_space(board, sid)
-        feats.append((f"revealed_{sid}", 1.0 if sp.round_revealed <= rn else 0.0))
+        feats.append((f"revealed_{sid}", 1.0 if sp.revealed else 0.0))
 
     # Space available now (25): revealed AND not occupied this round.
     for sid in SPACE_IDS:
         sp = get_space(board, sid)
-        revealed = sp.round_revealed <= rn  # round_revealed=0 (permanent) always passes
+        revealed = sp.revealed  # permanents are always revealed
         unoccupied = sum(sp.workers) == 0
         feats.append((f"space_avail_{sid}", 1.0 if (revealed and unoccupied) else 0.0))
 

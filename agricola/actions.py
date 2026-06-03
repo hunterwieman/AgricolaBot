@@ -236,6 +236,17 @@ class Stop:
     """
 
 
+@dataclass(frozen=True)
+class RevealCard:
+    """Nature's action: turn up `card` as the round's stage card.
+
+    A top-level transition like PlaceWorker (NOT a CommitSubAction). Supplied
+    by the Environment (real games) or enumerated by the MCTS chance node;
+    dispatched in engine._apply_action. See HIDDEN_INFO_DESIGN.md §4.1.
+    """
+    card: str   # a stage-card space id
+
+
 # The Action union. Dispatch in `_apply_action` is by `isinstance`.
 # Concrete commit subclasses are listed individually (CommitSubAction base
 # itself is intentionally not in the union — only concrete options are
@@ -257,4 +268,5 @@ Action = Union[
     CommitBreed,
     FireTrigger,
     Stop,
+    RevealCard,
 ]

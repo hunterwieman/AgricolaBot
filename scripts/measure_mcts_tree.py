@@ -52,7 +52,7 @@ from agricola.agents import (
 from agricola.agents.base import play_game
 from agricola.actions import PlaceWorker
 from agricola.scoring import score
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 
 def main() -> int:
@@ -184,9 +184,9 @@ def main() -> int:
     print(f"  initial RSS: {rss_start / 1024:.1f} MB")
     print()
 
-    initial = setup(seed=args.seed)
+    initial, env = setup_env(seed=args.seed)
     t_start = time.perf_counter()
-    final, trace = play_game(initial, agents)
+    final, trace = play_game(initial, agents, env.resolve)
     total_wall = time.perf_counter() - t_start
 
     s0, _ = score(final, 0)

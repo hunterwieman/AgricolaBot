@@ -66,7 +66,7 @@ def _fencing_setup(*, wood=8, current_player=0):
     state = setup(seed=0)
     state = with_current_player(state, current_player)
     state = with_resources(state, current_player, wood=wood)
-    state = with_space(state, "fencing", round_revealed=1)
+    state = with_space(state, "fencing", revealed=True)
     return state
 
 

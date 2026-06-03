@@ -50,7 +50,7 @@ from agricola.agents import (
 )
 from agricola.agents.base import Agent, play_game
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 # Reuse the play_match library for the aggregation logic.
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -239,7 +239,7 @@ def _play_one_game(seed: int) -> GameResult:
     and returns a GameResult. Reads config from `_WORKER_SPEC` globals."""
     assert _WORKER_SPEC is not None, "worker globals not initialized"
     spec = _WORKER_SPEC
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     p0 = _build_agent(spec.p0_name, game_seed=seed, seed_offset=0,
                        spec=spec, is_opponent=(spec.p0_name != "mcts"))
     # When both seats are MCTS, P0=mcts (not opponent), P1=mcts (opponent).
@@ -248,7 +248,7 @@ def _play_one_game(seed: int) -> GameResult:
     # opponent.
     p1 = _build_agent(spec.p1_name, game_seed=seed, seed_offset=1,
                        spec=spec, is_opponent=(spec.p1_name != "mcts" or spec.p0_name == "mcts"))
-    final, _trace = play_game(initial, (p0, p1))
+    final, _trace = play_game(initial, (p0, p1), env.resolve)
     s0, _ = score(final, 0)
     s1, _ = score(final, 1)
     tb0 = tiebreaker(final, 0)

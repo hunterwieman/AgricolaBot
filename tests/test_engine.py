@@ -16,7 +16,7 @@ from agricola.constants import Phase
 from agricola.engine import (
     _advance_current_player,
     _advance_until_decision,
-    _resolve_preparation,
+    _complete_preparation,
     _resolve_return_home,
     step,
 )
@@ -109,14 +109,19 @@ def test_advance_current_player_stays_when_other_has_no_workers():
 # ---------------------------------------------------------------------------
 
 def test_work_phase_ends_when_both_players_zero_workers():
-    """When both players have placed all workers, phase advances through
-    RETURN_HOME → PREPARATION → next round's WORK."""
+    """When both players have placed all workers, the round ends: RETURN_HOME →
+    PREPARATION → (nature reveal) → next round's WORK."""
     state = setup(seed=0)
     # Force both players to people_home=0.
     state = with_people(state, 0, home=0)
     state = with_people(state, 1, home=0)
 
-    new_state = _advance_until_decision(state)
+    # _advance_until_decision now parks at the round-2 reveal nature node — it
+    # cannot cross a round boundary without the reveal being resolved.
+    reveal_node = _advance_until_decision(state)
+    assert reveal_node.phase == Phase.PREPARATION and reveal_node.pending_stack
+    # Resolve the reveal (any candidate) → round-2 WORK.
+    new_state = step(reveal_node, legal_actions(reveal_node)[0])
 
     # Should now be at round 2, WORK phase, both players replenished.
     assert new_state.phase == Phase.WORK
@@ -165,12 +170,12 @@ def test_return_home_does_not_clear_newborns():
 
 
 def test_preparation_clears_newborns():
-    """_resolve_preparation is where newborns are cleared (after any harvest)."""
+    """_complete_preparation is where newborns are cleared (after any harvest)."""
     state = setup(seed=0)
     state = with_people(state, 0, total=3, home=3, newborns=1)
     state = with_phase(state, Phase.PREPARATION)
 
-    new_state = _resolve_preparation(state)
+    new_state = _complete_preparation(state)
     assert new_state.players[0].newborns == 0
 
 
@@ -183,7 +188,7 @@ def test_preparation_refills_accumulation_spaces():
     pre_forest = get_space(state.board, "forest").accumulated
     pre_clay_pit = get_space(state.board, "clay_pit").accumulated
 
-    new_state = _resolve_preparation(state)
+    new_state = _complete_preparation(state)
 
     new_forest = get_space(new_state.board, "forest").accumulated
     new_clay_pit = get_space(new_state.board, "clay_pit").accumulated
@@ -194,7 +199,7 @@ def test_preparation_refills_accumulation_spaces():
 def test_preparation_increments_round_number():
     state = setup(seed=0)
     state = with_phase(state, Phase.PREPARATION)
-    new_state = _resolve_preparation(state)
+    new_state = _complete_preparation(state)
     assert new_state.round_number == state.round_number + 1
 
 
@@ -202,7 +207,7 @@ def test_preparation_resets_current_player_to_starting_player():
     state = setup(seed=0)
     state = with_current_player(state, 1 - state.starting_player)
     state = with_phase(state, Phase.PREPARATION)
-    new_state = _resolve_preparation(state)
+    new_state = _complete_preparation(state)
     assert new_state.current_player == new_state.starting_player
 
 

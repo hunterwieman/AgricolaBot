@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agricola.constants import (
     BUILDING_ACCUMULATION_RATES,
+    STAGE_CARDS,
     CellType,
     HouseMaterial,
 )
@@ -111,17 +112,12 @@ def _add_pasture(state, player_idx, cells, num_stables=0):
 
 
 def _reveal_all_stage_cards(state):
-    """Mark every stage card revealed by setting round_revealed=1 on each.
-
-    Useful for late-game states so that legality enumeration sees all 25
-    spaces as available. The actual `round_card_order` is left alone — we
-    just override the revealed flag to ensure the space is queryable.
-    """
+    """Mark every stage card revealed so legality enumeration sees all 25
+    spaces as available (useful for late-game prefab states)."""
     new_state = state
-    for sid in state.board.round_card_order:
-        if sid is None:
-            continue
-        new_state = with_space(new_state, sid, round_revealed=1)
+    for cards in STAGE_CARDS.values():
+        for sid in cards:
+            new_state = with_space(new_state, sid, revealed=True)
     return new_state
 
 

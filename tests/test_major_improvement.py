@@ -43,7 +43,7 @@ def _mi_setup(*, resources=None, owner_by_idx=None, minors=None):
         state = with_majors(state, owner_by_idx=owner_by_idx)
     if minors:
         state = with_minors(state, 0, frozenset(minors))
-    state = with_space(state, "major_improvement", round_revealed=1)
+    state = with_space(state, "major_improvement", revealed=True)
     return state
 
 

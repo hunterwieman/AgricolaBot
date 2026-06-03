@@ -33,7 +33,7 @@ from tests.test_utils import run_actions
 def _mkt_setup(space_id: str, *, accumulated: int, with_hearth: bool = False):
     state = setup(seed=0)
     state = with_current_player(state, 0)
-    state = with_space(state, space_id, round_revealed=1, accumulated_amount=accumulated)
+    state = with_space(state, space_id, revealed=True, accumulated_amount=accumulated)
     if with_hearth:
         state = with_majors(state, owner_by_idx={2: 0})
     return state

@@ -30,7 +30,7 @@ from agricola.agents import (
 from agricola.agents.heuristic import _num_breeding_opportunities_from_farm
 from agricola.legality import legal_actions
 from agricola.scoring import score
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 from agricola.state import Farmyard, PlayerState
 from agricola.pasture import Pasture
 
@@ -88,8 +88,8 @@ def test_hubris_agent_returns_legal_action_on_fresh_setup():
 
 @pytest.mark.parametrize("seed", [0, 7, 42])
 def test_simple_finishes_full_game(seed):
-    s = setup(seed=seed)
-    final, trace = play_game(s, (SimpleHeuristic(seed=seed), RandomAgent(seed=seed + 100)))
+    s, env = setup_env(seed=seed)
+    final, trace = play_game(s, (SimpleHeuristic(seed=seed), RandomAgent(seed=seed + 100)), env.resolve)
     # game terminated cleanly; trace is non-empty
     assert len(trace) > 0
     # both players have a finite, well-formed score
@@ -100,8 +100,8 @@ def test_simple_finishes_full_game(seed):
 
 @pytest.mark.parametrize("seed", [0, 7, 42])
 def test_hubris_finishes_full_game(seed):
-    s = setup(seed=seed)
-    final, trace = play_game(s, (HubrisHeuristic(seed=seed), RandomAgent(seed=seed + 100)))
+    s, env = setup_env(seed=seed)
+    final, trace = play_game(s, (HubrisHeuristic(seed=seed), RandomAgent(seed=seed + 100)), env.resolve)
     assert len(trace) > 0
     for p in (0, 1):
         t, _ = score(final, p)
@@ -110,10 +110,11 @@ def test_hubris_finishes_full_game(seed):
 
 @pytest.mark.parametrize("seed", [0, 7])
 def test_hubris_self_play_finishes(seed):
-    s = setup(seed=seed)
+    s, env = setup_env(seed=seed)
     final, _ = play_game(
         s,
         (HubrisHeuristic(seed=seed), HubrisHeuristic(seed=seed + 1)),
+        env.resolve,
     )
     for p in (0, 1):
         assert math.isfinite(score(final, p)[0])
@@ -129,9 +130,9 @@ def _run_match(agent0_factory, agent1_factory, seeds):
     totals_p0: list[int] = []
     totals_p1: list[int] = []
     for s in seeds:
-        state = setup(seed=s)
+        state, env = setup_env(seed=s)
         agents = (agent0_factory(s * 2 + 1), agent1_factory(s * 2 + 2))
-        final, _ = play_game(state, agents)
+        final, _ = play_game(state, agents, env.resolve)
         t0 = score(final, 0)[0]
         t1 = score(final, 1)[0]
         totals_p0.append(t0)
@@ -199,10 +200,11 @@ def test_lookahead_action_mode_finishes_game():
     """The cheap 1-action lookahead mode also completes a game without
     error (even though it plays worse — see SimpleHeuristic in /
     HubrisHeuristic in `__init__` docstring for the trade-off)."""
-    s = setup(seed=0)
+    s, env = setup_env(seed=0)
     final, _ = play_game(
         s,
         (HubrisHeuristic(seed=0, lookahead="action"), RandomAgent(seed=1)),
+        env.resolve,
     )
     for p in (0, 1):
         assert math.isfinite(score(final, p)[0])
@@ -220,10 +222,11 @@ def test_lookahead_invalid_value_raises():
 def test_temperature_sampling_finishes_game():
     """Softmax sampling at a non-zero temperature still produces legal
     actions and a complete game."""
-    s = setup(seed=0)
+    s, env = setup_env(seed=0)
     final, _ = play_game(
         s,
         (HubrisHeuristic(seed=0, temperature=0.5), RandomAgent(seed=1)),
+        env.resolve,
     )
     for p in (0, 1):
         assert math.isfinite(score(final, p)[0])

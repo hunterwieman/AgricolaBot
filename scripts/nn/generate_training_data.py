@@ -64,7 +64,7 @@ from agricola.agents.nn import (  # noqa: E402
     play_recording_game,
 )
 from agricola.legality import legal_actions  # noqa: E402
-from agricola.setup import setup  # noqa: E402
+from agricola.setup import setup, setup_env  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -479,7 +479,7 @@ def _worker_play_games(args: dict) -> dict:
             continue
 
         try:
-            initial = setup(seed=item["seed"])
+            initial, env = setup_env(seed=item["seed"])
 
             # Per-game legality wrapper (varies across games when a
             # restriction_mix was used; constant otherwise). Both seats and
@@ -509,6 +509,7 @@ def _worker_play_games(args: dict) -> dict:
                 initial,
                 p0_agent,
                 p1_agent,
+                dealer=env.resolve,
                 game_idx=game_idx,
                 seed=item["seed"],
                 p0_config_path=item["p0_config"],

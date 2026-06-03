@@ -200,7 +200,7 @@ def collision(sims: int, seed: int, v3_config: str) -> None:
         make_strict_restricted_legal_actions,
     )
     from agricola.agents.base import play_game
-    from agricola.setup import setup
+    from agricola.setup import setup, setup_env
 
     cfg = _load_cfg(v3_config)
     search = MCTSSearch(evaluator_config=cfg, n_random_fencing=4, rng_seed=seed)
@@ -216,7 +216,8 @@ def collision(sims: int, seed: int, v3_config: str) -> None:
         config=cfg, legal_actions_fn=strict_fn,
     )
 
-    play_game(setup(seed), (mcts, heur))
+    initial, env = setup_env(seed)
+    play_game(initial, (mcts, heur), env.resolve)
 
     print(f"\n=== projection-collision over one MCTS game "
           f"(sims={sims}, seed={seed}) ===")

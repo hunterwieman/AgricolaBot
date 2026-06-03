@@ -60,7 +60,7 @@ class ActionSpaceState:
     # cattle_market) use a scalar int. These are never modified by cards in the same way.
     accumulated_amount: int = 0
 
-    round_revealed: int = 0  # 0 = always available; 1–14 = the round this card appears
+    revealed: bool = False  # True once the card is turned up (permanents: True from setup)
 
 
 @dataclass(frozen=True)
@@ -116,10 +116,10 @@ class BoardState:
     # Indexed by major improvement index 0–9 (see constants.py).
     major_improvement_owners: tuple  # tuple[Optional[int], ...], length 10
 
-    # The action space card that appears at each round 1–14.
-    # round_card_order[i] is the action space ID appearing at round i+1.
-    # Determined randomly at setup (randomised within each stage).
-    round_card_order: tuple  # tuple[str, ...], length 14
+    # The per-game stage-card reveal order is hidden information and does NOT
+    # live here — it is held in the Environment (agricola/environment.py).
+    # BoardState carries only common knowledge; a space's `revealed` bool says
+    # whether its card is up, never which future round an unrevealed card lands.
 
 
 def get_space(board: BoardState, space_id: str) -> ActionSpaceState:
@@ -135,7 +135,6 @@ def with_space(board: BoardState, space_id: str, new_space: ActionSpaceState) ->
     return BoardState(
         action_spaces=new_spaces,
         major_improvement_owners=board.major_improvement_owners,
-        round_card_order=board.round_card_order,
     )
 
 

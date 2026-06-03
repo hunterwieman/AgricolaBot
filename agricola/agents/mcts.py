@@ -111,6 +111,14 @@ class MCTSNode:
     visits: int = 0
     value_sum: float = 0.0
     macro_sequences: dict[MacroFencingAction, list[Action]] = field(default_factory=dict)
+    # Chance-node (round-card reveal) state. `is_chance` is True iff this node is
+    # a nature decision (decider_of(state) is None); for chance nodes `decider`
+    # is set to 0 as a P0 value-frame label (NOT a real player), so the backprop
+    # / UCB sign-flip math is unchanged. `chance_counts` is the per-outcome
+    # round-robin counter — NOT child.visits, which a shared DAG child inflates.
+    # See HIDDEN_INFO_DESIGN.md §8.
+    is_chance: bool = False
+    chance_counts: dict[Action, int] = field(default_factory=dict)
     _legal_actions: Optional[list[Action]] = None
     _unvisited_actions: Optional[set] = None
 
@@ -296,9 +304,12 @@ class MCTSSearch:
             if parent is not None:
                 self.add_edge(parent, existing, action_from_parent)
             return existing
+        d = decider_of(state)
+        is_chance = d is None
         node = MCTSNode(
             state=state,
-            decider=decider_of(state),
+            decider=0 if is_chance else d,   # frame label when is_chance; real player otherwise
+            is_chance=is_chance,
             search=self,
             action_from_parent=action_from_parent,
         )
@@ -699,49 +710,68 @@ class MCTSAgent:
         path: list[MCTSNode] = [root]
         node = root
 
-        # ---------- SELECT ----------
-        # Descend through fully-expanded nodes via UCB. Stop when we hit a
-        # terminal, a node with unvisited children, or (defensively) a
-        # node with no legal actions.
+        # ---------- SELECT + EXPAND ----------
+        # Descend until we reach the node to evaluate: a freshly-created
+        # decision leaf, a terminal, or (defensively) a dead-end. CHANCE nodes
+        # (round-card reveals) are transparent — routed through by round-robin,
+        # never expanded-as-leaf, never evaluated. See HIDDEN_INFO_DESIGN.md §8.2.
         while True:
             if node.is_terminal():
                 break
-            # Force cache populate so we can check unvisited cheaply.
+
+            if node.is_chance:
+                # Route round-robin to one reveal outcome (created on first
+                # route). A freshly-created outcome is the new leaf; an existing
+                # one we keep descending into. The chance node itself is on the
+                # path (gets visits/value) but is never the eval target.
+                action = self._chance_route(node)
+                child = node.children.get(action)
+                is_new = child is None
+                if is_new:
+                    child = self.search.find_or_create_node(
+                        step(node.state, action), parent=node,
+                        action_from_parent=action,
+                    )
+                path.append(child)
+                node = child
+                if is_new:
+                    break          # new post-reveal decision node = leaf
+                continue           # existing outcome → keep descending
+
+            # ---- decision node ----
             if node._legal_actions is None:
                 node._compute_legal_actions()
             if not node._legal_actions:
-                # Defensive: no legal actions at a non-terminal node.
-                # Shouldn't happen with strict-restricted (which never
-                # empties a non-empty input set), but degenerate states
-                # are handled gracefully.
+                # Defensive: no legal actions at a non-terminal node. Shouldn't
+                # happen with strict-restricted (never empties a non-empty set).
                 break
             if node._unvisited_actions:
-                # Has unvisited children → stop here and EXPAND below.
-                break
+                # EXPAND one unvisited action.
+                action = self._pick_unvisited_action(node)
+                node._unvisited_actions.discard(action)
+                if isinstance(action, MacroFencingAction):
+                    # Macro children were pre-created during expand_macros;
+                    # re-register the edge in case we arrived via another parent.
+                    child = node.children[action]
+                    self.search.add_edge(node, child, action)
+                else:
+                    child = self.search.find_or_create_node(
+                        step(node.state, action), parent=node,
+                        action_from_parent=action,
+                    )
+                path.append(child)
+                node = child
+                if node.is_chance:
+                    continue       # expanded into a chance node → route through it
+                break              # decision/terminal leaf
+            # Fully expanded → UCB descend.
             action = self._select_via_ucb(node)
             node = node.children[action]
             path.append(node)
 
-        # ---------- EXPAND ----------
-        if not node.is_terminal() and node._unvisited_actions:
-            action = self._pick_unvisited_action(node)
-            node._unvisited_actions.discard(action)
-            if isinstance(action, MacroFencingAction):
-                # Macro children were pre-created during expand_macros.
-                child = node.children[action]
-                # Even though pre-created, we still need to register parent
-                # linkage if this descent path arrived at `node` via a
-                # different parent. add_edge dedups parents.
-                self.search.add_edge(node, child, action)
-            else:
-                child_state = step(node.state, action)
-                child = self.search.find_or_create_node(
-                    child_state, parent=node, action_from_parent=action,
-                )
-            path.append(child)
-            node = child
-
         # ---------- EVALUATE ----------
+        # `node` is never a chance node here (the descent breaks only at a
+        # decision/terminal leaf).
         leaf_value_p0 = self.search.evaluate_leaf(node.state)
 
         # ---------- BACKPROP ----------
@@ -794,6 +824,27 @@ class MCTSAgent:
         """Pick a uniformly-random unvisited action from `node`."""
         unvisited = list(node._unvisited_actions)
         return unvisited[int(self.search.rng.integers(len(unvisited)))]
+
+    def _chance_route(self, node: MCTSNode) -> Action:
+        """Pick a reveal outcome at a chance node by round-robin and bump its
+        per-node counter.
+
+        Round-robin (least-routed outcome, RNG tiebreak) keeps the outcome mix
+        uniform, so the chance node's averaged value converges to the true
+        (uniform) reveal expectation. Uses `node.chance_counts`, NOT child.visits
+        — a post-reveal child shared by another DAG path inflates child.visits
+        and would skew routing. See HIDDEN_INFO_DESIGN.md §8.
+        """
+        if node._legal_actions is None:
+            node._compute_legal_actions()
+        candidates = node._legal_actions          # the RevealCards
+        counts = node.chance_counts
+        min_count = min(counts.get(a, 0) for a in candidates)
+        least = [a for a in candidates if counts.get(a, 0) == min_count]
+        action = (least[0] if len(least) == 1
+                  else least[int(self.search.rng.integers(len(least)))])
+        counts[action] = counts.get(action, 0) + 1
+        return action
 
     # ---- Action selection at the top -------------------------------------
 

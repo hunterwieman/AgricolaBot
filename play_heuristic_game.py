@@ -34,7 +34,7 @@ from agricola.agents import (
     play_game,
 )
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 # Tuned V3 config loaded at startup via --v3-config PATH. When None,
 # hubris_v3 falls back to CONFIG_V3_T1. See _load_v3_config_from_json.
@@ -168,14 +168,14 @@ def main():
     print(f"Agricola heuristic game, seed={seed}, P0={args.p0}, P1={args.p1}, "
           f"temperature={args.temperature}, lookahead={args.lookahead}")
 
-    initial_state = setup(seed=seed)
+    initial_state, env = setup_env(seed=seed)
     print(f"Starting player: P{initial_state.starting_player}")
 
     agents = (
         _make_agent(args.p0, seed=seed,     temperature=args.temperature, lookahead=args.lookahead),
         _make_agent(args.p1, seed=seed + 1, temperature=args.temperature, lookahead=args.lookahead),
     )
-    state, trace = play_game(initial_state, agents)
+    state, trace = play_game(initial_state, agents, env.resolve)
 
     print(f"Final phase: {state.phase.name}, round {state.round_number}, "
           f"{len(trace)} actions played.")

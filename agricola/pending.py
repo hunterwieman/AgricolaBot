@@ -447,6 +447,22 @@ class PendingHarvestBreed:
     breed_chosen:    bool = False
 
 
+@dataclass(frozen=True)
+class PendingReveal:
+    """Nature's pending decision: which stage card is revealed for the round
+    being entered. Pushed by the PREPARATION phase walk (the two-state Case 2
+    in engine._advance_until_decision) when the next round's card is not up yet.
+
+    `player_idx` is None — the nature sentinel — so `decider_of` returns None
+    and the driver routes the decision to the dealer (the Environment), never
+    to a strategic agent. Hosts exactly one RevealCard, then pops. See
+    HIDDEN_INFO_DESIGN.md §4.2.
+    """
+    PENDING_ID: ClassVar[str] = "reveal"
+    player_idx: None = None               # nature: no owning player
+    initiated_by_id: str = "phase:reveal"
+
+
 # The PendingDecision union. New pending types are added here as the
 # non-atomic resolution surface grows.
 PendingDecision = Union[
@@ -474,6 +490,7 @@ PendingDecision = Union[
     PendingFarmRedevelopment,
     PendingHarvestFeed,
     PendingHarvestBreed,
+    PendingReveal,
 ]
 
 

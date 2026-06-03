@@ -72,6 +72,7 @@ from agricola.constants import (
     NUM_ROUNDS,
     PERMANENT_ACTION_SPACES_SET,
     SPACE_IDS,
+    STAGE_CARDS,
     STAGE_ROUNDS,
     CellType,
     HouseMaterial,
@@ -130,7 +131,7 @@ from agricola.engine import step
 from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 from agricola.state import GameState
 
 
@@ -416,7 +417,8 @@ def _farmyard_to_dict(fy) -> dict:
     }
 
 
-def _decider_of(state: GameState) -> int:
+def _decider_of(state: GameState) -> "int | None":
+    # None at a round-card reveal (a PendingReveal — nature decides).
     if state.pending_stack:
         return state.pending_stack[-1].player_idx
     return state.current_player
@@ -474,11 +476,10 @@ def _space_category(space_id: str) -> str:
     return "permanent" if space_id in PERMANENT_ACTION_SPACES_SET else "stage"
 
 
-def _space_stage(round_revealed: int) -> int | None:
-    if round_revealed == 0:
-        return None
-    for stage, (first, last) in STAGE_ROUNDS.items():
-        if first <= round_revealed <= last:
+def _space_stage(space_id: str) -> int | None:
+    """Stage (1–6) the space's card belongs to, or None for a permanent space."""
+    for stage, cards in STAGE_CARDS.items():
+        if space_id in cards:
             return stage
     return None
 
@@ -486,14 +487,12 @@ def _space_stage(round_revealed: int) -> int | None:
 def _board_to_dict(state: GameState) -> dict:
     spaces = []
     for sid, ss in zip(SPACE_IDS, state.board.action_spaces):
-        is_revealed = ss.round_revealed == 0 or ss.round_revealed <= state.round_number
         spaces.append({
             "id": sid,
             "name": SPACE_DISPLAY_NAMES.get(sid, sid),
             "category": _space_category(sid),
-            "stage": _space_stage(ss.round_revealed),
-            "round_revealed": ss.round_revealed,
-            "is_revealed": is_revealed,
+            "stage": _space_stage(sid),
+            "is_revealed": ss.revealed,
             "workers": list(ss.workers),
             "accumulation_text": _fmt_accumulation(sid, ss),
             "effect_text": SPACE_EFFECT_TEXT.get(sid),
@@ -716,7 +715,7 @@ class Session:
             _build_agent(seats[0], seed ^ 0x10000, mcts_sims=mcts_sims),
             _build_agent(seats[1], seed ^ 0x20000, mcts_sims=mcts_sims),
         )
-        self.state = setup(seed)
+        self.state, self.env = setup_env(seed)
         self.log = RoundLog(self.humans)
         self.current_round = self.state.round_number
         self.lock = threading.Lock()
@@ -865,6 +864,10 @@ class Session:
         while not self.game_over:
             self._maybe_round_transition_locked()
             dec = _decider_of(self.state)
+            if dec is None:
+                # Nature's round-card reveal — resolved by the env dealer.
+                self._apply_action_locked(self.env.resolve(self.state))
+                continue
             if dec in self.humans:
                 # Human's turn. Auto-resolve singletons iff fast_mode on.
                 if not self.fast_mode:
@@ -1032,6 +1035,10 @@ class Session:
             if self.game_over:
                 return False, "game over"
             dec = _decider_of(self.state)
+            if dec is None:
+                # Nature reveal — resolve it, then re-evaluate the decider.
+                self._apply_action_locked(self.env.resolve(self.state))
+                dec = _decider_of(self.state)
             if dec in self.humans:
                 return False, "human's turn"
             agent = self.agents[dec]
@@ -1077,7 +1084,7 @@ class Session:
                 _build_agent(seats[0], seed ^ 0x10000, mcts_sims=mcts_sims),
                 _build_agent(seats[1], seed ^ 0x20000, mcts_sims=mcts_sims),
             )
-            self.state = setup(seed)
+            self.state, self.env = setup_env(seed)
             self.log = RoundLog(self.humans)
             self.current_round = self.state.round_number
             self.game_over = (self.state.phase == Phase.BEFORE_SCORING)

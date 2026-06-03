@@ -122,7 +122,7 @@ def with_sown_fields(state, player_idx, *,
 def with_space(state, space_id: str, **kwargs):
     """Replace fields on a specific action space.
 
-    Example: with_space(s, "fishing", round_revealed=1, accumulated_amount=3)
+    Example: with_space(s, "fishing", revealed=True, accumulated_amount=3)
     """
     new_action_space = dataclasses.replace(_get_space(state.board, space_id), **kwargs)
     new_board = _board_with_space(state.board, space_id, new_action_space)

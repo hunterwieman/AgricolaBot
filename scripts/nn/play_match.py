@@ -68,7 +68,7 @@ from agricola.agents.base import Agent, play_game  # noqa: E402
 from agricola.agents.nn.agent import NNAgent, nn_evaluator_differential  # noqa: E402
 from agricola.agents.nn.model import NormalizedValueModel  # noqa: E402
 from agricola.scoring import score, tiebreaker  # noqa: E402
-from agricola.setup import setup  # noqa: E402
+from agricola.setup import setup, setup_env  # noqa: E402
 
 
 # Seat types: model-based (need a checkpoint) vs config-based (need a config).
@@ -262,10 +262,10 @@ def _winner(s0: int, s1: int, tb0: tuple, tb1: tuple) -> int | None:
 def _play_one_game(seed: int) -> dict:
     assert _WORKER_SPEC is not None
     t0 = time.time()
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     p0 = _build_seat(_WORKER_SPEC.p0_type, seed, 0)
     p1 = _build_seat(_WORKER_SPEC.p1_type, seed, 1)
-    final, _trace = play_game(initial, (p0, p1))
+    final, _trace = play_game(initial, (p0, p1), env.resolve)
     s0, _ = score(final, 0)
     s1, _ = score(final, 1)
     tb0 = tiebreaker(final, 0)

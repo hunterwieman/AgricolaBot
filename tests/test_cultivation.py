@@ -37,7 +37,7 @@ def _cult_setup(*, grain=0, veg=0, prefab_fields=()):
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = with_resources(state, 0, grain=grain, veg=veg)
-    state = with_space(state, "cultivation", round_revealed=1)
+    state = with_space(state, "cultivation", revealed=True)
     if prefab_fields:
         from agricola.state import Cell
         state = with_grid(state, 0, {(r, c): Cell(cell_type=CellType.FIELD) for (r, c) in prefab_fields})

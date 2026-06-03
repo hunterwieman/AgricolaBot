@@ -27,15 +27,16 @@ from agricola.agents.nn.encoder import ENCODED_DIM
 from agricola.agents.nn.model import NormalizedValueModel
 from agricola.agents.nn.training import train
 from agricola.legality import legal_actions
-from agricola.setup import setup
+from agricola.setup import setup, setup_env
 
 
 def _record_one_game(seed: int):
-    initial = setup(seed=seed)
+    initial, env = setup_env(seed=seed)
     return play_recording_game(
         initial,
         RandomAgent(seed=seed),
         RandomAgent(seed=seed + 1),
+        dealer=env.resolve,
         game_idx=seed, seed=seed,
         p0_config_path="random", p1_config_path="random",
         p0_temperature=0.0, p1_temperature=0.0,

@@ -48,7 +48,7 @@ def _play_one_game(seed: int) -> dict:
     from agricola.agents.restricted import restricted_legal_actions
     from agricola.legality import legal_actions
     from agricola.scoring import score
-    from agricola.setup import setup
+    from agricola.setup import setup, setup_env
 
     laf = restricted_legal_actions if _RESTRICTED else legal_actions
     p0 = HubrisHeuristicV3(seed=seed, config=_CFG, lookahead="exhaustive",
@@ -57,7 +57,8 @@ def _play_one_game(seed: int) -> dict:
     p1 = HubrisHeuristicV3(seed=seed, config=_CFG, lookahead="turn",
                             legal_actions_fn=laf)
     t0 = _time.time()
-    final, _ = play_game(setup(seed=seed), (p0, p1))
+    initial, env = setup_env(seed=seed)
+    final, _ = play_game(initial, (p0, p1), env.resolve)
     s0, _ = score(final, 0)
     s1, _ = score(final, 1)
     return {

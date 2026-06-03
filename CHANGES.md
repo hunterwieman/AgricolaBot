@@ -546,3 +546,36 @@ Win record (decisive):      restricted 478 — unrestricted 488   (49.5%, 95% CI
 All 23 new restricted-action tests pass; previous test suite stays green after the agent-infrastructure edits. End-to-end smoke run of `tune_heuristic.py --restricted` confirmed multiprocessing path + holdout + JSON output all work. Dry-runs on the orchestrator confirmed the flag forwards correctly to every subprocess command line.
 
 Future training runs (iter3 and beyond) default to `--restricted` ON. To opt out for a control or comparison run, append `--no-restricted`.
+
+---
+
+## Change 12 — Hidden-information refactor: round-card reveal as a nature step, public/private state split, MCTS chance nodes
+
+### Motivation
+
+The per-game stage-card reveal order (`round_card_order`) is hidden information — within each stage the round cards are shuffled face-down and revealed one per round — but it sat fully resolved inside every `GameState`. Any agent looking ahead across a round boundary (MCTS search, and the greedy lookahead at end-of-round) therefore planned against the *true* future: a cheat. This change removes the order from the public state and models each reveal as an explicit chance event. Design reference: `HIDDEN_INFO_DESIGN.md`.
+
+### What changed
+
+**State split (public vs. hidden).** `ActionSpaceState.round_revealed: int` → `revealed: bool` (memoryless — two states with the same revealed *set* recombine in the MCTS DAG regardless of reveal order). `BoardState.round_card_order` removed; the shuffled order now lives in a new `Environment` (`agricola/environment.py`) — hidden ground truth + nature policy, held by the driver, never seen by agents/MCTS. `GameState` carries only common knowledge.
+
+**Reveal as an action.** New `RevealCard(card)` action and `PendingReveal` nature frame (`player_idx = None`); `decider_of` returns `None` at a reveal node. `step`'s signature is unchanged — the reveal's *source* (the env dealer in real games, the chance node in MCTS) is a caller concern, like worker placements.
+
+**Engine prep restructure.** A two-state PREPARATION walk in `_advance_until_decision` (discriminated by `_count_revealed_stage_cards == round_number`) replaces the old monolithic `_resolve_preparation`: push `PendingReveal` if the round's card isn't up, else `_complete_preparation`. `_apply_reveal_card` turns the card up and pops the frame (leaving PREPARATION), so the WORK-only alternation guard is untouched and `current_player = starting_player` sticks.
+
+**Setup.** `setup_env(seed) -> (GameState, Environment)` is the full constructor; it pre-deals round 1 (resolving the round-1 reveal via the env) and returns a round-1 WORK state; `setup(seed) = setup_env(seed)[0]` stays content-compatible. Routing round 1 through the uniform reveal path **fixed a latent bug**: a round-1-revealed accumulation space (e.g. `sheep_market`) previously started with 0 goods; it now correctly starts with its round-1 accumulation.
+
+**Drivers + evaluators.** `play_game` gained a `dealer` (real games pass `env.resolve`; `random_agent_play` self-samples reveals and needs no env). The `EvaluatorAgent` lookahead (`_eval`) averages the evaluator over reveal outcomes at a nature node (heuristic + NN — never evaluating the between-turns state). `_basic_wish_revealed_round` de-cheated to the expected reveal round (6.0 / 6.5 / 7.0 when unrevealed; the current round once revealed). The NN encoder migrated `round_revealed <= rn` → `sp.revealed` with byte-identical output (no `ENCODING_VERSION` bump). `play_recording_game` gained a `dealer`.
+
+**MCTS chance nodes.** `MCTSNode.is_chance` + `chance_counts`; `find_or_create_node` tags reveal nodes (`decider = 0` as a P0 value-frame label so backprop/UCB are unchanged, `is_chance` carries the nature meaning). `_simulate` routes through chance nodes by deterministic round-robin (`_chance_route`), never evaluating them; outcome children are post-reveal decision nodes. MCTS reconstructs reveal candidates from public state and reads no Environment.
+
+### Files touched
+
+- New: `agricola/environment.py`, `tests/test_reveal.py`.
+- Engine/state: `state.py`, `setup.py`, `actions.py`, `pending.py`, `engine.py`, `legality.py`, `constants.py` (`stage_of_round`).
+- Agents: `agents/base.py` (`decider_of`, `play_game`, `_eval`), `agents/mcts.py` (chance nodes), `agents/heuristic.py` (`_basic_wish`), `agents/nn/encoder.py`, `agents/nn/recording.py`.
+- Tests/scripts: migrated `round_revealed→revealed`, `setup→setup_env` + `play_game`/`play_recording_game` dealer, and `round_card_order` sites across ~16 test files + `scripts/profile_states.py`, `scripts/nn/generate_training_data.py`.
+
+### Outcome
+
+Full suite green — 949 tests (935 migrated + 14 new in `test_reveal.py`); baseline was 935. Aggregate sanity: HubrisHeuristicV3 beat RandomAgent 12/12; MCTS-vs-HubrisHeuristicV3 over 6 games averaged −5.83 margin (in the documented MCTS-with-heuristic-leaf ballpark — not regressed). Still pending: the V3 re-validation vs the 8-config ensemble (the `_eval`/`_basic_wish` changes shift heuristic end-of-round play).

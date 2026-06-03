@@ -22,6 +22,7 @@ from agricola.actions import (
     CommitSow,
     FireTrigger,
     PlaceWorker,
+    RevealCard,
     Stop,
 )
 from agricola.constants import (
@@ -32,6 +33,8 @@ from agricola.constants import (
     MAJOR_IMPROVEMENT_COSTS,
     Phase,
     ROOM_COSTS,
+    STAGE_CARDS,
+    stage_of_round,
 )
 from agricola.fences import (
     NUM_COLS,
@@ -58,6 +61,7 @@ from agricola.pending import (
     PendingGrainUtilization,
     PendingPlow,
     PendingRenovate,
+    PendingReveal,
     PendingSow,
 )
 from agricola.state import GameState, PlayerState, get_space
@@ -150,8 +154,7 @@ def _is_available(state: GameState, space: str) -> bool:
     """Cross-cutting check: space is unoccupied and currently revealed."""
     sp = get_space(state.board, space)
     unoccupied = sp.workers == (0, 0)
-    revealed = sp.round_revealed <= state.round_number
-    return unoccupied and revealed
+    return unoccupied and sp.revealed
 
 
 def _num_rooms(player: PlayerState) -> int:
@@ -1474,6 +1477,26 @@ def _enumerate_pending_harvest_breed(
     return actions
 
 
+def _enumerate_pending_reveal(
+    state: GameState, pending: PendingReveal,
+) -> list[Action]:
+    """Nature's candidate reveals at PendingReveal.
+
+    The unrevealed cards of the stage the round being entered belongs to.
+    `state.round_number` is the round just completed (§4.5), so the reveal turns
+    up the next round's card — the candidate stage is `stage_of_round(round + 1)`.
+    Uniform over candidates; for the k=1 stages this yields a single RevealCard
+    (the trivial chance node). Derived purely from public state — STAGE_CARDS
+    minus the already-revealed cards; the env's true card is always one of these.
+    """
+    stage = stage_of_round(state.round_number + 1)
+    return [
+        RevealCard(c)
+        for c in STAGE_CARDS[stage]
+        if not get_space(state.board, c).revealed
+    ]
+
+
 # Dispatch table for per-pending enumerators. New pending types register here.
 from agricola.pending import (
     PendingCattleMarket,
@@ -1515,6 +1538,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingFarmRedevelopment:   _enumerate_pending_farm_redevelopment,
     PendingHarvestFeed:         _enumerate_pending_harvest_feed,
     PendingHarvestBreed:        _enumerate_pending_harvest_breed,
+    PendingReveal:              _enumerate_pending_reveal,
 }
 
 

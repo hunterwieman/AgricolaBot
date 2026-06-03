@@ -59,7 +59,7 @@ def _fr_setup(*, material=HouseMaterial.WOOD, resources=None, current_player=0):
     state = with_house(state, current_player, material)
     if resources:
         state = with_resources(state, current_player, **resources)
-    state = with_space(state, "farm_redevelopment", round_revealed=1)
+    state = with_space(state, "farm_redevelopment", revealed=True)
     return state
 
 
