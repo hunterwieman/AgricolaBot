@@ -123,6 +123,15 @@ def main() -> int:
                              "checkpoint (.pt) before training (e.g. a killed "
                              "run's best.pt) for faster convergence. Freshly-fit "
                              "NormStats are kept; optimizer state is not restored.")
+    parser.add_argument("--l2sp", type=float, default=0.0,
+                        help="L2-SP anchor strength λ: add λ·‖θ−θ₀‖² to the loss, "
+                             "pulling weights toward the --init-from checkpoint "
+                             "(a trust region) instead of toward 0 (weight_decay). "
+                             "Requires --init-from. Default 0 (off).")
+    parser.add_argument("--save-all-epochs", action="store_true", default=False,
+                        help="Save a checkpoint every epoch (epoch_NNN.pt) in "
+                             "addition to best.pt, so checkpoints can be selected "
+                             "by head-to-head play rather than val MSE.")
     parser.add_argument("--train-sample-size", type=int, default=None,
                         help="Cap on train descriptors (paired). Default: use all.")
     parser.add_argument("--train-frac", type=float, default=0.8)
@@ -165,6 +174,8 @@ def main() -> int:
         store_dtype=args.store_dtype,
         use_cache=args.use_cache,
         init_from=args.init_from,
+        l2sp=args.l2sp,
+        save_all_epochs=args.save_all_epochs,
         fast_loader=args.fast_loader,
         data_on_device=args.data_on_device,
     )

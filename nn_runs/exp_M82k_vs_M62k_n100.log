@@ -1,0 +1,131 @@
+NN match: P0=nn vs P1=nn
+  P0: nn /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_82k_warmM62k/best.pt
+  P1: nn /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_62k_warmM55k/best.pt
+  sims:     500 (mcts seats only)
+  c_uct:    1.4
+  n_random_fencing: 4
+  fpu_offset: 0.0
+  mcts_temperature: 0.2
+  nn_temperature: 0.0
+  games:    100 (seeds 0..99)
+  jobs:     8
+
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+[  1/100] seed=  6 SP=0 P0= 28 P1= 31 (P1)  P0W=0 P1W=1 D=0  avgM=-3.00  t=1.4s elapsed=4s eta=367s
+[  2/100] seed=  1 SP=0 P0= 29 P1= 26 (P0)  P0W=1 P1W=1 D=0  avgM=+0.00  t=1.7s elapsed=4s eta=196s
+[  3/100] seed=  3 SP=1 P0= 27 P1= 31 (P1)  P0W=1 P1W=2 D=0  avgM=-1.33  t=2.5s elapsed=5s eta=154s
+[  4/100] seed=  4 SP=1 P0= 24 P1= 28 (P1)  P0W=1 P1W=3 D=0  avgM=-2.00  t=2.9s elapsed=5s eta=124s
+[  5/100] seed=  2 SP=1 P0= 31 P1= 17 (P0)  P0W=2 P1W=3 D=0  avgM=+1.20  t=3.3s elapsed=6s eta=105s
+[  6/100] seed=  0 SP=1 P0= 19 P1= 17 (P0)  P0W=3 P1W=3 D=0  avgM=+1.33  t=3.3s elapsed=6s eta=87s
+[  7/100] seed=  5 SP=1 P0= 33 P1= 23 (P0)  P0W=4 P1W=3 D=0  avgM=+2.57  t=3.5s elapsed=6s eta=78s
+[  8/100] seed= 10 SP=1 P0= 24 P1= 35 (P1)  P0W=4 P1W=4 D=0  avgM=+0.88  t=1.8s elapsed=7s eta=76s
+[  9/100] seed=  7 SP=1 P0= 30 P1= 20 (P0)  P0W=5 P1W=4 D=0  avgM=+1.89  t=4.8s elapsed=7s eta=72s
+[ 10/100] seed=  9 SP=0 P0= 36 P1= 32 (P0)  P0W=6 P1W=4 D=0  avgM=+2.10  t=3.2s elapsed=7s eta=65s
+[ 11/100] seed= 12 SP=1 P0= 22 P1= 31 (P1)  P0W=6 P1W=5 D=0  avgM=+1.09  t=2.1s elapsed=8s eta=62s
+[ 12/100] seed= 14 SP=0 P0= 30 P1= 29 (P0)  P0W=7 P1W=5 D=0  avgM=+1.08  t=1.9s elapsed=8s eta=57s
+[ 13/100] seed=  8 SP=1 P0= 33 P1= 23 (P0)  P0W=8 P1W=5 D=0  avgM=+1.77  t=4.0s elapsed=8s eta=52s
+[ 14/100] seed= 11 SP=0 P0= 27 P1= 29 (P1)  P0W=8 P1W=6 D=0  avgM=+1.50  t=2.6s elapsed=8s eta=48s
+[ 15/100] seed= 18 SP=1 P0= 21 P1= 20 (P0)  P0W=9 P1W=6 D=0  avgM=+1.47  t=1.8s elapsed=9s eta=53s
+[ 16/100] seed= 13 SP=1 P0= 26 P1= 27 (P1)  P0W=9 P1W=7 D=0  avgM=+1.31  t=3.9s elapsed=9s eta=50s
+[ 17/100] seed= 20 SP=1 P0= 26 P1= 16 (P0)  P0W=10 P1W=7 D=0  avgM=+1.82  t=1.8s elapsed=10s eta=46s
+[ 18/100] seed= 21 SP=0 P0= 32 P1= 19 (P0)  P0W=11 P1W=7 D=0  avgM=+2.44  t=2.2s elapsed=10s eta=46s
+[ 19/100] seed= 15 SP=1 P0= 28 P1= 27 (P0)  P0W=12 P1W=7 D=0  avgM=+2.37  t=3.7s elapsed=10s eta=44s
+[ 20/100] seed= 16 SP=1 P0= 32 P1= 26 (P0)  P0W=13 P1W=7 D=0  avgM=+2.55  t=3.4s elapsed=11s eta=42s
+[ 21/100] seed= 19 SP=1 P0= 13 P1= 20 (P1)  P0W=13 P1W=8 D=0  avgM=+2.10  t=3.0s elapsed=11s eta=40s
+[ 22/100] seed= 17 SP=1 P0= 28 P1= 21 (P0)  P0W=14 P1W=8 D=0  avgM=+2.32  t=3.7s elapsed=11s eta=39s
+[ 23/100] seed= 22 SP=1 P0= 27 P1= 32 (P1)  P0W=14 P1W=9 D=0  avgM=+2.00  t=2.0s elapsed=11s eta=38s
+[ 24/100] seed= 23 SP=0 P0= 23 P1= 18 (P0)  P0W=15 P1W=9 D=0  avgM=+2.12  t=2.0s elapsed=11s eta=36s
+[ 25/100] seed= 24 SP=0 P0= 18 P1= 26 (P1)  P0W=15 P1W=10 D=0  avgM=+1.72  t=2.2s elapsed=12s eta=35s
+[ 26/100] seed= 25 SP=1 P0= 23 P1= 28 (P1)  P0W=15 P1W=11 D=0  avgM=+1.46  t=1.9s elapsed=12s eta=34s
+[ 27/100] seed= 27 SP=0 P0= 27 P1= 22 (P0)  P0W=16 P1W=11 D=0  avgM=+1.59  t=1.7s elapsed=12s eta=33s
+[ 28/100] seed= 29 SP=1 P0= 28 P1= 22 (P0)  P0W=17 P1W=11 D=0  avgM=+1.75  t=1.7s elapsed=13s eta=32s
+[ 29/100] seed= 30 SP=0 P0= 33 P1= 22 (P0)  P0W=18 P1W=11 D=0  avgM=+2.07  t=1.8s elapsed=13s eta=32s
+[ 30/100] seed= 31 SP=1 P0= 17 P1= 23 (P1)  P0W=18 P1W=12 D=0  avgM=+1.80  t=2.3s elapsed=14s eta=32s
+[ 31/100] seed= 35 SP=0 P0= 29 P1= 30 (P1)  P0W=18 P1W=13 D=0  avgM=+1.71  t=1.9s elapsed=15s eta=32s
+[ 32/100] seed= 32 SP=1 P0= 18 P1= 11 (P0)  P0W=19 P1W=13 D=0  avgM=+1.88  t=2.9s elapsed=15s eta=31s
+[ 33/100] seed= 33 SP=1 P0= 33 P1= 29 (P0)  P0W=20 P1W=13 D=0  avgM=+1.94  t=2.9s elapsed=15s eta=30s
+[ 34/100] seed= 37 SP=0 P0= 38 P1= 27 (P0)  P0W=21 P1W=13 D=0  avgM=+2.21  t=1.3s elapsed=15s eta=29s
+[ 35/100] seed= 36 SP=0 P0= 31 P1= 18 (P0)  P0W=22 P1W=13 D=0  avgM=+2.51  t=1.8s elapsed=15s eta=28s
+[ 36/100] seed= 34 SP=0 P0= 19 P1= 33 (P1)  P0W=22 P1W=14 D=0  avgM=+2.06  t=2.9s elapsed=15s eta=27s
+[ 37/100] seed= 26 SP=1 P0= 32 P1= 19 (P0)  P0W=23 P1W=14 D=0  avgM=+2.35  t=5.1s elapsed=15s eta=26s
+[ 38/100] seed= 28 SP=1 P0= 36 P1= 25 (P0)  P0W=24 P1W=14 D=0  avgM=+2.58  t=5.5s elapsed=16s eta=26s
+[ 39/100] seed= 39 SP=1 P0= 22 P1= 26 (P1)  P0W=24 P1W=15 D=0  avgM=+2.41  t=2.1s elapsed=17s eta=26s
+[ 40/100] seed= 38 SP=0 P0= 29 P1= 21 (P0)  P0W=25 P1W=15 D=0  avgM=+2.55  t=2.1s elapsed=17s eta=25s
+[ 41/100] seed= 42 SP=0 P0= 19 P1= 18 (P0)  P0W=26 P1W=15 D=0  avgM=+2.51  t=1.7s elapsed=17s eta=24s
+[ 42/100] seed= 40 SP=1 P0= 28 P1= 27 (P0)  P0W=27 P1W=15 D=0  avgM=+2.48  t=2.1s elapsed=17s eta=23s
+[ 43/100] seed= 41 SP=1 P0= 30 P1= 26 (P0)  P0W=28 P1W=15 D=0  avgM=+2.51  t=2.3s elapsed=17s eta=23s
+[ 44/100] seed= 44 SP=1 P0= 25 P1= 34 (P1)  P0W=28 P1W=16 D=0  avgM=+2.25  t=2.1s elapsed=17s eta=22s
+[ 45/100] seed= 43 SP=1 P0= 28 P1= 25 (P0)  P0W=29 P1W=16 D=0  avgM=+2.27  t=2.4s elapsed=18s eta=22s
+[ 46/100] seed= 48 SP=0 P0= 25 P1= 34 (P1)  P0W=29 P1W=17 D=0  avgM=+2.02  t=1.3s elapsed=18s eta=21s
+[ 47/100] seed= 47 SP=0 P0= 24 P1= 26 (P1)  P0W=29 P1W=18 D=0  avgM=+1.94  t=1.6s elapsed=18s eta=21s
+[ 48/100] seed= 46 SP=1 P0= 27 P1= 18 (P0)  P0W=30 P1W=18 D=0  avgM=+2.08  t=1.9s elapsed=19s eta=20s
+[ 49/100] seed= 49 SP=0 P0= 28 P1= 25 (P0)  P0W=31 P1W=18 D=0  avgM=+2.10  t=1.8s elapsed=19s eta=20s
+[ 50/100] seed= 45 SP=1 P0= 19 P1= 21 (P1)  P0W=31 P1W=19 D=0  avgM=+2.02  t=2.9s elapsed=19s eta=19s
+[ 51/100] seed= 51 SP=0 P0= 24 P1= 27 (P1)  P0W=31 P1W=20 D=0  avgM=+1.92  t=2.1s elapsed=19s eta=19s
+[ 52/100] seed= 52 SP=1 P0= 27 P1= 25 (P0)  P0W=32 P1W=20 D=0  avgM=+1.92  t=2.0s elapsed=20s eta=18s
+[ 53/100] seed= 54 SP=0 P0= 27 P1= 26 (P0)  P0W=33 P1W=20 D=0  avgM=+1.91  t=1.5s elapsed=20s eta=18s
+[ 54/100] seed= 56 SP=0 P0= 21 P1= 26 (P1)  P0W=33 P1W=21 D=0  avgM=+1.78  t=2.5s elapsed=21s eta=18s
+[ 55/100] seed= 57 SP=0 P0= 27 P1= 27 (P1)  P0W=33 P1W=22 D=0  avgM=+1.75  t=2.3s elapsed=21s eta=18s
+[ 56/100] seed= 50 SP=1 P0= 32 P1= 19 (P0)  P0W=34 P1W=22 D=0  avgM=+1.95  t=5.2s elapsed=23s eta=18s
+[ 57/100] seed= 53 SP=1 P0= 34 P1= 31 (P0)  P0W=35 P1W=22 D=0  avgM=+1.96  t=4.5s elapsed=23s eta=17s
+[ 58/100] seed= 55 SP=1 P0= 32 P1= 28 (P0)  P0W=36 P1W=22 D=0  avgM=+2.00  t=4.4s elapsed=23s eta=17s
+[ 59/100] seed= 60 SP=0 P0= 23 P1= 29 (P1)  P0W=36 P1W=23 D=0  avgM=+1.86  t=3.3s elapsed=23s eta=16s
+[ 60/100] seed= 59 SP=1 P0= 32 P1= 24 (P0)  P0W=37 P1W=23 D=0  avgM=+1.97  t=3.6s elapsed=23s eta=15s
+[ 61/100] seed= 61 SP=0 P0= 23 P1= 17 (P0)  P0W=38 P1W=23 D=0  avgM=+2.03  t=2.0s elapsed=23s eta=15s
+[ 62/100] seed= 62 SP=0 P0= 24 P1= 18 (P0)  P0W=39 P1W=23 D=0  avgM=+2.10  t=2.2s elapsed=24s eta=14s
+[ 63/100] seed= 58 SP=1 P0= 31 P1= 28 (P0)  P0W=40 P1W=23 D=0  avgM=+2.11  t=4.6s elapsed=24s eta=14s
+[ 64/100] seed= 63 SP=0 P0= 29 P1= 15 (P0)  P0W=41 P1W=23 D=0  avgM=+2.30  t=2.0s elapsed=24s eta=14s
+[ 65/100] seed= 64 SP=1 P0= 14 P1= 10 (P0)  P0W=42 P1W=23 D=0  avgM=+2.32  t=2.4s elapsed=25s eta=13s
+[ 66/100] seed= 65 SP=0 P0= 27 P1= 30 (P1)  P0W=42 P1W=24 D=0  avgM=+2.24  t=2.0s elapsed=25s eta=13s
+[ 67/100] seed= 68 SP=0 P0= 38 P1= 28 (P0)  P0W=43 P1W=24 D=0  avgM=+2.36  t=1.7s elapsed=25s eta=12s
+[ 68/100] seed= 67 SP=1 P0= 27 P1= 20 (P0)  P0W=44 P1W=24 D=0  avgM=+2.43  t=2.4s elapsed=26s eta=12s
+[ 69/100] seed= 69 SP=0 P0= 31 P1= 18 (P0)  P0W=45 P1W=24 D=0  avgM=+2.58  t=2.3s elapsed=26s eta=12s
+[ 70/100] seed= 70 SP=1 P0= 32 P1= 27 (P0)  P0W=46 P1W=24 D=0  avgM=+2.61  t=2.0s elapsed=26s eta=11s
+[ 71/100] seed= 66 SP=1 P0= 19 P1= 25 (P1)  P0W=46 P1W=25 D=0  avgM=+2.49  t=3.2s elapsed=26s eta=11s
+[ 72/100] seed= 74 SP=0 P0= 25 P1= 29 (P1)  P0W=46 P1W=26 D=0  avgM=+2.40  t=1.7s elapsed=27s eta=10s
+[ 73/100] seed= 73 SP=1 P0= 26 P1= 28 (P1)  P0W=46 P1W=27 D=0  avgM=+2.34  t=2.4s elapsed=27s eta=10s
+[ 74/100] seed= 72 SP=1 P0= 30 P1= 26 (P0)  P0W=47 P1W=27 D=0  avgM=+2.36  t=2.7s elapsed=28s eta=10s
+[ 75/100] seed= 71 SP=1 P0= 32 P1= 25 (P0)  P0W=48 P1W=27 D=0  avgM=+2.43  t=3.1s elapsed=28s eta=9s
+[ 76/100] seed= 75 SP=1 P0= 28 P1= 27 (P0)  P0W=49 P1W=27 D=0  avgM=+2.41  t=2.4s elapsed=28s eta=9s
+[ 77/100] seed= 78 SP=1 P0= 29 P1= 26 (P0)  P0W=50 P1W=27 D=0  avgM=+2.42  t=2.0s elapsed=28s eta=8s
+[ 78/100] seed= 79 SP=0 P0= 26 P1= 20 (P0)  P0W=51 P1W=27 D=0  avgM=+2.46  t=2.1s elapsed=29s eta=8s
+[ 79/100] seed= 81 SP=0 P0= 16 P1= 28 (P1)  P0W=51 P1W=28 D=0  avgM=+2.28  t=2.5s elapsed=30s eta=8s
+[ 80/100] seed= 76 SP=1 P0= 34 P1= 31 (P0)  P0W=52 P1W=28 D=0  avgM=+2.29  t=4.9s elapsed=31s eta=8s
+[ 81/100] seed= 77 SP=0 P0= 34 P1= 27 (P0)  P0W=53 P1W=28 D=0  avgM=+2.35  t=4.7s elapsed=31s eta=7s
+[ 82/100] seed= 80 SP=1 P0= 32 P1= 27 (P0)  P0W=54 P1W=28 D=0  avgM=+2.38  t=3.8s elapsed=31s eta=7s
+[ 83/100] seed= 83 SP=1 P0= 15 P1= 19 (P1)  P0W=54 P1W=29 D=0  avgM=+2.30  t=3.9s elapsed=32s eta=7s
+[ 84/100] seed= 84 SP=1 P0= 26 P1= 27 (P1)  P0W=54 P1W=30 D=0  avgM=+2.26  t=4.3s elapsed=33s eta=6s
+[ 85/100] seed= 82 SP=1 P0= 30 P1= 20 (P0)  P0W=55 P1W=30 D=0  avgM=+2.35  t=5.1s elapsed=33s eta=6s
+[ 86/100] seed= 88 SP=1 P0= 24 P1= 14 (P0)  P0W=56 P1W=30 D=0  avgM=+2.44  t=2.1s elapsed=33s eta=5s
+[ 87/100] seed= 85 SP=1 P0= 28 P1= 26 (P0)  P0W=57 P1W=30 D=0  avgM=+2.44  t=4.2s elapsed=33s eta=5s
+[ 88/100] seed= 86 SP=1 P0= 27 P1= 27 (P1)  P0W=57 P1W=31 D=0  avgM=+2.41  t=3.1s elapsed=33s eta=5s
+[ 89/100] seed= 87 SP=1 P0= 21 P1= 37 (P1)  P0W=57 P1W=32 D=0  avgM=+2.20  t=2.6s elapsed=33s eta=4s
+[ 90/100] seed= 92 SP=0 P0= 31 P1= 23 (P0)  P0W=58 P1W=32 D=0  avgM=+2.27  t=2.1s elapsed=35s eta=4s
+[ 91/100] seed= 90 SP=1 P0= 35 P1= 25 (P0)  P0W=59 P1W=32 D=0  avgM=+2.35  t=3.1s elapsed=35s eta=3s
+[ 92/100] seed= 94 SP=0 P0= 26 P1= 21 (P0)  P0W=60 P1W=32 D=0  avgM=+2.38  t=2.0s elapsed=35s eta=3s
+[ 93/100] seed= 95 SP=0 P0= 27 P1= 27 (P1)  P0W=60 P1W=33 D=0  avgM=+2.35  t=2.0s elapsed=35s eta=3s
+[ 94/100] seed= 89 SP=1 P0= 28 P1= 26 (P0)  P0W=61 P1W=33 D=0  avgM=+2.35  t=4.2s elapsed=35s eta=2s
+[ 95/100] seed= 96 SP=1 P0= 27 P1= 28 (P1)  P0W=61 P1W=34 D=0  avgM=+2.32  t=2.0s elapsed=35s eta=2s
+[ 96/100] seed= 91 SP=1 P0= 31 P1= 25 (P0)  P0W=62 P1W=34 D=0  avgM=+2.35  t=3.1s elapsed=36s eta=1s
+[ 97/100] seed= 97 SP=0 P0= 38 P1= 27 (P0)  P0W=63 P1W=34 D=0  avgM=+2.44  t=1.3s elapsed=36s eta=1s
+[ 98/100] seed= 93 SP=1 P0= 36 P1= 27 (P0)  P0W=64 P1W=34 D=0  avgM=+2.51  t=3.3s elapsed=36s eta=1s
+[ 99/100] seed= 98 SP=0 P0= 29 P1= 27 (P0)  P0W=65 P1W=34 D=0  avgM=+2.51  t=1.4s elapsed=36s eta=0s
+[100/100] seed= 99 SP=1 P0= 24 P1= 28 (P1)  P0W=65 P1W=35 D=0  avgM=+2.44  t=1.7s elapsed=37s eta=0s
+
+Final: P0=65  P1=35  D=0  avg margin (P0-P1)=+2.44
+Total elapsed: 37s (0.4s/game avg)

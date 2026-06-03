@@ -111,6 +111,8 @@ class _Spec:
     temperature: float
     nn_temperature: float
     nn_legality: str = "strict"   # "strict" | "regular" — NNAgent seat's legality wrapper
+    opt_pareto_level: int = 0      # agricola.opt_config.PARETO_OPT_LEVEL (0-3) — MCTS speedup
+    opt_fence_cache: bool = False  # agricola.opt_config.FENCE_SCAN_CACHE — MCTS speedup
 
 
 # Worker globals. Two model slots; if the spec's two paths are equal,
@@ -126,6 +128,12 @@ def _init_worker(spec: _Spec) -> None:
     N workers don't fight for the shared thread pool."""
     global _WORKER_MODEL_P0, _WORKER_MODEL_P1, _WORKER_SPEC
     torch.set_num_threads(1)
+    # Apply the behavior-transparent MCTS legality-enumeration speedups in each
+    # worker (spawn re-imports opt_config fresh, so the parent's setting doesn't
+    # propagate — must be set here). See CLAUDE.md §2 / FRONTIER_OPT_DESIGN.md.
+    from agricola import opt_config
+    opt_config.PARETO_OPT_LEVEL = spec.opt_pareto_level
+    opt_config.FENCE_SCAN_CACHE = spec.opt_fence_cache
     _WORKER_SPEC = spec
     p0_needs = spec.p0_type in _MODEL_SEATS
     p1_needs = spec.p1_type in _MODEL_SEATS
@@ -309,6 +317,12 @@ def main() -> int:
     p.add_argument("--fpu-offset", type=float, default=0.0)
     p.add_argument("--temperature", type=float, default=0.2,
                    help="MCTS action-selection softmax T")
+    p.add_argument("--opt-level", type=int, default=0, choices=[0, 1, 2, 3],
+                   help="agricola.opt_config.PARETO_OPT_LEVEL — behavior-transparent "
+                        "MCTS legality-enumeration speedup (default 0=off; 3=all).")
+    p.add_argument("--fence-cache", action="store_true", default=False,
+                   help="agricola.opt_config.FENCE_SCAN_CACHE — caches the "
+                        "fence-universe legality scan (the dominant MCTS speedup).")
     p.add_argument("--nn-temperature", type=float, default=0.0,
                    help="NNAgent softmax T (0.0 = argmax greedy)")
     p.add_argument("--nn-legality", choices=["strict", "regular"], default="strict",
@@ -369,6 +383,8 @@ def main() -> int:
         temperature=args.temperature,
         nn_temperature=args.nn_temperature,
         nn_legality=args.nn_legality,
+        opt_pareto_level=args.opt_level,
+        opt_fence_cache=args.fence_cache,
     )
     seeds = list(range(args.seed_start, args.seed_start + args.n))
 
@@ -385,6 +401,7 @@ def main() -> int:
     print(f"  fpu_offset: {args.fpu_offset}")
     print(f"  mcts_temperature: {args.temperature}")
     print(f"  nn_temperature: {args.nn_temperature}")
+    print(f"  opt: PARETO_OPT_LEVEL={args.opt_level} FENCE_SCAN_CACHE={args.fence_cache}")
     print(f"  games:    {args.n} (seeds {args.seed_start}..{args.seed_start + args.n - 1})")
     print(f"  jobs:     {args.jobs}")
     print()

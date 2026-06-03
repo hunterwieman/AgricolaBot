@@ -1,0 +1,36 @@
+NN match: P0=mcts vs P1=mcts
+  P0: mcts /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_82k_warmM62k/best.pt
+  P1: mcts /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_82k_warmM62k/best.pt
+  sims:     300 (mcts seats only)
+  c_uct:    1.4
+  n_random_fencing: 4
+  fpu_offset: 0.0
+  mcts_temperature: 0.2
+  nn_temperature: 0.0
+  opt: PARETO_OPT_LEVEL=3 FENCE_SCAN_CACHE=True
+  games:    100 (seeds 0..99)
+  jobs:     8
+
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+[  1/100] seed=  2 SP=1 P0= 23 P1= 32 (P1)  P0W=0 P1W=1 D=0  avgM=-9.00  t=68.7s elapsed=71s eta=7036s
+[  2/100] seed=  0 SP=1 P0= 26 P1= 36 (P1)  P0W=0 P1W=2 D=0  avgM=-9.50  t=84.9s elapsed=87s eta=4272s
+[  3/100] seed=  4 SP=1 P0= 27 P1= 23 (P0)  P0W=1 P1W=2 D=0  avgM=-5.00  t=86.8s elapsed=89s eta=2882s
+[  4/100] seed=  6 SP=0 P0= 29 P1= 29 (P1)  P0W=1 P1W=3 D=0  avgM=-3.75  t=88.5s elapsed=91s eta=2183s
+[  5/100] seed=  7 SP=1 P0= 26 P1= 30 (P1)  P0W=1 P1W=4 D=0  avgM=-3.80  t=89.2s elapsed=92s eta=1742s
+[  6/100] seed=  5 SP=1 P0= 30 P1= 30 (P1)  P0W=1 P1W=5 D=0  avgM=-3.17  t=96.8s elapsed=99s eta=1554s
+[  7/100] seed=  1 SP=0 P0= 27 P1= 29 (P1)  P0W=1 P1W=6 D=0  avgM=-3.00  t=124.9s elapsed=127s eta=1690s

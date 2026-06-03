@@ -419,6 +419,9 @@
         sp.accumulation_text
           ? el('span', { class: 'space-accum' }, ` (${sp.accumulation_text})`)
           : null,
+        sp.effect_text
+          ? el('span', { class: 'space-effect' }, sp.effect_text)
+          : null,
       );
       const right = el('div', { class: 'space-right' });
       if (preview) {

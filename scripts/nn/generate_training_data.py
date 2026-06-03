@@ -290,6 +290,7 @@ def compute_plan(
     config_weights: tuple[float, ...] | None = None,
     restricted: bool = True,
     restriction_mix: tuple[float, float, float] | None = None,
+    p0_fixed_config: str | None = None,
 ) -> list[GamePlan]:
     """Generate the full per-game work list deterministically.
 
@@ -337,12 +338,19 @@ def compute_plan(
         game_rng = np.random.default_rng(base_seed * 100000 + game_idx)
 
         # Configs with replacement (weighted if config_weights given).
+        # When `p0_fixed_config` is set, P0 is pinned to that config and the
+        # pool (`approved_configs`/`weights`) becomes the P1-only sampling
+        # distribution — an asymmetric scheme for targeted data generation
+        # (e.g. a fixed NN in seat 0, opponents in seat 1 weighted toward the
+        # ones the NN is weakest against). P0 still draws its own temperature.
         if weights is None:
-            p0_idx = int(game_rng.integers(n_cfg))
             p1_idx = int(game_rng.integers(n_cfg))
+            p0_idx = p1_idx if p0_fixed_config is not None \
+                else int(game_rng.integers(n_cfg))
         else:
-            p0_idx = int(game_rng.choice(n_cfg, p=weights))
             p1_idx = int(game_rng.choice(n_cfg, p=weights))
+            p0_idx = p1_idx if p0_fixed_config is not None \
+                else int(game_rng.choice(n_cfg, p=weights))
 
         # Independent per-agent temperatures (or fixed if requested).
         if fixed_temperature is None:
@@ -360,7 +368,8 @@ def compute_plan(
         plan.append(GamePlan(
             game_idx=game_idx,
             seed=base_seed + game_idx,
-            p0_config=approved_configs[p0_idx],
+            p0_config=(p0_fixed_config if p0_fixed_config is not None
+                       else approved_configs[p0_idx]),
             p1_config=approved_configs[p1_idx],
             p0_temperature=p0_temp,
             p1_temperature=p1_temp,
@@ -568,6 +577,7 @@ def _write_metadata(
     fixed_temperature: float | None = None,
     config_weights: tuple[float, ...] | None = None,
     restriction_mix: tuple[float, float, float] | None = None,
+    p0_fixed_config: str | None = None,
     completed: int = 0,
     errored: list[dict] | None = None,
 ) -> None:
@@ -595,6 +605,7 @@ def _write_metadata(
         "host": platform.node(),
         "approved_configs": list(approved_configs),
         "config_weights": list(config_weights) if config_weights is not None else None,
+        "p0_fixed_config": p0_fixed_config,
         "temperature_distribution": temp_descriptor,
         "fixed_temperature": fixed_temperature,
         "restricted": restricted,
@@ -626,6 +637,7 @@ def generate_dataset(
     restricted: bool = True,
     restriction_mix: tuple[float, float, float] | None = None,
     fixed_temperature: float | None = None,
+    p0_fixed_config: str | None = None,
     verbose: bool = True,
 ) -> dict:
     """Generate (or resume) an NN training dataset.
@@ -672,6 +684,9 @@ def generate_dataset(
         print(f"Approved configs: {list(approved_configs)}")
         if config_weights is not None:
             print(f"Config weights: {list(config_weights)}")
+        if p0_fixed_config is not None:
+            print(f"P0 fixed config: {p0_fixed_config} "
+                  f"(pool above is P1-only sampling)")
         if restriction_mix is not None:
             print(f"Restriction mix (unrestricted/restricted/strict): "
                   f"{list(restriction_mix)}")
@@ -690,6 +705,7 @@ def generate_dataset(
         config_weights=config_weights,
         restricted=restricted,
         restriction_mix=restriction_mix,
+        p0_fixed_config=p0_fixed_config,
     )
     slices = partition_plan(plan, n_workers)
 
@@ -706,6 +722,7 @@ def generate_dataset(
             fixed_temperature=fixed_temperature,
             config_weights=config_weights,
             restriction_mix=restriction_mix,
+            p0_fixed_config=p0_fixed_config,
         )
 
     # Launch workers.
@@ -770,6 +787,7 @@ def generate_dataset(
         fixed_temperature=fixed_temperature,
         config_weights=config_weights,
         restriction_mix=restriction_mix,
+        p0_fixed_config=p0_fixed_config,
         completed=on_disk_completed,
         errored=all_errored,
     )
@@ -862,6 +880,16 @@ def main() -> int:
             "that hold T constant while varying the heuristic mix."
         ),
     )
+    parser.add_argument(
+        "--p0-fixed-config", type=str, default=None,
+        help=(
+            "Pin P0 (seat 0) to this config every game; the "
+            "--approved-configs/--config-weights pool then samples P1 (seat 1) "
+            "ONLY. Asymmetric scheme for targeted data gen — e.g. a fixed NN "
+            "in seat 0 vs opponents weighted toward the NN's weaknesses. "
+            "Same spec grammar as --approved-configs ('nn:<path>', 't2', JSON)."
+        ),
+    )
     args = parser.parse_args()
 
     generate_dataset(
@@ -874,6 +902,7 @@ def main() -> int:
         restricted=args.restricted,
         restriction_mix=tuple(args.restriction_mix) if args.restriction_mix else None,
         fixed_temperature=args.fixed_temperature,
+        p0_fixed_config=args.p0_fixed_config,
     )
     return 0
 

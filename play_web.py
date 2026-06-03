@@ -151,11 +151,13 @@ AGENT_TYPES: tuple[str, ...] = (
 # Default checkpoint backing the NN-based seats (`nn` and the `mcts` leaf
 # evaluator) when --nn-model is not passed. A stem
 # (NormalizedValueModel.load appends .pt/.meta.json), resolved relative to
-# this file so it works regardless of CWD. epoch_47 of the M_55k_all run is
-# the strongest checkpoint to date (linear/margin head).
+# this file so it works regardless of CWD. `nn_models/best` is the canonical
+# "best NN" pointer (a copy of the current champion's best.pt/.meta.json — see
+# nn_models/REGISTRY.md); promoting a new champion = overwrite that pair, no
+# code change here. Currently → M_82k_warmM62k (linear/margin head).
 _DEFAULT_NN_MODEL_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "nn_models", "M_55k_all", "epoch_47",
+    "nn_models", "best",
 )
 
 # Checkpoint the NN-based seats load. Set once at startup from --nn-model
@@ -456,6 +458,18 @@ def _player_to_dict(state: GameState, idx: int, decider: int) -> dict:
     }
 
 
+# Short effect blurbs shown under the name for the non-atomic spaces whose
+# bundled sub-actions aren't obvious from the title. Only these four are
+# annotated (per request); every other space renders name + accumulation
+# only. Keyed by space id; absent ids get no effect line.
+SPACE_EFFECT_TEXT: dict[str, str] = {
+    "farm_expansion": "build rooms and/or build stables",
+    "grain_utilization": "sow and/or bake bread",
+    "house_redevelopment": "renovate, then build an improvement",
+    "farm_redevelopment": "renovate, then build fences",
+}
+
+
 def _space_category(space_id: str) -> str:
     return "permanent" if space_id in PERMANENT_ACTION_SPACES_SET else "stage"
 
@@ -482,6 +496,7 @@ def _board_to_dict(state: GameState) -> dict:
             "is_revealed": is_revealed,
             "workers": list(ss.workers),
             "accumulation_text": _fmt_accumulation(sid, ss),
+            "effect_text": SPACE_EFFECT_TEXT.get(sid),
         })
     return {
         "spaces": spaces,
@@ -1370,6 +1385,17 @@ def parse_args() -> argparse.Namespace:
              "game uses the same model; restart the UI to switch. Defaults to "
              "nn_models/M_55k_all/epoch_47.",
     )
+    ap.add_argument(
+        "--opt-level", type=int, default=0, choices=[0, 1, 2, 3],
+        help="agricola.opt_config.PARETO_OPT_LEVEL (0-3, cumulative): "
+             "behavior-transparent legal-action enumeration speedups for "
+             "MCTS. Default 0 (off). Use 3 to speed up MCTS seats.",
+    )
+    ap.add_argument(
+        "--fence-cache", action="store_true", default=False,
+        help="agricola.opt_config.FENCE_SCAN_CACHE: cache the fence-universe "
+             "legality scan (the dominant MCTS speedup). Default off.",
+    )
     return ap.parse_args()
 
 
@@ -1382,6 +1408,12 @@ def main() -> None:
         _TUNED_V3_SOURCE_PATH = args.v3_config
     _RESTRICTED = bool(args.restricted)
     _MCTS_SIMS_DEFAULT = int(args.mcts_sims)
+    # Behavior-transparent MCTS enumeration speedups (read at call time by
+    # helpers.py / legality.py, so setting them here before any game starts is
+    # sufficient). Default off → byte-identical to baseline.
+    from agricola import opt_config as _opt_config
+    _opt_config.PARETO_OPT_LEVEL = int(args.opt_level)
+    _opt_config.FENCE_SCAN_CACHE = bool(args.fence_cache)
     if args.nn_model is not None:
         _NN_MODEL_PATH = _resolve_nn_model_path(args.nn_model)
     # Fail fast on a bad checkpoint path rather than at first `nn`-seat use.
@@ -1404,6 +1436,8 @@ def main() -> None:
     print(f"  AI seats use restricted_legal_actions: {'ON' if _RESTRICTED else 'OFF'}")
     print(f"  MCTS default sims/move: {_MCTS_SIMS_DEFAULT}  (override per session via New-game dialog)")
     print(f"  nn seat + mcts leaf evaluator use NN checkpoint: {_NN_MODEL_PATH}")
+    print(f"  MCTS speedups: PARETO_OPT_LEVEL={args.opt_level}  "
+          f"FENCE_SCAN_CACHE={'ON' if args.fence_cache else 'OFF'}")
     print(f"Serving at {url}")
     if not args.no_browser:
         try:

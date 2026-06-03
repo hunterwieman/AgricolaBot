@@ -89,19 +89,40 @@ def current_git_sha() -> str:
 # ---------------------------------------------------------------------------
 
 
+def _l2sp_penalty(model, l2sp_lambda, l2sp_anchor):
+    """L2-SP anchor penalty: λ·Σ‖θ − θ₀‖² over the learnable net weights,
+    where θ₀ is the warm-start checkpoint (FIRST_NN.md §13.1 anchored
+    fine-tuning). Unlike AdamW weight_decay (which pulls toward 0), this
+    pulls toward the warm-start values, making the anchor a trust region.
+    Returns a scalar tensor (0.0 when disabled)."""
+    if not l2sp_lambda or l2sp_anchor is None:
+        return None
+    total = None
+    for name, p in model.net.named_parameters():
+        a = l2sp_anchor.get(name)
+        if a is None:
+            continue
+        term = ((p - a) ** 2).sum()
+        total = term if total is None else total + term
+    return None if total is None else l2sp_lambda * total
+
+
 def train_one_epoch(
     model: NormalizedValueModel,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
     device: torch.device,
+    l2sp_lambda: float = 0.0,
+    l2sp_anchor: dict | None = None,
 ) -> tuple[float, float]:
     """One training pass over `loader`. Returns (train_mse, train_mae)
     in NORMALIZED space (multiply mae by `target_std` for margin units).
 
     Per-batch flow: zero grads, forward, loss, backward, step. The MSE
     and MAE are tracked via running sums of squared/absolute errors, so
-    we don't pay an extra pass for diagnostics.
+    we don't pay an extra pass for diagnostics. When `l2sp_lambda > 0`,
+    the L2-SP anchor penalty is added to the data loss before backprop.
     """
     model.train()
     n = 0
@@ -114,6 +135,9 @@ def train_one_epoch(
         optimizer.zero_grad()
         pred = model(x)                 # normalized scalar output
         loss = loss_fn(pred, y)
+        penalty = _l2sp_penalty(model, l2sp_lambda, l2sp_anchor)
+        if penalty is not None:
+            loss = loss + penalty
         loss.backward()
         optimizer.step()
 
@@ -155,6 +179,7 @@ def evaluate(
 
 def train_one_epoch_batched(
     model, X, y, optimizer, loss_fn, device, batch_size, generator,
+    l2sp_lambda: float = 0.0, l2sp_anchor: dict | None = None,
 ):
     """Batched-index training epoch — drop-in for `train_one_epoch` that
     bypasses the per-sample DataLoader (NN_TRAINING_SPEEDUP.md §3a).
@@ -183,6 +208,9 @@ def train_one_epoch_batched(
         optimizer.zero_grad()
         pred = model(xb)
         loss = loss_fn(pred, yb)
+        penalty = _l2sp_penalty(model, l2sp_lambda, l2sp_anchor)
+        if penalty is not None:
+            loss = loss + penalty
         loss.backward()
         optimizer.step()
         with torch.no_grad():
@@ -354,6 +382,8 @@ def train(
     store_dtype: str = "float16",
     use_cache: bool = False,
     init_from: str | Path | None = None,
+    l2sp: float = 0.0,
+    save_all_epochs: bool = False,
     fast_loader: bool = False,
     data_on_device: bool = False,
     verbose: bool = True,
@@ -468,6 +498,24 @@ def train(
                   f"matching param tensors, kept {len(skipped)} at random init "
                   f"(arch/shape mismatch)")
 
+    # ----- Optional L2-SP anchor: snapshot the (post-warm-start) net
+    #       weights as the trust-region center. The penalty λ·‖θ−θ₀‖²
+    #       (added in the epoch loop) pulls the fine-tune back toward the
+    #       warm-start champion rather than toward 0 (as weight_decay does),
+    #       limiting drift onto the narrow fine-tune distribution. Requires
+    #       a warm-start to anchor to; harmless no-op otherwise.
+    l2sp_anchor = None
+    if l2sp and l2sp > 0.0:
+        if init_from is None:
+            raise ValueError("l2sp > 0 requires --init-from (no anchor to pull toward).")
+        l2sp_anchor = {
+            name: p.detach().clone()
+            for name, p in model.net.named_parameters()
+        }
+        if verbose:
+            print(f"  L2-SP anchor ON: λ={l2sp:g} over {len(l2sp_anchor)} "
+                  f"param tensors (anchored to warm-start weights)")
+
     # ----- Run config (persisted for reproducibility) -----
 
     if isinstance(run_dirs, (str, Path)):
@@ -499,6 +547,8 @@ def train(
         "train_keep_frac": train_keep_frac,
         "train_game_frac": train_game_frac,
         "init_from": str(init_from) if init_from is not None else None,
+        "l2sp": l2sp,
+        "save_all_epochs": save_all_epochs,
         "fast_loader": fast_loader,
         "data_on_device": data_on_device,
         "store_dtype": store_dtype if (chunked or use_cache) else "float32",
@@ -587,12 +637,14 @@ def train(
         epoch_start = time.perf_counter()
         if fast_loader:
             train_mse, train_mae_norm = train_one_epoch_batched(
-                model, Xtr, ytr, optimizer, loss_fn, device_obj, batch_size, g)
+                model, Xtr, ytr, optimizer, loss_fn, device_obj, batch_size, g,
+                l2sp_lambda=l2sp, l2sp_anchor=l2sp_anchor)
             val_mse, val_mae_norm = evaluate_batched(
                 model, Xva, yva, device_obj, batch_size)
         else:
             train_mse, train_mae_norm = train_one_epoch(
                 model, train_loader, optimizer, loss_fn, device_obj,
+                l2sp_lambda=l2sp, l2sp_anchor=l2sp_anchor,
             )
             val_mse, val_mae_norm = evaluate(model, val_loader, device_obj)
         epoch_time = time.perf_counter() - epoch_start
@@ -607,6 +659,16 @@ def train(
             patience_counter = 0
         else:
             patience_counter += 1
+
+        # Per-epoch checkpoints: val MSE is an unreliable strength ranker
+        # for warm-start fine-tunes (FIRST_NN.md C16/C19 — MAE≠strength), so
+        # we keep every epoch and select the strongest by head-to-head play
+        # afterward rather than trusting best.pt.
+        if save_all_epochs:
+            model.save(
+                out_dir / f"epoch_{epoch:03d}",
+                extras={"epoch": epoch, "val_mse": val_mse, **config},
+            )
 
         entry = {
             "epoch": epoch,
