@@ -19,6 +19,11 @@ Quick examples:
     python scripts/play_mcts_match.py --opponent mcts --sims 500 \\
         --c-uct 1.0 --opp-c-uct 2.0 --n 30
 
+    # PUCT (uniform prior, regular legality, flatten fencing) vs UCT+strict
+    python scripts/play_mcts_match.py --opponent mcts \\
+        --policy uniform --legality regular --fence-mode flatten \\
+        --opp-legality strict --sims 500 --n 30
+
 The MCTS seat plays as P0 by default. Use `--mcts-as-p1` to swap seats.
 """
 from __future__ import annotations
@@ -41,12 +46,15 @@ sys.path.insert(0, str(ROOT))
 from agricola.agents import (
     CONFIG_V3_T1,
     DEFAULT_CONFIG_V3,
+    FenceMode,
     HeuristicConfigV3,
     HubrisHeuristicV3,
     MCTSAgent,
     MCTSSearch,
     RandomAgent,
     make_strict_restricted_legal_actions,
+    restricted_legal_actions,
+    uniform_policy,
 )
 from agricola.agents.base import Agent, play_game
 from agricola.scoring import score, tiebreaker
@@ -72,6 +80,31 @@ def _load_v3_config(path: str | None):
     with open(path) as f:
         payload = json.load(f)
     return HeuristicConfigV3(**payload["best_config"])
+
+
+_FENCE_MODES = {
+    "macro": FenceMode.MACRO,
+    "flatten": FenceMode.FLATTEN,
+    "sequence_prior": FenceMode.SEQUENCE_PRIOR,
+}
+
+
+def _resolve_policy(spec_str: str):
+    """Map a `--policy` value to a `policy_fn` for `MCTSSearch`.
+
+    'none' → None (vanilla UCT); 'uniform' → `uniform_policy` (the c0 PUCT
+    placeholder prior). A checkpoint path would load a trained policy net and
+    build its dispatching `policy_fn` in-worker — not yet wired (c1; depends on
+    the policy-net module).
+    """
+    if spec_str == "none":
+        return None
+    if spec_str == "uniform":
+        return uniform_policy
+    raise NotImplementedError(
+        f"--policy={spec_str!r}: loading a trained policy checkpoint is not yet "
+        "implemented (c1). Use 'none' (UCT) or 'uniform' (PUCT placeholder)."
+    )
 
 
 def _mcts_factory(
@@ -179,6 +212,15 @@ class _MatchSpec:
     n_random_fencing: int
     fpu_offset: float
     temperature: float
+    # PUCT / legality knobs (per-seat; opp_* used when the opponent is also mcts).
+    legality: str = "strict"            # "strict" | "regular"
+    opp_legality: str = "strict"
+    fence_mode: str = "macro"           # "macro" | "flatten" | "sequence_prior"
+    opp_fence_mode: str = "macro"
+    policy: str = "none"                # "none" | "uniform" | <checkpoint>
+    opp_policy: str = "none"
+    leaf_value_scale: float = 1.0
+    opp_leaf_value_scale: float = 1.0
 
 
 _WORKER_SPEC: _MatchSpec | None = None
@@ -206,10 +248,26 @@ def _build_agent(
     if name == "mcts":
         sims = spec.opp_sims_per_move if is_opponent else spec.sims_per_move
         c = spec.opp_c_uct if is_opponent else spec.c_uct
+        legality = spec.opp_legality if is_opponent else spec.legality
+        fmode = spec.opp_fence_mode if is_opponent else spec.fence_mode
+        policy = spec.opp_policy if is_opponent else spec.policy
+        lvs = spec.opp_leaf_value_scale if is_opponent else spec.leaf_value_scale
+        # Regular wrapper is deterministic (no RNG); strict is RNG-bound for the
+        # harvest-feed cap's random samples (today's default).
+        if legality == "regular":
+            legal_fn = restricted_legal_actions
+        else:
+            legal_fn = make_strict_restricted_legal_actions(
+                config=spec.config_v3, rng=np.random.default_rng(s ^ 0xC0FFEE),
+            )
         search = MCTSSearch(
             evaluator_config=spec.config_v3,
             n_random_fencing=spec.n_random_fencing,
             rng_seed=s,
+            legal_actions_fn=legal_fn,
+            fence_mode=_FENCE_MODES[fmode],
+            policy_fn=_resolve_policy(policy),
+            leaf_value_scale=lvs,
         )
         return MCTSAgent(
             search,
@@ -367,6 +425,27 @@ def main() -> int:
     p.add_argument("--n-random-fencing", type=int, default=4)
     p.add_argument("--fpu-offset", type=float, default=0.0)
     p.add_argument("--temperature", type=float, default=0.2)
+    p.add_argument("--legality", choices=("strict", "regular"), default="strict",
+                   help="Legality wrapper for the MCTS seat. PUCT uses 'regular'. "
+                        "Default 'strict' (the existing baseline).")
+    p.add_argument("--opp-legality", choices=("strict", "regular"), default=None,
+                   help="Legality for the opponent MCTS. Default = --legality.")
+    p.add_argument("--fence-mode", choices=("macro", "flatten", "sequence_prior"),
+                   default="macro",
+                   help="Fencing handling. PUCT requires 'flatten' (auto-coerced "
+                        "from 'macro' when --policy is set). Default 'macro' (UCT).")
+    p.add_argument("--opp-fence-mode", choices=("macro", "flatten", "sequence_prior"),
+                   default=None, help="Fence mode for the opponent MCTS. Default = --fence-mode.")
+    p.add_argument("--policy", type=str, default="none",
+                   help="MCTS prior: 'none' (UCT), 'uniform' (PUCT placeholder prior), "
+                        "or a checkpoint path (c1, not yet wired).")
+    p.add_argument("--opp-policy", type=str, default=None,
+                   help="Prior for the opponent MCTS. Default = --policy.")
+    p.add_argument("--leaf-value-scale", type=float, default=1.0,
+                   help="Divide leaf values by this (calibrates c_uct / c_puct). 1.0 "
+                        "for the V3 leaf; the model's value_scale for an NN leaf.")
+    p.add_argument("--opp-leaf-value-scale", type=float, default=None,
+                   help="leaf_value_scale for the opponent MCTS. Default = --leaf-value-scale.")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
                    help="Parallel processes for running games (default: all "
                         "cores). Use 1 for sequential (helpful for debugging). "
@@ -411,6 +490,30 @@ def main() -> int:
     else:
         p0_name, p1_name = "mcts", args.opponent
 
+    # PUCT / legality resolution (opponent knobs fall back to the main seat).
+    opp_legality = args.opp_legality or args.legality
+    opp_policy = args.opp_policy or args.policy
+    opp_leaf_value_scale = (
+        args.opp_leaf_value_scale if args.opp_leaf_value_scale is not None
+        else args.leaf_value_scale
+    )
+    for pol, lbl in ((args.policy, "--policy"), (opp_policy, "--opp-policy")):
+        if pol not in ("none", "uniform"):
+            p.error(f"{lbl}={pol!r}: only 'none' (UCT) or 'uniform' (PUCT) are "
+                    "supported yet; trained checkpoints are c1.")
+
+    def _coerce_fence(policy, fence_mode, label):
+        # MACRO is UCT-only; coerce to FLATTEN when a prior is set (PUCT).
+        if policy != "none" and fence_mode == "macro":
+            print(f"  [note] {label}: --policy set with fence-mode 'macro' "
+                  "(MACRO is UCT-only) — using 'flatten'.")
+            return "flatten"
+        return fence_mode
+
+    fence_mode = _coerce_fence(args.policy, args.fence_mode, "mcts")
+    opp_fence_mode = _coerce_fence(
+        opp_policy, args.opp_fence_mode or args.fence_mode, "opp-mcts")
+
     spec = _MatchSpec(
         config_v3=config,
         p0_name=p0_name, p1_name=p1_name,
@@ -419,6 +522,11 @@ def main() -> int:
         n_random_fencing=args.n_random_fencing,
         fpu_offset=args.fpu_offset,
         temperature=args.temperature,
+        legality=args.legality, opp_legality=opp_legality,
+        fence_mode=fence_mode, opp_fence_mode=opp_fence_mode,
+        policy=args.policy, opp_policy=opp_policy,
+        leaf_value_scale=args.leaf_value_scale,
+        opp_leaf_value_scale=opp_leaf_value_scale,
     )
 
     cfg_label = args.v3_config or "default_v3"
@@ -427,10 +535,13 @@ def main() -> int:
           f"({len(seeds)} seeds, jobs={jobs})")
     print(f"  V3 config: {cfg_label}")
     print(f"  MCTS: sims={args.sims}, c_uct={args.c_uct}, "
+          f"legality={args.legality}, fence={fence_mode}, policy={args.policy}, "
+          f"leaf_value_scale={args.leaf_value_scale}, "
           f"n_random_fencing={args.n_random_fencing}, "
           f"fpu_offset={args.fpu_offset}, temperature={args.temperature}")
     if args.opponent == "mcts":
-        print(f"  Opp MCTS: sims={opp_sims}, c_uct={opp_c_uct}")
+        print(f"  Opp MCTS: sims={opp_sims}, c_uct={opp_c_uct}, "
+              f"legality={opp_legality}, fence={opp_fence_mode}, policy={opp_policy}")
 
     result = play_match_parallel(spec, list(seeds), jobs=jobs)
     elapsed = result.elapsed_seconds
