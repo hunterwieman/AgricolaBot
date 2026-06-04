@@ -468,7 +468,7 @@ Note this is **distinct from the S7 fence-scan cache**, which already landed: S7
 
 **Estimated speedup.** `compute_pastures_from_arrays` is ~7% of MCTS self-time in the profile (4.8 s of ~62 s). Memoization (option 1) at a high hit rate could remove most of it → **~3–6% MCTS wall-clock**, comparable to the S7 fence-scan win. Incremental (option 2) could go further on the miss path but with more risk. **Profile-gated** like everything here — verify the hit rate first with a collision-style instrument (cf. `scripts/profile_frontier_helpers.py --mode collision`).
 
-**Difficulty.** Option 1: low (one decorator + a hashable-key check; `pasture.py` is already a clean standalone module). Option 2: medium-high (component-level merge/split logic + tests).
+**Difficulty.** Option 1: low (one decorator + a hashable-key check; `pasture.py` is already a clean standalone module). Option 2: medium-high (component-level merge/split logic + tests). **Option 2 is written up in detail in `INCREMENTAL_PASTURE_DESIGN.md`** (the new-vs-subdivision branch, the byte-identical-output constraint, and the incidental-pocket / stable-repartition concerns) — gated on Option 1 not already killing the hotspot.
 
 **When to do it.** It's currently the top MCTS self-time entry, so it's the natural next item after the frontier-opt work — but **`evaluate_hubris_v3` (~half of MCTS cumulative) is the bigger lever**; do the leaf-evaluator work (or move to the NN evaluator) first unless the pasture BFS is easier to land. Sequence with the PROFILING.md "Next levers" list.
 
