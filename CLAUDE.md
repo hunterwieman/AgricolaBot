@@ -536,11 +536,14 @@ margin — runs end-to-end: the data-generation pipeline, the ~170-feature encod
 on-disk schema, the model and training loop, and the `NNAgent` that wraps the trained model.
 **Early results make `NNAgent` the strongest agent to date** — apparently stronger than the
 heuristic ensemble it learned from — and MCTS using this NN as its leaf evaluator beats
-`NNAgent`'s plain 1-turn lookahead (see 2.2). The **policy head** (Phase c) is now underway — a
-factored multi-head policy bootstrapped by behavioral cloning of the existing `chosen_action` data,
-consumed by MCTS through the black-box `policy_fn`; the **PUCT search machinery (c0) has landed**
-(POLICY_PUCT_DESIGN.md). Still ahead: completing/validating the policy head and the full
-AlphaZero-style self-play loop, plus more deliberate architecture and training design. The full
+`NNAgent`'s plain 1-turn lookahead (see 2.2). The **policy head** (Phase c) is now partly built — a
+factored multi-head policy (one `DecisionHead` per decision type) bootstrapped by behavioral cloning
+of the existing `chosen_action` data, consumed by MCTS through the black-box `policy_fn`; the **PUCT
+search machinery (c0) has landed** (POLICY_PUCT_DESIGN.md). **Three heads are now trained** —
+`placement` (25-way), `choose_subaction` (8-way), and `commit_build_major` (14-way), with both
+unweighted and AWR variants for the sub-action heads (see `POLICY_HEAD.md` + `nn_models/REGISTRY.md`).
+Still ahead: the remaining heads (CommitSow, the cell heads, the pointer heads for the animal
+frontiers), wiring the priors into PUCT, and the full AlphaZero-style self-play loop. The full
 design — input encoding, supervision target, data pipeline, open questions — is in
 **`FIRST_NN.md`**.
 
@@ -634,6 +637,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `HIDDEN_INFO_DESIGN.md` | Design + implementation reference for the hidden-information refactor: the round-card reveal as an explicit nature/chance step, the public-state / Environment / observe split, the MCTS chance-node handling, the full file impact map, and the action plan. |
 | `FIRST_NN.md` | Design spec for the first NN value function (Phase 2.3). Sections: goals/non-goals, strategic context, design principles (input-encoding philosophy, pre-compute selectively, mid-action encoding, terminal-margin target), input encoding (~170 features split across per-player ×2 / shared / mid-action / terminal-state handling), supervision target (terminal margin + terminal-state training pairs), data generation pipeline (fully specified: 8-config ensemble, bimodal per-agent T, snapshot semantics, file layout, resume protocol, validation), architecture (TBD), training (TBD), evaluation (TBD), open questions, implementation notes (file layout + schema versioning `DATA_VERSION` + `ENCODING_VERSION`), status. Read before working on the NN. |
 | `POLICY_PUCT_DESIGN.md` | Design spec for the policy head + PUCT phase (Phase 2.3 (c)→(d)). The factored policy (fixed-width + mask heads for placement / sub-actions / Build Major; score-the-set heads for the fencing / animal-accommodation / harvest-feed / harvest-breed frontiers), the black-box `policy_fn(state, legal_actions) -> {action: prior}` interface MCTS consumes (untrained heads fall back to uniform), the AlphaZero PUCT formula + restated FPU + `leaf_value_scale`-calibrated `c_puct`, chance-node orthogonality, the regular-legality + soft-prune-via-prior rationale, the grounded decision-point taxonomy, the localized `mcts.py` change plan (UCT preserved as a control via `policy_fn=None`), the `fence_mode` enum (MACRO / FLATTEN / SEQUENCE_PRIOR) and the SEQUENCE_PRIOR `n(s,a,L)` per-step-target reconstruction, BC training from existing `chosen_action` data, the eval controls, shared-trunk + self-play forward-compat, and a pre-implementation-edits section. Read before implementing the policy head or PUCT. |
+| `POLICY_HEAD.md` | Implementation + design record for the supervised behavioral-cloning **policy heads** (Phase 2.3 (c)). The factored `DecisionHead` spec (predicate + vocab + chosen→class + legal mask) and the `HEADS` registry; the three built heads (placement 25-way, choose_subaction 8-way, commit_build_major 14-way); the two loss variants (unweighted CE / AWR advantage-weighting with a value-net baseline, `w=clip(exp((R−V)/β),0,w_max)`); single-perspective encoding; warm-start trunk transplant; the `restricted.py` ordering-filter **forcing-fix** that surfaced plow/build_rooms as real choices; the `policy_prior` PUCT-consumer surface; the metrics (top-1/top-3 — agreement, not strength); and the deferred heads (CommitSow, the cell heads, the pointer heads for the animal frontiers). Read before adding a policy head. |
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
 | `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
@@ -759,6 +763,16 @@ AgricolaBot/
 
                 agent.py            # `NNAgent(model, *, differential=True, ...)` — `HeuristicAgent` subclass using an NN-backed evaluator. Two evaluators: `nn_evaluator` (single forward pass), `nn_evaluator_differential` (batched 2-input forward; exactly antisymmetric `V_diff(s, 0) = -V_diff(s, 1)` by construction). `model.eval()` set at construction; queries run under `@torch.no_grad()`. Drop-in replacement for `HubrisHeuristicV3` in `play_game` / `play_match.py`. Imports torch.
 
+                policy_heads.py     # `DecisionHead` spec + the `HEADS` registry (placement / choose_subaction / commit_build_major). Each head declares owns(state) (the pending-stack-top predicate), output vocab, target_index(action) (chosen→class), legal_mask(state). The factored policy: dataset/model/training/policy_prior are all head-driven, so adding a head is a new DecisionHead here, not new modules. Torch-free. See POLICY_HEAD.md.
+
+                policy_dataset.py   # Policy-head dataset (behavioral cloning). `PolicyNormStats` (input-norm only), `AgricolaPolicyDataset`, `_decision_rows(games, head)` (head-driven single-perspective extraction), `build_policy_datasets[_from_games](..., head=...)`. Streams worker pickles (memory-bounded). For the `awr` loss variant, computes advantage weights `clip(exp((R−V_θ(s))/β), 0, w_max)` from a value-net baseline. Imports torch.
+
+                policy_model.py     # `NormalizedPolicyModel` — input-normalized classifier (`head.num_classes` logits) with masked softmax (illegal classes → prob 0; all-illegal guard). Persistence mirrors `NormalizedValueModel` (meta sidecar carries `model_kind="policy"` + the `head` name; ENCODING_VERSION hard-checked). Imports torch.
+
+                policy_training.py  # `train_policy(run_dirs, out_dir, *, head, loss_weight, value_ckpt, awr_clip, init_from, ...)` — weighted masked cross-entropy, top-1/top-3 (+winners-subset) metrics, early-stop on val CE. `--init-from` warm-starts the trunk from a value OR policy checkpoint (shape-tolerant transplant; head layer stays fresh). CLI: scripts/nn/train_policy.py. Imports torch.
+
+                policy.py           # `policy_prior(state, model, *, head=None) -> {action: prob} | NO_PRIOR` — the PUCT consumer surface. Auto-dispatches via `model.head_name`; returns NO_PRIOR off the head's decision points (the fallback is PUCT's call). Imports torch.
+
     tests/                          # pytest test suite — per-file coverage descriptions in TEST_DESCRIPTIONS.md.
 
         __init__.py                 # Empty package marker.
@@ -805,6 +819,7 @@ AgricolaBot/
         test_nn_model.py
         test_train_first_nn.py
         test_nn_agent.py
+        test_nn_policy.py
         test_generate_nn_training_data.py
         test_validate_nn_dataset.py
 
@@ -839,6 +854,8 @@ AgricolaBot/
             eval_vs_ensemble.py     # Parallel, single-seat evaluation of a trained NN checkpoint vs the 8-config data-gen ensemble. Subprocess-drives `scripts/nn/play_match.py` (multiprocessing `--jobs`) once per opponent, NN as P0, regular legality; prints a per-opponent win%/margin table + aggregate. Single-seat (P0/P1 symmetric, one seat averages SP), so aggregates are NOT comparable to older seat-swapped numbers. `--model <best.pt> --n 100 --jobs 8`. This fixed ensemble is the cleanest *uncontaminated* objective yardstick (see FIRST_NN C22): gate on it, not head-to-head-vs-parent.
 
             retention_eval.py       # Post-hoc retention sweep (FIRST_NN C20): encode a fixed held-out slice of a BROAD-distribution run dir once (`--probe-dir`/`--probe-games`), then compute raw-margin MAE for any list of checkpoints (`--sweep` globs, e.g. every epoch of a fine-tune) with a `--baseline` model as the reference line. `predict_margin` denormalizes per-model so MAE-in-points is comparable across checkpoints with different NormStats. The instrument that exposes self-play forgetting that a fine-tune's own val split cannot — though MAE≠strength, so it diagnoses, it doesn't gate.
+
+            train_policy.py         # Thin CLI over `agricola.agents.nn.policy_training.train_policy` (`--head {placement,choose_subaction,commit_build_major}`, `--loss-weight {none,awr}`, `--value-ckpt`, `--awr-clip`, `--init-from`). Trains one policy head; writes best.{pt,meta.json} + config + policy_norm_stats + train_log + test_metrics + curves under the out-dir, mirroring train_first.py. See POLICY_HEAD.md.
 
     tuned_configs/                  # Persistent artifacts from tuning runs. Each completed run writes `<timestamp>.json` (best config, history, holdout), `<timestamp>.log` (human-readable progress mirror), and `<timestamp>.cma.pkl` (full CMA-ES state for resume). `v1_best.json` and `v3_best.json` are auto-maintained pointers to the strongest config per architecture. The 8-config data-gen ensemble (alphas_gen_1, alphas_gen_7, panel_gen16, panel_gen_25, panel_gen47, panel_gen47_wood020, panel_wood_r1 + t2) plus `panel_gen16_temp05.json` (panel-only diversity baseline) live here as named JSONs alongside the timestamped run outputs. `DATA_GEN_ENSEMBLE.md` describes the ensemble. See V3_TRAINING_PIPELINE.md.
 
