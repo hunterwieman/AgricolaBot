@@ -54,7 +54,7 @@ def test_side_job_build_stable_only():
     state = _sj_setup(wood=1)
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
-        ChooseSubAction(name="build_stable"),
+        ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
         Stop(),
         Stop(),
@@ -90,7 +90,7 @@ def test_side_job_both():
     pre_food = state.players[0].resources.food
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
-        ChooseSubAction(name="build_stable"),
+        ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
         Stop(),
         ChooseSubAction(name="bake_bread"),
@@ -108,7 +108,7 @@ def test_side_job_stable_costs_1_wood():
     state = _sj_setup(wood=5)
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
-        ChooseSubAction(name="build_stable"),
+        ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
     ])
     assert state.players[0].resources.wood == 4  # 5 - 1 = 4
@@ -119,7 +119,7 @@ def test_side_job_pending_build_stables_cost_field():
     state = _sj_setup(wood=1)
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
-        ChooseSubAction(name="build_stable"),
+        ChooseSubAction(name="build_stables"),
     ])
     pending = state.pending_stack[-1]
     assert isinstance(pending, PendingBuildStables)
@@ -134,7 +134,7 @@ def test_side_job_stable_singleton_stop_after_commit():
     state = _sj_setup(wood=5)  # ample resources, only cap should bind
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
-        ChooseSubAction(name="build_stable"),
+        ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
     ])
     # PendingBuildStables(num_built=1, max_builds=1) is on top; only Stop legal.

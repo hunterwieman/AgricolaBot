@@ -23,9 +23,9 @@ first):
 
 - **Phase 1 — The Game Engine.** Fast, correct, fully playable. **Done.**
 - **Phase 2 — Building an Agent.** A hand-built heuristic (2.1, *done* — it generates the
-  self-play training data), MCTS (2.2, *first pass done*), and a value/policy neural network
-  (2.3, *value slice working and already the strongest agent; policy head + self-play loop
-  still ahead*).
+  self-play training data), MCTS (2.2, *first pass done; PUCT search machinery now landed*), and a
+  value/policy neural network (2.3, *value slice is the strongest agent; policy head + PUCT
+  integration now underway, self-play loop still ahead*).
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
   Phase 2 agent process for the richer game. **Not started.**
 
@@ -499,8 +499,10 @@ the *heuristic* as leaf evaluator, MCTS **loses ~3–5 points to the same heuris
 standalone**. But that appears to be leaf-evaluator-specific: with the **value NN** as the leaf
 evaluator, MCTS beats the NN's plain 1-turn lookahead head-to-head (early result) — preliminary
 evidence that the loss was tied to the *weak heuristic leaf*, not to MCTS itself, and that MCTS
-pays off once the evaluator is strong enough. That is exactly the long-term thesis: PUCT, a
-learned value/policy network, and higher simulation counts are the natural next steps.
+pays off once the evaluator is strong enough. That is exactly the long-term thesis. **PUCT is now
+implemented (c0)** — a `policy_fn` prior injected into `MCTSSearch` (UCT remains the no-policy path),
+forced-move step-through, and a `FenceMode` toggle; design + change plan in POLICY_PUCT_DESIGN.md. A
+trained policy head and higher simulation counts are the active next steps.
 
 **Speeding up MCTS (toggleable, default-off).** Legal-action enumeration has optional speedups
 behind **`agricola/opt_config.py`** — flip these when MCTS runs feel slow:
@@ -534,7 +536,10 @@ margin — runs end-to-end: the data-generation pipeline, the ~170-feature encod
 on-disk schema, the model and training loop, and the `NNAgent` that wraps the trained model.
 **Early results make `NNAgent` the strongest agent to date** — apparently stronger than the
 heuristic ensemble it learned from — and MCTS using this NN as its leaf evaluator beats
-`NNAgent`'s plain 1-turn lookahead (see 2.2). Still ahead: the **policy head** and the full
+`NNAgent`'s plain 1-turn lookahead (see 2.2). The **policy head** (Phase c) is now underway — a
+factored multi-head policy bootstrapped by behavioral cloning of the existing `chosen_action` data,
+consumed by MCTS through the black-box `policy_fn`; the **PUCT search machinery (c0) has landed**
+(POLICY_PUCT_DESIGN.md). Still ahead: completing/validating the policy head and the full
 AlphaZero-style self-play loop, plus more deliberate architecture and training design. The full
 design — input encoding, supervision target, data pipeline, open questions — is in
 **`FIRST_NN.md`**.
@@ -628,6 +633,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `MCTS_DESIGN.md` | Design spec for the MCTS phase (Phase 2.2). Architecture decisions (vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation + macro-enumeration for Fencing); data structures (MCTSNode / MCTSSearch / MCTSAgent); algorithm details (per-sim flow, UCB, sign-flip backprop, transposition table); strict-restrictions spec (new filters added to `agricola/agents/restricted.py`); implementation phases; open questions. Read before starting MCTS implementation. |
 | `HIDDEN_INFO_DESIGN.md` | Design + implementation reference for the hidden-information refactor: the round-card reveal as an explicit nature/chance step, the public-state / Environment / observe split, the MCTS chance-node handling, the full file impact map, and the action plan. |
 | `FIRST_NN.md` | Design spec for the first NN value function (Phase 2.3). Sections: goals/non-goals, strategic context, design principles (input-encoding philosophy, pre-compute selectively, mid-action encoding, terminal-margin target), input encoding (~170 features split across per-player ×2 / shared / mid-action / terminal-state handling), supervision target (terminal margin + terminal-state training pairs), data generation pipeline (fully specified: 8-config ensemble, bimodal per-agent T, snapshot semantics, file layout, resume protocol, validation), architecture (TBD), training (TBD), evaluation (TBD), open questions, implementation notes (file layout + schema versioning `DATA_VERSION` + `ENCODING_VERSION`), status. Read before working on the NN. |
+| `POLICY_PUCT_DESIGN.md` | Design spec for the policy head + PUCT phase (Phase 2.3 (c)→(d)). The factored policy (fixed-width + mask heads for placement / sub-actions / Build Major; score-the-set heads for the fencing / animal-accommodation / harvest-feed / harvest-breed frontiers), the black-box `policy_fn(state, legal_actions) -> {action: prior}` interface MCTS consumes (untrained heads fall back to uniform), the AlphaZero PUCT formula + restated FPU + `leaf_value_scale`-calibrated `c_puct`, chance-node orthogonality, the regular-legality + soft-prune-via-prior rationale, the grounded decision-point taxonomy, the localized `mcts.py` change plan (UCT preserved as a control via `policy_fn=None`), the `fence_mode` enum (MACRO / FLATTEN / SEQUENCE_PRIOR) and the SEQUENCE_PRIOR `n(s,a,L)` per-step-target reconstruction, BC training from existing `chosen_action` data, the eval controls, shared-trunk + self-play forward-compat, and a pre-implementation-edits section. Read before implementing the policy head or PUCT. |
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
 | `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
@@ -733,7 +739,7 @@ AgricolaBot/
 
             restricted.py           # Action-pruning wrappers over `legal_actions(state)`. Exports `restricted_legal_actions(state)` (regular: ordering / cell-priority / room-cap / first-pasture / min-begging / drop-`use=False`-craft), `strict_restricted_legal_actions(state)` (strict MCTS variant adding Cultivation sow-max, Grain-Util veggie auto-max, 9 fencing patterns, harvest-feed cap of top-5-V3 + 2 random), and `make_strict_restricted_legal_actions(*, config, rng)` factory for injected RNG/config. Priority constants (STABLE_PRIORITY, ROOM_PRIORITY, PLOW_PRIORITY, FIRST_PASTURE_REQUIRED_CELLS, MAX_TOTAL_ROOMS). Every filter routes through `_safe_narrow` so neither wrapper empties a non-empty input. See CHANGES.md Change 11 (regular wrapper) and MCTS_DESIGN.md §7 (strict additions).
 
-            mcts.py                 # MCTS agent. `MCTSNode` (identity equality, lazy `_legal_actions` cache, `macro_sequences` on fencing-trigger parents, `is_chance` + `chance_counts` for round-card reveal nodes), `MCTSSearch` (transposition table + per-search RNG + cached HubrisHeuristicV3 for greedy macros), `MCTSAgent` (vanilla UCT with FPU, path-only backprop, softmax action selection at T=0.2). Hidden reveals are explicit chance nodes: `_chance_route` round-robins over the ≤3 candidate RevealCards (reconstructed from public state — no Environment), they are never leaf-evaluated, and carry a P0 frame label (decider=0) so backprop/UCB are unchanged. Macro-fencing for both trigger points (PlaceWorker("fencing") + ChooseSubAction("build_fences") at PendingFarmRedev), with explicit entry/exit phases handling the outer PendingFencing wrapper. Tree reuse via `re_root(new_root)` (prunes transpositions to live subtree). `MacroFencingAction` is the MCTS-internal action type; the engine never sees it. See MCTS_DESIGN.md §4-5.
+            mcts.py                 # MCTS agent. `MCTSNode` (identity equality, lazy `_legal_actions` cache, `macro_sequences` on fencing-trigger parents, `is_chance` + `chance_counts` for round-card reveal nodes), `MCTSSearch` (transposition table + per-search RNG + cached HubrisHeuristicV3 for greedy macros), `MCTSAgent` (vanilla UCT with FPU, path-only backprop, softmax action selection at T=0.2). **Optional PUCT** (POLICY_PUCT_DESIGN.md): pass `policy_fn(state, legal_actions) -> {action: prior}` + `fence_mode=FenceMode.FLATTEN` to `MCTSSearch`, and `_select_via_puct` replaces UCB with AlphaZero `Q + c·P·√ΣN/(1+n)` over all legal actions (`policy_fn=None` selects UCT, PUCT otherwise); priors are computed lazily (`_ensure_priors`, split from `_compute_legal_actions`). Both modes **step through forced (singleton) moves** before evaluating the leaf (so V is queried at real decisions, not mid-action singletons; UCT is therefore no longer byte-identical to the pre-PUCT engine). `uniform_policy` is the c0 placeholder prior, `root_visit_distribution(root)` exposes the root π. `FenceMode`: MACRO (UCT macros) / FLATTEN (per-pasture commits, required for PUCT) / SEQUENCE_PRIOR (c3, not yet implemented). Hidden reveals are explicit chance nodes: `_chance_route` round-robins over the ≤3 candidate RevealCards (reconstructed from public state — no Environment), they are never leaf-evaluated, and carry a P0 frame label (decider=0) so backprop/UCB are unchanged. Macro-fencing for both trigger points (PlaceWorker("fencing") + ChooseSubAction("build_fences") at PendingFarmRedev), with explicit entry/exit phases handling the outer PendingFencing wrapper. Tree reuse via `re_root(new_root)` (prunes transpositions to live subtree). `MacroFencingAction` is the MCTS-internal action type; the engine never sees it. See MCTS_DESIGN.md §4-5.
 
             nn/                     # NN value-function infrastructure (subpackage). Schema, recording, and encoder are torch-free so data-generation scripts don't pay the import cost; dataset / model / training / agent import torch and must be imported explicitly (not re-exported from `__init__.py`). See FIRST_NN.md §11.1 for the file-by-file rationale.
 

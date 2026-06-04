@@ -462,7 +462,7 @@ def _choose_subaction_side_job(
 ) -> GameState:
     top = state.pending_stack[-1]
     p_idx = top.player_idx
-    if action.name == "build_stable":
+    if action.name == "build_stables":
         state = replace_top(state, fast_replace(top, stable_chosen=True))
         return push(state, PendingBuildStables(
             player_idx=p_idx,

@@ -66,10 +66,12 @@ from agricola.agents.heuristic import (
     r1_force_forest_bonus,
 )
 from agricola.agents.mcts import (
+    FenceMode,
     MCTSAgent,
     MCTSNode,
     MCTSSearch,
     MacroFencingAction,
+    uniform_policy,
 )
 
 __all__ = [
@@ -114,4 +116,6 @@ __all__ = [
     "MCTSSearch",
     "MCTSNode",
     "MacroFencingAction",
+    "FenceMode",
+    "uniform_policy",
 ]

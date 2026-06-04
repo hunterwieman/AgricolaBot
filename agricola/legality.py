@@ -1174,7 +1174,7 @@ def _enumerate_pending_side_job(
     actions: list[Action] = []
     if not pending.stable_chosen:
         if _can_build_stable(p, Resources(wood=1)):
-            actions.append(ChooseSubAction(name="build_stable"))
+            actions.append(ChooseSubAction(name="build_stables"))
     if not pending.bake_chosen and _can_bake_bread(state, p):
         actions.append(ChooseSubAction(name="bake_bread"))
     if pending.stable_chosen or pending.bake_chosen:

@@ -2,10 +2,12 @@
 
 Implements the design specified in **MCTS_DESIGN.md**. Brief summary:
 
-- **Vanilla UCT** with **First-Play Urgency (FPU)** for unvisited children.
-  No PUCT prior — the chain-initiating-action prior problem makes
-  evaluator-derived priors mis-rank fencing/redev. Upgrade path is open
-  (see §10.4).
+- **Vanilla UCT** with **First-Play Urgency (FPU)** for unvisited children,
+  or **PUCT** when a `policy_fn` is supplied to `MCTSSearch` — AlphaZero
+  prior-weighted selection. PUCT requires FLATTEN fencing (see `FenceMode`
+  and POLICY_PUCT_DESIGN.md); `policy_fn=None` selects UCT, PUCT otherwise.
+  Both **step through forced (singleton) moves** before evaluating the leaf,
+  so V is queried at real decisions, not forced mid-action states.
 - **DAG with transposition table** keyed on `GameState.__hash__`.
 - **Path-only backprop** along the path built up by SELECT. `node.parents`
   is maintained for future DAG-full-backprop variants but is not read at
@@ -29,6 +31,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional
 
 import numpy as np
@@ -63,6 +66,39 @@ class MacroFencingAction:
     expects (each parent has exactly one greedy + N randoms).
     """
     label: str
+
+
+# ---------------------------------------------------------------------------
+# FenceMode + uniform policy (PUCT support)
+# ---------------------------------------------------------------------------
+
+class FenceMode(Enum):
+    """How fencing is handled in the search tree.
+
+    - ``MACRO``: collapse a fence layout into greedy + random
+      ``MacroFencingAction`` children (today's UCT behavior). **UCT-only** —
+      macros aren't engine actions, so a policy can't attach priors to them.
+    - ``FLATTEN``: bypass macros; each ``CommitBuildPasture`` is a plain tree
+      action (deeper tree, engine-native action space). The v1 PUCT mode.
+    - ``SEQUENCE_PRIOR``: policy-sampled fence-layout abstraction (c3; not yet
+      implemented). See POLICY_PUCT_DESIGN.md §8.
+    """
+    MACRO = "macro"
+    FLATTEN = "flatten"
+    SEQUENCE_PRIOR = "sequence_prior"
+
+
+def uniform_policy(state: GameState, legal_actions: list[Action]) -> dict[Action, float]:
+    """A uniform ``policy_fn`` for PUCT: equal prior over all legal actions.
+
+    The c0 placeholder prior — exercises the PUCT machinery before a trained
+    policy exists. Returns ``{}`` for an empty action set.
+    """
+    n = len(legal_actions)
+    if n == 0:
+        return {}
+    p = 1.0 / n
+    return {a: p for a in legal_actions}
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +157,10 @@ class MCTSNode:
     chance_counts: dict[Action, int] = field(default_factory=dict)
     _legal_actions: Optional[list[Action]] = None
     _unvisited_actions: Optional[set] = None
+    # PUCT: per-action prior P(s,·) over `_legal_actions`, set once at expansion
+    # by `_compute_legal_actions` when a policy_fn is configured. None for
+    # never-expanded nodes, chance nodes, and all UCT runs.
+    _action_priors: Optional[dict] = None
 
     @property
     def mean_q(self) -> float:
@@ -156,8 +196,28 @@ class MCTSNode:
         # Lazy import to avoid loading test scaffolding at module level.
         from tests.test_utils import filter_implemented
         raw = filter_implemented(self.search.legal_actions_fn(self.state))
-        self._legal_actions = self.search.expand_macros(self, raw)
+        # Macro-collapse fencing only in MACRO mode (UCT). FLATTEN / SEQUENCE_PRIOR
+        # leave fencing as plain per-pasture CommitBuildPasture actions.
+        if self.search.fence_mode is FenceMode.MACRO:
+            self._legal_actions = self.search.expand_macros(self, raw)
+        else:
+            self._legal_actions = raw
         self._unvisited_actions = set(self._legal_actions)
+
+    def _ensure_priors(self) -> None:
+        """Compute the PUCT prior P(s,·) over `_legal_actions`, once and lazily,
+        at the first selection from this node (NOT at leaf creation). Skipped for
+        chance nodes and when no policy is set; never reached for a forced
+        (singleton) node (`_select_via_puct` short-circuits those). A future
+        shared value+policy net would populate this at leaf-eval time instead,
+        paired with the value in one forward pass (POLICY_PUCT_DESIGN.md §9.1).
+        """
+        if (self._action_priors is None
+                and self.search.policy_fn is not None
+                and not self.is_chance):
+            if self._legal_actions is None:
+                self._compute_legal_actions()
+            self._action_priors = self.search.policy_fn(self.state, self._legal_actions)
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +259,8 @@ class MCTSSearch:
         rng_seed: int = 0,
         leaf_differential: bool = True,
         leaf_value_scale: float = 1.0,
+        policy_fn=None,
+        fence_mode=None,
     ):
         """Build an MCTSSearch.
 
@@ -282,6 +344,23 @@ class MCTSSearch:
 
         # Whether `evaluate_leaf` subtracts P1's evaluation from P0's.
         self.leaf_differential = bool(leaf_differential)
+
+        # PUCT prior source. None => vanilla UCT (byte-identical to before).
+        self.policy_fn = policy_fn
+        # Fencing handling (FenceMode). Default MACRO = today's UCT behavior.
+        self.fence_mode = fence_mode if fence_mode is not None else FenceMode.MACRO
+        # Invariant: MACRO fencing is UCT-only — macros are MCTS-internal, not
+        # engine actions, so a policy can't attach priors to them. PUCT must use
+        # FLATTEN (or SEQUENCE_PRIOR, once implemented).
+        if self.policy_fn is not None and self.fence_mode is FenceMode.MACRO:
+            raise ValueError(
+                "PUCT (policy_fn set) cannot use FenceMode.MACRO; use FenceMode.FLATTEN."
+            )
+        if self.fence_mode is FenceMode.SEQUENCE_PRIOR:
+            raise NotImplementedError(
+                "FenceMode.SEQUENCE_PRIOR is not implemented yet "
+                "(POLICY_PUCT_DESIGN.md §8, c3)."
+            )
 
     # ---- Transposition table maintenance ---------------------------------
 
@@ -743,31 +822,32 @@ class MCTSAgent:
                 node._compute_legal_actions()
             if not node._legal_actions:
                 # Defensive: no legal actions at a non-terminal node. Shouldn't
-                # happen with strict-restricted (never empties a non-empty set).
+                # happen with restricted legality (never empties a non-empty set).
                 break
-            if node._unvisited_actions:
-                # EXPAND one unvisited action.
-                action = self._pick_unvisited_action(node)
-                node._unvisited_actions.discard(action)
-                if isinstance(action, MacroFencingAction):
-                    # Macro children were pre-created during expand_macros;
-                    # re-register the edge in case we arrived via another parent.
-                    child = node.children[action]
-                    self.search.add_edge(node, child, action)
-                else:
-                    child = self.search.find_or_create_node(
-                        step(node.state, action), parent=node,
-                        action_from_parent=action,
-                    )
-                path.append(child)
-                node = child
+            # PUCT (policy_fn set) vs vanilla UCT. Both return (child, is_new).
+            if self.search.policy_fn is not None:
+                child, is_new = self._puct_select_child(node)
+            else:
+                child, is_new = self._uct_select_child(node)
+            path.append(child)
+            node = child
+            if is_new:
                 if node.is_chance:
-                    continue       # expanded into a chance node → route through it
-                break              # decision/terminal leaf
-            # Fully expanded → UCB descend.
-            action = self._select_via_ucb(node)
-            node = node.children[action]
-            path.append(node)
+                    continue       # route through the reveal (handled next iter)
+                if not node.is_terminal():
+                    # Enumerate legal actions BEFORE the leaf value is evaluated:
+                    # lets the forced-move check below fire, and lets a future
+                    # shared value+policy net produce both in one pass at the leaf.
+                    if node._legal_actions is None:
+                        node._compute_legal_actions()
+                    if len(node._legal_actions) == 1:
+                        # Forced (singleton) decision: step through it in this
+                        # same sim. V is evaluated at the downstream real decision
+                        # (in-distribution), and backprop fills this node's Q.
+                        # Mirrors how chance nodes already route through.
+                        continue
+                break              # multi-option decision or terminal → evaluate
+            # Existing child (is_new=False) → keep descending (loop).
 
         # ---------- EVALUATE ----------
         # `node` is never a chance node here (the descent breaks only at a
@@ -819,6 +899,100 @@ class MCTSAgent:
         if len(best_actions) == 1:
             return best_actions[0]
         return best_actions[int(self.search.rng.integers(len(best_actions)))]
+
+    # ---- PUCT selection (policy-prior-guided) ----------------------------
+
+    def _uct_select_child(self, node: MCTSNode) -> tuple[MCTSNode, bool]:
+        """UCT child selection: expand one unvisited action, else UCB-descend.
+
+        Returns (child, is_new). is_new=True iff we just expanded a fresh leaf
+        (caller stops descending and evaluates it); is_new=False means we
+        descended into an already-visited child and should keep going.
+        """
+        if node._unvisited_actions:
+            action = self._pick_unvisited_action(node)
+            node._unvisited_actions.discard(action)
+            if isinstance(action, MacroFencingAction):
+                # Macro children were pre-created during expand_macros;
+                # re-register the edge in case we arrived via another parent.
+                child = node.children[action]
+                self.search.add_edge(node, child, action)
+            else:
+                child = self.search.find_or_create_node(
+                    step(node.state, action), parent=node,
+                    action_from_parent=action,
+                )
+            return child, True
+        action = self._select_via_ucb(node)
+        return node.children[action], False
+
+    def _puct_select_child(self, node: MCTSNode) -> tuple[MCTSNode, bool]:
+        """PUCT child selection over ALL legal actions (created or not).
+
+        A selected-but-not-yet-created child is materialized here (that's
+        expansion), so the tree still grows ~one node per simulation. PUCT runs
+        only under FLATTEN/SEQUENCE_PRIOR (no macros), so there is no
+        MacroFencingAction handling.
+        """
+        action = self._select_via_puct(node)
+        child = node.children.get(action)
+        is_new = child is None
+        if is_new:
+            child = self.search.find_or_create_node(
+                step(node.state, action), parent=node,
+                action_from_parent=action,
+            )
+        return child, is_new
+
+    def _select_via_puct(self, parent: MCTSNode) -> Action:
+        """Return the action maximizing the AlphaZero PUCT score.
+
+            U(s,a) = Q(s,a) + c_puct * P(s,a) * sqrt(ΣN) / (1 + N(s,a))
+
+        Ranges over ALL of `parent._legal_actions` — uncreated / 0-visit
+        children compete via their prior and the FPU-reduced parent Q, so a
+        strong prior orders exploration and low-prior actions may never be
+        visited (the soft-pruning). `c_uct` is reused as c_puct (the agent runs
+        one mode at a time); calibrate it against `leaf_value_scale`-normalized
+        Q. Random tiebreak via the search RNG.
+        """
+        if len(parent._legal_actions) == 1:
+            return parent._legal_actions[0]   # forced move — no prior needed
+        parent._ensure_priors()
+        priors = parent._action_priors or {}
+        parent_q = parent.mean_q if parent.visits > 0 else 0.0
+        sqrt_total = math.sqrt(max(parent.visits, 1))   # ΣN ≈ parent.visits
+        best_score = -float("inf")
+        best_actions: list[Action] = []
+        for action in parent._legal_actions:
+            child = parent.children.get(action)
+            prior = priors.get(action, 0.0)
+            if child is None or child.visits == 0:
+                q = parent_q - self.fpu_offset          # FPU reduction
+                n = 0
+            else:
+                q = child.value_sum / child.visits
+                if child.decider != parent.decider:
+                    q = -q
+                n = child.visits
+            score = q + self.c_uct * prior * sqrt_total / (1 + n)
+            if score > best_score:
+                best_score = score
+                best_actions = [action]
+            elif score == best_score:
+                best_actions.append(action)
+        if len(best_actions) == 1:
+            return best_actions[0]
+        return best_actions[int(self.search.rng.integers(len(best_actions)))]
+
+    def root_visit_distribution(self, root: MCTSNode) -> dict:
+        """The root's per-action visit counts `{action: child.visits}`.
+
+        The search-improved policy at the root — for PUCT debugging now and the
+        AlphaZero policy target (π) later. In the DAG `child.visits` is the
+        global count; at the root that is the played-move distribution.
+        """
+        return {a: c.visits for a, c in root.children.items()}
 
     def _pick_unvisited_action(self, node: MCTSNode) -> Action:
         """Pick a uniformly-random unvisited action from `node`."""

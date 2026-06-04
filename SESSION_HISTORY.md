@@ -36,6 +36,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Engine performance pass — profiling, `fast_replace`, `legal_actions_cache`, assertion gate](#perf-pass)
 - [Multi-baseline panel + R1-force-forest experiment + alphas_gen_7 champion + interactive-AI web UI (2026-05-26 / 2026-05-28)](#panel-and-r1-forest)
 - [Documentation restructure — phase-based CLAUDE.md + ENGINE_IMPLEMENTATION.md (2026-05-30)](#claude-restructure)
+- [Policy head + PUCT — design + c0 implementation (2026-06-04)](#policy-puct-c0)
 - [Current State](#current-state)
 
 ---
@@ -1201,7 +1202,7 @@ A long iterative design pass produced `TASK_5D.md` before any code changed. The 
 
 - **Function naming under the function-name prefix taxonomy.** The taxonomy prefers singular Commit-derived names (`_execute_<sub_action>` where `<sub_action>` matches the singular Commit it handles): `_execute_sow`, `_execute_plow`, `_execute_build_stable`. The multi-shot effect function would conflict with the existing singular `_execute_build_stable` (alive during the Task 5C → Task 5D coexistence). Resolution: introduce the new function under the temporary plural name `_execute_build_stables` during step 6 (coexisting with the old), then rename to singular in step 7 when the old is deleted. Final state matches the taxonomy.
 
-- **ChooseSubAction category names: `"build_stables"` / `"build_rooms"` (plural) vs. `"build_stable"` / `"build_room"` (singular).** Side Job uses singular `"build_stable"` — the rules read "Build 1 stable and/or Bake Bread", singular. Farm Expansion uses plural `"build_stables"` / `"build_rooms"` — the rules read "Build rooms and/or build stables", plural. The split is meaningful and rule-faithful: each space's category names follow its own rule text. (An earlier draft normalized both to singular for internal consistency; rejected after recognizing it overrode genuine rule-text differences.)
+- **ChooseSubAction category names: `"build_stables"` / `"build_rooms"` (plural) vs. `"build_stable"` / `"build_room"` (singular).** Side Job uses singular `"build_stable"` — the rules read "Build 1 stable and/or Bake Bread", singular. Farm Expansion uses plural `"build_stables"` / `"build_rooms"` — the rules read "Build rooms and/or build stables", plural. The split is meaningful and rule-faithful: each space's category names follow its own rule text. (An earlier draft normalized both to singular for internal consistency; rejected after recognizing it overrode genuine rule-text differences.) *(Later reversed for the policy head: unified to `"build_stables"` — see POLICY_PUCT_DESIGN.md §12.)*
 
 - **`auto_pop=False` semantics: "don't pop" vs. "effect function owns stack management".** The flag describes the dispatcher's behavior, not the effect function's. What an `auto_pop=False` effect function does varies — multi-shot pendings leave themselves on top via `replace_top`; `_execute_build_major` pops for non-ovens and pushes wrappers for ovens. The flag is consistently "dispatcher steps back," with the effect function free to do whatever its semantics require.
 
@@ -1277,7 +1278,7 @@ Concurrent doc updates landed alongside the implementation:
 - **Multi-shot sub-action pending pattern.** Pendings with `max_builds: int | None` + `num_built: int` + effect function with `auto_pop=False` + Stop-as-explicit-exit. Documented in the new "Multi-shot sub-action pendings" subsection under "Additional Design Principles".
 - **`max_builds` as caller-imposed cap.** Distinct from global constraints (supply, affordability, cell availability), which are checked separately in the enumerator. Documented in the multi-shot subsection.
 - **Singleton-`Stop` arises uniformly regardless of binding constraint.** Whether the cap, supply, affordability, or cell-availability constraint is what blocks further commits, the player sees the same singleton-`Stop` state — preserves trace consistency for MCTS / replay.
-- **ChooseSubAction category names follow each space's rule text.** Side Job uses singular `"build_stable"` (rules say "Build 1 stable"); Farm Expansion uses plural `"build_stables"` / `"build_rooms"` (rules say "Build rooms and/or build stables"). The split is meaningful, not an inconsistency.
+- **ChooseSubAction category names follow each space's rule text.** Side Job uses singular `"build_stable"` (rules say "Build 1 stable"); Farm Expansion uses plural `"build_stables"` / `"build_rooms"` (rules say "Build rooms and/or build stables"). The split is meaningful, not an inconsistency. *(Later reversed: unified to `"build_stables"` for the policy head — see POLICY_PUCT_DESIGN.md §12.)*
 - **Card-trigger machinery is deferred to per-pending need.** New pendings don't carry `triggers_resolved` / `TRIGGER_EVENT` until a card actually needs to fire on them. When added, the question of cross-commit persistence will be settled per the rules interpretation. Documented in the multi-shot subsection's final paragraph.
 - **`ROOM_COSTS: dict[HouseMaterial, Resources]` as a constant.** Mirrors `MAJOR_IMPROVEMENT_COSTS` shape; lives in `constants.py`; consumed by both `_can_afford_room` (legality) and `_choose_subaction_farm_expansion` (resolution). Pattern: per-material cost data lives as a static dict in constants.
 - **Predicate-shadows-enumerator pattern.** Existence predicates that ask "is there a legal cell?" should be one-liners over their cell enumerator (`_can_plow → bool(_legal_plow_cells(p))`). Single source of truth for "where can X go" lives in the enumerator; predicates derive.
@@ -2810,6 +2811,36 @@ A documentation-only session — **no game logic changed**. `CLAUDE.md` was reor
 - **Cross-reference cleanup** — ~19 code/doc files had docstring/comment references to old CLAUDE.md section names; each was repointed to the new CLAUDE.md section or an `ENGINE_IMPLEMENTATION.md §`. Comment/docstring-only; engine still imports clean. `CHANGES.md` changelog entries and this file's historical references were deliberately left as historical record.
 - **Two small comment fixes in passing:** `engine.py`'s non-negativity comment now notes `Animals` has no arithmetic operators (negatives arise only from direct construction); `legal_placements`'s docstring no longer claims `fencing` is excluded (Task 6 implemented it).
 - Old `CLAUDE.md` archived to `archive/CLAUDE_OLD.md` (git-ignored).
+
+---
+
+<a name="policy-puct-c0"></a>
+## Policy head + PUCT — design + c0 implementation (2026-06-04)
+
+A long design session that produced **`POLICY_PUCT_DESIGN.md`** (the policy-head + PUCT spec, Phase 2.3 (c)→(d)) and implemented its first slice — **c0, the PUCT search machinery** in `agricola/agents/mcts.py`. The policy *network* is trained in a parallel session; this session owns the search side, the design doc, and a small engine pre-edit.
+
+### What was built
+
+- **`POLICY_PUCT_DESIGN.md`** — design spec: the factored multi-head policy (fixed-width+mask heads for placement / sub-actions / Build Major; score-the-set heads for the harvest-feed/breed/market/sow/bake/fence frontiers), the black-box `policy_fn(state, legal_actions) -> {action: prior}` interface MCTS consumes (untrained heads → uniform), the grounded decision-point taxonomy, AlphaZero PUCT + restated FPU + `leaf_value_scale`-calibrated `c_puct`, chance-node orthogonality, the `fence_mode` enum, BC training from the existing `chosen_action` data, the eval controls, and the shared-trunk / self-play forward-compat. Read it before touching the policy head or PUCT.
+- **c0 — PUCT in `mcts.py`** (UCT preserved as the `policy_fn=None` path): `FenceMode` enum (MACRO / FLATTEN / SEQUENCE_PRIOR; PUCT can't use MACRO, SEQUENCE_PRIOR raises `NotImplementedError`), `policy_fn` + `fence_mode` on `MCTSSearch`, `MCTSNode._action_priors` + lazy `_ensure_priors` (split from `_compute_legal_actions`, now enumerate-only), `_select_via_puct` / `_puct_select_child` (AlphaZero `Q + c·P·√ΣN/(1+n)` over all legal actions, FPU reduction, singleton short-circuit), the `_simulate` dispatch, `uniform_policy` (the c0 placeholder prior), and `root_visit_distribution` (the root π accessor). `tests/test_puct.py` (13 tests).
+- **Forced-move step-through** (both UCT and PUCT): a newly reached single-legal-action node is stepped through in the *same* simulation — V is evaluated at the downstream real decision (so the value net is queried in-distribution, never on singleton mid-action states), and the forced node's Q is filled by backprop. Mirrors how a 1-candidate reveal is already routed through by the chance path. Consequence: **UCT is no longer byte-identical to the pre-PUCT engine** — an intentional improvement.
+- **Pre-implementation edit — `build_stable` → `build_stables`:** unified Side Job's `ChooseSubAction` name with Farm Expansion's (`legality.py`, `resolution.py`, `test_side_job.py`), **deliberately reversing** the earlier "names follow each space's rule text" decision (the two prior SESSION_HISTORY entries on this now carry reversal notes). One `build_stables` head slot, not two.
+
+### Key design decisions
+
+- **Regular legality + soft-prune-via-prior** (not strict): matches the BC data; the prior soft-prunes what strict hard-pruned (strict only re-widens at fencing and sow).
+- **AlphaZero PUCT + restated FPU:** drop UCT's force-visit-every-unvisited-first; the prior orders exploration; `fpu_offset` is the unvisited-child Q reduction; `c_puct` calibrated against `leaf_value_scale`-normalized Q (the FIRST_NN C15 lesson).
+- **Value path untouched, prior lazy:** `evaluate_leaf -> float` is unchanged (separate value/policy nets in v1). Legal-action enumeration moved *before* the value eval (needed for the step-through and to let a future shared net produce value+policy in one pass), but the prior stays lazy (`_ensure_priors` at first selection) so no policy call lands on stepped-through singletons or never-expanded leaves.
+- **Chance nodes orthogonal:** PUCT touches decision-node selection only; reveals stay on the round-robin chance path.
+- **Fencing modes:** v1 PUCT uses `FLATTEN` (per-pasture commits); the greedy+random `MacroFencingAction` machinery is `MACRO` (UCT-only); the policy-sampled endpoint-layout abstraction with `n(s,a,L)` per-step-target reconstruction is `SEQUENCE_PRIOR` (c3, not yet implemented).
+
+### Taxonomy refinement
+
+The policy session's 27k-game count showed `build_rooms` and `plow` are **never** real `ChooseSubAction` choices — the `rooms-before-stables` / `plow-before-sow` ordering filters always offer them alone, so they're auto-applied singletons (0 recorded examples). So the trainable ChooseSubAction vocabulary is **5** (`sow`, `bake_bread`, `build_stables`, `improvement`, `build_fences`), joining `renovate` / `build_major` as forced-singletons (POLICY_PUCT_DESIGN.md §4.2). Policy-head concern only — the PUCT machinery is action-name-agnostic.
+
+### Tests / status
+
+`tests/test_puct.py` (13): FenceMode invariants, `uniform_policy`, FLATTEN-vs-MACRO fencing, priors at expansion, prior-steers-visits (constant-eval isolation), `root_visit_distribution`, the forced-move step-through invariant (V never evaluated at a singleton), and full-game + self-play smoke. UCT unchanged structurally (`tests/test_mcts.py` 24/24). Next: CLI wiring in `play_mcts_match.py` for the eval controls, then c1 (train the placement head, wire it as the prior).
 
 ---
 
