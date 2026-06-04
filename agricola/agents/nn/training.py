@@ -126,8 +126,11 @@ def train_one_epoch(
     """
     model.train()
     n = 0
-    sum_sq = 0.0
-    sum_abs = 0.0
+    # Accumulate the error sums as device tensors and sync once at epoch end.
+    # Calling `.item()` per batch forces a GPU->CPU sync that stalls the
+    # pipeline (negligible on CPU, meaningful on MPS). See NN_TRAINING_SPEEDUP §3d.
+    sum_sq = torch.zeros((), device=device)
+    sum_abs = torch.zeros((), device=device)
     for x, y in loader:
         x = x.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True)
@@ -143,11 +146,11 @@ def train_one_epoch(
 
         with torch.no_grad():
             err = (pred - y).detach()
-            sum_sq += (err * err).sum().item()
-            sum_abs += err.abs().sum().item()
+            sum_sq += (err * err).sum()
+            sum_abs += err.abs().sum()
             n += x.size(0)
 
-    return sum_sq / n, sum_abs / n
+    return (sum_sq / n).item(), (sum_abs / n).item()
 
 
 @torch.no_grad()
@@ -164,17 +167,18 @@ def evaluate(
     """
     model.eval()
     n = 0
-    sum_sq = 0.0
-    sum_abs = 0.0
+    # On-device accumulation, sync once (see NN_TRAINING_SPEEDUP §3d).
+    sum_sq = torch.zeros((), device=device)
+    sum_abs = torch.zeros((), device=device)
     for x, y in loader:
         x = x.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True)
         pred = model(x)
         err = pred - y
-        sum_sq += (err * err).sum().item()
-        sum_abs += err.abs().sum().item()
+        sum_sq += (err * err).sum()
+        sum_abs += err.abs().sum()
         n += x.size(0)
-    return sum_sq / n, sum_abs / n
+    return (sum_sq / n).item(), (sum_abs / n).item()
 
 
 def train_one_epoch_batched(

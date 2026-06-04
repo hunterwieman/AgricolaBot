@@ -274,11 +274,14 @@ fix: build a throwaway loader just for the plot, regardless of path:
         data_on_device=args.data_on_device,
 ```
 
-### 3d. (Optional, smaller) Cheap standalone win if you *don't* adopt the fast path yet
+### 3d. (Optional, smaller) Cheap standalone win if you *don't* adopt the fast path yet — **DONE**
 
 Even on the existing `DataLoader` path, move the `.item()` calls out of `train_one_epoch`'s inner
 loop — accumulate `sum_sq`/`sum_abs` as device tensors and `.item()` once at the end (same pattern
 as 3a). Negligible on CPU, meaningful on MPS. This alone is a low-risk first step.
+
+**Status: landed.** `train_one_epoch` and `evaluate` now accumulate the error sums as 0-dim
+device tensors and sync once at epoch end (numerically identical; per-batch GPU→CPU sync removed).
 
 ---
 
