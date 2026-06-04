@@ -8,14 +8,6 @@ restricted list is always a subset of `legal_actions(state)` of size ≥ 1
 
 The priors are organized into per-pending filters:
 
-- **Sub-action ordering** (provably losses are bounded — see notes):
-    - Cultivation: plow before sow.
-    - Grain Utilization: sow before bake.  (Caveat: bake-first is strictly
-      more flexible with Potter Ceramics in play. The user accepted this
-      tradeoff explicitly for the current card scope; revisit when more
-      bake-event triggers land.)
-    - Farm Expansion: build rooms before stables.
-
 - **Cell priority** (opinionated; rooms/stables/plow go to predetermined cells):
     - Stables built in order: (0,4), (0,3), (1,4), (1,3).
     - Rooms built in order:   (0,0), (2,1), (1,1), (2,2).
@@ -94,9 +86,7 @@ from agricola.pending import (
     PendingBuildFences,
     PendingBuildRooms,
     PendingBuildStables,
-    PendingCultivation,
     PendingFarmExpansion,
-    PendingGrainUtilization,
     PendingHarvestFeed,
     PendingPlow,
     PendingSow,
@@ -181,11 +171,6 @@ def restricted_legal_actions(state: GameState) -> list[Action]:
 
     if isinstance(top, PendingFarmExpansion):
         actions = _filter_farm_expansion_room_cap(state, top, actions)
-        actions = _filter_farm_expansion_ordering(state, top, actions)
-    elif isinstance(top, PendingCultivation):
-        actions = _filter_cultivation_ordering(state, top, actions)
-    elif isinstance(top, PendingGrainUtilization):
-        actions = _filter_grain_utilization_ordering(state, top, actions)
     elif isinstance(top, PendingBuildStables):
         actions = _filter_cell_priority(actions, STABLE_PRIORITY, CommitBuildStable)
     elif isinstance(top, PendingBuildRooms):
@@ -224,66 +209,6 @@ def _count_rooms(grid: tuple) -> int:
         for c in range(5)
         if grid[r][c].cell_type == CellType.ROOM
     )
-
-
-# ---------------------------------------------------------------------------
-# Sub-action ordering filters (ChooseSubAction level)
-# ---------------------------------------------------------------------------
-
-def _filter_farm_expansion_ordering(
-    state: GameState, top: PendingFarmExpansion, actions: list[Action],
-) -> list[Action]:
-    """Build rooms before stables at PendingFarmExpansion.
-
-    If ChooseSubAction("build_rooms") is on offer (engine has decided room
-    builds are legal), drop ChooseSubAction("build_stables"). Stop and any
-    other actions pass through unchanged.
-    """
-    has_rooms = any(
-        isinstance(a, ChooseSubAction) and a.name == "build_rooms"
-        for a in actions
-    )
-    if not has_rooms:
-        return actions
-    narrowed = [
-        a for a in actions
-        if not (isinstance(a, ChooseSubAction) and a.name == "build_stables")
-    ]
-    return _safe_narrow(narrowed, actions)
-
-
-def _filter_cultivation_ordering(
-    state: GameState, top: PendingCultivation, actions: list[Action],
-) -> list[Action]:
-    """Plow before sow at PendingCultivation."""
-    has_plow = any(
-        isinstance(a, ChooseSubAction) and a.name == "plow"
-        for a in actions
-    )
-    if not has_plow:
-        return actions
-    narrowed = [
-        a for a in actions
-        if not (isinstance(a, ChooseSubAction) and a.name == "sow")
-    ]
-    return _safe_narrow(narrowed, actions)
-
-
-def _filter_grain_utilization_ordering(
-    state: GameState, top: PendingGrainUtilization, actions: list[Action],
-) -> list[Action]:
-    """Sow before bake at PendingGrainUtilization."""
-    has_sow = any(
-        isinstance(a, ChooseSubAction) and a.name == "sow"
-        for a in actions
-    )
-    if not has_sow:
-        return actions
-    narrowed = [
-        a for a in actions
-        if not (isinstance(a, ChooseSubAction) and a.name == "bake_bread")
-    ]
-    return _safe_narrow(narrowed, actions)
 
 
 # ---------------------------------------------------------------------------

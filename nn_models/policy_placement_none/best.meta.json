@@ -1,0 +1,59 @@
+{
+  "model_kind": "policy_placement_v1",
+  "net_type": "ConfigurableMLP",
+  "net_config": {
+    "input_dim": 170,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "output_dim": 25,
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "head": "linear"
+  },
+  "num_spaces": 25,
+  "encoding_version": 2,
+  "extras": {
+    "epoch": 28,
+    "val_ce": 1.4765985527283447,
+    "model_kind": "policy_placement_v1",
+    "num_classes": 25,
+    "loss_weight": "none",
+    "awr_beta": null,
+    "awr_clip": null,
+    "value_ckpt": null,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "max_epochs": 50,
+    "early_stop_patience": 10,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "split_seed": 0,
+    "torch_seed": 42,
+    "device": "cpu",
+    "init_from": null,
+    "store_dtype": "float16",
+    "input_dim": 170,
+    "encoding_version": 2,
+    "data_version": 1,
+    "code_sha": "69f393f82ccd6d9070d7b9e94b19733178b11b4f",
+    "run_dirs": [
+      "data/nn_training/runs/hidden_info_bimodal_20k",
+      "data/nn_training/runs/hidden_info_nnblend_10k"
+    ],
+    "train_size": 1557778,
+    "val_size": 188341,
+    "test_size": 189667,
+    "param_count": 117017
+  }
+}

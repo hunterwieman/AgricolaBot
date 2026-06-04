@@ -149,11 +149,16 @@ def test_empty_input_passes_through():
 
 
 # ---------------------------------------------------------------------------
-# Sub-action ordering: Cultivation
+# Cultivation sub-actions (no ordering restriction)
 # ---------------------------------------------------------------------------
 
-def test_cultivation_plow_before_sow_when_both_legal():
-    """At PendingCultivation with both plow + sow legal, sow drops."""
+def test_cultivation_plow_and_sow_both_offered_when_legal():
+    """At PendingCultivation with both plow + sow legal, BOTH are offered.
+
+    The plow-before-sow ordering filter was dropped: it force-plowed (removing
+    the legitimate sow-only / keep-the-cell-flexible option), which is a lossy
+    prior better left to the learned policy. The agent now chooses freely.
+    """
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = with_resources(state, 0, grain=1)
@@ -165,11 +170,11 @@ def test_cultivation_plow_before_sow_when_both_legal():
     ])
     actions = restricted_legal_actions(state)
     assert ChooseSubAction(name="plow") in actions
-    assert ChooseSubAction(name="sow") not in actions
+    assert ChooseSubAction(name="sow") in actions
 
 
 def test_cultivation_sow_when_plow_already_chosen():
-    """Once plow_chosen=True, the ordering filter doesn't apply — sow surfaces."""
+    """With plow_chosen=True, sow surfaces (plow already done this turn)."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = with_resources(state, 0, grain=1)
@@ -187,7 +192,7 @@ def test_cultivation_sow_when_plow_already_chosen():
 
 
 def test_cultivation_sow_only_when_plow_impossible():
-    """If plow is illegal (no eligible cells), sow surfaces despite ordering."""
+    """If plow is illegal (no eligible cells), only sow surfaces."""
     # Fill the entire grid with non-EMPTY cells so plow has no targets, but
     # leave one field with no crop so sow is legal.
     state = setup(seed=0)
@@ -200,17 +205,18 @@ def test_cultivation_sow_only_when_plow_impossible():
         PendingCultivation(player_idx=0, initiated_by_id="space:cultivation"),
     ])
     actions = restricted_legal_actions(state)
-    # plow not in offer ⇒ ordering filter is inert, sow stays.
+    # plow not in offer (no empty plow targets) ⇒ only sow available.
     assert ChooseSubAction(name="sow") in actions
     assert ChooseSubAction(name="plow") not in actions
 
 
 # ---------------------------------------------------------------------------
-# Sub-action ordering: Grain Utilization
+# Grain Utilization sub-actions (no ordering restriction)
 # ---------------------------------------------------------------------------
 
-def test_grain_utilization_sow_before_bake():
-    """Sow drops bake when sow is also legal."""
+def test_grain_utilization_sow_and_bake_both_offered():
+    """Both sow and bake_bread are offered when both are legal (the
+    sow-before-bake ordering filter was dropped)."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = with_resources(state, 0, grain=1)
@@ -221,7 +227,7 @@ def test_grain_utilization_sow_before_bake():
     ])
     actions = restricted_legal_actions(state)
     assert ChooseSubAction(name="sow") in actions
-    assert ChooseSubAction(name="bake_bread") not in actions
+    assert ChooseSubAction(name="bake_bread") in actions
 
 
 def test_grain_utilization_bake_when_sow_impossible():
@@ -240,11 +246,12 @@ def test_grain_utilization_bake_when_sow_impossible():
 
 
 # ---------------------------------------------------------------------------
-# Sub-action ordering: Farm Expansion (rooms-before-stables)
+# Farm Expansion sub-actions (no ordering restriction)
 # ---------------------------------------------------------------------------
 
-def test_farm_expansion_rooms_before_stables():
-    """When both build_rooms and build_stables are legal, stables drop."""
+def test_farm_expansion_rooms_and_stables_both_offered():
+    """When both build_rooms and build_stables are legal, BOTH are offered
+    (the rooms-before-stables ordering filter was dropped)."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     # Wood house (default), room cost = 5 wood + 2 reed. Stable cost = 2 wood.
@@ -254,7 +261,7 @@ def test_farm_expansion_rooms_before_stables():
     ])
     actions = restricted_legal_actions(state)
     assert ChooseSubAction(name="build_rooms") in actions
-    assert ChooseSubAction(name="build_stables") not in actions
+    assert ChooseSubAction(name="build_stables") in actions
 
 
 def test_farm_expansion_stables_when_rooms_illegal():

@@ -89,6 +89,42 @@ Version conventions: `ENCODING_VERSION` defined in `agricola/agents/nn/encoder.p
 
 ---
 
+## Policy models
+
+Supervised behavioral-cloning **policy heads** (POLICY_HEAD.md) — a factored
+policy with one head per decision type (`agricola/agents/nn/policy_heads.py`).
+Separate from the value models above; the metric is **top-1 / top-3 agreement**
+with the recorded moves, not MAE. Two caveats: (1) agreement ≠ playing strength —
+the real measure is PUCT lift (separate session); (2) the `awr` variant is
+*expected* to roughly match `none` on top-1, since AWR optimizes for
+high-advantage moves, not imitation accuracy — its value shows up only under
+search. All `[256,256]` GELU / LayerNorm / dropout 0.2 / wd 1e-4,
+`ENCODING_VERSION` 2, trunk warm-started from the `none` placement model (head
+layer fresh). AWR baseline = the champion value net (`nn_models/best`); `β = std(A)`,
+`w_max = 6`.
+
+| Dir (`nn_models/`) | Head (classes) | Data | Loss | Train | best ep | Test top-1 / top-3 | Status |
+|---|---|---|---|---|---|---|---|
+| `policy_placement_none` | placement (25) | pre-fix 27k¹ | none | ~1.5M | 28 (killed²) | val 51.3% / 78.3% | warm-start trunk source; **stale data** |
+| `policy_choose_subaction_none` | choose_subaction (8) | `hidden_info_v2_10k` | none | 60.3k | 5 | **80.3% / 100%³** | active |
+| `policy_choose_subaction_awr` | choose_subaction (8) | `hidden_info_v2_10k` | awr (β=7.3) | 60.3k | 4 | 80.2% / 100% | active |
+| `policy_commit_build_major_none` | commit_build_major (14) | `hidden_info_v2_10k` | none | 22.6k | 7 | **67.7% / 95.8%** (win 70.2%) | active |
+| `policy_commit_build_major_awr` | commit_build_major (14) | `hidden_info_v2_10k` | awr | 22.6k | 4 | 67.5% / 95.6% (win 70.5%) | active |
+
+¹ Trained on `hidden_info_bimodal_20k` + `hidden_info_nnblend_10k`, generated
+*before* the `restricted.py` ordering-filter fix, so its trajectory distribution
+is stale (placement legality itself is unchanged — still a valid placement policy
+and trunk source). Worth retraining on `hidden_info_v2_10k`.
+² Killed at epoch 28 before convergence / final test metrics; val numbers only.
+³ top-3 = 100% because parent-pending decisions usually have ≤3 legal options, so
+top-3 trivially contains the choice; top-1 is the meaningful metric there.
+
+**`hidden_info_v2_10k`** = 10k games regenerated under the fixed `restricted.py`
+(the three forcing ordering filters dropped — POLICY_HEAD.md), which made
+`plow`/`build_rooms` real ChooseSubAction choices (0 → the two most common).
+
+---
+
 ## Updating this file
 
 When a training run produces a new checkpoint:
