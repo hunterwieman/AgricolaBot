@@ -135,6 +135,19 @@ I'd recommend trying the **generic `fast_replace`** first, measuring, then decid
 
 ### R5. Short-circuit `legal_placements` predicates that depend on visible accumulation
 
+> **Status: REJECTED (2026-06-04).** Two reasons. (1) *Little real saving.* The expensive
+> affordability work is already short-circuited — `_is_available` is the first conjunct/guard in
+> every predicate, so an occupied/unrevealed space already returns after one `_is_available` and
+> never runs its body. The only thing an outer pre-filter saves is the predicate's *function-call
+> dispatch* on unavailable spaces; and unless `_is_available` is also stripped from all ~24
+> predicate bodies (a contract change with test churn — `_legal_*` are called directly in tests),
+> the "keep inner" form double-pays `_is_available` on available spaces, roughly a wash. (2)
+> *Conflicts with the card system.* Phase 3 cards make occupied spaces legal (place-on-occupied,
+> piggyback) and broaden legality via on-placement triggers (see IMPLEMENTATION_CHOICES §10/§11). A
+> single outer `_is_available` gate that runs *before* per-space/card logic would wrongly filter
+> those out and have to be unwound. Keeping availability inside each predicate keeps per-space
+> legality — and its future card extensions — in one overridable place. Not worth doing.
+
 **What:** Currently `legal_placements` evaluates all 24 predicates regardless of state. Many predicates short-circuit cheaply (e.g., `_legal_meeting_place` is just `_is_available`), but some do real work (`_legal_fencing` walks the universe). A pre-filter that skips predicates whose space is currently occupied (workers != (0,0)) would cut average cost.
 
 **Why:** In a typical mid-game state, 5–10 of the 24 spaces are occupied by workers. Each occupied space could short-circuit at the `_is_available` check inside its predicate — but the predicate is still being called. A `legal_placements` rewrite that filters by availability first would skip the predicate body entirely.
@@ -161,7 +174,7 @@ If you want to act on these, the cheapest wins first:
 2. **R1** (legal_actions cache) — 20 lines, big MCTS win when it lands
 3. **R3** (`fast_replace`) — biggest single-function self-time saving; try the generic version
 4. **R4** (anchor pruning) — confirmed hot path, moderate scope
-5. **R5** (`legal_placements` short-circuit) — optional, less certain win
+5. ~~**R5** (`legal_placements` short-circuit)~~ — **REJECTED (2026-06-04)**; little real saving + conflicts with the card system (see R5 above)
 
 After R1–R4 land, re-run the profiler from this same harness (`scripts/profile_engine.py`) to measure actual impact.
 

@@ -299,7 +299,20 @@ if (s_pre is not None
 
 ### Legality enumeration
 
-#### S3. `legal_placements` short-circuit by availability
+#### S3. `legal_placements` short-circuit by availability — REJECTED (2026-06-04)
+
+> **Rejected.** (1) *Little real saving.* The `_is_available` check is already the first
+> conjunct/guard of every predicate, so unavailable spaces already short-circuit before any
+> expensive body runs — the only avoidable cost is the predicate's function-call dispatch. The
+> clean win requires also stripping `_is_available` from all ~24 predicate bodies (the "coupled
+> change" below), which changes each predicate's contract and breaks direct test callers (e.g.
+> `test_fencing.py` exercises `_legal_fencing` in isolation); without it, the outer form just
+> double-pays `_is_available` on available spaces. (2) *Conflicts with the card system.* Phase 3
+> cards make occupied spaces legal (place-on-occupied / piggyback) and broaden legality via
+> on-placement triggers (IMPLEMENTATION_CHOICES §10/§11). A single outer `_is_available` gate ahead
+> of per-space/card logic would wrongly drop those placements and have to be undone. Availability
+> belongs inside each predicate, where card extensions can override it. The original analysis
+> below is kept for the record.
 
 **Target.** `legal_placements` iterates all 24 placement predicates per call. Each per-space predicate begins with `_is_available(state, space)` — but Python still pays the function-call overhead (~250-500 ns) for entering and exiting the predicate body just to get a fast "no" via `_is_available`.
 
@@ -326,7 +339,7 @@ The uncertainty is around "how much of the predicate body actually runs after th
 
 **Difficulty.** Low-medium. The dispatch rewrite is ~10 lines. The predicate-body refactor (removing redundant `_is_available` calls) is mechanical but touches ~24 functions. Risk: easy to forget to remove the inner `_is_available` from one predicate, leaving it correct but doing redundant work — a regression test that asserts a known-impossible space stays out of `legal_placements` would catch this.
 
-**When to do it.** After S1/S2 if Pareto stops dominating. Or before, if you want a quick easy win — it doesn't depend on anything.
+**When to do it.** ~~After S1/S2 if Pareto stops dominating. Or before, if you want a quick easy win.~~ **Superseded by the rejection note at the top of S3 (2026-06-04).**
 
 ### State construction
 
