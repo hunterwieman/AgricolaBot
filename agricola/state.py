@@ -88,12 +88,12 @@ class PlayerState:
     minor_improvements: frozenset = frozenset()  # frozenset[str]
     occupations:        frozenset = frozenset()  # frozenset[str]
 
-    # Once-per-harvest conversion-decision budget. Tracks which conversion ids
+    # Once-per-harvest conversion budget. Tracks which conversion ids
     # (joinery / pottery / basketmaker, plus any future card-registered ids)
-    # have been DECIDED this harvest — recording both use=True and use=False
-    # commits. Reset to frozenset() inside engine._resolve_harvest_field at the
-    # start of each harvest. Used by the HARVEST_FEED legality enumerator to
-    # filter out already-decided conversions. Lives on PlayerState rather than
+    # have been FIRED this harvest. Reset to frozenset() inside
+    # engine._resolve_harvest_field at the start of each harvest. Used by the
+    # HARVEST_FEED legality enumerator to filter out already-fired conversions
+    # (declining is implicit — no skip is recorded). Lives on PlayerState rather than
     # on PendingHarvestFeed per ENGINE_IMPLEMENTATION.md §2 guidance ("per-card
     # budgets that span events live on PlayerState").
     harvest_conversions_used: frozenset = frozenset()  # frozenset[str]

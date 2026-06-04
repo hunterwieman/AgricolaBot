@@ -1384,15 +1384,16 @@ def _enumerate_pending_harvest_feed(
 
     Two regimes based on the pending's state:
 
-    1. `conversion_done == False`: offer each undecided owned conversion as
-       use=True/False (use=True only if affordable), AND all Pareto-frontier
-       CommitConvert points from harvest_feed_frontier.
+    1. `conversion_done == False`: offer each undecided owned conversion that
+       the player can afford, AND all Pareto-frontier CommitConvert points from
+       harvest_feed_frontier.
     2. `conversion_done == True`: only Stop is legal.
 
     No ordering between crafts and the main convert: the agent can fire
     crafts in any order before committing convert, or commit convert
-    immediately (forfeiting any undecided crafts — strategically equivalent
-    to explicitly skipping each one).
+    immediately. Committing forfeits any unfired crafts — that is the only way
+    to decline a craft (there is no explicit "skip" action, since recording a
+    skip is indistinguishable from forfeiting it at commit).
 
     `food_owed` is derived on each call from the live player state:
         need      = 2*people_total - newborns
@@ -1422,11 +1423,10 @@ def _enumerate_pending_harvest_feed(
             continue
         if not spec.is_owned_fn(state, pending.player_idx):
             continue
-        # use=False is always available (record-skip).
-        actions.append(CommitHarvestConversion(conversion_id=conversion_id, use=False))
-        # use=True only if affordable.
+        # Offer the conversion only if affordable; declining is implicit
+        # (commit CommitConvert without firing it).
         if _can_afford(p, spec.input_cost):
-            actions.append(CommitHarvestConversion(conversion_id=conversion_id, use=True))
+            actions.append(CommitHarvestConversion(conversion_id=conversion_id))
 
     # 2. All Pareto-frontier CommitConvert points. Invert REMAINING tuples
     #    to CONSUMED amounts (consumed = player_max - remaining).

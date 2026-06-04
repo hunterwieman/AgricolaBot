@@ -623,85 +623,6 @@ def test_wrapper_never_empties_action_set_in_random_play():
 
 
 # ---------------------------------------------------------------------------
-# `use=False` craft filter (§7.0) — applied in the REGULAR wrapper
-# ---------------------------------------------------------------------------
-
-def test_use_false_craft_dropped_at_harvest_feed():
-    """`CommitHarvestConversion(use=False)` is dropped by `restricted_legal_actions`."""
-    state = setup(seed=0)
-    state = with_current_player(state, 0)
-    state = with_people(state, 0, total=2, home=2, newborns=0)
-    # Owns Joinery (idx 7) — craft is available; has wood to fire it.
-    state = with_majors(state, owner_by_idx={7: 0})
-    state = with_resources(state, 0, food=0, wood=1)
-    state = with_pending_stack(state, [
-        PendingHarvestFeed(player_idx=0, initiated_by_id="phase:harvest_feed"),
-    ])
-    unrestricted = legal_actions(state)
-    restricted = restricted_legal_actions(state)
-    # Engine offers both use=True and use=False for joinery.
-    has_skip = any(
-        isinstance(a, CommitHarvestConversion) and a.use is False
-        for a in unrestricted
-    )
-    has_use = any(
-        isinstance(a, CommitHarvestConversion) and a.use is True
-        for a in unrestricted
-    )
-    assert has_skip and has_use
-    # Wrapper drops use=False but keeps use=True.
-    assert not any(
-        isinstance(a, CommitHarvestConversion) and a.use is False
-        for a in restricted
-    )
-    assert any(
-        isinstance(a, CommitHarvestConversion) and a.use is True
-        for a in restricted
-    )
-
-
-def test_use_false_filter_falls_back_when_only_use_false_offered():
-    """If `use=False` were somehow the only craft option, the safe-narrow
-    fallback preserves it rather than emptying the action set.
-
-    This case isn't reachable in normal gameplay (the engine always offers
-    `use=True` when affordable AND `use=False` is always available; both
-    appear together or neither does). The test artificially constructs the
-    state by giving the player a craft they own but cannot afford to fire,
-    and verifies the wrapper still surfaces a CommitConvert option (the
-    `use=False` filter is inert because there's no `use=False` to drop —
-    `use=True` was already absent from the unrestricted set).
-    """
-    state = setup(seed=0)
-    state = with_current_player(state, 0)
-    state = with_people(state, 0, total=2, home=2, newborns=0)
-    state = with_majors(state, owner_by_idx={7: 0})
-    # No wood means use=True is not offered (the engine only adds use=True if
-    # the cost is affordable). use=False is still offered.
-    state = with_resources(state, 0, food=4, wood=0)
-    state = with_pending_stack(state, [
-        PendingHarvestFeed(player_idx=0, initiated_by_id="phase:harvest_feed"),
-    ])
-    unrestricted = legal_actions(state)
-    # Verify the engine offered use=False but NOT use=True.
-    assert any(
-        isinstance(a, CommitHarvestConversion) and a.use is False
-        for a in unrestricted
-    )
-    assert not any(
-        isinstance(a, CommitHarvestConversion) and a.use is True
-        for a in unrestricted
-    )
-    restricted = restricted_legal_actions(state)
-    # The wrapper dropped use=False (because at least one CommitConvert
-    # survives in the remaining actions, _safe_narrow doesn't kick in).
-    assert restricted, "Wrapper produced empty action set"
-    assert not any(
-        isinstance(a, CommitHarvestConversion) for a in restricted
-    )
-
-
-# ---------------------------------------------------------------------------
 # Strict wrapper: no-op cases
 # ---------------------------------------------------------------------------
 
@@ -1130,11 +1051,10 @@ def test_harvest_feed_cap_preserves_crafts():
     state = add_resources(state, 0, wood=1)
     strict = strict_restricted_legal_actions(state)
     crafts = [a for a in strict if isinstance(a, CommitHarvestConversion)]
-    # The use=False filter (regular wrapper) dropped use=False; the cap kept
-    # use=True. Joinery + 1 wood available → exactly one craft action remains.
+    # The engine offers exactly one craft action (fire Joinery); the cap passes
+    # crafts through untouched. Joinery + 1 wood available → one craft remains.
     assert len(crafts) == 1
     assert crafts[0].conversion_id == "joinery"
-    assert crafts[0].use is True
 
 
 def test_harvest_feed_cap_deterministic_with_same_rng():

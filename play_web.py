@@ -359,7 +359,7 @@ def _action_params(action: Action) -> dict:
     if isinstance(action, CommitBuildPasture):
         return {"cells": sorted([list(c) for c in action.cells])}
     if isinstance(action, CommitHarvestConversion):
-        return {"conversion_id": action.conversion_id, "use": action.use}
+        return {"conversion_id": action.conversion_id}
     if isinstance(action, CommitConvert):
         return {
             "grain": action.grain, "veg": action.veg,

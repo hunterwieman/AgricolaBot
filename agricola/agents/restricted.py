@@ -25,11 +25,6 @@ The priors are organized into per-pending filters:
   Applied at PendingFarmExpansion (drop ChooseSubAction("build_rooms")) and
   at PendingBuildRooms (drop further CommitBuildRoom once at cap).
 
-- **Drop `use=False` craft conversions**: at PendingHarvestFeed, drop every
-  `CommitHarvestConversion(use=False)` action. Explicitly declining a craft
-  is redundant — the player can achieve the same outcome by going directly
-  to `CommitConvert`. Saves consumers from spending evaluation on a no-op.
-
 - **Minimum-begging at CommitConvert**: at PendingHarvestFeed, among all
   enumerated CommitConvert options keep only those that incur the minimum
   begging count. If multiple actions tie for the minimum, all are kept.
@@ -181,7 +176,6 @@ def restricted_legal_actions(state: GameState) -> list[Action]:
     elif isinstance(top, PendingBuildFences):
         actions = _filter_first_pasture(state, top, actions)
     elif isinstance(top, PendingHarvestFeed):
-        actions = _filter_drop_use_false_craft(state, top, actions)
         actions = _filter_min_begging(state, top, actions)
 
     return actions
@@ -311,28 +305,6 @@ def _filter_first_pasture(
         if any(cell in FIRST_PASTURE_REQUIRED_CELLS for cell in p.cells)
     ]
     return _safe_narrow(others + eligible, actions)
-
-
-# ---------------------------------------------------------------------------
-# Drop `use=False` craft conversions (PendingHarvestFeed)
-# ---------------------------------------------------------------------------
-
-def _filter_drop_use_false_craft(
-    state: GameState, top: PendingHarvestFeed, actions: list[Action],
-) -> list[Action]:
-    """Drop every `CommitHarvestConversion(use=False)` from the action set.
-
-    Explicitly declining a craft is a no-op the player can always achieve by
-    going directly to `CommitConvert` (which terminates the feed pending
-    without using any undecided crafts). `harvest_conversions_used` is reset
-    each harvest in `_resolve_harvest_field`, so not recording the skip has
-    no cross-harvest effect.
-    """
-    narrowed = [
-        a for a in actions
-        if not (isinstance(a, CommitHarvestConversion) and a.use is False)
-    ]
-    return _safe_narrow(narrowed, actions)
 
 
 # ---------------------------------------------------------------------------

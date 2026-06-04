@@ -464,7 +464,7 @@ speeds the feed **miss** path, which re-runs the wrapper.
 *structural* reason feeding couldn't even be enumerator-level if we wanted: unlike the animal
 markets (whose enumerator output *is* purely the frontier), the feed enumerator additionally offers
 the cheap craft-conversion decisions
-(joinery/pottery/basketmaker `use=True/False`, gated on `harvest_conversions_used` +
+(joinery/pottery/basketmaker fire-actions, gated on `harvest_conversions_used` +
 affordability). Those are trivial to re-enumerate; folding them in would only widen the key with
 conversion-availability for no real saving. So cache the expensive helper and leave the cheap
 craft enumeration uncached. (`food_owed` derives deterministically from the player's

@@ -151,22 +151,22 @@ class CommitBuildPasture(CommitSubAction):
 
 @dataclass(frozen=True)
 class CommitHarvestConversion(CommitSubAction):
-    """Commit a once-per-harvest goods-to-food conversion decision at PendingHarvestFeed.
+    """Commit a once-per-harvest goods-to-food conversion at PendingHarvestFeed.
 
     `conversion_id` is a key in HARVEST_CONVERSIONS (e.g. "joinery", "pottery",
     "basketmaker", or a future card-registered id).
 
-    `use=True` fires the conversion: pays input_cost and adds the full
-    food_out to the player's supply (which will be paid out, or kept as
-    surplus, at the final CommitConvert). `use=False` records the decision
-    without firing. Either way, the conversion_id is added to
-    `player.harvest_conversions_used` so the enumerator no longer offers it
-    for the remainder of this harvest's FEED. Dispatched with `auto_pop=False`
-    — the pending stays on top to host further craft decisions and the final
+    Firing the conversion pays input_cost and adds the full food_out to the
+    player's supply (which will be paid out, or kept as surplus, at the final
+    CommitConvert), and adds the conversion_id to
+    `player.harvest_conversions_used` so the enumerator no longer offers it for
+    the remainder of this harvest's FEED. There is no "decline" variant:
+    declining a craft is simply not firing it before `CommitConvert`, which
+    forfeits every still-undecided craft. Dispatched with `auto_pop=False` — the
+    pending stays on top to host further craft decisions and the final
     CommitConvert.
     """
     conversion_id: str
-    use:           bool
 
 
 @dataclass(frozen=True)

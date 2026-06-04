@@ -244,14 +244,13 @@ def test_joinery_use_true_adds_food_to_supply():
     state = with_phase(state, Phase.HARVEST_FEED)
     state = _initiate_harvest_feed(state)
 
-    # Both use=False and use=True legal.
+    # Firing Joinery is legal (declining is implicit via CommitConvert).
     actions = legal_actions(state)
     joinery_actions = [a for a in actions if isinstance(a, CommitHarvestConversion)
                        and a.conversion_id == "joinery"]
-    assert CommitHarvestConversion(conversion_id="joinery", use=True) in joinery_actions
-    assert CommitHarvestConversion(conversion_id="joinery", use=False) in joinery_actions
+    assert joinery_actions == [CommitHarvestConversion(conversion_id="joinery")]
 
-    state = step(state, CommitHarvestConversion(conversion_id="joinery", use=True))
+    state = step(state, CommitHarvestConversion(conversion_id="joinery"))
 
     # 1 wood spent; food in supply went from 0 -> 2; once-per-harvest budget marked.
     assert state.players[0].resources.wood == 0
@@ -269,8 +268,8 @@ def test_joinery_use_true_adds_food_to_supply():
     assert state.players[0].begging_markers == 2
 
 
-def test_joinery_unaffordable_only_use_false():
-    """Player owns Joinery but has 0 wood -> only use=False is legal."""
+def test_joinery_unaffordable_not_offered():
+    """Player owns Joinery but has 0 wood -> the conversion is not offered."""
     state = setup(seed=0)
     state = dataclasses.replace(state, starting_player=0)
     state = with_majors(state, owner_by_idx={7: 0})  # Joinery
@@ -282,7 +281,7 @@ def test_joinery_unaffordable_only_use_false():
     actions = legal_actions(state)
     joinery_actions = [a for a in actions if isinstance(a, CommitHarvestConversion)
                        and a.conversion_id == "joinery"]
-    assert joinery_actions == [CommitHarvestConversion(conversion_id="joinery", use=False)]
+    assert joinery_actions == []
 
 
 def test_joinery_still_offered_when_food_owed_zero():
@@ -300,7 +299,7 @@ def test_joinery_still_offered_when_food_owed_zero():
     actions = legal_actions(state)
     joinery_actions = [a for a in actions if isinstance(a, CommitHarvestConversion)
                        and a.conversion_id == "joinery"]
-    assert CommitHarvestConversion(conversion_id="joinery", use=True) in joinery_actions
+    assert CommitHarvestConversion(conversion_id="joinery") in joinery_actions
 
 
 def test_joinery_fires_food_to_surplus_when_overpays():
@@ -315,7 +314,7 @@ def test_joinery_fires_food_to_surplus_when_overpays():
     state = with_phase(state, Phase.HARVEST_FEED)
     state = _initiate_harvest_feed(state)
 
-    state = step(state, CommitHarvestConversion(conversion_id="joinery", use=True))
+    state = step(state, CommitHarvestConversion(conversion_id="joinery"))
     assert state.players[0].resources.food == 2     # 2 food just produced
     state = step(state, CommitConvert(0, 0, 0, 0, 0))
     assert state.players[0].resources.food == 1     # paid 1, 1 surplus
@@ -323,8 +322,8 @@ def test_joinery_fires_food_to_surplus_when_overpays():
 
 
 def test_multiple_crafts_all_offered():
-    """Owning all 3 crafts -> the enumerator offers all 6 craft actions
-    (use=True/False × 3) plus the conversion frontier."""
+    """Owning all 3 affordable crafts -> the enumerator offers all 3 craft
+    fire-actions plus the conversion frontier."""
     state = setup(seed=0)
     state = dataclasses.replace(state, starting_player=0)
     state = with_majors(state, owner_by_idx={7: 0, 8: 0, 9: 0})  # Joinery + Pottery + Basket
@@ -334,13 +333,9 @@ def test_multiple_crafts_all_offered():
     state = _initiate_harvest_feed(state)
 
     actions = legal_actions(state)
-    craft_ids_seen = {(a.conversion_id, a.use) for a in actions
+    craft_ids_seen = {a.conversion_id for a in actions
                       if isinstance(a, CommitHarvestConversion)}
-    assert craft_ids_seen == {
-        ("joinery", True), ("joinery", False),
-        ("pottery", True), ("pottery", False),
-        ("basketmaker", True), ("basketmaker", False),
-    }
+    assert craft_ids_seen == {"joinery", "pottery", "basketmaker"}
 
 
 # --- conversion_done & Stop gating ------------------------------------------

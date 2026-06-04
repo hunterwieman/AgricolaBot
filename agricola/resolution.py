@@ -1038,15 +1038,15 @@ def _execute_accommodate(
 def _execute_harvest_conversion(
     state: GameState, player_idx: int, commit: CommitHarvestConversion,
 ) -> GameState:
-    """Apply one once-per-harvest conversion decision on PendingHarvestFeed.
+    """Fire one once-per-harvest conversion on PendingHarvestFeed.
 
-    Records the decision (both use=True and use=False) by adding
-    `conversion_id` to `player.harvest_conversions_used`. If use=True, also
-    pays the input cost, adds the full food_out to the player's supply,
-    and invokes the optional side_effect_fn. The produced food flows into
-    `p.resources.food` and is paid out (or kept as surplus) at the final
-    `_execute_convert` call — there is no food_owed bookkeeping on the
-    pending.
+    Adds `conversion_id` to `player.harvest_conversions_used` (so the
+    enumerator no longer offers it this harvest), pays the input cost, adds the
+    full food_out to the player's supply, and invokes the optional
+    side_effect_fn. The produced food flows into `p.resources.food` and is paid
+    out (or kept as surplus) at the final `_execute_convert` call — there is no
+    food_owed bookkeeping on the pending. Declining a craft is implicit (commit
+    CommitConvert without firing it), so this handler only ever fires.
 
     auto_pop=False — the pending stays on top to host further craft
     decisions plus the final CommitConvert.
@@ -1058,14 +1058,9 @@ def _execute_harvest_conversion(
     p = state.players[player_idx]
     spec = HARVEST_CONVERSIONS[commit.conversion_id]
 
-    # Record the decision regardless of use (both record_used and record_skipped land here).
     new_used = p.harvest_conversions_used | {commit.conversion_id}
 
-    if not commit.use:
-        new_player = fast_replace(p, harvest_conversions_used=new_used)
-        return _update_player(state, player_idx, new_player)
-
-    # use=True: pay input cost, add full food_out to supply.
+    # Pay input cost, add full food_out to supply.
     new_resources = p.resources - spec.input_cost + Resources(food=spec.food_out)
 
     new_player = fast_replace(

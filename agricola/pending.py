@@ -408,14 +408,15 @@ class PendingHarvestFeed:
         legality call lets future cards that mutate food during feeding
         (e.g. food↔resource exchanges that chain into Pottery) be reflected
         immediately in the next legal-actions call.
-      - Each CommitHarvestConversion(use=True) pays input_cost and adds
-        food_out to supply (no food_owed bookkeeping).
+      - Each CommitHarvestConversion fires a craft: pays input_cost and adds
+        food_out to supply (no food_owed bookkeeping). Declining a craft is
+        implicit — commit CommitConvert without firing it.
       - CommitConvert is the sole payment site: pays `min(need, food_in_supply
         + food_produced)` to feeding; surplus stays in supply; any shortfall
         becomes begging markers. Sets `conversion_done=True`.
       - Stop is legal only after `conversion_done=True`.
 
-    "Decided" conversion ids live on PlayerState.harvest_conversions_used,
+    "Fired" conversion ids live on PlayerState.harvest_conversions_used,
     not on this pending — per the "per-card budgets that span multiple
     events live on PlayerState" convention.
 

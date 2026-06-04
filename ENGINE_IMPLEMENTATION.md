@@ -598,8 +598,9 @@ pushes one `PendingHarvestFeed` per player, transitions to `HARVEST_FEED`.
 **Food payment is deferred to the final `CommitConvert`** — the feed-start does not touch
 `p.resources.food`. The player opts into any subset of owned once-per-harvest craft conversions
 (`CommitHarvestConversion` for joinery 1 wood→2 food / pottery 1 clay→2 food / basketmaker
-1 reed→3 food, plus future card entries; `use=True` pays the input and adds `food_out` to
-supply), then commits one final `CommitConvert(grain, veg, sheep, boar, cattle)` (consumed
+1 reed→3 food, plus future card entries; firing pays the input and adds `food_out` to supply —
+declining a craft is implicit, just commit without firing it), then commits one final
+`CommitConvert(grain, veg, sheep, boar, cattle)` (consumed
 amounts) chosen from the Pareto frontier returned by `harvest_feed_frontier`.
 
 `_execute_convert` is the **sole payment site**: it adds `food_produced` to supply, pays

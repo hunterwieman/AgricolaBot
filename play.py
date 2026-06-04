@@ -416,7 +416,7 @@ def _fmt_action_inline(action: Action) -> str:
         cs = ",".join(f"({r},{c})" for r, c in cells)
         return f"CommitBuildPasture(cells={{{cs}}})"
     if isinstance(action, CommitHarvestConversion):
-        return f"CommitHarvestConversion(conversion_id={action.conversion_id!r}, use={action.use})"
+        return f"CommitHarvestConversion(conversion_id={action.conversion_id!r})"
     if isinstance(action, CommitConvert):
         return (
             f"CommitConvert(grain={action.grain}, veg={action.veg}, "
@@ -513,10 +513,9 @@ def _p_build_major(toks):
 
 
 def _p_harvest_conversion(toks):
-    if len(toks) != 2:
-        raise ValueError("expected '<conversion_id> <true|false>'")
-    use = toks[1].lower() in ("true", "t", "yes", "y", "1")
-    return CommitHarvestConversion(conversion_id=toks[0], use=use)
+    if len(toks) != 1:
+        raise ValueError("expected '<conversion_id>'")
+    return CommitHarvestConversion(conversion_id=toks[0])
 
 
 _PROMPT_FORMATS: dict[type, tuple[str, Callable[[list[str]], Action]]] = {
@@ -530,7 +529,7 @@ _PROMPT_FORMATS: dict[type, tuple[str, Callable[[list[str]], Action]]] = {
     CommitBreed:             ("'sheep boar cattle' (post-breed counts, e.g. '3 0 1')", _p_breed),
     CommitConvert:           ("'g v sh bo ca' consumed (e.g. '0 1 2 0 0')", _p_convert),
     CommitBuildMajor:        ("'major_idx' or 'major_idx return_fireplace_idx'", _p_build_major),
-    CommitHarvestConversion: ("'<conversion_id> <true|false>'", _p_harvest_conversion),
+    CommitHarvestConversion: ("'<conversion_id>'", _p_harvest_conversion),
 }
 
 

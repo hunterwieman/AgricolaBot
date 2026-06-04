@@ -122,8 +122,8 @@ def test_harvest_conversions_used_resets_each_harvest():
     state = _resolve_harvest_field(state)
     assert state.players[0].harvest_conversions_used == frozenset()
 
-    # Player 0 uses Joinery (use=True), then fully commits with begging.
-    state = step(state, CommitHarvestConversion(conversion_id="joinery", use=True))
+    # Player 0 fires Joinery, then fully commits with begging.
+    state = step(state, CommitHarvestConversion(conversion_id="joinery"))
     assert "joinery" in state.players[0].harvest_conversions_used
 
     # Continue through FEED + BREED for both players via the random-agent loop.

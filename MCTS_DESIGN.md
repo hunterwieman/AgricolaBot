@@ -156,11 +156,9 @@ class MacroFencingAction(Action):
 - Fencing patterns (§7.3)
 - Harvest-feed cap (§7.4)
 
-**Also added to `restricted_legal_actions` (regular, not strict):** drop `CommitHarvestConversion(use=False)` — declining a craft is redundant; the player can skip a craft by going directly to `CommitConvert`. See §7.0.
+> **Superseded:** the `CommitHarvestConversion(use=False)` filter described below (and in §7.0) no longer exists. The redundant `use=False` action was removed at the *engine* level — `CommitHarvestConversion` no longer carries a `use` field, and declining a craft is implicit (commit `CommitConvert` without firing it). The filter and its `use` field are gone; the text below is retained as design history.
 
 **Rationale:** strict restrictions collapse trivially-suboptimal action choices into single canonical options. This reduces MCTS branching factor at sub-action chains where the strategic choice is small. The "if a filter would empty the action set, fall back" behavior preserves correctness — strict restrictions never strand the engine.
-
-The use=False filter goes in the REGULAR restricted (not strict) because dropping a strictly-redundant action is a correctness-preserving simplification, not a strategic heuristic. Other agents (HubrisHeuristicV3, etc.) benefit too.
 
 ### 3.8 Leaf evaluation (no rollouts)
 
@@ -1019,7 +1017,9 @@ These restrictions are added on top of the existing `restricted_legal_actions` (
 
 ### 7.0 `restricted_legal_actions` addition: drop `use=False` craft conversions
 
-This filter lives in `restricted_legal_actions` (regular, not strict) — it's a correctness-preserving simplification that benefits all agents, not just MCTS.
+> **Superseded — retained as design history.** This filter was later deleted because the redundancy it pruned was removed at the *engine* level: `CommitHarvestConversion` no longer carries a `use` field, the enumerator never emits a "decline" action, and declining a craft is implicit (commit `CommitConvert` without firing it). The section below describes the filter as it originally existed.
+
+This filter lived in `restricted_legal_actions` (regular, not strict) — it was a correctness-preserving simplification that benefited all agents, not just MCTS.
 
 **Applies at**: any state where `CommitHarvestConversion` actions appear in the raw legal set (in practice, only at `PendingHarvestFeed`).
 
@@ -1112,7 +1112,7 @@ Each rule lists allowed actions. `Stop()` is "allowed" only if it would be legal
 **Rule**:
 
 1. Partition legal actions into three sets:
-   - `crafts`: all `CommitHarvestConversion` actions (always all `use=True` after §7.0)
+   - `crafts`: all `CommitHarvestConversion` actions (each fires a craft — there is no decline variant)
    - `commits`: all `CommitConvert` actions
    - `other`: anything else (shouldn't appear at PendingHarvestFeed in normal flow, but defensive)
 

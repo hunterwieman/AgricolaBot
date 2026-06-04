@@ -10,6 +10,7 @@ Small, targeted improvements that don't warrant a full TASK_*.md file. Each entr
 - [5/8/2026 Cleanup 2 — Rename `accumulated_goods` to `accumulated_amount`](#cleanup-2)
 - [5/8/2026 Cleanup 3 — Remove `next_starting_player` from `GameState`](#cleanup-3)
 - [6/1/2026 Cleanup 4 — Extract `breeding_food_gained`; stop re-enumerating the frontier in `_execute_breed`](#cleanup-4)
+- [6/4/2026 Cleanup 5 — Remove the `use` field from `CommitHarvestConversion` (drop the redundant decline action)](#cleanup-5)
 
 ---
 
@@ -94,3 +95,30 @@ The previous frontier scan doubled as a defensive assertion (`CommitBreed not in
 - `ENGINE_IMPLEMENTATION.md` — §4 Harvest `HARVEST_BREED` paragraph: note that the formula lives in the shared `breeding_food_gained` helper (the single source of truth) and that `_execute_breed` applies it directly rather than re-enumerating
 
 **No new tests required** — the change is behavior-preserving for all legal commits; the existing `test_harvest_breed.py` / `test_harvest_integration.py` / `test_helpers.py` suites cover the breeding food values and continue to pass (full suite: 918 passed).
+
+---
+
+<a name="cleanup-5"></a>
+## 6/4/2026 Cleanup 5 — Remove the `use` field from `CommitHarvestConversion` (drop the redundant decline action)
+
+**Motivation:**
+At `PendingHarvestFeed` the enumerator offered two forms of each owned once-per-harvest craft conversion: `CommitHarvestConversion(use=True)` (fire it) and `CommitHarvestConversion(use=False)` (explicitly decline it). The decline form was **strictly redundant**: committing `CommitConvert` ends the conversion phase (`conversion_done=True`) and forfeits every still-undecided craft, so "decline joinery" is always achievable by simply not firing it before the convert. There is no ordering constraint between crafts and the convert, and `CommitConvert(0,0,0,0,0)` is *always* enumerated (the harvest-feed frontier always contains the consume-nothing point), so a "decline / I'm done, pay nothing" action is always available. The two reachable end-states (skip-recorded vs. forfeited-at-commit) differed only in whether the conversion id landed in `harvest_conversions_used` — a set that is reset every harvest and read only by the enumerator — so the difference was unobservable.
+
+The agent layer already agreed: `restricted_legal_actions` carried a `_filter_drop_use_false_craft` filter that dropped every `use=False` action with this exact reasoning, so no agent (MCTS, heuristics, `NNAgent`, web UI) or NN training datum ever saw it. Removing the action at the engine level deletes the redundancy at its source and lets the now-vestigial `use: bool` field (always `True`) and the filter both go away. `harvest_conversions_used` now records conversions *fired*, not conversions *decided*.
+
+**Files affected:**
+
+- `agricola/actions.py` — remove the `use: bool` field from `CommitHarvestConversion`; update the docstring (firing is the only variant; declining is implicit via `CommitConvert`)
+- `agricola/legality.py` — in `_enumerate_pending_harvest_feed`, offer `CommitHarvestConversion(conversion_id=…)` only when affordable (drop the unconditional `use=False` append); update the docstring
+- `agricola/resolution.py` — in `_execute_harvest_conversion`, remove the `if not commit.use` early-return branch (the handler now always fires); update the docstring
+- `agricola/state.py` — update the `harvest_conversions_used` comment (records *fired*, not *decided*)
+- `agricola/pending.py` — update the `PendingHarvestFeed` docstring (each `CommitHarvestConversion` fires; declining is implicit)
+- `agricola/agents/restricted.py` — delete `_filter_drop_use_false_craft` and its call site at `PendingHarvestFeed`; remove the docstring bullet (the engine no longer emits `use=False`, so the filter is dead)
+- `play.py` — drop `use` from the `CommitHarvestConversion` label formatter and the `_p_harvest_conversion` REPL parser (now `'<conversion_id>'`)
+- `play_web.py` — drop `"use"` from the `CommitHarvestConversion` params dict
+- `tests/test_harvest_feed.py` — update craft-offer assertions; rename `test_joinery_unaffordable_only_use_false` → `test_joinery_unaffordable_not_offered` (unaffordable craft is now simply absent); update `test_multiple_crafts_all_offered` (3 fire-actions, not 6)
+- `tests/test_harvest_integration.py` — drop `use=True` from the joinery step
+- `tests/test_restricted_actions.py` — delete the two `use=False`-filter tests; update the cap-test comment + drop its `.use` assertion (49 tests now)
+- `ENGINE_IMPLEMENTATION.md` / `FILE_DESCRIPTIONS.md` / `TEST_DESCRIPTIONS.md` / `CLAUDE.md` / `POLICY_HEAD.md` / `FRONTIER_OPT_DESIGN.md` — update the current-state descriptions; `MCTS_DESIGN.md` §3.7 / §7.0 get a "superseded — retained as design history" note (the `use=False` filter it specified no longer exists)
+
+**No new tests required** — the removal deletes a strictly-redundant action that agents never used; existing harvest suites cover the firing path and continue to pass (full suite: 1008 passed).
