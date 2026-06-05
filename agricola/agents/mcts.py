@@ -800,10 +800,19 @@ class MCTSAgent:
         fpu_offset: float = 0.0,
         action_selection_temperature: float = 0.2,
         rng_seed: int = 0,
+        cap_total_sims: bool = False,
     ):
         assert sims_per_move >= 1, "sims_per_move must be at least 1"
         self.search = search
         self.sims_per_move = int(sims_per_move)
+        # When True, `sims_per_move` is a cap on the *total* root visit count
+        # (inherited-via-tree-reuse + fresh) rather than the count of fresh
+        # sims run this move. Equalizes the effective search budget per
+        # decision across moves regardless of how much the re-rooted node
+        # inherited — removes the tree-reuse "effective-sim accumulation"
+        # confound when comparing UCT vs PUCT (peaked PUCT trees inherit more).
+        # Applies identically to UCT and PUCT (the loop is policy-agnostic).
+        self.cap_total_sims = bool(cap_total_sims)
         self.c_uct = float(c_uct)
         self.fpu_offset = float(fpu_offset)
         self.temperature = float(action_selection_temperature)
@@ -824,8 +833,16 @@ class MCTSAgent:
         root = self.search.find_or_create_node(state)
         self.search.re_root(root)
 
-        for _ in range(self.sims_per_move):
-            self._simulate(root)
+        if self.cap_total_sims:
+            # Cap TOTAL root visits (inherited + fresh) at sims_per_move. Each
+            # _simulate increments root.visits by exactly 1, so this always
+            # terminates; if the re-rooted node already inherited >= the cap we
+            # run zero fresh sims and act on the inherited tree.
+            while root.visits < self.sims_per_move:
+                self._simulate(root)
+        else:
+            for _ in range(self.sims_per_move):
+                self._simulate(root)
 
         action = self._select_action_with_temperature(root)
 

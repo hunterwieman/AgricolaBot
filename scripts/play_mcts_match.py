@@ -279,6 +279,13 @@ class _MatchSpec:
     # Both seats share these (they're global).
     opt_pareto_level: int | None = None  # agricola.opt_config.PARETO_OPT_LEVEL (0-3)
     opt_fence_cache: bool | None = None  # agricola.opt_config.FENCE_SCAN_CACHE
+    # When True, sims_per_move caps the TOTAL root visit count (inherited via
+    # tree reuse + fresh) instead of the count of fresh sims. Equalizes the
+    # per-decision search budget across moves regardless of inheritance —
+    # removes the tree-reuse confound where peaked PUCT trees inherit more
+    # effective sims than flatter UCT trees. Applies to BOTH seats and to both
+    # UCT and PUCT (the MCTSAgent loop is policy-agnostic).
+    cap_total_sims: bool = False
 
 
 _WORKER_SPEC: _MatchSpec | None = None
@@ -395,6 +402,7 @@ def _build_agent(
             fpu_offset=spec.fpu_offset,
             action_selection_temperature=spec.temperature,
             rng_seed=s,
+            cap_total_sims=spec.cap_total_sims,
         )
     if name == "nn":
         # 1-turn greedy NN lookahead (the champion NNAgent, M_82k_warmM62k).
@@ -611,6 +619,12 @@ def main() -> int:
     p.add_argument("--fence-cache", action=argparse.BooleanOptionalAction, default=None,
                    help="agricola.opt_config.FENCE_SCAN_CACHE override (--fence-cache / "
                         "--no-fence-cache). Default: inherit the module default (ON).")
+    p.add_argument("--cap-total-sims", action="store_true",
+                   help="Cap TOTAL root visits (inherited via tree reuse + fresh) "
+                        "at --sims, instead of running --sims fresh sims per move. "
+                        "Equalizes the per-decision search budget across moves, "
+                        "removing the tree-reuse confound where peaked PUCT trees "
+                        "inherit more effective sims. Applies to both seats.")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
                    help="Parallel processes for running games (default: all "
                         "cores). Use 1 for sequential (helpful for debugging). "
@@ -711,6 +725,7 @@ def main() -> int:
         opp_two_pass=opp_two_pass,
         opt_pareto_level=args.opt_level,
         opt_fence_cache=args.fence_cache,
+        cap_total_sims=args.cap_total_sims,
     )
 
     cfg_label = args.v3_config or "default_v3"
