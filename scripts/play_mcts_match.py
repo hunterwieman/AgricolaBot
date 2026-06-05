@@ -90,6 +90,22 @@ _FENCE_MODES = {
 }
 
 
+@functools.lru_cache(maxsize=2)
+def _combined_policy(variant: str):
+    """Load + assemble the combined multi-head `policy_fn` for `variant`
+    ('unweighted' | 'awr'). lru_cache'd so each worker process loads the 9
+    head checkpoints ONCE, not once per game (the build loads ~9 torch
+    checkpoints, so the per-game reload was a real cost over a 100+ game run).
+    """
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parent / "nn" / "build_combined_policy.py"
+    spec = importlib.util.spec_from_file_location("build_combined_policy", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.build(variant)
+
+
 def _resolve_policy(spec_str: str):
     """Map a `--policy` value to a `policy_fn` for `MCTSSearch`.
 
@@ -99,21 +115,14 @@ def _resolve_policy(spec_str: str):
     - 'combined:awr'        → the trained multi-head combiner (AWR heads)
 
     The combiner is built in-worker (it loads torch checkpoints), via
-    `scripts/nn/build_combined_policy.build(variant)`.
+    `scripts/nn/build_combined_policy.build(variant)`, memoized by `_combined_policy`.
     """
     if spec_str == "uct":
         return None
     if spec_str == "uniform":
         return uniform_policy
     if spec_str.startswith("combined:"):
-        variant = spec_str.split(":", 1)[1]
-        import importlib.util
-        from pathlib import Path
-        path = Path(__file__).resolve().parent / "nn" / "build_combined_policy.py"
-        spec = importlib.util.spec_from_file_location("build_combined_policy", path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod.build(variant)
+        return _combined_policy(spec_str.split(":", 1)[1])
     raise ValueError(
         f"--policy={spec_str!r}: expected 'uct', 'uniform', 'combined:unweighted', "
         "or 'combined:awr'."
@@ -123,9 +132,17 @@ def _resolve_policy(spec_str: str):
 @functools.lru_cache(maxsize=4)
 def _value_model(path: str):
     """Load a value-net checkpoint for use as the MCTS leaf evaluator. Cached
-    per worker process so repeated agent construction reuses one load."""
+    per worker process so repeated agent construction reuses one load.
+
+    NB `NormalizedValueModel.load` leaves the model in TRAIN mode, so we must
+    `.eval()` it here — otherwise dropout fires on every leaf query and the
+    MCTS leaf values are stochastic noise. (mcts-vs-mcts games build no NNAgent
+    to incidentally eval the shared cached model, so without this they'd run
+    with dropout active.)"""
     from agricola.agents.nn.model import NormalizedValueModel
-    return NormalizedValueModel.load(path)
+    model = NormalizedValueModel.load(path)
+    model.eval()
+    return model
 
 
 def _mcts_factory(
@@ -204,7 +221,7 @@ def _opponent_factory(
 # CLI
 # ---------------------------------------------------------------------------
 
-OPPONENT_TYPES = ("hubris_v3", "random", "mcts")
+OPPONENT_TYPES = ("hubris_v3", "random", "mcts", "nn")
 
 
 # ---------------------------------------------------------------------------
@@ -240,12 +257,27 @@ class _MatchSpec:
     opp_fence_mode: str = "macro"
     policy: str = "uct"                 # "uct" | "uniform" | "combined:unweighted" | "combined:awr"
     opp_policy: str = "uct"
+    # Fence-macro generator (UCT/MACRO only): sample fence chains from this
+    # policy instead of the expensive value-net greedy rollout. "none" = the
+    # default greedy+random macros.
+    macro_policy: str = "none"          # "none" | "uniform" | "combined:unweighted" | "combined:awr"
+    opp_macro_policy: str = "none"
     leaf: str = "v3"                    # "v3" (heuristic) | "nn" (value net)
     opp_leaf: str = "v3"
     leaf_ckpt: str = "nn_models/best"   # (leaf == "nn") value-net checkpoint
     opp_leaf_ckpt: str = "nn_models/best"
     leaf_value_scale: float | None = None   # None → auto (model.value_scale for nn, else 1.0)
     opp_leaf_value_scale: float | None = None
+    # NN leaf variance-reduction toggle: False (default) = plain e(s,0), 1
+    # forward pass (speed); True = the MEAN (e(s,0)-e(s,1))/2 (lower variance,
+    # SAME scale, full strength). Same scale → c stays calibrated across it.
+    leaf_differential: bool = False
+    opp_leaf_differential: bool = False
+    # MCTS legality-enumeration speedups (FRONTIER_OPT_DESIGN.md). None = inherit
+    # the agricola.opt_config module default (now ON); set an int/bool to override.
+    # Both seats share these (they're global).
+    opt_pareto_level: int | None = None  # agricola.opt_config.PARETO_OPT_LEVEL (0-3)
+    opt_fence_cache: bool | None = None  # agricola.opt_config.FENCE_SCAN_CACHE
 
 
 _WORKER_SPEC: _MatchSpec | None = None
@@ -253,7 +285,17 @@ _WORKER_SPEC: _MatchSpec | None = None
 
 def _init_worker(spec: _MatchSpec) -> None:
     """Pool initializer: stash the match config in worker globals so each
-    `_play_one_game` call can read it without re-passing on every task."""
+    `_play_one_game` call can read it without re-passing on every task.
+
+    Also applies the behavior-transparent MCTS legality-enumeration speedups
+    in THIS worker — spawn re-imports `opt_config` fresh, so the parent's
+    setting doesn't propagate and must be set here (mirrors nn/play_match.py).
+    """
+    from agricola import opt_config
+    if spec.opt_pareto_level is not None:
+        opt_config.PARETO_OPT_LEVEL = spec.opt_pareto_level
+    if spec.opt_fence_cache is not None:
+        opt_config.FENCE_SCAN_CACHE = spec.opt_fence_cache
     global _WORKER_SPEC
     _WORKER_SPEC = spec
 
@@ -276,11 +318,58 @@ def _build_agent(
         legality = spec.opp_legality if is_opponent else spec.legality
         fmode = spec.opp_fence_mode if is_opponent else spec.fence_mode
         policy = spec.opp_policy if is_opponent else spec.policy
+        macro_policy = spec.opp_macro_policy if is_opponent else spec.macro_policy
         leaf = spec.opp_leaf if is_opponent else spec.leaf
         leaf_ckpt = spec.opp_leaf_ckpt if is_opponent else spec.leaf_ckpt
         lvs = spec.opp_leaf_value_scale if is_opponent else spec.leaf_value_scale
-        # Regular wrapper is deterministic (no RNG); strict is RNG-bound for the
-        # harvest-feed cap's random samples (today's default).
+        leaf_diff = spec.opp_leaf_differential if is_opponent else spec.leaf_differential
+        # Leaf evaluator FIRST (the strict wrapper below ranks its feed-cap with
+        # the SAME value function): V3 heuristic (default) or the value net. The
+        # NN leaf uses the differential evaluator (already antisymmetric →
+        # leaf_differential off) and calibrates c_uct via the model's value_scale
+        # unless overridden. `feed_evaluator` is the (state, player) -> float
+        # ranker handed to the strict wrapper — the NN when leaf=nn, else None
+        # (the wrapper then builds its V3 default from config).
+        if leaf == "nn":
+            from agricola.agents.nn.agent import (
+                nn_evaluator, nn_evaluator_differential,
+            )
+            model = _value_model(leaf_ckpt)
+            # NN leaf = an estimate of P0's margin, ALWAYS on the e(s,0) scale, so
+            # one leaf_value_scale serves both modes and a calibrated c is
+            # toggle-invariant. The variance-reduction toggle (leaf_diff):
+            #   off: plain e(s,0), 1 forward pass (speed; many-game runs).
+            #   on : the MEAN of the two perspective estimates,
+            #        (e(s,0)-e(s,1))/2 — lower variance, SAME scale, 1 batched
+            #        2-input pass (full strength, e.g. vs a human).
+            # NB the /2 is done HERE (not via MCTS leaf_differential, which is
+            # shared with the V3 leaf where the difference is a true ~1x margin
+            # and must not be halved). leaf_differential stays False for the NN.
+            if leaf_diff:
+                ev_fn = (lambda st, p, m: nn_evaluator_differential(st, p, m) / 2.0)
+            else:
+                ev_fn = nn_evaluator
+            eval_kwargs = dict(
+                evaluator_config=model,
+                evaluator_fn=ev_fn,
+                leaf_differential=False,
+            )
+            # Stored value_scale is the std of the FULL differential e(s,0)-e(s,1);
+            # our leaf lives on the e(s,0) = half-diff scale, so /2 for both modes.
+            if lvs is not None:
+                lvs_final = lvs
+            else:
+                lvs_final = float(getattr(model, "value_scale", 1.0)) / 2.0
+            feed_evaluator = (lambda st, p, _m=model: nn_evaluator(st, p, _m))
+        else:
+            eval_kwargs = dict(evaluator_config=spec.config_v3)
+            lvs_final = lvs if lvs is not None else 1.0
+            feed_evaluator = None
+        # Legality wrapper. full = no restriction (policy is the sole prune for
+        # PUCT); regular = restricted_legal_actions; strict = the MCTS-curated
+        # wrapper, whose harvest-feed cap is RNG-bound and ranks with
+        # `feed_evaluator` (the NN when leaf=nn — so strict is V3-free for an NN
+        # agent — else the wrapper's V3 default).
         if legality == "full":
             from agricola.legality import legal_actions as legal_fn
         elif legality == "regular":
@@ -288,28 +377,21 @@ def _build_agent(
         else:
             legal_fn = make_strict_restricted_legal_actions(
                 config=spec.config_v3, rng=np.random.default_rng(s ^ 0xC0FFEE),
+                evaluator=feed_evaluator,
             )
-        # Leaf evaluator: V3 heuristic (default) or the value net. The NN leaf
-        # uses the differential evaluator (already antisymmetric → leaf_differential
-        # off) and calibrates c_uct via the model's value_scale unless overridden.
-        if leaf == "nn":
-            from agricola.agents.nn.agent import nn_evaluator_differential
-            model = _value_model(leaf_ckpt)
-            eval_kwargs = dict(
-                evaluator_config=model,
-                evaluator_fn=nn_evaluator_differential,
-                leaf_differential=False,
-            )
-            lvs_final = lvs if lvs is not None else float(getattr(model, "value_scale", 1.0))
-        else:
-            eval_kwargs = dict(evaluator_config=spec.config_v3)
-            lvs_final = lvs if lvs is not None else 1.0
+        # Fence-macro generator (UCT/MACRO only): "none" → default greedy+random
+        # macros; otherwise sample fence chains from this policy (cheap).
+        macro_policy_fn = (
+            None if macro_policy in ("none", "uct")
+            else _resolve_policy(macro_policy)
+        )
         search = MCTSSearch(
             n_random_fencing=spec.n_random_fencing,
             rng_seed=s,
             legal_actions_fn=legal_fn,
             fence_mode=_FENCE_MODES[fmode],
             policy_fn=_resolve_policy(policy),
+            macro_policy_fn=macro_policy_fn,
             leaf_value_scale=lvs_final,
             **eval_kwargs,
         )
@@ -320,6 +402,18 @@ def _build_agent(
             fpu_offset=spec.fpu_offset,
             action_selection_temperature=spec.temperature,
             rng_seed=s,
+        )
+    if name == "nn":
+        # 1-turn greedy NN lookahead (the champion NNAgent, M_82k_warmM62k).
+        # Uses REGULAR restricted legality — NNAgent's documented/eval config
+        # (eval_vs_ensemble) and a deliberate confound vs UCT(strict) / PUCT(full).
+        # T=0 (argmax greedy); the value model is the seat's leaf checkpoint.
+        from agricola.agents.nn.agent import NNAgent
+        ckpt = spec.opp_leaf_ckpt if is_opponent else spec.leaf_ckpt
+        model = _value_model(ckpt)
+        return NNAgent(
+            model, differential=True, seed=s, temperature=0.0,
+            legal_actions_fn=restricted_legal_actions,
         )
     # Non-MCTS opponent. Use the same strict-restricted legality as MCTS
     # (matches the training pipeline default).
@@ -447,7 +541,8 @@ def play_match_parallel(
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--opponent", choices=OPPONENT_TYPES, default="hubris_v3",
-                   help="The non-MCTS seat. (Or another MCTS for MCTS-vs-MCTS.)")
+                   help="The non-MCTS seat: hubris_v3 / random / nn (1-turn NNAgent, "
+                        "regular legality, uses --opp-leaf-ckpt). (Or 'mcts' for MCTS-vs-MCTS.)")
     p.add_argument("--mcts-as-p1", action="store_true",
                    help="Place MCTS at P1 instead of P0.")
     group = p.add_mutually_exclusive_group()
@@ -487,6 +582,14 @@ def main() -> int:
                         "multi-head policy).")
     p.add_argument("--opp-policy", type=str, default=None,
                    help="Prior for the opponent MCTS. Default = --policy.")
+    p.add_argument("--macro-policy", type=str, default="none",
+                   help="UCT+MACRO only: generate fence macros by SAMPLING this "
+                        "policy ('combined:unweighted'|'combined:awr'|'uniform') "
+                        "instead of the expensive value-net greedy rollout. "
+                        "'none' (default) = greedy+random macros. Selection stays "
+                        "UCB (this is not a PUCT prior).")
+    p.add_argument("--opp-macro-policy", type=str, default=None,
+                   help="Fence-macro policy for the opponent MCTS. Default = --macro-policy.")
     p.add_argument("--leaf", choices=("v3", "nn"), default="v3",
                    help="MCTS leaf evaluator: 'v3' (heuristic) or 'nn' (value net).")
     p.add_argument("--leaf-ckpt", type=str, default="nn_models/best",
@@ -501,6 +604,20 @@ def main() -> int:
                         "for an NN leaf.")
     p.add_argument("--opp-leaf-value-scale", type=float, default=None,
                    help="leaf_value_scale for the opponent MCTS. Default = --leaf-value-scale.")
+    p.add_argument("--leaf-differential", action=argparse.BooleanOptionalAction, default=False,
+                   help="(--leaf nn) variance-reduction toggle. Off (default): plain e(s,0), "
+                        "1 forward pass (speed, for many-game runs). On: the MEAN "
+                        "(e(s,0)-e(s,1))/2 (lower variance, SAME scale, 1 batched 2-input "
+                        "pass; full strength — e.g. vs a human). Same scale → c calibrated "
+                        "across the toggle.")
+    p.add_argument("--opp-leaf-differential", action=argparse.BooleanOptionalAction, default=None,
+                   help="leaf_differential for the opponent MCTS. Default = --leaf-differential.")
+    p.add_argument("--opt-level", type=int, default=None, choices=[0, 1, 2, 3],
+                   help="agricola.opt_config.PARETO_OPT_LEVEL override. Default: "
+                        "inherit the module default (ON=3). Pass 0 for byte-identical.")
+    p.add_argument("--fence-cache", action=argparse.BooleanOptionalAction, default=None,
+                   help="agricola.opt_config.FENCE_SCAN_CACHE override (--fence-cache / "
+                        "--no-fence-cache). Default: inherit the module default (ON).")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
                    help="Parallel processes for running games (default: all "
                         "cores). Use 1 for sequential (helpful for debugging). "
@@ -548,15 +665,25 @@ def main() -> int:
     # PUCT / legality resolution (opponent knobs fall back to the main seat).
     opp_legality = args.opp_legality or args.legality
     opp_policy = args.opp_policy or args.policy
+    opp_macro_policy = args.opp_macro_policy or args.macro_policy
     opp_leaf = args.opp_leaf or args.leaf
     opp_leaf_ckpt = args.opp_leaf_ckpt or args.leaf_ckpt
     opp_leaf_value_scale = (
         args.opp_leaf_value_scale if args.opp_leaf_value_scale is not None
         else args.leaf_value_scale
     )
+    opp_leaf_differential = (
+        args.opp_leaf_differential if args.opp_leaf_differential is not None
+        else args.leaf_differential
+    )
     for pol, lbl in ((args.policy, "--policy"), (opp_policy, "--opp-policy")):
         if pol not in ("uct", "uniform", "combined:unweighted", "combined:awr"):
             p.error(f"{lbl}={pol!r}: expected 'uct', 'uniform', "
+                    "'combined:unweighted', or 'combined:awr'.")
+    for mp, lbl in ((args.macro_policy, "--macro-policy"),
+                    (opp_macro_policy, "--opp-macro-policy")):
+        if mp not in ("none", "uct", "uniform", "combined:unweighted", "combined:awr"):
+            p.error(f"{lbl}={mp!r}: expected 'none', 'uniform', "
                     "'combined:unweighted', or 'combined:awr'.")
 
     def _coerce_fence(policy, fence_mode, label):
@@ -582,10 +709,15 @@ def main() -> int:
         legality=args.legality, opp_legality=opp_legality,
         fence_mode=fence_mode, opp_fence_mode=opp_fence_mode,
         policy=args.policy, opp_policy=opp_policy,
+        macro_policy=args.macro_policy, opp_macro_policy=opp_macro_policy,
         leaf=args.leaf, opp_leaf=opp_leaf,
         leaf_ckpt=args.leaf_ckpt, opp_leaf_ckpt=opp_leaf_ckpt,
         leaf_value_scale=args.leaf_value_scale,
         opp_leaf_value_scale=opp_leaf_value_scale,
+        leaf_differential=args.leaf_differential,
+        opp_leaf_differential=opp_leaf_differential,
+        opt_pareto_level=args.opt_level,
+        opt_fence_cache=args.fence_cache,
     )
 
     cfg_label = args.v3_config or "default_v3"

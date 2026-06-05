@@ -423,7 +423,12 @@ class EvaluatorAgent:
                     best_score = s
                     best_state = cand
             state = best_state
-        return self.evaluator(state, decider, self.config)
+        # Score the final (handoff) state through `_eval`, not the evaluator
+        # directly: when the rollout ends on a round boundary the handoff is a
+        # round-card reveal (a chance state), and `_eval` averages over the
+        # possible revealed cards there. For any normal (non-reveal) handoff
+        # `_eval` is identical to calling the evaluator directly.
+        return self._eval(state, decider)
 
     def _select(self, actions: list[Action], scores: list[float]) -> Action:
         if self.temperature <= 0.0:

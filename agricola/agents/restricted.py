@@ -429,38 +429,58 @@ def strict_restricted_legal_actions(state: GameState) -> list[Action]:
     defaults for the V3 evaluator config (`DEFAULT_CONFIG_V3`) and a
     deterministic seed-0 RNG for the harvest-feed cap's random samples.
 
-    For callers that want their own RNG or config injected (e.g. an
-    `MCTSSearch` instance threading its `search.rng` through every legality
-    call), build a closure via `make_strict_restricted_legal_actions(...)`.
+    For callers that want their own RNG, config, or value function injected
+    (e.g. an `MCTSSearch` instance threading its `search.rng` and its own NN
+    leaf evaluator through every legality call), build a closure via
+    `make_strict_restricted_legal_actions(...)`.
     """
-    return _strict_impl(state, _default_config(), _default_rng())
+    return _strict_impl(state, _default_feed_evaluator(), _default_rng())
 
 
 def make_strict_restricted_legal_actions(
     *,
     config=None,
     rng=None,
+    evaluator=None,
 ) -> LegalActionsFn:
-    """Build a strict legal_actions_fn closure with injected config and RNG.
+    """Build a strict legal_actions_fn closure with injected config, RNG, and
+    value function.
 
-    `config` defaults to `agricola.agents.heuristic.DEFAULT_CONFIG_V3`;
     `rng` defaults to a fresh `numpy.random.default_rng(0)`. Callers that
     need reproducible matches against a specific seed (e.g. MCTS) should
     pass their own pre-seeded RNG so the cap's random samples are tied to
     that seed.
 
+    The harvest-feed cap ranks candidate commits by a **value function**
+    `evaluator(state, player_idx) -> float`:
+      - `evaluator` (preferred): a ready-to-call ranker, e.g. an NN leaf
+        evaluator bound to its model. Pass this so the strict wrapper ranks
+        with the SAME value function the search uses for leaves — not a
+        hardcoded V3 (which would be a V3 contaminant in an NN agent).
+      - if `evaluator` is None, the default is the V3 heuristic bound to
+        `config` (defaulting to `DEFAULT_CONFIG_V3`) — preserving the
+        original behavior. `config` is used ONLY to build this default
+        ranker; if you pass `evaluator`, `config` is ignored.
+
     Returns a callable with signature `(state) -> list[Action]`, suitable
     for use as an agent's `legal_actions_fn`.
     """
-    cfg = config if config is not None else _default_config()
     r = rng if rng is not None else _default_rng()
+    if evaluator is not None:
+        feed_eval = evaluator
+    else:
+        cfg = config if config is not None else _default_config()
+        feed_eval = _v3_feed_evaluator(cfg)
     def _fn(state: GameState) -> list[Action]:
-        return _strict_impl(state, cfg, r)
+        return _strict_impl(state, feed_eval, r)
     return _fn
 
 
-def _strict_impl(state: GameState, cfg, rng) -> list[Action]:
-    """Shared body for the strict wrapper and the factory closure."""
+def _strict_impl(state: GameState, feed_evaluator, rng) -> list[Action]:
+    """Shared body for the strict wrapper and the factory closure.
+
+    `feed_evaluator(state, player_idx) -> float` ranks the harvest-feed cap.
+    """
     actions = restricted_legal_actions(state)
     if not actions or not state.pending_stack:
         return actions
@@ -474,7 +494,8 @@ def _strict_impl(state: GameState, cfg, rng) -> list[Action]:
     elif isinstance(top, PendingBuildFences):
         actions = _filter_fencing_patterns(state, top, actions)
     elif isinstance(top, PendingHarvestFeed):
-        actions = _filter_strict_harvest_feed_cap(state, top, actions, cfg, rng)
+        actions = _filter_strict_harvest_feed_cap(
+            state, top, actions, feed_evaluator, rng)
 
     return actions
 
@@ -502,6 +523,30 @@ def _default_rng():
         import numpy as np
         _DEFAULT_RNG_CACHE = np.random.default_rng(0)
     return _DEFAULT_RNG_CACHE
+
+
+def _v3_feed_evaluator(cfg):
+    """The default harvest-feed-cap ranker: the V3 heuristic bound to `cfg`.
+
+    Returns a callable `(state, player_idx) -> float`. This is the only place
+    the strict wrapper reaches for V3; pass an explicit `evaluator` to
+    `make_strict_restricted_legal_actions` to rank with a different value
+    function (e.g. an NN leaf), keeping the wrapper V3-free.
+    """
+    from agricola.agents.heuristic import evaluate_hubris_v3
+    return lambda s, p: evaluate_hubris_v3(s, p, cfg)
+
+
+_DEFAULT_FEED_EVALUATOR_CACHE = None
+
+
+def _default_feed_evaluator():
+    """The module-level default feed-cap ranker (V3 + `DEFAULT_CONFIG_V3`),
+    built once. Used by the no-arg `strict_restricted_legal_actions`."""
+    global _DEFAULT_FEED_EVALUATOR_CACHE
+    if _DEFAULT_FEED_EVALUATOR_CACHE is None:
+        _DEFAULT_FEED_EVALUATOR_CACHE = _v3_feed_evaluator(_default_config())
+    return _DEFAULT_FEED_EVALUATOR_CACHE
 
 
 # ---------------------------------------------------------------------------
@@ -657,15 +702,17 @@ def _filter_strict_harvest_feed_cap(
     state: GameState,
     top: PendingHarvestFeed,
     actions: list[Action],
-    cfg,
+    evaluator,
     rng,
 ) -> list[Action]:
     """Cap CommitConvert branching at PendingHarvestFeed.
 
     If ≤7 CommitConvert options are present, no cap is applied. Otherwise:
-    rank commits by `evaluate_hubris_v3(step(state, a), decider, cfg)`
-    descending; keep the top 5 plus 2 random samples (drawn without
-    replacement) from the rest.
+    rank commits by `evaluator(step(state, a), decider)` descending; keep the
+    top 5 plus 2 random samples (drawn without replacement) from the rest.
+    `evaluator(state, player_idx) -> float` is the injected value function
+    (default V3, or an NN leaf when the caller passes one) — see
+    `make_strict_restricted_legal_actions`.
 
     Crafts (`CommitHarvestConversion`) and any other actions pass through
     unchanged — sub-sampling crafts risks dropping a strategically important
@@ -685,16 +732,14 @@ def _filter_strict_harvest_feed_cap(
     if len(commits) <= 7:
         return actions
 
-    # Lazy imports — keep the wrapper's module load light. The factory
-    # functions cache imports already; the cap path is rarely hit, so
-    # importing here avoids paying for state/evaluator setup on cold runs.
-    from agricola.agents.heuristic import evaluate_hubris_v3
+    # Lazy import — keep the wrapper's module load light; the cap path is
+    # rarely hit, so importing here avoids paying for it on cold runs.
     from agricola.engine import step
 
     decider = top.player_idx
 
     def commit_score(a: CommitConvert) -> float:
-        return evaluate_hubris_v3(step(state, a), decider, cfg)
+        return evaluator(step(state, a), decider)
 
     commits_ranked = sorted(commits, key=commit_score, reverse=True)
     top_5 = commits_ranked[:5]

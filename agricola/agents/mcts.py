@@ -37,7 +37,7 @@ from typing import Optional
 import numpy as np
 
 from agricola.actions import Action, ChooseSubAction, PlaceWorker
-from agricola.agents.base import decider_of
+from agricola.agents.base import EvaluatorAgent, decider_of
 from agricola.constants import Phase
 from agricola.engine import step
 from agricola.pending import PendingBuildFences, PendingFarmRedevelopment
@@ -157,9 +157,11 @@ class MCTSNode:
     chance_counts: dict[Action, int] = field(default_factory=dict)
     _legal_actions: Optional[list[Action]] = None
     _unvisited_actions: Optional[set] = None
-    # PUCT: per-action prior P(s,·) over `_legal_actions`, set once at expansion
-    # by `_compute_legal_actions` when a policy_fn is configured. None for
-    # never-expanded nodes, chance nodes, and all UCT runs.
+    # PUCT: per-action prior P(s,·) over `_legal_actions`, set lazily by
+    # `_ensure_priors` on the first selection from a multi-option node (NOT at
+    # expansion / in `_compute_legal_actions`). None for never-selected nodes,
+    # chance nodes, singletons (forced moves short-circuit before priors), and
+    # all UCT runs.
     _action_priors: Optional[dict] = None
 
     @property
@@ -260,6 +262,7 @@ class MCTSSearch:
         leaf_differential: bool = True,
         leaf_value_scale: float = 1.0,
         policy_fn=None,
+        macro_policy_fn=None,
         fence_mode=None,
     ):
         """Build an MCTSSearch.
@@ -324,17 +327,31 @@ class MCTSSearch:
         # deterministic per search instance (rather than sharing the
         # module-level default RNG across all MCTSSearch instances).
         if legal_actions_fn is None:
+            # Rank the strict feeding cap with the search's OWN value function
+            # (the leaf evaluator), not a hardcoded V3 — same fix the greedy
+            # macro agent already gets below, so an NN-leaf search built via
+            # the default path is uniformly non-V3 (and doesn't crash trying to
+            # read V3 settings off an NN model). `config` is still passed but is
+            # ignored by the wrapper whenever `evaluator` is set.
+            def _feed_eval(s, p):
+                return self.evaluator_fn(s, p, self.evaluator_config)
             legal_actions_fn = _lazy_make_strict_legal(
-                config=self.evaluator_config, rng=self.rng,
+                config=self.evaluator_config, rng=self.rng, evaluator=_feed_eval,
             )
         self.legal_actions_fn = legal_actions_fn
 
-        # Heuristic agent used to play greedy macro-fencing chains.
-        # Constructed once; reused. Uses the same legal_actions_fn so its
-        # internal lookahead sees the same action-pruning the tree does.
+        # Agent used to play greedy macro-fencing chains. Constructed once;
+        # reused. CRITICAL: it must use the SAME value function as the leaf
+        # evaluator (`evaluator_fn` + `evaluator_config`), not a hardcoded V3 —
+        # otherwise an NN-leaf search would pick its greedy fences with V3, a
+        # silent V3 contaminant in a nominally-NN agent. An `EvaluatorAgent`
+        # bound to (evaluator_fn, evaluator_config) is exactly `HubrisHeuristicV3`
+        # when the evaluator is V3 (that class adds no behavior over
+        # `EvaluatorAgent`) and is the NN policy when the evaluator is the NN.
+        # Same legal_actions_fn so its lookahead sees the tree's action-pruning.
         if heuristic is None:
-            HubrisHeuristicV3 = _lazy_hubris_v3_class()
-            heuristic = HubrisHeuristicV3(
+            heuristic = EvaluatorAgent(
+                evaluator=self.evaluator_fn,
                 config=self.evaluator_config,
                 seed=rng_seed,
                 lookahead="turn",
@@ -345,8 +362,18 @@ class MCTSSearch:
         # Whether `evaluate_leaf` subtracts P1's evaluation from P0's.
         self.leaf_differential = bool(leaf_differential)
 
-        # PUCT prior source. None => vanilla UCT (byte-identical to before).
+        # PUCT prior source. None => vanilla UCT. (Both modes step through forced
+        # singleton moves before evaluating, so UCT is NOT byte-identical to the
+        # pre-PUCT engine — see _simulate's forced-move step-through.)
         self.policy_fn = policy_fn
+        # OPTIONAL fence-macro generator (distinct from the PUCT `policy_fn`).
+        # When set (and fence_mode is MACRO), greedy macro-fencing is replaced
+        # by SAMPLING fence chains from this `policy_fn(state, legal) -> {a: p}`
+        # — cheap (one head-forward per step) vs the value-net greedy rollout
+        # (N value-forwards per step). Selection stays pure UCB (this is NOT a
+        # PUCT prior); the policy only seeds the candidate macros UCB chooses
+        # among. See `_run_pbf_body` / `_sample_fence_action`.
+        self.macro_policy_fn = macro_policy_fn
         # Fencing handling (FenceMode). Default MACRO = today's UCT behavior.
         self.fence_mode = fence_mode if fence_mode is not None else FenceMode.MACRO
         # Invariant: MACRO fencing is UCT-only — macros are MCTS-internal, not
@@ -589,11 +616,14 @@ class MCTSSearch:
 
         target = 1 + self.n_random_fencing
         max_attempts = max(1, self.n_random_fencing) * 3 + 1
-        # attempt 0 = greedy; attempts 1+ = random samples.
+        # Default: attempt 0 = greedy (value-net rollout); attempts 1+ = random.
+        # When a macro_policy_fn is set, EVERY attempt samples the policy
+        # instead (no greedy rollout) — the cheap path. See _run_pbf_body.
+        use_policy = self.macro_policy_fn is not None
         for attempt in range(max_attempts):
             if attempt > 0 and len(macros) >= target:
                 break
-            greedy = (attempt == 0)
+            greedy = (attempt == 0) and not use_policy
 
             state = state_after_trigger
             seq: list[Action] = [trigger_action]
@@ -619,7 +649,10 @@ class MCTSSearch:
 
             if state in macros:
                 continue
-            label = "greedy" if greedy else f"random_{len(macros) - 1}"
+            if use_policy:
+                label = f"policy_{len(macros)}"
+            else:
+                label = "greedy" if greedy else f"random_{len(macros) - 1}"
             macros[state] = (label, seq)
 
         return [
@@ -662,9 +695,15 @@ class MCTSSearch:
     def _run_pbf_body(self, state, seq, decider, *, greedy):
         """Play one action per step while PBF is on top.
 
-        Greedy policy uses `self.heuristic`; random policy uses uniform
-        random over `legal_actions_fn`. Loop exits when PBF is no longer
-        on top (Stop applied), the game ends, or the decider hands off.
+        Three policies, in priority order:
+          - `macro_policy_fn` set → SAMPLE the next fence action from the
+            policy (proportional to its prior; `_sample_fence_action`). The
+            cheap path: one head-forward per step. `greedy` is forced False
+            by the caller in this mode.
+          - `greedy` → `self.heuristic` (the value-net rollout — expensive).
+          - else → uniform random over `legal_actions_fn`.
+        Loop exits when PBF is no longer on top (Stop applied), the game ends,
+        or the decider hands off.
         """
         from tests.test_utils import filter_implemented
         while (
@@ -672,7 +711,11 @@ class MCTSSearch:
             and decider_of(state) == decider
             and self._pbf_on_top(state)
         ):
-            if greedy:
+            if self.macro_policy_fn is not None:
+                a = self._sample_fence_action(state)
+                if a is None:
+                    break
+            elif greedy:
                 a = self.heuristic(state)
             else:
                 acts = filter_implemented(self.legal_actions_fn(state))
@@ -682,6 +725,35 @@ class MCTSSearch:
             seq.append(a)
             state = step(state, a)
         return state, seq
+
+    def _sample_fence_action(self, state) -> Optional[Action]:
+        """Sample one fence-chain action from `macro_policy_fn` at `state`.
+
+        Samples proportionally to the policy prior (search RNG) over the
+        legal set, so repeated calls yield DIVERSE chains (the point of
+        generating several macros). Falls back to uniform over the legal set
+        if the policy puts no mass on any legal action (e.g. a vocab gap in
+        the spatially-blind fencing head). Returns None only if there are no
+        legal actions.
+        """
+        from tests.test_utils import filter_implemented
+        legal = filter_implemented(self.legal_actions_fn(state))
+        if not legal:
+            return None
+        if len(legal) == 1:
+            return legal[0]
+        prior = self.macro_policy_fn(state, legal)
+        weights = [max(0.0, float(prior.get(a, 0.0))) for a in legal]
+        total = sum(weights)
+        if total <= 0.0:
+            return legal[int(self.rng.integers(len(legal)))]
+        r = float(self.rng.random()) * total
+        acc = 0.0
+        for a, w in zip(legal, weights):
+            acc += w
+            if r <= acc:
+                return a
+        return legal[-1]
 
     def _drain_wrapper(self, state, seq, decider):
         """Auto-step through singletons after PBF pops.
@@ -1066,7 +1138,6 @@ class MCTSAgent:
 
 _DEFAULT_CONFIG_V3 = None
 _EVALUATE_HUBRIS_V3 = None
-_HUBRIS_V3_CLASS = None
 
 
 def _lazy_default_config_v3():
@@ -1085,14 +1156,7 @@ def _lazy_evaluate_hubris_v3():
     return _EVALUATE_HUBRIS_V3
 
 
-def _lazy_hubris_v3_class():
-    global _HUBRIS_V3_CLASS
-    if _HUBRIS_V3_CLASS is None:
-        from agricola.agents.heuristic import HubrisHeuristicV3
-        _HUBRIS_V3_CLASS = HubrisHeuristicV3
-    return _HUBRIS_V3_CLASS
-
-
-def _lazy_make_strict_legal(*, config, rng):
+def _lazy_make_strict_legal(*, config, rng, evaluator=None):
     from agricola.agents.restricted import make_strict_restricted_legal_actions
-    return make_strict_restricted_legal_actions(config=config, rng=rng)
+    return make_strict_restricted_legal_actions(
+        config=config, rng=rng, evaluator=evaluator)
