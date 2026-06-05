@@ -268,11 +268,12 @@ class _MatchSpec:
     opp_leaf_ckpt: str = "nn_models/best"
     leaf_value_scale: float | None = None   # None → auto (model.value_scale for nn, else 1.0)
     opp_leaf_value_scale: float | None = None
-    # NN leaf variance-reduction toggle: False (default) = plain e(s,0), 1
-    # forward pass (speed); True = the MEAN (e(s,0)-e(s,1))/2 (lower variance,
-    # SAME scale, full strength). Same scale → c stays calibrated across it.
-    leaf_differential: bool = False
-    opp_leaf_differential: bool = False
+    # NN leaf 2-pass-average toggle (selects the evaluator; NOT an MCTS flag):
+    # False (default) = nn_evaluator, 1 forward pass (speed); True =
+    # nn_evaluator_differential, the MEAN of both perspectives (e(s,0)-e(s,1))/2
+    # — lower variance, SAME scale (so c stays calibrated across it).
+    two_pass: bool = False
+    opp_two_pass: bool = False
     # MCTS legality-enumeration speedups (FRONTIER_OPT_DESIGN.md). None = inherit
     # the agricola.opt_config module default (now ON); set an int/bool to override.
     # Both seats share these (they're global).
@@ -322,11 +323,11 @@ def _build_agent(
         leaf = spec.opp_leaf if is_opponent else spec.leaf
         leaf_ckpt = spec.opp_leaf_ckpt if is_opponent else spec.leaf_ckpt
         lvs = spec.opp_leaf_value_scale if is_opponent else spec.leaf_value_scale
-        leaf_diff = spec.opp_leaf_differential if is_opponent else spec.leaf_differential
+        two_pass = spec.opp_two_pass if is_opponent else spec.two_pass
         # Leaf evaluator FIRST (the strict wrapper below ranks its feed-cap with
         # the SAME value function): V3 heuristic (default) or the value net. The
-        # NN leaf uses the differential evaluator (already antisymmetric →
-        # leaf_differential off) and calibrates c_uct via the model's value_scale
+        # NN leaf uses an already-P0-frame-margin evaluator (2-pass off by
+        # default) and calibrates c_uct via the model's value_scale
         # unless overridden. `feed_evaluator` is the (state, player) -> float
         # ranker handed to the strict wrapper — the NN when leaf=nn, else None
         # (the wrapper then builds its V3 default from config).
@@ -335,31 +336,23 @@ def _build_agent(
                 nn_evaluator, nn_evaluator_differential,
             )
             model = _value_model(leaf_ckpt)
-            # NN leaf = an estimate of P0's margin, ALWAYS on the e(s,0) scale, so
-            # one leaf_value_scale serves both modes and a calibrated c is
-            # toggle-invariant. The variance-reduction toggle (leaf_diff):
-            #   off: plain e(s,0), 1 forward pass (speed; many-game runs).
-            #   on : the MEAN of the two perspective estimates,
-            #        (e(s,0)-e(s,1))/2 — lower variance, SAME scale, 1 batched
-            #        2-input pass (full strength, e.g. vs a human).
-            # NB the /2 is done HERE (not via MCTS leaf_differential, which is
-            # shared with the V3 leaf where the difference is a true ~1x margin
-            # and must not be halved). leaf_differential stays False for the NN.
-            if leaf_diff:
-                ev_fn = (lambda st, p, m: nn_evaluator_differential(st, p, m) / 2.0)
-            else:
-                ev_fn = nn_evaluator
+            # NN leaf = a P0-frame margin estimate, ALWAYS on the e(s,0) ~1x
+            # margin scale, so one leaf_value_scale serves both modes and a
+            # calibrated c is toggle-invariant. The 2-pass-average toggle
+            # (two_pass):
+            #   off: nn_evaluator — plain e(s,0), 1 forward pass (speed).
+            #   on : nn_evaluator_differential — the MEAN (e(s,0)-e(s,1))/2,
+            #        lower variance, SAME scale, 1 batched 2-input pass.
+            # Both already return a P0-frame margin (the /2 now lives inside
+            # nn_evaluator_differential), so the leaf calls them once.
+            ev_fn = nn_evaluator_differential if two_pass else nn_evaluator
             eval_kwargs = dict(
                 evaluator_config=model,
                 evaluator_fn=ev_fn,
-                leaf_differential=False,
             )
-            # Stored value_scale is the std of the FULL differential e(s,0)-e(s,1);
-            # our leaf lives on the e(s,0) = half-diff scale, so /2 for both modes.
-            if lvs is not None:
-                lvs_final = lvs
-            else:
-                lvs_final = float(getattr(model, "value_scale", 1.0)) / 2.0
+            # Stored value_scale is the std of the (mean-form) differential leaf,
+            # already on the e(s,0) scale — use it directly for both modes.
+            lvs_final = lvs if lvs is not None else float(getattr(model, "value_scale", 1.0))
             feed_evaluator = (lambda st, p, _m=model: nn_evaluator(st, p, _m))
         else:
             eval_kwargs = dict(evaluator_config=spec.config_v3)
@@ -604,14 +597,14 @@ def main() -> int:
                         "for an NN leaf.")
     p.add_argument("--opp-leaf-value-scale", type=float, default=None,
                    help="leaf_value_scale for the opponent MCTS. Default = --leaf-value-scale.")
-    p.add_argument("--leaf-differential", action=argparse.BooleanOptionalAction, default=False,
-                   help="(--leaf nn) variance-reduction toggle. Off (default): plain e(s,0), "
-                        "1 forward pass (speed, for many-game runs). On: the MEAN "
-                        "(e(s,0)-e(s,1))/2 (lower variance, SAME scale, 1 batched 2-input "
-                        "pass; full strength — e.g. vs a human). Same scale → c calibrated "
-                        "across the toggle.")
-    p.add_argument("--opp-leaf-differential", action=argparse.BooleanOptionalAction, default=None,
-                   help="leaf_differential for the opponent MCTS. Default = --leaf-differential.")
+    p.add_argument("--two-pass", action=argparse.BooleanOptionalAction, default=False,
+                   help="(--leaf nn) 2-pass-average toggle. Off (default): nn_evaluator, "
+                        "1 forward pass (speed, for many-game runs). On: "
+                        "nn_evaluator_differential, the MEAN of both perspectives "
+                        "(lower variance, SAME scale, 1 batched 2-input pass; full "
+                        "strength — e.g. vs a human). Same scale → c calibrated across it.")
+    p.add_argument("--opp-two-pass", action=argparse.BooleanOptionalAction, default=None,
+                   help="--two-pass for the opponent MCTS. Default = --two-pass.")
     p.add_argument("--opt-level", type=int, default=None, choices=[0, 1, 2, 3],
                    help="agricola.opt_config.PARETO_OPT_LEVEL override. Default: "
                         "inherit the module default (ON=3). Pass 0 for byte-identical.")
@@ -672,9 +665,9 @@ def main() -> int:
         args.opp_leaf_value_scale if args.opp_leaf_value_scale is not None
         else args.leaf_value_scale
     )
-    opp_leaf_differential = (
-        args.opp_leaf_differential if args.opp_leaf_differential is not None
-        else args.leaf_differential
+    opp_two_pass = (
+        args.opp_two_pass if args.opp_two_pass is not None
+        else args.two_pass
     )
     for pol, lbl in ((args.policy, "--policy"), (opp_policy, "--opp-policy")):
         if pol not in ("uct", "uniform", "combined:unweighted", "combined:awr"):
@@ -714,8 +707,8 @@ def main() -> int:
         leaf_ckpt=args.leaf_ckpt, opp_leaf_ckpt=opp_leaf_ckpt,
         leaf_value_scale=args.leaf_value_scale,
         opp_leaf_value_scale=opp_leaf_value_scale,
-        leaf_differential=args.leaf_differential,
-        opp_leaf_differential=opp_leaf_differential,
+        two_pass=args.two_pass,
+        opp_two_pass=opp_two_pass,
         opt_pareto_level=args.opt_level,
         opt_fence_cache=args.fence_cache,
     )

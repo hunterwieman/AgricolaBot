@@ -13,7 +13,7 @@
     "head": "linear"
   },
   "encoding_version": 2,
-  "value_scale": 25.70779800415039,
+  "value_scale": 12.853899002075195,
   "extras": {
     "epoch": 1,
     "val_mse": 0.30108168721199036,

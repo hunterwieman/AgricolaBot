@@ -357,17 +357,18 @@ def test_load_pre_p2_checkpoint_defaults_value_scale(tmp_path: Path):
 
 
 def test_measure_leaf_value_scale_computes_differential_std():
-    """measure_leaf_value_scale returns the std of pred[0::2]-pred[1::2]."""
+    """measure_leaf_value_scale returns the std of the MEAN-form differential
+    (pred[0::2]-pred[1::2])/2 — matching nn_evaluator_differential."""
     from agricola.agents.nn.model import measure_leaf_value_scale
     stats = _make_stats(input_dim=ENCODED_DIM, target_std=10.0)
     mlp = ConfigurableMLP(input_dim=ENCODED_DIM, hidden_dims=[16])
     model = NormalizedValueModel(mlp, stats)
     x = torch.randn(40, ENCODED_DIM)  # 20 paired states
     s = measure_leaf_value_scale(model, x)
-    # Reproduce by hand.
+    # Reproduce by hand (the /2 makes this the mean, not the sum).
     with torch.no_grad():
         pred = model.predict_margin(x)
-        expect = float((pred[0::2] - pred[1::2]).std().item())
+        expect = float(((pred[0::2] - pred[1::2]) / 2.0).std().item())
     assert s == pytest.approx(expect, rel=1e-5)
     assert s > 0
 

@@ -64,10 +64,17 @@ def nn_evaluator_differential(
 ) -> float:
     """Differential (D) evaluator from FIRST_NN.md §8.
 
-    Computes `V_diff = V(encode(s, 0)) − V(encode(s, 1))`, which is
-    exactly antisymmetric by construction (no reliance on the model
-    learning antisymmetry perfectly). Returns `V_diff` for player 0,
-    `−V_diff` for player 1 — i.e., the perspective-frame margin.
+    Computes `V_diff = (V(encode(s, 0)) − V(encode(s, 1))) / 2` — the MEAN of
+    the two perspectives' estimates of P0's margin (`m0` estimates the margin,
+    `−m1` also estimates it; their average is lower-variance). Exactly
+    antisymmetric by construction (no reliance on the model learning
+    antisymmetry perfectly). Returns `V_diff` for player 0, `−V_diff` for
+    player 1 — i.e., the perspective-frame margin.
+
+    The `/2` (mean, not sum) puts this on the SAME ~1x margin scale as the
+    single-pass `nn_evaluator(s, 0) = m0`, so the two are drop-in
+    interchangeable as an MCTS leaf — this one just trades a second forward
+    pass for lower variance. `measure_leaf_value_scale` halves to match.
 
     Implementation: encodes both perspectives, stacks into a single
     batch-of-2 tensor, runs ONE forward pass (not two). For small CPU
@@ -81,7 +88,7 @@ def nn_evaluator_differential(
     if x.device != device:
         x = x.to(device)
     margins = model.predict_margin(x)  # shape (2,) — margin in P0 / P1 frames
-    v_diff_p0 = float((margins[0] - margins[1]).item())
+    v_diff_p0 = float(((margins[0] - margins[1]) / 2.0).item())
     return v_diff_p0 if player_idx == 0 else -v_diff_p0
 
 

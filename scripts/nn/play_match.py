@@ -3,11 +3,9 @@
 Each seat is independently configured as either:
   - `mcts`: MCTSAgent with `nn_evaluator_differential` as the leaf
     evaluator (via MCTSSearch's `evaluator_fn` + `evaluator_config`
-    plumbing — same hook that lets V3-MCTS use `evaluate_hubris_v3`).
-    The NN's differential evaluator is exactly antisymmetric by
-    construction (`V_diff(s, 0) == -V_diff(s, 1)`), so we pass
-    `leaf_differential=False` to MCTSSearch — otherwise it would
-    compute `(+V_diff) - (-V_diff) = 2·V_diff`, double-counting.
+    plumbing). That evaluator already returns a P0-frame margin (the
+    mean of the two perspectives), so the leaf calls it once — MCTS no
+    longer has a `leaf_differential` flag.
   - `nn`: NNAgent with `nn_evaluator_differential` (1-turn greedy
     lookahead, no tree search).
 
@@ -182,10 +180,10 @@ def _build_mcts_agent(seed: int, seat: int) -> MCTSAgent:
         evaluator_fn=nn_evaluator_differential,
         heuristic=heuristic,
         legal_actions_fn=strict_fn,
-        leaf_differential=False,
         # Normalize this model's leaf values to unit-ish scale so one
         # c_uct is comparable across value heads (Experiment P2). 1.0 for
-        # models without a measured value_scale (pre-P2).
+        # models without a measured value_scale (pre-P2). value_scale is the
+        # std of the (now mean-form) differential leaf, so it's the right scale.
         leaf_value_scale=getattr(model, "value_scale", 1.0),
         n_random_fencing=_WORKER_SPEC.n_random_fencing,
         rng_seed=s,

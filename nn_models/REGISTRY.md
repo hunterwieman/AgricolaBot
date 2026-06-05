@@ -6,6 +6,8 @@ Authoritative catalog of every trained NN checkpoint under `nn_models/`. One row
 
 Version conventions: `ENCODING_VERSION` defined in `agricola/agents/nn/encoder.py` (history in **`FIRST_NN.md`** §10.4); `DATA_VERSION` in `agricola/agents/nn/schema.py`. Models with stale `ENCODING_VERSION` fail to load with `EncodingVersionMismatch` — by design — so this column is the first check before reaching for any checkpoint.
 
+> **`value_scale` halved (2026-06-05).** `nn_evaluator_differential` and `measure_leaf_value_scale` now return the **mean** `(V(s,0) − V(s,1)) / 2` (was the un-halved difference), so the MCTS leaf and the single-pass `nn_evaluator` share one `~1x` margin scale; the MCTS `leaf_differential` flag was removed. Every measured checkpoint's stored `value_scale` was divided by 2 to match (champion `M_82k_warmM62k`/`best`: 23.05 → **11.53**). The per-model `value_scale σ=…` figures in the rows below are the **original** measurements — the checkpoints now store half. `1.0` sentinels (unmeasured) were left unchanged.
+
 ---
 
 ## Summary table

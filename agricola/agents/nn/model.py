@@ -358,15 +358,16 @@ def measure_leaf_value_scale(
 
     `x_paired` is a feature tensor in the dataset's paired layout — rows
     `2i` and `2i+1` are the two perspective encodings of the same state
-    (as produced by `build_datasets`' val/test arrays). The differential
-    `predict_margin(x[2i]) − predict_margin(x[2i+1])` is exactly the
+    (as produced by `build_datasets`' val/test arrays). The half-difference
+    `(predict_margin(x[2i]) − predict_margin(x[2i+1])) / 2` is exactly the
     leaf value MCTS feeds to UCB (`nn_evaluator_differential(s, 0)`), so
     its std is the right scale to normalize by. See FIRST_NN.md
     Experiment P2 — a single `c_uct` works across heads once each head's
-    leaf is divided by this scale.
+    leaf is divided by this scale. (The `/2` matches the mean form
+    `nn_evaluator_differential` returns; see that function.)
     """
     model.eval()
     pred = model.predict_margin(x_paired)
-    diff = pred[0::2] - pred[1::2]
+    diff = (pred[0::2] - pred[1::2]) / 2.0
     s = float(diff.std().item())
     return s if s > 1e-9 else 1.0  # degenerate guard: never scale by ~0

@@ -83,7 +83,8 @@ def _build_v1_mcts(seed: int, spec: _Spec) -> MCTSAgent:
         legal_actions_fn=legal_fn,
         n_random_fencing=spec.n_random_fencing,
         rng_seed=seed,
-        leaf_differential=spec.leaf_differential,
+        # NB: MCTSSearch.leaf_differential was removed; the leaf now always uses
+        # the evaluator's P0-frame margin. spec.leaf_differential is inert here.
     )
     return MCTSAgent(
         search,

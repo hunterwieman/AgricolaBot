@@ -155,7 +155,6 @@ def test_puct_prior_steers_visits():
         search = _flatten_search(
             policy_fn=policy_fn,
             evaluator_fn=lambda s, p, c: 0.0,   # constant Q → isolate the prior
-            leaf_differential=False,
         )
         agent = MCTSAgent(search, sims_per_move=40, c_uct=2.0,
                           action_selection_temperature=0.0, rng_seed=0)
@@ -225,7 +224,7 @@ def test_v_never_evaluated_at_a_forced_singleton(policy_fn):
     search = MCTSSearch(
         rng_seed=0, policy_fn=policy_fn, fence_mode=FenceMode.FLATTEN,
         legal_actions_fn=restricted_legal_actions,
-        evaluator_fn=recording_eval, leaf_differential=False,
+        evaluator_fn=recording_eval,
     )
     agent = MCTSAgent(search, sims_per_move=40, c_uct=2.0, rng_seed=0)
     initial, _ = setup_env(seed=0)

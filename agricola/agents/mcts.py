@@ -41,6 +41,7 @@ from agricola.agents.base import EvaluatorAgent, decider_of
 from agricola.constants import Phase
 from agricola.engine import step
 from agricola.pending import PendingBuildFences, PendingFarmRedevelopment
+from agricola.scoring import score
 from agricola.state import GameState
 
 # Lazy-imported to avoid coupling agent module load order (heuristic.py
@@ -259,7 +260,6 @@ class MCTSSearch:
         heuristic=None,
         n_random_fencing: int = 4,
         rng_seed: int = 0,
-        leaf_differential: bool = True,
         leaf_value_scale: float = 1.0,
         policy_fn=None,
         macro_policy_fn=None,
@@ -279,7 +279,12 @@ class MCTSSearch:
           Defaults to `DEFAULT_CONFIG_V3` when neither this nor
           `heuristic` is supplied.
         - `evaluator_fn`: callable `(state, player_idx, config) -> float`
-          used at MCTS leaves. Defaults to `evaluate_hubris_v3`.
+          used at MCTS leaves. It must already return a P0-frame *margin*
+          (own − opponent); the leaf calls it once, never differencing
+          itself. Defaults to the differential V3 evaluator
+          (`evaluate_hubris_v3_differential`). For an NN leaf pass
+          `nn_evaluator_differential` (2-pass, lower variance) or
+          `nn_evaluator` (1-pass, faster) — both already P0-frame margins.
         - `heuristic`: a pre-constructed heuristic agent used to play
           the greedy macro-fencing chain. Defaults to a
           `HubrisHeuristicV3(config=evaluator_config, ...)`. Pass an
@@ -290,14 +295,6 @@ class MCTSSearch:
           ranking. NB: the wrapper's cap uses V3 internally regardless of
           what evaluator_fn you supply — the cap is a legality concern,
           not an evaluation one.
-        - `leaf_differential`: if True (default), leaf value is
-          `evaluator_fn(state, 0) - evaluator_fn(state, 1)` — the standard
-          zero-sum margin estimate. If False, leaf value is just
-          `evaluator_fn(state, 0)` (P0's standalone quality, no opponent
-          subtraction). Useful when the evaluator was tuned as a
-          single-player evaluator and the subtraction amplifies biases
-          rather than canceling them. Both modes still use P0-frame leaf
-          values and the same sign-flip backprop.
         - `leaf_value_scale`: divide every leaf value by this before
           backprop, so leaf values feed UCB on a unit-ish scale. Defaults
           to 1.0 (no-op — correct for V3, whose values are already on the
@@ -317,9 +314,11 @@ class MCTSSearch:
             evaluator_config = _lazy_default_config_v3()
         self.evaluator_config = evaluator_config
 
-        # Resolve evaluator function (V3 if not specified).
+        # Resolve evaluator function. Default: the DIFFERENTIAL V3 evaluator,
+        # so the leaf gets a P0-frame margin from a single call (the leaf never
+        # differences itself). NN callers pass nn_evaluator[_differential].
         if evaluator_fn is None:
-            evaluator_fn = _lazy_evaluate_hubris_v3()
+            evaluator_fn = _lazy_default_evaluator()
         self.evaluator_fn = evaluator_fn
 
         # Resolve legality function. Default: a strict wrapper bound to this
@@ -358,9 +357,6 @@ class MCTSSearch:
                 legal_actions_fn=self.legal_actions_fn,
             )
         self.heuristic = heuristic
-
-        # Whether `evaluate_leaf` subtracts P1's evaluation from P0's.
-        self.leaf_differential = bool(leaf_differential)
 
         # PUCT prior source. None => vanilla UCT. (Both modes step through forced
         # singleton moves before evaluating, so UCT is NOT byte-identical to the
@@ -465,30 +461,21 @@ class MCTSSearch:
     # ---- Leaf evaluation -------------------------------------------------
 
     def evaluate_leaf(self, state: GameState) -> float:
-        """Leaf value in P0's reference frame.
+        """Leaf value in P0's reference frame (a margin), divided by
+        `leaf_value_scale`.
 
-        At terminal states (`Phase.BEFORE_SCORING`), all `evaluate_hubris_*`
-        functions already return the margin (`own − opponent`) via the
-        shared `_terminal_margin_value` helper. Return it directly.
-        Subtracting at terminal would double the value (since at terminal
-        e1 = -e0).
-
-        Mid-game behavior depends on `self.leaf_differential`:
-          - True (default): return `e(state, 0) - e(state, 1)` — the
-            standard zero-sum margin estimate.
-          - False: return `e(state, 0)` only — P0's standalone quality.
-            For evaluators that were tuned as single-player evaluators
-            and may amplify biases when differenced.
-
-        The evaluator is whatever was passed to `MCTSSearch.__init__`
-        (defaults to `evaluate_hubris_v3`).
+        - **Terminal** (`Phase.BEFORE_SCORING`): the EXACT game margin
+          `score(P0) − score(P1)`, evaluator-independent. The true outcome is
+          freely computable at game-end, so we never ask the evaluator to
+          guess it (and this sidesteps any terminal quirk of a differenced
+          evaluator).
+        - **Mid-game**: `evaluator_fn(state, 0)` — the evaluator already
+          returns a P0-frame margin (single call, no differencing here). See
+          the constructor's `evaluator_fn` note.
         """
         if state.phase == Phase.BEFORE_SCORING:
-            return self.evaluator_fn(state, 0, self.evaluator_config) / self.leaf_value_scale
-        p0_val = self.evaluator_fn(state, 0, self.evaluator_config)
-        if not self.leaf_differential:
-            return p0_val / self.leaf_value_scale
-        return (p0_val - self.evaluator_fn(state, 1, self.evaluator_config)) / self.leaf_value_scale
+            return (score(state, 0)[0] - score(state, 1)[0]) / self.leaf_value_scale
+        return self.evaluator_fn(state, 0, self.evaluator_config) / self.leaf_value_scale
 
     # ---- Macro-fencing ---------------------------------------------------
 
@@ -1137,7 +1124,7 @@ class MCTSAgent:
 # stays cheap. Cached via global module-level slots.
 
 _DEFAULT_CONFIG_V3 = None
-_EVALUATE_HUBRIS_V3 = None
+_DEFAULT_EVALUATOR = None
 
 
 def _lazy_default_config_v3():
@@ -1148,12 +1135,16 @@ def _lazy_default_config_v3():
     return _DEFAULT_CONFIG_V3
 
 
-def _lazy_evaluate_hubris_v3():
-    global _EVALUATE_HUBRIS_V3
-    if _EVALUATE_HUBRIS_V3 is None:
-        from agricola.agents.heuristic import evaluate_hubris_v3
-        _EVALUATE_HUBRIS_V3 = evaluate_hubris_v3
-    return _EVALUATE_HUBRIS_V3
+def _lazy_default_evaluator():
+    """The default leaf evaluator: the DIFFERENTIAL V3 evaluator, which returns
+    a P0-frame margin `e(s,0) − e(s,1)` from one call (the leaf no longer
+    differences itself). At terminal `evaluate_leaf` uses the exact score
+    margin instead, so this wrapper's terminal-doubling never reaches the leaf."""
+    global _DEFAULT_EVALUATOR
+    if _DEFAULT_EVALUATOR is None:
+        from agricola.agents.heuristic import evaluate_hubris_v3_differential
+        _DEFAULT_EVALUATOR = evaluate_hubris_v3_differential
+    return _DEFAULT_EVALUATOR
 
 
 def _lazy_make_strict_legal(*, config, rng, evaluator=None):
