@@ -166,19 +166,19 @@ def _build_mcts_agent(seed: int, seat: int) -> MCTSAgent:
     model = _model_for_seat(seat)
     s = seed * 2 + seat
     rng = np.random.default_rng(s ^ 0xC0FFEE)
+    # Rank the strict harvest-feed cap with THIS seat's NN value function, not a
+    # hardcoded V3 — otherwise a nominally-pure-NN MCTS would prune its feeding
+    # options by V3 ranking (a V3 contaminant). And DON'T pass an explicit
+    # `heuristic=`: MCTSSearch then builds its greedy macro-fencing agent from
+    # `evaluator_fn`/`evaluator_config` (i.e. the NN), keeping fence macros
+    # V3-free too.
+    feed_eval = lambda st, p, _m=model: nn_evaluator_differential(st, p, _m)
     strict_fn = make_strict_restricted_legal_actions(
-        config=DEFAULT_CONFIG_V3, rng=rng,
-    )
-    heuristic = HubrisHeuristicV3(
-        config=DEFAULT_CONFIG_V3,
-        seed=s,
-        lookahead="turn",
-        legal_actions_fn=strict_fn,
+        config=DEFAULT_CONFIG_V3, rng=rng, evaluator=feed_eval,
     )
     search = MCTSSearch(
         evaluator_config=model,
         evaluator_fn=nn_evaluator_differential,
-        heuristic=heuristic,
         legal_actions_fn=strict_fn,
         # Normalize this model's leaf values to unit-ish scale so one
         # c_uct is comparable across value heads (Experiment P2). 1.0 for
