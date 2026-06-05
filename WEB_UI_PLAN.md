@@ -606,6 +606,18 @@ Update on every meaningful change to the UI.
   Preference persists across reloads via `localStorage`
   (`agricola.fastMode`). The toggle is purely client-side — the server
   has no notion of UI preferences.
+- **MCTS seat configuration (New-game dialog).** When either seat is `mcts`,
+  the dialog prompts (after sims/move) for the **search mode** — `uct` (strict
+  legality + macro fencing, no prior) or `puct` (full legality + flattened
+  fencing + the combined multi-head policy as the sole prune) — the **leaf
+  evaluator** (any compatible value-NN checkpoint the backend discovered under
+  `nn_models/`, listed by `/api/config`), and, for PUCT, the **policy variant**
+  (`unweighted` / `awr`). The reset payload carries `mcts_search` /
+  `mcts_evaluator` / `mcts_policy` alongside `mcts_sims`; the backend validates
+  each, builds the seat to match (V3-free NN leaf, `value_scale`-calibrated
+  `c_uct=1.4`, mirroring `scripts/play_mcts_match.py`), and echoes the effective
+  settings (remembered as the next dialog's defaults). The `nn`-seat / default
+  leaf checkpoint is still fixed at startup via `--nn-model`.
 - **Farmyard glyph polish.**
   - FIELD cells with crops render as `N` (digit) plus a small filled
     circle: yellow (`#E8C547`) for grain, orange (`#E67E22`) for veg.

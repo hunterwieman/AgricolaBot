@@ -143,6 +143,24 @@
   // it every game. Initialized from the most recent reset payload (which
   // the backend echoes back) or the backend's --mcts-sims default.
   let lastMctsSims = 500;
+  // Remembered MCTS search/evaluator/policy choices across resets.
+  let lastMctsSearch = 'uct';        // 'uct' | 'puct'
+  let lastMctsEvaluator = 'best';    // value-NN checkpoint id
+  let lastMctsPolicy = 'unweighted'; // 'unweighted' | 'awr' (PUCT only)
+  // Cached /api/config (evaluator list etc.), fetched once and reused.
+  let cachedConfig = null;
+
+  async function fetchConfig() {
+    if (cachedConfig) return cachedConfig;
+    try {
+      const res = await fetch('/api/config');
+      cachedConfig = await res.json().catch(() => null);
+    } catch (err) {
+      console.error('config fetch failed', err);
+      cachedConfig = null;
+    }
+    return cachedConfig;
+  }
 
   async function resetGame() {
     // Three prompts to match the existing prompt-style UX (avoids building
@@ -164,8 +182,8 @@
     const p0 = LABEL_TO_BACKEND[p0Label];
     const p1 = LABEL_TO_BACKEND[p1Label];
 
-    // If either seat is MCTS, ask for sims/move. Single value applies to
-    // both MCTS seats if both are MCTS. Cancel = abort the reset.
+    // If either seat is MCTS, ask for its settings (applies to both MCTS
+    // seats if both are MCTS). Cancel on any prompt = abort the reset.
     const payload = { seed, seats: [p0, p1] };
     if (p0 === 'mcts' || p1 === 'mcts') {
       const simsStr = prompt(
@@ -184,6 +202,68 @@
       }
       payload.mcts_sims = sims;
       lastMctsSims = sims;
+
+      // Search mode: UCT (strict legality + macro fencing) or PUCT
+      // (full legality + flattened fencing + learned multi-head policy).
+      const searchStr = prompt(
+        'MCTS search mode? (uct / puct)\n' +
+        '  uct  - vanilla UCT, no policy prior\n' +
+        '  puct - AlphaZero PUCT with a trained policy prior',
+        lastMctsSearch,
+      );
+      if (searchStr === null) return;
+      const search = searchStr.trim().toLowerCase();
+      if (search !== 'uct' && search !== 'puct') {
+        alert("MCTS search must be 'uct' or 'puct'; aborting reset.");
+        return;
+      }
+      payload.mcts_search = search;
+      lastMctsSearch = search;
+
+      // Leaf evaluator: pick from the value-NN checkpoints the backend
+      // discovered. Accept either a list number or the checkpoint id.
+      const cfg = await fetchConfig();
+      const evals = (cfg && cfg.mcts_evaluators) || [{ id: 'best', label: 'best (champion)' }];
+      const lines = evals.map((e, i) => `  ${i + 1}) ${e.label}`);
+      let defIdx = evals.findIndex((e) => e.id === lastMctsEvaluator);
+      if (defIdx < 0) defIdx = 0;
+      const evalStr = prompt(
+        'MCTS leaf evaluator? (number or id)\n' + lines.join('\n'),
+        String(defIdx + 1),
+      );
+      if (evalStr === null) return;
+      const trimmed = evalStr.trim();
+      let chosen = null;
+      const asNum = parseInt(trimmed, 10);
+      if (Number.isFinite(asNum) && asNum >= 1 && asNum <= evals.length) {
+        chosen = evals[asNum - 1].id;
+      } else if (evals.some((e) => e.id === trimmed)) {
+        chosen = trimmed;
+      }
+      if (chosen === null) {
+        alert('Unrecognized evaluator; aborting reset.');
+        return;
+      }
+      payload.mcts_evaluator = chosen;
+      lastMctsEvaluator = chosen;
+
+      // PUCT only: which combined-policy variant supplies the prior.
+      if (search === 'puct') {
+        const polStr = prompt(
+          'PUCT policy variant? (unweighted / awr)\n' +
+          '  unweighted - behavioral-cloning CE\n' +
+          '  awr        - advantage-weighted regression',
+          lastMctsPolicy,
+        );
+        if (polStr === null) return;
+        const pol = polStr.trim().toLowerCase();
+        if (pol !== 'unweighted' && pol !== 'awr') {
+          alert("PUCT policy must be 'unweighted' or 'awr'; aborting reset.");
+          return;
+        }
+        payload.mcts_policy = pol;
+        lastMctsPolicy = pol;
+      }
     }
 
     const res = await fetch('/api/reset', {
@@ -194,10 +274,13 @@
     const data = await res.json().catch(() => ({}));
     if (!data.ok) {
       console.warn('reset rejected:', data.error);
-    } else if (typeof data.mcts_sims === 'number') {
-      // Backend echoes the effective sims (whether explicitly set or
-      // defaulted from --mcts-sims). Use as next-prompt default.
-      lastMctsSims = data.mcts_sims;
+    } else {
+      // Backend echoes the effective MCTS settings (whether explicitly set
+      // or defaulted). Use them as the next New-game dialog's defaults.
+      if (typeof data.mcts_sims === 'number') lastMctsSims = data.mcts_sims;
+      if (typeof data.mcts_search === 'string') lastMctsSearch = data.mcts_search;
+      if (typeof data.mcts_evaluator === 'string') lastMctsEvaluator = data.mcts_evaluator;
+      if (typeof data.mcts_policy === 'string') lastMctsPolicy = data.mcts_policy;
     }
   }
 

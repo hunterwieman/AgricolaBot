@@ -7,11 +7,14 @@ Run:
 `AGENT` is one of: human, random, simple, hubris, hubris_v3, mcts, nn.
 Defaults: ["human", "random"].
 
-The `nn` seat plays a trained value network directly (1-turn lookahead);
-the `mcts` seat uses the same network as its tree-search leaf evaluator.
-Which checkpoint both use is fixed at startup via --nn-model (default:
-nn_models/M_55k_all/epoch_47) — every new game in the session uses the
-same model; restart to switch.
+The `nn` seat plays a trained value network directly (1-turn lookahead).
+The `mcts` seat is configured per-game from the New-game dialog: pick its
+leaf evaluator (any compatible value-NN checkpoint under nn_models/), its
+search mode (UCT or PUCT), and — for PUCT — the combined-policy variant
+(unweighted / awr). UCT uses strict-restricted legality + macro fencing;
+PUCT uses full legality + flattened fencing with the multi-head policy as
+the sole prune. The `nn` seat's network is fixed at startup via --nn-model
+(default: nn_models/best); --mcts-sims sets the default sims/move.
 
 Examples:
     python play_web.py --seats human hubris        # play vs the Hubris heuristic
@@ -167,10 +170,18 @@ _DEFAULT_NN_MODEL_PATH = os.path.join(
 # directory is resolved to "<dir>/best" by _resolve_nn_model_path.
 _NN_MODEL_PATH: str = _DEFAULT_NN_MODEL_PATH
 
-# Lazily-loaded, process-wide cache of the loaded NN model. Loading pulls
-# in torch (heavy) and reads the checkpoint, so we do it once on first use
-# and share the (eval-mode, read-only) model across all `nn` seats/resets.
-_NN_MODEL = None
+# Lazily-loaded, process-wide cache of loaded NN value models, keyed by
+# checkpoint stem. Loading pulls in torch (heavy) and reads the checkpoint,
+# so we do it once per stem and share each (eval-mode, read-only) model
+# across all seats/resets that select it. The `mcts` seat can pick any
+# discovered value checkpoint as its leaf evaluator (see _discover_value_models),
+# so the cache is path-keyed rather than a single slot.
+_NN_MODEL_CACHE: dict = {}
+
+# Lazily-loaded, process-wide cache of the combined multi-head policy_fn for
+# PUCT, keyed by variant ("unweighted" / "awr"). Building one loads 9 head
+# checkpoints (POLICY_HEAD.md), so we do it once per variant.
+_POLICY_FN_CACHE: dict = {}
 
 
 def _resolve_nn_model_path(path: str) -> str:
@@ -182,20 +193,106 @@ def _resolve_nn_model_path(path: str) -> str:
     return os.path.join(path, "best") if os.path.isdir(path) else path
 
 
-def _load_nn_model():
-    """Load (and cache) the NN value model for the `nn` seat type.
+def _load_nn_model(path: str | None = None):
+    """Load (and cache) an NN value model by checkpoint stem.
 
-    Imports torch lazily so sessions that never use an `nn` seat don't pay
-    the import cost. The loaded model is shared across seats and resets —
-    it's used read-only under @torch.no_grad() in eval mode."""
-    global _NN_MODEL
-    if _NN_MODEL is None:
+    `path` defaults to the startup `_NN_MODEL_PATH` (the `nn` seat + the
+    default MCTS leaf evaluator). Imports torch lazily so sessions that
+    never use an NN seat don't pay the import cost. Each distinct stem is
+    loaded once and shared read-only (eval mode, @torch.no_grad())."""
+    stem = path if path is not None else _NN_MODEL_PATH
+    if stem not in _NN_MODEL_CACHE:
         from agricola.agents.nn.model import NormalizedValueModel
-        _NN_MODEL = NormalizedValueModel.load(_NN_MODEL_PATH)
-    return _NN_MODEL
+        _NN_MODEL_CACHE[stem] = NormalizedValueModel.load(stem)
+    return _NN_MODEL_CACHE[stem]
 
 
-def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
+# ---------------------------------------------------------------------------
+# MCTS leaf-evaluator (value NN) discovery + PUCT policy loading
+# ---------------------------------------------------------------------------
+
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+_NN_MODELS_ROOT = os.path.join(_PROJECT_ROOT, "nn_models")
+
+
+def _discover_value_models() -> list[dict]:
+    """Scan nn_models/ for compatible value checkpoints usable as an MCTS
+    leaf evaluator, returning [{id, label, stem}] ordered with the champion
+    `best` pointer first.
+
+    A directory qualifies when it holds `best.pt` + `best.meta.json`, the
+    meta's `model_kind` is "value" (policy / pointer heads are excluded),
+    and its `encoding_version` matches the engine's current ENCODING_VERSION
+    (incompatible-encoding checkpoints would crash on load). `id` is the
+    directory name (the top-level pointer is id "best"); `stem` is the path
+    NormalizedValueModel.load wants.
+    """
+    from agricola.agents.nn.encoder import ENCODING_VERSION
+
+    def _is_value(meta_path: str) -> bool:
+        try:
+            with open(meta_path) as f:
+                m = json.load(f)
+        except (OSError, ValueError):
+            return False
+        return (m.get("model_kind", "value") == "value"
+                and m.get("encoding_version") == ENCODING_VERSION)
+
+    out: list[dict] = []
+    # The top-level champion pointer (nn_models/best.{pt,meta.json}).
+    best_meta = os.path.join(_NN_MODELS_ROOT, "best.meta.json")
+    if os.path.exists(best_meta) and _is_value(best_meta):
+        out.append({"id": "best", "label": "best (champion)",
+                    "stem": os.path.join(_NN_MODELS_ROOT, "best")})
+    try:
+        names = sorted(n for n in os.listdir(_NN_MODELS_ROOT)
+                       if os.path.isdir(os.path.join(_NN_MODELS_ROOT, n)))
+    except OSError:
+        names = []
+    for name in names:
+        meta = os.path.join(_NN_MODELS_ROOT, name, "best.meta.json")
+        if os.path.exists(meta) and _is_value(meta):
+            out.append({"id": name, "label": name,
+                        "stem": os.path.join(_NN_MODELS_ROOT, name, "best")})
+    return out
+
+
+def _value_model_stem(model_id: str | None) -> str:
+    """Resolve an MCTS evaluator id (from the New-game dialog) to a checkpoint
+    stem. None / unknown id falls back to the startup `_NN_MODEL_PATH`."""
+    if model_id is None:
+        return _NN_MODEL_PATH
+    for entry in _discover_value_models():
+        if entry["id"] == model_id:
+            return entry["stem"]
+    return _NN_MODEL_PATH
+
+
+def _load_combined_policy_fn(variant: str):
+    """Load (and cache) the combined multi-head PUCT policy_fn for `variant`.
+
+    Delegates to scripts/nn/build_combined_policy.build(variant) so the
+    9-head manifest has a single source of truth. Loaded via importlib from
+    the script path (scripts/ is not an importable package)."""
+    if variant not in _POLICY_FN_CACHE:
+        import importlib.util
+        path = os.path.join(_PROJECT_ROOT, "scripts", "nn", "build_combined_policy.py")
+        spec = importlib.util.spec_from_file_location("build_combined_policy", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _POLICY_FN_CACHE[variant] = mod.build(variant)
+    return _POLICY_FN_CACHE[variant]
+
+
+def _build_agent(
+    seat_type: str,
+    seed: int,
+    *,
+    mcts_sims: int | None = None,
+    mcts_evaluator: str | None = None,
+    mcts_search: str = "uct",
+    mcts_policy: str = "unweighted",
+):
     """Construct an agent for an AI seat (or return None for human seats).
 
     Each agent gets its own seeded RNG; we XOR the session seed with a
@@ -209,11 +306,22 @@ def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
     the training pipeline's default, so AI seats in the UI behave the same
     way they do during fitness evaluation.
 
-    `mcts_sims` is consulted only when `seat_type == "mcts"`. If None, the
-    module-level `_MCTS_SIMS_DEFAULT` is used. MCTS uses the trained NN
-    (`_NN_MODEL_PATH`, epoch_47 by default; --nn-model overrides) as its
-    leaf evaluator, while keeping the V3 config (priority: --v3-config PATH
-    > CONFIG_V3_T1) for strict-restricted legality and greedy macro-fencing.
+    The `mcts_*` kwargs are consulted only when `seat_type == "mcts"`:
+
+    - `mcts_sims`: simulations/move. None → module-level `_MCTS_SIMS_DEFAULT`.
+    - `mcts_evaluator`: id of the value-NN leaf evaluator (one of
+      `_discover_value_models`). None / unknown → the startup `_NN_MODEL_PATH`.
+    - `mcts_search`: "uct" or "puct". UCT uses strict-restricted legality +
+      `FenceMode.MACRO` and no policy prior; PUCT uses full legality +
+      `FenceMode.FLATTEN` with the combined multi-head policy as the sole
+      prune (POLICY_PUCT_DESIGN.md).
+    - `mcts_policy`: which combined-policy variant PUCT uses, "unweighted"
+      or "awr" (ignored for UCT).
+
+    The MCTS seat is V3-free: the value NN is the leaf evaluator, the strict
+    wrapper's harvest-feed cap ranks with that same NN (not V3), and the
+    leaf is calibrated via the model's `value_scale` so `c_uct=1.4` is
+    comparable across value heads. Mirrors scripts/play_mcts_match.py.
     """
     if seat_type == "human":
         return None
@@ -238,40 +346,56 @@ def _build_agent(seat_type: str, seed: int, *, mcts_sims: int | None = None):
         cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
         return HubrisHeuristicV3(seed=seed, config=cfg, **extra)
     if seat_type == "mcts":
-        # MCTS with the trained NN as its leaf evaluator (epoch_47 by
-        # default; --nn-model overrides). epoch_47's linear/margin head
-        # already outputs a P0-frame margin in points, so we use the NN
-        # evaluator with leaf_differential=False (no opponent subtraction —
-        # the value IS the margin) and leaf_value_scale=1.0 (default), the
-        # same point scale V3 uses, so c_uct=1.4 stays calibrated.
-        #
-        # Legality (the strict-restricted wrapper's harvest-feed cap) and the
-        # greedy macro-fencing chains still use the V3 config: the cap ranks
-        # with V3 as a legality concern, and the macro chains only generate
-        # candidate fence layouts that the NN leaf then judges. We build the
-        # strict wrapper here (rather than letting MCTSSearch default it from
-        # evaluator_config, which is now the NN model, not a V3 config).
+        # MCTS with a trained value NN as its leaf evaluator. The leaf returns
+        # an already-P0-frame margin (nn_evaluator, 1 forward pass) and is
+        # normalized by the model's `value_scale` so a single c_uct stays
+        # calibrated across value heads (matches scripts/play_mcts_match.py).
+        # The whole agent is V3-free: the strict wrapper's harvest-feed cap
+        # ranks with the SAME NN (feed_evaluator), and the greedy macro-fence
+        # agent is MCTSSearch's NN-backed default (heuristic left unset).
         import numpy as _np
 
+        from agricola.agents import FenceMode
         from agricola.agents.nn.agent import nn_evaluator
-        model = _load_nn_model()
+        from agricola.legality import legal_actions as _full_legal
+
+        stem = _value_model_stem(mcts_evaluator)
+        model = _load_nn_model(stem)
         cfg = _TUNED_V3_CONFIG if _TUNED_V3_CONFIG is not None else CONFIG_V3_T1
         sims = int(mcts_sims) if mcts_sims is not None else _MCTS_SIMS_DEFAULT
-        rng = _np.random.default_rng(seed)
-        strict_legal = make_strict_restricted_legal_actions(config=cfg, rng=rng)
-        macro_heuristic = HubrisHeuristicV3(
-            config=cfg, seed=seed, lookahead="turn",
-            legal_actions_fn=strict_legal,
-        )
-        search = MCTSSearch(
-            evaluator_fn=nn_evaluator,
-            evaluator_config=model,
-            heuristic=macro_heuristic,
-            legal_actions_fn=strict_legal,
-            leaf_differential=False,
-            n_random_fencing=4,
-            rng_seed=seed,
-        )
+        lvs = float(getattr(model, "value_scale", 1.0))
+        use_puct = (mcts_search == "puct")
+
+        if use_puct:
+            # PUCT: full legality (the policy is the sole prune) + FLATTEN
+            # fencing + the combined multi-head policy prior.
+            policy_fn = _load_combined_policy_fn(mcts_policy)
+            search = MCTSSearch(
+                evaluator_fn=nn_evaluator,
+                evaluator_config=model,
+                legal_actions_fn=_full_legal,
+                policy_fn=policy_fn,
+                fence_mode=FenceMode.FLATTEN,
+                leaf_value_scale=lvs,
+                n_random_fencing=4,
+                rng_seed=seed,
+            )
+        else:
+            # UCT: strict-restricted legality (feed-cap ranked by the NN, so
+            # V3-free) + MACRO fencing, no policy prior.
+            rng = _np.random.default_rng(seed)
+            feed_eval = (lambda s, p, _m=model: nn_evaluator(s, p, _m))
+            strict_legal = make_strict_restricted_legal_actions(
+                config=cfg, rng=rng, evaluator=feed_eval,
+            )
+            search = MCTSSearch(
+                evaluator_fn=nn_evaluator,
+                evaluator_config=model,
+                legal_actions_fn=strict_legal,
+                leaf_value_scale=lvs,
+                n_random_fencing=4,
+                rng_seed=seed,
+            )
         return MCTSAgent(
             search,
             sims_per_move=sims,
@@ -689,6 +813,9 @@ class Session:
         seats: tuple[str, str],
         *,
         mcts_sims: int | None = None,
+        mcts_evaluator: str | None = None,
+        mcts_search: str = "uct",
+        mcts_policy: str = "unweighted",
         fast_mode: bool = False,
     ) -> None:
         for s in seats:
@@ -697,6 +824,12 @@ class Session:
         self.seed = seed
         self.seats = seats
         self.mcts_sims = mcts_sims  # None means use _MCTS_SIMS_DEFAULT
+        # MCTS seat configuration (only consulted for 'mcts' seats):
+        # leaf-evaluator id, search mode ("uct"/"puct"), and PUCT policy
+        # variant ("unweighted"/"awr"). See _build_agent.
+        self.mcts_evaluator = mcts_evaluator
+        self.mcts_search = mcts_search
+        self.mcts_policy = mcts_policy
         # When True, the auto-advance driver also auto-applies human
         # singletons (a state where the human has exactly one legal
         # action). Settable via /api/fast_mode at runtime — survives
@@ -711,10 +844,7 @@ class Session:
         self.interactive_ai: bool = False
         self.humans: set[int] = {i for i, s in enumerate(seats) if s == "human"}
         # Per-seat agent objects; None for human seats.
-        self.agents = (
-            _build_agent(seats[0], seed ^ 0x10000, mcts_sims=mcts_sims),
-            _build_agent(seats[1], seed ^ 0x20000, mcts_sims=mcts_sims),
-        )
+        self.agents = self._make_agents()
         self.state, self.env = setup_env(seed)
         self.log = RoundLog(self.humans)
         self.current_round = self.state.round_number
@@ -735,6 +865,24 @@ class Session:
         with self.lock:
             if self.humans:
                 self._drive_until_decision_locked()
+
+    def _make_agents(self) -> tuple:
+        """Build both seats' agent objects from the current seat/mcts config.
+
+        Each seat gets its own seeded RNG (session seed XOR a per-seat
+        constant) so the two seats don't share tiebreaks in self-play. The
+        mcts_* settings are threaded through to `_build_agent` (consulted
+        only for 'mcts' seats)."""
+        mcts_kw = dict(
+            mcts_sims=self.mcts_sims,
+            mcts_evaluator=self.mcts_evaluator,
+            mcts_search=self.mcts_search,
+            mcts_policy=self.mcts_policy,
+        )
+        return (
+            _build_agent(self.seats[0], self.seed ^ 0x10000, **mcts_kw),
+            _build_agent(self.seats[1], self.seed ^ 0x20000, **mcts_kw),
+        )
 
     # ---------- subscriber management ----------
 
@@ -1071,6 +1219,9 @@ class Session:
         seats: tuple[str, str],
         *,
         mcts_sims: int | None = None,
+        mcts_evaluator: str | None = None,
+        mcts_search: str = "uct",
+        mcts_policy: str = "unweighted",
     ) -> None:
         for s in seats:
             if s not in AGENT_TYPES:
@@ -1079,11 +1230,11 @@ class Session:
             self.seed = seed
             self.seats = seats
             self.mcts_sims = mcts_sims
+            self.mcts_evaluator = mcts_evaluator
+            self.mcts_search = mcts_search
+            self.mcts_policy = mcts_policy
             self.humans = {i for i, s in enumerate(seats) if s == "human"}
-            self.agents = (
-                _build_agent(seats[0], seed ^ 0x10000, mcts_sims=mcts_sims),
-                _build_agent(seats[1], seed ^ 0x20000, mcts_sims=mcts_sims),
-            )
+            self.agents = self._make_agents()
             self.state, self.env = setup_env(seed)
             self.log = RoundLog(self.humans)
             self.current_round = self.state.round_number
@@ -1191,6 +1342,22 @@ def _make_handler(session: Session):
             if path == "/api/state":
                 self._send_json(HTTPStatus.OK, session.snapshot())
                 return
+            if path == "/api/config":
+                # Static UI config used by the New-game dialog: the available
+                # MCTS leaf evaluators (value NN checkpoints), the search
+                # modes, and the PUCT policy variants. Discovered fresh so a
+                # newly-trained checkpoint shows up without a server restart.
+                self._send_json(HTTPStatus.OK, {
+                    "mcts_evaluators": [
+                        {"id": e["id"], "label": e["label"]}
+                        for e in _discover_value_models()
+                    ],
+                    "mcts_search_modes": ["uct", "puct"],
+                    "mcts_policies": ["unweighted", "awr"],
+                    "mcts_sims_default": _MCTS_SIMS_DEFAULT,
+                    "default_evaluator": "best",
+                })
+                return
             if path == "/api/trace":
                 # Self-contained replay payload — seed, seats, and the
                 # ordered action trace. Served as an attachment so the
@@ -1293,12 +1460,47 @@ def _make_handler(session: Session):
                             "error": "mcts_sims must be a positive integer",
                         })
                         return
-                session.reset(seed, seats, mcts_sims=mcts_sims)
+                # Optional MCTS evaluator / search-mode / policy (only
+                # relevant if a seat is 'mcts'). Validate against the
+                # discovered value models and the fixed enums.
+                mcts_evaluator = body.get("mcts_evaluator")
+                if mcts_evaluator is not None:
+                    valid_ids = {e["id"] for e in _discover_value_models()}
+                    if mcts_evaluator not in valid_ids:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {
+                            "ok": False,
+                            "error": f"mcts_evaluator must be one of {sorted(valid_ids)}",
+                        })
+                        return
+                mcts_search = body.get("mcts_search", "uct")
+                if mcts_search not in ("uct", "puct"):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "mcts_search must be 'uct' or 'puct'",
+                    })
+                    return
+                mcts_policy = body.get("mcts_policy", "unweighted")
+                if mcts_policy not in ("unweighted", "awr"):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "mcts_policy must be 'unweighted' or 'awr'",
+                    })
+                    return
+                session.reset(
+                    seed, seats,
+                    mcts_sims=mcts_sims,
+                    mcts_evaluator=mcts_evaluator,
+                    mcts_search=mcts_search,
+                    mcts_policy=mcts_policy,
+                )
                 self._send_json(HTTPStatus.OK, {
                     "ok": True,
                     "seed": seed,
                     "seats": list(seats),
                     "mcts_sims": mcts_sims if mcts_sims is not None else _MCTS_SIMS_DEFAULT,
+                    "mcts_evaluator": mcts_evaluator if mcts_evaluator is not None else "best",
+                    "mcts_search": mcts_search,
+                    "mcts_policy": mcts_policy,
                 })
                 return
             self._send_text(HTTPStatus.NOT_FOUND, "not found")
