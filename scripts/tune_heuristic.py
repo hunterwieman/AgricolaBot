@@ -818,11 +818,14 @@ def main() -> int:
                              "Ignored for margin and win_rate.")
     parser.add_argument("--rotate-seeds", action=argparse.BooleanOptionalAction,
                         default=False,
-                        help="Rotate training seeds per generation. Each gen N uses "
-                             "seeds [rotate_start + N*n_seeds, rotate_start + (N+1)*n_seeds). "
-                             "All members of a gen face the same seeds, but seeds differ "
-                             "across gens — prevents CMA-ES from compounding seed-specific "
-                             "selection bias across generations. Default OFF (fixed seeds 0..n-1).")
+                        help="Rotate training seeds per generation. Generation N (the "
+                             "1-based counter shown in the per-gen log) uses seeds "
+                             "[rotate_start + N*n_seeds, rotate_start + (N+1)*n_seeds), so the "
+                             "seed block equals the printed gen number and the rotate_start "
+                             "block (N=0) is intentionally unused. All members of a gen face "
+                             "the same seeds, but seeds differ across gens — prevents CMA-ES "
+                             "from compounding seed-specific selection bias across generations. "
+                             "Default OFF (fixed seeds 0..n-1).")
     parser.add_argument("--rotate-start", type=int, default=10000,
                         help="Starting seed for rotation. Default 10000 (well clear of "
                              "the canonical holdout window 1000..1099). Ignored when "
@@ -1182,7 +1185,10 @@ def _run_optimization(args, seeds, holdout_seeds, base_config, candidate_arch: s
         while not es.stop(ignore_list=["maxiter"]) and es.countiter < target_gen:
             X = es.ask()
             # Compute this gen's training seeds (rotated or fixed).
-            gen_for_seeds = es.countiter + 1   # countiter is 0-indexed pre-ask
+            # +1 so the seed block matches the 1-based gen number printed in the
+            # per-gen log below (countiter is 0-based pre-tell). Consequence: the
+            # rotate_start block (N=0) is unused — see --rotate-seeds help.
+            gen_for_seeds = es.countiter + 1
             if args.rotate_seeds:
                 lo = args.rotate_start + gen_for_seeds * args.n_seeds
                 train_seeds = list(range(lo, lo + args.n_seeds))
