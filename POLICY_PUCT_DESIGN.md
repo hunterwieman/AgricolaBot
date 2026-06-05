@@ -1,5 +1,10 @@
 # Policy Head + PUCT — Design
 
+> **Historical design record.** The **PUCT search half** is implemented and documented in
+> `MCTS_IMPLEMENTATION.md` (§5.2–§5.3 PUCT, §8 chance nodes, §9 fencing); the **policy-head half** in
+> `POLICY_HEAD.md`. This is the original combined design spec, kept for rationale and provenance — read
+> those two implementation docs to understand the current code.
+
 Design spec for AgricolaBot's **policy head** and **PUCT** search (Phase 2.3 (c)→(d): the policy
 half of the AlphaZero-style agent). The goal: a learned policy prior that guides MCTS via PUCT,
 bootstrapped by behavioral cloning of the heuristic-ensemble data we already have, and built so the

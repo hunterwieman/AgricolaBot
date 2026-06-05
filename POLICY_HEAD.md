@@ -11,9 +11,10 @@ fixed heads and two pointer heads, assembled into two end-to-end combiners; that
 design that all the heads share.
 
 > **For new sessions:** read `FIRST_NN.md` (the value net this sits beside — same encoder, data,
-> and infrastructure), `MCTS_DESIGN.md` (the search this prior will steer), and CLAUDE.md §2
-> (project status). **PUCT itself is being designed/implemented separately — this doc covers only
-> training the policy function and the `policy_prior` surface PUCT calls.**
+> and infrastructure), `MCTS_IMPLEMENTATION.md` (the search this prior steers — §5.2–§5.3 cover how
+> PUCT consumes the `policy_fn` this doc produces), and CLAUDE.md §2 (project status). **This doc
+> covers training the policy function and the `policy_prior` surface; the PUCT machinery that calls it
+> is implemented and documented in `MCTS_IMPLEMENTATION.md`.**
 
 ---
 
@@ -393,7 +394,7 @@ python -m pytest tests/test_nn_policy.py -v
 python -m pytest tests/test_nn_model.py tests/test_nn_dataset.py tests/test_nn_agent.py -q  # value pipeline undisturbed
 # smoke train (tiny):
 python scripts/nn/train_policy.py --run-dir data/nn_training/runs/standard_bimodal_5k \
-    --hidden-dims 16,16 --max-epochs 3 --out-dir nn_models/policy_smoke --loss-weight none
+    --hidden-dims 16,16 --max-epochs 3 --out-dir nn_models/policy_smoke --loss-weight unweighted
 ```
 
 ---

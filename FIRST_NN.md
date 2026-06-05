@@ -4,7 +4,7 @@ Design spec for the first neural network value function for AgricolaBot. The goa
 
 This is the working spec for the initial NN phase. It captures the input encoding, supervision target, data generation pipeline, architecture/training plan, and implementation notes in their current state — and flags what's still open.
 
-> **For new sessions:** read CLAUDE.md (project status), V3_DESIGN.md (the heuristic this NN replaces and whose features inform this NN's inputs), MCTS_DESIGN.md (the consumer of this NN's outputs), and STRATEGY.md §5 (project-phase context for NN training).
+> **For new sessions:** read CLAUDE.md (project status), V3_DESIGN.md (the heuristic this NN replaces and whose features inform this NN's inputs), MCTS_IMPLEMENTATION.md §6 (the consumer of this NN's outputs — how the value evaluator is called at the MCTS leaf), and STRATEGY.md §5 (project-phase context for NN training).
 
 **Document order.** Sections are arranged chronologically with the build order: overview → input format → label format → how data is generated → how the network is structured → how it's trained → how it's evaluated → implementation notes → experiments → status → open questions. The design and implementation are complete for phase (a); §11 Experiments tracks planned and completed experiments (with stable `P#`/`C#` IDs) and §13 Open questions captures what remains.
 

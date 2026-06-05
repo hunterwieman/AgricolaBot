@@ -1,5 +1,11 @@
 # MCTS Design — AgricolaBot
 
+> **Historical design record — superseded for understanding the code by `MCTS_IMPLEMENTATION.md`.**
+> To understand the *current* search code (`agricola/agents/mcts.py`) — UCT, PUCT, chance nodes, and
+> fencing — read `MCTS_IMPLEMENTATION.md`, the comprehensive and up-to-date implementation reference.
+> This document is the original design spec, kept for rationale and provenance; where the two differ,
+> the implementation doc is authoritative.
+
 This document specifies the design for the Monte Carlo Tree Search (MCTS) agent for AgricolaBot. It is the working spec for a new implementation phase that follows the heuristic-agent phase documented in `V3_DESIGN.md` and `V3_TRAINING_PIPELINE.md`.
 
 It captures both the architectural decisions and their rationales so a new coding session can pick up the work without reading the design-conversation history.

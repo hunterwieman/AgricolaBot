@@ -5,10 +5,10 @@ and Phase 2 (MCTS chance nodes) per §16; full test suite green (948 passed, inc
 `tests/test_reveal.py`). Remaining (§16 Phase 3): the V3 re-validation (§12 step 3) and the `.md`
 documentation updates (§13). This doc remains the design reference for the change.
 
-> **For new sessions:** read this plus `CLAUDE.md` (Foundations + Phase 1), `MCTS_DESIGN.md`
-> (the search this changes), and the engine docs `ENGINE_IMPLEMENTATION.md` §1–2. The design
-> rationale for *why chance nodes* (vs ISMCTS / determinization) lives in the conversation that
-> produced this doc and is summarized in §2.
+> **For new sessions:** read this plus `CLAUDE.md` (Foundations + Phase 1), `MCTS_IMPLEMENTATION.md`
+> (the search this changes — §8 documents the chance-node routing as implemented), and the engine docs
+> `ENGINE_IMPLEMENTATION.md` §1–2. The design rationale for *why chance nodes* (vs ISMCTS /
+> determinization) lives in the conversation that produced this doc and is summarized in §2.
 
 ---
 
