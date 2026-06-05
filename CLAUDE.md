@@ -9,7 +9,7 @@ training a strong AI agent via MCTS and self-play reinforcement learning.
 > mechanics live in
 > **`ENGINE_IMPLEMENTATION.md`** (the reference companion to Phase 1). See also
 > **`FILE_DESCRIPTIONS.md`** (per-file descriptions), **`TEST_DESCRIPTIONS.md`** (per-test
-> coverage), **`task_files/ARCHITECTURE.md`** (original architecture spec, rules reference,
+> coverage), **`design_docs/game_engine/ARCHITECTURE.md`** (original architecture spec, rules reference,
 > dataclass definitions), and **`RULES.md`** (a comprehensive overview of the game's rules).
 
 ## Project Goal & Roadmap
@@ -657,13 +657,13 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `WEB_UI_PLAN.md` | Living design doc for the browser-based UI (`play_web.py`): goal / non-goals, transport, file layout, action dispatch, MVP + stretch scope, and an always-current implementation-status ledger (§15). |
 | `FRONTEND_FIXES.md` | Punch-list of web-UI *frontend* gaps (`static/app.js`, `static/style.css`, `templates/index.html`), ordered by certainty the fix is needed; each item states the problem, the backend data already exposed, and the specific frontend change. |
 
-Historical task specs and design artifacts (in `task_files/`, frozen at the time of their task's landing):
+Historical task specs and design artifacts (in `design_docs/game_engine/`, frozen at the time of their task's landing):
 
 | File | Description |
 |---|---|
-| `task_files/ARCHITECTURE.md` | Original full architecture spec, game rules reference, and original dataclass definitions. Field names may diverge from current code — inline annotations flag known discrepancies. |
-| `task_files/FENCE_IDEAS.md` | Design conversation artifact from Task 6 — explores the broader Fencing action-space design alternatives. |
-| `task_files/TASK_2.md` … `task_files/TASK_7.md` | Implementation task files, one per development task. Frozen at landing time; cross-referenced from `SESSION_HISTORY.md`. |
+| `design_docs/game_engine/ARCHITECTURE.md` | Original full architecture spec, game rules reference, and original dataclass definitions. Field names may diverge from current code — inline annotations flag known discrepancies. |
+| `design_docs/game_engine/FENCE_IDEAS.md` | Design conversation artifact from Task 6 — explores the broader Fencing action-space design alternatives. |
+| `design_docs/game_engine/TASK_2.md` … `design_docs/game_engine/TASK_7.md` | Implementation task files, one per development task. Frozen at landing time; cross-referenced from `SESSION_HISTORY.md`. |
 
 Archived (in `archive/`, fully superseded by current docs):
 
@@ -883,37 +883,53 @@ AgricolaBot/
 
     nn_models/                      # Trained NN checkpoints. Each completed `train_first.py` run produces one subdirectory (`<timestamp>-<suffix>/`) containing `best.pt` (state_dict + NormStats buffers), `best.meta.json` (architecture config + encoding_version), `config.json` (full run configuration for reproducibility), `norm_stats.json` (separate JSON copy of NormStats), `train_log.jsonl` (per-epoch metrics), `train_curves.png`, `calibration.png` (test-split predicted-vs-actual), and `test_metrics.json` (final test MSE/MAE). Top-level `REGISTRY.md` is the authoritative catalog of every checkpoint here — **must be updated as part of every training run** (see CLAUDE.md §2.3).
 
-    task_files/                     # Historical task specs and design artifacts — frozen at the time their task landed; referenced from SESSION_HISTORY.md / CHANGES.md as the design-rationale anchors. Not auto-read; consult when a session-history entry points here.
+    design_docs/                    # Design + training docs grouped here to keep the top level tidy. The agent (Phase 2.2/2.3) design records live at the top of this folder; the original engine (Phase 1) task specs live under game_engine/.
 
-        ARCHITECTURE.md             # Original full architecture spec + game rules reference + original dataclass definitions. Inline `> Note:` annotations flag known divergences from current code.
+        V3_DESIGN.md                # Comprehensive design reference for HubrisHeuristicV3 — three combination styles, per-category specs, the three-component resource pattern, V1 carry-overs. Read before modifying V3.
 
-        FENCE_IDEAS.md              # Design conversation artifact from Task 6 — broader Fencing design-space alternatives considered before the bitmap-fixed-universe approach.
+        V3_TRAINING_PIPELINE.md     # Operational guide for the V3 tuning pipeline: CMA-ES basics, `scripts/tune_heuristic.py` semantics, the `scripts/run_iterative_v3.py` orchestrator (block-coordinate descent), `v3_best.json` convention, current training state.
 
-        TASK_2.md                   # Pastures, slots, accommodation, Pareto frontier.
+        MCTS_DESIGN.md              # Historical design record for the MCTS phase (Phase 2.2), superseded by `MCTS_IMPLEMENTATION.md` for understanding the code; kept for rationale/provenance.
 
-        TASK_3.md                   # Cooking rates, modified pareto_frontier, breeding_frontier.
+        HIDDEN_INFO_DESIGN.md       # Design + implementation reference for the hidden-information refactor: the round-card reveal as a nature/chance step, the public-state / Environment / observe split, the MCTS chance-node handling.
 
-        TASK_4a_i.md                # State additions + atomic-space legality.
+        FIRST_NN.md                 # Design spec for the first NN value function (Phase 2.3): goals, design principles, input encoding (~170 features), supervision target, the fully-specified data-generation pipeline, schema versioning. Read before working on the NN.
 
-        TASK_4a_ii.md               # Atomic-space resolution.
+        POLICY_PUCT_DESIGN.md       # Historical design record for the policy head + PUCT phase (the search half now implemented and documented in `MCTS_IMPLEMENTATION.md`, the policy half in `POLICY_HEAD.md`).
 
-        TASK_4a_iii.md              # Pasture cache scaffolding.
+        POLICY_HEAD.md              # Implementation + design record for the supervised behavioral-cloning policy heads (Phase 2.3 (c)): the factored `DecisionHead`, the `HEADS` registry, the two loss variants, the pointer heads, the `make_policy_fn` combiner. Read before adding a policy head.
 
-        TASK_4b_i.md                # Non-atomic legality (initial pass).
+        game_engine/                # Original engine (Phase 1) task specs and design artifacts — frozen at the time their task landed; referenced from SESSION_HISTORY.md / CHANGES.md as the design-rationale anchors. Not auto-read; consult when a session-history entry points here.
 
-        TASK_5.md                   # The `step` function + pending stack + Grain Utilization + Potter Ceramics.
+            ARCHITECTURE.md         # Original full architecture spec + game rules reference + original dataclass definitions. Inline `> Note:` annotations flag known divergences from current code.
 
-        TASK_5B_DISPATCH_CLEANUP.md # Dispatch refactor + pending provenance.
+            FENCE_IDEAS.md          # Design conversation artifact from Task 6 — broader Fencing design-space alternatives considered before the bitmap-fixed-universe approach.
 
-        TASK_5C.md                  # Eight non-atomic spaces + convention shifts.
+            TASK_2.md               # Pastures, slots, accommodation, Pareto frontier.
 
-        TASK_5D.md                  # Farm Expansion + multi-shot sub-action pendings.
+            TASK_3.md               # Cooking rates, modified pareto_frontier, breeding_frontier.
 
-        TASK_6_pre.md               # Fencing universe enumeration.
+            TASK_4a_i.md            # State additions + atomic-space legality.
 
-        TASK_6.md                   # Fencing + Build Fences + Farm Redevelopment.
+            TASK_4a_ii.md           # Atomic-space resolution.
 
-        TASK_7.md                   # Harvest phases + rounds 5–14.
+            TASK_4a_iii.md          # Pasture cache scaffolding.
+
+            TASK_4b_i.md            # Non-atomic legality (initial pass).
+
+            TASK_5.md               # The `step` function + pending stack + Grain Utilization + Potter Ceramics.
+
+            TASK_5B_DISPATCH_CLEANUP.md # Dispatch refactor + pending provenance.
+
+            TASK_5C.md              # Eight non-atomic spaces + convention shifts.
+
+            TASK_5D.md              # Farm Expansion + multi-shot sub-action pendings.
+
+            TASK_6_pre.md           # Fencing universe enumeration.
+
+            TASK_6.md               # Fencing + Build Fences + Farm Redevelopment.
+
+            TASK_7.md               # Harvest phases + rounds 5–14.
 
     archive/                        # Fully superseded docs kept for historical reference. Not load-bearing.
 
