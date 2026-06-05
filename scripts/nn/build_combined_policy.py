@@ -60,7 +60,7 @@ SETS = {"unweighted": UNWEIGHTED_SET, "awr": AWR_SET}
 
 
 def build(variant: str):
-    """Return the combined `policy_fn` for `variant` ('none' or 'awr')."""
+    """Return the combined `policy_fn` for `variant` ('unweighted' or 'awr')."""
     if variant not in SETS:
         raise ValueError(f"variant must be one of {sorted(SETS)}; got {variant!r}")
     return load_policy_fn(SETS[variant])
