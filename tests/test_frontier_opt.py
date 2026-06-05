@@ -119,10 +119,14 @@ def test_harvest_feed_frontier_equiv(food_owed):
             )
 
 
-def test_default_level_is_zero():
-    """The default must stay baseline so current scripts are unchanged."""
-    assert opt_config.PARETO_OPT_LEVEL == 0
-    assert opt_config.FENCE_SCAN_CACHE is False
+def test_default_opt_settings_are_on():
+    """The caches default ON — they exist to speed up the engine and are used
+    by default (changed 2026-06-05). FENCE_SCAN_CACHE is result-identical;
+    PARETO_OPT_LEVEL=3 is reproducible-but-reordered vs level 0. Set level 0
+    explicitly for byte-identical-to-original output.
+    """
+    assert opt_config.PARETO_OPT_LEVEL == 3
+    assert opt_config.FENCE_SCAN_CACHE is True
 
 
 # ----------------------- fence-scan cache (independent) ----------------------

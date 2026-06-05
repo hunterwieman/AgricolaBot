@@ -571,12 +571,18 @@ def test_universe_swap_via_module_constant():
         legality.ACTIVE_FENCE_UNIVERSE_ENTRIES = UNIVERSE_EXTENDED_ENTRIES
         legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES = UNIVERSE_EXTENDED_SMALLEST_ENTRIES
         legality.ACTIVE_FENCE_UNIVERSE_SET = UNIVERSE_EXTENDED_SET
+        # The active fence universe is a HIDDEN input to the fence-scan cache
+        # (not in its key), so a raw module-constant swap must flush it — exactly
+        # what active_universe() does for you. With FENCE_SCAN_CACHE on by
+        # default, skipping this would return the stale RESTRICTED scan.
+        legality._legal_pasture_commits_cached.cache_clear()
         swapped = legality._enumerate_pending_build_fences(state, pending)
         assert any(a.cells == target for a in swapped if isinstance(a, CommitBuildPasture))
     finally:
         legality.ACTIVE_FENCE_UNIVERSE_ENTRIES = saved_entries
         legality.ACTIVE_FENCE_UNIVERSE_SMALLEST_ENTRIES = saved_smallest
         legality.ACTIVE_FENCE_UNIVERSE_SET = saved_set
+        legality._legal_pasture_commits_cached.cache_clear()
 
 
 def test_active_universe_defaults_to_restricted():
