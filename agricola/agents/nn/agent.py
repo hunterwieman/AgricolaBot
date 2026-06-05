@@ -34,11 +34,54 @@ import torch
 from agricola.agents.base import EvaluatorAgent, LegalActionsFn
 from agricola.agents.nn.encoder import encode_state
 from agricola.agents.nn.model import NormalizedValueModel
+from agricola.constants import Phase
+from agricola.scoring import score, tiebreaker
 
 
 # ---------------------------------------------------------------------------
 # Evaluator functions
 # ---------------------------------------------------------------------------
+
+
+def _terminal_value(state, player_idx: int, model: NormalizedValueModel) -> float:
+    """Exact end-of-game value from `player_idx`'s frame, in the model's own
+    target units — so a terminal leaf is the TRUE result, not an NN guess.
+
+    At `Phase.BEFORE_SCORING` the outcome is fully known, and the NN was
+    trained against a per-mode target (`dataset._encode_one`); `predict_margin`
+    denormalizes back into those units, so we return the raw target the model
+    was trained to predict, matched per head:
+
+      - ``linear`` (margin): ``own − opp`` score diff, **tiebreaker-blind**,
+        in points (the margin target; later denormalized by ``target_std``).
+      - ``tanh`` (outcome): ``+1 / 0 / −1`` for win / draw / loss,
+        **tiebreaker-aware** (raw units — ``target_std`` is 1.0 for this head).
+      - ``sigmoid`` (winprob): ``1.0 / 0.5 / 0.0``, same tiebreaker-aware source.
+
+    Returning the wrong-units value here would silently mis-scale the leaf for
+    a non-margin head (the C15 scale-mismatch family).
+    """
+    own, _ = score(state, player_idx)
+    opp, _ = score(state, 1 - player_idx)
+    head = getattr(model.net, "head", "linear")
+    if head == "linear":
+        return float(own - opp)
+    # outcome / winprob: tiebreaker-aware win/draw/loss, matching `game.winner`.
+    if own > opp:
+        won = True
+    elif own < opp:
+        won = False
+    else:
+        tb_own = tiebreaker(state, player_idx)
+        tb_opp = tiebreaker(state, 1 - player_idx)
+        won = True if tb_own > tb_opp else (False if tb_opp > tb_own else None)
+    if head == "tanh":      # outcome ∈ {+1, 0, −1}
+        return 0.0 if won is None else (1.0 if won else -1.0)
+    if head == "sigmoid":   # winprob ∈ {1.0, 0.5, 0.0}
+        return 0.5 if won is None else (1.0 if won else 0.0)
+    raise ValueError(
+        f"Unknown model head {head!r}; expected 'linear' / 'tanh' / 'sigmoid'."
+    )
 
 
 @torch.no_grad()
@@ -49,7 +92,12 @@ def nn_evaluator(state, player_idx: int, model: NormalizedValueModel) -> float:
     The NN is queried once on `encode_state(state, player_idx)`. Because
     we trained with dual-perspective augmentation (A), the model should
     handle either perspective; this evaluator just takes its word for it.
+
+    At a terminal state the result is known exactly, so we return the true
+    per-mode value (`_terminal_value`) rather than an NN prediction.
     """
+    if state.phase == Phase.BEFORE_SCORING:
+        return _terminal_value(state, player_idx, model)
     features = encode_state(state, player_idx)
     x = torch.from_numpy(features).unsqueeze(0)  # (1, 170)
     device = next(model.parameters()).device
@@ -80,7 +128,13 @@ def nn_evaluator_differential(
     batch-of-2 tensor, runs ONE forward pass (not two). For small CPU
     inference the savings are modest; on a GPU the batched form
     materially helps.
+
+    At a terminal state the result is known exactly, so we return the true
+    per-mode value (`_terminal_value`) — already antisymmetric in
+    `player_idx` (own − opp), so no extra differencing is needed.
     """
+    if state.phase == Phase.BEFORE_SCORING:
+        return _terminal_value(state, player_idx, model)
     f0 = encode_state(state, 0)
     f1 = encode_state(state, 1)
     x = torch.from_numpy(np.stack([f0, f1], axis=0))  # (2, 170)
