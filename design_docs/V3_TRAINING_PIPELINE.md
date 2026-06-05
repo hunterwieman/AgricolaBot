@@ -231,7 +231,7 @@ Per step wall time (8 cores, `python -O`, n_seeds=100):
 
 `tuned_configs/v3_best.json` is the **pointer to the current V3 baseline**.
 
-**Current contents:** the `iter1_v3_ported_to_refactor.json` config — iter1's strongest V3 manually ported into the post-refactor schema via `scripts/port_pre_refactor_v3.py`. Beats `CONFIG_V1_T2` by ~12 margin in a 40-game heuristic match (the strongest V3 in the project's tuning history).
+**Current contents:** the `iter1_v3_ported_to_refactor.json` config — iter1's strongest V3 manually ported into the post-refactor schema via `port_pre_refactor_v3.py` (a one-off migration script, now archived under `archive/scripts/`). Beats `CONFIG_V1_T2` by ~12 margin in a 40-game heuristic match (the strongest V3 in the project's tuning history).
 
 The old `v3_best.json` (post-iter4 alphas tune) was preserved as `v3_best_OLD_BROKEN_iter4_alphas.json`. That config LOST to V1+T2 by ~11 — a regression caused by chained-baseline drift across iter2-iter4 that the project's pre-multi-baseline tooling didn't catch. Section 2.5 has the details.
 
