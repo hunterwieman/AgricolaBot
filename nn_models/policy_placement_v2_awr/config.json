@@ -1,0 +1,39 @@
+{
+  "model_kind": "policy",
+  "head": "placement",
+  "num_classes": 25,
+  "loss_weight": "awr",
+  "awr_beta": 9.334248542785645,
+  "awr_clip": 6.0,
+  "value_ckpt": "nn_models/best",
+  "hidden_dims": [
+    256,
+    256
+  ],
+  "activation": "gelu",
+  "norm": "layer",
+  "dropout": 0.2,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 256,
+  "max_epochs": 40,
+  "early_stop_patience": 8,
+  "train_frac": 0.8,
+  "val_frac": 0.1,
+  "split_seed": 0,
+  "torch_seed": 42,
+  "device": "cpu",
+  "init_from": null,
+  "store_dtype": "float16",
+  "input_dim": 170,
+  "encoding_version": 2,
+  "data_version": 2,
+  "code_sha": "ba0d8c6768f5eee962b69630e010b4ee9550866d",
+  "run_dirs": [
+    "data/nn_training/runs/hidden_info_v2_10k"
+  ],
+  "train_size": 570294,
+  "val_size": 72173,
+  "test_size": 72948,
+  "param_count": 117017
+}

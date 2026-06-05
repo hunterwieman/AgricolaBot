@@ -1,0 +1,60 @@
+{
+  "model_kind": "policy",
+  "head": "commit_sow",
+  "net_type": "ConfigurableMLP",
+  "net_config": {
+    "input_dim": 170,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "output_dim": 104,
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "head": "linear"
+  },
+  "num_classes": 104,
+  "encoding_version": 2,
+  "extras": {
+    "epoch": 2,
+    "val_ce": 0.8632731069055876,
+    "model_kind": "policy",
+    "head": "commit_sow",
+    "num_classes": 104,
+    "loss_weight": "none",
+    "awr_beta": null,
+    "awr_clip": null,
+    "value_ckpt": null,
+    "hidden_dims": [
+      256,
+      256
+    ],
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "max_epochs": 40,
+    "early_stop_patience": 8,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "split_seed": 0,
+    "torch_seed": 42,
+    "device": "cpu",
+    "init_from": null,
+    "store_dtype": "float16",
+    "input_dim": 170,
+    "encoding_version": 2,
+    "data_version": 2,
+    "code_sha": "ba0d8c6768f5eee962b69630e010b4ee9550866d",
+    "run_dirs": [
+      "data/nn_training/runs/hidden_info_v2_10k"
+    ],
+    "train_size": 9401,
+    "val_size": 1203,
+    "test_size": 1221,
+    "param_count": 137320
+  }
+}

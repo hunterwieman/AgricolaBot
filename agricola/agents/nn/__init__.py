@@ -46,9 +46,20 @@ Submodules:
   **Imports torch.** Not re-exported here; explicit import required:
   `from agricola.agents.nn.agent import NNAgent`.
 
-- (future) `model` — PyTorch `nn.Module` value-function model.
-- (future) `agent` — Agent-protocol wrapper using the model as a
-  1-turn-lookahead evaluator.
+**Policy heads** (POLICY_HEAD.md) — a factored, behavioral-cloning policy whose
+prior PUCT consumes. All import torch and are NOT re-exported here:
+
+- `policy_heads` — `DecisionHead` + `HEADS` (fixed-vocab: placement /
+  choose_subaction / commit_build_major / commit_sow / commit_bake / fencing /
+  build_stop) and `PointerHead` + `POINTER_HEADS` (score-the-legal-set:
+  animal_frontier / harvest_feed). Torch-free.
+- `policy_dataset` / `policy_model` / `policy_training` — fixed-head BC pipeline
+  (`build_policy_datasets`, `NormalizedPolicyModel`, `train_policy`).
+- `policy_pointer_dataset` / `policy_pointer_model` / `policy_pointer_training` —
+  the pointer-head pipeline (ragged segment collate, `NormalizedPointerModel` +
+  `segment_log_softmax`, `train_pointer`).
+- `policy` — `policy_prior` / `pointer_prior` + `make_policy_fn(models)`, the
+  `policy_fn(state, legal) -> {action: prior}` MCTS/PUCT consumes.
 
 The public surface is re-exported here for import-path stability —
 external code can keep importing `from agricola.agents.nn import X`

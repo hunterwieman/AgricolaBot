@@ -55,8 +55,9 @@ def main() -> int:
     p.add_argument("--head", type=str, default="placement", choices=sorted(HEADS),
                    help="Which decision-type head to train (policy_heads.HEADS).")
     # Loss / weighting
-    p.add_argument("--loss-weight", type=str, default="none", choices=["none", "awr"],
-                   help="Per-example loss weighting: none (plain BC) or awr "
+    p.add_argument("--loss-weight", type=str, default="unweighted",
+                   choices=["unweighted", "awr"],
+                   help="Per-example loss weighting: unweighted (plain BC) or awr "
                         "(advantage-weighted, value-net baseline).")
     p.add_argument("--value-ckpt", type=str, default="nn_models/best",
                    help="(awr) Value checkpoint for the advantage baseline.")
@@ -86,7 +87,16 @@ def main() -> int:
     p.add_argument("--split-seed", type=int, default=0)
     p.add_argument("--torch-seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
+    p.add_argument("--legality", type=str, default="restricted",
+                   choices=["restricted", "full"],
+                   help="Legality for the legal mask: 'restricted' (default; "
+                        "restricted_legal_actions) or 'full' (unrestricted "
+                        "legal_actions). Use 'full' for the fencing head.")
     args = p.parse_args()
+
+    legal_actions_fn = None
+    if args.legality == "full":
+        from agricola.legality import legal_actions as legal_actions_fn
 
     out_dir = args.out_dir or (ROOT / "nn_models" / make_run_id())
     train_policy(
@@ -112,6 +122,7 @@ def main() -> int:
         split_seed=args.split_seed,
         torch_seed=args.torch_seed,
         device=args.device,
+        legal_actions_fn=legal_actions_fn,
     )
     return 0
 

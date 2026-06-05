@@ -96,32 +96,115 @@ policy with one head per decision type (`agricola/agents/nn/policy_heads.py`).
 Separate from the value models above; the metric is **top-1 / top-3 agreement**
 with the recorded moves, not MAE. Two caveats: (1) agreement ≠ playing strength —
 the real measure is PUCT lift (separate session); (2) the `awr` variant is
-*expected* to roughly match `none` on top-1, since AWR optimizes for
+*expected* to roughly match `unweighted` on top-1, since AWR optimizes for
 high-advantage moves, not imitation accuracy — its value shows up only under
 search. All `[256,256]` GELU / LayerNorm / dropout 0.2 / wd 1e-4,
-`ENCODING_VERSION` 2, trunk warm-started from the `none` placement model (head
+`ENCODING_VERSION` 2, trunk warm-started from the `unweighted` placement model (head
 layer fresh). AWR baseline = the champion value net (`nn_models/best`); `β = std(A)`,
 `w_max = 6`.
 
 | Dir (`nn_models/`) | Head (classes) | Data | Loss | Train | best ep | Test top-1 / top-3 | Status |
 |---|---|---|---|---|---|---|---|
-| `policy_placement_none` | placement (25) | pre-fix 27k¹ | none | ~1.5M | 28 (killed²) | val 51.3% / 78.3% | warm-start trunk source; **stale data** |
-| `policy_choose_subaction_none` | choose_subaction (8) | `hidden_info_v2_10k` | none | 60.3k | 5 | **80.3% / 100%³** | active |
+| `policy_placement_unweighted` | placement (25) | pre-fix 27k¹ | unweighted | ~1.5M | 28 (killed²) | val 51.3% / 78.3% | **superseded** by `policy_placement_v2_unweighted` (unlabelled meta³ + stale data) |
+| `policy_placement_v2_unweighted` | placement (25) | `hidden_info_v2_10k` | unweighted | 570k | 29 | **51.2% / 77.3%** (win 55.1%) | active; clean post-fix data + labelled meta |
+| `policy_placement_v2_awr` | placement (25) | `hidden_info_v2_10k` | awr | 570k | 32 | 50.5% / 76.6% (win 54.6%) | active |
+| `policy_choose_subaction_unweighted` | choose_subaction (8) | `hidden_info_v2_10k` | unweighted | 60.3k | 5 | **80.3% / 100%⁴** | active |
 | `policy_choose_subaction_awr` | choose_subaction (8) | `hidden_info_v2_10k` | awr (β=7.3) | 60.3k | 4 | 80.2% / 100% | active |
-| `policy_commit_build_major_none` | commit_build_major (14) | `hidden_info_v2_10k` | none | 22.6k | 7 | **67.7% / 95.8%** (win 70.2%) | active |
+| `policy_commit_build_major_unweighted` | commit_build_major (14) | `hidden_info_v2_10k` | unweighted | 22.6k | 7 | **67.7% / 95.8%** (win 70.2%) | active |
 | `policy_commit_build_major_awr` | commit_build_major (14) | `hidden_info_v2_10k` | awr | 22.6k | 4 | 67.5% / 95.6% (win 70.5%) | active |
+| `policy_commit_sow_unweighted` | commit_sow (104) | `hidden_info_v2_10k` | unweighted | 9.4k | — | **58.6% / 95.7%** (win 60.7%) | active; `1≤g+v≤13` vocab (data max g+v=4) |
+| `policy_commit_sow_awr` | commit_sow (104) | `hidden_info_v2_10k` | awr | 9.4k | — | 57.4% / 96.3% (win 60.3%) | active |
+| `policy_commit_bake_unweighted` | commit_bake (6) | `hidden_info_v2_10k` | unweighted | 754 | — | **72.2% / 97.9%** (win 75.7%) | active; `grain∈1..6` (data max=5); tiny/low-leverage |
+| `policy_commit_bake_awr` | commit_bake (6) | `hidden_info_v2_10k` | awr | 754 | — | 71.1% / 100% (win 70.3%) | active |
+| `policy_fencing_unweighted` | fencing (110)⁵ | `hidden_info_v2_10k` | unweighted, **full legality** | 33.7k | — | 28.1% / 56.4% (win 27.9%) | active (experiment); spatially-blind — see ⁵ |
+| `policy_fencing_awr` | fencing (110)⁵ | `hidden_info_v2_10k` | awr, **full legality** | 33.7k | — | 28.5% / 55.8% (win 28.6%) | active (experiment) |
+| `policy_build_stop_unweighted` | build_stop (2)⁶ | `hidden_info_v2_10k` | unweighted, full legality | 9.1k | 4 | **74.3%** (win 74.7%) | active; learned P(stop) for rooms/stables |
+| `policy_build_stop_awr` | build_stop (2)⁶ | `hidden_info_v2_10k` | awr (β=9.7) | 9.1k | 3 | 74.2% (win 74.4%) | active |
 
 ¹ Trained on `hidden_info_bimodal_20k` + `hidden_info_nnblend_10k`, generated
 *before* the `restricted.py` ordering-filter fix, so its trajectory distribution
 is stale (placement legality itself is unchanged — still a valid placement policy
-and trunk source). Worth retraining on `hidden_info_v2_10k`.
+and trunk source). **Superseded** by `policy_placement_v2_unweighted`.
 ² Killed at epoch 28 before convergence / final test metrics; val numbers only.
-³ top-3 = 100% because parent-pending decisions usually have ≤3 legal options, so
+³ The pre-fix `policy_placement_unweighted` meta has `head=None` (predates head-label
+stamping), so `make_policy_fn` rejects it; the v2 retrain stamps the label.
+⁴ top-3 = 100% because parent-pending decisions usually have ≤3 legal options, so
 top-3 trivially contains the choice; top-1 is the meaningful metric there.
+⁵ **Fencing experiment.** Vocab = the 109 RESTRICTED fence-universe shapes + Stop
+(110). **Spatially blind**: the output classes are specific cell-sets but the
+encoder has no per-cell features, so the head leans on the legal mask + learned
+canonical-shape priors — top-1 28% (vs ~10% random) is the evidence that spatial
+encoding is fencing's real bottleneck. Trained with FULL legality (no
+restricted/strict wrapper); Stop is a class so it learns when to stop.
+⁶ 2-class build-vs-stop head for multi-shot Build Rooms / Build Stables
+(`num_built ≥ 1`); the combiner expands the `build` class onto the cell-priority
+cell → `{cell: P(build), Stop: P(stop)}`. Replaces the crude uniform 50/50 (which
+was ~6× too high on Stop for rooms). Fencing is NOT covered (its own head).
+top-3 is meaningless for a 2-class head.
 
 **`hidden_info_v2_10k`** = 10k games regenerated under the fixed `restricted.py`
 (the three forcing ordering filters dropped — POLICY_HEAD.md), which made
 `plow`/`build_rooms` real ChooseSubAction choices (0 → the two most common).
+
+---
+
+## Pointer policy models
+
+Score-the-legal-set **pointer heads** (POLICY_HEAD.md §11) for the
+variable-cardinality Pareto-frontier commits. Unlike the fixed heads, the metric
+is **within-frontier** top-1/top-3 (the chosen commit's rank among *its own* legal
+candidates), and training is a weighted **segment-CE** over ragged candidate
+lists. `animal_frontier` owns `CommitBreed` (harvest breeding) + `CommitAccommodate`
+(the three animal markets); each candidate's features are `(sheep_kept, boar_kept,
+cattle_kept, food_gained)` concatenated onto the shared state encoding. `[256,256]`
+GELU / LayerNorm / dropout 0.2 / wd 1e-4, `ENCODING_VERSION` 2. AWR baseline =
+`nn_models/best`, `β = std(A)`, `w_max = 6`.
+
+**Data scope differs from the fixed heads:** trained on the **union of all three
+hidden-info runs** (`hidden_info_v2_10k` + `hidden_info_bimodal_20k` +
+`hidden_info_nnblend_10k`; ~37k games → 154k frontier snapshots, 326k candidates).
+Valid here because breed/market labels are wrapper- and forcing-fix-invariant
+(`restricted.py` never narrows breed/markets — only `PendingHarvestFeed`), so the
+v2-only constraint that applies to the sub-action heads does not apply.
+
+| Dir (`nn_models/`) | Head | Loss | Train (snaps / cand) | best ep | Test top-1 / top-3⁷ | Status |
+|---|---|---|---|---|---|---|
+| `pointer_animal_frontier_unweighted` | animal_frontier (CommitBreed + CommitAccommodate) | unweighted | 123k / 326k | 12 | **69.8% / 97.9%** (win 70.0%) | active |
+| `pointer_animal_frontier_awr` | animal_frontier | awr (β=6.26) | 123k / 326k | 12 | 68.8% / 97.9% (win 69.5%) | active |
+| `pointer_harvest_feed_unweighted` | harvest_feed (CommitConvert + CommitHarvestConversion)⁸ | unweighted | 76k / 761k | 18 | **61.8% / 93.5%** (win 59.7%) | active |
+| `pointer_harvest_feed_awr` | harvest_feed | awr (β=4.41) | 76k / 761k | 15 | 61.0% / 93.5% (win 58.3%) | active |
+
+AWR ≈ none on top-1, as expected (AWR optimizes high-advantage moves, not
+imitation accuracy — its value shows up only under search).
+
+⁷ `animal_frontier` mean frontier K ≈ 2.64 → random ~38% top-1, top-3 near-trivial.
+`harvest_feed` is harder: K up to 92 (mean ≈ 10), so its top-1 (62%) is well above
+the ~10% floor but lower than the small-K heads. **top-1 is the meaningful metric.**
+⁸ `harvest_feed` owns `PendingHarvestFeed` (pre-`conversion_done`); its candidate
+set is the **heterogeneous** legal set — the `CommitConvert` Pareto-frontier points
+*and* the `CommitHarvestConversion` craft toggles (`use=False` was removed from the
+engine, so toggles are fire-only). 10-dim tagged-union Δ: `[is_toggle, joinery,
+pottery, basketmaker, consumed(g,v,s,b,c), begging]`. Candidates come from full
+`legal_actions` (no min-begging wrapper).
+
+---
+
+## Combined policy functions (`scripts/nn/build_combined_policy.py`)
+
+The two end-to-end `policy_fn(state, legal) -> {action: prior}` MCTS/PUCT consumes,
+assembled from the heads above via `agricola.agents.nn.policy.make_policy_fn`:
+
+- **`build("unweighted")`** — the 9 `*_unweighted` heads.
+- **`build("awr")`** — the 9 `*_awr` heads.
+
+Each works over the **full** legal set and dispatches by decision type: fixed head
+(placement / choose_subaction / commit_build_major / commit_sow / commit_bake /
+fencing) → its masked-softmax; pointer head (animal_frontier / harvest_feed) → its
+score-the-set softmax; `build_stop` → learned `P(stop)` + cell-priority build cell
+for multi-shot rooms/stables; cell commits (plow, first-build rooms/stables) →
+uniform over the cell-priority cell. Coverage is complete — no decision type falls
+to a naive uniform-over-full-legal. Both load + drive PUCT end-to-end
+(`build_combined_policy.py` `__main__` sanity-checks both).
 
 ---
 

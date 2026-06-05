@@ -1,12 +1,14 @@
 # Policy Head — AgricolaBot
 
-Design spec for the first **policy** network for AgricolaBot: a supervised, behavioral-cloning
-policy over **worker placement**, trained from the existing heuristic-ensemble game data, exposing
-a prior for PUCT to consume.
+Design spec for the supervised, behavioral-cloning **policy** for AgricolaBot, trained from the
+existing heuristic-ensemble game data and exposing a prior for PUCT to consume.
 
-This is the v1 working spec — the first slice of FIRST_NN.md's phase (c) ("policy head + PUCT").
-It captures the action representation, supervision target, the two loss variants, model, training,
-and evaluation, and flags what's still open.
+§1–§10 are the original **v1 placement-only** spec (the first slice of FIRST_NN.md's phase (c),
+"policy head + PUCT"): the action representation, supervision target, the two loss variants, model,
+training, and evaluation. **The policy has since grown to cover every decision type** — six more
+fixed heads and two pointer heads, assembled into two end-to-end combiners; that work is in §11
+("the other heads") and §14 (status). Read §11/§14 for the current state; §1–§10 for the foundational
+design that all the heads share.
 
 > **For new sessions:** read `FIRST_NN.md` (the value net this sits beside — same encoder, data,
 > and infrastructure), `MCTS_DESIGN.md` (the search this prior will steer), and CLAUDE.md §2
@@ -46,9 +48,11 @@ multi-head machinery before the harder heads and the self-play loop.
 - Reuse the value net's infrastructure (encoder, `ConfigurableMLP`, normalization-wrapper +
   `ENCODING_VERSION` persistence pattern, dataset split, training loop) so later heads compose.
 
-### Non-goals (deferred)
+### Non-goals (deferred) — *for the v1 placement slice; most are now built (see §11/§14)*
 - **Sub-action heads** (plow/sow/bake/build/renovate), the **pointer heads** for the
-  Pareto-frontier commits (animal accommodate / breed / convert), and **fencing** — see §11.
+  Pareto-frontier commits (animal accommodate / breed / convert), and **fencing** — were v1
+  non-goals; **all are now built** (§11). Only the plow/stable/room *cell* choice remains
+  unlearned (no spatial encoder).
 - **PUCT** — separate session; we ship only the prior it calls.
 - **Shared-trunk joint value+policy net** — v1 is a *separate* policy net; the joint net is a
   self-play-phase concern (§9).
@@ -161,7 +165,7 @@ and `wᵢ = 1` everywhere reduces it exactly to the unweighted mean — so no se
 renormalization is needed, and the weighted run's loss scale matches the unweighted baseline
 automatically.
 
-1. **`none` (unweighted)** — `wᵢ = 1`. Clones the ensemble's *average* placement policy (losers'
+1. **`unweighted`** — `wᵢ = 1`. Clones the ensemble's *average* placement policy (losers'
    moves included). The honest baseline.
 2. **`awr` (advantage-weighted regression)** — `wᵢ = clip(exp(Aᵢ / β), 0, w_max)`, with advantage
    `Aᵢ = Rᵢ − V_θ(sᵢ)`: the game's **actual terminal margin** `Rᵢ` (decider frame, from the stored
@@ -283,21 +287,68 @@ or value-only expansion) in PUCT's hands — the correct separation for the two-
 
 ---
 
-## 11. Deferred heads (roadmap, not specced here)
+## 11. The other heads (built since the v1 placement slice)
 
-- **Pointer / score-the-legal-set heads** for the Pareto-frontier commits (`CommitAccommodate`,
-  `CommitBreed`, `CommitConvert`): variable-cardinality, state-dependent action sets that don't map
-  to a fixed vocabulary. The net scores each *enumerated legal commit* by its features and softmaxes
-  over the legal set — the action-side analog of the input encoder.
-- **Built (§3):** the `choose_subaction` and `commit_build_major` fixed heads are implemented and
-  trained — see REGISTRY.md.
-- **Remaining fixed heads:** `CommitSow` (grain/veg amount — unfiltered under regular legality,
-  immediate, not yet built); the plow/stable/room **cell** heads, which first need the
-  **cell-priority** filters (`PLOW/STABLE/ROOM_PRIORITY`) dropped — the same pattern as the
-  ordering fix (§3) — plus a regen, and are best done as a shared spatial grid head over the 3×5
-  farmyard.
-- **Fencing:** entangled with the MCTS macro-action design (`MacroFencingAction`); deferred until the
-  granularity is settled in the PUCT session.
+The factored policy now spans **every** decision type. Beyond the three early fixed heads
+(`placement`, `choose_subaction`, `commit_build_major`), four more fixed `DecisionHead`s and two
+`PointerHead`s have landed; per-checkpoint metrics are in REGISTRY.md.
+
+**Fixed heads added:** `commit_sow` (104-way, `1 ≤ g+v ≤ 13`), `commit_bake` (6-way, `grain ∈ 1..6`),
+`fencing` (110-way; see below), and `build_stop` (2-way; see below).
+
+### Pointer heads (score-the-legal-set) — `animal_frontier`, `harvest_feed`
+
+A `PointerHead` (`policy_heads.py`) handles a variable-cardinality frontier: it `enumerate`s the
+legal commits (re-deriving the *same* engine frontier the legality enumerator uses, so the candidate
+set + order match what MCTS sees) and gives each a small **action-delta** feature row. The model
+concatenates the **shared state encoding** onto every candidate (so per-candidate features carry only
+what *differs*), scores each `[state ; Δ]` row to a scalar, and **softmaxes over the legal set**.
+
+- **`animal_frontier`** owns `CommitBreed` (harvest breeding) **and** `CommitAccommodate` (the three
+  animal markets) — both are `(sheep, boar, cattle)` post-counts from a `(config, food)` frontier, so
+  one head/featurizer serves both (doubling the data; the state encoding's `phase`/`round`/`in_harvest`
+  disambiguates context). Δ = `(sheep_kept, boar_kept, cattle_kept, food_gained)` — **kept counts are
+  the raw commit fields** (not a subtracted delta — pre-counts are already in the state encoding).
+- **`harvest_feed`** owns `PendingHarvestFeed` (pre-`conversion_done`): the **heterogeneous** legal
+  set of `CommitConvert` Pareto-frontier points *and* `CommitHarvestConversion` craft toggles
+  (`use=False` was removed at the engine level, so a toggle is fire-only). 10-dim tagged-union Δ:
+  `[is_toggle, joinery, pottery, basketmaker, consumed(g,v,s,b,c), begging]`.
+
+**Ragged training, no padding.** Each example is a snapshot's *list* of candidates + the chosen
+position. A batch flattens to one `(ΣK, ·)` tensor + `segment_id` + `chosen_flat`; the scorer runs
+once over all candidates and a **segment-softmax** (`scatter_reduce` amax + `index_add_`) normalizes
+per snapshot. Loss is weighted **segment-CE**; metrics are within-frontier top-1/top-3 (overall +
+winners). AWR carries over unchanged (per-snapshot `V_θ(s)` weight). The by-game split is identical
+to the fixed heads.
+
+**Data scope.** Both pointer heads train on the **union of all DATA_VERSION-2 hidden-info runs**
+(`hidden_info_v2_10k` + `hidden_info_bimodal_20k` + `hidden_info_nnblend_10k`) — valid because a
+pointer head enumerates the *full* engine frontier, so the recorded chosen commit is always in its
+candidate set regardless of which wrapper generated the game (the v2-only constraint of §13 is
+specific to the `choose_subaction` head, whose *labels* the forcing-fix changed).
+
+### `build_stop` — learned P(stop) for multi-shot Build Rooms / Build Stables
+
+At `PendingBuildRooms`/`PendingBuildStables` with `num_built ≥ 1` (⟺ Stop legal), the *which cell*
+has no encoder signal but *when to stop* does (current rooms/stables, resources — the encoder's
+`subaction_avail_build_rooms/stables` flags distinguish them). A 2-class build-vs-stop head learns
+`P(stop)`; `policy.py`'s combiner expands the `build` class onto the cell-priority cell →
+`{cell: P(build), Stop: P(stop)}`. This replaces the crude uniform 50/50 the cell-priority fallback
+gives (which was ~6× too high on Stop for rooms). Fencing's stop is handled by its own head, not here.
+
+### `fencing` — a deliberate spatially-blind experiment
+
+`fencing` is a 110-class head: the 109 shapes of the RESTRICTED fence universe (`fences.py`) + Stop,
+trained with FULL legality (no restricted/strict wrapper). Its output classes are *spatial* (specific
+cell-sets) but the encoder has **no per-cell features**, so it leans on the legal mask + learned
+canonical-shape priors. Top-1 is only ~28% — the evidence that **spatial encoding is fencing's real
+bottleneck**. The principled upgrade is a 3×5 cell-type grid in the encoder + a spatial head; deferred.
+
+### Still deferred
+
+- **Plow / stable / room *cell* choice** stays uniform-over-cell-priority (no encoder signal); a
+  learned cell head needs the spatial encoder above.
+- **Self-play visit-count (π) targets** — the AlphaZero ideal, once a self-play loop exists.
 
 ---
 
@@ -307,13 +358,18 @@ or value-only expansion) in PUCT's hands — the correct separation for the two-
 
 | File | Contents |
 |---|---|
-| `agricola/agents/nn/policy_heads.py` | `DecisionHead` spec + the `HEADS` registry (`placement`, `choose_subaction`, `commit_build_major`). Each head: `owns(state)`, `vocab`, `target_index(action)`, `legal_mask(state)`. Torch-free; adding a head = a new `DecisionHead` here. |
+| `agricola/agents/nn/policy_heads.py` | `DecisionHead` spec + `HEADS` registry (`placement`, `choose_subaction`, `commit_build_major`, `commit_sow`, `commit_bake`, `fencing`, `build_stop`) — each: `owns`, `vocab`, `target_index`, `legal_mask`. **Also** the `PointerHead` spec + `POINTER_HEADS` registry (`animal_frontier`, `harvest_feed`): `owns`, `candidate_dim`, `enumerate_candidates(state) -> [(action, feature_vec)]`. Torch-free; adding a head = a new spec here. |
 | `agricola/agents/nn/policy_dataset.py` | `PolicyNormStats`; `AgricolaPolicyDataset`; `_decision_rows(games, head)` (head-driven extraction, single-perspective); `build_policy_datasets[_from_games](..., head=...)` → `(train, val, test, PolicyNormStats, info)`. Streams pickles. For `awr`, computes `A = R − V_θ(s)` weights (one batched value-net pass per train state). |
 | `agricola/agents/nn/policy_model.py` | `NormalizedPolicyModel` (input-norm + masked softmax; `head_name` persisted in meta). Imports `NET_REGISTRY`, `EncodingVersionMismatch`, `ConfigurableMLP` from `model.py`. |
 | `agricola/agents/nn/policy_training.py` | `train_policy(run_dirs, out_dir, *, head, loss_weight, value_ckpt, awr_clip, init_from, ...)`. Weighted masked-CE, top-1/top-3 (+winners) eval, early-stop on val CE. `--init-from` accepts a value *or* policy checkpoint (trunk transplant). Artifacts: `config.json`, `policy_norm_stats.json`, `train_log.jsonl`, `best.{pt,meta.json}`, `test_metrics.json`, `train_curves.png`. |
-| `agricola/agents/nn/policy.py` | `policy_prior(state, model, *, head=None)` (auto-dispatches via `model.head_name`) + `NO_PRIOR`. The PUCT consumer surface. (`PolicyAgent` deferred — accuracy-only v1.) |
-| `scripts/nn/train_policy.py` | Thin argparse → `train_policy` (`--head {placement,choose_subaction,commit_build_major}`, `--loss-weight {none,awr}`, `--awr-clip`, `--value-ckpt`, `--init-from`). |
-| `tests/test_nn_policy.py` | Per-head extraction (target/mask-invariant, single-perspective, head-ownership disjointness), AWR weights, model shape + masked softmax + persistence + `ENCODING_VERSION` rejection, `policy_prior` contract, ChooseSubAction head; end-to-end train smoke. (commit_build_major head test: TODO.) |
+| `agricola/agents/nn/policy_pointer_dataset.py` | `PointerNormStats` (norm over `[state ; cand]`); `AgricolaPointerDataset` (ragged: state stored once per snapshot, flat candidates sliced by offsets); `pointer_collate` (flatten a batch → `(state, cand, segment, chosen_flat, weight)`, no padding); `_pointer_rows(games, head)`; `build_pointer_datasets[_from_games](..., head=...)`. Reuses `_seed_split` + `_compute_awr_weights`. |
+| `agricola/agents/nn/policy_pointer_model.py` | `NormalizedPointerModel` (scores `[state ; cand]` rows; `score_flat` for the segment batch, `candidate_probs` for inference) + `segment_log_softmax` (per-segment normalize via `scatter_reduce` amax + `index_add_`). Persists `model_kind="policy_pointer"` + `candidate_dim`. |
+| `agricola/agents/nn/policy_pointer_training.py` | `train_pointer(run_dirs, out_dir, *, head, loss_weight, value_ckpt, awr_clip, init_from, ...)`. Weighted **segment-CE**, within-frontier top-1/top-3 (+winners), early-stop on val CE. Mirrors `train_policy` artifacts (`pointer_norm_stats.json`). |
+| `agricola/agents/nn/policy.py` | `policy_prior` (fixed heads) + `pointer_prior` (pointer heads) + `NO_PRIOR`. **`make_policy_fn(models)`** / **`load_policy_fn(checkpoints)`** — the full `policy_fn(state, legal) -> {action: prior}` MCTS consumes: dispatches by decision type (fixed head / pointer head / `build_stop` learned-P(stop) for multi-shot rooms&stables / cell-priority uniform / full-legal uniform). The PUCT consumer surface. |
+| `scripts/nn/train_policy.py` | Thin CLI over `train_policy` (the fixed heads). `--head` ∈ `HEADS`, `--loss-weight {unweighted,awr}`, `--value-ckpt`, `--awr-clip`, `--init-from`, and **`--legality {restricted,full}`** (use `full` for the fencing / build_stop heads). |
+| `scripts/nn/train_policy_pointer.py` | Thin argparse → `train_pointer` (`--head {animal_frontier,harvest_feed}`, `--loss-weight {unweighted,awr}`, …). Default `--run-dir` = the three hidden-info runs (all valid for pointer heads). |
+| `scripts/nn/build_combined_policy.py` | The two assembled policy functions: `build("unweighted")` / `build("awr")` (9 head checkpoints each, via `load_policy_fn`) + a `__main__` sanity check. `UNWEIGHTED_SET`/`AWR_SET` manifests. |
+| `tests/test_nn_policy.py` | Fixed-head extraction/mask/AWR/model/persistence/`policy_prior`/`make_policy_fn` dispatch; **pointer head**: `enumerate`/food/target-position vs the engine frontier, segment-softmax, collate, dataset build, `pointer_prior`, `make_policy_fn` routing, and a `train_pointer` smoke. |
 
 The meta sidecar carries `"model_kind": "policy"` + `"head": <name>`, so policy checkpoints are
 machine-distinguishable from value checkpoints and from each other; `model.head_name` lets
@@ -328,7 +384,7 @@ FILE_DESCRIPTIONS.md; TEST_DESCRIPTIONS.md.
 ### Build sequence (dependency-clean; each step independently testable)
 1. `policy_dataset.py` (+ extraction/weight/split tests) → 2. `policy_model.py` (+ model tests) →
 3. `policy_training.py` + `scripts/nn/train_policy.py` (+ smoke test) → 4. `policy.py` (+ prior/agent
-tests) → 5. docs/registry/`__init__` → 6. train the **two** models (`none` + `awr`); add
+tests) → 5. docs/registry/`__init__` → 6. train the **two** models (`unweighted` + `awr`); add
 registry rows.
 
 ### Verification
@@ -349,7 +405,7 @@ All resolved during the build:
 1. **Weighting** — AWR (`A = R − V_θ(s)`, champion baseline `nn_models/best`, `β = std(A)`,
    `w_max = 6`, single-perspective `V_θ`).
 2. **Warm-start** — `--init-from` built (accepts a value *or* policy checkpoint); the trunk is
-   warm-started from the `none` placement model by default.
+   warm-started from the `unweighted` placement model by default.
 3. **Data scope** — `hidden_info_v2_10k` (10k games regenerated under the fixed `restricted.py`).
 4. **Gameplay sanity eval** — deferred (accuracy-only v1); PUCT lift is measured in the PUCT session.
 
@@ -357,13 +413,27 @@ All resolved during the build:
 
 ## 14. Status
 
-**Implemented.** The multi-head infra (`policy_heads.py` + head-driven dataset / model / training /
-`policy_prior` / CLI) is built and tested (`tests/test_nn_policy.py`, 19 tests). Three heads trained
-— `placement` (25-class), `choose_subaction` (8-class), `commit_build_major` (14-class) — with both
-`none` and `awr` variants for the two sub-action heads; checkpoints + results in
-`nn_models/REGISTRY.md` ("Policy models"). The `restricted.py` ordering-filter forcing-fix (§3)
-landed with updated tests.
+**Implemented — full decision-type coverage.** The factored-policy infra (`policy_heads.py` +
+head-driven dataset / model / training / `policy_prior` / CLI) and the **pointer-head** infra
+(`policy_pointer_*` + segment collate / scorer / segment-CE) are built and tested
+(`tests/test_nn_policy.py`). Trained heads (each `unweighted` + `awr`; metrics in
+`nn_models/REGISTRY.md`):
 
-**Next:** a `CommitSow` head; the plow/stable/room *cell* heads (need the cell-priority drop + a
-regen); the pointer heads (accommodate/breed/convert); and PUCT consumption of the priors (separate
-session). Optional: retrain `placement` on the post-fix `hidden_info_v2_10k` data.
+- **Fixed heads** — `placement` (25), `choose_subaction` (8), `commit_build_major` (14),
+  `commit_sow` (104), `commit_bake` (6), `fencing` (110), and `build_stop` (2).
+- **Pointer heads** — `animal_frontier` (CommitBreed + CommitAccommodate) and `harvest_feed`
+  (CommitConvert + CommitHarvestConversion), trained on all three hidden-info runs.
+
+The **`make_policy_fn(models)` combiner** (`policy.py`, and `load_policy_fn` to load from disk) is the
+full `policy_fn` MCTS consumes: it works over the *full* legal set and dispatches by decision type —
+fixed head / pointer head / `build_stop` (learned P(stop) for multi-shot rooms&stables) /
+uniform-over-cell-priority (plow + first-build cells) / uniform-over-full-legal (the remainder).
+`scripts/nn/build_combined_policy.py` assembles the **two end-to-end policy functions**: `build("unweighted")`
+and `build("awr")` (9 head checkpoints each). Both load and drive PUCT end-to-end.
+
+**Notable finding:** the `fencing` head is spatially blind (top-1 ~28%) — the encoder has no per-cell
+features. Spatial encoding is fencing's bottleneck (§11).
+
+**Next:** **PUCT consumption / eval** — measure whether these priors actually improve search vs.
+uniform / UCT and tune `c_puct` (the real validation; accuracy ≠ strength). Then a spatial encoder
+for fencing/cell heads, and eventually self-play visit-count (π) targets.

@@ -19,7 +19,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts" / "nn"))
 
-from agricola.agents.nn import GameRecord, load_game_records
+from agricola.agents.nn import DATA_VERSION, GameRecord, load_game_records
 from generate_training_data import (  # noqa: E402
     GamePlan,
     _build_agent,
@@ -227,7 +227,7 @@ def test_generate_dataset_smoke(tmp_path: Path):
     assert meta["completed_games"] == 4
     assert meta["errored_games"] == []
     assert meta["n_workers"] == 2
-    assert meta["data_version"] == 1
+    assert meta["data_version"] == DATA_VERSION
     assert meta["approved_configs"] == ["random"]
 
     # File layout.

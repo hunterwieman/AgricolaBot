@@ -257,10 +257,10 @@ def _finalize(acc, *, loss_weight, value_ckpt, awr_clip, store_dtype, verbose):
 
     if loss_weight == "awr":
         wtr, beta = _compute_awr_weights(Xtr, Rtr, value_ckpt, awr_clip)
-    elif loss_weight == "none":
+    elif loss_weight == "unweighted":
         wtr, beta = np.ones(Xtr.shape[0], np.float32), None
     else:
-        raise ValueError(f"loss_weight must be 'none' or 'awr'; got {loss_weight!r}")
+        raise ValueError(f"loss_weight must be 'unweighted' or 'awr'; got {loss_weight!r}")
 
     dt = np.float16 if store_dtype == "float16" else np.float32
     train_ds = AgricolaPolicyDataset(Xtr.astype(dt), ttr, mtr, wtr, wontr)
@@ -290,7 +290,7 @@ def _finalize(acc, *, loss_weight, value_ckpt, awr_clip, store_dtype, verbose):
 def build_policy_datasets_from_games(
     games: list[GameRecord], *,
     head: DecisionHead = PLACEMENT_HEAD,
-    loss_weight: str = "none",
+    loss_weight: str = "unweighted",
     value_ckpt: str | Path = DEFAULT_VALUE_CKPT,
     awr_clip: float = 6.0,
     train_frac: float = 0.8,
@@ -311,7 +311,7 @@ def build_policy_datasets_from_games(
 def build_policy_datasets(
     run_dirs: Sequence[Path] | Path | str, *,
     head: DecisionHead = PLACEMENT_HEAD,
-    loss_weight: str = "none",
+    loss_weight: str = "unweighted",
     value_ckpt: str | Path = DEFAULT_VALUE_CKPT,
     awr_clip: float = 6.0,
     train_frac: float = 0.8,

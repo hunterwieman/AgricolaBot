@@ -48,8 +48,17 @@ from agricola.state import GameState
 #   preserve numerical / structural output do not bump.
 #
 # Checked HARD-FAIL at load time. Mismatches raise `DataVersionMismatch`.
+#
+# Version history:
+#   1 -> 2: hidden-information refactor (commit 69f393f) replaced
+#           ActionSpaceState.round_revealed: int with revealed: bool,
+#           changing the GameState embedded in every record. The refactor
+#           originally shipped without a bump, so v1 spans BOTH schemas on
+#           disk; pre-refactor v1 data is quarantined under
+#           runs/stale_data_version_1/ and the post-refactor records were
+#           restamped to v2. See HIDDEN_INFO_DESIGN.md.
 
-DATA_VERSION: int = 1
+DATA_VERSION: int = 2
 """On-disk dataset schema version. Stamped onto every `GameRecord`;
 verified at load time. See FIRST_NN.md §10.4."""
 

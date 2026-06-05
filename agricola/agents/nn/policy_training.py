@@ -6,7 +6,7 @@ on **val cross-entropy** → best checkpoint + per-epoch log + curves + metadata
 
 Differs from the value `training.train` in three ways:
 - Loss is **weighted, legal-masked cross-entropy** (the `awr` weights come
-  from the dataset; `none` weights are all 1).
+  from the dataset; `unweighted` weights are all 1).
 - Metrics are **top-1 / top-3** placement agreement (overall + winners-subset),
   not MSE/MAE; selection is on val CE.
 - The model is `NormalizedPolicyModel` (25-way head, no target normalization).
@@ -172,7 +172,7 @@ def train_policy(
     out_dir,
     *,
     head: DecisionHead = PLACEMENT_HEAD,
-    loss_weight: str = "none",
+    loss_weight: str = "unweighted",
     value_ckpt: str | Path = DEFAULT_VALUE_CKPT,
     awr_clip: float = 6.0,
     hidden_dims=(256, 256),
@@ -191,9 +191,17 @@ def train_policy(
     device: str = "cpu",
     init_from: str | Path | None = None,
     store_dtype: str = "float16",
+    legal_actions_fn=None,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
-    """Train a placement-policy NN. Returns `(epoch_log, best_checkpoint_path)`."""
+    """Train a policy NN for `head`. Returns `(epoch_log, best_checkpoint_path)`.
+
+    `legal_actions_fn` controls the legality used to build each example's legal
+    mask (default `None` → `build_policy_datasets`'s default `restricted_legal_actions`).
+    Pass the unrestricted `legal_actions` to train a head over the FULL legal set —
+    needed for the fencing head, whose whole point is to NOT apply the
+    restricted/strict wrapper (the other heads are wrapper-invariant, so the
+    default is equivalent for them)."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     setup_seeds(torch_seed)
@@ -203,10 +211,12 @@ def train_policy(
         print(f"Run dir: {out_dir}\nDevice: {device}\nLoss weight: {loss_weight}\n")
 
     # ----- Datasets -----
+    legality_kw = {} if legal_actions_fn is None else {"legal_actions_fn": legal_actions_fn}
     train_ds, val_ds, test_ds, stats, info = build_policy_datasets(
         run_dirs, head=head, loss_weight=loss_weight, value_ckpt=value_ckpt,
         awr_clip=awr_clip, train_frac=train_frac, val_frac=val_frac,
         split_seed=split_seed, store_dtype=store_dtype, verbose=verbose,
+        **legality_kw,
     )
     stats.save(out_dir / "policy_norm_stats.json")
 
@@ -257,6 +267,7 @@ def train_policy(
         "val_frac": val_frac, "split_seed": split_seed, "torch_seed": torch_seed,
         "device": device, "init_from": str(init_from) if init_from else None,
         "store_dtype": store_dtype, "input_dim": ENCODED_DIM,
+        "legality": getattr(legal_actions_fn, "__name__", "restricted_legal_actions"),
         "encoding_version": ENCODING_VERSION, "data_version": DATA_VERSION,
         "code_sha": current_git_sha(), "run_dirs": run_dirs_list,
         "train_size": info["n_train"], "val_size": info["n_val"],

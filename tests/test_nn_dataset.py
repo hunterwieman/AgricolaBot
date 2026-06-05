@@ -24,7 +24,7 @@ import pytest
 import torch
 
 from agricola.agents.base import RandomAgent
-from agricola.agents.nn import GameRecord, play_recording_game
+from agricola.agents.nn import DATA_VERSION, GameRecord, play_recording_game
 from agricola.agents.nn.dataset import (
     AgricolaValueDataset,
     NormStats,
@@ -158,7 +158,7 @@ def _write_run_dir(tmp_path, games, n_workers=2, name="run", metadata=True):
     if metadata:
         with (run_dir / "metadata.json").open("w") as f:
             json.dump({"completed_games": len(games), "base_seed": 1234,
-                       "data_version": 1}, f)
+                       "data_version": DATA_VERSION}, f)
     return run_dir
 
 
