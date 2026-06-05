@@ -403,6 +403,14 @@ def _build_agent(
             fpu_offset=0.0,
             action_selection_temperature=0.2,
             rng_seed=seed,
+            # Cap TOTAL root visits (tree-reuse-inherited + fresh) at
+            # sims_per_move, rather than running that many FRESH sims each
+            # move. Equalizes the effective search budget per decision
+            # regardless of how much the re-rooted node inherited — so the
+            # sims/move you pick is the real per-move budget (and UCT/PUCT
+            # are compared on an equal footing, since peaked PUCT trees
+            # inherit more). See MCTSAgent.cap_total_sims.
+            cap_total_sims=True,
         )
     if seat_type == "nn":
         # Trained value NN (M_10k_standard_bimodal). NNAgent is an
