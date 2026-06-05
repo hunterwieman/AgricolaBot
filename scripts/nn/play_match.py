@@ -111,8 +111,9 @@ class _Spec:
     temperature: float
     nn_temperature: float
     nn_legality: str = "strict"   # "strict" | "regular" — NNAgent seat's legality wrapper
-    opt_pareto_level: int = 0      # agricola.opt_config.PARETO_OPT_LEVEL (0-3) — MCTS speedup
-    opt_fence_cache: bool = False  # agricola.opt_config.FENCE_SCAN_CACHE — MCTS speedup
+    # None = inherit the agricola.opt_config module default (now ON); set to override.
+    opt_pareto_level: int | None = None  # agricola.opt_config.PARETO_OPT_LEVEL (0-3)
+    opt_fence_cache: bool | None = None  # agricola.opt_config.FENCE_SCAN_CACHE
 
 
 # Worker globals. Two model slots; if the spec's two paths are equal,
@@ -132,8 +133,10 @@ def _init_worker(spec: _Spec) -> None:
     # worker (spawn re-imports opt_config fresh, so the parent's setting doesn't
     # propagate — must be set here). See CLAUDE.md §2 / FRONTIER_OPT_DESIGN.md.
     from agricola import opt_config
-    opt_config.PARETO_OPT_LEVEL = spec.opt_pareto_level
-    opt_config.FENCE_SCAN_CACHE = spec.opt_fence_cache
+    if spec.opt_pareto_level is not None:
+        opt_config.PARETO_OPT_LEVEL = spec.opt_pareto_level
+    if spec.opt_fence_cache is not None:
+        opt_config.FENCE_SCAN_CACHE = spec.opt_fence_cache
     _WORKER_SPEC = spec
     p0_needs = spec.p0_type in _MODEL_SEATS
     p1_needs = spec.p1_type in _MODEL_SEATS
@@ -317,12 +320,12 @@ def main() -> int:
     p.add_argument("--fpu-offset", type=float, default=0.0)
     p.add_argument("--temperature", type=float, default=0.2,
                    help="MCTS action-selection softmax T")
-    p.add_argument("--opt-level", type=int, default=0, choices=[0, 1, 2, 3],
-                   help="agricola.opt_config.PARETO_OPT_LEVEL — behavior-transparent "
-                        "MCTS legality-enumeration speedup (default 0=off; 3=all).")
-    p.add_argument("--fence-cache", action="store_true", default=False,
-                   help="agricola.opt_config.FENCE_SCAN_CACHE — caches the "
-                        "fence-universe legality scan (the dominant MCTS speedup).")
+    p.add_argument("--opt-level", type=int, default=None, choices=[0, 1, 2, 3],
+                   help="agricola.opt_config.PARETO_OPT_LEVEL override. Default: "
+                        "inherit the module default (ON=3). Pass 0 for byte-identical.")
+    p.add_argument("--fence-cache", action=argparse.BooleanOptionalAction, default=None,
+                   help="agricola.opt_config.FENCE_SCAN_CACHE override (--fence-cache / "
+                        "--no-fence-cache). Default: inherit the module default (ON).")
     p.add_argument("--nn-temperature", type=float, default=0.0,
                    help="NNAgent softmax T (0.0 = argmax greedy)")
     p.add_argument("--nn-legality", choices=["strict", "regular"], default="strict",
