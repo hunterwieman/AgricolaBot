@@ -405,7 +405,7 @@ def _build_agent(
         ckpt = spec.opp_leaf_ckpt if is_opponent else spec.leaf_ckpt
         model = _value_model(ckpt)
         return NNAgent(
-            model, differential=True, seed=s, temperature=0.0,
+            model, differential=False, seed=s, temperature=0.0,
             legal_actions_fn=restricted_legal_actions,
         )
     # Non-MCTS opponent. Use the same strict-restricted legality as MCTS
