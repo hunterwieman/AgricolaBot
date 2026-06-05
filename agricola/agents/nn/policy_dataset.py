@@ -225,6 +225,25 @@ def _compute_awr_weights(
 
     vmodel = NormalizedValueModel.load(Path(value_ckpt))
     vmodel.eval()
+    # Guard the unit mismatch: AWR's advantage A = R - V is only meaningful if
+    # R and V share units. R is the terminal SCORE MARGIN in points (tens); V =
+    # vmodel.predict_margin(...) is in the value net's target units. Only a
+    # MARGIN-mode (linear-head) net returns points — for an outcome (tanh) or
+    # winprob (sigmoid) head predict_margin is bounded (~[-1,1] / [0,1], and
+    # target_std is forced to 1.0), so V is negligible against R and the
+    # advantage silently degenerates to ~|R| (up-weighting blowout games instead
+    # of surprising decisions). The net head is the reliable, load-reconstructed
+    # signal — NormStats.target_mode is NOT restored by NormalizedValueModel.load.
+    head = getattr(vmodel.net, "head", None)
+    if head != "linear":
+        mode = {"tanh": "outcome", "sigmoid": "winprob"}.get(head, f"head={head!r}")
+        raise ValueError(
+            f"AWR value baseline {value_ckpt} is not margin-mode (net head "
+            f"{head!r} -> target_mode '{mode}'): predict_margin returns "
+            f"non-point units there, so the advantage A = R - V mixes scales "
+            f"(R is the score margin in points). Pass a margin-mode (linear-head) "
+            f"value checkpoint for AWR weighting."
+        )
     n = X_train.shape[0]
     V = np.empty(n, dtype=np.float32)
     Xt = torch.from_numpy(X_train.astype(np.float32))

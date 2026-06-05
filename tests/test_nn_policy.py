@@ -205,6 +205,22 @@ def test_awr_weights_clipped_and_unweighted_eval(small_games, tmp_path):
     assert np.allclose(test._weight.numpy(), 1.0)
 
 
+def test_awr_rejects_non_margin_value_ckpt(small_games, tmp_path):
+    # A non-margin value baseline (here a tanh/outcome head) must be rejected:
+    # predict_margin is bounded there, so AWR's advantage A = R - V would mix
+    # units (R is the score margin in points) and silently degenerate.
+    vnet = ConfigurableMLP(ENCODED_DIM, [8], 1, head="tanh")
+    vstats = NormStats(np.zeros(ENCODED_DIM, np.float32),
+                       np.ones(ENCODED_DIM, np.float32), 1.0, ENCODING_VERSION)
+    NormalizedValueModel(vnet, vstats).save(tmp_path / "vmodel_outcome")
+
+    with pytest.raises(ValueError, match="margin-mode"):
+        build_policy_datasets_from_games(
+            small_games, loss_weight="awr", value_ckpt=tmp_path / "vmodel_outcome",
+            awr_clip=6.0, store_dtype="float32", verbose=False,
+        )
+
+
 def test_unweighted_weights_are_ones(small_games):
     train, *_ = build_policy_datasets_from_games(
         small_games, loss_weight="unweighted", verbose=False,
