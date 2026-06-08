@@ -1,6 +1,7 @@
 """MCTS agent for AgricolaBot.
 
-Implements the design specified in **MCTS_DESIGN.md**. Brief summary:
+The comprehensive reference is **MCTS_IMPLEMENTATION.md**;
+**design_docs/MCTS_DESIGN.md** is the historical design record. Brief summary:
 
 - **Vanilla UCT** with **First-Play Urgency (FPU)** for unvisited children,
   or **PUCT** when a `policy_fn` is supplied to `MCTSSearch` — AlphaZero
@@ -12,8 +13,9 @@ Implements the design specified in **MCTS_DESIGN.md**. Brief summary:
 - **Path-only backprop** along the path built up by SELECT. `node.parents`
   is maintained for future DAG-full-backprop variants but is not read at
   backprop time.
-- **Leaf evaluation via `evaluate_hubris_v3`** (no rollouts). Each sim
-  pays one heuristic call at the freshly-expanded leaf.
+- **Leaf evaluation (no rollouts)** via `evaluator_fn`, which must return a
+  P0-frame margin (default `evaluate_hubris_v3_differential`); terminal leaves
+  use the exact `score()` margin instead. See `MCTSSearch.evaluate_leaf`.
 - **Macro-fencing for both fencing trigger points** (worker placement +
   Farm Redev's fencing step). For each parent that exposes a fencing
   trigger, generate 1 greedy chain (heuristic-driven) + up to N random
@@ -25,7 +27,7 @@ Implements the design specified in **MCTS_DESIGN.md**. Brief summary:
   with per-search RNG so the harvest-feed cap's random samples are
   deterministic per search instance).
 
-See **MCTS_DESIGN.md §4-5** for data-structure and algorithm details.
+See **MCTS_IMPLEMENTATION.md** for the full data-structure and algorithm reference.
 """
 from __future__ import annotations
 

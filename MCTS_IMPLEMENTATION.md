@@ -6,7 +6,7 @@ explains all of it: the algorithm in the abstract, then the concrete classes, fu
 that implement it, including UCT, PUCT, chance nodes (the hidden round-card reveal), and the Fencing
 macro machinery.
 
-It is written to stand alone. You should not need to read `MCTS_DESIGN.md` or `POLICY_PUCT_DESIGN.md`
+It is written to stand alone. You should not need to read `design_docs/MCTS_DESIGN.md` or `design_docs/POLICY_PUCT_DESIGN.md`
 to understand the code — those are the *historical* design records (written before the code
 crystallized, and to plan specific pieces), kept for provenance and rationale, but **this** is the
 file to read to understand what the search actually does today. Where the implementation diverged from
@@ -15,8 +15,8 @@ those specs, this doc follows the code and flags the divergence (§13).
 **Two deliberate black boxes.** MCTS consumes a **value evaluator** (the leaf value) and, optionally,
 a **policy** (the PUCT prior) through narrow function interfaces. Their internals — whether they are
 the V3 heuristic or a neural network — are out of scope here; this doc specifies only the *contracts*
-(§6, §5.3). For those internals see `V3_DESIGN.md` (heuristic), `FIRST_NN.md` (value net), and
-`POLICY_HEAD.md` (policy net).
+(§6, §5.3). For those internals see `design_docs/V3_DESIGN.md` (heuristic), `design_docs/FIRST_NN.md` (value net), and
+`design_docs/POLICY_HEAD.md` (policy net).
 
 Contents:
 1. Overview of the algorithm — including the UCT vs PUCT subsection (§1.4)
@@ -63,10 +63,10 @@ The whole agent is three objects (§2):
 
 Each simulation is the classic MCTS loop, implemented in `MCTSAgent._simulate` (§4):
 
-1. **SELECT.** Starting at the root, repeatedly choose a child by the selection rule (UCT or PUCT,
+1. **SELECT.** Starting at the root, choose a child by the selection rule (UCT or PUCT,
    §1.4) and descend, recording every node visited into a local `path` list. Chance nodes are
    *routed through* (§1.7), and forced (single-legal-action) nodes are *stepped through* (§4) — both
-   transparently, within the same simulation.
+   transparently, within the same simulation. 
 2. **EXPAND.** When selection picks an action whose child node does not yet exist, create it via
    `step(state, action)` and the transposition table. Usually one new node per simulation — but a
    forced chain stepped through, or a reveal routed through, can add several in one simulation (§4).
@@ -86,18 +86,18 @@ cheat-sheet in §4.
 Classical MCTS estimates a leaf by *rolling out* — playing random/greedy moves to game end and using
 the terminal score. AgricolaBot does **not** do this. Instead, each newly expanded leaf is scored
 directly by a **value evaluator**: a function `evaluator_fn(state, player_idx, config) -> float` that
-returns a one-player quality estimate. The leaf's value is the **margin** between the two players
-(P0 − P1), computed by `MCTSSearch.evaluate_leaf` (§6).
+returns a one-player quality estimate. The leaf's value is the expected **margin** between the two players
+(P0 − P1), estimated by `MCTSSearch.evaluate_leaf` (§6).
 
 Rollouts cost milliseconds (a 50-decision greedy playout); leaf evaluation costs tens of microseconds.
 At 500 sims/move that is the difference between seconds and tens of milliseconds per move. The trade is
 that values reflect the evaluator's snapshot judgment rather than realized outcomes — accepted, because
 averaging many cheap evaluations over a tree is more useful than a few expensive playouts.
 
-The evaluator is a **black box** to the search. The default is the V3 heuristic (`evaluate_hubris_v3`);
-a trained value network plugs into the exact same `(state, player_idx, config) -> float` slot. Its
-internals are out of scope (§6 specifies only the contract and the two scaling knobs, `leaf_differential`
-and `leaf_value_scale`).
+The evaluator is a **black box** to the search. The default is the differential V3 heuristic
+(`evaluate_hubris_v3_differential`); a trained value network plugs into the exact same
+`(state, player_idx, config) -> float` slot. Its internals are out of scope (§6 specifies only the
+contract and the one scaling knob, `leaf_value_scale`).
 
 ### 1.4 Selection rules — UCT and PUCT
 
@@ -284,13 +284,13 @@ class MCTSSearch:
     def __init__(self, *,
         legal_actions_fn=None,       # default: strict-restricted, bound to this search's RNG
         evaluator_config=None,       # 3rd arg to evaluator_fn (V3 config, or the NN model itself); default DEFAULT_CONFIG_V3
-        evaluator_fn=None,           # (state, player_idx, config) -> float; default evaluate_hubris_v3
+        evaluator_fn=None,           # (state, player_idx, config) -> float; MUST return a P0-frame margin; default evaluate_hubris_v3_differential
         heuristic=None,              # plays GREEDY fence macros; default = EvaluatorAgent bound to evaluator_fn (V3 by default)
         n_random_fencing=4,          # random fence macros per trigger (in addition to 1 greedy)
         rng_seed=0,
-        leaf_differential=True,      # leaf = e(s,0) - e(s,1) vs e(s,0) only
         leaf_value_scale=1.0,        # divide leaf value before backprop (calibrate c_uct across evaluators)
         policy_fn=None,              # None => UCT; set => PUCT
+        macro_policy_fn=None,        # optional fence-chain SAMPLER (NOT the PUCT prior); MACRO mode only (§9.1)
         fence_mode=None,             # default FenceMode.MACRO
     ): ...
 ```
@@ -324,6 +324,7 @@ class MCTSAgent:
     def __init__(self, search, *,
         sims_per_move=500, c_uct=1.4, fpu_offset=0.0,
         action_selection_temperature=0.2, rng_seed=0,
+        cap_total_sims=False,        # cap TOTAL root visits (incl. inherited) vs run that many fresh sims (§11.1)
     ):
         self.search = search
         ...
@@ -529,7 +530,7 @@ each node's `visits`. The freshly created leaf is on the path, so its visit coun
 ### Cost cheat-sheet
 
 > **These numbers are guesses, not measurements.** They are order-of-magnitude estimates carried over
-> from the design notes (MCTS_DESIGN.md §5.0), never profiled fresh — and the design doc itself flagged
+> from the design notes (design_docs/MCTS_DESIGN.md §5.0), never profiled fresh — and the design doc itself flagged
 > them as coarse. The fence-macro row especially is unverified and may be well off. **Trust the *ratios*
 > (descent ≪ expansion ≈ leaf-eval ≪ fence-macro), not the absolute figures.** For the only real
 > measurements see `PROFILING.md` (which finds the leaf evaluator and the pasture-decomposition BFS to be
@@ -610,7 +611,7 @@ exploration/exploitation cycle. A child whose mean is much higher keeps winning 
 it is quickly abandoned. Tiebreaks (e.g. equal scores) are broken randomly with `search.rng` for
 determinism per search seed.
 
-**FPU note (design-vs-code, §13).** `MCTS_DESIGN.md` motivates FPU as the way to *avoid* the full
+**FPU note (design-vs-code, §13).** `design_docs/MCTS_DESIGN.md` motivates FPU as the way to *avoid* the full
 expand-every-child sweep. The shipped UCT path does **not** avoid it — it sweeps all unvisited children
 first (the `_unvisited_actions` phase), so by the time `_select_via_ucb` runs, every child already has
 `visits ≥ 1` and the `child.visits == 0` FPU branch is effectively a **defensive guard** (it and the
@@ -690,7 +691,7 @@ exists; it is not wired in automatically. A *trained* `policy_fn` comes from the
 — `agricola.agents.nn.policy.load_policy_fn(checkpoints)`, or the convenience wrapper
 `scripts/nn/build_combined_policy.build(variant)` with `variant ∈ {"unweighted", "awr"}` (plain
 cross-entropy heads vs advantage-weighted heads). Both return the same `policy_fn(state, legal) -> {action:
-prior}` contract; the head structure behind them is the POLICY_HEAD.md black box.
+prior}` contract; the head structure behind them is the design_docs/POLICY_HEAD.md black box.
 
 The prior is computed **lazily**, on the first selection from a multi-option node:
 
@@ -724,38 +725,34 @@ which `_*_select_child` runs — chosen by `policy_fn is None`.
 ## 6. Leaf evaluation (`evaluate_leaf`) — the value black box
 
 Every simulation ends in one call to `MCTSSearch.evaluate_leaf(state)`, which returns the leaf value in
-**P0's reference frame**:
+**P0's reference frame** (a margin), divided by `leaf_value_scale`:
 
 ```python
 def evaluate_leaf(self, state):
-    if state.phase == Phase.BEFORE_SCORING:                 # terminal
-        return self.evaluator_fn(state, 0, self.evaluator_config) / self.leaf_value_scale
-    p0_val = self.evaluator_fn(state, 0, self.evaluator_config)
-    if not self.leaf_differential:
-        return p0_val / self.leaf_value_scale               # P0 standalone quality
-    return (p0_val - self.evaluator_fn(state, 1, self.evaluator_config)) / self.leaf_value_scale
+    if state.phase == Phase.BEFORE_SCORING:                                      # terminal
+        return (score(state, 0)[0] - score(state, 1)[0]) / self.leaf_value_scale # EXACT score margin
+    return self.evaluator_fn(state, 0, self.evaluator_config) / self.leaf_value_scale  # evaluator's P0-frame margin
 ```
 
-The contract with the **value black box** is `evaluator_fn(state, player_idx, config) -> float` (higher =
-better for `player_idx`). The default is `evaluate_hubris_v3` with `config = evaluator_config`. Crucially,
-`config` is just the third argument threaded into `evaluator_fn` — so a value network is wired by passing
-the **model itself as `evaluator_config`** and an adapter as `evaluator_fn` (the production pattern in
-`scripts/nn/play_match.py`: `evaluator_config=model, evaluator_fn=nn_evaluator_differential`). Three things
-to understand:
+The contract with the **value black box** is `evaluator_fn(state, player_idx, config) -> float`, and it
+**must already return a P0-frame margin** (own − opponent) — the leaf calls it **once** and never
+differences it itself. The default is `evaluate_hubris_v3_differential` with `config = evaluator_config`.
+Crucially, `config` is just the third argument threaded into `evaluator_fn` — so a value network is wired by
+passing the **model itself as `evaluator_config`** and an adapter as `evaluator_fn` (the production pattern
+in `scripts/nn/play_match.py`: `evaluator_config=model, evaluator_fn=nn_evaluator_differential`). Three
+things to understand:
 
-- **Terminal states are special.** At `BEFORE_SCORING` `evaluate_leaf` returns `e(state, 0)` directly
-  rather than subtracting (at terminal `e1 = −e0`, so subtracting would double-count). This relies on the
-  evaluator returning a P0-frame *margin* at terminal — which the heuristic evaluators (`evaluate_hubris_*`)
-  do exactly, via the shared `_terminal_margin_value` helper (the *true* score margin). Note the evaluators
-  differ here: `nn_evaluator_differential` does **not** special-case `BEFORE_SCORING`, so at terminal it
-  returns the NN's *predicted* margin, not the exact score. Both satisfy the "P0-frame margin" contract; only
-  the heuristic is exact at terminal.
-- **`leaf_differential`** (default `True`) controls mid-game framing. `True` returns the zero-sum margin
-  `e(s,0) − e(s,1)`. `False` returns just `e(s,0)` — used in **two** distinct cases: (a) an evaluator tuned
-  as a single-player scorer, where the subtraction would amplify biases rather than cancel them; and (b),
-  the production NN case, an evaluator that is *already* a differential and returns a P0-frame margin from
-  the single `e(s,0)` call (`nn_evaluator_differential` is antisymmetric by construction, so subtracting
-  `e(s,1)` would double it). `play_match.py` sets `leaf_differential=False` for exactly reason (b).
+- **Terminal states use the exact score, not the evaluator.** At `BEFORE_SCORING`, `evaluate_leaf` returns
+  the true game margin `score(s, 0) − score(s, 1)` directly, **independent of `evaluator_fn`**. The outcome
+  is freely computable at game-end, so the search never asks the evaluator to *guess* it — which also means a
+  value net can't mis-predict the terminal (an NN leaf whose descent reaches a terminal endpoint still gets
+  the exact score here). The `evaluator_fn` path is taken only mid-game.
+- **The evaluator returns a margin from one call.** Mid-game the leaf is `evaluator_fn(state, 0)` — a single
+  call, no in-leaf subtraction. The default `evaluate_hubris_v3_differential` is the V3 evaluator wrapped to
+  return `e(s,0) − e(s,1)` (a P0-frame margin, antisymmetric by construction); an NN leaf passes
+  `nn_evaluator_differential` (2-pass, lower variance) or `nn_evaluator` (1-pass, faster), both already
+  P0-frame margins. (The old `leaf_differential` flag — which made the leaf difference a *single-player*
+  evaluator itself — was **removed**; the evaluator now owns the margin convention. See §13.)
 - **`leaf_value_scale`** (default `1.0`, a no-op for V3) divides every leaf value before backprop, so leaf
   values feed UCB/PUCT on a unit-ish scale and one `c_uct` is comparable across evaluators of different
   magnitude. For an NN leaf, pass the model's measured value scale (`getattr(model, "value_scale", 1.0)`).
@@ -894,7 +891,7 @@ layout*.
 2. `ChooseSubAction("build_fences")` while `PendingFarmRedevelopment` is on top — Farm Redevelopment's
    optional fencing step.
 
-(Spec note: `MCTS_DESIGN.md` calls trigger 2 `"fences"`; the engine actually emits `"build_fences"`, and
+(Spec note: `design_docs/MCTS_DESIGN.md` calls trigger 2 `"fences"`; the engine actually emits `"build_fences"`, and
 the code follows the engine — §13.)
 
 **`expand_macros`** replaces each trigger with its generated macros, creates the macro **child nodes
@@ -936,7 +933,12 @@ chain-body predicate being "`PendingBuildFences` (PBF) is on top of the stack":
    uses `self.heuristic`, a turn-lookahead `EvaluatorAgent` bound to the search's *own* `evaluator_fn` (so
    greedy fences are played with the same value function as the leaf — V3 by default, the NN under an NN
    leaf, never a hardcoded V3); **random** macros pick uniformly over `legal_actions_fn`. The loop exits
-   when PBF pops (its `Stop`), the game ends, or the decider hands off.
+   when PBF pops (its `Stop`), the game ends, or the decider hands off. **Optionally**, if a
+   `macro_policy_fn` is set on the search, *every* attempt instead **samples** its next fence action from
+   that policy (`_sample_fence_action`, proportional to the prior, with a uniform fallback when the policy
+   puts no mass on the legal set) rather than running the greedy value-net rollout — one head-forward per
+   step instead of N value-forwards. This is a knob **distinct from** the PUCT `policy_fn`: it only *seeds*
+   the candidate macros that plain UCB then chooses among (selection stays UCB, not PUCT).
 3. **Exit / wrapper drain** (`_drain_wrapper`). For trigger 1 only, auto-step through the outer
    `PendingFencing`'s remaining singletons (its mandatory `Stop`) so the recorded macro ends with control
    fully handed off — no leftover singleton for MCTS to burn a simulation on. Trigger 2 does **not** drain:
@@ -945,8 +947,9 @@ chain-body predicate being "`PendingBuildFences` (PBF) is on top of the stack":
 
 The greedy macro is attempt 0 (label `"greedy"`); random macros are attempts 1.. (labels `"random_0"`,
 `"random_1"`, … in *added* order), bounded by `max_attempts = max(1, n_random_fencing)*3 + 1` so a state
-with few distinct layouts doesn't loop forever. If a chain runs all the way to game end, the endpoint is
-terminal and `evaluate_leaf` handles it with no special case.
+with few distinct layouts doesn't loop forever. (Under a `macro_policy_fn` there is no greedy rollout —
+every attempt samples the policy, and the labels are `"policy_0"`, `"policy_1"`, ….) If a chain runs all the
+way to game end, the endpoint is terminal and `evaluate_leaf` handles it with no special case.
 
 The entry/body/exit decomposition (and the `direct_pbf` distinction between the two triggers) is detail that
 the design doc only sketches; the code is authoritative here.
@@ -962,7 +965,7 @@ def __call__(self, state):
         return self._pending_macro_actions.pop(0)
     root = self.search.find_or_create_node(state)
     self.search.re_root(root)
-    for _ in range(self.sims_per_move):
+    for _ in range(self.sims_per_move):             # or `while root.visits < sims_per_move` if cap_total_sims (§11.1)
         self._simulate(root)
     action = self._select_action_with_temperature(root)
     if isinstance(action, MacroFencingAction):
@@ -1038,6 +1041,17 @@ moves that fall under the new root are **retained**. Across a 2-player game an a
 re-roots roughly every 2 plies; a shared agent re-roots every ply. Macro replay (§9.2) skips re-rooting
 entirely until the chain drains.
 
+**`cap_total_sims` (default off).** Because tree reuse means a re-rooted node arrives with *inherited*
+visits from the previous search, the normal loop — `for _ in range(sims_per_move): _simulate(root)` —
+spends `sims_per_move` *fresh* sims on top of whatever was inherited, so the effective per-decision budget
+varies move to move. With `cap_total_sims=True` the loop becomes `while root.visits < sims_per_move:
+_simulate(root)`, capping the **total** root visit count (inherited + fresh) at `sims_per_move` (each
+`_simulate` adds exactly one root visit, so it always terminates; if the inherited count already meets the
+cap, zero fresh sims run). This equalizes the effective search budget per decision — its purpose is removing
+the tree-reuse confound when comparing UCT vs PUCT, since a peaked PUCT tree inherits more effective sims at
+re-rooted nodes than a flatter UCT tree. It is policy-agnostic (identical for UCT and PUCT) and is the mode
+the search-tournament driver (`scripts/run_search_tournament.py`) and the web UI's MCTS seat use.
+
 ### 11.2 The three sharing modes
 
 `MCTSSearch` owns the tree, `MCTSAgent` owns the move loop — the split enables three configurations:
@@ -1076,8 +1090,8 @@ For PUCT, supply a `policy_fn` and switch fencing to `FLATTEN` (and typically th
 The prior can be `uniform_policy` (the placeholder), or a trained combiner from
 `build_combined_policy.build("unweighted")` / `build("awr")` (§5.3) — and `policy_fn=None` is just UCT.
 The leaf evaluator below is the production NN wiring — note the model is passed *as `evaluator_config`*, the
-adapter is `nn_evaluator_differential`, `leaf_differential=False` (the adapter already returns a P0-frame
-margin, §6), and the **explicit** strict legality wrapper is built with `evaluator=` the NN ranker so its
+adapter is `nn_evaluator_differential` (which already returns a P0-frame margin, so the leaf calls it once,
+§6), and the **explicit** strict legality wrapper is built with `evaluator=` the NN ranker so its
 harvest-feed cap ranks with the NN, not a hardcoded V3 (§7). Swap `legal_actions_fn` to
 `restricted_legal_actions` to run PUCT over regular legality:
 
@@ -1087,8 +1101,7 @@ search = MCTSSearch(
     legal_actions_fn=make_strict_restricted_legal_actions(   # feed-cap ranks with the NN, not V3 (§7)
         rng=rng, evaluator=lambda s, p: nn_evaluator_differential(s, p, model)),
     evaluator_config=model,                  # the NN model rides in the config slot
-    evaluator_fn=nn_evaluator_differential,  # already a margin -> leaf_differential=False
-    leaf_differential=False,
+    evaluator_fn=nn_evaluator_differential,  # already a P0-frame margin -> leaf calls it once (§6)
     leaf_value_scale=getattr(model, "value_scale", 1.0),
     policy_fn=build("unweighted"),           # build()/load_policy_fn per §5.3; or uniform_policy / None(=UCT)
     fence_mode=FenceMode.FLATTEN,            # required when policy_fn is set
@@ -1122,13 +1135,13 @@ table is not cleanly pickleable across processes.
 | Parameter | Default | Meaning |
 |---|---|---|
 | `legal_actions_fn` | strict-restricted, RNG-bound (V3 feed-cap from `evaluator_config`) | Legality wrapper for every consultation (§7). Pass `restricted_legal_actions` for PUCT; for an NN leaf pass an explicit strict wrapper built with `evaluator=<nn ranker>` so the feed cap ranks with the NN, not V3 (§7). |
-| `evaluator_fn` | `evaluate_hubris_v3` | The value black box `(state, player, config) -> float` (§6). |
+| `evaluator_fn` | `evaluate_hubris_v3_differential` | The value black box `(state, player, config) -> float`; **must return a P0-frame margin** (§6). |
 | `evaluator_config` | `DEFAULT_CONFIG_V3` | Third arg threaded into `evaluator_fn` (so it **carries the NN model** in the NN wiring, §6) and, for the *default* legality wrapper, the V3 config for the harvest-feed cap (§7). |
 | `heuristic` | turn-lookahead `EvaluatorAgent` bound to `evaluator_fn` (V3 by default) | Plays the **greedy** fence macro with the *same* value function as the leaf — the NN under an NN leaf, not a hardcoded V3 (§9). |
 | `n_random_fencing` | `4` | Random fence macros per trigger, in addition to 1 greedy (`MACRO` only). |
-| `leaf_differential` | `True` | Mid-game leaf = `e(s,0)−e(s,1)` vs `e(s,0)` only (§6). |
 | `leaf_value_scale` | `1.0` | Divide leaf value before backprop; set to the NN's value scale for `c_uct` comparability (§6). |
 | `policy_fn` | `None` | `None` → UCT; set → PUCT (§5). Requires `FenceMode.FLATTEN`. |
+| `macro_policy_fn` | `None` | Optional fence-chain **sampler** (distinct from the PUCT `policy_fn`): when set, greedy macro-fencing is replaced by sampling chains from `(state, legal) -> {a: p}` — cheaper than the value-net greedy rollout; selection stays pure UCB. `MACRO` mode only (§9.1). |
 | `fence_mode` | `FenceMode.MACRO` | `MACRO` (UCT) / `FLATTEN` (PUCT) / `SEQUENCE_PRIOR` (raises) (§9). |
 | `rng_seed` | `0` | Seeds `search.rng` (macro sampling, all selection/chance tiebreaks). |
 
@@ -1140,6 +1153,7 @@ table is not cleanly pickleable across processes.
 | `c_uct` | `1.4` | Exploration constant; reused as `c_puct` in PUCT — **calibrate against `leaf_value_scale`**. |
 | `fpu_offset` | `0.0` | FPU reduction for unvisited children; meaningful in PUCT, near-inert in UCT (§5.1). |
 | `action_selection_temperature` | `0.2` | Visit-count softmax temperature for the played move (§10). |
+| `cap_total_sims` | `False` | Cap *total* root visits (inherited + fresh) at `sims_per_move` instead of running that many fresh sims; equalizes the per-decision budget under tree reuse (§11.1). |
 | `rng_seed` | `0` | Seeds `self.rng` (top-level played-move sampling only). |
 
 ---
@@ -1171,11 +1185,17 @@ table is not cleanly pickleable across processes.
 
 **Design-vs-code notes (where this doc follows the code):**
 
+- **`leaf_differential` was removed.** The leaf no longer differences a single-player evaluator; the
+  `evaluator_fn` itself must return a P0-frame margin (the default is now `evaluate_hubris_v3_differential`),
+  and terminal leaves use the exact `score()` margin regardless of evaluator (§6). The old flag's two
+  use-cases — single-player scorers, and the already-differential NN — both collapse into "the evaluator
+  owns the margin convention." Older design records (`design_docs/MCTS_DESIGN.md`, `design_docs/POLICY_PUCT_DESIGN.md`) and the C-era
+  experiment logs still mention the flag.
 - **Forced-move step-through makes UCT *not* byte-identical** to a pre-step-through engine. This is
   intentional (V queried only at real decisions/terminals) and applies to both modes.
 - **FPU in UCT is largely a defensive guard.** The UCT path expands all unvisited children first, so
   `_select_via_ucb`'s `child.visits == 0` branch and `parent.visits > 0` fallback are dead in steady state;
-  `fpu_offset` matters in PUCT, not UCT (§5.1). (`MCTS_DESIGN.md` frames FPU as avoiding the sweep — the
+  `fpu_offset` matters in PUCT, not UCT (§5.1). (`design_docs/MCTS_DESIGN.md` frames FPU as avoiding the sweep — the
   code does not.)
 - **Trigger-2 action name is `"build_fences"`**, not `"fences"` as the design doc reads (§9.1); the engine
   emits `"build_fences"`.
@@ -1189,5 +1209,5 @@ table is not cleanly pickleable across processes.
 
 *Companion docs: `ENGINE_IMPLEMENTATION.md` (the `step`/`legal_actions`/pending-stack/decider machinery this
 search drives), `RULES.md` (game rules), and `nn_models/REGISTRY.md` (which value/policy checkpoints exist).
-`MCTS_DESIGN.md` and `POLICY_PUCT_DESIGN.md` are the historical design records — superseded by this file for
+`design_docs/MCTS_DESIGN.md` and `design_docs/POLICY_PUCT_DESIGN.md` are the historical design records — superseded by this file for
 understanding the code, retained for rationale and provenance.*

@@ -86,7 +86,7 @@ Web UI: `python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3
 
 `agricola/agents/mcts.py` ships `MCTSAgent` / `MCTSSearch` / `MCTSNode` / `MacroFencingAction`. Vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation (no rollouts) + macro-enumeration for Fencing + strict-restricted legality. See **`MCTS_DESIGN.md`** for the full design and **`agricola/agents/mcts.py`** for the implementation.
 
-`MCTSSearch` accepts `evaluator_fn`, `heuristic`, and `leaf_differential` parameters so the same scaffold can run with V1 or V3 as the leaf evaluator, and with single-player vs differential leaf semantics.
+`MCTSSearch` accepts `evaluator_fn` and `heuristic` parameters so the same scaffold can run with V1, V3, or an NN as the leaf evaluator. The `evaluator_fn` must return a P0-frame margin (the old `leaf_differential` flag was removed; the evaluator now owns the margin convention, and terminal leaves use the exact `score()` margin).
 
 **Current empirical finding:** at 200-500 sims with vanilla UCT and the project's V1 / V3 heuristics as leaf evaluators, MCTS **loses 3-5 points** vs the same heuristic used standalone (e.g. MCTS-V1 vs V1-heuristic = −3.88 at 500 sims; MCTS-V3-ported vs V3-ported-heuristic = −5.58 at 200 sims). The +2.5-3 lift seen against the old (drifted) v3_best was MCTS partially compensating for V3's weakness, not absolute value.
 
