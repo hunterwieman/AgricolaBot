@@ -49,7 +49,8 @@ MCTS turns a fixed compute budget into one move. Given the current `GameState`, 
 one node, evaluates it, and folds the result back up the path it took. The simulations accumulate
 **visit counts** and **value estimates** on the tree's nodes. After the budget is spent, the agent
 plays a move drawn from the root's visit counts (§10). No simulation plays the game to its end — each
-one bottoms out in a cheap *value estimate* of a single leaf state (§1.3).
+one bottoms out in a cheap *value estimate* of a single **leaf**: the node where that simulation stops
+descending and is scored — a node is a "leaf" only until a later simulation expands past it (§1.3).
 
 The whole agent is three objects (§2):
 
@@ -143,7 +144,7 @@ chance routing, backprop — and `policy_fn=None` is the toggle. The policy itse
 Two different action orderings often reach the *same* `GameState` (action-commutativity within and
 across turns). Rather than duplicate them, the search keys nodes by state in a **transposition table**
 (`MCTSSearch.transpositions: dict[GameState, MCTSNode]`), so each unique state has exactly one node and
-its statistics aggregate over all paths that reach it. The tree is therefore a **DAG** — a node can have
+its statistics aggregate over all paths that reach it. The tree is therefore a **DAG** (directed acyclic graph) — a node can have
 multiple parents. `GameState` is already hashable, so this is a dict lookup.
 
 Backprop is nonetheless **path-only**: a simulation walks back up exactly the path it descended (the
@@ -167,6 +168,14 @@ P0 nodes add `+value`, P1 nodes add `−value`. This is the canonical zero-sum c
 node's `mean_q` read "how good is this state for the player about to move," which is exactly what the
 selection rule needs. When a parent reads a child whose decider differs, it flips the sign (§5).
 
+*Worked example.* A simulation descends `root` (P0 to move) → `child` (P1 to move) → a leaf the evaluator
+scores at **+5** in P0's frame (P0 is ahead). Backprop walks that path: the leaf and `root` are P0-frame
+nodes, so each adds `+5` to its `value_sum`; `child` is a P1-frame node, so it adds `−5` (the very same
+position is "−5" seen from P1). Later, when `root` ranks its children by UCB, it reads `child`'s mean — a
+P1-frame number — and flips it back to `+` before comparing. Storing each node in its own frame and
+flipping on read are two faces of the one rule: every `mean_q` answers "how good for the player about to
+move *here*."
+
 A chance node is given the frame label `decider = 0` (not a real player) so this same `+value` / sign-flip
 math works unchanged; its "nature" meaning is carried by a separate `is_chance` flag (§1.7, §8).
 
@@ -187,7 +196,7 @@ hidden future, so a reveal state becomes a **chance node** (`MCTSNode.is_chance 
 - It is on the simulation `path` (it accumulates visits/value), but a simulation always descends *past*
   it to a real post-reveal decision (or terminal) node and evaluates there.
 
-Why plain chance nodes (and not determinization / ISMCTS)? Because the hidden order is symmetric (neither
+Why plain chance nodes (and not determinization / ISMCTS — Information Set MCTS)? Because the hidden order is symmetric (neither
 player knows it), exogenous (nature's shuffle, not a function of any private choice), revealed identically
 to both, and uniform over outcomes — under those conditions the information set is observer-independent and
 ISMCTS collapses onto ordinary MCTS with chance nodes. So plain chance nodes are exactly correct and the
@@ -686,7 +695,7 @@ head structure, masking, score-the-set scoring, dispatch by decision type, and r
 **inside** `policy_fn`; `mcts.py` never inspects it. Untrained decision types fall back to uniform inside
 the policy, so a partial policy works with zero search changes. There is **no** default policy — the
 `MCTSSearch` default is `policy_fn=None`, which selects UCT. `uniform_policy` (defined in this module) is a
-provided c0 placeholder you pass *explicitly* to exercise the PUCT machinery before a trained policy
+provided placeholder you pass *explicitly* to exercise the PUCT machinery before a trained policy
 exists; it is not wired in automatically. A *trained* `policy_fn` comes from the behavioral-cloning combiner
 — `agricola.agents.nn.policy.load_policy_fn(checkpoints)`, or the convenience wrapper
 `scripts/nn/build_combined_policy.build(variant)` with `variant ∈ {"unweighted", "awr"}` (plain
