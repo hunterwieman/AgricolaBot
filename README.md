@@ -19,7 +19,7 @@ On top of the engine sits a stack of AI agents you can play against in the brows
 | `hubris` | Round-2 CMA-ES-tuned V1 heuristic. |
 | `hubris_v3` | Larger ~250-parameter heuristic, iteratively tuned via block-coordinate descent. The strongest heuristic agents. |
 | `nn` | Trained value network used as a 1-turn-lookahead evaluator (value-only, terminal-margin target). **The strongest agent to date**. |
-| `mcts` | Vanilla UCT + FPU + DAG with transpositions + macro-enumeration for Fencing, using the trained NN as its leaf evaluator. Amplifies the NN with tree search; stronger with more simulations, at the cost of speed. (Legality and greedy fence-layout generation still use the V3 heuristic.) |
+| `mcts` | Vanilla UCT + FPU + DAG with transpositions + macro-enumeration for Fencing, using the trained NN as its leaf evaluator. Amplifies the NN with tree search; stronger with more simulations, at the cost of speed. (V3-free: the NN also drives the greedy fence layouts and the strict-legality feed-cap ranking.) |
 
 Cards, occupation/minor-improvement support, and the AlphaZero-style training loop are future work.
 

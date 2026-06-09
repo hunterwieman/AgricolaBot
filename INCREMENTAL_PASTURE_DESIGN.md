@@ -1,12 +1,12 @@
 # Incremental Pasture Decomposition — Design Doc (jumping-off point)
 
 > **Status: NOT STARTED — design sketch only.** This is the detailed write-up of S9's "option 2
-> (incremental update)" in `POSSIBLE_SPEEDUPS.md`. It captures the idea, the concrete hooks already
+> (incremental update)" in `SPEEDUPS.md`. It captures the idea, the concrete hooks already
 > in the code, and the correctness concerns that make it a session of its own rather than a quick
 > patch. It is intentionally a starting point, not a finished plan — several pieces are flagged as
 > open.
 >
-> **Read first:** the S9 entry in `POSSIBLE_SPEEDUPS.md` (motivation + the memoization alternative),
+> **Read first:** the S9 entry in `SPEEDUPS.md` (motivation + the memoization alternative),
 > and `agricola/pasture.py` (`compute_pastures_from_arrays`, the function being replaced/augmented).
 
 ---
@@ -196,7 +196,8 @@ regardless.
 3. **Resolve C1** — either prove no incidental pockets in the active universe, or implement the
    local reachability check.
 4. **Implement 4a/4b** behind a toggle (mirror `opt_config.py` so it's A/B-profilable and
-   default-off until proven byte-identical, exactly like the frontier opts).
+   default-off until proven byte-identical — as the frontier opts were during bring-up, before they
+   were flipped default-on).
 5. **Profile** against the flood-fill + the memoized version on the MCTS workload.
 
 ---
@@ -219,7 +220,7 @@ regardless.
   `_execute_build_stable` (~775).
 - `agricola/fences.py` — `compute_new_fence_edges`, the pasture-shape universe.
 - `agricola/state.py:44` — the `Farmyard.pastures` cache + caller-discipline comment.
-- `POSSIBLE_SPEEDUPS.md` — S9 (this item) and S7 (the landed fence-scan cache, distinct path).
+- `SPEEDUPS.md` — S9 (this item) and S7 (the landed fence-scan cache, distinct path).
 - `FRONTIER_OPT_DESIGN.md` / `tests/test_frontier_opt.py` — the toggle + cross-level equivalence
   testing pattern to copy.
 - `PROFILING.md` — the MCTS profile that ranks this #1 self-time.

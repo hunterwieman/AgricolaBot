@@ -742,7 +742,7 @@ def _legal_pasture_commits_compute(farmyard, wood, subdivision_started):
 def _legal_pasture_commits_cached(farmyard, wood, subdivision_started):
     """Projection-keyed cache (S7 / FENCE_SCAN_CACHE) of the legal pasture-commit
     scan. Pure over (farmyard, wood, subdivision_started); see
-    POSSIBLE_SPEEDUPS.md S7 and FRONTIER_OPT_DESIGN.md §7. Key changes (i.e.
+    SPEEDUPS.md S7 and FRONTIER_OPT_DESIGN.md §7. Key changes (i.e.
     invalidation) on: plow, build-rooms, build-fences, any wood change.
     `active_universe(...)` clears this cache on entry/exit so it stays correct
     under universe swaps.

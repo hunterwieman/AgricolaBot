@@ -1,10 +1,114 @@
-# Engine Profiling — Findings and Recommendations
+# Profiling — where the time goes
 
-Item C from POSSIBLE_NEXT_STEPS.md. Profiles `legal_actions` and `step` across three workloads to identify hot paths before MCTS scaling exposes them as bottlenecks. Date: 2026-05-21.
+Profiling findings for the engine + agent. **The current, authoritative picture is
+the "Current profile — Production MCTS-NN PUCT" section directly below** — read it
+to understand where time goes in the code today. Older profiles (random-play
+Workloads A/B/C and the V3-leaf MCTS profile) are kept under **Archived profiles**
+for provenance; they predate the current optimizations and do **not** reflect the
+production NN-leaf PUCT path.
 
-**No engine code was modified.** This document is observations and recommendations.
+See **`SPEEDUPS.md`** for the optimizations these profiles motivated (implemented +
+potential).
 
-For the methodology and prefab states, see `scripts/profile_engine.py` and `scripts/profile_states.py`. Re-run with `python scripts/profile_engine.py` (full) or `--no-profile` (wall-clock only).
+---
+
+## Current profile — Production MCTS-NN PUCT (2026-06)
+
+**The workload that matters for data generation:** MCTS with a trained NN value net
+as the leaf evaluator + the 9-head combined policy as the PUCT prior
+(`FenceMode.FLATTEN`, single-pass `nn_evaluator`), 160 sims/move. This is the first
+profile of the *actual* data-gen path — every older (archived) profile used the V3
+heuristic leaf, which has a completely different cost shape.
+
+Re-run: `~/miniconda3/bin/python scripts/profile_mcts_nn.py --sims 160 --max-moves 40 --single-pass`
+(direct cost attribution) · `--cprofile` (function breakdown) · `--wall-only --repeats N`
+(paired wall A/B, e.g. via `git stash`).
+
+### Headline
+
+**~78 ms/move at 160 sims, single-thread** (min-of-5; the laptop is noisy — see
+*Measurement notes*). Scaling: a full self-play game (~140 decisions) ≈ ~11 s at
+160 sims; AlphaZero-grade 400–800 sims is ~30–55 s/game single-thread — so
+**process parallelism is the throughput multiplier** (one game/worker, `threads=1`).
+
+### Where the wall goes (direct cost attribution)
+
+Measured by wrapping the cost-bearing callables in one PUCT run — no PUCT-vs-UCT or
+config confound, **models in `eval()` mode (as in production)**. The rows are a
+**non-overlapping** split of wall time (so they sum to ~100%); `encode_state` is
+broken out separately as a *subset* of the two NN rows (not added in). Shares are
+stable across runs (unlike the absolute wall):
+
+| component | ~% wall | notes |
+|---|---:|---|
+| NN value leaf (`evaluator_fn`) | ~25% | one forward per sim (eval-mode; dropout off) |
+| NN policy prior (`policy_fn`) | ~26% | one head-forward per newly-expanded multi-option node |
+| ↳ *of which* `encode_state` | ~10% | a *subset* of the two NN rows; after S10–S13 (was ~27% pre-optimization) |
+| engine `step` | ~13% | game transition |
+| `legal_actions_fn` (per-node enumeration) | ~12% | |
+| search bookkeeping + state construction (the rest) | ~23% | diffuse — see below |
+
+So **NN inference (value + policy) is ~half the wall**, and the **engine + search
+machinery** (`step` + legality enumeration + the diffuse bookkeeping in the last
+row) is the other ~half. (Pre-optimization, in *train* mode, the value leaf was a
+larger ~33% share — eval mode makes its forward cheaper.)
+
+### Session result: ~2× (paired, single-pass, min-of-5)
+
+| | per move |
+|---|---:|
+| session start (HEAD) | 157.5 ms |
+| now | 77.7 ms |
+| **speedup** | **~2.0×** |
+
+From five byte-identical / behavior-preserving optimizations (S5 cached `__hash__`,
+S10–S13 encoder + device cache) plus a policy-prior correctness fix. Details:
+`SPEEDUPS.md` Part 1.
+
+### The engine remainder is diffuse
+
+After S5 there is **no single hotspot** — it's interpreter overhead spread across
+the per-sim tree descent. Largest pieces: `fast_replace` (state construction — the
+one substantive piece), PUCT-selection bookkeeping (`_select_via_puct` + `dict.get`),
+and legality enumeration. Hashing — formerly *the* hotspot — is now small (S5 cut it
+~5×). No clean lever without a structural change.
+
+### Flood-fill (`compute_pastures_from_arrays`) is NOT a factor here
+
+Absent from the production cProfile's top 200. The old "#1 self-time" (4.8 s in the
+archived V3-leaf profile) was **MACRO-fencing-specific** — greedy value-net rollouts
+exploring huge fence-sequence counts. FLATTEN PUCT barely builds fences. So
+`SPEEDUPS.md` S9 (incremental flood-fill) is not worth pursuing for this path.
+
+---
+
+## Measurement notes (read before trusting numbers)
+
+- **Wall-clock is noisy on the dev laptop (±~50% under load).** Identical work
+  (same seed, same code) varied ~3.1–5.0 s run-to-run. Use **min-of-N**, and for
+  comparisons either **pair by seed** (a behavior-preserving change keeps the same
+  trajectory, so same-seed before/after is a clean A/B — that's how the ~2× was
+  measured, via `git stash`) or interleave runs in one process. Single-run wall
+  deltas below ~10% are noise.
+- **cProfile `tottime` overstates high-call-count tiny functions.** Its per-call
+  instrumentation overhead dominates them — `_can_afford` showed **18 µs/call**
+  under cProfile but **0.32 µs** in a clean micro-bench (~50×). Use cProfile for the
+  *ranking of what's called a lot*, but **confirm any per-call cost with a
+  micro-bench** before optimizing.
+- **Run the models in `eval()`.** `*.load()` leaves models in TRAIN mode; un-eval'd
+  models fire dropout (noisy NN outputs + inflated timings). `scripts/profile_mcts_nn.py`
+  and `play_mcts_match` eval both the value net and the policy heads.
+
+---
+
+## Archived profiles
+
+> The sections below predate the current optimizations and the production NN-leaf
+> PUCT path. Kept for provenance — **not** a guide to the current code; use the
+> Current profile above. The original item-C random-play study (Workloads A/B/C +
+> recommendations R1–R6) ran via `scripts/profile_engine.py` / `profile_states.py`;
+> the V3-leaf MCTS profile is at the bottom. (Original date: 2026-05-21; "No engine
+> code was modified" applied to that study.)
 
 ---
 
@@ -232,7 +336,7 @@ heuristic data-gen games, future card games); they just don't move *this* MCTS w
    (`_v3_resources_contribution`, `_v3_clip_index`), or move to the NN evaluator (the AlphaZero
    direction anyway).
 2. `compute_pastures_from_arrays` — 4.8 s, one BFS per fence-build commit → incremental/memoized
-   update (POSSIBLE_SPEEDUPS.md **S9**).
+   update (SPEEDUPS.md **S9**).
 3. State plumbing — `fast_replace` (S4 per-shape replacers) and `hash` (S5 cached `__hash__` /
    S6 Zobrist, targeting the 27M transposition-table hash calls).
 

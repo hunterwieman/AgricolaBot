@@ -32,6 +32,7 @@ Contents:
 11. Tree reuse, the three sharing modes, and running it
 12. Configuration reference
 13. Invariants, edge cases, and design-vs-code notes
+14. Speedups — how the performance work fits the search (NN leaf, hashing, encoder)
 
 It assumes familiarity with the engine's two-function API (`legal_actions(state)`, `step(state,
 action)`), the frozen-`GameState` model, the pending-decision stack, and the **decider rule** — all in
@@ -145,7 +146,8 @@ Two different action orderings often reach the *same* `GameState` (action-commut
 across turns). Rather than duplicate them, the search keys nodes by state in a **transposition table**
 (`MCTSSearch.transpositions: dict[GameState, MCTSNode]`), so each unique state has exactly one node and
 its statistics aggregate over all paths that reach it. The tree is therefore a **DAG** (directed acyclic graph) — a node can have
-multiple parents. `GameState` is already hashable, so this is a dict lookup.
+multiple parents. `GameState` is already hashable, so this is a dict lookup — and that hash is **cached**
+(it was the search's #1 self-time before; §14).
 
 Backprop is nonetheless **path-only**: a simulation walks back up exactly the path it descended (the
 local `path` list), not every parent of every node it touched. A shared node still accumulates correctly
@@ -291,7 +293,7 @@ Owns the tree and all search-level configuration. One `MCTSSearch` = one tree.
 ```python
 class MCTSSearch:
     def __init__(self, *,
-        legal_actions_fn=None,       # default: strict-restricted, bound to this search's RNG
+        legal_actions_fn=None,       # default: mode-aware — full legal_actions under PUCT, strict-restricted under UCT (§7/§12)
         evaluator_config=None,       # 3rd arg to evaluator_fn (V3 config, or the NN model itself); default DEFAULT_CONFIG_V3
         evaluator_fn=None,           # (state, player_idx, config) -> float; MUST return a P0-frame margin; default evaluate_hubris_v3_differential
         heuristic=None,              # plays GREEDY fence macros; default = EvaluatorAgent bound to evaluator_fn (V3 by default)
@@ -333,7 +335,7 @@ class MCTSAgent:
     def __init__(self, search, *,
         sims_per_move=500, c_uct=1.4, fpu_offset=0.0,
         action_selection_temperature=0.2, rng_seed=0,
-        cap_total_sims=False,        # cap TOTAL root visits (incl. inherited) vs run that many fresh sims (§11.1)
+        cap_total_sims=True,         # default True: cap TOTAL root visits (incl. inherited) vs run that many fresh sims (§11.1)
     ):
         self.search = search
         ...
@@ -541,9 +543,11 @@ each node's `visits`. The freshly created leaf is on the path, so its visit coun
 > **These numbers are guesses, not measurements.** They are order-of-magnitude estimates carried over
 > from the design notes (design_docs/MCTS_DESIGN.md §5.0), never profiled fresh — and the design doc itself flagged
 > them as coarse. The fence-macro row especially is unverified and may be well off. **Trust the *ratios*
-> (descent ≪ expansion ≈ leaf-eval ≪ fence-macro), not the absolute figures.** For the only real
-> measurements see `PROFILING.md` (which finds the leaf evaluator and the pasture-decomposition BFS to be
-> the actual hot spots).
+> (descent ≪ expansion ≈ leaf-eval ≪ fence-macro), not the absolute figures.** They are also the
+> *V3-heuristic-leaf* shape; the **production NN-leaf PUCT** workload looks different (no fence-macro row
+> under FLATTEN, the hash row now cached, the leaf split into encode + NN forward). For real measurements
+> and how the landed optimizations remap this table, see **§14** and the current production profile in
+> `PROFILING.md`.
 
 The loop mixes sub-microsecond bookkeeping with a few genuinely expensive calls (V3 heuristic leaf; an NN
 leaf shifts the EVALUATE row):
@@ -553,7 +557,7 @@ leaf shifts the EVALUATE row):
 | `node.children[action]` dict lookup, UCB/PUCT arithmetic per child, `path.append` | sub-µs | every descent step |
 | `node._legal_actions` field read (after cache filled) | ~10 ns | every descent step |
 | `step(state, action)` (engine transition) | ~10 µs | once per new node |
-| `find_or_create_node` (hashes `GameState`) | ~26 µs when hashed; ~10 ns if already in table | once per new node |
+| `find_or_create_node` (hashes `GameState`) | ~~26 µs when hashed~~ now cheap — hash is cached (§14) | once per new node |
 | `_compute_legal_actions` (`strict_restricted_legal_actions`) | ~30 µs | once per node, lazy on first touch |
 | `evaluate_leaf` (V3 heuristic margin) | ~50–100 µs | once per simulation, at the leaf |
 | fence-macro generation (1 greedy + ≤4 random chains) | ~tens–hundreds of ms | once per node exposing a fence trigger (§9) |
@@ -722,6 +726,10 @@ keeps the policy forward pass strictly off those nodes. A future *shared* value+
 populate the prior at leaf-eval time, paired with the value in one trunk pass; the interface is built so
 that change is additive (it is not implemented today).
 
+Two performance/correctness notes on `policy_fn`, both in §14: the policy heads must run in **`eval()`
+mode** (the combiner `make_policy_fn` now ensures this — un-eval'd heads gave *nondeterministic* priors),
+and the encoder memo lets the policy's per-state encode be **shared with the value leaf** at decider-0 nodes.
+
 ### 5.4 What the two rules share
 
 Both selection rules sit inside the same `_simulate` machinery: the DAG / transposition table, the P0-frame
@@ -769,12 +777,17 @@ things to understand:
 `evaluate_leaf` is **never** called on a chance node (§8) — the descent always passes through reveals to a
 real decision/terminal node.
 
+**Performance.** An NN leaf's cost is encode + forward, both heavily optimized — and there is one thing the
+search depends on the *caller* for: the model must be in **`eval()` mode** (`evaluate_leaf` does not eval it;
+a TRAIN-mode model fires dropout → noisy leaf values). See §14.
+
 ---
 
 ## 7. Legality and action pruning
 
-Every legality consultation in the search routes through `self.search.legal_actions_fn`, defaulting to a
-**strict-restricted** wrapper bound to the search's RNG. `_compute_legal_actions` builds the per-node cache:
+Every legality consultation in the search routes through `self.search.legal_actions_fn`, whose default is
+**mode-aware** (§12): the engine's full unrestricted `legal_actions` under PUCT, a **strict-restricted**
+wrapper (RNG-bound) under UCT. `_compute_legal_actions` builds the per-node cache:
 
 ```python
 def _compute_legal_actions(self):
@@ -798,8 +811,10 @@ resolve — today only `lessons` (no card system). It is the same filter the age
 use; it widens automatically as new spaces land. (It lives under `tests/` and is imported lazily inside the
 hot methods — a quirk worth knowing, §13.)
 
-**The legality wrapper.** The default is `strict_restricted_legal_actions`, which layers four MCTS-specific
-collapses on top of the regular `restricted_legal_actions` wrapper. Both are pure functions over the
+**The legality wrapper.** The default is **mode-aware** (§12): under UCT it is
+`strict_restricted_legal_actions`; under PUCT it is the engine's **full, unrestricted** `legal_actions`
+(the policy is the sole prune — see the §7 closing paragraph). The strict wrapper layers four
+MCTS-specific collapses on top of the regular `restricted_legal_actions` wrapper. Both are pure functions over the
 engine's unrestricted `legal_actions(state)` (the engine is never modified), both are inert at empty-stack
 worker-placement decisions, and both route every filter through a `_safe_narrow` guard so a filter can never
 empty a non-empty action set (the always-≥1 invariant). The regular wrapper applies strategic priors
@@ -830,10 +845,12 @@ callable `(state, player_idx) -> float`. If omitted, the wrapper builds the **de
   exactly this under `--leaf nn`. (Passing `config=DEFAULT_CONFIG_V3` instead keeps a valid V3-ranked cap,
   but reintroduces a small V3 component into an otherwise-NN search.)
 
-The net effect is a small branching factor at sub-action chains, so in-tree search of non-fencing chains
-stays cheap. **PUCT deliberately switches to the *regular* wrapper** (passed in as `legal_actions_fn`) and
-soft-prunes via the prior instead, because several strict collapses become lossy once cards exist; that is a
-caller choice (§12), not a search-level one.
+The net effect (under UCT) is a small branching factor at sub-action chains, so in-tree search of
+non-fencing chains stays cheap. **PUCT instead takes the engine's *full, unrestricted* `legal_actions`**
+(the mode-aware default when `policy_fn` is set, §12) and soft-prunes **entirely via the prior** — this is
+`make_policy_fn`'s contract that "the prune lives entirely in the policy," so a wrapper here would
+double-prune and hide actions the prior is meant to weigh. (The strict collapses also turn lossy once cards
+exist, so dropping them under PUCT is the right call regardless.)
 
 ---
 
@@ -974,7 +991,7 @@ def __call__(self, state):
         return self._pending_macro_actions.pop(0)
     root = self.search.find_or_create_node(state)
     self.search.re_root(root)
-    for _ in range(self.sims_per_move):             # or `while root.visits < sims_per_move` if cap_total_sims (§11.1)
+    while root.visits < self.sims_per_move:         # cap_total_sims default; `for _ in range(sims)` if False (§11.1)
         self._simulate(root)
     action = self._select_action_with_temperature(root)
     if isinstance(action, MacroFencingAction):
@@ -1050,16 +1067,16 @@ moves that fall under the new root are **retained**. Across a 2-player game an a
 re-roots roughly every 2 plies; a shared agent re-roots every ply. Macro replay (§9.2) skips re-rooting
 entirely until the chain drains.
 
-**`cap_total_sims` (default off).** Because tree reuse means a re-rooted node arrives with *inherited*
-visits from the previous search, the normal loop — `for _ in range(sims_per_move): _simulate(root)` —
-spends `sims_per_move` *fresh* sims on top of whatever was inherited, so the effective per-decision budget
-varies move to move. With `cap_total_sims=True` the loop becomes `while root.visits < sims_per_move:
-_simulate(root)`, capping the **total** root visit count (inherited + fresh) at `sims_per_move` (each
-`_simulate` adds exactly one root visit, so it always terminates; if the inherited count already meets the
-cap, zero fresh sims run). This equalizes the effective search budget per decision — its purpose is removing
-the tree-reuse confound when comparing UCT vs PUCT, since a peaked PUCT tree inherits more effective sims at
-re-rooted nodes than a flatter UCT tree. It is policy-agnostic (identical for UCT and PUCT) and is the mode
-the search-tournament driver (`scripts/run_search_tournament.py`) and the web UI's MCTS seat use.
+**`cap_total_sims` (default True).** Because tree reuse means a re-rooted node arrives with *inherited*
+visits from the previous search, the default caps the **total** root visit count: the loop is
+`while root.visits < sims_per_move: _simulate(root)`, so the effective per-decision budget is constant
+regardless of how much was inherited (each `_simulate` adds exactly one root visit, so it always
+terminates; if the inherited count already meets the cap, zero fresh sims run). With `cap_total_sims=False`
+(the legacy behavior) the loop is instead `for _ in range(sims_per_move): _simulate(root)` — `sims_per_move`
+*fresh* sims on top of whatever was inherited, so the effective budget varies move to move. Capping removes
+the tree-reuse confound (a peaked PUCT tree inherits more effective sims at re-rooted nodes than a flatter
+UCT tree); it is policy-agnostic (identical for UCT and PUCT) and is also the mode the search-tournament
+driver (`scripts/run_search_tournament.py`) and the web UI's MCTS seat use.
 
 ### 11.2 The three sharing modes
 
@@ -1107,8 +1124,8 @@ harvest-feed cap ranks with the NN, not a hardcoded V3 (§7). Swap `legal_action
 ```python
 search = MCTSSearch(
     rng_seed=0,
-    legal_actions_fn=make_strict_restricted_legal_actions(   # feed-cap ranks with the NN, not V3 (§7)
-        rng=rng, evaluator=lambda s, p: nn_evaluator_differential(s, p, model)),
+    # legal_actions_fn omitted → PUCT's mode-aware default: full, unrestricted legal_actions,
+    # so the policy prior is the sole prune (§7/§12). (Pass an explicit strict wrapper for UCT.)
     evaluator_config=model,                  # the NN model rides in the config slot
     evaluator_fn=nn_evaluator_differential,  # already a P0-frame margin -> leaf calls it once (§6)
     leaf_value_scale=getattr(model, "value_scale", 1.0),
@@ -1143,7 +1160,7 @@ table is not cleanly pickleable across processes.
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `legal_actions_fn` | strict-restricted, RNG-bound (V3 feed-cap from `evaluator_config`) | Legality wrapper for every consultation (§7). Pass `restricted_legal_actions` for PUCT; for an NN leaf pass an explicit strict wrapper built with `evaluator=<nn ranker>` so the feed cap ranks with the NN, not V3 (§7). |
+| `legal_actions_fn` | **mode-aware**: PUCT → full unrestricted `legal_actions`; UCT → strict-restricted (RNG-bound, leaf-evaluator feed-cap) | Legality wrapper for every consultation (§7). Under PUCT the default enumerates the **full** set and lets the prior do all the pruning (`make_policy_fn`'s contract); under UCT it stays strict (no prior to soft-prune). Override with an explicit callable either way. |
 | `evaluator_fn` | `evaluate_hubris_v3_differential` | The value black box `(state, player, config) -> float`; **must return a P0-frame margin** (§6). |
 | `evaluator_config` | `DEFAULT_CONFIG_V3` | Third arg threaded into `evaluator_fn` (so it **carries the NN model** in the NN wiring, §6) and, for the *default* legality wrapper, the V3 config for the harvest-feed cap (§7). |
 | `heuristic` | turn-lookahead `EvaluatorAgent` bound to `evaluator_fn` (V3 by default) | Plays the **greedy** fence macro with the *same* value function as the leaf — the NN under an NN leaf, not a hardcoded V3 (§9). |
@@ -1162,8 +1179,24 @@ table is not cleanly pickleable across processes.
 | `c_uct` | `1.4` | Exploration constant; reused as `c_puct` in PUCT — **calibrate against `leaf_value_scale`**. |
 | `fpu_offset` | `0.0` | FPU reduction for unvisited children; meaningful in PUCT, near-inert in UCT (§5.1). |
 | `action_selection_temperature` | `0.2` | Visit-count softmax temperature for the played move (§10). |
-| `cap_total_sims` | `False` | Cap *total* root visits (inherited + fresh) at `sims_per_move` instead of running that many fresh sims; equalizes the per-decision budget under tree reuse (§11.1). |
+| `cap_total_sims` | `True` | Cap *total* root visits (inherited + fresh) at `sims_per_move` instead of running that many fresh sims; equalizes the per-decision budget under tree reuse (§11.1). Set `False` for the legacy "always run `sims_per_move` *fresh* sims" behavior. On a fresh tree (move 1) the two are identical. |
 | `rng_seed` | `0` | Seeds `self.rng` (top-level played-move sampling only). |
+
+**Recommended PUCT / production (self-play data-gen) config.** With the mode-aware
+defaults above, a production PUCT setup is mostly "set `policy_fn` + `fence_mode`, take
+the rest of the defaults":
+
+- `policy_fn` = the combined BC heads (`scripts/nn/build_combined_policy.build("unweighted")`
+  or `"awr"`); `fence_mode = FenceMode.FLATTEN` (required whenever a policy is set).
+- `evaluator_fn = nn_evaluator` (single-pass), `evaluator_config = <the NN model>`,
+  `leaf_value_scale = model.value_scale` (§6).
+- `legal_actions_fn` — **leave default** (full, no restriction; the policy is the sole
+  prune). `cap_total_sims` — **leave default** (`True`).
+- Tune `c_uct` / `sims_per_move`; set `action_selection_temperature` for the desired
+  self-play exploration (this shapes the π target).
+- **The caller must `eval()` the value model** (§6, §14); `make_policy_fn` already
+  `eval()`s the policy heads. Run under `python -O` with `torch.set_num_threads(1)` per
+  worker; `opt_config` caches are on by default (§14 / `SPEEDUPS.md`).
 
 ---
 
@@ -1213,6 +1246,60 @@ table is not cleanly pickleable across processes.
   "implemented" across the agent layer.
 - **Heuristic dependencies are lazy-imported** (`_lazy_*` shims) so `import agricola.agents.mcts` stays
   cheap and avoids agent-module load-order coupling.
+
+---
+
+## 14. Speedups — how the performance work fits the search
+
+The performance optimizations are catalogued in **`SPEEDUPS.md`** (each one's what / why / where) and
+measured in **`PROFILING.md`** (the current *production* profile — an NN value leaf + multi-head policy
+PUCT, the workload that matters for data generation). This section maps that work onto the search concepts
+above, so you know which optimization touches which part of the algorithm. They are all behavior-preserving
+(the policy-eval fix in point 3 is the one correctness change), so none of them alter *what the search
+computes* — only how fast.
+
+**The production leaf is a neural net, not V3.** Everything below assumes the data-gen configuration: an NN
+value leaf (§6) + a trained `policy_fn` (§5.3), PUCT with `FenceMode.FLATTEN`. Its cost shape differs
+completely from the V3-heuristic-leaf assumptions in the cost cheat-sheet (§4) — use PROFILING.md, not the
+cheat-sheet, for real numbers.
+
+1. **The transposition-table hash (§1.5, §3.1).** Keying nodes by `GameState` makes hashing a hot path —
+   `find_or_create_node` hashes every state it looks up or inserts, and a frozen `GameState`'s default hash
+   recurses through the whole nested tree. It was the **#1 self-time** until cached (`SPEEDUPS.md` S5): each
+   state dataclass memoizes its hash, and because `step` shares most of a state's sub-objects *by reference*
+   (the engine's `fast_replace`), a child state's hash reuses its parents' cached sub-hashes. The
+   cheat-sheet's "~26 µs when hashed" row (§4) is now obsolete.
+
+2. **The value black box (§6) — encode + forward.** An NN leaf's cost is encoding the state plus the
+   forward pass. The encoder is heavily optimized (`SPEEDUPS.md` S10–S13: a `stop_is_legal` short-circuit,
+   an index-writer rewrite, a swap-aware per-state memo, a device-query cache). The forward pass itself is
+   near the CPU floor, but the search **depends on the caller** for one thing: the model must be in
+   **`eval()` mode**. `evaluate_leaf` only *calls* `evaluator_fn`; it does not eval the model. A TRAIN-mode
+   value net fires dropout on every leaf → noisy leaf values. `scripts/play_mcts_match.py` and `NNAgent`
+   eval before search; a new caller must too.
+
+3. **The policy black box (§5.3) — eval mode + a shared encode.** Same eval-mode requirement, but here it
+   was a real **bug**: the policy heads loaded in TRAIN mode, so `policy_fn` returned **nondeterministic
+   priors** (same state → priors differing ~0.05 per call). Fixed in `make_policy_fn`, which now `eval()`s
+   the heads at assembly (`SPEEDUPS.md` "Inference eval()"). And the lazy-prior design this doc emphasizes
+   (§5.3) compounds with the encoder memo: `_ensure_priors` computes each node's prior **once**, and the
+   per-state memo (S12) lets the policy's perspective-0 encode **reuse the value leaf's encode** at decider-0
+   nodes (deriving perspective-1 by a cheap block-swap), so the two black boxes share encoding work.
+
+4. **The per-node legality cache (§7).** `_compute_legal_actions` runs the legality wrapper **once per
+   unique node**; every later selection reads the cached `_legal_actions` field — the search-level
+   memoization §7 already describes. That is why the wrapper's cost is paid per node, not per visit. (PUCT
+   takes the full, unrestricted `legal_actions` and soft-prunes entirely via the prior, §7/§12.)
+
+5. **What is NOT a cost in the production path.** Two things the cheat-sheet (§4) and older profiles flag as
+   expensive do **not** apply to NN-leaf PUCT: **fence-macro generation** (§9) is MACRO-mode only — FLATTEN
+   never runs it — and the **pasture-decomposition BFS** (`compute_pastures_from_arrays`), the #1 self-time
+   in the old V3-leaf MACRO profile, is cold here (FLATTEN PUCT barely builds fences). See `SPEEDUPS.md` S9.
+
+**Headline (PROFILING.md).** Together these landed a **~2× per-move speedup** on the production workload,
+whose wall splits roughly **half NN inference / half engine+search**; the engine half is *diffuse* (no
+single hotspot left after the hash cache). The next lever, if more is needed, is **leaf-batching** of the NN
+forwards (a `_simulate`-level change), not further micro-optimization — `SPEEDUPS.md` Part 2.
 
 ---
 

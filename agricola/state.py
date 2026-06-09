@@ -7,6 +7,46 @@ from agricola.constants import SPACE_IDS, SPACE_INDEX, CellType, HouseMaterial, 
 from agricola.resources import Animals, Resources
 
 
+# ---------------------------------------------------------------------------
+# Lazily-cached __hash__ for the hot state dataclasses
+# ---------------------------------------------------------------------------
+#
+# These frozen dataclasses form a deep nested tree (GameState → players →
+# farmyard → grid …) and are the keys of the MCTS transposition table, so they
+# are hashed enormously often — the #1 self-time in the production NN-leaf PUCT
+# profile (PROFILING.md). The default frozen `__hash__` re-hashes the whole tree
+# every call; but most transitions change one small field and SHARE the rest of
+# the tree by reference (see fast_replace). So we memoize each object's hash
+# lazily and let a parent's hash reuse its unchanged children's cached hashes.
+#
+# Correctness: these objects are immutable (frozen), so a cached hash can never
+# go stale — there is no sync invariant (CLAUDE.md "derived data" S5 / the
+# projection-keyed exception). The cache lives in `__dict__["_hash_cache"]` via
+# object.__setattr__ (no __slots__ here). It is NOT a dataclass field, so it is
+# invisible to the generated __eq__/__repr__. Each class below keeps the
+# generated __eq__ and supplies a matching __hash__ (same field tuple, same
+# order → identical hash values, just memoized).
+#
+# `__hash__` is defined in the class BODY, which @dataclass(frozen=True) leaves
+# intact (has_explicit_hash → the decorator adds no __hash__ of its own).
+
+def _getstate_without_hash_cache(self):
+    """Pickle state excluding the memoized hash (`_hash_cache`).
+
+    The cached hash incorporates Python's per-process seed-randomized hashing
+    of strings/enums, so it MUST NOT cross a process boundary — training loads
+    pickles produced by data-gen workers. Stripping it here makes the loading
+    process recompute a fresh, correct hash on first use (restoring the
+    pre-cache cross-process behavior). The default `__dict__.update` restore
+    path handles the trimmed dict, so no matching __setstate__ is needed.
+    """
+    d = self.__dict__
+    if "_hash_cache" in d:
+        d = dict(d)
+        d.pop("_hash_cache")
+    return d
+
+
 @dataclass(frozen=True)
 class Cell:
     cell_type: CellType = CellType.EMPTY
@@ -43,6 +83,16 @@ class Farmyard:
     # dataclasses.replace.
     pastures: tuple = ()  # tuple[Pasture, ...], canonically ordered
 
+    def __hash__(self):  # see "Lazily-cached __hash__" note above
+        h = self.__dict__.get("_hash_cache")
+        if h is None:
+            h = hash((self.grid, self.horizontal_fences,
+                      self.vertical_fences, self.pastures))
+            object.__setattr__(self, "_hash_cache", h)
+        return h
+
+    __getstate__ = _getstate_without_hash_cache
+
 
 @dataclass(frozen=True)
 class ActionSpaceState:
@@ -61,6 +111,16 @@ class ActionSpaceState:
     accumulated_amount: int = 0
 
     revealed: bool = False  # True once the card is turned up (permanents: True from setup)
+
+    def __hash__(self):  # see "Lazily-cached __hash__" note above
+        h = self.__dict__.get("_hash_cache")
+        if h is None:
+            h = hash((self.workers, self.accumulated,
+                      self.accumulated_amount, self.revealed))
+            object.__setattr__(self, "_hash_cache", h)
+        return h
+
+    __getstate__ = _getstate_without_hash_cache
 
 
 @dataclass(frozen=True)
@@ -102,6 +162,19 @@ class PlayerState:
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
 
+    def __hash__(self):  # see "Lazily-cached __hash__" note above
+        h = self.__dict__.get("_hash_cache")
+        if h is None:
+            h = hash((self.resources, self.animals, self.farmyard,
+                      self.house_material, self.people_total, self.people_home,
+                      self.newborns, self.begging_markers, self.future_resources,
+                      self.minor_improvements, self.occupations,
+                      self.harvest_conversions_used))
+            object.__setattr__(self, "_hash_cache", h)
+        return h
+
+    __getstate__ = _getstate_without_hash_cache
+
 
 @dataclass(frozen=True)
 class BoardState:
@@ -120,6 +193,15 @@ class BoardState:
     # live here — it is held in the Environment (agricola/environment.py).
     # BoardState carries only common knowledge; a space's `revealed` bool says
     # whether its card is up, never which future round an unrevealed card lands.
+
+    def __hash__(self):  # see "Lazily-cached __hash__" note above
+        h = self.__dict__.get("_hash_cache")
+        if h is None:
+            h = hash((self.action_spaces, self.major_improvement_owners))
+            object.__setattr__(self, "_hash_cache", h)
+        return h
+
+    __getstate__ = _getstate_without_hash_cache
 
 
 def get_space(board: BoardState, space_id: str) -> ActionSpaceState:
@@ -153,3 +235,14 @@ class GameState:
     # See CLAUDE.md Phase 1 (the pending-decision stack) for the concept;
     # ENGINE_IMPLEMENTATION.md §2 for the full mechanics.
     pending_stack: tuple = ()  # tuple[PendingDecision, ...]
+
+    def __hash__(self):  # see "Lazily-cached __hash__" note above
+        h = self.__dict__.get("_hash_cache")
+        if h is None:
+            h = hash((self.round_number, self.phase, self.current_player,
+                      self.starting_player, self.players, self.board,
+                      self.pending_stack))
+            object.__setattr__(self, "_hash_cache", h)
+        return h
+
+    __getstate__ = _getstate_without_hash_cache

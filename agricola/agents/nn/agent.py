@@ -32,8 +32,8 @@ import numpy as np
 import torch
 
 from agricola.agents.base import EvaluatorAgent, LegalActionsFn
-from agricola.agents.nn.encoder import encode_state
-from agricola.agents.nn.model import NormalizedValueModel
+from agricola.agents.nn.encoder import encode_for_inference
+from agricola.agents.nn.model import NormalizedValueModel, model_device
 from agricola.constants import Phase
 from agricola.scoring import score, tiebreaker
 
@@ -98,9 +98,9 @@ def nn_evaluator(state, player_idx: int, model: NormalizedValueModel) -> float:
     """
     if state.phase == Phase.BEFORE_SCORING:
         return _terminal_value(state, player_idx, model)
-    features = encode_state(state, player_idx)
+    features = encode_for_inference(state, player_idx)
     x = torch.from_numpy(features).unsqueeze(0)  # (1, 170)
-    device = next(model.parameters()).device
+    device = model_device(model)
     if x.device != device:
         x = x.to(device)
     return float(model.predict_margin(x).item())
@@ -135,10 +135,10 @@ def nn_evaluator_differential(
     """
     if state.phase == Phase.BEFORE_SCORING:
         return _terminal_value(state, player_idx, model)
-    f0 = encode_state(state, 0)
-    f1 = encode_state(state, 1)
+    f0 = encode_for_inference(state, 0)
+    f1 = encode_for_inference(state, 1)  # cheap: swap of the cached f0
     x = torch.from_numpy(np.stack([f0, f1], axis=0))  # (2, 170)
-    device = next(model.parameters()).device
+    device = model_device(model)
     if x.device != device:
         x = x.to(device)
     margins = model.predict_margin(x)  # shape (2,) — margin in P0 / P1 frames

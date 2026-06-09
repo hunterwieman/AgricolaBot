@@ -449,13 +449,27 @@ class EvaluatorAgent:
 class HeuristicAgent(EvaluatorAgent):
     """`EvaluatorAgent` specialized to hand-crafted heuristic evaluators.
 
-    Adds no behavior — it exists to name the hand-crafted-evaluator family
-    (`SimpleHeuristic`, `HubrisHeuristicV1/V2/V3`, which subclass it) and to
-    keep that family distinct from the learned-evaluator `NNAgent`, which
-    inherits the same `EvaluatorAgent` base directly rather than posing as a
-    heuristic. All action-selection semantics live in `EvaluatorAgent`.
+    Names the hand-crafted-evaluator family (`SimpleHeuristic`,
+    `HubrisHeuristicV1/V2/V3`, which subclass it) and keeps that family distinct
+    from the learned-evaluator `NNAgent`, which inherits `EvaluatorAgent`
+    directly rather than posing as a heuristic. All action-selection semantics
+    live in `EvaluatorAgent`.
+
+    The one behavior it adds: **the default `legal_actions_fn` is
+    `strict_restricted_legal_actions`**, not the engine's unrestricted set. The
+    heuristics are used for evaluation (head-to-head benchmarking) — and no
+    longer for MCTS leaves or self-play data generation — so strict legality is
+    the right default everywhere they run; pass an explicit `legal_actions_fn`
+    to override per-case. (`NNAgent` is unaffected: it isn't a `HeuristicAgent`,
+    so it keeps `EvaluatorAgent`'s unrestricted default.)
     """
-    pass
+
+    def __init__(self, *args, **kwargs):
+        if kwargs.get("legal_actions_fn") is None:
+            # Lazy import to avoid any agent-module load-order coupling.
+            from agricola.agents.restricted import strict_restricted_legal_actions
+            kwargs["legal_actions_fn"] = strict_restricted_legal_actions
+        super().__init__(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------

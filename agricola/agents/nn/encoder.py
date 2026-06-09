@@ -24,6 +24,8 @@ features is forced to zero.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 
 from agricola.agents.base import decider_of
@@ -34,6 +36,7 @@ from agricola.constants import (
     HouseMaterial,
     Phase,
     SPACE_IDS,
+    SPACE_INDEX,
 )
 from agricola.helpers import can_accommodate, cooking_rates, enclosed_cells, extract_slots
 from agricola.pending import (
@@ -100,6 +103,15 @@ _ACCUMULATION_SPACES: tuple[str, ...] = (
 # The 14 stage-card spaces are SPACE_IDS after the 11 permanent spaces.
 # (PERMANENT_ACTION_SPACES has 11 entries; the remaining 14 are stage cards.)
 _STAGE_CARD_IDS: tuple[str, ...] = SPACE_IDS[11:]
+
+# Precomputed canonical action-space indices for the fast encoder (avoids
+# per-call SPACE_INDEX dict lookups + get_space calls). The fast writer reads
+# `board.action_spaces` (canonical-ordered) directly by these indices.
+_SUBACTION_CATEGORY_INDEX: dict[str, int] = {
+    cat: i for i, cat in enumerate(_SUBACTION_CATEGORIES)
+}
+_ACCUM_INDICES: tuple[int, ...] = tuple(SPACE_INDEX[s] for s in _ACCUMULATION_SPACES)
+_STAGE_INDICES: tuple[int, ...] = tuple(SPACE_INDEX[s] for s in _STAGE_CARD_IDS)
 
 _HARVEST_PHASES = frozenset({
     Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED,
@@ -440,17 +452,230 @@ def _midaction_features(state: GameState) -> list[tuple[str, float]]:
             bits[cat] = 1.0
     feats = [(f"subaction_avail_{cat}", bits[cat]) for cat in _SUBACTION_CATEGORIES]
 
-    # stop_is_legal: deferred legality import to avoid an import cycle
-    # (legality imports widely across the engine).
-    from agricola.legality import legal_actions
-    from agricola.actions import Stop
-    stop_legal = any(isinstance(a, Stop) for a in legal_actions(state))
+    # stop_is_legal: Stop is only ever legal mid-action — it pops a pending
+    # frame, so it is never legal at an empty stack, which is exactly where the
+    # expensive `legal_placements` enumeration (all 24 placement predicates)
+    # lives. Short-circuit the empty-stack case; the non-empty case dispatches
+    # to the (cheap) top-frame sub-action enumerator. This is byte-identical to
+    # `any(Stop in legal_actions(state))` — verified over a production state
+    # corpus — but ~19x faster (stop_is_legal was ~35% of encode_state, and
+    # 86.5% of encoded states are empty-stack). See scripts/bench_stop_is_legal.py.
+    if not state.pending_stack:
+        stop_legal = False
+    else:
+        # Deferred legality import to avoid an import cycle (legality imports
+        # widely across the engine).
+        from agricola.legality import legal_actions
+        from agricola.actions import Stop
+        stop_legal = any(isinstance(a, Stop) for a in legal_actions(state))
     feats.append(("stop_is_legal", 1.0 if stop_legal else 0.0))
     return feats
 
 
 # ---------------------------------------------------------------------------
-# Public assembly
+# Fast index-based encoder (the hot path)
+# ---------------------------------------------------------------------------
+#
+# `encode_state` writes feature values straight into a preallocated float32
+# array by index, skipping the (name, value) tuple lists, the own_/opp_ name
+# prefixing, the mid-action dict, and the `np.fromiter` generator that the
+# reference `_assemble` path below builds. It is BYTE-IDENTICAL to the reference
+# (golden-tested over a state corpus in tests/test_nn_encoder.py) — the
+# reference is kept as the `feature_names()` source and the test oracle. The
+# block layout (own 0-53 | opp 54-107 | shared 108-161 | mid-action 162-169)
+# and per-feature order MUST stay in lockstep with the reference functions; the
+# golden test fails loudly on any drift.
+
+
+def _write_player_block(out, base: int, state, p, player_idx: int) -> None:
+    """Write the 54-feature player block at out[base:base+54]. Mirrors
+    `_player_features` value-for-value (see that function for semantics)."""
+    r = p.resources
+    out[base] = r.wood
+    out[base + 1] = r.clay
+    out[base + 2] = r.reed
+    out[base + 3] = r.stone
+    out[base + 4] = r.food
+
+    grain3 = grain2 = grain1 = veg2 = veg1 = empty_plowed = 0
+    for row in p.farmyard.grid:
+        for cell in row:
+            if cell.cell_type is not CellType.FIELD:
+                continue
+            if cell.grain > 0:
+                if cell.grain >= 3:
+                    grain3 += 1
+                elif cell.grain == 2:
+                    grain2 += 1
+                else:
+                    grain1 += 1
+            elif cell.veg > 0:
+                if cell.veg >= 2:
+                    veg2 += 1
+                else:
+                    veg1 += 1
+            else:
+                empty_plowed += 1
+    out[base + 5] = grain3
+    out[base + 6] = grain2
+    out[base + 7] = grain1
+    out[base + 8] = veg2
+    out[base + 9] = veg1
+    out[base + 10] = empty_plowed
+
+    out[base + 11] = r.grain
+    out[base + 12] = r.veg
+
+    caps, flex = extract_slots(p)
+    caps_sorted = sorted(caps, reverse=True)
+    for i in range(5):
+        out[base + 13 + i] = caps_sorted[i] if i < len(caps_sorted) else 0
+    out[base + 18] = flex
+
+    out[base + 19] = sum(past.num_stables for past in p.farmyard.pastures)
+
+    s, b, c = p.animals.sheep, p.animals.boar, p.animals.cattle
+    out[base + 20] = s
+    out[base + 21] = b
+    out[base + 22] = c
+
+    n_rooms = sum(
+        1 for row in p.farmyard.grid for cell in row
+        if cell.cell_type is CellType.ROOM
+    )
+    hm = p.house_material
+    out[base + 23] = n_rooms if hm is HouseMaterial.WOOD else 0
+    out[base + 24] = n_rooms if hm is HouseMaterial.CLAY else 0
+    out[base + 25] = n_rooms if hm is HouseMaterial.STONE else 0
+
+    out[base + 26] = p.people_total
+    out[base + 27] = p.people_home if state.phase is Phase.WORK else 0
+    if state.round_number in HARVEST_ROUNDS:
+        out[base + 28] = 2 * p.people_total - p.newborns
+    else:
+        out[base + 28] = 2 * p.people_total
+
+    out[base + 29] = p.begging_markers
+    enc = enclosed_cells(p.farmyard)
+    n_unused = 0
+    for ri, row in enumerate(p.farmyard.grid):
+        for ci, cell in enumerate(row):
+            if cell.cell_type is CellType.EMPTY and (ri, ci) not in enc:
+                n_unused += 1
+    out[base + 30] = n_unused
+
+    sr, br, cr, vr = cooking_rates(state, player_idx)
+    out[base + 31] = sr
+    out[base + 32] = br
+    out[base + 33] = cr
+    out[base + 34] = vr
+
+    owners = state.board.major_improvement_owners
+    for mi in range(NUM_MAJOR_IMPROVEMENTS):
+        out[base + 35 + mi] = 1.0 if owners[mi] == player_idx else 0.0
+
+    out[base + 45] = 1.0 if (s >= 2 and can_accommodate(caps, flex, s + 1, b, c)) else 0.0
+    out[base + 46] = 1.0 if (b >= 2 and can_accommodate(caps, flex, s, b + 1, c)) else 0.0
+    out[base + 47] = 1.0 if (c >= 2 and can_accommodate(caps, flex, s, b, c + 1)) else 0.0
+
+    hcu = p.harvest_conversions_used
+    out[base + 48] = 1.0 if "joinery" in hcu else 0.0
+    out[base + 49] = 1.0 if "pottery" in hcu else 0.0
+    out[base + 50] = 1.0 if "basketmaker" in hcu else 0.0
+
+    out[base + 51] = 1.0 if state.starting_player == player_idx else 0.0
+
+    if state.phase is Phase.HARVEST_BREED:
+        has_fed = 1.0
+    elif state.phase is Phase.HARVEST_FEED:
+        still_to_feed = any(
+            isinstance(f, PendingHarvestFeed) and f.player_idx == player_idx
+            for f in state.pending_stack
+        )
+        has_fed = 0.0 if still_to_feed else 1.0
+    else:
+        has_fed = 0.0
+    out[base + 52] = has_fed
+
+    out[base + 53] = sum(fr.food for fr in p.future_resources)
+
+
+def _write_shared_block(out, base: int, state, player_idx: int) -> None:
+    """Write the 54-feature shared/board block at out[base:base+54]. Mirrors
+    `_shared_features` value-for-value."""
+    board = state.board
+    spaces = board.action_spaces            # canonical-ordered, SPACE_INDEX-keyed
+    rn = state.round_number
+
+    out[base] = rn
+    out[base + 1] = 1.0 if decider_of(state) == player_idx else 0.0
+    out[base + 2] = 1.0 if state.phase in _HARVEST_PHASES else 0.0
+    upcoming = [h - rn for h in HARVEST_ROUNDS if h >= rn]
+    out[base + 3] = min(upcoming) if upcoming else 0.0
+
+    # Accumulation amounts (10): inline `_accum_amount`.
+    for i, sidx in enumerate(_ACCUM_INDICES):
+        sp = spaces[sidx]
+        res = sp.accumulated
+        out[base + 4 + i] = (
+            res.wood + res.clay + res.reed + res.stone
+            + res.food + res.grain + res.veg + sp.accumulated_amount
+        )
+
+    # Stage cards revealed (14).
+    for i, sidx in enumerate(_STAGE_INDICES):
+        out[base + 14 + i] = 1.0 if spaces[sidx].revealed else 0.0
+
+    # Space available now (25): SPACE_IDS order == canonical action_spaces order.
+    for i, sp in enumerate(spaces):
+        out[base + 28 + i] = (
+            1.0 if (sp.revealed and sp.workers[0] == 0 and sp.workers[1] == 0)
+            else 0.0
+        )
+
+    out[base + 53] = 1.0 if state.phase is Phase.BEFORE_SCORING else 0.0
+
+
+def _write_midaction_block(out, base: int, state) -> None:
+    """Write the 8-feature mid-action block at out[base:base+8]. Mirrors
+    `_midaction_features` (subaction_available OR-ed across the stack +
+    the empty-stack-guarded `stop_is_legal`)."""
+    out[base:base + 7] = 0.0
+    for frame in state.pending_stack:
+        for cat in _frame_subaction_categories(frame):
+            out[base + _SUBACTION_CATEGORY_INDEX[cat]] = 1.0
+
+    if not state.pending_stack:
+        out[base + 7] = 0.0
+    else:
+        from agricola.legality import legal_actions
+        from agricola.actions import Stop
+        out[base + 7] = (
+            1.0 if any(isinstance(a, Stop) for a in legal_actions(state)) else 0.0
+        )
+
+
+_TERMINAL_ZERO_IDX = None
+
+
+def _terminal_zero_indices() -> np.ndarray:
+    """Indices of features forced to 0 at a terminal state (§4.5), derived once
+    from `feature_names()` + `_TERMINAL_ZERO_NAMES` so it can never drift from
+    the reference's name-based zeroing."""
+    global _TERMINAL_ZERO_IDX
+    if _TERMINAL_ZERO_IDX is None:
+        names = feature_names()
+        idx = [
+            i for i, n in enumerate(names)
+            if n in _TERMINAL_ZERO_NAMES or n.startswith("subaction_avail_")
+        ]
+        _TERMINAL_ZERO_IDX = np.array(idx, dtype=np.intp)
+    return _TERMINAL_ZERO_IDX
+
+
+# ---------------------------------------------------------------------------
+# Reference assembly (feature_names source + golden-test oracle for the fast
+# encoder above). NOT on the hot path.
 # ---------------------------------------------------------------------------
 
 def _assemble(state: GameState, player_idx: int) -> list[tuple[str, float]]:
@@ -489,15 +714,19 @@ def encode_state(state: GameState, player_idx: int) -> np.ndarray:
 
     Returns a numpy array (NOT a torch tensor); the training pipeline
     converts with `torch.from_numpy`.
+
+    This is the fast index-writer path (byte-identical to the reference
+    `_assemble` + `np.fromiter`, golden-tested). Block layout: own (0-53),
+    opp (54-107), shared (108-161), mid-action (162-169).
     """
-    pairs = _assemble(state, player_idx)
-    vec = np.fromiter((v for _, v in pairs), dtype=np.float32, count=len(pairs))
-    assert vec.shape[0] == ENCODED_DIM, (
-        f"encode_state produced {vec.shape[0]} features, expected "
-        f"{ENCODED_DIM}. Feature-list drift — update ENCODED_DIM and bump "
-        f"ENCODING_VERSION if this is an intentional schema change."
-    )
-    return vec
+    out = np.empty(ENCODED_DIM, dtype=np.float32)
+    _write_player_block(out, 0, state, state.players[player_idx], player_idx)
+    _write_player_block(out, 54, state, state.players[1 - player_idx], 1 - player_idx)
+    _write_shared_block(out, 108, state, player_idx)
+    _write_midaction_block(out, 162, state)
+    if state.phase is Phase.BEFORE_SCORING:
+        out[_terminal_zero_indices()] = 0.0
+    return out
 
 
 def feature_names(state: GameState | None = None) -> list[str]:
@@ -509,3 +738,71 @@ def feature_names(state: GameState | None = None) -> list[str]:
         from agricola.setup import setup
         state = setup(0)
     return [name for name, _ in _assemble(state, 0)]
+
+
+# ---------------------------------------------------------------------------
+# Cached, swap-aware encoding for MCTS NN inference (value leaf + policy prior)
+# ---------------------------------------------------------------------------
+#
+# In MCTS every node is encoded for the value leaf (always perspective 0) and,
+# if later expanded, for the policy prior (perspective = decider). Two wins over
+# calling `encode_state` directly each time:
+#   1. Fold the value/policy double-encode at decider-0 nodes (reuse enc(s,0)).
+#   2. Derive the decider-1 policy encoding enc(s,1) from enc(s,0) by a cheap
+#      block-swap + one bit-flip instead of a full re-encode — and likewise
+#      halve the differential value evaluator's two encodes if it is re-enabled.
+#
+# This is projection-keyed memoization of a pure function — the key IS the input
+# (a now-cheaply-hashable GameState), so a stale entry is impossible (CLAUDE.md
+# "derived data, not cached data" → the preferred low-risk caching form).
+# `encode_state` itself (the training-data path, version-pinned) is untouched.
+
+# Block layout (FIRST_NN.md §4): own(54) | opp(54) | shared(54) | midaction(8).
+# The own/opp split and the two perspective-relevant feature indices are
+# validated against feature_names() + a swap-equivalence golden test
+# (tests/test_nn_encoder.py); a wrong constant fails that test loudly.
+_OWN_OPP_SPLIT = 54
+_OPP_END = 108
+_CURRENT_PLAYER_IS_OWN_IDX = 109
+_GAME_END_IDX = 161
+
+
+def swap_perspective(enc: np.ndarray) -> np.ndarray:
+    """Return `enc` re-framed from the opposite player's perspective.
+
+    `encode_state(s, 1) == swap_perspective(encode_state(s, 0))` for every state
+    (golden-tested): the two 54-feature player blocks swap, the mid-action and
+    every other shared feature is perspective-invariant, and only
+    `current_player_is_own` flips — except at a terminal state, where that bit
+    is already zeroed for both perspectives (`game_end_indicator` set), so no
+    flip is applied. Returns a fresh array (never the input)."""
+    out = enc.copy()
+    out[:_OWN_OPP_SPLIT] = enc[_OWN_OPP_SPLIT:_OPP_END]
+    out[_OWN_OPP_SPLIT:_OPP_END] = enc[:_OWN_OPP_SPLIT]
+    if enc[_GAME_END_IDX] == 0.0:
+        out[_CURRENT_PLAYER_IS_OWN_IDX] = 1.0 - enc[_CURRENT_PLAYER_IS_OWN_IDX]
+    return out
+
+
+@lru_cache(maxsize=1 << 14)
+def _encode_p0(state: GameState) -> np.ndarray:
+    """Perspective-0 encoding, memoized per state (cheap key — `GameState`
+    caches its hash). The returned array is treated as READ-ONLY by all callers
+    (it is fed straight into `torch.from_numpy`); never mutate it in place."""
+    return encode_state(state, 0)
+
+
+def encode_for_inference(state: GameState, player_idx: int) -> np.ndarray:
+    """Cached, swap-aware encoder for the MCTS NN value leaf + policy prior.
+
+    Byte-identical to `encode_state(state, player_idx)`, but reuses the memoized
+    perspective-0 encoding and derives perspective 1 via `swap_perspective`.
+    Perspective-1 results are fresh arrays; the perspective-0 result is the
+    shared cached array (read-only — see `_encode_p0`)."""
+    e0 = _encode_p0(state)
+    return e0 if player_idx == 0 else swap_perspective(e0)
+
+
+def clear_encoding_cache() -> None:
+    """Drop the `_encode_p0` memo (test isolation / between-run hygiene)."""
+    _encode_p0.cache_clear()

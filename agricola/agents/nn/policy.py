@@ -49,7 +49,7 @@ from agricola.actions import (
     Stop,
 )
 from agricola.agents.base import LegalActionsFn, decider_of
-from agricola.agents.nn.encoder import encode_state
+from agricola.agents.nn.encoder import encode_for_inference
 from agricola.agents.nn.policy_heads import (
     BUILD_LABEL,
     BUILD_STOP_HEAD,
@@ -58,6 +58,7 @@ from agricola.agents.nn.policy_heads import (
     STOP_LABEL,
     DecisionHead,
 )
+from agricola.agents.nn.model import model_device
 from agricola.agents.nn.policy_model import NormalizedPolicyModel
 from agricola.agents.restricted import (
     PLOW_PRIORITY,
@@ -114,8 +115,8 @@ def policy_prior(
         return NO_PRIOR
 
     mask = torch.from_numpy(head.legal_mask(state, legal_actions_fn)).unsqueeze(0)
-    x = torch.from_numpy(encode_state(state, decider_of(state))).unsqueeze(0)
-    device = next(model.parameters()).device
+    x = torch.from_numpy(encode_for_inference(state, decider_of(state))).unsqueeze(0)
+    device = model_device(model)
     probs = model.policy_probs(x.to(device), mask.to(device))[0].cpu()
     return {a: float(probs[i]) for a, i in candidates}
 
@@ -152,9 +153,9 @@ def pointer_prior(
     if not pairs:
         return NO_PRIOR
 
-    state_enc = encode_state(state, decider_of(state))
+    state_enc = encode_for_inference(state, decider_of(state))
     cand = np.stack([f for _, f in pairs]).astype(np.float32)
-    device = next(model.parameters()).device
+    device = model_device(model)
     probs = model.candidate_probs(
         torch.from_numpy(state_enc).to(device),
         torch.from_numpy(cand).to(device),
@@ -192,8 +193,8 @@ def _build_stop_probs(state, model, legal_actions_fn) -> tuple[float, float]:
     {build, stop} at a multi-shot Build Rooms / Build Stables decision."""
     head = BUILD_STOP_HEAD
     mask = torch.from_numpy(head.legal_mask(state, legal_actions_fn)).unsqueeze(0)
-    x = torch.from_numpy(encode_state(state, decider_of(state))).unsqueeze(0)
-    device = next(model.parameters()).device
+    x = torch.from_numpy(encode_for_inference(state, decider_of(state))).unsqueeze(0)
+    device = model_device(model)
     probs = model.policy_probs(x.to(device), mask.to(device))[0].cpu()
     return float(probs[head._index[BUILD_LABEL]]), float(probs[head._index[STOP_LABEL]])
 
@@ -258,6 +259,13 @@ def make_policy_fn(
     pointer_by_head: dict[str, tuple] = {}    # name -> (PointerHead, model)
     build_stop_model = None                    # handled specially (class→action expansion)
     for m in models:
+        # Inference mode: the head models are loaded in TRAIN mode (load() does
+        # not eval), so dropout would fire on every prior query — making the
+        # PUCT priors NON-DETERMINISTic (same state → different prior each call,
+        # ~0.05 swings) and the search noisily wrong. Assembling the policy_fn
+        # is an inference action, so eval() the models here. (The value-net leaf
+        # is eval'd by its caller, e.g. play_mcts_match / NNAgent.)
+        m.eval()
         name = getattr(m, "head_name", None)
         if name == BUILD_STOP_HEAD.name:
             build_stop_model = m

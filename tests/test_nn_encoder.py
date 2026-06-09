@@ -21,9 +21,12 @@ import pytest
 
 from agricola.agents.nn.encoder import (
     ENCODED_DIM,
+    encode_for_inference,
     encode_state,
     feature_names,
+    swap_perspective,
 )
+from agricola.agents.nn import encoder as _encoder_mod
 from agricola.constants import HouseMaterial, Phase
 from agricola.pending import (
     PendingCultivation,
@@ -415,3 +418,135 @@ def test_rounds_until_next_harvest(round_number, expected):
     s = with_round(setup(0), round_number)
     v = encode_state(s, 0)
     assert v[_idx("rounds_until_next_harvest")] == float(expected)
+
+
+# ---------------------------------------------------------------------------
+# Swap-aware inference encoder (encode_for_inference / swap_perspective)
+# ---------------------------------------------------------------------------
+
+def _random_states(n_per_seed=400, seeds=range(6)):
+    """Collect non-terminal, non-nature states from random self-play games."""
+    from agricola.agents.base import decider_of
+    from agricola.constants import Phase as _Phase
+    from agricola.engine import step
+    from agricola.legality import legal_actions
+    from agricola.setup import setup_env
+    from tests.test_utils import filter_implemented
+
+    rng = np.random.default_rng(0)
+    states = []
+    for seed in seeds:
+        s, env = setup_env(seed=seed)
+        steps = 0
+        while s.phase != _Phase.BEFORE_SCORING and steps < n_per_seed:
+            d = decider_of(s)
+            if d is None:
+                act = env.resolve(s)
+            else:
+                if d in (0, 1):
+                    states.append(s)
+                acts = filter_implemented(legal_actions(s))
+                act = acts[int(rng.integers(len(acts)))]
+            s = step(s, act)
+            steps += 1
+    return states
+
+
+def test_swap_index_constants_match_feature_names():
+    names = feature_names()
+    assert names.index("current_player_is_own") == _encoder_mod._CURRENT_PLAYER_IS_OWN_IDX
+    assert names.index("game_end_indicator") == _encoder_mod._GAME_END_IDX
+    assert _encoder_mod._OWN_OPP_SPLIT == 54 and _encoder_mod._OPP_END == 108
+
+
+def test_swap_perspective_matches_reencode_over_many_states():
+    """swap_perspective(encode(s,0)) is byte-identical to encode(s,1)."""
+    states = _random_states()
+    assert len(states) > 500  # sanity: corpus is non-trivial
+    for s in states:
+        e0 = encode_state(s, 0)
+        e1 = encode_state(s, 1)
+        assert np.array_equal(swap_perspective(e0), e1)
+        # swap is an involution back to perspective 0
+        assert np.array_equal(swap_perspective(e1), e0)
+
+
+def test_swap_perspective_returns_fresh_array():
+    s = setup(0)
+    e0 = encode_state(s, 0)
+    out = swap_perspective(e0)
+    assert out is not e0
+    before = e0.copy()
+    out[:] = 0.0
+    assert np.array_equal(e0, before)  # mutating the result must not touch input
+
+
+def test_encode_for_inference_matches_encode_state():
+    """The cached/swap-aware path equals encode_state for both perspectives."""
+    _encoder_mod.clear_encoding_cache()
+    for s in _random_states():
+        for p in (0, 1):
+            assert np.array_equal(encode_for_inference(s, p), encode_state(s, p))
+
+
+def test_encode_for_inference_cache_hits_are_consistent():
+    """Repeated calls (cache hits) return the same values as a cold call."""
+    _encoder_mod.clear_encoding_cache()
+    s = setup(3)
+    cold0 = encode_state(s, 0)
+    cold1 = encode_state(s, 1)
+    for _ in range(3):  # exercise the memo + swap repeatedly
+        assert np.array_equal(encode_for_inference(s, 0), cold0)
+        assert np.array_equal(encode_for_inference(s, 1), cold1)
+
+
+def test_encode_for_inference_terminal_state():
+    """At a terminal state both perspectives are handled (no spurious flip)."""
+    from agricola.constants import Phase as _Phase
+    s = with_phase(setup(0), _Phase.BEFORE_SCORING)
+    _encoder_mod.clear_encoding_cache()
+    for p in (0, 1):
+        assert np.array_equal(encode_for_inference(s, p), encode_state(s, p))
+
+
+# ---------------------------------------------------------------------------
+# Fast index-encoder == reference (name,value) assembler (golden)
+# ---------------------------------------------------------------------------
+
+def _reference_encode(state, player_idx):
+    """The pre-rewrite reference: build (name, value) pairs then fromiter."""
+    pairs = _encoder_mod._assemble(state, player_idx)
+    return np.fromiter((v for _, v in pairs), dtype=np.float32, count=len(pairs))
+
+
+def test_fast_encode_matches_reference_over_corpus():
+    """encode_state (fast index-writer) is byte-identical to the reference
+    (name,value) assembler over a large corpus of real game states."""
+    states = _random_states()
+    assert len(states) > 500
+    for s in states:
+        for p in (0, 1):
+            assert np.array_equal(encode_state(s, p), _reference_encode(s, p)), (
+                f"fast != reference at phase={s.phase} perspective={p}"
+            )
+
+
+def test_fast_encode_matches_reference_terminal():
+    from agricola.constants import Phase as _Phase
+    s = with_phase(setup(0), _Phase.BEFORE_SCORING)
+    for p in (0, 1):
+        assert np.array_equal(encode_state(s, p), _reference_encode(s, p))
+
+
+def test_fast_encode_matches_reference_midaction_states():
+    """Cover non-empty pending-stack states (the mid-action block + the
+    stop_is_legal branch), which the random corpus may under-sample."""
+    s = setup(0)
+    mid = [
+        with_pending_stack(s, (PendingSow(player_idx=0, initiated_by_id="grain_utilization"),)),
+        with_pending_stack(s, (PendingCultivation(player_idx=0, initiated_by_id="space:cultivation"),)),
+        with_pending_stack(s, (PendingFarmExpansion(player_idx=1, initiated_by_id="space:farm_expansion"),)),
+    ]
+    for st in mid:
+        for p in (0, 1):
+            assert np.array_equal(encode_state(st, p), _reference_encode(st, p))

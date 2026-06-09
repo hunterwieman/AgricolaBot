@@ -189,6 +189,24 @@ NET_REGISTRY: dict[str, Type[nn.Module]] = {
 }
 
 
+def model_device(model: nn.Module) -> torch.device:
+    """Cached `next(model.parameters()).device`.
+
+    The eager form walks the whole module tree (`named_modules` /
+    `_named_members`) on every call just to read the first parameter's device —
+    ~2.7 µs each, and inference calls it once per forward (value + every policy
+    head). This memoizes it directly in `model.__dict__` (bypassing
+    `nn.Module.__getattr__/__setattr__`, which are themselves slow), so repeat
+    lookups are a plain dict read. Assumes the model is not moved across devices
+    after first use — true for our CPU inference; call sites that move a model
+    must drop `model.__dict__['_cached_device']`."""
+    d = model.__dict__.get("_cached_device")
+    if d is None:
+        d = next(model.parameters()).device
+        model.__dict__["_cached_device"] = d
+    return d
+
+
 class EncodingVersionMismatch(Exception):
     """Raised when a model's `encoding_version` doesn't match the
     current `ENCODING_VERSION`. Hard-fail to prevent silent

@@ -1,6 +1,6 @@
 # Possible Next Steps
 
-A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised after Task 5C, Task 6, the harvest implementation, and the Change-8 hashability work; restructured 2026-05-21 to fold performance work (formerly items C and E) into a single pointer to POSSIBLE_SPEEDUPS.md.
+A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised after Task 5C, Task 6, the harvest implementation, and the Change-8 hashability work; restructured 2026-05-21 to fold performance work (formerly items C and E) into a single pointer to SPEEDUPS.md.
 
 636 tests passing. The engine is feature-complete for the Family game (all 14 rounds, all 6 harvests, Potter Ceramics as the one card). `GameState` is hashable. The engine has been profiled and a first wave of optimizations has landed (Change 9). Letter labels are preserved across removals so cross-references in CHANGES.md / SESSION_HISTORY.md to historical items remain valid.
 
@@ -10,9 +10,9 @@ This is a planning document, not a commitment.
 
 ## Engine performance
 
-### C. Performance work (catalog in POSSIBLE_SPEEDUPS.md)
+### C. Performance work (catalog in SPEEDUPS.md)
 
-Performance work has its own living document — **`POSSIBLE_SPEEDUPS.md`** — which catalogs specific optimization ideas, organized by what they target. The split is intentional: this file is about project *direction* (what to build next); POSSIBLE_SPEEDUPS.md is about *making existing code faster*, with the bias toward measure-before-acting.
+Performance work has its own living document — **`SPEEDUPS.md`** — which catalogs specific optimization ideas, organized by what they target. The split is intentional: this file is about project *direction* (what to build next); SPEEDUPS.md is about *making existing code faster*, with the bias toward measure-before-acting.
 
 **What's already landed (Change 9, 2026-05-21):**
 
@@ -24,18 +24,9 @@ Performance work has its own living document — **`POSSIBLE_SPEEDUPS.md`** — 
 
 See **PROFILING.md** for the methodology and headline numbers, and **CHANGES.md Change 9** for the full breakdown.
 
-**What's catalogued for future work (POSSIBLE_SPEEDUPS.md):**
+**The catalog lives in SPEEDUPS.md** — don't duplicate it here. It is restructured into **Part 1 Implemented** (every optimization in the code + why) and **Part 2 Potential next steps**. Much has **landed** since this doc was written: the `opt_config` frontier/fence caches, the cached `GameState.__hash__` (S5), and the NN-inference encoder optimizations (S10–S13) — together a **~2× MCTS per-move speedup** (see PROFILING.md's current production profile). The remaining candidates — and the *measured no-gos* (jit.trace, the encoding-keyed cache) — are in SPEEDUPS.md Part 2; the recommended next NN lever is **leaf-batching**. (The original S1–S6 list that was here is superseded: S5 landed, S1/S2 turned out cold in NN-leaf PUCT, S3 was rejected; S4/S6/S9 remain low-priority candidates in SPEEDUPS.md.)
 
-- **S1 — Anchor Pareto pruning** on `pareto_frontier` / `breeding_frontier`. The highest-ROI remaining optimization based on current profiles: `can_accommodate` + Pareto inner generators are now the dominant cost cluster (~22 ms / Workload-B run in mid/late game). Low-difficulty, few-line change.
-- **S2 — Geometric Pareto pruning.** Extends S1; defer until S1 is measured.
-- **S3 — `legal_placements` short-circuit by availability.** Avoids per-predicate function-call overhead for spaces with workers already on them. Independent quick win, ~2-4% expected.
-- **S4 — Form C per-shape replacers.** Continuation of the Change-9 `fast_replace` work — hand-written single-shape helpers for the hottest update patterns. Reach for only if `fast_replace` still dominates after S1-S3.
-- **S5 — Cached `__hash__` on hot dataclasses.** Transposition-table enabler; only worth doing once MCTS adds a content-keyed transposition layer.
-- **S6 — Zobrist-style incremental hashing.** Heavy alternative to S5; listed for completeness, probably never needed for this game's scale.
-
-Each entry in POSSIBLE_SPEEDUPS.md has an estimated speedup (with uncertainty called out), a difficulty rating, an implementation sketch, and a "when to do it" trigger. The catalog is updated as items land or as new profiling exposes new hot paths.
-
-**When to consult POSSIBLE_SPEEDUPS.md:**
+**When to consult SPEEDUPS.md:**
 
 - When profiling identifies a hot path that one of the catalogued items targets.
 - When MCTS scales up rollouts and per-action cost becomes the dominant cost.

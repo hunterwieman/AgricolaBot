@@ -5,7 +5,8 @@ self-time. Everything here is **toggleable** so each layer can be A/B-profiled a
 independently if it regresses or is ever suspected of a correctness bug.
 
 > **Status: IMPLEMENTED.** All levels are live behind `agricola/opt_config.py`
-> (`PARETO_OPT_LEVEL` 0-3, `FENCE_SCAN_CACHE`), **default off so the baseline is unchanged**. Landed:
+> (`PARETO_OPT_LEVEL` 0-3, `FENCE_SCAN_CACHE`), **now default-on** (originally default-off so the
+> baseline was unchanged; flipped to on once proven — level 0 remains the unoptimized baseline). Landed:
 > Phase 0 (`breeding_food_gained`, CLEANUP.md Cleanup 4); Phase 1 (Level-1 algorithmic); Phase 2+3
 > (Level-2 exact/clipped caches + Level-3 Φ); the S7 fence-scan cache; and the measurement harness
 > `scripts/profile_frontier_helpers.py` (§8.2). Validated by `tests/test_frontier_opt.py` (cross-level
@@ -54,7 +55,7 @@ independent fencing track:
 | `breeding_frontier` | `(pasture_capacities, num_flexible, s, b, c)` + `rates` | desired bounds derive from `(s,b,c)`; **frontier rate-independent** |
 | `harvest_feed_frontier` | `(grain, veg, sheep, boar, cattle, food_owed, rates)` | uses cooking conversion, **not** pastures; **frontier IS rate-dependent** |
 | `food_payment_frontier` | same as feed, one `paid` level | the param is *named* `food_owed`; the wrapper calls it for each `paid ∈ [0, food_owed]` |
-| fence scan | `(farmyard, wood, subdivision_started)` | see S7 in `POSSIBLE_SPEEDUPS.md` |
+| fence scan | `(farmyard, wood, subdivision_started)` | see S7 in `SPEEDUPS.md` |
 
 `pasture_capacities` is the per-pasture capacity list; `num_flexible` = standalone stables + 1
 (house pet). Both come from `extract_slots(player_state)`. `s_avail = animals.sheep +
@@ -103,10 +104,10 @@ boolean (it's a different subsystem). Put these in a small new module
 # 1 = + algorithmic fast paths (no caching)
 # 2 = + projection cache (animals: exact farm+caps; feeding: clipped outer)
 # 3 = + coarse layer (animals: Phi farm-shape; feeding: inner food_payment)
-PARETO_OPT_LEVEL: int = 0
+PARETO_OPT_LEVEL: int = 3      # default-on (0 = the unoptimized baseline)
 
 # Independent of the pareto levels (legality subsystem, not helpers).
-FENCE_SCAN_CACHE: bool = False
+FENCE_SCAN_CACHE: bool = True  # default-on
 ```
 
 Semantics (cumulative — each level includes everything below it):
@@ -231,7 +232,7 @@ dominated and skippable at emit time. (S2 geometric pruning — every confirmed-
 carves its own dominated prism, swept high-corner-first — is a further extension; defer unless
 profiling still flags `can_accommodate`.)
 
-See `POSSIBLE_SPEEDUPS.md` S1/S2 for the original framing. At Level ≥ 3 the Φ build (§6.2)
+See `SPEEDUPS.md` S1/S2 for the original framing. At Level ≥ 3 the Φ build (§6.2)
 supersedes (b) entirely — Φ generates only maximal corners by construction — so anchor pruning
 would matter only at Level 1–2.
 
@@ -406,7 +407,7 @@ wrong:
      everything" is feasible. Feeding has no such config — you must *spend* to reduce begging,
      and the minimal-spend corners trade off across goods. §5.2(a) has no feeding analog.
    - **No anchor pruning.** The "pay nothing, beg everything" config is the *worst* on the
-     `−begging` axis, so it dominates nothing (POSSIBLE_SPEEDUPS.md S1 table marks
+     `−begging` axis, so it dominates nothing (SPEEDUPS.md S1 table marks
      `harvest_feed_frontier` ✗). §5.2(b) has no feeding analog either.
    - **"Emit-only-frontier" holds only for full payment.** The rate-descending enumeration
      (§5.1) emits the exact frontier for `food_payment_frontier` (which *must* fully pay
@@ -485,7 +486,7 @@ Marginal — profile-gated.
 ## 7. Fencing-scan cache (independent track — `FENCE_SCAN_CACHE`)
 
 Same projection-cache technique applied to the fence-universe scan. Fully specified as **S7 in
-`POSSIBLE_SPEEDUPS.md`** — summarized here for completeness:
+`SPEEDUPS.md`** — summarized here for completeness:
 
 - Cache `_legal_pasture_commits(farmyard, wood, subdivision_started)` → tuple of
   `(entry, h_new_bm, v_new_bm)`. `_any_legal_pasture_commit` becomes a length check; the
@@ -595,7 +596,8 @@ Phase 2, the hit-rate measurement says whether Level 3 is worth building — if 
 
 ## 9. Implementation phasing — **all landed**
 
-Each phase shipped independently, default-off, behind `opt_config`. What actually landed:
+Each phase shipped independently, default-off, behind `opt_config` (the defaults were later flipped to
+**on** once proven). What actually landed:
 
 1. **Phase 0 — done.** `breeding_food_gained` extraction (CLEANUP.md Cleanup 4).
 2. **Phase 1 — done.** Level-1 algorithmic behind `PARETO_OPT_LEVEL >= 1`: `food_payment`
@@ -648,7 +650,7 @@ speed refinement; the naive build already amortizes per farm shape).
 | `tests/test_frontier_opt.py` (new) | cross-level equivalence + Φ unit tests + `food_payment` equivalence |
 | `scripts/profile_frontier_helpers.py` (**done**) | microbench + projection-collision profiler (§8.2); runnable today for the baseline + Phase-2/3 gate |
 | `PROFILING.md` | add an MCTS workload + record the §8.2 benchmark numbers |
-| `POSSIBLE_SPEEDUPS.md` | cross-reference this doc from S1/S2/S7 |
+| `SPEEDUPS.md` | cross-reference this doc from S1/S2/S7 |
 | `CLAUDE.md` doc index | add this doc (optional, on landing) |
 
 ---

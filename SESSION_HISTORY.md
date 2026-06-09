@@ -2002,10 +2002,10 @@ The pattern: discuss → measure → implement → re-measure → discuss again.
 Substantial doc work alongside the code:
 
 - **PROFILING.md** (new, repo root) — methodology, headline numbers, R1-R6 recommendations with corrected magnitudes.
-- **POSSIBLE_SPEEDUPS.md** (new, repo root) — living catalog of future optimizations (S1-S6), explicitly forked from the perf side of POSSIBLE_NEXT_STEPS.md so direction work and performance work can live in separate files.
+- **SPEEDUPS.md** (new, repo root) — living catalog of future optimizations (S1-S6), explicitly forked from the perf side of POSSIBLE_NEXT_STEPS.md so direction work and performance work can live in separate files.
 - **CHANGES.md Change 9** — engine performance pass, full write-up of all four landed pieces with measurement provenance.
-- **POSSIBLE_NEXT_STEPS.md** restructured — old items C (profiling) and E (Pareto pruning) folded into one new item C that points at POSSIBLE_SPEEDUPS.md with summaries; F-O unchanged.
-- **CLAUDE.md** updates: test count 613 → 636, new status-table row for the perf pass, directory-tree entries for `agricola/replace.py` and the new `scripts/` directory, new "Use `fast_replace`, not `dataclasses.replace`" Code Convention, examples in `replace_top call form` / `Variable naming` / `Parent *_chosen flags` updated to `fast_replace`. Doc table grew entries for POSSIBLE_SPEEDUPS.md and PROFILING.md.
+- **POSSIBLE_NEXT_STEPS.md** restructured — old items C (profiling) and E (Pareto pruning) folded into one new item C that points at SPEEDUPS.md with summaries; F-O unchanged.
+- **CLAUDE.md** updates: test count 613 → 636, new status-table row for the perf pass, directory-tree entries for `agricola/replace.py` and the new `scripts/` directory, new "Use `fast_replace`, not `dataclasses.replace`" Code Convention, examples in `replace_top call form` / `Variable naming` / `Parent *_chosen flags` updated to `fast_replace`. Doc table grew entries for SPEEDUPS.md and PROFILING.md.
 - **FILE_DESCRIPTIONS.md** — new `agricola/replace.py` entry with `fast_replace` signature, speedup numbers, and the `dataclasses.fields()` vs `__dataclass_fields__` gotcha.
 - **TEST_DESCRIPTIONS.md** — bullet under `test_engine.py` for the 7 `legal_actions_cache()` tests; new top-level entry for `test_replace.py`.
 
@@ -2019,7 +2019,7 @@ Deliberately deferred: a `legal_actions_cache()` subsection in CLAUDE.md's Engin
 
 - **User-driven correction of estimate inflation worked.** Three rounds of "wait, those numbers don't add up" → "you're right, let me re-measure" → revised numbers → revised recommendation order. The discipline came from the user, not from me. Worth internalizing.
 
-- **The PROFILING.md → POSSIBLE_SPEEDUPS.md split is structurally sound.** PROFILING.md captures a snapshot ("here's what was hot on this date"). POSSIBLE_SPEEDUPS.md is forward-looking ("here are ideas that may be worth implementing"). The two docs cite each other but don't duplicate; if a future profiling pass produces different numbers, PROFILING.md's snapshot is replaced and POSSIBLE_SPEEDUPS.md is updated to match.
+- **The PROFILING.md → SPEEDUPS.md split is structurally sound.** PROFILING.md captures a snapshot ("here's what was hot on this date"). SPEEDUPS.md is forward-looking ("here are ideas that may be worth implementing"). The two docs cite each other but don't duplicate; if a future profiling pass produces different numbers, PROFILING.md's snapshot is replaced and SPEEDUPS.md is updated to match.
 
 - **`legal_actions_cache()` is dormant on purpose.** Landing it now (before MCTS exists) is a small cost — no consumer to break, tests cover correctness in isolation — and removes a future distraction for the MCTS implementer who'd otherwise have to design memoization from scratch while also designing tree mechanics.
 
@@ -2031,7 +2031,7 @@ Deliberately deferred: a `legal_actions_cache()` subsection in CLAUDE.md's Engin
 
 **New (root):**
 
-- `PROFILING.md`, `POSSIBLE_SPEEDUPS.md`
+- `PROFILING.md`, `SPEEDUPS.md`
 
 **New (in-tree):**
 
@@ -2049,7 +2049,7 @@ Deliberately deferred: a `legal_actions_cache()` subsection in CLAUDE.md's Engin
 **Modified (docs):**
 
 - `CHANGES.md` — Change 9 entry.
-- `POSSIBLE_NEXT_STEPS.md` — restructured; old C+E folded into new C pointing at POSSIBLE_SPEEDUPS.md.
+- `POSSIBLE_NEXT_STEPS.md` — restructured; old C+E folded into new C pointing at SPEEDUPS.md.
 - `CLAUDE.md` — test count, status table, directory tree, conventions, doc table.
 - `FILE_DESCRIPTIONS.md` — `agricola/replace.py` entry.
 - `TEST_DESCRIPTIONS.md` — `legal_actions_cache()` tests bullet, `test_replace.py` entry.
@@ -2069,7 +2069,7 @@ Deliberately deferred: a `legal_actions_cache()` subsection in CLAUDE.md's Engin
 
 Per POSSIBLE_NEXT_STEPS.md "My take": **the heuristic agent (F)** is the highest-impact next step. The engine has been profiled, optimized, and made MCTS-ready, but no agent yet plays it competently. F is the first chance to set a real baseline and surface edge cases random play never hits. After F, MCTS scaffolding (G) is the natural follow-on — fully unblocked by Changes 8 and 9.
 
-POSSIBLE_SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining performance optimization based on current profiles. Defer unless / until MCTS scaling makes per-rollout cost the bottleneck — but the catalog entry is fleshed-out enough to act on quickly when the time comes.
+SPEEDUPS.md S1 (anchor Pareto pruning) is the highest-ROI remaining performance optimization based on current profiles. Defer unless / until MCTS scaling makes per-rollout cost the bottleneck — but the catalog entry is fleshed-out enough to act on quickly when the time comes.
 
 ---
 
@@ -2207,7 +2207,7 @@ The recovery pattern in each case: user notices, I correct, we proceed. The user
 
 Per `HEURISTIC_TUNING_PLAN.md`: build the **self-play tuning harness** (Thread A) first. It's the infrastructure that makes every subsequent heuristic change measurable. Then **score-leaf reweighting** (Thread C — cheap to implement, addresses the early-grain bias). Then **time-varying parameter space** (Thread B — once Threads A and C have produced a baseline tuning result and we know which scalars are doing the most work).
 
-In parallel: **MCTS scaffolding (item G in POSSIBLE_NEXT_STEPS.md)** is the natural next-track work. HubrisHeuristic V1 becomes the rollout policy. `legal_actions_cache()` (Change 9) is the search-loop memoizer. If MCTS rollout cost becomes a problem, `POSSIBLE_SPEEDUPS.md` S1 (anchor Pareto pruning) is the highest-ROI remaining optimization.
+In parallel: **MCTS scaffolding (item G in POSSIBLE_NEXT_STEPS.md)** is the natural next-track work. HubrisHeuristic V1 becomes the rollout policy. `legal_actions_cache()` (Change 9) is the search-loop memoizer. If MCTS rollout cost becomes a problem, `SPEEDUPS.md` S1 (anchor Pareto pruning) is the highest-ROI remaining optimization.
 
 ---
 
@@ -2871,7 +2871,7 @@ All 661 tests pass. The codebase has:
 - Full test coverage: **661 tests** across all test files. Includes the Task 7 harvest test files, the 11 frontier-helper tests in `test_helpers.py`, the 2 Cooking-Hearth regression tests in `test_major_improvement.py`, the 10 `tests/test_fencing.py` cases for the `fence_universe` context manager / `restrict_to` builder (item D), the 7 `legal_actions_cache()` tests in `tests/test_engine.py` (Change 9), the 14 `fast_replace` equivalence tests in `tests/test_replace.py` (Change 9), the 25 heuristic-agent smoke tests in `tests/test_agents_heuristic.py`, and the post-Task-7 deferred-food-payment / web-UI / context-manager work. Random-agent end-to-end runs to BEFORE_SCORING across many seeds (20+ verified clean) with the non-negative invariant active throughout.
 - Performance harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) — re-runnable from the repo root; no dependencies under `agricola/` or `tests/`. Used to produce the PROFILING.md snapshot and to validate that subsequent changes don't regress.
 
-**Next task**: the engine is feature-complete for the Family game, and the agent stack is well underway — heuristics (V1/V3 + the CMA-ES tuning pipeline and 8-config data-gen ensemble), MCTS scaffolding, and a supervised value NN (`NNAgent`, the current strongest agent) are all built. The natural next steps are the NN **policy head** + the AlphaZero-style **self-play loop** (the project's end-goal), and — separately, and larger — the **full card system** (Phase 3 in CLAUDE.md; the deferred design questions live in `ENGINE_IMPLEMENTATION.md` §6), which then repeats the agent-building process for the richer game. Remaining performance candidates are catalogued in **POSSIBLE_SPEEDUPS.md**.
+**Next task**: the engine is feature-complete for the Family game, and the agent stack is well underway — heuristics (V1/V3 + the CMA-ES tuning pipeline and 8-config data-gen ensemble), MCTS scaffolding, and a supervised value NN (`NNAgent`, the current strongest agent) are all built. The natural next steps are the NN **policy head** + the AlphaZero-style **self-play loop** (the project's end-goal), and — separately, and larger — the **full card system** (Phase 3 in CLAUDE.md; the deferred design questions live in `ENGINE_IMPLEMENTATION.md` §6), which then repeats the agent-building process for the richer game. Remaining performance candidates are catalogued in **SPEEDUPS.md**.
 
 ---
 
@@ -2900,3 +2900,42 @@ A round-1-revealed accumulation space (only `sheep_market`, ~25% of games) previ
 ### Outcome
 
 Full suite green: **949 tests** (935 migrated + 14 new in `tests/test_reveal.py`). Aggregate sanity: HubrisHeuristicV3 beat RandomAgent 12/12; MCTS-vs-HubrisHeuristicV3 over 6 games averaged −5.83 (the documented MCTS-with-heuristic-leaf ballpark). Still pending: the V3 re-validation vs the 8-config ensemble.
+
+---
+
+## MCTS-PUCT performance pass — ~2× speedup + a policy-prior bug (2026-06-09)
+
+NN-leaf PUCT search (the data-generation workload) was too slow to generate self-play data at scale. This session profiled the **actual** production path — every prior profile used the V3 *heuristic* leaf, which has a different cost shape — and landed behavior-preserving optimizations plus one real correctness fix, for a **~2× per-move speedup** (157→78 ms/move; single-pass, 160 sims; paired min-of-5 via `git stash`). Catalog: **SPEEDUPS.md**; production profile: **PROFILING.md**; how it maps onto the search code: **MCTS_IMPLEMENTATION.md §14**.
+
+### What was built / changed
+
+Five byte-identical (golden-tested) optimizations:
+- **Cached `__hash__`** on the hot frozen state dataclasses (`GameState` / `PlayerState` / `BoardState` / `Farmyard` / `ActionSpaceState`) — memoized lazily via `object.__setattr__`, **pickle-stripped** (string/enum hashing is per-process seed-randomized, so a cached value must never cross into the training process). Hashing the transposition-table key was the **#1 self-time**; the win is sub-object reuse — a one-field `fast_replace` shares the rest of the tree by reference, so a child state's hash reuses its parents' cached sub-hashes. (SPEEDUPS S5; the formerly-deferred entry — its trigger "MCTS adds a content-keyed transposition table" was met.)
+- **Encoder inference fast path** (`agricola/agents/nn/encoder.py`): the `stop_is_legal` **empty-stack guard** (S10 — `Stop` pops a pending frame so it's never legal at an empty stack, skipping the expensive `legal_placements` there); an **index-writer rewrite** of `encode_state` (S11 — writes floats into a preallocated array, dropping the `(name,value)` tuples; the original `_assemble` is kept as the `feature_names()` source + golden-test oracle); and a **swap-aware per-state memo** `encode_for_inference` / `swap_perspective` / `_encode_p0` (S12 — `encode(s,1) == swap(encode(s,0))` is a block-swap + one bit-flip, folding the value/policy double-encode and the differential second encode).
+- **`model_device`** cache (S13) — the eager `next(model.parameters()).device` walked the module tree (`named_modules`/`_named_members`) on every forward to read a constant.
+
+Three new default decisions:
+- **`MCTSAgent.cap_total_sims` default `False` → `True`** — cap *total* root visits (inherited-via-tree-reuse + fresh) for a constant per-move budget; identical to the old behavior on a fresh tree.
+- **`MCTSSearch.legal_actions_fn` default is now mode-aware** — PUCT (`policy_fn` set) → the engine's **full, unrestricted `legal_actions`** (the policy prior is the sole prune, `make_policy_fn`'s contract); UCT → strict-restricted as before (no prior to soft-prune → strict keeps branching sane).
+- **`HeuristicAgent` default legality → strict** (was `EvaluatorAgent`'s unrestricted) — heuristics are evaluation-only now (no longer MCTS leaves or self-play data-gen), so strict is the right default everywhere they run. `NNAgent` is not a `HeuristicAgent`, so it's unaffected.
+
+New re-runnable scripts (`scripts/`): `profile_mcts_nn.py` (THE production NN-leaf+PUCT profiler — direct cost attribution with no PUCT-vs-UCT confound, `--cprofile`, paired `--wall-only --repeats N`), `bench_stop_is_legal.py`, `bench_encoding_collisions.py`, `proto_jit_trace.py`.
+
+### Profiling findings
+
+- **Production profile** (NN value leaf + 9-head policy PUCT, FLATTEN): ~half NN inference / ~half engine+search; the engine half is **diffuse** — after the hash cache there's no single hotspot, just interpreter overhead across the tree descent.
+- **cProfile caveat** (now baked into PROFILING.md): its per-call instrumentation overstates high-call-count tiny functions — `_can_afford` read 18 µs/call under cProfile but **0.32 µs** in a clean micro-bench (~50×). Confirm per-call costs with a micro-bench, not `tottime`.
+- **Measured no-gos** (recorded so they aren't re-tried): `jit.trace`+`freeze` is numerically exact (max|Δ|=0) but only ~6–10% end-to-end for substantial integration; an **encoding-keyed NN-output cache** (the lossy-encoding-collision idea) buys only **~0.9%** over the existing GameState-keyed memo (only 1.1% of encodings are shared by >1 distinct state).
+- The old V3-leaf "#1 self-time" `compute_pastures_from_arrays` is **cold** in FLATTEN PUCT (barely builds fences) — SPEEDUPS S9 is not worth pursuing for this path.
+
+### Bug caught and fixed
+
+The 9 **policy heads loaded in TRAIN mode** — `NormalizedPolicyModel.load()` doesn't `eval()`, and `make_policy_fn`/`play_mcts_match` only eval'd the *value* model — so dropout fired on every prior query, making the **PUCT priors nondeterministic** (same state → priors differing ~0.05 per call): the search was being guided by noise. Fixed in `make_policy_fn`, which now `eval()`s the heads at assembly (combined `policy_fn` now deterministic, Δ=0). The new profiler harness had the same omission and now eval's both nets.
+
+### Docs
+
+`POSSIBLE_SPEEDUPS.md` → **`SPEEDUPS.md`** (git rename), restructured into **Part 1 Implemented** (every optimization in the code, with why/where) + **Part 2 Potential next steps** (candidates + measured no-gos). `PROFILING.md` foregrounds the production profile + measurement caveats and archives the random-play (Workloads A/B/C, R1–R6) and V3-leaf MCTS profiles. `MCTS_IMPLEMENTATION.md` gained **§14** (speedups ↔ search code) and had §7/§12 reconciled to the mode-aware legality. Swept the now-stale **`opt_config` "default-off"** claim (it's been default-on) across `CLAUDE.md` / `FRONTIER_OPT_DESIGN.md` / `ENGINE_IMPLEMENTATION.md` / `INCREMENTAL_PASTURE_DESIGN.md` / `FILE_DESCRIPTIONS.md`, plus the "heuristics use the regular wrapper" convention (now strict), the `POSSIBLE_NEXT_STEPS.md` stale S-list, and the README `mcts`-seat "uses V3" parenthetical (it's V3-free).
+
+### Outcome
+
+Full suite green: **1032 tests**. ~2× per-move speedup on the production workload, behavior-preserving apart from the policy-eval correctness fix. The next NN lever (if more is needed) is **leaf-batching** of the forward passes; the throughput multiplier for data-gen at scale is process parallelism (one game/worker, `threads=1`) + `python -O`, both orthogonal to and compounding with the per-sim wins.

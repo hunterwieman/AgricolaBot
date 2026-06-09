@@ -292,11 +292,14 @@ class MCTSSearch:
           `HubrisHeuristicV3(config=evaluator_config, ...)`. Pass an
           arbitrary agent to use a different policy for macros.
         - `legal_actions_fn`: every legality consultation routes through
-          this. Defaults to a strict-restricted wrapper bound to this
-          search's RNG using `evaluator_config` for the harvest-feed cap's
-          ranking. NB: the wrapper's cap uses V3 internally regardless of
-          what evaluator_fn you supply — the cap is a legality concern,
-          not an evaluation one.
+          this. The default is **mode-aware**: under PUCT (`policy_fn` set)
+          it is the engine's **full, unrestricted** `legal_actions` — the
+          policy prior is the sole prune (`make_policy_fn`'s contract); under
+          UCT (no policy) it is a strict-restricted wrapper bound to this
+          search's RNG (with no prior to soft-prune, the full set would
+          explode the branching factor). The UCT wrapper's harvest-feed cap
+          is ranked with the search's own leaf evaluator, not a hardcoded V3.
+          Pass an explicit callable to override either default.
         - `leaf_value_scale`: divide every leaf value by this before
           backprop, so leaf values feed UCB on a unit-ish scale. Defaults
           to 1.0 (no-op — correct for V3, whose values are already on the
@@ -328,17 +331,28 @@ class MCTSSearch:
         # deterministic per search instance (rather than sharing the
         # module-level default RNG across all MCTSSearch instances).
         if legal_actions_fn is None:
-            # Rank the strict feeding cap with the search's OWN value function
-            # (the leaf evaluator), not a hardcoded V3 — same fix the greedy
-            # macro agent already gets below, so an NN-leaf search built via
-            # the default path is uniformly non-V3 (and doesn't crash trying to
-            # read V3 settings off an NN model). `config` is still passed but is
-            # ignored by the wrapper whenever `evaluator` is set.
-            def _feed_eval(s, p):
-                return self.evaluator_fn(s, p, self.evaluator_config)
-            legal_actions_fn = _lazy_make_strict_legal(
-                config=self.evaluator_config, rng=self.rng, evaluator=_feed_eval,
-            )
+            # Mode-aware default:
+            #   - PUCT (policy_fn set): enumerate the FULL legal set with NO
+            #     restriction and let the policy prior do all the pruning — this
+            #     is `make_policy_fn`'s contract ("the policy is the sole prune").
+            #     A strict/regular wrapper here would double-prune and hide
+            #     actions the prior is meant to weigh.
+            #   - UCT (no policy): strict-restricted, because with no prior to
+            #     soft-prune, the full set explodes the branching factor. The
+            #     feeding cap is ranked with the search's OWN value function (the
+            #     leaf evaluator), not a hardcoded V3, so an NN-leaf search is
+            #     uniformly non-V3 (and doesn't crash reading V3 settings off an
+            #     NN model). `config` is ignored by the wrapper when `evaluator`
+            #     is set.
+            if policy_fn is not None:
+                from agricola.legality import legal_actions as _full_legal
+                legal_actions_fn = _full_legal
+            else:
+                def _feed_eval(s, p):
+                    return self.evaluator_fn(s, p, self.evaluator_config)
+                legal_actions_fn = _lazy_make_strict_legal(
+                    config=self.evaluator_config, rng=self.rng, evaluator=_feed_eval,
+                )
         self.legal_actions_fn = legal_actions_fn
 
         # Agent used to play greedy macro-fencing chains. Constructed once;
@@ -802,18 +816,20 @@ class MCTSAgent:
         fpu_offset: float = 0.0,
         action_selection_temperature: float = 0.2,
         rng_seed: int = 0,
-        cap_total_sims: bool = False,
+        cap_total_sims: bool = True,
     ):
         assert sims_per_move >= 1, "sims_per_move must be at least 1"
         self.search = search
         self.sims_per_move = int(sims_per_move)
-        # When True, `sims_per_move` is a cap on the *total* root visit count
-        # (inherited-via-tree-reuse + fresh) rather than the count of fresh
-        # sims run this move. Equalizes the effective search budget per
+        # When True (the default), `sims_per_move` is a cap on the *total* root
+        # visit count (inherited-via-tree-reuse + fresh) rather than the count of
+        # fresh sims run this move. Equalizes the effective search budget per
         # decision across moves regardless of how much the re-rooted node
         # inherited — removes the tree-reuse "effective-sim accumulation"
-        # confound when comparing UCT vs PUCT (peaked PUCT trees inherit more).
-        # Applies identically to UCT and PUCT (the loop is policy-agnostic).
+        # confound (peaked PUCT trees inherit more). Applies identically to UCT
+        # and PUCT (the loop is policy-agnostic). Set False for the legacy
+        # "always run `sims_per_move` *fresh* sims" behavior. On a fresh tree
+        # (move 1, nothing inherited) the two are identical.
         self.cap_total_sims = bool(cap_total_sims)
         self.c_uct = float(c_uct)
         self.fpu_offset = float(fpu_offset)

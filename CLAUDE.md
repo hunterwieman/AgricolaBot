@@ -173,7 +173,7 @@ cached data") is a default with explicit guidance for when to deviate.
   *field of a state object*, and it is exactly the form that makes "speed up MCTS" — factor 1 —
   a first-class reason to cache rather than a reluctant deviation. The first wave is **landed**:
   the frontier/accommodation helpers and the fence-universe scan are memoized this way behind
-  default-off toggles in `agricola/opt_config.py` (full design, correctness proofs, and the
+  toggles in `agricola/opt_config.py` (now **default-on**; full design, correctness proofs, and the
   cross-level equivalence testing pattern in **`FRONTIER_OPT_DESIGN.md`**; the worked numbers in
   Phase 2.2 "Speeding up MCTS" and `PROFILING.md`). The one caveat for this form is a *hidden*
   global input not in the key (e.g. the active fence universe) — flush the cache when it changes,
@@ -434,10 +434,19 @@ added — keeping the engine an honest source of *all* legal actions preserves t
 action set.
 
 A stricter sibling, `strict_restricted_legal_actions`, layers additional MCTS-specific collapses
-(Cultivation sow-max, hand-curated Fencing patterns, a harvest-feed cap). The heuristics and web
-UI use the regular wrapper; tree search uses the strict one. Every interactive and training
-context defaults its AI seats to a restricted wrapper, so the agent you play against in the
-browser is the one being tuned. Details: CHANGES.md Change 11, MCTS_DESIGN.md §7.
+(Cultivation sow-max, hand-curated Fencing patterns, a harvest-feed cap). Who uses which:
+
+- **Heuristic agents now default to the *strict* wrapper** (`HeuristicAgent`'s class default; was
+  the engine's unrestricted set). The heuristics are used for **evaluation** only now — no longer
+  as MCTS leaves or for self-play data generation — so strict is the right default everywhere they
+  run. Pass an explicit `legal_actions_fn` to override per-case. (`NNAgent` is not a `HeuristicAgent`,
+  so it keeps the unrestricted default.)
+- **MCTS tree search** is mode-aware (§2.2 / MCTS_IMPLEMENTATION.md §7): **UCT → strict**, **PUCT →
+  full unrestricted** (the policy prior is the sole prune).
+- **The web UI** still passes the *regular* wrapper to its AI seats via `--restricted` (an explicit
+  override of the heuristic default), so browser play matches that flag.
+
+Details: CHANGES.md Change 11, MCTS_DESIGN.md §7.
 
 ### 2.1 — Heuristic agent
 
@@ -485,8 +494,10 @@ fencing) is **`MCTS_IMPLEMENTATION.md`** — read that to understand `agricola/a
 reaching the same state share statistics; **leaf evaluation** via the V3 heuristic's margin
 rather than random rollouts; and **macro-actions for Fencing** — a fence layout is a *path* of
 pasture-commits, so a `MacroFencingAction` collapses the whole layout to one node and keeps the
-tree from exploding in depth. MCTS consumes the strict-restriction wrapper; self-play and
-head-to-head matches can share a tree or use separate ones.
+tree from exploding in depth. Legality is **mode-aware**: UCT consumes the strict-restriction
+wrapper (no prior to soft-prune), while PUCT takes the full, unrestricted `legal_actions` and lets
+the policy prior do the pruning (MCTS_IMPLEMENTATION.md §7/§12). Self-play and head-to-head matches
+can share a tree or use separate ones.
 
 **Chance nodes for hidden reveals.** Because the round-card order is hidden (Foundations —
 "Determinism after setup"), a reveal state is an explicit **chance node**: search routes through
@@ -506,26 +517,24 @@ implemented (c0)** — a `policy_fn` prior injected into `MCTSSearch` (UCT remai
 forced-move step-through, and a `FenceMode` toggle; design + change plan in POLICY_PUCT_DESIGN.md. A
 trained policy head and higher simulation counts are the active next steps.
 
-**Speeding up MCTS (toggleable, default-off).** Legal-action enumeration has optional speedups
-behind **`agricola/opt_config.py`** — flip these when MCTS runs feel slow:
+**Speeding up MCTS.** The production data-generation workload — an NN value leaf + multi-head policy
+PUCT — was profiled and optimized to a **~2× per-move speedup** (cached `GameState.__hash__`, an
+optimized inference encoder, a device-query cache, plus a policy-head eval-mode *correctness* fix).
+The full catalog is in **`SPEEDUPS.md`** (Part 1 *Implemented* / Part 2 *Potential* — including the
+recommended next lever, NN-forward **leaf-batching**); the current production profile + measurement
+caveats are in **`PROFILING.md`**; and `MCTS_IMPLEMENTATION.md` §14 maps each optimization onto the
+search code. Two standing knobs worth knowing:
 
-- `PARETO_OPT_LEVEL` (int, 0–3, cumulative): algorithmic fast paths + projection-keyed caches for
-  the Pareto/accommodation helpers (rate-descending `food_payment`, max-corner animal frontiers,
-  exact/clipped caches, Φ farm-shape cache).
-- `FENCE_SCAN_CACHE` (bool): caches the fence-universe legality scan.
-
-Enable by setting the module globals before a run, e.g.
-`from agricola import opt_config; opt_config.PARETO_OPT_LEVEL = 3; opt_config.FENCE_SCAN_CACHE = True`
-(not yet wired to the MCTS CLI flags — set them in-process). They are **behavior-transparent**
-(set-identical frontiers, cross-level-tested in `tests/test_frontier_opt.py`): toggling never
-changes which actions are legal, only how fast they're enumerated, and the default (0 / off) is
-byte-identical to the original engine. Measured **~9% MCTS wall-clock** at level 3 + fence cache
-(150 sims, paired). Important caveat from the live profile: that win is **dominated by the fence
-cache** — the Pareto/feeding helpers are fast per-call but rarely called in MCTS, so the remaining
-ceiling is the **leaf evaluator (`evaluate_hubris_v3`, ~half of MCTS) and the pasture-decomposition
-BFS**, not the frontier helpers. Full design + correctness proofs + benchmarks: **`FRONTIER_OPT_DESIGN.md`**;
-the MCTS profile is in **`PROFILING.md`**; further candidates (incl. S9 pasture-BFS memoization) in
-**`POSSIBLE_SPEEDUPS.md`**.
+- **`agricola/opt_config.py`** — `PARETO_OPT_LEVEL` (0–3, cumulative) + `FENCE_SCAN_CACHE`, now
+  **default ON** (level 3 + cache). Behavior-transparent and cross-level-tested
+  (`tests/test_frontier_opt.py`): `FENCE_SCAN_CACHE` is result-identical; `PARETO_OPT_LEVEL ≥ 1` is
+  set-identical but reorders the RNG realization (reproducible, just a different trajectory than level
+  0). They speed legal-action enumeration; their ~9% win on the *old V3-leaf* workload was dominated by
+  the fence cache (the Pareto/feeding helpers are cold in NN-leaf PUCT). Full design + proofs:
+  **`FRONTIER_OPT_DESIGN.md`**.
+- **Ops levers** (not code): run data-gen under **`python -O`** (drops the per-`step` assertion +
+  `__debug__` work) and with **process parallelism** (one game per worker, `torch.set_num_threads(1)`)
+  — the throughput multipliers, orthogonal to and compounding with the per-sim wins above.
 
 ### 2.3 — Neural network
 
@@ -635,9 +644,9 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
 | `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
-| `POSSIBLE_SPEEDUPS.md` | Living catalog of performance optimizations — both ideas surfaced by profiling and not yet acted on, and forward-looking candidates. Sibling to POSSIBLE_NEXT_STEPS.md, scoped to performance specifically. |
+| `SPEEDUPS.md` | Performance catalog in two parts: **Part 1 Implemented** (every optimization in the code, with what/why/where — `fast_replace`, cached `__hash__`, the `opt_config` frontier/fence caches, the NN inference encoder S10–S13, etc.) and **Part 2 Potential next steps** (sketched candidates + *measured no-gos* like jit.trace and the encoding-keyed cache). Stable `S1`–`Sn` identifiers; deep detail for the big ones lives in `FRONTIER_OPT_DESIGN.md` / `CHANGES.md`. (Renamed from `POSSIBLE_SPEEDUPS.md`.) Sibling to POSSIBLE_NEXT_STEPS.md, scoped to performance. |
 | `INCREMENTAL_PASTURE_DESIGN.md` | Design sketch (NOT STARTED) for S9 option 2 — incrementally updating the cached `Farmyard.pastures` decomposition on fence/stable builds instead of re-running the full flood-fill BFS (`compute_pastures_from_arrays`), the #1 MCTS self-time function. Covers the new-pasture-vs-subdivision branch, the byte-identical-output constraint (the tuple feeds `Farmyard` hash/eq → the MCTS transposition table), the incidental-pocket / stable-repartition / combined-case concerns, and why it's gated on the S9 option-1 memoization landing first. A jumping-off point for a future session. |
-| `FRONTIER_OPT_DESIGN.md` | Design + implementation record for the frontier/accommodation optimizations that speed up the Pareto/accommodation helpers in MCTS. Toggleable via `agricola/opt_config.py` (`PARETO_OPT_LEVEL` 0–3 + `FENCE_SCAN_CACHE`), default-off. Covers the algorithmic rewrites (rate-descending `food_payment`, max-corner), the projection-keyed caches (exact / Φ farm-shape / feeding clip), the correctness invariants + proofs (Appendix A), the cross-level equivalence testing strategy (§8.1) and benchmarking methodology (§8.2), and the landed-status/phasing. **Implemented** — see the Status note at the top. |
+| `FRONTIER_OPT_DESIGN.md` | Design + implementation record for the frontier/accommodation optimizations that speed up the Pareto/accommodation helpers in MCTS. Toggleable via `agricola/opt_config.py` (`PARETO_OPT_LEVEL` 0–3 + `FENCE_SCAN_CACHE`), now default-on. Covers the algorithmic rewrites (rate-descending `food_payment`, max-corner), the projection-keyed caches (exact / Φ farm-shape / feeding clip), the correctness invariants + proofs (Appendix A), the cross-level equivalence testing strategy (§8.1) and benchmarking methodology (§8.2), and the landed-status/phasing. **Implemented** — see the Status note at the top. |
 | `HEURISTIC_TUNING_PLAN.md` | V1-era plan for self-play tuning. Thread A (tuning harness) has been implemented and run; Threads B and C are partially superseded by V3. See `V3_TRAINING_PIPELINE.md` for the current pipeline. |
 | `HUBRIS_V1_NOTES.md` | Design reference for HubrisHeuristic V1: per-term function/motivation/shape/magnitude for every component of `evaluate_hubris_v1`, the V1-vs-V2 finding with worked example, deferred alternatives (renovation bonus, newborn discount) with reasoning, known limitations and failure modes. Read before modifying V1; V3 has its own design doc. |
 | `V3_DESIGN.md` | Comprehensive design reference for HubrisHeuristicV3: three combination styles (blend / additive / joint-alpha), per-category specs (fields/crops/pastures/animals/resources/food/joint-alpha), three-component resource pattern (wood/clay/reed/stone), V1 carry-overs and what V3 deletes, known limitations. Read before modifying V3. |
@@ -649,7 +658,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `POLICY_PUCT_DESIGN.md` | **Historical design record** (the PUCT search half is now implemented and documented in `MCTS_IMPLEMENTATION.md`; the policy half in `POLICY_HEAD.md`). Design spec for the policy head + PUCT phase (Phase 2.3 (c)→(d)). The factored policy (fixed-width + mask heads for placement / sub-actions / Build Major; score-the-set heads for the fencing / animal-accommodation / harvest-feed / harvest-breed frontiers), the black-box `policy_fn(state, legal_actions) -> {action: prior}` interface MCTS consumes (untrained heads fall back to uniform), the AlphaZero PUCT formula + restated FPU + `leaf_value_scale`-calibrated `c_puct`, chance-node orthogonality, the regular-legality + soft-prune-via-prior rationale, the grounded decision-point taxonomy, the localized `mcts.py` change plan (UCT preserved as a control via `policy_fn=None`), the `fence_mode` enum (MACRO / FLATTEN / SEQUENCE_PRIOR) and the SEQUENCE_PRIOR `n(s,a,L)` per-step-target reconstruction, BC training from existing `chosen_action` data, the eval controls, shared-trunk + self-play forward-compat, and a pre-implementation-edits section. Read before implementing the policy head or PUCT. |
 | `POLICY_HEAD.md` | Implementation + design record for the supervised behavioral-cloning **policy heads** (Phase 2.3 (c)). §1–§10 are the original v1 placement-only spec (the factored `DecisionHead`: predicate + vocab + chosen→class + legal mask; `HEADS` registry; the two loss variants — unweighted CE / AWR `w=clip(exp((R−V)/β),0,w_max)`; single-perspective encoding; warm-start trunk transplant; the `restricted.py` ordering-filter **forcing-fix**; metrics = top-1/top-3 agreement, not strength). §11/§14 cover **the rest of the heads now built**: 7 fixed (placement/choose_subaction/commit_build_major/commit_sow/commit_bake/fencing/build_stop) + 2 pointer (animal_frontier/harvest_feed), the `make_policy_fn` combiner + the two end-to-end policy functions, and the spatially-blind-`fencing` finding. Read before adding a policy head. |
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
-| `PROFILING.md` | Findings from the item-C profiling pass: hot paths identified, workloads defined, and the R1-R6 recommendation list. The infrastructure (`scripts/profile_engine.py`, `scripts/profile_states.py`, `scripts/count_replaces.py`, `scripts/bench_replace.py`) is re-runnable; this doc captures the snapshot interpretation. |
+| `PROFILING.md` | Profiling findings. Foregrounds the **current production profile** — NN value-leaf + multi-head policy PUCT, i.e. where time goes in the code today (cost attribution, the ~2× session result, the diffuse-engine-remainder finding) — plus **measurement caveats** (laptop wall noise → min-of-N/pair-by-seed; cProfile over-attributes high-call tiny functions; the eval-mode requirement). Older random-play (Workloads A/B/C, R1–R6) and V3-leaf MCTS profiles are kept under **Archived profiles**. Re-run the current profile via `scripts/profile_mcts_nn.py`. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
@@ -707,11 +716,11 @@ AgricolaBot/
 
         replace.py                  # fast_replace(obj, **changes) — a drop-in faster equivalent of dataclasses.replace, ~20% faster per call (timeit-measured). Used at every state-mutation site in engine.py / resolution.py / pending.py / cards/. See CHANGES.md Change 9.
 
-        opt_config.py               # Runtime toggles for the frontier/accommodation optimizations: PARETO_OPT_LEVEL (0–3, cumulative) and FENCE_SCAN_CACHE (bool). Both default to the no-op baseline so the default behavior is unchanged; helpers.py / legality.py read them to dispatch to optimized (caching / algorithmic) paths. See FRONTIER_OPT_DESIGN.md.
+        opt_config.py               # Runtime toggles for the frontier/accommodation optimizations: PARETO_OPT_LEVEL (0–3, cumulative) and FENCE_SCAN_CACHE (bool). Now default-ON (level 3 + cache); PARETO_OPT_LEVEL=0 + FENCE_SCAN_CACHE=False is the no-op baseline. helpers.py / legality.py read them to dispatch to optimized (caching / algorithmic) paths. See FRONTIER_OPT_DESIGN.md.
 
         environment.py              # The Environment frozen dataclass — the hidden ground truth + nature policy for one game. Holds the per-game stage-card reveal order (NOT in GameState); exposes resolve(state) (the driver-facing nature seam) and reveal_action(state) -> RevealCard. The dealer in real games; agents and MCTS never see it. Forward-compat home for future private hands / draw deck + the observe(state, env, i) projection (identity today). See HIDDEN_INFO_DESIGN.md §3.4 / §3.6.
 
-        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable.
+        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
 
         setup.py                    # setup_env(seed) -> (GameState, Environment) — the full constructor for the initial 2-player Family game: builds the per-stage shuffled reveal order into the Environment, pre-deals round 1 (via env.reveal_action), and returns the round-1 WORK state. setup(seed) = setup_env(seed)[0] (drops the env). All randomness (starting player, per-stage card shuffle) is resolved here via a seeded NumPy RNG; the order is hidden in the Environment and the engine is fully deterministic afterward.
 
@@ -763,11 +772,11 @@ AgricolaBot/
 
                 recording.py        # `play_recording_game(initial_state, p0_agent, p1_agent, *, metadata, legal_actions_fn=restricted_legal_actions)` — plays one full game, captures every non-singleton state as a `DecisionSnapshot` (state recorded BEFORE the agent call so the snapshot matches what the agent saw), then captures terminal state + final scores + tiebreakers + winner into a complete `GameRecord`. Deterministic given pre-seeded agents.
 
-                encoder.py          # Input-vector encoder. `ENCODING_VERSION` + `ENCODED_DIM=170`. `encode_state(state, player_idx) -> np.ndarray` (float32) translates a `GameState` into the flat ~170-feature vector specified in FIRST_NN.md §4: own-player block (54) + opponent block (54) + shared/board (54) + mid-action singletons (8). Numpy-only — the training pipeline converts at the model boundary via `torch.from_numpy(arr)`. `feature_names()` returns the parallel string list for debugging / per-feature analysis.
+                encoder.py          # Input-vector encoder. `ENCODING_VERSION` + `ENCODED_DIM=170`. `encode_state(state, player_idx) -> np.ndarray` (float32) translates a `GameState` into the flat ~170-feature vector specified in FIRST_NN.md §4: own-player block (54) + opponent block (54) + shared/board (54) + mid-action singletons (8). Numpy-only — the training pipeline converts at the model boundary via `torch.from_numpy(arr)`. `feature_names()` returns the parallel string list for debugging / per-feature analysis. The MCTS-inference hot path goes through `encode_for_inference` (a swap-aware per-state memo) + `swap_perspective`, layered over an index-writer rewrite of `encode_state` (byte-identical to the original; the `(name,value)` `_assemble` is kept as the golden-test oracle + `feature_names` source). See SPEEDUPS.md S10–S13.
 
                 dataset.py          # PyTorch dataset builders. `build_datasets(run_dirs, ...)` / `build_datasets_from_games(games, ...)` load `GameRecord`s, split games by index into train/val/test, expand each game's non-singleton snapshots + terminal state into `_ExampleDescriptor`s (state-keyed, dual-perspective on the same key), encode in numpy, fit `NormStats` (per-feature input mean/std + scalar target-margin std) on the training split only, and return three `AgricolaValueDataset`s + the fit `NormStats`. Imports torch. Not re-exported from `__init__.py`.
 
-                model.py            # PyTorch model + normalization wrapper. `ConfigurableMLP` (configurable input_dim / hidden_dims / activation / dropout / norm; composable as a sub-encoder via `output_dim`), `NormalizedValueModel(net, stats)` (wraps a net with fixed input/output normalization buffers; `forward` returns normalized output, `predict_margin` returns raw margin units), `NET_REGISTRY` (name → factory), `EncodingVersionMismatch`. `save(path)` / `load(path)` checkpoint helpers preserve the `NormStats` + the model state in one file. Imports torch.
+                model.py            # PyTorch model + normalization wrapper. `ConfigurableMLP` (configurable input_dim / hidden_dims / activation / dropout / norm; composable as a sub-encoder via `output_dim`), `NormalizedValueModel(net, stats)` (wraps a net with fixed input/output normalization buffers; `forward` returns normalized output, `predict_margin` returns raw margin units), `NET_REGISTRY` (name → factory), `EncodingVersionMismatch`. `save(path)` / `load(path)` checkpoint helpers preserve the `NormStats` + the model state in one file. `model_device(model)` caches the (constant CPU) inference device — the eager `next(model.parameters()).device` walked the module tree on every forward (SPEEDUPS.md S13). Imports torch.
 
                 training.py         # Training-loop library. `train(run_dirs, out_dir, ...)` programmatic entry runs the full pipeline (load → split → fit norm → AdamW + early-stop on val MSE → checkpoint + curves + calibration plot + metadata JSON). Smaller helpers (`train_one_epoch`, `evaluate`, `setup_seeds`, `make_run_id`, `current_git_sha`, `print_header`, `print_epoch_line`, `save_curves_plot`, `save_calibration_plot`) factored out so future training experiments can compose differently. `l2sp` (L2-SP anchor `λ·‖θ−θ₀‖²` toward the `init_from` warm-start weights — a trust region; requires a warm-start) and `save_all_epochs` (write `epoch_NNN.pt` each epoch for gameplay-based checkpoint selection) added for the FIRST_NN C20 self-play fine-tunes. Library — the CLI wrapper lives at `scripts/nn/train_first.py`. Imports torch.
 
@@ -787,7 +796,7 @@ AgricolaBot/
 
                 policy_pointer_training.py # `train_pointer(run_dirs, out_dir, *, head, loss_weight, value_ckpt, awr_clip, init_from, ...)` — weighted SEGMENT cross-entropy, within-frontier top-1/top-3 (+winners), early-stop on val CE. Mirrors train_policy artifacts (pointer_norm_stats.json). CLI: scripts/nn/train_policy_pointer.py. Imports torch.
 
-                policy.py           # `policy_prior` (fixed heads) + `pointer_prior` (pointer heads) + `NO_PRIOR`, and `make_policy_fn(models)` / `load_policy_fn(checkpoints)` — the full `policy_fn(state, legal) -> {action: prior}` MCTS/PUCT consumes. Works over the FULL legal set, dispatching by decision type: fixed head / pointer head / `build_stop` (learned P(stop) + cell-priority build cell for multi-shot rooms&stables) / uniform over the cell-priority-filtered set (plow + first-build cells — no encoder signal) / uniform over full legal (the rest). The prune lives entirely in the policy. Imports torch.
+                policy.py           # `policy_prior` (fixed heads) + `pointer_prior` (pointer heads) + `NO_PRIOR`, and `make_policy_fn(models)` / `load_policy_fn(checkpoints)` — the full `policy_fn(state, legal) -> {action: prior}` MCTS/PUCT consumes. Works over the FULL legal set, dispatching by decision type: fixed head / pointer head / `build_stop` (learned P(stop) + cell-priority build cell for multi-shot rooms&stables) / uniform over the cell-priority-filtered set (plow + first-build cells — no encoder signal) / uniform over full legal (the rest). The prune lives entirely in the policy. `make_policy_fn` puts the loaded heads in `eval()` mode — `load()` leaves them in TRAIN mode, which made PUCT priors nondeterministic (dropout active); see SPEEDUPS.md. Imports torch.
 
     tests/                          # pytest test suite — per-file coverage descriptions in TEST_DESCRIPTIONS.md.
 
@@ -850,6 +859,14 @@ AgricolaBot/
         bench_replace.py            # `timeit`-based microbenchmark comparing stdlib replace vs `fast_replace`.
 
         profile_frontier_helpers.py # Frontier/accommodation optimization profiler (FRONTIER_OPT_DESIGN.md §8.2). `--mode microbench` times each Pareto/feeding helper per-call over the 9 prefab states at a given `--level`; `--mode collision` wraps the helpers during one MCTS game and reports the projection-collision hit rate a perfect cache would achieve (the Phase-2/3 gate). Runnable independent of whether the optimizations are enabled.
+
+        profile_mcts_nn.py          # THE production MCTS profiler — NN value leaf + 9-head combined policy PUCT (FLATTEN), the data-gen workload (every other profiler is V3-leaf). Direct cost attribution (wraps value/policy/encode/step/legality timers — no PUCT-vs-UCT confound), `--cprofile` function breakdown, `--wall-only --repeats N` for paired (e.g. git-stash) A/B, `--single-pass` vs differential leaf. Produces the PROFILING.md "Production MCTS-NN PUCT" numbers.
+
+        bench_stop_is_legal.py      # Microbench + equivalence gate for the encoder's `stop_is_legal` guard (SPEEDUPS.md S10): captures the states encode is called on during a production PUCT run, times 3 ways to compute the bit (full legal_actions / empty-stack guard / direct predicate), and asserts they agree byte-for-byte.
+
+        bench_encoding_collisions.py # Measures the encoding-collision rate (SPEEDUPS.md, the encoding-keyed-cache no-go): hooks the inference encoder during a PUCT game and reports distinct encodings vs distinct GameStates — the EXTRA forwards an encoding-keyed NN-output cache would save over a GameState-keyed one (~0.9%, hence no-go).
+
+        proto_jit_trace.py          # PROTOTYPE measuring `jit.trace`+`freeze` on the NN forwards (SPEEDUPS.md, no-go): swaps each model's inner net for a traced+frozen graph, checks numerical exactness vs eager, and times eager-vs-traced end-to-end (interleaved min-of-N). Found ~6–10% — not worth the integration.
 
         play_match.py               # Match-runner library + CLI. `play_match(p0_factory, p1_factory, seeds)` returns `MatchResult` (win/draw/loss counts, score sums, per-game records). Used by `tune_heuristic.py` and as a standalone head-to-head tool (CLI: `--p0 hubris_v3 --p1 hubris --n 100`). Per-seat `--p0-restricted` / `--p1-restricted` flags wrap each seat's agent in `restricted_legal_actions` independently.
 

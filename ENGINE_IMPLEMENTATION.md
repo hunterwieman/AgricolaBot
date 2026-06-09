@@ -485,8 +485,8 @@ the persist-across-commits-vs-reset-per-commit question gets settled by the rule
 ## 4. Subsystems
 
 > **Performance note.** The three hardest helpers in this section — the fence-universe scan
-> (§4.1), the Pareto/accommodation frontier (§4.2), and the harvest frontiers (§4.3) — each have an
-> **opt-in, default-off** projection-keyed cache and/or algorithmic fast path used to speed up MCTS,
+> (§4.1), the Pareto/accommodation frontier (§4.2), and the harvest frontiers (§4.3) — each have a
+> **default-on** projection-keyed cache and/or algorithmic fast path used to speed up MCTS,
 > toggled via `agricola/opt_config.py` (`PARETO_OPT_LEVEL`, `FENCE_SCAN_CACHE`). This section is the
 > *semantics* (what they compute, baseline path = level 0, untouched); the *optimization* — the
 > projection keys, the proofs, the toggle, and the cross-level equivalence tests — lives in
@@ -724,10 +724,10 @@ Derive the index from `p` itself: `player_idx = 0 if p is state.players[0] else 
   they actually read (see `FRONTIER_OPT_DESIGN.md` §2.1). The memo is correct only while that
   projection is the complete set of inputs. If you broaden what a helper reads — most likely when
   implementing a card that makes it depend on a new field — **you must add that field to the cache
-  key**, or the (default-off) cache silently returns stale results. The cross-level equivalence
+  key**, or the cache silently returns stale results. The cross-level equivalence
   test (`tests/test_frontier_opt.py`) is the guard: extend its state corpus to cover the new
-  dependency. This only bites if the optimization toggles are enabled; level 0 (the default) is
-  always the live recompute.
+  dependency. The optimizations are **on by default** now, so this risk is live; level 0
+  (`PARETO_OPT_LEVEL=0`, no longer the default) is the live-recompute fallback.
 
 ---
 

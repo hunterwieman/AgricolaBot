@@ -35,3 +35,11 @@ def _reset_opt_config():
             fn = getattr(module, name, None)
             if fn is not None and hasattr(fn, "cache_clear"):
                 fn.cache_clear()
+        # The NN inference encoding memo (torch-free; only present once the
+        # encoder module is imported). Pure projection cache, but clear it for
+        # test isolation + to bound memory across the suite.
+        try:
+            from agricola.agents.nn.encoder import clear_encoding_cache
+            clear_encoding_cache()
+        except Exception:
+            pass

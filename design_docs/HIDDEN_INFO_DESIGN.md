@@ -712,7 +712,7 @@ no version bump); `README.md` (optional one-liner).
 
 **No change:** `RULES.md` (engine-internal; the round-1 fix just makes the engine match existing rules),
 `task_files/*` (frozen), `PROFILING.md`, `FRONTIER_OPT_DESIGN.md`, `HUBRIS_V1_NOTES.md`,
-`V3_TRAINING_PIPELINE.md`, `HEURISTIC_TUNING_PLAN.md`, `POSSIBLE_SPEEDUPS.md`, `CLEANUP.md`.
+`V3_TRAINING_PIPELINE.md`, `HEURISTIC_TUNING_PLAN.md`, `SPEEDUPS.md`, `CLEANUP.md`.
 
 ---
 
