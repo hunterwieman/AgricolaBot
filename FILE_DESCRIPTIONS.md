@@ -589,8 +589,8 @@ The subpackage is split into torch-free modules (`schema.py`, `recording.py`, `e
 
 On-disk schema for the NN training dataset. No PyTorch dependency.
 
-- **`DATA_VERSION: int = 1`** — guards the on-disk dataset shape. Stamped onto every `GameRecord`; verified hard-fail at load time. Bump policy in **`FIRST_NN.md`** §11.4.
-- **`DecisionSnapshot`** — frozen dataclass: `state, chosen_action, decider_idx`. One per non-singleton decision; the snapshot inclusion rule (§6.2) excludes singleton states.
+- **`DATA_VERSION: int = 3`** — guards the on-disk dataset shape. Stamped onto every `GameRecord`; verified hard-fail at load time. Bump policy in **`FIRST_NN.md`** §11.4. History: `1→2` hidden-info refactor (`revealed: bool`); `2→3` MCTS self-play (the two optional `DecisionSnapshot` fields below).
+- **`DecisionSnapshot`** — frozen dataclass: `state, chosen_action, decider_idx`, plus two optional fields populated ONLY by MCTS self-play recording (`None` otherwise): `visit_distribution` (the search's raw root visit counts π — the AlphaZero soft policy target, stored unnormalized at τ=1) and `root_value` (the search's P0-frame value estimate at the move). One per non-singleton decision; the snapshot inclusion rule (§6.2) excludes singleton states.
 - **`GameRecord`** — frozen dataclass: per-game metadata (`game_idx, seed, p0_config_path, p1_config_path, p0_temperature, p1_temperature`), final scoring (`p0_final_score, p1_final_score, winner`), `terminal_state` (a `GameState` at `phase=BEFORE_SCORING`, stored once per game; used both as audit anchor and as one extra training pair per §5.1), and `decisions: tuple[DecisionSnapshot, ...]`.
 - **`DataVersionMismatch`** — raised on `load_game_records` when a record's `data_version` doesn't match the current `DATA_VERSION`. Hard fail so silent drift is impossible.
 - **`load_game_records(path)`** — pickle-load wrapper that runs the `DATA_VERSION` check on every loaded `GameRecord`. Returns `list[GameRecord]`.
@@ -610,6 +610,17 @@ Key invariants (documented in the function docstring):
 - No additional randomness is introduced — given pre-seeded agents and a deterministic `initial_state`, the `GameRecord` is fully reproducible (load-bearing for the resume-on-existing protocol in `scripts/nn/generate_training_data.py`).
 
 No PyTorch dependency. Depends only on engine (`step`, `legal_actions`, `score`, `tiebreaker`) and the `Agent` protocol.
+
+---
+
+### `agricola/agents/nn/selfplay_recording.py`
+
+MCTS self-play recording driver (`DATA_VERSION` 3) — the self-play sibling of `recording.py`. Records the AlphaZero targets (π + `root_value`) by driving a SHARED tree.
+
+- **`RootCapturingMCTSAgent`** — an `MCTSAgent` subclass that stashes its most recent searched root on `self.last_root` by overriding the one method that receives it (`_select_action_with_temperature`). No edit to `mcts.py`.
+- **`play_selfplay_recording_game(initial_state, agent, *, dealer, game_idx, seed, temperature, config_label='mcts_selfplay', legal_actions_fn=full_legal_actions)`** — plays one game with a SINGLE shared `agent` driving both seats (shared-tree self-play, MCTS_IMPLEMENTATION.md §11.2 mode 2). Forced (singleton) decisions are stepped through directly without invoking the search — the move is forced regardless, so the trajectory is identical and ~half the MCTS calls are skipped. Each genuine multi-option decision is searched and recorded as a `DecisionSnapshot` with `visit_distribution` (= `agent.root_visit_distribution(root)`) and `root_value` (root `mean_q` flipped into P0's frame). Returns a v3 `GameRecord`.
+
+No PyTorch dependency at module level (the NN leaf rides in via the passed agent). Depends on the engine + schema.
 
 ---
 
@@ -831,6 +842,20 @@ CLI: `python scripts/nn/generate_training_data.py --n-games 5000 --n-workers 8`.
 Empirical: 1000 games on 8 workers takes ~131s; 5000 games projected at ~11 min. Storage: ~48 KB per game (~240 MB for 5000 games).
 
 `metadata.json` records run-level state: `run_id`, `code_sha`, `host`, `approved_configs`, `temperature_distribution` (description string), `restricted`, `n_workers`, `planned_games`, `completed_games`, `errored_games`, `base_seed`, `data_version`. Updated once at startup, overwritten at end with final counts.
+
+---
+
+### `scripts/nn/generate_selfplay_data.py`
+
+MCTS self-play training-data generator (`DATA_VERSION` 3) — the self-play sibling of `generate_training_data.py`. Plays N SHARED-tree MCTS-vs-MCTS games (NN value leaf `nn_models/best` + combined behavioral-cloning policy; PUCT / `FenceMode.FLATTEN` / full legality) via `play_selfplay_recording_game`, recording π + `root_value`.
+
+Core mechanics:
+- **Per-worker shared-tree agent** — a fresh `MCTSSearch` + `RootCapturingMCTSAgent` is built per game (the tree is shared only between the two seats, never across games, so RAM doesn't accumulate). The value model + 9-head policy load once per worker (`functools.lru_cache`); `torch.set_num_threads(1)`.
+- **Chunked streaming writes** — each worker buffers games and flushes a fresh pickle `worker_NN_cNNN.pkl` every `--chunk-size` games, then DROPS the buffer. Bounds per-worker RAM at one chunk and makes write cost O(n), vs `generate_training_data.py`'s O(n²) rewrite of the full growing list after every game. Tradeoff: an interruption loses the unflushed partial chunk (≤`chunk_size`−1 games/worker), re-done on resume.
+- **Resume** — `_completed_idxs_and_next_chunk` scans a worker's existing chunk files for completed `game_idx`s (and the next chunk number) and skips them; the deterministic plan (`game_idx → seed`) makes re-done games identical.
+- **Live progress monitor** — a daemon thread logs `[progress] done/total (~%), games/min this run, ETA` every 60s (the run is otherwise silent until the final summary). Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id scaffold.
+
+CLI: `--n-games / --out-dir (resume if exists) / --n-workers / --base-seed / --sims / --c-uct / --temperature (action-selection T, equal throughout — π is stored raw at τ=1 regardless) / --chunk-size / --leaf-ckpt / --policy {unweighted,awr}`. Storage ~75 KB/game (π adds ~40% over the heuristic data's ~53 KB).
 
 ---
 

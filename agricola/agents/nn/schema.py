@@ -57,8 +57,17 @@ from agricola.state import GameState
 #           disk; pre-refactor v1 data is quarantined under
 #           runs/stale_data_version_1/ and the post-refactor records were
 #           restamped to v2. See HIDDEN_INFO_DESIGN.md.
+#   2 -> 3: MCTS self-play recording. `DecisionSnapshot` gained two
+#           optional fields — `visit_distribution` (the search's root
+#           visit counts π, the AlphaZero policy target) and `root_value`
+#           (the search's P0-frame value estimate at the move). Both
+#           default to None, so heuristic/NNAgent records (which leave them
+#           None) are structurally a subset; the bump is what gates v2 data
+#           out of the v3 loader. To use the existing v2 runs under v3 code,
+#           re-stamp their GameRecords to data_version=3 (the None defaults
+#           make them load cleanly). See the self-play data-gen design.
 
-DATA_VERSION: int = 2
+DATA_VERSION: int = 3
 """On-disk dataset schema version. Stamped onto every `GameRecord`;
 verified at load time. See FIRST_NN.md §10.4."""
 
@@ -80,11 +89,22 @@ class DecisionSnapshot:
     where `len(filter_implemented(legal_actions_fn(state))) == 1`
     are not recorded — they carry no decision and would inflate the
     dataset with correlated trivia.
+
+    `visit_distribution` and `root_value` are populated only by MCTS
+    self-play recording (DATA_VERSION 3): the search's raw root visit
+    counts π (the AlphaZero soft policy target, stored unnormalized at
+    τ=1) and its P0-frame value estimate at the move (root mean-Q,
+    sign-flipped into P0's frame to match the terminal-margin
+    convention). Both stay None for heuristic / 1-turn-NNAgent records,
+    which carry only `chosen_action`.
     """
 
     state: GameState
     chosen_action: Action
     decider_idx: int  # 0 or 1. Cached copy of decider_of(state) at snapshot time.
+    # MCTS self-play only (None otherwise). See class docstring.
+    visit_distribution: dict[Action, int] | None = None
+    root_value: float | None = None
 
 
 @dataclass(frozen=True)
