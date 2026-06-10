@@ -192,13 +192,26 @@ def replay_trace(
 ) -> GameRecord:
     """Replay a trace through the Python engine and rebuild a ``GameRecord``.
 
-    A ``DecisionSnapshot`` is recorded at exactly the states the Python engine
-    considers non-singleton player decisions
-    (``len(filter_implemented(legal_actions_fn(state))) > 1``) — Python is
-    authoritative for *which* snapshots exist; the trace is authoritative for the
+    A ``DecisionSnapshot`` is recorded at exactly the states that are
+    non-singleton player decisions; the trace is authoritative for the
     ``visit_distribution`` / ``root_value`` attached to each (CPP_ENGINE_PLAN.md
     §2.4). The recorded ``decider`` is cross-checked against the replayed state
     as a cheap drift guard.
+
+    Identifying the non-singleton decisions: replay never uses ``legal_actions``
+    to *validate* the trace's actions (``step`` applies them unconditionally),
+    only to decide which states are decisions worth snapshotting. MCTS self-play
+    traces already carry that signal — the search records a ``visit_distribution``
+    *only* on non-singleton decisions — so "entry has a ``visit_distribution``"
+    is exactly equivalent to the singleton test
+    ``len(filter_implemented(legal_actions_fn(state))) > 1`` (verified
+    set-identical). Using it skips ``legal_actions`` entirely, which matters
+    because that call re-runs the animal-accommodation frontier (the
+    ``PARETO_OPT_LEVEL`` Phi build) — pathologically slow on big late-game farms
+    (tens of seconds for a single game) yet pointless here, since replay visits
+    each state once and the Phi build has nothing to amortize against. Value-only
+    traces (no ``visit_distribution`` recorded anywhere) carry no such signal and
+    fall back to ``legal_actions_fn``.
     """
     if trace.get("schema") != TRACE_SCHEMA:
         raise ValueError(
@@ -207,6 +220,12 @@ def replay_trace(
         )
     state: GameState = from_canonical(trace["initial_state"])
     decisions: list[DecisionSnapshot] = []
+
+    # If the trace records pi on any action it is an MCTS self-play trace, where
+    # pi-presence marks exactly the non-singleton decisions (see docstring) — so
+    # we can avoid the expensive legal_actions call. A value-only trace records
+    # no pi anywhere and must re-derive decisions via legal_actions.
+    trace_records_pi = any(e.get("visit_distribution") for e in trace["actions"])
 
     for i, entry in enumerate(trace["actions"]):
         action = action_from_params(entry["type"], entry["params"])
@@ -218,8 +237,11 @@ def replay_trace(
                 f"(round={state.round_number}, phase={state.phase.name})"
             )
         if decider is not None:
-            legal = filter_implemented(legal_actions_fn(state))
-            if len(legal) > 1:
+            if trace_records_pi:
+                is_decision = bool(entry.get("visit_distribution"))
+            else:  # value-only trace — no pi signal, re-derive via legality
+                is_decision = len(filter_implemented(legal_actions_fn(state))) > 1
+            if is_decision:
                 decisions.append(DecisionSnapshot(
                     state=state,
                     chosen_action=action,
