@@ -879,10 +879,32 @@ and *NN batching*. The profiler said otherwise: malloc/state-copy was minor (~1.
 sharing **not worth it**), and the NN was dispatch-bound but partly spin-inflated. The actual wins
 were JSON-removal (action maps + state hash) — found only by sampling the running binary.
 
-**Remaining headroom (genuinely diminishing returns):** the residual `nlohmann` (make the pending
-hash field-wise; the trace-π `action_to_json` is per-decision and necessary) and NN **leaf-batching**
-(amortize the now-hand-rolled forwards). Neither is likely to move the needle much given the diffuse
-profile; the ~4× in hand is the bulk of the available win.
+**Optimization pass #3 — non-algorithmic levers, tried and MEASURED as no-gos (kept for the record).**
+After pass #2 the profile was diffuse, so two implementation-level (non-algorithmic) tweaks were
+attempted and **reverted** because a controlled A/B showed no win:
+
+1. **Compiler tuning — `-mcpu=apple-m1` + LTO (`CMAKE_INTERPROCEDURAL_OPTIMIZATION`).** Within
+   measurement noise (~1.0–1.5× over an interleaved A/B that swung 0.80–1.25 per game). The build was
+   already `-O3 -DNDEBUG`, and on arm64 the default codegen + LTO don't move this workload. NN parity
+   stayed ≤1e-4. Reverted (no benefit, adds CMake complexity).
+2. **Flat per-node containers** — replacing the three per-node `std::unordered_map<Action,…,ActionHash>`
+   (children / priors / chance_counts) with vectors index-aligned to `legal`, so PUCT selection indexes
+   instead of hashes. Cleanly isolated (both `-O3`, 50-game batch): flat **44.6 s vs 43.8 s — ~2%
+   *slower*.** The selection-side hash removal was real but tiny (the maps hold ≤~30 entries, where
+   `unordered_map` is already cheap), and building the index-aligned `priors` turned `O(n)` into an
+   `O(n²)` `Action==` scan that more than offset it. Reverted.
+
+**The meta-lesson (again): the profiler's *sample counts* over-attribute.** Just as libtorch's
+sample share was inflated by thread-pool spin (pass #2), the `ActionHash`/per-node-map share was
+inflated relative to its actual wall-time cost — killing it didn't help. On a diffuse profile,
+single-function sample counts are a weak guide; only an A/B on wall-time tells the truth.
+
+**Remaining headroom (algorithmic — out of scope here, and genuinely diminishing):** **NN leaf-batching**
+(amortize the hand-rolled forwards across a batch with virtual loss) is the one lever with real
+ceiling, but it's an algorithmic change to the search and was explicitly out of scope. The residual
+`nlohmann` (pending-hash serialization; the trace-π `action_to_json` is per-decision and necessary) is
+small. **Conclusion: the implementation is at its non-algorithmic floor — the ~4× in hand is the bulk
+of the available win**, and further speedup needs either leaf-batching or just more/faster cores.
 
 ---
 
