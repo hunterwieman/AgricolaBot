@@ -1,0 +1,648 @@
+// Native NN inference — value net + 9 policy heads + the make_policy_fn combiner
+// (CPP_ENGINE_PLAN.md §6). A faithful port of:
+//   agents/nn/agent.nn_evaluator (value: terminal margin / predict_margin)
+//   agents/nn/policy.make_policy_fn (the 5-branch combiner)
+//   agents/nn/policy_heads (the 7 fixed + 2 pointer heads)
+//   agents/restricted cell-priority constants + _filter_cell_priority
+//
+// Forward passes are computed by a hand-rolled native MLP (agricola/mlp.hpp) over
+// raw float32 weights exported by scripts/nn/export_weights.py — NO libtorch, no
+// TorchScript dispatcher overhead. Each model's forward emits raw logits (fixed)
+// / raw per-candidate scores (pointer) / margin (value); masking, softmax, and
+// the value short-circuit happen here, exactly as before.
+#include "agricola/nn.hpp"
+
+#include "agricola/mlp.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <fstream>
+#include <map>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <variant>
+#include <vector>
+
+#include "nlohmann/json.hpp"
+#include "agricola/constants.hpp"
+#include "agricola/encoder.hpp"
+#include "agricola/fences.hpp"
+#include "agricola/helpers.hpp"
+#include "agricola/legality.hpp"
+#include "agricola/scoring.hpp"
+
+namespace agricola {
+
+namespace {
+
+using json = nlohmann::json;
+
+// --- cell-priority constants (agents/restricted.py) -------------------------
+const std::vector<Coord> kStablePriority = {{0, 4}, {0, 3}, {1, 4}, {1, 3}};
+const std::vector<Coord> kRoomPriority = {{0, 0}, {2, 1}, {1, 1}, {2, 2}};
+const std::vector<Coord> kPlowPriority = {
+    {0, 1}, {0, 2}, {1, 1}, {0, 0}, {1, 2}, {2, 2}, {2, 3}};
+
+// Masked softmax over a logit vector with a parallel legality mask. Mirrors
+// NormalizedPolicyModel.policy_probs: illegal -> -inf; an all-illegal row is
+// treated as all-legal (NaN guard). Returns probabilities over all classes.
+std::vector<double> masked_softmax(const std::vector<float>& logits,
+                                   const std::vector<bool>& legal) {
+  int n = static_cast<int>(logits.size());
+  bool any = false;
+  for (bool b : legal)
+    if (b) any = true;
+  std::vector<double> eff(n);
+  double mx = -1e300;
+  for (int i = 0; i < n; ++i) {
+    bool ok = any ? legal[i] : true;
+    eff[i] = ok ? static_cast<double>(logits[i]) : -1e300;
+    if (ok && eff[i] > mx) mx = eff[i];
+  }
+  double sum = 0.0;
+  std::vector<double> probs(n, 0.0);
+  for (int i = 0; i < n; ++i) {
+    bool ok = any ? legal[i] : true;
+    if (!ok) {
+      probs[i] = 0.0;
+      continue;
+    }
+    double e = std::exp(eff[i] - mx);
+    probs[i] = e;
+    sum += e;
+  }
+  if (sum > 0)
+    for (int i = 0; i < n; ++i) probs[i] /= sum;
+  return probs;
+}
+
+// Plain softmax over per-candidate scores (pointer heads).
+std::vector<double> softmax(const std::vector<double>& scores) {
+  std::vector<double> out(scores.size(), 0.0);
+  if (scores.empty()) return out;
+  double mx = scores[0];
+  for (double s : scores) mx = std::max(mx, s);
+  double sum = 0.0;
+  for (size_t i = 0; i < scores.size(); ++i) {
+    out[i] = std::exp(scores[i] - mx);
+    sum += out[i];
+  }
+  if (sum > 0)
+    for (auto& v : out) v /= sum;
+  return out;
+}
+
+// --- decision-type ownership (mirrors policy_heads.py *_owns) ----------------
+const PendingDecision* top_frame(const GameState& s) {
+  return s.pending_stack.empty() ? nullptr : &s.pending_stack.back();
+}
+
+template <typename T>
+bool top_is(const GameState& s) {
+  const auto* t = top_frame(s);
+  return t && std::holds_alternative<T>(*t);
+}
+
+bool placement_owns(const GameState& s) {
+  return s.phase != Phase::BEFORE_SCORING && s.pending_stack.empty() &&
+         encoder_decider_of(s).has_value();
+}
+bool subaction_owns(const GameState& s) {
+  return top_is<PendingGrainUtilization>(s) || top_is<PendingCultivation>(s) ||
+         top_is<PendingSideJob>(s) || top_is<PendingFarmExpansion>(s) ||
+         top_is<PendingHouseRedevelopment>(s) ||
+         top_is<PendingFarmRedevelopment>(s);
+}
+bool major_owns(const GameState& s) { return top_is<PendingBuildMajor>(s); }
+bool sow_owns(const GameState& s) { return top_is<PendingSow>(s); }
+bool bake_owns(const GameState& s) { return top_is<PendingBakeBread>(s); }
+bool fencing_owns(const GameState& s) { return top_is<PendingBuildFences>(s); }
+bool build_stop_owns(const GameState& s) {
+  const auto* t = top_frame(s);
+  if (!t) return false;
+  if (std::holds_alternative<PendingBuildRooms>(*t))
+    return std::get<PendingBuildRooms>(*t).num_built >= 1;
+  if (std::holds_alternative<PendingBuildStables>(*t))
+    return std::get<PendingBuildStables>(*t).num_built >= 1;
+  return false;
+}
+bool animal_owns(const GameState& s) {
+  if (s.phase == Phase::BEFORE_SCORING || s.pending_stack.empty()) return false;
+  if (!encoder_decider_of(s).has_value()) return false;
+  const auto* t = top_frame(s);
+  if (std::holds_alternative<PendingHarvestBreed>(*t))
+    return !std::get<PendingHarvestBreed>(*t).breed_chosen;
+  return std::holds_alternative<PendingSheepMarket>(*t) ||
+         std::holds_alternative<PendingPigMarket>(*t) ||
+         std::holds_alternative<PendingCattleMarket>(*t);
+}
+bool harvest_feed_owns(const GameState& s) {
+  if (s.phase == Phase::BEFORE_SCORING || s.pending_stack.empty()) return false;
+  if (!encoder_decider_of(s).has_value()) return false;
+  const auto* t = top_frame(s);
+  return std::holds_alternative<PendingHarvestFeed>(*t) &&
+         !std::get<PendingHarvestFeed>(*t).conversion_done;
+}
+
+// --- fixed-head vocab + per-action label/class-index -------------------------
+// Each head maps a class index <-> a label string; an action's class index is
+// found via its label. We build the label->index maps once (static).
+
+// choose_subaction vocab (policy_heads.CHOOSE_SUBACTION_VOCAB).
+const std::vector<std::string> kSubactionVocab = {
+    "sow",          "bake_bread",   "build_stables", "build_rooms",
+    "plow",         "build_fences", "improvement",   "__stop__"};
+
+// commit_build_major vocab (_build_major_vocab): m0..m9, with m2/m3 also having
+// m{mi}_rf{fp} for fp in {0,1} right after.
+std::vector<std::string> build_major_vocab() {
+  std::vector<std::string> v;
+  for (int mi = 0; mi < NUM_MAJOR_IMPROVEMENTS; ++mi) {
+    v.push_back("m" + std::to_string(mi));
+    if (mi == 2 || mi == 3) {  // COOKING_HEARTH_INDICES
+      v.push_back("m" + std::to_string(mi) + "_rf0");
+      v.push_back("m" + std::to_string(mi) + "_rf1");
+    }
+  }
+  return v;
+}
+
+// commit_sow vocab: g{g}v{s-g} for s in 1..13, g in 0..s.
+std::vector<std::string> sow_vocab() {
+  std::vector<std::string> v;
+  for (int s = 1; s <= 13; ++s)
+    for (int g = 0; g <= s; ++g)
+      v.push_back("g" + std::to_string(g) + "v" + std::to_string(s - g));
+  return v;
+}
+
+// commit_bake vocab: n1..n6.
+std::vector<std::string> bake_vocab() {
+  std::vector<std::string> v;
+  for (int n = 1; n <= 6; ++n) v.push_back("n" + std::to_string(n));
+  return v;
+}
+
+template <typename T>
+const T* as(const Action& a) {
+  return std::holds_alternative<T>(a) ? &std::get<T>(a) : nullptr;
+}
+
+// Label of an action under a given head, or "" if not this head's class.
+std::string label_placement(const Action& a) {
+  if (auto* p = as<PlaceWorker>(a)) return p->space;
+  return "";
+}
+std::string label_subaction(const Action& a) {
+  if (auto* c = as<ChooseSubAction>(a)) {
+    if (c->name == "build_stable") return "build_stables";  // _SUBACTION_ALIAS
+    return c->name;
+  }
+  if (as<Stop>(a)) return "__stop__";
+  return "";
+}
+std::string label_major(const Action& a) {
+  auto* m = as<CommitBuildMajor>(a);
+  if (!m) return "";
+  if (!m->return_fireplace_idx.has_value())
+    return "m" + std::to_string(m->major_idx);
+  return "m" + std::to_string(m->major_idx) + "_rf" +
+         std::to_string(*m->return_fireplace_idx);
+}
+std::string label_sow(const Action& a) {
+  auto* s = as<CommitSow>(a);
+  if (!s) return "";
+  int sum = s->grain + s->veg;
+  if (sum < 1 || sum > 13) return "";
+  return "g" + std::to_string(s->grain) + "v" + std::to_string(s->veg);
+}
+std::string label_bake(const Action& a) {
+  auto* b = as<CommitBake>(a);
+  if (!b) return "";
+  if (b->grain < 1 || b->grain > 6) return "";
+  return "n" + std::to_string(b->grain);
+}
+
+// --- the loaded model bundle -------------------------------------------------
+struct LoadedHead {
+  Mlp mlp;
+  int num_classes = 0;
+  // label -> class index (for fixed heads); empty for pointer heads.
+  std::unordered_map<std::string, int> label_to_idx;
+  std::vector<std::string> vocab;
+};
+
+}  // namespace
+
+struct NNInference::Impl {
+  Mlp value_mlp;
+  double value_scale = 1.0;
+  std::unordered_map<std::string, LoadedHead> fixed;   // head name -> head
+  std::unordered_map<std::string, LoadedHead> pointer;  // animal_frontier/harvest_feed
+  int harvest_feed_dim = 10;
+  int animal_dim = 4;
+
+  // ---- value ----
+  // predict_margin from perspective 0 = (net forward of normalized input) ×
+  // target_std. The terminal short-circuit returns the exact margin instead.
+  double value(const GameState& s) const {
+    if (s.phase == Phase::BEFORE_SCORING)
+      return static_cast<double>(score(s, 0) - score(s, 1));
+    std::array<float, kEncodedDim> enc = encode(s, 0);
+    std::vector<float> out;
+    value_mlp.forward(enc.data(), out);  // raw scalar (output_dim == 1)
+    return static_cast<double>(out[0]) *
+           static_cast<double>(value_mlp.target_std());
+  }
+
+  // ---- fixed head logits ----
+  std::vector<float> fixed_logits(const LoadedHead& h, const GameState& s) const {
+    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
+    std::vector<float> out;
+    h.mlp.forward(enc.data(), out);  // raw logits, length == num_classes
+    return out;
+  }
+
+  // ---- pointer head per-candidate scores over [170+D] rows ----
+  // Each candidate is scored independently: the per-candidate forward is over
+  // the full [state ; candidate] row (the model's input_mean/std span 170+D).
+  std::vector<double> pointer_scores(
+      const LoadedHead& h, const GameState& s,
+      const std::vector<std::vector<float>>& cand_feats, int cdim) const {
+    int k = static_cast<int>(cand_feats.size());
+    if (k == 0) return {};
+    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
+    std::vector<float> row(static_cast<size_t>(kEncodedDim) + cdim);
+    std::copy(enc.begin(), enc.end(), row.begin());
+    std::vector<double> scores(k);
+    std::vector<float> out;
+    for (int i = 0; i < k; ++i) {
+      std::copy(cand_feats[i].begin(), cand_feats[i].end(),
+                row.begin() + kEncodedDim);
+      h.mlp.forward(row.data(), out);  // scalar score (output_dim == 1)
+      scores[i] = static_cast<double>(out[0]);
+    }
+    return scores;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Loading
+// ---------------------------------------------------------------------------
+
+NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
+  std::string base = model_dir;
+  if (!base.empty() && base.back() != '/') base += '/';
+
+  // weights_manifest.json (raw-f32 export); the legacy .ts manifest.json is no
+  // longer read (the hand-rolled MLP replaces TorchScript).
+  std::ifstream mf(base + "weights_manifest.json");
+  if (!mf) throw std::runtime_error("NNInference: cannot open " + base +
+                                    "weights_manifest.json "
+                                    "(run scripts/nn/export_weights.py)");
+  nlohmann::json manifest;
+  mf >> manifest;
+  int enc_ver = manifest.value("encoding_version", -1);
+  if (enc_ver != 2)
+    throw std::runtime_error(
+        "NNInference: manifest encoding_version=" + std::to_string(enc_ver) +
+        " != 2 (kEncodingVersion)");
+
+  impl_->value_mlp = Mlp(manifest["value"], base);
+  if (manifest["value"].contains("value_scale"))
+    impl_->value_scale = manifest["value"]["value_scale"].get<double>();
+
+  // Build fixed-head label->index maps that mirror policy_heads.py vocabs.
+  auto make_fixed = [&](const std::string& name, const nlohmann::json& entry,
+                        const std::vector<std::string>& vocab) {
+    LoadedHead h;
+    h.mlp = Mlp(entry, base);
+    h.vocab = vocab;
+    h.num_classes = static_cast<int>(vocab.size());
+    for (int i = 0; i < h.num_classes; ++i) h.label_to_idx[vocab[i]] = i;
+    impl_->fixed[name] = std::move(h);
+  };
+
+  const auto& fh = manifest["fixed_heads"];
+  // placement vocab = SPACE_IDS.
+  std::vector<std::string> placement_vocab(SPACE_IDS.begin(), SPACE_IDS.end());
+  // fencing vocab = p0..p108 + __stop__ (RESTRICTED universe order).
+  std::vector<std::string> fencing_vocab;
+  {
+    int n = static_cast<int>(restricted_universe_entries().size());
+    for (int i = 0; i < n; ++i) fencing_vocab.push_back("p" + std::to_string(i));
+    fencing_vocab.push_back("__stop__");
+  }
+  if (fh.contains("placement"))
+    make_fixed("placement", fh["placement"], placement_vocab);
+  if (fh.contains("choose_subaction"))
+    make_fixed("choose_subaction", fh["choose_subaction"], kSubactionVocab);
+  if (fh.contains("commit_build_major"))
+    make_fixed("commit_build_major", fh["commit_build_major"],
+               build_major_vocab());
+  if (fh.contains("commit_sow"))
+    make_fixed("commit_sow", fh["commit_sow"], sow_vocab());
+  if (fh.contains("commit_bake"))
+    make_fixed("commit_bake", fh["commit_bake"], bake_vocab());
+  if (fh.contains("fencing"))
+    make_fixed("fencing", fh["fencing"], fencing_vocab);
+  if (fh.contains("build_stop"))
+    make_fixed("build_stop", fh["build_stop"],
+               std::vector<std::string>{"__build__", "__stop__"});
+
+  const auto& ph = manifest["pointer_heads"];
+  auto make_pointer = [&](const std::string& name) {
+    if (!ph.contains(name)) return;
+    LoadedHead h;
+    h.mlp = Mlp(ph[name], base);
+    impl_->pointer[name] = std::move(h);
+    if (name == "harvest_feed")
+      impl_->harvest_feed_dim = ph[name].value("candidate_dim", 10);
+    if (name == "animal_frontier")
+      impl_->animal_dim = ph[name].value("candidate_dim", 4);
+  };
+  make_pointer("animal_frontier");
+  make_pointer("harvest_feed");
+}
+
+NNInference::~NNInference() = default;
+
+double NNInference::value(const GameState& state) const {
+  return impl_->value(state);
+}
+
+double NNInference::value_scale() const { return impl_->value_scale; }
+
+// ---------------------------------------------------------------------------
+// Policy combiner
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// _filter_cell_priority(actions, priority, CommitClass) — keep only the highest-
+// priority cell among Commit* of CommitClass (plus all non-CommitClass actions).
+// If no priority cell is legal, return the original set.
+template <typename CommitT>
+std::vector<Action> filter_cell_priority(const std::vector<Action>& actions,
+                                         const std::vector<Coord>& priority) {
+  std::vector<Action> commits, others;
+  for (const auto& a : actions) {
+    if (std::holds_alternative<CommitT>(a))
+      commits.push_back(a);
+    else
+      others.push_back(a);
+  }
+  if (commits.empty()) return actions;
+  std::map<Coord, Action> by_cell;
+  for (const auto& a : commits) {
+    const auto& c = std::get<CommitT>(a);
+    by_cell[{c.row, c.col}] = a;
+  }
+  for (const auto& rc : priority) {
+    auto it = by_cell.find(rc);
+    if (it != by_cell.end()) {
+      std::vector<Action> out = others;
+      out.push_back(it->second);
+      return out;
+    }
+  }
+  return actions;
+}
+
+std::vector<std::pair<Action, double>> uniform(const std::vector<Action>& acts) {
+  std::vector<std::pair<Action, double>> out;
+  if (acts.empty()) return out;
+  double p = 1.0 / static_cast<double>(acts.size());
+  for (const auto& a : acts) out.push_back({a, p});
+  return out;
+}
+
+}  // namespace
+
+std::vector<std::pair<Action, double>> NNInference::policy(
+    const GameState& state) const {
+  std::vector<Action> legal = legal_actions(state);
+
+  // 1. Fixed-vocab head over the FULL legal set (disjoint ownership).
+  struct FixedOwner {
+    const char* name;
+    bool (*owns)(const GameState&);
+    std::string (*label)(const Action&);
+  };
+  static const FixedOwner kFixedOwners[] = {
+      {"placement", placement_owns, label_placement},
+      {"choose_subaction", subaction_owns, label_subaction},
+      {"commit_build_major", major_owns, label_major},
+      {"commit_sow", sow_owns, label_sow},
+      {"commit_bake", bake_owns, label_bake},
+      {"fencing", fencing_owns, nullptr},  // label handled specially below
+  };
+  for (const auto& fo : kFixedOwners) {
+    auto it = impl_->fixed.find(fo.name);
+    if (it == impl_->fixed.end()) continue;
+    if (!fo.owns(state)) continue;
+    const LoadedHead& h = it->second;
+
+    // Map each legal action -> class index (label_to_idx). Fencing uses the
+    // RESTRICTED universe cell-set -> class index.
+    std::vector<std::pair<Action, int>> candidates;
+    if (std::string(fo.name) == "fencing") {
+      const auto& entries = restricted_universe_entries();
+      for (const auto& a : legal) {
+        if (auto* cp = as<CommitBuildPasture>(a)) {
+          int idx = -1;
+          for (int i = 0; i < static_cast<int>(entries.size()); ++i)
+            if (entries[i].cells == cp->cells) {
+              idx = i;
+              break;
+            }
+          if (idx >= 0) candidates.push_back({a, idx});
+        } else if (std::holds_alternative<Stop>(a)) {
+          candidates.push_back({a, static_cast<int>(entries.size())});  // __stop__
+        }
+      }
+    } else {
+      for (const auto& a : legal) {
+        std::string lab = fo.label(a);
+        if (lab.empty()) continue;
+        auto li = h.label_to_idx.find(lab);
+        if (li != h.label_to_idx.end()) candidates.push_back({a, li->second});
+      }
+    }
+    if (candidates.empty()) break;  // head abstains -> fall through
+
+    std::vector<bool> mask(h.num_classes, false);
+    for (const auto& [a, i] : candidates) mask[i] = true;
+    std::vector<float> logits = impl_->fixed_logits(h, state);
+    std::vector<double> probs = masked_softmax(logits, mask);
+    std::vector<std::pair<Action, double>> out;
+    for (const auto& [a, i] : candidates) out.push_back({a, probs[i]});
+    return out;
+  }
+
+  // 1b. Pointer head over its frontier candidates (== the legal set).
+  // animal_frontier: CommitBreed / CommitAccommodate -> (s,b,c,food_gained).
+  if (animal_owns(state) && impl_->pointer.count("animal_frontier")) {
+    const auto* t = top_frame(state);
+    int pidx = *encoder_decider_of(state);
+    const PlayerState& p = state.players[pidx];
+    auto cr = cooking_rates(state, pidx);
+    std::array<int, 3> rates3{cr[0], cr[1], cr[2]};
+    std::vector<Action> acts;
+    std::vector<std::vector<float>> feats;
+    if (std::holds_alternative<PendingHarvestBreed>(*t)) {
+      for (const auto& [cfg, food] : breeding_frontier(p, rates3)) {
+        acts.push_back(CommitBreed{cfg[0], cfg[1], cfg[2]});
+        feats.push_back({static_cast<float>(cfg[0]), static_cast<float>(cfg[1]),
+                         static_cast<float>(cfg[2]), static_cast<float>(food)});
+      }
+    } else {
+      Animals gained{};
+      if (std::holds_alternative<PendingSheepMarket>(*t))
+        gained.sheep = std::get<PendingSheepMarket>(*t).gained;
+      else if (std::holds_alternative<PendingPigMarket>(*t))
+        gained.boar = std::get<PendingPigMarket>(*t).gained;
+      else if (std::holds_alternative<PendingCattleMarket>(*t))
+        gained.cattle = std::get<PendingCattleMarket>(*t).gained;
+      for (const auto& [cfg, food] : pareto_frontier(p, gained, rates3)) {
+        acts.push_back(CommitAccommodate{cfg[0], cfg[1], cfg[2]});
+        feats.push_back({static_cast<float>(cfg[0]), static_cast<float>(cfg[1]),
+                         static_cast<float>(cfg[2]), static_cast<float>(food)});
+      }
+    }
+    if (!acts.empty()) {
+      std::vector<double> scores =
+          impl_->pointer_scores(impl_->pointer.at("animal_frontier"), state,
+                                feats, impl_->animal_dim);
+      std::vector<double> probs = softmax(scores);
+      std::vector<std::pair<Action, double>> out;
+      for (size_t i = 0; i < acts.size(); ++i) out.push_back({acts[i], probs[i]});
+      return out;
+    }
+  }
+
+  // harvest_feed: candidates come straight from legal_actions (toggles +
+  // converts), so the set + order match the engine. Featurize each.
+  if (harvest_feed_owns(state) && impl_->pointer.count("harvest_feed")) {
+    int pidx = *encoder_decider_of(state);
+    const PlayerState& p = state.players[pidx];
+    // Per-CommitConvert begging recovered from harvest_feed_frontier.
+    bool has_convert = false;
+    for (const auto& a : legal)
+      if (std::holds_alternative<CommitConvert>(a)) has_convert = true;
+    std::map<std::array<int, 5>, int> begging_by_consumed;
+    if (has_convert) {
+      auto rates = cooking_rates(state, pidx);
+      int food_owed = std::max(0, 2 * p.people_total - p.newborns - p.resources.food);
+      int g0 = p.resources.grain, v0 = p.resources.veg;
+      int s0 = p.animals.sheep, b0 = p.animals.boar, c0 = p.animals.cattle;
+      for (const auto& [rem, beg] : harvest_feed_frontier(p, food_owed, rates)) {
+        begging_by_consumed[{g0 - rem[0], v0 - rem[1], s0 - rem[2],
+                             b0 - rem[3], c0 - rem[4]}] = beg;
+      }
+    }
+    static const std::array<std::string, 3> kCraftOrder = {"joinery", "pottery",
+                                                           "basketmaker"};
+    std::vector<Action> acts;
+    std::vector<std::vector<float>> feats;
+    int D = impl_->harvest_feed_dim;  // 10
+    for (const auto& a : legal) {
+      if (auto* hc = as<CommitHarvestConversion>(a)) {
+        std::vector<float> f(D, 0.0f);
+        f[0] = 1.0f;  // is_toggle
+        for (int j = 0; j < 3; ++j)
+          if (hc->conversion_id == kCraftOrder[j]) f[1 + j] = 1.0f;
+        acts.push_back(a);
+        feats.push_back(f);
+      } else if (auto* cv = as<CommitConvert>(a)) {
+        std::vector<float> f(D, 0.0f);
+        f[4] = static_cast<float>(cv->grain);
+        f[5] = static_cast<float>(cv->veg);
+        f[6] = static_cast<float>(cv->sheep);
+        f[7] = static_cast<float>(cv->boar);
+        f[8] = static_cast<float>(cv->cattle);
+        auto it = begging_by_consumed.find(
+            {cv->grain, cv->veg, cv->sheep, cv->boar, cv->cattle});
+        f[9] = it != begging_by_consumed.end()
+                   ? static_cast<float>(it->second)
+                   : 0.0f;
+        acts.push_back(a);
+        feats.push_back(f);
+      }
+    }
+    if (!acts.empty()) {
+      std::vector<double> scores = impl_->pointer_scores(
+          impl_->pointer.at("harvest_feed"), state, feats, D);
+      std::vector<double> probs = softmax(scores);
+      std::vector<std::pair<Action, double>> out;
+      for (size_t i = 0; i < acts.size(); ++i) out.push_back({acts[i], probs[i]});
+      return out;
+    }
+  }
+
+  // 1c. build_stop: multi-shot Build Rooms / Build Stables with Stop legal.
+  if (impl_->fixed.count("build_stop") && build_stop_owns(state)) {
+    const LoadedHead& h = impl_->fixed.at("build_stop");
+    // Legal mask over {__build__, __stop__}.
+    bool has_build = false, has_stop = false;
+    const auto* t = top_frame(state);
+    bool is_rooms = std::holds_alternative<PendingBuildRooms>(*t);
+    for (const auto& a : legal) {
+      if (is_rooms && std::holds_alternative<CommitBuildRoom>(a)) has_build = true;
+      if (!is_rooms && std::holds_alternative<CommitBuildStable>(a))
+        has_build = true;
+      if (std::holds_alternative<Stop>(a)) has_stop = true;
+    }
+    std::vector<bool> mask = {has_build, has_stop};
+    std::vector<float> logits = impl_->fixed_logits(h, state);
+    std::vector<double> probs = masked_softmax(logits, mask);
+    double p_build = probs[0], p_stop = probs[1];
+
+    // Cell-priority build cell + Stop, renormalized (mirrors
+    // _build_stop_distribution).
+    std::vector<Action> kept =
+        is_rooms ? filter_cell_priority<CommitBuildRoom>(legal, kRoomPriority)
+                 : filter_cell_priority<CommitBuildStable>(legal, kStablePriority);
+    std::vector<Action> build_opts, stop_opts;
+    for (const auto& a : kept) {
+      if (is_rooms ? std::holds_alternative<CommitBuildRoom>(a)
+                   : std::holds_alternative<CommitBuildStable>(a))
+        build_opts.push_back(a);
+      else if (std::holds_alternative<Stop>(a))
+        stop_opts.push_back(a);
+    }
+    std::vector<std::pair<Action, double>> out;
+    if (!build_opts.empty() && p_build > 0) {
+      double share = p_build / static_cast<double>(build_opts.size());
+      for (const auto& a : build_opts) out.push_back({a, share});
+    }
+    if (!stop_opts.empty() && p_stop > 0) out.push_back({stop_opts[0], p_stop});
+    double total = 0.0;
+    for (auto& [a, pr] : out) total += pr;
+    if (total > 0) {
+      for (auto& [a, pr] : out) pr /= total;
+      return out;
+    }
+    return uniform(kept);
+  }
+
+  // 2. Cell commit -> uniform over the cell-priority-filtered set.
+  const auto* t = top_frame(state);
+  if (t) {
+    if (std::holds_alternative<PendingPlow>(*t))
+      return uniform(filter_cell_priority<CommitPlow>(legal, kPlowPriority));
+    if (std::holds_alternative<PendingBuildStables>(*t))
+      return uniform(
+          filter_cell_priority<CommitBuildStable>(legal, kStablePriority));
+    if (std::holds_alternative<PendingBuildRooms>(*t))
+      return uniform(filter_cell_priority<CommitBuildRoom>(legal, kRoomPriority));
+  }
+
+  // 3. Unhandled -> uniform over the full legal set.
+  return uniform(legal);
+}
+
+}  // namespace agricola

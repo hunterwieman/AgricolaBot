@@ -185,6 +185,17 @@ cached data") is a default with explicit guidance for when to deviate.
   decomposition) — and its caller-discipline maintenance contract are documented in
   `ENGINE_IMPLEMENTATION.md`.
 
+- **The Python engine is the source of truth; keep the C++ differential gates green.** A native C++
+  reimplementation of the self-play inner loop now exists (§2.4 / `CPP_ENGINE_PLAN.md`), validated
+  against *this* Python engine by the `tests/test_cpp_*.py` differential harness (it is the oracle).
+  **Any change to the Python engine — rules, legality, scoring, the encoder, or the state/action
+  shape — must keep those gates green:** re-port the change into `cpp/` and re-run
+  `~/miniconda3/bin/python -m pytest tests/test_cpp_*.py`. Otherwise the two engines silently
+  diverge and the C++ self-play data becomes wrong. If you change the engine and don't update C++,
+  say so explicitly and treat the C++ path as stale until re-synced. (The C++ engine is Family-only
+  — cards must be ported there before C++ self-play is used for the card game; the harness makes
+  that re-port safe.) This is the maintenance cost the differential harness exists to contain.
+
 ---
 
 ## Phase 1 — The Game Engine
@@ -580,6 +591,37 @@ than a separate hygiene task. Full template + bump policy at the bottom of `REGI
 
 ---
 
+### 2.4 — The C++ self-play engine (performance)
+
+Self-play data generation — the throughput bottleneck for NN training (2.3) — now has a **second,
+native implementation**: a faithful C++ reimplementation of the self-play *inner loop* — the engine
+(`step` / `legal_actions` / scoring), MCTS (PUCT / FLATTEN / chance nodes), and NN inference
+(hand-rolled MLPs, **no libtorch**) — that generates self-play games **~4× faster** than Python
+single-thread and parallelizes per-core exactly as before. It lives entirely under `cpp/`; the
+Python codebase is **untouched** and serves as the source-of-truth **oracle**.
+
+**The two engines and how they stay in sync.** The C++ twin is validated against Python by a
+**differential-test harness**: `tests/test_cpp_*.py` assert the C++ engine produces byte-identical
+`legal_actions` / `step` / scoring, float-identical encodings, and ≤1e-4 NN value/policy outputs over
+large random-state corpora (~118 gates). The shared contract is the canonical `GameState`↔JSON
+serialization in `agricola/canonical.py`. Full design, the staged build, the JSON-hot-path profiling
+story, and the benchmark are in **`CPP_ENGINE_PLAN.md`**.
+
+> **Maintenance invariant (load-bearing) — see Foundations.** Python is the oracle; any change to the
+> Python engine must keep the C++ differential gates green (`pytest tests/test_cpp_*.py`) or the two
+> silently diverge. The full rule lives in **Foundations → Engineering invariants** ("the Python
+> engine is the source of truth; keep the C++ differential gates green").
+
+**Generating data with it.** `scripts/nn/generate_selfplay_data_cpp.py` mirrors
+`generate_selfplay_data.py`'s CLI and produces the **identical** `GameRecord` run-dir format (so
+training consumes it unchanged) — it generates via the C++ binary across a worker pool, then replays
+the compact traces into `GameRecord`s (with π + root_value intact). Workflow: train in Python →
+export weights (`scripts/nn/export_weights.py` → `nn_models/cpp_export/`) → generate
+(`generate_selfplay_data_cpp.py`, default batch mode loads weights once per worker) → train on the
+output. Build the binary per `cpp/README.md`.
+
+---
+
 ## Phase 3 — Cards (and maybe 4-player)
 
 **Not yet started — the next major phase.** The full Agricola card system (the ~470 occupation
@@ -645,6 +687,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
 | `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
 | `SPEEDUPS.md` | Performance catalog in two parts: **Part 1 Implemented** (every optimization in the code, with what/why/where — `fast_replace`, cached `__hash__`, the `opt_config` frontier/fence caches, the NN inference encoder S10–S13, etc.) and **Part 2 Potential next steps** (sketched candidates + *measured no-gos* like jit.trace and the encoding-keyed cache). Stable `S1`–`Sn` identifiers; deep detail for the big ones lives in `FRONTIER_OPT_DESIGN.md` / `CHANGES.md`. (Renamed from `POSSIBLE_SPEEDUPS.md`.) Sibling to POSSIBLE_NEXT_STEPS.md, scoped to performance. |
+| `CPP_ENGINE_PLAN.md` | Design + staged-build + results record for the **C++ self-play engine** (CLAUDE.md §2.4): a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference) that runs ~4× faster than Python, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Covers the architecture (traces, the canonical-JSON contract, the differential-testing methodology), the 7 stages with their equivalence gates (§8.1 status ledger), the JSON-hot-path profiling finding + the two optimization passes, the data-gen pipeline (`generate_selfplay_data_cpp.py`), and the maintenance invariant (Python is the oracle; keep the C++ gates green). All C++ lives under `cpp/`. |
 | `INCREMENTAL_PASTURE_DESIGN.md` | Design sketch (NOT STARTED) for S9 option 2 — incrementally updating the cached `Farmyard.pastures` decomposition on fence/stable builds instead of re-running the full flood-fill BFS (`compute_pastures_from_arrays`), the #1 MCTS self-time function. Covers the new-pasture-vs-subdivision branch, the byte-identical-output constraint (the tuple feeds `Farmyard` hash/eq → the MCTS transposition table), the incidental-pocket / stable-repartition / combined-case concerns, and why it's gated on the S9 option-1 memoization landing first. A jumping-off point for a future session. |
 | `FRONTIER_OPT_DESIGN.md` | Design + implementation record for the frontier/accommodation optimizations that speed up the Pareto/accommodation helpers in MCTS. Toggleable via `agricola/opt_config.py` (`PARETO_OPT_LEVEL` 0–3 + `FENCE_SCAN_CACHE`), now default-on. Covers the algorithmic rewrites (rate-descending `food_payment`, max-corner), the projection-keyed caches (exact / Φ farm-shape / feeding clip), the correctness invariants + proofs (Appendix A), the cross-level equivalence testing strategy (§8.1) and benchmarking methodology (§8.2), and the landed-status/phasing. **Implemented** — see the Status note at the top. |
 | `HEURISTIC_TUNING_PLAN.md` | V1-era plan for self-play tuning. Thread A (tuning harness) has been implemented and run; Threads B and C are partially superseded by V3. See `V3_TRAINING_PIPELINE.md` for the current pipeline. |
@@ -722,6 +765,8 @@ AgricolaBot/
 
         state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
 
+        canonical.py                # Canonical, deterministic GameState↔JSON (`dumps`/`loads`) — the shared serialization CONTRACT the C++ engine must reproduce byte-for-byte (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). Tag-driven generic dataclass walker (drift-proof); test/interop scaffolding only, not on any production path. The Python engine is untouched.
+
         setup.py                    # setup_env(seed) -> (GameState, Environment) — the full constructor for the initial 2-player Family game: builds the per-stage shuffled reveal order into the Environment, pre-deals round 1 (via env.reveal_action), and returns the round-1 WORK state. setup(seed) = setup_env(seed)[0] (drops the env). All randomness (starting player, per-stage card shuffle) is resolved here via a seeded NumPy RNG; the order is hidden in the Environment and the engine is fully deterministic afterward.
 
         helpers.py                  # Pure derived-quantity functions (fences_in_supply, stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
@@ -773,6 +818,8 @@ AgricolaBot/
                 recording.py        # `play_recording_game(initial_state, p0_agent, p1_agent, *, metadata, legal_actions_fn=restricted_legal_actions)` — plays one full game, captures every non-singleton state as a `DecisionSnapshot` (state recorded BEFORE the agent call so the snapshot matches what the agent saw), then captures terminal state + final scores + tiebreakers + winner into a complete `GameRecord`. Deterministic given pre-seeded agents.
 
                 selfplay_recording.py # MCTS self-play recording driver (`DATA_VERSION` 3) — the self-play sibling of `recording.py`. `RootCapturingMCTSAgent` (an `MCTSAgent` subclass that stashes the searched root via `_select_action_with_temperature`, no edit to `mcts.py`) + `play_selfplay_recording_game(initial_state, agent, *, dealer, …)`: plays one SHARED-tree game (a single agent drives both seats), steps through forced (singleton) moves uninvoked, and records each non-singleton decision's state + chosen_action + root visit distribution π + P0-frame `root_value` into a v3 `GameRecord`. Torch-free at module level (the NN leaf rides in via the passed agent).
+
+                trace_replay.py     # C++↔Python interop (CLAUDE.md §2.4): the game-trace serde + the replay adapter. `game_to_trace` (writer) / `replay_trace(trace) -> GameRecord` (reads a C++-emitted `agricola-cpp-trace-v1` trace, replays it through the engine, rebuilds a v3 `GameRecord` with π + root_value) / action↔`params` serde for all 17 action types (closes the web-UI `RevealCard.card` drop). Lets C++-generated self-play feed the unchanged training pipeline. See CPP_ENGINE_PLAN.md §2.
 
                 encoder.py          # Input-vector encoder. `ENCODING_VERSION` + `ENCODED_DIM=170`. `encode_state(state, player_idx) -> np.ndarray` (float32) translates a `GameState` into the flat ~170-feature vector specified in FIRST_NN.md §4: own-player block (54) + opponent block (54) + shared/board (54) + mid-action singletons (8). Numpy-only — the training pipeline converts at the model boundary via `torch.from_numpy(arr)`. `feature_names()` returns the parallel string list for debugging / per-feature analysis. The MCTS-inference hot path goes through `encode_for_inference` (a swap-aware per-state memo) + `swap_perspective`, layered over an index-writer rewrite of `encode_state` (byte-identical to the original; the `(name,value)` `_assemble` is kept as the golden-test oracle + `feature_names` source). See SPEEDUPS.md S10–S13.
 
@@ -849,6 +896,16 @@ AgricolaBot/
         test_nn_policy.py
         test_generate_nn_training_data.py
         test_validate_nn_dataset.py
+        test_cpp_canonical.py           # C++-port differential gates (CLAUDE.md §2.4 / CPP_ENGINE_PLAN.md):
+        test_cpp_trace_replay.py        #   canonical serde, trace replay, state model + flood-fill,
+        test_cpp_state.py               #   legality, step/scoring, encoder, NN value+policy, MCTS,
+        test_cpp_legality.py            #   and the C++ self-play data-gen pipeline — each asserting
+        test_cpp_step.py                #   the C++ engine matches the Python oracle. Skip if cpp/ unbuilt.
+        test_cpp_binding.py
+        test_cpp_nn.py
+        test_cpp_mcts.py
+        test_cpp_selfplay.py
+        test_cpp_selfplay_pipeline.py
 
     scripts/                        # Out-of-tree utilities — profiling, benchmarking, tuning. Re-runnable; not imported by `agricola/` or `tests/`. Used to produce / update PROFILING.md and the tuned-config JSONs in `tuned_configs/`.
 
@@ -886,6 +943,10 @@ AgricolaBot/
 
             generate_selfplay_data.py # MCTS self-play training-data generator (`DATA_VERSION` 3) — the self-play sibling of `generate_training_data.py`. Plays N SHARED-tree MCTS-vs-MCTS games (NN value leaf `nn_models/best` + combined behavioral-cloning policy; PUCT / FLATTEN / full legality) via `play_selfplay_recording_game`, recording π + `root_value`. CHUNKED STREAMING writes (`worker_NN_cNNN.pkl` flushed every `--chunk-size` games then buffer dropped → bounded per-worker RAM + O(n) writes, vs the heuristic generator's O(n²) full-list rewrite); resumable (scans existing chunks for completed game_idxs); fresh tree per game (shared only between the two seats). Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id scaffold + a live progress monitor with ETA. CLI: `--n-games / --out-dir (resume if exists) / --n-workers / --base-seed / --sims / --c-uct / --temperature / --chunk-size / --leaf-ckpt / --policy {unweighted,awr}`.
 
+            generate_selfplay_data_cpp.py # C++ self-play data-gen driver (CLAUDE.md §2.4) — the C++-backed analog of `generate_selfplay_data.py`, producing the IDENTICAL `GameRecord` run-dir format so training consumes it unchanged. Runs the `cpp/build/selfplay --mcts` binary across a `multiprocessing` worker pool (default **batch** mode: one process per worker plays its whole slice via `--game-idxs`, loading NN weights once; `--per-game-process` is the one-process-per-game baseline), then `replay_trace`s each trace → `GameRecord` → chunked pickles. Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id; resume + error-logging + overwrite-guard + `generation_mode` in metadata. ~4× faster than the Python generator. See CPP_ENGINE_PLAN.md.
+            export_torchscript.py   # (Superseded by export_weights.py.) Exports the value net + 9 policy heads to TorchScript `.ts` for the original libtorch-based C++ inference. Kept for provenance; the C++ engine no longer uses libtorch.
+            export_weights.py       # Exports the trained value net + 9 policy heads to raw float32 blobs + `weights_manifest.json` under `nn_models/cpp_export/`, consumed by the C++ hand-rolled MLP inference (CLAUDE.md §2.4). Run after training, before C++ data-gen. See CPP_ENGINE_PLAN.md §6 / "Optimization pass #2".
+
             validate_dataset.py     # Post-generation invariant checker per FIRST_NN.md §6.6. Loads all (or `--sample-size N` random subset of) records from a run dir's worker pickles; runs invariants: `data_version` matches, `chosen_action ∈ legal_actions(state)`, non-singleton snapshots, `state.phase != BEFORE_SCORING`, non-empty `decisions`, `decider_idx == decider_of(state)`, `terminal_state.phase == BEFORE_SCORING`, stored-vs-recomputed final scores. Continues past individual failures to report all issues. Failure summary groups by check type + locates offending game_idx + snapshot. Exit codes 0/1/2 (pass / fail / invalid run dir).
 
             train_first.py          # Thin CLI wrapper over `agricola.agents.nn.training.train(...)` — argparse for hyperparameters (run-dir, hidden_dims, lr, batch_size, max_epochs, early-stop patience, `--init-from` warm-start, `--l2sp <λ>` L2-SP anchor, `--save-all-epochs`, …) and dispatches into the library. Output: best-model checkpoint + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
@@ -904,7 +965,9 @@ AgricolaBot/
 
     data/nn_training/runs/          # NN training-data datasets (gitignored — regenerable from the deterministic plan). Each generation invocation produces one run directory `<run_id>/` containing `games/worker_NN.pkl` (one per worker, holding `list[GameRecord]`) plus `metadata.json` (run-level metadata: code SHA, host, approved configs, T distribution, restricted flag, base_seed, planned/completed/errored game counts, data_version). See FIRST_NN.md §6.3.
 
-    nn_models/                      # Trained NN checkpoints. Each completed `train_first.py` run produces one subdirectory (`<timestamp>-<suffix>/`) containing `best.pt` (state_dict + NormStats buffers), `best.meta.json` (architecture config + encoding_version), `config.json` (full run configuration for reproducibility), `norm_stats.json` (separate JSON copy of NormStats), `train_log.jsonl` (per-epoch metrics), `train_curves.png`, `calibration.png` (test-split predicted-vs-actual), and `test_metrics.json` (final test MSE/MAE). Top-level `REGISTRY.md` is the authoritative catalog of every checkpoint here — **must be updated as part of every training run** (see CLAUDE.md §2.3).
+    nn_models/                      # Trained NN checkpoints. Each completed `train_first.py` run produces one subdirectory (`<timestamp>-<suffix>/`) containing `best.pt` (state_dict + NormStats buffers), `best.meta.json` (architecture config + encoding_version), `config.json` (full run configuration for reproducibility), `norm_stats.json` (separate JSON copy of NormStats), `train_log.jsonl` (per-epoch metrics), `train_curves.png`, `calibration.png` (test-split predicted-vs-actual), and `test_metrics.json` (final test MSE/MAE). Top-level `REGISTRY.md` is the authoritative catalog of every checkpoint here — **must be updated as part of every training run** (see CLAUDE.md §2.3). `cpp_export/` (gitignored) holds the raw float32 weight blobs + `weights_manifest.json` exported by `scripts/nn/export_weights.py` for the C++ engine's hand-rolled inference.
+
+    cpp/                            # The C++ self-play engine (CLAUDE.md §2.4) — a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference), ~4× faster than Python single-thread, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Builds via CMake (`cpp/README.md`) into a pybind module (`agricola_cpp`, the differential-test surface) + a standalone `selfplay` binary (production data-gen). **No libtorch dependency.** The per-file layout, the staged build, and the §8.1 status ledger are in `CPP_ENGINE_PLAN.md` §9.1 (not duplicated here). `cpp/build/` is gitignored; `cpp/third_party/` vendors `nlohmann/json`.
 
     design_docs/                    # Design + training docs grouped here to keep the top level tidy. The agent (Phase 2.2/2.3) design records live at the top of this folder; the original engine (Phase 1) task specs live under game_engine/.
 

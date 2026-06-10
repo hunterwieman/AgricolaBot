@@ -1,0 +1,164 @@
+"""Canonical, deterministic (de)serialization of ``GameState``.
+
+This is the **shared contract** the C++ engine must reproduce byte-for-byte in
+the differential-test harness (CPP_ENGINE_PLAN.md §3.1). It is *test / interop
+scaffolding only* — nothing on a production path imports it, and the existing
+engine is never modified; this module only reads it.
+
+Design: a fully self-describing, tag-driven JSON form. Each value carries
+enough information to reconstruct itself with no type hints, so the format is
+trivial to mirror in C++ (each side already knows its own struct/dataclass
+field types) and the Python deserializer needs no ``typing`` introspection.
+
+Encoding:
+
+=====================  ============================================================
+Python value           Canonical JSON
+=====================  ============================================================
+frozen dataclass       ``{"__type__": "<ClassName>", "<field>": <v>, ...}``  (declaration order)
+``enum.Enum`` member    ``{"__enum__": "<EnumClassName>", "name": "<MEMBER>"}``
+``frozenset``           ``{"__set__": [<element>, ...]}``  (deterministically sorted)
+``tuple``               ``[<element>, ...]``  (JSON array)
+int / bool / str / float / None   the JSON primitive
+=====================  ============================================================
+
+The ``_hash_cache`` slot (``object.__setattr__`` on the frozen state objects) is
+not a dataclass field, so the generic walker excludes it automatically.
+
+Guarantees:
+- ``dumps(loads(dumps(s))) == dumps(s)`` (byte-identical round-trip), and
+- ``loads(dumps(s)) == s`` and ``hash(loads(dumps(s))) == hash(s)``.
+
+The real cross-language gate (Stage 1+) is that the C++ serializer emits the
+*same* string for the equivalent state.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import enum
+import json
+from typing import Any
+
+from agricola import actions as _actions_mod
+from agricola import constants as _constants_mod
+from agricola import pasture as _pasture_mod
+from agricola import pending as _pending_mod
+from agricola import resources as _resources_mod
+from agricola import state as _state_mod
+from agricola.state import GameState
+
+# Modules scanned to build the name -> type registry the deserializer dispatches
+# on. Order is irrelevant; a class is registered under its own ``__name__``.
+_REGISTRY_MODULES = (
+    _state_mod,
+    _resources_mod,
+    _pasture_mod,
+    _pending_mod,
+    _actions_mod,
+    _constants_mod,
+)
+
+_DATACLASSES: dict[str, type] = {}
+_ENUMS: dict[str, type] = {}
+
+
+def _build_registry() -> None:
+    for mod in _REGISTRY_MODULES:
+        for name in dir(mod):
+            obj = getattr(mod, name)
+            if not isinstance(obj, type):
+                continue
+            # Only types DEFINED in this module (skip re-exports / imports).
+            if getattr(obj, "__module__", None) != mod.__name__:
+                continue
+            if dataclasses.is_dataclass(obj):
+                _DATACLASSES[obj.__name__] = obj
+            elif issubclass(obj, enum.Enum):
+                _ENUMS[obj.__name__] = obj
+
+
+_build_registry()
+
+
+# ---------------------------------------------------------------------------
+# Serialize
+# ---------------------------------------------------------------------------
+
+
+def _sorted_set(fs: frozenset) -> list:
+    """Deterministically order a frozenset for serialization.
+
+    All frozensets in the state model hold ``str`` (card ids) or
+    ``tuple[int, int]`` (cells) — both natively sortable. The JSON-key fallback
+    keeps the function total in case a future field holds something else.
+    """
+    try:
+        return sorted(fs)
+    except TypeError:
+        return sorted(fs, key=lambda e: json.dumps(to_canonical(e), sort_keys=True))
+
+
+def to_canonical(obj: Any) -> Any:
+    """Convert a state object (or any of its parts) to canonical JSON-able form."""
+    if obj is None:
+        return None
+    # Enum before int: an IntEnum is also an int, and must serialize as an enum.
+    if isinstance(obj, enum.Enum):
+        return {"__enum__": type(obj).__name__, "name": obj.name}
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, (int, float, str)):
+        return obj
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        out: dict[str, Any] = {"__type__": type(obj).__name__}
+        for f in dataclasses.fields(obj):
+            if not f.init:
+                continue
+            out[f.name] = to_canonical(getattr(obj, f.name))
+        return out
+    if isinstance(obj, frozenset):
+        return {"__set__": [to_canonical(e) for e in _sorted_set(obj)]}
+    if isinstance(obj, (tuple, list)):
+        return [to_canonical(e) for e in obj]
+    raise TypeError(f"canonical: unsupported type {type(obj)!r}: {obj!r}")
+
+
+# ---------------------------------------------------------------------------
+# Deserialize
+# ---------------------------------------------------------------------------
+
+
+def from_canonical(node: Any) -> Any:
+    """Reconstruct a state object from its canonical JSON-able form."""
+    if node is None or isinstance(node, (bool, int, float, str)):
+        return node
+    if isinstance(node, list):
+        # Every bare JSON array in the format is a tuple (sets are tagged).
+        return tuple(from_canonical(e) for e in node)
+    if isinstance(node, dict):
+        if "__enum__" in node:
+            return _ENUMS[node["__enum__"]][node["name"]]
+        if "__set__" in node:
+            return frozenset(from_canonical(e) for e in node["__set__"])
+        if "__type__" in node:
+            cls = _DATACLASSES[node["__type__"]]
+            kwargs = {k: from_canonical(v) for k, v in node.items() if k != "__type__"}
+            return cls(**kwargs)
+        raise ValueError(f"canonical: unrecognized object node {node!r}")
+    raise TypeError(f"canonical: unsupported node {type(node)!r}: {node!r}")
+
+
+# ---------------------------------------------------------------------------
+# String helpers (the actual contract the C++ side matches)
+# ---------------------------------------------------------------------------
+
+
+def dumps(state: GameState) -> str:
+    """Serialize a ``GameState`` to a deterministic canonical JSON string."""
+    return json.dumps(to_canonical(state), separators=(",", ":"), ensure_ascii=False)
+
+
+def loads(text: str) -> GameState:
+    """Inverse of :func:`dumps`."""
+    return from_canonical(json.loads(text))

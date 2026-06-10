@@ -1,0 +1,171 @@
+// Native MCTS (PUCT + FLATTEN + chance nodes) — a faithful port of the
+// production path in agricola/agents/mcts.py (CPP_ENGINE_PLAN.md §7). Skips the
+// UCT-only MACRO-fencing machinery entirely (FLATTEN only).
+//
+// Needs the NN value+policy (NNInference), so the whole file is guarded behind
+// AGRICOLA_WITH_NN and only compiled in a torch build.
+#pragma once
+
+#ifdef AGRICOLA_WITH_NN
+
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <optional>
+#include <random>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "agricola/actions.hpp"
+#include "agricola/hash.hpp"
+#include "agricola/nn.hpp"
+#include "agricola/types.hpp"
+
+namespace agricola {
+
+// ---------------------------------------------------------------------------
+// Action hashing for the per-node maps.
+//
+// Python keys children dicts on Action (hashable frozen dataclass). C++ uses
+// std::unordered_map<Action, ..., ActionHash> (Action has a defaulted
+// operator==). ActionHash is a fast field-wise hash over the variant (index +
+// active alternative's fields) — no serialization. (It replaced a
+// std::map+ActionLess whose comparator was the MCTS profile's #1 main-thread
+// cost.) Insertion order is NOT relied upon: selection re-derives order from the
+// engine's legal_actions list each descent, and root_visit_distribution / chance
+// routing depend on membership, not order.
+// ---------------------------------------------------------------------------
+struct ActionHash {
+  std::size_t operator()(const Action& a) const;
+};
+
+// ---------------------------------------------------------------------------
+// MCTSNode — one node in the search DAG.
+// ---------------------------------------------------------------------------
+struct MCTSNode {
+  GameState state;
+  int decider = 0;            // 0/1; 0 as a frame label for chance nodes
+  bool is_chance = false;
+
+  // action -> child. Owns nothing (the transposition table owns nodes).
+  std::unordered_map<Action, MCTSNode*, ActionHash> children;
+  std::vector<MCTSNode*> parents;  // DAG in-edges (maintained, not read at bp)
+
+  long long visits = 0;
+  double value_sum = 0.0;  // stored in THIS node's decider frame
+
+  // chance-node round-robin counter (NOT child.visits — a shared DAG child
+  // inflates visits and would skew routing).
+  std::unordered_map<Action, long long, ActionHash> chance_counts;
+
+  // Lazy per-node caches.
+  bool legal_computed = false;
+  std::vector<Action> legal;            // FLATTEN: the full legal set (or reveals)
+  bool priors_computed = false;
+  std::unordered_map<Action, double, ActionHash> priors;  // PUCT P(s,a)
+
+  double mean_q() const { return visits > 0 ? value_sum / visits : 0.0; }
+  bool is_terminal() const { return state.phase == Phase::BEFORE_SCORING; }
+};
+
+// ---------------------------------------------------------------------------
+// MCTSSearch — the DAG + transposition table + search-level config.
+// ---------------------------------------------------------------------------
+class MCTSSearch {
+ public:
+  // `nn` is borrowed (owned by the caller / a process-wide cache). leaf_value_scale
+  // defaults to nn.value_scale().
+  MCTSSearch(const NNInference* nn, double c_uct, std::uint64_t rng_seed,
+             double fpu_offset = 0.0);
+
+  // Look up or create the node for `state`; link parent->child if given.
+  MCTSNode* find_or_create_node(const GameState& state,
+                                MCTSNode* parent = nullptr,
+                                const Action* action_from_parent = nullptr);
+
+  void add_edge(MCTSNode* parent, MCTSNode* child, const Action& action);
+
+  // Designate `new_root` as the root and prune the table to its live subtree.
+  void re_root(MCTSNode* new_root);
+
+  // Leaf value in P0's frame, divided by leaf_value_scale (terminal -> exact
+  // margin; mid-game -> NN value(state)). Mirrors MCTSSearch.evaluate_leaf.
+  double evaluate_leaf(const GameState& state) const;
+
+  // Lazy caches.
+  void ensure_legal(MCTSNode* node);
+  void ensure_priors(MCTSNode* node);
+
+  const NNInference* nn() const { return nn_; }
+  double c_uct() const { return c_uct_; }
+  double fpu_offset() const { return fpu_offset_; }
+  std::mt19937_64& rng() { return rng_; }
+  MCTSNode* root() const { return root_; }
+
+ private:
+  const NNInference* nn_;
+  double c_uct_;
+  double fpu_offset_;
+  double leaf_value_scale_;
+  std::mt19937_64 rng_;
+  MCTSNode* root_ = nullptr;
+
+  // Transposition table: owns the nodes (unique_ptr values), keyed on GameState
+  // via the Stage-1 state_hash + structural operator==.
+  struct StateHash {
+    std::size_t operator()(const GameState& s) const {
+      return static_cast<std::size_t>(state_hash(s));
+    }
+  };
+  std::unordered_map<GameState, std::unique_ptr<MCTSNode>, StateHash>
+      transpositions_;
+};
+
+// ---------------------------------------------------------------------------
+// MCTSAgent — the per-move loop (PUCT, FLATTEN, temperature play).
+// ---------------------------------------------------------------------------
+class MCTSAgent {
+ public:
+  MCTSAgent(MCTSSearch* search, int sims_per_move, double c_uct,
+            double fpu_offset, double action_selection_temperature,
+            std::uint64_t rng_seed, bool cap_total_sims = true);
+
+  // Run the search at `state` and return the played action. Re-roots to `state`,
+  // runs sims to the cap, then samples from the root visit distribution at the
+  // configured temperature. After the call, last_root() / root_visit_distribution
+  // / root_value_p0 describe the search just performed.
+  Action choose(const GameState& state);
+
+  // The root of the most recent search (set by choose()).
+  MCTSNode* last_root() const { return last_root_; }
+
+  // π — the root's raw per-action visit counts {action: child.visits}.
+  std::vector<std::pair<Action, long long>> root_visit_distribution(
+      MCTSNode* root) const;
+
+  // root_value in P0's frame: q if root.decider==0 else -q (mean-Q flipped).
+  double root_value_p0(MCTSNode* root) const;
+
+ private:
+  void simulate(MCTSNode* root);
+
+  // Selection. Returns (child, is_new).
+  std::pair<MCTSNode*, bool> puct_select_child(MCTSNode* node);
+  Action select_via_puct(MCTSNode* parent);
+  Action chance_route(MCTSNode* node);
+  Action select_action_with_temperature(MCTSNode* root);
+
+  MCTSSearch* search_;
+  int sims_per_move_;
+  double c_uct_;
+  double fpu_offset_;
+  double temperature_;
+  bool cap_total_sims_;
+  std::mt19937_64 rng_;  // agent RNG — played-move sampling only
+  MCTSNode* last_root_ = nullptr;
+};
+
+}  // namespace agricola
+
+#endif  // AGRICOLA_WITH_NN

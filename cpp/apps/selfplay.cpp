@@ -1,0 +1,212 @@
+// Standalone self-play data-gen binary (CPP_ENGINE_PLAN.md §1, §8).
+//
+// Two modes:
+//   * RANDOM (Stage 4, default): random / legal_actions-only self-play, no NN.
+//   * MCTS (Stage 6, --mcts): the PRODUCTION data-gen path — shared-tree
+//     MCTS-vs-MCTS (NN value leaf + combined policy, PUCT / FLATTEN / full
+//     legality), emitting π + root_value per searched decision. Requires a
+//     torch build (--mcts errors out otherwise).
+//
+// Both write an agricola-cpp-trace-v1 JSON trace that replays through the Python
+// engine via agricola.agents.nn.trace_replay.replay_trace.
+//
+//   selfplay --seed N --out PATH                       # random, seed N to PATH
+//   selfplay N                                         # random, seed N to stdout
+//   selfplay --mcts --seed N --sims S --model-dir DIR --out PATH
+//   selfplay --mcts --seed N --sims S --c-uct 1.4 --temperature 1.0 \
+//            --model-dir nn_models/cpp_export --out trace.json
+//
+// MCTS BATCH mode (one NN load, many games — the data-gen weight-reload fix):
+//   selfplay --mcts --game-idxs "i0,i1,..." --base-seed B --model-dir DIR \
+//            --out-dir DIR2 [--sims S --c-uct C --temperature T]
+//   For each idx i, plays seed = B + i and writes DIR2/trace_<i>.json.
+
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "agricola/selfplay.hpp"
+
+#ifdef AGRICOLA_WITH_NN
+#include "agricola/nn.hpp"
+#endif
+
+namespace {
+
+void usage(const char* prog) {
+  std::cerr
+      << "usage: " << prog << " [--seed N] [--out PATH]            # random\n"
+      << "       " << prog << " N                                  # random\n"
+      << "       " << prog
+      << " --mcts --seed N --model-dir DIR [--sims S]\n"
+      << "              [--c-uct C] [--temperature T] [--out PATH]  # MCTS\n"
+      << "       " << prog
+      << " --mcts --game-idxs \"i0,i1,...\" --base-seed B\n"
+      << "              --model-dir DIR --out-dir DIR2 [--sims S]\n"
+      << "              [--c-uct C] [--temperature T]               # MCTS batch\n";
+}
+
+// Parse a comma-separated list of non-negative game indices ("0,1,2"). Returns
+// false on any malformed / empty token so the caller can error out.
+bool parse_game_idxs(const std::string& s, std::vector<long long>& out) {
+  out.clear();
+  std::stringstream ss(s);
+  std::string tok;
+  while (std::getline(ss, tok, ',')) {
+    // Trim surrounding whitespace (tolerate "0, 1, 2").
+    size_t a = tok.find_first_not_of(" \t\r\n");
+    size_t b = tok.find_last_not_of(" \t\r\n");
+    if (a == std::string::npos) continue;  // skip empty token (e.g. trailing ,)
+    std::string trimmed = tok.substr(a, b - a + 1);
+    char* end = nullptr;
+    long long v = std::strtoll(trimmed.c_str(), &end, 10);
+    if (end == trimmed.c_str() || *end != '\0' || v < 0) return false;
+    out.push_back(v);
+  }
+  return !out.empty();
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  std::uint64_t seed = 0;
+  bool have_seed = false;
+  std::string out_path;     // empty -> stdout
+  bool mcts = false;
+  int sims = 160;           // matches Stage-6 default sims_per_move
+  double c_uct = 1.4;
+  double temperature = 1.0; // production self-play default (sample ∝ visits)
+  std::string model_dir = "nn_models/cpp_export";
+
+  // Batch-mode args (one NN load, many games).
+  std::string out_dir;      // empty -> single-game mode
+  std::string game_idxs_arg;
+  bool have_game_idxs = false;
+  std::uint64_t base_seed = 0;
+
+  for (int i = 1; i < argc; ++i) {
+    std::string arg = argv[i];
+    if (arg == "--seed" && i + 1 < argc) {
+      seed = std::strtoull(argv[++i], nullptr, 10);
+      have_seed = true;
+    } else if (arg == "--out" && i + 1 < argc) {
+      out_path = argv[++i];
+    } else if (arg == "--out-dir" && i + 1 < argc) {
+      out_dir = argv[++i];
+    } else if (arg == "--game-idxs" && i + 1 < argc) {
+      game_idxs_arg = argv[++i];
+      have_game_idxs = true;
+    } else if (arg == "--base-seed" && i + 1 < argc) {
+      base_seed = std::strtoull(argv[++i], nullptr, 10);
+    } else if (arg == "--mcts") {
+      mcts = true;
+    } else if (arg == "--sims" && i + 1 < argc) {
+      sims = std::atoi(argv[++i]);
+    } else if (arg == "--c-uct" && i + 1 < argc) {
+      c_uct = std::atof(argv[++i]);
+    } else if (arg == "--temperature" && i + 1 < argc) {
+      temperature = std::atof(argv[++i]);
+    } else if (arg == "--model-dir" && i + 1 < argc) {
+      model_dir = argv[++i];
+    } else if (arg == "-h" || arg == "--help") {
+      usage(argv[0]);
+      return 0;
+    } else if (!arg.empty() && arg[0] != '-' && !have_seed) {
+      seed = std::strtoull(arg.c_str(), nullptr, 10);  // positional bare seed
+      have_seed = true;
+    } else {
+      usage(argv[0]);
+      return 2;
+    }
+  }
+
+  // ---- MCTS BATCH mode: --out-dir / --game-idxs present ----
+  if (!out_dir.empty() || have_game_idxs) {
+    if (!mcts) {
+      std::cerr << "selfplay: batch mode (--out-dir/--game-idxs) requires --mcts\n";
+      usage(argv[0]);
+      return 2;
+    }
+#ifndef AGRICOLA_WITH_NN
+    std::cerr << "selfplay: --mcts requires an NN build\n";
+    return 1;
+#else
+    if (out_dir.empty()) {
+      std::cerr << "selfplay: --game-idxs requires --out-dir\n";
+      usage(argv[0]);
+      return 2;
+    }
+    if (!have_game_idxs) {
+      std::cerr << "selfplay: --out-dir requires --game-idxs\n";
+      usage(argv[0]);
+      return 2;
+    }
+    std::vector<long long> idxs;
+    if (!parse_game_idxs(game_idxs_arg, idxs)) {
+      std::cerr << "selfplay: --game-idxs must be a non-empty comma-separated "
+                   "list of non-negative integers (got: \""
+                << game_idxs_arg << "\")\n";
+      return 2;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(out_dir, ec);
+    if (ec) {
+      std::cerr << "selfplay: cannot create out-dir " << out_dir << ": "
+                << ec.message() << "\n";
+      return 1;
+    }
+
+    // Load the NN ONCE, then play every game reusing it.
+    agricola::NNInference nn(model_dir);
+    long long written = 0;
+    for (long long idx : idxs) {
+      std::uint64_t game_seed = base_seed + static_cast<std::uint64_t>(idx);
+      std::string trace = agricola::mcts_selfplay_trace_with(
+          nn, game_seed, sims, c_uct, temperature);
+      std::filesystem::path p =
+          std::filesystem::path(out_dir) / ("trace_" + std::to_string(idx) + ".json");
+      std::ofstream f(p);
+      if (!f) {
+        std::cerr << "selfplay: cannot open " << p.string() << " for writing\n";
+        return 1;
+      }
+      f << trace << "\n";
+      ++written;
+    }
+    std::cerr << "selfplay: batch wrote " << written << " traces to " << out_dir
+              << "\n";
+    return 0;
+#endif
+  }
+
+  // ---- single-game mode (unchanged) ----
+  std::string trace;
+  if (mcts) {
+#ifdef AGRICOLA_WITH_NN
+    trace = agricola::mcts_selfplay_trace(seed, sims, c_uct, temperature,
+                                          model_dir);
+#else
+    std::cerr << "selfplay: --mcts requires an NN build\n";
+    return 1;
+#endif
+  } else {
+    trace = agricola::random_selfplay_trace(seed);
+  }
+
+  if (out_path.empty()) {
+    std::cout << trace << "\n";
+  } else {
+    std::ofstream f(out_path);
+    if (!f) {
+      std::cerr << "selfplay: cannot open " << out_path << " for writing\n";
+      return 1;
+    }
+    f << trace << "\n";
+  }
+  return 0;
+}

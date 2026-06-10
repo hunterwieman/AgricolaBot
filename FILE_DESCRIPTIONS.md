@@ -104,6 +104,12 @@ All the frozen dataclasses that together represent a complete snapshot of a game
 
 ---
 
+### `agricola/canonical.py`
+
+Canonical, deterministic serialization of `GameState` to/from a self-describing JSON form — `dumps(state)` / `loads(text)` (built on `to_canonical` / `from_canonical`). This is the **shared contract** the C++ engine must reproduce byte-for-byte; the differential-test harness (`tests/test_cpp_*.py`) compares C++-produced dumps against Python's, so equality of the dumps *is* the equivalence check (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). A **generic, tag-driven dataclass walker**: it auto-registers the state / action / pending dataclasses + enums by scanning their modules, so it adapts to field changes without per-field maintenance (drift-proof). Frozensets serialize as sorted lists (order-independent), enums by member name, and the lazy `_hash_cache` is excluded. Test/interop scaffolding only — no production-path code imports it, and the Python engine is untouched.
+
+---
+
 ### `agricola/setup.py`
 
 Builds the initial game state for a 2-player Family game. Two public functions:
@@ -621,6 +627,18 @@ MCTS self-play recording driver (`DATA_VERSION` 3) — the self-play sibling of 
 - **`play_selfplay_recording_game(initial_state, agent, *, dealer, game_idx, seed, temperature, config_label='mcts_selfplay', legal_actions_fn=full_legal_actions)`** — plays one game with a SINGLE shared `agent` driving both seats (shared-tree self-play, MCTS_IMPLEMENTATION.md §11.2 mode 2). Forced (singleton) decisions are stepped through directly without invoking the search — the move is forced regardless, so the trajectory is identical and ~half the MCTS calls are skipped. Each genuine multi-option decision is searched and recorded as a `DecisionSnapshot` with `visit_distribution` (= `agent.root_visit_distribution(root)`) and `root_value` (root `mean_q` flipped into P0's frame). Returns a v3 `GameRecord`.
 
 No PyTorch dependency at module level (the NN leaf rides in via the passed agent). Depends on the engine + schema.
+
+---
+
+### `agricola/agents/nn/trace_replay.py`
+
+The C++↔Python interop layer (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §2): turns the compact game traces the C++ self-play binary emits into the standard `GameRecord`s the training pipeline already consumes.
+
+- **`replay_trace(trace) -> GameRecord`** — the adapter. Deserializes a trace's canonical `initial_state`, replays its ordered action list through the engine (reconstructing the full `GameState` at each step — replay is engine-`step` only, no search/NN, so milliseconds per game), and rebuilds a v3 `GameRecord` with `visit_distribution` (π) + `root_value` preserved on the searched decisions. Snapshot inclusion + `decider` are re-derived in Python (the oracle is authoritative for *which* snapshots exist; the trace for π).
+- **`game_to_trace(...)`** — the writer / §3.2 differential-test trace source (plays a game and records the `agricola-cpp-trace-v1` envelope).
+- **`action_to_params` / `action_from_trace`** — `{type, params}` serde for all 17 action types; the field-complete `params` for `RevealCard` closes the web-UI bug that dropped the revealed card id (so a recorded reveal replays Environment-free).
+
+Trace envelope: `{schema, seed, initial_state (canonical dump), actions: [{round, phase, decider, type, params[, visit_distribution, visit_distribution_types, root_value]}]}`. Imports `tests.test_utils.filter_implemented` (the same pattern as `recording.py`).
 
 ---
 

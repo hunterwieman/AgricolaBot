@@ -41,3 +41,12 @@ data/tournaments/
 # already masks the dataset variant; these cover nn_models/ and stray cases.
 nn_models/**/*.tmp
 nn_models/**/*.pt.tmp
+
+# C++ engine port (CPP_ENGINE_PLAN.md): compiled build artifacts + the
+# C++-emitted self-play JSON traces (regenerable). Source under cpp/ is tracked.
+cpp/build/
+data/selfplay_traces/
+
+# Stage 5 TorchScript exports for the C++ engine (regenerable from the .pt
+# checkpoints via scripts/nn/export_torchscript.py).
+nn_models/cpp_export/

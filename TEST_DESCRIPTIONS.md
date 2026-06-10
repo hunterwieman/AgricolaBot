@@ -192,3 +192,18 @@ Tests for the hidden-information refactor — round-card reveals as nature steps
 - **Heuristic de-cheat:** `_basic_wish_revealed_round` returns the expected reveal round 6.0 / 6.5 / 7.0 at rounds ≤4 / 5 / 6 while `basic_wish_for_children` is unrevealed, and the current round once it is revealed.
 - **Evaluator averaging:** `HubrisHeuristicV3._eval` at a reveal node equals the uniform mean of `_eval` over the (≥2) post-reveal outcome states — the chance-node expectation, inherited by every `EvaluatorAgent` (heuristic and NN).
 - **MCTS chance nodes:** a reveal node's `MCTSNode` has `is_chance=True` and `decider==0` (the P0 frame label, not a real player); `_chance_route`'s round-robin covers all k outcomes in the first k routes and bumps `chance_counts` by k total; `test_mcts_no_leak_independent_of_hidden_order` (load-bearing) drives the same real game under two `Environment`s that agree on round 1 but differ in the hidden future, and asserts P0's round-1 MCTS decisions are identical — the search branches only on public-state-derived candidates and never reads the env; a search that crosses the round boundary creates a chance node whose children are all post-reveal decision nodes (never another chance node).
+
+### C++ engine differential tests (`tests/test_cpp_*.py`)
+
+The harness validating the C++ self-play engine (CLAUDE.md §2.4, `CPP_ENGINE_PLAN.md` §3) against the Python **oracle**. Each builds a corpus by random play (and trace replay), serializes via `agricola.canonical`, drives the C++ through the `agricola_cpp` pybind module, and asserts agreement. **All skip cleanly if `cpp/build/` (or `nn_models/cpp_export/`) is absent** — so the suite passes whether or not the C++ engine is built.
+
+- **`test_cpp_canonical.py`** — the Python canonical serializer (`agricola.canonical`) round-trips byte-identically over a state corpus; pins the contract before C++ exists.
+- **`test_cpp_trace_replay.py`** — action↔`params` serde round-trips (incl. the `RevealCard.card` fix); `game_to_trace` + `replay_trace` reproduce `play_recording_game`'s `GameRecord` exactly.
+- **`test_cpp_binding.py`** — the pybind module builds/imports; `ENCODING_VERSION` / `DATA_VERSION` constants match Python.
+- **`test_cpp_state.py`** — the C++ state model + canonical serde + pasture flood-fill + structural hash/equality match Python byte-for-byte (the first cross-language gate).
+- **`test_cpp_legality.py`** — C++ `legal_actions` *set* == Python's over a large random corpus (24 placement predicates + 23 enumerators + the RESTRICTED fence universe).
+- **`test_cpp_step.py`** — the engine graduation gate: `cpp_step(before, action) == after` byte-identically across trace-replay of random games, plus `score`/`tiebreaker` matching at terminal.
+- **`test_cpp_nn.py`** — encoder float-exact, value ≤1e-4, policy priors ≤1e-4 per action vs Python (the hand-rolled-MLP inference); the encoder check runs even without the NN weights.
+- **`test_cpp_mcts.py`** — MCTS component tests (PUCT/backprop/chance routing) + self-play record validity (π + `root_value` populated) + statistical strength parity vs Python MCTS.
+- **`test_cpp_selfplay.py`** — C++ random self-play traces replay cleanly + pass dataset invariants; round-1 setup validity + valid within-stage reveal order.
+- **`test_cpp_selfplay_pipeline.py`** — end-to-end pipeline gate over **both** batch and per-game modes: `generate_selfplay_data_cpp.py` produces valid `GameRecord` run-dirs (π + `root_value` intact) that pass the `validate_dataset` invariants.
