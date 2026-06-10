@@ -313,7 +313,7 @@ def main() -> int:
     p.add_argument("--n-workers", type=int, default=4)
     p.add_argument("--base-seed", type=int, default=2_000_000)
     p.add_argument("--sims", type=int, default=400)
-    p.add_argument("--c-uct", type=float, default=1.4)
+    p.add_argument("--c-uct", type=float, default=0.5)
     p.add_argument("--temperature", type=float, default=1.0,
                    help="action_selection_temperature (played-move visit softmax). "
                         "Equal throughout; π is stored raw (τ=1) regardless.")

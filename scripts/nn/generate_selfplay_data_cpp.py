@@ -20,12 +20,21 @@ Reuses the proven scaffold from `generate_training_data.py`
 (`partition_plan`, `_write_pickle_atomic`, `_current_git_sha`, `_new_run_id`)
 and the chunked-streaming worker shape from `generate_selfplay_data.py`.
 
+Traces are written to a persistent `<out-dir>/traces/` dir, and each game's
+trace is deleted only once its GameRecord is durably chunk-written. Two
+consequences: (1) a run KILLED mid-generation (before any chunk is flushed)
+RESUMES from the traces already on disk instead of regenerating them — every
+game is always recoverable from either its chunk or its trace; (2) the
+progress monitor reports real generation progress (chunks + trace files on
+disk), so the log advances during phase-1 C++ generation rather than sitting
+at 0 until the phase-2 replay.
+
 GENERATION MODES (both produce byte-for-byte the same run-dir output):
   * BATCH (default): each pool worker launches ONE C++ subprocess that loads
     the NN weights once and plays its whole slice of games (`--game-idxs ...
-    --base-seed B --out-dir <worker-tmp>`), writing `trace_<i>.json` per game;
-    the worker then replays each trace → GameRecord and chunk-writes. This
-    removes the per-game ~0.15s weight-reload startup.
+    --base-seed B --out-dir <out-dir>/traces`), writing `trace_<i>.json` per
+    game; the worker then replays each trace → GameRecord and chunk-writes.
+    This removes the per-game ~0.15s weight-reload startup.
   * PER-GAME (`--per-game-process`): the OLD path — one C++ subprocess per
     game (reloads weights every game). Kept as the A/B baseline.
 
@@ -45,11 +54,10 @@ from __future__ import annotations
 import argparse
 import json
 import multiprocessing as mp
-import os
 import platform
+import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import traceback
@@ -153,71 +161,43 @@ def _replay_trace_file(spec: _Spec, *, game_idx: int, trace_path: Path):
     )
 
 
-def _run_one_game(spec: _Spec, *, game_idx: int, seed: int, tmp_dir: Path):
-    """Run the C++ binary for one game → load its trace → replay → GameRecord.
+def _trace_path(traces_dir: Path, game_idx: int) -> Path:
+    return traces_dir / f"trace_{game_idx}.json"
 
-    The PER-GAME path (one subprocess per game). Writes the trace to a unique
-    temp file under `tmp_dir`, deletes it after loading. Raises on subprocess
-    failure (non-zero exit) or replay error — the caller logs it into
-    `errored_games` and continues.
+
+def _trace_complete(path: Path) -> bool:
+    """True iff `path` holds a fully-parseable trace.
+
+    The resume predicate: a trace that exists AND parses can be replayed
+    without regenerating it. A partially-written file left behind by a killed
+    binary fails to parse → treated as missing → regenerated. So resume never
+    trusts a truncated trace.
     """
-    bin_path = _bin_path(spec)
-    model_dir = spec.model_dir  # passed through verbatim to the binary
-
-    # A unique trace file per game so concurrent workers never collide.
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f"cpp_trace_g{game_idx:08d}_", suffix=".json", dir=str(tmp_dir)
-    )
-    os.close(fd)
-    tmp_path = Path(tmp_name)
-
+    if not path.exists():
+        return False
     try:
-        cmd = [
-            str(bin_path),
-            "--mcts",
-            "--seed", str(seed),
-            "--sims", str(spec.sims),
-            "--c-uct", str(spec.c_uct),
-            "--temperature", str(spec.temperature),
-            "--model-dir", model_dir,
-            "--out", str(tmp_path),
-        ]
-        proc = subprocess.run(
-            cmd, cwd=str(ROOT), capture_output=True, text=True
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"selfplay binary exited {proc.returncode} for game_idx={game_idx} "
-                f"seed={seed}. stderr:\n{proc.stderr.strip()}"
-            )
-        # The trace carries its own seed (the binary's), but the plan seed is
-        # the authoritative one and they match (we pass --seed=seed). Trust the
-        # record's seed from the trace; nothing to reconcile.
-        return _replay_trace_file(spec, game_idx=game_idx, trace_path=tmp_path)
-    finally:
-        tmp_path.unlink(missing_ok=True)
+        with path.open() as fh:
+            json.load(fh)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
-def _run_batch_games(spec: _Spec, *, game_idxs: list[int], tmp_dir: Path):
-    """Run ONE C++ subprocess that plays all `game_idxs` (one weight load).
+def _run_batch_games(spec: _Spec, *, game_idxs: list[int], out_dir: Path):
+    """Run ONE C++ subprocess that plays `game_idxs` into `out_dir`.
 
-    Returns (batch_dir, written_idxs, proc):
-      * batch_dir    — a unique dir under `tmp_dir` holding `trace_<i>.json` for
-        each game the binary wrote (caller replays + deletes them).
-      * written_idxs — the set of game_idxs whose trace file actually exists,
-        regardless of the process exit code. On a nonzero exit we still return
-        whatever traces DID get written so the caller can salvage them and only
-        mark the missing idxs errored.
-      * proc         — the CompletedProcess, so the caller can log returncode /
-        stderr for the missing idxs.
+    Writes `trace_<i>.json` per game into the SHARED, PERSISTENT `out_dir`
+    (game idxs are globally unique across workers, so files never collide).
+    Deletes nothing — traces persist until the owning game's GameRecord is
+    durably chunked (worker `_flush`) or the whole run completes cleanly
+    (`generate`). That persistence is exactly what makes a killed run resumable.
 
-    Raises RuntimeError (carrying stderr) ONLY on total failure — a nonzero exit
-    that produced ZERO traces. A partial exit (some traces written) returns
-    normally so the salvaged games still count.
+    Returns (written_idxs, proc) — `written_idxs` are the idxs whose trace file
+    now exists, regardless of exit code (a partial exit still salvages what it
+    wrote). Raises only on TOTAL failure: a nonzero exit that produced ZERO of
+    this call's traces.
     """
     bin_path = _bin_path(spec)
-    batch_dir = Path(tempfile.mkdtemp(prefix="cpp_batch_", dir=str(tmp_dir)))
-
     idxs_arg = ",".join(str(i) for i in game_idxs)
     cmd = [
         str(bin_path),
@@ -228,60 +208,115 @@ def _run_batch_games(spec: _Spec, *, game_idxs: list[int], tmp_dir: Path):
         "--c-uct", str(spec.c_uct),
         "--temperature", str(spec.temperature),
         "--model-dir", spec.model_dir,
-        "--out-dir", str(batch_dir),
+        "--out-dir", str(out_dir),
     ]
     proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
-
-    written = {
-        i for i in game_idxs if (batch_dir / f"trace_{i}.json").exists()
-    }
+    written = {i for i in game_idxs if _trace_path(out_dir, i).exists()}
     if proc.returncode != 0 and not written:
-        # Total failure — nothing salvageable. Clean up and raise.
-        try:
-            for f in batch_dir.glob("*"):
-                f.unlink(missing_ok=True)
-            batch_dir.rmdir()
-        except OSError:
-            pass
         raise RuntimeError(
             f"selfplay batch exited {proc.returncode} with no traces "
             f"(idxs[0:5]={game_idxs[:5]}..., base_seed={spec.base_seed}). "
             f"stderr:\n{proc.stderr.strip()}"
         )
-    return batch_dir, written, proc
+    return written, proc
+
+
+def _generate_traces(spec: _Spec, items: list[dict], traces_dir: Path):
+    """Ensure every item in `items` has a complete trace in `traces_dir`.
+
+    Items whose trace already exists and parses are SKIPPED (the resume path);
+    the rest are generated by the C++ binary — one subprocess for the whole
+    missing set in "batch" mode, one per game in "per_game" mode.
+
+    Returns (gen_failed, errored, gen_time, n_generated):
+      * gen_failed  — set of game_idxs whose trace is still missing afterward.
+      * errored     — list of (game_idx, message) for generation failures.
+      * gen_time    — total wall spent generating (for the timing report).
+      * n_generated — count of newly written traces (to amortize `gen_time`).
+    """
+    need = [it for it in items
+            if not _trace_complete(_trace_path(traces_dir, it["game_idx"]))]
+    gen_failed: set = set()
+    errored: list[tuple[int, str]] = []
+    gen_time = 0.0
+    if not need:
+        return gen_failed, errored, gen_time, 0
+
+    if spec.generation_mode == "per_game":
+        for it in need:
+            gi = it["game_idx"]
+            t0 = time.perf_counter()
+            try:
+                written, _ = _run_batch_games(spec, game_idxs=[gi], out_dir=traces_dir)
+            except Exception as exc:
+                errored.append((gi, f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"))
+                gen_failed.add(gi)
+                continue
+            gen_time += time.perf_counter() - t0
+            if gi not in written:
+                gen_failed.add(gi)
+                errored.append((gi, f"per-game process did not write trace_{gi}.json"))
+    else:  # "batch": ONE subprocess for the whole missing slice (one NN load)
+        idxs = [it["game_idx"] for it in need]
+        t0 = time.perf_counter()
+        try:
+            written, proc = _run_batch_games(spec, game_idxs=idxs, out_dir=traces_dir)
+        except Exception as exc:
+            # Total batch failure (no traces produced) → mark every idx errored.
+            msg = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
+            for gi in idxs:
+                gen_failed.add(gi)
+                errored.append((gi, msg))
+            return gen_failed, errored, gen_time, 0
+        gen_time += time.perf_counter() - t0
+        for gi in idxs:
+            if gi not in written:  # partial exit skipped this one
+                gen_failed.add(gi)
+                errored.append((
+                    gi,
+                    f"batch process did not write trace_{gi}.json "
+                    f"(exit={proc.returncode}); stderr:\n{proc.stderr.strip()}",
+                ))
+
+    return gen_failed, errored, gen_time, len(need) - len(gen_failed)
 
 
 def _worker(args: dict) -> dict:
     worker_id: int = args["worker_id"]
     games_dir = Path(args["games_dir"])
-    tmp_dir = Path(args["tmp_dir"])
+    traces_dir = Path(args["traces_dir"])
     plan_slice: list[dict] = args["plan_slice"]   # _GamePlan items as dicts
     spec: _Spec = args["spec"]
 
     completed, next_chunk = _completed_idxs_and_next_chunk(games_dir, worker_id)
 
     buffer: list = []
+    chunk_idxs: list[int] = []    # game_idxs in `buffer` (for trace cleanup on flush)
     per_game_times: list[float] = []
     errored: list[tuple[int, str]] = []
     n_completed = 0
-
-    # The chunk-file name is keyed only on worker_id, so the chunk layout (and
-    # therefore the on-disk run dir) is identical across modes. nonlocal state
-    # below is shared between the two mode branches.
     next_chunk_box = [next_chunk]
 
     def _flush() -> None:
-        nonlocal buffer
+        nonlocal buffer, chunk_idxs
         if not buffer:
             return
         path = games_dir / f"worker_{worker_id:02d}_c{next_chunk_box[0]:03d}.pkl"
         _write_pickle_atomic(path, buffer)
         next_chunk_box[0] += 1
-        buffer = []          # drop the in-memory chunk → bounded RAM
+        # The GameRecords are now durably on disk, so their traces are
+        # redundant — drop them to keep the traces dir bounded. Until this
+        # flush each game was recoverable from its trace; after it, from the
+        # chunk. So a kill at ANY moment leaves every game recoverable.
+        for gi in chunk_idxs:
+            _trace_path(traces_dir, gi).unlink(missing_ok=True)
+        buffer = []
+        chunk_idxs = []
 
-    def _record(rec) -> None:
-        nonlocal n_completed, buffer
+    def _record(rec, game_idx: int) -> None:
+        nonlocal n_completed
         buffer.append(rec)
+        chunk_idxs.append(game_idx)
         n_completed += 1
         if _PROGRESS_COUNTER is not None:
             with _PROGRESS_COUNTER.get_lock():
@@ -289,87 +324,37 @@ def _worker(args: dict) -> dict:
         if len(buffer) >= spec.chunk_size:
             _flush()
 
-    # Remaining (post-resume) work items, in plan order. Skipping here keeps the
-    # game order — and thus the chunk packing — identical to the per-game path.
+    # Remaining (post-resume) work, in plan order. Skipping completed idxs here
+    # keeps the game order — and thus the chunk packing — identical regardless
+    # of resume.
     remaining = [it for it in plan_slice if it["game_idx"] not in completed]
     n_skipped = len(plan_slice) - len(remaining)
 
-    if spec.generation_mode == "per_game":
-        for item in remaining:
-            game_idx = item["game_idx"]
-            seed = item["seed"]
-            t0 = time.perf_counter()
-            try:
-                rec = _run_one_game(
-                    spec, game_idx=game_idx, seed=seed, tmp_dir=tmp_dir
-                )
-            except Exception as exc:
-                tb = traceback.format_exc()
-                errored.append((game_idx, f"{type(exc).__name__}: {exc}\n{tb}"))
-                continue  # don't crash the run; move to the next game
-            per_game_times.append(time.perf_counter() - t0)
-            _record(rec)
-        _flush()
-    else:  # "batch": ONE subprocess for the whole remaining slice (one NN load)
-        if remaining:
-            idxs = [it["game_idx"] for it in remaining]
-            batch_t0 = time.perf_counter()
-            try:
-                batch_dir, written, proc = _run_batch_games(
-                    spec, game_idxs=idxs, tmp_dir=tmp_dir
-                )
-            except Exception as exc:
-                # Total batch failure (no traces produced) → mark every
-                # remaining idx errored; the run continues with other workers.
-                tb = traceback.format_exc()
-                msg = f"{type(exc).__name__}: {exc}\n{tb}"
-                errored = [(i, msg) for i in idxs]
-                return {
-                    "worker_id": worker_id,
-                    "n_completed": 0,
-                    "n_skipped": n_skipped,
-                    "errored": errored,
-                    "per_game_times": per_game_times,
-                }
-            # Amortize the single batch wall-time over the games it produced
-            # (the per-game generation cost isn't separable in batch mode).
-            n_written = max(1, len(written))
-            amortized = (time.perf_counter() - batch_t0) / n_written
-            try:
-                # Replay in plan order so chunk packing matches the per-game path.
-                for item in remaining:
-                    game_idx = item["game_idx"]
-                    if game_idx not in written:
-                        # The batch process skipped/failed this one (partial exit).
-                        errored.append((
-                            game_idx,
-                            f"batch process did not write trace_{game_idx}.json "
-                            f"(exit={proc.returncode}); "
-                            f"stderr:\n{proc.stderr.strip()}",
-                        ))
-                        continue
-                    trace_path = batch_dir / f"trace_{game_idx}.json"
-                    try:
-                        rec = _replay_trace_file(
-                            spec, game_idx=game_idx, trace_path=trace_path
-                        )
-                    except Exception as exc:
-                        tb = traceback.format_exc()
-                        errored.append(
-                            (game_idx, f"{type(exc).__name__}: {exc}\n{tb}")
-                        )
-                        continue
-                    per_game_times.append(amortized)
-                    _record(rec)
-                _flush()
-            finally:
-                # Always delete the per-game traces + the batch dir.
-                try:
-                    for f in batch_dir.glob("*"):
-                        f.unlink(missing_ok=True)
-                    batch_dir.rmdir()
-                except OSError:
-                    pass
+    # Phase 1: ensure every remaining game has a complete trace on disk —
+    # generating the ones that don't, reusing any left by a killed prior run.
+    gen_failed, gen_errored, gen_time, n_generated = _generate_traces(
+        spec, remaining, traces_dir
+    )
+    errored.extend(gen_errored)
+    # Replay is ~free; report generation cost as the per-game wall (amortized
+    # over the batch in batch mode, exact in per-game mode).
+    amortized = gen_time / max(1, n_generated)
+
+    # Phase 2: replay each trace → GameRecord → chunk, in plan order.
+    for item in remaining:
+        gi = item["game_idx"]
+        if gi in gen_failed:
+            continue
+        try:
+            rec = _replay_trace_file(
+                spec, game_idx=gi, trace_path=_trace_path(traces_dir, gi)
+            )
+        except Exception as exc:
+            errored.append((gi, f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"))
+            continue
+        per_game_times.append(amortized)
+        _record(rec, gi)
+    _flush()
 
     return {
         "worker_id": worker_id,
@@ -434,9 +419,9 @@ def generate(
         is_resume = False
 
     games_dir = run_dir / "games"
-    tmp_dir = run_dir / ".tmp"
+    traces_dir = run_dir / "traces"
     games_dir.mkdir(parents=True, exist_ok=True)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    traces_dir.mkdir(parents=True, exist_ok=True)
 
     # The batch C++ path computes seed = spec.base_seed + game_idx, so it MUST
     # equal the plan's base_seed. Pin it here so the two can never diverge
@@ -457,16 +442,47 @@ def generate(
               flush=True)
 
     worker_args = [
-        {"worker_id": w, "games_dir": str(games_dir), "tmp_dir": str(tmp_dir),
+        {"worker_id": w, "games_dir": str(games_dir), "traces_dir": str(traces_dir),
          "plan_slice": [asdict(p) for p in slices[w]], "spec": spec}
         for w in range(n_workers)
     ]
 
-    # Games already on disk (full chunks only — the partial final chunk exists
+    # Games already chunked (full chunks only — the partial final chunk exists
     # only at completion), so progress can report the resumed baseline.
     baseline = len(list(games_dir.glob("worker_*_c*.pkl"))) * spec.chunk_size
     if baseline and verbose:
         print(f"  resuming: ~{baseline} games already on disk\n", flush=True)
+
+    def _meta(status: str, completed_games: int, errored_games: list) -> dict:
+        return {
+            "run_id": run_id,
+            "code_sha": _current_git_sha(),
+            "host": platform.node(),
+            "kind": "mcts_selfplay",
+            "generator": "cpp",
+            "status": status,
+            "data_version": DATA_VERSION,
+            "n_workers": n_workers,
+            "base_seed": base_seed,
+            "planned_games": n_games,
+            "completed_games": completed_games,
+            "errored_games": errored_games,
+            "selfplay_bin": spec.selfplay_bin,
+            "model_dir": spec.model_dir,
+            "sims": spec.sims,
+            "c_uct": spec.c_uct,
+            "temperature": spec.temperature,
+            "chunk_size": spec.chunk_size,
+            "generation_mode": spec.generation_mode,
+            "legality": "full", "fence_mode": "flatten", "cap_total_sims": True,
+        }
+
+    # Write metadata BEFORE launching workers so a run killed mid-generation
+    # leaves a `metadata.json` marked generator="cpp" — the next invocation then
+    # auto-resumes (reusing on-disk traces) without needing --resume. Rewritten
+    # with final counts + status="complete" at the end.
+    (run_dir / "metadata.json").write_text(
+        json.dumps(_meta("in_progress", baseline, []), indent=2))
 
     t0 = time.perf_counter()
     if n_workers == 1:
@@ -478,14 +494,28 @@ def generate(
         stop = threading.Event()
 
         def _monitor() -> None:
+            # Progress is filesystem-derived so it tracks PHASE-1 C++ generation
+            # in real time (the long pole), not just phase-2 replay: a game is
+            # "done" once its trace exists OR it has been chunked. A flushed
+            # chunk adds chunk_size to the chunk count and removes the same
+            # number of traces, so `done` stays monotonic across the handoff.
+            def _done() -> int:
+                n_chunks = len(list(games_dir.glob("worker_*_c*.pkl")))
+                n_traces = len(list(traces_dir.glob("trace_*.json")))
+                return min(n_games, n_chunks * spec.chunk_size + n_traces)
+
+            done0 = _done()   # this-run baseline (incl. any resumed traces)
             while not stop.wait(60.0):
                 el = time.perf_counter() - t0
-                rate = counter.value / el if el > 0 else 0.0   # games/sec this run
-                done = baseline + counter.value
+                done = _done()
+                n_traces = len(list(traces_dir.glob("trace_*.json")))
+                rate = (done - done0) / el if el > 0 else 0.0   # games/sec this run
                 remaining = max(0, n_games - done)
                 eta_h = remaining / rate / 3600 if rate > 0 else float("inf")
                 print(f"  [progress] {done}/{n_games} games (~{100*done/n_games:.0f}%), "
-                      f"{rate*60:.1f}/min this run, ETA {eta_h:.1f} h", flush=True)
+                      f"{rate*60:.1f}/min this run, ETA {eta_h:.1f} h "
+                      f"(traces on disk: {n_traces}, replayed this run: {counter.value})",
+                      flush=True)
 
         mon = threading.Thread(target=_monitor, daemon=True)
         mon.start()
@@ -506,34 +536,14 @@ def generate(
         for game_idx, msg in r["errored"]:
             all_errored.append({"game_idx": game_idx, "error": msg})
 
-    meta = {
-        "run_id": run_id,
-        "code_sha": _current_git_sha(),
-        "host": platform.node(),
-        "kind": "mcts_selfplay",
-        "generator": "cpp",
-        "data_version": DATA_VERSION,
-        "n_workers": n_workers,
-        "base_seed": base_seed,
-        "planned_games": n_games,
-        "completed_games": n_done + n_skip,
-        "errored_games": all_errored,
-        "selfplay_bin": spec.selfplay_bin,
-        "model_dir": spec.model_dir,
-        "sims": spec.sims,
-        "c_uct": spec.c_uct,
-        "temperature": spec.temperature,
-        "chunk_size": spec.chunk_size,
-        "generation_mode": spec.generation_mode,
-        "legality": "full", "fence_mode": "flatten", "cap_total_sims": True,
-    }
+    meta = _meta("complete", n_done + n_skip, all_errored)
     (run_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
 
-    # Best-effort cleanup of the temp dir (only if empty; resumes may share it).
-    try:
-        tmp_dir.rmdir()
-    except OSError:
-        pass
+    # On clean completion every GameRecord is durably chunked, so the persisted
+    # traces are no longer needed. (A killed run never reaches here, leaving the
+    # traces on disk so the next invocation resumes from them instead of
+    # regenerating.)
+    shutil.rmtree(traces_dir, ignore_errors=True)
 
     if verbose:
         print(f"\nDone in {elapsed:.1f}s — completed {n_done}, skipped {n_skip}, "
@@ -566,7 +576,7 @@ def main() -> int:
                    help="Per-game seed = base_seed + game_idx (mirrors the "
                         "Python generator's scheme). Default 0.")
     p.add_argument("--sims", type=int, default=400)
-    p.add_argument("--c-uct", type=float, default=1.4)
+    p.add_argument("--c-uct", type=float, default=0.5)
     p.add_argument("--temperature", type=float, default=1.0,
                    help="Played-move visit softmax temperature (passed to the "
                         "binary; π is stored raw regardless).")
