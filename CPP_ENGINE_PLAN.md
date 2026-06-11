@@ -147,6 +147,16 @@ Replay is cheap (~10 ms/game — pure `step` along a known action list, no searc
 10k-game dataset takes a minute or two (vs the hours generation takes), and you can **re-encode with a new feature set later without
 regenerating games** (the current pipeline's best property is preserved).
 
+> **Replay perf footgun (fixed — SPEEDUPS.md S14).** `replay_trace` originally called `legal_actions`
+> at every step purely to decide which states are non-singleton decisions worth snapshotting (it never
+> uses it to *validate* the trace — `step` applies recorded actions unconditionally). On animal-heavy
+> late-game farms that re-runs the `PARETO_OPT_LEVEL` Φ build (`_build_phi`), which is pathological
+> under replay's one-touch-per-state access (the Φ build amortizes over many cap-queries in MCTS but
+> replay touches each state once) — up to ~24 s for a single game, breaking the ~10 ms/game assumption.
+> Fix: MCTS self-play traces record a `visit_distribution` only on non-singleton decisions, so
+> "entry has π" is set-identical to the `legal_actions` singleton test (→ byte-identical `GameRecord`s);
+> replay uses that and skips `legal_actions` (value-only traces fall back). Worst-case game 24 s → 5 ms.
+
 **Build shape — one core library, two front-ends:**
 
 - `libagricola_cpp` (static) — the engine + MCTS + inference + encoder + policy.

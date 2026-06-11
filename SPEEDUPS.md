@@ -152,6 +152,31 @@ orders to the same state share statistics), the **per-node legal-action cache**,
 **strict/regular restricted-legality wrappers** (`agents/restricted.py`) which
 shrink branching by dropping dominated actions before search sees them.
 
+### Data-gen / trace replay
+
+**S14 — π-presence singleton signal in trace replay**
+(`agricola/agents/nn/trace_replay.py`). C++ self-play data-gen is two phases:
+phase 1 (native C++) writes a trace; phase 2 (Python `replay_trace`) re-runs the
+action list through the engine to rebuild `GameRecord`s. Replay called
+`legal_actions` at every step *only* to decide which states are non-singleton
+decisions worth snapshotting — never to validate the trace (`step` applies the
+recorded actions unconditionally). On animal-heavy late-game farms that re-runs
+the `_build_phi` / `PARETO_OPT_LEVEL` Φ build (S8), which is **pathological under
+replay's one-touch-per-state access**: the Φ build is a fixed per-farm-shape cost
+that amortizes over the many cap-queries MCTS makes on a shape, but replay visits
+each state once, so the build never pays back (and is super-linear in farm size →
+a multi-second spike on big farms). MCTS self-play traces already carry the
+signal — the search records a `visit_distribution` **only** on non-singleton
+decisions — so "entry has π" is exactly the singleton test
+`len(filter_implemented(legal_actions(state))) > 1` (verified set-identical →
+byte-identical `GameRecord`s). Replay uses that instead, skipping `legal_actions`
+entirely; value-only traces (no π recorded anywhere) fall back to `legal_actions`.
+**Worst-case game 24,119 ms → 5 ms** (a 30k-game phase-2 replay finished in
+~3 min), restoring the design's "~10 ms/game" replay assumption
+(`CPP_ENGINE_PLAN.md` §1/§2). Note this is *not* in tension with S8's "Φ is cold
+in production PUCT": replay is a different workload where the Φ path is hot, and
+the fix removes the call rather than the cache.
+
 ---
 
 ## Part 2 — Potential next steps
