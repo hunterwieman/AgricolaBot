@@ -45,6 +45,26 @@ std::string mcts_selfplay_trace(std::uint64_t seed, int sims, double c_uct,
 // this, so per-game behavior is byte-identical. `nn` is borrowed (caller owns).
 std::string mcts_selfplay_trace_with(const NNInference& nn, std::uint64_t seed,
                                      int sims, double c_uct, double temperature);
+
+// Two-net head-to-head MATCH (evaluation, NOT self-play data). P0 plays with
+// `nn_p0`, P1 with `nn_p1`, each driven by its OWN MCTSSearch/MCTSAgent (separate
+// trees — they have different value nets; the policy heads are typically the same
+// across the two model dirs). Plays one full Family game from setup(seed) to
+// terminal — forced moves stepped through, nature reveals dealt — and returns the
+// final scores + winner. Winner = 0/1 by higher score, tiebreaker on a tie, or -1
+// for a true draw (equal score AND tiebreaker), matching schema.compute_winner.
+// No trace is emitted; a match only needs outcomes. P0 reuses the self-play RNG
+// mixing constants so a P0-vs-P0 sanity check would match self-play trajectories.
+struct MatchGameResult {
+  std::uint64_t seed;
+  int p0_score;
+  int p1_score;
+  int winner;  // 0 = P0 (nn_p0), 1 = P1 (nn_p1), -1 = true draw
+};
+
+MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_p1,
+                                std::uint64_t seed, int sims, double c_uct,
+                                double temperature);
 #endif
 
 }  // namespace agricola

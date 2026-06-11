@@ -99,7 +99,7 @@ class AgricolaPointerDataset(Dataset):
     repeated per candidate); `cand` is a flat `(ΣK, candidate_dim)` array sliced
     by `offsets`. `__getitem__` returns one snapshot; batch with `pointer_collate`."""
 
-    def __init__(self, state, cand_flat, offsets, chosen_pos, weight, won):
+    def __init__(self, state, cand_flat, offsets, chosen_pos, weight, won, pi_flat=None):
         assert state.shape[1] == ENCODED_DIM, state.shape
         self._state = torch.from_numpy(state.astype(np.float32))
         self._cand = torch.from_numpy(cand_flat.astype(np.float32))
@@ -108,32 +108,41 @@ class AgricolaPointerDataset(Dataset):
         self._weight = torch.from_numpy(weight.astype(np.float32))
         self._won = torch.from_numpy(won.astype(np.float32))
         self.candidate_dim = int(cand_flat.shape[1]) if cand_flat.size else 0
+        if pi_flat is None:                  # legacy: one-hot on the chosen position
+            pi_flat = np.zeros(cand_flat.shape[0], dtype=np.float32)
+            for i in range(len(self._pos)):
+                pi_flat[int(self._off[i]) + int(self._pos[i])] = 1.0
+        assert pi_flat.shape[0] == cand_flat.shape[0], (pi_flat.shape, cand_flat.shape)
+        self._pi = torch.from_numpy(pi_flat.astype(np.float32))  # (M,)
 
     def __len__(self) -> int:
         return self._state.shape[0]
 
     def __getitem__(self, idx):
         a, b = int(self._off[idx]), int(self._off[idx + 1])
-        return (self._state[idx], self._cand[a:b],
+        return (self._state[idx], self._cand[a:b], self._pi[a:b],
                 int(self._pos[idx]), self._weight[idx])
 
 
 def pointer_collate(batch):
     """Flatten a list of snapshots into the segment layout.
 
-    Returns `(state, cand, segment, chosen_flat, weight)`:
+    Returns `(state, cand, segment, chosen_flat, weight, pi_flat)`:
       - `state`       `(B, ENCODED_DIM)` — one row per snapshot
       - `cand`        `(M, candidate_dim)` — all candidates, snapshot-contiguous
       - `segment`     `(M,)` long — which snapshot (0..B-1) each candidate is in
       - `chosen_flat` `(B,)` long — flat index of each snapshot's chosen candidate
       - `weight`      `(B,)` float — per-snapshot loss weight
+      - `pi_flat`     `(M,)` float — per-candidate target prob (segment-normalized);
+                      the loss is segment cross-entropy against it
     """
-    states, cand_blocks, segs, chosen_flat, weights = [], [], [], [], []
+    states, cand_blocks, pi_blocks, segs, chosen_flat, weights = [], [], [], [], [], []
     offset = 0
-    for i, (st, cd, pos, w) in enumerate(batch):
+    for i, (st, cd, pi, pos, w) in enumerate(batch):
         k = cd.shape[0]
         states.append(st)
         cand_blocks.append(cd)
+        pi_blocks.append(pi)
         segs.append(torch.full((k,), i, dtype=torch.long))
         chosen_flat.append(offset + pos)
         weights.append(w)
@@ -144,6 +153,7 @@ def pointer_collate(batch):
         torch.cat(segs, dim=0),
         torch.tensor(chosen_flat, dtype=torch.long),
         torch.stack(weights).float(),
+        torch.cat(pi_blocks, dim=0).float(),
     )
 
 
@@ -152,11 +162,43 @@ def pointer_collate(batch):
 # ---------------------------------------------------------------------------
 
 
-def _pointer_rows(games: Iterable[GameRecord], head: PointerHead) -> Iterator[tuple]:
-    """Yield `(game_seed, state_enc[170], cand[K, dim], chosen_pos, R, won)` for
-    every non-terminal snapshot the `head` owns with ≥2 candidates. `state_enc`
-    is the decider-perspective encoding; `chosen_pos` the chosen candidate's
-    index. Raises if the chosen action isn't among the head's candidates (drift)."""
+def _pi_pointer(head, snap, pairs, pos, *, soft_targets: bool) -> np.ndarray:
+    """Target distribution `pi[K]` over a pointer head's K candidates. Soft
+    (default): normalized MCTS visit counts from `snap.visit_distribution`,
+    keyed to each candidate by action equality. One-hot on `pos` when there's no
+    recorded visit distribution (legacy data) or `soft_targets` is False. All
+    candidates are legal by construction (they ARE the enumerated legal set), so
+    no masking is needed."""
+    k = len(pairs)
+    vd = snap.visit_distribution
+    if not soft_targets or vd is None:
+        pi = np.zeros(k, dtype=np.float32)
+        pi[pos] = 1.0
+        return pi
+    idx_of = {a: i for i, (a, _) in enumerate(pairs)}
+    pi = np.zeros(k, dtype=np.float32)
+    total = 0.0
+    for action, count in vd.items():
+        i = idx_of.get(action)
+        if i is None:                        # visited action not a candidate (drift)
+            continue
+        pi[i] += float(count)
+        total += float(count)
+    if total <= 0.0:
+        pi[pos] = 1.0
+        return pi
+    pi /= total
+    return pi
+
+
+def _pointer_rows(
+    games: Iterable[GameRecord], head: PointerHead, *, soft_targets: bool = True,
+) -> Iterator[tuple]:
+    """Yield `(game_seed, state_enc[170], cand[K, dim], chosen_pos, R, won, pi[K])`
+    for every non-terminal snapshot the `head` owns with ≥2 candidates.
+    `state_enc` is the decider-perspective encoding; `chosen_pos` the chosen
+    candidate's index; `pi` the soft target over candidates (see `_pi_pointer`).
+    Raises if the chosen action isn't among the head's candidates (drift)."""
     for g in games:
         for snap in g.decisions:
             state = snap.state
@@ -174,6 +216,7 @@ def _pointer_rows(games: Iterable[GameRecord], head: PointerHead) -> Iterator[tu
             d = snap.decider_idx
             state_enc = encode_state(state, d).astype(np.float32)
             cand = np.stack([f for _, f in pairs]).astype(np.float32)
+            pi = _pi_pointer(head, snap, pairs, pos, soft_targets=soft_targets)
             R = float(g.p0_final_score - g.p1_final_score) if d == 0 \
                 else float(g.p1_final_score - g.p0_final_score)
             if g.winner is None:
@@ -182,26 +225,30 @@ def _pointer_rows(games: Iterable[GameRecord], head: PointerHead) -> Iterator[tu
                 won = 1.0
             else:
                 won = 0.0
-            yield g.seed, state_enc, cand, pos, R, won
+            yield g.seed, state_enc, cand, pos, R, won, pi
 
 
 class _PointerSplitAccumulator:
     """Collects pointer rows, routing each to its seed-hash split bucket."""
 
-    def __init__(self, head, split_seed, train_frac, val_frac):
+    def __init__(self, head, split_seed, train_frac, val_frac, soft_targets=True):
         self.head = head
         self.split_seed = split_seed
         self.train_frac = train_frac
         self.val_frac = val_frac
+        self.soft_targets = soft_targets
         self._split_of_seed: dict[int, int] = {}
         self.state = ([], [], [])
         self.cand = ([], [], [])
         self.pos = ([], [], [])
         self.R = ([], [], [])
         self.won = ([], [], [])
+        self.pi = ([], [], [])
 
     def add_games(self, games) -> None:
-        for seed, st, cd, pos, R, won in _pointer_rows(games, self.head):
+        for seed, st, cd, pos, R, won, pi in _pointer_rows(
+            games, self.head, soft_targets=self.soft_targets,
+        ):
             sp = self._split_of_seed.get(seed)
             if sp is None:
                 sp = _seed_split(seed, self.split_seed, self.train_frac, self.val_frac)
@@ -211,24 +258,28 @@ class _PointerSplitAccumulator:
             self.pos[sp].append(pos)
             self.R[sp].append(R)
             self.won[sp].append(won)
+            self.pi[sp].append(pi)
 
     def arrays(self, sp: int):
-        """Return (state[N,170], cand_flat[M,dim], offsets[N+1], pos[N], R[N], won[N])."""
+        """Return (state[N,170], cand_flat[M,dim], offsets[N+1], pos[N], R[N],
+        won[N], pi_flat[M])."""
         dim = self.head.candidate_dim
         n = len(self.pos[sp])
         if n == 0:
             return (np.zeros((0, ENCODED_DIM), np.float32),
                     np.zeros((0, dim), np.float32), np.zeros(1, np.int64),
                     np.zeros(0, np.int64), np.zeros(0, np.float32),
-                    np.zeros(0, np.float32))
+                    np.zeros(0, np.float32), np.zeros(0, np.float32))
         state = np.asarray(self.state[sp], dtype=np.float32)
         counts = np.array([c.shape[0] for c in self.cand[sp]], dtype=np.int64)
         offsets = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
         cand_flat = np.concatenate(self.cand[sp], axis=0).astype(np.float32)
+        pi_flat = np.concatenate(self.pi[sp], axis=0).astype(np.float32)
         return (state, cand_flat, offsets,
                 np.asarray(self.pos[sp], dtype=np.int64),
                 np.asarray(self.R[sp], dtype=np.float32),
-                np.asarray(self.won[sp], dtype=np.float32))
+                np.asarray(self.won[sp], dtype=np.float32),
+                pi_flat)
 
 
 # ---------------------------------------------------------------------------
@@ -255,9 +306,9 @@ def _fit_pointer_norm(state, cand_flat, offsets, candidate_dim) -> PointerNormSt
 
 
 def _finalize(acc, *, loss_weight, value_ckpt, awr_clip, verbose):
-    Str, Ctr, Otr, ptr, Rtr, wontr = acc.arrays(0)
-    Sva, Cva, Ova, pva, _, wonva = acc.arrays(1)
-    Ste, Cte, Ote, pte, _, wonte = acc.arrays(2)
+    Str, Ctr, Otr, ptr, Rtr, wontr, pitr = acc.arrays(0)
+    Sva, Cva, Ova, pva, _, wonva, piva = acc.arrays(1)
+    Ste, Cte, Ote, pte, _, wonte, pite = acc.arrays(2)
     if Str.shape[0] == 0:
         raise ValueError(
             f"pointer build produced no training examples for head "
@@ -272,15 +323,16 @@ def _finalize(acc, *, loss_weight, value_ckpt, awr_clip, verbose):
     else:
         raise ValueError(f"loss_weight must be 'unweighted' or 'awr'; got {loss_weight!r}")
 
-    train_ds = AgricolaPointerDataset(Str, Ctr, Otr, ptr, wtr, wontr)
+    train_ds = AgricolaPointerDataset(Str, Ctr, Otr, ptr, wtr, wontr, pitr)
     val_ds = AgricolaPointerDataset(Sva, Cva, Ova, pva,
-                                    np.ones(Sva.shape[0], np.float32), wonva)
+                                    np.ones(Sva.shape[0], np.float32), wonva, piva)
     test_ds = AgricolaPointerDataset(Ste, Cte, Ote, pte,
-                                     np.ones(Ste.shape[0], np.float32), wonte)
+                                     np.ones(Ste.shape[0], np.float32), wonte, pite)
 
     info = {
         "head": acc.head.name,
         "candidate_dim": acc.head.candidate_dim,
+        "soft_targets": bool(acc.soft_targets),
         "loss_weight": loss_weight,
         "awr_beta": beta,
         "awr_clip": float(awr_clip) if loss_weight == "awr" else None,
@@ -307,11 +359,13 @@ def build_pointer_datasets_from_games(
     train_frac: float = 0.8,
     val_frac: float = 0.1,
     split_seed: int = 0,
+    soft_targets: bool = True,
     verbose: bool = True,
 ):
     """Build (train, val, test) datasets + `PointerNormStats` + info for a pointer
-    `head` from an in-memory game list (used by tests)."""
-    acc = _PointerSplitAccumulator(head, split_seed, train_frac, val_frac)
+    `head` from an in-memory game list (used by tests). `soft_targets` (default)
+    trains against the MCTS visit distribution π when present, else one-hot."""
+    acc = _PointerSplitAccumulator(head, split_seed, train_frac, val_frac, soft_targets)
     acc.add_games(games)
     return _finalize(acc, loss_weight=loss_weight, value_ckpt=value_ckpt,
                      awr_clip=awr_clip, verbose=verbose)
@@ -326,16 +380,18 @@ def build_pointer_datasets(
     train_frac: float = 0.8,
     val_frac: float = 0.1,
     split_seed: int = 0,
+    soft_targets: bool = True,
     verbose: bool = True,
 ):
     """Build pointer datasets for a `head` from on-disk run dirs, **streaming**
-    one worker pickle at a time."""
+    one worker pickle at a time. `soft_targets` (default) trains against the MCTS
+    visit distribution π when present, else one-hot behavioral cloning."""
     if isinstance(run_dirs, (str, Path)):
         run_dirs = [Path(run_dirs)]
     else:
         run_dirs = [Path(r) for r in run_dirs]
 
-    acc = _PointerSplitAccumulator(head, split_seed, train_frac, val_frac)
+    acc = _PointerSplitAccumulator(head, split_seed, train_frac, val_frac, soft_targets)
     n_games = 0
     for pkl in _iter_worker_pickles(run_dirs):
         games = load_game_records(pkl)

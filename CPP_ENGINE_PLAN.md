@@ -916,6 +916,15 @@ ceiling, but it's an algorithmic change to the search and was explicitly out of 
 small. **Conclusion: the implementation is at its non-algorithmic floor — the ~4× in hand is the bulk
 of the available win**, and further speedup needs either leaf-batching or just more/faster cores.
 
+**Stage B (landed, post-Stage-7) — joint shared-trunk inference + two-net match mode.** The C++
+`NNInference` gained a `shared_trunk_v1` mode toggle (one trunk + standalone `embed_norm` LayerNorm +
+identity-norm head blobs), an internal `state_hash`-keyed embedding cache (one trunk forward per node,
+`mcts.cpp` unchanged), and a `selfplay --match --model-dir-p0 A --model-dir-p1 B` two-net match mode
+(`mcts_match_game`, driven in parallel by `scripts/nn/run_cpp_match.py`). Gate
+`tests/test_cpp_nn.py::test_cpp_joint_matches_python` is a self-contained permanent gate (random
+`SharedTrunkModel` → real export → C++ joint value/policy ≈ Python `make_joint_fns` ≤1e-4); the
+composite gates stay green. Full detail in **§13**; the joint model itself in **`SHARED_TRUNK.md`**.
+
 ---
 
 ## 9. Build system, repo layout, dependencies
@@ -1053,7 +1062,72 @@ up again. This plan fits that cleanly:
 
 ---
 
-*Companion docs: `PROFILING.md` (where time goes), `SPEEDUPS.md` (Python-side optimizations + the
+## 13. Joint shared-trunk inference + two-net match mode (Stage B)
+
+The original §6 inference path is *composite*: a separate value net plus nine independent policy-head
+nets, each its own MLP with its own input-normalization. The Phase 2.3 successor is the **joint
+shared-trunk model** — one trunk feeding the value head and the full factored policy, trained jointly
+on self-play data (full design + training + results in **`SHARED_TRUNK.md`**). It is ported into the
+C++ `NNInference` as a **mode toggle, not a new class**: the two modes share the manifest loader, the
+hand-rolled `Mlp` primitive, and the entire §6.3 policy-combiner dispatch — **only the forward
+differs**. The composite path (§6) is untouched, so its gates stay green and the maintenance invariant
+holds (no engine / legality / scoring / encoder change — this is a pure inference-backend addition).
+
+### 13.1 The `shared_trunk_v1` manifest + the standalone `embed_norm`
+
+`scripts/nn/export_weights.py` detects a `SharedTrunkModel` checkpoint (`--value-ckpt <joint-ckpt>
+--out-dir <dir>`) and writes a manifest tagged `"format": "shared_trunk_v1"` (the composite export is
+`"raw_f32_v1"`); `NNInference` auto-detects the tag and flips to joint mode. Joint mode loads:
+
+- the **trunk** MLP (170 → embedding `E=128`), then
+- a **standalone `embed_norm`** LayerNorm on the embedding. It is loaded *separately* rather than as
+  the trunk's final layer because the C++ `Mlp` primitive applies **GELU after every LayerNorm**, and
+  `embed_norm` must be a bare LayerNorm (no activation) — so the only genuinely new math in the joint
+  path is this one standalone LN. Everything downstream reuses the existing `Mlp` verbatim.
+- the **head blobs**, each taking the *embedding* with **identity input-normalization** (the trunk
+  already produced a normalized latent). The pointer heads bake their per-candidate normalization into
+  the **candidate slice** of the `[embedding ; cand]` row, so the existing `Mlp` is reused unchanged —
+  no special pointer-norm code path.
+
+### 13.2 The embedding cache — one trunk forward per node, `mcts.cpp` unchanged
+
+`NNInference` keeps an internal **`state_hash`-keyed embedding cache**, so the trunk runs **once per
+node**: the node's `value()` call and its `policy()` call for the same leaf share that single forward
+(the cache hands both the same embedding). This exactly mirrors the Python `(state, perspective)`
+memo in `make_joint_fns` (`SHARED_TRUNK.md` §5). Because the sharing lives **inside `NNInference`**,
+`cpp/src/mcts.cpp` needs **no changes** — it still calls `value()` then (lazily) `policy()` per leaf
+as before, and the composite per-head dispatch is untouched.
+
+### 13.3 Two-net match mode — `selfplay --match`
+
+A new mode plays **one net against another** (separate trees, per-seat `value_scale`), for fast
+torch-free head-to-head evaluation of two joint (or composite) checkpoints:
+
+```
+selfplay --match --mcts --model-dir-p0 A --model-dir-p1 B --sims S [--c-uct C --temperature T]
+```
+
+`mcts_match_game(...)` (`cpp/src/selfplay.cpp` + `cpp/include/agricola/selfplay.hpp`, wired through
+`cpp/apps/selfplay.cpp`) runs P0 on net A and P1 on net B with **independent search trees** and each
+seat's own `value_scale`. It is driven in parallel by **`scripts/nn/run_cpp_match.py`** — a
+process-pool driver (one contiguous seed slice per worker, parsing the per-game `GAME …` / `MATCH …`
+lines and aggregating W-D-L + the P0−P1 score margin), mirroring `generate_selfplay_data_cpp.py`'s
+worker-pool pattern. Together this unlocks fast, torch-free **self-play generation and matches with
+the joint model** — the next data round (`SHARED_TRUNK.md` §7).
+
+### 13.4 The differential gate
+
+`tests/test_cpp_nn.py::test_cpp_joint_matches_python` is a **self-contained, permanent** gate: it
+builds a *random* `SharedTrunkModel`, exports it through the real `export_weights.py` CLI to the
+`shared_trunk_v1` format, loads it into the C++ joint `NNInference`, and asserts C++ joint value +
+policy match Python `shared_policy.make_joint_fns` to **≤1e-4** over a state corpus. No trained
+checkpoint is needed, so the gate runs anywhere. The composite gates (§3.4 value/policy ≤1e-4) remain
+green — the joint path is additive.
+
+---
+
+*Companion docs: `SHARED_TRUNK.md` (the joint shared-trunk model — design, training, results, and
+this C++ port), `PROFILING.md` (where time goes), `SPEEDUPS.md` (Python-side optimizations + the
 leaf-batching lever that is the no-rewrite alternative), `ENGINE_IMPLEMENTATION.md` (deep engine
 mechanics — the §3/§4 reference for Stages 2–3), `MCTS_IMPLEMENTATION.md` (the Stage-6 reference),
 `FIRST_NN.md` + `POLICY_HEAD.md` (the Stage-5 reference).*

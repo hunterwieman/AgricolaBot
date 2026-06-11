@@ -575,6 +575,20 @@ spatially blind (top-1 ~28%) because the encoder has no per-cell features. **Nex
 consumption/eval of the priors (the real test — accuracy ≠ strength). The full design is in
 **`FIRST_NN.md`** and **`POLICY_HEAD.md`**.
 
+**Stage B — the joint shared-trunk model (done; strongest agent to date).** The separate value net
+and nine policy heads have been unified into one **`SharedTrunkModel`**: a single `170→256→256→128`
+trunk feeding a value head + the 7 fixed + 2 pointer heads, trained jointly on the 41k PUCT self-play
+data (the first **DATA_VERSION 3** training) with two upgrades — **soft-π** policy (cross-entropy
+against the visit distribution, not one-hot behavioral cloning) and on-policy value. A value-capacity
+sweep first settled the trunk size at **256×2** (extra width/depth didn't help — the count encoder is
+the binding constraint — and *MAE was a backwards predictor of play strength*). The joint model
+**beats the previous-best setup** (champion value + the 9 separate unweighted heads) at 800-sim PUCT:
+Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **value strength preserved**
+(no negative transfer). MCTS consumes it through `make_joint_fns` — **one trunk forward per node** (an
+embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
+ported to C++ (§2.4) for fast self-play generation. Not yet promoted to `nn_models/best` (the joint
+model needs consumer wiring). Full design + eval: **`SHARED_TRUNK.md`**.
+
 **Trained-model catalog: `nn_models/REGISTRY.md`.** The authoritative index of every checkpoint
 on disk — `ENCODING_VERSION` it was trained against, training data source, hyperparameters,
 test MAE, headline match results, and current Status (active / superseded / incompatible). The
@@ -619,6 +633,16 @@ the compact traces into `GameRecord`s (with π + root_value intact). Workflow: t
 export weights (`scripts/nn/export_weights.py` → `nn_models/cpp_export/`) → generate
 (`generate_selfplay_data_cpp.py`, default batch mode loads weights once per worker) → train on the
 output. Build the binary per `cpp/README.md`.
+
+**Joint shared-trunk inference + a two-net match mode (Stage B; SHARED_TRUNK.md).** `NNInference` now
+has a **mode toggle**: a `format: "shared_trunk_v1"` manifest (from `export_weights.py
+--value-ckpt <joint-ckpt>`) loads the joint model — one trunk + standalone `embed_norm` + heads on the
+embedding — with an internal `state_hash`-keyed **embedding cache** so it's one trunk forward per node
+(the composite per-head path is untouched; `mcts.cpp` unchanged). Differential-validated ≤1e-4 vs the
+Python `make_joint_fns`. A new **`selfplay --match --model-dir-p0 A --model-dir-p1 B`** mode
+(`mcts_match_game`) plays one net vs another with separate trees + per-seat `value_scale`; driven in
+parallel by `scripts/nn/run_cpp_match.py`. This is the path for fast, torch-free self-play generation
+with the joint model.
 
 ---
 
@@ -701,6 +725,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `POLICY_PUCT_DESIGN.md` | **Historical design record** (the PUCT search half is now implemented and documented in `MCTS_IMPLEMENTATION.md`; the policy half in `POLICY_HEAD.md`). Design spec for the policy head + PUCT phase (Phase 2.3 (c)→(d)). The factored policy (fixed-width + mask heads for placement / sub-actions / Build Major; score-the-set heads for the fencing / animal-accommodation / harvest-feed / harvest-breed frontiers), the black-box `policy_fn(state, legal_actions) -> {action: prior}` interface MCTS consumes (untrained heads fall back to uniform), the AlphaZero PUCT formula + restated FPU + `leaf_value_scale`-calibrated `c_puct`, chance-node orthogonality, the regular-legality + soft-prune-via-prior rationale, the grounded decision-point taxonomy, the localized `mcts.py` change plan (UCT preserved as a control via `policy_fn=None`), the `fence_mode` enum (MACRO / FLATTEN / SEQUENCE_PRIOR) and the SEQUENCE_PRIOR `n(s,a,L)` per-step-target reconstruction, BC training from existing `chosen_action` data, the eval controls, shared-trunk + self-play forward-compat, and a pre-implementation-edits section. Read before implementing the policy head or PUCT. |
 | `POLICY_HEAD.md` | Implementation + design record for the supervised behavioral-cloning **policy heads** (Phase 2.3 (c)). §1–§10 are the original v1 placement-only spec (the factored `DecisionHead`: predicate + vocab + chosen→class + legal mask; `HEADS` registry; the two loss variants — unweighted CE / AWR `w=clip(exp((R−V)/β),0,w_max)`; single-perspective encoding; warm-start trunk transplant; the `restricted.py` ordering-filter **forcing-fix**; metrics = top-1/top-3 agreement, not strength). §11/§14 cover **the rest of the heads now built**: 7 fixed (placement/choose_subaction/commit_build_major/commit_sow/commit_bake/fencing/build_stop) + 2 pointer (animal_frontier/harvest_feed), the `make_policy_fn` combiner + the two end-to-end policy functions, and the spatially-blind-`fencing` finding. Read before adding a policy head. |
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
+| `SHARED_TRUNK.md` | Design + implementation + results record for the **joint shared-trunk value+policy model** (Phase 2.3, Stage B): one `170→256→256→128` trunk feeding a value head + 7 fixed + 2 pointer policy heads, trained jointly on the 41k self-play data with **soft-π** (cross-entropy against the visit distribution) policy + margin value. Covers `SharedTrunkModel` (`shared_model.py`), the one-pass cached `shared_dataset.py` (+ the per-pickle-chunking memory lesson), the joint trainer (`shared_training.py`: per-head balance, value-MSE early-stop), the `make_joint_fns` inference adapter (`shared_policy.py`: **one trunk forward per node** via an embedding memo, so `mcts.py` is unchanged), the **C++ joint inference** (`shared_trunk_v1` manifest, mode toggle in `NNInference`, embedding cache, two-net `--match` mode), the value-capacity sweep that set the trunk size (256×2; MAE was a backwards predictor), and the eval (joint beats previous-best at 800-sim PUCT — C++ 99%). Read before touching the joint model. |
 | `PROFILING.md` | Profiling findings. Foregrounds the **current production profile** — NN value-leaf + multi-head policy PUCT, i.e. where time goes in the code today (cost attribution, the ~2× session result, the diffuse-engine-remainder finding) — plus **measurement caveats** (laptop wall noise → min-of-N/pair-by-seed; cProfile over-attributes high-call tiny functions; the eval-mode requirement). Older random-play (Workloads A/B/C, R1–R6) and V3-leaf MCTS profiles are kept under **Archived profiles**. Re-run the current profile via `scripts/profile_mcts_nn.py`. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
@@ -847,6 +872,14 @@ AgricolaBot/
 
                 policy.py           # `policy_prior` (fixed heads) + `pointer_prior` (pointer heads) + `NO_PRIOR`, and `make_policy_fn(models)` / `load_policy_fn(checkpoints)` — the full `policy_fn(state, legal) -> {action: prior}` MCTS/PUCT consumes. Works over the FULL legal set, dispatching by decision type: fixed head / pointer head / `build_stop` (learned P(stop) + cell-priority build cell for multi-shot rooms&stables) / uniform over the cell-priority-filtered set (plow + first-build cells — no encoder signal) / uniform over full legal (the rest). The prune lives entirely in the policy. `make_policy_fn` puts the loaded heads in `eval()` mode — `load()` leaves them in TRAIN mode, which made PUCT priors nondeterministic (dropout active); see SPEEDUPS.md. Imports torch.
 
+                shared_model.py     # `SharedTrunkModel` (Phase 2.3 Stage B, SHARED_TRUNK.md): the joint value+policy net — one `170 → trunk → E` trunk (+ embed_norm) feeding a value head + 7 fixed + 2 pointer heads, all reusing `ConfigurableMLP`. Pointer heads score `[embedding ; candidate]` (trunk run once, candidate concatenated). Architecture-agnostic (every width a ctor arg); preserves `predict_margin`/`value_scale`; `config_dict()` + `NET_REGISTRY`. Imports torch.
+
+                shared_dataset.py   # One-pass, **per-pickle-chunk-cached** joint dataset (`build_shared_datasets`): reads each run dir's pickles once → value rows (both perspectives + terminal, margin) + fixed-head rows (mask + soft-π) + pointer-head rows (candidates + soft-π), consistent split. Writes `shared_v2_chunks/` (encode peak = one pickle — the memory fix; the per-dir-accumulation version OOM'd). Reuses the existing dataset classes. Imports torch.
+
+                shared_training.py  # Joint trainer (`train_shared`; CLI scripts/nn/train_shared.py): interleaves per-task batches through the shared trunk — **soft-π** CE (fixed + segment for pointer) + margin MSE, **per-head gradient balancing** (equal-frequency sampling), `_CyclicTensor` fast-loader, early-stop on **value val-MSE** + `--save-all-epochs` (pick by play). Imports torch.
+
+                shared_policy.py    # `make_joint_fns(model) -> (value_fn, policy_fn)` — the MCTS adapter for `SharedTrunkModel`. **One trunk forward per node**: both value and policy evaluated from the decider perspective off a memoized embedding (value sign-flipped to P0), so `mcts.py` is unchanged. `policy_fn` mirrors `make_policy_fn`'s dispatch off the shared embedding; terminal short-circuit. Imports torch.
+
     tests/                          # pytest test suite — per-file coverage descriptions in TEST_DESCRIPTIONS.md.
 
         __init__.py                 # Empty package marker.
@@ -935,7 +968,7 @@ AgricolaBot/
 
         run_iterative_v3.py         # Orchestrator chaining V3 category tunings as block-coordinate descent. Per pass: fields_crops → food → resources → pastures_animals. On passes 2+, each category resumes its previous CMA-ES state. Supports `--start-step N` and `--initial-pickles "cat:path,..."` for resuming partial iterations. `--restricted` / `--no-restricted` (default ON) is forwarded to every tune_heuristic.py subprocess so candidate and baseline both consult `restricted_legal_actions`.
 
-        play_mcts_match.py          # MCTS-vs-opponent match driver. `--opponent {hubris_v3, random, mcts}`, `--v3-config <json>` for the V3 evaluator's tuned config, per-MCTS knobs (`--sims`, `--c-uct`, `--n-random-fencing`, `--fpu-offset`, `--temperature`), `--mcts-as-p1` to swap seats. `--jobs N` (default `cpu_count()`) parallelizes via `multiprocessing.Pool`; workers construct agents in-process (avoids pickling `MCTSSearch` transposition tables — they hold node back-refs to the search). Streams per-game lines as games complete (running win tally + ETA, `flush=True`). Heuristic opponent uses the same strict-restricted legality as MCTS. For best throughput pick `--n` as a multiple of `--jobs` (a 10-seed run on 8 cores wastes 6 cores on the trailing batch of 2).
+        play_mcts_match.py          # MCTS-vs-opponent match driver. `--opponent {hubris_v3, random, mcts}`, `--v3-config <json>` for the V3 evaluator's tuned config, per-MCTS knobs (`--sims`, `--c-uct`, `--n-random-fencing`, `--fpu-offset`, `--temperature`), `--mcts-as-p1` to swap seats. `--jobs N` (default `cpu_count()`) parallelizes via `multiprocessing.Pool`; workers construct agents in-process (avoids pickling `MCTSSearch` transposition tables — they hold node back-refs to the search). Streams per-game lines as games complete (running win tally + ETA, `flush=True`). Heuristic opponent uses the same strict-restricted legality as MCTS. For best throughput pick `--n` as a multiple of `--jobs` (a 10-seed run on 8 cores wastes 6 cores on the trailing batch of 2). When a `--leaf-ckpt` / `--opp-leaf-ckpt` points at a **joint `SharedTrunkModel`**, that seat is built via `make_joint_fns` (value + policy off the one shared trunk, overriding `--policy`) — so this is the single Python match driver for both separate-net and joint models. (For the fast, torch-free C++ match use `scripts/nn/run_cpp_match.py`.)
 
         nn/                         # NN-specific scripts (subdirectory to keep NN tooling separate from general utilities). All are re-runnable CLIs; the underlying libraries live in `agricola/agents/nn/`.
 
@@ -960,6 +993,11 @@ AgricolaBot/
             train_policy_pointer.py # Thin CLI over `agricola.agents.nn.policy_pointer_training.train_pointer` (`--head {animal_frontier,harvest_feed}`, `--loss-weight {unweighted,awr}`, `--value-ckpt`, `--awr-clip`, `--init-from`). Default `--run-dir` = the three hidden-info runs (a pointer head enumerates the full engine frontier, so it can train on all the hidden-info runs — not just hidden_info_v2_10k). See POLICY_HEAD.md.
 
             build_combined_policy.py # Assembles the two end-to-end policy functions MCTS/PUCT consumes: `build("unweighted")` / `build("awr")` (9 head checkpoints each, via `load_policy_fn`), with `UNWEIGHTED_SET`/`AWR_SET` manifests and a `__main__` that sanity-checks both load + produce priors. See POLICY_HEAD.md / nn_models/REGISTRY.md.
+
+            train_shared.py         # Thin CLI over `agricola.agents.nn.shared_training.train_shared` — trains the joint shared-trunk value+policy model (Stage B, SHARED_TRUNK.md). Flags: `--trunk-hidden-dims`, `--embedding-dim`, per-head dims, `--batch-size` (default 2048), `--init-from` (warm trunk), `--hard-targets` (else soft-π), `--no-fast-loader`, `--save-all-epochs`. Imports torch.
+
+
+            run_cpp_match.py        # Parallel driver for the C++ two-net match: runs `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` across a worker pool over a seed range, parses per-game `GAME`/`MATCH` lines, aggregates W-D-L + margin. Memory-light (C++ hand-rolled inference, no torch) — the fast, OOM-safe way to run an 800-sim match. See SHARED_TRUNK.md / CPP_ENGINE_PLAN.md.
 
     tuned_configs/                  # Persistent artifacts from tuning runs. Each completed run writes `<timestamp>.json` (best config, history, holdout), `<timestamp>.log` (human-readable progress mirror), and `<timestamp>.cma.pkl` (full CMA-ES state for resume). `v1_best.json` and `v3_best.json` are auto-maintained pointers to the strongest config per architecture. The 8-config data-gen ensemble (alphas_gen_1, alphas_gen_7, panel_gen16, panel_gen_25, panel_gen47, panel_gen47_wood020, panel_wood_r1 + t2) plus `panel_gen16_temp05.json` (panel-only diversity baseline) live here as named JSONs alongside the timestamped run outputs. `DATA_GEN_ENSEMBLE.md` describes the ensemble. See V3_TRAINING_PIPELINE.md.
 

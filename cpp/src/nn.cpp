@@ -30,6 +30,7 @@
 #include "agricola/constants.hpp"
 #include "agricola/encoder.hpp"
 #include "agricola/fences.hpp"
+#include "agricola/hash.hpp"
 #include "agricola/helpers.hpp"
 #include "agricola/legality.hpp"
 #include "agricola/scoring.hpp"
@@ -238,6 +239,7 @@ struct LoadedHead {
 }  // namespace
 
 struct NNInference::Impl {
+  // ---- composite (separate value net + per-head MLPs) ----
   Mlp value_mlp;
   double value_scale = 1.0;
   std::unordered_map<std::string, LoadedHead> fixed;   // head name -> head
@@ -245,40 +247,109 @@ struct NNInference::Impl {
   int harvest_feed_dim = 10;
   int animal_dim = 4;
 
-  // ---- value ----
-  // predict_margin from perspective 0 = (net forward of normalized input) ×
-  // target_std. The terminal short-circuit returns the exact margin instead.
+  // ---- joint (one shared trunk feeds value + every head) ----
+  // The two modes share the manifest loader, the Mlp primitive, the head maps,
+  // and the entire policy dispatch (policy() below) — ONLY the forward differs.
+  // In joint mode the trunk runs once per node and the embedding is cached, so
+  // value() and policy() for the same leaf share one forward (CPP_ENGINE_PLAN /
+  // shared_policy.py). `value_mlp`/`fixed`/`pointer` then take the EMBEDDING
+  // (identity input-norm; pointer heads norm only the candidate slice).
+  bool joint = false;
+  Mlp trunk_mlp;
+  std::vector<float> embed_gamma, embed_beta;  // standalone embed_norm (empty=none)
+  float embed_eps = 1e-5f;
+
+  // Single-entry embedding cache keyed by state_hash. value() then policy() are
+  // called consecutively for a leaf, so this captures the one-forward win; a
+  // miss just recomputes (correct).
+  mutable std::uint64_t emb_hash_ = 0;
+  mutable bool emb_valid_ = false;
+  mutable std::vector<float> emb_buf_;
+
+  // trunk(encode(s, decider)) + embed_norm, cached. The DECIDER-perspective
+  // embedding is shared by value (sign-flipped to P0) and every policy head.
+  const std::vector<float>& trunk_embed(const GameState& s) const {
+    std::uint64_t h = state_hash(s);
+    if (emb_valid_ && emb_hash_ == h) return emb_buf_;
+    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
+    trunk_mlp.forward(enc.data(), emb_buf_);  // raw embedding (pre embed_norm)
+    if (!embed_gamma.empty()) {               // apply standalone embed_norm (no GELU)
+      int d = static_cast<int>(emb_buf_.size());
+      double mean = 0.0;
+      for (float v : emb_buf_) mean += v;
+      mean /= d;
+      double var = 0.0;
+      for (float v : emb_buf_) {
+        double dd = v - mean;
+        var += dd * dd;
+      }
+      var /= d;  // biased (population) variance — matches torch.nn.LayerNorm
+      double inv = 1.0 / std::sqrt(var + static_cast<double>(embed_eps));
+      for (int i = 0; i < d; ++i)
+        emb_buf_[i] = static_cast<float>((emb_buf_[i] - mean) * inv) *
+                          embed_gamma[i] +
+                      embed_beta[i];
+    }
+    emb_hash_ = h;
+    emb_valid_ = true;
+    return emb_buf_;
+  }
+
+  // ---- value ---- (P0-frame margin; terminal short-circuit is exact)
   double value(const GameState& s) const {
     if (s.phase == Phase::BEFORE_SCORING)
       return static_cast<double>(score(s, 0) - score(s, 1));
-    std::array<float, kEncodedDim> enc = encode(s, 0);
     std::vector<float> out;
-    value_mlp.forward(enc.data(), out);  // raw scalar (output_dim == 1)
+    if (joint) {
+      int d = *encoder_decider_of(s);
+      value_mlp.forward(trunk_embed(s).data(), out);   // head on the embedding
+      double v = static_cast<double>(out[0]) *
+                 static_cast<double>(value_mlp.target_std());
+      return d == 0 ? v : -v;                          // decider-frame -> P0
+    }
+    std::array<float, kEncodedDim> enc = encode(s, 0);
+    value_mlp.forward(enc.data(), out);
     return static_cast<double>(out[0]) *
            static_cast<double>(value_mlp.target_std());
   }
 
   // ---- fixed head logits ----
   std::vector<float> fixed_logits(const LoadedHead& h, const GameState& s) const {
-    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
     std::vector<float> out;
+    if (joint) {
+      h.mlp.forward(trunk_embed(s).data(), out);
+      return out;
+    }
+    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
     h.mlp.forward(enc.data(), out);  // raw logits, length == num_classes
     return out;
   }
 
-  // ---- pointer head per-candidate scores over [170+D] rows ----
-  // Each candidate is scored independently: the per-candidate forward is over
-  // the full [state ; candidate] row (the model's input_mean/std span 170+D).
+  // ---- pointer head per-candidate scores ----
+  // composite: rows are [state(170) ; candidate(D)]. joint: [embedding(E) ;
+  // candidate(D)] off the cached trunk embedding.
   std::vector<double> pointer_scores(
       const LoadedHead& h, const GameState& s,
       const std::vector<std::vector<float>>& cand_feats, int cdim) const {
     int k = static_cast<int>(cand_feats.size());
     if (k == 0) return {};
+    std::vector<double> scores(k);
+    std::vector<float> out;
+    if (joint) {
+      const std::vector<float>& e = trunk_embed(s);
+      std::vector<float> row(e.size() + static_cast<size_t>(cdim));
+      std::copy(e.begin(), e.end(), row.begin());
+      for (int i = 0; i < k; ++i) {
+        std::copy(cand_feats[i].begin(), cand_feats[i].end(),
+                  row.begin() + e.size());
+        h.mlp.forward(row.data(), out);
+        scores[i] = static_cast<double>(out[0]);
+      }
+      return scores;
+    }
     std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
     std::vector<float> row(static_cast<size_t>(kEncodedDim) + cdim);
     std::copy(enc.begin(), enc.end(), row.begin());
-    std::vector<double> scores(k);
-    std::vector<float> out;
     for (int i = 0; i < k; ++i) {
       std::copy(cand_feats[i].begin(), cand_feats[i].end(),
                 row.begin() + kEncodedDim);
@@ -310,6 +381,31 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
     throw std::runtime_error(
         "NNInference: manifest encoding_version=" + std::to_string(enc_ver) +
         " != 2 (kEncodingVersion)");
+
+  // Joint (shared-trunk) export: load the trunk + standalone embed_norm. The
+  // value/head blobs below then take the EMBEDDING (identity input-norm), and
+  // value()/policy() route through trunk_embed(). Composite export: skip this;
+  // value/heads take the raw state encoding as before. The head-loading code
+  // (value_mlp + make_fixed + make_pointer) is IDENTICAL for both modes.
+  impl_->joint = (manifest.value("format", std::string()) == "shared_trunk_v1");
+  if (impl_->joint) {
+    impl_->trunk_mlp = Mlp(manifest["trunk"], base);
+    if (manifest.contains("embed_norm") && !manifest["embed_norm"].is_null()) {
+      const auto& en = manifest["embed_norm"];
+      int dim = en.value("dim", impl_->trunk_mlp.output_dim());
+      impl_->embed_eps = en.value("eps", 1e-5f);
+      std::ifstream bf(base + en["file"].get<std::string>(), std::ios::binary);
+      if (!bf)
+        throw std::runtime_error("NNInference: cannot open embed_norm blob");
+      impl_->embed_gamma.resize(dim);
+      impl_->embed_beta.resize(dim);
+      bf.read(reinterpret_cast<char*>(impl_->embed_gamma.data()),
+              static_cast<std::streamsize>(dim) * sizeof(float));
+      bf.read(reinterpret_cast<char*>(impl_->embed_beta.data()),
+              static_cast<std::streamsize>(dim) * sizeof(float));
+      if (!bf) throw std::runtime_error("NNInference: short embed_norm blob");
+    }
+  }
 
   impl_->value_mlp = Mlp(manifest["value"], base);
   if (manifest["value"].contains("value_scale"))

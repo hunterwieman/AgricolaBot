@@ -22,7 +22,6 @@ import time
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -56,19 +55,30 @@ def _load_init_net_state(path: Path) -> dict:
     return NormalizedValueModel.load(path).net.state_dict()
 
 
+def _soft_ce(pi: torch.Tensor, logp: torch.Tensor) -> torch.Tensor:
+    """Per-row cross-entropy `−Σ_k π_k·log p_k` against a target distribution
+    `pi` `(B, K)` and log-probs `logp` `(B, K)`. Illegal classes have
+    `logp = −inf` but `π = 0` there (π's support ⊆ legal — enforced at dataset
+    build), so the `0·−inf = NaN` terms are zeroed via `where(π>0, …)`. Reduces
+    to ordinary one-hot CE when `pi` is one-hot."""
+    term = torch.where(pi > 0, pi * logp, torch.zeros_like(logp))
+    return -term.sum(dim=-1)
+
+
 def train_one_epoch_policy(model, loader, optimizer, device) -> float:
-    """One weighted-masked-CE pass. Returns the (weight-normalized) train CE."""
+    """One weighted CE-against-π pass. Returns the (weight-normalized) train CE."""
     model.train()
     ce_sum = 0.0
     w_sum = 0.0
-    for x, target, mask, weight in loader:
+    for x, pi, mask, weight in loader:
         x = x.to(device)
-        target = target.to(device)
+        pi = pi.to(device)
         mask = mask.to(device)
         weight = weight.to(device)
         optimizer.zero_grad()
         logits = model.predict_logits(x, mask)          # illegal → −inf
-        ce = F.cross_entropy(logits, target, reduction="none")
+        logp = torch.log_softmax(logits, dim=-1)
+        ce = _soft_ce(pi, logp)                          # (B,)
         loss = (weight * ce).sum() / weight.sum().clamp_min(1e-8)
         loss.backward()
         optimizer.step()
@@ -80,11 +90,12 @@ def train_one_epoch_policy(model, loader, optimizer, device) -> float:
 
 @torch.no_grad()
 def evaluate_policy(model, ds: AgricolaPolicyDataset, device, batch_size: int) -> dict:
-    """Unweighted CE + top-1/top-3 over `ds`, overall and on the winners'
-    subset (`won == 1`). Operates on the dataset tensors directly."""
+    """Unweighted CE-against-π (the selection metric) + top-1/top-3 agreement
+    with the played/argmax class over `ds`, overall and on the winners' subset
+    (`won == 1`). Operates on the dataset tensors directly."""
     model.eval()
     n = len(ds)
-    X, target, mask, won = ds._X, ds._target, ds._mask, ds._won
+    X, target, mask, won, pi_all = ds._X, ds._target, ds._mask, ds._won, ds._pi
     is_half = ds._x_is_half
     ce_sum = 0.0
     top1 = top3 = 0
@@ -97,9 +108,11 @@ def evaluate_policy(model, ds: AgricolaPolicyDataset, device, batch_size: int) -
         xb = xb.to(device)
         tb = target[s:e].to(device)
         mb = mask[s:e].to(device)
+        pib = pi_all[s:e].to(device)
         wonb = won[s:e]
         logits = model.predict_logits(xb, mb)
-        ce_sum += F.cross_entropy(logits, tb, reduction="sum").item()
+        logp = torch.log_softmax(logits, dim=-1)
+        ce_sum += _soft_ce(pib, logp).sum().item()
         top1_b = logits.argmax(dim=-1) == tb
         k = min(3, logits.shape[-1])
         top3_idx = logits.topk(k, dim=-1).indices
@@ -192,6 +205,7 @@ def train_policy(
     init_from: str | Path | None = None,
     store_dtype: str = "float16",
     legal_actions_fn=None,
+    soft_targets: bool = True,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a policy NN for `head`. Returns `(epoch_log, best_checkpoint_path)`.
@@ -215,8 +229,8 @@ def train_policy(
     train_ds, val_ds, test_ds, stats, info = build_policy_datasets(
         run_dirs, head=head, loss_weight=loss_weight, value_ckpt=value_ckpt,
         awr_clip=awr_clip, train_frac=train_frac, val_frac=val_frac,
-        split_seed=split_seed, store_dtype=store_dtype, verbose=verbose,
-        **legality_kw,
+        split_seed=split_seed, store_dtype=store_dtype, soft_targets=soft_targets,
+        verbose=verbose, **legality_kw,
     )
     stats.save(out_dir / "policy_norm_stats.json")
 
@@ -256,6 +270,7 @@ def train_policy(
         "model_kind": "policy",
         "head": head.name,
         "num_classes": head.num_classes,
+        "soft_targets": soft_targets,
         "loss_weight": loss_weight,
         "awr_beta": info.get("awr_beta"),
         "awr_clip": awr_clip if loss_weight == "awr" else None,

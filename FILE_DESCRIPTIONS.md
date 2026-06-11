@@ -711,6 +711,40 @@ Training-loop library. Imports torch + matplotlib. Not re-exported from `__init_
 
 Drop-in compatibility: works with `play_match.py`, `play_game`, the per-seat restricted/strict flags. The only behavioral difference vs `HubrisHeuristicV3` is the evaluator function.
 
+---
+
+### `agricola/agents/nn/shared_model.py`
+
+The **joint shared-trunk network** — one trunk feeding the value head and the full factored policy (the Phase 2.3 successor to the separate value net + 9 independent policy heads). Imports torch. Not re-exported from `__init__.py`. See **`SHARED_TRUNK.md`** §2.
+
+- **`SharedTrunkModel`** — `nn.Module`: a `170 → trunk MLP [256, 256] → Linear → embedding E=128 → LayerNorm(E)` (the `embed_norm`) feeding three head families, **all reusing `ConfigurableMLP`** (no new MLP math): the **value head** (`Linear(E→1)`, then `× target_std` to recover raw margin), **7 fixed-vocab heads** (`Linear(E→K_h)` → masked softmax; placement … fencing, build_stop), and **2 pointer heads** that score `[embedding ; candidate]` (the trunk runs once on the state; candidate features are concatenated to the *embedding*, not to the raw 170-vector — cheaper than the standalone pointer model, no per-candidate state re-encode; the per-head fitted candidate-normalization rides as buffers). Fully **architecture-agnostic** (every width is a constructor arg). `predict_margin` / `value_scale` / dual-perspective antisymmetry are preserved bit-for-bit, so the value head is a drop-in value evaluator. The **taper** (E < trunk width) is dual-purpose: it halves the wide policy heads' per-leaf cost (cost ∝ E×K for fencing's 110-way / sow's 104-way) and gives a compact latent for interpretability.
+- **`config_dict()`** + **`NET_REGISTRY`** registration so `save` / `load` round-trip (mirrors `model.py`'s persistence; `ENCODING_VERSION` hard-checked).
+
+---
+
+### `agricola/agents/nn/shared_dataset.py`
+
+One-pass, per-pickle-chunk-cached dataset builder for the joint model, which needs value + every head's examples from the *same* games with a *consistent* split. Imports torch. See **`SHARED_TRUNK.md`** §3.
+
+- **`build_shared_datasets(run_dirs, ...)`** — reads each run dir's pickles **once** and emits, per game: value rows (both perspectives of every decision state + the terminal, margin target), fixed-head rows (decider-perspective + legal mask + soft-π), and pointer-head rows (per-candidate features + soft-π). The decider-perspective encoding is computed once and shared between a state's value and policy rows.
+- **Caching + the memory lesson.** Writes **one npz chunk per source pickle** (`shared_v2_chunks/`), so the encode peak is one pickle (~14 MB), not a whole run dir. The first version accumulated an entire 30k dir in a float32 list (~4 GB at 6.3M rows) and was jetsam-killed on the 8 GB M1; per-pickle chunking fixed it (peak ~65 MB) and made it resumable (a cache hit is a pure `np.load`). Mirrors `dataset.build_datasets_chunked`; see the project memory note on memory-frugal data code.
+
+---
+
+### `agricola/agents/nn/shared_training.py`
+
+The joint trainer. Imports torch + matplotlib. Not re-exported from `__init__.py`. CLI wrapper at `scripts/nn/train_shared.py`. See **`SHARED_TRUNK.md`** §4.
+
+- **`train_shared(run_dirs, out_dir, ...)`** — interleaves per-task batches through the shared trunk: each step samples a task (value / a fixed head / a pointer head), draws a batch, and backprops its loss into the trunk + that head. Key choices: **soft-π loss** (cross-entropy against the normalized visit distribution `-(π · log_softmax(masked_logits))`; reduces to one-hot BC when π is absent — legacy data — and pointer heads use the segment-softmax analogue) for the policy heads + **margin MSE** for value; **per-head gradient balancing** (each head sampled *equally often* regardless of row count, so the rare heads — bake at ~700 examples vs placement's millions — get a real vote in the trunk; value gets a configurable larger share); the **`_CyclicTensor` fast-loader** (batched index over in-memory tensors, bs 2048 — skips the per-row DataLoader, the dominant overhead); **early-stop on value val-MSE only** (the most reliable single signal; head CEs are logged, not gated); **`--save-all-epochs`** so the final checkpoint can be picked by *play* rather than val-MSE (the warm-started trunk plateaus value early while the policy heads keep improving); and **warm-start** of the trunk from the value-sweep winner.
+
+---
+
+### `agricola/agents/nn/shared_policy.py`
+
+The MCTS adapter for the joint model — one trunk forward per node. Imports torch. Not re-exported from `__init__.py`. See **`SHARED_TRUNK.md`** §5.
+
+- **`make_joint_fns(model) -> (value_fn, policy_fn)`** — returns the `(value, policy)` pair MCTS consumes. The win: **both are evaluated from the decider's perspective**, so a single trunk embedding serves both (value is then sign-flipped into the P0 frame — the leaf contract). The embedding is **memoized per `(state, perspective)`**, so the value call and the policy call for the same leaf hit **one forward** — **`mcts.py` needs no changes** (the memo does the sharing; no leaf reorder). `policy_fn` mirrors `make_policy_fn`'s dispatch exactly (fixed head / pointer head / build_stop / cell-priority uniform / full-legal uniform) — only the forward differs (off the shared embedding); only the *one owning* head runs per node, plus the value head. **Terminal states short-circuit** to the exact margin. Trade-off: sharing the forward means value is the single-pass decider-frame estimate (sign-flipped), not the two-pass differential — matching production self-play's single-pass `nn_evaluator`.
+
 ### `tests/__init__.py`
 
 Empty package marker. Makes `tests` importable as a Python package. No code here.
@@ -916,6 +950,22 @@ CLI: `python scripts/nn/train_first.py --run-dir data/nn_training/runs/<run_id> 
 Parallel, single-seat evaluation of a trained NN checkpoint against the 8-config data-gen ensemble. Subprocess-drives `scripts/nn/play_match.py` (multiprocessing, `--jobs`) once per opponent with the NN always P0 and regular `restricted_legal_actions` both seats; parses each match's `Final:` line and prints a per-opponent W-L-D + win% + avg-margin table plus an aggregate. Single-seat by design (P0/P1 are symmetric; one consistent seat over many seeds averages the SP advantage), which replaces the older serial **seat-swapped** implementation (the §13 refold) — so aggregates here are NOT directly comparable to pre-existing seat-swapped numbers; re-baseline a reference model through this tool for an apples-to-apples comparison.
 
 CLI: `python scripts/nn/eval_vs_ensemble.py --model nn_models/<run>/best.pt --n 100 --jobs 8`. Per-opponent line printed as each opponent's match completes; aggregate at the end.
+
+---
+
+### `scripts/nn/train_shared.py`
+
+Thin CLI wrapper over `agricola.agents.nn.shared_training.train_shared(...)` — argparse for the joint-trainer hyperparameters (run-dir, trunk/embedding widths, lr, batch size, max epochs, early-stop patience, per-head value weight, `--save-all-epochs`, warm-start `--init-from`, the fast-loader flags) dispatched into the library. Output mirrors `train_first.py`: best checkpoint + per-epoch checkpoints + curves + metadata under the out-dir. See **`SHARED_TRUNK.md`** §4.
+
+---
+
+### `scripts/nn/run_cpp_match.py`
+
+Parallel driver for the **C++ two-net match** — runs the `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` binary (`mcts_match_game` in `selfplay.cpp`) across a `multiprocessing` worker pool and aggregates the results. **Memory-light: no torch import** (the C++ engine does the inference), so it runs the joint-vs-previous head-to-head at ~4× speed without the torch model load — the OOM-safe way to run an 800-sim match. Produced the C++ replication of the joint-vs-previous result (SHARED_TRUNK.md §7). (Python-side joint matches go through `scripts/play_mcts_match.py`, which now loads a joint `SharedTrunkModel` directly when `--leaf-ckpt` points at one — `make_joint_fns` supplies both value and policy.)
+
+**Related joint-export / C++ changes** (no standalone entries here — see CLAUDE.md's directory tree and `CPP_ENGINE_PLAN.md`):
+- **`scripts/nn/export_weights.py`** gained **`--value-ckpt`** / **`--out-dir`** and a **joint export path**: pointed at a `SharedTrunkModel` checkpoint it auto-detects the joint model and writes a `format: "shared_trunk_v1"` manifest (trunk + a standalone `embed_norm` LayerNorm + head blobs taking the embedding with identity input-norm; pointer heads bake the candidate-norm into the cand slice) instead of the composite per-net export. This is what `run_cpp_match.py` / C++ self-play consume.
+- **`cpp/src/nn.cpp`** gained a **joint-inference mode toggle** (not a new class — the two modes share the manifest loader, the `Mlp` primitive, and the entire policy dispatch; only the forward differs), driven by the `shared_trunk_v1` manifest, with an internal `state_hash`-keyed embedding cache giving one trunk forward per node (so `mcts.cpp` is unchanged, mirroring the Python memo). **`cpp/src/selfplay.cpp`** gained the two-net **`mcts_match_game`** + **`--match`** mode (`--model-dir-p0` / `--model-dir-p1`, separate trees, per-seat `value_scale`).
 
 ---
 

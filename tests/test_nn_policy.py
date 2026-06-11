@@ -46,6 +46,7 @@ from agricola.agents.nn.policy_dataset import (
     NUM_SPACES,
     PolicyNormStats,
     _decision_rows,
+    _pi_vector,
     build_policy_datasets_from_games,
 )
 from agricola.agents.nn.policy_heads import (
@@ -116,7 +117,7 @@ def test_extraction_placement_only_and_mask_invariant(small_games):
         n_placement_snaps += sum(
             isinstance(s.chosen_action, PlaceWorker) for s in g.decisions
         )
-    for seed, x, target, mask, R, won in _decision_rows(small_games, PLACEMENT_HEAD):
+    for seed, x, target, mask, R, won, pi in _decision_rows(small_games, PLACEMENT_HEAD):
         n_rows += 1
         assert x.shape == (ENCODED_DIM,)
         assert 0 <= target < NUM_SPACES
@@ -165,6 +166,92 @@ def test_non_placement_snapshots_skipped():
     if not fake.decisions:
         pytest.skip("no non-placement snapshot available")
     assert list(_decision_rows([fake], PLACEMENT_HEAD)) == []
+
+
+# ---------------------------------------------------------------------------
+# Soft-π targets (cross-entropy against the MCTS visit distribution)
+# ---------------------------------------------------------------------------
+
+
+def test_pi_vector_soft_normalizes_and_guards():
+    # Soft target = normalized visit counts over the head's legal classes.
+    from agricola.agents.nn.schema import DecisionSnapshot
+    state, _ = setup_env(seed=7)
+    placements = [a for a in legal_actions(state) if isinstance(a, PlaceWorker)]
+    a0, a1 = placements[0], placements[1]
+    i0, i1 = PLACEMENT_HEAD.target_index(a0), PLACEMENT_HEAD.target_index(a1)
+    mask = PLACEMENT_HEAD.legal_mask(state, legal_actions)
+    snap = DecisionSnapshot(state=state, chosen_action=a1, decider_idx=decider_of(state),
+                            visit_distribution={a0: 30, a1: 10}, root_value=0.0)
+    pi = _pi_vector(PLACEMENT_HEAD, snap, i1, mask, soft_targets=True)
+    assert abs(pi[i0] - 0.75) < 1e-6 and abs(pi[i1] - 0.25) < 1e-6
+    assert abs(float(pi.sum()) - 1.0) < 1e-6
+    # soft_targets=False → one-hot on the played class even with a visit dist.
+    hard = _pi_vector(PLACEMENT_HEAD, snap, i1, mask, soft_targets=False)
+    assert hard[i1] == 1.0 and float(hard.sum()) == 1.0
+    # No visit dist (legacy data) → one-hot fallback.
+    snap_legacy = DecisionSnapshot(state=state, chosen_action=a1,
+                                   decider_idx=decider_of(state))
+    legacy = _pi_vector(PLACEMENT_HEAD, snap_legacy, i1, mask, soft_targets=True)
+    assert legacy[i1] == 1.0
+    # Mass on a class illegal under the training mask → loud failure (the
+    # masked-softmax CE would otherwise NaN). Simulates a legality mismatch.
+    bad_mask = mask.copy()
+    bad_mask[i0] = False
+    with pytest.raises(ValueError, match="illegal under the training legality"):
+        _pi_vector(PLACEMENT_HEAD, snap, i1, bad_mask, soft_targets=True)
+
+
+def test_pi_vector_build_stop_collapses_visit_counts():
+    # build_stop is 2-way (__build__ / __stop__); every CommitBuildRoom cell
+    # collapses into __build__, so soft-π sums their visits.
+    from agricola.actions import CommitBuildRoom, Stop
+    from agricola.agents.nn.policy_heads import BUILD_STOP_HEAD
+    from agricola.agents.nn.schema import DecisionSnapshot
+    state, _ = setup_env(seed=0)
+    bi = BUILD_STOP_HEAD.target_index(CommitBuildRoom(row=0, col=0))
+    si = BUILD_STOP_HEAD.target_index(Stop())
+    vd = {CommitBuildRoom(row=0, col=0): 5,
+          CommitBuildRoom(row=0, col=1): 15,
+          Stop(): 20}
+    snap = DecisionSnapshot(state=state, chosen_action=Stop(), decider_idx=0,
+                            visit_distribution=vd, root_value=0.0)
+    pi = _pi_vector(BUILD_STOP_HEAD, snap, si, np.array([True, True]),
+                    soft_targets=True)
+    assert abs(pi[bi] - 0.5) < 1e-6      # (5+15)/40 collapsed into __build__
+    assert abs(pi[si] - 0.5) < 1e-6      # 20/40
+
+
+def test_soft_pi_train_epoch_runs_on_nononehot_targets():
+    # End-to-end: a dataset carrying genuine (non-one-hot) π trains a finite CE.
+    from torch.utils.data import DataLoader
+
+    from agricola.agents.nn.policy_training import train_one_epoch_policy
+    from agricola.agents.nn.schema import DecisionSnapshot
+    state, _ = setup_env(seed=7)
+    placements = [a for a in legal_actions(state) if isinstance(a, PlaceWorker)]
+    a0, a1 = placements[0], placements[1]
+    g = _record_one_game(7)               # for a real terminal_state
+    snap = DecisionSnapshot(state=state, chosen_action=a0, decider_idx=decider_of(state),
+                            visit_distribution={a0: 30, a1: 10}, root_value=0.0)
+    recs = [
+        GameRecord(data_version=g.data_version, game_idx=s, seed=s,
+                   p0_config_path="x", p1_config_path="x",
+                   p0_temperature=0.0, p1_temperature=0.0,
+                   p0_final_score=20, p1_final_score=18, winner=0,
+                   terminal_state=g.terminal_state, decisions=(snap, snap))
+        for s in range(8)                 # varied seeds → populated split buckets
+    ]
+    train, *_ = build_policy_datasets_from_games(
+        recs, loss_weight="unweighted", legal_actions_fn=legal_actions,
+        store_dtype="float32", verbose=False)
+    # The stored target really is the soft distribution, not a one-hot.
+    assert train._pi.max(dim=1).values.max().item() < 0.99
+    model = _tiny_policy_model(PLACEMENT_HEAD)
+    opt = torch.optim.SGD(model.parameters(), lr=0.01)
+    loader = DataLoader(train, batch_size=4)
+    ce = train_one_epoch_policy(model, loader, opt, torch.device("cpu"))
+    assert np.isfinite(ce) and ce > 0
 
 
 def test_seed_split_deterministic_and_partitions(small_games):
@@ -408,7 +495,7 @@ def test_choose_subaction_extraction(small_games):
     chosen class. Random games hit side_job / grain_utilization, so > 0."""
     rows = list(_decision_rows(small_games, CHOOSE_SUBACTION_HEAD))
     assert len(rows) > 0
-    for seed, x, target, mask, R, won in rows:
+    for seed, x, target, mask, R, won, pi in rows:
         assert x.shape == (ENCODED_DIM,)
         assert mask.shape == (CHOOSE_SUBACTION_HEAD.num_classes,)
         assert 0 <= target < CHOOSE_SUBACTION_HEAD.num_classes
@@ -458,7 +545,7 @@ def test_commit_build_major_vocab_and_target():
 def test_commit_build_major_extraction_invariants(small_games):
     # Random games may or may not contain major-buy decisions; any that exist
     # must satisfy the head's invariants (width-14 mask containing the target).
-    for seed, x, target, mask, R, won in _decision_rows(small_games, COMMIT_BUILD_MAJOR_HEAD):
+    for seed, x, target, mask, R, won, pi in _decision_rows(small_games, COMMIT_BUILD_MAJOR_HEAD):
         assert mask.shape == (COMMIT_BUILD_MAJOR_HEAD.num_classes,)
         assert 0 <= target < COMMIT_BUILD_MAJOR_HEAD.num_classes
         assert mask[target]
@@ -535,7 +622,7 @@ def test_commit_sow_bake_extraction_invariants(small_games):
     from agricola.agents.nn.policy_heads import COMMIT_BAKE_HEAD, COMMIT_SOW_HEAD
     from agricola.agents.nn.policy_dataset import _decision_rows
     for head in (COMMIT_SOW_HEAD, COMMIT_BAKE_HEAD):
-        for seed, x, target, mask, R, won in _decision_rows(small_games, head):
+        for seed, x, target, mask, R, won, pi in _decision_rows(small_games, head):
             assert mask.shape == (head.num_classes,)
             assert 0 <= target < head.num_classes
             assert mask[target]
@@ -643,7 +730,7 @@ def test_make_policy_fn_build_stop_absent_falls_back_to_uniform():
 def test_build_stop_extraction_invariants(small_games):
     from agricola.agents.nn.policy_dataset import _decision_rows
     from agricola.agents.nn.policy_heads import BUILD_STOP_HEAD
-    for seed, x, target, mask, R, won in _decision_rows(small_games, BUILD_STOP_HEAD):
+    for seed, x, target, mask, R, won, pi in _decision_rows(small_games, BUILD_STOP_HEAD):
         assert mask.shape == (2,)
         assert 0 <= target < 2
         assert mask[target]
@@ -1065,7 +1152,7 @@ def test_pointer_extraction_rows():
     from agricola.agents.nn.policy_pointer_dataset import _pointer_rows
     rows = list(_pointer_rows(_fake_breed_games(3), ANIMAL_FRONTIER_HEAD))
     assert len(rows) == 3
-    for seed, state_enc, cand, pos, R, won in rows:
+    for seed, state_enc, cand, pos, R, won, pi in rows:
         assert state_enc.shape == (ENCODED_DIM,)
         assert cand.shape == (cand.shape[0], ANIMAL_FRONTIER_HEAD.candidate_dim)
         assert cand.shape[0] >= 2
@@ -1094,16 +1181,21 @@ def test_pointer_extraction_raises_on_drift():
 
 def test_pointer_collate_segments_and_chosen_flat():
     from agricola.agents.nn.policy_pointer_dataset import pointer_collate
+    # Each item: (state, cand[K,4], pi[K], chosen_pos, weight) — matches the
+    # updated AgricolaPointerDataset.__getitem__ layout.
     batch = [
-        (torch.zeros(ENCODED_DIM), torch.zeros(2, 4), 1, torch.tensor(1.0)),
-        (torch.ones(ENCODED_DIM), torch.ones(3, 4), 0, torch.tensor(2.0)),
+        (torch.zeros(ENCODED_DIM), torch.zeros(2, 4),
+         torch.tensor([0.0, 1.0]), 1, torch.tensor(1.0)),
+        (torch.ones(ENCODED_DIM), torch.ones(3, 4),
+         torch.tensor([1.0, 0.0, 0.0]), 0, torch.tensor(2.0)),
     ]
-    state, cand, seg, chosen_flat, weight = pointer_collate(batch)
+    state, cand, seg, chosen_flat, weight, pi_flat = pointer_collate(batch)
     assert state.shape == (2, ENCODED_DIM)
     assert cand.shape == (5, 4)
     assert seg.tolist() == [0, 0, 1, 1, 1]
     assert chosen_flat.tolist() == [1, 2]      # snap0 pos1→flat1; snap1 pos0→flat2
     assert weight.tolist() == [1.0, 2.0]
+    assert pi_flat.tolist() == [0.0, 1.0, 1.0, 0.0, 0.0]   # per-segment one-hot
 
 
 def test_build_pointer_datasets_from_games_and_segment_ce():
@@ -1116,7 +1208,7 @@ def test_build_pointer_datasets_from_games_and_segment_ce():
     assert stats.candidate_dim == ANIMAL_FRONTIER_HEAD.candidate_dim
     assert len(train) >= 1 and info["loss_weight"] == "unweighted"
     # Full forward → segment-CE is finite over the train batch.
-    state, cand, seg, chosen_flat, weight = pointer_collate(
+    state, cand, seg, chosen_flat, weight, pi_flat = pointer_collate(
         [train[i] for i in range(len(train))])
     lp = segment_log_softmax(_tiny_pointer_model().score_flat(state, cand, seg),
                              seg, state.shape[0])

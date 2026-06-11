@@ -63,23 +63,27 @@ def _load_init_net_state(path: Path) -> dict:
     return NormalizedValueModel.load(path).net.state_dict()
 
 
-def _segment_ce(model, state, cand, seg, chosen_flat):
-    """Per-snapshot CE `(B,)` and the raw `scores (M,)` (reused for top-k)."""
-    b = state.shape[0]
+def _segment_ce_soft(model, state, cand, seg, pi_flat, b):
+    """Per-snapshot CE-against-π `(B,)` and the raw `scores (M,)` (reused for
+    top-k). `pi_flat (M,)` is the per-candidate target prob (segment-normalized);
+    the per-snapshot loss is `−Σ_c π_c·log p_c`. Reduces to ordinary one-hot
+    segment CE when `pi_flat` is one-hot per segment."""
     scores = model.score_flat(state, cand, seg)
-    lp = segment_log_softmax(scores, seg, b)
-    return -lp[chosen_flat], scores
+    lp = segment_log_softmax(scores, seg, b)         # (M,)
+    per_cand = pi_flat * lp                          # all candidates legal → lp finite
+    ce = -scores.new_zeros(b).index_add_(0, seg, per_cand)
+    return ce, scores
 
 
 def train_one_epoch_pointer(model, loader, optimizer, device) -> float:
-    """One weighted segment-CE pass. Returns the weight-normalized train CE."""
+    """One weighted segment-CE-against-π pass. Returns the weight-normalized train CE."""
     model.train()
     ce_sum = w_sum = 0.0
-    for state, cand, seg, chosen_flat, weight in loader:
+    for state, cand, seg, chosen_flat, weight, pi_flat in loader:
         state, cand, seg = state.to(device), cand.to(device), seg.to(device)
-        chosen_flat, weight = chosen_flat.to(device), weight.to(device)
+        weight, pi_flat = weight.to(device), pi_flat.to(device)
         optimizer.zero_grad()
-        ce, _ = _segment_ce(model, state, cand, seg, chosen_flat)
+        ce, _ = _segment_ce_soft(model, state, cand, seg, pi_flat, state.shape[0])
         loss = (weight * ce).sum() / weight.sum().clamp_min(1e-8)
         loss.backward()
         optimizer.step()
@@ -91,9 +95,10 @@ def train_one_epoch_pointer(model, loader, optimizer, device) -> float:
 
 @torch.no_grad()
 def evaluate_pointer(model, ds, device, batch_size: int) -> dict:
-    """Unweighted segment-CE + within-frontier top-1/top-3 over `ds`, overall and
-    on the winners' subset (`won == 1`). A candidate is top-k iff fewer than k of
-    its frontier-mates score strictly higher (lenient on ties)."""
+    """Unweighted segment-CE-against-π (the selection metric) + within-frontier
+    top-1/top-3 agreement with the played candidate over `ds`, overall and on the
+    winners' subset (`won == 1`). A candidate is top-k iff fewer than k of its
+    frontier-mates score strictly higher (lenient on ties)."""
     model.eval()
     n = len(ds)
     off, pos, won = ds._off, ds._pos, ds._won
@@ -105,13 +110,14 @@ def evaluate_pointer(model, ds, device, batch_size: int) -> dict:
         b = e - s
         state = ds._state[s:e].to(device)
         cand = ds._cand[int(off[s]):int(off[e])].to(device)
+        pi_flat = ds._pi[int(off[s]):int(off[e])].to(device)
         counts = (off[s + 1:e + 1] - off[s:e]).astype(np.int64)
         seg = torch.from_numpy(np.repeat(np.arange(b), counts)).to(device)
         local_off = np.concatenate([[0], np.cumsum(counts)])
         chosen_flat = torch.from_numpy(
             (local_off[:b] + pos[s:e]).astype(np.int64)).to(device)
 
-        ce, scores = _segment_ce(model, state, cand, seg, chosen_flat)
+        ce, scores = _segment_ce_soft(model, state, cand, seg, pi_flat, b)
         ce_sum += ce.sum().item()
         # within-frontier rank of the chosen candidate
         gt = (scores > scores[chosen_flat][seg]).float()
@@ -199,6 +205,7 @@ def train_pointer(
     torch_seed: int = 42,
     device: str = "cpu",
     init_from: str | Path | None = None,
+    soft_targets: bool = True,
     verbose: bool = True,
 ) -> tuple[list[dict], Path]:
     """Train a pointer-head NN. Returns `(epoch_log, best_checkpoint_path)`."""
@@ -215,7 +222,7 @@ def train_pointer(
     train_ds, val_ds, test_ds, stats, info = build_pointer_datasets(
         run_dirs, head=head, loss_weight=loss_weight, value_ckpt=value_ckpt,
         awr_clip=awr_clip, train_frac=train_frac, val_frac=val_frac,
-        split_seed=split_seed, verbose=verbose,
+        split_seed=split_seed, soft_targets=soft_targets, verbose=verbose,
     )
     stats.save(out_dir / "pointer_norm_stats.json")
 
@@ -253,6 +260,7 @@ def train_pointer(
         "model_kind": "policy_pointer",
         "head": head.name,
         "candidate_dim": head.candidate_dim,
+        "soft_targets": soft_targets,
         "loss_weight": loss_weight,
         "awr_beta": info.get("awr_beta"),
         "awr_clip": awr_clip if loss_weight == "awr" else None,

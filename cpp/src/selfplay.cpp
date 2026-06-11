@@ -11,6 +11,7 @@
 #include "agricola/canonical.hpp"
 #include "agricola/engine.hpp"
 #include "agricola/legality.hpp"
+#include "agricola/scoring.hpp"
 #include "agricola/setup.hpp"
 #include "agricola/types.hpp"
 
@@ -237,6 +238,51 @@ std::string mcts_selfplay_trace(std::uint64_t seed, int sims, double c_uct,
   // directly, avoiding even the cache lookup per game.
   std::shared_ptr<NNInference> nn = get_nn_cached(model_dir);
   return mcts_selfplay_trace_with(*nn, seed, sims, c_uct, temperature);
+}
+
+MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_p1,
+                                std::uint64_t seed, int sims, double c_uct,
+                                double temperature) {
+  SetupResult su = setup(seed);
+  GameState state = su.initial;
+  const std::vector<std::string>& order = su.round_card_order;
+
+  // One search/agent per seat, each over its own value net. P0 reuses the
+  // self-play mixing constants (so P0-vs-P0 would match self-play); P1 uses a
+  // distinct pair so the two seats never share an RNG stream.
+  MCTSSearch search0(&nn_p0, c_uct, seed ^ 0x9E3779B97F4A7C15ULL, /*fpu=*/0.0);
+  MCTSAgent agent0(&search0, sims, c_uct, /*fpu=*/0.0, temperature,
+                   seed ^ 0xD1B54A32D192ED03ULL, /*cap_total_sims=*/true);
+  MCTSSearch search1(&nn_p1, c_uct, seed ^ 0xBF58476D1CE4E5B9ULL, /*fpu=*/0.0);
+  MCTSAgent agent1(&search1, sims, c_uct, /*fpu=*/0.0, temperature,
+                   seed ^ 0x94D049BB133111EBULL, /*cap_total_sims=*/true);
+
+  while (state.phase != Phase::BEFORE_SCORING) {
+    std::optional<int> decider = decider_of(state);
+    if (!decider.has_value()) {
+      state = step(state, reveal_action(state, order));  // nature reveal
+      continue;
+    }
+    std::vector<Action> legal = legal_actions(state);
+    if (legal.size() <= 1) {
+      state = step(state, legal[0]);                     // forced move
+      continue;
+    }
+    Action chosen = (*decider == 0) ? agent0.choose(state) : agent1.choose(state);
+    state = step(state, chosen);
+  }
+
+  int p0 = score(state, 0);
+  int p1 = score(state, 1);
+  int winner;
+  if (p0 != p1) {
+    winner = (p0 > p1) ? 0 : 1;
+  } else {
+    int t0 = tiebreaker(state, 0);
+    int t1 = tiebreaker(state, 1);
+    winner = (t0 > t1) ? 0 : (t1 > t0) ? 1 : -1;
+  }
+  return MatchGameResult{seed, p0, p1, winner};
 }
 
 #endif  // AGRICOLA_WITH_NN

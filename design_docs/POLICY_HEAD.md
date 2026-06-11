@@ -438,3 +438,54 @@ features. Spatial encoding is fencing's bottleneck (§11).
 **Next:** **PUCT consumption / eval** — measure whether these priors actually improve search vs.
 uniform / UCT and tune `c_puct` (the real validation; accuracy ≠ strength). Then a spatial encoder
 for fencing/cell heads, and eventually self-play visit-count (π) targets.
+
+---
+
+## 15. Soft-π targets + shared-trunk consumption (self-play phase)
+
+Two changes land the §9 trajectory's "self-play visit-count (π) targets" and "shared-trunk joint net"
+steps now that DATA_VERSION-3 MCTS self-play data exists (carrying `visit_distribution` per searched
+decision). They are independent: (a) is a target/loss change for the *separate* heads; (b) is how the
+*joint* net consumes all of them off one trunk. The joint net's own design lives in **`SHARED_TRUNK.md`**.
+
+### (a) Soft-π targets — cross-entropy against the visit distribution
+
+§5 trained every head by **hard** behavioral cloning of the single `chosen_action` (a one-hot target).
+With π on disk, training switched to **cross-entropy against the normalized visit distribution π** —
+the AlphaZero-correct *soft* target (`−(π · log_softmax(masked_logits))`), which was previously
+impossible (the heuristic-ensemble data carried no π, only the played move).
+
+A **`soft_targets` flag (default on)** threads through the policy pipeline: `policy_dataset.py` /
+`policy_training.py` for the fixed heads (`_pi_vector`), and the pointer analogues
+`policy_pointer_dataset.py` / `policy_pointer_training.py` (`_pi_pointer`); the CLIs expose
+`--hard-targets` (`scripts/nn/train_policy.py`, `scripts/nn/train_policy_pointer.py`) to opt back to
+one-hot. π is renormalized **over the head's legal classes** (fixed heads) or **over the enumerated
+candidates** (pointer heads, via the segment-softmax), so it stays a proper distribution on the head's
+own support. When a snapshot has **no recorded π** (legacy / heuristic data) or `soft_targets=False`,
+`_pi_vector` / `_pi_pointer` fall back to the **one-hot of the chosen class** — i.e. the soft loss
+reduces *exactly* to the old §5 hard-BC loss, so the change is backward-compatible on legacy data.
+
+**Train soft-π heads with `--legality full`.** The self-play data was generated under the *full*
+unrestricted legality PUCT uses (not a `restricted.py` wrapper), so π's support is exactly the full
+legal set; training under `full` keeps the legal mask a superset of π's support (no recorded visit
+mass ever lands on a masked-off class). Using a restricted mask here would clip part of π — the same
+mask/support consistency the §3 / §11 `--legality full` note already requires for the
+`fencing` / `build_stop` heads.
+
+### (b) Shared-trunk consumption — all heads off one trunk forward
+
+The §9 endpoint — the **shared-trunk joint value+policy net** — consumes *every* head off a **single
+trunk forward per node** via `agricola/agents/nn/shared_policy.py::make_joint_fns`, which returns the
+`(value_fn, policy_fn)` pair MCTS uses. Both are evaluated from the **decider's perspective** so one
+trunk embedding serves both (the value is sign-flipped into the P0 frame — the leaf contract), the
+embedding is memoized per `(state, perspective)` so the value call and the policy call for the same
+leaf share the forward, and **`mcts.py` is unchanged** (the memo does the sharing — no leaf reorder).
+`policy_fn` mirrors `make_policy_fn`'s §11/§14 dispatch exactly (fixed head / pointer head /
+`build_stop` / cell-priority uniform / full-legal uniform) — only the forward differs (off the shared
+embedding instead of per-head nets). This replaces the nine independent head nets of §11/§14 with one
+trunk + lightweight head readouts, trained jointly on the soft-π self-play data of (a).
+
+**See `SHARED_TRUNK.md`** for the full joint design: architecture (`shared_model.py`), the one-pass
+memory-frugal joint dataset, interleaved per-task training, the C++ port of the joint inference
+(`CPP_ENGINE_PLAN.md` §13), and the results (the joint model beats the previous-best separate
+value net + nine unweighted heads at 800-sim PUCT).

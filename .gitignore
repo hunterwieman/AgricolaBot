@@ -50,3 +50,14 @@ data/selfplay_traces/
 # Stage 5 TorchScript exports for the C++ engine (regenerable from the .pt
 # checkpoints via scripts/nn/export_torchscript.py).
 nn_models/cpp_export/
+
+# Joint + value-sweep C++ inference exports — regenerable raw-weight blobs, like
+# the cpp_export/ rule above (export_weights.py --out-dir nn_models/cpp_export_*).
+nn_models/cpp_export_*/
+# Eval match logs + per-game progress (regenerable; scripts/nn/run_cpp_match.py etc.).
+eval_out/
+# Stray top-level training-run stdout logs (the per-run train_log.jsonl INSIDE each
+# run dir is still tracked; this only covers nn_models/<name>.log redirects).
+nn_models/*.log
+# Throwaway bs=8192 LR-validation run (the kept model is sp_v_256x2_bs8192/).
+nn_models/sp_v_lr_*/

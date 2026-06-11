@@ -145,6 +145,19 @@ def _value_model(path: str):
     return model
 
 
+def _is_shared_trunk(path: str) -> bool:
+    """True if `path` is a joint `SharedTrunkModel` checkpoint (meta model_kind)
+    — i.e. value + policy come off one trunk, consumed via `make_joint_fns`."""
+    import json
+    from pathlib import Path
+    try:
+        return json.loads(
+            Path(path).with_suffix(".meta.json").read_text()
+        ).get("model_kind") == "shared_trunk"
+    except Exception:
+        return False
+
+
 def _mcts_factory(
     *,
     seed_offset: int,
@@ -338,29 +351,41 @@ def _build_agent(
         # unless overridden. `feed_evaluator` is the (state, player) -> float
         # ranker handed to the strict wrapper — the NN when leaf=nn, else None
         # (the wrapper then builds its V3 default from config).
+        joint_policy_fn = None   # set when the leaf is a joint shared-trunk model
         if leaf == "nn":
             from agricola.agents.nn.agent import (
                 nn_evaluator, nn_evaluator_differential,
             )
-            model = _value_model(leaf_ckpt)
-            # NN leaf = a P0-frame margin estimate, ALWAYS on the e(s,0) ~1x
-            # margin scale, so one leaf_value_scale serves both modes and a
-            # calibrated c is toggle-invariant. The 2-pass-average toggle
-            # (two_pass):
-            #   off: nn_evaluator — plain e(s,0), 1 forward pass (speed).
-            #   on : nn_evaluator_differential — the MEAN (e(s,0)-e(s,1))/2,
-            #        lower variance, SAME scale, 1 batched 2-input pass.
-            # Both already return a P0-frame margin (the /2 now lives inside
-            # nn_evaluator_differential), so the leaf calls them once.
-            ev_fn = nn_evaluator_differential if two_pass else nn_evaluator
-            eval_kwargs = dict(
-                evaluator_config=model,
-                evaluator_fn=ev_fn,
-            )
-            # Stored value_scale is the std of the (mean-form) differential leaf,
-            # already on the e(s,0) scale — use it directly for both modes.
-            lvs_final = lvs if lvs is not None else float(getattr(model, "value_scale", 1.0))
-            feed_evaluator = (lambda st, p, _m=model: nn_evaluator(st, p, _m))
+            if _is_shared_trunk(leaf_ckpt):
+                # Joint shared-trunk model: value AND policy come off ONE trunk
+                # (make_joint_fns — one forward per node). The model's own heads
+                # ARE the policy, so it overrides --policy below. value_fn already
+                # returns a P0-frame margin (decider-frame, sign-flipped).
+                from agricola.agents.nn.shared_model import SharedTrunkModel
+                from agricola.agents.nn.shared_policy import make_joint_fns
+                model = SharedTrunkModel.load(leaf_ckpt)
+                model.eval()
+                value_fn, joint_policy_fn = make_joint_fns(model)
+                eval_kwargs = dict(evaluator_config=model, evaluator_fn=value_fn)
+                lvs_final = lvs if lvs is not None else float(getattr(model, "value_scale", 1.0))
+                feed_evaluator = value_fn
+            else:
+                # NN leaf = a P0-frame margin estimate, ALWAYS on the e(s,0) ~1x
+                # margin scale, so one leaf_value_scale serves both modes and a
+                # calibrated c is toggle-invariant. The 2-pass-average toggle
+                # (two_pass):
+                #   off: nn_evaluator — plain e(s,0), 1 forward pass (speed).
+                #   on : nn_evaluator_differential — the MEAN (e(s,0)-e(s,1))/2,
+                #        lower variance, SAME scale, 1 batched 2-input pass.
+                # Both already return a P0-frame margin (the /2 now lives inside
+                # nn_evaluator_differential), so the leaf calls them once.
+                model = _value_model(leaf_ckpt)
+                ev_fn = nn_evaluator_differential if two_pass else nn_evaluator
+                eval_kwargs = dict(evaluator_config=model, evaluator_fn=ev_fn)
+                # Stored value_scale is the std of the (mean-form) differential leaf,
+                # already on the e(s,0) scale — use it directly for both modes.
+                lvs_final = lvs if lvs is not None else float(getattr(model, "value_scale", 1.0))
+                feed_evaluator = (lambda st, p, _m=model: nn_evaluator(st, p, _m))
         else:
             eval_kwargs = dict(evaluator_config=spec.config_v3)
             lvs_final = lvs if lvs is not None else 1.0
@@ -390,7 +415,8 @@ def _build_agent(
             rng_seed=s,
             legal_actions_fn=legal_fn,
             fence_mode=_FENCE_MODES[fmode],
-            policy_fn=_resolve_policy(policy),
+            policy_fn=joint_policy_fn if joint_policy_fn is not None
+            else _resolve_policy(policy),
             macro_policy_fn=macro_policy_fn,
             leaf_value_scale=lvs_final,
             **eval_kwargs,
@@ -564,7 +590,7 @@ def main() -> int:
                    help="c_uct for the opponent MCTS. Default = --c-uct.")
     p.add_argument("--n-random-fencing", type=int, default=4)
     p.add_argument("--fpu-offset", type=float, default=0.0)
-    p.add_argument("--temperature", type=float, default=0.2)
+    p.add_argument("--temperature", type=float, default=0.0)
     p.add_argument("--legality", choices=("strict", "regular", "full"), default="strict",
                    help="Legality wrapper for the MCTS seat. Use 'full' for the "
                         "combined-policy PUCT eval (the policy is the sole prune); "

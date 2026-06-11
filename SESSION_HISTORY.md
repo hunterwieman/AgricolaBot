@@ -2955,3 +2955,39 @@ Pruned four redundant/throwaway C++ runs (`cpp_ab_pergame` — content-identical
 
 ### Docs
 This entry; **SPEEDUPS.md** S14 (new "Data-gen / trace replay" subsection); a replay-footgun note in **CPP_ENGINE_PLAN.md** §2.
+
+## Soft-π policy + value-capacity sweep + joint shared-trunk model (2026-06-10)
+
+Used the ~41k newly-generated PUCT self-play games (DATA_VERSION 3, with π + `root_value`) to upgrade both nets and unify them into one **joint shared-trunk model** — a single `256×2→128` trunk feeding the value head + the 7 fixed + 2 pointer policy heads, trained jointly, consumed by MCTS through one forward per node, and ported to C++. It **beats the previous-best setup** (champion value net + the 9 separate unweighted heads) at 800-sim PUCT. The full design + results record is **`SHARED_TRUNK.md`**; this is the session log. The honest framing (borne out by results): the strength gain is the **data + soft-π target upgrade**, not the trunk sharing — sharing is an inference-cost play that turned out not to cost value.
+
+### Soft-π policy
+
+Switched policy training from one-hot behavioral cloning of the *played* action to **cross-entropy against the visit distribution π** — the AlphaZero-correct soft target, only possible now that the self-play data carries π. Threaded a `soft_targets` flag through `policy_dataset` / `policy_training` / `policy_pointer_dataset` / `policy_pointer_training` and their CLIs (`train_policy.py` / `train_policy_pointer.py`); the loss reduces to one-hot BC when π is absent (legacy data). Pointer heads use the segment-softmax analogue. Added tests (`test_nn_policy.py`).
+
+### Value-capacity sweep
+
+Four value nets on the 41k self-play data settled the trunk size: **`sp_v_256x2`** won (98.5% vs ensemble; beats 512 at 800-sim PUCT, 67.5%), while `512x2` / `384x3` and extra width/depth **didn't help** — the 170-feature *count* encoder is the binding constraint, not trunk capacity. Two standing reminders confirmed: **MAE was a backwards predictor of play strength** (512 had worse MAE but beat 256 head-to-head at 1-turn, while ensemble *and* 800-sim PUCT both favored 256 — MAE ≠ strength); and the **bs=8192 `--fast-loader`** config (`sp_v_256x2_bs8192`) holds champion-recipe quality, validating the step-bound big-batch path. All four logged in `nn_models/REGISTRY.md`.
+
+### Joint shared-trunk model (`joint_taper128`)
+
+Built `SharedTrunkModel` (`shared_model.py`): one `256×2` trunk → `Linear→128` embedding → `LayerNorm` (`embed_norm`), feeding the value head, 7 fixed heads (masked softmax), and 2 pointer heads (MLP over `[embedding ; candidate]`, so the trunk runs once and candidates concat to the *embedding* — cheaper than re-encoding state per candidate). The taper (E=128 < trunk width) halves the wide heads' per-leaf cost and gives a compact latent; `predict_margin` / `value_scale` / dual-perspective antisymmetry are preserved bit-for-bit so the value head is a drop-in evaluator.
+
+Supporting modules: **`shared_dataset.py`** (one-pass cached — reads each run dir's pickles once, emits value + every head's rows from the same games on a consistent split, decider-perspective encoding computed once and shared); **`shared_training.py`** (joint trainer interleaving per-task batches through the trunk, per-head gradient balancing so the rare heads get a real vote, early-stop on value val-MSE only, `--save-all-epochs` so the checkpoint is picked by *play* not val-MSE, warm-started from the sweep winner); **`shared_policy.py`** (`make_joint_fns` returns `(value_fn, policy_fn)`, both evaluated from the decider's perspective off one **memoized embedding** per `(state, perspective)`, so value + policy for the same leaf hit one forward — `mcts.py` needs no changes). **Value held** (val_mae 3.64–3.66) — no negative transfer from sharing the trunk with 9 heads. Logged in `REGISTRY.md`.
+
+### C++ joint inference + match mode
+
+Ported the joint model into the C++ `NNInference` as a **mode toggle** (not a new class — the two modes share the manifest loader, the `Mlp` primitive, and the entire policy dispatch; only the forward differs): a `format: "shared_trunk_v1"` manifest (auto-detected, written by `export_weights.py --value-ckpt <joint-ckpt>`) loads the trunk + a standalone `embed_norm` LayerNorm (standalone because the C++ MLP applies GELU after every LayerNorm) + identity-input-norm head blobs; an internal `state_hash`-keyed **embedding cache** gives one trunk forward per node so `mcts.cpp` is unchanged. Added a **two-net match mode** — `selfplay --match --model-dir-p0 A --model-dir-p1 B` (`mcts_match_game` in `selfplay.cpp`), separate trees, per-seat `value_scale`, driven in parallel by `scripts/nn/run_cpp_match.py` (+ `match_joint_vs_prev.py`). Differential-validated: C++ joint value/policy ≈ Python `make_joint_fns` ≤1e-4 over the corpus; composite gates still green.
+
+### Headline result
+
+Joint **beats previous-best** (champion value + 9 separate unweighted heads) at 800-sim PUCT — Python (joint won) and a C++ replication of **99.0% (198-2, +12.95 margin)**. The Python and C++ inference paths agree ≤1e-4. Not yet promoted to `nn_models/best` (that pointer is a single value net; the joint model needs consumer wiring first).
+
+### Bugs caught and fixed
+- **`shared_dataset` per-dir-accumulation OOM**: the first version accumulated a whole run dir in a float32 Python list (~4 GB at 6.3M rows) and was jetsam-killed on the 8 GB M1. Fixed with **one npz chunk per source pickle** (`shared_v2_chunks/`) — encode peak ~65 MB and resumable, a cache hit being a pure `np.load`. (Mirrors `dataset.build_datasets_chunked`; see the memory-frugal-data-code memory note.)
+- **Crash-skipped `value_scale=1.0`**: a training crash skipped the post-run `value_scale` measurement, defaulting it to 1.0 — which mis-calibrated an in-flight match. Re-measured to **3.28**.
+- **`make_joint_fns` value_fn missing terminal short-circuit**: it didn't short-circuit terminal states (the C++ path and `nn_evaluator` both do — return the exact margin). Fixed.
+
+Also a recurring machine reality on the 8 GB M1: both macOS sleep *and* memory-pressure jetsam kill long runs — keep the machine quiet during training (no `caffeinate`).
+
+### Docs
+`SHARED_TRUNK.md` (new — the full design/implementation/results record); this entry; `nn_models/REGISTRY.md` rows for the four sweep nets + `joint_taper128`; a C++ joint-inference + match-mode section in `CPP_ENGINE_PLAN.md`.

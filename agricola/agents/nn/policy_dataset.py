@@ -93,10 +93,14 @@ class PolicyNormStats:
 
 class AgricolaPolicyDataset(Dataset):
     """Holds extracted policy examples as tensors. `X` may be float16 (upcast
-    per item); `mask` bool (width K = head classes); `target` int64;
-    `weight`/`won` float32 (won: 1.0 win / 0.0 loss / −1.0 tie)."""
+    per item); `mask` bool (width K = head classes); `target` int64 (the
+    argmax/played class, kept for top-1/top-3 readouts); `pi` float32 `(N, K)`
+    the soft target distribution the loss is computed against (a one-hot on
+    `target` for legacy data, normalized MCTS visit counts for self-play data);
+    `weight`/`won` float32 (won: 1.0 win / 0.0 loss / −1.0 tie). The DataLoader
+    yields `(x, pi, mask, weight)` — the loss is cross-entropy against `pi`."""
 
-    def __init__(self, X, target, mask, weight, won):
+    def __init__(self, X, target, mask, weight, won, pi=None):
         assert X.dtype in (np.float16, np.float32), X.dtype
         assert X.shape[1] == ENCODED_DIM, X.shape
         assert mask.shape[0] == X.shape[0], (mask.shape, X.shape)
@@ -107,6 +111,12 @@ class AgricolaPolicyDataset(Dataset):
         self._won = torch.from_numpy(won.astype(np.float32))
         self._x_is_half = X.dtype == np.float16
         self.num_classes = int(mask.shape[1])
+        if pi is None:                       # legacy: one-hot on the played class
+            pi = np.zeros((X.shape[0], self.num_classes), dtype=np.float32)
+            if X.shape[0]:
+                pi[np.arange(X.shape[0]), target.astype(np.int64)] = 1.0
+        assert pi.shape == (X.shape[0], self.num_classes), (pi.shape, X.shape)
+        self._pi = torch.from_numpy(pi.astype(np.float32))
 
     def __len__(self) -> int:
         return self._target.shape[0]
@@ -115,7 +125,7 @@ class AgricolaPolicyDataset(Dataset):
         x = self._X[idx]
         if self._x_is_half:
             x = x.float()
-        return x, self._target[idx], self._mask[idx], self._weight[idx]
+        return x, self._pi[idx], self._mask[idx], self._weight[idx]
 
 
 # ---------------------------------------------------------------------------
@@ -123,16 +133,65 @@ class AgricolaPolicyDataset(Dataset):
 # ---------------------------------------------------------------------------
 
 
+def _pi_vector(head, snap, target, mask, *, soft_targets: bool) -> np.ndarray:
+    """The policy target distribution `pi[K]` for a fixed-head example.
+
+    Soft (default, self-play data): normalized MCTS visit counts from
+    `snap.visit_distribution`, each action mapped through `head.target_index`
+    and summed into its class (so e.g. multiple build-cell actions collapse into
+    the `build_stop` `__build__` class). Falls back to a one-hot on the played
+    class `target` when the snapshot has no recorded `visit_distribution`
+    (legacy/heuristic data) or `soft_targets` is False — making hard behavioral
+    cloning the degenerate case of the same cross-entropy loss.
+
+    Raises if any mass lands on a class illegal under `mask`: the masked-softmax
+    loss would put −inf there, so π's support must be ⊆ the training legality.
+    (MCTS only visits legal actions, so this fires only on a legality MISMATCH —
+    e.g. training a head with `restricted` legality on data generated with
+    `full`. Train such heads with matching, full legality.)"""
+    k = head.num_classes
+    vd = snap.visit_distribution
+    if not soft_targets or vd is None:
+        pi = np.zeros(k, dtype=np.float32)
+        pi[target] = 1.0
+        return pi
+    pi = np.zeros(k, dtype=np.float32)
+    total = 0.0
+    for action, count in vd.items():
+        idx = head.target_index(action)
+        if idx is None:                      # action outside this head's vocab
+            continue                         # (a pruned class, e.g. bake grain>6)
+        pi[idx] += float(count)
+        total += float(count)
+    if total <= 0.0:                         # nothing mapped in — one-hot fallback
+        pi[target] = 1.0
+        return pi
+    pi /= total
+    illegal_mass = float(pi[~mask].sum())
+    if illegal_mass > 1e-6:
+        raise ValueError(
+            f"head '{head.name}': visit distribution puts {illegal_mass:.3f} "
+            f"probability on classes illegal under the training legality — the "
+            f"data was generated under a wider legality than the head is trained "
+            f"with. Train this head with matching (full) legality."
+        )
+    return pi
+
+
 def _decision_rows(
     games: Iterable[GameRecord],
     head: DecisionHead,
     legal_actions_fn=restricted_legal_actions,
+    *,
+    soft_targets: bool = True,
 ) -> Iterator[tuple]:
-    """Yield `(game_seed, x_f32, target_idx, legal_mask, R_decider, won)` for
+    """Yield `(game_seed, x_f32, target_idx, legal_mask, R_decider, won, pi)` for
     every non-terminal snapshot the `head` owns whose chosen action is one of
-    the head's classes. `x` is the decider-perspective encoding; `R_decider`
-    the decider-frame terminal margin; `won` the decider's outcome (1/0/−1).
-    Raises if the chosen class isn't in its own legal mask (the §5 invariant)."""
+    the head's classes. `x` is the decider-perspective encoding; `target` the
+    played class (for top-k readouts); `pi[K]` the soft target distribution the
+    loss uses (see `_pi_vector`); `R_decider` the decider-frame terminal margin;
+    `won` the decider's outcome (1/0/−1). Raises if the chosen class isn't in its
+    own legal mask (the §5 invariant)."""
     for g in games:
         for snap in g.decisions:
             state = snap.state
@@ -149,6 +208,7 @@ def _decision_rows(
                     f"chosen class {target} ({head.name}) not in its own legal "
                     f"mask for game seed={g.seed} — encoder/legality drift."
                 )
+            pi = _pi_vector(head, snap, target, mask, soft_targets=soft_targets)
             R = float(g.p0_final_score - g.p1_final_score) if d == 0 \
                 else float(g.p1_final_score - g.p0_final_score)
             if g.winner is None:
@@ -157,26 +217,30 @@ def _decision_rows(
                 won = 1.0
             else:
                 won = 0.0
-            yield g.seed, x, target, mask, R, won
+            yield g.seed, x, target, mask, R, won, pi
 
 
 class _SplitAccumulator:
     """Collects extracted rows, routing each to its seed-hash split bucket."""
 
-    def __init__(self, head, split_seed, train_frac, val_frac):
+    def __init__(self, head, split_seed, train_frac, val_frac, soft_targets=True):
         self.head = head
         self.split_seed = split_seed
         self.train_frac = train_frac
         self.val_frac = val_frac
+        self.soft_targets = soft_targets
         self._split_of_seed: dict[int, int] = {}
         self.x = ([], [], [])
         self.t = ([], [], [])
         self.m = ([], [], [])
         self.R = ([], [], [])
         self.won = ([], [], [])
+        self.pi = ([], [], [])
 
     def add_games(self, games, legal_actions_fn) -> None:
-        for seed, x, t, m, R, won in _decision_rows(games, self.head, legal_actions_fn):
+        for seed, x, t, m, R, won, pi in _decision_rows(
+            games, self.head, legal_actions_fn, soft_targets=self.soft_targets,
+        ):
             sp = self._split_of_seed.get(seed)
             if sp is None:
                 sp = _seed_split(seed, self.split_seed, self.train_frac, self.val_frac)
@@ -186,6 +250,7 @@ class _SplitAccumulator:
             self.m[sp].append(m)
             self.R[sp].append(R)
             self.won[sp].append(won)
+            self.pi[sp].append(pi)
 
     def arrays(self, sp: int):
         k = self.head.num_classes
@@ -193,12 +258,13 @@ class _SplitAccumulator:
         if n == 0:
             return (np.zeros((0, ENCODED_DIM), np.float32), np.zeros(0, np.int64),
                     np.zeros((0, k), bool), np.zeros(0, np.float32),
-                    np.zeros(0, np.float32))
+                    np.zeros(0, np.float32), np.zeros((0, k), np.float32))
         return (np.asarray(self.x[sp], dtype=np.float32),
                 np.asarray(self.t[sp], dtype=np.int64),
                 np.asarray(self.m[sp], dtype=bool),
                 np.asarray(self.R[sp], dtype=np.float32),
-                np.asarray(self.won[sp], dtype=np.float32))
+                np.asarray(self.won[sp], dtype=np.float32),
+                np.asarray(self.pi[sp], dtype=np.float32))
 
 
 # ---------------------------------------------------------------------------
@@ -264,9 +330,9 @@ def _compute_awr_weights(
 
 
 def _finalize(acc, *, loss_weight, value_ckpt, awr_clip, store_dtype, verbose):
-    Xtr, ttr, mtr, Rtr, wontr = acc.arrays(0)
-    Xva, tva, mva, _, wonva = acc.arrays(1)
-    Xte, tte, mte, _, wonte = acc.arrays(2)
+    Xtr, ttr, mtr, Rtr, wontr, pitr = acc.arrays(0)
+    Xva, tva, mva, _, wonva, piva = acc.arrays(1)
+    Xte, tte, mte, _, wonte, pite = acc.arrays(2)
     if Xtr.shape[0] == 0:
         raise ValueError(
             f"policy build produced no training examples for head "
@@ -282,15 +348,16 @@ def _finalize(acc, *, loss_weight, value_ckpt, awr_clip, store_dtype, verbose):
         raise ValueError(f"loss_weight must be 'unweighted' or 'awr'; got {loss_weight!r}")
 
     dt = np.float16 if store_dtype == "float16" else np.float32
-    train_ds = AgricolaPolicyDataset(Xtr.astype(dt), ttr, mtr, wtr, wontr)
+    train_ds = AgricolaPolicyDataset(Xtr.astype(dt), ttr, mtr, wtr, wontr, pitr)
     val_ds = AgricolaPolicyDataset(Xva.astype(dt), tva, mva,
-                                   np.ones(Xva.shape[0], np.float32), wonva)
+                                   np.ones(Xva.shape[0], np.float32), wonva, piva)
     test_ds = AgricolaPolicyDataset(Xte.astype(dt), tte, mte,
-                                    np.ones(Xte.shape[0], np.float32), wonte)
+                                    np.ones(Xte.shape[0], np.float32), wonte, pite)
 
     info = {
         "head": acc.head.name,
         "num_classes": acc.head.num_classes,
+        "soft_targets": bool(acc.soft_targets),
         "loss_weight": loss_weight,
         "awr_beta": beta,
         "awr_clip": float(awr_clip) if loss_weight == "awr" else None,
@@ -317,11 +384,13 @@ def build_policy_datasets_from_games(
     split_seed: int = 0,
     store_dtype: str = "float32",
     legal_actions_fn=restricted_legal_actions,
+    soft_targets: bool = True,
     verbose: bool = True,
 ):
     """Build (train, val, test) datasets + `PolicyNormStats` + info dict for a
-    `head` from an in-memory game list (used by tests)."""
-    acc = _SplitAccumulator(head, split_seed, train_frac, val_frac)
+    `head` from an in-memory game list (used by tests). `soft_targets` (default)
+    trains against the MCTS visit distribution π when present, else one-hot."""
+    acc = _SplitAccumulator(head, split_seed, train_frac, val_frac, soft_targets)
     acc.add_games(games, legal_actions_fn)
     return _finalize(acc, loss_weight=loss_weight, value_ckpt=value_ckpt,
                      awr_clip=awr_clip, store_dtype=store_dtype, verbose=verbose)
@@ -338,17 +407,20 @@ def build_policy_datasets(
     split_seed: int = 0,
     store_dtype: str = "float16",
     legal_actions_fn=restricted_legal_actions,
+    soft_targets: bool = True,
     verbose: bool = True,
 ):
     """Build policy datasets for a `head` from on-disk run dirs, **streaming**
     one worker pickle at a time (the full collection is never held in RAM).
-    Game count comes from the pickles, not `metadata.json` (POLICY_HEAD.md §5)."""
+    Game count comes from the pickles, not `metadata.json` (POLICY_HEAD.md §5).
+    `soft_targets` (default) trains against the MCTS visit distribution π when
+    present, else one-hot behavioral cloning."""
     if isinstance(run_dirs, (str, Path)):
         run_dirs = [Path(run_dirs)]
     else:
         run_dirs = [Path(r) for r in run_dirs]
 
-    acc = _SplitAccumulator(head, split_seed, train_frac, val_frac)
+    acc = _SplitAccumulator(head, split_seed, train_frac, val_frac, soft_targets)
     n_games = 0
     for pkl in _iter_worker_pickles(run_dirs):
         games = load_game_records(pkl)

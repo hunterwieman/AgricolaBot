@@ -89,6 +89,11 @@ int main(int argc, char** argv) {
   bool have_game_idxs = false;
   std::uint64_t base_seed = 0;
 
+  // Two-net match-mode args (P0 = model_dir_p0, P1 = model_dir_p1).
+  bool match = false;
+  std::string model_dir_p0;
+  std::string model_dir_p1;
+
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--seed" && i + 1 < argc) {
@@ -113,6 +118,12 @@ int main(int argc, char** argv) {
       temperature = std::atof(argv[++i]);
     } else if (arg == "--model-dir" && i + 1 < argc) {
       model_dir = argv[++i];
+    } else if (arg == "--match") {
+      match = true;
+    } else if (arg == "--model-dir-p0" && i + 1 < argc) {
+      model_dir_p0 = argv[++i];
+    } else if (arg == "--model-dir-p1" && i + 1 < argc) {
+      model_dir_p1 = argv[++i];
     } else if (arg == "-h" || arg == "--help") {
       usage(argv[0]);
       return 0;
@@ -123,6 +134,50 @@ int main(int argc, char** argv) {
       usage(argv[0]);
       return 2;
     }
+  }
+
+  // ---- Two-net MATCH mode: --match present ----
+  if (match) {
+#ifndef AGRICOLA_WITH_NN
+    std::cerr << "selfplay: --match requires an NN build\n";
+    return 1;
+#else
+    if (!mcts) {
+      std::cerr << "selfplay: --match requires --mcts\n";
+      return 2;
+    }
+    if (model_dir_p0.empty() || model_dir_p1.empty()) {
+      std::cerr << "selfplay: --match requires --model-dir-p0 and --model-dir-p1\n";
+      return 2;
+    }
+    std::vector<long long> idxs;
+    if (have_game_idxs) {
+      if (!parse_game_idxs(game_idxs_arg, idxs)) {
+        std::cerr << "selfplay: --game-idxs must be a non-empty comma-separated "
+                     "list of non-negative integers\n";
+        return 2;
+      }
+    } else {
+      idxs.push_back(0);  // single game from base_seed
+    }
+    // Load both nets ONCE, reuse across every game.
+    agricola::NNInference nn0(model_dir_p0);
+    agricola::NNInference nn1(model_dir_p1);
+    long long p0w = 0, p1w = 0, draws = 0;
+    for (long long idx : idxs) {
+      std::uint64_t game_seed = base_seed + static_cast<std::uint64_t>(idx);
+      agricola::MatchGameResult r = agricola::mcts_match_game(
+          nn0, nn1, game_seed, sims, c_uct, temperature);
+      std::cout << "GAME seed=" << r.seed << " p0=" << r.p0_score
+                << " p1=" << r.p1_score << " winner=" << r.winner << "\n";
+      if (r.winner == 0) ++p0w;
+      else if (r.winner == 1) ++p1w;
+      else ++draws;
+    }
+    std::cout << "MATCH p0_wins=" << p0w << " p1_wins=" << p1w
+              << " draws=" << draws << " games=" << idxs.size() << "\n";
+    return 0;
+#endif
   }
 
   // ---- MCTS BATCH mode: --out-dir / --game-idxs present ----

@@ -191,8 +191,104 @@ _POINTER_STEMS = {
 }
 
 
+def _is_shared_trunk(ckpt: Path) -> bool:
+    """True if `ckpt` is a SharedTrunkModel checkpoint (meta model_kind)."""
+    try:
+        meta = json.loads(Path(ckpt).with_suffix(".meta.json").read_text())
+        return meta.get("model_kind") == "shared_trunk"
+    except Exception:
+        return False
+
+
+def _export_joint(ckpt: Path) -> int:
+    """Export a SharedTrunkModel to the `shared_trunk` manifest format: ONE trunk
+    blob (real 170-input norm → embedding), a standalone embed_norm LayerNorm, and
+    head blobs that take the embedding with IDENTITY input-norm (pointer heads bake
+    the candidate-norm into the cand slice). The C++ joint path runs the trunk once
+    and feeds every head off the cached embedding (one forward per node)."""
+    from agricola.agents.nn.shared_model import SharedTrunkModel
+
+    model = SharedTrunkModel.load(str(ckpt))
+    model.eval()
+    E = int(model.embedding_dim)
+    ident_m, ident_s = torch.zeros(E), torch.ones(E)
+
+    manifest: dict = {
+        "encoding_version": ENCODING_VERSION,
+        "encoded_dim": ENCODED_DIM,
+        "format": "shared_trunk_v1",
+        "embedding_dim": E,
+        "layernorm_eps": LAYERNORM_EPS,
+        "fixed_heads": {},
+        "pointer_heads": {},
+    }
+
+    # Trunk: real 170-input norm + trunk layers → RAW embedding (pre embed_norm).
+    manifest["trunk"] = _export_model(
+        model.trunk, model.input_mean, model.input_std, file_stem="trunk")
+
+    # embed_norm: standalone LayerNorm applied to the trunk output (NO GELU).
+    if isinstance(model.embed_norm, torch.nn.LayerNorm):
+        en = model.embed_norm
+        blob = np.concatenate(
+            [_f32(en.weight).reshape(-1), _f32(en.bias).reshape(-1)]).astype("<f4")
+        (OUT_DIR / "embed_norm.bin").write_bytes(blob.tobytes())
+        manifest["embed_norm"] = {"file": "embed_norm.bin", "dim": E,
+                                  "eps": LAYERNORM_EPS}
+    else:
+        manifest["embed_norm"] = None
+
+    # Value head: identity input-norm + Linear(E→1) + target_std (denorm).
+    manifest["value"] = _export_model(
+        model.value_head, ident_m, ident_s, file_stem="value",
+        extra_tail=[("target_std", _f32(model.target_std).reshape(-1))])
+    manifest["value"]["value_scale"] = float(getattr(model, "value_scale", 1.0))
+
+    # Fixed heads: identity input-norm + Linear(E→K), keyed by head name.
+    for name, head in model.fixed_heads.items():
+        manifest["fixed_heads"][name] = _export_model(
+            head, ident_m, ident_s, file_stem=f"fixed_{name}")
+
+    # Pointer heads: input [E ; cand_dim] — identity over E, the head's fitted
+    # cand_mean/std over the cand slice (so the C++ normalizes only the candidate).
+    for name, head in model.pointer_heads.items():
+        cm = getattr(model, f"cand_mean__{name}").detach().cpu()
+        cs = getattr(model, f"cand_std__{name}").detach().cpu()
+        in_mean = torch.cat([ident_m, cm])
+        in_std = torch.cat([ident_s, cs])
+        entry = _export_model(head, in_mean, in_std, file_stem=f"pointer_{name}")
+        entry["candidate_dim"] = int(cm.shape[0])
+        manifest["pointer_heads"][name] = entry
+
+    with (OUT_DIR / "weights_manifest.json").open("w") as f:
+        json.dump(manifest, f, indent=2)
+    print(f"\nOK — wrote shared-trunk export (trunk + value + "
+          f"{len(manifest['fixed_heads'])} fixed + {len(manifest['pointer_heads'])} "
+          f"pointer heads) to {OUT_DIR}")
+    return 0
+
+
 def main() -> int:
+    import argparse
+    global OUT_DIR, VALUE_CKPT
+    ap = argparse.ArgumentParser(description=__doc__ or "export NN weights for C++")
+    ap.add_argument("--value-ckpt", type=str, default=None,
+                    help="value-net checkpoint base path (default nn_models/best). "
+                         "Exported alongside the unweighted policy heads, so each "
+                         "export dir is a complete {value + 9 heads} bundle.")
+    ap.add_argument("--out-dir", type=str, default=None,
+                    help="output dir for the blob bundle (default nn_models/cpp_export).")
+    args = ap.parse_args()
+    if args.value_ckpt:
+        VALUE_CKPT = Path(args.value_ckpt)
+    if args.out_dir:
+        OUT_DIR = Path(args.out_dir)
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Route a SharedTrunkModel checkpoint to the shared-trunk export format.
+    if _is_shared_trunk(VALUE_CKPT):
+        return _export_joint(VALUE_CKPT)
     manifest: dict = {
         "encoding_version": ENCODING_VERSION,
         "encoded_dim": ENCODED_DIM,

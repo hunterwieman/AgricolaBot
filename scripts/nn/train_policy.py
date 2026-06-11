@@ -91,7 +91,14 @@ def main() -> int:
                    choices=["restricted", "full"],
                    help="Legality for the legal mask: 'restricted' (default; "
                         "restricted_legal_actions) or 'full' (unrestricted "
-                        "legal_actions). Use 'full' for the fencing head.")
+                        "legal_actions). Use 'full' for the fencing head, and for "
+                        "any head trained on MCTS self-play data (generated under "
+                        "full legality) so π's support stays within the mask.")
+    p.add_argument("--hard-targets", dest="soft_targets", action="store_false",
+                   help="Train one-hot behavioral cloning of the played action "
+                        "instead of the default cross-entropy against the MCTS "
+                        "visit distribution π (the soft target, used when present).")
+    p.set_defaults(soft_targets=True)
     args = p.parse_args()
 
     legal_actions_fn = None
@@ -123,6 +130,7 @@ def main() -> int:
         torch_seed=args.torch_seed,
         device=args.device,
         legal_actions_fn=legal_actions_fn,
+        soft_targets=args.soft_targets,
     )
     return 0
 

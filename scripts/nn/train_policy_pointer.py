@@ -97,6 +97,11 @@ def main() -> int:
     p.add_argument("--split-seed", type=int, default=0)
     p.add_argument("--torch-seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
+    p.add_argument("--hard-targets", dest="soft_targets", action="store_false",
+                   help="Train one-hot behavioral cloning of the played candidate "
+                        "instead of the default segment cross-entropy against the "
+                        "MCTS visit distribution π (used when present).")
+    p.set_defaults(soft_targets=True)
     args = p.parse_args()
 
     run_dirs = args.run_dir or DEFAULT_RUN_DIRS
@@ -123,6 +128,7 @@ def main() -> int:
         split_seed=args.split_seed,
         torch_seed=args.torch_seed,
         device=args.device,
+        soft_targets=args.soft_targets,
     )
     return 0
 
