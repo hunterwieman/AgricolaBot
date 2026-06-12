@@ -552,6 +552,21 @@ search code. Two standing knobs worth knowing:
 The end-goal agent: a network with a **value head and a policy head**, trained by AlphaZero-style
 self-play.
 
+**Two trained model families exist.** They share the ~170-feature encoder and are interchangeable
+at the MCTS leaf, but differ in how value and policy are packaged:
+
+1. **Separate nets — a value net + nine disjoint policy heads.** The original slice: one supervised
+   value network, plus nine independently-trained behavioral-cloning policy heads (seven fixed-vocab
+   + two pointer), stitched into one `policy_fn` by the `make_policy_fn` combiner. This is the
+   "Where it stands" paragraph below.
+2. **The joint shared-trunk model (Stage B).** All ten outputs unified onto one shared trunk —
+   trained jointly with soft-π policy + margin value, **the strongest agent to date**. This is the
+   "Stage B" paragraph below.
+
+The joint model is the current best and the basis for ongoing self-play; the separate nets are the
+provenance it grew out of and remain the fallback when a single head is trained or probed in
+isolation.
+
 **Where it stands.** The first slice is built and already paying off. A **supervised value
 network** — trained on self-play data from the heuristic ensemble to predict the terminal score
 margin — runs end-to-end: the data-generation pipeline, the ~170-feature encoder, the versioned
@@ -588,6 +603,34 @@ Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **valu
 embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
 ported to C++ (§2.4) for fast self-play generation. Not yet promoted to `nn_models/best` (the joint
 model needs consumer wiring). Full design + eval: **`SHARED_TRUNK.md`**.
+
+> **Before refactoring the joint dataset builder (`shared_dataset.py`), read
+> `SHARED_TRUNK.md` §3 — "the two memory lessons" — in full.** That builder's `build_shared_datasets`
+> → `_finalize_payloads` is **memory-load-bearing on the 8 GB M1**: it streams chunk *paths* from disk
+> (never loading a whole run dir) and assembles the value tensor **directly into its per-split arrays**
+> (never a combined `value__X` that would double when mask-sliced). This is fragile in a specific,
+> dangerous way: **the test suite does not exercise it** (the tests run on ~30 tiny games where memory
+> is invisible), so a "tidy-up" back to load-all-then-`np.concatenate`-then-slice will pass green while
+> silently reintroducing a ~10 GB OOM at 57k games — which is how the bug shipped originally. Keep the
+> path-streaming + direct-to-split shape; §3 has the full rationale.
+
+**Encoder experiments — a forward-compatible encoder registry (mechanism landed; a candidate under
+evaluation, NOT promoted).** A model now declares *which input encoder* it was trained with via an
+`encoder_tag`, and both Python (`EncoderSpec` / `ENCODERS` in `encoder.py`) and C++ (`encoder_for_tag`
+in `encoder.cpp`, read from the manifest's `encoder_tag`) **dispatch through a registry** — no
+per-model branches; adding a future encoder is one registry row + one encode fn. The first use is a
+**candidate 178-feature encoder** (`cand_feat178_v1`): per player it adds a begging-free running score,
+turns-until-next-feeding, and can-renovate/can-grow capability bits, and it *removes* the begging count
+— begging is a pure end-of-game penalty, so it's stripped from the value target and added back
+deterministically at inference (`−3·(own−opp)`, margin-model only). The whole stack is encoder-aware:
+`train_shared.py --encoder {v2,candidate}`, the joint dataset/model/policy thread the `EncoderSpec`,
+and `export_weights.py` writes `encoder_tag` so C++ picks the right encoder; permanent C++ gates
+(`test_cpp_joint_candidate_matches_python`) validate the candidate path ≤1e-4. The **cheap-iteration
+recipe**: encoders re-encode the *same* raw self-play games (`DecisionSnapshot` stores the `GameState`,
+not an encoding), so trying one is a re-encode + retrain, not a data regen — and the C++ encoder is
+ported *eagerly* (it's incremental + differential-harness-safe) so eval/self-play run at C++ speed
+rather than waiting hours on Python. The candidate beats `joint_taper128` at 800-sim PUCT (temp-0 63%,
+temp-0.3 52%); promotion is held pending a 57k-game retrain. Catalog: `nn_models/REGISTRY.md`.
 
 **Trained-model catalog: `nn_models/REGISTRY.md`.** The authoritative index of every checkpoint
 on disk — `ENCODING_VERSION` it was trained against, training data source, hyperparameters,
@@ -643,6 +686,104 @@ Python `make_joint_fns`. A new **`selfplay --match --model-dir-p0 A --model-dir-
 (`mcts_match_game`) plays one net vs another with separate trees + per-seat `value_scale`; driven in
 parallel by `scripts/nn/run_cpp_match.py`. This is the path for fast, torch-free self-play generation
 with the joint model.
+
+---
+
+### 2.5 — The self-play & training workflow
+
+The pieces above (the engine, MCTS, the NN, the C++ twin) compose into one loop: **generate
+self-play games → train on them → evaluate → repeat**. This section is the orientation map for
+*which script to reach for and why*; the per-flag detail lives in each script's directory-tree entry
+and the linked design docs (`FIRST_NN.md`, `SHARED_TRUNK.md`, `CPP_ENGINE_PLAN.md`), which stay
+authoritative — this is the narrative that ties them together.
+
+#### Two MCTS-vs-MCTS modes — self-play vs evaluation
+
+Both modes run MCTS against MCTS, but for opposite purposes, and the scripts split along that line:
+
+- **Self-play *data generation* — one agent, both seats, shared tree.** The goal is a diverse stream
+  of training trajectories, not a verdict, so a *single* agent (one NN leaf + one policy) drives both
+  P0 and P1 off a shared search tree. This is what produces the `GameRecord`s training consumes
+  (state + chosen action + visit distribution π + root value). Scripts:
+  `scripts/nn/generate_selfplay_data.py` (Python) and its `~4×`-faster twin
+  `scripts/nn/generate_selfplay_data_cpp.py` (C++ binary across a worker pool, replayed into the
+  **identical** run-dir format). Per CLAUDE.md memory, the **C++ path is the default for any real
+  generation run** — write the C++ port rather than wait hours on Python.
+
+- **Evaluation *matches* — two (possibly different) agents, separate trees.** The goal is a verdict
+  — is checkpoint A stronger than B? — so each seat gets its *own* agent and its *own* tree, with no
+  shared statistics that would blur the comparison. Scripts: `scripts/play_mcts_match.py` (Python;
+  a `--leaf-ckpt` pointing at a joint `SharedTrunkModel` auto-wires that seat via `make_joint_fns`,
+  so it drives both separate-net and joint models) and `scripts/nn/run_cpp_match.py` (the C++
+  two-net `selfplay --match --model-dir-p0 A --model-dir-p1 B`, the OOM-safe way to run an 800-sim
+  match). `scripts/nn/eval_vs_ensemble.py` is the higher-level harness that drives a checkpoint
+  against the fixed 8-config ensemble — the cleanest *uncontaminated* strength yardstick.
+
+The "port in different agents, or two of the same" flexibility is exactly this distinction: **same
+agent both seats = self-play generation; different agents per seat = evaluation match.** The agent at
+each seat is a `(value_fn, policy_fn)` pair behind the engine's black-box leaf/prior contracts, so
+any evaluator (heuristic V3, separate value net, joint trunk) drops in at either seat without
+touching `mcts.py` — that interchangeability is what makes the same driver serve a head-to-head
+today and a card-game agent later.
+
+**Defaults and why.** Production self-play now uses the **joint shared-trunk model** as the agent —
+one trunk supplying *both* the value leaf and the policy prior (`make_joint_fns`, §2.3 Stage B). It
+is supplied to generation explicitly (via `--leaf-ckpt <joint-ckpt>` in Python, or its exported
+manifest for C++), **not** through the `nn_models/best` pointer: `best` still holds the older
+*separate* value net and the joint model is not yet promoted there (it needs value-only consumer
+wiring first — see `nn_models/REGISTRY.md`). The separate value net + the nine-head combined
+behavioral-cloning policy remain the fallback agent for that pointer's consumers (e.g. the web UI).
+Search runs PUCT with `FenceMode.FLATTEN` over the **full unrestricted** legal set (the policy prior
+is the sole prune — §2.2), `c_uct ≈ 0.5` (calibrated to the value head's `value_scale`), and a low
+played-move temperature so trajectories stay near-greedy while π still records the search's
+exploration. Generation is **chunked-streaming and resumable** (bounded
+per-worker RAM, O(n) writes, skip-completed-game-idxs on restart) and runs **one game per worker
+process** with `torch.set_num_threads(1)` — the throughput multipliers that matter on an 8-core
+machine. The C++ generator's default **batch mode** loads the exported NN weights *once per worker*
+(one process plays its whole slice) rather than once per game.
+
+#### The training scripts
+
+All are thin CLIs over libraries in `agricola/agents/nn/`; each writes a self-contained checkpoint
+dir (`best.pt` + meta + config + metrics + curves) and **must update `nn_models/REGISTRY.md`** on
+completion (§2.3). Which trainer to use:
+
+- **`scripts/nn/train_first.py`** — the **value net** (separate-net family). Wraps `training.train`:
+  load → split → fit norm → AdamW + early-stop on val MSE → checkpoint. Supports warm-start
+  (`--init-from`) and the L2-SP trust-region anchor for self-play fine-tunes.
+- **`scripts/nn/train_policy.py` / `train_policy_pointer.py`** — one **disjoint policy head** at a
+  time (the seven fixed heads / the two pointer heads), behavioral-cloned from `chosen_action` data
+  with either the `unweighted` or advantage-weighted (`awr`) loss.
+  `scripts/nn/build_combined_policy.py` then assembles the nine head checkpoints into the end-to-end
+  `policy_fn`.
+- **`scripts/nn/train_shared.py`** — the **joint shared-trunk model** (current best). Wraps
+  `shared_training.train_shared`: interleaves per-head batches through the one trunk with **soft-π**
+  policy CE + margin-MSE value, per-head gradient balancing, early-stop on **value** val-MSE.
+
+**Training defaults and why.** Per CLAUDE.md memory, NN training here is **step-bound, not
+compute-bound** — the default `batch_size=256` wastes the machine — so use the `--fast-loader` with a
+large batch (≈8192 for the value net, the joint trainer already defaults to 2048), and **re-tune +
+validate the LR against the small-batch baseline** before trusting a big-batch model. Datasets are
+built **streaming / per-pickle-chunked** to stay inside 8 GB (the encode peak is one pickle, not the
+whole run). Training runs **single, quiet, no `caffeinate`** — macOS sleep and jetsam both kill long
+runs on the 8 GB M1.
+
+#### The end-to-end loop
+
+Putting it together, one generation→training cycle is:
+
+```
+train (Python: train_shared / train_first+train_policy)
+  → export weights (scripts/nn/export_weights.py → nn_models/cpp_export/)
+  → generate self-play (generate_selfplay_data_cpp.py, C++, batch mode)
+  → train on the new GameRecords
+  → evaluate (run_cpp_match.py / eval_vs_ensemble.py) → promote in REGISTRY.md → repeat
+```
+
+The export step exists because the C++ generator runs its own hand-rolled MLP inference (no
+libtorch): `export_weights.py` writes the trained net to raw float32 blobs + a manifest the C++ side
+loads (a `shared_trunk_v1` manifest for the joint model). Training always happens in Python; only
+*generation* and *evaluation matches* cross into C++.
 
 ---
 
@@ -725,7 +866,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `POLICY_PUCT_DESIGN.md` | **Historical design record** (the PUCT search half is now implemented and documented in `MCTS_IMPLEMENTATION.md`; the policy half in `POLICY_HEAD.md`). Design spec for the policy head + PUCT phase (Phase 2.3 (c)→(d)). The factored policy (fixed-width + mask heads for placement / sub-actions / Build Major; score-the-set heads for the fencing / animal-accommodation / harvest-feed / harvest-breed frontiers), the black-box `policy_fn(state, legal_actions) -> {action: prior}` interface MCTS consumes (untrained heads fall back to uniform), the AlphaZero PUCT formula + restated FPU + `leaf_value_scale`-calibrated `c_puct`, chance-node orthogonality, the regular-legality + soft-prune-via-prior rationale, the grounded decision-point taxonomy, the localized `mcts.py` change plan (UCT preserved as a control via `policy_fn=None`), the `fence_mode` enum (MACRO / FLATTEN / SEQUENCE_PRIOR) and the SEQUENCE_PRIOR `n(s,a,L)` per-step-target reconstruction, BC training from existing `chosen_action` data, the eval controls, shared-trunk + self-play forward-compat, and a pre-implementation-edits section. Read before implementing the policy head or PUCT. |
 | `POLICY_HEAD.md` | Implementation + design record for the supervised behavioral-cloning **policy heads** (Phase 2.3 (c)). §1–§10 are the original v1 placement-only spec (the factored `DecisionHead`: predicate + vocab + chosen→class + legal mask; `HEADS` registry; the two loss variants — unweighted CE / AWR `w=clip(exp((R−V)/β),0,w_max)`; single-perspective encoding; warm-start trunk transplant; the `restricted.py` ordering-filter **forcing-fix**; metrics = top-1/top-3 agreement, not strength). §11/§14 cover **the rest of the heads now built**: 7 fixed (placement/choose_subaction/commit_build_major/commit_sow/commit_bake/fencing/build_stop) + 2 pointer (animal_frontier/harvest_feed), the `make_policy_fn` combiner + the two end-to-end policy functions, and the spatially-blind-`fencing` finding. Read before adding a policy head. |
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
-| `SHARED_TRUNK.md` | Design + implementation + results record for the **joint shared-trunk value+policy model** (Phase 2.3, Stage B): one `170→256→256→128` trunk feeding a value head + 7 fixed + 2 pointer policy heads, trained jointly on the 41k self-play data with **soft-π** (cross-entropy against the visit distribution) policy + margin value. Covers `SharedTrunkModel` (`shared_model.py`), the one-pass cached `shared_dataset.py` (+ the per-pickle-chunking memory lesson), the joint trainer (`shared_training.py`: per-head balance, value-MSE early-stop), the `make_joint_fns` inference adapter (`shared_policy.py`: **one trunk forward per node** via an embedding memo, so `mcts.py` is unchanged), the **C++ joint inference** (`shared_trunk_v1` manifest, mode toggle in `NNInference`, embedding cache, two-net `--match` mode), the value-capacity sweep that set the trunk size (256×2; MAE was a backwards predictor), and the eval (joint beats previous-best at 800-sim PUCT — C++ 99%). Read before touching the joint model. |
+| `SHARED_TRUNK.md` | Design + implementation + results record for the **joint shared-trunk value+policy model** (Phase 2.3, Stage B): one `170→256→256→128` trunk feeding a value head + 7 fixed + 2 pointer policy heads, trained jointly on the 41k self-play data with **soft-π** (cross-entropy against the visit distribution) policy + margin value. Covers `SharedTrunkModel` (`shared_model.py`), the one-pass cached `shared_dataset.py` (+ §3 **"the two memory lessons"** — the per-pickle-chunking *encode* peak AND the streamed-path / direct-to-split *finalize* peak that OOM'd at 57k; **load-bearing, untested, read before refactoring the builder**), the joint trainer (`shared_training.py`: per-head balance, value-MSE early-stop), the `make_joint_fns` inference adapter (`shared_policy.py`: **one trunk forward per node** via an embedding memo, so `mcts.py` is unchanged), the **C++ joint inference** (`shared_trunk_v1` manifest, mode toggle in `NNInference`, embedding cache, two-net `--match` mode), the value-capacity sweep that set the trunk size (256×2; MAE was a backwards predictor), and the eval (joint beats previous-best at 800-sim PUCT — C++ 99%). Read before touching the joint model. |
 | `PROFILING.md` | Profiling findings. Foregrounds the **current production profile** — NN value-leaf + multi-head policy PUCT, i.e. where time goes in the code today (cost attribution, the ~2× session result, the diffuse-engine-remainder finding) — plus **measurement caveats** (laptop wall noise → min-of-N/pair-by-seed; cProfile over-attributes high-call tiny functions; the eval-mode requirement). Older random-play (Workloads A/B/C, R1–R6) and V3-leaf MCTS profiles are kept under **Archived profiles**. Re-run the current profile via `scripts/profile_mcts_nn.py`. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
@@ -846,7 +987,7 @@ AgricolaBot/
 
                 trace_replay.py     # C++↔Python interop (CLAUDE.md §2.4): the game-trace serde + the replay adapter. `game_to_trace` (writer) / `replay_trace(trace) -> GameRecord` (reads a C++-emitted `agricola-cpp-trace-v1` trace, replays it through the engine, rebuilds a v3 `GameRecord` with π + root_value) / action↔`params` serde for all 17 action types (closes the web-UI `RevealCard.card` drop). Lets C++-generated self-play feed the unchanged training pipeline. See CPP_ENGINE_PLAN.md §2.
 
-                encoder.py          # Input-vector encoder. `ENCODING_VERSION` + `ENCODED_DIM=170`. `encode_state(state, player_idx) -> np.ndarray` (float32) translates a `GameState` into the flat ~170-feature vector specified in FIRST_NN.md §4: own-player block (54) + opponent block (54) + shared/board (54) + mid-action singletons (8). Numpy-only — the training pipeline converts at the model boundary via `torch.from_numpy(arr)`. `feature_names()` returns the parallel string list for debugging / per-feature analysis. The MCTS-inference hot path goes through `encode_for_inference` (a swap-aware per-state memo) + `swap_perspective`, layered over an index-writer rewrite of `encode_state` (byte-identical to the original; the `(name,value)` `_assemble` is kept as the golden-test oracle + `feature_names` source). See SPEEDUPS.md S10–S13.
+                encoder.py          # Input-vector encoder. `ENCODING_VERSION` + `ENCODED_DIM=170`. `encode_state(state, player_idx) -> np.ndarray` (float32) translates a `GameState` into the flat ~170-feature vector specified in FIRST_NN.md §4: own-player block (54) + opponent block (54) + shared/board (54) + mid-action singletons (8). Numpy-only — the training pipeline converts at the model boundary via `torch.from_numpy(arr)`. `feature_names()` returns the parallel string list for debugging / per-feature analysis. The MCTS-inference hot path goes through `encode_for_inference` (a swap-aware per-state memo) + `swap_perspective`, layered over an index-writer rewrite of `encode_state` (byte-identical to the original; the `(name,value)` `_assemble` is kept as the golden-test oracle + `feature_names` source). See SPEEDUPS.md S10–S13. ALSO hosts the **candidate encoder** (`encode_state_candidate`, 178 features, tag `cand_feat178_v1`: running-score + turns-to-feeding + renovate/grow bits, begging removed) + `begging_margin` + the **`EncoderSpec` registry** (`ENCODERS` / `ENCODER_V2` / `ENCODER_CANDIDATE`) — the forward-compatible encoder-by-tag dispatch the joint path threads (mirrored in C++ `encoder_for_tag`).
 
                 dataset.py          # PyTorch dataset builders. `build_datasets(run_dirs, ...)` / `build_datasets_from_games(games, ...)` load `GameRecord`s, split games by index into train/val/test, expand each game's non-singleton snapshots + terminal state into `_ExampleDescriptor`s (state-keyed, dual-perspective on the same key), encode in numpy, fit `NormStats` (per-feature input mean/std + scalar target-margin std) on the training split only, and return three `AgricolaValueDataset`s + the fit `NormStats`. Imports torch. Not re-exported from `__init__.py`.
 
@@ -874,7 +1015,7 @@ AgricolaBot/
 
                 shared_model.py     # `SharedTrunkModel` (Phase 2.3 Stage B, SHARED_TRUNK.md): the joint value+policy net — one `170 → trunk → E` trunk (+ embed_norm) feeding a value head + 7 fixed + 2 pointer heads, all reusing `ConfigurableMLP`. Pointer heads score `[embedding ; candidate]` (trunk run once, candidate concatenated). Architecture-agnostic (every width a ctor arg); preserves `predict_margin`/`value_scale`; `config_dict()` + `NET_REGISTRY`. Imports torch.
 
-                shared_dataset.py   # One-pass, **per-pickle-chunk-cached** joint dataset (`build_shared_datasets`): reads each run dir's pickles once → value rows (both perspectives + terminal, margin) + fixed-head rows (mask + soft-π) + pointer-head rows (candidates + soft-π), consistent split. Writes `shared_v2_chunks/` (encode peak = one pickle — the memory fix; the per-dir-accumulation version OOM'd). Reuses the existing dataset classes. Imports torch.
+                shared_dataset.py   # One-pass, **per-pickle-chunk-cached** joint dataset (`build_shared_datasets`): reads each run dir's pickles once → value rows (both perspectives + terminal, margin) + fixed-head rows (mask + soft-π) + pointer-head rows (candidates + soft-π), consistent split. Writes `shared_<encoder.tag>_chunks/` (encode peak = one pickle — the memory fix; the per-dir-accumulation version OOM'd). **Finalize is also memory-load-bearing**: `_finalize_payloads` streams chunk *paths* lazily from disk (never loads a whole run dir) and builds the value tensor **directly into its per-split arrays** (never a combined `value__X` — that doubled when mask-sliced and OOM'd at 57k); see SHARED_TRUNK.md §3 before refactoring. Takes an `encoder: EncoderSpec` (default v2; candidate re-encodes the same raw games to its own cache + begging-strips the value target). The per-pickle encode is **parallel** (`n_workers` → a `multiprocessing.Pool`, byte-identical to serial) and **truly resumable** (completeness = all chunks present under the matching roster, so a kill mid-encode just fills the gaps). Reuses the existing dataset classes. Imports torch.
 
                 shared_training.py  # Joint trainer (`train_shared`; CLI scripts/nn/train_shared.py): interleaves per-task batches through the shared trunk — **soft-π** CE (fixed + segment for pointer) + margin MSE, **per-head gradient balancing** (equal-frequency sampling), `_CyclicTensor` fast-loader, early-stop on **value val-MSE** + `--save-all-epochs` (pick by play). Imports torch.
 
@@ -997,7 +1138,9 @@ AgricolaBot/
             train_shared.py         # Thin CLI over `agricola.agents.nn.shared_training.train_shared` — trains the joint shared-trunk value+policy model (Stage B, SHARED_TRUNK.md). Flags: `--trunk-hidden-dims`, `--embedding-dim`, per-head dims, `--batch-size` (default 2048), `--init-from` (warm trunk), `--hard-targets` (else soft-π), `--no-fast-loader`, `--save-all-epochs`. Imports torch.
 
 
-            run_cpp_match.py        # Parallel driver for the C++ two-net match: runs `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` across a worker pool over a seed range, parses per-game `GAME`/`MATCH` lines, aggregates W-D-L + margin. Memory-light (C++ hand-rolled inference, no torch) — the fast, OOM-safe way to run an 800-sim match. See SHARED_TRUNK.md / CPP_ENGINE_PLAN.md.
+            run_cpp_match.py        # Parallel driver for the C++ two-net match: runs `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` across a worker pool over a seed range. Workers stream per-game `GAME` lines back to the PARENT via a shared queue; the parent prints one clean running-tally stream to **stdout** (like `play_mcts_match.py`) — so a parallel run is one clean log. Per the logging convention, the launcher redirects to `eval_out/<label>.log`. Each model is encoder-self-describing (its manifest `encoder_tag` → the C++ registry picks v2 / candidate). Memory-light (C++ hand-rolled inference, no torch) — the fast, OOM-safe way to run an 800-sim match. See SHARED_TRUNK.md / CPP_ENGINE_PLAN.md.
+
+            replay_traces.py        # Replay a run dir's existing C++ self-play traces (`<run-dir>/traces/trace_<i>.json`) into `GameRecord` chunks under `games/` — the REPLAY half of `generate_selfplay_data_cpp.py` only, generating nothing and overwriting no traces. For salvaging a gen run interrupted after traces were written but before replay. Resumable (skips game_idxs already in `games/`), writes the `worker_*.pkl` format training consumes.
 
     tuned_configs/                  # Persistent artifacts from tuning runs. Each completed run writes `<timestamp>.json` (best config, history, holdout), `<timestamp>.log` (human-readable progress mirror), and `<timestamp>.cma.pkl` (full CMA-ES state for resume). `v1_best.json` and `v3_best.json` are auto-maintained pointers to the strongest config per architecture. The 8-config data-gen ensemble (alphas_gen_1, alphas_gen_7, panel_gen16, panel_gen_25, panel_gen47, panel_gen47_wood020, panel_wood_r1 + t2) plus `panel_gen16_temp05.json` (panel-only diversity baseline) live here as named JSONs alongside the timestamped run outputs. `DATA_GEN_ENSEMBLE.md` describes the ensemble. See V3_TRAINING_PIPELINE.md.
 
