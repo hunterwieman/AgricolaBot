@@ -255,6 +255,10 @@ struct NNInference::Impl {
   // shared_policy.py). `value_mlp`/`fixed`/`pointer` then take the EMBEDDING
   // (identity input-norm; pointer heads norm only the candidate slice).
   bool joint = false;
+  // The encoder this model was trained with, resolved from the manifest's
+  // encoder_tag via the registry (forward-compatible: no per-model branches).
+  const EncoderSpec* enc_spec = nullptr;
+  mutable std::vector<float> enc_buf_;  // reusable raw-encoding scratch
   Mlp trunk_mlp;
   std::vector<float> embed_gamma, embed_beta;  // standalone embed_norm (empty=none)
   float embed_eps = 1e-5f;
@@ -271,8 +275,8 @@ struct NNInference::Impl {
   const std::vector<float>& trunk_embed(const GameState& s) const {
     std::uint64_t h = state_hash(s);
     if (emb_valid_ && emb_hash_ == h) return emb_buf_;
-    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
-    trunk_mlp.forward(enc.data(), emb_buf_);  // raw embedding (pre embed_norm)
+    enc_spec->encode_into(s, *encoder_decider_of(s), enc_buf_);
+    trunk_mlp.forward(enc_buf_.data(), emb_buf_);  // raw embedding (pre embed_norm)
     if (!embed_gamma.empty()) {               // apply standalone embed_norm (no GELU)
       int d = static_cast<int>(emb_buf_.size());
       double mean = 0.0;
@@ -305,10 +309,12 @@ struct NNInference::Impl {
       value_mlp.forward(trunk_embed(s).data(), out);   // head on the embedding
       double v = static_cast<double>(out[0]) *
                  static_cast<double>(value_mlp.target_std());
-      return d == 0 ? v : -v;                          // decider-frame -> P0
+      v = d == 0 ? v : -v;                             // decider-frame -> P0
+      if (enc_spec->strip_begging) v += begging_margin(s, 0);  // add begging back
+      return v;
     }
-    std::array<float, kEncodedDim> enc = encode(s, 0);
-    value_mlp.forward(enc.data(), out);
+    enc_spec->encode_into(s, 0, enc_buf_);
+    value_mlp.forward(enc_buf_.data(), out);
     return static_cast<double>(out[0]) *
            static_cast<double>(value_mlp.target_std());
   }
@@ -320,8 +326,8 @@ struct NNInference::Impl {
       h.mlp.forward(trunk_embed(s).data(), out);
       return out;
     }
-    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
-    h.mlp.forward(enc.data(), out);  // raw logits, length == num_classes
+    enc_spec->encode_into(s, *encoder_decider_of(s), enc_buf_);
+    h.mlp.forward(enc_buf_.data(), out);  // raw logits, length == num_classes
     return out;
   }
 
@@ -347,12 +353,13 @@ struct NNInference::Impl {
       }
       return scores;
     }
-    std::array<float, kEncodedDim> enc = encode(s, *encoder_decider_of(s));
-    std::vector<float> row(static_cast<size_t>(kEncodedDim) + cdim);
-    std::copy(enc.begin(), enc.end(), row.begin());
+    enc_spec->encode_into(s, *encoder_decider_of(s), enc_buf_);
+    const int edim = enc_spec->dim;
+    std::vector<float> row(static_cast<size_t>(edim) + cdim);
+    std::copy(enc_buf_.begin(), enc_buf_.end(), row.begin());
     for (int i = 0; i < k; ++i) {
       std::copy(cand_feats[i].begin(), cand_feats[i].end(),
-                row.begin() + kEncodedDim);
+                row.begin() + edim);
       h.mlp.forward(row.data(), out);  // scalar score (output_dim == 1)
       scores[i] = static_cast<double>(out[0]);
     }
@@ -387,9 +394,20 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   // value()/policy() route through trunk_embed(). Composite export: skip this;
   // value/heads take the raw state encoding as before. The head-loading code
   // (value_mlp + make_fixed + make_pointer) is IDENTICAL for both modes.
+  // Resolve the encoder from the manifest tag (empty -> "v2" for back-compat).
+  // Forward-compatible: a new model just declares its encoder_tag; no code here
+  // changes. The composite (non-joint) path uses it too.
+  impl_->enc_spec = &encoder_for_tag(manifest.value("encoder_tag", std::string()));
+
   impl_->joint = (manifest.value("format", std::string()) == "shared_trunk_v1");
   if (impl_->joint) {
     impl_->trunk_mlp = Mlp(manifest["trunk"], base);
+    if (impl_->enc_spec->dim != impl_->trunk_mlp.input_dim())
+      throw std::runtime_error(
+          "NNInference: encoder '" + std::string(impl_->enc_spec->tag) +
+          "' dim=" + std::to_string(impl_->enc_spec->dim) +
+          " != trunk input_dim=" + std::to_string(impl_->trunk_mlp.input_dim()) +
+          " (encoder_tag/manifest mismatch)");
     if (manifest.contains("embed_norm") && !manifest["embed_norm"].is_null()) {
       const auto& en = manifest["embed_norm"];
       int dim = en.value("dim", impl_->trunk_mlp.output_dim());

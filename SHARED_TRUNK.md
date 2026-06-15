@@ -73,13 +73,71 @@ soft-π), and pointer-head rows (per-candidate features + soft-π). The
 decider-perspective encoding is computed once and shared between a state's value
 and policy rows.
 
-**Caching + the memory lesson.** It writes **one npz chunk per source pickle**
-(`shared_v2_chunks/`), so the encode peak is one pickle (~14 MB), not a whole run
-dir. The first version accumulated an entire 30k dir in a float32 Python list
-(~4 GB at 6.3M rows) and was jetsam-killed on the 8 GB M1; per-pickle chunking
-fixed it (peak ~65 MB) and made it resumable. A cache hit is a pure `np.load`.
-(See the project memory note on memory-frugal data code, and mirror
+**Caching + the two memory lessons.** This builder has **two distinct memory
+peaks**, on opposite sides of the cache, and both have bitten on the 8 GB M1.
+Treat this whole subsection as load-bearing — see the warning at the end before
+touching `shared_dataset.py`.
+
+*Peak 1 — the encode (cache-write) side.* It writes **one npz chunk per source
+pickle** (`shared_v{tag}_chunks/`), so the encode peak is one pickle (~14 MB),
+not a whole run dir. The first version accumulated an entire 30k dir in a float32
+Python list (~4 GB at 6.3M rows) and was jetsam-killed; per-pickle chunking fixed
+it (peak ~65 MB) and made it resumable. A cache hit is a pure `np.load`. (Mirror
 `dataset.build_datasets_chunked`.)
+
+*Peak 2 — the finalize (cache-read / assembly) side.* This is the one that OOM'd
+at **57k games** and was fixed in a later session. Two traps compounded: (a)
+`_load_or_encode_run_dir` loaded **every chunk fully into RAM up front** (all 579
+chunk dicts ≈ 6–8 GB resident *before* assembly even ran); and (b)
+`_finalize_payloads` built a **single combined `value__X`** (~4 GB float16) and
+then sliced it into train/val/test with boolean masks — so the combined array and
+its ~3.3 GB train-split copy were alive *simultaneously*, a 2× spike on top of (a).
+Peak ≈ 10 GB → macOS compressed-memory **thrash** (looks "stuck" at 95% CPU with
+tiny RSS and free-mem near 0; it is not stuck, it is crawling). The fix, which
+must be preserved:
+- `_load_or_encode_run_dir` returns chunk **`Path`s, not loaded dicts**, so the
+  whole run dir is never resident; `_finalize_payloads` streams each chunk lazily
+  from disk via `_src_load(src, key)` (one chunk's worth at a time).
+- The big value tensor is built **directly into its three pre-allocated per-split
+  arrays** — pre-scan the tiny `value__seed`s to size each split, then copy each
+  chunk's rows into the right split and free the chunk. There is **never a combined
+  `value__X`** to double. The small per-head arrays still use a (now lazy, path-
+  based) `cat()`; only the value tensor needed the direct-to-split treatment.
+- Result: peak **3.14 GB** at 57k (`ru_maxrss`), free-mem steady, no thrash; the
+  subsequent training loop fits in ~1.5 GB more.
+
+**Beyond ~117k games: stream, don't materialize (`shared_stream.py`).** The
+finalize fix above bounds the *peak during the build*, but the result is still the
+**whole dataset resident as torch tensors** for the entire training run — ~8.5 GB
+at 117k games (the float32 π/mask/value-y tensors + torch overhead dominate; int8
+feature storage only halves the X tensors and still lands at 8.5 GB), which
+kernel_task-thrashes the 8 GB M1 (~13 min/epoch). The serious fix is to train
+**directly off the on-disk chunk npzs**: `train_shared(..., stream=True)` /
+`scripts/nn/train_shared.py --stream` swaps `build_shared_datasets` for
+`build_shared_streams` (`shared_stream.py`). The training process RAM is then
+bounded to **~2-3 GB regardless of corpus size** (117k, 250k, a million games all
+train at the same footprint). The dense value + 7 fixed train tasks become
+`_TaskStream`s (a per-task windowed-shuffle buffer of `--buffer-chunks`≈8 chunks,
+reading only that task's keys from each chunk and only its train rows); the small
+pointer-train + the 10%/10% val/test splits stay materialized (the eval loops
+index them directly). The shared input norm + `target_std` are fit on value-train
+by the same streaming float64 two-pass scan — never materializing the train value
+tensor. The **training-loop body is unchanged**; only the data source differs, and
+the in-RAM path remains the default (the tests exercise it). The win is *not
+holding the full dataset*, so int8 storage is irrelevant under `--stream`. Measured
+on the full 117k corpus (6 cached run dirs): training-process `ru_maxrss` ≈ {{RAM}}
+(vs 8.5 GB in-RAM), free memory steady, no kernel_task thrash.
+
+> **⚠ Why this is fragile — read before refactoring `_finalize_payloads`.** The
+> memory behavior is **not covered by any test.** `test_nn_shared_dataset.py` runs
+> on ~30 tiny games and checks only *correctness* (shapes, splits, π, cache
+> round-trip); on data that small the peak is dominated by the torch import, so a
+> memory regression is invisible. A future session that "tidies" the streaming
+> build back into a load-all-then-`np.concatenate`-then-mask-slice will pass every
+> test green **and silently reintroduce the 57k OOM** — which is exactly how the
+> joint builder shipped the bug originally (it reused the value builder's interface
+> but not its memory discipline). Keep the path-streaming + direct-to-split shape.
+> (See also the project memory note on memory-frugal data code.)
 
 ---
 
@@ -104,6 +162,49 @@ the trunk + that head. Key choices:
   *play*, not val-MSE — important because the warm-started trunk plateaus value
   early while the policy heads keep improving.
 - **Warm-start** the trunk from the value-sweep winner (`sp_v_256x2_bs8192`).
+
+### 4.1 Scaling to 117k — thinning + int8, and two warm-start bugs (2026-06-15)
+
+Growing the corpus to **117k games** (the 57k + a 60k self-play run generated *by*
+`joint_taper128_57k`) OOM'd/thrashed even with `--stream` (~1100 s/epoch). The
+recipe that made it tractable on the 8 GB M1, producing **`joint_taper128_thin`,
+the new strongest model** (REGISTRY.md):
+
+- **Per-game snapshot-thinning** (`build_shared_datasets(snapshot_keep=…)` /
+  `--snapshot-keep`): a seeded keep-fraction per chunk, **per run dir** (e.g.
+  `[1/6]*5 + [1/2]` — keep 1/6 of each old-57k game's snapshots, 1/2 of each
+  new-60k game's). Cuts rows *and* within-game autocorrelation (consecutive
+  snapshots are near-duplicate with the same value target; the `snap6th`/`snap_half`
+  finding). Value + fixed-head rows are thinned; the small pointer heads are kept
+  whole. The mask is seeded by `(chunk, n)` so every key of a (chunk, task) is
+  thinned identically — rows stay aligned (verified).
+- **int8 feature storage** (`--store-dtype int8`): every encoder feature is an
+  integer (verified; only ~0.25% of states have `pasture_cap_0 > 127`, capped —
+  harmless), so int8 halves the feature tensors losslessly. Batches upcast to f32.
+- **All CPU cores**: do NOT set `OMP_NUM_THREADS=1` for a *single* training process
+  (that's for parallel self-play workers) — it throttles the matmuls to one core.
+- Net: ~6.8 M train rows, ~3.5 GB resident, **~80 s/epoch** (≈13× the thrash).
+
+> **Two load-bearing warm-start bugs fixed here — they had silently mis-calibrated
+> *every* warm-started joint model.** Read before touching `init_from`:
+> 1. **`target_std` transplant.** The shape-tolerant warm-start copied the source
+>    model's *normalization buffers* (`input_mean/std`, `target_std`, pointer cand
+>    norms) over the new data's. With a different data distribution that means the
+>    value head trains against the new `target_std` (5.57) while `predict_margin`
+>    and val-MAE use the source's (7.73) — a **1.39× scale error**. `val_mae_pts`
+>    (`× target_std`) inflates; `val_mse` (scale-free) does *not* — which is exactly
+>    why a fix can move one and not the other. **Fix:** transplant weights only;
+>    keep the new data's norm + `value_scale = float(model.target_std)`.
+> 2. **`value_scale`-measurement `NameError`** (`x.shape[0]` → `diff.shape[0]`): the
+>    post-hoc measurement crashed on any run that *finished*, so `value_scale` froze
+>    at the stale warm-start value — the root of the registry's "stale value_scale"
+>    complaints.
+> **And `value_scale` is distribution-dependent** — the same model measured 3.02 on
+> its low-variance thin val but 6.25 on a common game-state set. MCTS divides each
+> leaf value by `value_scale` so one `c_uct` is comparable across models, so **fair
+> matches require measuring both seats' `value_scale` on the SAME state set** (the
+> stored manifest values aren't comparable); patch the export manifests before a
+> match. See `scripts/play_mcts_match.py --leaf-value-scale`.
 
 ---
 

@@ -62,8 +62,12 @@ struct MatchGameResult {
   int winner;  // 0 = P0 (nn_p0), 1 = P1 (nn_p1), -1 = true draw
 };
 
+// Per-seat search params: P0 searches with (sims_p0, c_uct_p0), P1 with
+// (sims_p1, c_uct_p1). Pass equal values for both seats for a symmetric match.
 MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_p1,
-                                std::uint64_t seed, int sims, double c_uct,
+                                std::uint64_t seed,
+                                int sims_p0, double c_uct_p0,
+                                int sims_p1, double c_uct_p1,
                                 double temperature);
 #endif
 

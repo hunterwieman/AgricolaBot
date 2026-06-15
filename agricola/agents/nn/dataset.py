@@ -42,7 +42,17 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION, encode_state
+from agricola.agents.nn.encoder import (
+    ENCODED_DIM,
+    ENCODED_DIM_CANDIDATE,
+    ENCODING_VERSION,
+    encode_state,
+)
+
+# Feature-count guard for the dataset classes: accept the canonical v2 width or a
+# candidate width (the joint experiment loop), so the assert still catches real
+# off-by-N bugs without hardcoding 170.
+_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE})
 from agricola.agents.nn.schema import GameRecord, load_game_records
 
 
@@ -73,6 +83,7 @@ class NormStats:
     target_std: float
     encoding_version: int
     target_mode: str = "margin"   # "margin" | "outcome" | "winprob" (Experiment P2)
+    encoding_tag: str = ""        # "" = canonical v2; else a candidate EncoderSpec.tag
 
     def to_dict(self) -> dict:
         return {
@@ -81,6 +92,7 @@ class NormStats:
             "target_std": float(self.target_std),
             "encoding_version": int(self.encoding_version),
             "target_mode": str(self.target_mode),
+            "encoding_tag": str(self.encoding_tag),
         }
 
     @classmethod
@@ -91,6 +103,7 @@ class NormStats:
             target_std=float(d["target_std"]),
             encoding_version=int(d["encoding_version"]),
             target_mode=str(d.get("target_mode", "margin")),
+            encoding_tag=str(d.get("encoding_tag", "")),
         )
 
     def save(self, path: str | Path) -> None:
@@ -271,8 +284,8 @@ class AgricolaValueDataset(Dataset):
     """
 
     def __init__(self, X: np.ndarray, y_normalized: np.ndarray):
-        assert X.dtype in (np.float32, np.float16), (
-            f"X dtype is {X.dtype}, expected float32 or float16"
+        assert X.dtype in (np.float32, np.float16, np.int8), (
+            f"X dtype is {X.dtype}, expected float32, float16, or int8"
         )
         assert y_normalized.dtype == np.float32, (
             f"y dtype is {y_normalized.dtype}, expected float32"
@@ -280,17 +293,18 @@ class AgricolaValueDataset(Dataset):
         assert X.shape[0] == y_normalized.shape[0], (
             f"X has {X.shape[0]} rows but y has {y_normalized.shape[0]}"
         )
-        assert X.shape[1] == ENCODED_DIM, (
-            f"X has {X.shape[1]} feature columns, expected {ENCODED_DIM}"
+        assert X.shape[1] in _VALID_DIMS, (
+            f"X has {X.shape[1]} feature columns, expected one of {sorted(_VALID_DIMS)}"
         )
         # Convert to torch tensors once at construction. `from_numpy`
-        # shares the underlying buffer (zero-copy); cheap. X may be float16
-        # (the chunked builder stores it half-precision to fit large
-        # datasets in RAM); __getitem__ upcasts to float32 per item so the
-        # model's f32 normalization buffers see f32 input.
+        # shares the underlying buffer (zero-copy); cheap. X may be stored
+        # half-precision (float16) or int8 (every encoder feature is an
+        # integer, so int8 halves RAM again to fit very large datasets);
+        # __getitem__ / the fast loader upcast to float32 so the model's f32
+        # normalization buffers see f32 input.
         self._X = torch.from_numpy(X)
         self._y = torch.from_numpy(y_normalized)
-        self._x_is_half = X.dtype == np.float16
+        self._x_is_half = X.dtype != np.float32  # any compressed dtype → upcast
 
     def __len__(self) -> int:
         return self._y.shape[0]

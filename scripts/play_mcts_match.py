@@ -234,7 +234,7 @@ def _opponent_factory(
 # CLI
 # ---------------------------------------------------------------------------
 
-OPPONENT_TYPES = ("hubris_v3", "random", "mcts", "nn")
+OPPONENT_TYPES = ("hubris_v3", "random", "mcts", "nn", "t2")
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +451,16 @@ def _build_agent(
         return HubrisHeuristicV3(
             seed=s, temperature=0.0, lookahead="turn",
             config=spec.config_v3, legal_actions_fn=strict_fn,
+        )
+    if name == "t2":
+        # The ensemble's lone V1-arch member (HubrisHeuristicV1 + CONFIG_V1_T2).
+        # Agent uses the V1 config; the strict legality wrapper stays on the V3
+        # config (it's an action-pruning prior, arch-independent) for parity
+        # with the other ensemble opponents.
+        from agricola.agents import CONFIG_V1_T2, HubrisHeuristicV1
+        return HubrisHeuristicV1(
+            seed=s, temperature=0.0, lookahead="turn",
+            config=CONFIG_V1_T2, legal_actions_fn=strict_fn,
         )
     if name == "random":
         return RandomAgent(seed=s, legal_actions_fn=strict_fn)

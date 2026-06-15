@@ -32,7 +32,14 @@ import torch
 from torch.utils.data import Dataset
 
 from agricola.agents.nn.dataset import _iter_worker_pickles, _seed_split
-from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION, encode_state
+from agricola.agents.nn.encoder import (
+    ENCODED_DIM,
+    ENCODED_DIM_CANDIDATE,
+    ENCODING_VERSION,
+    encode_state,
+)
+
+_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE})
 from agricola.agents.nn.policy_heads import PLACEMENT_HEAD, DecisionHead
 from agricola.agents.nn.schema import GameRecord, load_game_records
 from agricola.agents.restricted import restricted_legal_actions
@@ -101,15 +108,15 @@ class AgricolaPolicyDataset(Dataset):
     yields `(x, pi, mask, weight)` — the loss is cross-entropy against `pi`."""
 
     def __init__(self, X, target, mask, weight, won, pi=None):
-        assert X.dtype in (np.float16, np.float32), X.dtype
-        assert X.shape[1] == ENCODED_DIM, X.shape
+        assert X.dtype in (np.float16, np.float32, np.int8), X.dtype
+        assert X.shape[1] in _VALID_DIMS, X.shape
         assert mask.shape[0] == X.shape[0], (mask.shape, X.shape)
         self._X = torch.from_numpy(X)
         self._target = torch.from_numpy(target.astype(np.int64))
         self._mask = torch.from_numpy(mask)
         self._weight = torch.from_numpy(weight.astype(np.float32))
         self._won = torch.from_numpy(won.astype(np.float32))
-        self._x_is_half = X.dtype == np.float16
+        self._x_is_half = X.dtype != np.float32  # compressed (float16/int8) → upcast
         self.num_classes = int(mask.shape[1])
         if pi is None:                       # legacy: one-hot on the played class
             pi = np.zeros((X.shape[0], self.num_classes), dtype=np.float32)

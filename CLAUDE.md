@@ -604,6 +604,20 @@ embedding memo shares it between value and policy, so `mcts.py` is unchanged). T
 ported to C++ (§2.4) for fast self-play generation. Not yet promoted to `nn_models/best` (the joint
 model needs consumer wiring). Full design + eval: **`SHARED_TRUNK.md`**.
 
+**The current strongest model — `joint_taper128_thin` (117k snapshot-thinned; 2026-06-15).** Scaling the
+corpus to 117k games (the 57k + a fresh 60k self-play run generated *by* the 57k model) and retraining
+the joint v2 model produced the strongest agent to date. It **beats `joint_taper128_57k` 84-86% at
+800-sim PUCT** AND **dominates the 8-config heuristic ensemble (~100%, ~2.4× their points)** — the first
+joint model to clear the *objective* yardstick, so its strength is real, not self-play exploitation. The
+levers that made 117k tractable on the 8 GB M1 (full 117k thrashed at ~1100 s/epoch): **per-game
+snapshot-thinning** (`--snapshot-keep`, a per-run-dir keep-fraction — cuts rows + within-game
+autocorrelation), **int8 feature storage** (`--store-dtype int8`, lossless: every feature is an integer),
+and **all CPU cores** (don't set `OMP_NUM_THREADS=1` for a *single* trainer) → **~80 s/epoch**. This run
+also fixed **two load-bearing warm-start bugs** (`target_std`/norm-buffer transplant + a `value_scale`-
+measurement `NameError`) that had mis-calibrated every warm-started joint model, and surfaced that
+**`value_scale` is distribution-dependent** (measure both seats on a common state set for fair matches).
+Full detail in **`SHARED_TRUNK.md` §4.1** and `nn_models/REGISTRY.md`.
+
 > **Before refactoring the joint dataset builder (`shared_dataset.py`), read
 > `SHARED_TRUNK.md` §3 — "the two memory lessons" — in full.** That builder's `build_shared_datasets`
 > → `_finalize_payloads` is **memory-load-bearing on the 8 GB M1**: it streams chunk *paths* from disk

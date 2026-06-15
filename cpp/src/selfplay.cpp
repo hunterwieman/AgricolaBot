@@ -241,20 +241,23 @@ std::string mcts_selfplay_trace(std::uint64_t seed, int sims, double c_uct,
 }
 
 MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_p1,
-                                std::uint64_t seed, int sims, double c_uct,
+                                std::uint64_t seed,
+                                int sims_p0, double c_uct_p0,
+                                int sims_p1, double c_uct_p1,
                                 double temperature) {
   SetupResult su = setup(seed);
   GameState state = su.initial;
   const std::vector<std::string>& order = su.round_card_order;
 
-  // One search/agent per seat, each over its own value net. P0 reuses the
-  // self-play mixing constants (so P0-vs-P0 would match self-play); P1 uses a
-  // distinct pair so the two seats never share an RNG stream.
-  MCTSSearch search0(&nn_p0, c_uct, seed ^ 0x9E3779B97F4A7C15ULL, /*fpu=*/0.0);
-  MCTSAgent agent0(&search0, sims, c_uct, /*fpu=*/0.0, temperature,
+  // One search/agent per seat, each over its own value net AND its own
+  // (sims, c_uct) search params. P0 reuses the self-play mixing constants (so a
+  // symmetric P0-vs-P0 matches self-play); P1 uses a distinct pair so the two
+  // seats never share an RNG stream.
+  MCTSSearch search0(&nn_p0, c_uct_p0, seed ^ 0x9E3779B97F4A7C15ULL, /*fpu=*/0.0);
+  MCTSAgent agent0(&search0, sims_p0, c_uct_p0, /*fpu=*/0.0, temperature,
                    seed ^ 0xD1B54A32D192ED03ULL, /*cap_total_sims=*/true);
-  MCTSSearch search1(&nn_p1, c_uct, seed ^ 0xBF58476D1CE4E5B9ULL, /*fpu=*/0.0);
-  MCTSAgent agent1(&search1, sims, c_uct, /*fpu=*/0.0, temperature,
+  MCTSSearch search1(&nn_p1, c_uct_p1, seed ^ 0xBF58476D1CE4E5B9ULL, /*fpu=*/0.0);
+  MCTSAgent agent1(&search1, sims_p1, c_uct_p1, /*fpu=*/0.0, temperature,
                    seed ^ 0x94D049BB133111EBULL, /*cap_total_sims=*/true);
 
   while (state.phase != Phase::BEFORE_SCORING) {

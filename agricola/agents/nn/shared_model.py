@@ -89,7 +89,11 @@ class SharedTrunkModel(nn.Module):
         embed_norm: bool = True,
     ):
         super().__init__()
-        if norm_stats.encoding_version != ENCODING_VERSION:
+        # Canonical (v2) stats are guarded by the int ENCODING_VERSION; a
+        # candidate schema (encoding_tag set) is identified by its tag instead —
+        # the int stays 2 but the feature set differs, and input_dim + the tag
+        # are the guard. The dim consistency is enforced by input_mean.shape below.
+        if not norm_stats.encoding_tag and norm_stats.encoding_version != ENCODING_VERSION:
             raise EncodingVersionMismatch(
                 f"NormStats has encoding_version={norm_stats.encoding_version}, "
                 f"current ENCODING_VERSION={ENCODING_VERSION}. Regenerate the dataset."
@@ -108,6 +112,7 @@ class SharedTrunkModel(nn.Module):
         self.dropout = float(dropout)
         self.embed_norm_on = bool(embed_norm)
         self.encoding_version = int(norm_stats.encoding_version)
+        self.encoding_tag = str(norm_stats.encoding_tag)
         self.value_scale: float = 1.0
 
         E = self.embedding_dim
@@ -242,6 +247,7 @@ class SharedTrunkModel(nn.Module):
             "net_type": "SharedTrunkModel",
             "net_config": self.config_dict(),
             "encoding_version": int(self.encoding_version),
+            "encoding_tag": str(self.encoding_tag),
             "value_scale": float(self.value_scale),
             "extras": dict(extras) if extras else {},
         }
@@ -253,7 +259,8 @@ class SharedTrunkModel(nn.Module):
         path = Path(path)
         with path.with_suffix(".meta.json").open("r") as f:
             meta = json.load(f)
-        if meta["encoding_version"] != ENCODING_VERSION:
+        enc_tag = str(meta.get("encoding_tag", ""))
+        if not enc_tag and meta["encoding_version"] != ENCODING_VERSION:
             raise EncodingVersionMismatch(
                 f"Checkpoint {path} has encoding_version={meta['encoding_version']}, "
                 f"current ENCODING_VERSION={ENCODING_VERSION}."
@@ -264,6 +271,7 @@ class SharedTrunkModel(nn.Module):
             input_std=np.ones(cfg["input_dim"], dtype=np.float32),
             target_std=1.0,
             encoding_version=meta["encoding_version"],
+            encoding_tag=enc_tag,
         )
         model = cls(norm_stats=placeholder, **cfg)
         state = torch.load(path.with_suffix(".pt"), weights_only=True)

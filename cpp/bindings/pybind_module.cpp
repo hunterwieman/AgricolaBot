@@ -162,6 +162,18 @@ PYBIND11_MODULE(agricola_cpp, m) {
       "170-feature NN encoding of a state from player_idx's perspective "
       "(== Python encode_state(state, player_idx)).");
 
+  m.def(
+      "encode_candidate",
+      [](const std::string& dump, int player_idx) {
+        agricola::GameState s = agricola::game_state_from_string(dump);
+        std::array<float, agricola::kEncodedDimCandidate> e =
+            agricola::encode_candidate(s, player_idx);
+        return std::vector<float>(e.begin(), e.end());
+      },
+      py::arg("dump"), py::arg("player_idx"),
+      "178-feature candidate NN encoding "
+      "(== Python encode_state_candidate(state, player_idx)).");
+
 #ifdef AGRICOLA_WITH_NN
   // Cache one NNInference per model_dir — loading .ts every call is fine for the
   // gate, but caching keeps repeated calls cheap.

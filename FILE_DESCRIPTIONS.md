@@ -731,6 +731,15 @@ One-pass, per-pickle-chunk-cached dataset builder for the joint model, which nee
 
 ---
 
+### `agricola/agents/nn/shared_stream.py`
+
+Memory-bounded **streaming** dataloader for the joint trainer — the alternative to `build_shared_datasets` when the corpus is too big to materialize in RAM (the in-RAM build hit ~8.5 GB at 117k games → kernel_task memory-compression thrash on the 8 GB M1). Trains **directly off the on-disk `shared_v2_chunks/` npzs**, so the training process RAM is bounded to ~2-3 GB *regardless of corpus size*. The win is NOT holding the full dataset — not a smaller dtype. Imports torch. Reached via `train_shared(..., stream=True)` / `scripts/nn/train_shared.py --stream`. See **`SHARED_TRUNK.md`** §3.
+
+- **`build_shared_streams(run_dirs, *, batch_size, buffer_chunks=8, ...)`** — ensures the chunk caches exist (via `shared_dataset._load_or_encode_run_dir`), fits the shared input norm + `target_std` on the **value-train** rows by a streaming two-pass float64-block scan (byte-identical to `_finalize_payloads`'s algorithm — never materializes the train value tensor), then returns a `SharedStreams` bundle: a `_TaskStream` for value + each fixed head (train), **materialized** pointer-train + all val/test datasets (the small 10%/10% splits the eval loops index directly), and per-task sizes.
+- **`_TaskStream`** — an infinite, windowed-shuffle stream of TRAIN batches for one dense task, read lazily off the chunks. Reads ONLY its task's keys from each chunk, filters to the chunk's train rows (`_seed_split` on the chunk seed array), holds a ~`buffer_chunks`-chunk shuffle buffer, and `.next()` pops a batch in the **exact tensor layout `_CyclicTensor.next()` produces** (value `(X,y/std)` / fixed `(X,π,mask,ones)`). The chunk order is reshuffled each pass and cycled infinitely (the trainer's `steps_per_epoch` defines the epoch length, so the stream never runs dry). The training-loop body in `shared_training.py` is unchanged — the streams just supply `.next()` and the materialized `val`/`test` feed the existing eval functions.
+
+---
+
 ### `agricola/agents/nn/shared_training.py`
 
 The joint trainer. Imports torch + matplotlib. Not re-exported from `__init__.py`. CLI wrapper at `scripts/nn/train_shared.py`. See **`SHARED_TRUNK.md`** §4.

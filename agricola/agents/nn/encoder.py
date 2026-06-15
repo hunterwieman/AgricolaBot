@@ -24,7 +24,9 @@ features is forced to zero.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
+from typing import Callable
 
 import numpy as np
 
@@ -60,6 +62,7 @@ from agricola.pending import (
     PendingSow,
     PendingStoneOven,
 )
+from agricola.scoring import score
 from agricola.state import GameState, PlayerState, get_space
 
 # ---------------------------------------------------------------------------
@@ -806,3 +809,202 @@ def encode_for_inference(state: GameState, player_idx: int) -> np.ndarray:
 def clear_encoding_cache() -> None:
     """Drop the `_encode_p0` memo (test isolation / between-run hygiene)."""
     _encode_p0.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# CANDIDATE encoder (provisional feature-engineering experiment)
+# ---------------------------------------------------------------------------
+#
+# An additive, opt-in variant for the cheap-iteration recipe: it re-uses the
+# SAME raw self-play data (DecisionSnapshot stores the GameState, not an
+# encoding), so a candidate is trained by re-encoding, with no data regen and no
+# touch to the v2 path that the C++ engine mirrors. The canonical
+# `ENCODING_VERSION` stays 2 (that int is the *promotion* event the C++ engine /
+# nn_models are pinned to); a candidate carries its own string tag that
+# checkpoints record. Promotion (a winner) is when we bump the int, write a fast
+# index-writer, and re-port C++.
+#
+# Feature delta vs v2 (per-player block 54 -> 58; total 170 -> 178):
+#   REMOVE  begging_markers (handled post-hoc on the MARGIN: predicted_margin +=
+#           -3*(own_begging - opp_begging); the value target is begging-stripped
+#           in the dataset). Margin-model only.
+#   ADD     running_score_excl_begging  -- score(state, idx).total minus its
+#           begging component (the dominant near-linear value signal).
+#   ADD     turns_until_next_feeding    -- per-player worker-placements left
+#           before the next feeding: family_left + people_total*(next_harvest-rn).
+#   ADD     can_renovate_to_clay        -- WOOD house & clay>=rooms & reed>=1.
+#   ADD     can_renovate_to_stone       -- WOOD|CLAY house & stone>=rooms & reed>=1
+#           (a resource-readiness/intent bit; fires from wood if stone stockpiled).
+#   ADD     can_grow_family             -- n_rooms > people_total (spare room).
+#
+# Deliberately the slower reference-`_assemble` path (no fast writer) — it is
+# Python-eval-only; correctness over speed until a candidate is promoted.
+
+ENCODED_DIM_CANDIDATE: int = 178
+"""Length of `encode_state_candidate`'s vector (v2 ENCODED_DIM 170 + 8)."""
+
+CANDIDATE_ENCODING_TAG: str = "cand_feat178_v1"
+"""Opaque schema id for this candidate. Stamped into a candidate checkpoint's
+metadata and hard-checked at load — the candidate analog of `ENCODING_VERSION`,
+so v2 and candidate checkpoints never silently cross-load. Bump the suffix when
+the candidate feature set changes."""
+
+# Candidate terminal-zero set: v2's set (begging was never in it) plus the new
+# next-decision features. running_score_excl_begging stays LIVE at terminal (it
+# is the meaningful end-state quantity).
+_TERMINAL_ZERO_NAMES_CANDIDATE: frozenset = _TERMINAL_ZERO_NAMES | frozenset({
+    "own_turns_until_next_feeding", "opp_turns_until_next_feeding",
+    "own_can_renovate_to_clay", "opp_can_renovate_to_clay",
+    "own_can_renovate_to_stone", "opp_can_renovate_to_stone",
+    "own_can_grow_family", "opp_can_grow_family",
+})
+
+
+def _player_features_candidate(
+    state: GameState, p: PlayerState, player_idx: int,
+) -> list[tuple[str, float]]:
+    """Candidate 58-feature per-player block: v2's block minus begging, plus the
+    5 new features. Built atop `_player_features` (the v2 reference) so the
+    shared features can never drift."""
+    feats = [(n, v) for n, v in _player_features(state, p, player_idx)
+             if n != "begging_markers"]
+
+    # running_score_excl_begging: total minus the (<=0) begging penalty term.
+    total, bd = score(state, player_idx)
+    running_excl_begging = float(total - bd.begging_markers)
+
+    # turns_until_next_feeding: per-player placements left before next feeding.
+    rn = state.round_number
+    upcoming = [h for h in HARVEST_ROUNDS if h >= rn]
+    family_left = p.people_home if state.phase is Phase.WORK else 0
+    turns = (float(family_left + p.people_total * (min(upcoming) - rn))
+             if upcoming else 0.0)
+
+    # capability bits (reuse the block's room count semantics).
+    n_rooms = sum(1 for row in p.farmyard.grid for cell in row
+                  if cell.cell_type is CellType.ROOM)
+    r = p.resources
+    hm = p.house_material
+    to_clay = 1.0 if (hm is HouseMaterial.WOOD
+                      and r.clay >= n_rooms and r.reed >= 1) else 0.0
+    to_stone = 1.0 if (hm in (HouseMaterial.WOOD, HouseMaterial.CLAY)
+                       and r.stone >= n_rooms and r.reed >= 1) else 0.0
+    can_grow = 1.0 if n_rooms > p.people_total else 0.0
+
+    feats += [
+        ("running_score_excl_begging", running_excl_begging),
+        ("turns_until_next_feeding", turns),
+        ("can_renovate_to_clay", to_clay),
+        ("can_renovate_to_stone", to_stone),
+        ("can_grow_family", can_grow),
+    ]
+    return feats
+
+
+def _assemble_candidate(state: GameState, player_idx: int) -> list[tuple[str, float]]:
+    """Candidate analog of `_assemble`: own(58) + opp(58) + shared(54) + mid(8)."""
+    own = state.players[player_idx]
+    opp = state.players[1 - player_idx]
+
+    pairs: list[tuple[str, float]] = []
+    pairs += [(f"own_{n}", v) for n, v in _player_features_candidate(state, own, player_idx)]
+    pairs += [(f"opp_{n}", v) for n, v in _player_features_candidate(state, opp, 1 - player_idx)]
+    pairs += _shared_features(state, player_idx)
+    pairs += _midaction_features(state)
+
+    if state.phase is Phase.BEFORE_SCORING:
+        pairs = [
+            (n, 0.0) if (n in _TERMINAL_ZERO_NAMES_CANDIDATE
+                         or n.startswith("subaction_avail_")) else (n, v)
+            for n, v in pairs
+        ]
+    return pairs
+
+
+def encode_state_candidate(state: GameState, player_idx: int) -> np.ndarray:
+    """Candidate encoder — `float32` vector of length `ENCODED_DIM_CANDIDATE`.
+    Reference-`_assemble` path (no fast writer); Python-eval-only until promoted."""
+    pairs = _assemble_candidate(state, player_idx)
+    arr = np.fromiter((v for _, v in pairs), dtype=np.float32,
+                      count=ENCODED_DIM_CANDIDATE)
+    assert arr.shape[0] == ENCODED_DIM_CANDIDATE
+    return arr
+
+
+def feature_names_candidate(state: GameState | None = None) -> list[str]:
+    """Ordered candidate feature names (length `ENCODED_DIM_CANDIDATE`)."""
+    if state is None:
+        from agricola.setup import setup
+        state = setup(0)
+    return [name for name, _ in _assemble_candidate(state, 0)]
+
+
+@lru_cache(maxsize=1 << 14)
+def _encode_candidate_cached(state: GameState, player_idx: int) -> np.ndarray:
+    """Per-(state, perspective) memo for the candidate inference path. Returned
+    arrays are READ-ONLY (fed straight to `torch.from_numpy`); never mutate."""
+    return encode_state_candidate(state, player_idx)
+
+
+def encode_for_inference_candidate(state: GameState, player_idx: int) -> np.ndarray:
+    """Cached candidate encoder for the MCTS/NNAgent inference path (no swap
+    optimization — simplicity over speed for the experiment loop)."""
+    return _encode_candidate_cached(state, player_idx)
+
+
+def clear_candidate_encoding_cache() -> None:
+    """Drop the candidate inference memo (test isolation / between-run hygiene)."""
+    _encode_candidate_cached.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# EncoderSpec — selectable encoder for the joint-model experiment loop
+# ---------------------------------------------------------------------------
+#
+# Bundles everything that differs between the canonical v2 encoder and a
+# candidate so the joint dataset / model / inference take ONE object instead of
+# threading (encode_fn, dim, tag, strip_begging) separately. Defaults to v2, so
+# existing joint runs are byte-unchanged; the candidate is opt-in.
+
+
+@dataclass(frozen=True)
+class EncoderSpec:
+    """A selectable encoder schema for the joint path.
+
+    - `tag` — opaque schema id recorded on a checkpoint and hard-checked at load
+      (so v2 and candidate checkpoints never silently cross-load).
+    - `dim` — feature-vector length (sets the trunk's `input_dim`).
+    - `encode` / `encode_for_inference` — training-time / inference-time encoders.
+    - `strip_begging` — when True, the value target has the *current* begging
+      margin subtracted out (the candidate dropped begging from its features), to
+      be added back deterministically at inference. Margin-model only.
+    """
+
+    tag: str
+    dim: int
+    encode: Callable[[GameState, int], np.ndarray]
+    encode_for_inference: Callable[[GameState, int], np.ndarray]
+    strip_begging: bool
+
+
+ENCODER_V2 = EncoderSpec(
+    tag=f"v{ENCODING_VERSION}", dim=ENCODED_DIM,
+    encode=encode_state, encode_for_inference=encode_for_inference,
+    strip_begging=False,
+)
+ENCODER_CANDIDATE = EncoderSpec(
+    tag=CANDIDATE_ENCODING_TAG, dim=ENCODED_DIM_CANDIDATE,
+    encode=encode_state_candidate, encode_for_inference=encode_for_inference_candidate,
+    strip_begging=True,
+)
+ENCODERS: dict[str, EncoderSpec] = {"v2": ENCODER_V2, "candidate": ENCODER_CANDIDATE}
+
+
+def begging_margin(state: GameState, perspective: int) -> float:
+    """The P-frame contribution of *current* begging markers to the score margin:
+    `-3 * (begging[perspective] - begging[1-perspective])`. This is the exact
+    quantity stripped from the value target (when `strip_begging`) and added back
+    at inference, so the net never has to learn the −3 begging formula."""
+    own = state.players[perspective].begging_markers
+    opp = state.players[1 - perspective].begging_markers
+    return -3.0 * (own - opp)

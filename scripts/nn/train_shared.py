@@ -37,6 +37,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
+from agricola.agents.nn.encoder import ENCODERS  # noqa: E402
 from agricola.agents.nn.shared_training import train_shared  # noqa: E402
 from agricola.agents.nn.training import make_run_id  # noqa: E402
 
@@ -78,12 +79,33 @@ def main() -> int:
                    help="Use the per-row DataLoader instead of the batched-index "
                         "fast path (slower; for debugging / parity checks).")
     # data
+    p.add_argument("--encoder", type=str, default="v2", choices=sorted(ENCODERS),
+                   help="Feature schema: 'v2' (canonical 170) or 'candidate' "
+                        "(178; running score + turns-to-feeding + capability bits, "
+                        "begging stripped to a post-hoc margin term).")
     p.add_argument("--hard-targets", dest="soft_targets", action="store_false",
                    help="One-hot BC instead of cross-entropy against π.")
     p.add_argument("--no-cache", dest="use_cache", action="store_false")
+    p.add_argument("--encode-workers", type=int, default=1,
+                   help="Process-pool size for the one-time per-pickle encode "
+                        "(parallel cache build; 1 = serial).")
     p.add_argument("--split-seed", type=int, default=0)
     p.add_argument("--store-dtype", type=str, default="float16",
-                   choices=["float16", "float32"])
+                   choices=["float16", "float32", "int8"],
+                   help="int8 halves feature-tensor RAM (every encoder feature is "
+                        "an integer; pasture_cap>127 capped, harmless) — fits 117k+")
+    p.add_argument("--stream", action="store_true",
+                   help="Train directly off the on-disk chunk npzs (bounded RAM "
+                        "~2-3 GB regardless of corpus size — the 117k OOM fix). "
+                        "Requires the chunk cache; ignores --store-dtype.")
+    p.add_argument("--buffer-chunks", type=int, default=8,
+                   help="With --stream: per-task shuffle-buffer size in chunks "
+                        "(bigger = wider shuffle window, more RAM).")
+    p.add_argument("--snapshot-keep", type=str, default=None,
+                   help="Seeded per-game snapshot keep-fraction — cuts RAM + "
+                        "within-game autocorrelation. One float (uniform) or a "
+                        "comma-list aligned with --run-dir, e.g. "
+                        "'0.1667,0.1667,0.1667,0.1667,0.1667,0.5'.")
     # misc
     p.add_argument("--init-from", type=Path, default=None,
                    help="Value checkpoint to warm-start the trunk from "
@@ -95,6 +117,10 @@ def main() -> int:
     args = p.parse_args()
 
     out_dir = args.out_dir or (ROOT / "nn_models" / make_run_id())
+    snapshot_keep = None
+    if args.snapshot_keep is not None:
+        parts = [float(x) for x in args.snapshot_keep.split(",") if x != ""]
+        snapshot_keep = parts[0] if len(parts) == 1 else parts
     train_shared(
         run_dirs=args.run_dir, out_dir=out_dir,
         trunk_hidden_dims=args.trunk_hidden_dims, embedding_dim=args.embedding_dim,
@@ -105,9 +131,11 @@ def main() -> int:
         lr=args.lr, weight_decay=args.weight_decay, batch_size=args.batch_size,
         max_epochs=args.max_epochs, early_stop_patience=args.early_stop_patience,
         steps_per_epoch=args.steps_per_epoch, fast_loader=args.fast_loader,
-        soft_targets=args.soft_targets,
+        encoder=ENCODERS[args.encoder], soft_targets=args.soft_targets,
         split_seed=args.split_seed, store_dtype=args.store_dtype,
-        use_cache=args.use_cache, init_from=args.init_from,
+        use_cache=args.use_cache, encode_workers=args.encode_workers,
+        stream=args.stream, buffer_chunks=args.buffer_chunks,
+        snapshot_keep=snapshot_keep, init_from=args.init_from,
         save_all_epochs=args.save_all_epochs, torch_seed=args.torch_seed,
         device=args.device,
     )

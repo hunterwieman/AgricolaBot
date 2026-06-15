@@ -13,7 +13,7 @@ import pytest
 
 from agricola.agents.base import RandomAgent
 from agricola.agents.nn import GameRecord, play_recording_game
-from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
+from agricola.agents.nn.encoder import ENCODED_DIM, ENCODER_V2, ENCODING_VERSION
 from agricola.agents.nn.policy_heads import HEADS, POINTER_HEADS
 from agricola.agents.nn.shared_dataset import (
     _cache_complete,
@@ -92,8 +92,8 @@ def test_cache_roundtrip(games, tmp_path):
 
     sd1 = build_shared_datasets(run_dir, use_cache=True, verbose=False)
     # per-pickle chunk cache written on the miss (the OOM-safe format)
-    assert _cache_complete(run_dir)
-    assert list(_chunk_dir(run_dir).glob("chunk_*.npz"))
+    assert _cache_complete(run_dir, ENCODER_V2)
+    assert list(_chunk_dir(run_dir, ENCODER_V2).glob("chunk_*.npz"))
     sd2 = build_shared_datasets(run_dir, use_cache=True, verbose=False)  # hit
     # identical sizes from cache vs fresh encode
     assert sd1.sizes == sd2.sizes

@@ -8,6 +8,7 @@
 #include <array>
 #include <functional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
@@ -15,6 +16,7 @@
 #include "agricola/constants.hpp"
 #include "agricola/helpers.hpp"
 #include "agricola/legality.hpp"
+#include "agricola/scoring.hpp"
 
 namespace agricola {
 
@@ -94,9 +96,8 @@ void frame_categories(const PendingDecision& f, std::array<float, 7>& bits) {
 }
 
 // --- per-player block (54 features) -----------------------------------------
-void write_player_block(std::array<float, kEncodedDim>& out, int base,
-                        const GameState& state, const PlayerState& p,
-                        int player_idx) {
+void write_player_block(float* out, int base, const GameState& state,
+                        const PlayerState& p, int player_idx) {
   const Resources& r = p.resources;
   out[base + 0] = static_cast<float>(r.wood);
   out[base + 1] = static_cast<float>(r.clay);
@@ -238,8 +239,8 @@ void write_player_block(std::array<float, kEncodedDim>& out, int base,
 }
 
 // --- shared / board block (54 features) -------------------------------------
-void write_shared_block(std::array<float, kEncodedDim>& out, int base,
-                        const GameState& state, int player_idx) {
+void write_shared_block(float* out, int base, const GameState& state,
+                        int player_idx) {
   const BoardState& board = state.board;
   const auto& spaces = board.action_spaces;  // canonical-ordered
   int rn = state.round_number;
@@ -286,8 +287,7 @@ void write_shared_block(std::array<float, kEncodedDim>& out, int base,
 }
 
 // --- mid-action block (8 features) ------------------------------------------
-void write_midaction_block(std::array<float, kEncodedDim>& out, int base,
-                           const GameState& state) {
+void write_midaction_block(float* out, int base, const GameState& state) {
   std::array<float, 7> bits{0, 0, 0, 0, 0, 0, 0};
   for (const auto& frame : state.pending_stack) frame_categories(frame, bits);
   for (int i = 0; i < 7; ++i) out[base + i] = bits[i];
@@ -307,6 +307,48 @@ void write_midaction_block(std::array<float, kEncodedDim>& out, int base,
   out[base + 7] = stop_legal ? 1.0f : 0.0f;
 }
 
+// --- candidate per-player block (58 features) -------------------------------
+// = the v2 block with begging (v2 idx 29) dropped + 5 features appended. Built
+// atop write_player_block (so the shared crop/cap/etc. logic never drifts).
+void write_player_block_candidate(float* out, int base, const GameState& state,
+                                  const PlayerState& p, int player_idx) {
+  std::array<float, kEncodedDim> v2{};
+  write_player_block(v2.data(), 0, state, p, player_idx);
+  for (int i = 0; i < 29; ++i) out[base + i] = v2[i];        // 0..28 unchanged
+  for (int i = 30; i < 54; ++i) out[base + (i - 1)] = v2[i];  // drop begging(29)
+
+  // running_score_excl_begging: total minus the (-3*count) begging penalty.
+  out[base + 53] =
+      static_cast<float>(score(state, player_idx) + 3 * p.begging_markers);
+
+  // turns_until_next_feeding: family_left + people_total*(next_harvest - rn).
+  static const std::array<int, 6> kHarvestRounds = {4, 7, 9, 11, 13, 14};
+  int rn = state.round_number, next_h = -1;
+  for (int h : kHarvestRounds)
+    if (h >= rn && (next_h < 0 || h < next_h)) next_h = h;
+  int family_left = state.phase == Phase::WORK ? p.people_home : 0;
+  out[base + 54] = next_h < 0 ? 0.0f
+                              : static_cast<float>(
+                                    family_left + p.people_total * (next_h - rn));
+
+  // capability bits.
+  int n_rooms = 0;
+  for (const auto& row : p.farmyard.grid)
+    for (const auto& cell : row)
+      if (cell.cell_type == CellType::ROOM) ++n_rooms;
+  const Resources& r = p.resources;
+  out[base + 55] = (p.house_material == HouseMaterial::WOOD && r.clay >= n_rooms &&
+                    r.reed >= 1)
+                       ? 1.0f
+                       : 0.0f;  // can_renovate_to_clay
+  out[base + 56] = ((p.house_material == HouseMaterial::WOOD ||
+                     p.house_material == HouseMaterial::CLAY) &&
+                    r.stone >= n_rooms && r.reed >= 1)
+                       ? 1.0f
+                       : 0.0f;  // can_renovate_to_stone
+  out[base + 57] = n_rooms > p.people_total ? 1.0f : 0.0f;  // can_grow_family
+}
+
 }  // namespace
 
 std::optional<int> encoder_decider_of(const GameState& state) {
@@ -316,11 +358,11 @@ std::optional<int> encoder_decider_of(const GameState& state) {
 
 std::array<float, kEncodedDim> encode(const GameState& state, int player_idx) {
   std::array<float, kEncodedDim> out{};
-  write_player_block(out, 0, state, state.players[player_idx], player_idx);
-  write_player_block(out, 54, state, state.players[1 - player_idx],
+  write_player_block(out.data(), 0, state, state.players[player_idx], player_idx);
+  write_player_block(out.data(), 54, state, state.players[1 - player_idx],
                      1 - player_idx);
-  write_shared_block(out, 108, state, player_idx);
-  write_midaction_block(out, 162, state);
+  write_shared_block(out.data(), 108, state, player_idx);
+  write_midaction_block(out.data(), 162, state);
 
   if (state.phase == Phase::BEFORE_SCORING) {
     // Terminal zeroing (§4.5): force the next-decision features to 0 AFTER the
@@ -337,6 +379,66 @@ std::array<float, kEncodedDim> encode(const GameState& state, int player_idx) {
     for (int i = 162; i <= 168; ++i) out[i] = 0.0f;  // subaction_avail_*
   }
   return out;
+}
+
+std::array<float, kEncodedDimCandidate> encode_candidate(const GameState& state,
+                                                         int player_idx) {
+  std::array<float, kEncodedDimCandidate> out{};
+  write_player_block_candidate(out.data(), 0, state,
+                               state.players[player_idx], player_idx);
+  write_player_block_candidate(out.data(), 58, state,
+                               state.players[1 - player_idx], 1 - player_idx);
+  write_shared_block(out.data(), 116, state, player_idx);
+  write_midaction_block(out.data(), 170, state);
+
+  if (state.phase == Phase::BEFORE_SCORING) {
+    // Candidate terminal zeroing (_TERMINAL_ZERO_NAMES_CANDIDATE). own/opp:
+    // family_left (27/85), food_owed (28/86), has_fed (51/109),
+    // future_food (52/110), turns_until_next_feeding (54/112),
+    // can_renovate_to_clay (55/113), can_renovate_to_stone (56/114),
+    // can_grow_family (57/115); current_player_is_own (117), in_harvest (118),
+    // rounds_until_next_harvest (119); stop_is_legal (177); subaction (170-176).
+    // running_score_excl_begging (53/111) stays LIVE.
+    static const std::array<int, 19> kZero = {
+        27, 85, 28, 86, 51, 109, 52, 110, 54, 112,
+        55, 113, 56, 114, 57, 115, 117, 118, 119};
+    for (int i : kZero) out[i] = 0.0f;
+    out[177] = 0.0f;                                  // stop_is_legal
+    for (int i = 170; i <= 176; ++i) out[i] = 0.0f;   // subaction_avail_*
+  }
+  return out;
+}
+
+double begging_margin(const GameState& state, int perspective) {
+  int own = state.players[perspective].begging_markers;
+  int opp = state.players[1 - perspective].begging_markers;
+  return -3.0 * static_cast<double>(own - opp);
+}
+
+// --- Encoder registry --------------------------------------------------------
+namespace {
+void encode_v2_into(const GameState& s, int p, std::vector<float>& out) {
+  std::array<float, kEncodedDim> a = encode(s, p);
+  out.assign(a.begin(), a.end());
+}
+void encode_candidate_into(const GameState& s, int p, std::vector<float>& out) {
+  std::array<float, kEncodedDimCandidate> a = encode_candidate(s, p);
+  out.assign(a.begin(), a.end());
+}
+
+// THE registry. Add a row to register a future encoder (its encode fn + dim +
+// whether its value target was begging-stripped). Nothing else changes.
+const EncoderSpec kEncoders[] = {
+    {"v2", kEncodedDim, false, &encode_v2_into},
+    {"cand_feat178_v1", kEncodedDimCandidate, true, &encode_candidate_into},
+};
+}  // namespace
+
+const EncoderSpec& encoder_for_tag(const std::string& tag) {
+  const std::string t = tag.empty() ? "v2" : tag;  // pre-registry exports = v2
+  for (const auto& e : kEncoders)
+    if (t == e.tag) return e;
+  throw std::runtime_error("encoder_for_tag: unknown encoder tag '" + t + "'");
 }
 
 }  // namespace agricola

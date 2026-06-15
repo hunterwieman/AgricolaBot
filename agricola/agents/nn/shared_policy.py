@@ -38,7 +38,7 @@ import torch
 
 from agricola.actions import Action, CommitBuildRoom, CommitBuildStable, Stop
 from agricola.agents.base import decider_of
-from agricola.agents.nn.encoder import encode_for_inference
+from agricola.agents.nn.encoder import ENCODER_V2, ENCODERS, begging_margin
 from agricola.agents.nn.model import model_device
 from agricola.agents.nn.policy import (
     _CELL_PRIORITY_SPECS,
@@ -89,10 +89,17 @@ def make_joint_fns(
     model.eval()
     device = model_device(model)
     target_std = float(model.target_std)
+    # Pick the encoder this model was trained with (tag recorded on the
+    # checkpoint). A candidate also stripped begging from the value target, so we
+    # add the current begging margin back here (P0 frame). v2 → no-op.
+    tag = getattr(model, "encoding_tag", "") or ENCODER_V2.tag
+    encoder = next((e for e in ENCODERS.values() if e.tag == tag), ENCODER_V2)
+    strip_begging = encoder.strip_begging
 
     @lru_cache(maxsize=embed_cache_size)
     def _embed(state, persp: int) -> torch.Tensor:
-        x = torch.from_numpy(encode_for_inference(state, persp)).unsqueeze(0).to(device)
+        x = torch.from_numpy(
+            encoder.encode_for_inference(state, persp)).unsqueeze(0).to(device)
         return model.embed(x)                       # (1, E)
 
     @torch.no_grad()
@@ -100,12 +107,15 @@ def make_joint_fns(
         if state.phase == Phase.BEFORE_SCORING:     # terminal: exact, not an NN guess
             own, _ = score(state, 0)
             opp, _ = score(state, 1)
-            return float(own - opp)                 # P0-frame margin
+            return float(own - opp)                 # P0-frame margin (begging incl.)
         d = decider_of(state)
         if d is None:                               # nature node (defensive)
             d = 0
         v = float(model.value_from_embedding(_embed(state, d))[0]) * target_std
-        return v if d == 0 else -v                  # decider-frame → P0 frame
+        v = v if d == 0 else -v                     # decider-frame → P0 frame
+        if strip_begging:                           # add the stripped current begging back
+            v += begging_margin(state, 0)
+        return v
 
     @torch.no_grad()
     def _fixed_prior(head, state, emb):

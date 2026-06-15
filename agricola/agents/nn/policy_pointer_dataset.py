@@ -33,7 +33,14 @@ import torch
 from torch.utils.data import Dataset
 
 from agricola.agents.nn.dataset import _iter_worker_pickles, _seed_split
-from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION, encode_state
+from agricola.agents.nn.encoder import (
+    ENCODED_DIM,
+    ENCODED_DIM_CANDIDATE,
+    ENCODING_VERSION,
+    encode_state,
+)
+
+_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE})
 from agricola.agents.nn.policy_dataset import (
     DEFAULT_VALUE_CKPT,
     _compute_awr_weights,
@@ -100,7 +107,7 @@ class AgricolaPointerDataset(Dataset):
     by `offsets`. `__getitem__` returns one snapshot; batch with `pointer_collate`."""
 
     def __init__(self, state, cand_flat, offsets, chosen_pos, weight, won, pi_flat=None):
-        assert state.shape[1] == ENCODED_DIM, state.shape
+        assert state.shape[1] in _VALID_DIMS, state.shape
         self._state = torch.from_numpy(state.astype(np.float32))
         self._cand = torch.from_numpy(cand_flat.astype(np.float32))
         self._off = np.asarray(offsets, dtype=np.int64)        # (N+1,)

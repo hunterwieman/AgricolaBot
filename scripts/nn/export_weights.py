@@ -216,6 +216,10 @@ def _export_joint(ckpt: Path) -> int:
     manifest: dict = {
         "encoding_version": ENCODING_VERSION,
         "encoded_dim": ENCODED_DIM,
+        # The encoder this model was trained with (forward-compat: the C++/Python
+        # loaders dispatch on this tag via their encoder registries). Empty
+        # encoding_tag = the canonical v2 encoder.
+        "encoder_tag": str(getattr(model, "encoding_tag", "") or "v2"),
         "format": "shared_trunk_v1",
         "embedding_dim": E,
         "layernorm_eps": LAYERNORM_EPS,
@@ -292,6 +296,7 @@ def main() -> int:
     manifest: dict = {
         "encoding_version": ENCODING_VERSION,
         "encoded_dim": ENCODED_DIM,
+        "encoder_tag": "v2",  # composite (legacy) models are always v2
         "format": "raw_f32_v1",
         "layernorm_eps": LAYERNORM_EPS,
         "value": {},

@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -94,6 +95,20 @@ int main(int argc, char** argv) {
   std::string model_dir_p0;
   std::string model_dir_p1;
 
+  // Match-sweep args: per game, each seat independently draws sims (uniform over
+  // --sweep-sims) and c_uct (uniform over [--cuct-lo, --cuct-hi]) from a per-game
+  // RNG seeded by the game seed (reproducible). Reported in each GAME line.
+  bool sweep = false;
+  std::string sweep_sims_arg = "160,320,520,800,1200,1600";
+  double cuct_lo = 0.1;
+  double cuct_hi = 1.0;
+
+  // Fixed per-seat overrides (non-sweep match): a negative sentinel means "use
+  // the shared --sims / --c-uct for that seat". Lets a match pit e.g. 800 sims
+  // (P0) vs 500 sims (P1) with separate trees.
+  int sims_p0 = -1, sims_p1 = -1;
+  double c_uct_p0 = -1.0, c_uct_p1 = -1.0;
+
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--seed" && i + 1 < argc) {
@@ -124,6 +139,22 @@ int main(int argc, char** argv) {
       model_dir_p0 = argv[++i];
     } else if (arg == "--model-dir-p1" && i + 1 < argc) {
       model_dir_p1 = argv[++i];
+    } else if (arg == "--sweep") {
+      sweep = true;
+    } else if (arg == "--sweep-sims" && i + 1 < argc) {
+      sweep_sims_arg = argv[++i];
+    } else if (arg == "--cuct-lo" && i + 1 < argc) {
+      cuct_lo = std::atof(argv[++i]);
+    } else if (arg == "--cuct-hi" && i + 1 < argc) {
+      cuct_hi = std::atof(argv[++i]);
+    } else if (arg == "--sims-p0" && i + 1 < argc) {
+      sims_p0 = std::atoi(argv[++i]);
+    } else if (arg == "--sims-p1" && i + 1 < argc) {
+      sims_p1 = std::atoi(argv[++i]);
+    } else if (arg == "--c-uct-p0" && i + 1 < argc) {
+      c_uct_p0 = std::atof(argv[++i]);
+    } else if (arg == "--c-uct-p1" && i + 1 < argc) {
+      c_uct_p1 = std::atof(argv[++i]);
     } else if (arg == "-h" || arg == "--help") {
       usage(argv[0]);
       return 0;
@@ -160,16 +191,52 @@ int main(int argc, char** argv) {
     } else {
       idxs.push_back(0);  // single game from base_seed
     }
+    // In --sweep, each seat independently draws (sims, c_uct) per game.
+    std::vector<long long> sweep_sims;
+    if (sweep && !parse_game_idxs(sweep_sims_arg, sweep_sims)) {
+      std::cerr << "selfplay: --sweep-sims must be a non-empty comma-separated "
+                   "list of positive integers\n";
+      return 2;
+    }
     // Load both nets ONCE, reuse across every game.
     agricola::NNInference nn0(model_dir_p0);
     agricola::NNInference nn1(model_dir_p1);
     long long p0w = 0, p1w = 0, draws = 0;
     for (long long idx : idxs) {
       std::uint64_t game_seed = base_seed + static_cast<std::uint64_t>(idx);
+      int s0 = sims, s1 = sims;
+      double c0 = c_uct, c1 = c_uct;
+      if (sweep) {
+        // Per-game RNG (reproducible from the game seed, mixed so adjacent
+        // seeds don't give correlated draws). Four independent draws: each
+        // seat's sims and c_uct, with replacement.
+        std::uint64_t z = game_seed + 0x9E3779B97F4A7C15ULL;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        z = z ^ (z >> 31);
+        std::mt19937_64 rng(z);
+        std::uniform_int_distribution<size_t> pick(0, sweep_sims.size() - 1);
+        std::uniform_real_distribution<double> uc(cuct_lo, cuct_hi);
+        s0 = static_cast<int>(sweep_sims[pick(rng)]);
+        c0 = uc(rng);
+        s1 = static_cast<int>(sweep_sims[pick(rng)]);
+        c1 = uc(rng);
+      } else {
+        // Fixed per-seat overrides (negative = use the shared value).
+        if (sims_p0 >= 0) s0 = sims_p0;
+        if (sims_p1 >= 0) s1 = sims_p1;
+        if (c_uct_p0 >= 0) c0 = c_uct_p0;
+        if (c_uct_p1 >= 0) c1 = c_uct_p1;
+      }
       agricola::MatchGameResult r = agricola::mcts_match_game(
-          nn0, nn1, game_seed, sims, c_uct, temperature);
+          nn0, nn1, game_seed, s0, c0, s1, c1, temperature);
       std::cout << "GAME seed=" << r.seed << " p0=" << r.p0_score
-                << " p1=" << r.p1_score << " winner=" << r.winner << "\n";
+                << " p1=" << r.p1_score << " winner=" << r.winner;
+      if (sweep) {
+        std::cout << " sims0=" << s0 << " cuct0=" << c0
+                  << " sims1=" << s1 << " cuct1=" << c1;
+      }
+      std::cout << std::endl;  // flush per game so piped progress is live
       if (r.winner == 0) ++p0w;
       else if (r.winner == 1) ++p1w;
       else ++draws;
