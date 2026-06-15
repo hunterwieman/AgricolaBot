@@ -1076,7 +1076,8 @@ terminates; if the inherited count already meets the cap, zero fresh sims run). 
 *fresh* sims on top of whatever was inherited, so the effective budget varies move to move. Capping removes
 the tree-reuse confound (a peaked PUCT tree inherits more effective sims at re-rooted nodes than a flatter
 UCT tree); it is policy-agnostic (identical for UCT and PUCT) and is also the mode the search-tournament
-driver (`scripts/run_search_tournament.py`) and the web UI's MCTS seat use.
+driver (`archive/scripts/run_search_tournament.py`, since retired — see CLAUDE.md §2.3) and the web UI's
+MCTS seat use.
 
 ### 11.2 The three sharing modes
 

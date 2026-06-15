@@ -49,7 +49,10 @@ void usage(const char* prog) {
       << "       " << prog
       << " --mcts --game-idxs \"i0,i1,...\" --base-seed B\n"
       << "              --model-dir DIR --out-dir DIR2 [--sims S]\n"
-      << "              [--c-uct C] [--temperature T]               # MCTS batch\n";
+      << "              [--c-uct C] [--temperature T]               # MCTS batch\n"
+      << "       " << prog
+      << " --move --model-dir DIR [--sims S] [--c-uct C] [--temperature T]\n"
+      << "              reads GameState JSON from stdin, writes chosen action JSON\n";
 }
 
 // Parse a comma-separated list of non-negative game indices ("0,1,2"). Returns
@@ -89,6 +92,9 @@ int main(int argc, char** argv) {
   std::string game_idxs_arg;
   bool have_game_idxs = false;
   std::uint64_t base_seed = 0;
+
+  // Single-move mode: read GameState JSON from stdin, output chosen action JSON.
+  bool move_mode = false;
 
   // Two-net match-mode args (P0 = model_dir_p0, P1 = model_dir_p1).
   bool match = false;
@@ -133,6 +139,8 @@ int main(int argc, char** argv) {
       temperature = std::atof(argv[++i]);
     } else if (arg == "--model-dir" && i + 1 < argc) {
       model_dir = argv[++i];
+    } else if (arg == "--move") {
+      move_mode = true;
     } else if (arg == "--match") {
       match = true;
     } else if (arg == "--model-dir-p0" && i + 1 < argc) {
@@ -165,6 +173,24 @@ int main(int argc, char** argv) {
       usage(argv[0]);
       return 2;
     }
+  }
+
+  // ---- Single-move mode: --move ----
+  if (move_mode) {
+#ifndef AGRICOLA_WITH_NN
+    std::cerr << "selfplay: --move requires an NN build\n";
+    return 1;
+#else
+    std::string state_json((std::istreambuf_iterator<char>(std::cin)),
+                           std::istreambuf_iterator<char>());
+    if (state_json.empty()) {
+      std::cerr << "selfplay: --move expects GameState JSON on stdin\n";
+      return 2;
+    }
+    std::string result = agricola::pick_move(state_json, model_dir, sims, c_uct, temperature);
+    std::cout << result << "\n";
+    return 0;
+#endif
   }
 
   // ---- Two-net MATCH mode: --match present ----

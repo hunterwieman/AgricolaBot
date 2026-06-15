@@ -305,6 +305,55 @@ h3 {
   font-size: 12px;
 }
 
+/* Submitting state: an action fetch is in flight. Show a wait cursor so a
+   click visibly registers during the request round-trip (the inputLocked
+   re-entrancy guard blocks a second click in the meantime). */
+body.is-submitting,
+body.is-submitting * { cursor: wait !important; }
+
+/* Confirm-turn pause bar (shown instead of the action menu when the
+   server is awaiting an explicit Confirm/Undo of a completed human turn). */
+.confirm-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.confirm-btn {
+  font-size: 14px;
+  padding: 6px 16px;
+  background: #4D8030;
+  color: #fff;
+  border: 1px solid #2f5320;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.confirm-btn:hover { filter: brightness(1.15); }
+.undo-btn {
+  font-size: 14px;
+  padding: 6px 16px;
+  background: #C77042;
+  color: #fff;
+  border: 1px solid #6e3818;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.undo-btn:hover { filter: brightness(1.15); }
+.confirm-hint {
+  color: #555;
+  font-size: 12px;
+}
+
+/* Mid-turn undo button, surfaced above the action buttons when the server
+   reports can_undo for the human decider. */
+.undo-bar { margin-bottom: 6px; }
+.action-btn.small.undo {
+  background: #C77042;
+  color: #fff;
+  border-color: #6e3818;
+}
+
 /* ---------- farmyard SVG ---------- */
 
 .farmyard-container { margin: 6px 0; }

@@ -22,6 +22,14 @@ class NNInference;  // fwd-decl for the reuse overload (nn.hpp guarded by NN).
 // (the agricola-cpp-trace-v1 envelope as a compact string).
 std::string random_selfplay_trace(std::uint64_t seed);
 
+// Pick one move for the current position described by `state_json` (a canonical
+// GameState JSON string as produced by agricola.canonical.dumps). Runs MCTS
+// with the given NN, sims, c_uct, and temperature and returns a compact JSON
+// object: {"action": {type, params}, "root_value": float}.
+// Intended for the web UI: play_web.py shells out per AI turn and parses stdout.
+std::string pick_move(const std::string& state_json, const std::string& model_dir,
+                      int sims, double c_uct, double temperature);
+
 #ifdef AGRICOLA_WITH_NN
 // Stage 6 production self-play (CPP_ENGINE_PLAN.md §7) — a faithful mirror of
 // agents/nn/selfplay_recording.play_selfplay_recording_game:

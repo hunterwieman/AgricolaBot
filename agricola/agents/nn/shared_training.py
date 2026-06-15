@@ -528,6 +528,8 @@ def train_shared(
                 xb = (xb.float() if vds._x_is_half else xb).to(dev)
                 parts.append(best.predict_margin(xb))
             m = torch.cat(parts) if parts else torch.zeros(0)
+        if m.shape[0] % 2 == 1:
+            m = m[:-1]
         diff = (m[0::2] - m[1::2]) / 2.0
         scale = float(diff.std()) if diff.shape[0] >= 2 else 1.0
         best.value_scale = scale if scale > 1e-9 else 1.0

@@ -16,6 +16,17 @@
   // Stored as Set<"r,c">.
   let cellSelection = new Set();
 
+  // Re-entrancy guard for every action-submitting fetch (submitAction /
+  // undoTurn / confirmTurn). Blocks a second click during the request
+  // round-trip — the server's expected_seq guard covers anything that
+  // slips through (e.g. a click on a freshly-pushed SSE state). While set,
+  // we mark the body so CSS can show a "click registered" wait cursor.
+  let inputLocked = false;
+  function setInputLocked(locked) {
+    inputLocked = locked;
+    document.body.classList.toggle('is-submitting', locked);
+  }
+
   // Fast mode: when enabled, the SERVER auto-applies any human-singleton
   // decision in the same lock-held window where it already auto-applies
   // AI moves. The frontend's role is just to surface a toggle that POSTs
@@ -26,6 +37,15 @@
   // opponent — the singleton state could be displayed briefly before the
   // auto-submit fired, and was sometimes skipped entirely.)
   let fastMode = localStorage.getItem('agricola.fastMode') === '1';
+
+  // Confirm-turn mode: when enabled, the SERVER pauses after each completed
+  // human turn (state.awaiting_confirm becomes true) so the player can
+  // Confirm it (let the AI reply) or Undo it before committing. Forced /
+  // singleton turns are not paused. Mirrors the fastMode toggle pattern:
+  // local flag for UI display, persisted to localStorage, POSTed to
+  // /api/confirm_mode. The checkbox is also re-synced to server truth
+  // whenever a state payload arrives (state.confirm_mode).
+  let confirmMode = localStorage.getItem('agricola.confirmTurn') === '1';
 
   // Interactive AI mode: server pauses BEFORE each AI top-level placement;
   // the frontend fetches per-action evaluator scores from /api/ai_preview
@@ -68,18 +88,58 @@
   // ---------------------------------------------------------------------
 
   async function submitAction(actionIndex) {
+    if (inputLocked) return;  // block rapid re-entry during the request round-trip
+    setInputLocked(true);
     try {
       const res = await fetch('/api/step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action_index: actionIndex }),
+        body: JSON.stringify({
+          action_index: actionIndex,
+          expected_seq: currentState ? currentState.move_seq : undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok) {
-        console.warn('step rejected:', data.error);
+        // A "stale" rejection is a duplicate/late click — a fresh state is
+        // already arriving via SSE, so swallow it silently.
+        if (data.error !== 'stale') console.warn('step rejected:', data.error);
       }
     } catch (err) {
       console.error('step request failed', err);
+    } finally {
+      setInputLocked(false);
+    }
+  }
+
+  // Rewind the in-progress human turn to its start. New state arrives via SSE.
+  async function undoTurn() {
+    if (inputLocked) return;
+    setInputLocked(true);
+    try {
+      const res = await fetch('/api/undo_turn', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) console.warn('undo_turn rejected:', data.error);
+    } catch (err) {
+      console.error('undo_turn request failed', err);
+    } finally {
+      setInputLocked(false);
+    }
+  }
+
+  // Commit a paused (awaiting-confirm) turn, releasing the AI to reply. New
+  // state arrives via SSE.
+  async function confirmTurn() {
+    if (inputLocked) return;
+    setInputLocked(true);
+    try {
+      const res = await fetch('/api/confirm_turn', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) console.warn('confirm_turn rejected:', data.error);
+    } catch (err) {
+      console.error('confirm_turn request failed', err);
+    } finally {
+      setInputLocked(false);
     }
   }
 
@@ -108,21 +168,10 @@
     }
   }
 
-  // User-facing seat names shown in the New-game dialog. We expose a
-  // simplified set ('v1' = current strongest V1 = backend 'hubris',
-  // 'v3' = current strongest V3 = backend 'hubris_v3' loaded via
-  // --v3-config, 'mcts' = MCTS agent using V3 as leaf evaluator). The
-  // backend understands additional types ('simple', 'hubris_v1',
-  // 'hubris_v2') for CLI use but they're not surfaced here.
-  const SEAT_LABELS = ['human', 'random', 'v1', 'v3', 'mcts', 'nn'];
-  const LABEL_TO_BACKEND = {
-    'human': 'human',
-    'random': 'random',
-    'v1':     'hubris',     // V1 architecture with tuned CONFIG_V1_T2
-    'v3':     'hubris_v3',  // V3 architecture (loads --v3-config if set)
-    'mcts':   'mcts',       // MCTS w/ V3 leaf evaluator + configurable sims
-    'nn':     'nn',         // trained value NN (M_10k_standard_bimodal)
-  };
+  // Friendly seat-type labels for the per-player header tag. The backend
+  // seat values map to a short display string (the New-game dialog itself
+  // is now a fixed human-vs-MCTS setup, so no label→backend direction is
+  // needed).
   const BACKEND_TO_LABEL = {
     'human': 'human',
     'random': 'random',
@@ -139,148 +188,25 @@
     return BACKEND_TO_LABEL[backend] || backend;
   }
 
-  // Remembered MCTS sims across resets so the user doesn't have to re-type
-  // it every game. Initialized from the most recent reset payload (which
-  // the backend echoes back) or the backend's --mcts-sims default.
-  let lastMctsSims = 500;
-  // Remembered MCTS search/evaluator/policy choices across resets.
-  let lastMctsSearch = 'uct';        // 'uct' | 'puct'
-  let lastMctsEvaluator = 'best';    // value-NN checkpoint id
-  let lastMctsPolicy = 'unweighted'; // 'unweighted' | 'awr' (PUCT only)
-  // Cached /api/config (evaluator list etc.), fetched once and reused.
-  let cachedConfig = null;
-
-  async function fetchConfig() {
-    if (cachedConfig) return cachedConfig;
-    try {
-      const res = await fetch('/api/config');
-      cachedConfig = await res.json().catch(() => null);
-    } catch (err) {
-      console.error('config fetch failed', err);
-      cachedConfig = null;
-    }
-    return cachedConfig;
-  }
-
   async function resetGame() {
-    // Three prompts to match the existing prompt-style UX (avoids building
-    // a modal). For richer setup, a future change can swap in a real modal.
-    const seedStr = prompt('Seed for new game?', String(Date.now() & 0xffff));
+    // Fixed human-vs-MCTS setup. One optional prompt for a seed (blank =
+    // random); everything else (seats, MCTS settings) is the backend default.
+    const seedStr = prompt(
+      'Seed for new game? (blank = random)', String(Date.now() & 0xffff));
     if (seedStr === null) return;
-    const seed = parseInt(seedStr, 10) || 0;
-    const currentSeats = (currentState && currentState.seats) || ['human', 'random'];
-    const p0Str = prompt(
-      `P0 seat? (${SEAT_LABELS.join(' / ')})`,
-      backendToLabel(currentSeats[0]));
-    if (p0Str === null) return;
-    const p1Str = prompt(
-      `P1 seat? (${SEAT_LABELS.join(' / ')})`,
-      backendToLabel(currentSeats[1]));
-    if (p1Str === null) return;
-    const p0Label = SEAT_LABELS.includes(p0Str.trim()) ? p0Str.trim() : 'human';
-    const p1Label = SEAT_LABELS.includes(p1Str.trim()) ? p1Str.trim() : 'random';
-    const p0 = LABEL_TO_BACKEND[p0Label];
-    const p1 = LABEL_TO_BACKEND[p1Label];
-
-    // If either seat is MCTS, ask for its settings (applies to both MCTS
-    // seats if both are MCTS). Cancel on any prompt = abort the reset.
-    const payload = { seed, seats: [p0, p1] };
-    if (p0 === 'mcts' || p1 === 'mcts') {
-      const simsStr = prompt(
-        'MCTS sims/move?\n' +
-        '  100  - fast (~5s/move at default settings)\n' +
-        '  500  - default (~30s/move)\n' +
-        '  1000 - stronger but ~60s/move\n' +
-        '  2000 - much stronger, multi-minute moves',
-        String(lastMctsSims),
-      );
-      if (simsStr === null) return;
-      const sims = parseInt(simsStr.trim(), 10);
-      if (!Number.isFinite(sims) || sims < 1) {
-        alert('MCTS sims must be a positive integer; aborting reset.');
-        return;
-      }
-      payload.mcts_sims = sims;
-      lastMctsSims = sims;
-
-      // Search mode: UCT (strict legality + macro fencing) or PUCT
-      // (full legality + flattened fencing + learned multi-head policy).
-      const searchStr = prompt(
-        'MCTS search mode? (uct / puct)\n' +
-        '  uct  - vanilla UCT, no policy prior\n' +
-        '  puct - AlphaZero PUCT with a trained policy prior',
-        lastMctsSearch,
-      );
-      if (searchStr === null) return;
-      const search = searchStr.trim().toLowerCase();
-      if (search !== 'uct' && search !== 'puct') {
-        alert("MCTS search must be 'uct' or 'puct'; aborting reset.");
-        return;
-      }
-      payload.mcts_search = search;
-      lastMctsSearch = search;
-
-      // Leaf evaluator: pick from the value-NN checkpoints the backend
-      // discovered. Accept either a list number or the checkpoint id.
-      const cfg = await fetchConfig();
-      const evals = (cfg && cfg.mcts_evaluators) || [{ id: 'best', label: 'best (champion)' }];
-      const lines = evals.map((e, i) => `  ${i + 1}) ${e.label}`);
-      let defIdx = evals.findIndex((e) => e.id === lastMctsEvaluator);
-      if (defIdx < 0) defIdx = 0;
-      const evalStr = prompt(
-        'MCTS leaf evaluator? (number or id)\n' + lines.join('\n'),
-        String(defIdx + 1),
-      );
-      if (evalStr === null) return;
-      const trimmed = evalStr.trim();
-      let chosen = null;
-      const asNum = parseInt(trimmed, 10);
-      if (Number.isFinite(asNum) && asNum >= 1 && asNum <= evals.length) {
-        chosen = evals[asNum - 1].id;
-      } else if (evals.some((e) => e.id === trimmed)) {
-        chosen = trimmed;
-      }
-      if (chosen === null) {
-        alert('Unrecognized evaluator; aborting reset.');
-        return;
-      }
-      payload.mcts_evaluator = chosen;
-      lastMctsEvaluator = chosen;
-
-      // PUCT only: which combined-policy variant supplies the prior.
-      if (search === 'puct') {
-        const polStr = prompt(
-          'PUCT policy variant? (unweighted / awr)\n' +
-          '  unweighted - behavioral-cloning CE\n' +
-          '  awr        - advantage-weighted regression',
-          lastMctsPolicy,
-        );
-        if (polStr === null) return;
-        const pol = polStr.trim().toLowerCase();
-        if (pol !== 'unweighted' && pol !== 'awr') {
-          alert("PUCT policy must be 'unweighted' or 'awr'; aborting reset.");
-          return;
-        }
-        payload.mcts_policy = pol;
-        lastMctsPolicy = pol;
-      }
-    }
+    const trimmed = seedStr.trim();
+    const seed = trimmed === ''
+      ? (Date.now() & 0xffff)
+      : (parseInt(trimmed, 10) || 0);
 
     const res = await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ seed, seats: ['human', 'mcts'] }),
     });
     const data = await res.json().catch(() => ({}));
     if (!data.ok) {
       console.warn('reset rejected:', data.error);
-    } else {
-      // Backend echoes the effective MCTS settings (whether explicitly set
-      // or defaulted). Use them as the next New-game dialog's defaults.
-      if (typeof data.mcts_sims === 'number') lastMctsSims = data.mcts_sims;
-      if (typeof data.mcts_search === 'string') lastMctsSearch = data.mcts_search;
-      if (typeof data.mcts_evaluator === 'string') lastMctsEvaluator = data.mcts_evaluator;
-      if (typeof data.mcts_policy === 'string') lastMctsPolicy = data.mcts_policy;
     }
   }
 
@@ -336,6 +262,28 @@
       }
     } catch (err) {
       console.error('fast_mode toggle failed', err);
+    }
+  }
+
+  async function setConfirmTurn(v) {
+    confirmMode = !!v;
+    localStorage.setItem('agricola.confirmTurn', confirmMode ? '1' : '0');
+    const cb = document.getElementById('confirm-turn-toggle');
+    if (cb) cb.checked = confirmMode;
+    // Push to the server, which broadcasts the new state via SSE — we don't
+    // need to do anything else here.
+    try {
+      const res = await fetch('/api/confirm_mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: confirmMode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) {
+        console.warn('confirm_mode toggle rejected:', data.error);
+      }
+    } catch (err) {
+      console.error('confirm_mode toggle failed', err);
     }
   }
 
@@ -400,6 +348,13 @@
   }
 
   function render(state) {
+    // Keep the confirm-mode checkbox in sync with server truth (the server
+    // owns this flag; reflect whatever it reports).
+    if (typeof state.confirm_mode === 'boolean') {
+      confirmMode = state.confirm_mode;
+      const cb = document.getElementById('confirm-turn-toggle');
+      if (cb) cb.checked = confirmMode;
+    }
     // Interactive-AI preview management: when the server pauses before an
     // AI placement, fetch the per-action scores. When unpaused (or
     // toggled off), drop them so stale overlays don't linger.
@@ -1074,6 +1029,26 @@
       return;
     }
 
+    // Confirm-turn pause: the human's turn is already complete and the server
+    // is waiting for an explicit Confirm (or Undo) before letting the AI
+    // reply. Show a confirm bar INSTEAD of the normal action menu.
+    if (state.awaiting_confirm) {
+      const bar = el('div', { class: 'confirm-bar' });
+      bar.appendChild(el(
+        'button',
+        { class: 'confirm-btn', onclick: () => confirmTurn() },
+        'Confirm turn'));
+      bar.appendChild(el(
+        'button',
+        { class: 'undo-btn', onclick: () => undoTurn() },
+        'Undo turn'));
+      bar.appendChild(el(
+        'span', { class: 'confirm-hint' },
+        'Confirm your turn or undo it.'));
+      menu.appendChild(bar);
+      return;
+    }
+
     // AI-decider mode: show an "Advance" button instead of (or in addition
     // to) the legal-actions menu. Clicking it (or pressing Enter) fires
     // /api/step_ai, which advances exactly one move. The legal-actions
@@ -1096,6 +1071,18 @@
       menu.appendChild(advanceBar);
       // Don't render the action buttons (would be rejected by backend).
       return;
+    }
+
+    // Mid-turn undo: when the human is partway through a multi-step turn the
+    // server lets them reset it. Surface a small Undo button above the action
+    // buttons (deciderSeat is 'human' here — the AI branch returned above).
+    if (state.can_undo) {
+      const undoBar = el('div', { class: 'undo-bar' });
+      undoBar.appendChild(el(
+        'button',
+        { class: 'action-btn small undo', onclick: () => undoTurn() },
+        'Undo turn'));
+      menu.appendChild(undoBar);
     }
 
     // Group actions by type so the menu reads cleanly.
@@ -1269,6 +1256,15 @@
       interactiveCb.checked = interactiveAi;
       interactiveCb.addEventListener('change', (e) => setInteractiveAi(e.target.checked));
       if (interactiveAi) setInteractiveAi(true);
+    }
+
+    const confirmCb = document.getElementById('confirm-turn-toggle');
+    if (confirmCb) {
+      confirmCb.checked = confirmMode;
+      confirmCb.addEventListener('change', (e) => setConfirmTurn(e.target.checked));
+      // Re-assert the persisted client preference to the server on load, so
+      // the server-side flag matches (mirrors the fast-mode handling).
+      if (confirmMode) setConfirmTurn(true);
     }
     // Global Enter-key handler: when an AI is on the clock, Enter advances
     // one move. Ignored when focus is in a text input (so it doesn't fight

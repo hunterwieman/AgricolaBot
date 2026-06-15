@@ -6,12 +6,12 @@ self-play data, consumed by MCTS through one forward per node, and ported to the
 C++ engine. This is the Phase 2.3 successor to the separate value net + nine
 independent policy heads.
 
-> **Status (2026-06-10):** built, trained (`joint_taper128`), and validated.
-> The joint model **beats the previous-best setup** (champion value net + the 9
-> separate unweighted policy heads) at 800-sim PUCT — Python (joint won) and a
-> C++ replication of **198-2 = 99.0%, +12.95 margin**. The Python *and* C++
-> inference paths agree ≤1e-4. Not yet promoted to `nn_models/best` (that pointer
-> is a single value net; the joint model needs consumer wiring first).
+> **Status (2026-06-15):** current champion is **`joint_taper128_thin_sp30k_lr3e4`**
+> — a second-generation model trained on 30k snapshot-thinned self-play games
+> generated *by* `joint_taper128_thin`, warm-started at lr=3e-4. It beats all prior
+> joint champions (gauntlet confirmed) and is the current `nn_models/best`. The
+> original `joint_taper128` beat the previous-best separate-net setup **198-2 = 99.0%,
+> +12.95 margin** at 800-sim PUCT; the self-play loop has improved further since.
 
 ---
 

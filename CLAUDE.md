@@ -602,14 +602,16 @@ Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **valu
 (no negative transfer). MCTS consumes it through `make_joint_fns` — **one trunk forward per node** (an
 embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
 ported to C++ (§2.4) for fast self-play generation. The joint family is now the **`nn_models/best`
-pointer** — as of 2026-06-15 `best` is the joint `joint_taper128_thin` (next paragraph), resolved
+pointer** — as of 2026-06-15 `best` is the joint `joint_taper128_thin_sp30k_lr3e4` (see below), resolved
 through a `model_kind`-aware loader. Full design + eval: **`SHARED_TRUNK.md`**.
 
-**The current strongest model — `joint_taper128_thin` (117k snapshot-thinned; 2026-06-15).** Scaling the
+**The current strongest model — `joint_taper128_thin_sp30k_lr3e4` (30k snapshot-thinned self-play, warm-start lr=3e-4; promoted 2026-06-15).** A second generation trained on 30k games generated *by* `joint_taper128_thin` (drawn from a fresh 60k self-play run with `--snapshot-keep 0.5` thinning). Warm-started from the previous champion at lr=3e-4 (lr=1e-3 oscillated); early-stopped at epoch 17. Best val MAE 2.29, value_scale 4.24. **Beats `joint_taper128_thin` at 800-sim PUCT** (gauntlet vs all prior joint champions confirmed) — the next step in the self-play improvement loop. A bug in `shared_training.py` (odd-length val tensor after thinning) was fixed as part of this run. Full detail in `nn_models/REGISTRY.md`.
+
+**`joint_taper128_thin` (117k snapshot-thinned; 2026-06-15) — the previous champion.** Scaling the
 corpus to 117k games (the 57k + a fresh 60k self-play run generated *by* the 57k model) and retraining
-the joint v2 model produced the strongest agent to date. It **beats `joint_taper128_57k` 84-86% at
+the joint v2 model produced the strongest agent at the time. It **beats `joint_taper128_57k` 84-86% at
 800-sim PUCT** AND **dominates the 8-config heuristic ensemble (~100%, ~2.4× their points)** — the first
-joint model to clear the *objective* yardstick, so its strength is real, not self-play exploitation. The
+joint model to clear the *objective* yardstick. The
 levers that made 117k tractable on the 8 GB M1 (full 117k thrashed at ~1100 s/epoch): **per-game
 snapshot-thinning** (`--snapshot-keep`, a per-run-dir keep-fraction — cuts rows + within-game
 autocorrelation), **int8 feature storage** (`--store-dtype int8`, lossless: every feature is an integer),
@@ -619,7 +621,7 @@ measurement `NameError`) that had mis-calibrated every warm-started joint model,
 **`value_scale` is distribution-dependent** (measure both seats on a common state set for fair matches).
 Full detail in **`SHARED_TRUNK.md` §4.1** and `nn_models/REGISTRY.md`.
 
-**`joint_taper128_thin` is now `nn_models/best` (promoted 2026-06-15).** The `best.{pt,meta.json}` pair
+**`joint_taper128_thin_sp30k_lr3e4` is now `nn_models/best` (promoted 2026-06-15).** The `best.{pt,meta.json}` pair
 is a copy of its checkpoint, so `best` resolves to a **joint `SharedTrunkModel`** (`model_kind:
 "shared_trunk"`), not a separate-net value model. Consumers split into two camps and stay working
 without per-call branching:
@@ -629,14 +631,14 @@ without per-call branching:
   `SharedTrunkModel.load`. Both expose `predict_margin`/`value_scale`, so the joint value head is a
   drop-in 1-turn value leaf (its policy heads unused on this path).
 - **MCTS-leaf consumers** (`play_mcts_match.py`, `generate_selfplay_data.py`, `bench_shared_tree.py`)
-  detect the joint `best` and wire **value + policy off the one trunk** via `make_joint_fns`. The two
-  UCT-MACRO-archetype search-sweep scripts (`run_search_tournament.py`, `eval_search_vs_ensemble.py`)
-  can't take a fused policy and **fail fast** with guidance to pass a separate-net value ckpt.
-The promoted `best.meta.json` carries **`value_scale = 6.25`** (the common-distribution value the
-800-sim matches used — patched away from the stored thin-val 3.019, which is a low-variance artifact;
-`value_scale` is meta-only so only the sidecar changed, `best.pt` is verbatim). The older separate-net
-champion `M_82k_warmM62k` remains the value-only fallback for any consumer that wants a pure
-`NormalizedValueModel`.
+  detect the joint `best` and wire **value + policy off the one trunk** via `make_joint_fns`. (The two
+  UCT-MACRO-archetype search-sweep scripts that couldn't take a fused policy —
+  `run_search_tournament.py` / `eval_search_vs_ensemble.py` — have been retired to `archive/scripts/`,
+  along with the other separate-net/UCT-MACRO and V3-leaf instrumentation drivers; see the archive note
+  in the directory tree.)
+The promoted `best.meta.json` carries **`value_scale = 4.24`** (stored from the self-play distribution;
+`value_scale` is meta-only). The older separate-net champion `M_82k_warmM62k` remains the value-only
+fallback for any consumer that wants a pure `NormalizedValueModel`.
 
 > **Before refactoring the joint dataset builder (`shared_dataset.py`), read
 > `SHARED_TRUNK.md` §3 — "the two memory lessons" — in full.** That builder's `build_shared_datasets`
@@ -707,9 +709,22 @@ story, and the benchmark are in **`CPP_ENGINE_PLAN.md`**.
 `generate_selfplay_data.py`'s CLI and produces the **identical** `GameRecord` run-dir format (so
 training consumes it unchanged) — it generates via the C++ binary across a worker pool, then replays
 the compact traces into `GameRecord`s (with π + root_value intact). Workflow: train in Python →
-export weights (`scripts/nn/export_weights.py` → `nn_models/cpp_export/`) → generate
+export weights (`scripts/nn/export_weights.py` → `nn_models/cpp_export_<name>/`) → generate
 (`generate_selfplay_data_cpp.py`, default batch mode loads weights once per worker) → train on the
 output. Build the binary per `cpp/README.md`.
+
+**`cpp_export_best` — the canonical C++ export pointer.** `nn_models/cpp_export_best` is a symlink to
+the C++ export dir of the current `nn_models/best` champion. When promoting a new champion: export it
+(`export_weights.py`), then `ln -sfn <new_export_dir> nn_models/cpp_export_best`. The web UI's `mcts`
+seat reads this symlink at startup and falls back to Python MCTS if it is absent.
+
+**`selfplay --move` — single-move queries for the web UI.** `pick_move(state_json, model_dir, sims,
+c_uct, temperature)` in `cpp/src/selfplay.cpp` (and the `--move` CLI mode in `cpp/apps/selfplay.cpp`)
+reads a canonical `GameState` JSON from stdin, runs MCTS with the given NN + budget, and writes
+`{"action": {type, params}, "root_value": float}` to stdout. `play_web.py` uses this via
+`_CppMctsAgent` — a thin callable that shells out per AI turn — so the web UI `mcts` seat is backed
+by the fast C++ binary (~4× Python) whenever the binary and `cpp_export_best` are present. Full
+design: `CPP_ENGINE_PLAN.md`.
 
 **Joint shared-trunk inference + a two-net match mode (Stage B; SHARED_TRUNK.md).** `NNInference` now
 has a **mode toggle**: a `format: "shared_trunk_v1"` manifest (from `export_weights.py
@@ -810,7 +825,8 @@ Putting it together, one generation→training cycle is:
 
 ```
 train (Python: train_shared / train_first+train_policy)
-  → export weights (scripts/nn/export_weights.py → nn_models/cpp_export/)
+  → export weights (scripts/nn/export_weights.py → nn_models/cpp_export_<name>/)
+  → ln -sfn <name> nn_models/cpp_export_best   # update the canonical pointer
   → generate self-play (generate_selfplay_data_cpp.py, C++, batch mode)
   → train on the new GameRecords
   → evaluate (run_cpp_match.py / eval_vs_ensemble.py) → promote in REGISTRY.md → repeat
@@ -1147,6 +1163,8 @@ AgricolaBot/
 
         play_mcts_match.py          # MCTS-vs-opponent match driver. `--opponent {hubris_v3, random, mcts}`, `--v3-config <json>` for the V3 evaluator's tuned config, per-MCTS knobs (`--sims`, `--c-uct`, `--n-random-fencing`, `--fpu-offset`, `--temperature`), `--mcts-as-p1` to swap seats. `--jobs N` (default `cpu_count()`) parallelizes via `multiprocessing.Pool`; workers construct agents in-process (avoids pickling `MCTSSearch` transposition tables — they hold node back-refs to the search). Streams per-game lines as games complete (running win tally + ETA, `flush=True`). Heuristic opponent uses the same strict-restricted legality as MCTS. For best throughput pick `--n` as a multiple of `--jobs` (a 10-seed run on 8 cores wastes 6 cores on the trailing batch of 2). When a `--leaf-ckpt` / `--opp-leaf-ckpt` points at a **joint `SharedTrunkModel`**, that seat is built via `make_joint_fns` (value + policy off the one shared trunk, overriding `--policy`) — so this is the single Python match driver for both separate-net and joint models. (For the fast, torch-free C++ match use `scripts/nn/run_cpp_match.py`.)
 
+        mcts_sweep.py               # MCTS hyperparameter-sweep driver (Python/torch path). Runs a series of match configs in sequence by shelling out to `play_mcts_match` — default sweeps `c_uct ∈ {0.7,1.0,1.4,2.0,2.8}` vs `hubris_v3` — writing a per-config `<label>_cuct_<v>.log` plus a `<label>_summary.json` and a final ranked table with 95% CI on each config's margin. Joint-model-ready by inheritance: a `--leaf-ckpt` pointing at a joint `SharedTrunkModel` is auto-wired by `play_mcts_match` via `make_joint_fns`. The torch-path counterpart to the C++ self-sweep `scripts/nn/run_cpp_sweep.py`; this one sweeps vs a fixed opponent, the C++ one self-plays a model against itself.
+
         nn/                         # NN-specific scripts (subdirectory to keep NN tooling separate from general utilities). All are re-runnable CLIs; the underlying libraries live in `agricola/agents/nn/`.
 
             generate_training_data.py # NN training-data batch generator. Plays many games between agents drawn from an approved-config ensemble (default: 8 configs from `tuned_configs/DATA_GEN_ENSEMBLE.md`); writes `GameRecord`s to per-worker pickle files under `data/nn_training/runs/<run_id>/games/`. Multiprocessing pool, deterministic plan computation from (n_games, base_seed, approved_configs), balanced contiguous worker slicing, atomic per-game pickle writes, resume-on-existing (loads existing pickle + skips completed game_idxs), bimodal per-agent T draws (95% uniform [0.3, 1.0] + 5% T=4 — independently per agent). Config dispatch: `"random"` / `"t2"` sentinels + JSON paths + `nn:<checkpoint>` for NN seats. Per-game errors caught, logged in metadata.json's `errored_games`, run continues. CLI `--n-games / --n-workers / --out-dir (resume if exists) / --base-seed / --approved-configs / --config-weights / --restricted`, plus `--p0-fixed-config` (pin seat 0 to one config; `--approved-configs`/`--config-weights` then sample P1 only — the asymmetric hard-mining scheme behind `e14_hardmix_1k`, FIRST_NN C21). See FIRST_NN.md §6.
@@ -1175,6 +1193,8 @@ AgricolaBot/
 
 
             run_cpp_match.py        # Parallel driver for the C++ two-net match: runs `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` across a worker pool over a seed range. Workers stream per-game `GAME` lines back to the PARENT via a shared queue; the parent prints one clean running-tally stream to **stdout** (like `play_mcts_match.py`) — so a parallel run is one clean log. Per the logging convention, the launcher redirects to `eval_out/<label>.log`. Each model is encoder-self-describing (its manifest `encoder_tag` → the C++ registry picks v2 / candidate). Memory-light (C++ hand-rolled inference, no torch) — the fast, OOM-safe way to run an 800-sim match. See SHARED_TRUNK.md / CPP_ENGINE_PLAN.md.
+
+            run_cpp_sweep.py        # Parallel C++ self-sweep — one model vs itself, mapping how strength varies with `c_uct` and `sims`. Each game EACH seat independently draws `sims` (from `--sweep-sims`) and `c_uct` (from `[--cuct-lo,--cuct-hi]`) inside the binary from a per-game RNG (reproducible, reported back in each `GAME` line); a worker pool runs `cpp/build/selfplay` in batch `--game-idxs` mode (NN weights loaded once per process) and STREAMS each finished game to the parent via a shared queue, growing an `--out-csv` incrementally. Mirrors `run_cpp_match.py`'s live-queue shape; memory-light (no torch). The C++ hyperparameter-sweep counterpart to the Python `scripts/mcts_sweep.py` (which sweeps vs a fixed opponent); encoder-self-describing via the model manifest, so joint-model-ready. See CPP_ENGINE_PLAN.md.
 
             replay_traces.py        # Replay a run dir's existing C++ self-play traces (`<run-dir>/traces/trace_<i>.json`) into `GameRecord` chunks under `games/` — the REPLAY half of `generate_selfplay_data_cpp.py` only, generating nothing and overwriting no traces. For salvaging a gen run interrupted after traces were written but before replay. Resumable (skips game_idxs already in `games/`), writes the `worker_*.pkl` format training consumes.
 
@@ -1234,9 +1254,13 @@ AgricolaBot/
 
             TASK_7.md               # Harvest phases + rounds 5–14.
 
-    archive/                        # Fully superseded docs kept for historical reference. Not load-bearing.
+    archive/                        # Fully superseded docs + retired scripts kept for historical reference. Not load-bearing.
 
         TESTS.md                    # Pre-TEST_DESCRIPTIONS.md per-test reference (170-test snapshot). Superseded.
+
+        SWEEP_HANDOFF.md            # Retired handoff for the UCT c_uct-sweep plan (UCT-MACRO archetype, NN leaf). Bypassed by the joint shared-trunk pivot; kept for provenance.
+
+        scripts/                    # Retired one-off / superseded scripts. Not on any current path; kept for provenance. Two groups: (a) separate-net + UCT-MACRO-archetype search drivers the joint-model pivot retired — `run_search_tournament.py` (+ its `analyze_tournament.py` Bradley-Terry analyzer), `eval_search_vs_ensemble.py`, `run_nn_search_matrix.py` (all fail-fast on a joint model; superseded by `scripts/nn/eval_vs_ensemble.py` + the C++ `run_cpp_match.py`/`run_cpp_sweep.py`); (b) V3-heuristic-leaf one-off instrumentation whose findings are already in the design docs — `measure_mcts_tree.py`, `measure_v3_prior_distribution.py`, `measure_exhaustive_leaves.py`, `run_exhaustive_vs_greedy_match.py`. Plus older V1/refactor artifacts (`play_mcts_v1_vs_*.py`, `port_pre_refactor_v3.py`, `_validate_fast_loader.py`).
 ```
 
 For deeper per-file details, see **`FILE_DESCRIPTIONS.md`** (every `agricola/*.py` + the test-infrastructure files). For test-file coverage, see **`TEST_DESCRIPTIONS.md`**.

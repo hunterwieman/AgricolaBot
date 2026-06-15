@@ -916,6 +916,17 @@ ceiling, but it's an algorithmic change to the search and was explicitly out of 
 small. **Conclusion: the implementation is at its non-algorithmic floor — the ~4× in hand is the bulk
 of the available win**, and further speedup needs either leaf-batching or just more/faster cores.
 
+**Stage C (landed) — `selfplay --move` for the web UI.** `pick_move(state_json, model_dir, sims,
+c_uct, temperature)` in `cpp/src/selfplay.cpp` (and the `--move` CLI mode in `cpp/apps/selfplay.cpp`)
+provides a single-move query interface: reads a canonical `GameState` JSON from stdin, runs one MCTS
+search, and writes `{"action": {type, params}, "root_value": float}` to stdout. The C++ process
+holds the NN in a process-level cache (`get_nn_cached`), so repeated calls in the same server
+process pay only one weight-load. `play_web.py` uses this via `_CppMctsAgent` — a thin callable that
+shells out per AI turn — so the web UI `mcts` seat is backed by C++ (~4× faster) whenever
+`cpp/build/selfplay` and the `nn_models/cpp_export_best` symlink are both present; it silently falls
+back to the Python `MCTSAgent` if either is absent. Promoting a new C++ export requires:
+`export_weights.py` + `ln -sfn <new_export_dir> nn_models/cpp_export_best`.
+
 **Stage B (landed, post-Stage-7) — joint shared-trunk inference + two-net match mode.** The C++
 `NNInference` gained a `shared_trunk_v1` mode toggle (one trunk + standalone `embed_norm` LayerNorm +
 identity-norm head blobs), an internal `state_hash`-keyed embedding cache (one trunk forward per node,

@@ -618,6 +618,13 @@ Update on every meaningful change to the UI.
   `c_uct=1.4`, mirroring `scripts/play_mcts_match.py`), and echoes the effective
   settings (remembered as the next dialog's defaults). The `nn`-seat / default
   leaf checkpoint is still fixed at startup via `--nn-model`.
+- **C++ MCTS backend for the `mcts` seat.** The `mcts` seat in `_build_agent`
+  automatically delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`
+  in `play_web.py`) when `cpp/build/selfplay` and `nn_models/cpp_export_best`
+  are both present. The C++ path runs PUCT with the joint shared-trunk model at
+  ~4× the speed of the Python MCTSAgent; the Python path is used as a fallback
+  when the binary or export dir is absent. `cpp_export_best` is a symlink —
+  update it (`ln -sfn <new>`) when promoting a new champion export.
 - **Farmyard glyph polish.**
   - FIELD cells with crops render as `N` (digit) plus a small filled
     circle: yellow (`#E8C547`) for grain, orange (`#E67E22`) for veg.

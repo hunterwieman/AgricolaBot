@@ -290,4 +290,29 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
 
 #endif  // AGRICOLA_WITH_NN
 
+std::string pick_move(const std::string& state_json, const std::string& model_dir,
+                      int sims, double c_uct, double temperature) {
+#ifndef AGRICOLA_WITH_NN
+  (void)state_json; (void)model_dir; (void)sims; (void)c_uct; (void)temperature;
+  throw std::runtime_error("pick_move: binary was not built with NN support");
+#else
+  GameState state = game_state_from_string(state_json);
+
+  std::shared_ptr<NNInference> nn = get_nn_cached(model_dir);
+  // Use seed 0 — each call gets a fresh search tree, so the RNG seed only
+  // affects tie-breaking in tree expansion, not correctness.
+  MCTSSearch search(nn.get(), c_uct, /*rng_seed=*/0, /*fpu=*/0.0);
+  MCTSAgent agent(&search, sims, c_uct, /*fpu=*/0.0, temperature,
+                  /*rng_seed=*/0, /*cap_total_sims=*/false);
+
+  Action chosen = agent.choose(state);
+  MCTSNode* root = agent.last_root();
+
+  json out;
+  out["action"] = json::parse(action_to_json(chosen));
+  out["root_value"] = (root != nullptr) ? root->mean_q() : 0.0;
+  return out.dump();
+#endif
+}
+
 }  // namespace agricola
