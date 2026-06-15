@@ -77,8 +77,39 @@ class _Spec:
 _WORKER_SPEC: _Spec | None = None
 
 
+def _is_shared_trunk(path: str) -> bool:
+    """True if `path`'s meta `model_kind` is a joint `SharedTrunkModel`."""
+    from agricola.agents.nn.model import read_model_kind
+    try:
+        return read_model_kind(path) == "shared_trunk"
+    except Exception:
+        return False
+
+
+@functools.lru_cache(maxsize=1)
+def _joint_fns(path: str):
+    """Load a joint `SharedTrunkModel` → `(value_fn, policy_fn, value_scale)`."""
+    from agricola.agents.nn.model import load_value_evaluator
+    from agricola.agents.nn.shared_policy import make_joint_fns
+    model = load_value_evaluator(path)              # eval()'d SharedTrunkModel
+    value_fn, policy_fn = make_joint_fns(model)
+    return value_fn, policy_fn, float(getattr(model, "value_scale", 1.0))
+
+
 def _make_search(spec: _Spec, *, rng_seed: int) -> MCTSSearch:
-    """One production NN-leaf PUCT search (FLATTEN, full legality)."""
+    """One production NN-leaf PUCT search (FLATTEN, full legality). The leaf can
+    be a separate-net value model (+ a separate `--policy`) OR a joint
+    `SharedTrunkModel` (value + policy off one trunk, overriding `--policy`)."""
+    if _is_shared_trunk(spec.leaf_ckpt):
+        value_fn, policy_fn, vscale = _joint_fns(spec.leaf_ckpt)
+        return MCTSSearch(
+            rng_seed=rng_seed,
+            legal_actions_fn=full_legal_actions,    # policy is the sole prune
+            evaluator_fn=value_fn,                  # single-pass P0-frame margin
+            leaf_value_scale=vscale,
+            policy_fn=policy_fn,                    # joint trunk's own heads
+            fence_mode=FenceMode.FLATTEN,           # required for PUCT
+        )
     from agricola.agents.nn.agent import nn_evaluator
     model = _value_model(spec.leaf_ckpt)
     return MCTSSearch(
@@ -108,9 +139,13 @@ def _init_worker(spec: _Spec) -> None:
     global _WORKER_SPEC
     _WORKER_SPEC = spec
     # Warm everything OUT of the timed region: model load, policy load (9
-    # checkpoints), torch thread spin-up, engine frontier/fence lru-caches.
-    _value_model(spec.leaf_ckpt)
-    _combined_policy(spec.policy_variant)
+    # checkpoints for a separate-net leaf; the joint trunk owns its policy),
+    # torch thread spin-up, engine frontier/fence lru-caches.
+    if _is_shared_trunk(spec.leaf_ckpt):
+        _joint_fns(spec.leaf_ckpt)
+    else:
+        _value_model(spec.leaf_ckpt)
+        _combined_policy(spec.policy_variant)
     initial, env = setup_env(seed=999_999)
     warm = MCTSAgent(_make_search(spec, rng_seed=0), sims_per_move=40,
                      rng_seed=0, c_uct=spec.c_uct,

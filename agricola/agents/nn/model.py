@@ -368,6 +368,52 @@ class NormalizedValueModel(nn.Module):
         return model
 
 
+def read_model_kind(path: str | Path) -> str:
+    """The `model_kind` recorded in `<path>.meta.json` (default `"value"` for
+    pre-Stage-B separate-net checkpoints that predate the field).
+
+    `"value"` → a separate-net `NormalizedValueModel`; `"shared_trunk"` → a joint
+    `SharedTrunkModel`. The single source of truth for which loader a checkpoint
+    needs (`load_value_evaluator` dispatches on it)."""
+    meta_path = Path(path).with_suffix(".meta.json")
+    with meta_path.open("r") as f:
+        meta = json.load(f)
+    return str(meta.get("model_kind", "value"))
+
+
+def load_value_evaluator(path: str | Path):
+    """`model_kind`-aware value-model loader.
+
+    Returns an object usable as an MCTS / `NNAgent` value evaluator — i.e. an
+    `nn.Module` exposing `predict_margin(x) -> margin-units` and a `value_scale`
+    attribute, set to `eval()` mode:
+
+    - `"value"` (or absent) → `NormalizedValueModel.load(path)` (unchanged).
+    - `"shared_trunk"` → `SharedTrunkModel.load(path)`. The joint model's value
+      head satisfies the same `predict_margin` / `value_scale` contract, so it is
+      a drop-in value evaluator (its policy heads are simply unused on this path;
+      consumers that ALSO want the joint policy build it via `make_joint_fns`).
+
+    This is the one place `model_kind` is dispatched for the value-consumer camp
+    (the web UI, the AWR baseline), so promoting a joint model to `nn_models/best`
+    requires no per-consumer branching. `eval()` is forced here because both
+    `.load()`s leave the model in TRAIN mode (dropout would noise inference).
+    """
+    kind = read_model_kind(path)
+    if kind == "shared_trunk":
+        from agricola.agents.nn.shared_model import SharedTrunkModel
+        model = SharedTrunkModel.load(path)
+    elif kind == "value":
+        model = NormalizedValueModel.load(path)
+    else:
+        raise ValueError(
+            f"Checkpoint {path} has unknown model_kind {kind!r}; expected "
+            f"'value' or 'shared_trunk'."
+        )
+    model.eval()
+    return model
+
+
 @torch.no_grad()
 def measure_leaf_value_scale(
     model: "NormalizedValueModel", x_paired: torch.Tensor,

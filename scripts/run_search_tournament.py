@@ -108,6 +108,20 @@ def build_plan(n: int, plan_seed: int, base_seed: int) -> list[tuple]:
 def build_agent(cfg: Cfg, seed: int):
     from agricola.agents.nn.agent import NNAgent, nn_evaluator
 
+    # This sweep's archetypes (UCT + MACRO fencing with a SEPARATE combined
+    # policy, vs PUCT with that policy) assume a separate-net value model + a
+    # standalone policy. A joint SharedTrunkModel can't drop in here (its policy
+    # is fused into the trunk and doesn't serve the UCT MACRO macro-policy path),
+    # so fail fast with guidance rather than mis-loading it as a value net. Pass
+    # a separate-net value checkpoint via the module-level LEAF_CKPT.
+    if pmm._is_shared_trunk(LEAF_CKPT):
+        raise SystemExit(
+            f"LEAF_CKPT={LEAF_CKPT!r} is a joint SharedTrunkModel; this search "
+            f"sweep needs a separate-net value checkpoint (UCT archetype uses a "
+            f"standalone combined policy + MACRO fencing). Point LEAF_CKPT at a "
+            f"model_kind='value' checkpoint, or use scripts/play_mcts_match.py / "
+            f"scripts/nn/run_cpp_match.py for joint-model matches."
+        )
     model = pmm._value_model(LEAF_CKPT)  # lru_cached per worker
 
     if cfg.kind == "anchor":

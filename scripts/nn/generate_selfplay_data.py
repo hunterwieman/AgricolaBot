@@ -104,8 +104,59 @@ class _Spec:
     chunk_size: int
 
 
+def _is_shared_trunk(path: str) -> bool:
+    """True if `path`'s meta `model_kind` is a joint `SharedTrunkModel`."""
+    from agricola.agents.nn.model import read_model_kind
+    p = Path(path)
+    if not p.is_absolute():
+        p = ROOT / p
+    try:
+        return read_model_kind(p) == "shared_trunk"
+    except Exception:
+        return False
+
+
+@functools.lru_cache(maxsize=1)
+def _joint_fns(path: str):
+    """Load a joint `SharedTrunkModel` and return `(value_fn, policy_fn, value_scale)`
+    off the one shared trunk — value AND policy from a single forward per node
+    (the joint model's own heads ARE the policy, overriding `--policy`)."""
+    import torch
+    torch.set_num_threads(1)
+    from agricola.agents.nn.model import load_value_evaluator
+    from agricola.agents.nn.shared_policy import make_joint_fns
+    p = Path(path)
+    if not p.is_absolute():
+        p = ROOT / p
+    model = load_value_evaluator(p)             # eval()'d SharedTrunkModel
+    value_fn, policy_fn = make_joint_fns(model)
+    return value_fn, policy_fn, float(getattr(model, "value_scale", 1.0))
+
+
 def _build_agent(spec: _Spec, *, seed: int) -> RootCapturingMCTSAgent:
-    """A fresh shared-tree self-play agent for ONE game (NN leaf + policy)."""
+    """A fresh shared-tree self-play agent for ONE game (NN leaf + policy).
+
+    The leaf checkpoint can be a separate-net value model (+ a separate combined
+    `--policy`) OR a joint `SharedTrunkModel` (value + policy off one trunk via
+    `make_joint_fns`, which then overrides `--policy`)."""
+    if _is_shared_trunk(spec.leaf_ckpt):
+        value_fn, policy_fn, vscale = _joint_fns(spec.leaf_ckpt)
+        search = MCTSSearch(
+            rng_seed=seed,
+            legal_actions_fn=full_legal_actions,   # policy is the sole prune
+            evaluator_fn=value_fn,                  # single-pass P0-frame margin
+            leaf_value_scale=vscale,
+            policy_fn=policy_fn,                    # joint trunk's own heads
+            fence_mode=FenceMode.FLATTEN,           # required for PUCT
+        )
+        return RootCapturingMCTSAgent(
+            search,
+            sims_per_move=spec.sims,
+            c_uct=spec.c_uct,
+            action_selection_temperature=spec.temperature,
+            rng_seed=seed,
+            cap_total_sims=True,
+        )
     from agricola.agents.nn.agent import nn_evaluator
     model = _value_model(spec.leaf_ckpt)
     search = MCTSSearch(

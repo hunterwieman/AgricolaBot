@@ -294,10 +294,12 @@ def _compute_awr_weights(
 ) -> tuple[np.ndarray, float]:
     """AWR weights `clip(exp((R − V)/β), 0, w_max)`. `V` is the value net's
     single-perspective margin on the policy input encoding; `β = std(A)`."""
-    from agricola.agents.nn.model import NormalizedValueModel
+    from agricola.agents.nn.model import load_value_evaluator
 
-    vmodel = NormalizedValueModel.load(Path(value_ckpt))
-    vmodel.eval()
+    # model_kind-aware: a separate-net NormalizedValueModel OR a joint
+    # SharedTrunkModel (its value head satisfies the same predict_margin
+    # contract). `load_value_evaluator` returns an eval()'d model either way.
+    vmodel = load_value_evaluator(Path(value_ckpt))
     # Guard the unit mismatch: AWR's advantage A = R - V is only meaningful if
     # R and V share units. R is the terminal SCORE MARGIN in points (tens); V =
     # vmodel.predict_margin(...) is in the value net's target units. Only a
@@ -305,9 +307,11 @@ def _compute_awr_weights(
     # winprob (sigmoid) head predict_margin is bounded (~[-1,1] / [0,1], and
     # target_std is forced to 1.0), so V is negligible against R and the
     # advantage silently degenerates to ~|R| (up-weighting blowout games instead
-    # of surprising decisions). The net head is the reliable, load-reconstructed
-    # signal — NormStats.target_mode is NOT restored by NormalizedValueModel.load.
-    head = getattr(vmodel.net, "head", None)
+    # of surprising decisions). The head is the reliable, load-reconstructed
+    # signal — for a separate net it's `net.head`; for the joint model it's the
+    # value head's `head` (`value_head.head`).
+    value_net = getattr(vmodel, "net", None) or getattr(vmodel, "value_head", None)
+    head = getattr(value_net, "head", None)
     if head != "linear":
         mode = {"tanh": "outcome", "sigmoid": "winprob"}.get(head, f"head={head!r}")
         raise ValueError(

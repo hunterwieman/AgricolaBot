@@ -601,8 +601,9 @@ the binding constraint — and *MAE was a backwards predictor of play strength*)
 Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **value strength preserved**
 (no negative transfer). MCTS consumes it through `make_joint_fns` — **one trunk forward per node** (an
 embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
-ported to C++ (§2.4) for fast self-play generation. Not yet promoted to `nn_models/best` (the joint
-model needs consumer wiring). Full design + eval: **`SHARED_TRUNK.md`**.
+ported to C++ (§2.4) for fast self-play generation. The joint family is now the **`nn_models/best`
+pointer** — as of 2026-06-15 `best` is the joint `joint_taper128_thin` (next paragraph), resolved
+through a `model_kind`-aware loader. Full design + eval: **`SHARED_TRUNK.md`**.
 
 **The current strongest model — `joint_taper128_thin` (117k snapshot-thinned; 2026-06-15).** Scaling the
 corpus to 117k games (the 57k + a fresh 60k self-play run generated *by* the 57k model) and retraining
@@ -617,6 +618,25 @@ also fixed **two load-bearing warm-start bugs** (`target_std`/norm-buffer transp
 measurement `NameError`) that had mis-calibrated every warm-started joint model, and surfaced that
 **`value_scale` is distribution-dependent** (measure both seats on a common state set for fair matches).
 Full detail in **`SHARED_TRUNK.md` §4.1** and `nn_models/REGISTRY.md`.
+
+**`joint_taper128_thin` is now `nn_models/best` (promoted 2026-06-15).** The `best.{pt,meta.json}` pair
+is a copy of its checkpoint, so `best` resolves to a **joint `SharedTrunkModel`** (`model_kind:
+"shared_trunk"`), not a separate-net value model. Consumers split into two camps and stay working
+without per-call branching:
+- **Value-only consumers** (the web UI `nn`/`mcts-leaf` seats; the `--value-ckpt` AWR baseline in
+  `train_policy.py`) load through the new **`model_kind`-aware `load_value_evaluator(stem)`**
+  (`agricola/agents/nn/model.py`): `"value"` → `NormalizedValueModel.load`, `"shared_trunk"` →
+  `SharedTrunkModel.load`. Both expose `predict_margin`/`value_scale`, so the joint value head is a
+  drop-in 1-turn value leaf (its policy heads unused on this path).
+- **MCTS-leaf consumers** (`play_mcts_match.py`, `generate_selfplay_data.py`, `bench_shared_tree.py`)
+  detect the joint `best` and wire **value + policy off the one trunk** via `make_joint_fns`. The two
+  UCT-MACRO-archetype search-sweep scripts (`run_search_tournament.py`, `eval_search_vs_ensemble.py`)
+  can't take a fused policy and **fail fast** with guidance to pass a separate-net value ckpt.
+The promoted `best.meta.json` carries **`value_scale = 6.25`** (the common-distribution value the
+800-sim matches used — patched away from the stored thin-val 3.019, which is a low-variance artifact;
+`value_scale` is meta-only so only the sidecar changed, `best.pt` is verbatim). The older separate-net
+champion `M_82k_warmM62k` remains the value-only fallback for any consumer that wants a pure
+`NormalizedValueModel`.
 
 > **Before refactoring the joint dataset builder (`shared_dataset.py`), read
 > `SHARED_TRUNK.md` §3 — "the two memory lessons" — in full.** That builder's `build_shared_datasets`
@@ -740,13 +760,15 @@ any evaluator (heuristic V3, separate value net, joint trunk) drops in at either
 touching `mcts.py` — that interchangeability is what makes the same driver serve a head-to-head
 today and a card-game agent later.
 
-**Defaults and why.** Production self-play now uses the **joint shared-trunk model** as the agent —
-one trunk supplying *both* the value leaf and the policy prior (`make_joint_fns`, §2.3 Stage B). It
-is supplied to generation explicitly (via `--leaf-ckpt <joint-ckpt>` in Python, or its exported
-manifest for C++), **not** through the `nn_models/best` pointer: `best` still holds the older
-*separate* value net and the joint model is not yet promoted there (it needs value-only consumer
-wiring first — see `nn_models/REGISTRY.md`). The separate value net + the nine-head combined
-behavioral-cloning policy remain the fallback agent for that pointer's consumers (e.g. the web UI).
+**Defaults and why.** Production self-play uses the **joint shared-trunk model** as the agent —
+one trunk supplying *both* the value leaf and the policy prior (`make_joint_fns`, §2.3 Stage B). As of
+2026-06-15 **`nn_models/best` itself resolves to the joint model** (`joint_taper128_thin`), loaded
+through the `model_kind`-aware `load_value_evaluator` (value-only consumers) / `make_joint_fns`
+(MCTS-leaf consumers) — so passing `--leaf-ckpt nn_models/best` (the default for the generation /
+match scripts) now drives the joint value+policy agent directly. A different joint checkpoint can
+still be supplied explicitly via `--leaf-ckpt <joint-ckpt>` (Python) or its exported manifest (C++).
+The older *separate* value net (`M_82k_warmM62k`) + the nine-head combined behavioral-cloning policy
+remain available as the value-only fallback for any consumer that wants a pure `NormalizedValueModel`.
 Search runs PUCT with `FenceMode.FLATTEN` over the **full unrestricted** legal set (the policy prior
 is the sole prune — §2.2), `c_uct ≈ 0.5` (calibrated to the value head's `value_scale`), and a low
 played-move temperature so trajectories stay near-greedy while π still records the search's

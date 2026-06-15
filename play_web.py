@@ -202,8 +202,14 @@ def _load_nn_model(path: str | None = None):
     loaded once and shared read-only (eval mode, @torch.no_grad())."""
     stem = path if path is not None else _NN_MODEL_PATH
     if stem not in _NN_MODEL_CACHE:
-        from agricola.agents.nn.model import NormalizedValueModel
-        _NN_MODEL_CACHE[stem] = NormalizedValueModel.load(stem)
+        # model_kind-aware: a separate-net NormalizedValueModel ("value") OR a
+        # joint SharedTrunkModel ("shared_trunk"). Both expose predict_margin /
+        # value_scale, so either is a drop-in value evaluator for the `nn` seat
+        # (1-turn) and the `mcts` leaf — the joint model's policy heads are
+        # simply unused on this value path. Routing through one loader is what
+        # lets `nn_models/best` be a joint checkpoint without per-seat branching.
+        from agricola.agents.nn.model import load_value_evaluator
+        _NN_MODEL_CACHE[stem] = load_value_evaluator(stem)
     return _NN_MODEL_CACHE[stem]
 
 
@@ -221,11 +227,12 @@ def _discover_value_models() -> list[dict]:
     `best` pointer first.
 
     A directory qualifies when it holds `best.pt` + `best.meta.json`, the
-    meta's `model_kind` is "value" (policy / pointer heads are excluded),
-    and its `encoding_version` matches the engine's current ENCODING_VERSION
+    meta's `model_kind` is "value" OR "shared_trunk" (a joint SharedTrunkModel's
+    value head is a valid leaf evaluator — see `_load_nn_model`), and its
+    `encoding_version` matches the engine's current ENCODING_VERSION
     (incompatible-encoding checkpoints would crash on load). `id` is the
     directory name (the top-level pointer is id "best"); `stem` is the path
-    NormalizedValueModel.load wants.
+    the value loader wants.
     """
     from agricola.agents.nn.encoder import ENCODING_VERSION
 
@@ -235,7 +242,7 @@ def _discover_value_models() -> list[dict]:
                 m = json.load(f)
         except (OSError, ValueError):
             return False
-        return (m.get("model_kind", "value") == "value"
+        return (m.get("model_kind", "value") in ("value", "shared_trunk")
                 and m.get("encoding_version") == ENCODING_VERSION)
 
     out: list[dict] = []
