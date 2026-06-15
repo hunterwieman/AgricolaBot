@@ -61,3 +61,13 @@ eval_out/
 nn_models/*.log
 # Throwaway bs=8192 LR-validation run (the kept model is sp_v_256x2_bs8192/).
 nn_models/sp_v_lr_*/
+# Model-dir artifacts: commit only the essentials (best.pt, best.meta.json,
+# config.json, train_log.jsonl, norm_stats.json, test_metrics.json, *.png).
+# The --save-all-epochs checkpoints and per-run stdout logs are not tracked.
+nn_models/**/epoch_*.pt
+nn_models/**/epoch_*.meta.json
+nn_models/**/train_stdout.log
+# Dead / superseded run dirs (kept on disk for reference, not tracked).
+nn_models/joint_taper128_117k/
+nn_models/joint_taper128_117k_stream/
+nn_models/_ramtest_stream/

@@ -1,0 +1,123 @@
+{
+  "model_kind": "shared_trunk",
+  "net_type": "SharedTrunkModel",
+  "net_config": {
+    "input_dim": 178,
+    "trunk_hidden_dims": [
+      256,
+      256
+    ],
+    "embedding_dim": 128,
+    "value_head_dims": [],
+    "fixed_head_dims": [],
+    "pointer_head_dims": [
+      64
+    ],
+    "fixed_head_specs": {
+      "build_stop": 2,
+      "choose_subaction": 8,
+      "commit_bake": 6,
+      "commit_build_major": 14,
+      "commit_sow": 104,
+      "fencing": 110,
+      "placement": 25
+    },
+    "pointer_head_specs": {
+      "animal_frontier": 4,
+      "harvest_feed": 10
+    },
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "embed_norm": true
+  },
+  "encoding_version": 2,
+  "encoding_tag": "cand_feat178_v1",
+  "value_scale": 5.784054756164551,
+  "extras": {
+    "value_scale": 5.784054756164551,
+    "model_kind": "shared_trunk",
+    "trunk_hidden_dims": [
+      256,
+      256
+    ],
+    "embedding_dim": 128,
+    "value_head_dims": [],
+    "fixed_head_dims": [],
+    "pointer_head_dims": [
+      64
+    ],
+    "activation": "gelu",
+    "norm": "layer",
+    "dropout": 0.2,
+    "value_weight": 9.0,
+    "head_weight": 1.0,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 2048,
+    "max_epochs": 40,
+    "steps_per_epoch": 3341,
+    "fast_loader": true,
+    "soft_targets": true,
+    "split_seed": 0,
+    "init_from": "nn_models/joint_taper128/best",
+    "encoding_version": 2,
+    "encoding_tag": "cand_feat178_v1",
+    "strip_begging": true,
+    "data_version": 3,
+    "code_sha": "cd27541ac81ae3b47ec3d4605dc929de1306ed81",
+    "sizes": {
+      "value": [
+        6843130,
+        861152,
+        856848
+      ],
+      "fixed:build_stop": [
+        46293,
+        5860,
+        5701
+      ],
+      "fixed:choose_subaction": [
+        265514,
+        33428,
+        33460
+      ],
+      "fixed:commit_bake": [
+        582,
+        73,
+        77
+      ],
+      "fixed:commit_build_major": [
+        104046,
+        13191,
+        13025
+      ],
+      "fixed:commit_sow": [
+        57326,
+        7242,
+        7241
+      ],
+      "fixed:fencing": [
+        124651,
+        15686,
+        15599
+      ],
+      "fixed:placement": [
+        2288351,
+        288002,
+        286344
+      ],
+      "ptr:animal_frontier": [
+        118530,
+        14934,
+        14735
+      ],
+      "ptr:harvest_feed": [
+        102097,
+        12591,
+        12727
+      ]
+    },
+    "param_count": 198416
+  }
+}
