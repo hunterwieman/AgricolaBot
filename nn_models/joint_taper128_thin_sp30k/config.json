@@ -1,0 +1,87 @@
+{
+  "model_kind": "shared_trunk",
+  "trunk_hidden_dims": [
+    256,
+    256
+  ],
+  "embedding_dim": 128,
+  "value_head_dims": [],
+  "fixed_head_dims": [],
+  "pointer_head_dims": [
+    64
+  ],
+  "activation": "gelu",
+  "norm": "layer",
+  "dropout": 0.2,
+  "value_weight": 9.0,
+  "head_weight": 1.0,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 8192,
+  "max_epochs": 100,
+  "steps_per_epoch": 650,
+  "fast_loader": true,
+  "soft_targets": true,
+  "stream": false,
+  "buffer_chunks": null,
+  "split_seed": 0,
+  "init_from": "nn_models/joint_taper128_thin/best",
+  "encoding_version": 2,
+  "encoding_tag": "v2",
+  "strip_begging": false,
+  "data_version": 3,
+  "code_sha": "292c805c1d74ba4fbe37fb00f8bab5214173769e",
+  "sizes": {
+    "value": [
+      5325268,
+      668041,
+      664948
+    ],
+    "fixed:build_stop": [
+      36798,
+      4623,
+      4629
+    ],
+    "fixed:choose_subaction": [
+      220602,
+      27835,
+      27607
+    ],
+    "fixed:commit_bake": [
+      668,
+      84,
+      65
+    ],
+    "fixed:commit_build_major": [
+      62590,
+      7872,
+      7845
+    ],
+    "fixed:commit_sow": [
+      54786,
+      6885,
+      6982
+    ],
+    "fixed:fencing": [
+      96784,
+      12277,
+      11999
+    ],
+    "fixed:placement": [
+      1726750,
+      217165,
+      215001
+    ],
+    "ptr:animal_frontier": [
+      132275,
+      16513,
+      16531
+    ],
+    "ptr:harvest_feed": [
+      249878,
+      31211,
+      31283
+    ]
+  },
+  "param_count": 196368
+}
