@@ -276,16 +276,19 @@ def test_selfplay_trace_replays_to_valid_record(seed):
 # ---------------------------------------------------------------------------
 
 
-def _play_cpp_vs(python_agent_factory, *, n_seeds, sims, c_uct, cpp_seat):
+def _play_cpp_vs(python_agent_factory, *, n_seeds, sims, c_uct, cpp_seat,
+                 model_dir=_MODEL_DIR):
     """Play C++ MCTS vs a python agent over n_seeds via play_game; return the
-    C++ agent's win count (ties count as 0.5). `cpp_seat` is 0 or 1."""
+    C++ agent's win count (ties count as 0.5). `cpp_seat` is 0 or 1. `model_dir`
+    selects the C++ NN export (default: the separate-net cpp_export; the joint
+    parity test passes cpp_export_best)."""
     from agricola.agents.base import play_game
     from agricola.scoring import score, tiebreaker
 
     cpp_wins = 0.0
     for seed in range(n_seeds):
         initial, env = setup_env(seed)
-        cpp = agricola_cpp.CppMctsAgent(_MODEL_DIR, sims, c_uct, 0.2, seed)
+        cpp = agricola_cpp.CppMctsAgent(model_dir, sims, c_uct, 0.2, seed)
 
         def cpp_call(state, _cpp=cpp):
             from agricola.agents.nn.trace_replay import action_from_params
@@ -336,14 +339,16 @@ def test_cpp_mcts_parity_vs_python_mcts():
     §7.6). Modest game count / low sims to stay fast."""
     from agricola.agents import FenceMode, MCTSSearch
     from agricola.agents.mcts import MCTSAgent
-    from agricola.agents.nn.agent import nn_evaluator
-    from agricola.agents.nn.model import NormalizedValueModel
+    from agricola.agents.nn.model import load_value_evaluator
+    from agricola.agents.nn.shared_policy import make_joint_fns
     from agricola.legality import legal_actions as full_legal
-    from scripts.nn.build_combined_policy import build
 
-    model = NormalizedValueModel.load(str(_ROOT / "nn_models" / "best"))
+    # Both sides use the JOINT champion: Python `best` (value + policy off one
+    # trunk via make_joint_fns) vs the C++ `cpp_export_best` joint export.
+    joint_dir = str(_ROOT / "nn_models" / "cpp_export_best")
+    model = load_value_evaluator(str(_ROOT / "nn_models" / "best"))
     model.eval()
-    policy_fn = build("unweighted")
+    value_fn, policy_fn = make_joint_fns(model)
     sims = 48
 
     def py_factory(seed):
@@ -351,7 +356,7 @@ def test_cpp_mcts_parity_vs_python_mcts():
             rng_seed=seed,
             legal_actions_fn=full_legal,
             evaluator_config=model,
-            evaluator_fn=nn_evaluator,
+            evaluator_fn=value_fn,
             leaf_value_scale=float(getattr(model, "value_scale", 1.0)),
             policy_fn=policy_fn,
             fence_mode=FenceMode.FLATTEN,
@@ -366,7 +371,8 @@ def test_cpp_mcts_parity_vs_python_mcts():
         )
 
     n = 20
-    wins = _play_cpp_vs(py_factory, n_seeds=n, sims=sims, c_uct=1.4, cpp_seat=0)
+    wins = _play_cpp_vs(py_factory, n_seeds=n, sims=sims, c_uct=1.4, cpp_seat=0,
+                        model_dir=joint_dir)
     rate = wins / n
     print(f"\n[strength] C++ MCTS vs Python MCTS: {rate:.2%} ({wins}/{n})")
     assert 0.30 <= rate <= 0.70, (

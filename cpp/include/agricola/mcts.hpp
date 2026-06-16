@@ -100,6 +100,11 @@ class MCTSSearch {
   const NNInference* nn() const { return nn_; }
   double c_uct() const { return c_uct_; }
   double fpu_offset() const { return fpu_offset_; }
+  // Blend the policy prior with a uniform distribution over the legal set:
+  //   prior' = (1 - mix)*policy + mix*(1/k).
+  // 0 (default) = pure policy net. A small mix forces the search to explore
+  // moves the policy assigns near-zero prior (root + every node).
+  void set_prior_uniform_mix(double mix) { prior_uniform_mix_ = mix; }
   std::mt19937_64& rng() { return rng_; }
   MCTSNode* root() const { return root_; }
 
@@ -108,6 +113,7 @@ class MCTSSearch {
   double c_uct_;
   double fpu_offset_;
   double leaf_value_scale_;
+  double prior_uniform_mix_ = 0.0;
   std::mt19937_64 rng_;
   MCTSNode* root_ = nullptr;
 

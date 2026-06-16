@@ -1,0 +1,49 @@
+# Keep the Docker build context tiny: ignore everything not needed to build
+# the C++ binary and run the web server.
+#
+# What the image actually needs (see Dockerfile):
+#   cpp/ (source, minus build/) ; agricola/ ; play.py ; play_web.py ;
+#   static/ ; templates/ ; nn_models/cpp_export_best's resolved target dir.
+
+# Version control / tooling
+.git
+.gitignore
+.pytest_cache
+.dockerignore
+Dockerfile
+DEPLOY.md
+fly.toml
+
+# Python caches
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Tests: exclude the suite, but KEEP test_utils.py — agricola/agents/base.py
+# (and other agent modules) import `filter_implemented` from it at module load
+# (a known code smell). `tests/*` (not `tests/`) lets the two files be
+# re-included below so the import resolves in the image.
+tests/*
+!tests/__init__.py
+!tests/test_utils.py
+data/
+nn_runs/
+eval_out/
+tuned_configs/
+archive/
+design_docs/
+Rulebooks/
+scripts/
+
+# Local C++ build (the Mach-O arm64 artifact; rebuilt for Linux in-image)
+cpp/build/
+
+# Docs (none are load-bearing at runtime)
+*.md
+
+# Trained-model checkpoints are large and not needed — EXCEPT the C++ export
+# the symlink resolves to, which the Dockerfile copies explicitly. Ignore all
+# of nn_models/, then un-ignore the one resolved weights dir.
+nn_models/
+!nn_models/cpp_export_joint_taper128_thin_sp30k_lr3e4_ep17/

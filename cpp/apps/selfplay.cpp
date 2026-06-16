@@ -52,7 +52,11 @@ void usage(const char* prog) {
       << "              [--c-uct C] [--temperature T]               # MCTS batch\n"
       << "       " << prog
       << " --move --model-dir DIR [--sims S] [--c-uct C] [--temperature T]\n"
-      << "              reads GameState JSON from stdin, writes chosen action JSON\n";
+      << "              reads GameState JSON from stdin, writes chosen action JSON\n"
+      << "       " << prog
+      << " --analyze --model-dir DIR [--sims S] [--c-uct C] [--temperature T]\n"
+      << "              reads GameState JSON from stdin, writes root children "
+         "{visits,q} JSON\n";
 }
 
 // Parse a comma-separated list of non-negative game indices ("0,1,2"). Returns
@@ -86,6 +90,7 @@ int main(int argc, char** argv) {
   double c_uct = 1.4;
   double temperature = 1.0; // production self-play default (sample ∝ visits)
   std::string model_dir = "nn_models/cpp_export";
+  double prior_mix = 0.0;   // policy-prior uniform mix for --move / --analyze
 
   // Batch-mode args (one NN load, many games).
   std::string out_dir;      // empty -> single-game mode
@@ -96,10 +101,17 @@ int main(int argc, char** argv) {
   // Single-move mode: read GameState JSON from stdin, output chosen action JSON.
   bool move_mode = false;
 
+  // Analyze mode: read GameState JSON from stdin, output ALL root children with
+  // visits + q (read-only decision support for the web UI; no move played).
+  bool analyze_mode = false;
+
   // Two-net match-mode args (P0 = model_dir_p0, P1 = model_dir_p1).
   bool match = false;
   std::string model_dir_p0;
   std::string model_dir_p1;
+  // Per-seat policy-prior uniform mixing (0 = pure policy net).
+  double prior_mix_p0 = 0.0;
+  double prior_mix_p1 = 0.0;
 
   // Match-sweep args: per game, each seat independently draws sims (uniform over
   // --sweep-sims) and c_uct (uniform over [--cuct-lo, --cuct-hi]) from a per-game
@@ -141,6 +153,8 @@ int main(int argc, char** argv) {
       model_dir = argv[++i];
     } else if (arg == "--move") {
       move_mode = true;
+    } else if (arg == "--analyze") {
+      analyze_mode = true;
     } else if (arg == "--match") {
       match = true;
     } else if (arg == "--model-dir-p0" && i + 1 < argc) {
@@ -163,6 +177,12 @@ int main(int argc, char** argv) {
       c_uct_p0 = std::atof(argv[++i]);
     } else if (arg == "--c-uct-p1" && i + 1 < argc) {
       c_uct_p1 = std::atof(argv[++i]);
+    } else if (arg == "--prior-mix-p0" && i + 1 < argc) {
+      prior_mix_p0 = std::atof(argv[++i]);
+    } else if (arg == "--prior-mix-p1" && i + 1 < argc) {
+      prior_mix_p1 = std::atof(argv[++i]);
+    } else if (arg == "--prior-mix" && i + 1 < argc) {
+      prior_mix = std::atof(argv[++i]);  // --move / --analyze single-position mix
     } else if (arg == "-h" || arg == "--help") {
       usage(argv[0]);
       return 0;
@@ -187,7 +207,27 @@ int main(int argc, char** argv) {
       std::cerr << "selfplay: --move expects GameState JSON on stdin\n";
       return 2;
     }
-    std::string result = agricola::pick_move(state_json, model_dir, sims, c_uct, temperature);
+    std::string result = agricola::pick_move(state_json, model_dir, sims, c_uct,
+                                             temperature, prior_mix);
+    std::cout << result << "\n";
+    return 0;
+#endif
+  }
+
+  // ---- Analyze mode: --analyze ----
+  if (analyze_mode) {
+#ifndef AGRICOLA_WITH_NN
+    std::cerr << "selfplay: --analyze requires an NN build\n";
+    return 1;
+#else
+    std::string state_json((std::istreambuf_iterator<char>(std::cin)),
+                           std::istreambuf_iterator<char>());
+    if (state_json.empty()) {
+      std::cerr << "selfplay: --analyze expects GameState JSON on stdin\n";
+      return 2;
+    }
+    std::string result = agricola::analyze_position(state_json, model_dir, sims,
+                                                    c_uct, temperature, prior_mix);
     std::cout << result << "\n";
     return 0;
 #endif
@@ -255,7 +295,8 @@ int main(int argc, char** argv) {
         if (c_uct_p1 >= 0) c1 = c_uct_p1;
       }
       agricola::MatchGameResult r = agricola::mcts_match_game(
-          nn0, nn1, game_seed, s0, c0, s1, c1, temperature);
+          nn0, nn1, game_seed, s0, c0, s1, c1, temperature,
+          prior_mix_p0, prior_mix_p1);
       std::cout << "GAME seed=" << r.seed << " p0=" << r.p0_score
                 << " p1=" << r.p1_score << " winner=" << r.winner;
       if (sweep) {

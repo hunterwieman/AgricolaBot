@@ -528,6 +528,18 @@ implemented (c0)** — a `policy_fn` prior injected into `MCTSSearch` (UCT remai
 forced-move step-through, and a `FenceMode` toggle; design + change plan in POLICY_PUCT_DESIGN.md. A
 trained policy head and higher simulation counts are the active next steps.
 
+**Optional uniform-mix of the policy prior (`prior_uniform_mix`).** The PUCT prior can be blended with a
+uniform distribution before selection — `prior'(s,a) = (1−w)·policy(s,a) + w·(1/k)` over the k legal
+actions, `w ∈ [0,1]`, `w = 0` (pure policy) the default. The blend gives **every** legal action a non-zero
+prior so PUCT will eventually explore moves the policy scored ≈0 — the fix for a sharply-peaked policy
+dumping nearly all visits on the top 2–3 actions. It is implemented in the **C++ production search**
+(`MCTSSearch::set_prior_uniform_mix` / `ensure_priors`), not in the Python `mcts.py` reference, and exposed
+through the `selfplay` binary's `--prior-mix` / `--prior-mix-p0|-p1` flags. Two uses: the web UI's "Show
+analysis" overlay mixes at `w = 0.05` for move-coverage, and the opponent bot can optionally mix (a per-game
+New-Game input, default `0.0`). A 400-game self-play A/B (200 + 200 seat-flipped) found `w = 0.05` **not
+stronger** than pure policy (≈46%), so it stays off for the bot by default and is used mainly to broaden
+analysis coverage. Full detail: `MCTS_IMPLEMENTATION.md` §5.3.1.
+
 **Speeding up MCTS.** The production data-generation workload — an NN value leaf + multi-head policy
 PUCT — was profiled and optimized to a **~2× per-move speedup** (cached `GameState.__hash__`, an
 optimized inference encoder, a device-query cache, plus a policy-head eval-mode *correctness* fix).
@@ -839,6 +851,60 @@ loads (a `shared_trunk_v1` manifest for the joint model). Training always happen
 
 ---
 
+## 2.6 — Web UI & online deployment
+
+The browser game (`play_web.py` + `static/` + `templates/`) is playable **online**, deployed to
+**Fly.io** as a single always-on container. Human-vs-bot only; the bot is the joint-trunk model driven by
+**C++ MCTS PUCT** (the `selfplay --move` binary via `_CppMctsAgent`, falling back to Python MCTS if the
+binary / `cpp_export_best` is absent). Deploy walkthrough: **`DEPLOY.md`**; web-UI polish inbox:
+**`FRONTEND_FIXES.md`**.
+
+**Server architecture.** A stdlib `ThreadingHTTPServer` (only non-stdlib dep is `numpy`). Every endpoint is
+a single request/response that returns the full authoritative state — `{ok, …, "state":
+session.snapshot()}`, where `snapshot()` (in `play_web.py`) is the server→client wire format: round/phase/
+decider header fields, both players' resources/animals/farmyard/improvements (all display strings formatted
+server-side), the action board, the pending-stack breadcrumb, and `legal_actions` (each carrying an
+`index`, `display` string, `params`, and a `ui_hint`). The client renders strings only and serializes its
+requests behind an `inputLocked` flag. **Multi-tenant**: a cookie-keyed `SessionRegistry` gives each browser
+its own game; an `AGRICOLA_MAX_CONCURRENT_AI` semaphore (set to the vCPU count) caps concurrent MCTS
+searches. State is **in memory** — a restart/redeploy drops in-progress games (by design; persistence would
+need a datastore). `scripts/verify_web_sync.py` is the regression harness that HTTP-drives a server and
+asserts rendered == authoritative across the move/undo/confirm/new-game flows.
+
+**Action affordances (`ui_hint`).** `snapshot()` tags each legal action with a `ui_hint` (`_ui_hint_for` in
+`play_web.py`) telling the frontend how to surface it; `static/app.js` dispatches its render on that tag:
+
+| `ui_hint` | Action types | Frontend treatment |
+|---|---|---|
+| `space` | `PlaceWorker` | click the matching action-board card |
+| `stop` | `Stop` | the turn-ending button |
+| `button` | `ChooseSubAction`, `FireTrigger`, `CommitRenovate` | labeled button in the decision panel |
+| `major` | `CommitBuildMajor` | click the major-improvement card (Cooking Hearth shows its return-fireplace variants) |
+| `cell` | `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom` | click a highlighted farmyard cell |
+| `cell_set` | `CommitBuildPasture` | multi-select cells, confirm when the selection matches a legal pasture |
+| `numeric` | `CommitSow`, `CommitBake`, `CommitAccommodate`, `CommitBreed`, `CommitConvert`, `CommitHarvestConversion` | button-list (Pareto frontiers are small) |
+
+**Per-game New-Game inputs** (prompted on "New game"): the **seed**, the **sims/move** budget (default
+800), and the **opponent prior-mix** `w` (default `0.0`; see §2.2 — broadens the bot's search, found not
+stronger so default off).
+
+**Toggles** (header): **Fast mode** (auto-submit singleton/forced actions and skip confirm on them);
+**Confirm turns** (pause after each *non-forced* human turn to confirm/undo before the bot replies — undo
+is only offered when this is on; harvest **feed** and **breed** are separate turns); **Show analysis** (a
+read-only overlay of the bot's MCTS Q-value + visit count for each of the human's moves — async, never
+blocks the move, cancelled when you move, uniform-prior-mixed at `w=0.05` for coverage; its **explore**
+input is the analysis-only `c_uct`, default `0.5`). The action board lists spaces in **reveal order within
+each stage**, keeping the STAGE headers.
+
+**Deploy.** `Dockerfile` compiles the C++ `selfplay` binary for Linux and copies the resolved
+`cpp_export_best` champion into the image; `fly.toml` pins **one always-on machine**
+(`min_machines_running=1`, `auto_stop_machines=false`) so the in-memory state survives between requests —
+multi-machine + in-memory would desync. `.dockerignore` trims the build context (but re-includes
+`tests/__init__.py` + `tests/test_utils.py`, which `agricola/agents/base.py` imports). Ship updates with
+`fly deploy`.
+
+---
+
 ## Phase 3 — Cards (and maybe 4-player)
 
 **Not yet started — the next major phase.** The full Agricola card system (the ~470 occupation
@@ -920,11 +986,12 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
 | `SHARED_TRUNK.md` | Design + implementation + results record for the **joint shared-trunk value+policy model** (Phase 2.3, Stage B): one `170→256→256→128` trunk feeding a value head + 7 fixed + 2 pointer policy heads, trained jointly on the 41k self-play data with **soft-π** (cross-entropy against the visit distribution) policy + margin value. Covers `SharedTrunkModel` (`shared_model.py`), the one-pass cached `shared_dataset.py` (+ §3 **"the two memory lessons"** — the per-pickle-chunking *encode* peak AND the streamed-path / direct-to-split *finalize* peak that OOM'd at 57k; **load-bearing, untested, read before refactoring the builder**), the joint trainer (`shared_training.py`: per-head balance, value-MSE early-stop), the `make_joint_fns` inference adapter (`shared_policy.py`: **one trunk forward per node** via an embedding memo, so `mcts.py` is unchanged), the **C++ joint inference** (`shared_trunk_v1` manifest, mode toggle in `NNInference`, embedding cache, two-net `--match` mode), the value-capacity sweep that set the trunk size (256×2; MAE was a backwards predictor), and the eval (joint beats previous-best at 800-sim PUCT — C++ 99%). Read before touching the joint model. |
 | `PROFILING.md` | Profiling findings. Foregrounds the **current production profile** — NN value-leaf + multi-head policy PUCT, i.e. where time goes in the code today (cost attribution, the ~2× session result, the diffuse-engine-remainder finding) — plus **measurement caveats** (laptop wall noise → min-of-N/pair-by-seed; cProfile over-attributes high-call tiny functions; the eval-mode requirement). Older random-play (Workloads A/B/C, R1–R6) and V3-leaf MCTS profiles are kept under **Archived profiles**. Re-run the current profile via `scripts/profile_mcts_nn.py`. |
+| `NN_TRAINING_SPEEDUP.md` | Diagnosis + benchmark record for the NN value-training speedup. The *prescriptive* half (changes A batched-indexing + B large-batch `--fast-loader`) is **landed and validated** (see `REGISTRY.md`: bs=8192 fast-loader holds champion-recipe quality) — the code in `training.py` is now the source of truth, and the operational guidance lives in CLAUDE.md §2.5. Kept for its **unique content**: (1) §1–§2 the empirical *why* — training is overhead/optimizer-step-bound not compute-bound, with the per-step cost breakdown and the batch-size sweep (CPU flat past ~4096, MPS best at ~8192); (2) §4–§6 the **MPS (`--device mps`) path**, which was never implemented/validated — the only record of its recommended invocation, 8 GB-RAM/`--data-on-device` risks, non-determinism caveats, and nightly-PyTorch op-gap warnings, should the M1 GPU ever be tried. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
 | `README.md` | Human-facing project README (the GitHub landing page): project summary, status overview, the playable-agent table, and future work. Overlaps this file's intro but targets a general reader rather than a coding session. |
-| `WEB_UI_PLAN.md` | Living design doc for the browser-based UI (`play_web.py`): goal / non-goals, transport, file layout, action dispatch, MVP + stretch scope, and an always-current implementation-status ledger (§15). |
+| `DEPLOY.md` | Beginner-friendly step-by-step guide to deploying the web UI online on **Fly.io** as a single always-on container (CLAUDE.md §2.6): install `flyctl`, create + deploy the app, logs, regions, rough cost, and the in-memory-game-state caveat (a redeploy drops in-progress games). The deploy artifacts it drives are `Dockerfile` / `.dockerignore` / `fly.toml` at the repo root. |
 | `FRONTEND_FIXES.md` | Punch-list of web-UI *frontend* gaps (`static/app.js`, `static/style.css`, `templates/index.html`), ordered by certainty the fix is needed; each item states the problem, the backend data already exposed, and the specific frontend change. |
 
 Historical task specs and design artifacts (in `design_docs/game_engine/`, frozen at the time of their task's landing):
@@ -949,15 +1016,23 @@ Archived (in `archive/`, fully superseded by current docs):
 AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
 
-    play_web.py                     # Top-level entry point — browser-based human play UI. Serves a JSON game state over HTTP for a JavaScript frontend; shares formatting helpers with `play.py`. `--restricted` / `--no-restricted` (default ON) makes AI seats use `restricted_legal_actions` so the browser-UI agents behave the same way they do during training-pipeline fitness evaluation. `--v3-config <json>` loads a tuned V3 config (`best_config` field). The UI's Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` — a list of action dicts with `round`, `phase`, `decider`, `type`, `params`, and `display` fields — usable for post-hoc debugging or replay.
+    play_web.py                     # Top-level entry point — browser-based human-vs-bot play UI (CLAUDE.md §2.6). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS. Per-game New-Game inputs: seed, sims/move (default 800), opponent prior-mix (default 0). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, prior-mix 0.05, async, cancel-on-move). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
 
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
 
     play_heuristic_game.py          # Top-level entry point — any-vs-any heuristic-agent driver. `--p0`/`--p1` pick from {random, simple, hubris, hubris_v1, hubris_v2}; `--temperature` for softmax sampling; `--lookahead` toggles the action/turn lookahead horizon. Same scoreboard output as `play_random_game.py`.
 
+    Dockerfile                      # Web-UI deploy image (CLAUDE.md §2.6 / DEPLOY.md). Multi-stage: compiles the C++ `selfplay` binary for Linux, then a slim Python layer (stdlib server + numpy) that copies the resolved `cpp_export_best` champion into `nn_models/cpp_export_best/`. Serves `play_web.py` on port 8000.
+
+    .dockerignore                   # Trims the Docker build context (skips tests/data/docs/cpp build artifacts) — but RE-INCLUDES `tests/__init__.py` + `tests/test_utils.py`, which `agricola/agents/base.py` imports at runtime.
+
+    fly.toml                        # Fly.io app config (DEPLOY.md): single always-on machine (`min_machines_running=1`, `auto_stop_machines=false`) so the in-memory game state survives between requests; 2 shared vCPUs / 1 GB RAM; `AGRICOLA_MAX_CONCURRENT_AI=2`.
+
+    DEPLOY.md                       # Beginner-friendly Fly.io deploy walkthrough for the web UI (install flyctl → create → deploy → logs → regions → cost). See CLAUDE.md §2.6.
+
     templates/                      # Web UI assets served by `play_web.py` — the HTML shell.
 
-        index.html                  # Single-page shell `play_web.py` serves; loads `static/app.js` + `static/style.css` and hosts the board DOM the JS populates from the JSON wire format. See WEB_UI_PLAN.md.
+        index.html                  # Single-page shell `play_web.py` serves; loads `static/app.js` + `static/style.css` and hosts the board DOM the JS populates from the JSON wire format. See CLAUDE.md §2.6.
 
     static/                         # Web UI assets served by `play_web.py` — frontend JS + CSS.
 
@@ -1136,6 +1211,8 @@ AgricolaBot/
     scripts/                        # Out-of-tree utilities — profiling, benchmarking, tuning. Re-runnable; not imported by `agricola/` or `tests/`. Used to produce / update PROFILING.md and the tuned-config JSONs in `tuned_configs/`.
 
         profile_engine.py           # Three-workload runner (A: random from setup; B: random from wealthy prefab; C: micro-bench across 9 prefab states) with cProfile + wall-clock.
+
+        verify_web_sync.py          # Web-UI regression harness (CLAUDE.md §2.6). HTTP-drives a live `play_web.py` server and asserts the client-rendered state == the server's authoritative state across the move (farmland→plow), undo, confirm-turns, new-game, and opponent-mix flows. Prints "RESULT: ALL CHECKS PASSED". Guards the single-channel request/response invariant.
 
         profile_states.py           # 9 prefab `GameState` factories covering early/mid/late game; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).
 

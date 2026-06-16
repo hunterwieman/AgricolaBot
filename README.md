@@ -18,8 +18,8 @@ On top of the engine sits a stack of AI agents you can play against in the brows
 | `simple` | Small hand-tuned evaluation function. |
 | `hubris` | Round-2 CMA-ES-tuned V1 heuristic. |
 | `hubris_v3` | Larger ~250-parameter heuristic, iteratively tuned via block-coordinate descent. The strongest heuristic agents. |
-| `nn` | Trained value network used as a 1-turn-lookahead evaluator (value-only, terminal-margin target). **The strongest agent to date**. |
-| `mcts` | Vanilla UCT + FPU + DAG with transpositions + macro-enumeration for Fencing, using the trained NN as its leaf evaluator. Amplifies the NN with tree search; stronger with more simulations, at the cost of speed. (V3-free: the NN also drives the greedy fence layouts and the strict-legality feed-cap ranking.) |
+| `nn` | The trained network used as a 1-turn-lookahead evaluator. The default checkpoint (`nn_models/best`) is the **joint shared-trunk model** — one network producing both a value estimate and a policy — used here for value only. Stronger than every heuristic. |
+| `mcts` | **PUCT** (AlphaZero-style: value + policy prior + DAG with transpositions), using the joint network for both the leaf value and the search prior. Amplifies the network with tree search; stronger with more simulations, at the cost of speed. **The strongest agent to date**, and the default opponent online. Backed by a fast C++ search binary when available (≈4× the Python search). |
 
 Cards, occupation/minor-improvement support, and the AlphaZero-style training loop are future work.
 
@@ -61,36 +61,44 @@ pytest
 
 ## Playing against the AI
 
-All play happens in the browser UI (`play_web.py`). You take one seat as `human`; the other is an AI. Seats are passed as `--seats <P0> <P1>`, where P0 acts first in the turn order assigned at setup. The UI opens at `http://127.0.0.1:8000` — click an action to take your turn.
+All play happens in the browser UI (`play_web.py`). You take one seat as `human`; the other is an AI. The game can run **online** (deployed to Fly.io as a single always-on container — see [`DEPLOY.md`](DEPLOY.md)) or **locally**.
 
-**Heuristic (V3), 1-turn lookahead — fast:**
+### Running it
 
-```bash
-python play_web.py --seats human hubris_v3
-```
-
-**Neural network, 1-turn lookahead — the strongest agent:**
+Locally:
 
 ```bash
-python play_web.py --seats human nn
+# Default: you (P0) vs the MCTS bot (the strongest agent)
+python play_web.py
+
+# Pick your opponent and seat explicitly
+python play_web.py --seats human nn        # vs the 1-turn network
+python play_web.py --seats human hubris_v3 # vs the strongest heuristic
+python play_web.py --seats nn human        # play as the second player
 ```
 
-The `nn` seat scores each candidate move with a trained value network and plays greedily (1-turn lookahead). It loads `nn_models/M_55k_all/epoch_47` (the strongest checkpoint to date) by default; pass `--nn-model PATH` to use a different one — either a checkpoint directory (loads that dir's `best`) or an explicit stem like `nn_models/M_55k_all/epoch_47`. The model is fixed for the session; restart the UI to switch checkpoints.
+Seats are passed as `--seats <P0> <P1>`, where P0 acts first in the turn order assigned at setup (the seat with the starting-player advantage is decided randomly per game). The UI opens at `http://127.0.0.1:8000`. Click an action to take your turn.
 
-**MCTS — search on top of the NN, much slower:**
+The AI network is fixed at startup via `--nn-model PATH` (default `nn_models/best`, the joint shared-trunk champion) — either a checkpoint directory or an explicit stem. It applies to both the `nn` seat and the `mcts` leaf+prior. To switch checkpoints, restart the UI; to change seats or any of the per-game parameters below, just use the in-browser **New game** button.
 
-```bash
-python play_web.py --seats human mcts --mcts-sims 300
-```
+### New-game parameters
 
-MCTS amplifies an evaluator by wrapping it in tree search — more simulations generally mean stronger play. The `mcts` seat uses the **same NN as its leaf evaluator** (the `--nn-model` checkpoint, default `epoch_47`), so it's "the NN, but searched." The cost is speed: it runs many simulated rollouts per move, so it is **significantly slower** than the 1-turn agents. **Start with fewer than 400 simulations** (`--mcts-sims 300` is a good baseline) and increase only if your machine keeps up. Sims per move can also be adjusted in the browser's New-game dialog.
+Clicking **New game** prompts for three values (each has a sensible default — press Enter to accept):
 
-**Other options:**
+- **Seed** — fixes the random setup (card reveal order + who gets the starting-player advantage). Leave blank for a random game; reuse a seed to replay the same setup.
+- **Sims/move** — the MCTS simulation budget per move (default **800**). More simulations mean stronger but slower bot moves. If the bot feels sluggish on your machine, lower it (e.g. 300–500).
+- **Opponent explore (prior-mix)** — blends the bot's policy prior with a uniform distribution by this weight (default **0**, i.e. pure policy). A small value (e.g. 0.05) makes the bot consider a wider set of moves; testing found it **not stronger**, so it's off by default and mostly useful if you want a less predictable opponent.
 
-- **Play as the second player** — swap the seat order, e.g. `--seats nn human`.
-- **Watch two AIs play** — assign both seats; step through with Enter or the Advance button, e.g. `--seats hubris_v3 nn`.
-- **Use a different NN checkpoint** — `--nn-model PATH` applies to both the `nn` seat and the `mcts` leaf evaluator.
-- **Change seats or MCTS sims mid-session** — use the in-browser **New game** dialog instead of restarting.
+### Toggles (top bar)
+
+- **Fast mode** — automatically submits any turn that has exactly one legal action (and forced/singleton sub-actions), so you only stop on real decisions. Recommended on.
+- **Confirm turns** — pauses after each of *your* non-forced turns, showing **Confirm** / **Undo** before the bot replies. Forced/singleton turns are never paused. Harvest **feeding** and **breeding** count as separate turns. **Undo is only available when this is on** (it rewinds your in-progress turn). The Confirm/Undo controls appear above the player boards.
+- **Show analysis** — overlays the bot's read on *your* options: for each legal move, its MCTS **Q-value** (higher = better for you) and **visit count**. It is read-only (never changes the game), runs in the background (never blocks your move), and is cancelled the moment you move. To get coverage of more than the top few moves, analysis mixes a little uniform prior into the search.
+  - **explore** (under the toggle) — the analysis search's exploration constant (`c_uct`, default **0.5**, matching how the bot itself plays). Raise it to make the analysis explore more widely. Analysis-only; it does not affect how the bot plays.
+
+### Notes on the MCTS opponent
+
+MCTS amplifies the network by wrapping it in tree search — more simulations generally mean stronger play, at the cost of speed. It uses the joint network for **both** the leaf value and the search prior (PUCT). When the bundled C++ search binary is present it runs there (≈4× faster than the Python search); otherwise it falls back to Python MCTS automatically.
 
 ---
 

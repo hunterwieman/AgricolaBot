@@ -157,17 +157,24 @@ def test_cpp_encode_matches_python():
 
 @_torch_gate
 def test_cpp_value_matches_python():
-    from agricola.agents.nn.agent import nn_evaluator
-    from agricola.agents.nn.model import NormalizedValueModel
+    from agricola.agents.nn.model import load_value_evaluator
+    from agricola.agents.nn.shared_policy import make_joint_fns
 
-    model = NormalizedValueModel.load(str(_ROOT / "nn_models" / "best"))
+    # model_kind-aware: `best` is now a joint SharedTrunkModel; its value head
+    # satisfies the same predict_margin/value_scale contract. Compare against
+    # the matching joint C++ export (cpp_export_best), not the stale separate-net
+    # cpp_export. The joint value is read through make_joint_fns' value_fn (the
+    # MCTS adapter) rather than nn_evaluator, which assumes a separate-net model
+    # with a `.net` attribute that SharedTrunkModel lacks.
+    model = load_value_evaluator(str(_ROOT / "nn_models" / "best"))
     model.eval()
-    model_dir = str(_EXPORT_DIR)
+    value_fn, _ = make_joint_fns(model)
+    model_dir = str(_ROOT / "nn_models" / "cpp_export_best")
 
     worst = 0.0
     worst_info = None
     for state in _CORPUS:
-        py = nn_evaluator(state, 0, model)
+        py = value_fn(state, 0)
         cpp = agricola_cpp.nn_value(dumps(state), model_dir)
         d = abs(py - cpp)
         if d > worst:

@@ -82,13 +82,18 @@ def main() -> int:
     ap.add_argument("--sims-p1", type=int, default=None, help="fixed P1 sims override")
     ap.add_argument("--c-uct-p0", type=float, default=None, help="fixed P0 c_uct override")
     ap.add_argument("--c-uct-p1", type=float, default=None, help="fixed P1 c_uct override")
+    ap.add_argument("--prior-mix-p0", type=float, default=None,
+                    help="P0 policy-prior uniform mix (0=pure policy)")
+    ap.add_argument("--prior-mix-p1", type=float, default=None,
+                    help="P1 policy-prior uniform mix (e.g. 0.05)")
     args = ap.parse_args()
 
     chunks = _contiguous_chunks(args.n, args.jobs)
     mgr = Manager()
     q = mgr.Queue()
     per_seat = {"--sims-p0": args.sims_p0, "--sims-p1": args.sims_p1,
-                "--c-uct-p0": args.c_uct_p0, "--c-uct-p1": args.c_uct_p1}
+                "--c-uct-p0": args.c_uct_p0, "--c-uct-p1": args.c_uct_p1,
+                "--prior-mix-p0": args.prior_mix_p0, "--prior-mix-p1": args.prior_mix_p1}
     tasks = [(args.p0_dir, args.p1_dir, c, args.base_seed, args.sims,
               args.c_uct, args.temperature, per_seat, q) for c in chunks]
 

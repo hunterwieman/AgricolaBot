@@ -244,7 +244,9 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
                                 std::uint64_t seed,
                                 int sims_p0, double c_uct_p0,
                                 int sims_p1, double c_uct_p1,
-                                double temperature) {
+                                double temperature,
+                                double prior_mix_p0,
+                                double prior_mix_p1) {
   SetupResult su = setup(seed);
   GameState state = su.initial;
   const std::vector<std::string>& order = su.round_card_order;
@@ -254,9 +256,11 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
   // symmetric P0-vs-P0 matches self-play); P1 uses a distinct pair so the two
   // seats never share an RNG stream.
   MCTSSearch search0(&nn_p0, c_uct_p0, seed ^ 0x9E3779B97F4A7C15ULL, /*fpu=*/0.0);
+  search0.set_prior_uniform_mix(prior_mix_p0);
   MCTSAgent agent0(&search0, sims_p0, c_uct_p0, /*fpu=*/0.0, temperature,
                    seed ^ 0xD1B54A32D192ED03ULL, /*cap_total_sims=*/true);
   MCTSSearch search1(&nn_p1, c_uct_p1, seed ^ 0xBF58476D1CE4E5B9ULL, /*fpu=*/0.0);
+  search1.set_prior_uniform_mix(prior_mix_p1);
   MCTSAgent agent1(&search1, sims_p1, c_uct_p1, /*fpu=*/0.0, temperature,
                    seed ^ 0x94D049BB133111EBULL, /*cap_total_sims=*/true);
 
@@ -291,9 +295,11 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
 #endif  // AGRICOLA_WITH_NN
 
 std::string pick_move(const std::string& state_json, const std::string& model_dir,
-                      int sims, double c_uct, double temperature) {
+                      int sims, double c_uct, double temperature,
+                      double prior_mix) {
 #ifndef AGRICOLA_WITH_NN
   (void)state_json; (void)model_dir; (void)sims; (void)c_uct; (void)temperature;
+  (void)prior_mix;
   throw std::runtime_error("pick_move: binary was not built with NN support");
 #else
   GameState state = game_state_from_string(state_json);
@@ -302,6 +308,7 @@ std::string pick_move(const std::string& state_json, const std::string& model_di
   // Use seed 0 — each call gets a fresh search tree, so the RNG seed only
   // affects tie-breaking in tree expansion, not correctness.
   MCTSSearch search(nn.get(), c_uct, /*rng_seed=*/0, /*fpu=*/0.0);
+  search.set_prior_uniform_mix(prior_mix);  // 0 = pure policy (default)
   MCTSAgent agent(&search, sims, c_uct, /*fpu=*/0.0, temperature,
                   /*rng_seed=*/0, /*cap_total_sims=*/false);
 
@@ -311,6 +318,56 @@ std::string pick_move(const std::string& state_json, const std::string& model_di
   json out;
   out["action"] = json::parse(action_to_json(chosen));
   out["root_value"] = (root != nullptr) ? root->mean_q() : 0.0;
+  return out.dump();
+#endif
+}
+
+std::string analyze_position(const std::string& state_json,
+                             const std::string& model_dir, int sims,
+                             double c_uct, double temperature,
+                             double prior_mix) {
+#ifndef AGRICOLA_WITH_NN
+  (void)state_json; (void)model_dir; (void)sims; (void)c_uct; (void)temperature;
+  (void)prior_mix;
+  throw std::runtime_error("analyze_position: binary was not built with NN support");
+#else
+  (void)temperature;  // analysis discards the played move; temperature is unused.
+  GameState state = game_state_from_string(state_json);
+
+  std::shared_ptr<NNInference> nn = get_nn_cached(model_dir);
+  // Mirror pick_move's search setup exactly (fresh tree, seed 0 — only affects
+  // tie-breaking). cap_total_sims=false so we run the full `sims` budget.
+  MCTSSearch search(nn.get(), c_uct, /*rng_seed=*/0, /*fpu=*/0.0);
+  search.set_prior_uniform_mix(prior_mix);  // uniform-mix the prior for coverage
+  MCTSAgent agent(&search, sims, c_uct, /*fpu=*/0.0, temperature,
+                  /*rng_seed=*/0, /*cap_total_sims=*/false);
+
+  // Run the search but DISCARD the chosen move — we only want the root stats.
+  agent.choose(state);
+  MCTSNode* root = agent.last_root();
+
+  json children = json::array();
+  if (root != nullptr) {
+    // root->value_sum is in the root decider's own frame. Each child's value_sum
+    // is in THAT CHILD's decider frame; flip to the root (== the human decider)
+    // frame so q is consistently "good-for-the-human" (higher = better) — the
+    // same sign-flip select_via_puct applies on read.
+    for (const auto& [action, child] : root->children) {
+      if (child->visits == 0) continue;  // unvisited — omit
+      double q = child->value_sum / static_cast<double>(child->visits);
+      if (child->decider != root->decider) q = -q;
+      json tp = json::parse(action_to_json(action));  // {type, params}
+      json entry = json::object();
+      entry["type"] = tp.at("type");
+      entry["params"] = tp.at("params");
+      entry["visits"] = static_cast<long long>(child->visits);
+      entry["q"] = q;
+      children.push_back(std::move(entry));
+    }
+  }
+
+  json out = json::object();
+  out["children"] = std::move(children);
   return out.dump();
 #endif
 }

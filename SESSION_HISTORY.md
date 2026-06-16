@@ -37,6 +37,7 @@ This file records the full history of what was built, why, and how. Future sessi
 - [Multi-baseline panel + R1-force-forest experiment + alphas_gen_7 champion + interactive-AI web UI (2026-05-26 / 2026-05-28)](#panel-and-r1-forest)
 - [Documentation restructure — phase-based CLAUDE.md + ENGINE_IMPLEMENTATION.md (2026-05-30)](#claude-restructure)
 - [Policy head + PUCT — design + c0 implementation (2026-06-04)](#policy-puct-c0)
+- [Web UI online deployment + prior-uniform-mix + differential-gate refresh (2026-06-16)](#web-deploy-prior-mix)
 - [Current State](#current-state)
 
 ---
@@ -2841,6 +2842,31 @@ The policy session's 27k-game count showed `build_rooms` and `plow` are **never*
 ### Tests / status
 
 `tests/test_puct.py` (13): FenceMode invariants, `uniform_policy`, FLATTEN-vs-MACRO fencing, priors at expansion, prior-steers-visits (constant-eval isolation), `root_visit_distribution`, the forced-move step-through invariant (V never evaluated at a singleton), and full-game + self-play smoke. UCT unchanged structurally (`tests/test_mcts.py` 24/24). Next: CLI wiring in `play_mcts_match.py` for the eval controls, then c1 (train the placement head, wire it as the prior).
+
+---
+
+<a name="web-deploy-prior-mix"></a>
+## Web UI online deployment + prior-uniform-mix + differential-gate refresh (2026-06-16)
+
+A product-and-infra session: made the browser game playable **online**, reworked the web UI around a single-channel protocol, added an optional uniform-mix to the policy prior (with a strength test), and refreshed the two differential gates that had gone stale when `nn_models/best` became a joint model. No engine rules changed.
+
+### What was built
+
+- **Online deployment (Fly.io).** `Dockerfile` (multi-stage: compile the C++ `selfplay` binary for Linux, then a slim stdlib-Python + numpy layer that bakes in the resolved `cpp_export_best` champion), `.dockerignore` (trims the context but re-includes `tests/__init__.py` + `tests/test_utils.py`, which `agricola/agents/base.py` imports), `fly.toml` (one always-on machine — `min_machines_running=1`, `auto_stop_machines=false` — so in-memory state survives between requests), and `DEPLOY.md` (a beginner-friendly walkthrough). Documented as CLAUDE.md **§2.6**.
+- **Single-channel web rewrite.** Every endpoint is now one request/response returning the full authoritative state (`session.snapshot()`); the client serializes requests behind an `inputLocked` flag. This replaced an SSE/dual-channel + client-side `move_seq` scheme whose interaction with multiple Fly machines caused games to freeze/revert. **Multi-tenant**: a cookie-keyed `SessionRegistry` (each browser its own game) + an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. `scripts/verify_web_sync.py` HTTP-drives a live server and asserts rendered == authoritative across move/undo/confirm/new-game.
+- **Web UX features.** Per-game New-Game inputs (seed, sims/move default 800, opponent prior-mix default 0). Toggles: **Fast mode** (auto-submit singleton/forced turns), **Confirm turns** (confirm/undo above the boards; undo only when on; harvest feed and breed are separate turns; never triggers on forced turns), **Show analysis** (`/api/analyze` → `selfplay --analyze`, a read-only overlay of the bot's per-move Q + visit count; async, cancel-on-move; prior-mix 0.05 for coverage; an "explore" `c_uct` input default 0.5). Action board ordered by reveal-order **within** each stage group. Double-click-as-two-moves fixed by the input lock.
+- **Optional uniform-mix of the policy prior** (`prior_uniform_mix`, C++ search only): `prior' = (1−w)·policy + w·(1/k)` over the legal set, applied in `MCTSSearch::set_prior_uniform_mix` / `ensure_priors`, exposed via `selfplay --prior-mix` / `--prior-mix-p0|-p1` (and `run_cpp_match.py`). Guarantees every legal move a non-zero prior so a peaked policy doesn't dump all visits on the top 2–3 moves. Documented in MCTS_IMPLEMENTATION.md **§5.3.1** + CLAUDE.md §2.2.
+- **Differential-gate refresh.** `test_cpp_value_matches_python` and `test_cpp_mcts_parity_vs_python_mcts` had gone dark when `best` became the joint `SharedTrunkModel` (they still loaded it via the separate-net `NormalizedValueModel` / `nn_evaluator` path and compared against the stale separate-net `cpp_export`). Rewired both to load via the `model_kind`-aware `load_value_evaluator` + `make_joint_fns` and compare against `cpp_export_best`. Both green (16 passed across `test_cpp_nn.py` + `test_cpp_mcts.py`).
+
+### Key decisions
+
+- **Strength test of the prior-mix:** a 400-game C++ self-play A/B (200 + 200 seat-flipped), `w=0.05` vs pure policy, found the mix **not stronger** (≈46%). So it's left **off by default** for the opponent and used mainly to broaden analysis coverage — the analysis overlay needs coverage of more than the policy's top few moves.
+- **In-memory + one machine:** game state lives in the server process, so the deploy pins exactly one always-on machine; multi-machine + in-memory would desync sessions. Persistence is explicitly out of scope.
+- **Doc placement:** the web UI is a *consumer* of the engine/model, not on the training critical path, so it's documented in CLAUDE.md §2.6 (current code only) rather than a new top-level deep-doc. The pre-implementation `WEB_UI_PLAN.md` — mostly stale (SSE/single-lock/evaluator-picker all since replaced) — was **archived**; its two non-obvious-and-current bits (the `ui_hint` taxonomy, the wire-format note) folded into §2.6 and its open TODOs moved to `FRONTEND_FIXES.md` (items 11–13).
+
+### Status
+
+All C++ differential gates green. The web UI is deployed and multi-tenant. The prior-mix is a C++-only search knob (no Python `mcts.py` change, so the differential harness doesn't cover it). No new model trained — `nn_models/best` remains `joint_taper128_thin_sp30k_lr3e4`.
 
 ---
 

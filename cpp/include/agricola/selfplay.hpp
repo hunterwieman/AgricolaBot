@@ -28,7 +28,26 @@ std::string random_selfplay_trace(std::uint64_t seed);
 // object: {"action": {type, params}, "root_value": float}.
 // Intended for the web UI: play_web.py shells out per AI turn and parses stdout.
 std::string pick_move(const std::string& state_json, const std::string& model_dir,
-                      int sims, double c_uct, double temperature);
+                      int sims, double c_uct, double temperature,
+                      double prior_mix = 0.0);
+
+// Read-only position analysis for the web UI's "Show analysis" feature. Runs the
+// SAME MCTS as pick_move on the position described by `state_json` (canonical
+// GameState JSON), but instead of returning a chosen move it emits EVERY visited
+// root child with its visit count and value. The chosen-move result is discarded
+// — analysis is purely informational decision support. Output is a compact JSON
+// object:
+//   {"children": [{"type": "<ActionType>", "params": {...},
+//                  "visits": <int>, "q": <float|null>}, ...]}
+// `q` is the child's mean value in the ROOT DECIDER'S perspective (higher = better
+// for the player to move, the human). The {type, params} serialization is
+// identical to pick_move's --move action, so it round-trips through the same
+// action_from_params on the Python side. Unvisited children (visits 0) are
+// omitted. Requires an NN build.
+std::string analyze_position(const std::string& state_json,
+                             const std::string& model_dir, int sims,
+                             double c_uct, double temperature,
+                             double prior_mix = 0.0);
 
 #ifdef AGRICOLA_WITH_NN
 // Stage 6 production self-play (CPP_ENGINE_PLAN.md §7) — a faithful mirror of
@@ -76,7 +95,9 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
                                 std::uint64_t seed,
                                 int sims_p0, double c_uct_p0,
                                 int sims_p1, double c_uct_p1,
-                                double temperature);
+                                double temperature,
+                                double prior_mix_p0 = 0.0,
+                                double prior_mix_p1 = 0.0);
 #endif
 
 }  // namespace agricola

@@ -1,26 +1,116 @@
-// AgricolaBot Web UI — vanilla JS, SSE-driven.
+// AgricolaBot Web UI — vanilla JS, single-channel request/response.
 //
-// Server pushes full GameState JSON on /api/events; we re-render in place.
-// Clicking any action button POSTs { action_index } to /api/step.
+// There is NO server push. Every state-changing request (place a worker, a
+// sub-action, undo, confirm, a toggle, new game) returns the full resulting
+// GameState in its HTTP response, and the page renders from that. This single
+// source of truth is what makes the UI immune to the out-of-order / stale
+// rendering bugs a second (push) channel caused.
 
 (function () {
   'use strict';
 
   // ---------------------------------------------------------------------
-  // SSE subscription
+  // State
   // ---------------------------------------------------------------------
 
   let currentState = null;
-  let evtSource = null;
   // Selection state for multi-cell pasture build. Reset on every state push.
   // Stored as Set<"r,c">.
   let cellSelection = new Set();
 
-  // Re-entrancy guard for every action-submitting fetch (submitAction /
-  // undoTurn / confirmTurn). Blocks a second click during the request
-  // round-trip — the server's expected_seq guard covers anything that
-  // slips through (e.g. a click on a freshly-pushed SSE state). While set,
-  // we mark the body so CSS can show a "click registered" wait cursor.
+  // ---- "Show analysis" overlay state (frontend-only; does NOT POST) ----
+  // When on, each human decision triggers a background /api/analyze call; the
+  // returned per-move {visits, q} are overlaid on the board spaces and the
+  // sub-action buttons. Read-only — never blocks the human's move.
+  let analysisOn = false;
+  // Keyed by actionKey(type, params) -> {visits, q}.
+  let analysisByKey = new Map();
+  // Monotonic generation counter: each adopted state bumps it. An in-flight
+  // /api/analyze response is discarded if a newer state has arrived since it
+  // was launched (so stale analysis never overwrites the current overlay).
+  let analysisGen = 0;
+  // Exploration constant for the analysis search (sent to /api/analyze).
+  // Default 0.5 = what the bot plays at, so the analysis matches the bot's
+  // evaluation; coverage of all moves comes from the prior-mix. Raising it
+  // makes the analysis explore wider. Tunable in the header; persisted.
+  let analysisCuct = parseFloat(localStorage.getItem('agricola.analysisCuct')) || 0.5;
+
+  // Render whatever the server just returned. The server is authoritative; a
+  // response always carries the current state, so we simply adopt it. There is
+  // no client-side versioning or "is this newer?" check — requests are
+  // serialized (one in flight at a time, see `inputLocked`), so responses
+  // can't arrive out of order, and the latest response is the truth.
+  function applyState(state) {
+    if (!state) return;
+    setConnState(true);
+    currentState = state;
+    cellSelection = new Set();  // a server step happened → drop partial selection
+    // A new state invalidates any in-flight / displayed analysis: bump the
+    // generation (so a late /api/analyze response is discarded) and clear the
+    // overlay. If analysis is on and it's a human's turn, kick off a fresh
+    // background fetch (NOT awaited — must not block render or clicking).
+    analysisGen++;
+    analysisByKey.clear();
+    if (analysisOn && isHumanTurn(state)) {
+      fetchAnalysis(analysisGen);
+    }
+    render(currentState);
+  }
+
+  // Is the current decider a human seat? (Used to gate the analysis fetch.)
+  function isHumanTurn(state) {
+    if (!state || state.game_over || state.decider == null) return false;
+    return state.seats && state.seats[state.decider] === 'human';
+  }
+
+  // Canonical key for an action — the SAME on both sides of the lookup (when
+  // storing a /api/analyze child and when matching a legal action / button).
+  // Sorting the keys makes it order-independent. The C++ analyze params match
+  // the frontend legal_action params field-for-field (PlaceWorker → {space},
+  // ChooseSubAction → {name}, the Commit* family → their numeric/idx fields).
+  function actionKey(type, params) {
+    params = params || {};
+    return type + '|' + JSON.stringify(params, Object.keys(params).sort());
+  }
+
+  // Format an analysis badge: signed Q to 1 decimal + visit count N.
+  function analysisBadgeText(info) {
+    const q = info.q >= 0 ? `+${info.q.toFixed(1)}` : info.q.toFixed(1);
+    return `Q ${q} · ${info.visits}`;
+  }
+
+  // Background fetch of the AI's per-move analysis for the current human
+  // decision. Read-only: does NOT go through inputLocked (it must never block
+  // a move). If a newer state has been adopted since this call was launched
+  // (gen mismatch), the response is discarded. Errors are ignored silently.
+  async function fetchAnalysis(gen) {
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ c_uct: analysisCuct }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (gen !== analysisGen) return;  // a newer state arrived — discard
+      if (!data || !data.ok || !Array.isArray(data.children)) return;
+      const map = new Map();
+      for (const child of data.children) {
+        map.set(actionKey(child.type, child.params),
+                { visits: child.visits, q: child.q });
+      }
+      analysisByKey = map;
+      if (currentState) render(currentState);
+    } catch (err) {
+      // Read-only background call; ignore failures.
+    }
+  }
+
+  // The single serialization guard for EVERY state-changing request — moves,
+  // sub-actions, undo, confirm, AI-step, toggles, and new game. Only one
+  // request is in flight at a time, so the server processes them in a defined
+  // order and their responses can't arrive out of order. A click while one is in
+  // flight is dropped. While set, we mark the body so CSS shows a "click
+  // registered" wait cursor.
   let inputLocked = false;
   function setInputLocked(locked) {
     inputLocked = locked;
@@ -28,59 +118,25 @@
   }
 
   // Fast mode: when enabled, the SERVER auto-applies any human-singleton
-  // decision in the same lock-held window where it already auto-applies
-  // AI moves. The frontend's role is just to surface a toggle that POSTs
-  // to /api/fast_mode. Local state mirrors the server flag for UI display
-  // and is persisted to localStorage so the preference survives reloads.
-  // (Previously this was a client-side auto-submit, but that had race
-  // conditions with SSE event ordering, particularly when MCTS was the
-  // opponent — the singleton state could be displayed briefly before the
-  // auto-submit fired, and was sometimes skipped entirely.)
-  let fastMode = localStorage.getItem('agricola.fastMode') === '1';
+  // decision in the same lock-held window where it already auto-applies AI
+  // moves. These two toggle flags are SERVER-AUTHORITATIVE: render() syncs
+  // them (and the checkboxes) from each state payload's fast_mode /
+  // confirm_mode. The handlers just POST the desired value and render the
+  // response. (They default off each page load.)
+  let fastMode = false;
+  // Confirm-turn mode: when on, the SERVER pauses after each completed human
+  // turn (state.awaiting_confirm) so the player can Confirm (let the AI reply)
+  // or Undo. Forced/singleton turns are not paused.
+  let confirmMode = false;
 
-  // Confirm-turn mode: when enabled, the SERVER pauses after each completed
-  // human turn (state.awaiting_confirm becomes true) so the player can
-  // Confirm it (let the AI reply) or Undo it before committing. Forced /
-  // singleton turns are not paused. Mirrors the fastMode toggle pattern:
-  // local flag for UI display, persisted to localStorage, POSTed to
-  // /api/confirm_mode. The checkbox is also re-synced to server truth
-  // whenever a state payload arrives (state.confirm_mode).
-  let confirmMode = localStorage.getItem('agricola.confirmTurn') === '1';
-
-  // Interactive AI mode: server pauses BEFORE each AI top-level placement;
-  // the frontend fetches per-action evaluator scores from /api/ai_preview
-  // and overlays them on the board, then Enter (or the Advance button)
-  // releases the AI to play its move. See backend Session.set_interactive_ai
-  // for the pause semantics. Persisted to localStorage like fastMode.
-  let interactiveAi = localStorage.getItem('agricola.interactiveAi') === '1';
-  // Most-recent preview rows from /api/ai_preview, keyed by space id. Set
-  // by render() when state.interactive_ai_paused becomes true; cleared on
-  // every other render so stale scores don't linger.
-  let previewByspace = new Map();
-  let previewTopScore = null;
-  let previewFetchInFlight = false;
-
+  // Connection indicator. There is no push channel: the page is driven purely
+  // by request/response (every action and toggle returns the full resulting
+  // state). So "online" just reflects whether the last request succeeded.
   function setConnState(connected) {
     const el = document.getElementById('connection-state');
     if (!el) return;
     el.textContent = connected ? 'online' : 'offline';
     el.className = connected ? 'conn-connected' : 'conn-disconnected';
-  }
-
-  function connectSSE() {
-    if (evtSource) try { evtSource.close(); } catch (_) {}
-    evtSource = new EventSource('/api/events');
-    evtSource.addEventListener('open', () => setConnState(true));
-    evtSource.addEventListener('error', () => setConnState(false));
-    evtSource.addEventListener('state', (e) => {
-      try {
-        currentState = JSON.parse(e.data);
-        cellSelection = new Set();  // server step happened → drop any partial selection
-        render(currentState);
-      } catch (err) {
-        console.error('failed to parse state', err);
-      }
-    });
   }
 
   // ---------------------------------------------------------------------
@@ -94,49 +150,52 @@
       const res = await fetch('/api/step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action_index: actionIndex,
-          expected_seq: currentState ? currentState.move_seq : undefined,
-        }),
+        body: JSON.stringify({ action_index: actionIndex }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!data.ok) {
-        // A "stale" rejection is a duplicate/late click — a fresh state is
-        // already arriving via SSE, so swallow it silently.
-        if (data.error !== 'stale') console.warn('step rejected:', data.error);
-      }
+      // The response carries the full resulting state (including the bot's
+      // reply, or the unchanged board if the click was already stale). We just
+      // render it — single source of truth, self-healing by construction.
+      applyState(data.state);
+      if (!data.ok) console.warn('step rejected:', data.error);
     } catch (err) {
+      setConnState(false);
       console.error('step request failed', err);
     } finally {
       setInputLocked(false);
     }
   }
 
-  // Rewind the in-progress human turn to its start. New state arrives via SSE.
+  // Rewind the in-progress human turn to its start. The response carries the
+  // reverted state.
   async function undoTurn() {
     if (inputLocked) return;
     setInputLocked(true);
     try {
       const res = await fetch('/api/undo_turn', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
+      applyState(data.state);
       if (!data.ok) console.warn('undo_turn rejected:', data.error);
     } catch (err) {
+      setConnState(false);
       console.error('undo_turn request failed', err);
     } finally {
       setInputLocked(false);
     }
   }
 
-  // Commit a paused (awaiting-confirm) turn, releasing the AI to reply. New
-  // state arrives via SSE.
+  // Commit a paused (awaiting-confirm) turn, releasing the AI to reply. The
+  // response carries the post-reply state.
   async function confirmTurn() {
     if (inputLocked) return;
     setInputLocked(true);
     try {
       const res = await fetch('/api/confirm_turn', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
+      applyState(data.state);
       if (!data.ok) console.warn('confirm_turn rejected:', data.error);
     } catch (err) {
+      setConnState(false);
       console.error('confirm_turn request failed', err);
     } finally {
       setInputLocked(false);
@@ -147,10 +206,9 @@
   // the bound action for the "Advance" button / Enter-key shortcut. In
   // human-vs-AI mode the backend already fast-forwards AI moves after a
   // human action, so this is rarely needed there.
-  let aiStepInFlight = false;
   async function stepAI() {
-    if (aiStepInFlight) return;  // single-flight: avoid stacking on rapid keypresses
-    aiStepInFlight = true;
+    if (inputLocked) return;  // serialize with every other state-changing request
+    setInputLocked(true);
     try {
       const res = await fetch('/api/step_ai', {
         method: 'POST',
@@ -158,13 +216,13 @@
         body: '{}',
       });
       const data = await res.json().catch(() => ({}));
-      if (!data.ok) {
-        console.warn('step_ai rejected:', data.error);
-      }
+      applyState(data.state);
+      if (!data.ok) console.warn('step_ai rejected:', data.error);
     } catch (err) {
+      setConnState(false);
       console.error('step_ai request failed', err);
     } finally {
-      aiStepInFlight = false;
+      setInputLocked(false);
     }
   }
 
@@ -189,8 +247,8 @@
   }
 
   async function resetGame() {
-    // Fixed human-vs-MCTS setup. One optional prompt for a seed (blank =
-    // random); everything else (seats, MCTS settings) is the backend default.
+    // Fixed human-vs-MCTS setup. Prompt for a seed (blank = random) and the
+    // AI's sims/move (higher = stronger but slower).
     const seedStr = prompt(
       'Seed for new game? (blank = random)', String(Date.now() & 0xffff));
     if (seedStr === null) return;
@@ -199,14 +257,53 @@
       ? (Date.now() & 0xffff)
       : (parseInt(trimmed, 10) || 0);
 
-    const res = await fetch('/api/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seed, seats: ['human', 'mcts'] }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!data.ok) {
-      console.warn('reset rejected:', data.error);
+    // Sims/move: default to the current game's value, else the last choice,
+    // else 800. Persisted so it sticks across games.
+    const simsDefault = (currentState && currentState.mcts_sims)
+      || parseInt(localStorage.getItem('agricola.mctsSims'), 10)
+      || 800;
+    const simsStr = prompt(
+      'AI strength — MCTS sims per move?\n' +
+      '  higher = stronger but slower\n' +
+      '  800 = default,  ~1500+ = strong,  300 = quick',
+      String(simsDefault));
+    if (simsStr === null) return;
+    const simsTrim = simsStr.trim();
+    const mctsSims = simsTrim === '' ? simsDefault : Math.max(1, parseInt(simsTrim, 10) || simsDefault);
+    localStorage.setItem('agricola.mctsSims', String(mctsSims));
+
+    // Opponent's prior-uniform mix for this game (0 = standard/strongest bot).
+    const mixDefault = (currentState && currentState.opponent_mix)
+      || parseFloat(localStorage.getItem('agricola.opponentMix'))
+      || 0;
+    const mixStr = prompt(
+      'Opponent mix? (uniform mix into the bot\'s prior)\n' +
+      '  0 = standard bot (default),  ~0.05 = a bit more varied / slightly weaker',
+      String(mixDefault));
+    if (mixStr === null) return;
+    const mixTrim = mixStr.trim();
+    const opponentMix = mixTrim === '' ? mixDefault : Math.max(0, parseFloat(mixTrim) || 0);
+    localStorage.setItem('agricola.opponentMix', String(opponentMix));
+
+    if (inputLocked) return;  // a request is in flight — serialize
+    setInputLocked(true);
+    try {
+      const res = await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seed, seats: ['human', 'mcts'],
+          mcts_sims: mctsSims, opponent_mix: opponentMix,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      applyState(data.state);  // render the fresh game from the response
+      if (!data.ok) console.warn('reset rejected:', data.error);
+    } catch (err) {
+      setConnState(false);
+      console.error('reset failed', err);
+    } finally {
+      setInputLocked(false);
     }
   }
 
@@ -242,130 +339,91 @@
     return e;
   }
 
-  async function setFastMode(v) {
-    fastMode = !!v;
-    localStorage.setItem('agricola.fastMode', fastMode ? '1' : '0');
-    const cb = document.getElementById('fast-mode-toggle');
-    if (cb) cb.checked = fastMode;
-    // Push to the server. The server's set_fast_mode also auto-advances
-    // any pending human singleton when turning ON, and broadcasts the
-    // new state via SSE — we don't need to do anything else here.
+  // A toggle is a state-changing request, so it serializes through inputLocked
+  // like every action — one request in flight at a time keeps responses in
+  // order. `desired` is the checkbox's new value. On success the response
+  // carries the server-authoritative flag, which render() reflects back onto
+  // the checkbox; if a request is already in flight, we ignore the toggle and
+  // snap the checkbox back to current truth.
+  async function postToggle(endpoint, desired, current, checkboxId, errLabel) {
+    const cb = document.getElementById(checkboxId);
+    if (inputLocked) {
+      if (cb) cb.checked = current;  // busy — revert; truth unchanged
+      return;
+    }
+    setInputLocked(true);
     try {
-      const res = await fetch('/api/fast_mode', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: fastMode }),
+        body: JSON.stringify({ enabled: !!desired }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!data.ok) {
-        console.warn('fast_mode toggle rejected:', data.error);
-      }
+      applyState(data.state);  // render() syncs the flag + checkbox from state
+      if (!data.ok) console.warn(errLabel + ' rejected:', data.error);
     } catch (err) {
-      console.error('fast_mode toggle failed', err);
+      setConnState(false);
+      if (cb) cb.checked = current;  // revert on failure
+      console.error(errLabel + ' failed', err);
+    } finally {
+      setInputLocked(false);
     }
   }
 
-  async function setConfirmTurn(v) {
-    confirmMode = !!v;
-    localStorage.setItem('agricola.confirmTurn', confirmMode ? '1' : '0');
-    const cb = document.getElementById('confirm-turn-toggle');
-    if (cb) cb.checked = confirmMode;
-    // Push to the server, which broadcasts the new state via SSE — we don't
-    // need to do anything else here.
-    try {
-      const res = await fetch('/api/confirm_mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: confirmMode }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.ok) {
-        console.warn('confirm_mode toggle rejected:', data.error);
-      }
-    } catch (err) {
-      console.error('confirm_mode toggle failed', err);
-    }
+  function setFastMode(v) {
+    return postToggle('/api/fast_mode', v, fastMode, 'fast-mode-toggle', 'fast_mode toggle');
   }
 
-  async function setInteractiveAi(v) {
-    interactiveAi = !!v;
-    localStorage.setItem('agricola.interactiveAi', interactiveAi ? '1' : '0');
-    const cb = document.getElementById('interactive-ai-toggle');
-    if (cb) cb.checked = interactiveAi;
-    // Drop any stale preview when toggling off, so the badges disappear
-    // immediately (don't wait for the next SSE state push).
-    if (!interactiveAi) {
-      previewByspace = new Map();
-      previewTopScore = null;
+  function setConfirmTurn(v) {
+    return postToggle('/api/confirm_mode', v, confirmMode, 'confirm-turn-toggle', 'confirm_mode toggle');
+  }
+
+  // "Show analysis" toggle. Frontend-only — does NOT POST. When turned on
+  // during the human's turn, kick off a background analysis immediately; when
+  // off, clear the overlay and re-render.
+  function setAnalysis(v) {
+    analysisOn = !!v;
+    if (analysisOn) {
+      analysisGen++;
+      analysisByKey.clear();
+      if (currentState && isHumanTurn(currentState)) fetchAnalysis(analysisGen);
+    } else {
+      analysisByKey.clear();
       if (currentState) render(currentState);
     }
-    try {
-      const res = await fetch('/api/interactive_ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: interactiveAi }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!data.ok) {
-        console.warn('interactive_ai toggle rejected:', data.error);
-      }
-    } catch (err) {
-      console.error('interactive_ai toggle failed', err);
+  }
+
+  // Tune the analysis exploration constant. Persisted; re-runs analysis if on.
+  function setAnalysisCuct(v) {
+    const n = parseFloat(v);
+    if (!(n > 0)) return;  // ignore invalid / non-positive
+    analysisCuct = n;
+    localStorage.setItem('agricola.analysisCuct', String(n));
+    if (analysisOn && currentState && isHumanTurn(currentState)) {
+      analysisGen++;            // invalidate any in-flight (old-c_uct) result
+      analysisByKey.clear();
+      render(currentState);
+      fetchAnalysis(analysisGen);
     }
   }
 
-  // Fetch the AI's per-action preview scores and re-render once they arrive.
-  // Called automatically by render() whenever state.interactive_ai_paused
-  // flips to true. Single-flight: a second call while one is in flight is
-  // a no-op (the in-flight response will populate the same state).
-  async function fetchAiPreview() {
-    if (previewFetchInFlight) return;
-    previewFetchInFlight = true;
-    try {
-      const res = await fetch('/api/ai_preview');
-      const data = await res.json().catch(() => ({}));
-      if (data && data.ok && Array.isArray(data.rows)) {
-        const map = new Map();
-        let top = null;
-        for (const row of data.rows) {
-          if (row.space) map.set(row.space, row);
-          if (top === null || row.score > top) top = row.score;
-        }
-        previewByspace = map;
-        previewTopScore = top;
-        if (currentState) render(currentState);
-      } else if (data && !data.ok) {
-        // Backend declined (e.g., MCTS seat, mid-resolution). Drop any
-        // previous scores so we don't keep stale overlays.
-        previewByspace = new Map();
-        previewTopScore = null;
-      }
-    } catch (err) {
-      console.error('ai_preview fetch failed', err);
-    } finally {
-      previewFetchInFlight = false;
-    }
+  // Reflect a server-owned toggle flag onto its local mirror var + checkbox.
+  function syncToggle(key, state, checkboxId, setLocal) {
+    if (typeof state[key] !== 'boolean') return;
+    setLocal(state[key]);
+    const cb = document.getElementById(checkboxId);
+    if (cb) cb.checked = state[key];
   }
 
   function render(state) {
-    // Keep the confirm-mode checkbox in sync with server truth (the server
-    // owns this flag; reflect whatever it reports).
-    if (typeof state.confirm_mode === 'boolean') {
-      confirmMode = state.confirm_mode;
-      const cb = document.getElementById('confirm-turn-toggle');
-      if (cb) cb.checked = confirmMode;
-    }
-    // Interactive-AI preview management: when the server pauses before an
-    // AI placement, fetch the per-action scores. When unpaused (or
-    // toggled off), drop them so stale overlays don't linger.
-    if (state.interactive_ai_paused && interactiveAi) {
-      if (previewByspace.size === 0) fetchAiPreview();
-    } else if (previewByspace.size > 0) {
-      previewByspace = new Map();
-      previewTopScore = null;
-    }
+    // The server owns these toggle flags; reflect whatever it reports onto the
+    // local mirrors and the checkboxes. ("Show analysis" is frontend-only and
+    // is NOT server-synced — its checkbox is wired directly to setAnalysis.)
+    syncToggle('confirm_mode', state, 'confirm-turn-toggle', (v) => { confirmMode = v; });
+    syncToggle('fast_mode', state, 'fast-mode-toggle', (v) => { fastMode = v; });
 
     renderHeader(state);
+    renderTurnControls(state);
     renderActionBoard(state);
     renderMajorBoard(state);
     renderPlayerPanel(state, 0);
@@ -373,6 +431,32 @@
     renderDecisionPanel(state);
     renderRoundLog(state);
     renderGameOver(state);
+  }
+
+  // -------- turn controls (Confirm / Undo), rendered ABOVE the boards --------
+
+  function renderTurnControls(state) {
+    const tc = document.getElementById('turn-controls');
+    if (!tc) return;
+    tc.innerHTML = '';
+    if (state.game_over) return;
+    if (state.awaiting_confirm) {
+      // The human's turn is complete; wait for an explicit Confirm/Undo.
+      const bar = el('div', { class: 'confirm-bar' });
+      bar.appendChild(el('button',
+        { class: 'confirm-btn', onclick: () => confirmTurn() }, 'Confirm turn'));
+      bar.appendChild(el('button',
+        { class: 'undo-btn', onclick: () => undoTurn() }, 'Undo turn'));
+      bar.appendChild(el('span', { class: 'confirm-hint' },
+        'Confirm your turn or undo it.'));
+      tc.appendChild(bar);
+    } else if (state.can_undo) {
+      // Mid-turn: let the human reset the in-progress turn.
+      const bar = el('div', { class: 'undo-bar' });
+      bar.appendChild(el('button',
+        { class: 'action-btn small undo', onclick: () => undoTurn() }, 'Undo turn'));
+      tc.appendChild(bar);
+    }
   }
 
   // -------- header --------
@@ -396,9 +480,6 @@
     'forest', 'clay_pit', 'reed_bank', 'fishing', 'meeting_place',
     'grain_seeds', 'farmland', 'day_laborer', 'side_job', 'farm_expansion',
   ];
-  const STAGE_RANGES = {
-    1: [1, 4], 2: [5, 7], 3: [8, 9], 4: [10, 11], 5: [12, 13], 6: [14, 14],
-  };
 
   function placeWorkerActionMap(state) {
     const m = new Map();
@@ -441,15 +522,17 @@
       if (!sp || !sp.is_revealed) return;
       const legal = pwMap.get(sid);
       const occupied = (sp.workers[0] + sp.workers[1]) > 0;
-      // AI preview overlay (only present when state.interactive_ai_paused
-      // and previewByspace has been populated).
-      const preview = previewByspace.get(sid);
+      // "Show analysis" overlay: the AI's visit count + value for placing a
+      // worker here, looked up by the canonical action key. Only present for
+      // moves the search actually considered (PUCT concentrates, so unvisited
+      // moves are omitted by design).
+      const analysis = (analysisOn && legal)
+        ? analysisByKey.get(actionKey('PlaceWorker', { space: sid }))
+        : undefined;
       const cls = [
         'space-card',
         legal ? 'clickable' : '',
         occupied ? 'occupied' : '',
-        preview && preview.is_top ? 'preview-top' : '',
-        preview && preview.is_close_call && !preview.is_top ? 'preview-close' : '',
       ].filter(Boolean).join(' ');
       const card = el('div', { class: cls });
       const left = el('div', {},
@@ -462,19 +545,11 @@
           : null,
       );
       const right = el('div', { class: 'space-right' });
-      if (preview) {
-        const delta = previewTopScore !== null
-          ? preview.score - previewTopScore
-          : 0;
-        const badgeText = `${preview.score.toFixed(1)}` + (
-          delta < 0 ? ` (${delta.toFixed(1)})` : ''
-        );
-        const badgeCls = ['preview-badge'];
-        if (preview.is_top) badgeCls.push('top');
-        else if (preview.is_close_call) badgeCls.push('close');
+      if (analysis) {
         right.appendChild(el(
-          'span', { class: badgeCls.join(' '), title: 'AI evaluator score (Δ vs top)' },
-          badgeText,
+          'span',
+          { class: 'analysis-badge', title: "AI value (Q, human's frame) · visit count" },
+          analysisBadgeText(analysis),
         ));
       }
       const workers = el('div', { class: 'space-workers' });
@@ -498,14 +573,16 @@
     emitGroup('permanent');
     for (const sid of PERMANENT_ORDER) emitSpace(sid);
 
+    // Stage spaces grouped by stage (1–6), and WITHIN each stage in the order
+    // they were revealed (round_revealed). Across stages this is also reveal
+    // order, since stages reveal in round order. Empty stages are skipped, so
+    // a stage header appears only once its first card is revealed.
     for (let stage = 1; stage <= 6; stage++) {
-      const [first] = STAGE_RANGES[stage];
-      if (state.round_number < first) break;
-      emitGroup(`stage ${stage}`);
-      // Spaces revealed in this stage so far, sorted by round_revealed.
       const stageSpaces = state.board.spaces
         .filter((s) => s.stage === stage && s.is_revealed)
-        .sort((a, b) => a.round_revealed - b.round_revealed);
+        .sort((a, b) => (a.round_revealed || 0) - (b.round_revealed || 0));
+      if (!stageSpaces.length) continue;
+      emitGroup(`stage ${stage}`);
       for (const s of stageSpaces) emitSpace(s.id);
     }
   }
@@ -1014,10 +1091,6 @@
       banner.textContent = 'Game over — see scoring below.';
     } else if (deciderSeat === 'human') {
       banner.textContent = `Decider: P${state.decider} (human)`;
-    } else if (state.interactive_ai_paused) {
-      banner.textContent =
-        `Decider: P${state.decider} (${deciderSeat}) — INTERACTIVE PAUSE. ` +
-        `Per-action scores overlaid on board. Press Enter (or click Advance) to play.`;
     } else {
       banner.textContent = `Decider: P${state.decider} (${deciderSeat}) — press Enter or click Advance to play next move`;
     }
@@ -1029,23 +1102,13 @@
       return;
     }
 
-    // Confirm-turn pause: the human's turn is already complete and the server
-    // is waiting for an explicit Confirm (or Undo) before letting the AI
-    // reply. Show a confirm bar INSTEAD of the normal action menu.
+    // Confirm-turn pause: the human's turn is complete; the Confirm / Undo
+    // controls are rendered above the boards (renderTurnControls). Point the
+    // user there and render no action buttons.
     if (state.awaiting_confirm) {
-      const bar = el('div', { class: 'confirm-bar' });
-      bar.appendChild(el(
-        'button',
-        { class: 'confirm-btn', onclick: () => confirmTurn() },
-        'Confirm turn'));
-      bar.appendChild(el(
-        'button',
-        { class: 'undo-btn', onclick: () => undoTurn() },
-        'Undo turn'));
-      bar.appendChild(el(
-        'span', { class: 'confirm-hint' },
-        'Confirm your turn or undo it.'));
-      menu.appendChild(bar);
+      banner.textContent = 'Your turn is complete — Confirm or Undo it above the boards to continue.';
+      menu.appendChild(el('div', { class: 'muted' },
+        'Use the Confirm / Undo buttons above.'));
       return;
     }
 
@@ -1073,17 +1136,7 @@
       return;
     }
 
-    // Mid-turn undo: when the human is partway through a multi-step turn the
-    // server lets them reset it. Surface a small Undo button above the action
-    // buttons (deciderSeat is 'human' here — the AI branch returned above).
-    if (state.can_undo) {
-      const undoBar = el('div', { class: 'undo-bar' });
-      undoBar.appendChild(el(
-        'button',
-        { class: 'action-btn small undo', onclick: () => undoTurn() },
-        'Undo turn'));
-      menu.appendChild(undoBar);
-    }
+    // (Mid-turn Undo is rendered above the boards by renderTurnControls.)
 
     // Group actions by type so the menu reads cleanly.
     const groups = new Map();
@@ -1149,6 +1202,17 @@
           { class: 'action-btn' + (key === 'Stop' ? ' stop' : ''),
             onclick: () => submitAction(a.index) },
           a.display);
+        // "Show analysis" overlay on the sub-action button (ChooseSubAction /
+        // Commit* / Stop), keyed by the canonical action key.
+        const info = analysisOn
+          ? analysisByKey.get(actionKey(a.type, a.params))
+          : undefined;
+        if (info) {
+          btn.appendChild(el('span',
+            { class: 'analysis-badge btn-badge',
+              title: "AI value (Q, human's frame) · visit count" },
+            ' ' + analysisBadgeText(info)));
+        }
         menu.appendChild(btn);
         anyButtons = true;
       }
@@ -1243,29 +1307,20 @@
     document.getElementById('game-over-close').addEventListener('click', () => {
       document.getElementById('game-over-modal').classList.add('hidden');
     });
+    // Toggle wiring. The flags are server-authoritative and default off each
+    // load; render() syncs the checkboxes from each state payload, so we only
+    // wire the change handlers here.
     const fastCb = document.getElementById('fast-mode-toggle');
-    fastCb.checked = fastMode;
-    fastCb.addEventListener('change', (e) => setFastMode(e.target.checked));
-    // On page load, push the persisted client preference to the server
-    // so the server-side flag matches. The fire-and-forget POST also
-    // triggers the server's auto-advance for any pending singleton.
-    if (fastMode) setFastMode(true);
-
-    const interactiveCb = document.getElementById('interactive-ai-toggle');
-    if (interactiveCb) {
-      interactiveCb.checked = interactiveAi;
-      interactiveCb.addEventListener('change', (e) => setInteractiveAi(e.target.checked));
-      if (interactiveAi) setInteractiveAi(true);
+    if (fastCb) fastCb.addEventListener('change', (e) => setFastMode(e.target.checked));
+    const analysisCb = document.getElementById('analysis-toggle');
+    if (analysisCb) analysisCb.addEventListener('change', (e) => setAnalysis(e.target.checked));
+    const cuctInput = document.getElementById('analysis-cuct');
+    if (cuctInput) {
+      cuctInput.value = String(analysisCuct);  // reflect persisted value
+      cuctInput.addEventListener('change', (e) => setAnalysisCuct(e.target.value));
     }
-
     const confirmCb = document.getElementById('confirm-turn-toggle');
-    if (confirmCb) {
-      confirmCb.checked = confirmMode;
-      confirmCb.addEventListener('change', (e) => setConfirmTurn(e.target.checked));
-      // Re-assert the persisted client preference to the server on load, so
-      // the server-side flag matches (mirrors the fast-mode handling).
-      if (confirmMode) setConfirmTurn(true);
-    }
+    if (confirmCb) confirmCb.addEventListener('change', (e) => setConfirmTurn(e.target.checked));
     // Global Enter-key handler: when an AI is on the clock, Enter advances
     // one move. Ignored when focus is in a text input (so it doesn't fight
     // the seed prompt or future form inputs). Also ignored on the game-over
@@ -1281,13 +1336,13 @@
         stepAI();
       }
     });
-    // Get initial state (fallback in case SSE is slow).
+    // Load the initial state. From here on, every render comes from an action
+    // or toggle response — there is no push channel.
     fetch('/api/state').then((r) => r.json()).then((s) => {
-      if (!currentState) {
-        currentState = s;
-        render(s);
-      }
-    }).catch(() => {});
-    connectSSE();
+      applyState(s);
+    }).catch((err) => {
+      setConnState(false);
+      console.error('initial state fetch failed', err);
+    });
   });
 })();

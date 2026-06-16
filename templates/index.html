@@ -19,10 +19,16 @@
         <input type="checkbox" id="fast-mode-toggle">
         <span>Fast mode</span>
       </label>
-      <label class="header-toggle" title="Pause before each AI top-level placement. Per-action evaluator scores are overlaid on the board; press Enter to release the AI's move.">
-        <input type="checkbox" id="interactive-ai-toggle">
-        <span>Interactive AI</span>
-      </label>
+      <div class="header-group">
+        <label class="header-toggle" title="Show the AI's value (Q) and visit count for each of your options. Runs in the background; never blocks your move.">
+          <input type="checkbox" id="analysis-toggle">
+          <span>Show analysis</span>
+        </label>
+        <label class="header-toggle analysis-sub" title="Analysis exploration constant (c_uct). Default 0.5 — the value the bot itself plays at, so the analysis matches the bot's evaluation (coverage of all moves comes from the prior mix). Raise it to make the analysis search explore more widely. Analysis only — does not affect how the bot plays.">
+          <span>explore (default 0.5)</span>
+          <input type="number" id="analysis-cuct" min="0.1" step="0.5" value="0.5">
+        </label>
+      </div>
       <label class="header-toggle" title="Pause after each of your turns to confirm or undo before the AI replies. Forced/singleton turns are not paused.">
         <input type="checkbox" id="confirm-turn-toggle">
         <span>Confirm turns</span>
@@ -32,6 +38,9 @@
       <span id="connection-state" class="conn-disconnected">offline</span>
     </div>
   </div>
+
+  <!-- Turn controls (Confirm / Undo) — rendered above the boards. -->
+  <div id="turn-controls"></div>
 
   <div id="main">
     <div id="col-board" class="panel">

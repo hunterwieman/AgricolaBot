@@ -76,6 +76,26 @@ h3 {
   user-select: none;
 }
 .header-toggle input { cursor: pointer; }
+.header-toggle input[type="number"] {
+  width: 3.4em;
+  cursor: text;
+  font-size: 12px;
+  padding: 1px 3px;
+}
+/* A vertical mini-stack in the header (e.g. "Show analysis" with its "explore"
+   sub-option underneath it). */
+.header-group {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: 10px;
+}
+.header-group .header-toggle { margin-right: 0; }
+.analysis-sub {
+  font-size: 11px;
+  opacity: 0.85;
+  padding-left: 16px;   /* indent under the Show-analysis checkbox */
+}
 
 #header-actions button {
   background: #C77042;
@@ -149,20 +169,6 @@ h3 {
   opacity: 0.7;
   background: #ece5cb;
 }
-/* Interactive-AI preview emphasis: gold-ringed top choice; lighter ring for
-   close calls (any candidate within 0.5 of the top score). When the top
-   choice itself has a close-call peer, the top still wears the solid gold
-   ring (CSS class `.preview-top` wins) while the peer(s) wear `.preview-close`. */
-.space-card.preview-top {
-  outline: 2px solid #d9a93b;
-  outline-offset: 1px;
-  background: #fff3c4;
-}
-.space-card.preview-close {
-  outline: 2px dashed #e3b75d;
-  outline-offset: 1px;
-  background: #fff8dc;
-}
 .space-name { font-weight: bold; }
 .space-accum { color: #555; font-style: italic; font-size: 11px; margin-left: 4px; }
 /* Effect blurb for the non-atomic spaces (Farm Expansion, Grain Utilization,
@@ -170,18 +176,25 @@ h3 {
 .space-effect { display: block; color: #6a6a6a; font-style: italic; font-size: 10px; margin-top: 1px; }
 .space-right { display: flex; gap: 6px; align-items: center; }
 .space-workers { display: flex; gap: 3px; }
-.preview-badge {
+/* "Show analysis" badge: the AI's value (Q, signed) + visit count for a move,
+   overlaid on board spaces and sub-action buttons. */
+.analysis-badge {
   font-family: 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: bold;
   padding: 1px 5px;
   border-radius: 3px;
-  background: #ece5cb;
-  color: #3a2d14;
-  border: 1px solid #c8b58a;
+  background: #dde7ef;
+  color: #1f3a52;
+  border: 1px solid #9bb6cc;
+  white-space: nowrap;
 }
-.preview-badge.top   { background: #d9a93b; color: #2A2113; border-color: #8b6f47; }
-.preview-badge.close { background: #f2d782; color: #2A2113; border-color: #b08a3a; }
+/* On a sub-action button the badge sits inline after the label, lightly inset. */
+.analysis-badge.btn-badge {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 10px;
+}
 .worker-token {
   display: inline-block;
   width: 14px;
@@ -353,6 +366,23 @@ body.is-submitting * { cursor: wait !important; }
   color: #fff;
   border-color: #6e3818;
 }
+
+/* Turn controls (Confirm / Undo) rendered ABOVE the boards. Collapses to
+   nothing when empty; becomes a centered bar when it has buttons. */
+#turn-controls:not(:empty) {
+  display: flex;
+  justify-content: center;
+  padding: 8px 10px 0;
+}
+#turn-controls .confirm-bar,
+#turn-controls .undo-bar {
+  margin: 0;
+  padding: 8px 14px;
+  background: var(--panel-bg);
+  border: 2px solid var(--panel-border);
+  border-radius: 6px;
+}
+.muted { color: #777; font-size: 13px; }
 
 /* ---------- farmyard SVG ---------- */
 

@@ -15,6 +15,10 @@ Items 1–4 are almost certainly missing; 5–7 are common omissions; 8–10 may
 already be handled. Apply in order, checking first to see if the fix is already
 present or otherwise unnecessary.
 
+> **Status: items 1–10 are all landed.** They are kept below as the
+> problem/solution record. The genuinely-open items are **11–13** at the
+> bottom (carried over from the archived web-UI plan's open questions).
+
 ---
 
 ## 1. PlaceWorker menu ordering must match the action board  *(very high certainty)*
@@ -295,7 +299,7 @@ flat buttons, it will be unusable for cell-set actions. Either:
 
 - **(a) Implement `cell` / `cell_set` properly** — let the player click
   farmyard cells; gather selection; submit the matching legal action.
-  This is the WEB_UI_PLAN.md §8 path. Best UX.
+  This is the `ui_hint` affordance path (CLAUDE.md §2.6). Best UX.
 - **(b) Fallback: terminal-style class-and-prompt** — if there are >8
   options of one Commit type, collapse them under a "Pick a
   CommitBuildPasture (N options)" button that opens a sub-list /
@@ -384,7 +388,7 @@ Render as labeled sections: "Permanent", "Stage 1", "Stage 2", ….
 
 ## 10. Unrevealed stage cards must be hidden or dimmed  *(lower certainty)*
 
-**Problem.** Per `WEB_UI_PLAN.md` §1 / §5, future stage cards should
+**Problem.** Future stage cards should
 either be hidden or dimmed. If they're rendered as normal, the player
 sees future cards that aren't yet in play (low-priority but noisy).
 
@@ -406,6 +410,55 @@ if (!s.is_revealed) {
 ```
 
 **Files.** `static/app.js`, `static/style.css`.
+
+---
+
+## 11. House material visualization on room cells  *(open, low priority)*
+
+**Problem.** Room cells all render in the same wood color regardless of the
+player's actual house material. BoardGameArena recolors rooms by material
+(wood → clay → stone), which makes a renovated house legible at a glance.
+
+**Backend support.** `state.players[i].house_material` ("wood" / "clay" /
+"stone") is already in the wire format.
+
+**Required change.** Color ROOM cells per `house_material` (a `--room-clay` /
+`--room-stone` palette alongside the existing `--room-wood`). One-line change
+in the farmyard cell renderer + a couple of CSS vars.
+
+**Files.** `static/app.js`, `static/style.css`.
+
+---
+
+## 12. Newborn meeples shown distinctly  *(open, low priority)*
+
+**Problem.** A space holding a parent + newborn worker currently shows a single
+token with a count (e.g. "x2"). Two stacked/offset tokens would read more
+clearly as "two people here."
+
+**Backend support.** `state.board.spaces[i].workers` is `[p0_count, p1_count]`;
+the newborn is already included in the count.
+
+**Required change.** When a count is >1, render stacked/offset tokens instead of
+a single token with a badge. Purely cosmetic.
+
+**Files.** `static/app.js`, `static/style.css`.
+
+---
+
+## 13. Mid-game full-score breakdown modal  *(open, low priority)*
+
+**Problem.** The player panel shows the rolling interim total, but there is no
+way to see the full per-category `ScoreBreakdown` mid-game (only the game-over
+modal shows it).
+
+**Backend support.** The game-over modal already renders a `ScoreBreakdown`
+table; the same breakdown can be computed for the live state server-side.
+
+**Required change.** A "Full score" button that opens the breakdown modal for
+the current state (reuse the game-over modal's table renderer).
+
+**Files.** `play_web.py` (expose the interim breakdown if not already), `static/app.js`, `static/style.css`.
 
 ---
 

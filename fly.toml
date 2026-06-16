@@ -1,0 +1,41 @@
+# Fly.io config for the AgricolaBot web UI.
+#
+# Single always-on container. Game state lives IN MEMORY in the server process,
+# so the machine must never auto-stop or scale to zero — a stop drops every
+# in-progress game. The settings below pin exactly one machine that stays up.
+#
+# Change `app` to a unique name (Fly app names are global) and `primary_region`
+# to a Fly region near you (see `fly platform regions`). `fly launch` will fill
+# these in interactively if you leave them.
+
+app = "agricolabot"
+primary_region = "sjc"
+
+[build]
+  # Build from the Dockerfile in this directory.
+  dockerfile = "Dockerfile"
+
+[env]
+  # Cap concurrent MCTS searches at the vCPU count (this VM is 2 shared vCPUs)
+  # so a flood of games can't overload the box. See play_web.py.
+  AGRICOLA_MAX_CONCURRENT_AI = "2"
+  # Flush stdout so `fly logs` shows startup/progress lines promptly.
+  PYTHONUNBUFFERED = "1"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+
+  # ALWAYS ON: keep one machine running, never auto-stop it. Both are required
+  # so the in-memory game state survives between requests.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+# MCTS is CPU-bound; give it 2 shared vCPUs so one player's search doesn't
+# starve another. 1 GB RAM is ample for the stdlib server + the C++ binary
+# (hand-rolled inference, no torch).
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "1gb"

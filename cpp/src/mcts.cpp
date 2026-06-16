@@ -178,6 +178,17 @@ void MCTSSearch::ensure_priors(MCTSNode* node) {
   // policy_fn(state, legal) -> {action: prior} over the full legal set; omitted
   // actions default to prior 0 in select_via_puct.
   for (const auto& [a, pr] : nn_->policy(node->state)) node->priors[a] = pr;
+  // Optional uniform mixing: prior' = (1-mix)*policy + mix*(1/k) over the legal
+  // set. Guarantees every legal move a non-zero prior so PUCT will explore it.
+  if (prior_uniform_mix_ > 0.0 && !node->legal.empty()) {
+    const double w = prior_uniform_mix_;
+    const double u = 1.0 / static_cast<double>(node->legal.size());
+    for (const Action& a : node->legal) {
+      auto it = node->priors.find(a);
+      const double p = (it != node->priors.end()) ? it->second : 0.0;
+      node->priors[a] = (1.0 - w) * p + w * u;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

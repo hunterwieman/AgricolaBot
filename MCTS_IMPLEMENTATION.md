@@ -730,6 +730,42 @@ Two performance/correctness notes on `policy_fn`, both in §14: the policy heads
 mode** (the combiner `make_policy_fn` now ensures this — un-eval'd heads gave *nondeterministic* priors),
 and the encoder memo lets the policy's per-state encode be **shared with the value leaf** at decider-0 nodes.
 
+#### 5.3.1 Optional uniform-mix of the prior (`prior_uniform_mix`)
+
+The policy prior can optionally be **blended with a uniform distribution** before PUCT consumes it:
+
+```
+prior'(s, a) = (1 − w)·policy(s, a) + w·(1/k)      over the k legal actions a at state s
+```
+
+with `w = prior_uniform_mix ∈ [0, 1]` (`w = 0` is pure policy — the default). The blend guarantees
+**every** legal action a non-zero prior, so PUCT will eventually try moves the policy scored ≈0. Without
+it, a sharply-peaked policy can make the search pour almost all of its visits onto the top 2–3 actions and
+never explore the rest — the failure mode that motivated this knob (a 800-sim search putting 799 visits on
+one child).
+
+This is implemented in the **C++ production search** (the web-UI / data-gen path), *not* in the Python
+`mcts.py` reference engine:
+
+- `MCTSSearch::set_prior_uniform_mix(double)` (`cpp/include/agricola/mcts.hpp`) sets the member
+  `prior_uniform_mix_` (default `0.0`).
+- `ensure_priors` (`cpp/src/mcts.cpp`) applies the blend over `node->legal` right after `policy()` fills
+  `node->priors` — an action the policy omitted (prior 0) becomes `w·(1/k)`.
+
+Two consumers set it, both via the `selfplay` binary's `--prior-mix` / `--prior-mix-p0|-p1` flags:
+
+- **The web-UI "Show analysis" overlay** mixes at `w = 0.05` so the read-out covers ~all of the human's
+  options, not just the 2–3 the policy peaks on (`play_web.py` `analyze` → `selfplay --analyze`).
+- **The opponent bot** can optionally mix (a per-game New-Game input, default `0.0`) for a wider, less
+  deterministic game (`_CppMctsAgent(prior_mix=…)` → `selfplay --move`). A 400-game self-play test
+  (200 + 200 seat-flipped) at `w = 0.05` vs `w = 0` found the mix **not stronger** (≈46% — neutral to
+  slightly weaker), so it is left **off by default** for the bot and used mainly to broaden analysis
+  coverage.
+
+The mix is a pure post-processing step on the prior; selection formula, FPU, chance routing, and backprop
+are untouched. It is *not* Dirichlet root noise — it is deterministic, applied at **every** node (not just
+the root), and mixes toward exact-uniform rather than a sampled noise vector.
+
 ### 5.4 What the two rules share
 
 Both selection rules sit inside the same `_simulate` machinery: the DAG / transposition table, the P0-frame

@@ -40,8 +40,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import queue
 import secrets
+import subprocess
 import sys
 import threading
 import time
@@ -68,6 +68,7 @@ from agricola.actions import (
     CommitSow,
     FireTrigger,
     PlaceWorker,
+    RevealCard,
     Stop,
 )
 from agricola.constants import (
@@ -115,7 +116,7 @@ _RESTRICTED: bool = True
 # Default MCTS sims/move for the `mcts` seat type. Settable at startup via
 # --mcts-sims; overridable per-session via the `mcts_sims` field on the
 # /api/reset payload (and from the frontend's New-game dialog).
-_MCTS_SIMS_DEFAULT: int = 500
+_MCTS_SIMS_DEFAULT: int = 800
 
 # ---- Multi-tenancy / resource control (online deployment) ----
 # Cap on concurrently-running AI searches across ALL games. The AI move is
@@ -160,6 +161,7 @@ def _load_v3_config_from_json(path: str) -> HeuristicConfigV3:
     if "best_config" not in data:
         raise ValueError(f"{path}: missing 'best_config' field.")
     return HeuristicConfigV3(**data["best_config"])
+from agricola.canonical import dumps
 from agricola.engine import step
 from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
@@ -236,26 +238,30 @@ class _CppMctsAgent:
     chosen action + root value are returned as JSON on stdout.
     """
 
-    def __init__(self, model_dir: str, sims: int, c_uct: float, temperature: float):
+    def __init__(self, model_dir: str, sims: int, c_uct: float, temperature: float,
+                 prior_mix: float = 0.0):
         self._model_dir = model_dir
         self._sims = sims
         self._c_uct = c_uct
         self._temperature = temperature
+        self._prior_mix = prior_mix  # 0 = pure policy (standard opponent)
 
     def __call__(self, state) -> "Action":
-        import subprocess
         from agricola.canonical import dumps as _cdumps
         from agricola.agents.nn.trace_replay import action_from_params
 
         state_json = _cdumps(state)
+        cmd = [
+            _CPP_BINARY, "--move",
+            "--model-dir", self._model_dir,
+            "--sims", str(self._sims),
+            "--c-uct", str(self._c_uct),
+            "--temperature", str(self._temperature),
+        ]
+        if self._prior_mix > 0.0:
+            cmd += ["--prior-mix", str(self._prior_mix)]
         result = subprocess.run(
-            [
-                _CPP_BINARY, "--move",
-                "--model-dir", self._model_dir,
-                "--sims", str(self._sims),
-                "--c-uct", str(self._c_uct),
-                "--temperature", str(self._temperature),
-            ],
+            cmd,
             input=state_json.encode(),
             capture_output=True,
             timeout=60,
@@ -385,6 +391,7 @@ def _build_agent(
     mcts_evaluator: str | None = None,
     mcts_search: str = "uct",
     mcts_policy: str = "unweighted",
+    opponent_mix: float = 0.0,
 ):
     """Construct an agent for an AI seat (or return None for human seats).
 
@@ -455,6 +462,7 @@ def _build_agent(
                 sims=sims,
                 c_uct=0.5,
                 temperature=0.2,
+                prior_mix=opponent_mix,
             )
 
         # Python MCTS fallback (no C++ binary or no exported weights).
@@ -970,6 +978,10 @@ class Session:
         self.mcts_evaluator = mcts_evaluator
         self.mcts_search = mcts_search
         self.mcts_policy = mcts_policy
+        # Opponent's policy-prior uniform mix (0 = pure policy / standard bot).
+        # Set >0 (e.g. 0.05) via /api/opponent_mix to make the bot explore more.
+        # Persists across resets (the client re-asserts via the payload).
+        self.opponent_mix: float = 0.0
         # When True, the auto-advance driver also auto-applies human
         # singletons (a state where the human has exactly one legal
         # action). Settable via /api/fast_mode at runtime — survives
@@ -982,12 +994,6 @@ class Session:
         # still auto-execute silently. Lets the user inspect per-action
         # evaluator scores via /api/ai_preview before each AI placement.
         self.interactive_ai: bool = False
-        # ---- Move-version guard (double-click protection) ----
-        # Monotonic counter bumped on every applied action. The frontend
-        # echoes the last seq it rendered with each /api/step; a stale seq
-        # (a duplicate click submitted before the first re-rendered) is
-        # rejected rather than applied as a second, wrong move.
-        self.move_seq: int = 0
         # ---- Turn snapshot / undo / confirm ----
         # confirm_mode: when ON, a completed human turn (one that involved a
         # real choice) pauses for an explicit Confirm before the AI replies,
@@ -1007,6 +1013,14 @@ class Session:
         # don't prompt.
         self.turn_had_choice: bool = False
         self.humans: set[int] = {i for i, s in enumerate(seats) if s == "human"}
+        # Live "Show analysis" subprocess (a C++ `selfplay --analyze` run for
+        # the human's current state). Read-only background search whose output
+        # the frontend overlays. Cancelled when the human moves / resets so it
+        # never competes with the bot's reply. Guarded by `_analysis_lock`
+        # (NOT self.lock) so the analyze thread can terminate it without
+        # contending for the main game lock.
+        self._analysis_proc: "subprocess.Popen | None" = None
+        self._analysis_lock = threading.Lock()
         # Per-seat agent objects; None for human seats.
         self.agents = self._make_agents()
         self.state, self.env = setup_env(seed)
@@ -1020,9 +1034,12 @@ class Session:
         # sufficient to replay the entire session deterministically.
         # Exposed via /api/trace and the UI's "Download trace" button.
         self.action_trace: list[dict] = []
-        # SSE subscribers
-        self.subs: list[queue.Queue] = []
-        self.subs_lock = threading.Lock()
+        # Order in which the stage action-spaces have been revealed, by space
+        # id. The round-1 card is revealed at setup; the rest accrue as the
+        # game advances. Drives the action board's reveal-ordered layout
+        # (round_revealed = index + 1). Seeded from the initial state.
+        self.reveal_order: list[str] = []
+        self._seed_reveal_order_locked()
         # If at least one seat is human, fast-forward any opening AI moves
         # until a human decision is reached. With no humans (AI-vs-AI), we
         # leave the state as-is and require explicit /api/step_ai calls.
@@ -1030,6 +1047,14 @@ class Session:
             if self.humans:
                 self._drive_until_decision_locked()
                 self._post_advance_locked()
+
+    def _seed_reveal_order_locked(self) -> None:
+        """Seed reveal_order from the current state's already-revealed stage
+        spaces (the round-1 card at game start)."""
+        self.reveal_order = [
+            sid for sid, ss in zip(SPACE_IDS, self.state.board.action_spaces)
+            if ss.revealed and sid not in PERMANENT_ACTION_SPACES_SET
+        ]
 
     def _make_agents(self) -> tuple:
         """Build both seats' agent objects from the current seat/mcts config.
@@ -1043,40 +1068,12 @@ class Session:
             mcts_evaluator=self.mcts_evaluator,
             mcts_search=self.mcts_search,
             mcts_policy=self.mcts_policy,
+            opponent_mix=self.opponent_mix,
         )
         return (
             _build_agent(self.seats[0], self.seed ^ 0x10000, **mcts_kw),
             _build_agent(self.seats[1], self.seed ^ 0x20000, **mcts_kw),
         )
-
-    # ---------- subscriber management ----------
-
-    def subscribe(self) -> queue.Queue:
-        q: queue.Queue = queue.Queue(maxsize=64)
-        with self.subs_lock:
-            self.subs.append(q)
-        # Immediately push the current state so the new client gets in sync.
-        q.put(self.snapshot())
-        return q
-
-    def unsubscribe(self, q: queue.Queue) -> None:
-        with self.subs_lock:
-            try:
-                self.subs.remove(q)
-            except ValueError:
-                pass
-
-    def _broadcast(self, payload: dict) -> None:
-        dead = []
-        with self.subs_lock:
-            subs = list(self.subs)
-        for q in subs:
-            try:
-                q.put_nowait(payload)
-            except queue.Full:
-                dead.append(q)
-        for q in dead:
-            self.unsubscribe(q)
 
     # ---------- state queries ----------
 
@@ -1124,8 +1121,10 @@ class Session:
             "display": _fmt_action_inline(action),
         })
         self.log.add(dec, action, self.current_round)
+        # Record stage-card reveals in order (drives the action-board layout).
+        if isinstance(action, RevealCard) and action.card not in self.reveal_order:
+            self.reveal_order.append(action.card)
         self.state = step(self.state, action)
-        self.move_seq += 1
         self._maybe_round_transition_locked()
         if self.state.phase == Phase.BEFORE_SCORING:
             self.game_over = True
@@ -1191,9 +1190,9 @@ class Session:
             self._capture_turn_snapshot_locked(sig)
 
     def _build_payload_locked(self) -> dict:
-        """The wire payload for the current state, including the version
-        guard + undo/confirm fields. Single source so every broadcast and
-        snapshot carries them."""
+        """The full wire payload for the current state: the game state plus the
+        undo/confirm fields and the toggle states. The server is authoritative
+        for everything the UI shows, including the toggle checkboxes."""
         payload = state_to_json(
             self.state,
             self.log.to_wire(self.current_round),
@@ -1202,10 +1201,28 @@ class Session:
             seats=self.seats,
             interactive_ai_paused=self._interactive_ai_paused_here_locked(),
         )
-        payload["move_seq"] = self.move_seq
         payload["awaiting_confirm"] = self.awaiting_confirm
         payload["confirm_mode"] = self.confirm_mode
-        payload["can_undo"] = (self.turn_snapshot is not None and not self.game_over)
+        payload["fast_mode"] = self.fast_mode
+        payload["interactive_ai"] = self.interactive_ai
+        payload["opponent_mix"] = self.opponent_mix
+        # Per-space reveal round (1-based; None for permanents / unrevealed) so
+        # the action board can lay stage spaces out in reveal order.
+        reveal_idx = {sid: i + 1 for i, sid in enumerate(self.reveal_order)}
+        for sp in payload["board"]["spaces"]:
+            sp["round_revealed"] = reveal_idx.get(sp["id"])
+        # Undo is part of the confirm-turns feature: only offered when
+        # confirm_mode is ON. (With confirm off you play committed/fast — no
+        # undo.) And only once the human has actually changed something this
+        # turn — i.e. the live state has diverged from the turn snapshot (at
+        # turn start, state IS the snapshot, so there's nothing to undo).
+        payload["can_undo"] = (
+            self.confirm_mode
+            and self.turn_snapshot is not None
+            and not self.game_over
+            and self.state is not self.turn_snapshot["state"]
+        )
+        payload["mcts_sims"] = self.mcts_sims if self.mcts_sims is not None else _MCTS_SIMS_DEFAULT
         return payload
 
     def _interactive_ai_paused_here_locked(self) -> bool:
@@ -1275,23 +1292,21 @@ class Session:
                 action = agent(self.state)
             self._apply_action_locked(action)
 
-    def submit_human_action(
-        self, action_index: int, expected_seq: int | None = None
-    ) -> tuple[bool, str]:
+    def submit_human_action(self, action_index: int) -> tuple[bool, str]:
+        # Cancel any in-flight "Show analysis" search before resolving the
+        # move, so it doesn't compete with the bot's reply for CPU. Done
+        # outside self.lock (it only touches _analysis_lock).
+        self._cancel_analysis()
         with self.lock:
             if self.game_over:
                 return False, "game over"
-            # Version guard: if the client acted on a stale board (e.g. a
-            # double-click submitted before the first move re-rendered), its
-            # echoed seq won't match. Reject quietly — the fresh state is
-            # already (or about to be) pushed over SSE. This is what stops a
-            # duplicate click from being applied as a second, wrong move.
-            if expected_seq is not None and expected_seq != self.move_seq:
-                return False, "stale"
             if self.awaiting_confirm:
                 return False, "awaiting turn confirmation"
             actions = legal_actions(self.state)
             if not (0 <= action_index < len(actions)):
+                # The board the client clicked is stale (already changed). The
+                # response still carries the current state, so the client just
+                # re-renders — no double-apply, no freeze.
                 return False, f"action_index {action_index} out of range (0..{len(actions)-1})"
             dec = _decider_of(self.state)
             if dec not in self.humans:
@@ -1314,8 +1329,6 @@ class Session:
             elif self.humans:
                 self._drive_until_decision_locked()
                 self._post_advance_locked()
-            payload = self._build_payload_locked()
-        self._broadcast(payload)
         return True, "ok"
 
     def confirm_turn(self) -> tuple[bool, str]:
@@ -1328,8 +1341,6 @@ class Session:
             if self.humans:
                 self._drive_until_decision_locked()
                 self._post_advance_locked()
-            payload = self._build_payload_locked()
-        self._broadcast(payload)
         return True, "ok"
 
     def undo_turn(self) -> tuple[bool, str]:
@@ -1337,6 +1348,9 @@ class Session:
         but-unconfirmed) turn. Restores the immutable snapshot state plus the
         trace/log bookmark. Repeatable (the snapshot is kept)."""
         with self.lock:
+            # Undo is a confirm-turns feature only.
+            if not self.confirm_mode:
+                return False, "undo is only available with confirm-turns on"
             if self.turn_snapshot is None or self.game_over:
                 return False, "nothing to undo"
             snap = self.turn_snapshot
@@ -1346,16 +1360,13 @@ class Session:
             self.current_round = snap["current_round"]
             self.awaiting_confirm = False
             self.turn_had_choice = False
-            # Bump the version so clients treat their in-flight state as stale
-            # and re-render from this payload.
-            self.move_seq += 1
-            payload = self._build_payload_locked()
-        self._broadcast(payload)
         return True, "ok"
 
     def set_confirm_mode(self, confirm_mode: bool) -> None:
-        """Toggle confirm-turn mode. If turning OFF while a turn is paused
-        awaiting confirmation, auto-commit it (drive the AI)."""
+        """Toggle confirm-turn mode. Never rewinds game state: turning ON just
+        arms the pause for future completed turns; turning OFF while a turn is
+        paused commits it (drives the AI). The caller reads the resulting state
+        via snapshot()."""
         with self.lock:
             self.confirm_mode = bool(confirm_mode)
             if not self.confirm_mode and self.awaiting_confirm:
@@ -1363,51 +1374,27 @@ class Session:
                 if self.humans:
                     self._drive_until_decision_locked()
                     self._post_advance_locked()
-            payload = self._build_payload_locked()
-        self._broadcast(payload)
 
     def set_fast_mode(self, fast_mode: bool) -> None:
         """Toggle server-side fast mode and (if turning ON) immediately
-        auto-advance through any pending human singletons.
-
-        Broadcasts the post-advance state if anything changed. Called by
-        the frontend's fast-mode toggle via /api/fast_mode.
-        """
+        auto-advance through any pending human singletons."""
         with self.lock:
             prev = self.fast_mode
             self.fast_mode = bool(fast_mode)
-            advanced = False
             if self.fast_mode and not prev and self.humans and not self.game_over:
-                # Capture pre-state so we can tell if the auto-advance moved.
-                pre_state_id = id(self.state)
                 self._drive_until_decision_locked()
                 self._post_advance_locked()
-                advanced = id(self.state) != pre_state_id
-            payload = self._build_payload_locked()
-        if advanced:
-            self._broadcast(payload)
 
     def set_interactive_ai(self, interactive_ai: bool) -> None:
-        """Toggle interactive-AI mode. When turning OFF, immediately
-        resume the auto-driver from wherever we paused (broadcasts the
-        post-advance state if anything changed). When turning ON, no
-        immediate action — the toggle takes effect the next time the
-        auto-driver would auto-apply an AI top-level placement."""
+        """Toggle interactive-AI mode. When turning OFF, resume the auto-driver
+        from wherever we paused. When turning ON, the toggle takes effect the
+        next time the auto-driver would auto-apply an AI top-level placement."""
         with self.lock:
             prev = self.interactive_ai
             self.interactive_ai = bool(interactive_ai)
-            advanced = False
-            # Turning OFF: resume the driver so we don't get stuck paused.
-            # Turning ON while already at an AI placement: surfacing the
-            # pause requires a broadcast so the frontend can switch UI.
             if prev and not self.interactive_ai and not self.game_over:
-                pre_state_id = id(self.state)
                 self._drive_until_decision_locked()
                 self._post_advance_locked()
-                advanced = id(self.state) != pre_state_id
-            payload = self._build_payload_locked()
-        # Broadcast on any toggle so the UI flag flips even without an advance.
-        self._broadcast(payload)
 
     def ai_preview(self) -> tuple[bool, str, list[dict]]:
         """Return per-top-level-action preview scores for the current AI
@@ -1460,6 +1447,106 @@ class Session:
             rows.append(row)
         return True, "ok", rows
 
+    # ---------- "Show analysis" (read-only MCTS overlay) ----------
+
+    def _cancel_analysis(self) -> None:
+        """Terminate any in-flight analysis subprocess so it stops competing
+        with the bot's reply. Thread-safe and idempotent; called when the human
+        moves (submit_human_action) and on reset. The analyze thread holds a
+        reference to the Popen it launched, so terminating here just makes its
+        `communicate()` return early — it discards the (now-stale) output."""
+        with self._analysis_lock:
+            proc = self._analysis_proc
+            self._analysis_proc = None
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+
+    def analyze(self, sims: int, c_uct: float = 0.5,
+                prior_mix: float = 0.05) -> tuple[bool, list[dict]]:
+        """Run a read-only MCTS analysis rooted at the human's current state.
+
+        `c_uct` defaults higher than the bot's play value (which is ~0.5,
+        exploit-heavy) so the search SPREADS visits across more of the human's
+        options — for analysis you want coverage (a Q for several moves), not
+        the single concentrated best line the bot plays.
+
+        Returns (ok, children) where children mirror the C++ `--analyze`
+        contract: [{type, params, visits, q}, ...] with q already in the
+        human's frame (higher = better for the human). ok=False (empty
+        children) when it's not a human's turn, the game is over, the C++
+        binary/export are missing, or the search fails.
+
+        Does NOT mutate game state and does NOT go through self.lock for the
+        search itself — only a brief lock to read the state JSON. The search
+        runs under `_AI_SEMAPHORE` (bounded concurrency, shared with the bot)
+        and via Popen so submit_human_action can cancel it mid-flight."""
+        # Read-only snapshot of the state to analyze (brief lock).
+        with self.lock:
+            if self.game_over:
+                return False, []
+            if _decider_of(self.state) not in self.humans:
+                return False, []
+            state_json = dumps(self.state)
+        # Graceful no-op when the C++ fast path isn't available.
+        if not (os.path.isfile(_CPP_BINARY) and os.path.isdir(_CPP_EXPORT_DIR)
+                and os.path.isfile(os.path.join(_CPP_EXPORT_DIR, "weights_manifest.json"))):
+            return False, []
+        cmd = [
+            _CPP_BINARY, "--analyze",
+            "--model-dir", _CPP_EXPORT_DIR,
+            "--sims", str(sims),
+            "--c-uct", str(c_uct),
+            "--temperature", "0.2",
+        ]
+        if prior_mix > 0.0:
+            cmd += ["--prior-mix", str(prior_mix)]
+        with _AI_SEMAPHORE:
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            except OSError:
+                return False, []
+            # Register so a concurrent human move can cancel it.
+            with self._analysis_lock:
+                # Cancel any prior in-flight analysis we may be replacing.
+                prev = self._analysis_proc
+                self._analysis_proc = proc
+            if prev is not None and prev.poll() is None:
+                try:
+                    prev.terminate()
+                except OSError:
+                    pass
+            try:
+                out, _err = proc.communicate(input=state_json.encode(), timeout=60)
+            except Exception:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                return False, []
+            finally:
+                with self._analysis_lock:
+                    if self._analysis_proc is proc:
+                        self._analysis_proc = None
+        # A non-zero return code means it was cancelled (terminate) or failed.
+        if proc.returncode != 0:
+            return False, []
+        try:
+            data = json.loads(out.decode())
+            children = data.get("children", [])
+        except (ValueError, UnicodeDecodeError):
+            return False, []
+        if not isinstance(children, list):
+            return False, []
+        return True, children
+
     def step_ai(self) -> tuple[bool, str]:
         """Apply one AI action and broadcast the new state.
 
@@ -1496,8 +1583,6 @@ class Session:
             if self.interactive_ai:
                 self._drive_until_decision_locked()
             self._post_advance_locked()
-            payload = self._build_payload_locked()
-        self._broadcast(payload)
         return True, "ok"
 
     def reset(
@@ -1509,10 +1594,13 @@ class Session:
         mcts_evaluator: str | None = None,
         mcts_search: str = "uct",
         mcts_policy: str = "unweighted",
+        opponent_mix: float = 0.0,
     ) -> None:
         for s in seats:
             if s not in AGENT_TYPES:
                 raise ValueError(f"unknown seat type {s!r}")
+        # Cancel any in-flight analysis from the previous game.
+        self._cancel_analysis()
         with self.lock:
             self.seed = seed
             self.seats = seats
@@ -1520,6 +1608,8 @@ class Session:
             self.mcts_evaluator = mcts_evaluator
             self.mcts_search = mcts_search
             self.mcts_policy = mcts_policy
+            # Opponent prior-mix is chosen per game (New-game dialog).
+            self.opponent_mix = max(0.0, float(opponent_mix))
             self.humans = {i for i, s in enumerate(seats) if s == "human"}
             self.agents = self._make_agents()
             self.state, self.env = setup_env(seed)
@@ -1528,19 +1618,16 @@ class Session:
             self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
             # Drop any prior session's trace; this is a fresh game.
             self.action_trace = []
-            # Fresh game: clear the turn-snapshot / confirm state. move_seq
-            # stays monotonic (so a stale in-flight submit from the old game
-            # can't accidentally match) and confirm_mode persists across
-            # resets (the client re-asserts it, like fast_mode).
+            self._seed_reveal_order_locked()
+            # Fresh game: clear the turn-snapshot / confirm state. confirm_mode
+            # and fast_mode persist across resets (server-authoritative; the
+            # client reflects whatever the reset response reports).
             self.awaiting_confirm = False
             self.turn_snapshot = None
             self.turn_had_choice = False
-            self.move_seq += 1
             if self.humans:
                 self._drive_until_decision_locked()
                 self._post_advance_locked()
-            payload = self._build_payload_locked()
-        self._broadcast(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -1768,9 +1855,6 @@ def _make_handler(registry: SessionRegistry):
                 self.end_headers()
                 self.wfile.write(body)
                 return
-            if path == "/api/events":
-                self._serve_sse(self._session())
-                return
             if path == "/api/ai_preview":
                 ok, msg, rows = self._session().ai_preview()
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
@@ -1791,27 +1875,34 @@ def _make_handler(registry: SessionRegistry):
                 if not isinstance(idx, int):
                     self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "action_index must be int"})
                     return
-                # Optional version guard: the seq the client rendered with.
-                # A mismatch (duplicate/late click) is rejected as "stale".
-                expected_seq = body.get("expected_seq")
-                if expected_seq is not None and not isinstance(expected_seq, int):
-                    self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "expected_seq must be int"})
-                    return
-                ok, msg = session.submit_human_action(idx, expected_seq)
+                ok, msg = session.submit_human_action(idx)
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
-                self._send_json(status, {"ok": ok, "error": None if ok else msg})
+                # Always return the current authoritative state so the client
+                # renders it whether the action applied or was rejected (e.g. a
+                # click on a board that already changed) — the single source of
+                # truth, and self-healing by construction.
+                self._send_json(status, {
+                    "ok": ok, "error": None if ok else msg,
+                    "state": session.snapshot(),
+                })
                 return
             if path == "/api/confirm_turn":
                 # Commit a turn paused awaiting confirmation (drive the AI).
                 ok, msg = session.confirm_turn()
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
-                self._send_json(status, {"ok": ok, "error": None if ok else msg})
+                self._send_json(status, {
+                    "ok": ok, "error": None if ok else msg,
+                    "state": session.snapshot(),
+                })
                 return
             if path == "/api/undo_turn":
                 # Rewind to the start of the in-progress / unconfirmed turn.
                 ok, msg = session.undo_turn()
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
-                self._send_json(status, {"ok": ok, "error": None if ok else msg})
+                self._send_json(status, {
+                    "ok": ok, "error": None if ok else msg,
+                    "state": session.snapshot(),
+                })
                 return
             if path == "/api/confirm_mode":
                 body = self._read_body()
@@ -1823,13 +1914,19 @@ def _make_handler(registry: SessionRegistry):
                     })
                     return
                 session.set_confirm_mode(value)
-                self._send_json(HTTPStatus.OK, {"ok": True, "confirm_mode": value})
+                self._send_json(HTTPStatus.OK, {
+                    "ok": True, "confirm_mode": value,
+                    "state": session.snapshot(),
+                })
                 return
             if path == "/api/step_ai":
                 # No body required — just advance one AI move.
                 ok, msg = session.step_ai()
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
-                self._send_json(status, {"ok": ok, "error": None if ok else msg})
+                self._send_json(status, {
+                    "ok": ok, "error": None if ok else msg,
+                    "state": session.snapshot(),
+                })
                 return
             if path == "/api/fast_mode":
                 body = self._read_body()
@@ -1841,7 +1938,10 @@ def _make_handler(registry: SessionRegistry):
                     })
                     return
                 session.set_fast_mode(value)
-                self._send_json(HTTPStatus.OK, {"ok": True, "fast_mode": value})
+                self._send_json(HTTPStatus.OK, {
+                    "ok": True, "fast_mode": value,
+                    "state": session.snapshot(),
+                })
                 return
             if path == "/api/interactive_ai":
                 body = self._read_body()
@@ -1855,7 +1955,24 @@ def _make_handler(registry: SessionRegistry):
                 session.set_interactive_ai(value)
                 self._send_json(HTTPStatus.OK, {
                     "ok": True, "interactive_ai": value,
+                    "state": session.snapshot(),
                 })
+                return
+            if path == "/api/analyze":
+                # Read-only: run the bot's MCTS on the human's current state
+                # and return each candidate move's visit count + value. Does
+                # not mutate game state. Uses the session's sims budget; the
+                # exploration constant c_uct comes from the client (default 0.5,
+                # matching the bot — the prior-mix gives the coverage). Cancelled
+                # when the human moves.
+                body = self._read_body()
+                c_uct = body.get("c_uct", 0.5)
+                if not (isinstance(c_uct, (int, float)) and c_uct > 0):
+                    c_uct = 0.5
+                sims = (session.mcts_sims if session.mcts_sims is not None
+                        else _MCTS_SIMS_DEFAULT)
+                ok, children = session.analyze(sims, float(c_uct))
+                self._send_json(HTTPStatus.OK, {"ok": ok, "children": children})
                 return
             if path == "/api/reset":
                 # New game in the SAME session (same cookie). Fixed setup:
@@ -1866,49 +1983,34 @@ def _make_handler(registry: SessionRegistry):
                 if not isinstance(seed, int):
                     seed = secrets.randbits(31)
                 seats = _DEFAULT_SEATS
-                session.reset(seed, seats)
+                # Optional sims/move override for the MCTS bot.
+                mcts_sims = body.get("mcts_sims")
+                if mcts_sims is not None and not (isinstance(mcts_sims, int) and mcts_sims >= 1):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "mcts_sims must be a positive integer",
+                    })
+                    return
+                # Optional opponent prior-uniform-mix for this game (0 = standard).
+                opponent_mix = body.get("opponent_mix", 0.0)
+                if not (isinstance(opponent_mix, (int, float)) and opponent_mix >= 0):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "opponent_mix must be a number >= 0",
+                    })
+                    return
+                session.reset(seed, seats, mcts_sims=mcts_sims,
+                              opponent_mix=float(opponent_mix))
                 self._send_json(HTTPStatus.OK, {
                     "ok": True,
                     "seed": seed,
                     "seats": list(seats),
+                    "mcts_sims": mcts_sims if mcts_sims is not None else _MCTS_SIMS_DEFAULT,
+                    "opponent_mix": float(opponent_mix),
+                    "state": session.snapshot(),
                 })
                 return
             self._send_text(HTTPStatus.NOT_FOUND, "not found")
-
-        # ---------- SSE ----------
-        def _serve_sse(self, session: Session) -> None:
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("X-Accel-Buffering", "no")
-            self._emit_set_cookie()
-            self.end_headers()
-            q = session.subscribe()
-            try:
-                # SSE prelude — comment line just to flush headers.
-                self.wfile.write(b": connected\n\n")
-                self.wfile.flush()
-                while True:
-                    try:
-                        payload = q.get(timeout=15.0)
-                    except queue.Empty:
-                        # heartbeat
-                        try:
-                            self.wfile.write(b": ping\n\n")
-                            self.wfile.flush()
-                        except (BrokenPipeError, ConnectionResetError):
-                            return
-                        continue
-                    try:
-                        data = json.dumps(payload).encode("utf-8")
-                        self.wfile.write(b"event: state\n")
-                        self.wfile.write(b"data: " + data + b"\n\n")
-                        self.wfile.flush()
-                    except (BrokenPipeError, ConnectionResetError):
-                        return
-            finally:
-                session.unsubscribe(q)
 
     return Handler
 
@@ -1949,7 +2051,7 @@ def parse_args() -> argparse.Namespace:
              "that see the full unrestricted legal-action set.",
     )
     ap.add_argument(
-        "--mcts-sims", type=int, default=500,
+        "--mcts-sims", type=int, default=800,
         help="Default MCTS simulations per move when an MCTS seat is selected. "
              "Per-session override available via the New-game dialog in the "
              "browser UI. Defaults to 500. Approximate per-move wall on an "
