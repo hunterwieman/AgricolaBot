@@ -578,10 +578,12 @@ def generate(
     (run_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
 
     # On clean completion every GameRecord is durably chunked, so the persisted
-    # traces are no longer needed. (A killed run never reaches here, leaving the
+    # traces are no longer needed — UNLESS --keep-traces asked to retain them as
+    # the permanent root archive. (A killed run never reaches here, leaving the
     # traces on disk so the next invocation resumes from them instead of
     # regenerating.)
-    shutil.rmtree(traces_dir, ignore_errors=True)
+    if not spec.keep_traces:
+        shutil.rmtree(traces_dir, ignore_errors=True)
 
     if verbose:
         print(f"\nDone in {elapsed:.1f}s — completed {n_done}, skipped {n_skip}, "
