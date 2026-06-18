@@ -281,3 +281,82 @@ round) at ~4× speed and torch-free (memory-safe).
 - **Bugs caught** (so they don't recur): per-dir-accumulation OOM → per-pickle
   chunking; crash-skipped `value_scale=1.0` → re-measured 3.28; missing terminal
   short-circuit in `make_joint_fns`.
+
+---
+
+## 9. Data-variation experiment + the `exp_visit_combined` champion (2026-06-18)
+
+**Question:** how does the *amount and type of variation* in self-play data affect
+the strength of a model trained on it? We generated self-play data from the
+`joint_taper128_thin_sp30k_lr3e4` champion under five move-selection regimes, all
+else equal (800 sims, c_uct 1.0, prior_mix 0.1):
+
+- **visit-selection** (played move sampled ∝ visits^(1/T)) at T=0.7 and T=1.0 — higher diversity;
+- **Q-selection** (played move = argmax / softmax of sign-corrected root-child mean-Q; the new
+  `--select-by q`) at T=0.005, 0.01, 0.02 — near-greedy, low diversity.
+
+**Method.** One joint model trained per condition (warm-start from the champion,
+L2-SP λ=1e-3, identical recipe, 10k games each — the 20k visit sets capped via the
+new `--max-games`). Ranked by **800-sim MCTS round-robin** — the as-used setting.
+(A 1-turn value-head proxy was explicitly rejected: it's a different, weaker agent
+and ignores the policy head + search. Eval the model the way it's actually played.)
+
+**Result — diversity is the lever:**
+
+| condition | round-robin win% |
+|---|---|
+| visit T=1.0 | 57.5 |
+| visit T=0.7 | 56.0 |
+| champion (ref) | 50.7 |
+| Q T=0.01 | 46.3 |
+| Q T=0.005 | 45.6 |
+| Q T=0.02 | 44.0 |
+
+Both visit (diverse) models beat the champion; all three Q (near-greedy) models
+fell *below* it. Near-greedy self-play produces a narrow, autocorrelated state
+distribution that generalizes worse to real play.
+
+**Saturation.** A 40k retrain combining both visit temps — **`exp_visit_combined`**
+— beat the champion (**56.2%, 281-213-6**, 500 games at 800-sim MCTS) but only
+**TIED** the best single 10k model `exp_visit_t10` (51.5%). So the diverse-data
+gain **saturates ~10k games per generation**; 4× the data from a fixed generator
+added nothing. Promoted `exp_visit_combined` → `nn_models/best` (2026-06-18; see
+REGISTRY). The next real gain comes from *fresh* diverse generation off the new
+champion, not more retraining on fixed data.
+
+### 9.1 Common-state `value_scale` normalization (the eval methodology)
+
+`value_scale` is a **calibration constant**, not a strength knob: the MCTS leaf is
+`predict_margin(s) / value_scale`, so leaves sit at ~unit variance and a single
+c_uct means the same exploration/exploitation balance across models. The *correct*
+value for a model is the std of its **own** margin predictions on the states it
+searches. The **stored** value (training-data `target_std`) is a **biased proxy**:
+the generation policy shapes the data's margin spread (near-greedy → tight margins
+→ small `target_std`), so it's correlated with the experimental condition — a
+search-calibration error that would masquerade as a data-quality effect.
+
+Fix: measure each model's value_scale as `std(predict_margin)` over a **common**
+fixed state set and patch the export manifests. Stored values spanned 2.37–4.01 (a
+data artifact); common-state values clustered 4.19–5.33. Skipping this would have
+handicapped the low-`target_std` visit models — the eventual winners (e.g.
+`exp_visit_t07` stored 2.37 vs true ~4.19 → would have searched far too greedily).
+Honest caveat: the purest basis is each model's own visited distribution; a common
+fixed set approximates it (fine for these near-identical fine-tunes). The promoted
+champion's deployed value_scale is **4.345** (common-state), not its biased 2.776.
+
+### 9.2 Q-based move selection (`--select-by q`)
+
+Selecting the played move by sign-corrected mean-Q instead of visit count (the
+PUCT search is unchanged; only the final pick differs; `MCTSAgent::select_action_by_q`
+in C++). A/B vs visit-selection: ~tie at 800 sims (51%), worse at 400 (44%) —
+neutral-to-worse, because visit count is the lower-variance, more robust statistic.
+So it stays **off** for play; in this experiment it was the *data-generation*
+variable (its data trained weaker models), not a play-strength win.
+
+### 9.3 c_uct unified to 1.0
+
+The codebase had a 0.5/1.4 mix of c_uct defaults. Unified to **1.0** everywhere
+(scripts, the C++ binary, the Python `MCTSAgent`, the web-UI bot + analyze seats).
+Validated: combined@1.0 ≈ combined@0.5 (round-robin tie), and combined still beats
+the prior champion at c_uct 1.0. The promoting eval (56.2%) ran at c_uct 0.5; the
+1.0 default is on-par, not a regression.

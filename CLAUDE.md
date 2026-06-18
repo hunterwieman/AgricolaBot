@@ -614,10 +614,12 @@ Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **valu
 (no negative transfer). MCTS consumes it through `make_joint_fns` — **one trunk forward per node** (an
 embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
 ported to C++ (§2.4) for fast self-play generation. The joint family is now the **`nn_models/best`
-pointer** — as of 2026-06-15 `best` is the joint `joint_taper128_thin_sp30k_lr3e4` (see below), resolved
+pointer** — as of 2026-06-18 `best` is the joint `exp_visit_combined` (see below), resolved
 through a `model_kind`-aware loader. Full design + eval: **`SHARED_TRUNK.md`**.
 
-**The current strongest model — `joint_taper128_thin_sp30k_lr3e4` (30k snapshot-thinned self-play, warm-start lr=3e-4; promoted 2026-06-15).** A second generation trained on 30k games generated *by* `joint_taper128_thin` (drawn from a fresh 60k self-play run with `--snapshot-keep 0.5` thinning). Warm-started from the previous champion at lr=3e-4 (lr=1e-3 oscillated); early-stopped at epoch 17. Best val MAE 2.29, value_scale 4.24. **Beats `joint_taper128_thin` at 800-sim PUCT** (gauntlet vs all prior joint champions confirmed) — the next step in the self-play improvement loop. A bug in `shared_training.py` (odd-length val tensor after thinning) was fixed as part of this run. Full detail in `nn_models/REGISTRY.md`.
+**The current strongest model — `exp_visit_combined` (40k diverse visit-selection self-play; promoted 2026-06-18).** Trained (warm-start from `joint_taper128_thin_sp30k_lr3e4`, L2-SP λ=1e-3) on 40k games from the **data-variation experiment** — which found that *diverse* (visit-selection, T=0.7/1.0) self-play data produces stronger models than *near-greedy* (Q-selection) data, and that the gain **saturates ~10k games**. **Beats the prior champion 56.2% (281-213-6) at 800-sim MCTS** (common-state `value_scale`); deployed value_scale **4.345**. Full result: `SHARED_TRUNK.md` §9; row in `nn_models/REGISTRY.md`. The prior champion `joint_taper128_thin_sp30k_lr3e4` (30k snapshot-thinned, warm-start lr=3e-4; was champion 2026-06-15→06-18; val MAE 2.29) remains its named-dir fallback.
+
+> **c_uct default is 1.0** (unified 2026-06-18 across scripts, the C++ binary, `MCTSAgent`, and the web-UI bot/analyze seats — was a 0.5/1.4 mix). Validated combined@1.0 ≈ combined@0.5. `value_scale` for fair head-to-head MCTS must be measured on a **common state set** (not the condition-biased training `target_std`) — see `SHARED_TRUNK.md` §9.1.
 
 **`joint_taper128_thin` (117k snapshot-thinned; 2026-06-15) — the previous champion.** Scaling the
 corpus to 117k games (the 57k + a fresh 60k self-play run generated *by* the 57k model) and retraining
@@ -797,7 +799,7 @@ still be supplied explicitly via `--leaf-ckpt <joint-ckpt>` (Python) or its expo
 The older *separate* value net (`M_82k_warmM62k`) + the nine-head combined behavioral-cloning policy
 remain available as the value-only fallback for any consumer that wants a pure `NormalizedValueModel`.
 Search runs PUCT with `FenceMode.FLATTEN` over the **full unrestricted** legal set (the policy prior
-is the sole prune — §2.2), `c_uct ≈ 0.5` (calibrated to the value head's `value_scale`), and a low
+is the sole prune — §2.2), `c_uct = 1.0` (the unified default as of 2026-06-18; calibrated to the value head's common-state `value_scale`), and a low
 played-move temperature so trajectories stay near-greedy while π still records the search's
 exploration. Generation is **chunked-streaming and resumable** (bounded
 per-worker RAM, O(n) writes, skip-completed-game-idxs on restart) and runs **one game per worker
@@ -893,7 +895,7 @@ stronger so default off).
 is only offered when this is on; harvest **feed** and **breed** are separate turns); **Show analysis** (a
 read-only overlay of the bot's MCTS Q-value + visit count for each of the human's moves — async, never
 blocks the move, cancelled when you move, uniform-prior-mixed at `w=0.05` for coverage; its **explore**
-input is the analysis-only `c_uct`, default `0.5`). The action board lists spaces in **reveal order within
+input is the analysis-only `c_uct`, default `1.0`). The action board lists spaces in **reveal order within
 each stage**, keeping the STAGE headers.
 
 **Deploy.** `Dockerfile` compiles the C++ `selfplay` binary for Linux and copies the resolved

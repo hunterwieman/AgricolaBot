@@ -3017,3 +3017,55 @@ Also a recurring machine reality on the 8 GB M1: both macOS sleep *and* memory-p
 
 ### Docs
 `SHARED_TRUNK.md` (new — the full design/implementation/results record); this entry; `nn_models/REGISTRY.md` rows for the four sweep nets + `joint_taper128`; a C++ joint-inference + match-mode section in `CPP_ENGINE_PLAN.md`.
+
+---
+
+## Session — Data-variation experiment, `exp_visit_combined` champion, c_uct=1.0 (2026-06-18)
+
+Studied how the **amount/type of variation** in self-play data affects trained-model
+strength, promoted a new champion off the winning regime, and unified the c_uct
+default. Full results: **`SHARED_TRUNK.md` §9**; champion row in `nn_models/REGISTRY.md`.
+
+### What was found
+- **Diversity is the lever.** Five conditions (visit-selection T=0.7/1.0 vs Q-selection
+  T=0.005/0.01/0.02), 10k games each, trained as warm-start fine-tunes, ranked by
+  800-sim MCTS round-robin: both **visit** (diverse) models beat the champion; all three
+  **Q** (near-greedy) models fell *below* it. Near-greedy self-play → narrow,
+  autocorrelated state distribution → worse generalization.
+- **Gain saturates ~10k games.** The 40k both-temps retrain (`exp_visit_combined`) beat
+  the champion **56.2%** (500-game 800-sim match) but only **tied** the best single 10k
+  model — 4× data from a fixed generator added nothing.
+- **Q-based move selection is neutral-to-worse** (≈tie at 800 sims, worse at 400) — visit
+  count is the more robust statistic.
+
+### New champion
+`exp_visit_combined` promoted to `nn_models/best` + `cpp_export_best`, value_scale **4.345**
+(common-state, not the biased training 2.776). Old champion (`joint_taper128_thin_sp30k_lr3e4`)
+preserved + flipped to superseded in REGISTRY. Reversible.
+
+### Methodology
+- **Common-state `value_scale` normalization** for fair MCTS comparison (measure each model's
+  prediction std on a shared state set, not the condition-biased training `target_std`). See
+  SHARED_TRUNK §9.1.
+- **Eval as-used, not a proxy:** all rankings via 800-sim MCTS (value+policy), the way models
+  are actually played — a 1-turn value-head proxy was rejected mid-session.
+
+### Code / tooling added
+- C++: per-seat `--temperature-p0/p1`, `--select-by q` (move selection by mean-Q) in match +
+  self-play (`MCTSAgent::select_action_by_q`).
+- Python: `--select-by q` + `--keep-traces` in `generate_selfplay_data_cpp.py`; `--max-games` +
+  ported **L2-SP** into the joint trainer; `play_match` nn seat now uses the model_kind-aware
+  `load_value_evaluator` (loads joint models); `_terminal_value` guards `SharedTrunkModel`
+  (no `.net`) for the 1-turn leaf at terminal states.
+- `base_seed=0` footgun guard: `generate_selfplay_data_cpp.py` now requires an explicit,
+  disjoint `--base-seed` on fresh runs (reads it from metadata on resume).
+- **c_uct default unified to 1.0** across all entry points (was 0.5/1.4).
+- New scripts: `run_param_sweep.py`, `run_gen_chain.sh`.
+
+### Housekeeping
+- Disk: freed ~27 GB (deleted superseded run dirs + the Q-selection experiment data; chunk
+  caches identified as the ~34 GB regenerable bulk). `--keep-traces` added so traces can serve
+  as the compact root archive going forward.
+- Bug caught: killing a multiprocessing driver orphans its pool's `selfplay` workers — must kill
+  workers by binary path, and a loose `pgrep -f selfplay` matches the agent's own grep commands
+  AND the Claude harness process (near-miss). Verify with `pgrep` after.
