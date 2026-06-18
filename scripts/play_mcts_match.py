@@ -595,7 +595,7 @@ def main() -> int:
     p.add_argument("--opp-sims", type=int, default=None,
                    help="MCTS sims/move for the opponent (--opponent mcts only). "
                         "Default = --sims.")
-    p.add_argument("--c-uct", type=float, default=1.4)
+    p.add_argument("--c-uct", type=float, default=1.0)
     p.add_argument("--opp-c-uct", type=float, default=None,
                    help="c_uct for the opponent MCTS. Default = --c-uct.")
     p.add_argument("--n-random-fencing", type=int, default=4)

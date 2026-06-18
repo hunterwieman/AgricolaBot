@@ -812,7 +812,7 @@ class MCTSAgent:
         search: MCTSSearch,
         *,
         sims_per_move: int = 500,
-        c_uct: float = 1.4,
+        c_uct: float = 1.0,
         fpu_offset: float = 0.0,
         action_selection_temperature: float = 0.2,
         rng_seed: int = 0,

@@ -420,7 +420,7 @@ def _build_agent(
 
     The MCTS seat is V3-free: the value NN is the leaf evaluator, the strict
     wrapper's harvest-feed cap ranks with that same NN (not V3), and the
-    leaf is calibrated via the model's `value_scale` so `c_uct=1.4` is
+    leaf is calibrated via the model's `value_scale` so `c_uct=1.0` is
     comparable across value heads. Mirrors scripts/play_mcts_match.py.
     """
     if seat_type == "human":
@@ -460,7 +460,7 @@ def _build_agent(
             return _CppMctsAgent(
                 model_dir=_CPP_EXPORT_DIR,
                 sims=sims,
-                c_uct=0.5,
+                c_uct=1.0,
                 temperature=0.2,
                 prior_mix=opponent_mix,
             )
@@ -518,7 +518,7 @@ def _build_agent(
         return MCTSAgent(
             search,
             sims_per_move=sims,
-            c_uct=1.4,
+            c_uct=1.0,
             fpu_offset=0.0,
             action_selection_temperature=0.2,
             rng_seed=seed,
@@ -1464,14 +1464,13 @@ class Session:
             except OSError:
                 pass
 
-    def analyze(self, sims: int, c_uct: float = 0.5,
+    def analyze(self, sims: int, c_uct: float = 1.0,
                 prior_mix: float = 0.05) -> tuple[bool, list[dict]]:
         """Run a read-only MCTS analysis rooted at the human's current state.
 
-        `c_uct` defaults higher than the bot's play value (which is ~0.5,
-        exploit-heavy) so the search SPREADS visits across more of the human's
-        options — for analysis you want coverage (a Q for several moves), not
-        the single concentrated best line the bot plays.
+        `c_uct` matches the bot's play value (1.0); analysis coverage (a Q for
+        several of the human's options, not just the single best line) comes
+        from the uniform `prior_mix`, which spreads visits across more moves.
 
         Returns (ok, children) where children mirror the C++ `--analyze`
         contract: [{type, params, visits, q}, ...] with q already in the
@@ -1962,13 +1961,13 @@ def _make_handler(registry: SessionRegistry):
                 # Read-only: run the bot's MCTS on the human's current state
                 # and return each candidate move's visit count + value. Does
                 # not mutate game state. Uses the session's sims budget; the
-                # exploration constant c_uct comes from the client (default 0.5,
+                # exploration constant c_uct comes from the client (default 1.0,
                 # matching the bot — the prior-mix gives the coverage). Cancelled
                 # when the human moves.
                 body = self._read_body()
-                c_uct = body.get("c_uct", 0.5)
+                c_uct = body.get("c_uct", 1.0)
                 if not (isinstance(c_uct, (int, float)) and c_uct > 0):
-                    c_uct = 0.5
+                    c_uct = 1.0
                 sims = (session.mcts_sims if session.mcts_sims is not None
                         else _MCTS_SIMS_DEFAULT)
                 ok, children = session.analyze(sims, float(c_uct))

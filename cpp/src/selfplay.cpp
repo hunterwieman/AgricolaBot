@@ -168,7 +168,8 @@ void attach_search_targets(
 
 std::string mcts_selfplay_trace_with(const NNInference& nn, std::uint64_t seed,
                                      int sims, double c_uct,
-                                     double temperature) {
+                                     double temperature, double prior_mix,
+                                     bool select_q) {
   SetupResult su = setup(seed);
   GameState state = su.initial;
   const std::vector<std::string>& order = su.round_card_order;
@@ -183,8 +184,10 @@ std::string mcts_selfplay_trace_with(const NNInference& nn, std::uint64_t seed,
   // ONE search/agent drives BOTH seats (shared tree; re_root each move carries
   // stats across the P0<->P1 boundary). Mirrors play_selfplay_recording_game.
   MCTSSearch search(&nn, c_uct, search_seed, /*fpu_offset=*/0.0);
+  search.set_prior_uniform_mix(prior_mix);
   MCTSAgent agent(&search, sims, c_uct, /*fpu_offset=*/0.0, temperature,
                   agent_seed, /*cap_total_sims=*/true);
+  agent.set_select_by_q(select_q);
 
   json actions = json::array();
 
@@ -231,38 +234,45 @@ std::string mcts_selfplay_trace_with(const NNInference& nn, std::uint64_t seed,
 
 std::string mcts_selfplay_trace(std::uint64_t seed, int sims, double c_uct,
                                 double temperature,
-                                const std::string& model_dir) {
+                                const std::string& model_dir,
+                                double prior_mix, bool select_q) {
   // Load (or reuse a process-cached) NNInference once, then delegate — so a
   // single-game call is byte-identical to the pre-refactor body. The batch
   // path instead holds one NNInference and calls mcts_selfplay_trace_with
   // directly, avoiding even the cache lookup per game.
   std::shared_ptr<NNInference> nn = get_nn_cached(model_dir);
-  return mcts_selfplay_trace_with(*nn, seed, sims, c_uct, temperature);
+  return mcts_selfplay_trace_with(*nn, seed, sims, c_uct, temperature, prior_mix,
+                                  select_q);
 }
 
 MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_p1,
                                 std::uint64_t seed,
                                 int sims_p0, double c_uct_p0,
                                 int sims_p1, double c_uct_p1,
-                                double temperature,
+                                double temperature_p0,
+                                double temperature_p1,
                                 double prior_mix_p0,
-                                double prior_mix_p1) {
+                                double prior_mix_p1,
+                                bool select_q_p0,
+                                bool select_q_p1) {
   SetupResult su = setup(seed);
   GameState state = su.initial;
   const std::vector<std::string>& order = su.round_card_order;
 
   // One search/agent per seat, each over its own value net AND its own
-  // (sims, c_uct) search params. P0 reuses the self-play mixing constants (so a
-  // symmetric P0-vs-P0 matches self-play); P1 uses a distinct pair so the two
-  // seats never share an RNG stream.
+  // (sims, c_uct, temperature) search params. P0 reuses the self-play mixing
+  // constants (so a symmetric P0-vs-P0 matches self-play); P1 uses a distinct
+  // pair so the two seats never share an RNG stream.
   MCTSSearch search0(&nn_p0, c_uct_p0, seed ^ 0x9E3779B97F4A7C15ULL, /*fpu=*/0.0);
   search0.set_prior_uniform_mix(prior_mix_p0);
-  MCTSAgent agent0(&search0, sims_p0, c_uct_p0, /*fpu=*/0.0, temperature,
+  MCTSAgent agent0(&search0, sims_p0, c_uct_p0, /*fpu=*/0.0, temperature_p0,
                    seed ^ 0xD1B54A32D192ED03ULL, /*cap_total_sims=*/true);
+  agent0.set_select_by_q(select_q_p0);
   MCTSSearch search1(&nn_p1, c_uct_p1, seed ^ 0xBF58476D1CE4E5B9ULL, /*fpu=*/0.0);
   search1.set_prior_uniform_mix(prior_mix_p1);
-  MCTSAgent agent1(&search1, sims_p1, c_uct_p1, /*fpu=*/0.0, temperature,
+  MCTSAgent agent1(&search1, sims_p1, c_uct_p1, /*fpu=*/0.0, temperature_p1,
                    seed ^ 0x94D049BB133111EBULL, /*cap_total_sims=*/true);
+  agent1.set_select_by_q(select_q_p1);
 
   while (state.phase != Phase::BEFORE_SCORING) {
     std::optional<int> decider = decider_of(state);

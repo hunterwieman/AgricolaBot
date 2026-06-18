@@ -286,7 +286,8 @@ def _encode_one_chunk_task(task):
 
 
 def _load_or_encode_run_dir(run_dir: Path, legal_actions_fn, soft_targets, use_cache,
-                            verbose, encoder: EncoderSpec, n_workers: int = 1) -> list:
+                            verbose, encoder: EncoderSpec, n_workers: int = 1,
+                            max_games=None) -> list:
     """Return the per-pickle chunk SOURCES for one run dir, in stable sorted
     order. With the cache (the production path) each source is a chunk-npz
     **Path** — NOT a loaded dict — so `_finalize_payloads` can stream the chunks
@@ -308,12 +309,25 @@ def _load_or_encode_run_dir(run_dir: Path, legal_actions_fn, soft_targets, use_c
     missing indices (completeness = all chunks present, see `_cache_complete`).
     Stale chunks from a *different* head roster are cleared before resuming."""
     cd = _chunk_dir(run_dir, encoder)
-    if use_cache and _cache_complete(run_dir, encoder):
+    pkls = list(_iter_worker_pickles([run_dir]))
+
+    # Optional per-run-dir game cap (ad-hoc, for size-controlled experiments):
+    # keep the first ~max_games games by truncating the (stable-sorted) pickle
+    # list. Estimate games-per-pickle from the first pickle (one cheap load),
+    # since chunks are 1:1 with pickles. A cap bypasses the full-dir cache fast
+    # path below (it would return ALL chunks) but still resumes per-chunk.
+    if max_games is not None and pkls:
+        per = len(load_game_records(pkls[0])) or 1
+        keep = min(len(pkls), max(1, -(-max_games // per)))
+        if verbose:
+            print(f"  max_games={max_games}: using first {keep}/{len(pkls)} "
+                  f"pickles (~{keep * per} games) of {run_dir.name}", flush=True)
+        pkls = pkls[:keep]
+
+    if max_games is None and use_cache and _cache_complete(run_dir, encoder):
         if verbose:
             print(f"  shared cache HIT: {run_dir.name} [{encoder.tag}]", flush=True)
         return sorted(cd.glob("chunk_*.npz"))  # Paths — streamed lazily by _finalize
-
-    pkls = list(_iter_worker_pickles([run_dir]))
 
     # --- No-cache: simple in-memory serial (no disk, no resume) ---
     if not use_cache:
@@ -366,7 +380,10 @@ def _load_or_encode_run_dir(run_dir: Path, legal_actions_fn, soft_targets, use_c
             if verbose and k % 25 == 0:
                 print(f"    encoded {k}/{len(todo)} (this run, {pkl.name})", flush=True)
 
-    chunk_paths = sorted(cd.glob("chunk_*.npz"))
+    # Return exactly the chunks for the (possibly capped) pickle list — chunks are
+    # 0..len(pkls)-1 by construction, so this equals sorted(glob) when uncapped but
+    # excludes any stale higher-index chunks left by an earlier uncapped run.
+    chunk_paths = [cd / f"chunk_{i:05d}.npz" for i in range(len(pkls))]
     if verbose:
         print(f"  {len(chunk_paths)} chunks in {cd.name}/", flush=True)
     return chunk_paths  # Paths — streamed lazily by _finalize
@@ -421,6 +438,7 @@ def build_shared_datasets(
     use_cache: bool = True,
     n_workers: int = 1,
     snapshot_keep=None,
+    max_games=None,
     verbose: bool = True,
 ) -> SharedDatasets:
     """One-pass (cached) build of the joint value+policy datasets. Defaults to
@@ -453,7 +471,8 @@ def build_shared_datasets(
     sources: list = []
     for rd, keep in zip(run_dirs, keeps):
         for src in _load_or_encode_run_dir(rd, legal_actions_fn, soft_targets,
-                                           use_cache, verbose, encoder, n_workers):
+                                           use_cache, verbose, encoder, n_workers,
+                                           max_games=max_games):
             sources.append((src, keep))
     return _finalize_payloads(sources, encoder=encoder, train_frac=train_frac,
                               val_frac=val_frac, split_seed=split_seed,

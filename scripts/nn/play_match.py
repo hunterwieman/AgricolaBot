@@ -64,7 +64,7 @@ from agricola.agents import (  # noqa: E402
 )
 from agricola.agents.base import Agent, play_game  # noqa: E402
 from agricola.agents.nn.agent import NNAgent, nn_evaluator_differential  # noqa: E402
-from agricola.agents.nn.model import NormalizedValueModel  # noqa: E402
+from agricola.agents.nn.model import NormalizedValueModel, load_value_evaluator  # noqa: E402
 from agricola.scoring import score, tiebreaker  # noqa: E402
 from agricola.setup import setup, setup_env  # noqa: E402
 
@@ -141,13 +141,13 @@ def _init_worker(spec: _Spec) -> None:
     _WORKER_MODEL_P0 = None
     _WORKER_MODEL_P1 = None
     if p0_needs:
-        _WORKER_MODEL_P0 = NormalizedValueModel.load(spec.p0_model_path)
+        _WORKER_MODEL_P0 = load_value_evaluator(spec.p0_model_path)  # model_kind-aware (joint OK)
         _WORKER_MODEL_P0.eval()
     if p1_needs:
         if p0_needs and spec.p1_model_path == spec.p0_model_path:
             _WORKER_MODEL_P1 = _WORKER_MODEL_P0  # share the loaded model
         else:
-            _WORKER_MODEL_P1 = NormalizedValueModel.load(spec.p1_model_path)
+            _WORKER_MODEL_P1 = load_value_evaluator(spec.p1_model_path)
             _WORKER_MODEL_P1.eval()
 
 
@@ -313,7 +313,7 @@ def main() -> int:
     p.add_argument("--n", type=int, default=100)
     p.add_argument("--sims", type=int, default=500,
                    help="MCTS sims/move (only used for mcts seats)")
-    p.add_argument("--c-uct", type=float, default=1.4)
+    p.add_argument("--c-uct", type=float, default=1.0)
     p.add_argument("--n-random-fencing", type=int, default=4)
     p.add_argument("--fpu-offset", type=float, default=0.0)
     p.add_argument("--temperature", type=float, default=0.2,

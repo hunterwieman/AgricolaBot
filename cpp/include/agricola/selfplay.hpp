@@ -64,14 +64,18 @@ std::string analyze_position(const std::string& state_json,
 // string; replays cleanly through trace_replay.replay_trace -> a v3 GameRecord.
 std::string mcts_selfplay_trace(std::uint64_t seed, int sims, double c_uct,
                                 double temperature,
-                                const std::string& model_dir);
+                                const std::string& model_dir,
+                                double prior_mix = 0.0,
+                                bool select_q = false);
 
 // Same as mcts_selfplay_trace, but reuses an ALREADY-LOADED NNInference instead
 // of loading `model_dir` per call — the batch path's weight-reload elimination.
 // The single-arg mcts_selfplay_trace is a thin wrapper that loads once and calls
 // this, so per-game behavior is byte-identical. `nn` is borrowed (caller owns).
 std::string mcts_selfplay_trace_with(const NNInference& nn, std::uint64_t seed,
-                                     int sims, double c_uct, double temperature);
+                                     int sims, double c_uct, double temperature,
+                                     double prior_mix = 0.0,
+                                     bool select_q = false);
 
 // Two-net head-to-head MATCH (evaluation, NOT self-play data). P0 plays with
 // `nn_p0`, P1 with `nn_p1`, each driven by its OWN MCTSSearch/MCTSAgent (separate
@@ -89,15 +93,18 @@ struct MatchGameResult {
   int winner;  // 0 = P0 (nn_p0), 1 = P1 (nn_p1), -1 = true draw
 };
 
-// Per-seat search params: P0 searches with (sims_p0, c_uct_p0), P1 with
-// (sims_p1, c_uct_p1). Pass equal values for both seats for a symmetric match.
+// Per-seat search params: P0 searches with (sims_p0, c_uct_p0, temperature_p0),
+// P1 with (sims_p1, c_uct_p1, temperature_p1). Pass equal values for a symmetric match.
 MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_p1,
                                 std::uint64_t seed,
                                 int sims_p0, double c_uct_p0,
                                 int sims_p1, double c_uct_p1,
-                                double temperature,
+                                double temperature_p0,
+                                double temperature_p1,
                                 double prior_mix_p0 = 0.0,
-                                double prior_mix_p1 = 0.0);
+                                double prior_mix_p1 = 0.0,
+                                bool select_q_p0 = false,
+                                bool select_q_p1 = false);
 #endif
 
 }  // namespace agricola

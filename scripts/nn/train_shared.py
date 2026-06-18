@@ -107,9 +107,17 @@ def main() -> int:
                         "comma-list aligned with --run-dir, e.g. "
                         "'0.1667,0.1667,0.1667,0.1667,0.1667,0.5'.")
     # misc
+    p.add_argument("--max-games", type=int, default=None,
+                   help="Cap games used PER run dir to ~this many (first N by "
+                        "stable pickle order) — for size-controlled experiments "
+                        "without splitting data into separate folders.")
     p.add_argument("--init-from", type=Path, default=None,
                    help="Value checkpoint to warm-start the trunk from "
                         "(shape-tolerant; only matching trunk layers transplant).")
+    p.add_argument("--l2sp", type=float, default=0.0,
+                   help="L2-SP anchor strength λ: add λ·‖θ−θ₀‖² to the loss, "
+                        "pulling weights toward the --init-from checkpoint "
+                        "(a trust region vs drift). Requires --init-from.")
     p.add_argument("--save-all-epochs", action="store_true")
     p.add_argument("--torch-seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
@@ -135,7 +143,8 @@ def main() -> int:
         split_seed=args.split_seed, store_dtype=args.store_dtype,
         use_cache=args.use_cache, encode_workers=args.encode_workers,
         stream=args.stream, buffer_chunks=args.buffer_chunks,
-        snapshot_keep=snapshot_keep, init_from=args.init_from,
+        snapshot_keep=snapshot_keep, max_games=args.max_games,
+        init_from=args.init_from, l2sp=args.l2sp,
         save_all_epochs=args.save_all_epochs, torch_seed=args.torch_seed,
         device=args.device,
     )

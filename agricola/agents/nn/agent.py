@@ -63,7 +63,9 @@ def _terminal_value(state, player_idx: int, model: NormalizedValueModel) -> floa
     """
     own, _ = score(state, player_idx)
     opp, _ = score(state, 1 - player_idx)
-    head = getattr(model.net, "head", "linear")
+    # Joint SharedTrunkModel has no `.net`; its value head is linear (margin).
+    net = getattr(model, "net", None)
+    head = getattr(net, "head", "linear") if net is not None else "linear"
     if head == "linear":
         return float(own - opp)
     # outcome / winprob: tiebreaker-aware win/draw/loss, matching `game.winner`.

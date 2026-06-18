@@ -146,6 +146,13 @@ class MCTSAgent {
   // The root of the most recent search (set by choose()).
   MCTSNode* last_root() const { return last_root_; }
 
+  // Played-move selection mode. Default (false) ranks root children by VISIT
+  // count (AlphaZero standard). When true, ranks by sign-corrected mean-Q in
+  // the root player's frame instead — argmax at T<=0, softmax(exp(Q/T)) at T>0,
+  // over VISITED children only (an unvisited child has no Q estimate). The π /
+  // root_value recorded for training are unaffected; only the played move changes.
+  void set_select_by_q(bool v) { select_by_q_ = v; }
+
   // π — the root's raw per-action visit counts {action: child.visits}.
   std::vector<std::pair<Action, long long>> root_visit_distribution(
       MCTSNode* root) const;
@@ -160,7 +167,9 @@ class MCTSAgent {
   std::pair<MCTSNode*, bool> puct_select_child(MCTSNode* node);
   Action select_via_puct(MCTSNode* parent);
   Action chance_route(MCTSNode* node);
-  Action select_action_with_temperature(MCTSNode* root);
+  Action select_action_with_temperature(MCTSNode* root);  // dispatcher
+  Action select_action_by_visits(MCTSNode* root);  // visit-count (default)
+  Action select_action_by_q(MCTSNode* root);  // Q-ranked alternative
 
   MCTSSearch* search_;
   int sims_per_move_;
@@ -168,6 +177,7 @@ class MCTSAgent {
   double fpu_offset_;
   double temperature_;
   bool cap_total_sims_;
+  bool select_by_q_ = false;  // false = visit-count selection (default)
   std::mt19937_64 rng_;  // agent RNG — played-move sampling only
   MCTSNode* last_root_ = nullptr;
 };

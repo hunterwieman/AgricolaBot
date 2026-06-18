@@ -106,6 +106,9 @@ class _Spec:
     temperature: float
     chunk_size: int
     base_seed: int = 0
+    prior_mix: float = 0.0
+    select_by: str = "visits"  # "visits" (default) or "q"
+    keep_traces: bool = False  # if True, never delete traces (keep as the root archive)
     # "batch" (one subprocess per worker-slice, one weight load) or
     # "per_game" (one subprocess per game — the A/B baseline). Default batch.
     generation_mode: str = "batch"
@@ -207,6 +210,8 @@ def _run_batch_games(spec: _Spec, *, game_idxs: list[int], out_dir: Path):
         "--sims", str(spec.sims),
         "--c-uct", str(spec.c_uct),
         "--temperature", str(spec.temperature),
+        "--prior-mix", str(spec.prior_mix),
+        "--select-by", spec.select_by,
         "--model-dir", spec.model_dir,
         "--out-dir", str(out_dir),
     ]
@@ -308,8 +313,11 @@ def _worker(args: dict) -> dict:
         # redundant — drop them to keep the traces dir bounded. Until this
         # flush each game was recoverable from its trace; after it, from the
         # chunk. So a kill at ANY moment leaves every game recoverable.
-        for gi in chunk_idxs:
-            _trace_path(traces_dir, gi).unlink(missing_ok=True)
+        # With --keep-traces we instead KEEP them as the permanent root archive
+        # (games replay from traces ~instantly; traces alone cost hours to regen).
+        if not spec.keep_traces:
+            for gi in chunk_idxs:
+                _trace_path(traces_dir, gi).unlink(missing_ok=True)
         buffer = []
         chunk_idxs = []
 
@@ -375,7 +383,7 @@ def generate(
     n_games: int,
     out_dir: Path | None,
     n_workers: int,
-    base_seed: int,
+    base_seed: int | None = None,
     spec: _Spec,
     resume: bool = False,
     verbose: bool = True,
@@ -389,6 +397,7 @@ def generate(
     run of THIS generator, or `--resume` is passed.
     """
     # ----- resolve run dir + resume status -----
+    existing = None
     if out_dir is not None:
         run_dir = Path(out_dir)
         meta_path = run_dir / "metadata.json"
@@ -418,6 +427,30 @@ def generate(
         run_dir = ROOT / "data" / "nn_training" / "runs" / run_id
         is_resume = False
 
+    # ----- resolve base_seed (guard the base_seed=0 cross-run-collision footgun) -----
+    if is_resume:
+        stored = existing.get("base_seed") if existing else None
+        if base_seed is None:
+            base_seed = stored if stored is not None else 0  # legacy dirs: assume 0
+        elif stored is not None and base_seed != stored:
+            raise SystemExit(
+                f"resume base_seed mismatch: {run_dir} was generated with "
+                f"base_seed={stored}, but --base-seed={base_seed} was passed. "
+                f"Omit --base-seed on resume (it is read from metadata) or pass "
+                f"{stored} to match — a wrong base_seed misaligns game_idx→seed.")
+    else:
+        if base_seed is None:
+            raise SystemExit(
+                "Fresh run requires an explicit --base-seed. Pass a DISJOINT value "
+                "per run so seed ranges never overlap (seed = base_seed + game_idx); "
+                "overlap with a same-model+config run produces DUPLICATE games. "
+                "E.g. --base-seed 1000000 (then 2000000, ...). Pass --base-seed 0 "
+                "explicitly only if you truly want the 0-based range.")
+        if base_seed == 0 and verbose:
+            print("WARNING: --base-seed 0 — seeds 0..N-1 overlap any other "
+                  "base_seed=0 run (duplicate games if model+config also match). "
+                  "Prefer a disjoint base seed.", flush=True)
+
     games_dir = run_dir / "games"
     traces_dir = run_dir / "traces"
     games_dir.mkdir(parents=True, exist_ok=True)
@@ -438,7 +471,9 @@ def generate(
               f"resume={is_resume}")
         print(f"  C++ MCTS: bin={spec.selfplay_bin}, model_dir={spec.model_dir}, "
               f"sims={spec.sims}, c_uct={spec.c_uct}, T={spec.temperature}, "
-              f"mode={spec.generation_mode}, data_version={DATA_VERSION}\n",
+              f"prior_mix={spec.prior_mix}, select_by={spec.select_by}, "
+              f"keep_traces={spec.keep_traces}, mode={spec.generation_mode}, "
+              f"data_version={DATA_VERSION}\n",
               flush=True)
 
     worker_args = [
@@ -472,6 +507,9 @@ def generate(
             "sims": spec.sims,
             "c_uct": spec.c_uct,
             "temperature": spec.temperature,
+            "prior_mix": spec.prior_mix,
+            "select_by": spec.select_by,
+            "keep_traces": spec.keep_traces,
             "chunk_size": spec.chunk_size,
             "generation_mode": spec.generation_mode,
             "legality": "full", "fence_mode": "flatten", "cap_total_sims": True,
@@ -572,14 +610,29 @@ def main() -> int:
     p.add_argument("--out-dir", type=Path, default=None,
                    help="Run dir (resumes if it has metadata.json). Default: auto-id.")
     p.add_argument("--n-workers", type=int, default=4)
-    p.add_argument("--base-seed", type=int, default=0,
-                   help="Per-game seed = base_seed + game_idx (mirrors the "
-                        "Python generator's scheme). Default 0.")
+    p.add_argument("--base-seed", type=int, default=None,
+                   help="Per-game seed = base_seed + game_idx. REQUIRED for a "
+                        "fresh run — pass a DISJOINT value per run (e.g. 1000000, "
+                        "2000000, ...) so seed ranges never overlap another run "
+                        "(overlap = duplicate games when model+config also match). "
+                        "On resume it is read from metadata. Pass 0 explicitly "
+                        "only if you really want the 0-based range (warns).")
     p.add_argument("--sims", type=int, default=400)
-    p.add_argument("--c-uct", type=float, default=0.5)
+    p.add_argument("--c-uct", type=float, default=1.0)
     p.add_argument("--temperature", type=float, default=1.0,
                    help="Played-move visit softmax temperature (passed to the "
                         "binary; π is stored raw regardless).")
+    p.add_argument("--prior-mix", type=float, default=0.0,
+                   help="Uniform-mix weight for the policy prior: "
+                        "prior' = (1-w)*policy + w*(1/k). Default 0 (pure policy).")
+    p.add_argument("--select-by", choices=["visits", "q"], default="visits",
+                   help="Played-move selection: visits (default) or q "
+                        "(rank root children by sign-corrected mean-Q).")
+    p.add_argument("--keep-traces", action="store_true",
+                   help="Keep the C++ action traces as the permanent root archive "
+                        "instead of deleting them after chunk-writing. Traces are "
+                        "~game-size but replay to GameRecords ~instantly, so they "
+                        "let you delete games/chunks later and recover fast.")
     p.add_argument("--chunk-size", type=int, default=100,
                    help="Games per pickle file. Smaller → lower per-worker RAM "
                         "and O(n) writes. Default 100.")
@@ -601,6 +654,8 @@ def main() -> int:
         selfplay_bin=args.selfplay_bin, model_dir=args.model_dir,
         sims=args.sims, c_uct=args.c_uct, temperature=args.temperature,
         chunk_size=args.chunk_size, base_seed=args.base_seed,
+        prior_mix=args.prior_mix, select_by=args.select_by,
+        keep_traces=args.keep_traces,
         generation_mode="per_game" if args.per_game_process else "batch",
     )
     generate(

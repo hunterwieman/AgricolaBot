@@ -190,7 +190,7 @@ def main() -> int:
     p.add_argument("--n", type=int, default=8, help="Games per configuration.")
     p.add_argument("--sims", type=int, default=500, help="MCTS sims/move.")
     p.add_argument("--jobs", type=int, default=4, help="Parallel worker processes.")
-    p.add_argument("--c-uct", type=float, default=1.4)
+    p.add_argument("--c-uct", type=float, default=1.0)
     p.add_argument("--leaf-ckpt", type=str, default="nn_models/best")
     p.add_argument("--policy", type=str, default="unweighted",
                    choices=("unweighted", "awr"))

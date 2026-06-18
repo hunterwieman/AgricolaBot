@@ -13,7 +13,7 @@
 //   selfplay --seed N --out PATH                       # random, seed N to PATH
 //   selfplay N                                         # random, seed N to stdout
 //   selfplay --mcts --seed N --sims S --model-dir DIR --out PATH
-//   selfplay --mcts --seed N --sims S --c-uct 1.4 --temperature 1.0 \
+//   selfplay --mcts --seed N --sims S --c-uct 1.0 --temperature 1.0 \
 //            --model-dir nn_models/cpp_export --out trace.json
 //
 // MCTS BATCH mode (one NN load, many games — the data-gen weight-reload fix):
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   std::string out_path;     // empty -> stdout
   bool mcts = false;
   int sims = 160;           // matches Stage-6 default sims_per_move
-  double c_uct = 1.4;
+  double c_uct = 1.0;
   double temperature = 1.0; // production self-play default (sample ∝ visits)
   std::string model_dir = "nn_models/cpp_export";
   double prior_mix = 0.0;   // policy-prior uniform mix for --move / --analyze
@@ -122,10 +122,15 @@ int main(int argc, char** argv) {
   double cuct_hi = 1.0;
 
   // Fixed per-seat overrides (non-sweep match): a negative sentinel means "use
-  // the shared --sims / --c-uct for that seat". Lets a match pit e.g. 800 sims
-  // (P0) vs 500 sims (P1) with separate trees.
+  // the shared --sims / --c-uct / --temperature for that seat". Lets a match pit
+  // e.g. 800 sims (P0) vs 500 sims (P1), or T=0 (P0) vs T=0.3 (P1).
   int sims_p0 = -1, sims_p1 = -1;
   double c_uct_p0 = -1.0, c_uct_p1 = -1.0;
+  double temperature_p0 = -1.0, temperature_p1 = -1.0;  // negative = use shared
+  // Per-seat played-move selection: "visits" (default) or "q" (rank by mean-Q).
+  bool select_q_p0 = false, select_q_p1 = false;
+  // Self-play path (single agent both seats) selection: "visits" / "q".
+  bool select_q = false;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -181,6 +186,16 @@ int main(int argc, char** argv) {
       prior_mix_p0 = std::atof(argv[++i]);
     } else if (arg == "--prior-mix-p1" && i + 1 < argc) {
       prior_mix_p1 = std::atof(argv[++i]);
+    } else if (arg == "--temperature-p0" && i + 1 < argc) {
+      temperature_p0 = std::atof(argv[++i]);
+    } else if (arg == "--temperature-p1" && i + 1 < argc) {
+      temperature_p1 = std::atof(argv[++i]);
+    } else if (arg == "--select-by-p0" && i + 1 < argc) {
+      select_q_p0 = (std::string(argv[++i]) == "q");
+    } else if (arg == "--select-by-p1" && i + 1 < argc) {
+      select_q_p1 = (std::string(argv[++i]) == "q");
+    } else if (arg == "--select-by" && i + 1 < argc) {
+      select_q = (std::string(argv[++i]) == "q");  // self-play single-agent path
     } else if (arg == "--prior-mix" && i + 1 < argc) {
       prior_mix = std::atof(argv[++i]);  // --move / --analyze single-position mix
     } else if (arg == "-h" || arg == "--help") {
@@ -294,9 +309,11 @@ int main(int argc, char** argv) {
         if (c_uct_p0 >= 0) c0 = c_uct_p0;
         if (c_uct_p1 >= 0) c1 = c_uct_p1;
       }
+      double t0 = temperature_p0 >= 0 ? temperature_p0 : temperature;
+      double t1 = temperature_p1 >= 0 ? temperature_p1 : temperature;
       agricola::MatchGameResult r = agricola::mcts_match_game(
-          nn0, nn1, game_seed, s0, c0, s1, c1, temperature,
-          prior_mix_p0, prior_mix_p1);
+          nn0, nn1, game_seed, s0, c0, s1, c1, t0, t1,
+          prior_mix_p0, prior_mix_p1, select_q_p0, select_q_p1);
       std::cout << "GAME seed=" << r.seed << " p0=" << r.p0_score
                 << " p1=" << r.p1_score << " winner=" << r.winner;
       if (sweep) {
@@ -356,7 +373,7 @@ int main(int argc, char** argv) {
     for (long long idx : idxs) {
       std::uint64_t game_seed = base_seed + static_cast<std::uint64_t>(idx);
       std::string trace = agricola::mcts_selfplay_trace_with(
-          nn, game_seed, sims, c_uct, temperature);
+          nn, game_seed, sims, c_uct, temperature, prior_mix, select_q);
       std::filesystem::path p =
           std::filesystem::path(out_dir) / ("trace_" + std::to_string(idx) + ".json");
       std::ofstream f(p);
@@ -378,7 +395,7 @@ int main(int argc, char** argv) {
   if (mcts) {
 #ifdef AGRICOLA_WITH_NN
     trace = agricola::mcts_selfplay_trace(seed, sims, c_uct, temperature,
-                                          model_dir);
+                                          model_dir, prior_mix, select_q);
 #else
     std::cerr << "selfplay: --mcts requires an NN build\n";
     return 1;

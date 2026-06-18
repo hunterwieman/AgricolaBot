@@ -205,7 +205,7 @@ def collision(sims: int, seed: int, v3_config: str) -> None:
     cfg = _load_cfg(v3_config)
     search = MCTSSearch(evaluator_config=cfg, n_random_fencing=4, rng_seed=seed)
     mcts = MCTSAgent(
-        search, sims_per_move=sims, c_uct=1.4, fpu_offset=0.0,
+        search, sims_per_move=sims, c_uct=1.0, fpu_offset=0.0,
         action_selection_temperature=0.2, rng_seed=seed,
     )
     strict_fn = make_strict_restricted_legal_actions(

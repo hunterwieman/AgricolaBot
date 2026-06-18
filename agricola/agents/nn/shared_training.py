@@ -233,6 +233,26 @@ def _eval_pointer(model, name, ds, device, bs):
 # ---------------------------------------------------------------------------
 
 
+def _l2sp_penalty(model, l2sp_lambda, l2sp_anchor):
+    """L2-SP anchor penalty: λ·Σ‖θ − θ₀‖² over the joint model's learnable
+    weights, where θ₀ is the warm-start checkpoint (ported from training.py's
+    value-net version). Unlike AdamW weight_decay (which pulls toward 0), this
+    pulls toward the warm-start values — a trust region that limits drift onto a
+    narrow fine-tune distribution. `named_parameters()` excludes the norm buffers
+    (input_mean/std, target_std, cand norms), which must follow the new data.
+    Returns a scalar tensor, or None when disabled."""
+    if not l2sp_lambda or l2sp_anchor is None:
+        return None
+    total = None
+    for name, p in model.named_parameters():
+        a = l2sp_anchor.get(name)
+        if a is None:
+            continue
+        term = ((p - a) ** 2).sum()
+        total = term if total is None else total + term
+    return None if total is None else l2sp_lambda * total
+
+
 def train_shared(
     run_dirs, out_dir, *,
     # architecture (agnostic — pass the sweep winner's shape)
@@ -247,9 +267,10 @@ def train_shared(
     # data
     encoder=None, soft_targets=True, train_frac=0.8, val_frac=0.1, split_seed=0,
     store_dtype="float16", use_cache=True, encode_workers=1,
-    stream=False, buffer_chunks=8, snapshot_keep=None,
+    stream=False, buffer_chunks=8, snapshot_keep=None, max_games=None,
     # misc
-    init_from=None, save_all_epochs=False, torch_seed=42, device="cpu", verbose=True,
+    init_from=None, l2sp=0.0, save_all_epochs=False, torch_seed=42, device="cpu",
+    verbose=True,
 ):
     """Train the joint shared-trunk model. Returns `(epoch_log, best_path)`.
 
@@ -278,6 +299,9 @@ def train_shared(
     # Two data backends, same training loop. `stream=True` trains directly off the
     # on-disk chunk npzs (bounded RAM ~2-3 GB regardless of corpus size — the 117k
     # OOM fix); the default in-RAM `build_shared_datasets` materializes everything.
+    if stream and max_games is not None:
+        raise NotImplementedError("max_games is only supported on the non-stream "
+                                  "(in-RAM build_shared_datasets) path.")
     if stream:
         from agricola.agents.nn.shared_stream import build_shared_streams
         g_data = torch.Generator(); g_data.manual_seed(torch_seed)
@@ -291,7 +315,7 @@ def train_shared(
             run_dirs, encoder=encoder, soft_targets=soft_targets, train_frac=train_frac,
             val_frac=val_frac, split_seed=split_seed, store_dtype=store_dtype,
             use_cache=use_cache, n_workers=encode_workers, snapshot_keep=snapshot_keep,
-            verbose=verbose)
+            max_games=max_games, verbose=verbose)
 
     model = build_shared_trunk_model(
         sd, trunk_hidden_dims=trunk_hidden_dims, embedding_dim=embedding_dim,
@@ -356,6 +380,21 @@ def train_shared(
             if verbose:
                 print(f"  warm-start trunk from {init_from}: {loaded} matching tensors")
 
+    # ---- Optional L2-SP anchor: snapshot the (post-warm-start) weights as the
+    #      trust-region center. The penalty λ·‖θ−θ₀‖² (added to every task step
+    #      below) pulls the fine-tune back toward the warm-start champion rather
+    #      than toward 0 (as weight_decay does), limiting drift onto the narrow
+    #      fine-tune distribution. Requires a warm-start to anchor to.
+    l2sp_anchor = None
+    if l2sp and l2sp > 0.0:
+        if init_from is None:
+            raise ValueError("l2sp > 0 requires init_from (no anchor to pull toward).")
+        l2sp_anchor = {name: p.detach().clone()
+                       for name, p in model.named_parameters()}
+        if verbose:
+            print(f"  L2-SP anchor ON: λ={l2sp:g} over {len(l2sp_anchor)} "
+                  f"param tensors (anchored to warm-start weights)")
+
     # ---- Tasks + cyclic loaders ----
     g = torch.Generator(); g.manual_seed(torch_seed)
 
@@ -413,6 +452,7 @@ def train_shared(
         "soft_targets": soft_targets, "stream": stream,
         "buffer_chunks": buffer_chunks if stream else None,
         "split_seed": split_seed, "init_from": str(init_from) if init_from else None,
+        "l2sp": l2sp,
         "encoding_version": ENCODING_VERSION, "encoding_tag": encoder.tag,
         "strip_begging": encoder.strip_begging, "data_version": DATA_VERSION,
         "code_sha": current_git_sha(), "sizes": sd.sizes, "param_count": model.param_count(),
@@ -455,6 +495,9 @@ def train_shared(
                 loss = _fixed_loss(model, name, batch, dev)
             else:
                 loss = _pointer_loss(model, name, batch, dev)
+            penalty = _l2sp_penalty(model, l2sp, l2sp_anchor)
+            if penalty is not None:
+                loss = loss + penalty
             loss.backward()
             optimizer.step()
 

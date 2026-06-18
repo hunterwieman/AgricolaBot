@@ -12,7 +12,7 @@ Logging convention: this driver streams to stdout; the launcher redirects to
 
   python scripts/nn/run_cpp_match.py \
     --p0-dir nn_models/cpp_export_cand178 --p1-dir nn_models/cpp_export_taper128 \
-    --n 100 --jobs 6 --sims 800 --c-uct 0.5 --temperature 0.0 --label e39_t0 \
+    --n 100 --jobs 6 --sims 800 --c-uct 1.0 --temperature 0.0 --label e39_t0 \
     > eval_out/e39_t0.log
 """
 from __future__ import annotations
@@ -73,7 +73,7 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=200, help="games (seeds 0..n-1)")
     ap.add_argument("--jobs", type=int, default=6)
     ap.add_argument("--sims", type=int, default=800)
-    ap.add_argument("--c-uct", type=float, default=0.5)
+    ap.add_argument("--c-uct", type=float, default=1.0)
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--base-seed", type=int, default=0)
     ap.add_argument("--label", type=str, default="match")
@@ -86,6 +86,14 @@ def main() -> int:
                     help="P0 policy-prior uniform mix (0=pure policy)")
     ap.add_argument("--prior-mix-p1", type=float, default=None,
                     help="P1 policy-prior uniform mix (e.g. 0.05)")
+    ap.add_argument("--temperature-p0", type=float, default=None,
+                    help="P0 played-move temperature override")
+    ap.add_argument("--temperature-p1", type=float, default=None,
+                    help="P1 played-move temperature override")
+    ap.add_argument("--select-by-p0", choices=["visits", "q"], default=None,
+                    help="P0 played-move selection: visits (default) or q (rank by mean-Q)")
+    ap.add_argument("--select-by-p1", choices=["visits", "q"], default=None,
+                    help="P1 played-move selection: visits (default) or q")
     args = ap.parse_args()
 
     chunks = _contiguous_chunks(args.n, args.jobs)
@@ -93,7 +101,9 @@ def main() -> int:
     q = mgr.Queue()
     per_seat = {"--sims-p0": args.sims_p0, "--sims-p1": args.sims_p1,
                 "--c-uct-p0": args.c_uct_p0, "--c-uct-p1": args.c_uct_p1,
-                "--prior-mix-p0": args.prior_mix_p0, "--prior-mix-p1": args.prior_mix_p1}
+                "--prior-mix-p0": args.prior_mix_p0, "--prior-mix-p1": args.prior_mix_p1,
+                "--temperature-p0": args.temperature_p0, "--temperature-p1": args.temperature_p1,
+                "--select-by-p0": args.select_by_p0, "--select-by-p1": args.select_by_p1}
     tasks = [(args.p0_dir, args.p1_dir, c, args.base_seed, args.sims,
               args.c_uct, args.temperature, per_seat, q) for c in chunks]
 

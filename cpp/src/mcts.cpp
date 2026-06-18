@@ -376,8 +376,59 @@ double MCTSAgent::root_value_p0(MCTSNode* root) const {
   return root->decider == 0 ? q : -q;
 }
 
+Action MCTSAgent::select_action_by_q(MCTSNode* root) {
+  // Rank VISITED root children by mean-Q in the root player's frame. A child's
+  // value_sum is stored in the child's own decider frame, so flip the sign when
+  // the child's decider differs from the root's (mirrors select_via_puct's
+  // q = -q sign-flip on read). Unvisited children have no Q estimate and are
+  // skipped — mean_q() would return a meaningless 0.0 placeholder.
+  std::vector<std::pair<Action, double>> items;
+  for (const auto& [a, child] : root->children) {
+    if (child->visits == 0) continue;
+    double q = child->mean_q();
+    if (child->decider != root->decider) q = -q;  // -> root-player frame
+    items.push_back({a, q});
+  }
+  if (items.empty())  // no visited children — defer to the visit-count path
+    return select_action_by_visits(root);
+
+  if (temperature_ <= 0.0) {
+    double best = items[0].second;
+    for (const auto& [a, q] : items) best = std::max(best, q);
+    std::vector<const Action*> ties;
+    for (const auto& it : items)
+      if (it.second == best) ties.push_back(&it.first);
+    if (ties.size() == 1) return *ties[0];
+    std::uniform_int_distribution<size_t> pick(0, ties.size() - 1);
+    return *ties[pick(rng_)];
+  }
+
+  // probs[a] ∝ exp(Q(a)/T). Subtract max for numerical stability (Q is signed,
+  // so the visit-count path's visits^(1/T) trick does not apply here).
+  double mx = items[0].second;
+  for (const auto& [a, q] : items) mx = std::max(mx, q);
+  std::vector<double> scaled(items.size());
+  double total = 0.0;
+  for (size_t i = 0; i < items.size(); ++i) {
+    scaled[i] = std::exp((items[i].second - mx) / temperature_);
+    total += scaled[i];
+  }
+  std::uniform_real_distribution<double> u(0.0, 1.0);
+  double r = u(rng_) * total;
+  double acc = 0.0;
+  for (size_t i = 0; i < items.size(); ++i) {
+    acc += scaled[i];
+    if (r < acc) return items[i].first;
+  }
+  return items.back().first;
+}
+
 Action MCTSAgent::select_action_with_temperature(MCTSNode* root) {
   last_root_ = root;
+  return select_by_q_ ? select_action_by_q(root) : select_action_by_visits(root);
+}
+
+Action MCTSAgent::select_action_by_visits(MCTSNode* root) {
   std::vector<std::pair<Action, long long>> items;
   for (const auto& [a, child] : root->children) items.push_back({a, child->visits});
   if (items.empty())
