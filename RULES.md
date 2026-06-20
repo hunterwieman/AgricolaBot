@@ -19,11 +19,13 @@ Clarifications established in design sessions are marked *.
 9. [Stables](#stables)
 10. [Fences and Pastures](#fences-and-pastures)
 11. [Action Spaces](#action-spaces)
-12. [Bake Bread Action](#bake-bread-action)
-13. [Major Improvements](#major-improvements-all-10-family-game)
-14. [Harvest](#harvest)
-15. [Scoring](#scoring)
-16. [Cards (Full Game Reference)](#cards-full-game-reference--for-when-cards-are-added)
+12. [Board Geography](#board-geography)
+13. [Bake Bread Action](#bake-bread-action)
+14. [Major Improvements](#major-improvements-all-10-family-game)
+15. [Harvest](#harvest)
+16. [Scoring](#scoring)
+17. [Cards (Full Game Reference)](#cards-full-game-reference--for-when-cards-are-added)
+18. [3- and 4-Player Games](#3--and-4-player-games)
 
 ---
 
@@ -78,6 +80,21 @@ During scoring, crops on fields DO count toward the player's total.
 - **Animals**: sheep, wild boar, cattle
 - **Food**: food tokens (not building resources; excluded from tiebreaker)
 - **Goods** (umbrella term): all of the above
+
+In the Revised Edition "goods" is the umbrella term and now *includes food* (the
+old term "items", which excluded food, no longer exists). "Resources" = crops +
+building resources. The card-text verbs are precise and worth distinguishing:
+
+- **Obtain**: the umbrella for *any* way a good moves into your personal supply —
+  from an accumulation space, from the general supply for any reason, by
+  harvesting, or from a card in front of you. Many card triggers key off "each
+  time you obtain X" and fire regardless of the source.
+- **Costs / pay / spend**: when you (have to) pay goods, they must come from your
+  personal supply. A **building cost** is the goods paid for rooms, stables,
+  fences, renovations, and cards; an **occupation cost** is the food paid to play
+  an occupation. Goods *spent* leave the supply — which is why resources spent for
+  end-game bonus points (Joinery etc.) no longer count toward the tiebreaker,
+  while resources a card merely *checks you have* still do.
 
 ---
 
@@ -332,6 +349,134 @@ the same action. Only and/or space in Family game where ordering matters.
 
 ---
 
+## Board Geography
+
+A handful of card effects depend not on *which* action space you use but on
+*where it physically sits* on the board — "the four spaces above Fishing", "an
+action space orthogonally adjacent to another occupied space", "round spaces 8 to
+11", and so on. This section documents that physical layout. It is a **Phase 3
+(cards) concern**: the engine currently models the action spaces as an unordered
+set (`BoardState.action_spaces`, a canonical tuple keyed by id), with **no 2-D
+geometry**. None of the spaces surfaced in the Family game care about position, so
+nothing today reads this — but the card system will, and several cards below
+cannot be implemented without giving the board coordinates.
+
+Keep this distinct from the **farmyard** (each player's own 3×5 grid of
+rooms/fields/pastures — see [Farmyard](#farmyard)). Both have a geometry and some
+cards reference each; they are different boards.
+
+### The two board pieces
+
+The physical board is two interlocking jigsaw pieces:
+
+- **2-player main board** — every action space used in our Family game: the 14
+  numbered **round spaces** plus the block of **fixed (always-available) action
+  spaces** to their left.
+- **4-player extension** — a separate piece adding spaces used only at 3–4
+  players (Copse, Grove, Hollow, Resource Market, a second Lessons, Traveling
+  Players). **Not used in the 2-player game** (matching the setup note that the
+  2-player additional tile is also unused in our implementation).
+
+### Adjacency convention
+
+"**Adjacent**" used alone always means **orthogonally adjacent** — sharing an
+edge (up / down / left / right). A card only counts diagonals when it explicitly
+says "orthogonally *or diagonally* adjacent". This convention holds for both the
+action board and the farmyard. Note that **"above"/"below" ≠ "adjacent"**: a space
+can be above another (same column, higher up) without being orthogonally adjacent
+to it — only the *immediately* neighboring space is adjacent.
+
+### The action-board grid
+
+The fixed spaces and round spaces share one 2-D grid, but **the cards are not all
+the same size**: the round spaces (and the accumulation-space "Round 1" card) are
+roughly **double the height** of the small fixed cards. A round space therefore
+straddles *two* fixed-card rows, and adjacency is staggered — a tall space can be
+orthogonally adjacent to *two* spaces in the column beside it.
+
+To express this exactly, the grid below is drawn in **half-height "unit rows"** (a
+double-height space occupies two consecutive unit rows; its name is repeated in
+both). The left columns are the fixed spaces; the round spaces extend rightward,
+grouped by stage. Each **stage** owns a contiguous run of round numbers, revealed
+onto its round space (Stage 1 = rounds 1–4, Stage 2 = 5–7, Stage 3 = 8–9, Stage 4
+= 10–11, Stage 5 = 12–13, Stage 6 = round 14). Top unit row = top of board; a "—"
+is empty board (no action space):
+
+| unit row | Col A (fixed) | Col B (fixed) | Col C — Stage 1 | Col D — Stage 2 | Col E — Stage 3 | Col F — Stage 4 | Col G — Stage 5 | Col H — Stage 6 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Farm Expansion | Round 1 | Round 2 | Round 5 | Round 8 | Round 10 | Round 12 | Round 14 |
+| 2 | Meeting Place | Round 1 | Round 2 | Round 5 | Round 8 | Round 10 | Round 12 | Round 14 |
+| 3 | Grain Seeds | Forest | Round 3 | Round 6 | Round 9 | Round 11 | Round 13 | — |
+| 4 | Farmland | Clay Pit | Round 3 | Round 6 | Round 9 | Round 11 | Round 13 | — |
+| 5 | Lessons | Reed Bank | Round 4 | Round 7 | — | — | — | — |
+| 6 | Day Laborer | Fishing | Round 4 | Round 7 | — | — | — | — |
+
+A name spanning two unit rows (e.g. **Round 1** in rows 1–2, **Round 3** in rows
+3–4) is one double-height space; the six single-height fixed cards of Col A line up
+one-per-unit-row. (The **Side Job** tile is also an always-available fixed space;
+it is placed onto the board separately and no geography card references its
+neighbors, so its exact cell is not pinned here.)
+
+**At 3–4 players, an additional column of action spaces is added to the *left* of
+Col A** (the 4-player extension piece: Copse, Grove, Hollow, Resource Market, a
+second Lessons, Traveling Players). The 2-player grid above is the right-hand piece
+in isolation.
+
+The relationships cards actually rely on:
+
+- **Round 1 is orthogonally adjacent to both Farm Expansion and Meeting Place** —
+  the tall Round 1 card spans both of their unit rows. Likewise **Round 3 is
+  adjacent to both Forest and Clay Pit**, and **Round 4 to both Reed Bank and
+  Fishing**.
+- **Column B, top to bottom: Round 1 → Forest → Clay Pit → Reed Bank → Fishing.**
+  The **four spaces above Fishing** are therefore Reed Bank, Clay Pit, Forest, and
+  the **Round 1** space (Brook B056's set). "Above" ≠ "adjacent": of those four,
+  only Reed Bank is orthogonally adjacent to Fishing.
+- **Fishing's three orthogonal neighbors** (Water Worker D144) are exactly **Reed
+  Bank** (above), **Day Laborer** (left, same unit row), and **Round 4** (right —
+  the tall Round 4 spans Fishing's unit row). Fishing is the bottom-left corner, so
+  it has no neighbor below.
+- **Day Laborer and Lessons are orthogonally adjacent** (Col A, stacked) — the
+  Job Contract C023 pair.
+- **Round spaces are addressable by number / band** — "round spaces 1/2/3/4",
+  "round spaces 3 and 6", "round spaces 8 to 11", "round space 14", etc.
+- **Accumulation / market stage cards occupy round spaces**, so a market's board
+  neighbors are whatever sits next to the round space it was revealed onto (the
+  animal markets are Sheep = Stage 1, Pig = Stage 3, Cattle = Stage 4).
+- **Reveal order is itself a position** — "the most recently placed/revealed
+  action space card" and "the card left of the most recently placed card" pick a
+  space out by *when/where* it entered the board.
+
+### Cards that reference board geography
+
+The action-board cards (would-be Phase 3 work — the engine has no action-space
+coordinates yet):
+
+| Card | # | What it keys off |
+|---|---|---|
+| Brook | B056 | the four spaces **above Fishing** (Round 1, Forest, Clay Pit, Reed Bank) |
+| Water Worker | D144 | Fishing **and its three orthogonally adjacent** spaces |
+| Job Contract | C023 | Day Laborer **and the adjacent Lessons** (one person uses both) |
+| Legworker | C117 | using a space **orthogonally adjacent to another space occupied** by your person |
+| Pig Stalker | D165 | occupying the space **immediately above or below** an animal accumulation space |
+| Sweep | B120 | the card **left of the most recently placed** round card |
+| Sidekick | A171 | placing a second person on the card **immediately to the left** (chaining) |
+| Outrider / Pioneer | C160 / E105 | the **most recently revealed** round card |
+| Master Workman | A126 | **round spaces 1/2/3/4** → wood/clay/reed/stone |
+| Bullcatcher | D179 | both **round spaces 3 and 6** occupied |
+
+Cards keyed to the **farmyard** geometry (the engine *does* model per-cell, so
+these are straightforward — listed for completeness):
+
+| Card | # | What it keys off |
+|---|---|---|
+| Summer House | D033 | unused farmyard cells **orthogonally adjacent to your house** |
+| Lynchet | D063 | harvested fields **orthogonally adjacent to your house** |
+| Petting Zoo | E011 | a pasture **orthogonally adjacent to your house** |
+| Homekeeper | A085 | a room **adjacent to both a field and a pasture** |
+
+---
+
 ## Bake Bread Action
 
 "Bake Bread" is an **action**, not just a capability. Having a baking
@@ -456,7 +601,185 @@ Per-player lifetime counter, not per-space.
 Prerequisite: must be met to PLAY the card.
 Condition: must be met to USE the effect. Distinct from prerequisite.
 
+### Trigger Timing
+"Each time you use [an action space]" triggers have been ruled to resolve **before**
+taking the actions/goods that space provides. A card firing on the *use* of a space
+therefore acts on the state as it was *before* the space's own effect is applied.
+
+- Cards meant to fire *after* the space's effect say so explicitly — e.g. "immediately
+  after each time you use…" (Mushroom Collector) or "at the end of that turn"
+  (Firewood Collector). Honor the card's wording; the default for a bare "each time you
+  use" is *before*.
+
+### Card Timing & Terminology (general rulings)
+
+These clarifications from the official rulebook/appendix apply across the whole
+card system and are the ones most likely to bite an implementation:
+
+- **The four timings.** Between any two consecutive things in the game flow
+  (phases, rounds, actions, a space and its effect) there is an interim period.
+  Every step has four associated timings, in order: **(1) "before" = immediately
+  before** → **(2) the normal step** → **(3) immediately after** → **(4) after**.
+  Card wording ("before", "immediately after", "at the end of") selects one of
+  these slots, and "before"-cards resolve ahead of "after"-cards on the same step.
+- **"Each time you use [an action space]" fires *before* the space's actions.**
+  "Using" a space = *place the person*, **then** take its actions; the trigger
+  fires at the comma — on the state as it was before the space's effect. (See
+  Trigger Timing above.)
+- **A newly-played card's "each time" trigger only fires on *later* turns**, not
+  the turn it was played (e.g. Work Certificate A082, Animal Teacher A168). Cards
+  that explicitly say "immediately after…" still may not self-trigger on the play
+  turn.
+- **"Another player" never includes you.** An effect that triggers on "another
+  player" doing something fires only when *some other* player meets the condition;
+  a card that means everyone must say "any player (including you)" explicitly.
+- **You must be able to *accommodate* a newborn to actually receive it** — breeding
+  / "get a newborn" effects are gated on having capacity (already reflected in the
+  [Breeding Phase](#breeding-phase) model).
+- **You may use a space and take *none* of its actions only if a card substitutes
+  another action** for it (e.g. Freshman A097, Agrarian Fences B026). Otherwise
+  "using" a space requires taking ≥1 of its actions. (Meeting Place is the standing
+  exception — placement there is always legal.)
+- **An occupied "Meeting Place" can never be used again** (errata) — this overrides
+  *every* "use an occupied space" card, which is silently capped here.
+- **"Once" / "each time".** "Each time" (replacing the old "whenever") means the
+  effect happens every time its condition is met; an effect that triggers "once"
+  may happen only a single time.
+- **Field vs. field tile.** A "field" is the generic term covering both field
+  *tiles* and field *cards* (e.g. Beanfield); field cards count as fields for
+  prerequisites/triggers, but **only field tiles score points**.
+
+### Example Cards — the diversity of effects
+
+The Family game uses **no cards** (only Potter Ceramics exists, purely to exercise
+the trigger machinery — see CLAUDE.md Phase 3). The full game's ~470 occupations
+and minor improvements recombine the same primitive sub-actions into an enormous
+variety of effects. A representative sample, by mechanic, to convey the range the
+card system must eventually support:
+
+**Personal goods stores / repeatable buys**
+- **Grocer A102** — stack a fixed pile of goods on the card; buy the top good for
+  1 food at any time (a personal vending machine).
+- **Clay Carrier D122** — get 2 clay when played; once per round, buy 2 clay for
+  2 food (on-play bonus + a metered repeatable purchase).
+
+**Novel scoring**
+- **Cow Prince C134** — at scoring, +1 point per farmyard space (rooms included)
+  holding at least 1 cattle (a scoring rule unlike any base category).
+
+**Per-action-space triggers ("each time you / another player uses X")**
+- **Milk Jug A050** — whenever *any* player uses Cattle Market, you get 3 food and
+  each opponent gets 1 (a board-wide payout).
+- **Fishing Net C051** — each time *another* player uses Fishing, they must first
+  pay *you* 1 food (a toll on opponents).
+
+**Delayed payouts onto future round spaces**
+- **Wood Collector C118** — place 1 wood on each of the next 5 round spaces; collect
+  it at the start of each (the same mechanic as the Well major improvement).
+
+**Conversion / exchange engines**
+- **Hard Porcelain B080** — at any time, exchange 2/3/4 clay for 1/2/3 stone
+  (rate-laddered upgrade).
+- **Sheep Walker B104** — at any time, exchange 1 sheep for 1 wild boar, 1
+  vegetable, or 1 stone (a flexible any-time swap).
+
+**Cost reducers**
+- **Lumber Mill A075** — every improvement costs you 1 wood less.
+- **Forest School A028** — pay occupation costs in wood instead of food, and treat
+  Lessons as unoccupied (it changes the *currency* of a cost, not just the amount).
+
+**Replacement / alternative actions** (substitute one action for another)
+- **Freshman A097** — when you get a Bake Bread action, instead play an occupation
+  for free (the canonical substitute-action card; lets you "use" Grain Utilization
+  even when you couldn't sow or bake).
+- **Agrarian Fences B026** — at Grain Utilization, take a Build Fences action
+  instead of one of the two provided actions — even when you can't sow or bake.
+
+**Animal / field specials that bend core rules**
+- **Dolly's Mother E084** — you need only 1 sheep (not 2) to breed sheep.
+- **Wood Field D075** — sow and harvest *wood* on a card as though it were grain on
+  2 fields (farming a building resource).
+
+**Bending placement rules**
+- **Mummy's Boy A130** — place a later person on the space already holding your
+  second person and use that occupied space again (exactly what the Meeting Place
+  errata forbids in general).
+
 ### Drafting Variant
 Each player dealt X cards (7–10). Pick 1, pass X−1 left. Repeat 7 rounds.
 If X > 7, final passed card is discarded. Players end with 7 of each type.
 X=10: each player sees 49 cards during draft (high opponent-hand information).
+
+---
+
+## 3- and 4-Player Games
+
+The rest of this document describes the **2-player Family game**, which is what the
+engine implements. This section is reference for the eventual multi-player /
+Phase 3 extension (CLAUDE.md lists 4-player as a possible-but-unstarted direction;
+the player-alternation logic already uses modular arithmetic that generalizes to N
+players, but `setup`, the action board, and the card-pool composition assume 2
+players). Agricola RE is a **1–4 player** game in the base box.
+
+### What changes: extra action spaces on the board extension
+
+More players means more workers competing for spaces, so the board grows. A
+**game-board extension** with extra action spaces is attached to the **left of
+Column A** (see [Board Geography](#board-geography) — the extension is the column
+the geography grid notes is added at 3–4 players). Which spaces are active and
+their yields depend on the player count:
+
+| Extension space | 3-player | 4-player |
+|---|---|---|
+| Copse | — (not used) | Accumulation: +1 wood |
+| Grove | Accumulation: +2 wood | Accumulation: +2 wood |
+| Hollow | Accumulation: +1 clay | Accumulation: +2 clay |
+| Resource Market | 1 food **and** (1 reed *or* 1 stone) | 1 reed, 1 stone, **and** 1 food |
+| Lessons (extra) | Play 1 occupation (cost 2 food) | Play 1 occupation (cost 2 food; first **two** cost 1 each) |
+| Traveling Players | — (not used) | Accumulation: +1 food |
+
+So a 3-player game adds 4 extension spaces (Grove, Hollow, Resource Market, the
+extra Lessons); a 4-player game adds all 6 (also Copse and Traveling Players, and
+bumps Hollow to +2 clay and broadens Resource Market). The extra **Lessons** space
+is why a multi-player game has *two* Lessons spaces — the count-progression of the
+[occupation-cost counter](#occupation-cost-counter) is per-player across both.
+
+### The additional "variant" tile
+
+The game ships **two variant tiles** — one for the 2-player game, one for the 3-/4-
+player game — each adding a small cluster of spaces. The **3–4 player tile** adds:
+
+- **Wish for Children** — from round 5: Family Growth (room required).
+- **Animal Market** — buy 1 cattle for 1 food, *either/or* receive 1 sheep + 1 food,
+  *either/or* receive 1 wild boar.
+
+(The 2-player tile — Copse / Wish for Children / Resource Market / Animal Market —
+is the one our implementation deliberately omits; see [Setup](#setup-2-player-family-game).)
+
+### Cards are filtered by player count
+
+In the full (non-Family) game each player has private hands of occupations and
+minor improvements. Every card is marked with a **minimum player count**, and you
+return the cards above your count to the box before dealing:
+
+- **[1+]** — used at 1–4 players (always in).
+- **[3+]** — used at 3–4 players only.
+- **[4]** — used at 4 players only.
+
+So raising the player count *shuffles in more cards* (the [3+] then the [4] cards),
+widening the card pool. (The compendium also documents 5+ player cards and 6-player
+major-improvement duplicates; those need a separate expansion and are out of scope
+for the 1–4 base game.) The 2-player Family game we model uses **no** hand cards at
+all — the Side Job tile replaces them — so this filtering does not apply to it.
+
+### What stays the same
+
+- **Setup food** — the rule is unchanged, just applied to more players: the
+  starting player gets **2 food**, **every other player gets 3 food**.
+- **Turn order** — still place exactly one person at a time, in clockwise order
+  from the starting player, alternating until everyone has placed all their people.
+- **Major improvements** — one shared set of 10 (two Fireplaces, two Cooking
+  Hearths), claimed first-come, same as 2-player.
+- **Family** — still start with 2 people, maximum 5; **rounds** (14, with harvests
+  after 4/7/9/11/13/14); **scoring categories**; and the farmyard, fences, animals,
+  and harvest rules are all identical to the 2-player game described above.
