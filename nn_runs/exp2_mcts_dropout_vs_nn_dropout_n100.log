@@ -1,5 +1,5 @@
 NN match: P0=mcts vs P1=nn
-  model:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/20260530-013000-v2dropout02/best.pt
+  model:    nn_models/20260530-013000-v2dropout02/best.pt
   sims:     500 (mcts seats only)
   c_uct:    1.4
   n_random_fencing: 4
@@ -9,13 +9,13 @@ NN match: P0=mcts vs P1=nn
   games:    100 (seeds 0..99)
   jobs:     4
 
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
 [  1/100] seed=  0 SP=1 P0= 27 P1= 23 (P0)  P0W=1 P1W=0 D=0  avgM=+4.00  t=50.3s elapsed=52s eta=5144s
 [  2/100] seed=  3 SP=1 P0= 27 P1= 29 (P1)  P0W=1 P1W=1 D=0  avgM=+1.00  t=53.3s elapsed=55s eta=2691s

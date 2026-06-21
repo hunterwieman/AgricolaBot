@@ -2318,8 +2318,8 @@
     "avg_margin": 5.993333333333332,
     "elapsed_seconds": 109.83775483304635
   },
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_fields_crops.log",
-  "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_fields_crops.cma.pkl",
+  "log_path": "tuned_configs/iter3_p1_v3_fields_crops.log",
+  "cma_pkl_path": "tuned_configs/iter3_p1_v3_fields_crops.cma.pkl",
   "resumed_from": "tuned_configs/iter2_p2_v3_fields_crops.cma.pkl",
   "start_gen": 20
 }

@@ -1,6 +1,6 @@
 Tuning 101 parameters via CMA-ES
   category: 'v3_pastures_animals'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_resources.json'
+  warm-start base: 'tuned_configs/iter3_p1_v3_resources.json'
   baseline opponent: 'tuned_configs/v3_best.json' (arch: v3)
   restricted action set: ON (wrapper active for both sides)
   seeds: 200 games per evaluation (training: 0..199)
@@ -10,8 +10,8 @@ Tuning 101 parameters via CMA-ES
   total evals: 180
   jobs: 8; python -O: ON
   estimated wall time: ~43.1 min (vs ~300.0 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.log (human-readable progress mirror)
+  Output: tuned_configs/iter3_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter3_p1_v3_pastures_animals.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'tuned_configs/v3_best.json' baseline) = +1.110 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -139,7 +139,7 @@ Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 300 dis
   holdout P0 240-3-57 P1  avg +26.98 vs +22.26  margin +4.73  (300 games, 111.6s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter3_p1_v3_pastures_animals.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +2.89 (n=300) → +4.73 (n=300))
+Written: tuned_configs/iter3_p1_v3_pastures_animals.json
+Log:     tuned_configs/iter3_p1_v3_pastures_animals.log
+CMA pkl: tuned_configs/iter3_p1_v3_pastures_animals.cma.pkl  (use --resume tuned_configs/iter3_p1_v3_pastures_animals.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +2.89 (n=300) → +4.73 (n=300))

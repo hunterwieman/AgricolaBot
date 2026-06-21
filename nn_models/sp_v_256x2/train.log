@@ -428,7 +428,7 @@ Chunked build: train=6843130 val=861152 test=856848 | dtype=float16 | use_cache=
 
 Model: 110,849 parameters
   arch: [256, 256] / gelu / norm=layer / dropout=0.2 / head=linear
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
   warm-start from nn_models/best: loaded 10 matching param tensors, kept 0 at random init (arch/shape mismatch)
 

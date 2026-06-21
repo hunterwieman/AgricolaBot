@@ -1,21 +1,21 @@
 Tuning 63 parameters via CMA-ES
   category: 'v3_resources'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json'
+  warm-start base: 'tuned_configs/iter2_p2_v3_food.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
-  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl  (continues a previous run's CMA-ES state)
+  resume: tuned_configs/iter2_p1_v3_resources.cma.pkl  (continues a previous run's CMA-ES state)
   popsize: 17, max_gens: 10, sigma0: 0.3
   total evals: 170
   jobs: 8; python -O: ON
   estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p2_v3_resources.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p2_v3_resources.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +23.530 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
 
-Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl: countiter=10, σ=0.2454, will run until gen 20 (10 additional generations).
+Resumed from tuned_configs/iter2_p1_v3_resources.cma.pkl: countiter=10, σ=0.2454, will run until gen 20 (10 additional generations).
 gen  11  best so far: +23.530  gen best: +18.360  gen mean: +13.288  (5.0 min)
 gen  12  best so far: +23.530  gen best: +21.170  gen mean: +11.018  (9.5 min)
 gen  13  best so far: +23.530  gen best: +22.040  gen mean: +14.120  (14.1 min)
@@ -100,7 +100,7 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 100-0-0 P1  avg +32.22 vs +7.37  margin +24.85  (100 games, 63.8s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +22.67 (n=100) → +24.85 (n=100))
+Written: tuned_configs/iter2_p2_v3_resources.json
+Log:     tuned_configs/iter2_p2_v3_resources.log
+CMA pkl: tuned_configs/iter2_p2_v3_resources.cma.pkl  (use --resume tuned_configs/iter2_p2_v3_resources.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +22.67 (n=100) → +24.85 (n=100))

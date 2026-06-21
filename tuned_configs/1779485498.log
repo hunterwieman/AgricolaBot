@@ -8,8 +8,8 @@ Tuning 101 parameters via CMA-ES
   total evals: 180
   jobs: 8; python -O: ON
   estimated wall time: ~10.8 min (vs ~75.0 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779485498.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779485498.log (human-readable progress mirror)
+  Output: tuned_configs/1779485498.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/1779485498.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 't2' baseline) = +11.820 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)

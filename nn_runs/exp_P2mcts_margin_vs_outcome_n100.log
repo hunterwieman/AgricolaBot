@@ -1,6 +1,6 @@
 NN match: P0=mcts vs P1=mcts
-  P0 model: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_10k_standard_bimodal/best.pt
-  P1 model: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/M_10k_S1_outcome/best.pt
+  P0 model: nn_models/M_10k_standard_bimodal/best.pt
+  P1 model: nn_models/M_10k_S1_outcome/best.pt
   sims:     500 (mcts seats only)
   c_uct:    1.4
   n_random_fencing: 4
@@ -10,13 +10,13 @@ NN match: P0=mcts vs P1=mcts
   games:    100 (seeds 0..99)
   jobs:     4
 
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
 [  1/100] seed=  0 SP=1 P0= 37 P1= 12 (P0)  P0W=1 P1W=0 D=0  avgM=+25.00  t=85.4s elapsed=87s eta=8622s
 [  2/100] seed=  2 SP=1 P0= 21 P1= 29 (P1)  P0W=1 P1W=1 D=0  avgM=+8.50  t=92.2s elapsed=94s eta=4601s
@@ -76,131 +76,131 @@ NN match: P0=mcts vs P1=mcts
 [ 56/100] seed= 56 SP=0 P0= 33 P1=  0 (P0)  P0W=42 P1W=14 D=0  avgM=+10.12  t=84.0s elapsed=1573s eta=1236s
 Process SpawnPoolWorker-4:
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 131, in worker
     put((job, i, result))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+  File "lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
     self.run()
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+  File "lib/python3.10/multiprocessing/process.py", line 108, in run
     self._target(*self._args, **self._kwargs)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 136, in worker
     put((job, i, (False, wrapped)))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 Process SpawnPoolWorker-2:
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 131, in worker
     put((job, i, result))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+  File "lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
     self.run()
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+  File "lib/python3.10/multiprocessing/process.py", line 108, in run
     self._target(*self._args, **self._kwargs)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 136, in worker
     put((job, i, (False, wrapped)))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 Process SpawnPoolWorker-3:
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 131, in worker
     put((job, i, result))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+  File "lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
     self.run()
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+  File "lib/python3.10/multiprocessing/process.py", line 108, in run
     self._target(*self._args, **self._kwargs)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 136, in worker
     put((job, i, (False, wrapped)))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 Process SpawnPoolWorker-1:
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 131, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 131, in worker
     put((job, i, result))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+  File "lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
     self.run()
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/process.py", line 108, in run
+  File "lib/python3.10/multiprocessing/process.py", line 108, in run
     self._target(*self._args, **self._kwargs)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/pool.py", line 136, in worker
+  File "lib/python3.10/multiprocessing/pool.py", line 136, in worker
     put((job, i, (False, wrapped)))
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/queues.py", line 377, in put
+  File "lib/python3.10/multiprocessing/queues.py", line 377, in put
     self._writer.send_bytes(obj)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
     self._send_bytes(m[offset:offset + size])
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
+  File "lib/python3.10/multiprocessing/connection.py", line 411, in _send_bytes
     self._send(header + buf)
-  File "/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/connection.py", line 368, in _send
+  File "lib/python3.10/multiprocessing/connection.py", line 368, in _send
     n = write(self._handle, buf)
 BrokenPipeError: [Errno 32] Broken pipe
-/Users/hunterwieman/miniconda3/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
   warnings.warn('resource_tracker: There appear to be %d '

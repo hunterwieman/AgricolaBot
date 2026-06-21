@@ -89,4 +89,4 @@ Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 400 dis
 Written: tuned_configs/iter4_majors_1779574256.json
 Log:     tuned_configs/iter4_majors_1779574256.log
 CMA pkl: tuned_configs/iter4_majors_1779574256.cma.pkl  (use --resume tuned_configs/iter4_majors_1779574256.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +3.54 (n=300) → +8.11 (n=400))
+Best:    tuned_configs/v3_best.json  (UPDATED: +3.54 (n=300) → +8.11 (n=400))

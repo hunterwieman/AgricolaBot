@@ -2,7 +2,7 @@
   "status": "in_progress",
   "category": "v3_fields_crops",
   "candidate_arch": "v3",
-  "from_config": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.json",
+  "from_config": "tuned_configs/iter_p1_v3_pastures_animals.json",
   "baseline": "t2",
   "baseline_arch": "v1",
   "tunable_spec": [
@@ -1594,9 +1594,9 @@
     }
   ],
   "holdout": null,
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.log",
-  "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p2_v3_fields_crops.cma.pkl",
-  "resumed_from": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl",
+  "log_path": "tuned_configs/iter_p2_v3_fields_crops.log",
+  "cma_pkl_path": "tuned_configs/iter_p2_v3_fields_crops.cma.pkl",
+  "resumed_from": "tuned_configs/iter_p1_v3_fields_crops.cma.pkl",
   "start_gen": 10,
   "label": "iter1_ported_to_refactor"
 }

@@ -2312,8 +2312,8 @@
     }
   ],
   "holdout": null,
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779485498.log",
-  "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779485498.cma.pkl",
+  "log_path": "tuned_configs/1779485498.log",
+  "cma_pkl_path": "tuned_configs/1779485498.cma.pkl",
   "resumed_from": null,
   "start_gen": 0
 }

@@ -49,9 +49,9 @@
     "data_version": 2,
     "code_sha": "b5a83bcfb35b09196cb51f48a3046ac247a5162a",
     "run_dirs": [
-      "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/hidden_info_v2_10k",
-      "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/hidden_info_bimodal_20k",
-      "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/hidden_info_nnblend_10k"
+      "data/nn_training/runs/hidden_info_v2_10k",
+      "data/nn_training/runs/hidden_info_bimodal_20k",
+      "data/nn_training/runs/hidden_info_nnblend_10k"
     ],
     "train_size": 123452,
     "val_size": 15122,

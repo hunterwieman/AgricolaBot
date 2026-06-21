@@ -63,7 +63,7 @@ Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 400 dis
 Written: tuned_configs/iter4_alphas_1779586613.json
 Log:     tuned_configs/iter4_alphas_1779586613.log
 CMA pkl: tuned_configs/iter4_alphas_1779586613.cma.pkl  (use --resume tuned_configs/iter4_alphas_1779586613.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: -2.77 (n=400) → +0.68 (n=400))
+Best:    tuned_configs/v3_best.json  (UPDATED: -2.77 (n=400) → +0.68 (n=400))
   --reset-floor-after-promote: measuring self-match floor of newly-promoted v3 champion (400 games)...
   self-match floor: P0 157-1-242 P1  avg +25.20 vs +28.80  margin -3.60  (400 games, 189.8s)
-  /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json: holdout.avg_margin reset to -3.60
+  tuned_configs/v3_best.json: holdout.avg_margin reset to -3.60

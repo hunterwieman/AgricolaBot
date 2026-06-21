@@ -39,7 +39,7 @@ epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s
    27 |     0.3593 |         5.78 |    0.4258 |       6.46 |      |  18 |    20.9
    28 |     0.3586 |         5.77 |    0.4260 |       6.45 |      |  19 |    20.9
    29 |     0.3575 |         5.76 |    0.4303 |       6.49 |      |  20 |    20.9
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
 
 Early stop at epoch 29: no improvement for 20 epochs.

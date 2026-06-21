@@ -1,4 +1,4 @@
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
 baseline_bs512_lr1e-3  testMAE=6.471 valMSE=0.4275 bestEp=11 nEp=26 30.8s/ep
 fast_bs512_lr1e-3      testMAE=6.402 valMSE=0.4243 bestEp=6 nEp=21 22.9s/ep

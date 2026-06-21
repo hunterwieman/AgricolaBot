@@ -2,7 +2,7 @@
   "status": "complete",
   "category": "v3_fields_crops",
   "candidate_arch": "v3",
-  "from_config": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json",
+  "from_config": "tuned_configs/v3_best.json",
   "baseline": "t2",
   "baseline_arch": "v1",
   "tunable_spec": [
@@ -1953,8 +1953,8 @@
     "avg_margin": 10.159999999999998,
     "elapsed_seconds": 68.72686704201624
   },
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.log",
-  "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl",
+  "log_path": "tuned_configs/iter_p1_v3_fields_crops.log",
+  "cma_pkl_path": "tuned_configs/iter_p1_v3_fields_crops.cma.pkl",
   "resumed_from": null,
   "start_gen": 0
 }

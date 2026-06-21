@@ -1,6 +1,6 @@
 Tuning 60 parameters via CMA-ES
   category: 'v3_fields_crops'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json'
+  warm-start base: 'tuned_configs/v3_best.json'
   baseline opponent: 't2' (arch: v1)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
@@ -8,8 +8,8 @@ Tuning 60 parameters via CMA-ES
   total evals: 160
   jobs: 8; python -O: ON
   estimated wall time: ~19.2 min (vs ~133.3 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.log (human-readable progress mirror)
+  Output: tuned_configs/iter_p1_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter_p1_v3_fields_crops.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 't2' baseline) = +10.010 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -95,7 +95,7 @@ Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
   holdout P0 90-0-10 P1  avg +24.31 vs +14.15  margin +10.16  (100 games, 68.7s)
   → smaller than training margin but still positive. Mild overfitting.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_fields_crops.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +8.72 → +10.16)
+Written: tuned_configs/iter_p1_v3_fields_crops.json
+Log:     tuned_configs/iter_p1_v3_fields_crops.log
+CMA pkl: tuned_configs/iter_p1_v3_fields_crops.cma.pkl  (use --resume tuned_configs/iter_p1_v3_fields_crops.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +8.72 → +10.16)

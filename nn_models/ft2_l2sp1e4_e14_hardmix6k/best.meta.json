@@ -43,7 +43,7 @@
     "use_cache": false,
     "train_keep_frac": 1.0,
     "train_game_frac": 1.0,
-    "init_from": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/nn_models/ftA_plain_M82k_nn70t2/epoch_014.pt",
+    "init_from": "nn_models/ftA_plain_M82k_nn70t2/epoch_014.pt",
     "l2sp": 0.0001,
     "save_all_epochs": true,
     "fast_loader": true,
@@ -54,8 +54,8 @@
     "data_version": 1,
     "code_sha": "bc2091058007a2c0b844c071665c3a4cf85714fa",
     "run_dirs": [
-      "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/e14_hardmix_1k",
-      "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/M82k_nn70_t2_5k"
+      "data/nn_training/runs/e14_hardmix_1k",
+      "data/nn_training/runs/M82k_nn70_t2_5k"
     ],
     "train_size": 854372,
     "val_size": 105980,

@@ -1,4 +1,4 @@
-Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S5_no_v1_lowT_10k
+Run dir: data/nn_training/runs/S5_no_v1_lowT_10k
 Run id: S5_no_v1_lowT_10k
 Resume: False
 N games planned: 10000
@@ -7,7 +7,7 @@ Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_
 Restricted: True
 Fixed temperature: 0.3
 
-Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S5_no_v1_lowT_10k
+Run dir: data/nn_training/runs/S5_no_v1_lowT_10k
 Run id: S5_no_v1_lowT_10k
 Resume: True
 N games planned: 10000
@@ -16,7 +16,7 @@ Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_
 Restricted: True
 Fixed temperature: 0.3
 
-Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S5_no_v1_lowT_10k
+Run dir: data/nn_training/runs/S5_no_v1_lowT_10k
 Run id: S5_no_v1_lowT_10k
 Resume: True
 N games planned: 10000
@@ -25,7 +25,7 @@ Approved configs: ['tuned_configs/alphas_gen_7.json', 'tuned_configs/alphas_gen_
 Restricted: True
 Fixed temperature: 0.3
 
-Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S5_no_v1_lowT_10k
+Run dir: data/nn_training/runs/S5_no_v1_lowT_10k
 Run id: S5_no_v1_lowT_10k
 Resume: True
 N games planned: 10000

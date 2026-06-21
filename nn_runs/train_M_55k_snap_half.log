@@ -115,7 +115,7 @@ epoch |  train_mse | train_mae(p) |   val_mse | val_mae(p) | best | pat | time(s
    98 |     0.3597 |         5.67 |    0.3605 |       5.63 |      |   3 |    62.1
    99 |     0.3596 |         5.67 |    0.3617 |       5.65 |      |   4 |    62.0
   100 |     0.3595 |         5.67 |    0.3609 |       5.64 |      |   5 |    62.0
-/Users/hunterwieman/miniconda3/lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+lib/python3.10/site-packages/torch/_utils.py:783: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
   return self.fget.__get__(instance, owner)()
 
 Loading best checkpoint for test eval...

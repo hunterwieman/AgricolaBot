@@ -2,7 +2,7 @@
   "status": "complete",
   "category": "v3_food",
   "candidate_arch": "v3",
-  "from_config": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json",
+  "from_config": "tuned_configs/iter2_p1_v3_fields_crops.json",
   "baseline": "v3_t1",
   "baseline_arch": "v3",
   "tunable_spec": [
@@ -1083,8 +1083,8 @@
     "avg_margin": 8.75,
     "elapsed_seconds": 64.71804054197855
   },
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log",
-  "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl",
+  "log_path": "tuned_configs/iter2_p1_v3_food.log",
+  "cma_pkl_path": "tuned_configs/iter2_p1_v3_food.cma.pkl",
   "resumed_from": null,
   "start_gen": 0
 }

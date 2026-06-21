@@ -2,7 +2,7 @@
   "status": "complete",
   "category": "v3_pastures_animals",
   "candidate_arch": "v3",
-  "from_config": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_resources.json",
+  "from_config": "tuned_configs/iter_p1_v3_resources.json",
   "baseline": "t2",
   "baseline_arch": "v1",
   "tunable_spec": [
@@ -2811,8 +2811,8 @@
     "avg_margin": 11.920000000000002,
     "elapsed_seconds": 72.91895050019957
   },
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.log",
-  "cma_pkl_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter_p1_v3_pastures_animals.cma.pkl",
+  "log_path": "tuned_configs/iter_p1_v3_pastures_animals.log",
+  "cma_pkl_path": "tuned_configs/iter_p1_v3_pastures_animals.cma.pkl",
   "resumed_from": null,
   "start_gen": 0
 }

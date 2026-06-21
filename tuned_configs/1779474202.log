@@ -6,8 +6,8 @@ Tuning 12 parameters via CMA-ES
   total evals: 240
   jobs: 8; python -O: ON
   estimated wall time: ~14.4 min (vs ~100.0 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.log (human-readable progress mirror)
+  Output: tuned_configs/1779474202.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/1779474202.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 't2' baseline) = -0.540 margin
   (nonzero reflects finite-N noise + any difference between x0 values and base_config field values)
@@ -55,5 +55,5 @@ Running holdout match: tuned vs 't2' baseline on 100 disjoint seeds...
   holdout P0 46-0-54 P1  avg +26.67 vs +27.55  margin -0.88  (100 games, 58.2s)
   → NEGATIVE on holdout. Likely overfit; treat training result with caution.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779474202.log
+Written: tuned_configs/1779474202.json
+Log:     tuned_configs/1779474202.log

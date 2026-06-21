@@ -4,19 +4,19 @@ Iterative V3 tuning
   total steps: 8
   max-gens per step: 10
   n-seeds per evaluation: 100
-  starting from: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json
+  starting from: tuned_configs/v3_best.json
 
 ========================================================================
   PASS 1 / 2
 ========================================================================
 
 --- step 1/8: pass 1, v3_fields_crops ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json
+  --from tuned_configs/v3_best.json
+  output: tuned_configs/iter2_p1_v3_fields_crops.json
   popsize: 16, n-seeds: 100, max-gens: 10
 Tuning 60 parameters via CMA-ES
   category: 'v3_fields_crops'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json'
+  warm-start base: 'tuned_configs/v3_best.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
@@ -24,8 +24,8 @@ Tuning 60 parameters via CMA-ES
   total evals: 160
   jobs: 8; python -O: ON
   estimated wall time: ~19.2 min (vs ~133.3 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p1_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p1_v3_fields_crops.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +2.080 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -111,19 +111,19 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 63-0-37 P1  avg +20.01 vs +16.67  margin +3.34  (100 games, 70.0s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +0.77 (n=100) → +3.34 (n=100))
+Written: tuned_configs/iter2_p1_v3_fields_crops.json
+Log:     tuned_configs/iter2_p1_v3_fields_crops.log
+CMA pkl: tuned_configs/iter2_p1_v3_fields_crops.cma.pkl  (use --resume tuned_configs/iter2_p1_v3_fields_crops.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +0.77 (n=100) → +3.34 (n=100))
   ✓ step completed in 54.7 min (cumulative 54.7 min)
 
 --- step 2/8: pass 1, v3_food ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
+  --from tuned_configs/iter2_p1_v3_fields_crops.json
+  output: tuned_configs/iter2_p1_v3_food.json
   popsize: 13, n-seeds: 100, max-gens: 10
 Tuning 18 parameters via CMA-ES
   category: 'v3_food'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json'
+  warm-start base: 'tuned_configs/iter2_p1_v3_fields_crops.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
@@ -131,8 +131,8 @@ Tuning 18 parameters via CMA-ES
   total evals: 130
   jobs: 8; python -O: ON
   estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p1_v3_food.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p1_v3_food.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +3.960 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -176,19 +176,19 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 79-0-21 P1  avg +23.29 vs +14.54  margin +8.75  (100 games, 64.7s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +3.34 (n=100) → +8.75 (n=100))
+Written: tuned_configs/iter2_p1_v3_food.json
+Log:     tuned_configs/iter2_p1_v3_food.log
+CMA pkl: tuned_configs/iter2_p1_v3_food.cma.pkl  (use --resume tuned_configs/iter2_p1_v3_food.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +3.34 (n=100) → +8.75 (n=100))
   ✓ step completed in 39.3 min (cumulative 94.1 min)
 
 --- step 3/8: pass 1, v3_resources ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json
+  --from tuned_configs/iter2_p1_v3_food.json
+  output: tuned_configs/iter2_p1_v3_resources.json
   popsize: 17, n-seeds: 100, max-gens: 10
 Tuning 63 parameters via CMA-ES
   category: 'v3_resources'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json'
+  warm-start base: 'tuned_configs/iter2_p1_v3_food.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
@@ -196,8 +196,8 @@ Tuning 63 parameters via CMA-ES
   total evals: 170
   jobs: 8; python -O: ON
   estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p1_v3_resources.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p1_v3_resources.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +7.690 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -286,19 +286,19 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 96-1-3 P1  avg +26.36 vs +8.46  margin +17.90  (100 games, 67.4s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +8.75 (n=100) → +17.90 (n=100))
+Written: tuned_configs/iter2_p1_v3_resources.json
+Log:     tuned_configs/iter2_p1_v3_resources.log
+CMA pkl: tuned_configs/iter2_p1_v3_resources.cma.pkl  (use --resume tuned_configs/iter2_p1_v3_resources.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +8.75 (n=100) → +17.90 (n=100))
   ✓ step completed in 52.6 min (cumulative 146.6 min)
 
 --- step 4/8: pass 1, v3_pastures_animals ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json
+  --from tuned_configs/iter2_p1_v3_resources.json
+  output: tuned_configs/iter2_p1_v3_pastures_animals.json
   popsize: 18, n-seeds: 100, max-gens: 10
 Tuning 101 parameters via CMA-ES
   category: 'v3_pastures_animals'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.json'
+  warm-start base: 'tuned_configs/iter2_p1_v3_resources.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
@@ -306,8 +306,8 @@ Tuning 101 parameters via CMA-ES
   total evals: 180
   jobs: 8; python -O: ON
   estimated wall time: ~21.6 min (vs ~150.0 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p1_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p1_v3_pastures_animals.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +18.600 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -434,38 +434,38 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 98-1-1 P1  avg +26.69 vs +8.12  margin +18.57  (100 games, 67.7s)
   → smaller than training margin but still positive. Mild overfitting.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +17.90 (n=100) → +18.57 (n=100))
+Written: tuned_configs/iter2_p1_v3_pastures_animals.json
+Log:     tuned_configs/iter2_p1_v3_pastures_animals.log
+CMA pkl: tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl  (use --resume tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +17.90 (n=100) → +18.57 (n=100))
   ✓ step completed in 61.4 min (cumulative 208.0 min)
 ========================================================================
   PASS 2 / 2
 ========================================================================
 
 --- step 5/8: pass 2, v3_fields_crops ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json
-  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json
+  --from tuned_configs/iter2_p1_v3_pastures_animals.json
+  --resume tuned_configs/iter2_p1_v3_fields_crops.cma.pkl
+  output: tuned_configs/iter2_p2_v3_fields_crops.json
   popsize: 16, n-seeds: 100, max-gens: 10
 Tuning 60 parameters via CMA-ES
   category: 'v3_fields_crops'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.json'
+  warm-start base: 'tuned_configs/iter2_p1_v3_pastures_animals.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
-  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl  (continues a previous run's CMA-ES state)
+  resume: tuned_configs/iter2_p1_v3_fields_crops.cma.pkl  (continues a previous run's CMA-ES state)
   popsize: 16, max_gens: 10, sigma0: 0.3
   total evals: 160
   jobs: 8; python -O: ON
   estimated wall time: ~19.2 min (vs ~133.3 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p2_v3_fields_crops.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p2_v3_fields_crops.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +20.550 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
 
-Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.cma.pkl: countiter=10, σ=0.2517, will run until gen 20 (10 additional generations).
+Resumed from tuned_configs/iter2_p1_v3_fields_crops.cma.pkl: countiter=10, σ=0.2517, will run until gen 20 (10 additional generations).
 gen  11  best so far: +21.700  gen best: +21.700  gen mean: +20.133  (4.6 min)
 gen  12  best so far: +23.010  gen best: +23.010  gen mean: +20.582  (9.1 min)
 gen  13  best so far: +23.010  gen best: +22.060  gen mean: +20.157  (13.3 min)
@@ -547,35 +547,35 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 98-0-2 P1  avg +28.69 vs +6.87  margin +21.82  (100 games, 75.6s)
   → smaller than training margin but still positive. Mild overfitting.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +18.57 (n=100) → +21.82 (n=100))
+Written: tuned_configs/iter2_p2_v3_fields_crops.json
+Log:     tuned_configs/iter2_p2_v3_fields_crops.log
+CMA pkl: tuned_configs/iter2_p2_v3_fields_crops.cma.pkl  (use --resume tuned_configs/iter2_p2_v3_fields_crops.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +18.57 (n=100) → +21.82 (n=100))
   ✓ step completed in 46.7 min (cumulative 254.7 min)
 
 --- step 6/8: pass 2, v3_food ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json
-  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json
+  --from tuned_configs/iter2_p2_v3_fields_crops.json
+  --resume tuned_configs/iter2_p1_v3_food.cma.pkl
+  output: tuned_configs/iter2_p2_v3_food.json
   popsize: 13, n-seeds: 100, max-gens: 10
 Tuning 18 parameters via CMA-ES
   category: 'v3_food'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_fields_crops.json'
+  warm-start base: 'tuned_configs/iter2_p2_v3_fields_crops.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
-  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl  (continues a previous run's CMA-ES state)
+  resume: tuned_configs/iter2_p1_v3_food.cma.pkl  (continues a previous run's CMA-ES state)
   popsize: 13, max_gens: 10, sigma0: 0.3
   total evals: 130
   jobs: 8; python -O: ON
   estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p2_v3_food.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p2_v3_food.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +23.510 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
 
-Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl: countiter=10, σ=0.2532, will run until gen 20 (10 additional generations).
+Resumed from tuned_configs/iter2_p1_v3_food.cma.pkl: countiter=10, σ=0.2532, will run until gen 20 (10 additional generations).
 gen  11  best so far: +23.510  gen best: +22.420  gen mean: +17.265  (4.1 min)
 gen  12  best so far: +23.510  gen best: +22.540  gen mean: +19.117  (7.7 min)
 gen  13  best so far: +23.530  gen best: +23.530  gen mean: +19.793  (11.3 min)
@@ -615,35 +615,35 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 100-0-0 P1  avg +29.45 vs +6.78  margin +22.67  (100 games, 64.6s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +21.82 (n=100) → +22.67 (n=100))
+Written: tuned_configs/iter2_p2_v3_food.json
+Log:     tuned_configs/iter2_p2_v3_food.log
+CMA pkl: tuned_configs/iter2_p2_v3_food.cma.pkl  (use --resume tuned_configs/iter2_p2_v3_food.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +21.82 (n=100) → +22.67 (n=100))
   ✓ step completed in 38.2 min (cumulative 292.9 min)
 
 --- step 7/8: pass 2, v3_resources ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json
-  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
+  --from tuned_configs/iter2_p2_v3_food.json
+  --resume tuned_configs/iter2_p1_v3_resources.cma.pkl
+  output: tuned_configs/iter2_p2_v3_resources.json
   popsize: 17, n-seeds: 100, max-gens: 10
 Tuning 63 parameters via CMA-ES
   category: 'v3_resources'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_food.json'
+  warm-start base: 'tuned_configs/iter2_p2_v3_food.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
-  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl  (continues a previous run's CMA-ES state)
+  resume: tuned_configs/iter2_p1_v3_resources.cma.pkl  (continues a previous run's CMA-ES state)
   popsize: 17, max_gens: 10, sigma0: 0.3
   total evals: 170
   jobs: 8; python -O: ON
   estimated wall time: ~20.4 min (vs ~141.7 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p2_v3_resources.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p2_v3_resources.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +23.530 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
 
-Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_resources.cma.pkl: countiter=10, σ=0.2454, will run until gen 20 (10 additional generations).
+Resumed from tuned_configs/iter2_p1_v3_resources.cma.pkl: countiter=10, σ=0.2454, will run until gen 20 (10 additional generations).
 gen  11  best so far: +23.530  gen best: +18.360  gen mean: +13.288  (5.0 min)
 gen  12  best so far: +23.530  gen best: +21.170  gen mean: +11.018  (9.5 min)
 gen  13  best so far: +23.530  gen best: +22.040  gen mean: +14.120  (14.1 min)
@@ -728,35 +728,35 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 100-0-0 P1  avg +32.22 vs +7.37  margin +24.85  (100 games, 63.8s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +22.67 (n=100) → +24.85 (n=100))
+Written: tuned_configs/iter2_p2_v3_resources.json
+Log:     tuned_configs/iter2_p2_v3_resources.log
+CMA pkl: tuned_configs/iter2_p2_v3_resources.cma.pkl  (use --resume tuned_configs/iter2_p2_v3_resources.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +22.67 (n=100) → +24.85 (n=100))
   ✓ step completed in 47.9 min (cumulative 340.8 min)
 
 --- step 8/8: pass 2, v3_pastures_animals ---
-  --from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json
-  --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl
-  output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json
+  --from tuned_configs/iter2_p2_v3_resources.json
+  --resume tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl
+  output: tuned_configs/iter2_p2_v3_pastures_animals.json
   popsize: 18, n-seeds: 100, max-gens: 10
 Tuning 101 parameters via CMA-ES
   category: 'v3_pastures_animals'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_resources.json'
+  warm-start base: 'tuned_configs/iter2_p2_v3_resources.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
-  resume: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl  (continues a previous run's CMA-ES state)
+  resume: tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl  (continues a previous run's CMA-ES state)
   popsize: 18, max_gens: 10, sigma0: 0.3
   total evals: 180
   jobs: 8; python -O: ON
   estimated wall time: ~21.6 min (vs ~150.0 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p2_v3_pastures_animals.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p2_v3_pastures_animals.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +25.330 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
 
-Resumed from /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl: countiter=10, σ=0.2389, will run until gen 20 (10 additional generations).
+Resumed from tuned_configs/iter2_p1_v3_pastures_animals.cma.pkl: countiter=10, σ=0.2389, will run until gen 20 (10 additional generations).
 gen  11  best so far: +25.570  gen best: +25.570  gen mean: +24.198  (4.6 min)
 gen  12  best so far: +26.510  gen best: +26.510  gen mean: +23.145  (9.1 min)
 gen  13  best so far: +26.510  gen best: +25.740  gen mean: +23.979  (13.7 min)
@@ -879,15 +879,15 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 100-0-0 P1  avg +32.88 vs +6.82  margin +26.06  (100 games, 64.2s)
   → smaller than training margin but still positive. Mild overfitting.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +24.85 (n=100) → +26.06 (n=100))
+Written: tuned_configs/iter2_p2_v3_pastures_animals.json
+Log:     tuned_configs/iter2_p2_v3_pastures_animals.log
+CMA pkl: tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl  (use --resume tuned_configs/iter2_p2_v3_pastures_animals.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +24.85 (n=100) → +26.06 (n=100))
   ✓ step completed in 48.0 min (cumulative 388.8 min)
 
 ========================================================================
   ALL 8 STEPS COMPLETE in 388.8 min (6.5 hours)
 ========================================================================
 
-Final config chain ended at: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p2_v3_pastures_animals.json
+Final config chain ended at: tuned_configs/iter2_p2_v3_pastures_animals.json
 v3_best.json was auto-updated whenever a step's holdout improved.

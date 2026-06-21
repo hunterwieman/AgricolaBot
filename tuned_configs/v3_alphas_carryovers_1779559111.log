@@ -61,4 +61,4 @@ Running holdout match: tuned vs 'tuned_configs/v3_best.json' baseline on 100 dis
 Written: tuned_configs/v3_alphas_carryovers_1779559111.json
 Log:     tuned_configs/v3_alphas_carryovers_1779559111.log
 CMA pkl: tuned_configs/v3_alphas_carryovers_1779559111.cma.pkl  (use --resume tuned_configs/v3_alphas_carryovers_1779559111.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +1.25 (n=100) → +6.27 (n=100))
+Best:    tuned_configs/v3_best.json  (UPDATED: +1.25 (n=100) → +6.27 (n=100))

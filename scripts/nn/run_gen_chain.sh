@@ -6,8 +6,8 @@
 #   4. -> 10k Q-selection @ temp=0.02
 # Each link runs only if the previous succeeded (&&).
 set -e
-cd /Users/hunterwieman/Desktop/Agricola/AgricolaBot
-PY=/Users/hunterwieman/miniconda3/bin/python
+cd "$(dirname "$0")/../.."
+PY=python
 GEN=scripts/nn/generate_selfplay_data_cpp.py
 RUNS=data/nn_training/runs
 

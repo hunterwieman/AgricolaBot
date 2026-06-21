@@ -1,6 +1,6 @@
 Tuning 18 parameters via CMA-ES
   category: 'v3_food'  (arch: v3)
-  warm-start base: '/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_fields_crops.json'
+  warm-start base: 'tuned_configs/iter2_p1_v3_fields_crops.json'
   baseline opponent: 'v3_t1' (arch: v3)
   seeds: 100 games per evaluation (training: 0..99)
   holdout: 100 games (1000..1099)
@@ -8,8 +8,8 @@ Tuning 18 parameters via CMA-ES
   total evals: 130
   jobs: 8; python -O: ON
   estimated wall time: ~15.6 min (vs ~108.3 min if 1-job & no -O)
-  Output: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json (JSON, rewritten after every generation)
-  Log:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log (human-readable progress mirror)
+  Output: tuned_configs/iter2_p1_v3_food.json (JSON, rewritten after every generation)
+  Log:    tuned_configs/iter2_p1_v3_food.log (human-readable progress mirror)
 
 Sanity: fitness(starting point vs 'v3_t1' baseline) = +3.960 margin
   (sign/magnitude reflects warm-start config vs baseline strength gap)
@@ -53,7 +53,7 @@ Running holdout match: tuned vs 'v3_t1' baseline on 100 disjoint seeds...
   holdout P0 79-0-21 P1  avg +23.29 vs +14.54  margin +8.75  (100 games, 64.7s)
   → consistent with training (within 1pt). Tuning generalizes.
 
-Written: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.json
-Log:     /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.log
-CMA pkl: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl  (use --resume /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/iter2_p1_v3_food.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (UPDATED: +3.34 (n=100) → +8.75 (n=100))
+Written: tuned_configs/iter2_p1_v3_food.json
+Log:     tuned_configs/iter2_p1_v3_food.log
+CMA pkl: tuned_configs/iter2_p1_v3_food.cma.pkl  (use --resume tuned_configs/iter2_p1_v3_food.cma.pkl to continue this run)
+Best:    tuned_configs/v3_best.json  (UPDATED: +3.34 (n=100) → +8.75 (n=100))

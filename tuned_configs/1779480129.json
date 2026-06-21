@@ -3031,5 +3031,5 @@
     }
   ],
   "holdout": null,
-  "log_path": "/Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/1779480129.log"
+  "log_path": "tuned_configs/1779480129.log"
 }

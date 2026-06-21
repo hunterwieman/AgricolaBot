@@ -6,7 +6,7 @@
 # - Per-step logs in nn_runs/overnight_*.log
 
 set -e -o pipefail
-cd /Users/hunterwieman/Desktop/Agricola/AgricolaBot
+cd "$(dirname "$0")/.."
 
 # ---- 7 V3-only config paths (drops t2) ----
 V3_ONLY=(

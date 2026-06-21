@@ -1,4 +1,4 @@
-Run dir: /Users/hunterwieman/Desktop/Agricola/AgricolaBot/data/nn_training/runs/S4_all_lowT_10k
+Run dir: data/nn_training/runs/S4_all_lowT_10k
 Run id: S4_all_lowT_10k
 Resume: False
 N games planned: 10000

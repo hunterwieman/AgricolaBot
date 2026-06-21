@@ -124,4 +124,4 @@ Running holdout match: tuned vs 't2' primary baseline on 100 disjoint seeds...
 Written: tuned_configs/round1_food_1779835238.json
 Log:     tuned_configs/round1_food_1779835238.log
 CMA pkl: tuned_configs/round1_food_1779835238.cma.pkl  (use --resume tuned_configs/round1_food_1779835238.cma.pkl to continue this run)
-Best:    /Users/hunterwieman/Desktop/Agricola/AgricolaBot/tuned_configs/v3_best.json  (unchanged; existing regression +12.84 (n=100) >= new +10.93 (n=100))
+Best:    tuned_configs/v3_best.json  (unchanged; existing regression +12.84 (n=100) >= new +10.93 (n=100))
