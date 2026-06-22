@@ -71,3 +71,17 @@ nn_models/**/train_stdout.log
 nn_models/joint_taper128_117k/
 nn_models/joint_taper128_117k_stream/
 nn_models/_ramtest_stream/
+# Pooled-data experiments (margin + outcome target) — results in REGISTRY.md.
+nn_models/pooled_all_thin/
+nn_models/pooled_all_thin_p20/
+nn_models/pooled_all_thin_outcome/
+nn_models/_pooled_all_thin_outcome_dropout0_aborted/
+# Data-variation experiment arms (visit / Q-selection / candidate-encoder).
+nn_models/exp_cand_t1/
+nn_models/exp_cand_t2/
+nn_models/exp_q_t0005/
+nn_models/exp_q_t001/
+nn_models/exp_q_t002/
+nn_models/exp_visit_t07/
+nn_models/exp_visit_t10/
+nn_models/exp_visit_combined/train_log.jsonl
