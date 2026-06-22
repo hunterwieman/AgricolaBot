@@ -439,6 +439,7 @@ def build_shared_datasets(
     n_workers: int = 1,
     snapshot_keep=None,
     max_games=None,
+    value_target_mode: str = "margin",
     verbose: bool = True,
 ) -> SharedDatasets:
     """One-pass (cached) build of the joint value+policy datasets. Defaults to
@@ -464,6 +465,16 @@ def build_shared_datasets(
         keeps = [float(k) for k in snapshot_keep]
         assert len(keeps) == len(run_dirs), "snapshot_keep must align with run_dirs"
 
+    if value_target_mode not in ("margin", "outcome"):
+        raise ValueError(f"value_target_mode must be 'margin' or 'outcome', "
+                         f"got {value_target_mode!r}.")
+    # `outcome` = sign(margin) ∈ {-1,0,1}, applied to the cached margin at finalize
+    # (no re-encode). It needs the RAW margin in value__y, so it is incompatible with
+    # a begging-stripping encoder (whose value__y = margin − begging_strip).
+    if value_target_mode == "outcome" and getattr(encoder, "strip_begging", False):
+        raise ValueError("value_target_mode='outcome' (sign of the raw margin) is "
+                         "incompatible with a begging-stripping encoder.")
+
     # Gather the per-pickle chunk SOURCES as (src, keep_frac) pairs, flattened
     # across dirs in stable order. With the cache each src is a chunk-npz Path
     # (streamed lazily); without it, an in-memory payload dict. _finalize handles
@@ -476,7 +487,8 @@ def build_shared_datasets(
             sources.append((src, keep))
     return _finalize_payloads(sources, encoder=encoder, train_frac=train_frac,
                               val_frac=val_frac, split_seed=split_seed,
-                              store_dtype=store_dtype, verbose=verbose)
+                              store_dtype=store_dtype,
+                              value_target_mode=value_target_mode, verbose=verbose)
 
 
 def build_shared_datasets_from_games(
@@ -493,7 +505,8 @@ def build_shared_datasets_from_games(
 
 
 def _finalize_payloads(sources, *, encoder: EncoderSpec, train_frac, val_frac,
-                       split_seed, store_dtype, verbose) -> SharedDatasets:
+                       split_seed, store_dtype, value_target_mode="margin",
+                       verbose=True) -> SharedDatasets:
     """Build the per-task datasets from a list of chunk `sources` (npz Paths or
     in-memory dicts), streaming each chunk lazily so the whole run dir's arrays
     are never resident at once. The big value tensor is built DIRECTLY into its
@@ -598,6 +611,9 @@ def _finalize_payloads(sources, *, encoder: EncoderSpec, train_frac, val_frac,
         if seed is None or seed.shape[0] == 0:
             continue
         X, y = _src_load(src, "value__X"), _src_load(src, "value__y")
+        if value_target_mode == "outcome":
+            # tiebreaker-blind win/draw/loss = sign of the (raw) score margin.
+            y = np.sign(y).astype(np.float32)
         sp = _value_splits(src, frac, seed)
         for w in (0, 1, 2):
             m = sp == w
@@ -634,7 +650,8 @@ def _finalize_payloads(sources, *, encoder: EncoderSpec, train_frac, val_frac,
     if not np.isfinite(tgt_std) or tgt_std < 1e-9:
         tgt_std = 1.0
     input_stats = NormStats(input_mean=mean, input_std=std, target_std=tgt_std,
-                            encoding_version=ENCODING_VERSION, target_mode="margin",
+                            encoding_version=ENCODING_VERSION,
+                            target_mode=value_target_mode,
                             encoding_tag=encoder.tag)
     value = tuple(
         AgricolaValueDataset(vX[w], (vy[w] / tgt_std).astype(np.float32))

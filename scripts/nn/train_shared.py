@@ -118,6 +118,13 @@ def main() -> int:
                    help="L2-SP anchor strength λ: add λ·‖θ−θ₀‖² to the loss, "
                         "pulling weights toward the --init-from checkpoint "
                         "(a trust region vs drift). Requires --init-from.")
+    p.add_argument("--value-target", type=str, default="margin",
+                   choices=["margin", "outcome"],
+                   help="Value head regression target. 'margin' (default) = "
+                        "terminal score diff; 'outcome' = sign(margin) ∈ {-1,0,1} "
+                        "(tiebreaker-blind win/draw/loss), applied to the cached "
+                        "margin at finalize (no re-encode; needs a non-begging-"
+                        "stripping encoder).")
     p.add_argument("--save-all-epochs", action="store_true")
     p.add_argument("--torch-seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
@@ -144,6 +151,7 @@ def main() -> int:
         use_cache=args.use_cache, encode_workers=args.encode_workers,
         stream=args.stream, buffer_chunks=args.buffer_chunks,
         snapshot_keep=snapshot_keep, max_games=args.max_games,
+        value_target_mode=args.value_target,
         init_from=args.init_from, l2sp=args.l2sp,
         save_all_epochs=args.save_all_epochs, torch_seed=args.torch_seed,
         device=args.device,

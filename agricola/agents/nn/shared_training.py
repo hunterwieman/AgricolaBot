@@ -268,6 +268,7 @@ def train_shared(
     encoder=None, soft_targets=True, train_frac=0.8, val_frac=0.1, split_seed=0,
     store_dtype="float16", use_cache=True, encode_workers=1,
     stream=False, buffer_chunks=8, snapshot_keep=None, max_games=None,
+    value_target_mode="margin",
     # misc
     init_from=None, l2sp=0.0, save_all_epochs=False, torch_seed=42, device="cpu",
     verbose=True,
@@ -302,6 +303,9 @@ def train_shared(
     if stream and max_games is not None:
         raise NotImplementedError("max_games is only supported on the non-stream "
                                   "(in-RAM build_shared_datasets) path.")
+    if stream and value_target_mode != "margin":
+        raise NotImplementedError("value_target_mode is only supported on the "
+                                  "non-stream (build_shared_datasets) path.")
     if stream:
         from agricola.agents.nn.shared_stream import build_shared_streams
         g_data = torch.Generator(); g_data.manual_seed(torch_seed)
@@ -315,7 +319,7 @@ def train_shared(
             run_dirs, encoder=encoder, soft_targets=soft_targets, train_frac=train_frac,
             val_frac=val_frac, split_seed=split_seed, store_dtype=store_dtype,
             use_cache=use_cache, n_workers=encode_workers, snapshot_keep=snapshot_keep,
-            max_games=max_games, verbose=verbose)
+            max_games=max_games, value_target_mode=value_target_mode, verbose=verbose)
 
     model = build_shared_trunk_model(
         sd, trunk_hidden_dims=trunk_hidden_dims, embedding_dim=embedding_dim,
