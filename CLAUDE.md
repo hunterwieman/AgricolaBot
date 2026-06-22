@@ -1291,11 +1291,17 @@ AgricolaBot/
 
     cpp/                            # The C++ self-play engine (CLAUDE.md §2.4) — a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference), ~4× faster than Python single-thread, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Builds via CMake (`cpp/README.md`) into a pybind module (`agricola_cpp`, the differential-test surface) + a standalone `selfplay` binary (production data-gen). **No libtorch dependency.** The per-file layout, the staged build, and the §8.1 status ledger are in `CPP_ENGINE_PLAN.md` §9.1 (not duplicated here). `cpp/build/` is gitignored; `cpp/third_party/` vendors `nlohmann/json`.
 
-    design_docs/                    # Design + training docs grouped here to keep the top level tidy. The agent (Phase 2.2/2.3) design records live at the top of this folder; the original engine (Phase 1) task specs live under game_engine/.
+    design_docs/                    # Design + training docs grouped here to keep the top level tidy. The agent (Phase 2.2/2.3) design records live at the top of this folder; the heuristic-agent (Phase 2.1) design + tuning docs live under heuristic_models/; the original engine (Phase 1) task specs live under game_engine/.
 
-        V3_DESIGN.md                # Comprehensive design reference for HubrisHeuristicV3 — three combination styles, per-category specs, the three-component resource pattern, V1 carry-overs. Read before modifying V3.
+        heuristic_models/           # Heuristic-agent (Phase 2.1) design + tuning docs.
 
-        V3_TRAINING_PIPELINE.md     # Operational guide for the V3 tuning pipeline: CMA-ES basics, `scripts/tune_heuristic.py` semantics, the `scripts/run_iterative_v3.py` orchestrator (block-coordinate descent), `v3_best.json` convention, current training state.
+            HUBRIS_V1_NOTES.md      # Design reference for HubrisHeuristic V1: per-term function/motivation/shape/magnitude for every component of `evaluate_hubris_v1`, the V1-vs-V2 finding with worked example, deferred alternatives (renovation bonus, newborn discount), known limitations and failure modes. Read before modifying V1.
+
+            HEURISTIC_TUNING_PLAN.md # V1-era plan for self-play tuning. Thread A (tuning harness) implemented and run; Threads B/C partially superseded by V3. See V3_TRAINING_PIPELINE.md for the current pipeline.
+
+            V3_DESIGN.md            # Comprehensive design reference for HubrisHeuristicV3 — three combination styles, per-category specs, the three-component resource pattern, V1 carry-overs. Read before modifying V3.
+
+            V3_TRAINING_PIPELINE.md # Operational guide for the V3 tuning pipeline: CMA-ES basics, `scripts/tune_heuristic.py` semantics, the `scripts/run_iterative_v3.py` orchestrator (block-coordinate descent), `v3_best.json` convention, current training state.
 
         MCTS_DESIGN.md              # Historical design record for the MCTS phase (Phase 2.2), superseded by `MCTS_IMPLEMENTATION.md` for understanding the code; kept for rationale/provenance.
 
