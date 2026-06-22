@@ -126,7 +126,6 @@ This project has unusually thorough documentation. If you want to dig in:
 | Doc | What it covers |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Master architectural reference — design principles, engine internals, pending stack, conventions. The first thing to read. |
-| [`STRATEGY.md`](STRATEGY.md) | AI strategy and algorithm decisions; rationale behind each project phase. |
 | [`RULES.md`](RULES.md) | Complete rules reference for the 2-player Family game, with design clarifications. |
 | [`MCTS_DESIGN.md`](MCTS_DESIGN.md) | Comprehensive design spec for the MCTS phase. |
 | [`HUBRIS_V1_NOTES.md`](HUBRIS_V1_NOTES.md) | Per-term breakdown of the V1 heuristic, the first non-random AI player. |

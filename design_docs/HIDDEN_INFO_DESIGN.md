@@ -697,7 +697,7 @@ descriptions for every core-edit module (§15) and the migrated/new tests.
 **`CHANGES.md` (Recommended):** a "Change N — Hidden-information refactor" entry (the cross-cutting
 delta narrative: public/private state split, reveal-as-action, MCTS chance nodes).
 
-**`STRATEGY.md` (Recommended):** the hidden-information handling in the MCTS-approach rationale — why
+**`archive/STRATEGY.md` (Recommended):** the hidden-information handling in the MCTS-approach rationale — why
 chance nodes over ISMCTS / determinization (symmetric-info), and the common-knowledge / `observe`
 forward-compat for the card phase.
 

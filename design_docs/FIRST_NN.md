@@ -4,7 +4,7 @@ Design spec for the first neural network value function for AgricolaBot. The goa
 
 This is the working spec for the initial NN phase. It captures the input encoding, supervision target, data generation pipeline, architecture/training plan, and implementation notes in their current state — and flags what's still open.
 
-> **For new sessions:** read CLAUDE.md (project status), V3_DESIGN.md (the heuristic this NN replaces and whose features inform this NN's inputs), MCTS_IMPLEMENTATION.md §6 (the consumer of this NN's outputs — how the value evaluator is called at the MCTS leaf), and STRATEGY.md §5 (project-phase context for NN training).
+> **For new sessions:** read CLAUDE.md (project status), V3_DESIGN.md (the heuristic this NN replaces and whose features inform this NN's inputs), MCTS_IMPLEMENTATION.md §6 (the consumer of this NN's outputs — how the value evaluator is called at the MCTS leaf).
 
 **Document order.** Sections are arranged chronologically with the build order: overview → input format → label format → how data is generated → how the network is structured → how it's trained → how it's evaluated → implementation notes → experiments → status → open questions. The design and implementation are complete for phase (a); §11 Experiments tracks planned and completed experiments (with stable `P#`/`C#` IDs) and §13 Open questions captures what remains.
 
@@ -23,7 +23,7 @@ This is the working spec for the initial NN phase. It captures the input encodin
 
 - **No policy head** in this version. Pure value network. PUCT and policy-guided MCTS come later.
 - **No self-play data generation** in this version. Training data is generated from heuristic self-play (V1 + V3 + RandomAgent matchups). MCTS-self-play data and AlphaZero-style iteration are subsequent phases.
-- **No imitation learning** from human game data. Per STRATEGY.md §5, that phase is deferred.
+- **No imitation learning** from human game data. Training bootstraps from heuristic/self-play data instead.
 - **No cards.** Family game only, matching the rest of the engine.
 - **No spatial CNN encoding of the farmyard.** Flat per-cell features only for this iteration; spatial encoding is a deliberate deferred design choice.
 
@@ -38,7 +38,7 @@ V3 is approaching its ceiling — additional CMA-ES tuning yields diminishing re
 
 This first NN is designed to answer both questions. The input vector is a **superset** of V3's effective input (per §4), so improvements over V3 cleanly indicate where the gain lives.
 
-**Phase ordering** (a → d roughly aligned with STRATEGY.md):
+**Phase ordering** (a → d):
 
 | Phase | What | Status |
 |---|---|---|
