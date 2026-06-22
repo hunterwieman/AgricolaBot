@@ -526,7 +526,15 @@ toward the tiebreaker.
 **Cooking rates summary** (animal/veg-to-food conversion, "at any time" mode):
 - Cooking Hearth: sheep→2, boar→3, cattle→4, veg→3
 - Fireplace: sheep→2, boar→2, cattle→3, veg→2
-- Neither: (0, 0, 0) — animals cannot be converted to food
+- Neither: sheep→0, boar→0, cattle→0, veg→1
+
+**Grain and vegetables always convert to food at 1:1, at any time, with no cooking improvement
+required** — this is the base rate. Cooking improvements only raise the *vegetable* rate
+(Fireplace 2, Cooking Hearth 3) and the *animal* rates, and enable *grain→food via Bake Bread*.
+Without a cooking improvement, animals cannot be converted to food at all, but grain and
+vegetables still convert at 1:1. (Engine: `helpers.cooking_rates` returns `(0,0,0,1)` for no
+improvement — the trailing `1` is the vegetable fallback; grain consumes at rate 1 in
+`food_payment_frontier`.)
 
 ---
 

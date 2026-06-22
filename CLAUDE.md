@@ -909,10 +909,17 @@ multi-machine + in-memory would desync. `.dockerignore` trims the build context 
 
 ## Phase 3 — Cards (and maybe 4-player)
 
-**Not yet started — the next major phase.** The full Agricola card system (the ~470 occupation
+**Not yet started, but designed — the next major phase.** The full Agricola card system (the ~470 occupation
 and minor-improvement cards) is the largest remaining piece of game content. The plan: 
 implement the cards, possibly add the 4-player variant, then *repeat the agent-building process*
 (Phase 2: heuristic → MCTS → NN) for the richer game.
+
+**The design is scoped in `CARD_SYSTEM_DESIGN.md`** — target scope (Revised base + 5 named
+expansions, 2-player, occupations + minors), the engine changes (`PendingPlayOccupation`/
+`PendingPlayMinor`, the `PendingActionSpace` hook, the trigger/automatic-effect firing model, the
+scoped used-set reset model), the card catalog under `agricola/cards/data/`, the per-group
+implementation plan, and the open questions (asymmetric hidden info on the agent side; Grocer;
+the deferred legality/affordability machinery). Read it before starting card work.
 
 **What exists today.** Exactly one card — **Potter Ceramics** (a minor improvement) — is
 implemented, **solely to validate the trigger machinery end-to-end**. It is a
@@ -947,9 +954,11 @@ concrete boundary — what is *deliberately not* implemented — is:
 
 - **Cards beyond Potter Ceramics.** As a consequence, `lessons` is permanently illegal in the
   Family game, and the optional minor / improvement paths at Basic Wish for Children, House
-  Redevelopment, Major Improvement, and Farm Redevelopment are inert until card support lands.
-  Every other space surfaced by `legal_placements` has a working path; the `NotImplementedError`
-  branch in `_apply_place_worker` is a defensive guard for unknown space IDs (e.g. `lessons`).
+  Redevelopment, and Major Improvement are inert until card support lands. (Farm Redevelopment is
+  *not* one of these — its optional second step is Build Fences, not an improvement, and it is
+  fully implemented.) Every other space surfaced by `legal_placements` has a working path; the
+  `NotImplementedError` branch in `_apply_place_worker` is a defensive guard for unknown space IDs
+  (e.g. `lessons`).
 - **The 4-player variant** (see Phase 3).
 
 The full per-session build history — what was built each session, the design decisions made, and
@@ -966,6 +975,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `RULES.md` | Complete rules reference for the 2-player Family game, including action space descriptions, major improvement effects, harvest rules, animal accommodation, and scoring tables. |
 | `STRATEGY.md` | AI strategy and algorithm decisions: action space structure, MCTS approach, neural network design, and the rationale behind each project phase. |
 | `ENGINE_IMPLEMENTATION.md` | Deep-mechanics reference companion to Phase 1 (the game engine): dispatch tables, the full pending-stack provenance scheme and invariants, sub-action cost handling, the Fencing / animal-accommodation / Harvest subsystems, the coding conventions, and the card-trigger machinery. Read alongside Phase 1 when doing engine surgery. |
+| `CARD_SYSTEM_DESIGN.md` | **The Phase 3 (Cards) design record** — living doc of the decisions for adding the full card system (Revised base + Artifex/Bubulcus/Corbarius/Dulcinaria/Consul Dirigens, 2-player, occupations + minors) plus the open questions. §0 terminology (hook vs trigger vs automatic effect); private hands of 7-each + configurable card pools; `PendingPlayOccupation`/`PendingPlayMinor`; the `PendingActionSpace` hook (before/after phases, `Proceed`, conditional push via the ownership index); the firing architecture (timing ruling, triggers vs automatic effects, Option-A event registration, opponent-action hooks); the scoped used-set reset model (`_enter_phase`/`_advance_current_player`); one-shot conditional latch + cumulative counters; deferred round-space goods, start-of-round phase, harvest-field hook; deferred legality/affordability machinery with the flagged-card list; the occupation + minor implementation groups; the one-engine/additive-hooks performance split; Python-first C++. Read before starting card work. |
 | `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases; `BoardState.action_spaces` canonical-tuple refactor; engine performance pass with `fast_replace` + `legal_actions_cache()`; HubrisHeuristicV3 architecture + iterative tuning pipeline). |
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
