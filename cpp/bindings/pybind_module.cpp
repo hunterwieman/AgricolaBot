@@ -200,6 +200,17 @@ PYBIND11_MODULE(agricola_cpp, m) {
       "model_dir holds value.ts + manifest.json (nn_models/cpp_export).");
 
   m.def(
+      "nn_outcome",
+      [get_nn](const std::string& dump, const std::string& model_dir) {
+        agricola::GameState s = agricola::game_state_from_string(dump);
+        return get_nn(model_dir)->outcome(s);
+      },
+      py::arg("dump"), py::arg("model_dir"),
+      "P0-frame outcome prediction (sign(margin) at a terminal; the outcome "
+      "head off the shared trunk mid-game) == shared_policy make_joint_fns' "
+      "'outcome' leaf. Requires a shared_trunk export with an outcome head.");
+
+  m.def(
       "nn_policy",
       [get_nn](const std::string& dump, const std::string& model_dir) {
         agricola::GameState s = agricola::game_state_from_string(dump);

@@ -82,10 +82,27 @@ def make_joint_fns(
     *,
     legal_actions_fn=full_legal_actions,
     embed_cache_size: int = 4096,
+    leaf_mode: str = "margin",
+    margin_scale: float | None = None,
+    outcome_scale: float | None = None,
 ) -> tuple[Callable, Callable]:
     """Return `(value_fn, policy_fn)` for `model` sharing one trunk forward per
-    node. `value_fn(state, player_idx, config) -> P0-frame margin`;
-    `policy_fn(state, legal) -> {action: prior}` (full-legal dispatch)."""
+    node. `policy_fn(state, legal) -> {action: prior}` (full-legal dispatch).
+
+    `leaf_mode` selects the leaf value — all read off the SAME single trunk
+    forward (the `_embed` memo), so margin and outcome together cost one trunk pass:
+      * "margin" (default, backward-compatible): P0-frame margin in points; the
+        caller's search divides by its margin value_scale to get Q.
+      * "outcome": P0-frame outcome prediction (~[-1,1]); search divides by the
+        outcome value_scale.
+      * "mix": the 50-50 average of the two NORMALIZED Q values,
+        `0.5·(margin/margin_scale) + 0.5·(outcome/outcome_scale)` (~[-1,1]) —
+        already in Q units, so the caller's search value_scale must be 1.0.
+        Requires `margin_scale` and `outcome_scale` (the common-state scales)."""
+    if leaf_mode not in ("margin", "outcome", "mix"):
+        raise ValueError(f"leaf_mode must be margin/outcome/mix, got {leaf_mode!r}")
+    if leaf_mode == "mix" and (margin_scale is None or outcome_scale is None):
+        raise ValueError("leaf_mode='mix' requires margin_scale and outcome_scale")
     model.eval()
     device = model_device(model)
     target_std = float(model.target_std)
@@ -107,15 +124,31 @@ def make_joint_fns(
         if state.phase == Phase.BEFORE_SCORING:     # terminal: exact, not an NN guess
             own, _ = score(state, 0)
             opp, _ = score(state, 1)
-            return float(own - opp)                 # P0-frame margin (begging incl.)
+            m = float(own - opp)                    # P0-frame margin (begging incl.)
+            if leaf_mode == "margin":
+                return m
+            s = 1.0 if m > 0 else (-1.0 if m < 0 else 0.0)   # true terminal outcome
+            if leaf_mode == "outcome":
+                return s
+            return 0.5 * (m / margin_scale) + 0.5 * (s / outcome_scale)   # mix
         d = decider_of(state)
         if d is None:                               # nature node (defensive)
             d = 0
-        v = float(model.value_from_embedding(_embed(state, d))[0]) * target_std
-        v = v if d == 0 else -v                     # decider-frame → P0 frame
-        if strip_begging:                           # add the stripped current begging back
-            v += begging_margin(state, 0)
-        return v
+        emb = _embed(state, d)                       # ONE trunk forward; both heads read it
+        vm = vo = 0.0
+        if leaf_mode in ("margin", "mix"):
+            vm = float(model.value_from_embedding(emb)[0]) * target_std
+            vm = vm if d == 0 else -vm              # decider-frame → P0 frame
+            if strip_begging:                       # add the stripped current begging back
+                vm += begging_margin(state, 0)
+        if leaf_mode in ("outcome", "mix"):
+            vo = float(model.outcome_from_embedding(emb)[0])
+            vo = vo if d == 0 else -vo              # decider-frame → P0 frame
+        if leaf_mode == "margin":
+            return vm
+        if leaf_mode == "outcome":
+            return vo
+        return 0.5 * (vm / margin_scale) + 0.5 * (vo / outcome_scale)     # normalized-Q mix
 
     @torch.no_grad()
     def _fixed_prior(head, state, emb):

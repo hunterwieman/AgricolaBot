@@ -85,11 +85,20 @@ def _masked_logits(logits, mask):
 # ---------------------------------------------------------------------------
 
 
-def _value_loss(model, batch, device):
+def _value_loss(model, batch, device, outcome_weight=0.0):
+    """Value MSE on the normalized margin. When the batch carries a 3rd tensor
+    (the outcome target), co-train the outcome head off the SAME embedding — one
+    trunk forward, two cheap head reads, one summed loss (one backward)."""
+    if len(batch) == 3:
+        x, y, yo = batch
+        x, y, yo = x.to(device), y.to(device), yo.to(device)
+        emb = model.embed(x)                                  # single trunk forward
+        v = torch.nn.functional.mse_loss(model.value_from_embedding(emb), y)
+        o = torch.nn.functional.mse_loss(model.outcome_from_embedding(emb), yo)
+        return v + outcome_weight * o
     x, y = batch
     x, y = x.to(device), y.to(device)
-    pred = model.value_from_embedding(model.embed(x))
-    return torch.nn.functional.mse_loss(pred, y)
+    return torch.nn.functional.mse_loss(model.value_from_embedding(model.embed(x)), y)
 
 
 def _fixed_loss(model, name, batch, device):
@@ -174,15 +183,28 @@ def _eval_value(model, ds, device, bs):
     if n == 0:
         return {"mse": float("nan"), "mae_pts": float("nan")}
     se = ae = 0.0
+    has_out = hasattr(ds, "_y_outcome")
+    o_se = 0.0
+    o_correct = 0
     ts = float(model.target_std)
     for s in range(0, n, bs):
         x = ds._X[s:s + bs]
         x = (x.float() if ds._x_is_half else x).to(device)
         y = ds._y[s:s + bs].to(device)
-        pred = model.value_from_embedding(model.embed(x))
+        emb = model.embed(x)                              # one trunk forward, both heads
+        pred = model.value_from_embedding(emb)
         se += float(((pred - y) ** 2).sum())
         ae += float((pred - y).abs().sum() * ts)        # MAE in points
-    return {"mse": se / n, "mae_pts": ae / n}
+        if has_out:
+            yo = ds._y_outcome[s:s + bs].to(device)
+            po = model.outcome_from_embedding(emb)
+            o_se += float(((po - yo) ** 2).sum())
+            o_correct += int((torch.sign(po) == yo).sum())  # sign-match accuracy
+    out = {"mse": se / n, "mae_pts": ae / n}
+    if has_out:
+        out["outcome_mse"] = o_se / n
+        out["outcome_acc"] = o_correct / n
+    return out
 
 
 @torch.no_grad()
@@ -269,6 +291,7 @@ def train_shared(
     store_dtype="float16", use_cache=True, encode_workers=1,
     stream=False, buffer_chunks=8, snapshot_keep=None, max_games=None,
     value_target_mode="margin",
+    train_outcome=True, outcome_loss_weight=1.0,
     # misc
     init_from=None, l2sp=0.0, save_all_epochs=False, torch_seed=42, device="cpu",
     verbose=True,
@@ -306,6 +329,15 @@ def train_shared(
     if stream and value_target_mode != "margin":
         raise NotImplementedError("value_target_mode is only supported on the "
                                   "non-stream (build_shared_datasets) path.")
+    if train_outcome and getattr(encoder, "strip_begging", False):
+        raise ValueError("train_outcome (outcome = sign of the RAW margin) is "
+                         "incompatible with a begging-stripping encoder.")
+    if train_outcome and stream:
+        raise NotImplementedError("train_outcome is only supported on the non-stream "
+                                  "(in-RAM build_shared_datasets) path.")
+    if train_outcome and not fast_loader:
+        raise NotImplementedError("train_outcome requires fast_loader (the outcome "
+                                  "target rides the value _CyclicTensor batch).")
     if stream:
         from agricola.agents.nn.shared_stream import build_shared_streams
         g_data = torch.Generator(); g_data.manual_seed(torch_seed)
@@ -326,6 +358,10 @@ def train_shared(
         value_head_dims=value_head_dims, fixed_head_dims=fixed_head_dims,
         pointer_head_dims=pointer_head_dims, activation=activation, norm=norm,
         dropout=dropout, embed_norm=embed_norm).to(dev)
+    # Record what the value head is being trained against so downstream consumers
+    # (the web "Show analysis" points badge in particular) can assert the value
+    # is a score margin in points, not a win/draw/loss outcome. Persisted in meta.
+    model.value_target_mode = str(value_target_mode)
     if verbose:
         print(f"Model: {model.param_count():,} params | trunk={list(trunk_hidden_dims)} "
               f"→ E={embedding_dim}")
@@ -393,8 +429,13 @@ def train_shared(
     if l2sp and l2sp > 0.0:
         if init_from is None:
             raise ValueError("l2sp > 0 requires init_from (no anchor to pull toward).")
+        # Exclude the outcome head from the anchor: L2-SP is a trust region for
+        # PRE-TRAINED weights, but a warm-started model's outcome head is freshly
+        # initialized (the champion has none). Anchoring it would penalize it for
+        # learning away from random — it must train freely.
         l2sp_anchor = {name: p.detach().clone()
-                       for name, p in model.named_parameters()}
+                       for name, p in model.named_parameters()
+                       if not name.startswith("outcome_head")}
         if verbose:
             print(f"  L2-SP anchor ON: λ={l2sp:g} over {len(l2sp_anchor)} "
                   f"param tensors (anchored to warm-start weights)")
@@ -410,6 +451,10 @@ def train_shared(
         # Fast batched-index path for the dense value/fixed tasks; the ragged
         # pointer tasks keep their DataLoader + collate.
         if fast_loader and kind == "value":
+            # Co-train the outcome head in the value batch (one embedding, two
+            # heads) by carrying the outcome target as a 3rd tensor when enabled.
+            if train_outcome and hasattr(ds, "_y_outcome"):
+                return _CyclicTensor((ds._X, ds._y, ds._y_outcome), batch_size, g)
             return _CyclicTensor((ds._X, ds._y), batch_size, g)
         if fast_loader and kind == "fixed":
             return _CyclicTensor((ds._X, ds._pi, ds._mask, ds._weight), batch_size, g)
@@ -457,6 +502,7 @@ def train_shared(
         "buffer_chunks": buffer_chunks if stream else None,
         "split_seed": split_seed, "init_from": str(init_from) if init_from else None,
         "l2sp": l2sp,
+        "train_outcome": train_outcome, "outcome_loss_weight": outcome_loss_weight,
         "encoding_version": ENCODING_VERSION, "encoding_tag": encoder.tag,
         "strip_begging": encoder.strip_begging, "data_version": DATA_VERSION,
         "code_sha": current_git_sha(), "sizes": sd.sizes, "param_count": model.param_count(),
@@ -494,7 +540,7 @@ def train_shared(
             batch = loader.next()
             optimizer.zero_grad()
             if kind == "value":
-                loss = _value_loss(model, batch, dev)
+                loss = _value_loss(model, batch, dev, outcome_loss_weight)
             elif kind == "fixed":
                 loss = _fixed_loss(model, name, batch, dev)
             else:
@@ -524,6 +570,8 @@ def train_shared(
                        extras={"epoch": epoch, "val_mse": val_v["mse"]})
 
         entry = {"epoch": epoch, "val_mse": val_v["mse"], "val_mae_pts": val_v["mae_pts"],
+                 "val_outcome_mse": val_v.get("outcome_mse"),
+                 "val_outcome_acc": val_v.get("outcome_acc"),
                  "fixed_val_ce": {n: fixed_ce[n]["ce"] for n in fixed_ce},
                  "fixed_val_top1": {n: fixed_ce[n]["top1"] for n in fixed_ce},
                  "pointer_val_ce": {n: ptr_ce[n]["ce"] for n in ptr_ce},
@@ -543,13 +591,14 @@ def train_shared(
             head_vals = ([fixed_ce[n]["ce"] for n in fixed_ce]
                          + [ptr_ce[n]["ce"] for n in ptr_ce])
             if not _header_printed:
-                hdr = (f"{'ep':>3} {'val_mae':>8} {'val_mse':>8} {'b':>1} "
+                hdr = (f"{'ep':>3} {'val_mae':>8} {'val_mse':>8} {'oacc':>5} {'b':>1} "
                        + " ".join(f"{lab:>6}" for lab in head_labels)
                        + f" {'sec':>5}")
                 print(hdr, flush=True)
                 print("-" * len(hdr), flush=True)
                 _header_printed = True
             row = (f"{epoch:>3} {val_v['mae_pts']:>8.2f} {val_v['mse']:>8.4f} "
+                   f"{val_v.get('outcome_acc', float('nan')):>5.2f} "
                    f"{'*' if is_best else ' ':>1} "
                    + " ".join(f"{v:>6.2f}" for v in head_vals)
                    + f" {dt:>5.0f}")

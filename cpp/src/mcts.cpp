@@ -82,6 +82,11 @@ MCTSSearch::MCTSSearch(const NNInference* nn, double c_uct,
       leaf_value_scale_(nn ? nn->value_scale() : 1.0),
       rng_(rng_seed) {
   if (leaf_value_scale_ == 0.0) leaf_value_scale_ = 1.0;
+  // Default the per-head normalizers from the model (MIX can override the pair
+  // with the common-state scales). margin_scale_ tracks leaf_value_scale_.
+  margin_scale_ = leaf_value_scale_;
+  outcome_scale_ = (nn && nn->has_outcome()) ? nn->outcome_scale() : 1.0;
+  if (outcome_scale_ == 0.0) outcome_scale_ = 1.0;
 }
 
 MCTSNode* MCTSSearch::find_or_create_node(const GameState& state,
@@ -151,11 +156,24 @@ void MCTSSearch::re_root(MCTSNode* new_root) {
 }
 
 double MCTSSearch::evaluate_leaf(MCTSNode* node) const {
-  // value(state): terminal -> exact score(0)-score(1); mid -> NN margin (P0
-  // frame). Mirrors MCTSSearch.evaluate_leaf, which divides BOTH branches by
-  // leaf_value_scale (the terminal branch divides the exact margin too). The
-  // value forward fills node->embedding (joint mode); policy reuses it later.
-  return nn_->value(node->state, node->embedding) / leaf_value_scale_;
+  // Leaf value in P0's frame, by mode (mirrors shared_policy.make_joint_fns'
+  // leaf_mode). All heads read off node->embedding — value() fills it on the
+  // first call (joint mode); outcome() then reuses the SAME embedding (one trunk
+  // forward), and policy at the node's later expansion reuses it again.
+  //   MARGIN  — margin / margin_scale (terminal branch divides the exact margin
+  //             too, exactly as before; margin_scale_ == leaf_value_scale_).
+  //   OUTCOME — outcome / outcome_scale.
+  //   MIX     — 0.5·(margin/margin_scale) + 0.5·(outcome/outcome_scale), already
+  //             in Q units, so NO further division.
+  if (leaf_mode_ == LeafMode::MARGIN)
+    return nn_->value(node->state, node->embedding) / margin_scale_;
+  if (leaf_mode_ == LeafMode::OUTCOME)
+    return nn_->outcome(node->state, node->embedding) / outcome_scale_;
+  // MIX: value() fills the per-node embedding, outcome() reuses it (no 2nd trunk
+  // forward).
+  double m = nn_->value(node->state, node->embedding) / margin_scale_;
+  double o = nn_->outcome(node->state, node->embedding) / outcome_scale_;
+  return 0.5 * m + 0.5 * o;
 }
 
 void MCTSSearch::ensure_legal(MCTSNode* node) {

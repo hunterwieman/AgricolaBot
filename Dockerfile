@@ -57,10 +57,14 @@ WORKDIR /app
 COPY --from=build /src/cpp/build/selfplay cpp/build/selfplay
 
 # Weights for the C++ inference. nn_models/cpp_export_best is a SYMLINK in the
-# repo; .dockerignore lets through ONLY the resolved target dir, which we copy
-# to the concrete path the symlink pointed at. (Resolved via `readlink` at
-# authoring time: cpp_export_joint_taper128_thin_sp30k_lr3e4_ep17.)
-COPY nn_models/cpp_export_joint_taper128_thin_sp30k_lr3e4_ep17/ nn_models/cpp_export_best/
+# repo, and Docker COPY does NOT follow symlinks — so the build can't just copy
+# `cpp_export_best`. Instead the concrete target dir is passed in as a build-arg
+# (EXPORT_DIR) and copied to the path play_web.py expects. .dockerignore lets the
+# whole cpp_export_* family through to the build context; only this one dir lands
+# in the image. `./deploy.sh` resolves the symlink and sets the arg automatically,
+# so promoting a champion is just re-pointing the symlink — no edit here.
+ARG EXPORT_DIR=cpp_export_exp_visit_combined
+COPY nn_models/${EXPORT_DIR}/ nn_models/cpp_export_best/
 
 # Python source + web assets.
 COPY agricola/ agricola/

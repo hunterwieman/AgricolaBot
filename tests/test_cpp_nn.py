@@ -302,6 +302,69 @@ def test_cpp_joint_matches_python(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Outcome head (≤1e-4) — Phase 2b. The C++ outcome readout (the outcome head off
+# the shared trunk, sign-flipped to the P0 frame, with the exact sign(margin) at
+# a terminal) must match Python SharedTrunkModel.predict_outcome. Uses a real
+# trained checkpoint (joint_outcome_44k) exported fresh via the export_weights
+# CLI, so it also gates the exporter's new "outcome" manifest entry.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _HAS_NN, reason="NN bindings not built")
+def test_cpp_outcome_matches_python(tmp_path):
+    import subprocess
+
+    import torch
+
+    from agricola.agents.nn.shared_model import SharedTrunkModel
+
+    ckpt = _ROOT / "nn_models" / "joint_outcome_44k" / "best"
+    if not ckpt.with_suffix(".meta.json").exists():
+        pytest.skip("joint_outcome_44k checkpoint not present")
+
+    model = SharedTrunkModel.load(str(ckpt))
+    model.eval()
+    assert model.outcome_head is not None
+
+    export_dir = tmp_path / "export"
+    subprocess.run(
+        [sys.executable, str(_ROOT / "scripts" / "nn" / "export_weights.py"),
+         "--value-ckpt", str(ckpt), "--out-dir", str(export_dir)],
+        check=True, cwd=str(_ROOT), capture_output=True)
+    manifest = json.loads((export_dir / "weights_manifest.json").read_text())
+    assert manifest.get("outcome") is not None, "exporter did not write outcome head"
+
+    md = str(export_dir)
+
+    @torch.no_grad()
+    def py_outcome(state) -> float:
+        # P0-frame outcome, mirroring shared_policy.make_joint_fns' "outcome" leaf.
+        if state.phase == Phase.BEFORE_SCORING:
+            from agricola.scoring import score
+            m = float(score(state, 0)[0] - score(state, 1)[0])
+            return 1.0 if m > 0 else (-1.0 if m < 0 else 0.0)
+        d = decider_of(state)
+        if d is None:
+            d = 0
+        from agricola.agents.nn.encoder import ENCODER_V2
+        x = torch.from_numpy(
+            ENCODER_V2.encode_for_inference(state, d)).unsqueeze(0)
+        v = float(model.predict_outcome(x)[0])
+        return v if d == 0 else -v
+
+    worst = 0.0
+    worst_info = None
+    for state in _CORPUS[::5]:
+        py = py_outcome(state)
+        cpp = agricola_cpp.nn_outcome(dumps(state), md)
+        d = abs(py - cpp)
+        if d > worst:
+            worst = d
+            worst_info = (state.round_number, state.phase.name, py, cpp)
+    assert worst <= 1e-4, f"outcome max |Δ|={worst:.3e} at {worst_info}"
+
+
+# ---------------------------------------------------------------------------
 # Candidate encoder (exact, 178-d) — no torch needed. The forward-compatible
 # encoder-registry dispatch: a model's encoder is resolved from its manifest
 # `encoder_tag` (here exercised directly via the cpp `encode_candidate` binding).

@@ -242,6 +242,14 @@ struct NNInference::Impl {
   // ---- composite (separate value net + per-head MLPs) ----
   Mlp value_mlp;
   double value_scale = 1.0;
+  std::string value_target = "margin";  // "margin" (points) or "outcome" (sign)
+  // Outcome head (joint shared-trunk only): reads the SAME decider embedding as
+  // value_mlp, emits sign(margin) ∈ {-1,0,+1} in win/draw/loss space (no
+  // target_std, no begging add-back). `has_outcome` is false unless the manifest
+  // carried a non-null "outcome" entry.
+  bool has_outcome = false;
+  Mlp outcome_mlp;
+  double outcome_scale = 1.0;
   std::unordered_map<std::string, LoadedHead> fixed;   // head name -> head
   std::unordered_map<std::string, LoadedHead> pointer;  // animal_frontier/harvest_feed
   int harvest_feed_dim = 10;
@@ -332,6 +340,21 @@ struct NNInference::Impl {
     value_mlp.forward(enc_buf_.data(), out);
     return static_cast<double>(out[0]) *
            static_cast<double>(value_mlp.target_std());
+  }
+
+  // ---- outcome ---- (P0-frame outcome ≈[-1,1]; terminal short-circuit exact)
+  // Joint mode only (the outcome head reads the shared embedding). Mirrors
+  // shared_policy.value_fn's outcome branch: no target_std, no begging add-back.
+  double outcome(const GameState& s, std::vector<float>* ext = nullptr) const {
+    if (s.phase == Phase::BEFORE_SCORING) {
+      double m = static_cast<double>(score(s, 0) - score(s, 1));
+      return m > 0 ? 1.0 : (m < 0 ? -1.0 : 0.0);  // true terminal outcome
+    }
+    int d = *encoder_decider_of(s);
+    std::vector<float> out;
+    outcome_mlp.forward(trunk_embed(s, ext).data(), out);  // head on the embedding
+    double v = static_cast<double>(out[0]);
+    return d == 0 ? v : -v;                                 // decider-frame -> P0
   }
 
   // ---- fixed head logits ----
@@ -445,6 +468,21 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   impl_->value_mlp = Mlp(manifest["value"], base);
   if (manifest["value"].contains("value_scale"))
     impl_->value_scale = manifest["value"]["value_scale"].get<double>();
+  // What the value head predicts: "margin" (score diff, points) or "outcome"
+  // (sign of margin). Consumers that read the value as points must guard on this.
+  // Default "margin" for backward compat with pre-field exports (all margin).
+  if (manifest["value"].contains("value_target"))
+    impl_->value_target = manifest["value"]["value_target"].get<std::string>();
+
+  // Outcome head (shared-trunk exports only; tolerate "outcome": null / absent).
+  // Reads the shared embedding (identity input-norm), so it only makes sense in
+  // joint mode. The leaf-mode {outcome, mix} paths require it; margin mode ignores.
+  if (manifest.contains("outcome") && !manifest["outcome"].is_null()) {
+    impl_->outcome_mlp = Mlp(manifest["outcome"], base);
+    impl_->has_outcome = true;
+    if (manifest["outcome"].contains("outcome_scale"))
+      impl_->outcome_scale = manifest["outcome"]["outcome_scale"].get<double>();
+  }
 
   // Build fixed-head label->index maps that mirror policy_heads.py vocabs.
   auto make_fixed = [&](const std::string& name, const nlohmann::json& entry,
@@ -510,6 +548,20 @@ double NNInference::value(const GameState& state, std::vector<float>& emb) const
 }
 
 double NNInference::value_scale() const { return impl_->value_scale; }
+
+const std::string& NNInference::value_target() const { return impl_->value_target; }
+
+double NNInference::outcome(const GameState& state) const {
+  return impl_->outcome(state, nullptr);
+}
+
+double NNInference::outcome(const GameState& state, std::vector<float>& emb) const {
+  return impl_->outcome(state, &emb);
+}
+
+bool NNInference::has_outcome() const { return impl_->has_outcome; }
+
+double NNInference::outcome_scale() const { return impl_->outcome_scale; }
 
 // ---------------------------------------------------------------------------
 // Policy combiner

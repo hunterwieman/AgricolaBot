@@ -125,10 +125,16 @@ def main() -> int:
                         "(tiebreaker-blind win/draw/loss), applied to the cached "
                         "margin at finalize (no re-encode; needs a non-begging-"
                         "stripping encoder).")
+    p.add_argument("--no-train-outcome", dest="train_outcome", action="store_false",
+                   help="Disable the auxiliary outcome head (default: co-train it in "
+                        "the value batch off the SAME embedding — one trunk forward).")
+    p.add_argument("--outcome-loss-weight", type=float, default=1.0,
+                   help="Weight on the outcome-head MSE within the value-task loss.")
     p.add_argument("--save-all-epochs", action="store_true")
     p.add_argument("--torch-seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
-    p.set_defaults(embed_norm=True, soft_targets=True, use_cache=True, fast_loader=True)
+    p.set_defaults(embed_norm=True, soft_targets=True, use_cache=True, fast_loader=True,
+                   train_outcome=True)
     args = p.parse_args()
 
     out_dir = args.out_dir or (ROOT / "nn_models" / make_run_id())
@@ -152,6 +158,7 @@ def main() -> int:
         stream=args.stream, buffer_chunks=args.buffer_chunks,
         snapshot_keep=snapshot_keep, max_games=args.max_games,
         value_target_mode=args.value_target,
+        train_outcome=args.train_outcome, outcome_loss_weight=args.outcome_loss_weight,
         init_from=args.init_from, l2sp=args.l2sp,
         save_all_epochs=args.save_all_epochs, torch_seed=args.torch_seed,
         device=args.device,

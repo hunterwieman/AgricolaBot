@@ -1088,6 +1088,12 @@ class Session:
         each entry's (type, params) reconstructs the exact game state. The
         `display` field is for human eyeballing; consumers that replay
         should use `type` + `params`.
+
+        `params` records the game-start configuration the bot ran under —
+        the effective sims/move budget, the opponent prior-mix, the fixed
+        c_uct, and the NN checkpoint + MCTS seat settings — so a downloaded
+        trace is self-describing (e.g. "this game was played at 1600 sims")
+        rather than leaving the reader to guess the search budget.
         """
         with self.lock:
             return {
@@ -1096,6 +1102,16 @@ class Session:
                 "current_round": self.current_round,
                 "phase": self.state.phase.name,
                 "game_over": self.game_over,
+                "params": {
+                    "sims": (self.mcts_sims if self.mcts_sims is not None
+                             else _MCTS_SIMS_DEFAULT),
+                    "opponent_mix": self.opponent_mix,
+                    "c_uct": 1.0,
+                    "nn_model": _NN_MODEL_PATH,
+                    "mcts_evaluator": self.mcts_evaluator,
+                    "mcts_search": self.mcts_search,
+                    "mcts_policy": self.mcts_policy,
+                },
                 "actions": list(self.action_trace),
             }
 
@@ -1465,17 +1481,21 @@ class Session:
                 pass
 
     def analyze(self, sims: int, c_uct: float = 1.0,
-                prior_mix: float = 0.05) -> tuple[bool, list[dict]]:
+                prior_mix: float = 0.05) -> tuple[bool, list[dict], str]:
         """Run a read-only MCTS analysis rooted at the human's current state.
 
         `c_uct` matches the bot's play value (1.0); analysis coverage (a Q for
         several of the human's options, not just the single best line) comes
         from the uniform `prior_mix`, which spreads visits across more moves.
 
-        Returns (ok, children) where children mirror the C++ `--analyze`
-        contract: [{type, params, visits, q}, ...] with q already in the
-        human's frame (higher = better for the human). ok=False (empty
-        children) when it's not a human's turn, the game is over, the C++
+        Returns (ok, children, value_target) where children mirror the C++
+        `--analyze` contract: [{type, params, visits, q}, ...] with q already in
+        the human's frame (higher = better for the human) and denormalized into
+        the value head's natural units (the C++ side multiplies the raw Q by the
+        model's value_scale). `value_target` ("margin" / "outcome") labels what
+        those units mean: "margin" => points of expected score diff, "outcome"
+        => expected win/draw/loss value in [-1,1]. ok=False (empty children,
+        "margin") when it's not a human's turn, the game is over, the C++
         binary/export are missing, or the search fails.
 
         Does NOT mutate game state and does NOT go through self.lock for the
@@ -1485,14 +1505,14 @@ class Session:
         # Read-only snapshot of the state to analyze (brief lock).
         with self.lock:
             if self.game_over:
-                return False, []
+                return False, [], "margin"
             if _decider_of(self.state) not in self.humans:
-                return False, []
+                return False, [], "margin"
             state_json = dumps(self.state)
         # Graceful no-op when the C++ fast path isn't available.
         if not (os.path.isfile(_CPP_BINARY) and os.path.isdir(_CPP_EXPORT_DIR)
                 and os.path.isfile(os.path.join(_CPP_EXPORT_DIR, "weights_manifest.json"))):
-            return False, []
+            return False, [], "margin"
         cmd = [
             _CPP_BINARY, "--analyze",
             "--model-dir", _CPP_EXPORT_DIR,
@@ -1511,7 +1531,7 @@ class Session:
                     stderr=subprocess.PIPE,
                 )
             except OSError:
-                return False, []
+                return False, [], "margin"
             # Register so a concurrent human move can cancel it.
             with self._analysis_lock:
                 # Cancel any prior in-flight analysis we may be replacing.
@@ -1529,22 +1549,25 @@ class Session:
                     proc.kill()
                 except OSError:
                     pass
-                return False, []
+                return False, [], "margin"
             finally:
                 with self._analysis_lock:
                     if self._analysis_proc is proc:
                         self._analysis_proc = None
         # A non-zero return code means it was cancelled (terminate) or failed.
         if proc.returncode != 0:
-            return False, []
+            return False, [], "margin"
         try:
             data = json.loads(out.decode())
             children = data.get("children", [])
+            # The q-unit descriptor ("margin" / "outcome"); default "margin" for
+            # an older binary that doesn't emit it.
+            value_target = str(data.get("value_target", "margin"))
         except (ValueError, UnicodeDecodeError):
-            return False, []
+            return False, [], "margin"
         if not isinstance(children, list):
-            return False, []
-        return True, children
+            return False, [], "margin"
+        return True, children, value_target
 
     def step_ai(self) -> tuple[bool, str]:
         """Apply one AI action and broadcast the new state.
@@ -1970,8 +1993,9 @@ def _make_handler(registry: SessionRegistry):
                     c_uct = 1.0
                 sims = (session.mcts_sims if session.mcts_sims is not None
                         else _MCTS_SIMS_DEFAULT)
-                ok, children = session.analyze(sims, float(c_uct))
-                self._send_json(HTTPStatus.OK, {"ok": ok, "children": children})
+                ok, children, value_target = session.analyze(sims, float(c_uct))
+                self._send_json(HTTPStatus.OK, {
+                    "ok": ok, "children": children, "value_target": value_target})
                 return
             if path == "/api/reset":
                 # New game in the SAME session (same cookie). Fixed setup:

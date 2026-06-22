@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+import torch
 
 
 def _thin_keep(n, frac, salt):
@@ -657,6 +658,16 @@ def _finalize_payloads(sources, *, encoder: EncoderSpec, train_frac, val_frac,
         AgricolaValueDataset(vX[w], (vy[w] / tgt_std).astype(np.float32))
         for w in (0, 1, 2)
     )
+    # Outcome target attached alongside the (normalized) margin target so the value
+    # batch can co-train a second `outcome` head off the SAME embedding (one trunk
+    # forward; see shared_training._value_loss). Outcome = sign of the margin in
+    # `vy` ∈ {-1,0,+1} (tiebreaker-blind, matching value_target_mode="outcome").
+    # `np.sign` is correct whether vy holds the raw margin (mode "margin", the joint
+    # case) or already the sign (mode "outcome"). Only valid when the margin is the
+    # TRUE margin (not begging-stripped) — the trainer guards train_outcome against
+    # a stripping encoder. NOT normalized (outcome already lives in [-1,1]).
+    for _w, _vds in enumerate(value):
+        _vds._y_outcome = torch.from_numpy(np.sign(vy[_w]).astype(np.float32))
     del vX, vy, vX_tr, vy_tr  # arrays now baked into the datasets (torch holds the buffers)
 
     # ---- Fixed-head datasets ----

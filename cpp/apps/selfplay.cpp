@@ -129,6 +129,9 @@ int main(int argc, char** argv) {
   double temperature_p0 = -1.0, temperature_p1 = -1.0;  // negative = use shared
   // Per-seat played-move selection: "visits" (default) or "q" (rank by mean-Q).
   bool select_q_p0 = false, select_q_p1 = false;
+  // Per-seat leaf-value head: "margin" (default), "outcome", or "mix" — selects
+  // which NN head supplies the backed-up leaf Q (mirrors the Python leaf_mode).
+  std::string leaf_mode_p0 = "margin", leaf_mode_p1 = "margin";
   // Self-play path (single agent both seats) selection: "visits" / "q".
   bool select_q = false;
 
@@ -194,6 +197,10 @@ int main(int argc, char** argv) {
       select_q_p0 = (std::string(argv[++i]) == "q");
     } else if (arg == "--select-by-p1" && i + 1 < argc) {
       select_q_p1 = (std::string(argv[++i]) == "q");
+    } else if (arg == "--leaf-mode-p0" && i + 1 < argc) {
+      leaf_mode_p0 = argv[++i];
+    } else if (arg == "--leaf-mode-p1" && i + 1 < argc) {
+      leaf_mode_p1 = argv[++i];
     } else if (arg == "--select-by" && i + 1 < argc) {
       select_q = (std::string(argv[++i]) == "q");  // self-play single-agent path
     } else if (arg == "--prior-mix" && i + 1 < argc) {
@@ -241,10 +248,17 @@ int main(int argc, char** argv) {
       std::cerr << "selfplay: --analyze expects GameState JSON on stdin\n";
       return 2;
     }
-    std::string result = agricola::analyze_position(state_json, model_dir, sims,
-                                                    c_uct, temperature, prior_mix);
-    std::cout << result << "\n";
-    return 0;
+    try {
+      std::string result = agricola::analyze_position(state_json, model_dir, sims,
+                                                      c_uct, temperature, prior_mix);
+      std::cout << result << "\n";
+      return 0;
+    } catch (const std::exception& e) {
+      // e.g. a non-margin value head can't be reported in points. Exit non-zero
+      // (no JSON) — the web caller treats that as "no analysis overlay".
+      std::cerr << "selfplay: --analyze failed: " << e.what() << "\n";
+      return 3;
+    }
 #endif
   }
 
@@ -313,7 +327,8 @@ int main(int argc, char** argv) {
       double t1 = temperature_p1 >= 0 ? temperature_p1 : temperature;
       agricola::MatchGameResult r = agricola::mcts_match_game(
           nn0, nn1, game_seed, s0, c0, s1, c1, t0, t1,
-          prior_mix_p0, prior_mix_p1, select_q_p0, select_q_p1);
+          prior_mix_p0, prior_mix_p1, select_q_p0, select_q_p1,
+          leaf_mode_p0, leaf_mode_p1);
       std::cout << "GAME seed=" << r.seed << " p0=" << r.p0_score
                 << " p1=" << r.p1_score << " winner=" << r.winner;
       if (sweep) {

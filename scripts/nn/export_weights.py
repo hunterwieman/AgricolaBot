@@ -247,6 +247,25 @@ def _export_joint(ckpt: Path) -> int:
         model.value_head, ident_m, ident_s, file_stem="value",
         extra_tail=[("target_std", _f32(model.target_std).reshape(-1))])
     manifest["value"]["value_scale"] = float(getattr(model, "value_scale", 1.0))
+    # The value head's training target: "margin" (score diff, points) or "outcome"
+    # (sign(margin)). The C++ analyze path asserts "margin" before reporting Q in
+    # points. Default "margin" for backward compat with pre-field checkpoints.
+    manifest["value"]["value_target"] = str(getattr(model, "value_target_mode", "margin"))
+
+    # Outcome head: identity input-norm + Linear(E→1), NO target_std tail (outcome
+    # is sign(margin) ∈ {-1,0,+1}, already ~unit — mirrors SharedTrunkModel
+    # .outcome_from_embedding). Older checkpoints have a freshly-initialized
+    # outcome head from the tolerant load; export it anyway (it's still a valid
+    # linear readout off the embedding, just untrained), but guard the attribute
+    # in case a future model drops the head entirely.
+    if getattr(model, "outcome_head", None) is not None:
+        manifest["outcome"] = _export_model(
+            model.outcome_head, ident_m, ident_s, file_stem="outcome")
+        # outcome_scale mirrors value_scale: a per-distribution Q normalizer for
+        # the outcome-leaf path, patched externally (default 1.0).
+        manifest["outcome"]["outcome_scale"] = float(getattr(model, "outcome_scale", 1.0))
+    else:
+        manifest["outcome"] = None
 
     # Fixed heads: identity input-norm + Linear(E→K), keyed by head name.
     for name, head in model.fixed_heads.items():

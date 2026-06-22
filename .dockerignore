@@ -42,8 +42,12 @@ cpp/build/
 # Docs (none are load-bearing at runtime)
 *.md
 
-# Trained-model checkpoints are large and not needed — EXCEPT the C++ export
-# the symlink resolves to, which the Dockerfile copies explicitly. Ignore all
-# of nn_models/, then un-ignore the one resolved weights dir.
+# Trained-model checkpoints are large and not needed — EXCEPT the C++ exports.
+# Ignore all of nn_models/, then un-ignore the whole cpp_export_* family so the
+# Dockerfile's EXPORT_DIR build-arg can name ANY of them without an edit here
+# (deploy.sh resolves the cpp_export_best symlink to the right one). Only the one
+# named by EXPORT_DIR is COPY'd into the image; the rest just ride in the build
+# context (~30 MB total, all small). The bare `cpp_export_best` symlink itself is
+# left ignored — Docker can't follow it anyway, so it must not be relied on.
 nn_models/
-!nn_models/cpp_export_joint_taper128_thin_sp30k_lr3e4_ep17/
+!nn_models/cpp_export_*/

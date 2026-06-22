@@ -79,6 +79,17 @@ struct MCTSNode {
 // ---------------------------------------------------------------------------
 // MCTSSearch — the DAG + transposition table + search-level config.
 // ---------------------------------------------------------------------------
+// Which NN head supplies the backed-up leaf value (mirrors
+// shared_policy.make_joint_fns' `leaf_mode`). All three read off ONE trunk
+// forward (the per-node embedding cache), so margin and outcome together cost a
+// single trunk pass.
+//   MARGIN  — P0-frame margin (points), divided by the margin value_scale.
+//   OUTCOME — P0-frame outcome (≈[-1,1]), divided by the outcome_scale.
+//   MIX     — 0.5·(margin/margin_scale) + 0.5·(outcome/outcome_scale), used
+//             DIRECTLY as the leaf Q (no further value_scale division; the two
+//             terms are already normalized — effective leaf_value_scale 1.0).
+enum class LeafMode { MARGIN, OUTCOME, MIX };
+
 class MCTSSearch {
  public:
   // `nn` is borrowed (owned by the caller / a process-wide cache). leaf_value_scale
@@ -114,6 +125,13 @@ class MCTSSearch {
   // 0 (default) = pure policy net. A small mix forces the search to explore
   // moves the policy assigns near-zero prior (root + every node).
   void set_prior_uniform_mix(double mix) { prior_uniform_mix_ = mix; }
+  // Select the leaf-value head (default MARGIN = backward-compatible). OUTCOME
+  // and MIX require the NN to carry an outcome head (NNInference::has_outcome);
+  // the scales are sourced from nn->value_scale() / nn->outcome_scale() by
+  // default and can be overridden for MIX (the common-state scales).
+  void set_leaf_mode(LeafMode mode) { leaf_mode_ = mode; }
+  void set_margin_scale(double s) { margin_scale_ = (s == 0.0 ? 1.0 : s); }
+  void set_outcome_scale(double s) { outcome_scale_ = (s == 0.0 ? 1.0 : s); }
   std::mt19937_64& rng() { return rng_; }
   MCTSNode* root() const { return root_; }
 
@@ -122,6 +140,11 @@ class MCTSSearch {
   double c_uct_;
   double fpu_offset_;
   double leaf_value_scale_;
+  // Leaf-mode + the per-head normalizers. MARGIN uses leaf_value_scale_ as today
+  // (and margin_scale_ tracks it for MIX); OUTCOME/MIX use outcome_scale_.
+  LeafMode leaf_mode_ = LeafMode::MARGIN;
+  double margin_scale_ = 1.0;
+  double outcome_scale_ = 1.0;
   double prior_uniform_mix_ = 0.0;
   std::mt19937_64 rng_;
   MCTSNode* root_ = nullptr;

@@ -104,7 +104,16 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
                                 double prior_mix_p0 = 0.0,
                                 double prior_mix_p1 = 0.0,
                                 bool select_q_p0 = false,
-                                bool select_q_p1 = false);
+                                bool select_q_p1 = false,
+                                // Per-seat leaf-value head: "margin" (default),
+                                // "outcome", or "mix" (mirrors
+                                // shared_policy.make_joint_fns' leaf_mode). For a
+                                // seat in outcome/mix mode the scales come from
+                                // THAT seat's model manifest (value_scale +
+                                // outcome_scale). Strings keep this header free of
+                                // the NN-guarded LeafMode enum.
+                                const std::string& leaf_mode_p0 = "margin",
+                                const std::string& leaf_mode_p1 = "margin");
 #endif
 
 }  // namespace agricola

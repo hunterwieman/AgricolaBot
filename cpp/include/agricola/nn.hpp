@@ -45,10 +45,38 @@ class NNInference {
   std::vector<std::pair<Action, double>> policy(const GameState& state,
                                                 std::vector<float>& emb) const;
 
+  // outcome(state) = P0-frame outcome prediction (≈[-1,1]; sign(margin) ∈
+  // {-1,0,+1} at a terminal). Mirrors shared_policy.make_joint_fns' "outcome"
+  // leaf: terminal -> exact sign(score(0)-score(1)); mid-game -> the outcome
+  // head off the SAME cached decider embedding the value head uses (one trunk
+  // forward), sign-flipped to the P0 frame. NO target_std scaling and NO begging
+  // add-back (outcome is its own ~unit head). Only meaningful when has_outcome().
+  // The `emb` overload threads the per-node embedding cache exactly like value().
+  double outcome(const GameState& state) const;
+  double outcome(const GameState& state, std::vector<float>& emb) const;
+
+  // True if the manifest carried a non-null "outcome" head (shared_trunk exports
+  // of models with a trained/initialized outcome head). False for composite
+  // exports and pre-outcome manifests, in which case outcome()/outcome_scale()
+  // must not be used.
+  bool has_outcome() const;
+
+  // The outcome head's `outcome_scale` (manifest "outcome"/"outcome_scale"). The
+  // outcome-leaf counterpart of value_scale: MCTS divides the P0-frame outcome by
+  // it. Defaults to 1.0.
+  double outcome_scale() const;
+
   // The value net's `value_scale` (manifest "value"/"value_scale"; ≈11.526).
   // MCTS divides each leaf value by this (leaf_value_scale = model.value_scale)
   // so a single c_uct is comparable across value heads of different magnitude.
   double value_scale() const;
+
+  // What the value head was trained to predict: "margin" (terminal score diff,
+  // i.e. POINTS — the value*value_scale reads as points) or "outcome" (sign of
+  // the margin ∈ {-1,0,+1}). Defaults to "margin" for exports predating the
+  // manifest field. Consumers that report the value as points (e.g. the web
+  // analyze badge) must assert this is "margin".
+  const std::string& value_target() const;
 
  private:
   struct Impl;

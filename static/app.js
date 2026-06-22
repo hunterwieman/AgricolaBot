@@ -25,6 +25,11 @@
   let analysisOn = false;
   // Keyed by actionKey(type, params) -> {visits, q}.
   let analysisByKey = new Map();
+  // What the analysis q values mean — the value head's training target, from
+  // /api/analyze's `value_target`: "margin" (q is points of expected score
+  // diff) or "outcome" (q is expected win/draw/loss value in [-1,1]). Labels
+  // the badge so the number is never shown without its unit.
+  let analysisUnit = 'margin';
   // Monotonic generation counter: each adopted state bumps it. An in-flight
   // /api/analyze response is discarded if a newer state has arrived since it
   // was launched (so stale analysis never overwrites the current overlay).
@@ -73,10 +78,16 @@
     return type + '|' + JSON.stringify(params, Object.keys(params).sort());
   }
 
-  // Format an analysis badge: signed Q to 1 decimal + visit count N.
+  // Format an analysis badge: the value head's unit descriptor ("margin" /
+  // "outcome"), then the signed denormalized q (good-for-the-human), then the
+  // visit count N. q is already in the head's natural units (the backend
+  // multiplies the normalized Q by value_scale). Margin reads in points (1
+  // decimal); outcome lives in [-1,1] so it gets 2 decimals for resolution.
+  // e.g. "margin +1.2 · 80" or "outcome +0.31 · 80".
   function analysisBadgeText(info) {
-    const q = info.q >= 0 ? `+${info.q.toFixed(1)}` : info.q.toFixed(1);
-    return `Q ${q} · ${info.visits}`;
+    const dp = analysisUnit === 'outcome' ? 2 : 1;
+    const q = info.q >= 0 ? `+${info.q.toFixed(dp)}` : info.q.toFixed(dp);
+    return `${analysisUnit} ${q} · ${info.visits}`;
   }
 
   // Background fetch of the AI's per-move analysis for the current human
@@ -93,6 +104,7 @@
       const data = await res.json().catch(() => ({}));
       if (gen !== analysisGen) return;  // a newer state arrived — discard
       if (!data || !data.ok || !Array.isArray(data.children)) return;
+      analysisUnit = data.value_target === 'outcome' ? 'outcome' : 'margin';
       const map = new Map();
       for (const child of data.children) {
         map.set(actionKey(child.type, child.params),

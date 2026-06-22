@@ -81,6 +81,7 @@ class SharedTrunkModel(nn.Module):
         trunk_hidden_dims: list[int] = (256, 256),
         embedding_dim: int = 256,
         value_head_dims: list[int] = (),
+        outcome_head_dims: list[int] = (),
         fixed_head_dims: list[int] = (),
         pointer_head_dims: list[int] = (64,),
         activation: str = "gelu",
@@ -103,6 +104,7 @@ class SharedTrunkModel(nn.Module):
         self.trunk_hidden_dims = list(trunk_hidden_dims)
         self.embedding_dim = int(embedding_dim)
         self.value_head_dims = list(value_head_dims)
+        self.outcome_head_dims = list(outcome_head_dims)
         self.fixed_head_dims = list(fixed_head_dims)
         self.pointer_head_dims = list(pointer_head_dims)
         self.fixed_head_specs = {str(k): int(v) for k, v in fixed_head_specs.items()}
@@ -114,6 +116,15 @@ class SharedTrunkModel(nn.Module):
         self.encoding_version = int(norm_stats.encoding_version)
         self.encoding_tag = str(norm_stats.encoding_tag)
         self.value_scale: float = 1.0
+        # What the value head's target was trained on: "margin" (terminal score
+        # diff, the inference contract `predict_margin` denotes — units are
+        # POINTS) or "outcome" (sign(margin) ∈ {-1,0,+1}). Consumers that read the
+        # value as points (e.g. the web "Show analysis" badge, which scales Q by
+        # value_scale) MUST guard on this being "margin". Set by the trainer;
+        # persisted in / restored from meta. Default "margin" for backward compat
+        # with checkpoints saved before this field existed (all of which were
+        # margin-trained — the value head predates the outcome option).
+        self.value_target_mode: str = "margin"
 
         E = self.embedding_dim
         common = dict(activation=activation, norm=norm, dropout=dropout, head="linear")
@@ -131,6 +142,14 @@ class SharedTrunkModel(nn.Module):
         # Value head: E → 1 (squeezed to (B,) by ConfigurableMLP).
         self.value_head = ConfigurableMLP(
             input_dim=E, hidden_dims=self.value_head_dims, output_dim=1, **common,
+        )
+        # Outcome head: E → 1 — win/draw/loss = sign(margin) ∈ {-1,0,+1}, linear,
+        # NOT scaled by target_std (outcome is already ~unit). Co-trained with the
+        # value head off the SAME embedding (one trunk forward; see
+        # shared_training._value_loss), so it adds no trunk cost. Pre-outcome
+        # checkpoints lack its weights — `load` leaves it freshly initialized.
+        self.outcome_head = ConfigurableMLP(
+            input_dim=E, hidden_dims=self.outcome_head_dims, output_dim=1, **common,
         )
         # Fixed heads: E → K each.
         self.fixed_heads = nn.ModuleDict({
@@ -184,6 +203,18 @@ class SharedTrunkModel(nn.Module):
         `NNAgent` / MCTS expect (mirrors `NormalizedValueModel.predict_margin`)."""
         return self.value_from_embedding(self.embed(x)) * self.target_std
 
+    def outcome_from_embedding(self, emb: torch.Tensor) -> torch.Tensor:
+        """Outcome prediction `(B,)` in win/draw/loss space (target {-1,0,+1})
+        from a precomputed embedding. No target_std scaling — outcome is already
+        ~unit. The outcome counterpart to `value_from_embedding`."""
+        return self.outcome_head(emb)
+
+    def predict_outcome(self, x: torch.Tensor) -> torch.Tensor:
+        """Outcome prediction `(B,)` from raw state features — one trunk forward,
+        the outcome counterpart to `predict_margin`. Meaningful only for models
+        whose outcome head was trained (see shared_training `train_outcome`)."""
+        return self.outcome_from_embedding(self.embed(x))
+
     def fixed_logits_from_embedding(
         self, emb: torch.Tensor, head_name: str,
     ) -> torch.Tensor:
@@ -226,6 +257,7 @@ class SharedTrunkModel(nn.Module):
             "trunk_hidden_dims": list(self.trunk_hidden_dims),
             "embedding_dim": self.embedding_dim,
             "value_head_dims": list(self.value_head_dims),
+            "outcome_head_dims": list(self.outcome_head_dims),
             "fixed_head_dims": list(self.fixed_head_dims),
             "pointer_head_dims": list(self.pointer_head_dims),
             "fixed_head_specs": dict(self.fixed_head_specs),
@@ -249,6 +281,7 @@ class SharedTrunkModel(nn.Module):
             "encoding_version": int(self.encoding_version),
             "encoding_tag": str(self.encoding_tag),
             "value_scale": float(self.value_scale),
+            "value_target_mode": str(self.value_target_mode),
             "extras": dict(extras) if extras else {},
         }
         with path.with_suffix(".meta.json").open("w") as f:
@@ -275,8 +308,18 @@ class SharedTrunkModel(nn.Module):
         )
         model = cls(norm_stats=placeholder, **cfg)
         state = torch.load(path.with_suffix(".pt"), weights_only=True)
-        model.load_state_dict(state)
+        # Tolerant load for backward compat: checkpoints trained before the
+        # outcome head lack its weights — the ONLY mismatch allowed (the head
+        # stays freshly initialized; it's only meaningful once trained). Any
+        # other missing/unexpected key is a real error.
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        missing = [k for k in missing if not k.startswith("outcome_head")]
+        if missing or list(unexpected):
+            raise RuntimeError(
+                f"SharedTrunkModel.load: unexpected state_dict mismatch for {path} "
+                f"(missing={missing}, unexpected={list(unexpected)})")
         model.value_scale = float(meta.get("value_scale", 1.0))
+        model.value_target_mode = str(meta.get("value_target_mode", "margin"))
         return model
 
 
