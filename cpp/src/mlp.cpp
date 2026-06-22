@@ -13,6 +13,10 @@
 #include <fstream>
 #include <stdexcept>
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+
 namespace agricola {
 
 namespace {
@@ -21,6 +25,37 @@ inline float gelu_erf(float v) {
   // 0.5 * v * (1 + erf(v / sqrt(2))).  1/sqrt(2) = 0.70710678118654752440.
   return 0.5f * v *
          (1.0f + std::erf(v * 0.7071067811865475244f));
+}
+
+// Dot product a·b over n floats. The linear-layer inner loop (the trunk's three
+// matmuls) is ~71% of MCTS wall, so it is hand-vectorized: 4 NEON accumulators
+// (16 floats/iter) + horizontal add, scalar tail. The lane-parallel reduction
+// reorders the float sum vs the scalar left-to-right accumulate, so it is NOT
+// bit-identical to the old code — but the differential gate vs Python is ≤1e-4,
+// and torch's own CPU reduction order already differs, so both stay well inside
+// it (verified: see test_cpp_nn.py). Plain build (no -ffast-math) — the explicit
+// intrinsics vectorize what the compiler can't reassociate on its own.
+inline float dot(const float* a, const float* b, int n) {
+#if defined(__ARM_NEON)
+  float32x4_t s0 = vdupq_n_f32(0.0f), s1 = vdupq_n_f32(0.0f),
+              s2 = vdupq_n_f32(0.0f), s3 = vdupq_n_f32(0.0f);
+  int i = 0;
+  for (; i + 16 <= n; i += 16) {
+    s0 = vmlaq_f32(s0, vld1q_f32(a + i), vld1q_f32(b + i));
+    s1 = vmlaq_f32(s1, vld1q_f32(a + i + 4), vld1q_f32(b + i + 4));
+    s2 = vmlaq_f32(s2, vld1q_f32(a + i + 8), vld1q_f32(b + i + 8));
+    s3 = vmlaq_f32(s3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
+  }
+  for (; i + 4 <= n; i += 4)
+    s0 = vmlaq_f32(s0, vld1q_f32(a + i), vld1q_f32(b + i));
+  float acc = vaddvq_f32(vaddq_f32(vaddq_f32(s0, s1), vaddq_f32(s2, s3)));
+  for (; i < n; ++i) acc += a[i] * b[i];
+  return acc;
+#else
+  float acc = 0.0f;
+  for (int i = 0; i < n; ++i) acc += a[i] * b[i];
+  return acc;
+#endif
 }
 
 }  // namespace
@@ -106,12 +141,16 @@ Mlp::Mlp(const nlohmann::json& entry, const std::string& dir) {
 }
 
 void Mlp::forward(const float* x, std::vector<float>& out) const {
-  // Input normalization into a working buffer.
-  std::vector<float> cur(static_cast<size_t>(input_dim_));
+  // Reusable activation scratch. thread_local so a shared const Mlp stays safe
+  // under concurrent callers, while a single thread reuses the buffers across
+  // calls — the per-forward malloc/free of `cur`/`nxt` (thousands of forwards per
+  // move) is paid once instead of every call. Sized up on demand; never shrunk.
+  thread_local std::vector<float> cur, nxt;
+  cur.resize(static_cast<size_t>(input_dim_));
+  // Input normalization into the working buffer.
   for (int i = 0; i < input_dim_; ++i)
     cur[i] = (x[i] - input_mean_[i]) / input_std_[i];
 
-  std::vector<float> nxt;
   // The Python net is [Linear -> LayerNorm -> GELU -> Dropout] x N -> Linear.
   // The exported layer list contains only the parameterized layers (Linear,
   // LayerNorm) in order. Reconstruct the activation pattern: GELU is applied
@@ -119,12 +158,12 @@ void Mlp::forward(const float* x, std::vector<float>& out) const {
   // a bare Linear with no following LayerNorm, hence no GELU).
   for (const Layer& L : layers_) {
     if (L.kind == LayerKind::kLinear) {
-      nxt.assign(static_cast<size_t>(L.out), 0.0f);
+      nxt.resize(static_cast<size_t>(L.out));  // every entry overwritten below
+      const float* xx = cur.data();
+      const int in = L.in;
       for (int o = 0; o < L.out; ++o) {
-        const float* wrow = L.w.data() + static_cast<size_t>(o) * L.in;
-        float acc = L.b[o];
-        for (int i = 0; i < L.in; ++i) acc += wrow[i] * cur[i];
-        nxt[o] = acc;
+        const float* wrow = L.w.data() + static_cast<size_t>(o) * in;
+        nxt[o] = L.b[o] + dot(wrow, xx, in);
       }
       cur.swap(nxt);
     } else {  // LayerNorm + GELU (post-norm hidden block activation)
@@ -146,7 +185,7 @@ void Mlp::forward(const float* x, std::vector<float>& out) const {
       }
     }
   }
-  out = std::move(cur);
+  out.assign(cur.begin(), cur.end());  // copy out; keep the thread_local capacity
 }
 
 std::vector<float> Mlp::forward(const std::vector<float>& x) const {

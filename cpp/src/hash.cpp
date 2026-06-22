@@ -3,8 +3,9 @@
 #include <cstdint>
 #include <string>
 #include <variant>
+#include <vector>
 
-#include "agricola/canonical.hpp"
+#include "agricola/types.hpp"
 
 namespace agricola {
 namespace {
@@ -64,6 +65,101 @@ void hi(std::uint64_t& h, const BoardState& b) {
   for (const auto& s : b.action_spaces) hi(h, s);
   for (const auto& o : b.major_improvement_owners) hi(h, o);
 }
+inline void hi(std::uint64_t& h, const std::vector<std::string>& v) {
+  for (const auto& s : v) hi(h, s);
+  mix(h, v.size());
+}
+
+// Field-wise pending-frame hashing. Replaces the previous round-trip through
+// pending_to_canonical (build an nlohmann::json object, dump to a string, hash
+// the string) — pure allocation/serialization overhead on a hot path. Hashing
+// the fields directly mirrors how PlayerState/BoardState above are hashed. Every
+// discriminating field is mixed in (matching the JSON's discrimination), so two
+// states differing only in a pending flag still hash apart. Note this only needs
+// to be a good bucketing key: the transposition table resolves true equality via
+// GameState's defaulted operator==, so a collision costs a bucket walk, never
+// correctness. The common prefix (player_idx + initiated_by_id) is shared.
+inline void hpre(std::uint64_t& h, const std::optional<int>& pidx,
+                 const std::string& id) {
+  hi(h, pidx);
+  hi(h, id);
+}
+inline void hf(std::uint64_t& h, const PendingGrainUtilization& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.sow_chosen); hi(h, f.bake_chosen);
+}
+inline void hf(std::uint64_t& h, const PendingSow& f) {
+  hpre(h, f.player_idx, f.initiated_by_id);
+}
+inline void hf(std::uint64_t& h, const PendingBakeBread& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingPlow& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingFarmExpansion& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.room_chosen); hi(h, f.stable_chosen);
+}
+inline void hf(std::uint64_t& h, const PendingBuildStables& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.max_builds); hi(h, f.num_built);
+}
+inline void hf(std::uint64_t& h, const PendingBuildRooms& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.max_builds); hi(h, f.num_built);
+}
+inline void hf(std::uint64_t& h, const PendingBuildMajor& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.build_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingRenovate& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingFarmland& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.plow_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingCultivation& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.plow_chosen); hi(h, f.sow_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingSideJob& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.stable_chosen); hi(h, f.bake_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingSheepMarket& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingPigMarket& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingCattleMarket& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingMajorMinorImprovement& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.major_chosen); hi(h, f.minor_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingHouseRedevelopment& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.renovate_chosen); hi(h, f.improvement_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingClayOven& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.bake_chosen);
+}
+inline void hf(std::uint64_t& h, const PendingStoneOven& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.bake_chosen);
+}
+inline void hf(std::uint64_t& h, const PendingFencing& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.build_fences_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingBuildFences& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.pastures_built); hi(h, f.fences_built);
+  hi(h, f.subdivision_started); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingFarmRedevelopment& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.renovate_chosen); hi(h, f.build_fences_chosen); hi(h, f.triggers_resolved);
+}
+inline void hf(std::uint64_t& h, const PendingHarvestFeed& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.conversion_done);
+}
+inline void hf(std::uint64_t& h, const PendingHarvestBreed& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.breed_chosen);
+}
+inline void hf(std::uint64_t& h, const PendingReveal& f) {
+  hpre(h, f.player_idx, f.initiated_by_id);
+}
 
 }  // namespace
 
@@ -76,14 +172,15 @@ std::uint64_t state_hash(const GameState& s) {
   hi(h, s.players[0]);
   hi(h, s.players[1]);
   hi(h, s.board);
-  // Pending frames: hash the variant index + the frame's full canonical form so
-  // flags/counters fully discriminate (avoids transposition-table collisions
-  // between states that differ only in a pending flag). Frames are small and the
-  // stack is usually short, so this is cheap — far cheaper than serializing the
-  // whole state, which is what state_hash used to do.
+  // Pending frames: hash the variant index + every field of the active frame
+  // (the hf overloads above), so flags/counters fully discriminate (avoids
+  // transposition-table collisions between states differing only in a pending
+  // flag). Done field-wise rather than via pending_to_canonical (build a JSON
+  // object + dump to a string + hash the chars) — that round-trip was pure
+  // allocation/serialization overhead on this hot path.
   for (const auto& frame : s.pending_stack) {
     mix(h, frame.index());
-    hi(h, pending_to_canonical(frame));
+    std::visit([&](const auto& f) { hf(h, f); }, frame);
   }
   mix(h, s.pending_stack.size());
   return h;

@@ -150,11 +150,12 @@ void MCTSSearch::re_root(MCTSNode* new_root) {
   root_ = new_root;
 }
 
-double MCTSSearch::evaluate_leaf(const GameState& state) const {
+double MCTSSearch::evaluate_leaf(MCTSNode* node) const {
   // value(state): terminal -> exact score(0)-score(1); mid -> NN margin (P0
   // frame). Mirrors MCTSSearch.evaluate_leaf, which divides BOTH branches by
-  // leaf_value_scale (the terminal branch divides the exact margin too).
-  return nn_->value(state) / leaf_value_scale_;
+  // leaf_value_scale (the terminal branch divides the exact margin too). The
+  // value forward fills node->embedding (joint mode); policy reuses it later.
+  return nn_->value(node->state, node->embedding) / leaf_value_scale_;
 }
 
 void MCTSSearch::ensure_legal(MCTSNode* node) {
@@ -177,7 +178,8 @@ void MCTSSearch::ensure_priors(MCTSNode* node) {
   ensure_legal(node);
   // policy_fn(state, legal) -> {action: prior} over the full legal set; omitted
   // actions default to prior 0 in select_via_puct.
-  for (const auto& [a, pr] : nn_->policy(node->state)) node->priors[a] = pr;
+  for (const auto& [a, pr] : nn_->policy(node->state, node->embedding))
+    node->priors[a] = pr;
   // Optional uniform mixing: prior' = (1-mix)*policy + mix*(1/k) over the legal
   // set. Guarantees every legal move a non-zero prior so PUCT will explore it.
   if (prior_uniform_mix_ > 0.0 && !node->legal.empty()) {
@@ -264,7 +266,7 @@ void MCTSAgent::simulate(MCTSNode* root) {
   }
 
   // ---------- EVALUATE ----------
-  double leaf_value_p0 = search_->evaluate_leaf(node->state);
+  double leaf_value_p0 = search_->evaluate_leaf(node);
 
   // ---------- BACKPROP ----------
   for (MCTSNode* n : path) {

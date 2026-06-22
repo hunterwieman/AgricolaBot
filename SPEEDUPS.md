@@ -143,6 +143,25 @@ differing ~0.05 per call). `make_policy_fn` now `eval()`s the models at assembly
 making priors deterministic (and a touch faster: eval-mode dropout is a no-op).
 *(The value-net leaf is eval'd by its caller — `play_mcts_match` / `NNAgent`.)*
 
+### C++ self-play engine (native MCTS)
+
+The C++ inner loop (engine + MCTS + hand-rolled MLP inference) has its own
+optimization history — the authoritative record is **`CPP_ENGINE_PLAN.md`**
+("Optimization pass #1/#2/#3"), not duplicated here. The headline of the latest
+pass (joint shared-trunk, 800 sims) is **~3.35× over the prior C++ binary** from
+four gated changes: **NEON-vectorized linear dot product** (the big one — 2.54×
+alone; scalar float reductions serialized the FMA dependency chain *and* weren't
+vectorized), a **per-node trunk-embedding cache** on `MCTSNode` (+1.27×; the
+joint trunk forward ran twice per node — value then policy — where Python's
+`make_joint_fns` already shared one forward via an LRU), plus two small cleanups
+(**field-wise pending-frame hashing** replacing a per-frame JSON round-trip in
+`state_hash`, and **`thread_local` scratch buffers** in `Mlp::forward`). All gated
+green against `tests/test_cpp_*.py` (≤1e-4 NN; the embedding cache is exact). The
+C++ MLP forward is plain C++ — the equivalent of "batch the NN" in PyTorch buys
+far less here because the per-call framework overhead PyTorch batching amortizes
+doesn't exist (see `CPP_ENGINE_PLAN.md` §0.2 / pass #2). Next lever: a
+vectorized/polynomial `erf` for GELU (~7%, deferred).
+
 ### MCTS search structure
 
 Architectural choices that exist partly for speed (full detail in

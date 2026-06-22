@@ -270,43 +270,58 @@ struct NNInference::Impl {
   mutable bool emb_valid_ = false;
   mutable std::vector<float> emb_buf_;
 
-  // trunk(encode(s, decider)) + embed_norm, cached. The DECIDER-perspective
-  // embedding is shared by value (sign-flipped to P0) and every policy head.
-  const std::vector<float>& trunk_embed(const GameState& s) const {
-    std::uint64_t h = state_hash(s);
-    if (emb_valid_ && emb_hash_ == h) return emb_buf_;
+  // Compute trunk(encode(s, decider)) + standalone embed_norm into `dst`. The
+  // DECIDER-perspective embedding is shared by value (sign-flipped to P0) and
+  // every policy head.
+  void compute_embed(const GameState& s, std::vector<float>& dst) const {
     enc_spec->encode_into(s, *encoder_decider_of(s), enc_buf_);
-    trunk_mlp.forward(enc_buf_.data(), emb_buf_);  // raw embedding (pre embed_norm)
+    trunk_mlp.forward(enc_buf_.data(), dst);  // raw embedding (pre embed_norm)
     if (!embed_gamma.empty()) {               // apply standalone embed_norm (no GELU)
-      int d = static_cast<int>(emb_buf_.size());
+      int d = static_cast<int>(dst.size());
       double mean = 0.0;
-      for (float v : emb_buf_) mean += v;
+      for (float v : dst) mean += v;
       mean /= d;
       double var = 0.0;
-      for (float v : emb_buf_) {
+      for (float v : dst) {
         double dd = v - mean;
         var += dd * dd;
       }
       var /= d;  // biased (population) variance — matches torch.nn.LayerNorm
       double inv = 1.0 / std::sqrt(var + static_cast<double>(embed_eps));
       for (int i = 0; i < d; ++i)
-        emb_buf_[i] = static_cast<float>((emb_buf_[i] - mean) * inv) *
-                          embed_gamma[i] +
-                      embed_beta[i];
+        dst[i] = static_cast<float>((dst[i] - mean) * inv) * embed_gamma[i] +
+                 embed_beta[i];
     }
+  }
+
+  // The decider-perspective embedding, cached. With `ext` (a caller-owned buffer,
+  // e.g. MCTSNode::embedding): empty → compute & store there; non-empty → reuse
+  // (no forward). This is the per-node cache that collapses the value + policy
+  // trunk forwards for a node into one. Without `ext`, falls back to the internal
+  // single-entry state_hash cache (the no-node callers / pointer candidate loop).
+  const std::vector<float>& trunk_embed(const GameState& s,
+                                        std::vector<float>* ext = nullptr) const {
+    if (ext) {
+      if (!ext->empty()) return *ext;  // per-node cache hit — no trunk forward
+      compute_embed(s, *ext);
+      return *ext;
+    }
+    std::uint64_t h = state_hash(s);
+    if (emb_valid_ && emb_hash_ == h) return emb_buf_;
+    compute_embed(s, emb_buf_);
     emb_hash_ = h;
     emb_valid_ = true;
     return emb_buf_;
   }
 
   // ---- value ---- (P0-frame margin; terminal short-circuit is exact)
-  double value(const GameState& s) const {
+  double value(const GameState& s, std::vector<float>* ext = nullptr) const {
     if (s.phase == Phase::BEFORE_SCORING)
       return static_cast<double>(score(s, 0) - score(s, 1));
     std::vector<float> out;
     if (joint) {
       int d = *encoder_decider_of(s);
-      value_mlp.forward(trunk_embed(s).data(), out);   // head on the embedding
+      value_mlp.forward(trunk_embed(s, ext).data(), out);   // head on the embedding
       double v = static_cast<double>(out[0]) *
                  static_cast<double>(value_mlp.target_std());
       v = d == 0 ? v : -v;                             // decider-frame -> P0
@@ -320,10 +335,11 @@ struct NNInference::Impl {
   }
 
   // ---- fixed head logits ----
-  std::vector<float> fixed_logits(const LoadedHead& h, const GameState& s) const {
+  std::vector<float> fixed_logits(const LoadedHead& h, const GameState& s,
+                                  std::vector<float>* ext = nullptr) const {
     std::vector<float> out;
     if (joint) {
-      h.mlp.forward(trunk_embed(s).data(), out);
+      h.mlp.forward(trunk_embed(s, ext).data(), out);
       return out;
     }
     enc_spec->encode_into(s, *encoder_decider_of(s), enc_buf_);
@@ -336,13 +352,14 @@ struct NNInference::Impl {
   // candidate(D)] off the cached trunk embedding.
   std::vector<double> pointer_scores(
       const LoadedHead& h, const GameState& s,
-      const std::vector<std::vector<float>>& cand_feats, int cdim) const {
+      const std::vector<std::vector<float>>& cand_feats, int cdim,
+      std::vector<float>* ext = nullptr) const {
     int k = static_cast<int>(cand_feats.size());
     if (k == 0) return {};
     std::vector<double> scores(k);
     std::vector<float> out;
     if (joint) {
-      const std::vector<float>& e = trunk_embed(s);
+      const std::vector<float>& e = trunk_embed(s, ext);
       std::vector<float> row(e.size() + static_cast<size_t>(cdim));
       std::copy(e.begin(), e.end(), row.begin());
       for (int i = 0; i < k; ++i) {
@@ -485,7 +502,11 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
 NNInference::~NNInference() = default;
 
 double NNInference::value(const GameState& state) const {
-  return impl_->value(state);
+  return impl_->value(state, nullptr);
+}
+
+double NNInference::value(const GameState& state, std::vector<float>& emb) const {
+  return impl_->value(state, &emb);
 }
 
 double NNInference::value_scale() const { return impl_->value_scale; }
@@ -538,6 +559,16 @@ std::vector<std::pair<Action, double>> uniform(const std::vector<Action>& acts) 
 
 std::vector<std::pair<Action, double>> NNInference::policy(
     const GameState& state) const {
+  return policy_impl(state, nullptr);
+}
+
+std::vector<std::pair<Action, double>> NNInference::policy(
+    const GameState& state, std::vector<float>& emb) const {
+  return policy_impl(state, &emb);
+}
+
+std::vector<std::pair<Action, double>> NNInference::policy_impl(
+    const GameState& state, std::vector<float>* ext) const {
   std::vector<Action> legal = legal_actions(state);
 
   // 1. Fixed-vocab head over the FULL legal set (disjoint ownership).
@@ -590,7 +621,7 @@ std::vector<std::pair<Action, double>> NNInference::policy(
 
     std::vector<bool> mask(h.num_classes, false);
     for (const auto& [a, i] : candidates) mask[i] = true;
-    std::vector<float> logits = impl_->fixed_logits(h, state);
+    std::vector<float> logits = impl_->fixed_logits(h, state, ext);
     std::vector<double> probs = masked_softmax(logits, mask);
     std::vector<std::pair<Action, double>> out;
     for (const auto& [a, i] : candidates) out.push_back({a, probs[i]});
@@ -630,7 +661,7 @@ std::vector<std::pair<Action, double>> NNInference::policy(
     if (!acts.empty()) {
       std::vector<double> scores =
           impl_->pointer_scores(impl_->pointer.at("animal_frontier"), state,
-                                feats, impl_->animal_dim);
+                                feats, impl_->animal_dim, ext);
       std::vector<double> probs = softmax(scores);
       std::vector<std::pair<Action, double>> out;
       for (size_t i = 0; i < acts.size(); ++i) out.push_back({acts[i], probs[i]});
@@ -689,7 +720,7 @@ std::vector<std::pair<Action, double>> NNInference::policy(
     }
     if (!acts.empty()) {
       std::vector<double> scores = impl_->pointer_scores(
-          impl_->pointer.at("harvest_feed"), state, feats, D);
+          impl_->pointer.at("harvest_feed"), state, feats, D, ext);
       std::vector<double> probs = softmax(scores);
       std::vector<std::pair<Action, double>> out;
       for (size_t i = 0; i < acts.size(); ++i) out.push_back({acts[i], probs[i]});
@@ -711,7 +742,7 @@ std::vector<std::pair<Action, double>> NNInference::policy(
       if (std::holds_alternative<Stop>(a)) has_stop = true;
     }
     std::vector<bool> mask = {has_build, has_stop};
-    std::vector<float> logits = impl_->fixed_logits(h, state);
+    std::vector<float> logits = impl_->fixed_logits(h, state, ext);
     std::vector<double> probs = masked_softmax(logits, mask);
     double p_build = probs[0], p_stop = probs[1];
 

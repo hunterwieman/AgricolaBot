@@ -884,6 +884,54 @@ Net (final clean idle, 160 sims): C++ **0.98 s/game** vs Python **3.93 s/game** 
 steady-state); this pass cut the top remaining hotspot ~3×, and the hand-rolled MLP also cut C++
 per-process startup from ~0.49 s (TorchScript) to ~0.15 s.
 
+**Optimization pass #3 (done; profile-driven; another 3.35× on top of pass #2).** A fresh `sample`
+profile of the *joint shared-trunk* production path (800 sims, `cpp_export_best`) found the picture
+had shifted entirely: **`Mlp::forward` was 71% of main-thread wall** — the hand-rolled MLP from pass
+#2 had eliminated libtorch's overhead but left the matmuls scalar. Four changes, each gated green
+against the differential harness (`tests/test_cpp_*.py`, 133 tests). Baseline below is the
+post-pass-#2 binary; workload is 4 games @ 800 sims, single process, CPU-user time, min-of-N.
+
+1. **NEON-vectorized linear dot product** (`cpp/src/mlp.cpp`) — **the big one, 2.54× alone**
+   (12.27 → 4.84 s). The linear layer's inner product `acc += w[i]·x[i]` ran scalar: with no
+   `-ffast-math` the compiler can't reassociate a float reduction, so each FMA waited on the previous
+   one's result (a serial dependency chain) *and* wasn't vectorized — the M1's FMA units sat mostly
+   idle. Replaced with explicit `arm_neon.h` intrinsics: 4 independent `float32x4_t` accumulators (16
+   floats/iter) + horizontal add + scalar tail. Two stacked wins — breaking the dependency chain
+   (latency-hiding, the larger and less obvious effect) and SIMD lanes. The lane-parallel sum reorders
+   the float reduction vs the scalar version, so it is **not** bit-identical, but stays well inside the
+   ≤1e-4 gate (torch's own CPU reduction order already differs) — `test_cpp_nn.py` confirms.
+2. **Per-node trunk embedding cache** (`MCTSNode::embedding`; `cpp/src/{mcts,nn}.cpp`) —
+   **+1.27×** (4.84 → 3.80 s). The joint trunk forward (`170→256→256→128`, ~140k MACs) dominates NN
+   cost and ran **twice per node**: once for `value()` at leaf-eval, again for `policy()` when the node
+   was later expanded. Python's `make_joint_fns` already shared these via a 4096-entry `lru_cache`, but
+   the C++ port had shrunk that to a **single** `state_hash`-keyed slot, overwritten between the two
+   calls. Fix: store the decider-perspective embedding on the `MCTSNode` (it persists in the
+   transposition table for the node's lifetime — no eviction, no re-hash) and reuse it for value +
+   every policy head. **Exact** (byte-identical NN outputs); ~512 B/node, freed by `re_root`. The cache
+   is threaded as an optional `std::vector<float>&` through `NNInference::value`/`policy` (no-arg forms
+   keep the internal single-entry cache, so the differential surface is unchanged).
+3. **Field-wise pending-frame hashing** (`cpp/src/hash.cpp`) — finishes the job pass #1 started.
+   `state_hash` still hashed each pending frame by `pending_to_canonical` (build an `nlohmann::json`
+   object → `dump()` to a string → hash the chars) — the "residual pending-hash serialization" noted
+   above. Replaced with a `std::visit` over 25 per-frame `hf` overloads that mix each field directly.
+   Only changes hash *values*, never correctness: the transposition table resolves true equality via
+   `GameState::operator==`, so this is purely a bucketing key.
+4. **`thread_local` scratch buffers in `Mlp::forward`** (`cpp/src/mlp.cpp`) — the activation buffers
+   (`cur`/`nxt`) were heap-allocated every forward; reused per-thread now, so the per-call `malloc`/
+   `free` disappear.
+
+Changes 3+4 together moved the needle only **~3–4%** (3.80 → 3.66 s, near the noise floor) — the
+re-profile confirms they did their job (`nlohmann::dump_escaped` gone from the hot leaves; total
+allocation down ~22%), but the macOS small-object allocator is fast and the hash CPU mostly *moved*
+from JSON into the field-wise mixer rather than vanishing. They are kept for the cleaner hot path and
+because they compound, not as a headline. **Net pass #3: 12.27 → 3.66 s = 3.35×.** After it,
+`Mlp::forward` is ~25% of a 3.35×-smaller total (≈6× less absolute), and the profile is flat again:
+MLP ~25%, GELU (`std::erf`, not vectorized) ~7%, hashing ~9%, allocation ~10%, state copies ~5%,
+search bookkeeping ~5%. The remaining NN lever is a vectorized/polynomial `erf` (keep the exact GELU,
+SIMD the transcendental) — ~7%, most effort, deferred. *(The 3.35× is measured within C++; it implies
+a much larger C++-vs-Python gap than the pass-#2 ~4×, but Python was not re-measured this pass — treat
+~4× as the last honest cross-engine figure until re-benched.)*
+
 **Lesson — profile, don't guess.** The plan predicted the levers would be *state structural sharing*
 and *NN batching*. The profiler said otherwise: malloc/state-copy was minor (~1.5% — structural
 sharing **not worth it**), and the NN was dispatch-bound but partly spin-inflated. The actual wins

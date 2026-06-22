@@ -65,6 +65,13 @@ struct MCTSNode {
   bool priors_computed = false;
   std::unordered_map<Action, double, ActionHash> priors;  // PUCT P(s,a)
 
+  // Joint shared-trunk embedding (decider perspective), computed lazily and
+  // reused by value (at leaf eval) and policy (at expansion) — one trunk forward
+  // per node instead of two. Empty until first computed; unused in composite
+  // (separate-net) mode and for terminal/chance nodes. ~512 B/node, freed with
+  // the node when re_root prunes the table.
+  std::vector<float> embedding;
+
   double mean_q() const { return visits > 0 ? value_sum / visits : 0.0; }
   bool is_terminal() const { return state.phase == Phase::BEFORE_SCORING; }
 };
@@ -91,7 +98,9 @@ class MCTSSearch {
 
   // Leaf value in P0's frame, divided by leaf_value_scale (terminal -> exact
   // margin; mid-game -> NN value(state)). Mirrors MCTSSearch.evaluate_leaf.
-  double evaluate_leaf(const GameState& state) const;
+  // Takes the node so the value forward can populate/reuse node->embedding (the
+  // per-node trunk cache shared with policy at the node's later expansion).
+  double evaluate_leaf(MCTSNode* node) const;
 
   // Lazy caches.
   void ensure_legal(MCTSNode* node);

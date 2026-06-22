@@ -33,6 +33,18 @@ class NNInference {
   // cell-priority uniform / full-legal uniform). Omitted legal actions = 0.
   std::vector<std::pair<Action, double>> policy(const GameState& state) const;
 
+  // Cache-aware overloads (joint shared-trunk mode only). `emb` is a caller-owned
+  // embedding buffer, typically MCTSNode::embedding: empty on input → the trunk
+  // forward is computed and STORED in `emb`; non-empty → reused (no trunk
+  // forward). value() at a leaf and policy() at that node's later expansion both
+  // need the SAME decider-perspective embedding, so threading one buffer through
+  // collapses the two trunk forwards per node to one. In composite (separate-net)
+  // mode there is no shared embedding, so `emb` is left untouched and these
+  // behave exactly like the no-arg forms. Identical NN outputs either way.
+  double value(const GameState& state, std::vector<float>& emb) const;
+  std::vector<std::pair<Action, double>> policy(const GameState& state,
+                                                std::vector<float>& emb) const;
+
   // The value net's `value_scale` (manifest "value"/"value_scale"; ≈11.526).
   // MCTS divides each leaf value by this (leaf_value_scale = model.value_scale)
   // so a single c_uct is comparable across value heads of different magnitude.
@@ -41,6 +53,11 @@ class NNInference {
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
+
+  // Shared body of both policy() overloads; `emb` threads the per-node embedding
+  // cache through the head dispatch (nullptr = internal single-entry cache).
+  std::vector<std::pair<Action, double>> policy_impl(
+      const GameState& state, std::vector<float>* emb) const;
 };
 
 }  // namespace agricola
