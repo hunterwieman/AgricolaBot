@@ -402,9 +402,24 @@ std::string analyze_position(const std::string& state_json,
   // head value_scale to recover. We report the RAW tree Q unchanged and label
   // it "mix" so the UI shows the unitless blend value rather than a meaningless
   // ×value_scale denormalization.
-  const bool is_mix = (leaf_mode == "mix");
-  const double value_scale = is_mix ? 1.0 : nn->value_scale();
-  const std::string value_target = is_mix ? "mix" : nn->value_target();
+  //
+  // The reported unit/scale follow the ANALYSIS leaf_mode (which head the search
+  // actually backed up), NOT the model's primary training value_target — analysis
+  // can request any of the model's heads independently of how the bot plays. An
+  // outcome leaf is normalized by outcome_scale (recover its [-1,1] units); the
+  // margin leaf is the primary value head (its natural descriptor is value_target).
+  std::string value_target;
+  double value_scale;
+  if (leaf_mode == "mix") {
+    value_target = "mix";
+    value_scale = 1.0;
+  } else if (leaf_mode == "outcome") {
+    value_target = "outcome";
+    value_scale = nn->outcome_scale();
+  } else {  // margin = the primary value head
+    value_target = nn->value_target();
+    value_scale = nn->value_scale();
+  }
 
   json children = json::array();
   if (root != nullptr) {

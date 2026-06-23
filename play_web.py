@@ -1496,22 +1496,31 @@ class Session:
                 pass
 
     def analyze(self, sims: int, c_uct: float = 1.0,
-                prior_mix: float = 0.05) -> tuple[bool, list[dict], str]:
+                prior_mix: float = 0.05, leaf_mode: str | None = None,
+                mix_alpha: float | None = None) -> tuple[bool, list[dict], str]:
         """Run a read-only MCTS analysis rooted at the human's current state.
 
-        `c_uct` matches the bot's play value (1.0); analysis coverage (a Q for
-        several of the human's options, not just the single best line) comes
-        from the uniform `prior_mix`, which spreads visits across more moves.
+        `c_uct` controls exploration; analysis coverage (a Q for several of the
+        human's options, not just the single best line) comes from the uniform
+        `prior_mix`, which spreads visits across more moves.
+
+        Analysis is decoupled from how the bot plays: `leaf_mode`
+        ("margin" / "outcome" / "mix") selects which value head supplies the
+        backed-up leaf Q, and `mix_alpha` is the blend weight for the "mix"
+        leaf (`α·margin + (1−α)·outcome`). Both default to the deployed bot's
+        leaf (`_CPP_LEAF_MODE` / `_CPP_MIX_ALPHA`) when not given, so the
+        overlay matches the bot's evaluation unless the caller overrides it.
 
         Returns (ok, children, value_target) where children mirror the C++
         `--analyze` contract: [{type, params, visits, q}, ...] with q already in
         the human's frame (higher = better for the human) and denormalized into
         the value head's natural units (the C++ side multiplies the raw Q by the
-        model's value_scale). `value_target` ("margin" / "outcome") labels what
-        those units mean: "margin" => points of expected score diff, "outcome"
-        => expected win/draw/loss value in [-1,1]. ok=False (empty children,
-        "margin") when it's not a human's turn, the game is over, the C++
-        binary/export are missing, or the search fails.
+        model's value_scale). `value_target` ("margin" / "outcome" / "mix")
+        labels what those units mean: "margin" => points of expected score
+        diff, "outcome" => expected win/draw/loss value in [-1,1], "mix" => the
+        RAW unitless margin/outcome blend. ok=False (empty children, "margin")
+        when it's not a human's turn, the game is over, the C++ binary/export
+        are missing, or the search fails.
 
         Does NOT mutate game state and does NOT go through self.lock for the
         search itself — only a brief lock to read the state JSON. The search
@@ -1528,20 +1537,22 @@ class Session:
         if not (os.path.isfile(_CPP_BINARY) and os.path.isdir(_CPP_EXPORT_DIR)
                 and os.path.isfile(os.path.join(_CPP_EXPORT_DIR, "weights_manifest.json"))):
             return False, [], "margin"
+        mode = leaf_mode if leaf_mode is not None else _CPP_LEAF_MODE
+        alpha = mix_alpha if mix_alpha is not None else _CPP_MIX_ALPHA
         cmd = [
             _CPP_BINARY, "--analyze",
             "--model-dir", _CPP_EXPORT_DIR,
             "--sims", str(sims),
             "--c-uct", str(c_uct),
             "--temperature", "0.2",
+            # Leaf head the analysis evaluates with (margin / outcome / mix) —
+            # chosen by the caller, independent of how the bot plays. For the
+            # mix leaf the C++ side emits the RAW Q (unitless blend) with
+            # value_target "mix", forwarded unchanged below.
+            "--leaf-mode", mode, "--mix-alpha", str(alpha),
         ]
         if prior_mix > 0.0:
             cmd += ["--prior-mix", str(prior_mix)]
-        # Analyze with the SAME leaf the bot plays — so the overlay's q matches
-        # the bot's evaluation. For the mix leaf the C++ side emits the RAW Q
-        # (unitless blend) with value_target "mix", forwarded unchanged below.
-        if _CPP_LEAF_MODE != "margin":
-            cmd += ["--leaf-mode", _CPP_LEAF_MODE, "--mix-alpha", str(_CPP_MIX_ALPHA)]
         with _AI_SEMAPHORE:
             try:
                 proc = subprocess.Popen(
@@ -2001,19 +2012,30 @@ def _make_handler(registry: SessionRegistry):
                 })
                 return
             if path == "/api/analyze":
-                # Read-only: run the bot's MCTS on the human's current state
-                # and return each candidate move's visit count + value. Does
-                # not mutate game state. Uses the session's sims budget; the
-                # exploration constant c_uct comes from the client (default 1.0,
-                # matching the bot — the prior-mix gives the coverage). Cancelled
-                # when the human moves.
+                # Read-only: run MCTS on the human's current state and return
+                # each candidate move's visit count + value. Does not mutate
+                # game state. All search params come from the client and are
+                # independent of how the bot plays: c_uct (exploration), sims
+                # (search budget), leaf_mode (margin/outcome/mix value head),
+                # and mix_alpha (blend weight for the mix leaf). Cancelled when
+                # the human moves.
                 body = self._read_body()
                 c_uct = body.get("c_uct", 1.0)
                 if not (isinstance(c_uct, (int, float)) and c_uct > 0):
                     c_uct = 1.0
-                sims = (session.mcts_sims if session.mcts_sims is not None
-                        else _MCTS_SIMS_DEFAULT)
-                ok, children, value_target = session.analyze(sims, float(c_uct))
+                sims = body.get("sims")
+                if not (isinstance(sims, int) and sims >= 1):
+                    sims = (session.mcts_sims if session.mcts_sims is not None
+                            else _MCTS_SIMS_DEFAULT)
+                leaf_mode = body.get("leaf_mode")
+                if leaf_mode not in ("margin", "outcome", "mix"):
+                    leaf_mode = None  # fall back to the bot's deployed leaf
+                mix_alpha = body.get("mix_alpha")
+                if not (isinstance(mix_alpha, (int, float)) and 0.0 <= mix_alpha <= 1.0):
+                    mix_alpha = None
+                ok, children, value_target = session.analyze(
+                    sims, float(c_uct), leaf_mode=leaf_mode,
+                    mix_alpha=(float(mix_alpha) if mix_alpha is not None else None))
                 self._send_json(HTTPStatus.OK, {
                     "ok": ok, "children": children, "value_target": value_target})
                 return

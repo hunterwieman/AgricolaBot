@@ -36,10 +36,25 @@
   // was launched (so stale analysis never overwrites the current overlay).
   let analysisGen = 0;
   // Exploration constant for the analysis search (sent to /api/analyze).
-  // Default 0.5 = what the bot plays at, so the analysis matches the bot's
-  // evaluation; coverage of all moves comes from the prior-mix. Raising it
-  // makes the analysis explore wider. Tunable in the header; persisted.
-  let analysisCuct = parseFloat(localStorage.getItem('agricola.analysisCuct')) || 0.5;
+  // Default 1.0 = the value the bot plays at. Higher explores wider, lower
+  // searches deeper. Tunable in the analysis control row; persisted.
+  let analysisCuct = parseFloat(localStorage.getItem('agricola.analysisCuct')) || 1.0;
+  // Which value head the analysis evaluates with — independent of how the bot
+  // plays: "margin" (points of expected score diff), "outcome" (win/draw/loss
+  // in [-1,1]), or "mix" (the α-blend of the two). Default "mix" = the
+  // deployed bot's leaf. Tunable in the analysis control row; persisted.
+  let analysisLeafMode = localStorage.getItem('agricola.analysisLeafMode') || 'mix';
+  // Blend weight α for the "mix" leaf (α·margin + (1−α)·outcome). Default 0.9
+  // = the deployed bot's value. Only used when analysisLeafMode === 'mix'.
+  let analysisMixAlpha = parseFloat(localStorage.getItem('agricola.analysisMixAlpha'));
+  if (!(analysisMixAlpha >= 0 && analysisMixAlpha <= 1)) analysisMixAlpha = 0.9;
+  // Search budget (sims/move) for the analysis search, independent of the
+  // game's bot budget. null until first set — on first use it inherits the
+  // current game's sims (see ensureAnalysisSims); thereafter persisted.
+  let analysisSims = (() => {
+    const v = parseInt(localStorage.getItem('agricola.analysisSims'), 10);
+    return (Number.isFinite(v) && v >= 1) ? v : null;
+  })();
 
   // Render whatever the server just returned. The server is authoritative; a
   // response always carries the current state, so we simply adopt it. There is
@@ -101,7 +116,12 @@
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ c_uct: analysisCuct }),
+        body: JSON.stringify({
+          c_uct: analysisCuct,
+          sims: ensureAnalysisSims(),
+          leaf_mode: analysisLeafMode,
+          mix_alpha: analysisMixAlpha,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (gen !== analysisGen) return;  // a newer state arrived — discard
@@ -398,6 +418,7 @@
   // off, clear the overlay and re-render.
   function setAnalysis(v) {
     analysisOn = !!v;
+    updateAnalysisControls();
     if (analysisOn) {
       analysisGen++;
       analysisByKey.clear();
@@ -408,18 +429,82 @@
     }
   }
 
-  // Tune the analysis exploration constant. Persisted; re-runs analysis if on.
+  // The analysis sims budget, lazily initialised to the current game's bot
+  // sims on first use (so analysis matches the game's strength out of the box),
+  // then sticky. Persists once concretely set.
+  function ensureAnalysisSims() {
+    if (analysisSims == null) {
+      const fromGame = currentState && currentState.mcts_sims;
+      analysisSims = (Number.isFinite(fromGame) && fromGame >= 1) ? fromGame : 800;
+      localStorage.setItem('agricola.analysisSims', String(analysisSims));
+    }
+    return analysisSims;
+  }
+
+  // Re-run analysis after a control changes: invalidate any in-flight result
+  // (it carries the old params), clear the overlay, re-render, and refetch.
+  function rerunAnalysis() {
+    if (!(analysisOn && currentState && isHumanTurn(currentState))) return;
+    analysisGen++;
+    analysisByKey.clear();
+    render(currentState);
+    fetchAnalysis(analysisGen);
+  }
+
+  // Tune the analysis exploration constant (c_uct). Persisted; re-runs if on.
   function setAnalysisCuct(v) {
     const n = parseFloat(v);
     if (!(n > 0)) return;  // ignore invalid / non-positive
     analysisCuct = n;
     localStorage.setItem('agricola.analysisCuct', String(n));
-    if (analysisOn && currentState && isHumanTurn(currentState)) {
-      analysisGen++;            // invalidate any in-flight (old-c_uct) result
-      analysisByKey.clear();
-      render(currentState);
-      fetchAnalysis(analysisGen);
+    rerunAnalysis();
+  }
+
+  // Tune the analysis search budget (sims/move). Persisted; re-runs if on.
+  function setAnalysisSims(v) {
+    const n = parseInt(v, 10);
+    if (!(n >= 1)) return;
+    analysisSims = n;
+    localStorage.setItem('agricola.analysisSims', String(n));
+    rerunAnalysis();
+  }
+
+  // Choose which value head analysis evaluates with. Persisted; re-runs if on.
+  // Shows/hides the mix-α stepper (only meaningful for the mix leaf).
+  function setAnalysisLeafMode(mode) {
+    if (mode !== 'margin' && mode !== 'outcome' && mode !== 'mix') return;
+    analysisLeafMode = mode;
+    localStorage.setItem('agricola.analysisLeafMode', mode);
+    updateAnalysisControls();
+    rerunAnalysis();
+  }
+
+  // Tune the mix-leaf blend weight α. Persisted; re-runs if on.
+  function setAnalysisMixAlpha(v) {
+    const n = parseFloat(v);
+    if (!(n >= 0 && n <= 1)) return;
+    analysisMixAlpha = n;
+    localStorage.setItem('agricola.analysisMixAlpha', String(n));
+    rerunAnalysis();
+  }
+
+  // Reflect analysis state onto the control row: show the row only when
+  // analysis is on, and the α stepper only when the mix leaf is selected.
+  // Also keeps the segmented-control active button + input values in sync.
+  function updateAnalysisControls() {
+    const row = document.getElementById('analysis-controls');
+    if (row) row.classList.toggle('hidden', !analysisOn);
+    // When the row is shown, make sure the sims field displays a concrete value
+    // (lazily inherited from the current game on first open).
+    if (analysisOn) {
+      const simsInput = document.getElementById('analysis-sims');
+      if (simsInput) simsInput.value = String(ensureAnalysisSims());
     }
+    const alphaWrap = document.getElementById('analysis-alpha-wrap');
+    if (alphaWrap) alphaWrap.classList.toggle('hidden', analysisLeafMode !== 'mix');
+    document.querySelectorAll('#analysis-mode-group button[data-mode]').forEach((b) => {
+      b.classList.toggle('active', b.getAttribute('data-mode') === analysisLeafMode);
+    });
   }
 
   // Reflect a server-owned toggle flag onto its local mirror var + checkbox.
@@ -1329,11 +1414,26 @@
     if (fastCb) fastCb.addEventListener('change', (e) => setFastMode(e.target.checked));
     const analysisCb = document.getElementById('analysis-toggle');
     if (analysisCb) analysisCb.addEventListener('change', (e) => setAnalysis(e.target.checked));
+    // Analysis control row: model (margin/outcome/mix) + sims + c_uct + α.
+    document.querySelectorAll('#analysis-mode-group button[data-mode]').forEach((b) => {
+      b.addEventListener('click', () => setAnalysisLeafMode(b.getAttribute('data-mode')));
+    });
+    const simsInput = document.getElementById('analysis-sims');
+    if (simsInput) {
+      if (analysisSims != null) simsInput.value = String(analysisSims);
+      simsInput.addEventListener('change', (e) => setAnalysisSims(e.target.value));
+    }
     const cuctInput = document.getElementById('analysis-cuct');
     if (cuctInput) {
       cuctInput.value = String(analysisCuct);  // reflect persisted value
       cuctInput.addEventListener('change', (e) => setAnalysisCuct(e.target.value));
     }
+    const alphaInput = document.getElementById('analysis-alpha');
+    if (alphaInput) {
+      alphaInput.value = String(analysisMixAlpha);
+      alphaInput.addEventListener('change', (e) => setAnalysisMixAlpha(e.target.value));
+    }
+    updateAnalysisControls();  // initial visibility (analysis off → row hidden)
     const confirmCb = document.getElementById('confirm-turn-toggle');
     if (confirmCb) confirmCb.addEventListener('change', (e) => setConfirmTurn(e.target.checked));
     // Global Enter-key handler: when an AI is on the clock, Enter advances

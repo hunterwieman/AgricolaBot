@@ -3069,3 +3069,55 @@ preserved + flipped to superseded in REGISTRY. Reversible.
 - Bug caught: killing a multiprocessing driver orphans its pool's `selfplay` workers — must kill
   workers by binary path, and a loose `pgrep -f selfplay` matches the agent's own grep commands
   AND the Claude harness process (near-miss). Verify with `pgrep` after.
+
+---
+
+## Session — Web-UI analysis mode decoupled from the bot (2026-06-23)
+
+### What was built
+Overhauled the web UI's "Show analysis" overlay so the read-only analysis search is configured
+independently of how the deployed bot plays (previously it was hard-wired to mirror the bot's
+leaf — `_CPP_LEAF_MODE="mix"` / α=0.9). Turning analysis on now reveals a dedicated control row
+below the header (`#analysis-controls` in `templates/index.html`) with four per-request,
+localStorage-persisted, mid-game-changeable knobs sent to `/api/analyze`:
+- **Model** — a `margin` / `outcome` / `mix` segmented control selecting which value head the
+  analysis leaf evaluates with (default `mix`). All three run off the **one** deployed champion
+  (`joint_outcome_44k`), whose export already carries both the margin and outcome head blobs +
+  scales — so this is three *leaf modes*, not three models.
+- **α** — the mix-blend weight (step 0.05, default 0.9), shown only for the `mix` leaf.
+- **Sims** — search budget (step 100); inherits the current game's sims on first open, then sticky.
+- **c_uct** — exploration constant (step 0.2, default 1.0), renamed from the old "explore" input,
+  with the inline hint "higher = explore wider, lower = search deeper".
+
+Plumbing: `Session.analyze()` gained `leaf_mode` / `mix_alpha` params (falling back to the bot's
+deployed leaf when omitted); `/api/analyze` now reads + validates `sims` / `leaf_mode` /
+`mix_alpha` from the request body alongside `c_uct`. Frontend (`static/app.js`) added the four
+state vars + setters (each re-runs analysis on change via a shared `rerunAnalysis`), the
+`ensureAnalysisSims` lazy game-sims inheritance, and `updateAnalysisControls` for row/α visibility
++ segmented-control active state. CSS (`static/style.css`) added the control-row + segmented-control
+styling and a generic `.hidden`.
+
+### Bug caught and fixed (latent, C++)
+Switching analysis to the `outcome` leaf surfaced a pre-existing bug in `analyze_position`
+(`cpp/src/selfplay.cpp`): it reported the model's *primary training* `value_target` ("margin")
+and denormalized by the margin `value_scale` regardless of the requested leaf — so an outcome
+analysis came back labeled "margin" with a q of ~1.06 (outside the outcome head's [−1,1] range).
+It never showed before because analysis only ever ran the bot's mix leaf. Fixed so the reported
+unit + scale follow the **analysis leaf_mode**: outcome → `outcome_scale` ([−1,1]), margin → the
+primary value head's `value_target` + `value_scale`, mix → raw Q labeled "mix".
+
+### Verification
+- `scripts/verify_web_sync.py` → ALL CHECKS PASSED (core move/undo/confirm/new-game flows).
+- C++ differential gates green after the rebuild: `tests/test_cpp_selfplay.py` +
+  `tests/test_cpp_nn.py` → 71 passed.
+- Live `/api/analyze` across all three modes returns correct units (outcome q in [−1,1], margin
+  in points, mix raw) both locally and on production.
+
+### Deploy
+Shipped to https://agricolabot.fly.dev/ via `./deploy.sh` (recompiles the C++ binary in the image,
+needed for the `analyze_position` fix). Single always-on machine rolled, smoke + health checks
+passed; production analyze verified live across all three leaf modes.
+
+### Docs
+CLAUDE.md §2.6 (the "Show analysis" paragraph + the `play_web.py` Toggles directory entry) updated
+to describe the decoupled control row and the leaf_mode-driven `value_target` reporting.

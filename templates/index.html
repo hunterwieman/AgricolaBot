@@ -19,16 +19,10 @@
         <input type="checkbox" id="fast-mode-toggle">
         <span>Fast mode</span>
       </label>
-      <div class="header-group">
-        <label class="header-toggle" title="Show the AI's value (Q) and visit count for each of your options. Runs in the background; never blocks your move.">
-          <input type="checkbox" id="analysis-toggle">
-          <span>Show analysis</span>
-        </label>
-        <label class="header-toggle analysis-sub" title="Analysis exploration constant (c_uct). Default 0.5 — the value the bot itself plays at, so the analysis matches the bot's evaluation (coverage of all moves comes from the prior mix). Raise it to make the analysis search explore more widely. Analysis only — does not affect how the bot plays.">
-          <span>explore (default 0.5)</span>
-          <input type="number" id="analysis-cuct" min="0.1" step="0.5" value="0.5">
-        </label>
-      </div>
+      <label class="header-toggle" title="Show the AI's value (Q) and visit count for each of your options. Runs in the background; never blocks your move. Configure the analysis model/budget in the row that appears below.">
+        <input type="checkbox" id="analysis-toggle">
+        <span>Show analysis</span>
+      </label>
       <label class="header-toggle" title="Pause after each of your turns to confirm or undo before the AI replies. Forced/singleton turns are not paused.">
         <input type="checkbox" id="confirm-turn-toggle">
         <span>Confirm turns</span>
@@ -37,6 +31,32 @@
       <button id="download-trace-btn" title="Download the full action trace and seed for this game as JSON. Useful for bug reports.">Download trace</button>
       <span id="connection-state" class="conn-disconnected">offline</span>
     </div>
+  </div>
+
+  <!-- Analysis control row — only shown while "Show analysis" is on. Lets you
+       configure the read-only overlay independently of how the bot plays. -->
+  <div id="analysis-controls" class="hidden">
+    <span class="analysis-ctl">
+      <span class="analysis-ctl-label">Model</span>
+      <span id="analysis-mode-group" class="seg" title="Which value head the analysis evaluates with. margin = points of expected score difference; outcome = expected win/draw/loss in [-1,1]; mix = the α-blend of the two (what the deployed bot uses).">
+        <button type="button" data-mode="margin">margin</button>
+        <button type="button" data-mode="outcome">outcome</button>
+        <button type="button" data-mode="mix">mix</button>
+      </span>
+    </span>
+    <span id="analysis-alpha-wrap" class="analysis-ctl hidden" title="Mix blend weight α: the leaf value is α·margin + (1−α)·outcome. 1.0 = pure margin, 0.0 = pure outcome. Deployed bot uses 0.9.">
+      <span class="analysis-ctl-label">α</span>
+      <input type="number" id="analysis-alpha" min="0" max="1" step="0.05" value="0.9">
+    </span>
+    <span class="analysis-ctl">
+      <span class="analysis-ctl-label">Sims</span>
+      <input type="number" id="analysis-sims" min="100" step="100">
+    </span>
+    <span class="analysis-ctl" title="Exploration constant (c_uct): higher = explore wider, lower = search deeper. Analysis only — does not affect how the bot plays.">
+      <span class="analysis-ctl-label">c_uct</span>
+      <input type="number" id="analysis-cuct" min="0.2" step="0.2" value="1.0">
+      <span class="analysis-ctl-hint">higher = explore wider, lower = search deeper</span>
+    </span>
   </div>
 
   <!-- Turn controls (Confirm / Undo) — rendered above the boards. -->
