@@ -21,6 +21,7 @@
 //            --out-dir DIR2 [--sims S --c-uct C --temperature T]
 //   For each idx i, plays seed = B + i and writes DIR2/trace_<i>.json.
 
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -126,6 +127,9 @@ int main(int argc, char** argv) {
   std::string sweep_sims_arg = "160,320,520,800,1200,1600";
   double cuct_lo = 0.1;
   double cuct_hi = 1.0;
+  // When set, c_uct is drawn LOG-uniformly over [cuct_lo, cuct_hi] (density ∝ 1/x)
+  // rather than uniformly — better coverage of small c_uct on a wide range.
+  bool cuct_log = false;
   // Mix-rate (α) sweep: when set, BOTH seats run leaf-mode "mix" and each seat
   // draws α per game uniformly from [alpha_lo, alpha_hi] using the SAME per-game
   // RNG as the sims/c_uct sweep (reproducible). Reported as alpha0/alpha1 in the
@@ -146,6 +150,10 @@ int main(int argc, char** argv) {
   // Per-seat leaf-value head: "margin" (default), "outcome", or "mix" — selects
   // which NN head supplies the backed-up leaf Q (mirrors the Python leaf_mode).
   std::string leaf_mode_p0 = "margin", leaf_mode_p1 = "margin";
+  // Per-seat FIXED mix-leaf blend weight α (used when that seat's leaf_mode ==
+  // "mix" and α is NOT being swept). Lets a match/sweep pin the deployed α (0.9)
+  // instead of the even-mix 0.5 default.
+  double mix_alpha_p0 = 0.5, mix_alpha_p1 = 0.5;
   // Self-play path (single agent both seats) selection: "visits" / "q".
   bool select_q = false;
 
@@ -191,6 +199,12 @@ int main(int argc, char** argv) {
       cuct_lo = std::atof(argv[++i]);
     } else if (arg == "--cuct-hi" && i + 1 < argc) {
       cuct_hi = std::atof(argv[++i]);
+    } else if (arg == "--cuct-log") {
+      cuct_log = true;
+    } else if (arg == "--mix-alpha-p0" && i + 1 < argc) {
+      mix_alpha_p0 = std::atof(argv[++i]);
+    } else if (arg == "--mix-alpha-p1" && i + 1 < argc) {
+      mix_alpha_p1 = std::atof(argv[++i]);
     } else if (arg == "--sweep-alpha") {
       sweep_alpha = true;
     } else if (arg == "--alpha-lo" && i + 1 < argc) {
@@ -336,7 +350,8 @@ int main(int argc, char** argv) {
       std::uint64_t game_seed = base_seed + static_cast<std::uint64_t>(idx);
       int s0 = sims, s1 = sims;
       double c0 = c_uct, c1 = c_uct;
-      double a0 = 0.5, a1 = 0.5;  // MIX α (reported only when sweeping α)
+      // MIX α: default to the fixed per-seat values; --sweep-alpha overrides below.
+      double a0 = mix_alpha_p0, a1 = mix_alpha_p1;
       if (sweep_any) {
         // Per-game RNG (reproducible from the game seed, mixed so adjacent
         // seeds don't give correlated draws). Draws (in a FIXED order so the
@@ -348,11 +363,19 @@ int main(int argc, char** argv) {
         z = z ^ (z >> 31);
         std::mt19937_64 rng(z);
         std::uniform_int_distribution<size_t> pick(0, sweep_sims.size() - 1);
-        std::uniform_real_distribution<double> uc(cuct_lo, cuct_hi);
+        // c_uct drawn uniform on [lo,hi], or log-uniform (∝1/x) when --cuct-log:
+        // draw uniform in log-space then exponentiate.
+        std::uniform_real_distribution<double> uc(
+            cuct_log ? std::log(cuct_lo) : cuct_lo,
+            cuct_log ? std::log(cuct_hi) : cuct_hi);
+        auto draw_c = [&](std::mt19937_64& r) {
+          double v = uc(r);
+          return cuct_log ? std::exp(v) : v;
+        };
         s0 = static_cast<int>(sweep_sims[pick(rng)]);
-        c0 = uc(rng);
+        c0 = draw_c(rng);
         s1 = static_cast<int>(sweep_sims[pick(rng)]);
-        c1 = uc(rng);
+        c1 = draw_c(rng);
         if (sweep_alpha) {
           std::uniform_real_distribution<double> ua(alpha_lo, alpha_hi);
           a0 = ua(rng);
