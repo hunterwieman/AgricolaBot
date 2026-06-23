@@ -914,15 +914,21 @@ stronger so default off).
 **Toggles** (header): **Fast mode** (auto-submit singleton/forced actions and skip confirm on them);
 **Confirm turns** (pause after each *non-forced* human turn to confirm/undo before the bot replies — undo
 is only offered when this is on; harvest **feed** and **breed** are separate turns); **Show analysis** (a
-read-only overlay of the bot's MCTS Q-value + visit count for each of the human's moves — async, never
-blocks the move, cancelled when you move, uniform-prior-mixed at `w=0.05` for coverage; its **explore**
-input is the analysis-only `c_uct`, default `1.0`). The overlay's Q is shown in the leaf's natural
-units: for a **margin** leaf it denormalizes the tree Q by `value_scale` to points, for an **outcome**
-leaf it labels the `[−1, 1]` value, and for a **MIX** leaf it emits the **raw, un-denormalized** Q
-(there is no single scale for a blend) labeled `mix`. The leaf's `value_target` descriptor is threaded
-end-to-end — model → training → export manifest → C++ `value_target()` → `/api/analyze` → `app.js` — so
-the overlay labels itself correctly. The action board lists spaces in **reveal order within each
-stage**, keeping the STAGE headers.
+read-only overlay of MCTS Q-value + visit count for each of the human's moves — async, never blocks the
+move, cancelled when you move, uniform-prior-mixed at `w=0.05` for coverage). **Analysis is fully
+decoupled from how the bot plays:** turning it on reveals a dedicated control row (below the header,
+`#analysis-controls` in `index.html`) with four independently-tunable, localStorage-persisted knobs sent
+per-request to `/api/analyze` (so they can change mid-game and re-run): the **Model** segmented control
+(`margin` / `outcome` / `mix` — which value head the analysis leaf evaluates with, default `mix`), the
+mix-blend **α** stepper (shown only for the mix leaf, step 0.05, default 0.9), the **Sims** budget (step
+100, inherits the current game's sims on first open then sticky), and **c_uct** (step 0.2, default 1.0;
+"higher = explore wider, lower = search deeper"). The overlay's Q is shown in the chosen leaf's natural
+units: a **margin** leaf denormalizes the tree Q by the margin `value_scale` to points, an **outcome**
+leaf denormalizes by `outcome_scale` to the `[−1, 1]` value, and a **mix** leaf emits the **raw,
+un-denormalized** Q (no single scale for a blend) labeled `mix`. The C++ `analyze_position` derives the
+reported `value_target` + scale from the **analysis leaf_mode** (not the model's primary training target),
+and that descriptor is threaded `/api/analyze` → `app.js` so the badge labels itself correctly. The
+action board lists spaces in **reveal order within each stage**, keeping the STAGE headers.
 
 **Deploy.** `Dockerfile` compiles the C++ `selfplay` binary for Linux and copies the resolved
 `cpp_export_best` champion into the image; `fly.toml` pins **one always-on machine**
@@ -1058,7 +1064,7 @@ Archived (in `archive/`, fully superseded by current docs):
 AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
 
-    play_web.py                     # Top-level entry point — browser-based human-vs-bot play UI (CLAUDE.md §2.6). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs: seed, sims/move (default 800), opponent prior-mix (default 0). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze` with `--leaf-mode`/`--mix-alpha`, prior-mix 0.05, async, cancel-on-move; the overlay denormalizes the tree Q by the leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
+    play_web.py                     # Top-level entry point — browser-based human-vs-bot play UI (CLAUDE.md §2.6). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs: seed, sims/move (default 800), opponent prior-mix (default 0). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, async, cancel-on-move, prior-mix 0.05; decoupled from the bot — a control row sends per-request `leaf_mode`/`mix_alpha`/`sims`/`c_uct`, so the human can analyze with the margin/outcome/mix head, any α, any budget, any exploration, changeable mid-game; the overlay denormalizes the tree Q by the analysis leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
 
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
 
