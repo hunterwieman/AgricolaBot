@@ -88,3 +88,9 @@ nn_models/exp_visit_combined/train_log.jsonl
 
 # Regret-sweep diagnostic artifacts (regenerable via scripts/replay_regret_sweep.py)
 regret_out/
+
+# Cloud c_uct sweep artifacts (regenerable via scripts/cloud_cuct_sweep.sh)
+sweep_out/
+sweep_driver_*.log
+sweep_out_driver.log
+sweep_progress.log

@@ -59,6 +59,12 @@ def _run_chunk(arg) -> str | None:
     if args.sweep_alpha:
         cmd += ["--sweep-alpha",
                 "--alpha-lo", str(args.alpha_lo), "--alpha-hi", str(args.alpha_hi)]
+    if args.cuct_log:
+        cmd += ["--cuct-log"]
+    if args.mix_alpha is not None:
+        cmd += ["--leaf-mode-p0", "mix", "--leaf-mode-p1", "mix",
+                "--mix-alpha-p0", str(args.mix_alpha),
+                "--mix-alpha-p1", str(args.mix_alpha)]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             text=True)
     for line in proc.stdout:  # line-buffered: one GAME line per finished game
@@ -140,6 +146,11 @@ def main() -> None:
     ap.add_argument("--sweep-sims", default="160,320,520,800,1200,1600")
     ap.add_argument("--cuct-lo", type=float, default=0.1)
     ap.add_argument("--cuct-hi", type=float, default=1.0)
+    ap.add_argument("--cuct-log", action="store_true",
+                    help="draw c_uct log-uniform (density ∝ 1/x) over [lo,hi]")
+    ap.add_argument("--mix-alpha", type=float, default=None,
+                    help="fixed MIX-leaf blend α for BOTH seats (sets leaf-mode "
+                         "mix); omit to use the default margin leaf")
     ap.add_argument("--sweep-alpha", action="store_true",
                     help="sweep the MIX-leaf blend weight α per seat per game "
                          "(both seats use leaf-mode mix); composes with fixed "
