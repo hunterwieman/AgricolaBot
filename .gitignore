@@ -85,3 +85,6 @@ nn_models/exp_q_t002/
 nn_models/exp_visit_t07/
 nn_models/exp_visit_t10/
 nn_models/exp_visit_combined/train_log.jsonl
+
+# Regret-sweep diagnostic artifacts (regenerable via scripts/replay_regret_sweep.py)
+regret_out/
