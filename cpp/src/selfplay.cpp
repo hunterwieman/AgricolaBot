@@ -165,6 +165,26 @@ void attach_search_targets(
   entry["root_value"] = root_value;
 }
 
+// Resolve a leaf-mode string ("margin"/"outcome"/"mix") and apply it to a
+// search. "margin" is a no-op (the ctor's default scales already apply); for
+// "outcome"/"mix" the scales come from the model's manifest (value_scale +
+// outcome_scale) and the model must carry an outcome head; "mix" also sets the
+// blend weight α. Shared by mcts_match_game, pick_move, and analyze_position.
+void apply_leaf_mode(MCTSSearch& search, const NNInference& nn,
+                     const std::string& mode, double mix_alpha) {
+  if (mode == "margin") return;  // default; scales already set in the ctor
+  if (mode != "outcome" && mode != "mix")
+    throw std::runtime_error("apply_leaf_mode: leaf_mode must be "
+                             "margin/outcome/mix, got '" + mode + "'");
+  if (!nn.has_outcome())
+    throw std::runtime_error("apply_leaf_mode: leaf_mode '" + mode +
+                             "' requires a model with an outcome head");
+  search.set_margin_scale(nn.value_scale());
+  search.set_outcome_scale(nn.outcome_scale());
+  search.set_leaf_mode(mode == "outcome" ? LeafMode::OUTCOME : LeafMode::MIX);
+  if (mode == "mix") search.set_mix_alpha(mix_alpha);
+}
+
 }  // namespace
 
 std::string mcts_selfplay_trace_with(const NNInference& nn, std::uint64_t seed,
@@ -257,28 +277,16 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
                                 bool select_q_p0,
                                 bool select_q_p1,
                                 const std::string& leaf_mode_p0,
-                                const std::string& leaf_mode_p1) {
+                                const std::string& leaf_mode_p1,
+                                double mix_alpha_p0,
+                                double mix_alpha_p1) {
   SetupResult su = setup(seed);
   GameState state = su.initial;
   const std::vector<std::string>& order = su.round_card_order;
 
-  // Resolve a per-seat leaf-mode string ("margin"/"outcome"/"mix") into the
-  // LeafMode enum + apply it to the seat's search. For outcome/mix the scales
-  // come from that seat's own NN manifest (value_scale = the margin scale,
-  // outcome_scale); mix uses BOTH directly (each Q normalized, then averaged).
-  auto apply_leaf_mode = [](MCTSSearch& search, const NNInference& nn,
-                            const std::string& mode) {
-    if (mode == "margin") return;  // default; scales already set in the ctor
-    if (mode != "outcome" && mode != "mix")
-      throw std::runtime_error("mcts_match_game: leaf_mode must be "
-                               "margin/outcome/mix, got '" + mode + "'");
-    if (!nn.has_outcome())
-      throw std::runtime_error("mcts_match_game: leaf_mode '" + mode +
-                               "' requires a model with an outcome head");
-    search.set_margin_scale(nn.value_scale());
-    search.set_outcome_scale(nn.outcome_scale());
-    search.set_leaf_mode(mode == "outcome" ? LeafMode::OUTCOME : LeafMode::MIX);
-  };
+  // Per-seat leaf-mode applied via the shared apply_leaf_mode helper (resolves
+  // "margin"/"outcome"/"mix"; for outcome/mix the scales come from that seat's
+  // own NN manifest, and mix uses the blend weight α).
 
   // One search/agent per seat, each over its own value net AND its own
   // (sims, c_uct, temperature) search params. P0 reuses the self-play mixing
@@ -286,13 +294,13 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
   // pair so the two seats never share an RNG stream.
   MCTSSearch search0(&nn_p0, c_uct_p0, seed ^ 0x9E3779B97F4A7C15ULL, /*fpu=*/0.0);
   search0.set_prior_uniform_mix(prior_mix_p0);
-  apply_leaf_mode(search0, nn_p0, leaf_mode_p0);
+  apply_leaf_mode(search0, nn_p0, leaf_mode_p0, mix_alpha_p0);
   MCTSAgent agent0(&search0, sims_p0, c_uct_p0, /*fpu=*/0.0, temperature_p0,
                    seed ^ 0xD1B54A32D192ED03ULL, /*cap_total_sims=*/true);
   agent0.set_select_by_q(select_q_p0);
   MCTSSearch search1(&nn_p1, c_uct_p1, seed ^ 0xBF58476D1CE4E5B9ULL, /*fpu=*/0.0);
   search1.set_prior_uniform_mix(prior_mix_p1);
-  apply_leaf_mode(search1, nn_p1, leaf_mode_p1);
+  apply_leaf_mode(search1, nn_p1, leaf_mode_p1, mix_alpha_p1);
   MCTSAgent agent1(&search1, sims_p1, c_uct_p1, /*fpu=*/0.0, temperature_p1,
                    seed ^ 0x94D049BB133111EBULL, /*cap_total_sims=*/true);
   agent1.set_select_by_q(select_q_p1);
@@ -329,10 +337,11 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
 
 std::string pick_move(const std::string& state_json, const std::string& model_dir,
                       int sims, double c_uct, double temperature,
-                      double prior_mix) {
+                      double prior_mix, const std::string& leaf_mode,
+                      double mix_alpha) {
 #ifndef AGRICOLA_WITH_NN
   (void)state_json; (void)model_dir; (void)sims; (void)c_uct; (void)temperature;
-  (void)prior_mix;
+  (void)prior_mix; (void)leaf_mode; (void)mix_alpha;
   throw std::runtime_error("pick_move: binary was not built with NN support");
 #else
   GameState state = game_state_from_string(state_json);
@@ -342,6 +351,7 @@ std::string pick_move(const std::string& state_json, const std::string& model_di
   // affects tie-breaking in tree expansion, not correctness.
   MCTSSearch search(nn.get(), c_uct, /*rng_seed=*/0, /*fpu=*/0.0);
   search.set_prior_uniform_mix(prior_mix);  // 0 = pure policy (default)
+  apply_leaf_mode(search, *nn, leaf_mode, mix_alpha);  // margin = no-op
   MCTSAgent agent(&search, sims, c_uct, /*fpu=*/0.0, temperature,
                   /*rng_seed=*/0, /*cap_total_sims=*/false);
 
@@ -358,10 +368,11 @@ std::string pick_move(const std::string& state_json, const std::string& model_di
 std::string analyze_position(const std::string& state_json,
                              const std::string& model_dir, int sims,
                              double c_uct, double temperature,
-                             double prior_mix) {
+                             double prior_mix, const std::string& leaf_mode,
+                             double mix_alpha) {
 #ifndef AGRICOLA_WITH_NN
   (void)state_json; (void)model_dir; (void)sims; (void)c_uct; (void)temperature;
-  (void)prior_mix;
+  (void)prior_mix; (void)leaf_mode; (void)mix_alpha;
   throw std::runtime_error("analyze_position: binary was not built with NN support");
 #else
   (void)temperature;  // analysis discards the played move; temperature is unused.
@@ -372,6 +383,7 @@ std::string analyze_position(const std::string& state_json,
   // tie-breaking). cap_total_sims=false so we run the full `sims` budget.
   MCTSSearch search(nn.get(), c_uct, /*rng_seed=*/0, /*fpu=*/0.0);
   search.set_prior_uniform_mix(prior_mix);  // uniform-mix the prior for coverage
+  apply_leaf_mode(search, *nn, leaf_mode, mix_alpha);  // margin = no-op
   MCTSAgent agent(&search, sims, c_uct, /*fpu=*/0.0, temperature,
                   /*rng_seed=*/0, /*cap_total_sims=*/false);
 
@@ -380,15 +392,19 @@ std::string analyze_position(const std::string& state_json,
   MCTSNode* root = agent.last_root();
 
   // The leaf is the value head, whose mean Q (value_sum/visits) is NORMALIZED
-  // (the head's output, target / value_scale at train time). Multiply by
-  // value_scale to recover the head's NATURAL units. What those units mean
-  // depends on what the value head was trained on — the `value_target`
-  // descriptor: "margin" => points of expected score diff; "outcome" =>
-  // expected win/draw/loss value in [-1,1]. We report BOTH the denormalized q
-  // and the descriptor so the UI can label it (e.g. "margin +1.2" / "outcome
-  // +0.3") rather than guessing or silently mislabeling.
-  const double value_scale = nn->value_scale();
-  const std::string& value_target = nn->value_target();
+  // (the head's output, target / value_scale at train time). For margin/outcome
+  // leaves we multiply by value_scale to recover the head's NATURAL units, and
+  // the `value_target` descriptor labels them: "margin" => points of expected
+  // score diff; "outcome" => expected win/draw/loss value in [-1,1].
+  //
+  // For the MIX leaf the backed-up Q is ALREADY a blend of two normalized terms
+  // (effective leaf_value_scale 1.0 — see LeafMode::MIX), so there is no single
+  // head value_scale to recover. We report the RAW tree Q unchanged and label
+  // it "mix" so the UI shows the unitless blend value rather than a meaningless
+  // ×value_scale denormalization.
+  const bool is_mix = (leaf_mode == "mix");
+  const double value_scale = is_mix ? 1.0 : nn->value_scale();
+  const std::string value_target = is_mix ? "mix" : nn->value_target();
 
   json children = json::array();
   if (root != nullptr) {
@@ -400,7 +416,7 @@ std::string analyze_position(const std::string& state_json,
       if (child->visits == 0) continue;  // unvisited — omit
       double q = child->value_sum / static_cast<double>(child->visits);
       if (child->decider != root->decider) q = -q;
-      q *= value_scale;  // normalized Q -> the value head's natural units
+      q *= value_scale;  // margin/outcome: -> natural units; mix: ×1.0 (raw Q)
       json tp = json::parse(action_to_json(action));  // {type, params}
       json entry = json::object();
       entry["type"] = tp.at("type");
@@ -413,7 +429,7 @@ std::string analyze_position(const std::string& state_json,
 
   json out = json::object();
   out["children"] = std::move(children);
-  out["value_target"] = value_target;  // "margin" / "outcome" — the q unit label
+  out["value_target"] = value_target;  // "margin" / "outcome" / "mix" — q unit
   return out.dump();
 #endif
 }

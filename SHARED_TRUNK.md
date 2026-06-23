@@ -6,12 +6,17 @@ self-play data, consumed by MCTS through one forward per node, and ported to the
 C++ engine. This is the Phase 2.3 successor to the separate value net + nine
 independent policy heads.
 
-> **Status (2026-06-15):** current champion is **`joint_taper128_thin_sp30k_lr3e4`**
-> — a second-generation model trained on 30k snapshot-thinned self-play games
-> generated *by* `joint_taper128_thin`, warm-started at lr=3e-4. It beats all prior
-> joint champions (gauntlet confirmed) and is the current `nn_models/best`. The
-> original `joint_taper128` beat the previous-best separate-net setup **198-2 = 99.0%,
-> +12.95 margin** at 800-sim PUCT; the self-play loop has improved further since.
+> **Status (2026-06-23):** current champion is **`joint_outcome_44k`** (§10) — the
+> first model with an **outcome head** (a win/draw/loss classifier beside the margin
+> value head) and the first **GCP-cloud-trained** model. Trained on 44.6k fresh
+> self-play games (40k cloud 1600-sim + 4.6k local), warm-started from the prior
+> champion `exp_visit_combined`. It beats that champion modestly in a 1000-game
+> seat-balanced head-to-head — 53–55% @800 sims, 56–59% @1600 — and is deployed with
+> the new **mix leaf** at **α=0.9** (mostly margin, 10% outcome nudge; §10.5). It is
+> the current `nn_models/best` / `cpp_export_best`. The prior champion
+> `exp_visit_combined` (§9) trained on 40k diverse visit-selection self-play;
+> `joint_taper128_thin_sp30k_lr3e4` before it; the original `joint_taper128` beat the
+> previous-best separate-net setup **198-2 = 99.0%, +12.95 margin** at 800-sim PUCT.
 
 ---
 
@@ -42,6 +47,7 @@ Fully architecture-agnostic (every width is a constructor arg):
 ```
 input 170 → trunk MLP [256,256] → Linear→ embedding E=128 → LayerNorm(E)   (embed_norm)
   value head:     Linear(E→1)            → × target_std  (margin)
+  outcome head:   MLP(E→1, linear)       → raw win/draw/loss signal  (added 2026-06-23, §10.1)
   7 fixed heads:  Linear(E→K_h)          → masked softmax (placement … fencing, build_stop)
   2 pointer heads: MLP([E ; cand]→64→1)  → per-candidate softmax
 ```
@@ -49,6 +55,11 @@ input 170 → trunk MLP [256,256] → Linear→ embedding E=128 → LayerNorm(E)
 - **Reuses `ConfigurableMLP`** for the trunk and every head — no new MLP math.
 - `predict_margin` / `value_scale` / dual-perspective antisymmetry are preserved
   bit-for-bit, so the value head is a drop-in value evaluator.
+- **`outcome_head`** (§10.1) is a second value-style head reading the same embedding,
+  predicting the *tiebreaker-blind* game outcome `sign(margin) ∈ {−1, 0, +1}` rather
+  than the margin in points. `outcome_from_embedding` / `predict_outcome` are its
+  accessors; it is **co-trained in the value task** off the one embedding. `load` is
+  backward-compatible — checkpoints predating the head simply leave it fresh.
 - **Pointer heads take `[embedding ; candidate]`** (not `[state(170) ; cand]`) —
   the trunk runs once on the state, the candidate features are concatenated to
   the *embedding*. This unifies the pointer heads onto the trunk *and* is cheaper
@@ -161,7 +172,20 @@ the trunk + that head. Key choices:
   are logged, not gated). `--save-all-epochs` so the final checkpoint is picked by
   *play*, not val-MSE — important because the warm-started trunk plateaus value
   early while the policy heads keep improving.
-- **Warm-start** the trunk from the value-sweep winner (`sp_v_256x2_bs8192`).
+- **Outcome head co-trained in the value batch** (§10.1, added 2026-06-23): `_value_loss`
+  runs `embed(x)` **once**, then `value_from_embedding` *and* `outcome_from_embedding`
+  off the same embedding, summing the margin-MSE and the outcome loss into one
+  forward / one backward. (A separate outcome *task* would re-run the trunk — the
+  point of folding it into the value task is to amortize the shared forward.) The
+  target is `sign(margin)`, attached by `shared_dataset` as `_y_outcome` on the value
+  splits (the per-row `won` field already existed). CLI `--train-outcome` (default ON)
+  / `--no-train-outcome` / `--outcome-loss-weight`; eval logs outcome sign-accuracy
+  alongside value MAE.
+- **Warm-start** the trunk from the value-sweep winner (`sp_v_256x2_bs8192`) or a
+  prior champion. **The L2-SP anchor excludes the outcome head** when it is fresh:
+  anchoring a randomly-initialized head toward its (random) warm-start weights pulls
+  against learning it. (`l2sp` therefore skips the head params absent from the source
+  checkpoint.)
 
 ### 4.1 Scaling to 117k — thinning + int8, and two warm-start bugs (2026-06-15)
 
@@ -225,6 +249,30 @@ Trade-off: sharing the forward means the value is the single-pass decider-frame
 estimate (sign-flipped), not the two-pass differential — matching production
 self-play's single-pass `nn_evaluator`.
 
+### 5.1 Three leaf modes + a tunable α (2026-06-23)
+
+With the outcome head landed (§10.1), the MCTS leaf can read **either** head, or a
+blend — all off the **one** trunk forward. The mode is a `make_joint_fns(leaf_mode=…,
+margin_scale=…, outcome_scale=…)` parameter (Python) / `MCTSSearch::set_leaf_mode` +
+`set_mix_alpha` over a `LeafMode` enum (C++), with the scales read from the export
+manifest:
+
+- **`margin`** — the historical leaf: P0-frame margin in points, divided by the margin
+  `value_scale` so leaves sit at ~unit variance.
+- **`outcome`** — the outcome head's win/draw/loss signal (~[−1, 1]), divided by its
+  own `outcome_scale`.
+- **`mix`** — `α · (margin / margin_scale) + (1−α) · (outcome / outcome_scale)`.
+  Crucially, **each Q is normalized first, then averaged** — so both terms enter at
+  unit variance and the blend is itself ~unit-variance, used **directly** (effective
+  `value_scale` 1.0, no further division). `α=1` reduces to `margin`, `α=0` to
+  `outcome`; default `0.5`. The deployed champion runs `mix` at **α=0.9** (§10.5).
+
+Wired end-to-end through the C++ binary: `selfplay --match` / `--move` / `--analyze` /
+`--sweep` take `--leaf-mode` + `--mix-alpha`; `run_cpp_match.py` exposes
+`--leaf-mode-p0` / `--leaf-mode-p1`; `run_cpp_sweep.py` takes `--sweep-alpha` (each
+game draws a per-seat random α, reported back in the `GAME` lines — the basis for the
+α-sweep, §10.5).
+
 ---
 
 ## 6. The capacity sweep that set the trunk size
@@ -261,6 +309,13 @@ entire policy dispatch — only the forward differs):
   per-seat `value_scale`. Driven in parallel by `scripts/nn/run_cpp_match.py`.
 - Differential-validated: C++ joint value/policy ≈ Python `make_joint_fns` ≤1e-4
   over 1464 states; the composite path is untouched (gates still green).
+- **Outcome head + leaf modes (2026-06-23).** `export_weights.py` writes the outcome
+  head's blob + its `outcome_scale` into the manifest (`outcome: null` when the source
+  checkpoint predates the head, so old exports still load). C++ `NNInference` reads
+  the blob; `MCTSSearch` exposes `set_leaf_mode`/`set_mix_alpha` (the `margin`/`outcome`/`mix`
+  modes of §5.1), with the scales taken from the manifest. A new permanent gate
+  `tests/test_cpp_nn.py::test_cpp_outcome_matches_python` checks the C++ outcome output
+  against Python `predict_outcome` ≤1e-4.
 
 This unlocks **C++ self-play generation with the joint model** (the next data
 round) at ~4× speed and torch-free (memory-safe).
@@ -320,9 +375,10 @@ distribution that generalizes worse to real play.
 — beat the champion (**56.2%, 281-213-6**, 500 games at 800-sim MCTS) but only
 **TIED** the best single 10k model `exp_visit_t10` (51.5%). So the diverse-data
 gain **saturates ~10k games per generation**; 4× the data from a fixed generator
-added nothing. Promoted `exp_visit_combined` → `nn_models/best` (2026-06-18; see
-REGISTRY). The next real gain comes from *fresh* diverse generation off the new
-champion, not more retraining on fixed data.
+added nothing. `exp_visit_combined` was `nn_models/best` from 2026-06-18 until
+**superseded by `joint_outcome_44k`** (§10) on 2026-06-23. The saturation finding
+held up: the next gain came from *fresh* diverse generation off this champion (the
+44.6k corpus of §10.3), not more retraining on fixed data.
 
 ### 9.1 Common-state `value_scale` normalization (the eval methodology)
 
@@ -360,3 +416,120 @@ The codebase had a 0.5/1.4 mix of c_uct defaults. Unified to **1.0** everywhere
 Validated: combined@1.0 ≈ combined@0.5 (round-robin tie), and combined still beats
 the prior champion at c_uct 1.0. The promoting eval (56.2%) ran at c_uct 0.5; the
 1.0 default is on-par, not a regression.
+
+---
+
+## 10. The outcome head + `joint_outcome_44k` champion (2026-06-23)
+
+Two threads converged this generation: a new **outcome head** (a win/draw/loss
+classifier beside the margin value head) and the first **cloud-generated** self-play
+corpus. The result, **`joint_outcome_44k`**, is the new `nn_models/best`, deployed
+with the new **mix leaf** at α=0.9.
+
+### 10.1 The outcome head — what and why
+
+The margin value head predicts the terminal score *margin in points*; the outcome
+head predicts the **tiebreaker-blind game result** `sign(margin) ∈ {−1, 0, +1}`
+(loss / draw / win), a coarser but more directly decision-relevant target — winning
+by 1 and winning by 20 are the same outcome. It is a `ConfigurableMLP(E→1, linear)`
+reading the **same trunk embedding** as the value head; its target is **not** scaled
+by `target_std` (it's a sign, not a magnitude).
+
+The implementation choice that matters is **where it trains**: it is *co-trained in
+the value-task batch*, not as its own task. `_value_loss` runs `embed(x)` once, then
+both `value_from_embedding` and `outcome_from_embedding` off that one embedding, and
+sums the margin-MSE and outcome losses into a single forward/backward (§4). A separate
+outcome task would re-run the trunk per step; folding it in amortizes the shared
+forward, so the head is nearly free to add. `shared_dataset` attaches `_y_outcome =
+sign(margin)` to the value splits (the per-row `won` field already existed), and the
+L2-SP warm-start anchor **excludes** the fresh head (anchoring a random head toward
+random weights impedes learning it). `SharedTrunkModel.load` is backward-compatible:
+checkpoints predating the head leave it fresh. New accessors:
+`outcome_from_embedding` / `predict_outcome`; CLI `--train-outcome` (default ON).
+
+### 10.2 Three leaf modes + α
+
+With both heads available, the MCTS leaf can read the margin head, the outcome head,
+or a normalized blend of the two — all off the one trunk forward. The full mechanics
+(the `margin` / `outcome` / `mix` modes, the normalize-each-Q-then-average rule, the
+Python / C++ / CLI wiring) are in **§5.1**; the export + differential-gate side in
+**§7**. The deployed mode is **`mix` at α=0.9** — the α-sweep (§10.5) is what set that
+value.
+
+### 10.3 The corpus — first cloud-trained model
+
+44,608 fresh self-play games, replayed from C++ traces into the standard `GameRecord`
+format:
+
+- **40,000 games on GCP cloud** at 1600 sims/move, seed 100100000 — the first time
+  self-play generation ran off the M1 (the cloud-scaling thread; `joint_outcome_44k`
+  is the **first GCP-cloud-trained model**).
+- **4,608 games locally** at seed 100000000.
+
+Trained warm-started (full 42-tensor transplant) from `exp_visit_combined` with the
+champion recipe matched exactly: trunk 256×256 → E=128, dropout 0.2, lr 3e-4, L2-SP
+λ=1e-3, bs 2048, value loss-weight 9, v2 encoder, `--save-all-epochs`. Best epoch 12
+(early-stop at 20).
+
+**What it learned.** Value and policy were essentially **preserved** — val-MAE flat
+across epochs, which is expected for a warm-start on on-policy data drawn from a
+sibling of the source model. The generation mainly **adds the outcome head** (outcome
+sign-accuracy **0.69**); it is not a from-scratch value improvement.
+
+### 10.4 Eval vs the prior champion
+
+1000-game **seat-balanced** head-to-head against `exp_visit_combined`, common-state
+`value_scale`, c_uct 1.0, greedy play, across three sim budgets and all three leaf
+modes (joint as the new model):
+
+| sims | margin | outcome | mix |
+|---|---|---|---|
+| 200  | 51.6% | 50.9% | 50.6% |
+| 800  | 53.1% | 54.1% | 55.2% |
+| 1600 | 56.1% | 56.4% | **59.0%** |
+
+A **real but modest** improvement: a tie at 200 sims, growing with search depth, with
+`mix` strongest at depth. The gain depends on the leaf being given enough search to
+exploit.
+
+**Methodology lessons (both bite the same way — small match runs are seed-noisy):**
+
+- A first **400-game** run *overstated* this edge at **59–62%**; a fresh-seed
+  **1000-game** re-run corrected it to the table above. Trust the larger, fresh-seed
+  number — the same caution `value_scale`-calibration (§9.1) exists to enforce.
+- **`value_scale` is distribution-dependent → measure on a COMMON state set** (§9.1).
+  The prior champion measured **2.933** on the 1600-sim self-play states here, versus
+  its *deployed* 4.345 — using the deployed number would have mis-calibrated its
+  search in this match. The joint model's common-state margin scale is **2.966**, its
+  outcome scale **0.533**.
+
+### 10.5 The mix-α sweep — margin is the robust leaf
+
+The §10.4 table shows `mix` beating the others *against this one opponent*, but that
+could be opponent-specific exploitation rather than a general strength gain. To pin
+down the best α as a *general* leaf, a **10,000-game self-play sweep** (5k @ 800 sims +
+5k @ 1600, joint vs joint, `mix` leaf): **each player draws α ~ U[0, 1] per game**
+(via `run_cpp_sweep.py --sweep-alpha`), and `analyze_alpha_sweep.py` does a Gaussian
+Nadaraya-Watson **kernel regression** (bandwidth 0.2, both seats pooled) of win-prob
+vs α.
+
+The curve rises ~monotonically in α:
+
+- **peak at α ≈ 0.9–0.93** (margin-heavy);
+- **pure outcome (α=0) is *worst*** (~47%);
+- the **0.5 mix is mediocre** (~50%);
+- **pure margin (α=1) is near-best**.
+
+This **flips the §10.4 ranking** (where mix > outcome > margin vs the champion): the
+mix/outcome edge over `exp_visit_combined` is **partly champion-specific exploitation**,
+while in general self-play **margin is the robust leaf**. The takeaway — and the
+deployed setting — is **α=0.9**: "mostly margin, with a 10% outcome nudge," the small
+amount of outcome that the sweep shows is a marginal help without buying into the
+pure-outcome leaf's weakness. New tool: `scripts/nn/analyze_alpha_sweep.py`
+(pooled-seat kernel regression + plot).
+
+### 10.6 Deploy (see CLAUDE.md §2.6 / DEPLOY.md)
+
+`joint_outcome_44k` was promoted to `nn_models/best` + `cpp_export_best` and deployed
+live with the **mix leaf at α=0.9**. The web-UI analysis overlay shows a `mix` badge
+with the **raw, un-denormalized Q** (the directly-used unit-variance blend of §5.1).

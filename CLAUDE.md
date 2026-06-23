@@ -611,10 +611,12 @@ Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **valu
 (no negative transfer). MCTS consumes it through `make_joint_fns` — **one trunk forward per node** (an
 embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
 ported to C++ (§2.4) for fast self-play generation. The joint family is now the **`nn_models/best`
-pointer** — as of 2026-06-18 `best` is the joint `exp_visit_combined` (see below), resolved
+pointer** — as of 2026-06-22 `best` is the joint `joint_outcome_44k` (see below), resolved
 through a `model_kind`-aware loader. Full design + eval: **`SHARED_TRUNK.md`**.
 
-**The current strongest model — `exp_visit_combined` (40k diverse visit-selection self-play; promoted 2026-06-18).** Trained (warm-start from `joint_taper128_thin_sp30k_lr3e4`, L2-SP λ=1e-3) on 40k games from the **data-variation experiment** — which found that *diverse* (visit-selection, T=0.7/1.0) self-play data produces stronger models than *near-greedy* (Q-selection) data, and that the gain **saturates ~10k games**. **Beats the prior champion 56.2% (281-213-6) at 800-sim MCTS** (common-state `value_scale`); deployed value_scale **4.345**. Full result: `SHARED_TRUNK.md` §9; row in `nn_models/REGISTRY.md`. The prior champion `joint_taper128_thin_sp30k_lr3e4` (30k snapshot-thinned, warm-start lr=3e-4; was champion 2026-06-15→06-18; val MAE 2.29) remains its named-dir fallback.
+**The current strongest model — `joint_outcome_44k` (44.6k self-play; the first GCP cloud-trained model; promoted 2026-06-22).** A joint shared-trunk model that **adds a second value head — an *outcome* head** (see "The outcome head + three leaf modes" below) — beside the existing margin value head. Trained warm-started from `exp_visit_combined` (L2-SP λ=1e-3, the recipe matched exactly: 256×256→128, dropout 0.2, lr 3e-4, bs 2048, value-weight 9, v2 encoder; best epoch 12) on **44,608 games** — 40k generated on GCP (1600-sim, seed 100100000; §2.5 cloud workflow) + a 4.6k local replayed set. The retrain **preserves value and policy strength** (the warm-start barely moves them) and **mainly adds the outcome head** (terminal sign-accuracy 0.69). Eval vs the prior champion `exp_visit_combined` is real-but-modest and **depth-dependent**: a 1000-game seat-balanced head-to-head (common-state `value_scale`) with the new model's *margin / outcome / mix* leaf gives 51.6 / 50.9 / 50.6% at 200 sims (a tie), 53.1 / 54.1 / 55.2% at 800, and 56.1 / 56.4 / **59.0**% at 1600 — the mix leaf wins most at depth. (A noisier 400-game run overstated this, so it was re-run at 1000 games with `value_scale` measured on a common state set — `SHARED_TRUNK.md` §9.1.) Full result: `SHARED_TRUNK.md` §10; row in `nn_models/REGISTRY.md`. The prior champion `exp_visit_combined` (40k diverse visit-selection self-play; was champion 2026-06-18→06-22; deployed value_scale 4.345) remains its named-dir fallback.
+
+**The outcome head + three leaf modes.** The `SharedTrunkModel` now carries **two value heads off the same trunk embedding**: the original **margin** head (regresses the terminal score margin) and a new **outcome** head (an `E→1` linear layer regressing `sign(margin) ∈ {−1, 0, +1}` — who wins, ignoring by how much). The outcome head is co-trained inside the value-task batch off the *same* embedding, so it costs **no extra trunk forward**; L2-SP excludes the fresh head, and an old checkpoint without it still loads (backward-compatible). MCTS can then take its leaf value in one of **three modes**, all from that one trunk forward: **margin** (`margin / value_scale`), **outcome** (`outcome / outcome_scale`, already in `[−1, 1]`), or **mix** = `α·(margin/margin_scale) + (1−α)·(outcome/outcome_scale)` (normalize-then-average; `α=1` is pure margin, `α=0` pure outcome), with `α` tunable. A **mix-α self-sweep** (10k games, each seat's α ∼ U[0,1], kernel-regression analysis — `scripts/nn/analyze_alpha_sweep.py`) found the robust-best leaf is **margin-heavy (α≈0.9)**: pure outcome is the worst leaf and a 50/50 mix mediocre, and crucially this *flips* the vs-champion ranking above — so the mix/outcome edge in that head-to-head is partly champion-specific exploitation, while **margin is the robust leaf**. The **deployed bot therefore uses the mix leaf at α=0.9**. `train_shared.py --train-outcome` (default ON) trains the head; the C++ search exposes `set_leaf_mode` / `set_mix_alpha`; full detail in `SHARED_TRUNK.md` §10.
 
 > **c_uct default is 1.0** (unified 2026-06-18 across scripts, the C++ binary, `MCTSAgent`, and the web-UI bot/analyze seats — was a 0.5/1.4 mix). Validated combined@1.0 ≈ combined@0.5. `value_scale` for fair head-to-head MCTS must be measured on a **common state set** (not the condition-biased training `target_std`) — see `SHARED_TRUNK.md` §9.1.
 
@@ -747,6 +749,15 @@ Python `make_joint_fns`. A new **`selfplay --match --model-dir-p0 A --model-dir-
 parallel by `scripts/nn/run_cpp_match.py`. This is the path for fast, torch-free self-play generation
 with the joint model.
 
+**Outcome head + the three leaf modes in C++ (§2.3).** The joint manifest now also carries the
+**outcome** head's weight blob + `outcome_scale` (written by `export_weights.py`), and the C++ search
+exposes the three leaf-value modes off the one trunk forward — `set_leaf_mode` (margin / outcome / mix)
++ `set_mix_alpha`. The flags thread through every entry point: `selfplay --match / --move / --analyze`
+and the `--sweep` self-sweep take `--leaf-mode` / `--mix-alpha`; `run_cpp_match.py` takes
+`--leaf-mode-p0` / `--leaf-mode-p1`; and `run_cpp_sweep.py` gains a `--sweep-alpha` mode (each seat
+draws an `α` per game, for the mix-α sweep). A permanent differential gate
+(`test_cpp_outcome_matches_python`) validates the C++ outcome head ≤1e-4 vs Python.
+
 ---
 
 ### 2.5 — The self-play & training workflow
@@ -848,15 +859,28 @@ libtorch): `export_weights.py` writes the trained net to raw float32 blobs + a m
 loads (a `shared_trunk_v1` manifest for the joint model). Training always happens in Python; only
 *generation* and *evaluation matches* cross into C++.
 
+#### Running the loop on the cloud (GCP)
+
+The same loop also runs **off the M1 on Google Cloud** for the compute-heavy steps — the path that
+produced the 40k-game corpus behind `joint_outcome_44k` (§2.3). Because the C++ binary is torch-free
+and builds ARM-native on a GCP T2A instance, generation, joint training (on a CPU box), evaluation,
+and the α-sweep all ran in the cloud. The operator guide — project / budget / bucket setup, the
+ARM build, launching each step, and the two non-obvious IAM gotchas (self-delete needs
+`--scopes=cloud-platform` *and* the service account's `compute.instanceAdmin.v1` role; bucket writes
+need `storage.objectAdmin`) — is **`CLOUD_RUNBOOK.md`**. The Spot-CPU quota was never granted, so runs
+were capped at a 12-vCPU on-demand instance. (Bigger picture in CLAUDE.md memory `project_gcp_cloud_datagen`.)
+
 ---
 
 ## 2.6 — Web UI & online deployment
 
-The browser game (`play_web.py` + `static/` + `templates/`) is playable **online**, deployed to
-**Fly.io** as a single always-on container. Human-vs-bot only; the bot is the joint-trunk model driven by
-**C++ MCTS PUCT** (the `selfplay --move` binary via `_CppMctsAgent`, falling back to Python MCTS if the
-binary / `cpp_export_best` is absent). Deploy walkthrough: **`DEPLOY.md`**; web-UI polish inbox:
-**`FRONTEND_FIXES.md`**.
+The browser game (`play_web.py` + `static/` + `templates/`) is playable **online** at
+**https://agricolabot.fly.dev/**, deployed to **Fly.io** as a single always-on container. Human-vs-bot
+only; the bot is the joint-trunk model (`joint_outcome_44k`) driven by **C++ MCTS PUCT** (the `selfplay
+--move` binary via `_CppMctsAgent`, falling back to Python MCTS if the binary / `cpp_export_best` is
+absent), playing the **mix leaf at α=0.9** (§2.3 — `play_web.py` sets `_CPP_LEAF_MODE="mix"` /
+`_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`). Deploy
+walkthrough: **`DEPLOY.md`**; web-UI polish inbox: **`FRONTEND_FIXES.md`**.
 
 **Server architecture.** A stdlib `ThreadingHTTPServer` (only non-stdlib dep is `numpy`). Every endpoint is
 a single request/response that returns the full authoritative state — `{ok, …, "state":
@@ -892,15 +916,23 @@ stronger so default off).
 is only offered when this is on; harvest **feed** and **breed** are separate turns); **Show analysis** (a
 read-only overlay of the bot's MCTS Q-value + visit count for each of the human's moves — async, never
 blocks the move, cancelled when you move, uniform-prior-mixed at `w=0.05` for coverage; its **explore**
-input is the analysis-only `c_uct`, default `1.0`). The action board lists spaces in **reveal order within
-each stage**, keeping the STAGE headers.
+input is the analysis-only `c_uct`, default `1.0`). The overlay's Q is shown in the leaf's natural
+units: for a **margin** leaf it denormalizes the tree Q by `value_scale` to points, for an **outcome**
+leaf it labels the `[−1, 1]` value, and for a **MIX** leaf it emits the **raw, un-denormalized** Q
+(there is no single scale for a blend) labeled `mix`. The leaf's `value_target` descriptor is threaded
+end-to-end — model → training → export manifest → C++ `value_target()` → `/api/analyze` → `app.js` — so
+the overlay labels itself correctly. The action board lists spaces in **reveal order within each
+stage**, keeping the STAGE headers.
 
 **Deploy.** `Dockerfile` compiles the C++ `selfplay` binary for Linux and copies the resolved
 `cpp_export_best` champion into the image; `fly.toml` pins **one always-on machine**
 (`min_machines_running=1`, `auto_stop_machines=false`) so the in-memory state survives between requests —
 multi-machine + in-memory would desync. `.dockerignore` trims the build context (but re-includes
 `tests/__init__.py` + `tests/test_utils.py`, which `agricola/agents/base.py` imports). Ship updates with
-`fly deploy`.
+**`./deploy.sh`** — it resolves the `cpp_export_best` symlink (Docker `COPY` can't follow it) into the
+concrete export dir and passes it to the `Dockerfile` as the `EXPORT_DIR` build-arg, then runs
+`fly deploy`. **Promoting a new champion is therefore: re-point the symlink, then `./deploy.sh`** — no
+Dockerfile edit.
 
 ---
 
@@ -999,7 +1031,9 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
 | `README.md` | Human-facing project README (the GitHub landing page): project summary, status overview, the playable-agent table, and future work. Overlaps this file's intro but targets a general reader rather than a coding session. |
-| `DEPLOY.md` | Beginner-friendly step-by-step guide to deploying the web UI online on **Fly.io** as a single always-on container (CLAUDE.md §2.6): install `flyctl`, create + deploy the app, logs, regions, rough cost, and the in-memory-game-state caveat (a redeploy drops in-progress games). The deploy artifacts it drives are `Dockerfile` / `.dockerignore` / `fly.toml` at the repo root. |
+| `DEPLOY.md` | Beginner-friendly step-by-step guide to deploying the web UI online on **Fly.io** as a single always-on container (CLAUDE.md §2.6): install `flyctl`, create + deploy the app, logs, regions, rough cost, and the in-memory-game-state caveat (a redeploy drops in-progress games). The deploy artifacts it drives are `Dockerfile` / `.dockerignore` / `fly.toml` / `deploy.sh` at the repo root. |
+| `deploy.sh` | One-command Fly.io deploy of the web UI with the *current* champion (CLAUDE.md §2.6): resolves the `nn_models/cpp_export_best` symlink (Docker `COPY` can't follow it) into the concrete export dir, passes it to the `Dockerfile` as the `EXPORT_DIR` build-arg, and runs `fly deploy` (extra args forwarded). Promoting a champion = re-point the symlink, then `./deploy.sh`. |
+| `CLOUD_RUNBOOK.md` | Operator guide for running the self-play / training / eval loop **off the M1 on Google Cloud (GCP)** (CLAUDE.md §2.5): project / $50-budget / bucket (`gs://agricola-selfplay-…`) setup, the ARM-native C++ binary build on a T2A instance, launching generation / joint-training / evaluation / the α-sweep, durable upload + VM self-teardown, and the two IAM gotchas (self-delete needs `--scopes=cloud-platform` *and* the SA's `compute.instanceAdmin.v1` role; bucket writes need `storage.objectAdmin`). The path that produced the 40k corpus behind `joint_outcome_44k`. |
 | `FRONTEND_FIXES.md` | Punch-list of web-UI *frontend* gaps (`static/app.js`, `static/style.css`, `templates/index.html`), ordered by certainty the fix is needed; each item states the problem, the backend data already exposed, and the specific frontend change. |
 
 Historical task specs and design artifacts (in `design_docs/game_engine/`, frozen at the time of their task's landing):
@@ -1024,7 +1058,7 @@ Archived (in `archive/`, fully superseded by current docs):
 AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
 
-    play_web.py                     # Top-level entry point — browser-based human-vs-bot play UI (CLAUDE.md §2.6). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS. Per-game New-Game inputs: seed, sims/move (default 800), opponent prior-mix (default 0). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, prior-mix 0.05, async, cancel-on-move). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
+    play_web.py                     # Top-level entry point — browser-based human-vs-bot play UI (CLAUDE.md §2.6). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs: seed, sims/move (default 800), opponent prior-mix (default 0). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze` with `--leaf-mode`/`--mix-alpha`, prior-mix 0.05, async, cancel-on-move; the overlay denormalizes the tree Q by the leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
 
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
 
@@ -1037,6 +1071,10 @@ AgricolaBot/
     fly.toml                        # Fly.io app config (DEPLOY.md): single always-on machine (`min_machines_running=1`, `auto_stop_machines=false`) so the in-memory game state survives between requests; 2 shared vCPUs / 1 GB RAM; `AGRICOLA_MAX_CONCURRENT_AI=2`.
 
     DEPLOY.md                       # Beginner-friendly Fly.io deploy walkthrough for the web UI (install flyctl → create → deploy → logs → regions → cost). See CLAUDE.md §2.6.
+
+    deploy.sh                       # One-command Fly.io deploy of the web UI with the current champion (CLAUDE.md §2.6): resolves the `nn_models/cpp_export_best` symlink into the concrete export dir and passes it to the Dockerfile as the `EXPORT_DIR` build-arg (Docker COPY can't follow the symlink), then runs `fly deploy` (extra args forwarded). Promote = re-point the symlink, then `./deploy.sh`.
+
+    CLOUD_RUNBOOK.md                # Operator guide for running the self-play / training / eval loop off the M1 on GCP (CLAUDE.md §2.5): project / budget / bucket setup, the ARM-native C++ build on a T2A instance, launching each loop step, durable upload + VM self-teardown, and the IAM gotchas (self-delete needs `--scopes=cloud-platform` + `compute.instanceAdmin.v1`; bucket writes need `storage.objectAdmin`). Produced the 40k corpus behind `joint_outcome_44k`.
 
     templates/                      # Web UI assets served by `play_web.py` — the HTML shell.
 
@@ -1148,13 +1186,13 @@ AgricolaBot/
 
                 policy.py           # `policy_prior` (fixed heads) + `pointer_prior` (pointer heads) + `NO_PRIOR`, and `make_policy_fn(models)` / `load_policy_fn(checkpoints)` — the full `policy_fn(state, legal) -> {action: prior}` MCTS/PUCT consumes. Works over the FULL legal set, dispatching by decision type: fixed head / pointer head / `build_stop` (learned P(stop) + cell-priority build cell for multi-shot rooms&stables) / uniform over the cell-priority-filtered set (plow + first-build cells — no encoder signal) / uniform over full legal (the rest). The prune lives entirely in the policy. `make_policy_fn` puts the loaded heads in `eval()` mode — `load()` leaves them in TRAIN mode, which made PUCT priors nondeterministic (dropout active); see SPEEDUPS.md. Imports torch.
 
-                shared_model.py     # `SharedTrunkModel` (Phase 2.3 Stage B, SHARED_TRUNK.md): the joint value+policy net — one `170 → trunk → E` trunk (+ embed_norm) feeding a value head + 7 fixed + 2 pointer heads, all reusing `ConfigurableMLP`. Pointer heads score `[embedding ; candidate]` (trunk run once, candidate concatenated). Architecture-agnostic (every width a ctor arg); preserves `predict_margin`/`value_scale`; `config_dict()` + `NET_REGISTRY`. Imports torch.
+                shared_model.py     # `SharedTrunkModel` (Phase 2.3 Stage B, SHARED_TRUNK.md): the joint value+policy net — one `170 → trunk → E` trunk (+ embed_norm) feeding a **margin** value head, a co-trained **outcome** value head (`E→1`, regresses `sign(margin)`; §2.3), + 7 fixed + 2 pointer heads, all reusing `ConfigurableMLP`. Pointer heads score `[embedding ; candidate]` (trunk run once, candidate concatenated). The outcome head loads optionally (backward-compatible with pre-outcome checkpoints). Architecture-agnostic (every width a ctor arg); preserves `predict_margin`/`value_scale` (+ `predict_outcome`/`outcome_scale`); `config_dict()` + `NET_REGISTRY`. Imports torch.
 
                 shared_dataset.py   # One-pass, **per-pickle-chunk-cached** joint dataset (`build_shared_datasets`): reads each run dir's pickles once → value rows (both perspectives + terminal, margin) + fixed-head rows (mask + soft-π) + pointer-head rows (candidates + soft-π), consistent split. Writes `shared_<encoder.tag>_chunks/` (encode peak = one pickle — the memory fix; the per-dir-accumulation version OOM'd). **Finalize is also memory-load-bearing**: `_finalize_payloads` streams chunk *paths* lazily from disk (never loads a whole run dir) and builds the value tensor **directly into its per-split arrays** (never a combined `value__X` — that doubled when mask-sliced and OOM'd at 57k); see SHARED_TRUNK.md §3 before refactoring. Takes an `encoder: EncoderSpec` (default v2; candidate re-encodes the same raw games to its own cache + begging-strips the value target). The per-pickle encode is **parallel** (`n_workers` → a `multiprocessing.Pool`, byte-identical to serial) and **truly resumable** (completeness = all chunks present under the matching roster, so a kill mid-encode just fills the gaps). Reuses the existing dataset classes. Imports torch.
 
-                shared_training.py  # Joint trainer (`train_shared`; CLI scripts/nn/train_shared.py): interleaves per-task batches through the shared trunk — **soft-π** CE (fixed + segment for pointer) + margin MSE, **per-head gradient balancing** (equal-frequency sampling), `_CyclicTensor` fast-loader, early-stop on **value val-MSE** + `--save-all-epochs` (pick by play). Imports torch.
+                shared_training.py  # Joint trainer (`train_shared`; CLI scripts/nn/train_shared.py): interleaves per-task batches through the shared trunk — **soft-π** CE (fixed + segment for pointer) + margin MSE + (with `--train-outcome`, default ON) the **outcome** head's `sign(margin)` MSE co-trained in the value-task batch off the same embedding, **per-head gradient balancing** (equal-frequency sampling), `_CyclicTensor` fast-loader, early-stop on **value val-MSE** + `--save-all-epochs` (pick by play). Imports torch.
 
-                shared_policy.py    # `make_joint_fns(model) -> (value_fn, policy_fn)` — the MCTS adapter for `SharedTrunkModel`. **One trunk forward per node**: both value and policy evaluated from the decider perspective off a memoized embedding (value sign-flipped to P0), so `mcts.py` is unchanged. `policy_fn` mirrors `make_policy_fn`'s dispatch off the shared embedding; terminal short-circuit. Imports torch.
+                shared_policy.py    # `make_joint_fns(model, *, leaf_mode, margin_scale, outcome_scale) -> (value_fn, policy_fn)` — the MCTS adapter for `SharedTrunkModel`. **One trunk forward per node**: margin, outcome, and policy all read off ONE memoized embedding (value sign-flipped to P0), so `mcts.py` is unchanged. `leaf_mode` ∈ margin / outcome / mix selects the value leaf (margin default; mix = the 50-50 normalized-Q average, §2.3 — the tunable-α blend lives in the C++ search). `policy_fn` mirrors `make_policy_fn`'s dispatch off the shared embedding; terminal short-circuit. Imports torch.
 
     tests/                          # pytest test suite — per-file coverage descriptions in TEST_DESCRIPTIONS.md.
 
@@ -1211,7 +1249,7 @@ AgricolaBot/
         test_cpp_legality.py            #   and the C++ self-play data-gen pipeline — each asserting
         test_cpp_step.py                #   the C++ engine matches the Python oracle. Skip if cpp/ unbuilt.
         test_cpp_binding.py
-        test_cpp_nn.py
+        test_cpp_nn.py                  #   (incl. `test_cpp_outcome_matches_python`: C++ outcome head ≤1e-4, §2.3)
         test_cpp_mcts.py
         test_cpp_selfplay.py
         test_cpp_selfplay_pipeline.py
@@ -1258,7 +1296,7 @@ AgricolaBot/
 
             generate_selfplay_data_cpp.py # C++ self-play data-gen driver (CLAUDE.md §2.4) — the C++-backed analog of `generate_selfplay_data.py`, producing the IDENTICAL `GameRecord` run-dir format so training consumes it unchanged. Runs the `cpp/build/selfplay --mcts` binary across a `multiprocessing` worker pool (default **batch** mode: one process per worker plays its whole slice via `--game-idxs`, loading NN weights once; `--per-game-process` is the one-process-per-game baseline), then `replay_trace`s each trace → `GameRecord` → chunked pickles. Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id; resume + error-logging + overwrite-guard + `generation_mode` in metadata. ~4× faster than the Python generator. See CPP_ENGINE_PLAN.md.
             export_torchscript.py   # (Superseded by export_weights.py.) Exports the value net + 9 policy heads to TorchScript `.ts` for the original libtorch-based C++ inference. Kept for provenance; the C++ engine no longer uses libtorch.
-            export_weights.py       # Exports the trained value net + 9 policy heads to raw float32 blobs + `weights_manifest.json` under `nn_models/cpp_export/`, consumed by the C++ hand-rolled MLP inference (CLAUDE.md §2.4). Run after training, before C++ data-gen. See CPP_ENGINE_PLAN.md §6 / "Optimization pass #2".
+            export_weights.py       # Exports the trained value net + 9 policy heads to raw float32 blobs + `weights_manifest.json` under `nn_models/cpp_export/`, consumed by the C++ hand-rolled MLP inference (CLAUDE.md §2.4). For a joint model also writes the **outcome** head blob + `outcome_scale` (§2.3) and the leaf's `value_target` descriptor. Run after training, before C++ data-gen. See CPP_ENGINE_PLAN.md §6 / "Optimization pass #2".
 
             validate_dataset.py     # Post-generation invariant checker per FIRST_NN.md §6.6. Loads all (or `--sample-size N` random subset of) records from a run dir's worker pickles; runs invariants: `data_version` matches, `chosen_action ∈ legal_actions(state)`, non-singleton snapshots, `state.phase != BEFORE_SCORING`, non-empty `decisions`, `decider_idx == decider_of(state)`, `terminal_state.phase == BEFORE_SCORING`, stored-vs-recomputed final scores. Continues past individual failures to report all issues. Failure summary groups by check type + locates offending game_idx + snapshot. Exit codes 0/1/2 (pass / fail / invalid run dir).
 
@@ -1274,12 +1312,14 @@ AgricolaBot/
 
             build_combined_policy.py # Assembles the two end-to-end policy functions MCTS/PUCT consumes: `build("unweighted")` / `build("awr")` (9 head checkpoints each, via `load_policy_fn`), with `UNWEIGHTED_SET`/`AWR_SET` manifests and a `__main__` that sanity-checks both load + produce priors. See POLICY_HEAD.md / nn_models/REGISTRY.md.
 
-            train_shared.py         # Thin CLI over `agricola.agents.nn.shared_training.train_shared` — trains the joint shared-trunk value+policy model (Stage B, SHARED_TRUNK.md). Flags: `--trunk-hidden-dims`, `--embedding-dim`, per-head dims, `--batch-size` (default 2048), `--init-from` (warm trunk), `--hard-targets` (else soft-π), `--no-fast-loader`, `--save-all-epochs`. Imports torch.
+            train_shared.py         # Thin CLI over `agricola.agents.nn.shared_training.train_shared` — trains the joint shared-trunk value+policy model (Stage B, SHARED_TRUNK.md). Flags: `--trunk-hidden-dims`, `--embedding-dim`, per-head dims, `--batch-size` (default 2048), `--init-from` (warm trunk), `--hard-targets` (else soft-π), `--train-outcome` (default ON — co-train the outcome head, §2.3), `--no-fast-loader`, `--save-all-epochs`. Imports torch.
 
 
-            run_cpp_match.py        # Parallel driver for the C++ two-net match: runs `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` across a worker pool over a seed range. Workers stream per-game `GAME` lines back to the PARENT via a shared queue; the parent prints one clean running-tally stream to **stdout** (like `play_mcts_match.py`) — so a parallel run is one clean log. Per the logging convention, the launcher redirects to `eval_out/<label>.log`. Each model is encoder-self-describing (its manifest `encoder_tag` → the C++ registry picks v2 / candidate). Memory-light (C++ hand-rolled inference, no torch) — the fast, OOM-safe way to run an 800-sim match. See SHARED_TRUNK.md / CPP_ENGINE_PLAN.md.
+            run_cpp_match.py        # Parallel driver for the C++ two-net match: runs `cpp/build/selfplay --match --model-dir-p0 A --model-dir-p1 B` across a worker pool over a seed range. Workers stream per-game `GAME` lines back to the PARENT via a shared queue; the parent prints one clean running-tally stream to **stdout** (like `play_mcts_match.py`) — so a parallel run is one clean log. Per the logging convention, the launcher redirects to `eval_out/<label>.log`. Each model is encoder-self-describing (its manifest `encoder_tag` → the C++ registry picks v2 / candidate). `--leaf-mode-p0` / `--leaf-mode-p1` (+ `--mix-alpha`) pick each seat's value-leaf mode (margin / outcome / mix, §2.3). Memory-light (C++ hand-rolled inference, no torch) — the fast, OOM-safe way to run an 800-sim match. See SHARED_TRUNK.md / CPP_ENGINE_PLAN.md.
 
-            run_cpp_sweep.py        # Parallel C++ self-sweep — one model vs itself, mapping how strength varies with `c_uct` and `sims`. Each game EACH seat independently draws `sims` (from `--sweep-sims`) and `c_uct` (from `[--cuct-lo,--cuct-hi]`) inside the binary from a per-game RNG (reproducible, reported back in each `GAME` line); a worker pool runs `cpp/build/selfplay` in batch `--game-idxs` mode (NN weights loaded once per process) and STREAMS each finished game to the parent via a shared queue, growing an `--out-csv` incrementally. Mirrors `run_cpp_match.py`'s live-queue shape; memory-light (no torch). The C++ hyperparameter-sweep counterpart to the Python `scripts/mcts_sweep.py` (which sweeps vs a fixed opponent); encoder-self-describing via the model manifest, so joint-model-ready. See CPP_ENGINE_PLAN.md.
+            run_cpp_sweep.py        # Parallel C++ self-sweep — one model vs itself, mapping how strength varies with `c_uct` and `sims` (and, with `--sweep-alpha`, the mix-leaf `α` — each seat draws its own per game, for the mix-α sweep). Each game EACH seat independently draws its swept params inside the binary from a per-game RNG (reproducible, reported back in each `GAME` line); a worker pool runs `cpp/build/selfplay` in batch `--game-idxs` mode (NN weights loaded once per process) and STREAMS each finished game to the parent via a shared queue, growing an `--out-csv` incrementally. Mirrors `run_cpp_match.py`'s live-queue shape; memory-light (no torch). The C++ hyperparameter-sweep counterpart to the Python `scripts/mcts_sweep.py` (which sweeps vs a fixed opponent); encoder-self-describing via the model manifest, so joint-model-ready. See CPP_ENGINE_PLAN.md.
+
+            analyze_alpha_sweep.py  # Kernel-regression analysis of a mix-α self-sweep (§2.3). Reads one or more `run_cpp_sweep.py --sweep-alpha` CSVs (cols incl. `alpha0,alpha1,winner`), pools BOTH seats into `(α, result∈{1,0.5,0})` points, and fits a Gaussian Nadaraya-Watson kernel regression of win-prob on α — the curve whose peak is the best fixed α (found ≈0.9, margin-heavy). `--series "label=csv" …`, `--out-png`.
 
             replay_traces.py        # Replay a run dir's existing C++ self-play traces (`<run-dir>/traces/trace_<i>.json`) into `GameRecord` chunks under `games/` — the REPLAY half of `generate_selfplay_data_cpp.py` only, generating nothing and overwriting no traces. For salvaging a gen run interrupted after traces were written but before replay. Resumable (skips game_idxs already in `games/`), writes the `worker_*.pkl` format training consumes.
 

@@ -56,17 +56,24 @@ def _run_chunk(arg) -> str | None:
         "--sweep-sims", args.sweep_sims,
         "--cuct-lo", str(args.cuct_lo), "--cuct-hi", str(args.cuct_hi),
     ]
+    if args.sweep_alpha:
+        cmd += ["--sweep-alpha",
+                "--alpha-lo", str(args.alpha_lo), "--alpha-hi", str(args.alpha_hi)]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             text=True)
     for line in proc.stdout:  # line-buffered: one GAME line per finished game
         if line.startswith("GAME"):
             f = dict(tok.split("=") for tok in line.split()[1:])
-            q.put({
+            row = {
                 "seed": int(f["seed"]), "p0": int(f["p0"]), "p1": int(f["p1"]),
                 "winner": int(f["winner"]),
                 "sims0": int(f["sims0"]), "cuct0": float(f["cuct0"]),
                 "sims1": int(f["sims1"]), "cuct1": float(f["cuct1"]),
-            })
+            }
+            if "alpha0" in f:
+                row["alpha0"] = float(f["alpha0"])
+                row["alpha1"] = float(f["alpha1"])
+            q.put(row)
     err_txt = proc.stderr.read()
     return err_txt[-500:] if proc.wait() != 0 else None
 
@@ -133,17 +140,28 @@ def main() -> None:
     ap.add_argument("--sweep-sims", default="160,320,520,800,1200,1600")
     ap.add_argument("--cuct-lo", type=float, default=0.1)
     ap.add_argument("--cuct-hi", type=float, default=1.0)
+    ap.add_argument("--sweep-alpha", action="store_true",
+                    help="sweep the MIX-leaf blend weight α per seat per game "
+                         "(both seats use leaf-mode mix); composes with fixed "
+                         "sims/c_uct via a single --sweep-sims value + equal "
+                         "--cuct-lo/--cuct-hi")
+    ap.add_argument("--alpha-lo", type=float, default=0.0)
+    ap.add_argument("--alpha-hi", type=float, default=1.0)
     ap.add_argument("--out-csv", default="eval_out/sweep.csv")
     args = ap.parse_args()
 
     slices = _slice(args.n, args.jobs)
+    alpha_note = (f", α∈[{args.alpha_lo},{args.alpha_hi}] (mix leaf)"
+                  if args.sweep_alpha else "")
     print(f"sweep: {args.n} games over {len(slices)} workers; "
           f"sims∈{{{args.sweep_sims}}}, c_uct∈[{args.cuct_lo},{args.cuct_hi}], "
-          f"temp={args.temperature}", flush=True)
+          f"temp={args.temperature}{alpha_note}", flush=True)
 
     out = Path(args.out_csv)
     out.parent.mkdir(parents=True, exist_ok=True)
     cols = ["seed", "p0", "p1", "winner", "sims0", "cuct0", "sims1", "cuct1"]
+    if args.sweep_alpha:
+        cols += ["alpha0", "alpha1"]
     csv = out.open("w")
     csv.write(",".join(cols) + "\n")
     csv.flush()

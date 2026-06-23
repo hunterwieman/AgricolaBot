@@ -228,6 +228,14 @@ _CPP_EXPORT_DIR = os.path.join(
     "nn_models", "cpp_export_best",
 )
 
+# The deployed champion is a MIX-leaf model: the bot searches (and the analysis
+# overlay searches) with a leaf value blending the margin and outcome heads at
+# this α (0.9 = 90% margin / 10% outcome). The C++ binary defaults to "margin"
+# (backward-compatible), so these are passed explicitly on every --move /
+# --analyze call.
+_CPP_LEAF_MODE = "mix"
+_CPP_MIX_ALPHA = 0.9
+
 
 class _CppMctsAgent:
     """Thin wrapper that shells out to the C++ selfplay --move binary.
@@ -239,12 +247,15 @@ class _CppMctsAgent:
     """
 
     def __init__(self, model_dir: str, sims: int, c_uct: float, temperature: float,
-                 prior_mix: float = 0.0):
+                 prior_mix: float = 0.0, leaf_mode: str = "margin",
+                 mix_alpha: float = 0.5):
         self._model_dir = model_dir
         self._sims = sims
         self._c_uct = c_uct
         self._temperature = temperature
         self._prior_mix = prior_mix  # 0 = pure policy (standard opponent)
+        self._leaf_mode = leaf_mode  # margin (default) / outcome / mix
+        self._mix_alpha = mix_alpha  # blend weight for --leaf-mode mix
 
     def __call__(self, state) -> "Action":
         from agricola.canonical import dumps as _cdumps
@@ -260,6 +271,8 @@ class _CppMctsAgent:
         ]
         if self._prior_mix > 0.0:
             cmd += ["--prior-mix", str(self._prior_mix)]
+        if self._leaf_mode != "margin":
+            cmd += ["--leaf-mode", self._leaf_mode, "--mix-alpha", str(self._mix_alpha)]
         result = subprocess.run(
             cmd,
             input=state_json.encode(),
@@ -463,6 +476,8 @@ def _build_agent(
                 c_uct=1.0,
                 temperature=0.2,
                 prior_mix=opponent_mix,
+                leaf_mode=_CPP_LEAF_MODE,
+                mix_alpha=_CPP_MIX_ALPHA,
             )
 
         # Python MCTS fallback (no C++ binary or no exported weights).
@@ -1522,6 +1537,11 @@ class Session:
         ]
         if prior_mix > 0.0:
             cmd += ["--prior-mix", str(prior_mix)]
+        # Analyze with the SAME leaf the bot plays — so the overlay's q matches
+        # the bot's evaluation. For the mix leaf the C++ side emits the RAW Q
+        # (unitless blend) with value_target "mix", forwarded unchanged below.
+        if _CPP_LEAF_MODE != "margin":
+            cmd += ["--leaf-mode", _CPP_LEAF_MODE, "--mix-alpha", str(_CPP_MIX_ALPHA)]
         with _AI_SEMAPHORE:
             try:
                 proc = subprocess.Popen(

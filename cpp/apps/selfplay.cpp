@@ -52,9 +52,11 @@ void usage(const char* prog) {
       << "              [--c-uct C] [--temperature T]               # MCTS batch\n"
       << "       " << prog
       << " --move --model-dir DIR [--sims S] [--c-uct C] [--temperature T]\n"
+      << "              [--leaf-mode margin|outcome|mix] [--mix-alpha A]\n"
       << "              reads GameState JSON from stdin, writes chosen action JSON\n"
       << "       " << prog
       << " --analyze --model-dir DIR [--sims S] [--c-uct C] [--temperature T]\n"
+      << "              [--leaf-mode margin|outcome|mix] [--mix-alpha A]\n"
       << "              reads GameState JSON from stdin, writes root children "
          "{visits,q} JSON\n";
 }
@@ -91,6 +93,10 @@ int main(int argc, char** argv) {
   double temperature = 1.0; // production self-play default (sample ∝ visits)
   std::string model_dir = "nn_models/cpp_export";
   double prior_mix = 0.0;   // policy-prior uniform mix for --move / --analyze
+  // Single-position leaf head for --move / --analyze: "margin" (default,
+  // backward-compatible) / "outcome" / "mix"; mix_alpha is the mix blend weight.
+  std::string leaf_mode = "margin";
+  double mix_alpha = 0.5;
 
   // Batch-mode args (one NN load, many games).
   std::string out_dir;      // empty -> single-game mode
@@ -120,6 +126,14 @@ int main(int argc, char** argv) {
   std::string sweep_sims_arg = "160,320,520,800,1200,1600";
   double cuct_lo = 0.1;
   double cuct_hi = 1.0;
+  // Mix-rate (α) sweep: when set, BOTH seats run leaf-mode "mix" and each seat
+  // draws α per game uniformly from [alpha_lo, alpha_hi] using the SAME per-game
+  // RNG as the sims/c_uct sweep (reproducible). Reported as alpha0/alpha1 in the
+  // GAME line. Composes with fixed sims/c_uct (set --cuct-lo == --cuct-hi and a
+  // single --sweep-sims value to hold those constant).
+  bool sweep_alpha = false;
+  double alpha_lo = 0.0;
+  double alpha_hi = 1.0;
 
   // Fixed per-seat overrides (non-sweep match): a negative sentinel means "use
   // the shared --sims / --c-uct / --temperature for that seat". Lets a match pit
@@ -177,6 +191,12 @@ int main(int argc, char** argv) {
       cuct_lo = std::atof(argv[++i]);
     } else if (arg == "--cuct-hi" && i + 1 < argc) {
       cuct_hi = std::atof(argv[++i]);
+    } else if (arg == "--sweep-alpha") {
+      sweep_alpha = true;
+    } else if (arg == "--alpha-lo" && i + 1 < argc) {
+      alpha_lo = std::atof(argv[++i]);
+    } else if (arg == "--alpha-hi" && i + 1 < argc) {
+      alpha_hi = std::atof(argv[++i]);
     } else if (arg == "--sims-p0" && i + 1 < argc) {
       sims_p0 = std::atoi(argv[++i]);
     } else if (arg == "--sims-p1" && i + 1 < argc) {
@@ -205,6 +225,10 @@ int main(int argc, char** argv) {
       select_q = (std::string(argv[++i]) == "q");  // self-play single-agent path
     } else if (arg == "--prior-mix" && i + 1 < argc) {
       prior_mix = std::atof(argv[++i]);  // --move / --analyze single-position mix
+    } else if (arg == "--leaf-mode" && i + 1 < argc) {
+      leaf_mode = argv[++i];  // --move / --analyze leaf head (margin/outcome/mix)
+    } else if (arg == "--mix-alpha" && i + 1 < argc) {
+      mix_alpha = std::atof(argv[++i]);  // --leaf-mode mix blend weight α
     } else if (arg == "-h" || arg == "--help") {
       usage(argv[0]);
       return 0;
@@ -230,7 +254,8 @@ int main(int argc, char** argv) {
       return 2;
     }
     std::string result = agricola::pick_move(state_json, model_dir, sims, c_uct,
-                                             temperature, prior_mix);
+                                             temperature, prior_mix, leaf_mode,
+                                             mix_alpha);
     std::cout << result << "\n";
     return 0;
 #endif
@@ -250,7 +275,8 @@ int main(int argc, char** argv) {
     }
     try {
       std::string result = agricola::analyze_position(state_json, model_dir, sims,
-                                                      c_uct, temperature, prior_mix);
+                                                      c_uct, temperature, prior_mix,
+                                                      leaf_mode, mix_alpha);
       std::cout << result << "\n";
       return 0;
     } catch (const std::exception& e) {
@@ -286,9 +312,18 @@ int main(int argc, char** argv) {
     } else {
       idxs.push_back(0);  // single game from base_seed
     }
+    // --sweep-alpha shares the per-game RNG path with the sims/c_uct sweep so it
+    // composes (hold sims/c_uct fixed via a single --sweep-sims value + equal
+    // --cuct-lo/--cuct-hi). Either flag activates the RNG-draw path.
+    const bool sweep_any = sweep || sweep_alpha;
+    // When sweeping α, BOTH seats run the MIX leaf (scales from each manifest).
+    if (sweep_alpha) {
+      leaf_mode_p0 = "mix";
+      leaf_mode_p1 = "mix";
+    }
     // In --sweep, each seat independently draws (sims, c_uct) per game.
     std::vector<long long> sweep_sims;
-    if (sweep && !parse_game_idxs(sweep_sims_arg, sweep_sims)) {
+    if (sweep_any && !parse_game_idxs(sweep_sims_arg, sweep_sims)) {
       std::cerr << "selfplay: --sweep-sims must be a non-empty comma-separated "
                    "list of positive integers\n";
       return 2;
@@ -301,10 +336,12 @@ int main(int argc, char** argv) {
       std::uint64_t game_seed = base_seed + static_cast<std::uint64_t>(idx);
       int s0 = sims, s1 = sims;
       double c0 = c_uct, c1 = c_uct;
-      if (sweep) {
+      double a0 = 0.5, a1 = 0.5;  // MIX α (reported only when sweeping α)
+      if (sweep_any) {
         // Per-game RNG (reproducible from the game seed, mixed so adjacent
-        // seeds don't give correlated draws). Four independent draws: each
-        // seat's sims and c_uct, with replacement.
+        // seeds don't give correlated draws). Draws (in a FIXED order so the
+        // sims/c_uct stream is identical with or without --sweep-alpha): each
+        // seat's sims and c_uct, then — when sweeping α — each seat's α.
         std::uint64_t z = game_seed + 0x9E3779B97F4A7C15ULL;
         z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
         z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
@@ -316,6 +353,11 @@ int main(int argc, char** argv) {
         c0 = uc(rng);
         s1 = static_cast<int>(sweep_sims[pick(rng)]);
         c1 = uc(rng);
+        if (sweep_alpha) {
+          std::uniform_real_distribution<double> ua(alpha_lo, alpha_hi);
+          a0 = ua(rng);
+          a1 = ua(rng);
+        }
       } else {
         // Fixed per-seat overrides (negative = use the shared value).
         if (sims_p0 >= 0) s0 = sims_p0;
@@ -328,12 +370,15 @@ int main(int argc, char** argv) {
       agricola::MatchGameResult r = agricola::mcts_match_game(
           nn0, nn1, game_seed, s0, c0, s1, c1, t0, t1,
           prior_mix_p0, prior_mix_p1, select_q_p0, select_q_p1,
-          leaf_mode_p0, leaf_mode_p1);
+          leaf_mode_p0, leaf_mode_p1, a0, a1);
       std::cout << "GAME seed=" << r.seed << " p0=" << r.p0_score
                 << " p1=" << r.p1_score << " winner=" << r.winner;
-      if (sweep) {
+      if (sweep_any) {
         std::cout << " sims0=" << s0 << " cuct0=" << c0
                   << " sims1=" << s1 << " cuct1=" << c1;
+      }
+      if (sweep_alpha) {
+        std::cout << " alpha0=" << a0 << " alpha1=" << a1;
       }
       std::cout << std::endl;  // flush per game so piped progress is live
       if (r.winner == 0) ++p0w;

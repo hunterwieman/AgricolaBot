@@ -27,8 +27,9 @@
   let analysisByKey = new Map();
   // What the analysis q values mean — the value head's training target, from
   // /api/analyze's `value_target`: "margin" (q is points of expected score
-  // diff) or "outcome" (q is expected win/draw/loss value in [-1,1]). Labels
-  // the badge so the number is never shown without its unit.
+  // diff), "outcome" (q is expected win/draw/loss value in [-1,1]), or "mix"
+  // (q is the RAW unitless margin/outcome blend the mix-leaf bot backs up).
+  // Labels the badge so the number is never shown without its unit.
   let analysisUnit = 'margin';
   // Monotonic generation counter: each adopted state bumps it. An in-flight
   // /api/analyze response is discarded if a newer state has arrived since it
@@ -79,13 +80,14 @@
   }
 
   // Format an analysis badge: the value head's unit descriptor ("margin" /
-  // "outcome"), then the signed denormalized q (good-for-the-human), then the
-  // visit count N. q is already in the head's natural units (the backend
-  // multiplies the normalized Q by value_scale). Margin reads in points (1
-  // decimal); outcome lives in [-1,1] so it gets 2 decimals for resolution.
-  // e.g. "margin +1.2 · 80" or "outcome +0.31 · 80".
+  // "outcome" / "mix"), then the signed q (good-for-the-human), then the visit
+  // count N. For margin/outcome q is in the head's natural units (the backend
+  // multiplies the normalized Q by value_scale); margin reads in points (1
+  // decimal), outcome lives in [-1,1] (2 decimals). For "mix" q is the RAW
+  // tree Q — a unitless margin/outcome blend (NOT scaled), shown to 2 decimals.
+  // e.g. "margin +1.2 · 80", "outcome +0.31 · 80", or "mix +0.34 · 80".
   function analysisBadgeText(info) {
-    const dp = analysisUnit === 'outcome' ? 2 : 1;
+    const dp = analysisUnit === 'margin' ? 1 : 2;
     const q = info.q >= 0 ? `+${info.q.toFixed(dp)}` : info.q.toFixed(dp);
     return `${analysisUnit} ${q} · ${info.visits}`;
   }
@@ -104,7 +106,8 @@
       const data = await res.json().catch(() => ({}));
       if (gen !== analysisGen) return;  // a newer state arrived — discard
       if (!data || !data.ok || !Array.isArray(data.children)) return;
-      analysisUnit = data.value_target === 'outcome' ? 'outcome' : 'margin';
+      analysisUnit = (data.value_target === 'outcome' || data.value_target === 'mix')
+        ? data.value_target : 'margin';
       const map = new Map();
       for (const child of data.children) {
         map.set(actionKey(child.type, child.params),

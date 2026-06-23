@@ -27,9 +27,15 @@ std::string random_selfplay_trace(std::uint64_t seed);
 // with the given NN, sims, c_uct, and temperature and returns a compact JSON
 // object: {"action": {type, params}, "root_value": float}.
 // Intended for the web UI: play_web.py shells out per AI turn and parses stdout.
+// `leaf_mode` ("margin" [default, backward-compatible] / "outcome" / "mix")
+// selects the leaf-value head the search backs up; "mix" blends margin/outcome
+// at `mix_alpha` (α=1 pure margin, α=0 pure outcome). outcome/mix require the
+// model to carry an outcome head.
 std::string pick_move(const std::string& state_json, const std::string& model_dir,
                       int sims, double c_uct, double temperature,
-                      double prior_mix = 0.0);
+                      double prior_mix = 0.0,
+                      const std::string& leaf_mode = "margin",
+                      double mix_alpha = 0.5);
 
 // Read-only position analysis for the web UI's "Show analysis" feature. Runs the
 // SAME MCTS as pick_move on the position described by `state_json` (canonical
@@ -44,10 +50,18 @@ std::string pick_move(const std::string& state_json, const std::string& model_di
 // identical to pick_move's --move action, so it round-trips through the same
 // action_from_params on the Python side. Unvisited children (visits 0) are
 // omitted. Requires an NN build.
+// `leaf_mode` selects the leaf-value head the analysis search backs up (same
+// semantics as pick_move). For "margin"/"outcome" the emitted `q` is the
+// child's normalized mean Q multiplied by the head's value_scale (natural
+// units) and `value_target` is the head's descriptor. For "mix" the emitted
+// `q` is the RAW tree Q (already in normalized [-1,1]-ish blend units, NOT
+// multiplied by value_scale) and `value_target` is "mix".
 std::string analyze_position(const std::string& state_json,
                              const std::string& model_dir, int sims,
                              double c_uct, double temperature,
-                             double prior_mix = 0.0);
+                             double prior_mix = 0.0,
+                             const std::string& leaf_mode = "margin",
+                             double mix_alpha = 0.5);
 
 #ifdef AGRICOLA_WITH_NN
 // Stage 6 production self-play (CPP_ENGINE_PLAN.md §7) — a faithful mirror of
@@ -113,7 +127,14 @@ MatchGameResult mcts_match_game(const NNInference& nn_p0, const NNInference& nn_
                                 // outcome_scale). Strings keep this header free of
                                 // the NN-guarded LeafMode enum.
                                 const std::string& leaf_mode_p0 = "margin",
-                                const std::string& leaf_mode_p1 = "margin");
+                                const std::string& leaf_mode_p1 = "margin",
+                                // Per-seat MIX-leaf blend weight α (only used when
+                                // that seat's leaf_mode == "mix"): leaf Q =
+                                // α·(margin/margin_scale) + (1-α)·(outcome/outcome_scale).
+                                // Default 0.5 = even mix; α=1 pure margin, α=0 pure
+                                // outcome.
+                                double mix_alpha_p0 = 0.5,
+                                double mix_alpha_p1 = 0.5);
 #endif
 
 }  // namespace agricola

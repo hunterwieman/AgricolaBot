@@ -287,10 +287,11 @@ PYBIND11_MODULE(agricola_cpp, m) {
   m.def(
       "mcts_debug_root",
       [](const std::string& model_dir, const std::string& state_dump, int sims,
-         double c_uct, std::uint64_t seed) {
+         double c_uct, std::uint64_t seed, double prior_mix) {
         auto nn = std::make_shared<agricola::NNInference>(model_dir);
         agricola::MCTSSearch search(nn.get(), c_uct,
                                     seed ^ 0x9E3779B97F4A7C15ULL, 0.0);
+        search.set_prior_uniform_mix(prior_mix);
         agricola::MCTSAgent agent(&search, sims, c_uct, 0.0, /*temp=*/0.0,
                                   seed ^ 0xD1B54A32D192ED03ULL, true);
         agricola::GameState s = agricola::game_state_from_string(state_dump);
@@ -306,6 +307,30 @@ PYBIND11_MODULE(agricola_cpp, m) {
           vd.append(pair);
         }
         out["visit_distribution"] = vd;
+        // Per-child detail over the FULL legal set: prior, visits, mean-Q
+        // (flipped to the root/human frame, value_scale-scaled — same convention
+        // as analyze_position). Unvisited children report visits=0, q=null.
+        py::list detail;
+        for (const agricola::Action& action : root->legal) {
+          py::list row;
+          row.append(agricola::action_to_json(action));
+          auto pit = root->priors.find(action);
+          row.append(pit != root->priors.end() ? py::cast(pit->second)
+                                                : py::cast(0.0));
+          auto cit = root->children.find(action);
+          if (cit != root->children.end() && cit->second->visits > 0) {
+            agricola::MCTSNode* ch = cit->second;
+            double q = ch->value_sum / static_cast<double>(ch->visits);
+            if (ch->decider != root->decider) q = -q;
+            row.append(static_cast<long long>(ch->visits));
+            row.append(q * nn->value_scale());
+          } else {
+            row.append(static_cast<long long>(0));
+            row.append(py::none());
+          }
+          detail.append(row);
+        }
+        out["children_detail"] = detail;
         py::list cc;
         for (const auto& [a, n] : root->chance_counts) {
           py::list pair;
@@ -320,7 +345,7 @@ PYBIND11_MODULE(agricola_cpp, m) {
         return out;
       },
       py::arg("model_dir"), py::arg("state_dump"), py::arg("sims"),
-      py::arg("c_uct") = 1.4, py::arg("seed") = 0,
+      py::arg("c_uct") = 1.4, py::arg("seed") = 0, py::arg("prior_mix") = 0.0,
       "Run native MCTS on a JSON state and return root internals "
       "(visit_distribution, chance_counts, root_value, root_visits, is_chance) "
       "for component tests.");

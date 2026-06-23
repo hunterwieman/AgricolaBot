@@ -9,6 +9,7 @@
     ],
     "embedding_dim": 128,
     "value_head_dims": [],
+    "outcome_head_dims": [],
     "fixed_head_dims": [],
     "pointer_head_dims": [
       64
@@ -33,9 +34,9 @@
   },
   "encoding_version": 2,
   "encoding_tag": "v2",
-  "value_scale": 4.344666004180908,
+  "value_scale": 2.942708730697632,
   "extras": {
-    "value_scale": 2.775635004043579,
+    "value_scale": 2.942708730697632,
     "model_kind": "shared_trunk",
     "trunk_hidden_dims": [
       256,
@@ -56,71 +57,73 @@
     "weight_decay": 0.0001,
     "batch_size": 2048,
     "max_epochs": 40,
-    "steps_per_epoch": 3553,
+    "steps_per_epoch": 4018,
     "fast_loader": true,
     "soft_targets": true,
     "stream": false,
     "buffer_chunks": null,
     "split_seed": 0,
-    "init_from": "nn_models/best.pt",
+    "init_from": "nn_models/best",
     "l2sp": 0.001,
+    "train_outcome": true,
+    "outcome_loss_weight": 1.0,
     "encoding_version": 2,
     "encoding_tag": "v2",
     "strip_begging": false,
     "data_version": 3,
-    "code_sha": "fbc6fa2150527e9e8fb479868399130ffefdb63d",
+    "code_sha": "unknown",
     "sizes": {
       "value": [
-        7277558,
-        915242,
-        916414
+        8229112,
+        1047772,
+        1026434
       ],
       "fixed:build_stop": [
-        51108,
-        6498,
-        6369
+        58681,
+        7423,
+        7274
       ],
       "fixed:choose_subaction": [
-        309043,
-        38827,
-        38839
+        363525,
+        46192,
+        45291
       ],
       "fixed:commit_bake": [
-        1336,
-        148,
-        170
+        1649,
+        194,
+        225
       ],
       "fixed:commit_build_major": [
-        86439,
-        10853,
-        10809
+        99694,
+        12519,
+        12382
       ],
       "fixed:commit_sow": [
-        80380,
-        10064,
-        10142
+        89824,
+        11474,
+        11287
       ],
       "fixed:fencing": [
-        128344,
-        16193,
-        16294
+        138260,
+        17639,
+        17401
       ],
       "fixed:placement": [
-        2336989,
-        293758,
-        294514
+        2624680,
+        334378,
+        327463
       ],
       "ptr:animal_frontier": [
-        90882,
-        11503,
-        11455
+        114601,
+        14537,
+        14150
       ],
       "ptr:harvest_feed": [
-        173765,
-        21873,
-        21727
+        185518,
+        23677,
+        23092
       ]
     },
-    "param_count": 196368
+    "param_count": 196497
   }
 }

@@ -85,9 +85,10 @@ struct MCTSNode {
 // single trunk pass.
 //   MARGIN  — P0-frame margin (points), divided by the margin value_scale.
 //   OUTCOME — P0-frame outcome (≈[-1,1]), divided by the outcome_scale.
-//   MIX     — 0.5·(margin/margin_scale) + 0.5·(outcome/outcome_scale), used
+//   MIX     — α·(margin/margin_scale) + (1-α)·(outcome/outcome_scale), used
 //             DIRECTLY as the leaf Q (no further value_scale division; the two
 //             terms are already normalized — effective leaf_value_scale 1.0).
+//             α = mix_alpha_ (default 0.5); α=1 -> pure margin, α=0 -> pure outcome.
 enum class LeafMode { MARGIN, OUTCOME, MIX };
 
 class MCTSSearch {
@@ -132,6 +133,10 @@ class MCTSSearch {
   void set_leaf_mode(LeafMode mode) { leaf_mode_ = mode; }
   void set_margin_scale(double s) { margin_scale_ = (s == 0.0 ? 1.0 : s); }
   void set_outcome_scale(double s) { outcome_scale_ = (s == 0.0 ? 1.0 : s); }
+  // MIX-leaf blend weight: leaf Q = mix_alpha*(margin/margin_scale) +
+  // (1-mix_alpha)*(outcome/outcome_scale). alpha=1 -> pure margin, alpha=0 ->
+  // pure outcome. Default 0.5 reproduces the original even mix.
+  void set_mix_alpha(double a) { mix_alpha_ = a; }
   std::mt19937_64& rng() { return rng_; }
   MCTSNode* root() const { return root_; }
 
@@ -145,6 +150,7 @@ class MCTSSearch {
   LeafMode leaf_mode_ = LeafMode::MARGIN;
   double margin_scale_ = 1.0;
   double outcome_scale_ = 1.0;
+  double mix_alpha_ = 0.5;  // MIX-leaf margin/outcome blend (0.5 = even, default)
   double prior_uniform_mix_ = 0.0;
   std::mt19937_64 rng_;
   MCTSNode* root_ = nullptr;

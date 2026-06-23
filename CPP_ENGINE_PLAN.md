@@ -306,6 +306,7 @@ already runs:
 | Engine (`legal_actions`/`step`/`score`) | trace-replay, §3.2, over millions of random states | **exact** (set-equal / dump-equal) |
 | `encode_state` | C++ encode == Python `encode_state` over a state corpus | **exact** (float32 bit-identical, or ≤1 ULP) |
 | Value forward | C++ `predict_margin` == Python over a corpus | ≤1e-4 (float) |
+| Outcome forward | C++ `outcome()` == Python `SharedTrunkModel.predict_outcome` over a corpus | ≤1e-4 (float) |
 | Policy combiner | C++ `policy_fn` priors dict == Python over a corpus | ≤1e-4 per action |
 | MCTS components | UCB/PUCT formula, backprop sign-flip, chance round-robin, transposition keying — hand-built cases mirrored in both | exact |
 | MCTS end-to-end | C++-MCTS vs Python-MCTS head-to-head, many seeds | ~50% ± noise (strength parity, §7.4) |
@@ -433,6 +434,14 @@ combiner `eval()`s the heads for exactly this reason).
   Production value head is **linear** with `value_scale ≈ 11.526`. (The linear head matters: the
   MCTS terminal leaf uses the raw `score(0)-score(1)` margin, which is only consistent with a
   linear/margin value head — see §7.3.)
+- **Outcome (optional second value-side head):** the joint `SharedTrunkModel` may carry an
+  `outcome_head` (`predict_outcome`) trained to `sign(margin)` ∈ {−1, 0, +1} — a win/draw/loss
+  readout in roughly `[−1, 1]`. In C++ it is read off the **same cached trunk embedding** as the
+  value head, so the two together cost **one** trunk forward (`NNInference::has_outcome` /
+  `outcome()`, joint mode only). The export manifest carries an `outcome` blob + `outcome_scale`
+  (its per-distribution Q normalizer, mirroring `value_scale`), or `outcome: null` when the model
+  lacks the head; `export_weights.py` writes both. This feeds the MCTS leaf modes (§7.3) and the
+  joint path (§13.5).
 - **Fixed policy head:** MLP → logits → masked softmax (illegal classes → −∞; all-illegal-row
   guard → treat as all-legal to avoid NaN).
 - **Pointer head:** per candidate, normalize the **full concatenated row** `[state(170);
@@ -531,6 +540,15 @@ BACKPROP (path-only). Key behaviors:
   pass. Set `leaf_value_scale = model.value_scale`. Chance nodes are **never** leaf-evaluated.
   *(The terminal branch assumes a linear/margin value head — see §6.1. The C++ port should assume a
   linear head; if a non-linear head is ever used, make the terminal branch head-aware.)*
+- **Leaf modes (`LeafMode` ∈ {MARGIN, OUTCOME, MIX}; `set_leaf_mode` / `set_mix_alpha`).** When the
+  NN carries an outcome head (§6.1), `MCTSSearch` can back up the leaf from a different value-side
+  readout. **MARGIN** is the default and unchanged (`margin / margin_scale`). **OUTCOME** backs up
+  `outcome / outcome_scale` — the win/draw/loss signal. **MIX** backs up
+  `α·(margin/margin_scale) + (1−α)·(outcome/outcome_scale)` directly (used as the leaf Q, *not*
+  re-denormalized — so its natural scale is ≈1), with `α = mix_alpha_` (default 0.5; α=1 ⇒ pure
+  margin, α=0 ⇒ pure outcome). Both readouts come from the one cached embedding, so OUTCOME/MIX add
+  no trunk forward. The scales are sourced from the export manifest (`value_scale` / `outcome_scale`,
+  §6.1). The mid-game and terminal paths both honor the mode; chance nodes are still never evaluated.
 - **Backprop** walks the recorded path (not `parents`): `decider==0` nodes (incl. chance) add
   `+leaf_value_p0`; `decider==1` nodes add `−leaf_value_p0`; all `visits += 1`. **At read time**, a
   parent reading a child with a different `decider` flips the sign. (Store-in-own-frame +
@@ -984,6 +1002,27 @@ identity-norm head blobs), an internal `state_hash`-keyed embedding cache (one t
 `SharedTrunkModel` → real export → C++ joint value/policy ≈ Python `make_joint_fns` ≤1e-4); the
 composite gates stay green. Full detail in **§13**; the joint model itself in **`SHARED_TRUNK.md`**.
 
+**Outcome head + leaf modes (landed, post-Stage-B).** The joint `SharedTrunkModel` gained a second
+value-side head (`outcome_head`, target `sign(margin)`); the C++ `NNInference` reads it off the
+**same cached embedding** as the value head (one trunk forward), and `MCTSSearch` gained a `LeafMode`
+enum {MARGIN, OUTCOME, MIX} (`set_leaf_mode` / `set_mix_alpha`) selecting which readout backs up the
+leaf — MARGIN (unchanged) / OUTCOME / α-blended MIX. The scales come from the export manifest
+(`export_weights.py` now writes an `outcome` blob + `outcome_scale`, or `outcome: null` when the
+model lacks the head). Surfaced on the CLI (`selfplay --leaf-mode` / `--mix-alpha` on `--match`,
+`--move`, `--analyze`, `--sweep`; `run_cpp_match.py --leaf-mode-p0/p1`;
+`run_cpp_sweep.py --sweep-alpha --alpha-lo/--alpha-hi`, each seat drawing α~U[0,1] per game from the
+per-game RNG and reporting it in the `GAME` lines). For `--analyze` under the mix leaf the path emits
+the **raw (un-denormalized) Q** for the overlay (mix is already ≈[−1,1], so ×`value_scale` is
+skipped). New permanent gate `tests/test_cpp_nn.py::test_cpp_outcome_matches_python` (C++ `outcome()`
+vs Python `SharedTrunkModel.predict_outcome` ≤1e-4, exercising the exporter's new `outcome` manifest
+entry). Full detail in **§13.5**; the head + its training in **`SHARED_TRUNK.md`**.
+
+**Cloud usage (context).** The ARM-native C++ binary — the *same* torch-free, memory-light binary as
+local — was built and run on **GCP T2A** (ARM) boxes this session for: a **40k-game self-play
+generation** at 1600 sims, a **1000-game head-to-head eval**, and a **10k-game mix-rate α-sweep**.
+The operational side (provisioning, build, run, teardown) is documented in **`CLOUD_RUNBOOK.md`**;
+the per-core scaling thesis is in the GCP scaling note (CLAUDE.md memory).
+
 ---
 
 ## 9. Build system, repo layout, dependencies
@@ -1182,6 +1221,51 @@ builds a *random* `SharedTrunkModel`, exports it through the real `export_weight
 policy match Python `shared_policy.make_joint_fns` to **≤1e-4** over a state corpus. No trained
 checkpoint is needed, so the gate runs anywhere. The composite gates (§3.4 value/policy ≤1e-4) remain
 green — the joint path is additive.
+
+### 13.5 The outcome head + the three leaf modes
+
+The joint value side gained a **second head** alongside the margin head: an `outcome_head` trained to
+predict `sign(margin)` ∈ {−1, 0, +1} — a win/draw/loss readout in roughly `[−1, 1]` (the head + its
+training are in **`SHARED_TRUNK.md`**). On the C++ side this is, again, a pure inference-backend
+addition: `NNInference::outcome()` reads the head off the **same `state_hash`-keyed trunk embedding**
+the value head already produced (§13.2), so margin + outcome together still cost **one** trunk forward
+per node; `has_outcome()` reports whether the loaded manifest carries the head.
+
+`MCTSSearch` selects which value-side readout backs up the leaf via a `LeafMode` enum
+(`set_leaf_mode` / `set_mix_alpha`):
+
+- **MARGIN** (default, backward-compatible) — `margin / margin_scale`, exactly the original leaf.
+- **OUTCOME** — `outcome / outcome_scale`.
+- **MIX** — `α·(margin/margin_scale) + (1−α)·(outcome/outcome_scale)`, used **directly** as the
+  leaf Q (no re-denormalization — the blend already sits at ≈[−1, 1] scale), with `α = mix_alpha`
+  (default 0.5; α=1 ⇒ pure margin, α=0 ⇒ pure outcome).
+
+The two scales are sourced from the export manifest: `export_weights.py` writes an `outcome` blob +
+its `outcome_scale` (the outcome head's per-distribution Q normalizer, mirroring `value_scale`), or
+`outcome: null` when the checkpoint has no outcome head — so a margin-only model loads with
+`has_outcome()` false and MARGIN is the only usable mode.
+
+**CLI surface.** The leaf mode is exposed on every search-driving entry point:
+
+- `selfplay --leaf-mode {margin,outcome,mix} [--mix-alpha A]` on the `--match`, `--move`, and
+  `--analyze` paths (single-position modes carry one `leaf_mode`; `--match` carries a per-seat
+  `leaf_mode_p0` / `leaf_mode_p1`).
+- `scripts/nn/run_cpp_match.py --leaf-mode-p0 / --leaf-mode-p1` — per-seat for the two-net match.
+- `scripts/nn/run_cpp_sweep.py --sweep-alpha --alpha-lo L --alpha-hi H` — a **mix-rate sweep**: both
+  seats run the mix leaf and each independently draws `α ~ U[L, H]` per game from the per-game RNG
+  (reproducible), reporting the drawn `alpha0` / `alpha1` back in each `GAME` line (mirroring how the
+  existing sweep reports per-game `sims` / `c_uct`).
+
+**The `--analyze` raw-Q detail.** The analysis overlay normally multiplies the root Q by `value_scale`
+to report it in natural units (score-margin for margin, win/draw/loss for outcome). Under the **mix**
+leaf the Q is already a unit-scale blend, so the path emits the **raw, un-denormalized Q** instead of
+applying `×value_scale`.
+
+**The gate.** `tests/test_cpp_nn.py::test_cpp_outcome_matches_python` is a permanent §3.4-style gate:
+the C++ outcome readout must match Python `SharedTrunkModel.predict_outcome` to **≤1e-4** over a state
+corpus (it exports a real joint-with-outcome checkpoint through the `export_weights.py` CLI, so it
+also gates the exporter's new `outcome` manifest entry). The existing joint/composite gates stay green
+— outcome is additive.
 
 ---
 

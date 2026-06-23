@@ -99,7 +99,10 @@ averaging many cheap evaluations over a tree is more useful than a few expensive
 The evaluator is a **black box** to the search. The default is the differential V3 heuristic
 (`evaluate_hubris_v3_differential`); a trained value network plugs into the exact same
 `(state, player_idx, config) -> float` slot. Its internals are out of scope (§6 specifies only the
-contract and the one scaling knob, `leaf_value_scale`).
+contract and the one scaling knob, `leaf_value_scale`). The "margin" framing here is the *default*
+leaf signal; the joint value+policy model can instead back up a win/draw/loss *outcome* estimate, or
+a blend of the two, through three **leaf modes** (§6.1) — but each still resolves to one P0-frame
+number per leaf, so everything in this section holds unchanged.
 
 ### 1.4 Selection rules — UCT and PUCT
 
@@ -817,6 +820,59 @@ real decision/terminal node.
 search depends on the *caller* for: the model must be in **`eval()` mode** (`evaluate_leaf` does not eval it;
 a TRAIN-mode model fires dropout → noisy leaf values). See §14.
 
+### 6.1 Three leaf modes for the joint model — margin, outcome, mix
+
+The §6 contract treats the leaf as a single P0-frame **margin** in points. The joint shared-trunk model
+generalizes this: it carries a second **`outcome_head`** — a value-style head reading the same trunk
+embedding, trained to predict the *tiebreaker-blind* game result `sign(margin) ∈ {−1, 0, +1}` (a
+win/draw/loss classifier) rather than the margin in points — so one trunk forward yields **both** a margin
+and an outcome estimate. The search can therefore back up the leaf three ways, selected by a **leaf mode**.
+All three read **one trunk forward** (both heads off the cached embedding — no second forward); the difference
+is only how the head outputs are turned into the backed-up leaf Q:
+
+- **`MARGIN`** (the §6 default). The P0-frame margin in points, divided by the margin `value_scale` →
+  Q. Terminal leaves still use the exact `score()` margin (§6), divided by the same scale.
+- **`OUTCOME`.** The P0-frame outcome prediction (≈ `[−1, +1]`, from `outcome_head`), divided by an
+  `outcome_scale` → Q.
+- **`MIX`.** `α·(margin / margin_scale) + (1−α)·(outcome / outcome_scale)` — each term is normalized to Q
+  units **first**, then averaged, and the blend is used **directly** as the leaf Q with **no further
+  `leaf_value_scale` division** (the effective scale is 1.0, because the two terms are already on the unit-ish
+  Q scale). `α = 1` reduces to pure margin, `α = 0` to pure outcome; the default is `α = 0.5`.
+
+The two scales are sourced from the model's **export manifest** (the margin head's `value_scale` and the
+outcome head's `outcome_scale`), so a leaf mode is fully self-describing from the checkpoint — no separate
+calibration step.
+
+**Where the modes live.** This is implemented in **both** the C++ production search and the Python reference
+adapter:
+
+- **C++** (`cpp/include/agricola/mcts.hpp`, `cpp/src/mcts.cpp`): a `LeafMode { MARGIN, OUTCOME, MIX }` enum,
+  set via `MCTSSearch::set_leaf_mode(LeafMode)`; the blend weight via `set_mix_alpha(double)` (member
+  `mix_alpha_`, default `0.5`); the two scales via `set_margin_scale` / `set_outcome_scale` (sourced from the
+  manifest). `evaluate_leaf` divides by `margin_scale_` / `outcome_scale_` per mode and returns the blend
+  directly for `MIX`. The `selfplay` binary exposes `--leaf-mode margin|outcome|mix` + `--mix-alpha A` on the
+  match / move / analyze paths, plus a `--sweep-alpha` self-play mode (`run_cpp_sweep.py`) that draws a
+  per-seat random α each game (the basis for the α-sweep below); `run_cpp_match.py` adds per-seat
+  `--leaf-mode-p0` / `--leaf-mode-p1`.
+- **Python** (`agricola/agents/nn/shared_policy.py`): `make_joint_fns(model, *, leaf_mode="margin",
+  margin_scale=None, outcome_scale=None, …)` builds the `(value_fn, policy_fn)` pair, forming the same
+  per-mode Q off the shared embedding. (`outcome_from_embedding` / `predict_outcome` are the model's
+  outcome readouts; §6's `make_joint_fns` "one trunk forward per node" note is unchanged — the outcome
+  head rides the same memoized embedding as the value and policy heads.) One asymmetry to know: the Python
+  reference's `MIX` is a **fixed 50/50** blend (no `α` argument) — the **tunable α lives only in the C++
+  production search**, which is what the deployed champion runs.
+
+**Eval finding (which mode to use).** Against any single opponent the `mix` leaf tends to win, but that is
+opponent-specific; to pin down the best α as a *general* leaf, a 10,000-game **self-play** α-sweep (joint vs
+joint, both seats on `mix`, **each seat drawing α ~ U[0, 1] per game**) found the robust optimum at **α ≈ 0.9**
+("mostly margin, with a ~10% outcome nudge"): **margin is the robust general leaf**, the even `0.5` mix is
+only mediocre, and **pure outcome (α = 0) is the weakest** (~47%). The deployed champion therefore runs `mix`
+at **α = 0.9**.
+
+**The differential gate.** `tests/test_cpp_nn.py::test_cpp_outcome_matches_python` validates the C++ outcome
+readout against the Python `predict_outcome` to **≤ 1e-4** — the same oracle discipline that keeps every other
+C++ NN output in lock-step with Python (§14, CLAUDE.md §2.4).
+
 ---
 
 ## 7. Legality and action pruning
@@ -1202,7 +1258,7 @@ table is not cleanly pickleable across processes.
 | `evaluator_config` | `DEFAULT_CONFIG_V3` | Third arg threaded into `evaluator_fn` (so it **carries the NN model** in the NN wiring, §6) and, for the *default* legality wrapper, the V3 config for the harvest-feed cap (§7). |
 | `heuristic` | turn-lookahead `EvaluatorAgent` bound to `evaluator_fn` (V3 by default) | Plays the **greedy** fence macro with the *same* value function as the leaf — the NN under an NN leaf, not a hardcoded V3 (§9). |
 | `n_random_fencing` | `4` | Random fence macros per trigger, in addition to 1 greedy (`MACRO` only). |
-| `leaf_value_scale` | `1.0` | Divide leaf value before backprop; set to the NN's value scale for `c_uct` comparability (§6). |
+| `leaf_value_scale` | `1.0` | Divide leaf value before backprop; set to the NN's value scale for `c_uct` comparability (§6). With the joint model, three **leaf modes** generalize this (margin / outcome / a normalized mix) — selected via `make_joint_fns` (Python) or `set_leaf_mode`/`set_mix_alpha` (C++), not this field (§6.1). |
 | `policy_fn` | `None` | `None` → UCT; set → PUCT (§5). Requires `FenceMode.FLATTEN`. |
 | `macro_policy_fn` | `None` | Optional fence-chain **sampler** (distinct from the PUCT `policy_fn`): when set, greedy macro-fencing is replaced by sampling chains from `(state, legal) -> {a: p}` — cheaper than the value-net greedy rollout; selection stays pure UCB. `MACRO` mode only (§9.1). |
 | `fence_mode` | `FenceMode.MACRO` | `MACRO` (UCT) / `FLATTEN` (PUCT) / `SEQUENCE_PRIOR` (raises) (§9). |

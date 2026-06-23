@@ -163,8 +163,8 @@ double MCTSSearch::evaluate_leaf(MCTSNode* node) const {
   //   MARGIN  — margin / margin_scale (terminal branch divides the exact margin
   //             too, exactly as before; margin_scale_ == leaf_value_scale_).
   //   OUTCOME — outcome / outcome_scale.
-  //   MIX     — 0.5·(margin/margin_scale) + 0.5·(outcome/outcome_scale), already
-  //             in Q units, so NO further division.
+  //   MIX     — α·(margin/margin_scale) + (1-α)·(outcome/outcome_scale), already
+  //             in Q units, so NO further division. α = mix_alpha_ (default 0.5).
   if (leaf_mode_ == LeafMode::MARGIN)
     return nn_->value(node->state, node->embedding) / margin_scale_;
   if (leaf_mode_ == LeafMode::OUTCOME)
@@ -173,7 +173,7 @@ double MCTSSearch::evaluate_leaf(MCTSNode* node) const {
   // forward).
   double m = nn_->value(node->state, node->embedding) / margin_scale_;
   double o = nn_->outcome(node->state, node->embedding) / outcome_scale_;
-  return 0.5 * m + 0.5 * o;
+  return mix_alpha_ * m + (1.0 - mix_alpha_) * o;
 }
 
 void MCTSSearch::ensure_legal(MCTSNode* node) {
