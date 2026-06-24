@@ -59,7 +59,7 @@ def main() -> int:
     p.add_argument("--fixed-head-dims", type=_dims, default=[])
     p.add_argument("--pointer-head-dims", type=_dims, default=[64])
     p.add_argument("--activation", type=str, default="gelu",
-                   choices=["gelu", "silu", "relu", "tanh"])
+                   choices=["gelu", "silu", "relu", "leaky_relu", "tanh"])
     p.add_argument("--norm", type=str, default="layer", choices=["layer", "none"])
     p.add_argument("--dropout", type=float, default=0.0)
     p.add_argument("--no-embed-norm", dest="embed_norm", action="store_false")

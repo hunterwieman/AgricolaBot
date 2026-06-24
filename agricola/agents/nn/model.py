@@ -54,6 +54,7 @@ _ACTIVATIONS: dict[str, Type[nn.Module]] = {
     "gelu": nn.GELU,
     "silu": nn.SiLU,
     "relu": nn.ReLU,
+    "leaky_relu": nn.LeakyReLU,  # default negative_slope=0.01
     "tanh": nn.Tanh,
 }
 

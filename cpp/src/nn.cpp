@@ -250,6 +250,9 @@ struct NNInference::Impl {
   bool has_outcome = false;
   Mlp outcome_mlp;
   double outcome_scale = 1.0;
+  // Model-global hidden activation (manifest "activation"; default gelu). Every
+  // Mlp in the bundle (trunk + value + outcome + all heads) shares it.
+  Activation act = Activation::kGelu;
   std::unordered_map<std::string, LoadedHead> fixed;   // head name -> head
   std::unordered_map<std::string, LoadedHead> pointer;  // animal_frontier/harvest_feed
   int harvest_feed_dim = 10;
@@ -439,9 +442,18 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   // changes. The composite (non-joint) path uses it too.
   impl_->enc_spec = &encoder_for_tag(manifest.value("encoder_tag", std::string()));
 
+  // Model-global hidden activation (top-level "activation"; default "gelu" for
+  // backward compat with pre-leaky-ReLU manifests). Threaded into EVERY Mlp.
+  {
+    std::string act_str = manifest.value("activation", std::string("gelu"));
+    impl_->act = (act_str == "leaky_relu") ? Activation::kLeakyRelu
+                                            : Activation::kGelu;
+  }
+  const Activation act = impl_->act;
+
   impl_->joint = (manifest.value("format", std::string()) == "shared_trunk_v1");
   if (impl_->joint) {
-    impl_->trunk_mlp = Mlp(manifest["trunk"], base);
+    impl_->trunk_mlp = Mlp(manifest["trunk"], base, act);
     if (impl_->enc_spec->dim != impl_->trunk_mlp.input_dim())
       throw std::runtime_error(
           "NNInference: encoder '" + std::string(impl_->enc_spec->tag) +
@@ -465,7 +477,7 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
     }
   }
 
-  impl_->value_mlp = Mlp(manifest["value"], base);
+  impl_->value_mlp = Mlp(manifest["value"], base, act);
   if (manifest["value"].contains("value_scale"))
     impl_->value_scale = manifest["value"]["value_scale"].get<double>();
   // What the value head predicts: "margin" (score diff, points) or "outcome"
@@ -478,7 +490,7 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   // Reads the shared embedding (identity input-norm), so it only makes sense in
   // joint mode. The leaf-mode {outcome, mix} paths require it; margin mode ignores.
   if (manifest.contains("outcome") && !manifest["outcome"].is_null()) {
-    impl_->outcome_mlp = Mlp(manifest["outcome"], base);
+    impl_->outcome_mlp = Mlp(manifest["outcome"], base, act);
     impl_->has_outcome = true;
     if (manifest["outcome"].contains("outcome_scale"))
       impl_->outcome_scale = manifest["outcome"]["outcome_scale"].get<double>();
@@ -488,7 +500,7 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   auto make_fixed = [&](const std::string& name, const nlohmann::json& entry,
                         const std::vector<std::string>& vocab) {
     LoadedHead h;
-    h.mlp = Mlp(entry, base);
+    h.mlp = Mlp(entry, base, act);
     h.vocab = vocab;
     h.num_classes = static_cast<int>(vocab.size());
     for (int i = 0; i < h.num_classes; ++i) h.label_to_idx[vocab[i]] = i;
@@ -526,7 +538,7 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   auto make_pointer = [&](const std::string& name) {
     if (!ph.contains(name)) return;
     LoadedHead h;
-    h.mlp = Mlp(ph[name], base);
+    h.mlp = Mlp(ph[name], base, act);
     impl_->pointer[name] = std::move(h);
     if (name == "harvest_feed")
       impl_->harvest_feed_dim = ph[name].value("candidate_dim", 10);
