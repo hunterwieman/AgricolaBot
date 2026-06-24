@@ -76,8 +76,10 @@ def _f32(t: torch.Tensor) -> np.ndarray:
 
 def _walk_layers(net: nn.Module):
     """Yield (kind, module) for each parameterized layer of an MLP `net`, in
-    forward order. GELU/Dropout/Identity carry no parameters and are skipped —
-    the C++ forward applies GELU after every hidden LayerNorm by construction."""
+    forward order. Activation modules (GELU / LeakyReLU) and Dropout/Identity
+    carry no parameters and are skipped — the C++ forward applies the
+    model-global activation (from the manifest's "activation" field) after every
+    hidden LayerNorm by construction."""
     # ConfigurableMLP wraps its layers in `self.net = nn.Sequential(...)`.
     seq = net.net if isinstance(net, nn.Module) and hasattr(net, "net") else net
     for m in seq:
@@ -85,13 +87,14 @@ def _walk_layers(net: nn.Module):
             yield ("linear", m)
         elif isinstance(m, nn.LayerNorm):
             yield ("layernorm", m)
-        elif isinstance(m, (nn.GELU, nn.Dropout, nn.Identity)):
+        elif isinstance(m, (nn.GELU, nn.LeakyReLU, nn.Dropout, nn.Identity)):
             continue
         else:
             raise ValueError(
                 f"export_weights: unexpected layer {type(m).__name__} in net; "
                 f"the hand-rolled C++ MLP only handles Linear/LayerNorm/GELU/"
-                f"Dropout/Identity. Update mlp.cpp + this exporter together."
+                f"LeakyReLU/Dropout/Identity. Update mlp.cpp + this exporter "
+                f"together."
             )
 
 
@@ -213,6 +216,11 @@ def _export_joint(ckpt: Path) -> int:
     E = int(model.embedding_dim)
     ident_m, ident_s = torch.zeros(E), torch.ones(E)
 
+    # Model-global hidden activation (default "gelu"). The C++ Mlp dispatches on
+    # this; "gelu" keeps the existing byte-identical path, "leaky_relu" selects
+    # the LeakyReLU(0.01) branch.
+    activation = str(getattr(model, "activation", "gelu"))
+
     manifest: dict = {
         "encoding_version": ENCODING_VERSION,
         "encoded_dim": ENCODED_DIM,
@@ -221,6 +229,7 @@ def _export_joint(ckpt: Path) -> int:
         # encoding_tag = the canonical v2 encoder.
         "encoder_tag": str(getattr(model, "encoding_tag", "") or "v2"),
         "format": "shared_trunk_v1",
+        "activation": activation,
         "embedding_dim": E,
         "layernorm_eps": LAYERNORM_EPS,
         "fixed_heads": {},
@@ -312,11 +321,21 @@ def main() -> int:
     # Route a SharedTrunkModel checkpoint to the shared-trunk export format.
     if _is_shared_trunk(VALUE_CKPT):
         return _export_joint(VALUE_CKPT)
+    # --- value -------------------------------------------------------------
+    value = NormalizedValueModel.load(str(VALUE_CKPT))
+    value.eval()
+
+    # Model-global hidden activation, read off the value net's ConfigurableMLP.
+    # The C++ Mlp dispatches on it; "gelu" is the existing byte-identical path.
+    # (The composite path assumes value + every head share one activation.)
+    activation = str(getattr(value.net, "activation", "gelu"))
+
     manifest: dict = {
         "encoding_version": ENCODING_VERSION,
         "encoded_dim": ENCODED_DIM,
         "encoder_tag": "v2",  # composite (legacy) models are always v2
         "format": "raw_f32_v1",
+        "activation": activation,
         "layernorm_eps": LAYERNORM_EPS,
         "value": {},
         "fixed_heads": {},
@@ -324,9 +343,6 @@ def main() -> int:
     }
     written: list[str] = []
 
-    # --- value -------------------------------------------------------------
-    value = NormalizedValueModel.load(str(VALUE_CKPT))
-    value.eval()
     target_std = _f32(value.target_std).reshape(-1)  # scalar buffer -> [1]
     entry = _export_model(
         value.net,

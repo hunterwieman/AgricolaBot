@@ -27,6 +27,9 @@ inline float gelu_erf(float v) {
          (1.0f + std::erf(v * 0.7071067811865475244f));
 }
 
+// torch.nn.LeakyReLU(negative_slope=0.01) — the default slope.
+inline float leaky_relu(float v) { return v >= 0.0f ? v : 0.01f * v; }
+
 // Dot product a·b over n floats. The linear-layer inner loop (the trunk's three
 // matmuls) is ~71% of MCTS wall, so it is hand-vectorized: 4 NEON accumulators
 // (16 floats/iter) + horizontal add, scalar tail. The lane-parallel reduction
@@ -60,7 +63,8 @@ inline float dot(const float* a, const float* b, int n) {
 
 }  // namespace
 
-Mlp::Mlp(const nlohmann::json& entry, const std::string& dir) {
+Mlp::Mlp(const nlohmann::json& entry, const std::string& dir, Activation act)
+    : act_(act) {
   std::string base = dir;
   if (!base.empty() && base.back() != '/') base += '/';
 
@@ -151,11 +155,13 @@ void Mlp::forward(const float* x, std::vector<float>& out) const {
   for (int i = 0; i < input_dim_; ++i)
     cur[i] = (x[i] - input_mean_[i]) / input_std_[i];
 
-  // The Python net is [Linear -> LayerNorm -> GELU -> Dropout] x N -> Linear.
-  // The exported layer list contains only the parameterized layers (Linear,
-  // LayerNorm) in order. Reconstruct the activation pattern: GELU is applied
-  // after every LayerNorm (each hidden block ends LayerNorm; the final layer is
-  // a bare Linear with no following LayerNorm, hence no GELU).
+  // The Python net is [Linear -> LayerNorm -> ACT -> Dropout] x N -> Linear,
+  // where ACT is the model-global activation (gelu or leaky_relu, selected by
+  // act_ from the manifest's top-level "activation"). The exported layer list
+  // contains only the parameterized layers (Linear, LayerNorm) in order.
+  // Reconstruct the activation pattern: ACT is applied after every LayerNorm
+  // (each hidden block ends LayerNorm; the final layer is a bare Linear with no
+  // following LayerNorm, hence no activation).
   for (const Layer& L : layers_) {
     if (L.kind == LayerKind::kLinear) {
       nxt.resize(static_cast<size_t>(L.out));  // every entry overwritten below
@@ -181,7 +187,8 @@ void Mlp::forward(const float* x, std::vector<float>& out) const {
       float m = static_cast<float>(mean);
       for (int i = 0; i < d; ++i) {
         float normed = (cur[i] - m) * inv * L.w[i] + L.b[i];
-        cur[i] = gelu_erf(normed);
+        cur[i] = act_ == Activation::kLeakyRelu ? leaky_relu(normed)
+                                                : gelu_erf(normed);
       }
     }
   }

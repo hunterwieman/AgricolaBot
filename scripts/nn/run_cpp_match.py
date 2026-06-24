@@ -98,6 +98,10 @@ def main() -> int:
                     help="P0 leaf-value head: margin (default) / outcome / mix")
     ap.add_argument("--leaf-mode-p1", choices=["margin", "outcome", "mix"], default=None,
                     help="P1 leaf-value head: margin (default) / outcome / mix")
+    ap.add_argument("--mix-alpha-p0", type=float, default=None,
+                    help="P0 mix-leaf blend α (margin weight; 1=pure margin). Needs --leaf-mode-p0 mix.")
+    ap.add_argument("--mix-alpha-p1", type=float, default=None,
+                    help="P1 mix-leaf blend α (margin weight; 1=pure margin). Needs --leaf-mode-p1 mix.")
     args = ap.parse_args()
 
     chunks = _contiguous_chunks(args.n, args.jobs)
@@ -108,7 +112,8 @@ def main() -> int:
                 "--prior-mix-p0": args.prior_mix_p0, "--prior-mix-p1": args.prior_mix_p1,
                 "--temperature-p0": args.temperature_p0, "--temperature-p1": args.temperature_p1,
                 "--select-by-p0": args.select_by_p0, "--select-by-p1": args.select_by_p1,
-                "--leaf-mode-p0": args.leaf_mode_p0, "--leaf-mode-p1": args.leaf_mode_p1}
+                "--leaf-mode-p0": args.leaf_mode_p0, "--leaf-mode-p1": args.leaf_mode_p1,
+                "--mix-alpha-p0": args.mix_alpha_p0, "--mix-alpha-p1": args.mix_alpha_p1}
     tasks = [(args.p0_dir, args.p1_dir, c, args.base_seed, args.sims,
               args.c_uct, args.temperature, per_seat, q) for c in chunks]
 
