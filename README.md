@@ -126,7 +126,7 @@ This project has unusually thorough documentation. If you want to dig in:
 | Doc | What it covers |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Master architectural reference — design principles, engine internals, pending stack, conventions. The first thing to read. |
-| [`RULES.md`](RULES.md) | Complete rules reference for the 2-player Family game, with design clarifications. |
+| [`RULES.md`](RULES.md) | Complete rules reference for the 2-player game — the full card game as the default, with the cardless Family game and the 3–4 player game as variants. |
 | [`MCTS_DESIGN.md`](MCTS_DESIGN.md) | Comprehensive design spec for the MCTS phase. |
 | [`HUBRIS_V1_NOTES.md`](HUBRIS_V1_NOTES.md) | Per-term breakdown of the V1 heuristic, the first non-random AI player. |
 | [`V3_DESIGN.md`](V3_DESIGN.md) | Architecture of the V3 heuristic evaluator, the second non-random AI player. |
