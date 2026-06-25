@@ -27,7 +27,9 @@ first):
   value/policy neural network (2.3, *value slice is the strongest agent; policy head + PUCT
   integration now underway, self-play loop still ahead*).
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
-  Phase 2 agent process for the richer game. **Not started.**
+  Phase 2 agent process for the richer game. **Started — Milestone 1 (the play-card foundation:
+  mode, hands, occupation + minor play across all entry points, scoring, first 4 cards) done; the
+  trigger/hook firing system is next.**
 
 The 2-player Family variant (no hand cards) is built first to validate the whole
 engine → agent → NN pipeline before card complexity is added.
@@ -944,10 +946,12 @@ Dockerfile edit.
 
 ## Phase 3 — Cards (and maybe 4-player)
 
-**Not yet started, but designed — the next major phase.** The full Agricola card system (the ~470 occupation
-and minor-improvement cards) is the largest remaining piece of game content. The plan: 
-implement the cards, possibly add the 4-player variant, then *repeat the agent-building process*
-(Phase 2: heuristic → MCTS → NN) for the richer game.
+**Started — Milestone 1 (the play-card foundation) is done; the trigger/hook system is next.** The
+full Agricola card system (the ~470 occupation and minor-improvement cards) is the largest remaining
+piece of game content. The plan: implement the cards, possibly add the 4-player variant, then *repeat
+the agent-building process* (Phase 2: heuristic → MCTS → NN) for the richer game. **(This Phase 3
+section predates the implementation and will be overhauled; the current ground truth for what's built
+is `CARD_IMPLEMENTATION_PLAN.md`'s build-order status + the `feat(cards)` git history.)**
 
 **The design is scoped in `CARD_SYSTEM_DESIGN.md`** — target scope (Revised base + 5 named
 expansions, 2-player, occupations + minors), the engine changes (`PendingPlayOccupation`/
@@ -967,14 +971,26 @@ engine); the shared infrastructure (three firing kinds incl. **mandatory-with-ch
 `before_/after_action_space` event routed by a `PENDING_ID` bucket with per-space frames kept; scoped
 used-sets; the play-card pendings; `FutureReward`; `CardStore` for per-card state; grants-are-triggers);
 the 10 card categories with canonical examples; the **deferred** set (Mini Pasture, Organic Farmer,
-Shepherd's Crook, Acorns Basket); and a build order. **Design settled; next is implementation
-(Milestone 1 = Part I + the play-card foundation).** (`legality.py`'s `ALL_LEGALITY` is already
-renamed `FAMILY_GAME_LEGALITY`; Caravan is marked `wontfix`.)
+Shepherd's Crook, Acorns Basket); and a build order. **Milestone 1 (Part I + the play-card
+foundation) is implemented** (build-order steps 1–2); the firing/hook system (steps 3–4) is next.
 
-**What exists today.** Exactly one card — **Potter Ceramics** (a minor improvement) — is
-implemented, **solely to validate the trigger machinery end-to-end**. It is a
-forward-compatibility test: **not part of any game, and not to be used in play until the full
-card suite is built.** (Sessions have repeatedly misread this — the rule is firm.)
+**What exists today.** Milestone 1 of the card game is built and tested (the Family game stays
+byte-identical; C++ differential gates green):
+- **Part I** — an explicit `GameMode` field; mode-branched placement; private hands on `PlayerState`;
+  `setup_env(seed, card_pool=...)`; the canonical `default-skip` for card-only fields.
+- **The play-card foundation** — occupations via **Lessons** (`PendingPlayOccupation`); minors via
+  **all four entry points** (Major/Minor Improvement, House Redevelopment, Basic Wish for Children —
+  reworked to mirror House Redev with a `PendingFamilyGrowth` primitive — and Meeting Place via
+  slot-reuse); `Cost` (Resources + Animals), `MinorSpec`/`MINORS` + `OccupationSpec`/`OCCUPATIONS`
+  registries, the `SCORING_TERMS` registry, passing-minor circulation.
+- **Four cards** — Consultant, Priest (on-play occupations), Stable Architect (scoring occupation),
+  Market Stall (passing minor).
+- **Still deferred within Milestone 1:** `CardStore` (per-card state) — lands when a card needs it
+  (Tutor / Moldboard Plow).
+
+**Potter Ceramics** (a minor improvement) also exists as the original forward-compatibility test of
+the trigger machinery — still **not part of any game** until the trigger/hook system (steps 3–4)
+lands. (`legality.py`'s `ALL_LEGALITY` is renamed `FAMILY_GAME_LEGALITY`; Caravan is `wontfix`.)
 
 **The engine is already built for cards.** Much of the engine's apparent over-engineering is
 deliberate forward-compatibility, so the card phase is additive rather than a rewrite: per-frame
@@ -1154,7 +1170,14 @@ AgricolaBot/
 
             triggers.py             # Two parallel registries — TRIGGERS (event-keyed list, used by enumerators) and CARDS (card-id-keyed direct lookup, used by _apply_fire_trigger) — plus the register() function called by card modules at import time.
 
-            potter_ceramics.py      # The one card in scope: "exchange 1 clay for 1 grain before each Bake Bread action, at most once per action." Exercises the trigger machinery end-to-end.
+            specs.py                # OccupationSpec / OCCUPATIONS + register_occupation (occupation on-play effects); MinorSpec / MINORS + register_minor + prereq_met (minor cost/prereq/passing/vps/on-play). The play-card registries the engine dispatches through (Milestone 1).
+
+            consultant.py           # Occupation (B102): on play, +3 clay (2-player branch).
+            priest.py               # Occupation (A125): on play, if clay house with exactly 2 rooms, +3 clay/2 reed/2 stone.
+            stable_architect.py     # Occupation (A98): scoring term (+1 VP per unfenced stable) via register_scoring; no-op on play.
+            market_stall.py         # Minor (B8, passing): cost 1 grain, on play +1 veg, then circulate to the opponent.
+
+            potter_ceramics.py      # Forward-compat trigger-machinery test (NOT in any game yet): "exchange 1 clay for 1 grain before each Bake Bread action, at most once per action."
 
             harvest_conversions.py  # HARVEST_CONVERSIONS registry + HarvestConversionSpec dataclass + register_harvest_conversion(). Three built-in entries: joinery (1 wood -> 2 food), pottery (1 clay -> 2 food), basketmaker (1 reed -> 3 food).
 
