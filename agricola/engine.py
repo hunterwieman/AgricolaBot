@@ -243,10 +243,12 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     CommitRenovate:     (PendingRenovate,     _execute_renovate,     True),
     # CommitAccommodate lands on any of three market parent pendings.
     # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.
+    # auto_pop=False (4b): the effect pivots the host frame to its after-phase
+    # instead of popping; the trailing Stop pops (the uniform non-atomic exit).
     CommitAccommodate:  (
         (PendingSheepMarket, PendingPigMarket, PendingCattleMarket),
         _execute_accommodate,
-        True,
+        False,
     ),
     # CommitBuildMajor: auto_pop=False because the effect function owns its
     # own conditional stack manipulation — pop PendingBuildMajor for non-oven

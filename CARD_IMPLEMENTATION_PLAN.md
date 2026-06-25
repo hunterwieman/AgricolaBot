@@ -32,18 +32,21 @@ bookkeeping) is deliberately left open for a later session.**
 > - **Cat 4 (granted sub-action, atomic spaces):** Assistant Tiller, Oven Firing Boy.
 > - **Cat 10 (bounded conversion):** Mushroom Collector, Basket.
 >
-> **Everything remaining is structural and touches the C++ engine** (the natural pause point):
-> - **Step 4b** — non-atomic-space hosts. The 13 existing space-host frames must carry the before/after
->   phase + fire `after_action_space` at the space's exit. **Open design fork:** those frames exit
->   *heterogeneously* — most via the parent's `Stop`, but the three animal markets via an auto-popping
->   `CommitAccommodate` — so the "fire-after-at-exit" mechanism isn't uniform. The low-blast-radius option
->   is a *conditional* after-phase (flip-to-after only when an after-hook is actually owned, else pop as
->   today → Family byte-identical), mirroring 4a's conditional push; the uniform option (always add an
->   after-phase + trailing Stop) is simpler but changes the Family action sequence and churns many tests.
->   Either way the new frame fields need a small C++ serializer sync (`triggers_resolved` on the 2 hosts
->   that lack it; `phase` default-skipped Python-side, noting its name collides with `GameState.phase`,
->   which is currently collision-safe only because `GameState.phase` has no dataclass default). Unlocks
->   Cat 9 (Milk Jug), non-atomic Cat 4 (Threshing Board, Moldboard Plow), Cat 5 (build hooks).
+> **Step 4b — animal markets DONE.** The three animal-market frames were rewritten to the uniform
+> non-atomic lifecycle (decided with the maintainer, choosing consistency over Family byte-identity):
+> `CommitAccommodate` no longer auto-pops — it applies the accommodation, pivots the host frame to
+> `phase="after"`, and fires `after_action_space`; the trailing `Stop` pops. The frames gained `phase` +
+> a `space_id` property and dropped their per-frame `TRIGGER_EVENT` (routed via the bucket). **This is
+> the first real C++ sync** — the three C++ market structs gained `phase`, the canonical serde + hash
+> were updated, `CommitAccommodate` made non-auto-pop, and the market enumerator returns `[Stop]` in the
+> after-phase; **all 136 C++ differential gates are green**. (Family-game markets now carry an extra,
+> agent-auto-skipped `Stop` step — the conscious byte-identity departure.) **Cat 9 (Milk Jug) landed**:
+> the first opponent-firing card, an any-player automatic effect on Cattle Market's after-phase.
+> - **Step 4b — multi-sub-action hosts (OPEN, the deferred sub-question, now with the market as a worked
+>   reference).** The other non-atomic spaces (Grain Utilization, Farm Expansion, Fencing, …) have no
+>   single mandatory commit to pivot on (unlike the markets' `CommitAccommodate`), so where their
+>   before→after transition sits is undecided. Needed by non-atomic Cat 4 (Threshing Board, Moldboard
+>   Plow) and Cat 5 (build hooks); to be settled with the maintainer.
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6.

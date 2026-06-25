@@ -277,18 +277,21 @@ json tc(const PendingSideJob& p) {
 json tc(const PendingSheepMarket& p) {
   json j = pframe("PendingSheepMarket", p.player_idx, p.initiated_by_id);
   j["gained"] = p.gained;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
 json tc(const PendingPigMarket& p) {
   json j = pframe("PendingPigMarket", p.player_idx, p.initiated_by_id);
   j["gained"] = p.gained;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
 json tc(const PendingCattleMarket& p) {
   json j = pframe("PendingCattleMarket", p.player_idx, p.initiated_by_id);
   j["gained"] = p.gained;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
@@ -473,12 +476,15 @@ PendingDecision pending_from(const json& j) {
                           read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingSheepMarket")
     return PendingSheepMarket{pid, iby, j.at("gained"),
+                              j.value("phase", std::string("before")),
                               read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingPigMarket")
     return PendingPigMarket{pid, iby, j.at("gained"),
+                            j.value("phase", std::string("before")),
                             read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingCattleMarket")
     return PendingCattleMarket{pid, iby, j.at("gained"),
+                               j.value("phase", std::string("before")),
                                read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingMajorMinorImprovement")
     return PendingMajorMinorImprovement{pid, iby, j.at("major_chosen"),

@@ -61,8 +61,11 @@ def test_market_place_worker_stages_animals_on_pending(space_id, pending_type, a
 
 
 @pytest.mark.parametrize("space_id, pending_type, animal_field", MARKETS)
-def test_market_commit_accommodate_pops_parent(space_id, pending_type, animal_field):
-    """CommitAccommodate pops the parent directly — no Stop needed."""
+def test_market_commit_accommodate_then_stop(space_id, pending_type, animal_field):
+    """CommitAccommodate pivots the market frame to its after-phase (4b: no
+    auto-pop, uniform with the other non-atomic spaces); the trailing Stop pops.
+    In the Family game the after-phase has no triggers, so [Stop] is a singleton."""
+    from agricola.actions import Stop
     state = _mkt_setup(space_id, accumulated=1)  # 1 animal fits in house-pet slot
     state = step(state, PlaceWorker(space=space_id))
     # Frontier should contain (1 of the relevant type) — find it and commit.
@@ -73,8 +76,13 @@ def test_market_commit_accommodate_pops_parent(space_id, pending_type, animal_fi
         and getattr(a, animal_field) == 1
     )
     state = step(state, take_one)
-    assert state.pending_stack == ()
+    # Now in the after-phase: animals applied, frame still on top, only Stop legal.
+    assert isinstance(state.pending_stack[-1], pending_type)
+    assert state.pending_stack[-1].phase == "after"
     assert getattr(state.players[0].animals, animal_field) == 1
+    assert legal_actions(state) == [Stop()]
+    state = step(state, Stop())
+    assert state.pending_stack == ()
 
 
 @pytest.mark.parametrize("space_id, pending_type, animal_field", MARKETS)

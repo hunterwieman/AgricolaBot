@@ -222,35 +222,53 @@ class PendingSheepMarket:
     `gained` stages the animals taken from the space — they are not yet
     on the player. The player is in a transient pre-accommodation state
     until CommitAccommodate fires and sets the final animal counts.
+
+    A space-host frame (CARD_IMPLEMENTATION_PLAN.md II.2/4b): it carries the
+    before/after `phase` and fires the coarse `before_/after_action_space` event
+    (routed via legality.trigger_event's bucket — no per-frame TRIGGER_EVENT).
+    Unlike the old auto-popping model, CommitAccommodate now flips `phase` to
+    "after" and `Stop` pops — the uniform non-atomic lifecycle.
     """
     PENDING_ID: ClassVar[str] = "sheep_market"
-    TRIGGER_EVENT: ClassVar[str] = "before_sheep_market"
     player_idx: int
     initiated_by_id: str
     gained: int
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
 
 
 @dataclass(frozen=True)
 class PendingPigMarket:
-    """Top-level parent pending for the Pig Market action space."""
+    """Top-level parent pending for the Pig Market action space (see PendingSheepMarket)."""
     PENDING_ID: ClassVar[str] = "pig_market"
-    TRIGGER_EVENT: ClassVar[str] = "before_pig_market"
     player_idx: int
     initiated_by_id: str
     gained: int
+    phase: str = "before"
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
 
 
 @dataclass(frozen=True)
 class PendingCattleMarket:
-    """Top-level parent pending for the Cattle Market action space."""
+    """Top-level parent pending for the Cattle Market action space (see PendingSheepMarket)."""
     PENDING_ID: ClassVar[str] = "cattle_market"
-    TRIGGER_EVENT: ClassVar[str] = "before_cattle_market"
     player_idx: int
     initiated_by_id: str
     gained: int
+    phase: str = "before"
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
 
 
 @dataclass(frozen=True)

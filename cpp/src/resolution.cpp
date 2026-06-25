@@ -669,7 +669,14 @@ GameState execute_accommodate(const GameState& state, int player_idx,
 
   p.animals = Animals{commit.sheep, commit.boar, commit.cattle};
   p.resources = p.resources + Resources{0, 0, 0, 0, food, 0, 0};
-  return update_player(state, player_idx, p);
+  GameState s = update_player(state, player_idx, p);
+  // Pivot to the after-phase (no pop); the trailing Stop pops. (Family C++ has
+  // no after triggers, so the after-phase enumerates a singleton Stop.)
+  PendingDecision nt = s.pending_stack.back();
+  if (auto* sm = std::get_if<PendingSheepMarket>(&nt)) sm->phase = "after";
+  else if (auto* pm = std::get_if<PendingPigMarket>(&nt)) pm->phase = "after";
+  else if (auto* cm = std::get_if<PendingCattleMarket>(&nt)) cm->phase = "after";
+  return replace_top(s, nt);
 }
 
 GameState execute_harvest_conversion(const GameState& state, int player_idx,
