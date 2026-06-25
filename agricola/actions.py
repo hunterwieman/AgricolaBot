@@ -114,6 +114,18 @@ class CommitRenovate(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitPlayOccupation(CommitSubAction):
+    """Play the named occupation from hand (card game).
+
+    Lands on PendingPlayOccupation. The play cost is read from that frame's
+    `cost` field (route-dependent), not from this commit. `_execute_play_occupation`
+    moves the card hand->tableau, debits the cost, and runs the card's on-play
+    effect; the dispatcher then auto-pops the frame.
+    """
+    card_id: str
+
+
+@dataclass(frozen=True)
 class CommitAccommodate(CommitSubAction):
     """Commit a final animal configuration after taking from an animal market.
 

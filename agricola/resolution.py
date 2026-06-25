@@ -380,6 +380,40 @@ def _initiate_farm_redevelopment(state: GameState) -> GameState:
     ))
 
 
+def _initiate_lessons(state: GameState) -> GameState:
+    """Initiate Lessons (card game): push PendingPlayOccupation carrying THIS play's
+    food cost (occupation_cost over how many occupations the player has already
+    played). The frame's enumerator then offers one CommitPlayOccupation per
+    playable hand occupation. See CARD_IMPLEMENTATION_PLAN.md II.4."""
+    from agricola.pending import PendingPlayOccupation
+    from agricola.legality import occupation_cost
+    idx = state.current_player
+    cost = occupation_cost(len(state.players[idx].occupations))
+    return push(state, PendingPlayOccupation(
+        player_idx=idx,
+        initiated_by_id="space:lessons",
+        cost=cost,
+    ))
+
+
+def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
+    """Play one occupation from hand: debit the frame's cost, move the card
+    hand->tableau, then run its on-play effect. Dispatched with auto_pop=True, so
+    the PendingPlayOccupation frame is popped by the generic dispatcher afterward."""
+    from agricola.cards.specs import OCCUPATIONS
+    cid = action.card_id
+    top = state.pending_stack[-1]   # PendingPlayOccupation — the play cost lives here
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        resources=p.resources - top.cost,
+        hand_occupations=p.hand_occupations - {cid},
+        occupations=p.occupations | {cid},
+    )
+    state = _update_player(state, idx, p)
+    return OCCUPATIONS[cid].on_play(state, idx)
+
+
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "grain_utilization":    _initiate_grain_utilization,
     "farmland":             _initiate_farmland,
@@ -393,6 +427,7 @@ NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "farm_expansion":       _initiate_farm_expansion,
     "fencing":              _initiate_fencing,
     "farm_redevelopment":   _initiate_farm_redevelopment,
+    "lessons":              _initiate_lessons,   # card game only
 }
 
 

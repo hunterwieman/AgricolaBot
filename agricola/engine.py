@@ -23,6 +23,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitHarvestConversion,
+    CommitPlayOccupation,
     CommitPlow,
     CommitRenovate,
     CommitSow,
@@ -52,6 +53,7 @@ from agricola.pending import (
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingPigMarket,
+    PendingPlayOccupation,
     PendingPlow,
     PendingRenovate,
     PendingReveal,
@@ -78,6 +80,7 @@ from agricola.resolution import (
     _execute_build_stable,
     _execute_convert,
     _execute_harvest_conversion,
+    _execute_play_occupation,
     _execute_plow,
     _execute_renovate,
     _execute_sow,
@@ -244,6 +247,9 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     CommitHarvestConversion: (PendingHarvestFeed,  _execute_harvest_conversion, False),
     CommitConvert:           (PendingHarvestFeed,  _execute_convert,            False),
     CommitBreed:             (PendingHarvestBreed, _execute_breed,              False),
+    # Card game: play one occupation from hand. auto_pop=True — Lessons plays
+    # exactly one occupation, then PendingPlayOccupation pops and the turn ends.
+    CommitPlayOccupation:    (PendingPlayOccupation, _execute_play_occupation,  True),
 }
 
 
@@ -257,9 +263,11 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     if action.space in NONATOMIC_HANDLERS:
         return NONATOMIC_HANDLERS[action.space](state)
 
-    # Defensive: every space surfaced by `legal_placements` is registered
-    # in one of the two dispatch dicts. After TASK_6 the only remaining
-    # never-registered ID is `lessons`, which `legal_placements` excludes.
+    # Defensive backstop: every space in SPACE_IDS now has a handler (atomic or
+    # non-atomic) in both game modes — `lessons` (card-game occupation play)
+    # included — so this is unreachable for a valid id, and an UNKNOWN id fails
+    # earlier at the SPACE_INDEX lookup in `_apply_worker_placement`. Kept to
+    # guard a future space added to SPACE_IDS without a registered handler.
     raise NotImplementedError(
         f"No handler registered for space {action.space!r}"
     )

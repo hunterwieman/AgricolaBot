@@ -385,6 +385,27 @@ class PendingFarmRedevelopment:
 
 
 @dataclass(frozen=True)
+class PendingPlayOccupation:
+    """Play one occupation from hand into the tableau (card game only).
+
+    Pushed by Lessons (and later Scholar / card grants). It is its own host —
+    there is no separate sub-action below it: one `CommitPlayOccupation` plays
+    exactly one occupation, then this frame pops. `cost` is the food cost of THIS
+    play, set at push time (route-dependent — Lessons: `occupation_cost(...)`;
+    Scholar: 1 food); `_execute_play_occupation` reads it and debits.
+
+    Card-trigger fields (`phase` / `triggers_resolved`) are intentionally omitted
+    until a card actually fires on this frame (e.g. Bread Paddle on
+    after_play_occupation); added then, per the pending-field YAGNI rule.
+    See CARD_IMPLEMENTATION_PLAN.md II.4.
+    """
+    PENDING_ID: ClassVar[str] = "play_occupation"
+    player_idx: int
+    initiated_by_id: str
+    cost: Resources = Resources()
+
+
+@dataclass(frozen=True)
 class PendingHarvestFeed:
     """Phase-driven pending for the HARVEST_FEED sub-phase, one per player.
 
