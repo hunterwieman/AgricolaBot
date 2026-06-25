@@ -42,11 +42,22 @@ bookkeeping) is deliberately left open for a later session.**
 > after-phase; **all 136 C++ differential gates are green**. (Family-game markets now carry an extra,
 > agent-auto-skipped `Stop` step — the conscious byte-identity departure.) **Cat 9 (Milk Jug) landed**:
 > the first opponent-firing card, an any-player automatic effect on Cattle Market's after-phase.
-> - **Step 4b — multi-sub-action hosts (OPEN, the deferred sub-question, now with the market as a worked
->   reference).** The other non-atomic spaces (Grain Utilization, Farm Expansion, Fencing, …) have no
->   single mandatory commit to pivot on (unlike the markets' `CommitAccommodate`), so where their
->   before→after transition sits is undecided. Needed by non-atomic Cat 4 (Threshing Board, Moldboard
->   Plow) and Cat 5 (build hooks); to be settled with the maintainer.
+> **Step 4b — multi-sub-action hosts DONE** (settled with the maintainer). The unifying rule for every
+> `Stop`-terminated non-atomic space: **surface `after_action_space` triggers exactly where `Stop` is
+> legal; fire `after`-auto at that `Stop`** (engine `_apply_stop`, uniform for atomic hosts, markets, and
+> these). Each space's existing `Stop`-gate already encodes "the space's mandatory work is done"
+> (and/or → ≥1 sub-action; and-afterwards → the mandatory action; or → the one choice), so it's the
+> right surfacing point for all of them — *including* "and afterwards" (after-triggers can't precede the
+> mandatory action, since `Stop` isn't legal until it's done). The rules' "no base action after an
+> after-effect" is enforced by closing the base sub-actions once an after-trigger has fired —
+> **derived** via `_after_action_space_fired` (an id in `triggers_resolved` registered on
+> `after_action_space`), so **no new field, no default-skip change, no C++ change** for these 9 frames
+> (Family byte-identical). Only the *commit*-terminated spaces (the 3 markets) keep an explicit `phase`,
+> because they have no sub-action flag to derive from. before-trigger *surfacing* on these spaces is
+> deferred (no in-scope card needs it; before-`auto` already fires at push). Cards landed: **Firewood
+> Collector** (Cat 3, after-auto wood on Farmland/Grain Seeds/Grain Util/Cultivation) and **Threshing
+> Board** (Cat 4, after-trigger granting a bake on Farmland/Cultivation). Remaining non-atomic Cat 4/5:
+> Moldboard Plow (needs CardStore), the build/renovate hooks (Cat 5).
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6.

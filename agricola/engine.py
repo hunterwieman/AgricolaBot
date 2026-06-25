@@ -48,6 +48,7 @@ from agricola.constants import (
     Phase,
 )
 from agricola.pending import (
+    ACTION_SPACE_PENDING_IDS,
     PendingActionSpace,
     PendingBakeBread,
     PendingBuildFences,
@@ -374,6 +375,15 @@ def _apply_fire_trigger(
 
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
+    # An action-space HOST frame's Stop is the space's exit → fire its
+    # after_action_space automatic effects here (the single, uniform after-auto
+    # point for atomic hosts, markets, and the Stop-terminated spaces; II.2/4b).
+    # No-op in the Family game (empty AUTO_EFFECTS). Multi-shot sub-action frames
+    # (build_stables/_rooms/_fences) are excluded — their PENDING_ID isn't in the
+    # bucket — since their Stop pops a sub-action, not the space.
+    top = state.pending_stack[-1]
+    if type(top).PENDING_ID in ACTION_SPACE_PENDING_IDS:
+        state = apply_auto_effects(state, "after_action_space", top.player_idx)
     # Pop only the top frame. Do NOT assert the stack is empty afterward —
     # future cards may have deeper stacks where Stop is legal at a non-bottom
     # frame.
@@ -384,18 +394,17 @@ def _apply_proceed(state: GameState) -> GameState:
     """Apply a PendingActionSpace host frame's primary effect, then flip to the
     after-phase (II.2). Surfaced only at a before-phase action-space host.
 
-    Runs the atomic space's normal effect (ATOMIC_HANDLERS[space_id]) on the
-    acting player — the host frame's player_idx, which equals current_player
-    during WORK — then re-reads the still-top host frame (the atomic effect does
-    not touch the stack), flips it to "after", and fires after-automatic-effects.
-    The after-phase enumerator then offers after-triggers + Stop.
+    Runs the atomic space's normal effect (ATOMIC_HANDLERS[space_id]), then
+    re-reads the still-top host frame (the atomic effect does not touch the stack)
+    and flips it to "after". The after-phase enumerator then offers after-triggers
+    + Stop; after-automatic-effects fire at that Stop (uniform with every other
+    space host — see _apply_stop).
     """
     top = state.pending_stack[-1]
     assert isinstance(top, PendingActionSpace) and top.phase == "before", (
         f"Proceed expected a before-phase PendingActionSpace, got {top!r}"
     )
     space_id = top.space_id
-    acting = top.player_idx
 
     # Primary effect. The atomic resolver operates on current_player and leaves
     # the pending stack alone, so the host frame remains on top afterward. (The
@@ -404,9 +413,10 @@ def _apply_proceed(state: GameState) -> GameState:
     # interposed above the host.)
     state = ATOMIC_HANDLERS[space_id](state)
 
+    # Flip to the after-phase so after-triggers can be surfaced; the after-phase
+    # automatic effects fire later, uniformly at the host's Stop (see _apply_stop).
     new_top = fast_replace(state.pending_stack[-1], phase="after")
-    state = replace_top(state, new_top)
-    return apply_auto_effects(state, "after_action_space", acting)
+    return replace_top(state, new_top)
 
 
 # ---------------------------------------------------------------------------

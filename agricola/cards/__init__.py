@@ -32,6 +32,9 @@ from agricola.cards import assistant_tiller     # noqa: F401
 from agricola.cards import oven_firing_boy      # noqa: F401
 # Category 9 (opponent-action hook; any-player automatic effect on Cattle Market).
 from agricola.cards import milk_jug             # noqa: F401
+# Category 3/4 on non-atomic spaces' after-phase (the multi-sub after-trigger model).
+from agricola.cards import firewood_collector   # noqa: F401
+from agricola.cards import threshing_board      # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

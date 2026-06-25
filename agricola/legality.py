@@ -54,6 +54,7 @@ from agricola.fences import (
 from agricola.resources import Resources
 from agricola.helpers import enclosed_cells, fences_in_supply, stables_in_supply
 from agricola.pending import (
+    ACTION_SPACE_PENDING_IDS,
     PendingActionSpace,
     PendingBakeBread,
     PendingBasicWishForChildren,
@@ -1248,7 +1249,8 @@ def _enumerate_pending_farmland(
     actions: list[Action] = []
     if not pending.plow_chosen and _can_plow(p):
         actions.append(ChooseSubAction(name="plow"))
-    if pending.plow_chosen:
+    if pending.plow_chosen:                       # Stop-gate (the space's mandatory work done)
+        actions += _eligible_fire_triggers(state, pending, "after_action_space")
         actions.append(Stop())
     return actions
 
@@ -1258,11 +1260,15 @@ def _enumerate_pending_cultivation(
 ) -> list[Action]:
     p = state.players[pending.player_idx]
     actions: list[Action] = []
-    if not pending.plow_chosen and _can_plow(p):
-        actions.append(ChooseSubAction(name="plow"))
-    if not pending.sow_chosen and _can_sow(p):
-        actions.append(ChooseSubAction(name="sow"))
-    if pending.plow_chosen or pending.sow_chosen:
+    # Once an after_action_space trigger has fired, the base sub-actions close
+    # (a base action can't follow an after-effect). Derived, no stored flag (4b).
+    if not _after_action_space_fired(pending):
+        if not pending.plow_chosen and _can_plow(p):
+            actions.append(ChooseSubAction(name="plow"))
+        if not pending.sow_chosen and _can_sow(p):
+            actions.append(ChooseSubAction(name="sow"))
+    if pending.plow_chosen or pending.sow_chosen:   # Stop-gate
+        actions += _eligible_fire_triggers(state, pending, "after_action_space")
         actions.append(Stop())
     return actions
 
@@ -1605,20 +1611,6 @@ def _enumerate_pending_harvest_breed(
 # Card-trigger event routing + the action-space host enumerator (II.2)
 # ---------------------------------------------------------------------------
 
-# PENDING_IDs (frame ids, NOT space ids) that route to the coarse action-space
-# event. Covers the generic atomic host (PendingActionSpace) AND every non-atomic
-# per-space host frame, so all action spaces share one before_/after_action_space
-# event and a card spanning several spaces registers once (filtering space_id).
-# Every other PENDING_ID routes to its own before_/after_<PENDING_ID>. Routing on
-# PENDING_ID (class kind), not initiated_by_id, is load-bearing: a sub-action
-# frame's initiated_by_id is its PARENT's id, which would mis-route it.
-ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
-    "action_space", "farm_expansion", "farmland", "side_job", "grain_utilization",
-    "sheep_market", "pig_market", "cattle_market", "major_minor_improvement",
-    "house_redevelopment", "cultivation", "farm_redevelopment", "fencing",
-})
-
-
 def trigger_event(frame) -> str:
     """The trigger/auto-effect event a host frame fires, derived from its kind.
 
@@ -1651,6 +1643,21 @@ def _eligible_fire_triggers(state, pending, event: str) -> list:
         entries.append(entry)
     entries.sort(key=lambda e: e.card_id)
     return [FireTrigger(card_id=e.card_id) for e in entries]
+
+
+def _after_action_space_fired(pending) -> bool:
+    """Has an `after_action_space` trigger already fired on this space-host frame?
+
+    Derived from `triggers_resolved` + the registry — no stored flag needed (4b).
+    Once true, a Stop-terminated space stops offering its base sub-actions, so a
+    base action can't follow an after-effect (the rules-ordering the maintainer
+    flagged). A fresh frame has an empty triggers_resolved, so it starts false.
+    """
+    from agricola.cards.triggers import CARDS
+    return any(
+        c in CARDS and CARDS[c].event == "after_action_space"
+        for c in getattr(pending, "triggers_resolved", ())
+    )
 
 
 def _enumerate_pending_action_space(
