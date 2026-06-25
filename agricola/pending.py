@@ -433,19 +433,34 @@ class PendingPlayMinor:
 
 @dataclass(frozen=True)
 class PendingBasicWishForChildren:
-    """Card game only: the optional "and afterward play 1 minor improvement"
-    follow-up to Basic Wish for Children. The mandatory family growth has already
-    run (in the atomic resolver) before this frame is pushed, so the frame hosts
-    ONLY the optional minor: its enumerator offers ChooseSubAction("play_minor")
-    (while not yet played and a minor is playable) plus Stop — the decline, since
-    the mandatory primary (growth) is already done. Pushed only when a minor is
-    playable, so the Family game never sees it (Basic Wish stays atomic there).
-    See CARD_IMPLEMENTATION_PLAN.md I/II.4.
+    """Card-game parent frame for Basic Wish for Children — mirrors
+    PendingHouseRedevelopment: a mandatory primary sub-action (family growth) then
+    an optional follow-up (play 1 minor).
+
+    Lifecycle: pushed at placement (card mode only). While `family_growth_done` is
+    False the enumerator offers only ChooseSubAction("family_growth") — a mandatory
+    singleton that pushes PendingFamilyGrowth; once growth has run, it offers
+    ChooseSubAction("play_minor") (if a minor is playable) plus Stop. The OR-style
+    once-only restriction lives in the enumerator. The Family game keeps the atomic
+    resolver and never pushes this frame. See CARD_IMPLEMENTATION_PLAN.md.
     """
     PENDING_ID: ClassVar[str] = "basic_wish_for_children"
     player_idx: int
     initiated_by_id: str
+    family_growth_done: bool = False
     minor_chosen: bool = False
+
+
+@dataclass(frozen=True)
+class PendingFamilyGrowth:
+    """The family-growth sub-action primitive: add one newborn on the space named
+    by `initiated_by_id` (RULES: the newborn is placed next to the parent on the
+    action space). Parameter-free — its only action is CommitFamilyGrowth. Pushed
+    today by PendingBasicWishForChildren; reusable by any future space/card that
+    grants family growth. Mirrors PendingRenovate (a single-commit primitive)."""
+    PENDING_ID: ClassVar[str] = "family_growth"
+    player_idx: int
+    initiated_by_id: str
 
 
 @dataclass(frozen=True)

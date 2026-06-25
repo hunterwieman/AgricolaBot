@@ -232,21 +232,18 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
 
 
 def _resolve_basic_wish_for_children(state: GameState) -> GameState:
-    state = _resolve_wish_for_children(state, "basic_wish_for_children")
-    # Card game: "and afterward" optionally play 1 minor improvement. Push the
-    # optional-minor follow-up frame, but only when a minor is actually playable —
-    # otherwise stay atomic, exactly as in the Family game. (Urgent Wish does NOT
-    # get this branch.) Optionality lives at the frame's Stop, not on the frame.
     from agricola.constants import GameMode
     if state.mode is GameMode.CARDS:
-        from agricola.legality import playable_minors
-        idx = state.current_player
-        if playable_minors(state, idx):
-            from agricola.pending import PendingBasicWishForChildren
-            state = push(state, PendingBasicWishForChildren(
-                player_idx=idx, initiated_by_id="space:basic_wish_for_children",
-            ))
-    return state
+        # Non-atomic (mirrors House Redevelopment): a parent frame sequences the
+        # mandatory family growth then an optional minor. Growth and minor run as
+        # sub-actions of that frame, not here. (Urgent Wish stays atomic.)
+        from agricola.pending import PendingBasicWishForChildren
+        return push(state, PendingBasicWishForChildren(
+            player_idx=state.current_player,
+            initiated_by_id="space:basic_wish_for_children",
+        ))
+    # Family game: atomic family growth (unchanged).
+    return _resolve_wish_for_children(state, "basic_wish_for_children")
 
 
 def _resolve_urgent_wish_for_children(state: GameState) -> GameState:
@@ -711,10 +708,17 @@ def _choose_subaction_farm_redevelopment(
 def _choose_subaction_basic_wish_for_children(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
-    """Choose handler for the card-game Basic Wish optional-minor follow-up. The
-    family growth already ran in the atomic resolver; here `play_minor` pushes the
-    (mandatory-once-chosen) PendingPlayMinor."""
+    """Card-game choose handler for Basic Wish (mirrors House Redevelopment).
+    `family_growth` (mandatory first) pushes the PendingFamilyGrowth primitive;
+    `play_minor` (optional, after growth) pushes the mandatory PendingPlayMinor.
+    The parent's *_done/_chosen flag is set at choose-time (invariant 7)."""
     top = state.pending_stack[-1]
+    if action.name == "family_growth":
+        from agricola.pending import PendingFamilyGrowth
+        state = replace_top(state, fast_replace(top, family_growth_done=True))
+        return push(state, PendingFamilyGrowth(
+            player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
+        ))
     if action.name == "play_minor":
         from agricola.pending import PendingPlayMinor
         state = replace_top(state, fast_replace(top, minor_chosen=True))
@@ -722,6 +726,14 @@ def _choose_subaction_basic_wish_for_children(
             player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
         ))
     raise ValueError(f"Unknown sub-action {action.name!r} for Basic Wish for Children")
+
+
+def _execute_family_growth(state: GameState, idx: int, action) -> GameState:
+    """Run the family-growth primitive: add one newborn on the space named by the
+    PendingFamilyGrowth frame's initiated_by_id (the wish space). Reuses the shared
+    growth logic; dispatched with auto_pop=True (the frame pops after)."""
+    space_id = state.pending_stack[-1].initiated_by_id
+    return _resolve_wish_for_children(state, space_id)
 
 
 CHOOSE_SUBACTION_HANDLERS: dict[type, Callable[[GameState, ChooseSubAction], GameState]] = {}
