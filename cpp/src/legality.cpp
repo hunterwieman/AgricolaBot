@@ -789,11 +789,14 @@ std::vector<Action> enumerate_pending(const GameState& s,
         else if constexpr (std::is_same_v<T, PendingSideJob>)
           return enum_side_job(s, pd);
         else if constexpr (std::is_same_v<T, PendingSheepMarket>)
-          return enum_animal_market(s, *pd.player_idx, Animals{pd.gained, 0, 0});
+          return pd.phase == "after" ? std::vector<Action>{Stop{}}
+                 : enum_animal_market(s, *pd.player_idx, Animals{pd.gained, 0, 0});
         else if constexpr (std::is_same_v<T, PendingPigMarket>)
-          return enum_animal_market(s, *pd.player_idx, Animals{0, pd.gained, 0});
+          return pd.phase == "after" ? std::vector<Action>{Stop{}}
+                 : enum_animal_market(s, *pd.player_idx, Animals{0, pd.gained, 0});
         else if constexpr (std::is_same_v<T, PendingCattleMarket>)
-          return enum_animal_market(s, *pd.player_idx, Animals{0, 0, pd.gained});
+          return pd.phase == "after" ? std::vector<Action>{Stop{}}
+                 : enum_animal_market(s, *pd.player_idx, Animals{0, 0, pd.gained});
         else if constexpr (std::is_same_v<T, PendingMajorMinorImprovement>)
           return enum_major_minor(s, pd);
         else if constexpr (std::is_same_v<T, PendingClayOven>)

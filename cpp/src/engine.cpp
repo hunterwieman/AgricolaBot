@@ -41,7 +41,7 @@ GameState apply_commit(const GameState& state, const Action& action) {
   if (auto* a = std::get_if<CommitRenovate>(&action))
     return pop(execute_renovate(state, pidx, *a));  // auto_pop=true
   if (auto* a = std::get_if<CommitAccommodate>(&action))
-    return pop(execute_accommodate(state, pidx, *a));  // auto_pop=true
+    return execute_accommodate(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
   if (auto* a = std::get_if<CommitBuildMajor>(&action))
     return execute_build_major(state, pidx, *a);  // auto_pop=false
   if (auto* a = std::get_if<CommitBuildPasture>(&action))

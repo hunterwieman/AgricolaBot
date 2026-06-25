@@ -211,6 +211,7 @@ struct PendingSheepMarket {
   std::optional<int> player_idx;
   std::string initiated_by_id;
   int gained = 0;
+  std::string phase = "before";  // "before" | "after" (4b: non-auto-pop market)
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingSheepMarket&) const = default;
 };
@@ -218,6 +219,7 @@ struct PendingPigMarket {
   std::optional<int> player_idx;
   std::string initiated_by_id;
   int gained = 0;
+  std::string phase = "before";
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingPigMarket&) const = default;
 };
@@ -225,6 +227,7 @@ struct PendingCattleMarket {
   std::optional<int> player_idx;
   std::string initiated_by_id;
   int gained = 0;
+  std::string phase = "before";
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingCattleMarket&) const = default;
 };

@@ -1285,16 +1285,26 @@ def _enumerate_pending_side_job(
 def _enumerate_pending_animal_market(
     state: GameState, pending,
 ) -> list[Action]:
-    """Shared enumerator for the three animal markets.
+    """Shared enumerator for the three animal markets (4b: before/after phases).
 
-    Computes the Pareto frontier over (sheep, boar, cattle) configs the
-    player can land on after taking the animals from the market, and
-    emits one CommitAccommodate per frontier point. No Stop — the action
-    is mandatory single-step (commit pops the parent directly).
+    before-phase: any eligible before_action_space triggers, then one
+    CommitAccommodate per Pareto-frontier (sheep, boar, cattle) config the player
+    can land on after taking the market's animals. CommitAccommodate pivots the
+    frame to the after-phase (it no longer auto-pops).
+
+    after-phase: any eligible after_action_space triggers, then Stop (which pops).
+    With no after-trigger this is a singleton [Stop] the agent auto-skips, so a
+    Family-game market is one CommitAccommodate followed by an auto-skipped Stop.
     """
     from agricola.helpers import cooking_rates, pareto_frontier
     from agricola.pending import PendingCattleMarket, PendingPigMarket, PendingSheepMarket
     from agricola.resources import Animals
+
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+
+    if pending.phase == "after":
+        actions.append(Stop())
+        return actions
 
     p = state.players[pending.player_idx]
     # Animal markets don't convert veg; slice to the (sheep, boar, cattle) triple
@@ -1309,10 +1319,11 @@ def _enumerate_pending_animal_market(
     else:
         raise AssertionError(f"Unexpected animal market pending: {type(pending).__name__}")
     frontier = pareto_frontier(p, gained, rates)
-    return [
+    actions.extend(
         CommitAccommodate(sheep=a.sheep, boar=a.boar, cattle=a.cattle)
         for (a, _food) in frontier
-    ]
+    )
+    return actions
 
 
 def _enumerate_pending_major_minor_improvement(

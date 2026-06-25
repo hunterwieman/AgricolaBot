@@ -343,34 +343,40 @@ def _initiate_sheep_market(state: GameState) -> GameState:
     (staged, not yet on the player), zero the space's accumulated_amount,
     and push PendingSheepMarket."""
     from agricola.pending import PendingSheepMarket
+    from agricola.cards.triggers import apply_auto_effects
     ap = state.current_player
     gained = get_space(state.board, "sheep_market").accumulated_amount
     state = _update_space(state, "sheep_market", accumulated_amount=0)
-    return push(state, PendingSheepMarket(
+    state = push(state, PendingSheepMarket(
         player_idx=ap, initiated_by_id="space:sheep_market", gained=gained,
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_pig_market(state: GameState) -> GameState:
     """Initiate Pig Market — same shape as Sheep Market."""
     from agricola.pending import PendingPigMarket
+    from agricola.cards.triggers import apply_auto_effects
     ap = state.current_player
     gained = get_space(state.board, "pig_market").accumulated_amount
     state = _update_space(state, "pig_market", accumulated_amount=0)
-    return push(state, PendingPigMarket(
+    state = push(state, PendingPigMarket(
         player_idx=ap, initiated_by_id="space:pig_market", gained=gained,
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_cattle_market(state: GameState) -> GameState:
     """Initiate Cattle Market — same shape as Sheep Market."""
     from agricola.pending import PendingCattleMarket
+    from agricola.cards.triggers import apply_auto_effects
     ap = state.current_player
     gained = get_space(state.board, "cattle_market").accumulated_amount
     state = _update_space(state, "cattle_market", accumulated_amount=0)
-    return push(state, PendingCattleMarket(
+    state = push(state, PendingCattleMarket(
         player_idx=ap, initiated_by_id="space:cattle_market", gained=gained,
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_major_improvement(state: GameState) -> GameState:
@@ -1162,8 +1168,15 @@ def _execute_accommodate(
     PendingCattleMarket (no separate sub-action pending exists for animal
     markets). Reads `pending.gained` to determine which animal type was
     newly gained from the space.
+
+    Dispatched with auto_pop=False (4b): instead of popping, this is the market's
+    before->after pivot — it applies the accommodation, flips the host frame to
+    `phase="after"`, and fires after_action_space automatic effects. The
+    after-phase enumerator then offers any after-triggers + Stop, and Stop pops
+    (the uniform non-atomic exit; no card ever needed an auto-pop here).
     """
     from agricola.pending import PendingSheepMarket, PendingPigMarket, PendingCattleMarket
+    from agricola.cards.triggers import apply_auto_effects
     pending = state.pending_stack[-1]
     assert isinstance(pending, (PendingSheepMarket, PendingPigMarket, PendingCattleMarket))
     p = state.players[player_idx]
@@ -1185,7 +1198,10 @@ def _execute_accommodate(
     new_animals = Animals(sheep=commit.sheep, boar=commit.boar, cattle=commit.cattle)
     new_resources = p.resources + Resources(food=food)
     new_player = fast_replace(p, animals=new_animals, resources=new_resources)
-    return _update_player(state, player_idx, new_player)
+    state = _update_player(state, player_idx, new_player)
+    # Pivot to the after-phase (do NOT pop): the frame now hosts after_action_space.
+    state = replace_top(state, fast_replace(state.pending_stack[-1], phase="after"))
+    return apply_auto_effects(state, "after_action_space", player_idx)
 
 
 # ---------------------------------------------------------------------------

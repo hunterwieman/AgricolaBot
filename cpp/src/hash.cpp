@@ -121,13 +121,13 @@ inline void hf(std::uint64_t& h, const PendingSideJob& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.stable_chosen); hi(h, f.bake_chosen); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingSheepMarket& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingPigMarket& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingCattleMarket& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingMajorMinorImprovement& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.major_chosen); hi(h, f.minor_chosen); hi(h, f.triggers_resolved);

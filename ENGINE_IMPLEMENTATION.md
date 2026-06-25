@@ -382,7 +382,7 @@ or push an oven pending), and by the harvest commits.
 | `CommitBuildStable` | `PendingBuildStables` | False (multi-shot) |
 | `CommitBuildRoom` | `PendingBuildRooms` | False (multi-shot) |
 | `CommitRenovate` | `PendingRenovate` | True |
-| `CommitAccommodate` | `(PendingSheepMarket, PendingPigMarket, PendingCattleMarket)` | True |
+| `CommitAccommodate` | `(PendingSheepMarket, PendingPigMarket, PendingCattleMarket)` | False (pivots the market host to its after-phase, then `Stop` pops — the uniform non-atomic lifecycle; CARD_IMPLEMENTATION_PLAN.md 4b) |
 | `CommitBuildMajor` | `PendingBuildMajor` | False (effect pops, or pushes an oven pending) |
 | `CommitBuildPasture` | `PendingBuildFences` | False (multi-shot) |
 | `CommitHarvestConversion` | `PendingHarvestFeed` | False |
