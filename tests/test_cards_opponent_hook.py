@@ -39,12 +39,13 @@ def test_milk_jug_fires_on_opponent_cattle_market_use():
 
     s = step(s, PlaceWorker(space="cattle_market"))
     s = step(s, CommitAccommodate(sheep=0, boar=0, cattle=1))   # keep the cattle (house pet)
-    # After-phase: Milk Jug fired for its OWNER (P1 +3), the other player (P0) +1.
-    assert s.players[1].resources.food == f1 + 3
-    assert s.players[0].resources.food == f0 + 1
+    # After-phase: frame still up, only Stop legal; the after-auto fires AT Stop.
     assert isinstance(s.pending_stack[-1], PendingCattleMarket)
     assert legal_actions(s) == [Stop()]
     s = step(s, Stop())
+    # Milk Jug fired for its OWNER (P1 +3), the other player (P0) +1.
+    assert s.players[1].resources.food == f1 + 3
+    assert s.players[0].resources.food == f0 + 1
     assert not s.pending_stack
 
 
@@ -54,6 +55,7 @@ def test_milk_jug_fires_for_self_when_owner_acts():
     f0, f1 = s.players[0].resources.food, s.players[1].resources.food
     s = step(s, PlaceWorker(space="cattle_market"))
     s = step(s, CommitAccommodate(sheep=0, boar=0, cattle=1))
+    s = step(s, Stop())                            # after-auto fires at Stop
     assert s.players[0].resources.food == f0 + 3   # owner
     assert s.players[1].resources.food == f1 + 1   # the other player
 

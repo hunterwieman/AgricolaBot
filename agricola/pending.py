@@ -40,6 +40,10 @@ class PendingGrainUtilization:
     sow_chosen: bool = False
     bake_chosen: bool = False
 
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
+
 
 @dataclass(frozen=True)
 class PendingSow:
@@ -190,6 +194,10 @@ class PendingFarmland:
     plow_chosen: bool = False
     triggers_resolved: frozenset = frozenset()
 
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
+
 
 @dataclass(frozen=True)
 class PendingCultivation:
@@ -201,6 +209,10 @@ class PendingCultivation:
     plow_chosen: bool = False
     sow_chosen: bool = False
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
 
 
 @dataclass(frozen=True)
@@ -642,6 +654,21 @@ PendingDecision = Union[
     PendingReveal,
     PendingActionSpace,
 ]
+
+
+# PENDING_IDs (frame ids, NOT space ids) of the action-space HOST frames — the
+# generic atomic host plus every non-atomic per-space parent. They share the
+# coarse before_/after_action_space event (legality.trigger_event) and are the
+# frames at whose Stop the engine fires after_action_space automatic effects
+# (CARD_IMPLEMENTATION_PLAN.md II.2 / 4b). Multi-shot sub-action frames
+# (build_stables/_rooms/_fences) are deliberately NOT here — their Stop pops a
+# sub-action, not the space. Lives here (with the frames) so both legality and
+# engine import it.
+ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
+    "action_space", "farm_expansion", "farmland", "side_job", "grain_utilization",
+    "sheep_market", "pig_market", "cattle_market", "major_minor_improvement",
+    "house_redevelopment", "cultivation", "farm_redevelopment", "fencing",
+})
 
 
 # ---------------------------------------------------------------------------

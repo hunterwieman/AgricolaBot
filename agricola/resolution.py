@@ -1170,13 +1170,12 @@ def _execute_accommodate(
     newly gained from the space.
 
     Dispatched with auto_pop=False (4b): instead of popping, this is the market's
-    before->after pivot — it applies the accommodation, flips the host frame to
-    `phase="after"`, and fires after_action_space automatic effects. The
-    after-phase enumerator then offers any after-triggers + Stop, and Stop pops
-    (the uniform non-atomic exit; no card ever needed an auto-pop here).
+    before->after pivot — it applies the accommodation and flips the host frame to
+    `phase="after"`. The after-phase enumerator then offers any after-triggers +
+    Stop; after_action_space automatic effects fire at that Stop, uniformly with
+    every other space host (see engine._apply_stop).
     """
     from agricola.pending import PendingSheepMarket, PendingPigMarket, PendingCattleMarket
-    from agricola.cards.triggers import apply_auto_effects
     pending = state.pending_stack[-1]
     assert isinstance(pending, (PendingSheepMarket, PendingPigMarket, PendingCattleMarket))
     p = state.players[player_idx]
@@ -1200,8 +1199,8 @@ def _execute_accommodate(
     new_player = fast_replace(p, animals=new_animals, resources=new_resources)
     state = _update_player(state, player_idx, new_player)
     # Pivot to the after-phase (do NOT pop): the frame now hosts after_action_space.
-    state = replace_top(state, fast_replace(state.pending_stack[-1], phase="after"))
-    return apply_auto_effects(state, "after_action_space", player_idx)
+    # The after-auto effects fire at the trailing Stop (engine._apply_stop).
+    return replace_top(state, fast_replace(state.pending_stack[-1], phase="after"))
 
 
 # ---------------------------------------------------------------------------
