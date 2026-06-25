@@ -63,6 +63,18 @@ def main() -> int:
     p.add_argument("--norm", type=str, default="layer", choices=["layer", "none"])
     p.add_argument("--dropout", type=float, default=0.0)
     p.add_argument("--no-embed-norm", dest="embed_norm", action="store_false")
+    # siamese front end (shared per-player encoder)
+    p.add_argument("--siamese", action="store_true",
+                   help="Use the siamese variant: run BOTH players' blocks through "
+                        "one shared per-player encoder, concat [own;opp;shared;mid], "
+                        "then the usual trunk + heads. Drop-in; only the trunk's "
+                        "front end differs. Standard path is unchanged when absent.")
+    p.add_argument("--player-encoder-dims", type=_dims, default=[128],
+                   help="(--siamese) Hidden dims of the shared per-player encoder "
+                        "MLP (default 128).")
+    p.add_argument("--player-encoder-out", type=int, default=64,
+                   help="(--siamese) Output width of the shared per-player encoder "
+                        "(default 64); the trunk input is 2*this + shared + mid.")
     # task balancing
     p.add_argument("--value-weight", type=float, default=None,
                    help="Task-sampling weight for the value task (default: #heads, "
@@ -148,6 +160,8 @@ def main() -> int:
         value_head_dims=args.value_head_dims, fixed_head_dims=args.fixed_head_dims,
         pointer_head_dims=args.pointer_head_dims, activation=args.activation,
         norm=args.norm, dropout=args.dropout, embed_norm=args.embed_norm,
+        siamese=args.siamese, player_encoder_dims=args.player_encoder_dims,
+        player_encoder_out=args.player_encoder_out,
         value_weight=args.value_weight, head_weight=args.head_weight,
         lr=args.lr, weight_decay=args.weight_decay, batch_size=args.batch_size,
         max_epochs=args.max_epochs, early_stop_patience=args.early_stop_patience,

@@ -13,7 +13,7 @@ import pickle
 
 from agricola.agents.base import RandomAgent
 from agricola.agents.nn.recording import play_recording_game
-from agricola.agents.nn.shared_model import SharedTrunkModel
+from agricola.agents.nn.shared_model import SharedTrunkModel, SiameseSharedTrunkModel
 from agricola.agents.nn.shared_training import train_shared
 from agricola.setup import setup_env
 
@@ -54,6 +54,47 @@ def test_train_shared_runs_end_to_end(tmp_path):
     last = log[-1]
     assert last["val_mse"] == last["val_mse"] and last["val_mse"] >= 0.0  # not NaN
     assert "fixed_val_ce" in last
+
+
+def test_train_shared_siamese_runs_end_to_end(tmp_path):
+    """The `siamese=True` path trains end-to-end through the same loop and saves a
+    checkpoint that reloads as a `SiameseSharedTrunkModel` — the standard loop is
+    untouched; only the trunk's front end differs."""
+    run_dir = tmp_path / "run"
+    _write_games(run_dir)
+
+    log, best_path = train_shared(
+        run_dir, tmp_path / "out",
+        trunk_hidden_dims=[32, 32], embedding_dim=16, pointer_head_dims=[8],
+        siamese=True, player_encoder_dims=[24], player_encoder_out=12,
+        batch_size=64, max_epochs=2, steps_per_epoch=8, dropout=0.0,
+        use_cache=False, device="cpu", verbose=False)
+
+    assert best_path.with_suffix(".pt").exists()
+    m = SiameseSharedTrunkModel.load(best_path)
+    assert m.player_encoder_out == 12
+    # config records the siamese kind.
+    import json
+    cfg = json.loads((tmp_path / "out" / "config.json").read_text())
+    assert cfg["model_kind"] == "siamese_shared_trunk" and cfg["siamese"] is True
+    assert log[-1]["val_mse"] >= 0.0
+
+
+def test_train_shared_standard_path_unchanged(tmp_path):
+    """Without --siamese the config still declares the plain shared_trunk kind and
+    the checkpoint loads as a SharedTrunkModel (not the siamese subclass)."""
+    run_dir = tmp_path / "run"
+    _write_games(run_dir, n=10)
+    log, best_path = train_shared(
+        run_dir, tmp_path / "out",
+        trunk_hidden_dims=[16], embedding_dim=8, pointer_head_dims=[8],
+        batch_size=64, max_epochs=1, steps_per_epoch=5, dropout=0.0,
+        use_cache=False, device="cpu", verbose=False)
+    import json
+    cfg = json.loads((tmp_path / "out" / "config.json").read_text())
+    assert cfg["model_kind"] == "shared_trunk" and cfg["siamese"] is False
+    m = SharedTrunkModel.load(best_path)
+    assert type(m) is SharedTrunkModel
 
 
 def test_train_shared_hard_targets_runs(tmp_path):

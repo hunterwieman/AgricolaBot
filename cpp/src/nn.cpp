@@ -274,6 +274,19 @@ struct NNInference::Impl {
   std::vector<float> embed_gamma, embed_beta;  // standalone embed_norm (empty=none)
   float embed_eps = 1e-5f;
 
+  // ---- siamese front end (SiameseSharedTrunkModel) ----
+  // When `siamese`, the trunk does NOT take the raw encoding. Instead the full
+  // (already encoder-produced) input is normalized once here via siam_in_mean/std
+  // (the real 170-dim norm), sliced into own(P) | opp(P) | rest, own and opp are
+  // each run through the SAME player_encoder (shared weights, identity input-norm),
+  // and [emb_own ; emb_opp ; rest] is fed to the trunk (whose own input-norm is
+  // identity). Mirrors shared_model.SiameseSharedTrunkModel.embed exactly.
+  bool siamese = false;
+  Mlp player_encoder;                       // P -> player_encoder_out (identity norm)
+  int player_block = 0;                     // P
+  int player_encoder_out = 0;
+  std::vector<float> siam_in_mean, siam_in_std;  // full-input norm (length = enc dim)
+
   // Single-entry embedding cache keyed by state_hash. value() then policy() are
   // called consecutively for a leaf, so this captures the one-forward win; a
   // miss just recomputes (correct).
@@ -286,7 +299,30 @@ struct NNInference::Impl {
   // every policy head.
   void compute_embed(const GameState& s, std::vector<float>& dst) const {
     enc_spec->encode_into(s, *encoder_decider_of(s), enc_buf_);
-    trunk_mlp.forward(enc_buf_.data(), dst);  // raw embedding (pre embed_norm)
+    if (siamese) {
+      // Normalize the FULL input once (the real 170-dim norm), then slice
+      // own(P) | opp(P) | rest, run own/opp through the SHARED player_encoder
+      // (identity input-norm), and feed [emb_own ; emb_opp ; rest] to the trunk
+      // (identity input-norm). Matches SiameseSharedTrunkModel.embed.
+      const int D = static_cast<int>(enc_buf_.size());
+      const int P = player_block;
+      std::vector<float> normed(D);
+      for (int i = 0; i < D; ++i)
+        normed[i] = (enc_buf_[i] - siam_in_mean[i]) / siam_in_std[i];
+      std::vector<float> emb_own, emb_opp;
+      player_encoder.forward(normed.data(), emb_own);            // own = normed[0:P]
+      player_encoder.forward(normed.data() + P, emb_opp);        // opp = normed[P:2P]
+      const int rest = D - 2 * P;
+      std::vector<float> fused(static_cast<size_t>(2) * player_encoder_out + rest);
+      std::copy(emb_own.begin(), emb_own.end(), fused.begin());
+      std::copy(emb_opp.begin(), emb_opp.end(),
+                fused.begin() + player_encoder_out);
+      std::copy(normed.begin() + 2 * P, normed.end(),
+                fused.begin() + 2 * player_encoder_out);        // rest (norm-invariant)
+      trunk_mlp.forward(fused.data(), dst);  // raw embedding (pre embed_norm)
+    } else {
+      trunk_mlp.forward(enc_buf_.data(), dst);  // raw embedding (pre embed_norm)
+    }
     if (!embed_gamma.empty()) {               // apply standalone embed_norm (no GELU)
       int d = static_cast<int>(dst.size());
       double mean = 0.0;
@@ -454,12 +490,48 @@ NNInference::NNInference(const std::string& model_dir) : impl_(new Impl()) {
   impl_->joint = (manifest.value("format", std::string()) == "shared_trunk_v1");
   if (impl_->joint) {
     impl_->trunk_mlp = Mlp(manifest["trunk"], base, act);
-    if (impl_->enc_spec->dim != impl_->trunk_mlp.input_dim())
+    // Siamese front end: the trunk takes the FUSED vector, not the raw encoding,
+    // so the encoder-dim check is against the player_encoder input, and the
+    // full-input norm is carried here (applied before slicing in compute_embed).
+    impl_->siamese = manifest.value("siamese", false);
+    if (impl_->siamese) {
+      impl_->player_block = manifest.at("player_block").get<int>();
+      impl_->player_encoder_out = manifest.at("player_encoder_out").get<int>();
+      impl_->player_encoder = Mlp(manifest["player_encoder"], base, act);
+      if (impl_->player_encoder.input_dim() != impl_->player_block)
+        throw std::runtime_error(
+            "NNInference: siamese player_encoder input_dim=" +
+            std::to_string(impl_->player_encoder.input_dim()) +
+            " != player_block=" + std::to_string(impl_->player_block));
+      if (impl_->enc_spec->dim != 2 * impl_->player_block +
+              (impl_->trunk_mlp.input_dim() - 2 * impl_->player_encoder_out))
+        throw std::runtime_error(
+            "NNInference: siamese layout mismatch (encoder dim vs "
+            "player_block/trunk input)");
+      // Full-input normalization blob (mean then std, each length = encoder dim).
+      const auto& sn = manifest.at("siamese_input_norm");
+      int dim = sn.at("dim").get<int>();
+      if (dim != impl_->enc_spec->dim)
+        throw std::runtime_error(
+            "NNInference: siamese_input_norm dim != encoder dim");
+      std::ifstream nf(base + sn["file"].get<std::string>(), std::ios::binary);
+      if (!nf)
+        throw std::runtime_error("NNInference: cannot open siamese_input_norm blob");
+      impl_->siam_in_mean.resize(dim);
+      impl_->siam_in_std.resize(dim);
+      nf.read(reinterpret_cast<char*>(impl_->siam_in_mean.data()),
+              static_cast<std::streamsize>(dim) * sizeof(float));
+      nf.read(reinterpret_cast<char*>(impl_->siam_in_std.data()),
+              static_cast<std::streamsize>(dim) * sizeof(float));
+      if (!nf)
+        throw std::runtime_error("NNInference: short siamese_input_norm blob");
+    } else if (impl_->enc_spec->dim != impl_->trunk_mlp.input_dim()) {
       throw std::runtime_error(
           "NNInference: encoder '" + std::string(impl_->enc_spec->tag) +
           "' dim=" + std::to_string(impl_->enc_spec->dim) +
           " != trunk input_dim=" + std::to_string(impl_->trunk_mlp.input_dim()) +
           " (encoder_tag/manifest mismatch)");
+    }
     if (manifest.contains("embed_norm") && !manifest["embed_norm"].is_null()) {
       const auto& en = manifest["embed_norm"];
       int dim = en.value("dim", impl_->trunk_mlp.output_dim());

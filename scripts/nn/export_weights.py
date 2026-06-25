@@ -194,13 +194,20 @@ _POINTER_STEMS = {
 }
 
 
-def _is_shared_trunk(ckpt: Path) -> bool:
-    """True if `ckpt` is a SharedTrunkModel checkpoint (meta model_kind)."""
+def _shared_trunk_kind(ckpt: Path) -> str | None:
+    """The shared-trunk model kind of `ckpt` ("shared_trunk" / "siamese_shared_
+    trunk"), or None if it is not a shared-trunk checkpoint."""
     try:
         meta = json.loads(Path(ckpt).with_suffix(".meta.json").read_text())
-        return meta.get("model_kind") == "shared_trunk"
+        kind = meta.get("model_kind")
+        return kind if kind in ("shared_trunk", "siamese_shared_trunk") else None
     except Exception:
-        return False
+        return None
+
+
+def _is_shared_trunk(ckpt: Path) -> bool:
+    """True if `ckpt` is any shared-trunk checkpoint (standard or siamese)."""
+    return _shared_trunk_kind(ckpt) is not None
 
 
 def _export_joint(ckpt: Path) -> int:
@@ -209,9 +216,14 @@ def _export_joint(ckpt: Path) -> int:
     head blobs that take the embedding with IDENTITY input-norm (pointer heads bake
     the candidate-norm into the cand slice). The C++ joint path runs the trunk once
     and feeds every head off the cached embedding (one forward per node)."""
-    from agricola.agents.nn.shared_model import SharedTrunkModel
+    from agricola.agents.nn.shared_model import (
+        SharedTrunkModel,
+        SiameseSharedTrunkModel,
+    )
 
-    model = SharedTrunkModel.load(str(ckpt))
+    is_siamese = _shared_trunk_kind(ckpt) == "siamese_shared_trunk"
+    loader = SiameseSharedTrunkModel if is_siamese else SharedTrunkModel
+    model = loader.load(str(ckpt))
     model.eval()
     E = int(model.embedding_dim)
     ident_m, ident_s = torch.zeros(E), torch.ones(E)
@@ -236,9 +248,40 @@ def _export_joint(ckpt: Path) -> int:
         "pointer_heads": {},
     }
 
-    # Trunk: real 170-input norm + trunk layers → RAW embedding (pre embed_norm).
-    manifest["trunk"] = _export_model(
-        model.trunk, model.input_mean, model.input_std, file_stem="trunk")
+    if is_siamese:
+        # Siamese front end (shared_model.SiameseSharedTrunkModel.embed): the FULL
+        # input is normalized once (the real 170-dim norm), then sliced into
+        # own(P) | opp(P) | rest(shared+mid); own and opp run through the SAME
+        # player_encoder (shared weights); the trunk consumes [emb_own ; emb_opp ;
+        # rest]. So here the player_encoder AND the trunk take ALREADY-normalized
+        # input (identity input-norm), and the real norm is carried at the siamese
+        # level for the C++ to apply before slicing.
+        P = int(model._player_block)
+        pe_in = ident_player_m = torch.zeros(P)
+        pe_in_s = torch.ones(P)
+        manifest["siamese"] = True
+        manifest["player_block"] = P
+        manifest["player_encoder_out"] = int(model.player_encoder_out)
+        manifest["player_encoder"] = _export_model(
+            model.player_encoder, ident_player_m, pe_in_s, file_stem="player_encoder")
+        # The real full-input normalization, applied in C++ before slicing. Stored
+        # as its own blob (gamma/beta layout reused: mean then std, both length D).
+        im = _f32(model.input_mean).reshape(-1)
+        isd = _f32(model.input_std).reshape(-1)
+        blob = np.concatenate([im, isd]).astype("<f4")
+        (OUT_DIR / "siamese_input_norm.bin").write_bytes(blob.tobytes())
+        manifest["siamese_input_norm"] = {
+            "file": "siamese_input_norm.bin", "dim": int(im.shape[0])}
+        # Trunk: IDENTITY input-norm (its input is the already-normalized fused
+        # vector) + trunk layers → RAW embedding (pre embed_norm).
+        trunk_in = int(model._trunk_input_dim)
+        manifest["trunk"] = _export_model(
+            model.trunk, torch.zeros(trunk_in), torch.ones(trunk_in),
+            file_stem="trunk")
+    else:
+        # Trunk: real 170-input norm + trunk layers → RAW embedding (pre embed_norm).
+        manifest["trunk"] = _export_model(
+            model.trunk, model.input_mean, model.input_std, file_stem="trunk")
 
     # embed_norm: standalone LayerNorm applied to the trunk output (NO GELU).
     if isinstance(model.embed_norm, torch.nn.LayerNorm):
@@ -294,9 +337,9 @@ def _export_joint(ckpt: Path) -> int:
 
     with (OUT_DIR / "weights_manifest.json").open("w") as f:
         json.dump(manifest, f, indent=2)
-    print(f"\nOK — wrote shared-trunk export (trunk + value + "
-          f"{len(manifest['fixed_heads'])} fixed + {len(manifest['pointer_heads'])} "
-          f"pointer heads) to {OUT_DIR}")
+    print(f"\nOK — wrote {'siamese ' if is_siamese else ''}shared-trunk export "
+          f"(trunk + value + {len(manifest['fixed_heads'])} fixed + "
+          f"{len(manifest['pointer_heads'])} pointer heads) to {OUT_DIR}")
     return 0
 
 

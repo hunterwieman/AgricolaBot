@@ -422,8 +422,16 @@ class SharedDatasets:
 def _split_mask(seeds: np.ndarray, split_seed, train_frac, val_frac, which: int):
     if seeds.shape[0] == 0:
         return np.zeros(0, bool)
-    sp = np.array([_seed_split(int(s), split_seed, train_frac, val_frac) for s in seeds])
-    return sp == which
+    # Dedup by unique game seed before the per-seed RNG work: a game's rows all
+    # share one seed, so `_seed_split` (which builds a fresh `np.random.default_rng`
+    # per call — microseconds each) need only run per UNIQUE seed (~#games), not
+    # per row (~millions). The naive per-row map made finalize ~20 min
+    # single-threaded on a 150k-game corpus. Identical output; mirrors `_splits_of`.
+    uniq, inv = np.unique(seeds, return_inverse=True)
+    sp = np.fromiter(
+        (_seed_split(int(s), split_seed, train_frac, val_frac) for s in uniq),
+        dtype=np.int8, count=uniq.shape[0])
+    return sp[inv] == which
 
 
 def build_shared_datasets(
