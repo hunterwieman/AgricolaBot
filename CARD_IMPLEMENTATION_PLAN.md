@@ -14,7 +14,11 @@ bookkeeping) is deliberately left open for a later session.**
 > primitive then the optional minor), not the "growth-inline + minor-follow-up" sketch. Also:
 > `PendingPlayMinor` carries **no `optional` field** — optionality lives at the parent frame's `Stop`,
 > per ENGINE_IMPLEMENTATION.md §2 (no SkipTrigger). `CardStore` (II.7) is deferred until a card needs
-> it. Steps 3–7 (the firing/hook system, deferred goods, phase hooks, deferred cards) are next.
+> it. **Step 3 (the firing registries + scoped used-sets) is now DONE** (II.1 automatic-effect registry
+> `register_auto`/`apply_auto_effects`/`AUTO_EFFECTS`; II.3 `used_this_turn`/`used_this_round`/`fired_once`
+> + `engine._clear` + wiring; pure-additive, Family byte-identical, C++ gates green). The `mandatory`
+> trigger flag (the third firing kind) is deferred to land with its phase-exit gate consumer in steps 4/6.
+> Steps 4–7 (the action-space/phase hooks, deferred goods, deferred cards) are next.
 
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card
@@ -1235,9 +1239,11 @@ hook categories — not after.
    Meeting Place) + enumeration + resolution (II.4). With the Category-1 scoring registry and the
    Category-2 `on_play` dispatch, **Categories 1 (scoring) and 2 (on-play) are testable end-to-end**;
    four cards landed (Consultant, Priest, Stable Architect, Market Stall).
-3. **Firing registries** (NEXT) — `register_auto`/`apply_auto_effects` + the three firing kinds (II.1),
-   scoped used-sets + `_clear` (II.3).
-4. **`PendingActionSpace` hook** (II.2) — unlocks Categories **3, 4, 5, 9, 10** (automatic-income,
+3. **Firing registries — DONE.** `register_auto`/`apply_auto_effects` + `AUTO_EFFECTS`/`AutoEntry`/`_owns`
+   (II.1, automatic-effect path), scoped used-sets `used_this_turn`/`used_this_round`/`fired_once` +
+   `engine._clear` + wiring (II.3). Pure-additive; Family byte-identical; C++ gates green. (The third
+   firing kind — the `mandatory`-tagged trigger — is deferred to its phase-exit-gate consumer, step 4/6.)
+4. **`PendingActionSpace` hook** (NEXT, II.2) — unlocks Categories **3, 4, 5, 9, 10** (automatic-income,
    granted sub-action, build hooks, opponent hook, bounded-conversion).
 5. **`FutureReward`** (II.5) — Category 8 (deferred goods).
 6. **Phase hooks** — `PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` (II.6) —

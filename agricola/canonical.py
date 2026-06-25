@@ -98,7 +98,10 @@ _build_registry()
 # newborns=0, harvest_conversions_used=frozenset(), …) and skipping THOSE would
 # change the Family JSON and break the very gates this protects. The names below
 # occur only on GameState / PlayerState. See CARD_IMPLEMENTATION_PLAN.md I.1.
-_DEFAULT_SKIP_FIELDS = frozenset({"mode", "hand_occupations", "hand_minors"})
+_DEFAULT_SKIP_FIELDS = frozenset({
+    "mode", "hand_occupations", "hand_minors",
+    "used_this_turn", "used_this_round", "fired_once",
+})
 
 
 def _is_field_default(f: "dataclasses.Field", value: Any) -> bool:
