@@ -269,6 +269,20 @@ class Stop:
 
 
 @dataclass(frozen=True)
+class Proceed:
+    """Apply an action-space host frame's primary effect and flip it to the
+    after-phase (card game only).
+
+    Surfaced by a PendingActionSpace (an atomic space hosted because a card may
+    fire on it) while in its "before" phase, after any before-triggers. Applying
+    it runs the space's normal atomic effect (ATOMIC_HANDLERS[space_id]) and
+    flips the frame to "after", where after-triggers/effects fire and Stop pops.
+    Treated like any other singleton step (auto-skipped when it's the only legal
+    action). See CARD_IMPLEMENTATION_PLAN.md II.2.
+    """
+
+
+@dataclass(frozen=True)
 class RevealCard:
     """Nature's action: turn up `card` as the round's stage card.
 
@@ -300,5 +314,6 @@ Action = Union[
     CommitBreed,
     FireTrigger,
     Stop,
+    Proceed,
     RevealCard,
 ]

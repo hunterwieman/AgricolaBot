@@ -18,7 +18,12 @@ bookkeeping) is deliberately left open for a later session.**
 > `register_auto`/`apply_auto_effects`/`AUTO_EFFECTS`; II.3 `used_this_turn`/`used_this_round`/`fired_once`
 > + `engine._clear` + wiring; pure-additive, Family byte-identical, C++ gates green). The `mandatory`
 > trigger flag (the third firing kind) is deferred to land with its phase-exit gate consumer in steps 4/6.
-> Steps 4–7 (the action-space/phase hooks, deferred goods, deferred cards) are next.
+> **Step 4a (the atomic-space action-space host) is now DONE** — `PendingActionSpace` + `Proceed` +
+> `should_host_space` indexes + `trigger_event` routing, with zero existing-frame changes and zero C++
+> changes (the host frame only ever appears in card games), Family byte-identical. Five Category-3 cards
+> landed (Wood Cutter, Geologist, Corn Scoop, Stone Tongs, Pitchfork). **Step 4b (non-atomic-space hosts
+> + the C++ frame-field sync) is next** and is the structural/C++ step. Steps 5–7 (deferred goods, phase
+> hooks, deferred cards) follow.
 
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card
@@ -1243,8 +1248,25 @@ hook categories — not after.
    (II.1, automatic-effect path), scoped used-sets `used_this_turn`/`used_this_round`/`fired_once` +
    `engine._clear` + wiring (II.3). Pure-additive; Family byte-identical; C++ gates green. (The third
    firing kind — the `mandatory`-tagged trigger — is deferred to its phase-exit-gate consumer, step 4/6.)
-4. **`PendingActionSpace` hook** (NEXT, II.2) — unlocks Categories **3, 4, 5, 9, 10** (automatic-income,
-   granted sub-action, build hooks, opponent hook, bounded-conversion).
+4. **`PendingActionSpace` hook** (II.2) — split into two slices by structural risk:
+   - **4a — atomic-space host: DONE.** The generic `PendingActionSpace` frame + `Proceed` action +
+     conditional-push lifecycle in `_apply_place_worker` + `_apply_proceed` + the `should_host_space`
+     hosting indexes (`OWN_/ANY_PLAYER_HOOK_CARDS` + `register_action_space_hook`) + `trigger_event`
+     routing/bucket + the `_enumerate_pending_action_space` enumerator. The host frame is pushed ONLY
+     for atomic spaces when a hooking card is owned, so it never appears in a Family game and the C++
+     (Family-only) engine never sees it — **zero existing-frame changes, zero C++ changes, Family
+     byte-identical.** Cards landed: **Category 3** automatic-income on atomic spaces — Wood Cutter,
+     Geologist (occ); Corn Scoop, Stone Tongs, Pitchfork (minor). The FireTrigger path at the host is
+     validated by a synthetic test card.
+   - **4b — non-atomic-space hosts + C++ sync (NEXT).** Add `phase`/`space_id`/`triggers_resolved` to
+     the 13 existing space-host parent frames, drop their per-frame `TRIGGER_EVENT`, route them through
+     `trigger_event`'s bucket, and surface before/after triggers in their enumerators. **This is the
+     C++-sync step** (the new frame fields change the canonical JSON of Family-reachable frames). Unlocks
+     **Category 4** (granted sub-actions), **5** (build/renovate hooks), **9** (Milk Jug on Cattle Market).
+   - **Category 10** (Mushroom Collector, Basket) rides 4a's atomic-host trigger path — but both cards
+     say *"place the [exchanged] wood on the accumulation space"*, which the Category-10 sketch code in
+     Part III omits; implement the wood-return faithfully (the spent wood goes back onto the space, not
+     to general supply).
 5. **`FutureReward`** (II.5) — Category 8 (deferred goods).
 6. **Phase hooks** — `PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` (II.6) —
    Categories **7 (start-of-round)** and **6 (harvest-field)**.
