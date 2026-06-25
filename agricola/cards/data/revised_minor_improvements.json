@@ -1208,7 +1208,7 @@
     "deck": "B",
     "number": 10,
     "type": "Minor Improvement",
-    "status": "todo",
+    "status": "wontfix",
     "name": "Caravan",
     "cost": "3 Wood,3 Food",
     "vps": null,

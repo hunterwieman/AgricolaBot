@@ -46,6 +46,14 @@ Cutter's automatic +1 wood *and* Mushroom Collector's choosable swap). A third r
 Bread, plow) that the player then optionally uses — mechanically a trigger that composes a
 primitive.
 
+A **third firing kind sits between** trigger and automatic effect (added in
+`CARD_IMPLEMENTATION_PLAN.md` §II.1): **mandatory-with-choice** — the effect *must* fire (no decline)
+but presents a choice the engine can't make silently (Seasonal Worker's grain/veg from round 6,
+Childless's crop). It's implemented as a **trigger tagged `mandatory`**: surfaced as a `FireTrigger`,
+but the host frame's phase-exit (`Proceed`/`Stop`) is gated off until it fires, and firing pushes a
+small no-`Stop` `PendingCardChoice` for the decision. So the full taxonomy is: optional → `FireTrigger`;
+mandatory + no choice → automatic effect; mandatory + choice → `mandatory`-tagged trigger.
+
 ---
 
 ## 1. Scope
@@ -67,17 +75,32 @@ primitive.
 - **Private hands.** Each player is dealt **7 occupations + 7 minor improvements** into a
   **hidden hand**. This is the faithful model and introduces persistent *asymmetric* hidden
   information (see §13 — it's the project's biggest downstream consequence, on the agent side).
-- **Hidden info lives in the `Environment`**, not `GameState` (the invariant from
-  `HIDDEN_INFO_DESIGN.md`). `observe(state, env, i)` finally becomes non-identity: it splices in
-  player *i*'s own hand and masks the opponent's. Setup deals the hands into the env.
+- **Hands live concretely on `PlayerState`; hidden info is handled *above* the engine** (decided —
+  see `CARD_IMPLEMENTATION_PLAN.md` §I.5; this **supersedes** the earlier "hands live in the
+  `Environment`" framing). Both players' hands are real `frozenset[str]` fields on `PlayerState`, so
+  `GameState` stays a single, fully-determined world and `step` / `legal_actions` remain pure
+  functions of it with no new arguments (a play-card enumerator only ever needs the *decider's own*
+  hand). The opponent's hand being secret is not the engine's concern: it is handled by the search —
+  **ISMCTS with determinization**, which samples a concrete opponent hand per iteration — and by
+  `observe(state, env, i)`, which becomes non-identity by masking the opponent's hand *identity while
+  preserving its (public) cardinality*. `setup` still deals the hands (the `Environment` owns the
+  RNG); it just seats them onto `PlayerState`. The competitive **draft** narrows the determinization
+  belief but is a search-layer concern, not modeled in the engine. (Why not keep hands in the
+  `Environment`? Because `step`/`legal_actions` take only a `GameState`, so resolving/​enumerating a
+  card play needs the hand readable from `GameState`; storing it there and masking at `observe` keeps
+  both entry points pure. The asymmetric-hidden-info / ISMCTS work itself remains the §13 open item.)
 - **Configurable card pools (decision).** Setup takes an **arbitrary crafted collection** of
   occupations + minors and deals the 7-each hands **uniformly** from that pool — any chosen subset
   of the catalog, no hard-coded deck.
-- **The Family game is a distinct variant, not "the card game with an empty pool."** Beyond having
-  no hand cards, it flips action-space rules: Side Job is *available*, Meeting Place is a
-  *food-accumulation* space (not a play-a-minor opportunity), and the 2-player extra tile is unused
-  (RULES.md Setup). So "Family vs card game" is a **mode** carrying rule deltas beyond the hand,
-  not just an empty pool — see §11, which treats the mode as an explicit setup config.
+- **The Family game is a distinct variant, not "the card game with an empty pool."** Beyond having no
+  hand cards, the **card-mode action board differs** (full detail: `CARD_IMPLEMENTATION_PLAN.md`
+  §I.1–I.4): **Side Job is removed**; **Meeting Place** becomes "become starting player (always) +
+  *optionally* play a minor, **and gives no food**" (Family's Meeting Place is a food-accumulation
+  space); **Lessons** is the occupation-play space (inert in Family); and **Basic Wish for Children**,
+  **Major/Minor Improvement**, and **House Redevelopment** gain a *play-a-minor* option. (The 2-player
+  extra tile is optional and **never used**, in either mode.) So "Family vs card game" is a **mode**
+  carrying rule deltas beyond the hand, not just an empty pool — see §11, which treats the mode as an
+  explicit setup config. *(RULES.md still describes the Family-only board; it is to be updated.)*
 
 ---
 
@@ -304,6 +327,17 @@ generalizes to other cards.
 - **At-any-time conversions** (always **triggers** — optional). Per the optionality principle,
   bundled into the decision points where their proceeds are needed, not surfaced standalone
   (Sheep Walker, Hard Porcelain, Clearing Spade).
+  - **One such decision point is *end-game* — a before-scoring phase.** A conversion's "proceeds"
+    can be **points**, so its optimal moment can be *after the final (round-14) harvest, right before
+    scoring*. Worked example: **Sheep Walker** — a player who breeds to 3 sheep in the round-14
+    harvest may then convert 2 of them (→ 1 wild boar + 1 vegetable) purely to improve their final
+    score (animal diversity, **Organic Farmer**'s sparse-pasture bonus, etc.). So the engine needs a
+    **`PendingBeforeScoring`** decision frame in the `BEFORE_SCORING` phase (today terminal) that
+    hosts these end-game triggers — **card-dependent / ownership-gated** like the other hooks, so the
+    Family game pushes nothing and goes straight to scoring. (Organic Farmer's *arrangement* itself
+    needs no decision — animals are aggregate counts, so `scoring` just computes the
+    point-maximizing assignment of animals to pastures; the before-scoring frame is for the
+    conversions that change *which* animals exist.) This is easy to overlook — flagged here.
 - **Board geometry (deferred).** Brook ("4 spaces above Fishing") and Sweep ("card left of the
   most-recently-placed") need a **static position/adjacency map** over the 2-player board piece
   (the contiguous piece; the left jigsaw is 4-player-only and out of scope). The exact adjacency
@@ -335,7 +369,9 @@ flagged here** — when the deferred machinery is built, these are its test case
   Master Bricklayer, Frame Builder, Conservator (path), Hedge Keeper. *Minors* — Lumber Mill,
   Carpenter's Parlor, Rammed Clay (pay fences with clay).
 - **Conversions that change what you can afford:** *Occupations* — Sheep Walker, Grocer.
-  *Minors* — Hard Porcelain, Basket.
+  *Minors* — Hard Porcelain. (Basket converts 2 wood → 3 food but *only* immediately after a
+  wood-accumulation placement — now-or-never, so it never enters the affordability reachability
+  closure and is a plain bounded-hook trigger, not part of this problem.)
 - **Eligibility broadeners / path changers** (Potter-style): Conservator (renovate path),
   plus any future "do X without paying / even if you couldn't normally."
 - **Capacity changes that gate sub-action legality:** Animal Tamer, Drinking Trough, Caravan
@@ -347,12 +383,17 @@ flagged here** — when the deferred machinery is built, these are its test case
 
 Some cards carry per-instance state beyond a fired-flag — most notably **Grocer** (a fixed goods
 stack on the card you buy from over time) and Tutor (which only needs an on-play **snapshot int**
-of `len(occupations)`, scored as `final − snapshot`). The general per-card-state mechanism
-(a `dict[card_id, <state>]` on `PlayerState`, or similar) is **deferred — to be designed
-together with Grocer in a dedicated discussion** (per maintainer request). Tutor doesn't need it
-(snapshot int suffices). The far harder *legality/affordability* half of the Grocer problem — how
-conversion cards make `can_renovate` / `can_bake` a reachability search — is written up as its own
-open problem in **§15**.
+of `len(occupations)`, scored as `final − snapshot`).
+
+**Update (`CARD_IMPLEMENTATION_PLAN.md` §II.7): the *container* is now built — `CardStore`**, a sparse,
+hashable frozen-dataclass map (`card_id → value`) on `PlayerState`, holding an entry only for the cards
+that need state (played cards still live in the `occupations` / `minor_improvements` frozensets). It
+stores **`int` values now** (Tutor's snapshot, Moldboard Plow's uses-left). The hashable-`dict`
+problem the old "`dict[card_id, …]`" note worried about is solved (a frozen dataclass over a sorted
+tuple). What remains **deferred to the dedicated Grocer discussion** is the **typed per-card payload**
+form (Grocer's goods *stack*, etc.) that slots in as a `CardStore` value — the container won't change.
+The far harder *legality/affordability* half of the Grocer problem — how conversion cards make
+`can_renovate` / `can_bake` a reachability search — is written up as its own open problem in **§15**.
 
 ---
 
