@@ -33,9 +33,19 @@ manage):
 | **Full 96-vCPU fleet** | **96** | — | **~$3.5/hr** |
 
 Prices are approximate (~$0.037/vCPU-hr), grounded in an actual run, not list-price
-guesses. Disk and same-region storage/egress are negligible. **Spot** (interruptible)
-machines would be ~3× cheaper but are **not approved yet** — Google auto-blocks them on
-new accounts; re-request once the account has more history.
+guesses. Disk and same-region storage/egress are negligible.
+
+**Spot is the default — strongly prefer it (it's ~3× cheaper).** Spot (interruptible)
+machines cost **~$0.012/vCPU-hr** — the **96-vCPU Spot cap runs ~$1/hr** versus ~$3.5/hr
+on-demand for the same 96 cores. Google can reclaim a Spot box with ~30 seconds' notice,
+but that's a non-issue here: the generation workload is interruption-tolerant, and its
+resume logic simply re-runs any games a reclaimed box didn't finish. So **default every
+run to Spot** by passing `--provisioning-model=SPOT`. Spot now covers the full T2A
+regional capacity (96 cores ≈ ~12× the M1), so there's rarely a reason to use on-demand
+at all — fall back to it only for a one-shot job that truly can't absorb an interruption.
+Spot was auto-denied on the brand-new account, then granted (first 48, then 96) once it
+had a few days + ~$20 of spend; jumps to 128 were still auto-denied, so raise the cap in
+modest steps as the account ages.
 
 **How fast it generates.** Measured at **~12 games/min per core at 800 sims** (roughly
 halving to ~6/core at 1600 sims, since doubling the search doubles the work). So the
@@ -87,9 +97,13 @@ with `agricola.agents.nn.trace_replay.replay_trace`.
 ZONE=us-central1-a
 NAME=agricola-job
 
-# 1. Create the VM. --scopes=cloud-platform lets it clean up / write to storage itself.
+# 1. Create the VM. Default to Spot (--provisioning-model=SPOT) — it's ~3x cheaper.
+#    --scopes=cloud-platform lets it clean up / write to storage itself.
+#    Drop --provisioning-model=SPOT (i.e. use on-demand) only if you need >48 vCPUs
+#    in one run or the job truly can't tolerate a mid-run interruption.
 gcloud compute instances create $NAME --zone=$ZONE \
   --machine-type=t2a-standard-8 \
+  --provisioning-model=SPOT --instance-termination-action=DELETE \
   --image-family=debian-12-arm64 --image-project=debian-cloud \
   --boot-disk-size=20GB --scopes=cloud-platform
 
@@ -146,6 +160,7 @@ matter what the code is doing — so a stuck job can never bill indefinitely:
 ```sh
 gcloud compute instances create $NAME --zone=$ZONE \
   --machine-type=t2a-standard-8 \
+  --provisioning-model=SPOT \
   --image-family=debian-12-arm64 --image-project=debian-cloud \
   --scopes=cloud-platform \
   --max-run-duration=3h --instance-termination-action=DELETE
@@ -175,3 +190,192 @@ If anything is listed, delete it: `gcloud compute instances delete NAME --zone=Z
 - `tar` before every `scp`, both directions.
 - Full project context (sizing, throughput numbers, costs) lives in the memory note
   `project-gcp-cloud-datagen`.
+
+## Best practices — lessons from real failures
+
+Each of these cost real debugging time on a live run; they're written down so the next
+session starts ahead of where this one did.
+
+### Resilience (the run *will* be interrupted — design for it)
+
+- **Make every unit resumable and idempotent.** Give each box a fixed slice of the work,
+  have it skip whatever it already uploaded, and write a completion marker only at the
+  end. Then a restart re-does only the unfinished part. This is the real safety net: when
+  the orchestrator died mid-run, **169k already-generated games survived untouched** and a
+  restart finished the rest — a dead orchestrator cost *time, not data*.
+- **Upload outputs incrementally** (e.g. `gsutil rsync` every ~3 min), so a preemption or
+  kill loses minutes of work, not hours.
+- **Build once, cache the artifact, download on relaunch.** Under heavy Spot preemption a
+  campaign relaunched its boxes ~30 times — and each relaunch rebuilt the C++ binary from
+  source (~4 min), so most of the wall-clock went to *compiling, not generating*. Have the
+  first box upload its built binary to the bucket and every later box download it (~10–30 s,
+  with a `selfplay -h` smoke-test fallback to rebuild if it won't run). Make relaunches cheap.
+- **A laptop-side orchestrator loop is fragile.** A `run_in_background` bash loop got reaped
+  when the session/auto-mode ended and the run stalled for hours unnoticed. Mitigations:
+  launch it detached (`nohup`), keep a self-scheduled wakeup that re-checks and restarts it,
+  and — because the work is resumable — treat its death as a time cost, not a data loss.
+- **Spread a Spot fleet across zones — don't let every box pile into one.** An orchestrator
+  that tries zones in a fixed order (`a` then `b` then …) lands *every* box in the first
+  zone that has capacity, so all of them share that one zone's Spot pool. When that pool is
+  contended the whole fleet gets preempted together, repeatedly — one box was relaunched ~5×
+  in `us-central1-a` before a single epoch landed, because each relaunch went straight back
+  into the same exhausted zone and was reclaimed mid-download. Fix: give each unit a
+  *different home zone* (rotate `ZONES[idx % n]` as its first choice, fall through to the
+  rest only if the home is full). 6 archs over 4 zones → ≤2 per zone instead of 6, so a
+  zone's preemption wave takes out one or two boxes, not the fleet. Combine with cheap
+  relaunches (pd-ssd + stubbed inputs, below) so the relaunches it *can't* avoid are fast.
+- **Two independent teardown layers** so nothing bills forever: a self-delete `trap` on the
+  job script *and* `--max-run-duration ... --instance-termination-action=DELETE`.
+
+### Correctness pitfalls (these fail *silently* and corrupt output)
+
+- **Never pass large data as a command-line argument.** Linux caps a single `argv` string at
+  **128 KB** (`MAX_ARG_STRLEN`). Passing a 30k-element id list (~150 KB) to a helper made the
+  command silently fail → empty output → downstream produced zero work yet reported success.
+  Pass big lists via a **file or stdin**. Note this is *size-dependent*: a 10k-element slice
+  (~50 KB) fit and "worked," so it passed in testing and only blew up at full scale.
+- **Make "done" earned, not assumed.** A completion marker was written even though the box
+  generated *zero* output (the step before it had silently failed). A success signal must be
+  gated on the actual work product existing — **count the output files and refuse to mark
+  done if the count is short**. Otherwise a silent failure masquerades as success and the
+  orchestrator skips real work.
+- **Hard-guard degenerate inputs.** A bad/empty metadata value produced an empty work slice
+  (`range [0,0)`) that silently wrote a bogus "done". Fail loudly on degenerate inputs; never
+  let them no-op straight into a success state.
+- **`gcloud --metadata` is comma-delimited.** A value containing commas (e.g.
+  `sims-list=400,800,1600`) breaks parsing with a cryptic "Bad syntax for dict arg." Use the
+  custom-delimiter form: `--metadata=^@^k1=v1@k2=v2,with,commas`.
+- **A self-deleting box's startup crash looks exactly like a Spot preemption — distinguish them
+  with the operations log before diagnosing.** A `trap self_delete EXIT` (the fire-and-forget
+  pattern) fires on *any* script exit, including a crash. So a startup bug makes boxes vanish and
+  the orchestrator relaunch them — indistinguishable, from the outside, from a preemption storm.
+  The tell is in `gcloud compute operations list`: filter `operationType=compute.instances.preempted`
+  vs the `insert`/`delete` counts. A run with **98 inserts, 33 deletes, but only 3 preemptions**
+  was *crash-looping*, not being preempted — every box self-destructed in its own startup script.
+  Don't theorize about capacity until you've checked the preemption count; it's one query and it
+  settles the question.
+- **`grep -c` + `|| echo 0` under `pipefail` emits TWO zeros, not one.** `x=$(… | grep -c PAT || echo 0)`
+  on no match: `grep -c` prints `0` *and* exits 1, so under `set -o pipefail` the pipeline fails and the
+  `|| echo 0` *also* runs — `x` becomes `"0\n0"`. The next `$(( N - x ))` is then a math syntax error,
+  which (no `set -e`) silently leaves the downstream var empty → a CLI flag like `--max-epochs ""` →
+  the program aborts → the box's EXIT trap self-deletes it. This is the bug that made every fresh Spot
+  training box die in its resume logic *before training started* (0 epochs banked, ~30 self-deletes). Fix:
+  `grep -c` already prints `0` on no match — drop the `|| echo 0` (use `|| true` only to swallow the exit
+  code) and sanitize to a single integer (`x=${x//[^0-9]/}; x=${x:-0}`). Reproduce these one-liner shell
+  bugs **locally** — it's instant and free, vs a multi-minute cloud round-trip per guess.
+
+### Diagnosing a repeated failure — measure before you theorize
+
+**The principle.** When units fail over and over, the costly mistake is not guessing wrong — it is
+*acting* on a guess before measuring. A plausible theory ("the machines are getting preempted")
+feels like understanding and licenses building fixes; if it is wrong, those fixes are hours spent
+improving things *next to* a problem you never located. There is almost always one cheap measurement
+that separates the real cause from the merely plausible one. Take that measurement **first**, before
+writing any fix.
+
+Worked example of getting this exactly wrong. A fleet of training boxes kept vanishing and being
+relaunched — which looks identical to a Spot-preemption storm. So effort went into faster disks,
+spreading boxes across zones, and slimming the download (all genuine improvements; none of them the
+problem). The boxes were actually *self-deleting*, because a one-line shell bug crashed every box in
+its startup script before training ever began. Two measurements would have caught it in minutes
+instead of hours: (1) the cloud operations log showed **3 preemptions against ~30 self-deletes** —
+proving it was not a capacity problem; (2) the offending shell line reproduced the crash **locally in
+seconds**. The very plausibility of "preemption" is what stopped the search.
+
+Handles that make the skepticism mechanical, so it does not depend on someone happening to doubt the
+theory:
+
+- **Name the alternatives and the discriminating test before building a fix.** When a diagnosis
+  starts to form, write it down explicitly: *the candidate causes are X, Y, Z; the cheapest thing
+  that tells them apart is ___* — then go run that, not a fix. For "boxes keep disappearing," the
+  discriminator is the operations log (`compute.instances.preempted` count vs `insert`/`delete`
+  counts). One query settles it.
+- **Deterministic-zero is a code smell; partial/random is an environment smell.** *Zero* successes
+  across *many* attempts means every unit is failing *identically* → look for a deterministic bug,
+  not bad luck. A stochastic cause (preemption, transient capacity) would let *some* unit slip
+  through occasionally; the total absence of any success is itself the clue that it is code, not
+  environment.
+- **A logic-bearing script is code — dry-run it locally before fanning it out to N machines.** Any
+  startup or orchestration script with arithmetic, parsing, or conditionals can be exercised on the
+  laptop in seconds. Shipping it untested to a fleet converts a free local bug into a
+  minutes-per-iteration cloud bug, multiplied by every box and every relaunch.
+- **"It kind of makes sense" is a yellow flag, not a green light.** Plausibility is not evidence.
+  After forming a hypothesis, try to *falsify* it: "if it were preemption, the operations log would
+  show preemptions — does it?" If you cannot point at the specific evidence that confirms a
+  diagnosis, you are still guessing.
+- **Motion is not progress.** A fix that does not address the *diagnosed root cause* is decoration —
+  it can feel productive while the real failure is untouched. Every fix should trace back to the
+  evidence that located the cause.
+
+### Debugging on cloud boxes
+
+- **`/root` is mode 700 — read startup logs with `sudo`.** Job scripts run as root and write
+  under `/root`; a non-root SSH user's `ls`/`cat` there silently returns *nothing*, which
+  reads as "empty / missing file" when it's really permission-denied. Don't trust a
+  silent-empty result — re-check with `sudo`. Always `exec > >(tee /var/log/job.log) 2>&1`
+  in the startup script so there's a log to read.
+- **Reproduce the *actual* failing path, at production scale.** A simplified, no-build debug
+  box failed to reproduce a bug that lived in the post-build path; and because the bug was
+  size-dependent, small inputs passed. Run the real script with real inputs.
+- **Self-deleting boxes erase their own evidence.** To inspect a box that fails-then-vanishes,
+  launch one copy with self-delete disabled (swap the `trap self_delete EXIT` for a
+  `sleep`) and SSH in while it's still alive.
+- **A process that is "mysteriously slow" is not a mystery — `py-spy dump` shows the exact line
+  it's on.** When a long-running step makes no progress and you're tempted to conclude "it's just
+  slow," don't guess — `pip install py-spy` into the venv and `sudo py-spy dump --pid <pid>` prints
+  the live Python stack (no restart, no code change). One dump caught a finalize step spending ~20
+  min in a per-row `np.random.default_rng(...)` construction (a split mask that should have deduped
+  to per-game) — a hotspot that *looked* like an inherent cost until the stack named the line. This
+  is "measure before you theorize" for a single hot process: the dump is one command and it converts
+  a guess into a fact.
+
+### Performance & sizing
+
+- **Estimate from data measured on the actual fleet shape, not a single-process
+  microbenchmark.** Per-core throughput drops from (a) more processes per socket
+  (memory-bandwidth contention — the vectorized inference inner loop is bandwidth-bound, so
+  16 procs/socket run each core meaningfully slower than 8) and (b) preemption rebuild/boot
+  overhead. Ignoring these made wall-clock estimates 2–4× optimistic.
+- **The external-IP quota (default ~8/region) often binds before the CPU quota.** It caps the
+  *number* of boxes, which forces fewer-but-bigger boxes — and bigger boxes then suffer more
+  per-socket contention (above). Weigh both limits when choosing the fleet shape; the
+  throughput-optimal shape is the smallest boxes that still fit under the IP cap.
+- **Bake a golden machine image so boxes boot ready, not building.** Most per-box setup is
+  *not* shipped from the operator's machine — torch is ~200 MB pulled from PyPI and the code is
+  only a ~5 MB bucket tarball — so the slow part is installing the environment (Debian + a venv
+  with torch/numpy), ~3–4 min of `pip install torch` + apt on every fresh box. Bake that
+  environment into a custom image once (`gcloud compute images create`), then launch fleet boxes
+  `--image <name>`; they skip the install entirely, so boot→ready drops to ~1 min and a
+  spot-preemption relaunch is nearly free. Same principle as build-once-cache-the-binary
+  (above), generalized from the one binary to the whole environment.
+- **Parallelize prep across shards — don't serialize it.** A multi-shard replay/encode that
+  loops over its run-dirs sequentially on one box leaves most CPUs idle while the remaining
+  shards wait their turn. Run each shard's encode concurrently (separate boxes or processes)
+  instead — the per-shard inputs already live in the bucket, so the shards don't depend on each
+  other and there's nothing to serialize on.
+- **For download-heavy boxes, use `--boot-disk-type=pd-ssd` — the default `pd-standard` is HDD
+  and caps write throughput.** A box that pulls tens of GB from a bucket before training is
+  bottlenecked on how fast it can *write* that data to its local disk, not the network or
+  per-file request overhead. The default boot disk is `pd-standard` (spinning-disk-class):
+  sustained write throughput scales with size and lands around **~12–30 MB/s for a 100 GB
+  disk** — so a 62 GB pull takes ~35 min. `pd-ssd` (flash) does ~240+ MB/s for the same disk,
+  ~10× faster, for a few cents more over a short-lived box. The tell that you're disk-bound and
+  not request-bound: the files are already tens of MB each (so per-object HTTP overhead is
+  negligible) yet `gsutil -m rsync` still crawls. **Consolidating many files into one tarball
+  does NOT help here and makes it worse** — you write the same bytes to the same slow disk, then
+  *extraction* reads + rewrites them a second time (2× the HDD I/O). Tarballs only win when the
+  bottleneck is per-object *request* overhead (thousands of KB-scale files), which a throughput
+  cap is not. This matters most for **preemption relaunches**, which re-download the full corpus
+  to a fresh disk every time.
+- **Don't download data the consumer only *counts*, never *reads*.** The joint-trunk encode
+  cache (`shared_<tag>_chunks/*.npz`) IS the training data; the raw game pickles
+  (`games/*.pkl`) that produced it are, on a cache HIT, only *counted* by the completeness check
+  (one chunk per pickle — `shared_dataset.py` `_cache_complete`/`_iter_worker_pickles`), never
+  opened. So a training box that has the chunk cache does not need the pickle *contents* at all —
+  shipping them across the network (here ~26 GB of a ~62 GB pull) is pure waste. Replace them
+  with empty **stub** files of the right names (`gsutil ls …/games/'worker_*.pkl' | sed
+  's#.*/##' | while read n; do : > games/$n; done` — lists object names with no content
+  transfer), which satisfies the count without the bytes. Safe because `snapshot-keep` thins
+  *chunk rows*, not pickles, so nothing on the train path ever opens a stub. Before stubbing any
+  "only-counted" input, confirm against the code that no path actually loads it — the value of
+  the trick depends entirely on that read-vs-count distinction.

@@ -718,6 +718,8 @@ Drop-in compatibility: works with `play_match.py`, `play_game`, the per-seat res
 The **joint shared-trunk network** — one trunk feeding the value head and the full factored policy (the Phase 2.3 successor to the separate value net + 9 independent policy heads). Imports torch. Not re-exported from `__init__.py`. See **`SHARED_TRUNK.md`** §2.
 
 - **`SharedTrunkModel`** — `nn.Module`: a `170 → trunk MLP [256, 256] → Linear → embedding E=128 → LayerNorm(E)` (the `embed_norm`) feeding three head families, **all reusing `ConfigurableMLP`** (no new MLP math): the **value head** (`Linear(E→1)`, then `× target_std` to recover raw margin), **7 fixed-vocab heads** (`Linear(E→K_h)` → masked softmax; placement … fencing, build_stop), and **2 pointer heads** that score `[embedding ; candidate]` (the trunk runs once on the state; candidate features are concatenated to the *embedding*, not to the raw 170-vector — cheaper than the standalone pointer model, no per-candidate state re-encode; the per-head fitted candidate-normalization rides as buffers). Fully **architecture-agnostic** (every width is a constructor arg). `predict_margin` / `value_scale` / dual-perspective antisymmetry are preserved bit-for-bit, so the value head is a drop-in value evaluator. The **taper** (E < trunk width) is dual-purpose: it halves the wide policy heads' per-leaf cost (cost ∝ E×K for fencing's 110-way / sow's 104-way) and gives a compact latent for interpretability.
+- **`SiameseSharedTrunkModel`** — a drop-in subclass of `SharedTrunkModel` (CLI `--siamese`, `--player-encoder-dims`, `--player-encoder-out`) where **both players' feature blocks run through one *shared* per-player encoder**, then `[emb_own ; emb_opp ; board ; mid]` feeds the usual trunk + heads (an experimental variant; the standard path is byte-identical when `--siamese` is absent). See **`SHARED_TRUNK.md`** §2.1.
+- **Leaky-ReLU** is now also a selectable trunk/head activation (`--activation leaky_relu`, default GELU); the C++ hand-rolled MLP reads a model-global `activation` field from the export manifest (default `gelu`), gated by `test_cpp_joint_leaky_matches_python`. See **`SHARED_TRUNK.md`** §2.1.
 - **`config_dict()`** + **`NET_REGISTRY`** registration so `save` / `load` round-trip (mirrors `model.py`'s persistence; `ENCODING_VERSION` hard-checked).
 
 ---
@@ -975,6 +977,18 @@ Parallel driver for the **C++ two-net match** — runs the `cpp/build/selfplay -
 **Related joint-export / C++ changes** (no standalone entries here — see CLAUDE.md's directory tree and `CPP_ENGINE_PLAN.md`):
 - **`scripts/nn/export_weights.py`** gained **`--value-ckpt`** / **`--out-dir`** and a **joint export path**: pointed at a `SharedTrunkModel` checkpoint it auto-detects the joint model and writes a `format: "shared_trunk_v1"` manifest (trunk + a standalone `embed_norm` LayerNorm + head blobs taking the embedding with identity input-norm; pointer heads bake the candidate-norm into the cand slice) instead of the composite per-net export. This is what `run_cpp_match.py` / C++ self-play consume.
 - **`cpp/src/nn.cpp`** gained a **joint-inference mode toggle** (not a new class — the two modes share the manifest loader, the `Mlp` primitive, and the entire policy dispatch; only the forward differs), driven by the `shared_trunk_v1` manifest, with an internal `state_hash`-keyed embedding cache giving one trunk forward per node (so `mcts.cpp` is unchanged, mirroring the Python memo). **`cpp/src/selfplay.cpp`** gained the two-net **`mcts_match_game`** + **`--match`** mode (`--model-dir-p0` / `--model-dir-p1`, separate trees, per-seat `value_scale`).
+
+---
+
+### `scripts/nn/encode_shared.py`
+
+Standalone one-time encode that materializes the shared chunk cache (the `shared_<encoder.tag>_chunks/` npzs `shared_dataset.build_shared_datasets` reads). Run it once before launching several joint-training runs over the same corpus so they all reuse one encode — this avoids the multi-training **encode race** where concurrent trainers each try to fill the same cache. Imports torch. See **`SHARED_TRUNK.md`** §3.
+
+---
+
+### `scripts/nn/replay_traces_parallel.py`
+
+Parallel trace→`GameRecord` replay — the multiprocess analog of `scripts/nn/replay_traces.py`, sharding the replay across a process pool. The serial replay of a 240k-game corpus runs ~40 min; this fans the run dir's traces out over workers to cut that down. Produces the same `worker_*.pkl` `GameRecord` chunks training consumes; resumable (skips game_idxs already replayed). See **`CPP_ENGINE_PLAN.md`**.
 
 ---
 

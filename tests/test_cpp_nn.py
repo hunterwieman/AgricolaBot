@@ -365,6 +365,73 @@ def test_cpp_joint_leaky_matches_python(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Joint with the siamese front end (≤1e-4) — SHARED_TRUNK.md. Mirrors
+# test_cpp_joint_matches_python but builds a random SiameseSharedTrunkModel, so
+# the exporter writes the "siamese" manifest section (player_encoder blob + the
+# full-input norm) and the C++ embed path must slice own/opp, run the SHARED
+# player_encoder on each, concat [emb_own ; emb_opp ; rest], then the usual trunk.
+# A permanent gate that the siamese front end stays equivalent to Python.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _HAS_NN, reason="NN bindings not built")
+def test_cpp_joint_siamese_matches_python(tmp_path):
+    import subprocess
+
+    from agricola.agents.nn.dataset import NormStats
+    from agricola.agents.nn.encoder import ENCODED_DIM, ENCODING_VERSION
+    from agricola.agents.nn.policy_heads import HEADS, POINTER_HEADS
+    from agricola.agents.nn.shared_model import SiameseSharedTrunkModel
+    from agricola.agents.nn.shared_policy import make_joint_fns
+
+    rng = np.random.default_rng(7)
+    stats = NormStats(
+        input_mean=rng.standard_normal(ENCODED_DIM).astype(np.float32),
+        input_std=(1.0 + np.abs(rng.standard_normal(ENCODED_DIM))).astype(np.float32),
+        target_std=7.0, encoding_version=ENCODING_VERSION)
+    model = SiameseSharedTrunkModel(
+        fixed_head_specs={n: h.num_classes for n, h in HEADS.items()},
+        pointer_head_specs={n: h.candidate_dim for n, h in POINTER_HEADS.items()},
+        norm_stats=stats, trunk_hidden_dims=[32, 32], embedding_dim=16,
+        pointer_head_dims=[8], player_encoder_dims=[24], player_encoder_out=12)
+    model.value_scale = 4.0
+    for n, h in POINTER_HEADS.items():  # non-identity candidate norms
+        model.set_pointer_cand_norm(
+            n, rng.standard_normal(h.candidate_dim).astype(np.float32),
+            (1.0 + np.abs(rng.standard_normal(h.candidate_dim))).astype(np.float32))
+
+    ckpt = tmp_path / "joint_siamese"
+    model.save(ckpt)
+    export_dir = tmp_path / "export_siamese"
+    subprocess.run(
+        [sys.executable, str(_ROOT / "scripts" / "nn" / "export_weights.py"),
+         "--value-ckpt", str(ckpt), "--out-dir", str(export_dir)],
+        check=True, cwd=str(_ROOT), capture_output=True)
+    manifest = json.loads((export_dir / "weights_manifest.json").read_text())
+    assert manifest.get("siamese") is True
+    assert manifest["player_encoder_out"] == 12
+    assert (export_dir / "player_encoder.bin").exists()
+    assert (export_dir / "siamese_input_norm.bin").exists()
+
+    vf, pf = make_joint_fns(model)
+    worst_v = worst_p = 0.0
+    md = str(export_dir)
+    for state in _CORPUS[::9]:
+        worst_v = max(worst_v, abs(agricola_cpp.nn_value(dumps(state), md) - vf(state)))
+        if state.phase == Phase.BEFORE_SCORING or decider_of(state) is None:
+            continue
+        if len(filter_implemented(legal_actions(state))) <= 1:
+            continue
+        py = {_norm_action(a): float(v)
+              for a, v in pf(state, list(legal_actions(state))).items()}
+        cpp = {_norm_json(s): float(v) for s, v in agricola_cpp.nn_policy(dumps(state), md)}
+        for k in set(py) | set(cpp):
+            worst_p = max(worst_p, abs(py.get(k, 0.0) - cpp.get(k, 0.0)))
+    assert worst_v <= 1e-4, f"joint siamese value max |Δ|={worst_v:.3e}"
+    assert worst_p <= 1e-4, f"joint siamese policy max |Δ|={worst_p:.3e}"
+
+
+# ---------------------------------------------------------------------------
 # Outcome head (≤1e-4) — Phase 2b. The C++ outcome readout (the outcome head off
 # the shared trunk, sign-flipped to the P0 frame, with the exact sign(margin) at
 # a terminal) must match Python SharedTrunkModel.predict_outcome. Uses a real

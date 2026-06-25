@@ -39,7 +39,7 @@ from agricola.agents.nn.policy_pointer_model import segment_log_softmax
 from agricola.agents.nn.policy_training import _soft_ce
 from agricola.agents.nn.schema import DATA_VERSION
 from agricola.agents.nn.shared_dataset import build_shared_datasets
-from agricola.agents.nn.shared_model import SharedTrunkModel
+from agricola.agents.nn.shared_model import SharedTrunkModel, SiameseSharedTrunkModel
 from agricola.agents.nn.training import current_git_sha, make_run_id, setup_seeds
 
 
@@ -51,13 +51,17 @@ from agricola.agents.nn.training import current_git_sha, make_run_id, setup_seed
 def build_shared_trunk_model(sd, *, trunk_hidden_dims=(256, 256), embedding_dim=256,
                              value_head_dims=(), fixed_head_dims=(),
                              pointer_head_dims=(64,), activation="gelu",
-                             norm="layer", dropout=0.0, embed_norm=True) -> SharedTrunkModel:
-    """Construct a `SharedTrunkModel` from a `SharedDatasets` *or* `SharedStreams`
+                             norm="layer", dropout=0.0, embed_norm=True,
+                             siamese=False, player_encoder_dims=(128,),
+                             player_encoder_out=64) -> SharedTrunkModel:
+    """Construct a `SharedTrunkModel` (or, with `siamese=True`, a
+    `SiameseSharedTrunkModel`) from a `SharedDatasets` *or* `SharedStreams`
     bundle: head specs from the registries, the shared input norm + pointer
     candidate norms from the bundle. The full head roster is always built (heads
     with no rows still need their output layer for inference); the bundle only
-    supplies the norms."""
-    model = SharedTrunkModel(
+    supplies the norms. The siamese variant is a drop-in (same heads/norm/public
+    surface) differing only in the trunk's front end."""
+    common = dict(
         fixed_head_specs={n: HEADS[n].num_classes for n in HEADS},
         pointer_head_specs={n: POINTER_HEADS[n].candidate_dim for n in POINTER_HEADS},
         norm_stats=sd.input_stats,
@@ -67,6 +71,13 @@ def build_shared_trunk_model(sd, *, trunk_hidden_dims=(256, 256), embedding_dim=
         fixed_head_dims=list(fixed_head_dims), pointer_head_dims=list(pointer_head_dims),
         activation=activation, norm=norm, dropout=dropout, embed_norm=embed_norm,
     )
+    if siamese:
+        model = SiameseSharedTrunkModel(
+            player_encoder_dims=list(player_encoder_dims),
+            player_encoder_out=player_encoder_out, **common,
+        )
+    else:
+        model = SharedTrunkModel(**common)
     for name, (mean, std) in sd.pointer_cand_norm.items():
         model.set_pointer_cand_norm(name, mean, std)
     return model
@@ -281,6 +292,7 @@ def train_shared(
     trunk_hidden_dims=(256, 256), embedding_dim=256, value_head_dims=(),
     fixed_head_dims=(), pointer_head_dims=(64,), activation="gelu", norm="layer",
     dropout=0.0, embed_norm=True,
+    siamese=False, player_encoder_dims=(128,), player_encoder_out=64,
     # task balancing
     value_weight=None, head_weight=1.0,
     # optimization
@@ -357,7 +369,9 @@ def train_shared(
         sd, trunk_hidden_dims=trunk_hidden_dims, embedding_dim=embedding_dim,
         value_head_dims=value_head_dims, fixed_head_dims=fixed_head_dims,
         pointer_head_dims=pointer_head_dims, activation=activation, norm=norm,
-        dropout=dropout, embed_norm=embed_norm).to(dev)
+        dropout=dropout, embed_norm=embed_norm,
+        siamese=siamese, player_encoder_dims=player_encoder_dims,
+        player_encoder_out=player_encoder_out).to(dev)
     # Record what the value head is being trained against so downstream consumers
     # (the web "Show analysis" points badge in particular) can assert the value
     # is a score margin in points, not a win/draw/loss outcome. Persisted in meta.
@@ -387,8 +401,11 @@ def train_shared(
         import json as _json
         from agricola.agents.nn.model import NormalizedValueModel
         meta = _json.loads(Path(init_from).with_suffix(".meta.json").read_text())
-        if meta.get("model_kind") == "shared_trunk":
-            resumed = SharedTrunkModel.load(Path(init_from))
+        if meta.get("model_kind") in ("shared_trunk", "siamese_shared_trunk"):
+            _cls = (SiameseSharedTrunkModel
+                    if meta.get("model_kind") == "siamese_shared_trunk"
+                    else SharedTrunkModel)
+            resumed = _cls.load(Path(init_from))
             src = resumed.state_dict()
             dst = model.state_dict()
 
@@ -491,7 +508,10 @@ def train_shared(
     rng = np.random.default_rng(torch_seed)
 
     config = {
-        "model_kind": "shared_trunk", "trunk_hidden_dims": list(trunk_hidden_dims),
+        "model_kind": "siamese_shared_trunk" if siamese else "shared_trunk",
+        "siamese": siamese, "player_encoder_dims": list(player_encoder_dims),
+        "player_encoder_out": player_encoder_out,
+        "trunk_hidden_dims": list(trunk_hidden_dims),
         "embedding_dim": embedding_dim, "value_head_dims": list(value_head_dims),
         "fixed_head_dims": list(fixed_head_dims), "pointer_head_dims": list(pointer_head_dims),
         "activation": activation, "norm": norm, "dropout": dropout,
@@ -610,7 +630,7 @@ def train_shared(
 
     # value_scale for MCTS, measured on paired val rows (consecutive perspectives).
     if best_path.with_suffix(".pt").exists():
-        from agricola.agents.nn.shared_model import SharedTrunkModel as _S
+        _S = SiameseSharedTrunkModel if siamese else SharedTrunkModel
         best = _S.load(best_path).to(dev)
         vds = _val_value
         # Batched forward — a single `predict_margin` over the whole val set
