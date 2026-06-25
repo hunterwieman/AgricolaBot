@@ -32,6 +32,7 @@ from agricola.actions import (
     CommitSubAction,
     FireTrigger,
     PlaceWorker,
+    Proceed,
     RevealCard,
     Stop,
 )
@@ -47,6 +48,7 @@ from agricola.constants import (
     Phase,
 )
 from agricola.pending import (
+    PendingActionSpace,
     PendingBakeBread,
     PendingBuildFences,
     PendingBuildRooms,
@@ -96,6 +98,12 @@ from agricola.resolution import (
 
 # Ensure card registrations run at engine-module load time.
 import agricola.cards  # noqa: F401
+# The action-space hook surface (II.2): apply_auto_effects fires mandatory
+# automatic effects at a hook; should_host_space decides whether an atomic
+# placement is hosted by a PendingActionSpace frame. Both are no-ops on the
+# Family fast path (empty registries). cards.triggers is a leaf module — safe
+# to import here without a load-order cycle.
+from agricola.cards.triggers import apply_auto_effects, should_host_space
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +215,8 @@ def _apply_action(state: GameState, action: Action) -> GameState:
         return _apply_fire_trigger(state, action)
     if isinstance(action, Stop):
         return _apply_stop(state)
+    if isinstance(action, Proceed):
+        return _apply_proceed(state)
     if isinstance(action, RevealCard):
         return _apply_reveal_card(state, action)
     raise TypeError(f"Unknown action type: {type(action).__name__}")
@@ -270,6 +280,16 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     state = _apply_worker_placement(state, action.space)
 
     if action.space in ATOMIC_HANDLERS:
+        # Card game (II.2): if a card could fire on this atomic space, HOST it
+        # with a generic PendingActionSpace frame (before-phase) and fire any
+        # before-automatic-effects, instead of running the atomic effect now —
+        # the effect runs later at Proceed. Family game: should_host_space is
+        # always False (empty hook indexes) → today's atomic fast path, unchanged.
+        ap = state.current_player
+        if should_host_space(state, action.space, ap):
+            state = push(state, PendingActionSpace(
+                player_idx=ap, initiated_by_id=f"space:{action.space}"))
+            return apply_auto_effects(state, "before_action_space", ap)
         return ATOMIC_HANDLERS[action.space](state)
 
     if action.space in NONATOMIC_HANDLERS:
@@ -350,6 +370,35 @@ def _apply_stop(state: GameState) -> GameState:
     # future cards may have deeper stacks where Stop is legal at a non-bottom
     # frame.
     return pop(state)
+
+
+def _apply_proceed(state: GameState) -> GameState:
+    """Apply a PendingActionSpace host frame's primary effect, then flip to the
+    after-phase (II.2). Surfaced only at a before-phase action-space host.
+
+    Runs the atomic space's normal effect (ATOMIC_HANDLERS[space_id]) on the
+    acting player — the host frame's player_idx, which equals current_player
+    during WORK — then re-reads the still-top host frame (the atomic effect does
+    not touch the stack), flips it to "after", and fires after-automatic-effects.
+    The after-phase enumerator then offers after-triggers + Stop.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingActionSpace) and top.phase == "before", (
+        f"Proceed expected a before-phase PendingActionSpace, got {top!r}"
+    )
+    space_id = top.space_id
+    acting = top.player_idx
+
+    # Primary effect. The atomic resolver operates on current_player and leaves
+    # the pending stack alone, so the host frame remains on top afterward. (The
+    # hosted set is true-atomic spaces only — never the card-mode handlers that
+    # themselves push, e.g. basic_wish / meeting_place — so no extra frame is
+    # interposed above the host.)
+    state = ATOMIC_HANDLERS[space_id](state)
+
+    new_top = fast_replace(state.pending_stack[-1], phase="after")
+    state = replace_top(state, new_top)
+    return apply_auto_effects(state, "after_action_space", acting)
 
 
 # ---------------------------------------------------------------------------

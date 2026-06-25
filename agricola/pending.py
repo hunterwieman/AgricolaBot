@@ -560,6 +560,40 @@ class PendingReveal:
     initiated_by_id: str = "phase:reveal"
 
 
+@dataclass(frozen=True)
+class PendingActionSpace:
+    """Generic action-space host frame for ATOMIC spaces (card game only).
+
+    An atomic space (Forest, Clay Pit, Grain Seeds, …) stays atomic — no frame
+    pushed — until a card may fire on it; then `_apply_place_worker` pushes THIS
+    frame instead of running the atomic effect directly. Non-atomic spaces are
+    already host frames (PendingCattleMarket, …) and do NOT use this class.
+
+    Lifecycle (CARD_IMPLEMENTATION_PLAN.md II.2): pushed in the "before" phase
+    (before-automatic-effects fire at push, before-triggers are surfaced as
+    FireTrigger) → Proceed applies ATOMIC_HANDLERS[space_id] and flips to "after"
+    (after-automatic-effects fire, after-triggers are surfaced) → Stop pops.
+
+    `space_id` is read off `initiated_by_id` ("space:forest" → "forest"), the
+    same uniform accessor the non-atomic host frames will gain, so a card's
+    eligibility reads `top.space_id` without an isinstance check. The trigger
+    event derives via the action_space bucket (legality.trigger_event), so this
+    frame carries no per-instance TRIGGER_EVENT.
+
+    Default empty/inert: only constructed in card games with a hooking card, so
+    the Family game never produces it and the C++ Family engine never sees it.
+    """
+    PENDING_ID: ClassVar[str] = "action_space"
+    player_idx: int
+    initiated_by_id: str                       # "space:<id>"
+    phase: str = "before"                      # "before" | "after"
+    triggers_resolved: frozenset = frozenset()  # frozenset[str], card_ids fired this host-visit
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
+
+
 # The PendingDecision union. New pending types are added here as the
 # non-atomic resolution surface grows.
 PendingDecision = Union[
@@ -588,6 +622,7 @@ PendingDecision = Union[
     PendingHarvestFeed,
     PendingHarvestBreed,
     PendingReveal,
+    PendingActionSpace,
 ]
 
 

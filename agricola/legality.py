@@ -25,6 +25,7 @@ from agricola.actions import (
     CommitSow,
     FireTrigger,
     PlaceWorker,
+    Proceed,
     RevealCard,
     Stop,
 )
@@ -53,6 +54,7 @@ from agricola.fences import (
 from agricola.resources import Resources
 from agricola.helpers import enclosed_cells, fences_in_supply, stables_in_supply
 from agricola.pending import (
+    PendingActionSpace,
     PendingBakeBread,
     PendingBasicWishForChildren,
     PendingBuildFences,
@@ -1588,6 +1590,73 @@ def _enumerate_pending_harvest_breed(
     return actions
 
 
+# ---------------------------------------------------------------------------
+# Card-trigger event routing + the action-space host enumerator (II.2)
+# ---------------------------------------------------------------------------
+
+# PENDING_IDs (frame ids, NOT space ids) that route to the coarse action-space
+# event. Covers the generic atomic host (PendingActionSpace) AND every non-atomic
+# per-space host frame, so all action spaces share one before_/after_action_space
+# event and a card spanning several spaces registers once (filtering space_id).
+# Every other PENDING_ID routes to its own before_/after_<PENDING_ID>. Routing on
+# PENDING_ID (class kind), not initiated_by_id, is load-bearing: a sub-action
+# frame's initiated_by_id is its PARENT's id, which would mis-route it.
+ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
+    "action_space", "farm_expansion", "farmland", "side_job", "grain_utilization",
+    "sheep_market", "pig_market", "cattle_market", "major_minor_improvement",
+    "house_redevelopment", "cultivation", "farm_redevelopment", "fencing",
+})
+
+
+def trigger_event(frame) -> str:
+    """The trigger/auto-effect event a host frame fires, derived from its kind.
+
+    Space-host frames (the bucket above) share `<phase>_action_space`; every
+    other frame uses `<phase>_<PENDING_ID>` (e.g. before_bake_bread, after_renovate).
+    Requires `frame.phase` ("before"/"after"). See CARD_IMPLEMENTATION_PLAN.md II.2.
+    """
+    pid = type(frame).PENDING_ID
+    base = "action_space" if pid in ACTION_SPACE_PENDING_IDS else pid
+    return f"{frame.phase}_{base}"
+
+
+def _eligible_fire_triggers(state, pending, event: str) -> list:
+    """The FireTrigger options for `event` at `pending`: each owned, unfired,
+    eligible card registered on the event, alphabetical by card_id.
+
+    Ownership is checked here (a hand card cannot fire); declining is implicit
+    (no SkipTrigger — pick a commit / Proceed / Stop instead).
+    """
+    from agricola.cards.triggers import TRIGGERS, _owns
+    p = state.players[pending.player_idx]
+    entries = []
+    for entry in TRIGGERS.get(event, ()):
+        if not _owns(p, entry.card_id):
+            continue
+        if entry.card_id in pending.triggers_resolved:
+            continue
+        if not entry.eligibility_fn(state, pending.player_idx, pending.triggers_resolved):
+            continue
+        entries.append(entry)
+    entries.sort(key=lambda e: e.card_id)
+    return [FireTrigger(card_id=e.card_id) for e in entries]
+
+
+def _enumerate_pending_action_space(
+    state: GameState, pending: PendingActionSpace,
+) -> list[Action]:
+    """Legal actions at a generic action-space host frame (atomic spaces).
+
+    before-phase: any eligible before-triggers, then Proceed (apply the space's
+    primary effect, advance to after). after-phase: any eligible after-triggers,
+    then Stop (pop). With no eligible trigger this is a singleton [Proceed] /
+    [Stop] the agent auto-skips — so a hosted Forest still plays in one decision.
+    """
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    actions.append(Proceed() if pending.phase == "before" else Stop())
+    return actions
+
+
 def _enumerate_pending_reveal(
     state: GameState, pending: PendingReveal,
 ) -> list[Action]:
@@ -1716,6 +1785,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingHarvestFeed:         _enumerate_pending_harvest_feed,
     PendingHarvestBreed:        _enumerate_pending_harvest_breed,
     PendingReveal:              _enumerate_pending_reveal,
+    PendingActionSpace:         _enumerate_pending_action_space,
 }
 
 

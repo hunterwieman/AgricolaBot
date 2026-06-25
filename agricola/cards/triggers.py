@@ -134,3 +134,53 @@ def _owns(player_state, card_id: str) -> bool:
     stays free of an import edge to scoring.
     """
     return card_id in player_state.occupations or card_id in player_state.minor_improvements
+
+
+# ---------------------------------------------------------------------------
+# Action-space hosting indexes (CARD_IMPLEMENTATION_PLAN.md II.2)
+# ---------------------------------------------------------------------------
+# An atomic action space stays atomic (no frame pushed, today's fast path) UNTIL
+# a card could fire on it. `should_host_space` answers "should this placement be
+# hosted by a PendingActionSpace frame?" by consulting two registration-time
+# indexes, both keyed by space_id → the card ids that hook that space:
+#
+#   OWN_ACTION_HOOK_CARDS — fire on the ACTING player's use of the space.
+#   ANY_PLAYER_HOOK_CARDS — fire on ANY player's use (so the host frame must be
+#       pushed on the opponent's turn too — e.g. Milk Jug on Cattle Market). This
+#       is empty for almost every space, so the all-players scan is skipped where
+#       it's empty, keeping the common path off it.
+#
+# Family game → no card registered → both empty → should_host_space is always
+# False → the atomic fast path runs → byte-identical, no host frame ever pushed.
+OWN_ACTION_HOOK_CARDS: dict[str, set[str]] = {}
+ANY_PLAYER_HOOK_CARDS: dict[str, set[str]] = {}
+
+
+def register_action_space_hook(card_id: str, spaces, *, any_player: bool = False) -> None:
+    """Index `card_id` as hooking each of `spaces` (space_id strings).
+
+    Called at card-module import alongside the card's register/register_auto. A
+    card that fires on several spaces lists them all; `any_player=True` routes it
+    to ANY_PLAYER_HOOK_CARDS so the host frame is pushed on either player's turn.
+    """
+    index = ANY_PLAYER_HOOK_CARDS if any_player else OWN_ACTION_HOOK_CARDS
+    for space_id in spaces:
+        index.setdefault(space_id, set()).add(card_id)
+
+
+def should_host_space(state, space_id: str, acting_player: int) -> bool:
+    """Should `space_id`'s placement by `acting_player` be hosted (vs. atomic)?
+
+    True iff the acting player owns a card that hooks this space on its OWN use,
+    or any player owns a card that hooks it on ANY use. Reads PLAYED cards only
+    (a hand card cannot fire). O(1) on the Family fast path (both indexes empty).
+    """
+    own = OWN_ACTION_HOOK_CARDS.get(space_id)
+    if own:
+        p = state.players[acting_player]
+        if own & (p.occupations | p.minor_improvements):
+            return True
+    anyp = ANY_PLAYER_HOOK_CARDS.get(space_id)
+    if anyp:
+        return any(anyp & (p.occupations | p.minor_improvements) for p in state.players)
+    return False

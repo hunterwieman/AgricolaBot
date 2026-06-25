@@ -20,7 +20,15 @@ from agricola.cards import potter_ceramics      # noqa: F401
 from agricola.cards import consultant           # noqa: F401
 from agricola.cards import priest               # noqa: F401
 from agricola.cards import stable_architect     # noqa: F401
+# Category 3 (action-space hook, automatic income) — also populate AUTO_EFFECTS
+# and the action-space hosting indexes via register_auto/register_action_space_hook.
+from agricola.cards import wood_cutter          # noqa: F401
+from agricola.cards import geologist            # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
 from agricola.cards import market_stall         # noqa: F401
+# Category 3 automatic-income minors.
+from agricola.cards import corn_scoop           # noqa: F401
+from agricola.cards import stone_tongs          # noqa: F401
+from agricola.cards import pitchfork            # noqa: F401
