@@ -869,6 +869,16 @@ def _legal_lessons_cards(state: GameState) -> bool:
     return _can_afford(p, occupation_cost(len(p.occupations)))
 
 
+def _legal_major_improvement_cards(state: GameState) -> bool:
+    """Major/Minor Improvement (card game): legal if you can build a major OR play
+    a minor from hand. (Family keeps the major-only `_legal_major_improvement`.)"""
+    if not _is_available(state, "major_improvement"):
+        return False
+    idx = state.current_player
+    p = state.players[idx]
+    return _can_afford_any_major_improvement(state, p) or bool(playable_minors(state, idx))
+
+
 def _can_afford_cost(p: PlayerState, cost) -> bool:
     """Affordability for a card Cost (Resources + Animals)."""
     a, ca = p.animals, cost.animals
@@ -946,6 +956,8 @@ CARD_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     if space_id not in {"side_job", "meeting_place"}
 }
 CARD_GAME_LEGALITY["lessons"] = _legal_lessons_cards
+# Major/Minor Improvement is placeable to build a major OR play a minor in cards.
+CARD_GAME_LEGALITY["major_improvement"] = _legal_major_improvement_cards
 
 
 # ---------------------------------------------------------------------------
@@ -1304,9 +1316,15 @@ def _enumerate_pending_major_minor_improvement(
 ) -> list[Action]:
     p = state.players[pending.player_idx]
     actions: list[Action] = []
-    if not pending.major_chosen and _can_afford_any_major_improvement(state, p):
+    # "Build a major OR play a minor" — exclusive, so offer either only while
+    # NEITHER has been chosen. (In the Family game minor_chosen is never set and
+    # the play_minor branch is gated off by mode, so this is byte-identical.)
+    neither = not pending.major_chosen and not pending.minor_chosen
+    if neither and _can_afford_any_major_improvement(state, p):
         actions.append(ChooseSubAction(name="build_major"))
-    # Family scope: no play_minor path.
+    if (neither and state.mode is GameMode.CARDS
+            and playable_minors(state, pending.player_idx)):
+        actions.append(ChooseSubAction(name="play_minor"))
     if pending.major_chosen or pending.minor_chosen:
         actions.append(Stop())
     return actions
@@ -1614,13 +1632,15 @@ def _enumerate_pending_play_minor(
     state: GameState, top: PendingPlayMinor,
 ) -> list[Action]:
     """Legal actions at PendingPlayMinor: one CommitPlayMinor per playable hand
-    minor, PLUS Stop — playing a minor here is optional (e.g. Meeting Place lets
-    you decline), so Stop is always offered."""
+    minor, plus Stop iff `top.optional` (declining is allowed at the optional
+    follow-up spaces; at Major/Minor Improvement the minor is the OR-alternative,
+    so once chosen it must be played — no Stop)."""
     actions: list[Action] = [
         CommitPlayMinor(card_id=cid)
         for cid in playable_minors(state, top.player_idx)
     ]
-    actions.append(Stop())
+    if top.optional:
+        actions.append(Stop())
     return actions
 
 
