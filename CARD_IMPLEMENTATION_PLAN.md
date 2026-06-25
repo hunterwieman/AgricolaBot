@@ -58,6 +58,14 @@ bookkeeping) is deliberately left open for a later session.**
 > Collector** (Cat 3, after-auto wood on Farmland/Grain Seeds/Grain Util/Cultivation) and **Threshing
 > Board** (Cat 4, after-trigger granting a bake on Farmland/Cultivation). Remaining non-atomic Cat 4/5:
 > Moldboard Plow (needs CardStore), the build/renovate hooks (Cat 5).
+>
+> **Category 5 (build/renovate/bake/play hooks) is gated on a planned refactor — see
+> `SUBACTION_HOOK_REFACTOR.md`.** Those cards hook *sub-action* events; the commit-terminated sub-actions
+> auto-pop today, leaving an after-trigger grant (Mining Hammer, Bread Paddle) nowhere to be surfaced.
+> The refactor (maintainer-approved) makes every commit-terminated sub-action a uniform before/after host
+> like `PendingActionSpace`/the markets (non-auto-pop + `phase` + Stop). It is a dedicated pass (it
+> changes the Family sub-action trace → ~all sub-action tests + a C++ sub-action sync), to land BEFORE
+> the Category-5 card modules.
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6.
