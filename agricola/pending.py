@@ -432,6 +432,23 @@ class PendingPlayMinor:
 
 
 @dataclass(frozen=True)
+class PendingBasicWishForChildren:
+    """Card game only: the optional "and afterward play 1 minor improvement"
+    follow-up to Basic Wish for Children. The mandatory family growth has already
+    run (in the atomic resolver) before this frame is pushed, so the frame hosts
+    ONLY the optional minor: its enumerator offers ChooseSubAction("play_minor")
+    (while not yet played and a minor is playable) plus Stop — the decline, since
+    the mandatory primary (growth) is already done. Pushed only when a minor is
+    playable, so the Family game never sees it (Basic Wish stays atomic there).
+    See CARD_IMPLEMENTATION_PLAN.md I/II.4.
+    """
+    PENDING_ID: ClassVar[str] = "basic_wish_for_children"
+    player_idx: int
+    initiated_by_id: str
+    minor_chosen: bool = False
+
+
+@dataclass(frozen=True)
 class PendingHarvestFeed:
     """Phase-driven pending for the HARVEST_FEED sub-phase, one per player.
 

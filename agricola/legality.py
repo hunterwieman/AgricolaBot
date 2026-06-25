@@ -53,6 +53,7 @@ from agricola.resources import Resources
 from agricola.helpers import enclosed_cells, fences_in_supply, stables_in_supply
 from agricola.pending import (
     PendingBakeBread,
+    PendingBasicWishForChildren,
     PendingBuildFences,
     PendingBuildMajor,
     PendingBuildRooms,
@@ -1635,6 +1636,19 @@ def _enumerate_pending_play_occupation(
     ]
 
 
+def _enumerate_pending_basic_wish_for_children(
+    state: GameState, pending: PendingBasicWishForChildren,
+) -> list[Action]:
+    """Card game: the optional minor follow-up to Basic Wish for Children. Offer
+    play_minor while not yet played and a minor is playable; Stop is always legal
+    (the mandatory family growth already ran in the atomic resolver)."""
+    actions: list[Action] = []
+    if not pending.minor_chosen and playable_minors(state, pending.player_idx):
+        actions.append(ChooseSubAction(name="play_minor"))
+    actions.append(Stop())
+    return actions
+
+
 def _enumerate_pending_play_minor(
     state: GameState, top: PendingPlayMinor,
 ) -> list[Action]:
@@ -1651,6 +1665,7 @@ def _enumerate_pending_play_minor(
 PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingPlayMinor:           _enumerate_pending_play_minor,
+    PendingBasicWishForChildren: _enumerate_pending_basic_wish_for_children,
     PendingGrainUtilization:    _enumerate_pending_grain_utilization,
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,
