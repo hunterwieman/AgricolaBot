@@ -13,6 +13,20 @@ class Phase(Enum):
     BEFORE_SCORING = auto()
 
 
+class GameMode(Enum):
+    """Which Agricola variant a GameState belongs to.
+
+    FAMILY is the cardless 2-player game — the engine's original and default mode.
+    CARDS is the full game with occupation / minor-improvement hand cards. The mode
+    is chosen at setup and read wherever the two variants diverge (placement
+    legality, the action board, Meeting Place / Lessons). Defaulting
+    GameState.mode to FAMILY keeps every existing family state unchanged in shape.
+    See CARD_IMPLEMENTATION_PLAN.md I.1.
+    """
+    FAMILY = auto()
+    CARDS = auto()
+
+
 class HouseMaterial(Enum):
     WOOD = auto()
     CLAY = auto()

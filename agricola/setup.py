@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Optional
+
 import numpy as np
 
 from agricola.constants import (
@@ -9,6 +12,7 @@ from agricola.constants import (
     SPACE_IDS,
     STAGE_CARDS,
     CellType,
+    GameMode,
     HouseMaterial,
     Phase,
 )
@@ -40,8 +44,8 @@ def _make_round_card_order(rng: np.random.Generator) -> tuple:
     return tuple(order)
 
 
-def _make_action_spaces() -> tuple:
-    """Build the initial ActionSpaceState for all 25 action spaces.
+def _make_action_spaces_family() -> tuple:
+    """Build the initial ActionSpaceState for all 25 action spaces (Family board).
 
     Returns a tuple of length len(SPACE_IDS), indexed by SPACE_INDEX[space_id].
     Permanent spaces are `revealed=True`; stage cards `revealed=False` (turned up
@@ -49,6 +53,12 @@ def _make_action_spaces() -> tuple:
     spaces start with empty accumulation: the round-1 reveal's
     `_complete_preparation` loads round-1 goods for the revealed accumulation
     spaces, exactly like every later round. See HIDDEN_INFO_DESIGN.md §3.3.
+
+    The card board (GameMode.CARDS) will diverge from this — a distinct
+    `meeting_place_cards` space appended to SPACE_IDS — when the play-card
+    foundation lands (CARD_IMPLEMENTATION_PLAN.md I.3, Milestone 1). Until then a
+    CARDS game reuses this board and differs only in placement legality
+    (CARD_GAME_LEGALITY) + the dealt hands.
     """
     by_id: dict[str, ActionSpaceState] = {}
     for space_id in PERMANENT_ACTION_SPACES:
@@ -82,8 +92,17 @@ def _make_farmyard() -> Farmyard:
     )
 
 
-def _make_player(food: int) -> PlayerState:
-    """Build a starting PlayerState with the given food amount."""
+def _make_player(
+    food: int,
+    *,
+    hand_occupations: frozenset = frozenset(),
+    hand_minors: frozenset = frozenset(),
+) -> PlayerState:
+    """Build a starting PlayerState with the given food amount.
+
+    `hand_occupations` / `hand_minors` default empty (the Family game); the card
+    game passes the dealt hands. See CARD_IMPLEMENTATION_PLAN.md I.5/I.6.
+    """
     return PlayerState(
         resources=Resources(food=food),
         animals=Animals(),
@@ -97,19 +116,72 @@ def _make_player(food: int) -> PlayerState:
         minor_improvements=frozenset(),
         occupations=frozenset(),
         harvest_conversions_used=frozenset(),
+        hand_occupations=hand_occupations,
+        hand_minors=hand_minors,
     )
 
 
-def setup_env(seed: int) -> tuple:
-    """Initialise a 2-player Family game; return (round-1 WORK state, Environment).
+@dataclass(frozen=True)
+class CardPool:
+    """The configured card pools a card game deals hands from (I.6).
 
-    All randomness (starting player, per-stage card shuffle) is resolved here from
-    the seeded RNG. The shuffled reveal order is hidden information and lives in the
-    returned Environment — NOT in GameState. Round 1 is dealt internally (its reveal
-    is resolved via the env), so the returned GameState is a round-1 WORK state — the
-    game's first player decision. Full-game drivers that cross a round boundary use
-    this and pass `env.resolve` as the reveal dealer for rounds 2–14. See
-    HIDDEN_INFO_DESIGN.md §3.3 / §3.5.
+    `occupations` / `minors` are the card-id pools each player's hand is drawn
+    from. The engine deals uniformly from these — the competitive draft is a
+    belief-construction concern handled above the engine (CARD_SYSTEM_DESIGN.md
+    §2, CARD_IMPLEMENTATION_PLAN.md I.5), so setup only needs pools large enough
+    to deal HAND_SIZE + HAND_SIZE per player. Card-spec loading (on-play effects,
+    costs, prerequisites) is separate and lands with the play-card foundation.
+    """
+    occupations: tuple = ()   # tuple[str, ...] — occupation card ids
+    minors: tuple = ()        # tuple[str, ...] — minor-improvement card ids
+
+
+HAND_SIZE = 7  # cards of each type per player (2-player full game; RULES.md → the draft)
+
+
+def _deal_hands(rng: np.random.Generator, card_pool: CardPool) -> tuple:
+    """Deal each player HAND_SIZE occupations + HAND_SIZE minors from the pool.
+
+    Returns ((occ0, min0), (occ1, min1)) of frozensets of card ids — a uniform
+    draw without replacement across both players (no draft modeled — I.5). The
+    pool must hold at least 2 * HAND_SIZE of each type.
+    """
+    occ = list(card_pool.occupations)
+    minr = list(card_pool.minors)
+    need = 2 * HAND_SIZE
+    if len(occ) < need or len(minr) < need:
+        raise ValueError(
+            f"card pool too small: need >= {need} of each type, got "
+            f"{len(occ)} occupations / {len(minr)} minors"
+        )
+    occ_pick = rng.choice(len(occ), size=need, replace=False)
+    min_pick = rng.choice(len(minr), size=need, replace=False)
+    hands = []
+    for p in range(2):
+        lo, hi = p * HAND_SIZE, (p + 1) * HAND_SIZE
+        hands.append((
+            frozenset(occ[i] for i in occ_pick[lo:hi]),
+            frozenset(minr[i] for i in min_pick[lo:hi]),
+        ))
+    return tuple(hands)
+
+
+def setup_env(seed: int, *, card_pool: Optional[CardPool] = None) -> tuple:
+    """Initialise a 2-player game; return (round-1 WORK state, Environment).
+
+    `card_pool=None` → the Family game (GameMode.FAMILY): today's board, empty
+    hands — byte-identical to before (the RNG draw sequence is unchanged on this
+    path). `card_pool=CardPool(...)` → the card game (GameMode.CARDS): hands are
+    dealt from the pool and `GameState.mode` is set to CARDS. See
+    CARD_IMPLEMENTATION_PLAN.md I.6.
+
+    All randomness (starting player, dealt hands, per-stage card shuffle) is
+    resolved here from the seeded RNG. The shuffled reveal order is hidden
+    information and lives in the returned Environment — NOT in GameState. Round 1
+    is dealt internally (its reveal is resolved via the env), so the returned
+    GameState is a round-1 WORK state — the game's first player decision. Full-game
+    drivers that cross a round boundary use this and pass `env.resolve` as the
+    reveal dealer for rounds 2–14. See HIDDEN_INFO_DESIGN.md §3.3 / §3.5.
     """
     # Local imports: keep `agricola.setup` import-time light and avoid any cycle
     # (engine / environment are leaves consumed here, not at module load).
@@ -122,14 +194,32 @@ def setup_env(seed: int) -> tuple:
     starting_player = int(rng.integers(0, 2))
     food_for = [3, 3]
     food_for[starting_player] = 2
-    players = tuple(_make_player(food_for[p]) for p in range(2))
+
+    mode = GameMode.FAMILY if card_pool is None else GameMode.CARDS
+    if card_pool is None:
+        players = tuple(_make_player(food_for[p]) for p in range(2))
+    else:
+        # Card mode draws from the RNG here; the Family path above does not, so
+        # Family setup(seed) is unchanged.
+        hands = _deal_hands(rng, card_pool)
+        players = tuple(
+            _make_player(
+                food_for[p],
+                hand_occupations=hands[p][0],
+                hand_minors=hands[p][1],
+            )
+            for p in range(2)
+        )
 
     # Hidden reveal order → Environment.
     round_card_order = _make_round_card_order(rng)
     env = Environment(round_card_order=round_card_order)
 
     board = BoardState(
-        action_spaces=_make_action_spaces(),
+        # The card board reuses the Family board until `meeting_place_cards`
+        # lands with the play-card foundation (I.3); modes differ only in
+        # CARD_GAME_LEGALITY + the dealt hands for now.
+        action_spaces=_make_action_spaces_family(),
         major_improvement_owners=tuple(None for _ in range(NUM_MAJOR_IMPROVEMENTS)),
     )
 
@@ -142,6 +232,7 @@ def setup_env(seed: int) -> tuple:
         players=players,
         board=board,
         pending_stack=(),
+        mode=mode,
     )
 
     # Deal round 1: advance to the round-1 reveal nature node, apply the true card

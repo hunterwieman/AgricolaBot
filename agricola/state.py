@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional  # used by BoardState.major_improvement_owners annotation
 
-from agricola.constants import SPACE_IDS, SPACE_INDEX, CellType, HouseMaterial, Phase
+from agricola.constants import SPACE_IDS, SPACE_INDEX, CellType, GameMode, HouseMaterial, Phase
 from agricola.resources import Animals, Resources
 
 
@@ -158,6 +158,16 @@ class PlayerState:
     # budgets that span events live on PlayerState").
     harvest_conversions_used: frozenset = frozenset()  # frozenset[str]
 
+    # --- Card game (GameMode.CARDS) only; empty/inert in the Family game. ---
+    # Private hands dealt at setup: occupation / minor-improvement card ids drawn
+    # but not yet played. step / legal_actions read the DECIDER's own hand off
+    # these fields (the only hand any decision needs); the opponent's hidden hand
+    # is handled above the engine (ISMCTS determinization). Default empty → the
+    # Family game never populates them and stays byte-identical.
+    # See CARD_IMPLEMENTATION_PLAN.md I.5.
+    hand_occupations: frozenset = frozenset()  # frozenset[str]
+    hand_minors:      frozenset = frozenset()  # frozenset[str]
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -169,7 +179,8 @@ class PlayerState:
                       self.house_material, self.people_total, self.people_home,
                       self.newborns, self.begging_markers, self.future_resources,
                       self.minor_improvements, self.occupations,
-                      self.harvest_conversions_used))
+                      self.harvest_conversions_used,
+                      self.hand_occupations, self.hand_minors))
             object.__setattr__(self, "_hash_cache", h)
         return h
 
@@ -236,12 +247,17 @@ class GameState:
     # ENGINE_IMPLEMENTATION.md §2 for the full mechanics.
     pending_stack: tuple = ()  # tuple[PendingDecision, ...]
 
+    # Which variant this state belongs to (Family vs. the card game). Default
+    # FAMILY → existing states are unchanged in shape; read wherever the two
+    # variants diverge. See CARD_IMPLEMENTATION_PLAN.md I.1.
+    mode: GameMode = GameMode.FAMILY
+
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
         if h is None:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
-                      self.pending_stack))
+                      self.pending_stack, self.mode))
             object.__setattr__(self, "_hash_cache", h)
         return h
 
