@@ -864,7 +864,7 @@ NON_ATOMIC_LEGALITY: dict[str, Callable[[GameState], bool]] = {
 }
 
 # Combined dispatch used by `legal_placements`.
-ALL_LEGALITY: dict[str, Callable[[GameState], bool]] = {
+FAMILY_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     **ATOMIC_LEGALITY,
     **NON_ATOMIC_LEGALITY,
 }
@@ -879,7 +879,7 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
 
     Returns an empty list if the active player has no workers left to place.
     Excludes `lessons` (always illegal in the Family game); every other space
-    in `ALL_LEGALITY` (including `fencing`) is surfaced when its predicate holds.
+    in `FAMILY_GAME_LEGALITY` (including `fencing`) is surfaced when its predicate holds.
 
     Called by `legal_actions` when the pending stack is empty during WORK phase.
     """
@@ -887,7 +887,7 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
         return []
     return [
         PlaceWorker(space=s)
-        for s, predicate in ALL_LEGALITY.items()
+        for s, predicate in FAMILY_GAME_LEGALITY.items()
         if predicate(state)
     ]
 

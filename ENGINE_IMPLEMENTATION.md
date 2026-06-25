@@ -296,7 +296,13 @@ The `space:` / `phase:` / `card:` prefixes make the namespaces disjoint by const
    `COMMIT_SUBACTION_HANDLERS`.
 9. **`TRIGGER_EVENT` is a `ClassVar`** on pending types that fire triggers — read by
    enumerators to filter the trigger registry. Type-derived identity, no field bloat. Event
-   names follow `"before_<PENDING_ID>"` / `"after_<PENDING_ID>"`.
+   names follow `"before_<PENDING_ID>"` / `"after_<PENDING_ID>"`. *(The card system revises this —
+   see `CARD_IMPLEMENTATION_PLAN.md` §II.2: the event is **derived** rather than stored as a
+   per-frame ClassVar, by routing `PENDING_ID` through a bucket. All **space-host** frames — the
+   generic `PendingActionSpace` plus the per-space non-atomic frames — share the `action_space` base
+   and fire a coarse `before_/after_action_space`; **sub-action** frames keep `<PENDING_ID>`. A
+   `phase` field selects before/after. Routing on `PENDING_ID`, not `initiated_by_id`, is load-bearing:
+   a sub-action frame's `initiated_by_id` is its parent's id, so it would mis-route.)*
 10. **`triggers_resolved` is scoped to a frame's lifetime** — once-per-event-instance; a fresh
     frame starts with an empty set. **Never put `triggers_resolved`-like state on
     `PlayerState`** (that would make a trigger fire once per game, not once per event).
@@ -345,9 +351,12 @@ Several pieces accommodate future card patterns without retrofitting:
 - Once-per-action trigger budgets via `triggers_resolved`.
 - Provenance via `initiated_by_id` + `PENDING_ID`, for debugging and for cards to choose which
   parent to flag at push time.
-- Atomic spaces will adopt the "push a parent pending" pattern when card triggers begin
-  attaching to them (the `ATOMIC_HANDLERS` / `NONATOMIC_HANDLERS` split collapses then).
-- Two trigger events per space (`before_<space>` / `after_<space>`) for rules-faithful timing.
+- Atomic spaces adopt the "push a parent pending" pattern when a card needs to fire on them — a
+  *conditional* push (via `_should_host_space`) of the generic `PendingActionSpace`. `ATOMIC_HANDLERS`
+  still runs the primary effect (on `Proceed`), so the handler split **persists** rather than collapsing.
+- A coarse `before_/after_action_space` event shared by **all** action spaces (atomic + non-atomic),
+  with cards filtering by `space_id`. *(This supersedes an earlier per-space `before_<space>` plan —
+  see `CARD_IMPLEMENTATION_PLAN.md` §II.2 for the `PENDING_ID`-bucket routing.)*
 
 **Per-card budgets that span events** (once-per-round / -game / -harvest) live on `PlayerState`
 or `BoardState`, not on frames. The stack holds *active* decisions, not a per-game scoreboard.
@@ -764,11 +773,13 @@ scaffolding.
   speculative-legality machinery: apply on-placement effects to a hypothetical state, then check
   sub-action predicates against it. The trigger registry already supports arbitrary events; the
   missing piece is the legality-side speculative application. (task_files/TASK_5.md.)
-- **Atomic-space trigger hosting.** When atomic spaces convert to push trigger-host pendings (for
-  Cottager, Hardware Store, etc.), the pending needs a "primary effect applied yet?" indicator
-  (uniform `primary_effect_applied: bool`, or a `phase: Literal["before","after"]`), plus a
-  mechanism to flip it and apply the primary effect between before/after triggers (explicit
-  `Proceed()` action; overloaded `Stop`; or a nested before-pending). Both undecided.
+- **Atomic-space trigger hosting.** *(Design resolved in `CARD_IMPLEMENTATION_PLAN.md` §II.2; not yet
+  implemented.)* Atomic spaces push the generic `PendingActionSpace` host, which carries a
+  `phase: "before"|"after"` indicator flipped by an explicit `Proceed()` action — `Proceed` applies
+  the space's primary effect (`ATOMIC_HANDLERS[space_id]`) between the before- and after-trigger
+  phases, then `Stop` pops. (The two earlier-undecided forks — `primary_effect_applied: bool` vs
+  `phase`, and `Proceed` vs overloaded `Stop` vs a nested before-pending — are settled as `phase` +
+  `Proceed`.)
 - **Trigger events on harvest pendings.** `PendingHarvestFeed`/`Breed` omit
   `triggers_resolved`/`TRIGGER_EVENT` today (added per-pending when the first card needs them).
   Natural future events: `before_/after_harvest_feed`, `before_/after_harvest_breed`.

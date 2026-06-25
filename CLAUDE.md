@@ -956,6 +956,21 @@ scoped used-set reset model), the card catalog under `agricola/cards/data/`, the
 implementation plan, and the open questions (asymmetric hidden info on the agent side; Grocer;
 the deferred legality/affordability machinery). Read it before starting card work.
 
+**The concrete build plan for the *tractable* subset is `CARD_IMPLEMENTATION_PLAN.md`** — the
+implementation design for the **~59 base-game cards** that need no cost-modification, affordability
+search, conversion closure, or per-card goods-stack (the buildable complement of
+`CARD_SYSTEM_DESIGN.md` §8/§15's hard set). It covers: the card-vs-Family engine deltas (an explicit
+`GameMode` field; board deltas — Side Job gone, Meeting Place = become-SP + *optional* minor + *no
+food*, Lessons usable, and Basic Wish for Children / Major-Minor Improvement / House Redevelopment
+gain a play-minor option; hands on `PlayerState` with ISMCTS determinization handled *above* the
+engine); the shared infrastructure (three firing kinds incl. **mandatory-with-choice**; a coarse
+`before_/after_action_space` event routed by a `PENDING_ID` bucket with per-space frames kept; scoped
+used-sets; the play-card pendings; `FutureReward`; `CardStore` for per-card state; grants-are-triggers);
+the 10 card categories with canonical examples; the **deferred** set (Mini Pasture, Organic Farmer,
+Shepherd's Crook, Acorns Basket); and a build order. **Design settled; next is implementation
+(Milestone 1 = Part I + the play-card foundation).** (`legality.py`'s `ALL_LEGALITY` is already
+renamed `FAMILY_GAME_LEGALITY`; Caravan is marked `wontfix`.)
+
 **What exists today.** Exactly one card — **Potter Ceramics** (a minor improvement) — is
 implemented, **solely to validate the trigger machinery end-to-end**. It is a
 forward-compatibility test: **not part of any game, and not to be used in play until the full
@@ -1010,6 +1025,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `RULES.md` | Complete rules reference for the 2-player game. Treats the full card game (occupations + minor improvements) as the default and documents the cardless **Family** game and the 3–4 player game as variants in their own sections. Covers setup/draft, primitive sub-actions, action spaces, major improvements, the card system, harvest, and scoring. (Pure game rules — no engine/project references.) |
 | `ENGINE_IMPLEMENTATION.md` | Deep-mechanics reference companion to Phase 1 (the game engine): dispatch tables, the full pending-stack provenance scheme and invariants, sub-action cost handling, the Fencing / animal-accommodation / Harvest subsystems, the coding conventions, and the card-trigger machinery. Read alongside Phase 1 when doing engine surgery. |
 | `CARD_SYSTEM_DESIGN.md` | **The Phase 3 (Cards) design record** — living doc of the decisions for adding the full card system (Revised base + Artifex/Bubulcus/Corbarius/Dulcinaria/Consul Dirigens, 2-player, occupations + minors) plus the open questions. §0 terminology (hook vs trigger vs automatic effect); private hands of 7-each + configurable card pools; `PendingPlayOccupation`/`PendingPlayMinor`; the `PendingActionSpace` hook (before/after phases, `Proceed`, conditional push via the ownership index); the firing architecture (timing ruling, triggers vs automatic effects, Option-A event registration, opponent-action hooks); the scoped used-set reset model (`_enter_phase`/`_advance_current_player`); one-shot conditional latch + cumulative counters; deferred round-space goods, start-of-round phase, harvest-field hook; deferred legality/affordability machinery with the flagged-card list; the occupation + minor implementation groups; the one-engine/additive-hooks performance split; Python-first C++. Read before starting card work. |
+| `CARD_IMPLEMENTATION_PLAN.md` | **The concrete Phase 3 build plan for the *tractable* base-card subset** — the implementation design (with canonical per-card code) for the ~59 base-game cards that need no cost-modification / affordability search / conversion closure / per-card goods-stack (the buildable complement of `CARD_SYSTEM_DESIGN.md` §8/§15). Part I — engine changes for card-vs-Family play (explicit `GameMode` field; board deltas: Side Job gone, Meeting Place = SP + optional minor + no food, Lessons usable, three minor-play spaces; private hands on `PlayerState`, opponent-hand hiding + ISMCTS determinization handled *above* the engine). Part II — shared card infrastructure (three firing kinds incl. mandatory-with-choice + `PendingCardChoice`; coarse `before_/after_action_space` routed by a `PENDING_ID` bucket, per-space frames kept; scoped used-sets; `PendingPlayOccupation`/`PendingPlayMinor`; `FutureReward`; start-of-round / harvest-field / opponent hooks; `CardStore` per-card state). Part III — the 10 card categories with canonical examples; then the deferred-cards set (Mini Pasture, Organic Farmer, Shepherd's Crook, Acorns Basket), the build order, and the decisions log. Read alongside `CARD_SYSTEM_DESIGN.md` when implementing cards; design is settled, next is implementation. |
 | `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases; `BoardState.action_spaces` canonical-tuple refactor; engine performance pass with `fast_replace` + `legal_actions_cache()`; HubrisHeuristicV3 architecture + iterative tuning pipeline). |
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
