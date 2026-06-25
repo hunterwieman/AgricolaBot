@@ -353,6 +353,25 @@ def _apply_stop(state: GameState) -> GameState:
 
 
 # ---------------------------------------------------------------------------
+# Scoped used-set reset (CARD_IMPLEMENTATION_PLAN.md II.3)
+# ---------------------------------------------------------------------------
+
+def _clear(state: GameState, field: str) -> GameState:
+    """Empty the named scoped used-set on BOTH players at a scope boundary.
+
+    Clears both players (not just the active one) because an off-turn card
+    firing must see a fresh latch too. A NO-OP when both players' sets are
+    already empty — the Family game never populates these, so this returns the
+    same `state` object every time there and is byte-identical; only a card game
+    that actually latched something pays the rebuild.
+    """
+    if not any(getattr(p, field) for p in state.players):
+        return state
+    return fast_replace(state, players=tuple(
+        fast_replace(p, **{field: frozenset()}) for p in state.players))
+
+
+# ---------------------------------------------------------------------------
 # Active-player alternation
 # ---------------------------------------------------------------------------
 
@@ -367,7 +386,11 @@ def _advance_current_player(state: GameState) -> GameState:
     has 2 players. Future cards may allow placing with people_home == 0
     (e.g., certain occupations grant "free" placements); the predicate
     below would need to consult those card states at that time.
+
+    A turn boundary clears the per-turn used-set (II.3) so card "once per turn"
+    latches reset for the incoming turn.
     """
+    state = _clear(state, "used_this_turn")
     num_players = len(state.players)
     for offset in range(1, num_players):
         candidate = (state.current_player + offset) % num_players
@@ -587,7 +610,7 @@ def _complete_preparation(state: GameState) -> GameState:
     )
 
     # 3. Transition to WORK with starting_player as the active player.
-    return fast_replace(
+    result = fast_replace(
         state,
         round_number=new_round,
         players=new_players,
@@ -595,6 +618,11 @@ def _complete_preparation(state: GameState) -> GameState:
         phase=Phase.WORK,
         current_player=state.starting_player,
     )
+    # New round begins → clear the per-round and (fresh first turn) per-turn
+    # used-sets (II.3). No-op in the Family game (both always empty).
+    result = _clear(result, "used_this_round")
+    result = _clear(result, "used_this_turn")
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -168,6 +168,15 @@ class PlayerState:
     hand_occupations: frozenset = frozenset()  # frozenset[str]
     hand_minors:      frozenset = frozenset()  # frozenset[str]
 
+    # Scoped "have I fired this card already?" latches (CARD_IMPLEMENTATION_PLAN.md
+    # II.3). Each holds card ids, cleared AT its scope boundary by the transition
+    # code (engine._clear). harvest_conversions_used (above) is the per-harvest
+    # scope. Default empty → the Family game never populates them and stays
+    # byte-identical; engine._clear is a no-op when both players' sets are empty.
+    used_this_turn:  frozenset = frozenset()  # reset in _advance_current_player + on WORK entry
+    used_this_round: frozenset = frozenset()  # reset on entry to the new round (_complete_preparation)
+    fired_once:      frozenset = frozenset()  # per-game one-shots; never reset
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -180,7 +189,9 @@ class PlayerState:
                       self.newborns, self.begging_markers, self.future_resources,
                       self.minor_improvements, self.occupations,
                       self.harvest_conversions_used,
-                      self.hand_occupations, self.hand_minors))
+                      self.hand_occupations, self.hand_minors,
+                      self.used_this_turn, self.used_this_round,
+                      self.fired_once))
             object.__setattr__(self, "_hash_cache", h)
         return h
 
