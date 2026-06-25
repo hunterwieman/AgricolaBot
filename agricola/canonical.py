@@ -86,6 +86,30 @@ _build_registry()
 # ---------------------------------------------------------------------------
 
 
+# Card-game fields OMITTED from the JSON when they hold their default. A Family
+# state always holds the default for each (mode=FAMILY, empty hands), so its JSON
+# is byte-identical to the pre-card format and the C++ Family differential gates
+# stay green with no C++ change; a CARDS state carries non-default values, so they
+# ARE emitted (and the C++ card port will then read them). Round-trip is preserved
+# because an omitted field falls back to its dataclass default in `from_canonical`.
+#
+# This is a NAMED allow-list, NOT a blanket "skip any field == its default": many
+# existing fields routinely equal their defaults in a Family game (pending_stack=(),
+# newborns=0, harvest_conversions_used=frozenset(), …) and skipping THOSE would
+# change the Family JSON and break the very gates this protects. The names below
+# occur only on GameState / PlayerState. See CARD_IMPLEMENTATION_PLAN.md I.1.
+_DEFAULT_SKIP_FIELDS = frozenset({"mode", "hand_occupations", "hand_minors"})
+
+
+def _is_field_default(f: "dataclasses.Field", value: Any) -> bool:
+    """True if `value` equals dataclass field `f`'s default (plain default or factory)."""
+    if f.default is not dataclasses.MISSING:
+        return value == f.default
+    if f.default_factory is not dataclasses.MISSING:  # type: ignore[comparison-overlap]
+        return value == f.default_factory()
+    return False
+
+
 def _sorted_set(fs: frozenset) -> list:
     """Deterministically order a frozenset for serialization.
 
@@ -115,7 +139,10 @@ def to_canonical(obj: Any) -> Any:
         for f in dataclasses.fields(obj):
             if not f.init:
                 continue
-            out[f.name] = to_canonical(getattr(obj, f.name))
+            value = getattr(obj, f.name)
+            if f.name in _DEFAULT_SKIP_FIELDS and _is_field_default(f, value):
+                continue  # default card field → omit (keeps Family JSON byte-identical)
+            out[f.name] = to_canonical(value)
         return out
     if isinstance(obj, frozenset):
         return {"__set__": [to_canonical(e) for e in _sorted_set(obj)]}

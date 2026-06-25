@@ -29,6 +29,7 @@ from agricola.constants import (
     BAKING_IMPROVEMENT_SPECS,
     BAKING_IMPROVEMENTS,
     CellType,
+    GameMode,
     HouseMaterial,
     MAJOR_IMPROVEMENT_COSTS,
     Phase,
@@ -863,10 +864,26 @@ NON_ATOMIC_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     "fencing":             _legal_fencing,
 }
 
-# Combined dispatch used by `legal_placements`.
+# Combined dispatch used by `legal_placements` in GameMode.FAMILY.
 FAMILY_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     **ATOMIC_LEGALITY,
     **NON_ATOMIC_LEGALITY,
+}
+
+# Combined dispatch used by `legal_placements` in GameMode.CARDS. The card board
+# differs from the Family board (CARD_IMPLEMENTATION_PLAN.md I.2–I.4): Side Job is
+# gone and the family food-accumulation Meeting Place is replaced by the card
+# Meeting Place. Both are simply ABSENT here (placement never enumerates them).
+#
+# Still to add with the play-card foundation (Milestone 1, II.4): `lessons`
+# (play an occupation) and `meeting_place_cards` (become SP + optionally play a
+# minor) — they need the play-card pendings to have working resolvers, so they
+# are wired in alongside those rather than here. Until then a CARDS game plays as
+# the Family board minus Side Job / Meeting Place.
+CARD_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
+    space_id: predicate
+    for space_id, predicate in FAMILY_GAME_LEGALITY.items()
+    if space_id not in {"side_job", "meeting_place"}
 }
 
 
@@ -878,16 +895,22 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
     """Return all legal PlaceWorker actions across atomic and non-atomic spaces.
 
     Returns an empty list if the active player has no workers left to place.
-    Excludes `lessons` (always illegal in the Family game); every other space
-    in `FAMILY_GAME_LEGALITY` (including `fencing`) is surfaced when its predicate holds.
+    Dispatches on `state.mode`: FAMILY iterates `FAMILY_GAME_LEGALITY` (excludes
+    `lessons`, has `side_job` / food-accumulation `meeting_place`); CARDS iterates
+    `CARD_GAME_LEGALITY` (the card board's spaces). Each space is surfaced when its
+    predicate holds. The mode is chosen at setup; the Family branch is byte-identical
+    to before. See CARD_IMPLEMENTATION_PLAN.md I.1.
 
     Called by `legal_actions` when the pending stack is empty during WORK phase.
     """
     if state.players[state.current_player].people_home < 1:
         return []
+    table = (
+        FAMILY_GAME_LEGALITY if state.mode is GameMode.FAMILY else CARD_GAME_LEGALITY
+    )
     return [
         PlaceWorker(space=s)
-        for s, predicate in FAMILY_GAME_LEGALITY.items()
+        for s, predicate in table.items()
         if predicate(state)
     ]
 
