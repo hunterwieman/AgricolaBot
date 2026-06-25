@@ -114,6 +114,14 @@ class CommitRenovate(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitFamilyGrowth(CommitSubAction):
+    """Commit the family-growth primitive (add one newborn). Parameter-free —
+    lands on PendingFamilyGrowth, which names the newborn's space via
+    initiated_by_id. `_execute_family_growth` runs the growth and the dispatcher
+    auto-pops the frame."""
+
+
+@dataclass(frozen=True)
 class CommitPlayOccupation(CommitSubAction):
     """Play the named occupation from hand (card game).
 

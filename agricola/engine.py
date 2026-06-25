@@ -22,6 +22,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitConvert,
+    CommitFamilyGrowth,
     CommitHarvestConversion,
     CommitPlayMinor,
     CommitPlayOccupation,
@@ -51,6 +52,7 @@ from agricola.pending import (
     PendingBuildStables,
     PendingBuildMajor,
     PendingCattleMarket,
+    PendingFamilyGrowth,
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingPigMarket,
@@ -81,6 +83,7 @@ from agricola.resolution import (
     _execute_build_room,
     _execute_build_stable,
     _execute_convert,
+    _execute_family_growth,
     _execute_harvest_conversion,
     _execute_play_minor,
     _execute_play_occupation,
@@ -256,6 +259,8 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # Card game: play one minor from hand. auto_pop=True — one minor played, then
     # PendingPlayMinor pops; declining is the frame's Stop (also pops).
     CommitPlayMinor:         (PendingPlayMinor,      _execute_play_minor,       True),
+    # Card game: the family-growth primitive (mandatory; parameter-free singleton).
+    CommitFamilyGrowth:      (PendingFamilyGrowth,   _execute_family_growth,    True),
 }
 
 

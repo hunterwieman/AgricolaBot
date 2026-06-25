@@ -16,6 +16,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitConvert,
+    CommitFamilyGrowth,
     CommitHarvestConversion,
     CommitPlayMinor,
     CommitPlayOccupation,
@@ -59,6 +60,7 @@ from agricola.pending import (
     PendingBuildRooms,
     PendingBuildStables,
     PendingDecision,
+    PendingFamilyGrowth,
     PendingFarmExpansion,
     PendingFarmRedevelopment,
     PendingFencing,
@@ -1639,14 +1641,24 @@ def _enumerate_pending_play_occupation(
 def _enumerate_pending_basic_wish_for_children(
     state: GameState, pending: PendingBasicWishForChildren,
 ) -> list[Action]:
-    """Card game: the optional minor follow-up to Basic Wish for Children. Offer
-    play_minor while not yet played and a minor is playable; Stop is always legal
-    (the mandatory family growth already ran in the atomic resolver)."""
+    """Card game (mirrors House Redevelopment): family growth is the mandatory
+    first sub-action; once done, optionally play a minor, then Stop."""
+    if not pending.family_growth_done:
+        # Mandatory first — a singleton the agent auto-applies.
+        return [ChooseSubAction(name="family_growth")]
     actions: list[Action] = []
     if not pending.minor_chosen and playable_minors(state, pending.player_idx):
         actions.append(ChooseSubAction(name="play_minor"))
     actions.append(Stop())
     return actions
+
+
+def _enumerate_pending_family_growth(
+    state: GameState, top: PendingFamilyGrowth,
+) -> list[Action]:
+    """The family-growth primitive: a single mandatory, parameter-free
+    CommitFamilyGrowth (a singleton the agent auto-applies)."""
+    return [CommitFamilyGrowth()]
 
 
 def _enumerate_pending_play_minor(
@@ -1666,6 +1678,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingPlayMinor:           _enumerate_pending_play_minor,
     PendingBasicWishForChildren: _enumerate_pending_basic_wish_for_children,
+    PendingFamilyGrowth:        _enumerate_pending_family_growth,
     PendingGrainUtilization:    _enumerate_pending_grain_utilization,
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,
