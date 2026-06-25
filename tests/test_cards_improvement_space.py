@@ -6,7 +6,14 @@ placement is legal if either is possible, and once you pick the minor branch you
 must play one (the OR-alternative — no decline). The Family game is unchanged
 (no hand cards -> the play_minor branch is never offered).
 """
-from agricola.actions import ChooseSubAction, CommitBuildMajor, CommitPlayMinor, PlaceWorker, Stop
+from agricola.actions import (
+    ChooseSubAction,
+    CommitBuildMajor,
+    CommitPlayMinor,
+    CommitRenovate,
+    PlaceWorker,
+    Stop,
+)
 from agricola.constants import GameMode
 from agricola.engine import step
 from agricola.legality import legal_actions, legal_placements
@@ -120,3 +127,56 @@ def test_family_major_improvement_never_offers_play_minor():
     acts = legal_actions(s)
     assert ChooseSubAction(name="play_minor") not in acts
     assert ChooseSubAction(name="build_major") in acts
+
+
+# ---------------------------------------------------------------------------
+# House Redevelopment: renovate THEN optionally improvement (major OR minor).
+# Its "improvement" choose delegates to PendingMajorMinorImprovement, so the
+# minor branch comes through that frame; only the "can improve" gate is new.
+# ---------------------------------------------------------------------------
+
+def _house_redev_state(seed=5):
+    """Card-mode state: house_redevelopment revealed; current player can renovate
+    (wood, 2 rooms -> 2 clay + 1 reed) + has a playable minor (1 grain), but NO
+    resources left over for a major."""
+    cs, _env = setup_env(seed, card_pool=_POOL)
+    sp = fast_replace(get_space(cs.board, "house_redevelopment"), revealed=True, workers=(0, 0))
+    cs = fast_replace(cs, board=with_space(cs.board, "house_redevelopment", sp))
+    cp = cs.current_player
+    p = fast_replace(cs.players[cp], hand_minors=frozenset({"market_stall"}),
+                     resources=Resources(clay=2, reed=1, grain=1))
+    opp = fast_replace(cs.players[1 - cp], hand_minors=frozenset())
+    cs = fast_replace(cs, players=tuple(p if i == cp else opp for i in range(2)))
+    return cs, cp
+
+
+def test_house_redev_renovate_then_play_minor():
+    cs, cp = _house_redev_state()
+    opp = 1 - cp
+    cs = step(cs, PlaceWorker(space="house_redevelopment"))
+    cs = step(cs, ChooseSubAction(name="renovate"))
+    cs = step(cs, CommitRenovate())
+    # Post-renovate: the improvement option is offered (a minor is playable), plus Stop.
+    acts = legal_actions(cs)
+    assert ChooseSubAction(name="improvement") in acts
+    assert Stop() in acts
+
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    # Delegated to PendingMajorMinorImprovement: only play_minor (no major affordable).
+    assert legal_actions(cs) == [ChooseSubAction(name="play_minor")]
+    cs = step(cs, ChooseSubAction(name="play_minor"))
+    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    assert cs.players[cp].resources.veg == 1
+    assert "market_stall" in cs.players[opp].hand_minors
+
+
+def test_house_redev_improvement_is_optional():
+    # The minor (improvement) is an optional follow-up: Stop after renovate is legal.
+    cs, cp = _house_redev_state()
+    cs = step(cs, PlaceWorker(space="house_redevelopment"))
+    cs = step(cs, ChooseSubAction(name="renovate"))
+    cs = step(cs, CommitRenovate())
+    assert Stop() in legal_actions(cs)
+    cs = step(cs, Stop())                       # decline the improvement
+    assert cs.pending_stack == ()               # turn ends, no minor played
+    assert "market_stall" in cs.players[cp].hand_minors

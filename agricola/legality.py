@@ -1357,7 +1357,14 @@ def _enumerate_pending_house_redevelopment(
     actions: list[Action] = []
     if not pending.renovate_chosen and _can_renovate(p):
         actions.append(ChooseSubAction(name="renovate"))
-    if pending.renovate_chosen and not pending.improvement_chosen and _can_afford_any_major_improvement(state, p):
+    # The optional post-renovate improvement: build a major OR (card game) play a
+    # minor. The "improvement" choose pushes PendingMajorMinorImprovement, which
+    # offers both branches. Family is byte-identical (mode-gated; playable_minors
+    # is empty there anyway).
+    can_improve = _can_afford_any_major_improvement(state, p) or (
+        state.mode is GameMode.CARDS and bool(playable_minors(state, pending.player_idx))
+    )
+    if pending.renovate_chosen and not pending.improvement_chosen and can_improve:
         actions.append(ChooseSubAction(name="improvement"))
     if pending.renovate_chosen:
         actions.append(Stop())
@@ -1632,16 +1639,13 @@ def _enumerate_pending_play_minor(
     state: GameState, top: PendingPlayMinor,
 ) -> list[Action]:
     """Legal actions at PendingPlayMinor: one CommitPlayMinor per playable hand
-    minor, plus Stop iff `top.optional` (declining is allowed at the optional
-    follow-up spaces; at Major/Minor Improvement the minor is the OR-alternative,
-    so once chosen it must be played — no Stop)."""
-    actions: list[Action] = [
+    minor — and nothing else. This frame is pushed only once the player has
+    committed to playing a minor (so >=1 is always playable); whether playing was
+    optional is handled by the parent's Stop, not here."""
+    return [
         CommitPlayMinor(card_id=cid)
         for cid in playable_minors(state, top.player_idx)
     ]
-    if top.optional:
-        actions.append(Stop())
-    return actions
 
 
 PENDING_ENUMERATORS: dict[type, Callable] = {

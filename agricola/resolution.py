@@ -554,12 +554,13 @@ def _choose_subaction_major_minor_improvement(
         ))
     if action.name == "play_minor":
         # Card game: the OR-alternative. Mark minor_chosen (so the parent won't
-        # also offer build_major) and push the play-minor frame as MANDATORY
-        # (optional=False — you picked the minor branch, you must play one).
+        # also offer build_major) and push the play-minor frame; you picked the
+        # minor branch, so you play exactly one (PendingPlayMinor has no decline —
+        # the skip, where allowed, is the parent's Stop before choosing).
         from agricola.pending import PendingPlayMinor
         state = replace_top(state, fast_replace(top, minor_chosen=True))
         return push(state, PendingPlayMinor(
-            player_idx=p_idx, initiated_by_id=top.PENDING_ID, optional=False,
+            player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
     raise ValueError(f"Unknown sub-action {action.name!r} for Major/Minor Improvement")
 

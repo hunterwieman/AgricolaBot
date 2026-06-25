@@ -9,7 +9,7 @@ land next, so these drive PendingPlayMinor by pushing it onto the stack directly
 """
 import pytest
 
-from agricola.actions import CommitPlayMinor, Stop
+from agricola.actions import CommitPlayMinor
 from agricola.cards.specs import MINORS, MinorSpec, prereq_met, register_minor
 from agricola.engine import step
 from agricola.legality import _can_afford_cost, legal_actions, playable_minors
@@ -109,12 +109,12 @@ def test_playable_minors_filters_registered_affordable():
     assert playable_minors(cs, cp) == []
 
 
-def test_enumerator_offers_plays_plus_stop():
+def test_enumerator_offers_plays_only():
     cs, cp = _card_state(cp_minors=frozenset({"market_stall"}), cp_res=Resources(grain=1))
     cs = _push_minor(cs, cp)
-    acts = legal_actions(cs)
-    assert CommitPlayMinor(card_id="market_stall") in acts
-    assert Stop() in acts
+    # PendingPlayMinor plays exactly one minor — no Stop here. The skip (where
+    # allowed) is the PARENT frame's Stop, not this frame's.
+    assert legal_actions(cs) == [CommitPlayMinor(card_id="market_stall")]
 
 
 # ---------------------------------------------------------------------------
@@ -133,13 +133,8 @@ def test_play_market_stall_passes_to_opponent():
     assert "market_stall" in cs.players[opp].hand_minors       # circulated to opponent
 
 
-def test_stop_declines_the_minor():
-    cs, cp = _card_state(cp_minors=frozenset({"market_stall"}), cp_res=Resources(grain=2))
-    cs = _push_minor(cs, cp)
-    cs2 = step(cs, Stop())
-    assert "market_stall" in cs2.players[cp].hand_minors       # still in hand
-    assert cs2.players[cp].resources.grain == 2                # nothing paid
-    assert cs2.pending_stack == ()                             # frame popped
+# (Declining a minor is a parent-level Stop, not a PendingPlayMinor action — it
+# is exercised by the optional entry points, e.g. Meeting Place, when they land.)
 
 
 # ---------------------------------------------------------------------------
