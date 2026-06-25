@@ -24,6 +24,8 @@ from agricola.cards import stable_architect     # noqa: F401
 # and the action-space hosting indexes via register_auto/register_action_space_hook.
 from agricola.cards import wood_cutter          # noqa: F401
 from agricola.cards import geologist            # noqa: F401
+# Category 10 (bounded-hook wood->food conversion; optional FireTrigger).
+from agricola.cards import mushroom_collector   # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
@@ -32,3 +34,4 @@ from agricola.cards import market_stall         # noqa: F401
 from agricola.cards import corn_scoop           # noqa: F401
 from agricola.cards import stone_tongs          # noqa: F401
 from agricola.cards import pitchfork            # noqa: F401
+from agricola.cards import basket               # noqa: F401
