@@ -357,11 +357,17 @@ def _apply_fire_trigger(
     assert state.pending_stack, "FireTrigger called with empty pending_stack"
     top = state.pending_stack[-1]
     entry = CARDS[action.card_id]
-    state = entry.apply_fn(state, top.player_idx)
+    # Record the fire on the HOST frame FIRST, then apply. A granted-sub-action
+    # trigger's apply_fn (Category 4: Assistant Tiller, Oven Firing Boy, …) PUSHES
+    # a primitive pending — recording after the push would replace_top the wrong
+    # (just-pushed) frame. Recording first keeps the host on top while we stamp
+    # triggers_resolved, then apply_fn pushes its sub-decision on top of it. For a
+    # non-pushing trigger (Potter, Mushroom) the order swap is end-state-identical.
     new_top = fast_replace(
         top, triggers_resolved=top.triggers_resolved | {action.card_id},
     )
-    return replace_top(state, new_top)
+    state = replace_top(state, new_top)
+    return entry.apply_fn(state, new_top.player_idx)
 
 
 def _apply_stop(state: GameState) -> GameState:

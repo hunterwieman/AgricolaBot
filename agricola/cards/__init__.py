@@ -26,6 +26,10 @@ from agricola.cards import wood_cutter          # noqa: F401
 from agricola.cards import geologist            # noqa: F401
 # Category 10 (bounded-hook wood->food conversion; optional FireTrigger).
 from agricola.cards import mushroom_collector   # noqa: F401
+# Category 4 (action-space hook, granted sub-action; optional FireTrigger that
+# pushes an existing primitive pending).
+from agricola.cards import assistant_tiller     # noqa: F401
+from agricola.cards import oven_firing_boy      # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
