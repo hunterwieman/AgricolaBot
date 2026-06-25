@@ -414,11 +414,13 @@ class PendingPlayMinor:
     declining is allowed (Meeting Place's minor is optional). No cost field: a
     minor pays its own printed cost, read from its MinorSpec at resolution.
 
-    `optional` controls whether declining (Stop) is allowed. It is True for the
-    optional-follow-up entry points (Meeting Place, Basic Wish for Children, House
-    Redevelopment — there a mandatory primary action was already taken), and False
-    for Major/Minor Improvement, where the minor is the OR-alternative: once you
-    pick it you must play one ("you must take at least one action").
+    Always plays exactly one minor: its enumerator offers a CommitPlayMinor per
+    playable hand minor and nothing else. It is pushed ONLY after the player has
+    committed to the minor branch (mirroring how PendingSow is pushed only after
+    `sow` is chosen), so >=1 minor is always playable and there is no decline
+    here. Whether playing a minor was *optional* is the PARENT frame's concern —
+    the parent offers the `play_minor` choice alongside its own Stop — so this
+    frame needs no optionality of its own.
 
     Card-trigger fields (phase / triggers_resolved) are omitted until a card
     fires on this frame, per the pending-field YAGNI rule.
@@ -427,7 +429,6 @@ class PendingPlayMinor:
     PENDING_ID: ClassVar[str] = "play_minor"
     player_idx: int
     initiated_by_id: str
-    optional: bool = True
 
 
 @dataclass(frozen=True)
