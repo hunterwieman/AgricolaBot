@@ -248,16 +248,16 @@ def test_step_raises_on_before_scoring():
 
 
 def test_step_raises_on_unknown_space():
-    """Calling step on a PlaceWorker with an unknown space-id raises.
+    """Calling step on a PlaceWorker naming a non-existent space raises.
 
-    After TASK_6, every non-atomic space surfaced by legal_placements has a
-    registered handler. The defensive guard in `_apply_place_worker` covers
-    the remaining never-registered IDs (only `lessons`, which is permanently
-    illegal in the Family game and never surfaces via legal_placements).
+    Every space in SPACE_IDS now has a handler in both modes — including
+    `lessons`, which became the card-game occupation-play space — so an unknown
+    id no longer reaches the `_apply_place_worker` NotImplementedError backstop;
+    it fails earlier at the SPACE_INDEX lookup in `_apply_worker_placement`.
     """
     state = setup(seed=0)
-    with pytest.raises(NotImplementedError):
-        step(state, PlaceWorker(space="lessons"))
+    with pytest.raises(KeyError):
+        step(state, PlaceWorker(space="no_such_space"))
 
 
 # ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitHarvestConversion,
+    CommitPlayOccupation,
     CommitPlow,
     CommitRenovate,
     CommitSow,
@@ -60,6 +61,7 @@ from agricola.pending import (
     PendingFarmRedevelopment,
     PendingFencing,
     PendingGrainUtilization,
+    PendingPlayOccupation,
     PendingPlow,
     PendingRenovate,
     PendingReveal,
@@ -827,6 +829,45 @@ def _any_legal_pasture_commit(
 
 
 # ---------------------------------------------------------------------------
+# Card game — playing occupations (CARD_IMPLEMENTATION_PLAN.md II.4)
+# ---------------------------------------------------------------------------
+
+def occupation_cost(num_played: int) -> Resources:
+    """Food cost to play your NEXT occupation, given how many you've already played.
+
+    2-player rule (RULES.md → Playing occupations): the first occupation is free,
+    every later one costs 1 food. (This is the Lessons-space cost; Scholar charges
+    a flat 1 food via its own route, so cost is route-supplied, not per-card.)
+    """
+    return Resources() if num_played == 0 else Resources(food=1)
+
+
+def playable_occupations(state: GameState, idx: int) -> list[str]:
+    """Occupation card ids in player `idx`'s hand that can currently be played.
+
+    Occupations have no prerequisites and a route-supplied (not per-card) cost, so
+    every hand occupation is equally playable once the play itself is affordable —
+    that affordability gate lives at the placement predicate, not here. Filtered to
+    ids with a registered OccupationSpec so an as-yet-unimplemented card in hand is
+    simply not offered (no KeyError) while the base set is being built out.
+    """
+    from agricola.cards.specs import OCCUPATIONS  # local import: load-order safe
+    return sorted(state.players[idx].hand_occupations & OCCUPATIONS.keys())
+
+
+def _legal_lessons_cards(state: GameState) -> bool:
+    """Lessons (card game): legal iff the space is free, the player has a playable
+    occupation in hand, and they can afford the next occupation's cost."""
+    if not _is_available(state, "lessons"):
+        return False
+    idx = state.current_player
+    p = state.players[idx]
+    if not playable_occupations(state, idx):
+        return False
+    return _can_afford(p, occupation_cost(len(p.occupations)))
+
+
+# ---------------------------------------------------------------------------
 # Dispatch tables
 # ---------------------------------------------------------------------------
 
@@ -873,18 +914,17 @@ FAMILY_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
 # Combined dispatch used by `legal_placements` in GameMode.CARDS. The card board
 # differs from the Family board (CARD_IMPLEMENTATION_PLAN.md I.2–I.4): Side Job is
 # gone and the family food-accumulation Meeting Place is replaced by the card
-# Meeting Place. Both are simply ABSENT here (placement never enumerates them).
+# Meeting Place — both ABSENT here (placement never enumerates them) — while
+# `lessons` (play an occupation) becomes usable.
 #
-# Still to add with the play-card foundation (Milestone 1, II.4): `lessons`
-# (play an occupation) and `meeting_place_cards` (become SP + optionally play a
-# minor) — they need the play-card pendings to have working resolvers, so they
-# are wired in alongside those rather than here. Until then a CARDS game plays as
-# the Family board minus Side Job / Meeting Place.
+# Still to add: `meeting_place_cards` (become SP + optionally play a minor), which
+# lands with the minor-play path (it needs PendingPlayMinor's resolver).
 CARD_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     space_id: predicate
     for space_id, predicate in FAMILY_GAME_LEGALITY.items()
     if space_id not in {"side_job", "meeting_place"}
 }
+CARD_GAME_LEGALITY["lessons"] = _legal_lessons_cards
 
 
 # ---------------------------------------------------------------------------
@@ -1536,7 +1576,21 @@ from agricola.pending import (
     PendingStoneOven,
 )
 from agricola.actions import CommitAccommodate
+def _enumerate_pending_play_occupation(
+    state: GameState, top: PendingPlayOccupation,
+) -> list[Action]:
+    """Legal actions at PendingPlayOccupation: one CommitPlayOccupation per playable
+    hand occupation. Lessons plays exactly one occupation with no decline, so there
+    is no Stop — placement legality already guaranteed at least one playable,
+    affordable card."""
+    return [
+        CommitPlayOccupation(card_id=cid)
+        for cid in playable_occupations(state, top.player_idx)
+    ]
+
+
 PENDING_ENUMERATORS: dict[type, Callable] = {
+    PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingGrainUtilization:    _enumerate_pending_grain_utilization,
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,
