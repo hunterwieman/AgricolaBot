@@ -414,6 +414,35 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     return OCCUPATIONS[cid].on_play(state, idx)
 
 
+def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
+    """Play one minor improvement from hand: debit its printed cost, move it
+    hand->tableau (or, for a traveling minor, execute then PASS it to the
+    opponent — never kept in the tableau), then run its on-play effect.
+    Dispatched with auto_pop=True (PendingPlayMinor pops after). See
+    CARD_IMPLEMENTATION_PLAN.md II.4."""
+    from agricola.cards.specs import MINORS
+    cid = action.card_id
+    spec = MINORS[cid]
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        resources=p.resources - spec.cost.resources,
+        animals=p.animals - spec.cost.animals,
+        hand_minors=p.hand_minors - {cid},
+    )
+    if not spec.passing_left:                       # normal minor: keep in tableau
+        p = fast_replace(p, minor_improvements=p.minor_improvements | {cid})
+    state = _update_player(state, idx, p)
+    state = spec.on_play(state, idx)                # immediate effect (runs either way)
+    if spec.passing_left:                           # traveling minor: pass to the opponent
+        opp = 1 - idx
+        state = _update_player(state, opp, fast_replace(
+            state.players[opp],
+            hand_minors=state.players[opp].hand_minors | {cid},
+        ))
+    return state
+
+
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
     "grain_utilization":    _initiate_grain_utilization,
     "farmland":             _initiate_farmland,

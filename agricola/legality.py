@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitHarvestConversion,
+    CommitPlayMinor,
     CommitPlayOccupation,
     CommitPlow,
     CommitRenovate,
@@ -61,6 +62,7 @@ from agricola.pending import (
     PendingFarmRedevelopment,
     PendingFencing,
     PendingGrainUtilization,
+    PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
     PendingRenovate,
@@ -867,6 +869,25 @@ def _legal_lessons_cards(state: GameState) -> bool:
     return _can_afford(p, occupation_cost(len(p.occupations)))
 
 
+def _can_afford_cost(p: PlayerState, cost) -> bool:
+    """Affordability for a card Cost (Resources + Animals)."""
+    a, ca = p.animals, cost.animals
+    return (_can_afford(p, cost.resources)
+            and a.sheep >= ca.sheep and a.boar >= ca.boar and a.cattle >= ca.cattle)
+
+
+def playable_minors(state: GameState, idx: int) -> list[str]:
+    """Minor card ids in player `idx`'s hand that can currently be played:
+    registered spec + prerequisite met + cost affordable. Filtered to registered
+    MinorSpecs so an as-yet-unimplemented hand card is simply not offered."""
+    from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
+    p = state.players[idx]
+    return [
+        cid for cid in sorted(p.hand_minors & MINORS.keys())
+        if prereq_met(MINORS[cid], state, idx) and _can_afford_cost(p, MINORS[cid].cost)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Dispatch tables
 # ---------------------------------------------------------------------------
@@ -1589,8 +1610,23 @@ def _enumerate_pending_play_occupation(
     ]
 
 
+def _enumerate_pending_play_minor(
+    state: GameState, top: PendingPlayMinor,
+) -> list[Action]:
+    """Legal actions at PendingPlayMinor: one CommitPlayMinor per playable hand
+    minor, PLUS Stop — playing a minor here is optional (e.g. Meeting Place lets
+    you decline), so Stop is always offered."""
+    actions: list[Action] = [
+        CommitPlayMinor(card_id=cid)
+        for cid in playable_minors(state, top.player_idx)
+    ]
+    actions.append(Stop())
+    return actions
+
+
 PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
+    PendingPlayMinor:           _enumerate_pending_play_minor,
     PendingGrainUtilization:    _enumerate_pending_grain_utilization,
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,

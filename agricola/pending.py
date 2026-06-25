@@ -406,6 +406,24 @@ class PendingPlayOccupation:
 
 
 @dataclass(frozen=True)
+class PendingPlayMinor:
+    """Play (optionally) one minor improvement from hand (card game only).
+
+    Pushed by the card Meeting Place / the improvement spaces / card grants. Its
+    enumerator offers a CommitPlayMinor per playable hand minor PLUS Stop —
+    declining is allowed (Meeting Place's minor is optional). No cost field: a
+    minor pays its own printed cost, read from its MinorSpec at resolution.
+
+    Card-trigger fields (phase / triggers_resolved) are omitted until a card
+    fires on this frame, per the pending-field YAGNI rule.
+    See CARD_IMPLEMENTATION_PLAN.md II.4.
+    """
+    PENDING_ID: ClassVar[str] = "play_minor"
+    player_idx: int
+    initiated_by_id: str
+
+
+@dataclass(frozen=True)
 class PendingHarvestFeed:
     """Phase-driven pending for the HARVEST_FEED sub-phase, one per player.
 

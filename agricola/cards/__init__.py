@@ -20,3 +20,7 @@ from agricola.cards import potter_ceramics      # noqa: F401
 from agricola.cards import consultant           # noqa: F401
 from agricola.cards import priest               # noqa: F401
 from agricola.cards import stable_architect     # noqa: F401
+
+# Minor improvements (card game). Importing each registers its MinorSpec in
+# agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
+from agricola.cards import market_stall         # noqa: F401
