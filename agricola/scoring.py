@@ -1,12 +1,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from agricola.constants import CellType, HouseMaterial
 from agricola.state import GameState, PlayerState
 
 # Points awarded for each major improvement (index 0–9).
 MAJOR_IMPROVEMENT_POINTS = [1, 1, 1, 1, 4, 2, 3, 2, 2, 2]
+
+
+# ---------------------------------------------------------------------------
+# Card scoring-term registry (CARD_IMPLEMENTATION_PLAN.md Category 1)
+# ---------------------------------------------------------------------------
+# Each entry is (card_id, fn) with fn(state, player_idx) -> int bonus points.
+# Populated at import of `agricola.cards`; `score` sums the terms a player OWNS.
+# Empty in the Family game (no cards), so the per-player card_points is 0 there
+# and the family total — the value the C++ differential checks — is unchanged.
+SCORING_TERMS: list[tuple[str, Callable]] = []
+
+
+def register_scoring(card_id: str, fn: Callable) -> None:
+    """Register a card's end-game scoring term (called at card-module import)."""
+    SCORING_TERMS.append((card_id, fn))
+
+
+def _owns(ps: PlayerState, card_id: str) -> bool:
+    return card_id in ps.occupations or card_id in ps.minor_improvements
 
 # Craft building indices and their bonus thresholds.
 # Each entry: (resource_attr, [(resource_cost, bonus_pts), ...]) highest to lowest
@@ -92,6 +112,7 @@ class ScoreBreakdown:
     begging_markers:          int   # always ≤ 0
     major_improvement_points: int
     bonus_points:             int   # craft building end-game bonuses
+    card_points:              int   # occupation/minor card scoring terms (0 in the Family game)
     total:                    int
 
 
@@ -212,13 +233,20 @@ def score(state: GameState, player_idx: int) -> tuple[int, ScoreBreakdown]:
     # Craft building bonus points (award maximum the player qualifies for)
     bonus, _ = _craft_bonus_spending(state, player_idx)
 
+    # Card scoring terms (occupations / minors the player owns). Empty in the
+    # Family game → 0. See CARD_IMPLEMENTATION_PLAN.md Category 1.
+    card_points = sum(
+        fn(state, player_idx) for card_id, fn in SCORING_TERMS
+        if _owns(ps, card_id)
+    )
+
     total = (
         pts_fields + pts_pastures + pts_grain + pts_veg
         + pts_sheep + pts_boar + pts_cattle
         + pts_unused + pts_fenced_stables
         + pts_clay_rooms + pts_stone_rooms
         + pts_people + pts_begging
-        + pts_major + bonus
+        + pts_major + bonus + card_points
     )
 
     breakdown = ScoreBreakdown(
@@ -237,6 +265,7 @@ def score(state: GameState, player_idx: int) -> tuple[int, ScoreBreakdown]:
         begging_markers=pts_begging,
         major_improvement_points=pts_major,
         bonus_points=bonus,
+        card_points=card_points,
         total=total,
     )
 
