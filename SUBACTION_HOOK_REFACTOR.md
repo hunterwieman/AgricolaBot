@@ -63,6 +63,19 @@ minimizing the Family-trace delta.
 | `PendingPlayMinor` | `CommitPlayMinor` | auto_pop=True |
 | `PendingBuildMajor` | `CommitBuildMajor` | auto_pop=False; effect pops OR pushes an oven (**special — §5**) |
 
+**C++-impact split within the in-scope set (important — scopes the C++ sync).** The
+C++ engine is **Family-only**, so it only ever serializes frames a Family game can
+produce. Of the 8:
+- **Family-reachable → need the C++ mirror:** `PendingSow`, `PendingBakeBread`,
+  `PendingPlow`, `PendingRenovate`, `PendingBuildMajor` (reached via Grain
+  Util/Cultivation, bake/ovens, Farmland, House/Farm Redev, Major Improvement).
+- **Card-only → NO C++ change:** `PendingFamilyGrowth`, `PendingPlayOccupation`,
+  `PendingPlayMinor` are pushed only in card mode (Family wish-for-children is
+  atomic; Lessons/play-minor are card-only), so they never reach the C++ engine.
+  Make the Python change; do **not** touch `cpp/` for these three.
+
+So the C++ sub-action sync is **5 frames**, not 8.
+
 **Out of scope — already non-auto-pop, leave as-is:**
 - The **multi-shot** builders `PendingBuildStables` / `PendingBuildRooms` /
   `PendingBuildFences`. These are *Stop-terminated* (build-loop, then `Stop`), so
@@ -169,11 +182,15 @@ return pop(state)
 (This is the single, uniform after-auto point, matching how the action spaces fire
 it. Handles Dutch Windmill / Roughcaster / Junk Room / Wall Builder.)
 
-**(d) before-auto at push.** Wherever an in-scope frame is pushed (the
-`_choose_subaction_*` handlers and the direct pushers — Lessons, the card grants,
-etc.), fire `apply_auto_effects(state, f"before_{PENDING_ID}", player_idx)` right
-after the push, mirroring the markets' `_initiate_*` and the atomic host. (No-op in
-the Family game; needed for any future before-auto sub-action card.)
+**(d) before-auto firing — DEFER (do not wire).** The before-*phase* exists and is
+load-bearing (it hosts the commit options and any before-*triggers* surfaced by the
+enumerator — e.g. Potter on `before_bake_bread`). But firing before-*automatic*
+effects at push (`apply_auto_effects("before_<id>", …)`) has **no in-scope
+consumer** and would scatter a call across every sub-action push site (the
+`_choose_subaction_*` handlers, Lessons, every card grant). Skip it; add it (at the
+specific push site) only when a card actually needs a before-auto on a sub-action.
+The before-*trigger* path (the more likely future need) already works via the
+enumerator with no push-site change.
 
 **(e) `_apply_fire_trigger`** already records-before-applying (the granted-sub-action
 fix), so a trigger whose `apply_fn` pushes a primitive (Mining Hammer → push
@@ -186,18 +203,29 @@ back to the host (now in after-phase), which offers the remaining after-triggers
 
 ## 5. The `PendingBuildMajor` / free-oven special case
 
-`CommitBuildMajor` is the one in-scope commit whose effect can **push** (a Clay/Stone
-Oven purchase pushes that oven's free-`PendingBakeBread`). Sequence the flip so the
-host is already in its after-phase when the free bake pops back:
+`CommitBuildMajor` is the one in-scope commit whose effect can **push**: a Clay/Stone
+Oven purchase pushes a `PendingClayOven` / `PendingStoneOven` wrapper (which in turn
+hosts the optional free Bake Bread), instead of popping. Sequence the flip so the
+host is already in its after-phase when that wrapper resolves and pops back:
 
-- **Plain major:** build it → flip `PendingBuildMajor` to `phase="after"` → (no
-  push) → after-phase offers after_build_major triggers + `Stop`.
-- **Oven:** build it → flip `PendingBuildMajor` to `phase="after"` → **then** push
-  the oven's free-bake pending. The free bake resolves and pops back to the
-  already-"after" `PendingBuildMajor`, which then offers after-triggers + `Stop`.
+- **Plain (non-oven) major:** build it → flip `PendingBuildMajor` to `phase="after"`
+  (instead of today's pop) → after-phase offers `after_build_major` triggers + `Stop`.
+- **Oven:** build it → flip `PendingBuildMajor` to `phase="after"` → **then** push the
+  `PendingClayOven`/`PendingStoneOven` wrapper. The wrapper's free bake resolves and
+  the wrapper pops back to the already-"after" `PendingBuildMajor`, which then offers
+  after-triggers + `Stop`.
 
-So: flip first, push second. Verify `_enumerate_pending_build_major` does not offer
-another `CommitBuildMajor` once `phase=="after"`.
+So: flip first, push the oven wrapper second. Verify `_enumerate_pending_build_major`
+offers no further `CommitBuildMajor` once `phase=="after"`. (The `PendingClayOven` /
+`PendingStoneOven` wrappers themselves are **not** in this refactor's scope — they
+already manage their own free-bake lifecycle; leave them, unless a card needs to hook
+their event, which none in scope does.)
+
+Note the **two-deep nesting**: the oven wrapper's free Bake Bread *is* a
+`PendingBakeBread`, which **is** in scope — so the free bake now runs its own
+before→commit→after→`Stop` and pops back to the wrapper. Make sure the wrapper's
+enumerator/exit still composes once the free bake gained that trailing `Stop`
+(this is one of the test cases worth writing — see §8).
 
 Note the **coarse `after_build_improvement`** event (Junk Room / Roughcaster fire on
 "any improvement built" = major *or* minor): that is a hand-fired event, fired by
@@ -259,12 +287,14 @@ auto-skip, but `step()`-scripted code does not). Find and fix the fallout by:
      invalidating existing data semantics).
    - `agents/restricted.py` wrappers pass a singleton `[Stop]` through `_safe_narrow`.
 
-4. **The C++ differential gates WILL fail — this is the required C++ sync.** The new
-   `phase` field reaches Family states (every sub-action flips to "after" before its
-   `Stop`), so it is **not** default-skippable and **must** be mirrored in C++.
-   Follow the markets precedent exactly (`cpp/` — `types.hpp` add `phase` to each
-   in-scope struct; `canonical.cpp` serialize + parse it; `hash.cpp` hash it;
-   `engine.cpp` make each `CommitX` non-auto-pop + flip to after; `legality.cpp`
+4. **The C++ differential gates WILL fail — this is the required C++ sync, for the 5
+   Family-reachable frames only** (Sow/Bake/Plow/Renovate/BuildMajor — see §2; the 3
+   card-only frames never reach C++, so skip them in `cpp/`). The new `phase` field
+   reaches Family states (every Family-reachable sub-action flips to "after" before
+   its `Stop`), so it is **not** default-skippable and **must** be mirrored. Follow
+   the markets precedent exactly (`cpp/` — `types.hpp` add `phase` to each of the 5
+   structs; `canonical.cpp` serialize + parse it; `hash.cpp` hash it; `engine.cpp`
+   make each of those `CommitX` non-auto-pop + flip to after; `legality.cpp`
    enumerators gain the after-phase + `Stop`; `_apply_stop` fires the after event;
    the `PendingBuildMajor`/oven sequencing). Rebuild, then
    `pytest tests/test_cpp_*.py` must be green. (This doc is Python-spec; the C++
