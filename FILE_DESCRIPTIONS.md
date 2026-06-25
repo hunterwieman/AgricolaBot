@@ -357,7 +357,19 @@ See ENGINE_IMPLEMENTATION.md §1 (Engine structure & dispatch) for the design ph
 
 ### `agricola/cards/__init__.py`
 
-Card package marker. Imports each card module so their `register()` calls run at module load time, populating the registries in `agricola.cards.triggers` and `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` in `agricola.legality`. Currently imports `harvest_conversions` (so the three built-in craft majors register their `HARVEST_CONVERSIONS` entries — see Task 7) and `potter_ceramics`. Future card modules are added here.
+Card package marker. Imports each card module so their `register*()` calls run at module load time, populating the registries in `agricola.cards.triggers` / `agricola.cards.specs` / `agricola.scoring` and `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` in `agricola.legality`. Imports `harvest_conversions`, `potter_ceramics`, and the Milestone-1 card modules (`consultant`, `priest`, `stable_architect`, `market_stall`). Future card modules are added here.
+
+---
+
+### `agricola/cards/specs.py`
+
+The play-card spec registries (Milestone 1; CARD_IMPLEMENTATION_PLAN.md II.4). `OccupationSpec` (`card_id`, `on_play`) + `OCCUPATIONS` dict + `register_occupation` — an occupation's effect is hand-written (occupations have no structured cost/prereq in the JSON). `MinorSpec` (`card_id`, `cost: Cost`, `min_occupations`/`max_occupations`, custom `prereq`, `passing_left`, `vps`, `on_play`) + `MINORS` dict + `register_minor` + `prereq_met` — the Option-A prereq shape (occupation-count int fields cover the dominant pattern; everything else rides the custom predicate). The engine dispatches occupation/minor play through these (`_execute_play_occupation` / `_execute_play_minor`, `playable_occupations` / `playable_minors`).
+
+---
+
+### `agricola/cards/consultant.py` · `priest.py` · `stable_architect.py` · `market_stall.py`
+
+The first four implemented cards. **Consultant** (occupation B102): on-play +3 clay (2-player branch). **Priest** (occupation A125): on-play, if clay house with exactly 2 rooms, +3 clay / 2 reed / 2 stone. **Stable Architect** (occupation A98): a scoring term via `register_scoring` (+1 VP per unfenced stable), no-op on play. **Market Stall** (minor B8, passing): cost 1 grain, on-play +1 veg, then circulated to the opponent. Each is a small module registering into `OCCUPATIONS` / `MINORS` / `SCORING_TERMS` at import (mirrors `potter_ceramics.py`).
 
 ---
 

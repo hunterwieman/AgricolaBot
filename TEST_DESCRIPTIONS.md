@@ -71,6 +71,18 @@ Tests for the one card implemented in Task 5. Uses prefabricated states; the car
 - Both options coexistence: with 1 grain + 1 clay + Potter, both `FireTrigger` and `CommitBake(1)` appear in `legal_actions`.
 - Forced fire when no commit possible: with 0 grain + 1 clay + Potter, `legal_actions` returns exactly `[FireTrigger("potter_ceramics")]` (no `SkipTrigger` in this architecture).
 
+### Card-game (Phase 3, Milestone 1) tests
+
+The play-card foundation. Each verifies the card path AND that the Family game is unaffected (mode-gated / byte-identical).
+
+- **`tests/test_cards_setup.py`** — Part I: `GameMode` default FAMILY + empty hands; `setup_env(card_pool=...)` deals 7+7 disjoint hands and sets CARDS; mode-aware `legal_placements` (cards drop `side_job`, keep `meeting_place` reused, add `lessons`); the canonical default-skip (Family JSON omits `mode`/hands; CARDS JSON emits them and round-trips); hash distinguishes states differing only in a card field; a full random CARDS game plays to scoring.
+- **`tests/test_cards_occupations.py`** — occupation play via Lessons: the `OCCUPATIONS` registry, mode gating (Lessons never legal in Family / not legal without a playable occupation), the play flow, the occupation-cost ramp (first free, then 1 food), and Priest's conditional on-play.
+- **`tests/test_cards_scoring.py`** — the `SCORING_TERMS` registry + Stable Architect: `ScoreBreakdown.card_points` added only for the owner, the unfenced-stable count (incl. fenced-exclusion), family `card_points == 0`, and play-via-Lessons-then-score.
+- **`tests/test_cards_minors.py`** — the minor-play machinery (driven by pushing `PendingPlayMinor` directly): `prereq_met` bounds + custom predicate, `Cost` affordability incl. animals, `playable_minors` filtering, the enumerator (plays only, no Stop — that's the parent's), passing-minor circulation, and the kept-in-tableau branch.
+- **`tests/test_cards_improvement_space.py`** — the minor branch of Major/Minor Improvement (placement major-or-minor, the exclusive OR, mandatory play-once-chosen) and House Redevelopment (renovate → improvement → play_minor; renovate → Stop). Family flow unaffected.
+- **`tests/test_cards_basic_wish.py`** — Basic Wish modeled like House Redev: the mandatory `family_growth` sub-action then the optional minor; decline; no-playable-minor → only Stop after growth; Family Basic Wish stays atomic.
+- **`tests/test_cards_meeting_place.py`** — card Meeting Place (slot-reuse): become-SP immediate + optional minor / decline / no-minor-atomic; and that the reused slot never accumulates food over a full game.
+
 ### `tests/test_bake_bread.py`
 
 Unit-level coverage of `_execute_bake` and `_enumerate_pending_bake_bread` across the matrix of `(owned_majors, grain_in_supply)` cases. Parametrized test with 13 cases covering each baking improvement in isolation, capped + uncapped combinations, capped-only combinations (cap-sum bounds the legal range), all four owned, and zero-grain edge cases. A separate test exercises the `BAKING_SPEC_EXTENSIONS` registry by registering a synthetic `(cap=1, rate=6)` source under a fixture and verifying the cap computation and greedy allocation pick it up.

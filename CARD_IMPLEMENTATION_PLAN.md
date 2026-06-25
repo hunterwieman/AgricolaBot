@@ -5,6 +5,17 @@ plan + canonical code per category. The cross-cutting design decisions are settl
 open sub-questions" at the end); one search-layer sub-question (`observe` hand-cardinality
 bookkeeping) is deliberately left open for a later session.**
 
+> **Implementation status (build order at the end):** **Milestone 1 — build-order steps 1–2 — is
+> DONE** (the `feat(cards)` git history is the per-slice record). Two notable deviations from the
+> canonical code below, both decided during implementation: (a) the card Meeting Place **reuses the
+> `meeting_place` slot** (mode-branched resolver), rather than a new `meeting_place_cards` SPACE_ID —
+> the new id would ripple into the family NN encoder/policy dimensions; (b) **Basic Wish for Children
+> was modeled as a proper parent frame mirroring House Redevelopment** (a `PendingFamilyGrowth`
+> primitive then the optional minor), not the "growth-inline + minor-follow-up" sketch. Also:
+> `PendingPlayMinor` carries **no `optional` field** — optionality lives at the parent frame's `Stop`,
+> per ENGINE_IMPLEMENTATION.md §2 (no SkipTrigger). `CardStore` (II.7) is deferred until a card needs
+> it. Steps 3–7 (the firing/hook system, deferred goods, phase hooks, deferred cards) are next.
+
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card
 goods-stack** — i.e. everything implementable on additive hooks today. It is the buildable
@@ -1215,14 +1226,16 @@ Front-load the shared infrastructure. The ordering constraint that matters: **no
 until a card can be played at all**, so the play-card foundation (II.4) comes early, *before* the
 hook categories — not after.
 
-1. **Part I** — the `GameMode` field + mode-branched placement (I.1), Side Job/Meeting Place/Lessons
-   (I.2–I.4), private hands on `PlayerState` (I.5), setup-by-mode + card-spec loading (I.6). Gate:
-   Family game byte-identical; C++ gates green (via the default-skip serializer note).
-2. **Play-card foundation** — `PendingPlayOccupation`/`PendingPlayMinor` + enumeration + resolution
-   (II.4), `CardStore` (II.7). With the Category-1 scoring registry and the Category-2 `on_play`
-   dispatch, this makes **Categories 1 (scoring) and 2 (on-play) testable end-to-end** — the first
-   real slice.
-3. **Firing registries** — `register_auto`/`apply_auto_effects` + the three firing kinds (II.1),
+1. **Part I — DONE.** The `GameMode` field + mode-branched placement (I.1), Side Job (absent in
+   cards) / Meeting Place (slot-reused, mode-branched) / Lessons (I.2–I.4), private hands on
+   `PlayerState` (I.5), setup-by-mode (I.6). Family game byte-identical; C++ gates green (default-skip).
+2. **Play-card foundation — DONE** (`CardStore` deferred until a card needs it). `PendingPlayOccupation`
+   (Lessons) + `PendingPlayMinor` across **all four entry points** (Major/Minor Improvement, House
+   Redevelopment, Basic Wish — mirrored on House Redev via a `PendingFamilyGrowth` primitive — and
+   Meeting Place) + enumeration + resolution (II.4). With the Category-1 scoring registry and the
+   Category-2 `on_play` dispatch, **Categories 1 (scoring) and 2 (on-play) are testable end-to-end**;
+   four cards landed (Consultant, Priest, Stable Architect, Market Stall).
+3. **Firing registries** (NEXT) — `register_auto`/`apply_auto_effects` + the three firing kinds (II.1),
    scoped used-sets + `_clear` (II.3).
 4. **`PendingActionSpace` hook** (II.2) — unlocks Categories **3, 4, 5, 9, 10** (automatic-income,
    granted sub-action, build hooks, opponent hook, bounded-conversion).
