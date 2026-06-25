@@ -452,6 +452,23 @@ class PendingBasicWishForChildren:
 
 
 @dataclass(frozen=True)
+class PendingMeetingPlaceCards:
+    """Card-game Meeting Place follow-up. Become starting player is an IMMEDIATE
+    effect (applied in the resolver, no frame — it always happens and triggers no
+    cards), so this frame hosts only the OPTIONAL minor: its enumerator offers
+    ChooseSubAction("play_minor") (while not yet played and a minor is playable)
+    plus Stop — the decline, since the SP token was already taken. Pushed (card
+    mode only) right after become-SP, and only when a minor is playable. The
+    Family Meeting Place is the atomic food/SP resolver and never pushes this.
+    See CARD_IMPLEMENTATION_PLAN.md I.3.
+    """
+    PENDING_ID: ClassVar[str] = "meeting_place"
+    player_idx: int
+    initiated_by_id: str
+    minor_chosen: bool = False
+
+
+@dataclass(frozen=True)
 class PendingFamilyGrowth:
     """The family-growth sub-action primitive: add one newborn on the space named
     by `initiated_by_id` (RULES: the newborn is placed next to the parent on the

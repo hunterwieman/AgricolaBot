@@ -65,6 +65,7 @@ from agricola.pending import (
     PendingFarmRedevelopment,
     PendingFencing,
     PendingGrainUtilization,
+    PendingMeetingPlaceCards,
     PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
@@ -947,16 +948,14 @@ FAMILY_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
 
 # Combined dispatch used by `legal_placements` in GameMode.CARDS. The card board
 # differs from the Family board (CARD_IMPLEMENTATION_PLAN.md I.2–I.4): Side Job is
-# gone and the family food-accumulation Meeting Place is replaced by the card
-# Meeting Place — both ABSENT here (placement never enumerates them) — while
-# `lessons` (play an occupation) becomes usable.
-#
-# Still to add: `meeting_place_cards` (become SP + optionally play a minor), which
-# lands with the minor-play path (it needs PendingPlayMinor's resolver).
+# gone (absent here); `lessons` (play an occupation) becomes usable; and
+# `meeting_place` reuses its slot for the card variant (become SP + optionally
+# play a minor) — same placement predicate (`_legal_meeting_place`: legal whenever
+# available), with the card behavior selected by mode in the resolver.
 CARD_GAME_LEGALITY: dict[str, Callable[[GameState], bool]] = {
     space_id: predicate
     for space_id, predicate in FAMILY_GAME_LEGALITY.items()
-    if space_id not in {"side_job", "meeting_place"}
+    if space_id != "side_job"
 }
 CARD_GAME_LEGALITY["lessons"] = _legal_lessons_cards
 # Major/Minor Improvement is placeable to build a major OR play a minor in cards.
@@ -1661,6 +1660,18 @@ def _enumerate_pending_family_growth(
     return [CommitFamilyGrowth()]
 
 
+def _enumerate_pending_meeting_place_cards(
+    state: GameState, pending: PendingMeetingPlaceCards,
+) -> list[Action]:
+    """Card Meeting Place: become-SP already happened; offer the optional minor
+    (while not yet played and a minor is playable), then Stop (the decline)."""
+    actions: list[Action] = []
+    if not pending.minor_chosen and playable_minors(state, pending.player_idx):
+        actions.append(ChooseSubAction(name="play_minor"))
+    actions.append(Stop())
+    return actions
+
+
 def _enumerate_pending_play_minor(
     state: GameState, top: PendingPlayMinor,
 ) -> list[Action]:
@@ -1679,6 +1690,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPlayMinor:           _enumerate_pending_play_minor,
     PendingBasicWishForChildren: _enumerate_pending_basic_wish_for_children,
     PendingFamilyGrowth:        _enumerate_pending_family_growth,
+    PendingMeetingPlaceCards:   _enumerate_pending_meeting_place_cards,
     PendingGrainUtilization:    _enumerate_pending_grain_utilization,
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,

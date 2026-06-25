@@ -182,12 +182,37 @@ def _resolve_grain_seeds(state: GameState) -> GameState:
     return _update_player(state, ap, fast_replace(p, resources=p.resources + Resources(grain=1)))
 
 
+def _become_starting_player(state: GameState, idx: int) -> GameState:
+    """Transfer the starting-player token to player `idx`. Shared by the family
+    Meeting Place (food accumulation + SP) and the card Meeting Place (SP only)."""
+    return fast_replace(state, starting_player=idx)
+
+
 def _resolve_meeting_place(state: GameState) -> GameState:
+    from agricola.constants import GameMode
+    if state.mode is GameMode.CARDS:
+        return _initiate_meeting_place_cards(state)
     ap = state.current_player
-    # Collect accumulated food and reset (food/animal scalar path)
+    # Family game: collect accumulated food, reset, and become starting player.
     state = _resolve_food_accumulation(state, "meeting_place")
-    # Transfer starting player token to the player who took this space
-    return fast_replace(state, starting_player=ap)
+    return _become_starting_player(state, ap)
+
+
+def _initiate_meeting_place_cards(state: GameState) -> GameState:
+    """Card-game Meeting Place: become starting player (immediate, no food), then
+    OPTIONALLY play one minor. Push the optional-minor frame only when a minor is
+    playable; otherwise become-SP is the whole action (atomic). The worker is
+    already placed (cross-cutting), so this is always a legal placement.
+    See CARD_IMPLEMENTATION_PLAN.md I.3."""
+    ap = state.current_player
+    state = _become_starting_player(state, ap)
+    from agricola.legality import playable_minors
+    if playable_minors(state, ap):
+        from agricola.pending import PendingMeetingPlaceCards
+        state = push(state, PendingMeetingPlaceCards(
+            player_idx=ap, initiated_by_id="space:meeting_place",
+        ))
+    return state
 
 
 def _resolve_western_quarry(state: GameState) -> GameState:
@@ -728,6 +753,21 @@ def _choose_subaction_basic_wish_for_children(
     raise ValueError(f"Unknown sub-action {action.name!r} for Basic Wish for Children")
 
 
+def _choose_subaction_meeting_place_cards(
+    state: GameState, action: ChooseSubAction,
+) -> GameState:
+    """Card-game Meeting Place choose handler: `play_minor` pushes the mandatory
+    PendingPlayMinor (become-SP already happened immediately in the resolver)."""
+    top = state.pending_stack[-1]
+    if action.name == "play_minor":
+        from agricola.pending import PendingPlayMinor
+        state = replace_top(state, fast_replace(top, minor_chosen=True))
+        return push(state, PendingPlayMinor(
+            player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
+        ))
+    raise ValueError(f"Unknown sub-action {action.name!r} for Meeting Place")
+
+
 def _execute_family_growth(state: GameState, idx: int, action) -> GameState:
     """Run the family-growth primitive: add one newborn on the space named by the
     PendingFamilyGrowth frame's initiated_by_id (the wish space). Reuses the shared
@@ -745,6 +785,7 @@ from agricola.pending import (
     PendingFarmland,
     PendingHouseRedevelopment,
     PendingMajorMinorImprovement,
+    PendingMeetingPlaceCards,
     PendingSideJob,
 )
 CHOOSE_SUBACTION_HANDLERS[PendingGrainUtilization] = _choose_subaction_grain_utilization
@@ -759,6 +800,7 @@ CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansi
 CHOOSE_SUBACTION_HANDLERS[PendingFencing] = _choose_subaction_fencing
 CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingBasicWishForChildren] = _choose_subaction_basic_wish_for_children
+CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlaceCards] = _choose_subaction_meeting_place_cards
 
 
 # ---------------------------------------------------------------------------

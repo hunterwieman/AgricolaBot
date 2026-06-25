@@ -79,13 +79,14 @@ def test_deal_hands_rejects_too_small_pool():
 # Mode-aware placement legality
 # ---------------------------------------------------------------------------
 
-def test_card_legality_drops_family_only_spaces():
-    # Side Job and the food-accumulation Meeting Place are Family-only.
+def test_card_legality_drops_side_job_keeps_meeting_place():
+    # Side Job is Family-only (absent in cards). Meeting Place's SLOT is reused
+    # for the card variant, so it stays in CARD_GAME_LEGALITY (same predicate;
+    # the card behavior is selected by mode in the resolver). `lessons` is added.
     assert "side_job" in FAMILY_GAME_LEGALITY
-    assert "meeting_place" in FAMILY_GAME_LEGALITY
     assert "side_job" not in CARD_GAME_LEGALITY
-    assert "meeting_place" not in CARD_GAME_LEGALITY
-    # Everything else carries over.
+    assert "meeting_place" in CARD_GAME_LEGALITY
+    assert "lessons" in CARD_GAME_LEGALITY and "lessons" not in FAMILY_GAME_LEGALITY
     assert "farmland" in CARD_GAME_LEGALITY
     assert "forest" in CARD_GAME_LEGALITY
 
@@ -93,11 +94,14 @@ def test_card_legality_drops_family_only_spaces():
 def test_legal_placements_dispatches_on_mode():
     cs, _ = setup_env(123, card_pool=_pool())
     card_spaces = {p.space for p in legal_placements(cs)}
-    assert "side_job" not in card_spaces
-    assert "meeting_place" not in card_spaces
+    assert "side_job" not in card_spaces          # Side Job is card-absent
+    assert "meeting_place" in card_spaces         # reused slot, card variant
     assert "farmland" in card_spaces
 
-    # The same state relabeled FAMILY surfaces the family-only spaces again.
+    # The same state relabeled FAMILY still surfaces meeting_place (the slot is
+    # shared; the mode selects behavior). (side_job's legality is resource-gated,
+    # so it isn't surfaced from a no-wood state — its dict membership is checked
+    # in test_card_legality_drops_side_job_keeps_meeting_place.)
     fam = fast_replace(cs, mode=GameMode.FAMILY)
     fam_spaces = {p.space for p in legal_placements(fam)}
     assert "meeting_place" in fam_spaces
