@@ -39,3 +39,9 @@ from agricola.cards import corn_scoop           # noqa: F401
 from agricola.cards import stone_tongs          # noqa: F401
 from agricola.cards import pitchfork            # noqa: F401
 from agricola.cards import basket               # noqa: F401
+# Category 1 (end-game scoring terms — pure derived reads).
+from agricola.cards import manger               # noqa: F401
+from agricola.cards import wool_blankets        # noqa: F401
+# Category 2 (on-play one-shot gains; both traveling/passing).
+from agricola.cards import clay_embankment      # noqa: F401
+from agricola.cards import young_animal_market  # noqa: F401
