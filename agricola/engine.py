@@ -23,6 +23,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitHarvestConversion,
+    CommitPlayMinor,
     CommitPlayOccupation,
     CommitPlow,
     CommitRenovate,
@@ -53,6 +54,7 @@ from agricola.pending import (
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingPigMarket,
+    PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
     PendingRenovate,
@@ -80,6 +82,7 @@ from agricola.resolution import (
     _execute_build_stable,
     _execute_convert,
     _execute_harvest_conversion,
+    _execute_play_minor,
     _execute_play_occupation,
     _execute_plow,
     _execute_renovate,
@@ -250,6 +253,9 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # Card game: play one occupation from hand. auto_pop=True — Lessons plays
     # exactly one occupation, then PendingPlayOccupation pops and the turn ends.
     CommitPlayOccupation:    (PendingPlayOccupation, _execute_play_occupation,  True),
+    # Card game: play one minor from hand. auto_pop=True — one minor played, then
+    # PendingPlayMinor pops; declining is the frame's Stop (also pops).
+    CommitPlayMinor:         (PendingPlayMinor,      _execute_play_minor,       True),
 }
 
 

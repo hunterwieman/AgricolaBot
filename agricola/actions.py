@@ -126,6 +126,18 @@ class CommitPlayOccupation(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitPlayMinor(CommitSubAction):
+    """Play the named minor improvement from hand (card game).
+
+    Lands on PendingPlayMinor. The cost is the card's printed cost (read from its
+    MinorSpec). `_execute_play_minor` debits the cost, moves the card
+    hand->tableau (or, for a traveling minor, passes it to the opponent), and
+    runs its on-play effect; the dispatcher then auto-pops the frame.
+    """
+    card_id: str
+
+
+@dataclass(frozen=True)
 class CommitAccommodate(CommitSubAction):
     """Commit a final animal configuration after taking from an animal market.
 

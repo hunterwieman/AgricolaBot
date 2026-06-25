@@ -54,3 +54,31 @@ class Animals:
     sheep:  int = 0
     boar:   int = 0
     cattle: int = 0
+
+    def __add__(self, other: Animals) -> Animals:
+        """Return a new Animals with all fields summed. Does not mutate either operand."""
+        return Animals(
+            sheep  = self.sheep  + other.sheep,
+            boar   = self.boar   + other.boar,
+            cattle = self.cattle + other.cattle,
+        )
+
+    def __sub__(self, other: Animals) -> Animals:
+        """Return a new Animals with all fields differenced (negatives allowed)."""
+        return Animals(
+            sheep  = self.sheep  - other.sheep,
+            boar   = self.boar   - other.boar,
+            cattle = self.cattle - other.cattle,
+        )
+
+
+@dataclass(frozen=True)
+class Cost:
+    """A payable card cost. `resources` already covers building resources, food,
+    AND crops (grain/veg); `animals` is the only thing it adds and is empty for
+    almost every card. Pay via `p.resources - cost.resources` /
+    `p.animals - cost.animals`. (Computed/state-dependent costs — e.g. Bottles'
+    "1 clay + 1 food per person" — are handled per-card, not by this static
+    shape.) See CARD_IMPLEMENTATION_PLAN.md II.4."""
+    resources: Resources = Resources()
+    animals:   Animals   = Animals()
