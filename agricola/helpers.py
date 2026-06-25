@@ -209,8 +209,8 @@ def breeding_food_gained(
     breeding did not fire (player ate pre-breed to prevent it, or there was no
     capacity, or pre < 2) and removals = (pre - post). The `post >= 3` test is
     the exact indicator that breeding fired and the newborn was accommodated —
-    see RULES.md "Breeding frontier model" and the `breeding_frontier`
-    docstring for the derivation.
+    see the `breeding_frontier` docstring and ENGINE_IMPLEMENTATION.md (§4
+    Harvest) for the derivation.
     """
     s, b, c = pre.sheep, pre.boar, pre.cattle
     sF, bF, cF = post.sheep, post.boar, post.cattle

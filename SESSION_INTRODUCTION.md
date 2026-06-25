@@ -1,7 +1,7 @@
 Read the following files before doing anything else:
 
 1. `CLAUDE.md` — project status, per-file descriptions, key design principles
-2. `RULES.md` — complete rules reference for the 2-player Family game
+2. `RULES.md` — complete rules reference for the 2-player game (full card game as the default; cardless Family game and 3–4 player game as variants)
 
 Do not implement anything yet. After reading, flag any questions.
 
