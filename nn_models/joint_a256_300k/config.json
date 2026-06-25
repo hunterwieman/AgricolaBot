@@ -1,0 +1,95 @@
+{
+  "model_kind": "shared_trunk",
+  "siamese": false,
+  "player_encoder_dims": [
+    128
+  ],
+  "player_encoder_out": 64,
+  "trunk_hidden_dims": [
+    256,
+    256
+  ],
+  "embedding_dim": 128,
+  "value_head_dims": [],
+  "fixed_head_dims": [],
+  "pointer_head_dims": [
+    64
+  ],
+  "activation": "gelu",
+  "norm": "layer",
+  "dropout": 0.2,
+  "value_weight": 9.0,
+  "head_weight": 1.0,
+  "lr": 0.0003,
+  "weight_decay": 0.0001,
+  "batch_size": 2048,
+  "max_epochs": 79,
+  "steps_per_epoch": 13099,
+  "fast_loader": true,
+  "soft_targets": true,
+  "stream": false,
+  "buffer_chunks": null,
+  "split_seed": 0,
+  "init_from": "/root/init",
+  "l2sp": 0.0,
+  "train_outcome": true,
+  "outcome_loss_weight": 1.0,
+  "encoding_version": 2,
+  "encoding_tag": "v2",
+  "strip_begging": false,
+  "data_version": 3,
+  "code_sha": "unknown",
+  "sizes": {
+    "value": [
+      26827818,
+      3340702,
+      3351142
+    ],
+    "fixed:build_stop": [
+      208044,
+      25990,
+      26200
+    ],
+    "fixed:choose_subaction": [
+      1128241,
+      140624,
+      140552
+    ],
+    "fixed:commit_bake": [
+      6521,
+      791,
+      804
+    ],
+    "fixed:commit_build_major": [
+      331858,
+      41204,
+      41330
+    ],
+    "fixed:commit_sow": [
+      284038,
+      35071,
+      35304
+    ],
+    "fixed:fencing": [
+      471004,
+      58727,
+      58519
+    ],
+    "fixed:placement": [
+      8589951,
+      1070098,
+      1073550
+    ],
+    "ptr:animal_frontier": [
+      688286,
+      85559,
+      86071
+    ],
+    "ptr:harvest_feed": [
+      1319613,
+      164278,
+      165120
+    ]
+  },
+  "param_count": 196497
+}

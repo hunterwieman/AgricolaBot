@@ -3121,3 +3121,58 @@ passed; production analyze verified live across all three leaf modes.
 ### Docs
 CLAUDE.md §2.6 (the "Show analysis" paragraph + the `play_web.py` Toggles directory entry) updated
 to describe the decoupled control row and the leaf_mode-driven `value_target` reporting.
+
+## Session — Clean-300k architecture sweep + new champion `joint_a256_300k` (2026-06-25)
+
+A large generate→train→evaluate→promote cycle: a new corpus, a 6-architecture sweep, a siamese
+model + its C++ port, and a new deployed champion.
+
+### Corpus + the 6-architecture sweep
+Generated a fresh **clean 300k-game corpus** on GCP (`gen300k/{t1,t15,t2,t3}` — 1600 sims, c_uct 2,
+mixed temps, generated *by* the prior champion `joint_gelu_rand_240k`), then trained **six joint
+shared-trunk archs** on it (snapshot-keep 0.5, GELU, random-init): **A_baseline** `[256,256]→128`
+(= champion arch), **B_wide** `[512,512]→256`, **C_deep** `[256,256,256]→128`, **F_compact**
+`[128,128]→64`, and two **siamese** variants D/E.
+
+### Siamese model + C++ port
+Added `SiameseSharedTrunkModel` (both players' 54-feature blocks through one *shared* per-player
+encoder, then `[emb_own;emb_opp;board;mid]` → the usual trunk; `--siamese`/`--player-encoder-*`),
+and ported its inference to the C++ engine (manifest `siamese` flag + player-encoder blob; permanent
+differential gate `test_cpp_joint_siamese_matches_python` ≤1e-4). Verdict: **width dominates,
+siamese is a small net negative** in this data-rich regime (its data-efficiency upside is muted), and
+the compact net lags badly.
+
+### Mid-training round-robin, equal-wall-clock test, resume-to-convergence
+A mid-training 800-sim round-robin ranked **B_wide > C_deep > A > E_siam > D_siam > F_compact**. An
+equal-wall-clock A-vs-B test (handing the ~1.76× slower B_wide proportionally fewer sims) showed
+B_wide's edge **survives compute-normalization** (~55–57%). A/B/C were then **resumed to convergence
+on Spot** via warm-start from `best.pt` at lr 3e-4 — monitored by a `/loop` cadence that mostly
+confirmed health (C_deep ran on `n2d` after `n2`/`t2a` spot stockouts; the bucket epoch count lagged
+the box by ~1 epoch — verified benign by SSH each time).
+
+### Converged evaluation — the headline
+A converged **4-model round-robin that adds the deployed champion**: **B_wide 65.1% > A 52.8% >
+C_deep 50.0% > champion 32.0% — all three 300k archs beat the deployed champion** (A 63.9%, C_deep
+66.8%, B_wide 73.2%). Because **A_baseline is literally the champion's architecture** trained on the
+new corpus, its +64% **isolates the corpus effect**; B_wide's width adds ~9 pts on top.
+
+### Promotion
+Measured **value_scale/outcome_scale on a common 6k-state gen300k set** (distribution-dependent, so
+common-set measurement): A 3.298/0.549, B_wide 3.406/0.583. **Promoted `A_baseline` as the new champion
+`joint_a256_300k`** (`nn_models/best` + `cpp_export_best` re-pointed, MIX leaf α=0.9) — the conservative
+choice: same arch as the prior champion, no extra compute cost, beats it 63.9%. **`B_wide` held as a
+candidate** (stronger but ~1.76× per forward); its promotion deferred to the user.
+
+### Infra + bugs (lessons → `CLOUD_RUNBOOK.md`)
+`shared_dataset._split_mask` finalize perf fix (per-game train/val/test split dedup — was a per-row
+`np.random.default_rng`, ~20 min → seconds on 150k games; found by `py-spy dump`). A cluster of cloud
+gotchas became runbook entries: the `grep -c … || echo 0` pipefail double-zero that crash-looped
+spot boxes (misdiagnosed as preemption until the operations log showed 3 preemptions vs ~30
+self-deletes); `pd-standard`-is-HDD download throughput; stub-the-counted-but-unread game pkls; Spot
+zone-spread; the `--match` `--game-idxs` (not `--seed`) gotcha; and a memory note: *slow feedback
+loops demand deliberate verification — measure before theorizing.*
+
+### Docs
+`nn_models/REGISTRY.md` (new `joint_a256_300k` champion row + `300k_6arch_sweep` row + flipped 240k to
+superseded), `SHARED_TRUNK.md` §2.2 (the sweep + converged results), CLAUDE.md (champion → A_base),
+`CLOUD_RUNBOOK.md` (best-practice lessons), `FILE_DESCRIPTIONS.md` (siamese + new scripts).
