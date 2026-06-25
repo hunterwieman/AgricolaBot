@@ -232,7 +232,21 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
 
 
 def _resolve_basic_wish_for_children(state: GameState) -> GameState:
-    return _resolve_wish_for_children(state, "basic_wish_for_children")
+    state = _resolve_wish_for_children(state, "basic_wish_for_children")
+    # Card game: "and afterward" optionally play 1 minor improvement. Push the
+    # optional-minor follow-up frame, but only when a minor is actually playable —
+    # otherwise stay atomic, exactly as in the Family game. (Urgent Wish does NOT
+    # get this branch.) Optionality lives at the frame's Stop, not on the frame.
+    from agricola.constants import GameMode
+    if state.mode is GameMode.CARDS:
+        from agricola.legality import playable_minors
+        idx = state.current_player
+        if playable_minors(state, idx):
+            from agricola.pending import PendingBasicWishForChildren
+            state = push(state, PendingBasicWishForChildren(
+                player_idx=idx, initiated_by_id="space:basic_wish_for_children",
+            ))
+    return state
 
 
 def _resolve_urgent_wish_for_children(state: GameState) -> GameState:
@@ -694,9 +708,26 @@ def _choose_subaction_farm_redevelopment(
     raise ValueError(f"Unknown sub-action {action.name!r} for Farm Redevelopment")
 
 
+def _choose_subaction_basic_wish_for_children(
+    state: GameState, action: ChooseSubAction,
+) -> GameState:
+    """Choose handler for the card-game Basic Wish optional-minor follow-up. The
+    family growth already ran in the atomic resolver; here `play_minor` pushes the
+    (mandatory-once-chosen) PendingPlayMinor."""
+    top = state.pending_stack[-1]
+    if action.name == "play_minor":
+        from agricola.pending import PendingPlayMinor
+        state = replace_top(state, fast_replace(top, minor_chosen=True))
+        return push(state, PendingPlayMinor(
+            player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
+        ))
+    raise ValueError(f"Unknown sub-action {action.name!r} for Basic Wish for Children")
+
+
 CHOOSE_SUBACTION_HANDLERS: dict[type, Callable[[GameState, ChooseSubAction], GameState]] = {}
 # Populated below after parent pending types are imported.
 from agricola.pending import (
+    PendingBasicWishForChildren,
     PendingCultivation,
     PendingFarmExpansion,
     PendingFarmland,
@@ -715,6 +746,7 @@ CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_r
 CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
 CHOOSE_SUBACTION_HANDLERS[PendingFencing] = _choose_subaction_fencing
 CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
+CHOOSE_SUBACTION_HANDLERS[PendingBasicWishForChildren] = _choose_subaction_basic_wish_for_children
 
 
 # ---------------------------------------------------------------------------
