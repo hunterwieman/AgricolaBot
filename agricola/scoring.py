@@ -239,6 +239,14 @@ def score(state: GameState, player_idx: int) -> tuple[int, ScoreBreakdown]:
         fn(state, player_idx) for card_id, fn in SCORING_TERMS
         if _owns(ps, card_id)
     )
+    # Plus each kept minor improvement's printed victory points (the yellow
+    # circle). Passing minors are never kept, so they never reach here; the
+    # Family game has no minors, so this is 0 (C++ family-score gate undisturbed).
+    if ps.minor_improvements:
+        from agricola.cards.specs import MINORS  # local import: load-order safe
+        card_points += sum(
+            MINORS[cid].vps for cid in ps.minor_improvements if cid in MINORS
+        )
 
     total = (
         pts_fields + pts_pastures + pts_grain + pts_veg
