@@ -43,6 +43,7 @@ from agricola.constants import (
     SPACE_IDS,
     STAGE_CARDS,
     CellType,
+    GameMode,
     Phase,
 )
 from agricola.pending import (
@@ -550,6 +551,11 @@ def _complete_preparation(state: GameState) -> GameState:
         if not action_space.revealed:
             continue
         space_id = SPACE_IDS[i]
+        # Card-game Meeting Place gives no food, so it is NOT an accumulation
+        # space there (reused slot); skip its refill in card mode. Family is
+        # unchanged (it accumulates +1 food/round as before).
+        if space_id == "meeting_place" and state.mode is GameMode.CARDS:
+            continue
         if space_id in BUILDING_ACCUMULATION_RATES:
             rate = BUILDING_ACCUMULATION_RATES[space_id]
             new_spaces_list[i] = fast_replace(
