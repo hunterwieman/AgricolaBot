@@ -18,12 +18,40 @@ bookkeeping) is deliberately left open for a later session.**
 > `register_auto`/`apply_auto_effects`/`AUTO_EFFECTS`; II.3 `used_this_turn`/`used_this_round`/`fired_once`
 > + `engine._clear` + wiring; pure-additive, Family byte-identical, C++ gates green). The `mandatory`
 > trigger flag (the third firing kind) is deferred to land with its phase-exit gate consumer in steps 4/6.
-> **Step 4a (the atomic-space action-space host) is now DONE** — `PendingActionSpace` + `Proceed` +
-> `should_host_space` indexes + `trigger_event` routing, with zero existing-frame changes and zero C++
-> changes (the host frame only ever appears in card games), Family byte-identical. Five Category-3 cards
-> landed (Wood Cutter, Geologist, Corn Scoop, Stone Tongs, Pitchfork). **Step 4b (non-atomic-space hosts
-> + the C++ frame-field sync) is next** and is the structural/C++ step. Steps 5–7 (deferred goods, phase
-> hooks, deferred cards) follow.
+>
+> **Step 4a (the atomic-space action-space host) is DONE** — `PendingActionSpace` + `Proceed` +
+> `should_host_space` indexes + `trigger_event` routing + the `_apply_fire_trigger` record-before-apply
+> fix (so a granted-sub-action trigger's pushed pending isn't clobbered). Zero existing-frame changes,
+> zero C++ changes (the host frame only ever appears in card games), Family byte-identical. **15 cards
+> have landed** on the safe (no-structural-change) infra — Categories 1, 2, 3, 4-atomic, 10 — plus
+> printed-VP scoring for kept minors:
+> - **Cat 1 (scoring):** Stable Architect, Manger, Wool Blankets.
+> - **Cat 2 (on-play):** Consultant, Priest, Market Stall, Clay Embankment, Young Animal Market.
+> - **Cat 3 (auto income, atomic spaces):** Wood Cutter, Geologist, Corn Scoop, Stone Tongs, Pitchfork,
+>   Loam Pit, Canoe.
+> - **Cat 4 (granted sub-action, atomic spaces):** Assistant Tiller, Oven Firing Boy.
+> - **Cat 10 (bounded conversion):** Mushroom Collector, Basket.
+>
+> **Everything remaining is structural and touches the C++ engine** (the natural pause point):
+> - **Step 4b** — non-atomic-space hosts. The 13 existing space-host frames must carry the before/after
+>   phase + fire `after_action_space` at the space's exit. **Open design fork:** those frames exit
+>   *heterogeneously* — most via the parent's `Stop`, but the three animal markets via an auto-popping
+>   `CommitAccommodate` — so the "fire-after-at-exit" mechanism isn't uniform. The low-blast-radius option
+>   is a *conditional* after-phase (flip-to-after only when an after-hook is actually owned, else pop as
+>   today → Family byte-identical), mirroring 4a's conditional push; the uniform option (always add an
+>   after-phase + trailing Stop) is simpler but changes the Family action sequence and churns many tests.
+>   Either way the new frame fields need a small C++ serializer sync (`triggers_resolved` on the 2 hosts
+>   that lack it; `phase` default-skipped Python-side, noting its name collides with `GameState.phase`,
+>   which is currently collision-safe only because `GameState.phase` has no dataclass default). Unlocks
+>   Cat 9 (Milk Jug), non-atomic Cat 4 (Threshing Board, Moldboard Plow), Cat 5 (build hooks).
+> - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
+> - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
+>   mandatory-with-choice gate) → Cat 7, 6.
+> - **Step 7** — deferred cards (Organic Farmer, Mini Pasture, Shepherd's Crook, Acorns Basket) last.
+>
+> **Deferred-within-category cards** awaiting their infra: CardStore cards (Tutor, Moldboard Plow, Big
+> Country); play-variant on-play (Roof Ballaster); Shifting Cultivation (on-play push vs. the play-minor
+> auto_pop); Cottager (build-or-renovate choice).
 
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card
