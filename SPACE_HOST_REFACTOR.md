@@ -432,6 +432,25 @@ This refactor moves every host's after-auto firing to its work-complete boundary
 Net: after-autos fire after the space's own work and before its after-triggers, uniformly; nothing
 fires at `Stop`.
 
+**Before-autos fire at the host's push.** Symmetric to the after migration, every host fires its
+before-event (`before_action_space`, or `before_major_minor_improvement` for the composite) at the
+moment its frame is pushed (§4 lifecycles). The push sites:
+
+- **Atomic** (`PendingActionSpace`): in `_apply_place_worker`, right after the host frame is pushed.
+- **Markets** + **Delegating** (Farmland / Fencing / Major-Improvement space / Lessons): in each
+  `_initiate_*` after the push.
+- **Proceed-hosts** (Grain Utilization / Cultivation / Farm Expansion / House Redevelopment / Farm
+  Redevelopment): in each `_initiate_*` after the push. *(These five — plus the composite
+  `before_major_minor_improvement` at both its push sites: the Major-Improvement-space `improvement`
+  choose and House Redevelopment's `improvement` choose — were completed in a follow-up pass after
+  B1–B3 landed; the original migration had left them firing no before-auto, a gap that escaped the
+  gates because no test exercised a before-/after-host hook. The coverage that closes it is
+  `tests/test_space_host_hooks.py`, which asserts both events fire for every host.)*
+- **Card-only Proceed-hosts** (Meeting Place, Basic Wish for Children): in their card-mode resolvers.
+
+All before-firing is a Family no-op (empty auto-effect registry), so the C++ Family engine is
+unaffected.
+
 ### 11.1 Existing-card consequences of the migration
 
 Moving the `after_action_space` firing out of `_apply_stop` changes the behavior of the cards
