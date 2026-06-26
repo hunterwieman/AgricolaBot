@@ -1091,6 +1091,16 @@ twice-per-game: store uses-left as an `int` in the `CardStore` side-map (II.7) �
 ## Category 5 — Build / renovate / fence / card-play hooks (5)
 **Roughcaster · Junk Room · Mining Hammer · Bread Paddle · Dutch Windmill** (Shepherd's Crook deferred)
 
+> **Status: DONE** (`tests/test_cards_category5.py`; full suite + C++ gates green). All five cards
+> landed: Roughcaster (occupation), Junk Room / Mining Hammer / Bread Paddle / Dutch Windmill (minors).
+> Engine wiring: the coarse `after_build_improvement` event is fired by both `_execute_build_major` and
+> `_execute_play_minor` (Junk Room); `after_build_rooms` is fired once per build-rooms session at the
+> session-ending `Stop` in `_apply_stop` (Roughcaster's clay-room clause — a clay *room* is built via the
+> build-rooms primitive, not via build-major/play-minor, so it rides `after_build_rooms`, NOT the coarse
+> `after_build_improvement` the canonical sketch below mentions). `after_renovate` / `after_bake_bread` /
+> `after_play_occupation` come for free from the `after_<PENDING_ID>` host-pivot convention. All wiring is
+> a no-op in the Family game (empty `AUTO_EFFECTS`/`TRIGGERS`) → byte-identical → no C++ change.
+
 Hook: events fired by the build/renovate/fence/play primitives. Each sub-action frame's event
 **derives from its `PENDING_ID`** (II.2) — `before_/after_renovate`, `_build_major`, `_bake_bread`, …
 (no stored `TRIGGER_EVENT`). To fire a card *after* the effect, add the `phase` field for after-timing

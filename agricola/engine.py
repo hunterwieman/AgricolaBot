@@ -419,12 +419,23 @@ def _apply_fire_trigger(
 
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
-    # Pure pop (SPACE_HOST_REFACTOR.md §11). Every host's after-automatic effects
-    # now fire at its work-complete boundary (Proceed for atomic/Proceed-hosts, the
-    # commit for the markets, the auto-advance for Delegating hosts) — BEFORE its
-    # after-triggers, fixing the §2 ordering bug — so nothing fires at Stop. Do NOT
-    # assert the stack is empty afterward: future cards may have deeper stacks where
-    # Stop is legal at a non-bottom frame.
+    # Multi-shot build-rooms work-complete boundary (Category 5, Roughcaster's
+    # clay-room clause): the multi-shot PendingBuildRooms frame has no before/after
+    # phase flip — each CommitBuildRoom replace_tops it, and the player's explicit
+    # Stop is the only session-end signal. So fire its after_build_rooms automatic
+    # effects HERE, once per build-rooms session, just before the pop. (The
+    # build-stables session has no after-auto card today, so it is not fired.) A
+    # no-op in the Family game — AUTO_EFFECTS is empty, so apply_auto_effects
+    # returns `state` unchanged and the pop is byte-identical.
+    top = state.pending_stack[-1]
+    if isinstance(top, PendingBuildRooms):
+        state = apply_auto_effects(state, "after_build_rooms", top.player_idx)
+    # Pure pop (SPACE_HOST_REFACTOR.md §11). Every other host's after-automatic
+    # effects fire at its own work-complete boundary (Proceed for atomic/Proceed-
+    # hosts, the commit for the markets, the auto-advance for Delegating hosts) —
+    # BEFORE its after-triggers, fixing the §2 ordering bug. Do NOT assert the stack
+    # is empty afterward: future cards may have deeper stacks where Stop is legal at
+    # a non-bottom frame.
     return pop(state)
 
 

@@ -38,6 +38,12 @@ from agricola.cards import milk_jug             # noqa: F401
 # migration (SPACE_HOST_REFACTOR.md §11.1) does not add (after-autos now fire at the
 # work-complete boundary, mid-turn). It returns when that event exists.
 from agricola.cards import threshing_board      # noqa: F401
+# Category 5 (build / renovate / bake / play-card hooks). Roughcaster is an
+# occupation; the other four are minors registered below. The coarse
+# `after_build_improvement` event (Junk Room) is fired by _execute_build_major
+# and _execute_play_minor; `after_build_rooms` (Roughcaster's clay-room clause) is
+# fired by _apply_stop at the build-rooms session end.
+from agricola.cards import roughcaster          # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
@@ -55,3 +61,12 @@ from agricola.cards import wool_blankets        # noqa: F401
 # Category 2 (on-play one-shot gains; both traveling/passing).
 from agricola.cards import clay_embankment      # noqa: F401
 from agricola.cards import young_animal_market  # noqa: F401
+# Category 5 (build / renovate / bake / play-card hooks) minors. Junk Room (+1
+# food on after_build_improvement), Mining Hammer (on_play +1 food; after_renovate
+# grants a free stable), Bread Paddle (on_play +1 food; after_play_occupation
+# grants a Bake Bread), Dutch Windmill (+3 food on after_bake_bread in a
+# post-harvest round).
+from agricola.cards import junk_room            # noqa: F401
+from agricola.cards import mining_hammer        # noqa: F401
+from agricola.cards import bread_paddle         # noqa: F401
+from agricola.cards import dutch_windmill       # noqa: F401
