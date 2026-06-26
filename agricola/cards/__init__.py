@@ -20,6 +20,10 @@ from agricola.cards import potter_ceramics      # noqa: F401
 from agricola.cards import consultant           # noqa: F401
 from agricola.cards import priest               # noqa: F401
 from agricola.cards import stable_architect     # noqa: F401
+# Category 6 (harvest-field hook, automatic field-phase income) — Scythe Worker is
+# an occupation (also an on-play +1 grain); the other three are minors registered
+# below. All register_auto on the `harvest_field` event + register_harvest_field_hook.
+from agricola.cards import scythe_worker         # noqa: F401
 # Category 3 (action-space hook, automatic income) — also populate AUTO_EFFECTS
 # and the action-space hosting indexes via register_auto/register_action_space_hook.
 from agricola.cards import wood_cutter          # noqa: F401
@@ -70,3 +74,10 @@ from agricola.cards import junk_room            # noqa: F401
 from agricola.cards import mining_hammer        # noqa: F401
 from agricola.cards import bread_paddle         # noqa: F401
 from agricola.cards import dutch_windmill       # noqa: F401
+# Category 6 (harvest-field hook) minors. Loom (1/2/3 food at ≥1/4/7 sheep + a
+# scoring term), Butter Churn (1 food per 3 sheep + 1 per 2 cattle), Three-Field
+# Rotation (3 food with a grain + veg + empty field). All register_auto on the
+# `harvest_field` event.
+from agricola.cards import loom                  # noqa: F401
+from agricola.cards import butter_churn          # noqa: F401
+from agricola.cards import three_field_rotation  # noqa: F401

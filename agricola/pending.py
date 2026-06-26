@@ -717,6 +717,34 @@ class PendingReveal:
 
 
 @dataclass(frozen=True)
+class PendingHarvestField:
+    """Transient phase frame hosting the field-phase card hook (card game only).
+
+    Pushed at the TOP of `_resolve_harvest_field` — *before* the mechanical
+    "take 1 crop per planted field" runs — but ONLY when some player owns a
+    harvest-field card (the `should_host_harvest_field` ownership index, the
+    field-phase analog of the atomic host's `should_host_space`). It fires the
+    `harvest_field` automatic effects (Loom, Butter Churn, Three-Field Rotation,
+    Scythe Worker) for each player, then is popped within the same call so the
+    existing FIELD → FEED → BREED walk continues unchanged.
+
+    `player_idx` is None — like PendingReveal, no single owning player (the autos
+    fire per-player). All current harvest-field cards are automatic, so this
+    frame never surfaces an agent decision; it exists as the uniform host the
+    firing rides through and the place a future field-phase *choice* card would
+    attach to.
+
+    Default-inert: in the Family game (and any card game with no harvest-field
+    card owned) the push is skipped entirely, so this frame is never constructed,
+    the FIELD trace is byte-identical, and the C++ Family-only engine never sees
+    it. See CARD_IMPLEMENTATION_PLAN.md II.6 / Category 6.
+    """
+    PENDING_ID: ClassVar[str] = "harvest_field"
+    player_idx: None = None               # no single owning player; autos fire per-player
+    initiated_by_id: str = "phase:harvest_field"
+
+
+@dataclass(frozen=True)
 class PendingActionSpace:
     """Generic action-space host frame for ATOMIC spaces (card game only).
 
@@ -777,6 +805,7 @@ PendingDecision = Union[
     PendingHarvestFeed,
     PendingHarvestBreed,
     PendingReveal,
+    PendingHarvestField,
     PendingActionSpace,
 ]
 
