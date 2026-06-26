@@ -5,8 +5,8 @@ plan + canonical code per category. The cross-cutting design decisions are settl
 open sub-questions" at the end); one search-layer sub-question (`observe` hand-cardinality
 bookkeeping) is deliberately left open for a later session.**
 
-> **Implementation status (build order at the end):** **Milestone 1 — build-order steps 1–2 — is
-> DONE** (the `feat(cards)` git history is the per-slice record). Two notable deviations from the
+> **Implementation status (build order at the end):** **Build-order steps 1–4 are DONE** (the
+> `feat(cards)` git history is the per-slice record). Steps 5–7 remain. Two notable deviations from the
 > canonical code below, both decided during implementation: (a) the card Meeting Place **reuses the
 > `meeting_place` slot** (mode-branched resolver), rather than a new `meeting_place_cards` SPACE_ID —
 > the new id would ripple into the family NN encoder/policy dimensions; (b) **Basic Wish for Children
@@ -17,7 +17,7 @@ bookkeeping) is deliberately left open for a later session.**
 > it. **Step 3 (the firing registries + scoped used-sets) is now DONE** (II.1 automatic-effect registry
 > `register_auto`/`apply_auto_effects`/`AUTO_EFFECTS`; II.3 `used_this_turn`/`used_this_round`/`fired_once`
 > + `engine._clear` + wiring; pure-additive, Family byte-identical, C++ gates green). The `mandatory`
-> trigger flag (the third firing kind) is deferred to land with its phase-exit gate consumer in steps 4/6.
+> trigger flag (the third firing kind) is deferred to land with its phase-exit gate consumer in step 6.
 >
 > **Step 4a (the atomic-space action-space host) is DONE** — `PendingActionSpace` + `Proceed` +
 > `should_host_space` indexes + `trigger_event` routing + the `_apply_fire_trigger` record-before-apply
@@ -42,22 +42,18 @@ bookkeeping) is deliberately left open for a later session.**
 > after-phase; **all 136 C++ differential gates are green**. (Family-game markets now carry an extra,
 > agent-auto-skipped `Stop` step — the conscious byte-identity departure.) **Cat 9 (Milk Jug) landed**:
 > the first opponent-firing card, an any-player automatic effect on Cattle Market's after-phase.
-> **Step 4b — multi-sub-action hosts DONE** (settled with the maintainer). The unifying rule for every
-> `Stop`-terminated non-atomic space: **surface `after_action_space` triggers exactly where `Stop` is
-> legal; fire `after`-auto at that `Stop`** (engine `_apply_stop`, uniform for atomic hosts, markets, and
-> these). Each space's existing `Stop`-gate already encodes "the space's mandatory work is done"
-> (and/or → ≥1 sub-action; and-afterwards → the mandatory action; or → the one choice), so it's the
-> right surfacing point for all of them — *including* "and afterwards" (after-triggers can't precede the
-> mandatory action, since `Stop` isn't legal until it's done). The rules' "no base action after an
-> after-effect" is enforced by closing the base sub-actions once an after-trigger has fired —
-> **derived** via `_after_action_space_fired` (an id in `triggers_resolved` registered on
-> `after_action_space`), so **no new field, no default-skip change, no C++ change** for these 9 frames
-> (Family byte-identical). Only the *commit*-terminated spaces (the 3 markets) keep an explicit `phase`,
-> because they have no sub-action flag to derive from. before-trigger *surfacing* on these spaces is
-> deferred (no in-scope card needs it; before-`auto` already fires at push). Cards landed: **Firewood
-> Collector** (Cat 3, after-auto wood on Farmland/Grain Seeds/Grain Util/Cultivation) and **Threshing
-> Board** (Cat 4, after-trigger granting a bake on Farmland/Cultivation). Remaining non-atomic Cat 4/5:
-> Moldboard Plow (needs CardStore), the build/renovate hooks (Cat 5).
+> **Step 4b — multi-sub-action hosts DONE** (settled with the maintainer). The initial approach gave
+> non-atomic space frames a `Stop`-gate trigger-surfacing model (`_after_action_space_fired` derived, no
+> `phase` field). Cards landed under that approach: **Threshing Board** (Cat 4, after-trigger granting a
+> bake on Farmland/Cultivation); **Firewood Collector** (Cat 3, after-auto wood) was landed here but
+> subsequently **re-deferred** by the space-host refactor (§11.1 — its "end of that turn" semantics
+> need a dedicated end-of-turn event that the firing migration does not add). This intermediate approach
+> was then **fully superseded by the space-host refactor** (see below), which replaced the `Stop`-gate
+> model with the four host mechanisms (Atomic / Commit-terminated / Delegating / Proceed-host), added
+> `phase` + `triggers_resolved` to all the space-host parent frames, introduced `PendingSubActionSpace`
+> folding Farmland/Fencing, and migrated after-auto firing out of `_apply_stop` to each host's
+> work-complete boundary. Remaining non-atomic Cat 4/5: Moldboard Plow (needs CardStore), the
+> build/renovate hooks (Cat 5).
 >
 > **Sub-action hook refactor DONE** (`SUBACTION_HOOK_REFACTOR.md`; mechanism only, no card modules).
 > Every commit-terminated sub-action — `PendingSow`, `PendingBakeBread`, `PendingPlow`, `PendingRenovate`,
@@ -202,6 +198,11 @@ and `CARD_GAME_LEGALITY` has no `side_job` key, so card-mode placement never enu
 else changes. (Its handler and pending stay in the codebase — just unreachable in card mode.)
 
 ## I.3 Meeting Place (food-accumulation in Family, play-a-minor in cards)
+
+> **Implementation deviation (DONE):** the actual code **reuses the `meeting_place` slot** with a
+> mode-branched resolver rather than a new `meeting_place_cards` SPACE_ID (see top status block). The
+> space-host refactor also renamed `PendingMeetingPlaceCards` to `PendingMeetingPlace` and made it a
+> single-optional Proceed-host. The canonical sketch below describes the original design rationale.
 
 This is the one genuine resolver fork. Today `meeting_place` is a food-accumulation space
 (`FOOD_ANIMAL_ACCUMULATION_RATES["meeting_place"] = ("food", 1)`) resolved by
@@ -584,50 +585,45 @@ spaces — still ownership-gated, so it only activates when a player has actuall
 
 ### Changes to the existing `Pending*` classes
 
+> **Status: DONE** — all of the frame changes described below were completed by the sub-action hook
+> refactor (`SUBACTION_HOOK_REFACTOR.md`) and the space-host refactor (`SPACE_HOST_REFACTOR.md`).
+> `PendingFarmland` and `PendingFencing` were folded into `PendingSubActionSpace` (Delegating host);
+> `PendingMeetingPlaceCards` was renamed `PendingMeetingPlace`; the C++ mirror for Family-reachable
+> frames is complete. The text below is preserved as the design record of what was changed and why.
+
 This hook model touches the engine's existing frames. The deltas, by frame group:
 
-**Space-host parent frames** (`PendingGrainUtilization`, `PendingFarmland`, `PendingCultivation`,
-`PendingSideJob`, `PendingSheepMarket` / `Pig` / `Cattle`, `PendingMajorMinorImprovement`,
-`PendingHouseRedevelopment`, `PendingFarmExpansion`, `PendingFencing`, `PendingFarmRedevelopment`):
-- **Add `phase: str = "before"`** so they host before *and* after action-space triggers (today they
-  only have a before notion).
-- **Add a `space_id` property** — `initiated_by_id.split(":", 1)[1]`, identical to `PendingActionSpace`'s
-  (these frames already carry `initiated_by_id = "space:<id>"`). This is what lets a card's eligibility
-  read the space **uniformly** across atomic (`PendingActionSpace`) and non-atomic (per-space) hosts via
-  `top.space_id` — without an `isinstance(top, PendingActionSpace)` check, which would be *false* at a
-  non-atomic host and silently break cards like Milk Jug on Cattle Market.
-- **Drop the per-space `TRIGGER_EVENT` ClassVar** (e.g. `"before_cultivation"`); the event is now
-  derived via the bucket (`trigger_event` above) → `before_/after_action_space`. Their `PENDING_ID`s
-  are the bucket members.
-- **Ensure `triggers_resolved` is present** — add it to any that lack it (e.g. `PendingGrainUtilization`,
-  `PendingFarmExpansion`), since cards can now fire on those spaces.
-- **Keep all sub-action fields unchanged** (`sow_chosen`, `gained`, the `*_chosen` flags, …). No new
-  generic `chosen` field — these typed fields already *are* the per-space chosen-tracking. (`chosen`
-  was part of the dissolve-into-one-frame idea we dropped; it has no place once the per-space frames
-  stay.)
+**Space-host parent frames** (now: `PendingGrainUtilization`, `PendingSubActionSpace` (folding
+Farmland+Fencing), `PendingCultivation`, `PendingSideJob`, `PendingSheepMarket` / `Pig` / `Cattle`,
+`PendingMajorMinorImprovement`, `PendingHouseRedevelopment`, `PendingFarmExpansion`,
+`PendingFarmRedevelopment`, `PendingBasicWishForChildren`, `PendingMeetingPlace`):
+- **`phase: str = "before"`** — all space-host frames now carry this (Proceed-hosts flip it on
+  `Proceed`; Delegating hosts flip it on auto-advance; markets flip it on `CommitAccommodate`).
+- **`space_id` property** — `initiated_by_id.split(":", 1)[1]`, present on all space-host frames,
+  letting cards read the space uniformly across atomic and non-atomic hosts via `top.space_id`.
+- **Per-space `TRIGGER_EVENT` ClassVars dropped** — event is now derived via `trigger_event(frame)`.
+- **`triggers_resolved` present** on all frames that host triggers.
+- **Sub-action fields unchanged** (`sow_chosen`, `gained`, the `*_chosen` flags, …).
 
 **Sub-action frames** (`PendingPlow`, `PendingRenovate`, `PendingBakeBread`, `PendingBuildMajor`,
-`PendingBuildFences`, …):
-- **Drop `TRIGGER_EVENT`**; event derives to `before_/after_<PENDING_ID>` (`PendingBakeBread` →
-  `before_bake_bread`, unchanged string).
-- **Add `phase`** *when a card needs after-timing there* (per YAGNI — `before_bake_bread` works today
-  without it). `triggers_resolved` is already on the ones that fire triggers; leave it.
+`PendingSow`, `PendingFamilyGrowth`, `PendingPlayOccupation`, `PendingPlayMinor`, …):
+- **`TRIGGER_EVENT` dropped** — event derives to `before_/after_<PENDING_ID>`.
+- **`phase` added to all commit-terminated sub-action frames** (the sub-action hook refactor gave
+  `phase` + `triggers_resolved` to all eight; the commit flips to `"after"` and a trailing `Stop`
+  pops — no longer YAGNI-deferred).
+- **`PendingBuildFences` and multi-shot builders** (`PendingBuildStables`, `PendingBuildRooms`) are
+  Stop-terminated, not commit-terminated, so they stay outside the sub-action hook refactor scope.
 
-**Harvest frames** (`PendingHarvestFeed`, `PendingHarvestBreed`): **no change now.** Per
-`ENGINE_IMPLEMENTATION.md` §6 their trigger fields are "added per-pending when the first card needs
-them," and none of the implementable cards fire on harvest-feed/breed (the harvest cards fire on the
-new harvest-*field* hook, II.6).
+**Harvest frames** (`PendingHarvestFeed`, `PendingHarvestBreed`): **no change** — no in-scope card
+fires on harvest-feed/breed (the harvest cards fire on the harvest-field hook, II.6).
 
-**The enumerator** (`legality._enumerate_pending` / the trigger-finding step): change from reading a
-frame's `TRIGGER_EVENT` ClassVar to computing `trigger_event(frame)` (bucket + phase), then looking
-up `TRIGGERS[event]` / `AUTO_EFFECTS[event]`.
+**The enumerator** (`legality._enumerate_pending` / the trigger-finding step): reads `trigger_event(frame)`
+(bucket + phase) rather than a per-frame `TRIGGER_EVENT` ClassVar.
 
-**Field-scoping summary:** `phase` + `triggers_resolved` ride the uniform trigger-hosting interface
-(add to a frame when it actually hosts triggers); `chosen` does not exist (the per-space frames keep
-their typed sub-action fields). These changes are behavior-preserving for the Family game (no card
-fires; `phase` defaults `"before"`; derived event strings match today's for the existing frames), so
-the Family differential stays green modulo the new fields' serialization — handled by the
-`default-skip` rule in I.1. The C++ mirror is deferred under the Python-first plan (§12).
+**Field-scoping summary:** `phase` + `triggers_resolved` ride the uniform trigger-hosting interface;
+`chosen` does not exist (per-space frames keep their typed sub-action fields). Family game behavior
+is preserved (no card fires; `phase` defaults `"before"`); the C++ mirror for Family-reachable
+frames is complete and all differential gates are green.
 
 ## II.3 Scoped used-sets + the reset model
 
@@ -991,11 +987,11 @@ play-cost-as-exchange pattern (cost `1 grain`/`1 sheep`, `on_play` gains `1 veg`
 passing. **Mini Pasture** is **deferred** (see "Deferred cards" — `PendingBuildFences` has no
 cap/free/size fields today, and its "fence a space" semantics need a ruling).
 
-## Category 3 — Action-space hook, automatic income (9)
-**Wood Cutter · Geologist · Firewood Collector · Seasonal Worker · Canoe · Corn Scoop · Loam Pit · Stone Tongs · Pitchfork**
+## Category 3 — Action-space hook, automatic income (8 built + 1 deferred)
+**Wood Cutter · Geologist · Seasonal Worker · Canoe · Corn Scoop · Loam Pit · Stone Tongs · Pitchfork** (Firewood Collector deferred — needs end-of-turn event; see space-host refactor §11.1)
 
-Hook: `register_auto` on `before_action_space` (or `after_action_space` for Firewood Collector's
-"at the end of that turn"), filtered by `space_id`.
+Hook: `register_auto` on `before_action_space` (or `after_action_space` for post-work income),
+filtered by `space_id`.
 
 **Canonical — Wood Cutter** ("+1 wood each time you use a wood accumulation space"):
 
@@ -1320,7 +1316,7 @@ hook categories — not after.
    (II.1, automatic-effect path), scoped used-sets `used_this_turn`/`used_this_round`/`fired_once` +
    `engine._clear` + wiring (II.3). Pure-additive; Family byte-identical; C++ gates green. (The third
    firing kind — the `mandatory`-tagged trigger — is deferred to its phase-exit-gate consumer, step 4/6.)
-4. **`PendingActionSpace` hook** (II.2) — split into two slices by structural risk:
+4. **`PendingActionSpace` hook — DONE** (II.2) — landed in two slices (4a + 4b), plus the sub-action hook refactor and space-host refactor which completed the full uniform host model:
    - **4a — atomic-space host: DONE.** The generic `PendingActionSpace` frame + `Proceed` action +
      conditional-push lifecycle in `_apply_place_worker` + `_apply_proceed` + the `should_host_space`
      hosting indexes (`OWN_/ANY_PLAYER_HOOK_CARDS` + `register_action_space_hook`) + `trigger_event`
@@ -1330,11 +1326,17 @@ hook categories — not after.
      byte-identical.** Cards landed: **Category 3** automatic-income on atomic spaces — Wood Cutter,
      Geologist (occ); Corn Scoop, Stone Tongs, Pitchfork (minor). The FireTrigger path at the host is
      validated by a synthetic test card.
-   - **4b — non-atomic-space hosts + C++ sync (NEXT).** Add `phase`/`space_id`/`triggers_resolved` to
-     the 13 existing space-host parent frames, drop their per-frame `TRIGGER_EVENT`, route them through
-     `trigger_event`'s bucket, and surface before/after triggers in their enumerators. **This is the
-     C++-sync step** (the new frame fields change the canonical JSON of Family-reachable frames). Unlocks
-     **Category 4** (granted sub-actions), **5** (build/renovate hooks), **9** (Milk Jug on Cattle Market).
+   - **4b — non-atomic-space hosts + C++ sync: DONE** (via the space-host refactor,
+     `SPACE_HOST_REFACTOR.md`). The existing space-host parent frames gained `phase`, `triggers_resolved`,
+     and a `space_id` property; their per-frame `TRIGGER_EVENT` ClassVars were dropped; event routing
+     goes through `trigger_event`'s `PENDING_ID` bucket; `PendingFarmland`/`PendingFencing` were folded
+     into the new `PendingSubActionSpace` (Delegating); the Proceed-host frames (`PendingGrainUtilization`,
+     `PendingCultivation`, `PendingFarmExpansion`, `PendingHouseRedevelopment`, `PendingFarmRedevelopment`,
+     `PendingBasicWishForChildren`) gained `phase` and explicit `Proceed` boundaries; Meeting Place was
+     renamed `PendingMeetingPlace` as a single-optional Proceed-host; after-auto firing migrated out of
+     `_apply_stop` (now pure-pop) to each host's work-complete boundary; 9 Family-reachable frames
+     C++-synced; full suite + all C++ differential gates green. Unlocks **Category 4** (granted
+     sub-actions), **5** (build/renovate hooks), **9** (Milk Jug, already landed).
    - **Category 10** (Mushroom Collector, Basket) rides 4a's atomic-host trigger path — but both cards
      say *"place the [exchanged] wood on the accumulation space"*, which the Category-10 sketch code in
      Part III omits; implement the wood-return faithfully (the spent wood goes back onto the space, not
