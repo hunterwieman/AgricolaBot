@@ -11,9 +11,11 @@ the START of each scheduled round (in `engine._complete_preparation`):
   adds to those slots additively.
 - **Effect-card round-start hooks** ride on `PlayerState.future_rewards` (the
   card-only `tuple[FutureReward, ...]`). `schedule_effect` unions a card id into
-  the named round slots; `engine._collect_future_rewards` looks up the card's
-  `register_round_start_effect` apply_fn and runs it when that round is entered
-  (Handplow's deferred plow).
+  the named round slots; that scheduled id is what an OPTIONAL `start_of_round`
+  trigger checks for eligibility (Handplow's deferred plow), surfaced at the
+  PendingPreparation host with a decline. The schedule also drives whether that host
+  is pushed (`triggers.has_scheduled_round_start_effect`). A granted sub-action is
+  the player's to take or decline, so it is NOT auto-fired at round start.
 
 Index convention (matching the engine's Well code): slot `r` (0-indexed) holds the
 goods promised for round `r+1`, collected when round `r+1` is entered. So a card
@@ -55,8 +57,9 @@ def schedule_effect(
     state: GameState, idx: int, rounds: Iterable[int], card_id: str,
 ) -> GameState:
     """Union `card_id` into player `idx`'s future_rewards effect-hook set for each
-    1-indexed round in `rounds`. The card's registered round-start effect
-    (register_round_start_effect) fires when that round is entered. Additive."""
+    1-indexed round in `rounds`. The scheduled id gates the card's OPTIONAL
+    start_of_round trigger (surfaced at the PendingPreparation host) when that round
+    is entered. Additive."""
     p = state.players[idx]
     slots = list(p.future_rewards)
     for rnd in rounds:

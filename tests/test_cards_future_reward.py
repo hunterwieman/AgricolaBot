@@ -15,7 +15,10 @@ dataclass algebra in isolation.
 from __future__ import annotations
 
 from agricola.canonical import dumps, loads
-from agricola.cards.triggers import register_round_start_effect, ROUND_START_EFFECTS
+from agricola.cards.triggers import (
+    has_scheduled_round_start_effect,
+    should_host_preparation,
+)
 from agricola.constants import Phase
 from agricola.engine import _collect_future_rewards, _complete_preparation
 from agricola.replace import fast_replace
@@ -123,38 +126,47 @@ def test_collect_future_rewards_animals_overflow_trimmed():
 
 
 # ---------------------------------------------------------------------------
-# Effect-card round-start hooks fire
+# Effect-card round-start hooks are NOT force-fired — they are left in the slot for
+# an OPTIONAL start_of_round trigger to consume (a granted sub-action is optional).
 # ---------------------------------------------------------------------------
 
-def test_collect_future_rewards_fires_effect_hook():
-    # Register a throwaway round-start effect, schedule it, and confirm it runs.
-    fired = []
-    register_round_start_effect("_test_effect", lambda s, i: (fired.append(i) or s))
-    try:
-        state = _prep_state(round_number=2)
-        slot = 2
-        rewards = list(state.players[0].future_rewards)
-        rewards[slot] = FutureReward(effect_card_ids=frozenset({"_test_effect"}))
-        state = _set_future_rewards(state, 0, tuple(rewards))
-        _collect_future_rewards(state, slot)
-        assert fired == [0]
-    finally:
-        ROUND_START_EFFECTS.pop("_test_effect", None)
+def test_collect_future_rewards_preserves_effect_ids():
+    # An effect-only slot is NOT consumed by _collect_future_rewards (which handles
+    # animals only): the id survives for the start_of_round trigger, and since there
+    # are no animals the call returns state object-identical.
+    state = _prep_state(round_number=2)
+    slot = 2
+    rewards = list(state.players[0].future_rewards)
+    rewards[slot] = FutureReward(effect_card_ids=frozenset({"handplow"}))
+    state = _set_future_rewards(state, 0, tuple(rewards))
+    out = _collect_future_rewards(state, slot)
+    assert out is state                                   # animals-only → no-op here
+    assert "handplow" in out.players[0].future_rewards[slot].effect_card_ids
 
 
-def test_complete_preparation_distributes_future_rewards():
-    # End-to-end through _complete_preparation: an effect scheduled into the round
-    # being entered fires when preparation completes.
-    fired = []
-    register_round_start_effect("_test_prep_effect", lambda s, i: (fired.append(i) or s))
-    try:
-        state = _prep_state(round_number=4)   # _complete_preparation → round 5, slot 4
-        rewards = list(state.players[1].future_rewards)
-        rewards[4] = FutureReward(effect_card_ids=frozenset({"_test_prep_effect"}))
-        state = _set_future_rewards(state, 1, tuple(rewards))
-        out = _complete_preparation(state)
-        assert out.round_number == 5
-        assert fired == [1]
-        assert not out.players[1].future_rewards[4]   # slot cleared
-    finally:
-        ROUND_START_EFFECTS.pop("_test_prep_effect", None)
+def test_collect_future_rewards_keeps_effect_ids_when_clearing_animals():
+    # A slot carrying BOTH animals and an effect id: animals are collected/cleared,
+    # the effect id is preserved (it belongs to the trigger, not this collector).
+    state = _prep_state(round_number=2)
+    slot = 2
+    rewards = list(state.players[0].future_rewards)
+    rewards[slot] = FutureReward(animals=Animals(sheep=1),
+                                 effect_card_ids=frozenset({"handplow"}))
+    state = _set_future_rewards(state, 0, tuple(rewards))
+    out = _collect_future_rewards(state, slot)
+    assert out.players[0].future_rewards[slot].animals == Animals()   # animals cleared
+    assert "handplow" in out.players[0].future_rewards[slot].effect_card_ids
+
+
+def test_scheduled_effect_drives_preparation_hosting():
+    # A scheduled effect id for the current round makes should_host_preparation True
+    # even though the player owns no start-of-round card — the schedule, not card
+    # ownership, gates hosting (so a played Handplow hosts only when its plow is due).
+    state = setup(0)
+    assert should_host_preparation(state) is False
+    rewards = list(state.players[0].future_rewards)
+    rewards[state.round_number - 1] = FutureReward(
+        effect_card_ids=frozenset({"handplow"}))
+    state = _set_future_rewards(state, 0, tuple(rewards))
+    assert has_scheduled_round_start_effect(state.players[0], state.round_number)
+    assert should_host_preparation(state) is True

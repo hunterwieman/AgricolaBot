@@ -887,56 +887,44 @@ def _complete_preparation(state: GameState) -> GameState:
 
 
 def _collect_future_rewards(state: GameState, slot: int) -> GameState:
-    """Distribute every player's `future_rewards[slot]` for the round being entered
-    (CARD_IMPLEMENTATION_PLAN.md II.5): collect+accommodate the promised animals,
-    then fire each promised round-start effect-card hook. Clears the consumed slot.
-
-    A no-op in the Family game: every slot is the default `FutureReward()`, which is
-    falsy, so the per-player guard skips entirely and `state` is returned unchanged
-    (preparation stays byte-identical). Effect hooks fire AFTER all animals are
-    placed, in (player, sorted-card-id) order, so an effect can read the just-
-    collected animals.
-
-    Animal overflow handling: animals are gained then trimmed to the best
-    physically-accommodatable configuration via `pareto_frontier` (no player
+    """Distribute every player's promised `future_rewards[slot]` ANIMALS for the
+    round being entered (CARD_IMPLEMENTATION_PLAN.md II.5): collected and trimmed to
+    the best physically-accommodatable configuration via `pareto_frontier` (no player
     decision — preparation is decision-free; the best-kept frontier point is taken,
-    deterministically). The only in-scope deferred-goods card scheduling animals
-    (Acorns Basket) is deferred, so this plumbing is exercised by tests today, not
+    deterministically). The consumed animals are cleared from the slot.
+
+    Effect-card round-start grants (`effect_card_ids`, e.g. Handplow's deferred plow)
+    are deliberately NOT consumed here. They stay in the slot and are surfaced as
+    OPTIONAL `start_of_round` triggers at the PendingPreparation host (see
+    `_fire_preparation_hook`), because a granted sub-action is the player's to take
+    or decline — a granted plow can be strategically wrong (a new field consumes a
+    farmyard cell wanted for a pasture). Force-firing them here would remove that
+    choice, so the schedule is left for the host's trigger to consume on FIRE.
+
+    A no-op in the Family game: every slot is the default `FutureReward()` (no
+    animals), so the guard skips and `state` is returned object-identical
+    (preparation stays byte-identical). The only in-scope card scheduling animals
+    (Acorns Basket) is deferred, so the animal path is exercised by tests today, not
     by a live card — but it keeps the round-start path correct for when it lands.
     """
     from agricola.helpers import pareto_frontier
 
-    fired_effects: list[tuple[int, str]] = []
     for idx, p in enumerate(state.players):
         reward = p.future_rewards[slot]
-        if not reward:                       # default slot → nothing promised
-            continue
-        # Clear the consumed slot regardless of what it held.
+        a = reward.animals
+        if not (a.sheep or a.boar or a.cattle):   # only animals are collected here
+            continue                              # (Animals has no __bool__ — check counts)
+        # Clear the consumed ANIMALS, preserving any effect_card_ids in the slot.
+        new_reward = FutureReward(effect_card_ids=reward.effect_card_ids)
         new_rewards = (
-            p.future_rewards[:slot] + (FutureReward(),) + p.future_rewards[slot + 1:]
+            p.future_rewards[:slot] + (new_reward,) + p.future_rewards[slot + 1:]
         )
         p = fast_replace(p, future_rewards=new_rewards)
-        if reward.animals:
-            # Gain the animals, then keep the best accommodatable configuration.
-            frontier = pareto_frontier(p, reward.animals)
-            best = max(frontier, key=lambda fc: (fc[0].sheep + fc[0].boar + fc[0].cattle))
-            p = fast_replace(p, animals=best[0])
+        # Gain the animals, then keep the best accommodatable configuration.
+        frontier = pareto_frontier(p, reward.animals)
+        best = max(frontier, key=lambda fc: (fc[0].sheep + fc[0].boar + fc[0].cattle))
+        p = fast_replace(p, animals=best[0])
         state = _update_player(state, idx, p)
-        for cid in sorted(reward.effect_card_ids):
-            fired_effects.append((idx, cid))
-
-    # Fire promised round-start effect hooks after every player's animals are placed.
-    # An effect's apply_fn may PUSH a sub-action leaf (Handplow pushes PendingPlow),
-    # which then sits on the WORK stack for its owner to resolve before placing a
-    # worker; fire that leaf's before-automatic effects at the push, the same seam
-    # the granted-sub-action path uses (_apply_fire_trigger → _fire_subaction_before_auto).
-    if fired_effects:
-        from agricola.cards.triggers import ROUND_START_EFFECTS
-        for idx, cid in fired_effects:
-            apply_fn = ROUND_START_EFFECTS.get(cid)
-            if apply_fn is not None:
-                state = apply_fn(state, idx)
-                state = _fire_subaction_before_auto(state)
     return state
 
 
@@ -944,14 +932,20 @@ def _fire_preparation_hook(state: GameState) -> GameState:
     """Push a PendingPreparation frame for each owning player + fire their
     `start_of_round` automatic effects (card game only).
 
-    A no-op when no player owns a start-of-round card — the Family fast path, so
-    `_complete_preparation` stays byte-identical. Push order mirrors the harvest
-    FEED/BREED hooks: the non-starting owner is pushed first (bottom), the starting
-    owner second (top), so the starting player resolves their start-of-round
-    decisions first. Each owner's `start_of_round` autos fire at push (after the
-    frame is on the stack, so an auto/eligibility read can inspect `top.player_idx`).
+    A frame is pushed for a player who either owns a start-of-round card OR has a
+    deferred round-start effect scheduled for the round being entered (Handplow — the
+    schedule, not card ownership, drives hosting so a played Handplow doesn't host
+    every round, only the round its plow comes due). A no-op when neither holds for
+    either player — the Family fast path, so `_complete_preparation` stays
+    byte-identical. Push order mirrors the harvest FEED/BREED hooks: the non-starting
+    player is pushed first (bottom), the starting player second (top), so the starting
+    player resolves their start-of-round decisions first. Each player's
+    `start_of_round` autos fire at push (after the frame is on the stack, so an
+    auto/eligibility read can inspect `top.player_idx`); scheduled OPTIONAL grants
+    (Handplow) instead surface as FireTriggers in the host enumerator.
     """
     from agricola.cards.triggers import (
+        has_scheduled_round_start_effect,
         owns_start_of_round_card,
         should_host_preparation,
     )
@@ -959,10 +953,12 @@ def _fire_preparation_hook(state: GameState) -> GameState:
     if not should_host_preparation(state):
         return state
 
+    rn = state.round_number
     sp = state.starting_player
-    # Non-starting owner first (bottom of stack), starting owner second (top).
+    # Non-starting player first (bottom of stack), starting player second (top).
     for idx in ((sp + 1) % 2, sp):
-        if not owns_start_of_round_card(state.players[idx]):
+        p = state.players[idx]
+        if not (owns_start_of_round_card(p) or has_scheduled_round_start_effect(p, rn)):
             continue
         state = push(state, PendingPreparation(player_idx=idx))
         state = apply_auto_effects(state, "start_of_round", idx)

@@ -19,17 +19,17 @@ registered round-start effect for Handplow.
 """
 from __future__ import annotations
 
-from agricola.actions import PlaceWorker
+from agricola.actions import FireTrigger, PlaceWorker, Proceed
 from agricola.cards.specs import MINORS, OCCUPATIONS, prereq_met
-from agricola.cards.triggers import ROUND_START_EFFECTS, apply_auto_effects
-from agricola.constants import CellType, HouseMaterial
-from agricola.engine import step
+from agricola.cards.triggers import TRIGGERS, apply_auto_effects
+from agricola.constants import CellType, HouseMaterial, Phase
+from agricola.engine import _complete_preparation, step
 from agricola.legality import _can_plow, legal_actions
-from agricola.pending import PendingPlow
+from agricola.pending import PendingPlow, PendingPreparation
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup, setup_env
-from agricola.state import Cell, GameState
+from agricola.state import Cell, FutureReward, GameState
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +134,8 @@ def test_category8_cards_registered():
     assert MINORS["thick_forest"].cost == Cost()   # "5 Clay in Your Supply" is a prereq
     assert MINORS["herring_pot"].cost == Cost(resources=Resources(clay=1))
     assert MINORS["handplow"].cost == Cost(resources=Resources(wood=1))
-    assert "handplow" in ROUND_START_EFFECTS
+    # Handplow's deferred plow is an OPTIONAL start_of_round trigger (not a forced auto).
+    assert "handplow" in {e.card_id for e in TRIGGERS.get("start_of_round", [])}
 
 
 # ---------------------------------------------------------------------------
@@ -289,16 +290,65 @@ def test_handplow_on_play_schedules_effect():
     assert all(r.food == 0 for r in out.players[0].future_resources)
 
 
-def test_handplow_round_start_pushes_plow_when_plowable():
-    s = setup(0)
-    assert _can_plow(s.players[0])
-    out = ROUND_START_EFFECTS["handplow"](s, 0)
-    top = out.pending_stack[-1]
-    assert isinstance(top, PendingPlow) and top.player_idx == 0
+def _prep_with_handplow_scheduled(idx=0, prev_round=1):
+    """A PREPARATION state where player `idx` owns Handplow with its plow scheduled
+    for the round `_complete_preparation` is about to enter (prev_round+1)."""
+    state = setup(0)
+    entered = prev_round + 1
+    p = state.players[idx]
+    rewards = list(p.future_rewards)
+    rewards[entered - 1] = FutureReward(effect_card_ids=frozenset({"handplow"}))
+    p = fast_replace(p,
+                     minor_improvements=p.minor_improvements | {"handplow"},
+                     future_rewards=tuple(rewards))
+    state = fast_replace(state,
+                         players=tuple(p if i == idx else state.players[i] for i in range(2)),
+                         round_number=prev_round, phase=Phase.PREPARATION)
+    return state, entered
 
 
-def test_handplow_round_start_noop_when_unplowable():
-    s = _fill_grid_fields(setup(0), 0)
+def test_handplow_offers_optional_plow_at_round_start():
+    # The scheduled round is entered → a PendingPreparation host surfaces the plow as
+    # an OPTIONAL FireTrigger alongside Proceed (the decline). Firing pushes the plow
+    # and consumes the grant.
+    s, entered = _prep_with_handplow_scheduled(idx=0, prev_round=1)
+    s = _complete_preparation(s)
+    assert s.round_number == entered
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    la = legal_actions(s)
+    assert FireTrigger(card_id="handplow") in la
+    assert Proceed() in la                       # optional → declinable
+    s2 = step(s, FireTrigger(card_id="handplow"))
+    assert isinstance(s2.pending_stack[-1], PendingPlow)
+    assert "handplow" not in s2.players[0].future_rewards[entered - 1].effect_card_ids
+
+
+def test_handplow_can_be_declined():
+    # Proceed declines the plow — no PendingPlow is pushed and the host resolves.
+    s, _ = _prep_with_handplow_scheduled(idx=0, prev_round=1)
+    s = _complete_preparation(s)
+    s = step(s, Proceed())
+    assert all(not isinstance(f, PendingPlow) for f in s.pending_stack)
+
+
+def test_handplow_not_offered_when_unplowable():
+    # Scheduled but the farm has no plowable cell → the host appears (the schedule
+    # drives hosting) but Handplow is not eligible, so only Proceed is offered.
+    s, _ = _prep_with_handplow_scheduled(idx=0, prev_round=1)
+    s = _fill_grid_fields(s, 0)
     assert not _can_plow(s.players[0])
-    out = ROUND_START_EFFECTS["handplow"](s, 0)
-    assert out is s   # "you CAN plow" → a no-op when no legal cell
+    s = _complete_preparation(s)
+    assert legal_actions(s) == [Proceed()]
+
+
+def test_handplow_owner_not_hosted_on_unscheduled_round():
+    # Owning Handplow does NOT host a preparation frame on rounds its plow isn't due
+    # (hosting is gated on the schedule, not card ownership).
+    state = setup(0)
+    p = state.players[0]
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {"handplow"})
+    state = fast_replace(state, players=(p, state.players[1]),
+                         round_number=3, phase=Phase.PREPARATION)
+    out = _complete_preparation(state)
+    assert out.pending_stack == ()   # no host pushed

@@ -272,37 +272,34 @@ def owns_start_of_round_card(player_state) -> bool:
     )
 
 
+def has_scheduled_round_start_effect(player_state, round_number: int) -> bool:
+    """Does this player have a scheduled round-start effect grant for `round_number`?
+
+    A `FutureReward` slot can carry effect-card ids (Handplow's deferred plow) that
+    name a card with a scheduled start-of-round effect for that round. Such a grant
+    is surfaced as an ordinary `start_of_round` trigger/auto whose eligibility checks
+    this schedule (CARD_IMPLEMENTATION_PLAN.md II.5) — so a deferred grant drives
+    preparation hosting on its own, independently of owning a start-of-round card
+    (the card may have been played rounds earlier, or be a minor that wouldn't
+    otherwise host every round). False for the Family game (future_rewards is all
+    the default `FutureReward()`)."""
+    slot = round_number - 1
+    fr = player_state.future_rewards
+    return 0 <= slot < len(fr) and bool(fr[slot].effect_card_ids)
+
+
 def should_host_preparation(state) -> bool:
     """Should the preparation phase push PendingPreparation host frames (vs. run
-    straight to WORK)? True iff SOME player owns a start-of-round card. Reads
-    PLAYED cards only. O(1) on the Family fast path (the index is empty)."""
-    if not START_OF_ROUND_CARDS:
-        return False
-    return any(owns_start_of_round_card(p) for p in state.players)
-
-
-# ---------------------------------------------------------------------------
-# Round-start deferred-effect hooks (CARD_IMPLEMENTATION_PLAN.md II.5)
-# ---------------------------------------------------------------------------
-# A FutureReward slot can carry effect-card ids (Handplow's deferred plow) whose
-# effect fires when its scheduled round is ENTERED — distinct from the
-# start-of-round phase hook above (which fires for every owning player every round
-# off the played-card set). Here the schedule itself names the cards: a card
-# placed `effect_card_ids={cid}` into a future slot, and at that round's start
-# `_collect_future_rewards` looks up the card's registered apply_fn here and runs
-# it. The apply_fn (state, owner_idx) -> GameState may push a frame (Handplow
-# pushes PendingPlow), which then sits on the WORK stack to be resolved by the
-# owner before placing a worker. Family game → no schedule → never consulted.
-ROUND_START_EFFECTS: dict[str, Callable] = {}
-
-
-def register_round_start_effect(card_id: str, apply_fn: Callable) -> None:
-    """Register `card_id`'s deferred round-start effect (II.5).
-
-    Called at card-module import. `apply_fn(state, owner_idx) -> GameState` runs
-    when a FutureReward slot scheduling this card id is collected at round start.
-    """
-    ROUND_START_EFFECTS[card_id] = apply_fn
+    straight to WORK)? True iff SOME player either owns a start-of-round card OR has
+    a deferred round-start effect scheduled for the round being entered. Reads PLAYED
+    cards + the per-player schedule only. A no-op in the Family game (no owned
+    start-of-round cards, every future_rewards slot default) → preparation stays
+    byte-identical."""
+    rn = state.round_number
+    return any(
+        owns_start_of_round_card(p) or has_scheduled_round_start_effect(p, rn)
+        for p in state.players
+    )
 
 
 # ---------------------------------------------------------------------------

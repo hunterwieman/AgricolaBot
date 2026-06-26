@@ -161,11 +161,15 @@ bookkeeping) is deliberately left open for a later session.**
 > Greenhouse · Sack Cart · Thick Forest** (on-play goods minors; Thick Forest's "5 Clay in Your Supply"
 > is a no-debit prereq), **Herring Pot** (`before_action_space` hook on Fishing, per the Trigger-Timing
 > ruling — "each time you use [space]" fires BEFORE the space's effect), and **Handplow** (a round-start
-> EFFECT on `future_rewards`, not goods). **One modeling compromise flagged for review:** Handplow's
-> "you *can* plow" is modeled as forced-if-a-legal-cell-exists (the round-start `PendingPlow` has no
-> decline path), so it cannot decline the plow — usually harmless (a free field), but declining can be
-> strategically correct late game when a new field consumes a wanted farmyard cell; revisit if a
-> declinable round-start primitive is wanted.
+> EFFECT on `future_rewards`, not goods). **Handplow's "you *can* plow" is OPTIONAL** (a granted
+> sub-action is the player's to take or decline — a new field can be strategically wrong late game):
+> it is an optional `start_of_round` trigger surfaced at the `PendingPreparation` host with `Proceed`
+> as the decline, exactly like Plow Driver, but gated on the SCHEDULE rather than card ownership
+> (`triggers.has_scheduled_round_start_effect` — so a played Handplow only hosts a preparation frame on
+> the round its plow comes due, not every round). `effect_card_ids` are therefore NOT force-fired in
+> `_collect_future_rewards` (which now collects animals only); they stay in the slot for the trigger to
+> consume on FIRE. (The earlier forced-plow implementation was corrected per the general ruling that a
+> granted sub-action is optional unless the text is explicitly mandatory.)
 >
 > **Deferred-within-category cards** still awaiting their infra: Cottager (build-or-renovate choice).
 
