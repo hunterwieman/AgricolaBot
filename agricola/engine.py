@@ -78,7 +78,7 @@ from agricola.pending import (
 )
 from agricola.replace import fast_replace
 from agricola.resources import Resources
-from agricola.state import GameState, get_space, with_space
+from agricola.state import FutureReward, GameState, get_space, with_space
 from agricola.resolution import (
     ATOMIC_HANDLERS,
     CHOOSE_SUBACTION_HANDLERS,
@@ -569,6 +569,38 @@ def _clear(state: GameState, field: str) -> GameState:
         fast_replace(p, **{field: frozenset()}) for p in state.players))
 
 
+def _fire_ready_one_shots(state: GameState, idx: int) -> GameState:
+    """Fire any owned one-shot conditional cards whose condition is now met for
+    player `idx` (CARD_IMPLEMENTATION_PLAN.md II.3 / §6).
+
+    Level-triggered: called at the two points a standing house-material condition
+    can change for the owner — right after a renovate applies, and right after a
+    card is played (which catches the "renovated to stone, THEN played Manservant"
+    case the action hooks miss). Each card fires at most once per game; the firing
+    is recorded in the per-game `fired_once` latch (never cleared), so a re-check
+    after a later renovate / card play is idempotent.
+
+    A no-op in the Family game: CONDITIONAL_ONE_SHOTS is empty, so the loop body is
+    never entered and `state` is returned unchanged.
+    """
+    from agricola.cards.triggers import CONDITIONAL_ONE_SHOTS
+    if not CONDITIONAL_ONE_SHOTS:
+        return state
+    p = state.players[idx]
+    owned = p.occupations | p.minor_improvements
+    for cid, (condition_fn, apply_fn) in CONDITIONAL_ONE_SHOTS.items():
+        if cid not in owned or cid in p.fired_once:
+            continue
+        if not condition_fn(state, idx):
+            continue
+        # Latch first (so apply_fn / re-entrant sweeps see it fired), then apply.
+        p = state.players[idx]
+        state = _update_player(state, idx, fast_replace(p, fired_once=p.fired_once | {cid}))
+        state = apply_fn(state, idx)
+        p = state.players[idx]
+    return state
+
+
 # ---------------------------------------------------------------------------
 # Active-player alternation
 # ---------------------------------------------------------------------------
@@ -801,7 +833,10 @@ def _complete_preparation(state: GameState) -> GameState:
             )
     new_board = fast_replace(state.board, action_spaces=tuple(new_spaces_list))
 
-    # 2. Per-player: distribute future_resources, clear newborns.
+    # 2. Per-player: distribute future_resources (goods), clear the consumed slot,
+    #    clear newborns. future_rewards (animals + effect hooks) is distributed
+    #    separately in step 5 below — it is card-only and may push a decision frame
+    #    or fire an effect, so it cannot be folded into this mechanical comprehension.
     idx = new_round - 1
     new_players = tuple(
         fast_replace(
@@ -831,7 +866,14 @@ def _complete_preparation(state: GameState) -> GameState:
     result = _clear(result, "used_this_round")
     result = _clear(result, "used_this_turn")
 
-    # 4. Card-only start-of-round phase hook (CARD_IMPLEMENTATION_PLAN.md II.6):
+    # 4. Distribute the per-player future_rewards slot for the new round
+    #    (CARD_IMPLEMENTATION_PLAN.md II.5) — animals accommodated, effect-card
+    #    round-start hooks fired. A no-op in the Family game (every slot is the
+    #    default FutureReward(), so the falsy-slot guard skips both branches and
+    #    `result` is returned object-identical — byte-identical preparation).
+    result = _collect_future_rewards(result, idx)
+
+    # 5. Card-only start-of-round phase hook (CARD_IMPLEMENTATION_PLAN.md II.6):
     #    push a PendingPreparation host frame for each player who owns a
     #    start-of-round card, firing that player's `start_of_round` automatic
     #    effects at push and surfacing its triggers as FireTrigger. The frames must
@@ -842,6 +884,60 @@ def _complete_preparation(state: GameState) -> GameState:
     #    byte-identical (no frame pushed → the C++ Family engine never sees it).
     result = _fire_preparation_hook(result)
     return result
+
+
+def _collect_future_rewards(state: GameState, slot: int) -> GameState:
+    """Distribute every player's `future_rewards[slot]` for the round being entered
+    (CARD_IMPLEMENTATION_PLAN.md II.5): collect+accommodate the promised animals,
+    then fire each promised round-start effect-card hook. Clears the consumed slot.
+
+    A no-op in the Family game: every slot is the default `FutureReward()`, which is
+    falsy, so the per-player guard skips entirely and `state` is returned unchanged
+    (preparation stays byte-identical). Effect hooks fire AFTER all animals are
+    placed, in (player, sorted-card-id) order, so an effect can read the just-
+    collected animals.
+
+    Animal overflow handling: animals are gained then trimmed to the best
+    physically-accommodatable configuration via `pareto_frontier` (no player
+    decision — preparation is decision-free; the best-kept frontier point is taken,
+    deterministically). The only in-scope deferred-goods card scheduling animals
+    (Acorns Basket) is deferred, so this plumbing is exercised by tests today, not
+    by a live card — but it keeps the round-start path correct for when it lands.
+    """
+    from agricola.helpers import pareto_frontier
+
+    fired_effects: list[tuple[int, str]] = []
+    for idx, p in enumerate(state.players):
+        reward = p.future_rewards[slot]
+        if not reward:                       # default slot → nothing promised
+            continue
+        # Clear the consumed slot regardless of what it held.
+        new_rewards = (
+            p.future_rewards[:slot] + (FutureReward(),) + p.future_rewards[slot + 1:]
+        )
+        p = fast_replace(p, future_rewards=new_rewards)
+        if reward.animals:
+            # Gain the animals, then keep the best accommodatable configuration.
+            frontier = pareto_frontier(p, reward.animals)
+            best = max(frontier, key=lambda fc: (fc[0].sheep + fc[0].boar + fc[0].cattle))
+            p = fast_replace(p, animals=best[0])
+        state = _update_player(state, idx, p)
+        for cid in sorted(reward.effect_card_ids):
+            fired_effects.append((idx, cid))
+
+    # Fire promised round-start effect hooks after every player's animals are placed.
+    # An effect's apply_fn may PUSH a sub-action leaf (Handplow pushes PendingPlow),
+    # which then sits on the WORK stack for its owner to resolve before placing a
+    # worker; fire that leaf's before-automatic effects at the push, the same seam
+    # the granted-sub-action path uses (_apply_fire_trigger → _fire_subaction_before_auto).
+    if fired_effects:
+        from agricola.cards.triggers import ROUND_START_EFFECTS
+        for idx, cid in fired_effects:
+            apply_fn = ROUND_START_EFFECTS.get(cid)
+            if apply_fn is not None:
+                state = apply_fn(state, idx)
+                state = _fire_subaction_before_auto(state)
+    return state
 
 
 def _fire_preparation_hook(state: GameState) -> GameState:

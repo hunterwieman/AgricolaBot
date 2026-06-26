@@ -113,3 +113,25 @@ from agricola.cards import big_country           # noqa: F401
 from agricola.cards import moldboard_plow        # noqa: F401
 from agricola.cards import roof_ballaster        # noqa: F401
 from agricola.cards import shifting_cultivation  # noqa: F401
+# Category 8 (deferred goods / effects on round spaces, II.5). These schedule goods
+# onto future round-space slots (future_resources), collected at the start of each
+# scheduled round in _complete_preparation. Wall Builder (occupation, food on the
+# next 4 rounds at each room build, after_build_rooms); Manservant + Clay Hut
+# Builder (occupations, gated on the house-material one-shot conditional latch —
+# fired_once + _fire_ready_one_shots); Pond Hut / Strawberry Patch (1 food, next 3
+# rounds, on_play); Large Greenhouse (1 veg on R+4/R+7/R+9); Sack Cart (1 grain on
+# the remaining absolute rounds 5/8/11/14); Thick Forest (1 wood on remaining even
+# rounds; "5 clay in supply" is a prereq, not a cost); Herring Pot (1 food on next
+# 3 rounds each Fishing use, after_action_space). Handplow is the exotic EFFECT
+# case: it schedules a round-start plow (future_rewards effect hook), pushed as
+# PendingPlow when round R+5 is entered.
+from agricola.cards import wall_builder          # noqa: F401
+from agricola.cards import manservant            # noqa: F401
+from agricola.cards import clay_hut_builder      # noqa: F401
+from agricola.cards import pond_hut              # noqa: F401
+from agricola.cards import large_greenhouse      # noqa: F401
+from agricola.cards import strawberry_patch      # noqa: F401
+from agricola.cards import sack_cart             # noqa: F401
+from agricola.cards import thick_forest          # noqa: F401
+from agricola.cards import herring_pot           # noqa: F401
+from agricola.cards import handplow              # noqa: F401
