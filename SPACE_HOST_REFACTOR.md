@@ -1,12 +1,13 @@
 # SPACE_HOST_REFACTOR.md
 
-**Status: IN PROGRESS — B1 + B2 landed.** Step **B1** (Proceed-hosts + the firing migration + the
-§9 NN `Proceed`-as-`Stop` alias + the §11.1 card consequences) and step **B2** (the Delegating hosts
-— `PendingSubActionSpace` folding Farmland + Fencing + the always-wrapped Major Improvement space +
+**Status: LANDED (B1 + B2 + B3).** All three staged steps are implemented and all gates (the full
+Python suite + the C++ differential harness) are green: **B1** (Proceed-hosts + the firing migration
++ the §9 NN `Proceed`-as-`Stop` alias + the §11.1 card consequences), **B2** (the Delegating hosts —
+`PendingSubActionSpace` folding Farmland + Fencing + the always-wrapped Major Improvement space +
 Lessons; `PendingMajorMinorImprovement` as the composite-action Delegating host out of the
-action-space bucket; the `_advance_until_decision` auto-advance) are implemented and all gates (the
-full Python suite + the C++ differential harness) are green; **B3 (Meeting Place) is next.** It is
-the successor to
+action-space bucket; the `_advance_until_decision` auto-advance), and **B3** (Meeting Place renamed
+`PendingMeetingPlace`, made the single-optional Proceed-host with `Proceed` legal from the start —
+card-only, no C++). It is the successor to
 `SUBACTION_HOOK_REFACTOR.md`, which is **already landed** (its sub-action frames already carry
 `phase` + `triggers_resolved` in the live code — that doc's own status header is stale). Read it
 first. That refactor (the *sub-action* pass) made every commit-terminated **sub-action** frame —
@@ -514,7 +515,7 @@ all gates (`pytest tests/` and `pytest tests/test_cpp_*.py`) before the next.
     features); mirror in C++.
   - Remove the dead `TRIGGER_EVENT` ClassVars and `_after_action_space_fired`.
   - The largest step; ~4 Family-reachable C++ frames plus the C++ auto-advance.
-- **B3 — Meeting Place.** Rename to `PendingMeetingPlace`, make it the single-optional
+- **B3 — Meeting Place. (LANDED.)** Rename to `PendingMeetingPlace`, make it the single-optional
   Proceed-host. Card-only, no C++.
 
 ---

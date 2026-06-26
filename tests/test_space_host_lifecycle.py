@@ -300,3 +300,63 @@ def test_major_minor_host_reused_under_house_redevelopment():
     state = step(state, Stop())
     assert not state.pending_stack
     assert state.board.major_improvement_owners[0] == 0
+
+
+# ---------------------------------------------------------------------------
+# B3 — Meeting Place: the single-optional Proceed-host (take and decline)
+# ---------------------------------------------------------------------------
+
+def _meeting_place_card_state():
+    from agricola.setup import CardPool, setup_env
+    pool = CardPool(
+        occupations=tuple(f"o{i}" for i in range(20)),
+        minors=("market_stall",) + tuple(f"m{i}" for i in range(20)),
+    )
+    cs, _env = setup_env(5, card_pool=pool)
+    cp = cs.current_player
+    cs = with_resources(cs, cp, grain=1)
+    from agricola.replace import fast_replace
+    p = fast_replace(cs.players[cp], hand_minors=frozenset({"market_stall"}))
+    opp = fast_replace(cs.players[1 - cp], hand_minors=frozenset())
+    cs = fast_replace(cs, players=tuple(p if i == cp else opp for i in range(2)))
+    return cs, cp
+
+
+def test_meeting_place_decline_proceed_from_start():
+    """Meeting Place is a single-optional Proceed-host: Proceed is legal FROM THE
+    START (the decline). Declining = Proceed (flip to after) then Stop."""
+    from agricola.pending import PendingMeetingPlace
+    cs, cp = _meeting_place_card_state()
+    cs = step(cs, PlaceWorker(space="meeting_place"))
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingMeetingPlace) and top.phase == "before"
+    # Proceed is offered immediately, alongside the optional minor.
+    la = legal_actions(cs)
+    assert Proceed() in la
+    assert ChooseSubAction(name="play_minor") in la
+
+    cs = step(cs, Proceed())             # decline -> flip to after-phase
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingMeetingPlace) and top.phase == "after"
+    assert legal_actions(cs) == [Stop()]
+    cs = step(cs, Stop())
+    assert cs.pending_stack == ()
+    assert "market_stall" in cs.players[cp].hand_minors   # not played
+
+
+def test_meeting_place_take_minor_then_proceed():
+    """Take the optional minor, then Proceed, then Stop."""
+    from agricola.actions import CommitPlayMinor
+    from agricola.pending import PendingMeetingPlace
+    cs, cp = _meeting_place_card_state()
+    cs = step(cs, PlaceWorker(space="meeting_place"))
+    cs = step(cs, ChooseSubAction(name="play_minor"))
+    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, Stop())                # pop the play-minor after-phase
+    # minor played -> only Proceed remains in the parent's before-phase.
+    assert legal_actions(cs) == [Proceed()]
+    cs = step(cs, Proceed())
+    top = cs.pending_stack[-1]
+    assert isinstance(top, PendingMeetingPlace) and top.phase == "after"
+    cs = step(cs, Stop())
+    assert cs.pending_stack == ()

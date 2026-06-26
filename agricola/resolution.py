@@ -199,18 +199,21 @@ def _resolve_meeting_place(state: GameState) -> GameState:
 
 def _initiate_meeting_place_cards(state: GameState) -> GameState:
     """Card-game Meeting Place: become starting player (immediate, no food), then
-    OPTIONALLY play one minor. Push the optional-minor frame only when a minor is
-    playable; otherwise become-SP is the whole action (atomic). The worker is
-    already placed (cross-cutting), so this is always a legal placement.
-    See CARD_IMPLEMENTATION_PLAN.md I.3."""
+    OPTIONALLY play one minor. Push the single-optional Proceed-host frame
+    (PendingMeetingPlace; SPACE_HOST_REFACTOR.md §7) only when a minor is playable;
+    otherwise become-SP is the whole action (atomic). The worker is already placed
+    (cross-cutting), so this is always a legal placement. Fires before_action_space
+    autos at the push. See CARD_IMPLEMENTATION_PLAN.md I.3."""
     ap = state.current_player
     state = _become_starting_player(state, ap)
     from agricola.legality import playable_minors
     if playable_minors(state, ap):
-        from agricola.pending import PendingMeetingPlaceCards
-        state = push(state, PendingMeetingPlaceCards(
+        from agricola.pending import PendingMeetingPlace
+        from agricola.cards.triggers import apply_auto_effects
+        state = push(state, PendingMeetingPlace(
             player_idx=ap, initiated_by_id="space:meeting_place",
         ))
+        state = apply_auto_effects(state, "before_action_space", ap)
     return state
 
 
@@ -798,7 +801,7 @@ def _choose_subaction_basic_wish_for_children(
     raise ValueError(f"Unknown sub-action {action.name!r} for Basic Wish for Children")
 
 
-def _choose_subaction_meeting_place_cards(
+def _choose_subaction_meeting_place(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
     """Card-game Meeting Place choose handler: `play_minor` pushes the mandatory
@@ -830,7 +833,7 @@ from agricola.pending import (
     PendingFarmExpansion,
     PendingHouseRedevelopment,
     PendingMajorMinorImprovement,
-    PendingMeetingPlaceCards,
+    PendingMeetingPlace,
     PendingSideJob,
     PendingSubActionSpace,
 )
@@ -845,7 +848,7 @@ CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_r
 CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
 CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingBasicWishForChildren] = _choose_subaction_basic_wish_for_children
-CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlaceCards] = _choose_subaction_meeting_place_cards
+CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlace] = _choose_subaction_meeting_place
 
 
 # ---------------------------------------------------------------------------

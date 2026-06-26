@@ -67,7 +67,7 @@ from agricola.pending import (
     PendingFarmExpansion,
     PendingFarmRedevelopment,
     PendingGrainUtilization,
-    PendingMeetingPlaceCards,
+    PendingMeetingPlace,
     PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
@@ -1832,15 +1832,22 @@ def _enumerate_pending_family_growth(
     return actions
 
 
-def _enumerate_pending_meeting_place_cards(
-    state: GameState, pending: PendingMeetingPlaceCards,
+def _enumerate_pending_meeting_place(
+    state: GameState, pending: PendingMeetingPlace,
 ) -> list[Action]:
-    """Card Meeting Place: become-SP already happened; offer the optional minor
-    (while not yet played and a minor is playable), then Stop (the decline)."""
-    actions: list[Action] = []
+    """Card Meeting Place — a single-optional Proceed-host (SPACE_HOST_REFACTOR.md
+    §7). Become-SP already happened. after-phase: after_action_space triggers +
+    Stop. before-phase: any before_action_space triggers + the optional
+    ChooseSubAction("play_minor") (while not yet played and a minor is playable) +
+    Proceed — and Proceed is legal FROM THE START (it *is* the decline)."""
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     if not pending.minor_chosen and playable_minors(state, pending.player_idx):
         actions.append(ChooseSubAction(name="play_minor"))
-    actions.append(Stop())
+    actions.append(Proceed())
     return actions
 
 
@@ -1871,7 +1878,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPlayMinor:           _enumerate_pending_play_minor,
     PendingBasicWishForChildren: _enumerate_pending_basic_wish_for_children,
     PendingFamilyGrowth:        _enumerate_pending_family_growth,
-    PendingMeetingPlaceCards:   _enumerate_pending_meeting_place_cards,
+    PendingMeetingPlace:        _enumerate_pending_meeting_place,
     PendingGrainUtilization:    _enumerate_pending_grain_utilization,
     PendingSow:                 _enumerate_pending_sow,
     PendingBakeBread:           _enumerate_pending_bake_bread,
