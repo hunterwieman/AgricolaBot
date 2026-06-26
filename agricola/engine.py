@@ -60,6 +60,7 @@ from agricola.pending import (
     PendingFamilyGrowth,
     PendingHarvestBreed,
     PendingHarvestFeed,
+    PendingHarvestField,
     PendingPigMarket,
     PendingPlayMinor,
     PendingPlayOccupation,
@@ -106,7 +107,11 @@ import agricola.cards  # noqa: F401
 # placement is hosted by a PendingActionSpace frame. Both are no-ops on the
 # Family fast path (empty registries). cards.triggers is a leaf module — safe
 # to import here without a load-order cycle.
-from agricola.cards.triggers import apply_auto_effects, should_host_space
+from agricola.cards.triggers import (
+    apply_auto_effects,
+    should_host_harvest_field,
+    should_host_space,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +813,30 @@ def _initiate_harvest_breed(state: GameState) -> GameState:
     return state
 
 
+def _fire_harvest_field_hook(state: GameState) -> GameState:
+    """Fire the field-phase card hook (`harvest_field` automatic effects),
+    card-dependent and transient. A no-op when no player owns a harvest-field
+    card — the Family fast path, so `_resolve_harvest_field` stays byte-identical.
+
+    When some player owns one, a PendingHarvestField host frame is pushed (the
+    uniform host the firing rides through), `apply_auto_effects` runs the
+    `harvest_field` autos for each player, and the frame is popped before
+    returning. All current harvest-field cards are automatic, so the frame never
+    surfaces an agent decision; it is constructed and torn down within this call
+    and never reaches a returned state (so the canonical serializer / C++ never
+    see it). Effects fire in starting-player-first order, mirroring the FEED /
+    BREED push order.
+    """
+    if not should_host_harvest_field(state):
+        return state
+
+    state = push(state, PendingHarvestField())
+    sp = state.starting_player
+    for idx in (sp, (sp + 1) % 2):
+        state = apply_auto_effects(state, "harvest_field", idx)
+    return pop(state)
+
+
 def _resolve_harvest_field(state: GameState) -> GameState:
     """Mechanical FIELD work + reset once-per-harvest budget + push FEED
     pendings + transition phase. Called by _advance_until_decision when
@@ -825,7 +854,19 @@ def _resolve_harvest_field(state: GameState) -> GameState:
        phase=HARVEST_FEED. After this returns, the stack is non-empty
        (one frame per player) and the outer guard returns control to the
        agent.
+
+    A fourth, card-only concern runs FIRST (before the crop take): the
+    field-phase card hook. When some player owns a harvest-field card
+    (Loom, Butter Churn, Three-Field Rotation, Scythe Worker), a transient
+    PendingHarvestField host frame is pushed, its `harvest_field` automatic
+    effects fire for each player, and it is popped — all before the
+    mechanical take. Scythe Worker reads the unharvested grain fields here,
+    so the firing MUST precede the take. The push is card-dependent
+    (`should_host_harvest_field`), so the Family game skips it entirely and
+    this resolver stays byte-identical (see CARD_IMPLEMENTATION_PLAN.md II.6).
     """
+    state = _fire_harvest_field_hook(state)
+
     new_players = []
     for p in state.players:
         grain_gain = 0

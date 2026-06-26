@@ -109,7 +109,9 @@ bookkeeping) is deliberately left open for a later session.**
 >   tracked as **Step 6** below, not an extension of the action-space firing work.
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
->   mandatory-with-choice gate) → Cat 7, 6.
+>   mandatory-with-choice gate) → Cat 7, 6. **Harvest-field hook DONE** — `PendingHarvestField` (II.6)
+>   + the `harvest_field` event + Category 6 (Scythe Worker, Butter Churn, Three-Field Rotation, Loom);
+>   the `PendingPreparation` / `PendingCardChoice` parts (Cat 7) are still pending.
 > - **Step 7** — deferred cards (Organic Farmer, Mini Pasture, Shepherd's Crook, Acorns Basket) last.
 >
 > **Deferred-within-category cards** awaiting their infra: CardStore cards (Tutor, Moldboard Plow, Big
@@ -1132,6 +1134,17 @@ Fences action, not per-`CommitBuildPasture`).
 
 ## Category 6 — Harvest-field hook (4)
 **Scythe Worker · Butter Churn · Three-Field Rotation · Loom**
+
+> **Status: DONE** (`tests/test_cards_category6.py`; full suite + C++ gates green). The
+> `PendingHarvestField` host frame (`pending.py`) + a registration-time ownership index
+> (`HARVEST_FIELD_CARDS` / `should_host_harvest_field` in `cards/triggers.py`) + the firing site
+> (`_fire_harvest_field_hook`, called at the TOP of `_resolve_harvest_field` before the mechanical
+> crop take) landed. The push is **card-dependent** (`should_host_harvest_field`): the Family game owns
+> no harvest-field card → no frame pushed → the field resolution is byte-identical and the C++
+> Family-only engine never sees the frame (NO C++ change). All four cards `register_auto` on the
+> `harvest_field` event; Scythe Worker also has the Category-2 on-play +1 grain and Loom a Category-1
+> scoring term (1 bonus point per 3 sheep). Firing *before* the take is load-bearing for Scythe Worker
+> (it reads the still-sown grain fields) and Three-Field Rotation (its grain/veg/empty-field condition).
 
 Hook: `PendingHarvestField` (II.6), event `harvest_field`. All automatic.
 
