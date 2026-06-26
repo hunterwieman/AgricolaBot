@@ -469,8 +469,16 @@ def _midaction_features(state: GameState) -> list[tuple[str, float]]:
         # Deferred legality import to avoid an import cycle (legality imports
         # widely across the engine).
         from agricola.legality import legal_actions
-        from agricola.actions import Stop
-        stop_legal = any(isinstance(a, Stop) for a in legal_actions(state))
+        from agricola.actions import Proceed, Stop
+        # Proceed-as-Stop alias (SPACE_HOST_REFACTOR.md §9): a Proceed-host's
+        # before-phase ends in Proceed, the after-phase in Stop — both are the
+        # "turn-ending action available" signal this feature tracks, and they are
+        # never co-legal. Counting Proceed too keeps the value model's input bit
+        # at 1 across a parent's before-phase (it was 1 pre-refactor when the
+        # parent's done-action was Stop), so no retrain is needed.
+        stop_legal = any(
+            isinstance(a, (Stop, Proceed)) for a in legal_actions(state)
+        )
     feats.append(("stop_is_legal", 1.0 if stop_legal else 0.0))
     return feats
 
@@ -652,9 +660,12 @@ def _write_midaction_block(out, base: int, state) -> None:
         out[base + 7] = 0.0
     else:
         from agricola.legality import legal_actions
-        from agricola.actions import Stop
+        from agricola.actions import Proceed, Stop
+        # Proceed-as-Stop alias (SPACE_HOST_REFACTOR.md §9) — mirror
+        # _midaction_features: a Proceed-host's before-phase ends in Proceed.
         out[base + 7] = (
-            1.0 if any(isinstance(a, Stop) for a in legal_actions(state)) else 0.0
+            1.0 if any(isinstance(a, (Stop, Proceed)) for a in legal_actions(state))
+            else 0.0
         )
 
 

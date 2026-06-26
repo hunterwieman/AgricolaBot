@@ -202,7 +202,11 @@ std::string label_subaction(const Action& a) {
     if (c->name == "build_stable") return "build_stables";  // _SUBACTION_ALIAS
     return c->name;
   }
-  if (as<Stop>(a)) return "__stop__";
+  // Proceed-as-Stop alias (SPACE_HOST_REFACTOR.md §9): the Proceed-host parents
+  // end their before-phase with Proceed (after-phase with Stop). Both map to the
+  // head's __stop__ slot — never co-legal, so the alias is unambiguous and keeps
+  // the C++ policy prior identical to Python's.
+  if (as<Stop>(a) || as<Proceed>(a)) return "__stop__";
   return "";
 }
 std::string label_major(const Action& a) {

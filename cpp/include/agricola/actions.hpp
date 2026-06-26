@@ -108,6 +108,14 @@ struct Stop {
   bool operator==(const Stop&) const = default;
   auto operator<=>(const Stop&) const = default;
 };
+// Proceed: the work-complete boundary for the atomic / Proceed-host action-space
+// frames (SPACE_HOST_REFACTOR.md). In the Family game it appears at the five
+// Proceed-host parents (Grain Util, Cultivation, Farm Expansion, House/Farm
+// Redev), flipping the host to its after-phase.
+struct Proceed {
+  bool operator==(const Proceed&) const = default;
+  auto operator<=>(const Proceed&) const = default;
+};
 struct RevealCard {
   std::string card;
   bool operator==(const RevealCard&) const = default;
@@ -118,7 +126,7 @@ using Action = std::variant<
     PlaceWorker, ChooseSubAction, CommitSow, CommitBake, CommitPlow,
     CommitBuildStable, CommitBuildRoom, CommitBuildMajor, CommitRenovate,
     CommitAccommodate, CommitBuildPasture, CommitHarvestConversion,
-    CommitConvert, CommitBreed, FireTrigger, Stop, RevealCard>;
+    CommitConvert, CommitBreed, FireTrigger, Stop, Proceed, RevealCard>;
 
 // Serialize an action to its canonical {type, params} JSON string. The type is
 // the Python class name; params mirror action_to_params (cells -> sorted

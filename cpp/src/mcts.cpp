@@ -60,6 +60,7 @@ inline void hf(std::size_t& h, const CommitConvert& a) { af(h, a.grain); af(h, a
 inline void hf(std::size_t& h, const CommitBreed& a) { af(h, a.sheep); af(h, a.boar); af(h, a.cattle); }
 inline void hf(std::size_t& h, const FireTrigger& a) { af(h, a.card_id); }
 inline void hf(std::size_t&, const Stop&) {}
+inline void hf(std::size_t&, const Proceed&) {}
 inline void hf(std::size_t& h, const RevealCard& a) { af(h, a.card); }
 }  // namespace
 

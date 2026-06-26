@@ -212,6 +212,8 @@ json pframe(const char* type, const std::optional<int>& player_idx,
 json tc(const PendingGrainUtilization& p) {
   json j = pframe("PendingGrainUtilization", p.player_idx, p.initiated_by_id);
   j["sow_chosen"] = p.sow_chosen;  j["bake_chosen"] = p.bake_chosen;
+  j["phase"] = p.phase;
+  j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
 json tc(const PendingSow& p) {
@@ -235,6 +237,8 @@ json tc(const PendingPlow& p) {
 json tc(const PendingFarmExpansion& p) {
   json j = pframe("PendingFarmExpansion", p.player_idx, p.initiated_by_id);
   j["room_chosen"] = p.room_chosen;  j["stable_chosen"] = p.stable_chosen;
+  j["phase"] = p.phase;
+  j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
 json tc(const PendingBuildStables& p) {
@@ -271,6 +275,7 @@ json tc(const PendingFarmland& p) {
 json tc(const PendingCultivation& p) {
   json j = pframe("PendingCultivation", p.player_idx, p.initiated_by_id);
   j["plow_chosen"] = p.plow_chosen;  j["sow_chosen"] = p.sow_chosen;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
@@ -311,6 +316,7 @@ json tc(const PendingHouseRedevelopment& p) {
   json j = pframe("PendingHouseRedevelopment", p.player_idx, p.initiated_by_id);
   j["renovate_chosen"] = p.renovate_chosen;
   j["improvement_chosen"] = p.improvement_chosen;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
@@ -341,6 +347,7 @@ json tc(const PendingFarmRedevelopment& p) {
   json j = pframe("PendingFarmRedevelopment", p.player_idx, p.initiated_by_id);
   j["renovate_chosen"] = p.renovate_chosen;
   j["build_fences_chosen"] = p.build_fences_chosen;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
@@ -451,7 +458,9 @@ PendingDecision pending_from(const json& j) {
   auto pid = read_opt_int(j.at("player_idx"));
   std::string iby = j.at("initiated_by_id");
   if (t == "PendingGrainUtilization")
-    return PendingGrainUtilization{pid, iby, j.at("sow_chosen"), j.at("bake_chosen")};
+    return PendingGrainUtilization{pid, iby, j.at("sow_chosen"), j.at("bake_chosen"),
+                                   j.value("phase", std::string("before")),
+                                   read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingSow")
     return PendingSow{pid, iby, j.value("phase", std::string("before")),
                       read_str_set(j.at("triggers_resolved"))};
@@ -462,7 +471,9 @@ PendingDecision pending_from(const json& j) {
     return PendingPlow{pid, iby, j.value("phase", std::string("before")),
                        read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingFarmExpansion")
-    return PendingFarmExpansion{pid, iby, j.at("room_chosen"), j.at("stable_chosen")};
+    return PendingFarmExpansion{pid, iby, j.at("room_chosen"), j.at("stable_chosen"),
+                                j.value("phase", std::string("before")),
+                                read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingBuildStables")
     return PendingBuildStables{pid, iby, resources_from(j.at("cost")),
                                read_opt_int(j.at("max_builds")), j.at("num_built")};
@@ -481,6 +492,7 @@ PendingDecision pending_from(const json& j) {
                            read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingCultivation")
     return PendingCultivation{pid, iby, j.at("plow_chosen"), j.at("sow_chosen"),
+                              j.value("phase", std::string("before")),
                               read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingSideJob")
     return PendingSideJob{pid, iby, j.at("stable_chosen"), j.at("bake_chosen"),
@@ -504,6 +516,7 @@ PendingDecision pending_from(const json& j) {
   if (t == "PendingHouseRedevelopment")
     return PendingHouseRedevelopment{pid, iby, j.at("renovate_chosen"),
                                      j.at("improvement_chosen"),
+                                     j.value("phase", std::string("before")),
                                      read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingClayOven")
     return PendingClayOven{pid, iby, j.at("bake_chosen")};
@@ -519,6 +532,7 @@ PendingDecision pending_from(const json& j) {
   if (t == "PendingFarmRedevelopment")
     return PendingFarmRedevelopment{pid, iby, j.at("renovate_chosen"),
                                     j.at("build_fences_chosen"),
+                                    j.value("phase", std::string("before")),
                                     read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingHarvestFeed")
     return PendingHarvestFeed{pid, iby, j.at("conversion_done")};

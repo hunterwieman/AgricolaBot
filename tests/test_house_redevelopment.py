@@ -11,6 +11,7 @@ from agricola.actions import (
     CommitBuildMajor,
     CommitRenovate,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import HouseMaterial
@@ -51,8 +52,9 @@ def test_house_redev_renovate_only():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
-        Stop(),   # pop PendingRenovate's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingRenovate's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].house_material == HouseMaterial.CLAY
@@ -72,9 +74,10 @@ def test_house_redev_renovate_then_improvement():
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
-        Stop(),  # pop PendingBuildMajor's after-phase
-        Stop(),  # pop PendingMajorMinorImprovement
-        Stop(),  # pop PendingHouseRedevelopment
+        Stop(),     # pop PendingBuildMajor's after-phase
+        Stop(),     # pop PendingMajorMinorImprovement
+        Proceed(),  # flip PendingHouseRedevelopment to its after-phase
+        Stop(),     # pop PendingHouseRedevelopment
     ])
     assert state.pending_stack == ()
     assert state.players[0].house_material == HouseMaterial.CLAY
@@ -109,8 +112,10 @@ def test_house_redev_stop_legal_after_renovate_skip_improvement():
     assert Stop() in legal
 
 
-def test_house_redev_stop_legal_after_both_steps():
-    """Stop is legal after BOTH renovate and improvement complete."""
+def test_house_redev_proceed_legal_after_both_steps():
+    """Proceed is the only action after BOTH renovate and improvement complete —
+    the parent's before-phase turn-ending boundary (Proceed flips to the
+    after-phase, where Stop pops)."""
     state = _hr_setup(resources={"clay": 4, "reed": 1})
     state = run_actions(state, [
         PlaceWorker(space="house_redevelopment"),
@@ -123,13 +128,14 @@ def test_house_redev_stop_legal_after_both_steps():
         Stop(),  # pop PendingBuildMajor's after-phase
         Stop(),  # pop PendingMajorMinorImprovement -> back at PendingHouseRedevelopment
     ])
-    # Now both renovate_chosen and improvement_chosen are True; Stop should be legal.
+    # Now both renovate_chosen and improvement_chosen are True; Proceed is the
+    # only legal action at the parent's before-phase.
     parent = state.pending_stack[-1]
     assert isinstance(parent, PendingHouseRedevelopment)
     assert parent.renovate_chosen is True
     assert parent.improvement_chosen is True
     legal = legal_actions(state)
-    assert legal == [Stop()]
+    assert legal == [Proceed()]
 
 
 def test_house_redev_stone_house_cannot_renovate():

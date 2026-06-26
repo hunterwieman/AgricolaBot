@@ -9,7 +9,12 @@ OWNER even on the opponent's Cattle Market turn (owner routing lives in
 apply_auto_effects). Cattle Market is non-atomic, so its host frame
 (PendingCattleMarket) is always present — no `register_action_space_hook` needed
 (that index only gates the conditional hosting of ATOMIC spaces). Fires on the
-after-phase. On-play is a no-op. See CARD_IMPLEMENTATION_PLAN.md Category 9.
+**before**-phase: the ruling is that "each time you use [a space]" resolves
+*before* the space's action, and the before-auto firing is the host frame's push
+(SPACE_HOST_REFACTOR.md §11.1 — corrected from after_action_space during the
+space-host firing migration, which moved every host's after-auto to its
+work-complete boundary). On-play is a no-op. See CARD_IMPLEMENTATION_PLAN.md
+Category 9.
 """
 from __future__ import annotations
 
@@ -38,4 +43,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(clay=1)))
-register_auto("after_action_space", CARD_ID, _eligible, _apply, any_player=True)
+register_auto("before_action_space", CARD_ID, _eligible, _apply, any_player=True)

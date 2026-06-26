@@ -98,7 +98,19 @@ GameState apply_action(const GameState& state, const Action& action) {
   if (is_commit_action(action)) return apply_commit(state, action);
   if (std::holds_alternative<FireTrigger>(action))
     throw std::runtime_error("FireTrigger not supported (Family-only)");
-  if (std::holds_alternative<Stop>(action)) return pop(state);
+  if (std::holds_alternative<Stop>(action)) return pop(state);  // pure pop (§11)
+  if (std::holds_alternative<Proceed>(action)) {
+    // Proceed-host work-complete boundary (SPACE_HOST_REFACTOR.md §4.3/§11): the
+    // sub-actions already ran in the before-phase, so Proceed just flips the host
+    // to its after-phase (firing after_action_space autos — a Family no-op). C++
+    // Family never produces the atomic PendingActionSpace host (card-only), so no
+    // primary effect runs here. The trailing Stop pops.
+    PendingDecision nt = state.pending_stack.back();
+    std::visit([](auto& f) {
+      if constexpr (requires { f.phase; }) { f.phase = "after"; }
+    }, nt);
+    return replace_top(state, nt);
+  }
   if (auto* a = std::get_if<RevealCard>(&action))
     return apply_reveal_card(state, *a);
   throw std::runtime_error("apply_action: unknown action");

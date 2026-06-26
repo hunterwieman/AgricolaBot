@@ -128,6 +128,8 @@ struct PendingGrainUtilization {
   std::string initiated_by_id;
   bool sow_chosen = false;
   bool bake_chosen = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR Proceed-host)
+  std::vector<std::string> triggers_resolved;
   bool operator==(const PendingGrainUtilization&) const = default;
 };
 struct PendingSow {
@@ -156,6 +158,8 @@ struct PendingFarmExpansion {
   std::string initiated_by_id;
   bool room_chosen = false;
   bool stable_chosen = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR Proceed-host)
+  std::vector<std::string> triggers_resolved;
   bool operator==(const PendingFarmExpansion&) const = default;
 };
 struct PendingBuildStables {
@@ -201,6 +205,7 @@ struct PendingCultivation {
   std::string initiated_by_id;
   bool plow_chosen = false;
   bool sow_chosen = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR Proceed-host)
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingCultivation&) const = default;
 };
@@ -249,6 +254,7 @@ struct PendingHouseRedevelopment {
   std::string initiated_by_id;
   bool renovate_chosen = false;
   bool improvement_chosen = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR Proceed-host)
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingHouseRedevelopment&) const = default;
 };
@@ -285,6 +291,7 @@ struct PendingFarmRedevelopment {
   std::string initiated_by_id;
   bool renovate_chosen = false;
   bool build_fences_chosen = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR Proceed-host)
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingFarmRedevelopment&) const = default;
 };

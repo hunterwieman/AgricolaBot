@@ -1,11 +1,14 @@
-"""Tests for the multi-sub-action after_action_space hook (step 4b, the unified
-"surface after-triggers wherever Stop is legal; fire after-auto at Stop" model):
+"""Tests for the action-space after-trigger hook on a Proceed-host space.
 
-  - Firewood Collector (occ): after-AUTO +1 wood at the end of a Farmland /
-    Grain Seeds / Grain Util / Cultivation turn (fires at the host's Stop).
-  - Threshing Board (minor): after-TRIGGER granting a Bake Bread on Farmland /
-    Cultivation, which also closes the base sub-actions (after_started derived
-    from triggers_resolved — no stored flag).
+  - Threshing Board (minor): after-TRIGGER granting a Bake Bread on Cultivation.
+    Under the space-host refactor (SPACE_HOST_REFACTOR.md) Cultivation is a
+    Proceed-host: the after-trigger surfaces in the space's *after-phase* (after
+    Proceed), not at the old before-phase Stop-gate. Firing it pushes the granted
+    PendingBakeBread on top of the already-after PendingCultivation.
+
+  (Firewood Collector's after-AUTO is DEFERRED — see archive/cards/; its "+1 wood
+  at the END of that turn" needs an end-of-turn event the firing migration does not
+  add, so its tests are removed here. It returns when that event exists.)
 """
 from agricola.actions import (
     ChooseSubAction, CommitBake, FireTrigger, PlaceWorker, Proceed, Stop,
@@ -44,48 +47,10 @@ def _commit_plow(s):
 
 
 # ---------------------------------------------------------------------------
-# Firewood Collector — after-auto +1 wood at Stop
+# Threshing Board — after-trigger granting a bake in Cultivation's after-phase
 # ---------------------------------------------------------------------------
 
-def test_firewood_collector_on_farmland():
-    s = _state(occ=("firewood_collector",))
-    w0 = s.players[0].resources.wood
-    s = step(s, PlaceWorker(space="farmland"))
-    s = step(s, ChooseSubAction(name="plow"))
-    s = _commit_plow(s)
-    s = step(s, Stop())                            # pop PendingPlow's after-phase
-    assert legal_actions(s) == [Stop()]            # Farmland gate; Firewood is auto, not surfaced
-    s = step(s, Stop())                            # pop PendingFarmland -> Firewood fires
-    assert s.players[0].resources.wood == w0 + 1   # Firewood fired at the space's Stop
-    assert not s.pending_stack
-
-
-def test_firewood_collector_on_atomic_grain_seeds():
-    s = _state(occ=("firewood_collector",))
-    w0 = s.players[0].resources.wood
-    g0 = s.players[0].resources.grain
-    s = step(s, PlaceWorker(space="grain_seeds"))   # atomic -> hosted (owns firewood)
-    s = step(s, Proceed())                          # +1 grain, flip to after
-    s = step(s, Stop())                             # after-auto fires here
-    assert s.players[0].resources.grain == g0 + 1   # Grain Seeds primary
-    assert s.players[0].resources.wood == w0 + 1    # Firewood
-
-
-def test_firewood_collector_not_on_other_spaces():
-    # Day Laborer isn't in Firewood's space set -> no hosting, no +1 wood.
-    s = _state(occ=("firewood_collector",))
-    w0 = s.players[0].resources.wood
-    s = step(s, PlaceWorker(space="day_laborer"))
-    from agricola.pending import PendingActionSpace
-    assert not any(isinstance(f, PendingActionSpace) for f in s.pending_stack)
-    assert s.players[0].resources.wood == w0
-
-
-# ---------------------------------------------------------------------------
-# Threshing Board — after-trigger granting a bake, closing the base sub-actions
-# ---------------------------------------------------------------------------
-
-def test_threshing_board_grants_bake_and_closes_subactions():
+def test_threshing_board_grants_bake_in_after_phase():
     s = _state(minors=("threshing_board",))
     s = _reveal(s, "cultivation")
     s = with_majors(s, owner_by_idx={0: 0})         # Fireplace (grain -> 2 food on bake)
@@ -96,28 +61,38 @@ def test_threshing_board_grants_bake_and_closes_subactions():
     s = step(s, ChooseSubAction(name="plow"))
     s = _commit_plow(s)
     s = step(s, Stop())                                   # pop PendingPlow's after-phase
-    # Stop-gate met: sow is still available AND the after-trigger is surfaced.
+    # Cultivation before-phase: the base sub-action (sow) + Proceed. The
+    # after-trigger is NOT surfaced yet (it lives in the after-phase).
     la = legal_actions(s)
     assert ChooseSubAction(name="sow") in la
+    assert Proceed() in la
+    assert FireTrigger(card_id="threshing_board") not in la
+
+    s = step(s, Proceed())                                # flip Cultivation to after
+    # After-phase: the after-trigger is now surfaced alongside Stop.
+    la = legal_actions(s)
     assert FireTrigger(card_id="threshing_board") in la
     assert Stop() in la
+    assert ChooseSubAction(name="sow") not in la          # base sub-actions closed in after
 
     s = step(s, FireTrigger(card_id="threshing_board"))   # grant the bake
     s = step(s, CommitBake(grain=1))                      # Fireplace: 1 grain -> 2 food
     s = step(s, Stop())                                   # pop the granted PendingBakeBread's after-phase
     assert s.players[0].resources.food == food0 + 2
-    # after_started (derived) -> base sub-actions are now closed; only Stop.
+    # Threshing Board already fired -> only Stop remains in the after-phase.
     assert legal_actions(s) == [Stop()]
     s = step(s, Stop())                                   # pop PendingCultivation
     assert not s.pending_stack
 
 
 def test_threshing_board_not_eligible_without_bake():
-    # Owns Threshing Board but has no baker/grain -> not surfaced.
+    # Owns Threshing Board but has no baker/grain -> not surfaced even in after.
     s = _state(minors=("threshing_board",))
     s = _reveal(s, "cultivation")
     s = with_resources(s, 0, grain=0)
     s = step(s, PlaceWorker(space="cultivation"))
     s = step(s, ChooseSubAction(name="plow"))
     s = _commit_plow(s)
+    s = step(s, Stop())                                   # pop PendingPlow's after-phase
+    s = step(s, Proceed())                                # flip Cultivation to after-phase
     assert FireTrigger(card_id="threshing_board") not in legal_actions(s)

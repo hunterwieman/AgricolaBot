@@ -1010,18 +1010,27 @@ def _enumerate_pending_grain_utilization(
 ) -> list[Action]:
     """Enumerate legal actions at PendingGrainUtilization.
 
+    A Proceed-host (and/or; SPACE_HOST_REFACTOR.md §4.3). In the after-phase the
+    space's work is done — only after_action_space triggers + Stop are offered.
+    In the before-phase: any before_action_space triggers, then the legal
+    ChooseSubActions, then Proceed once at least one sub-action has run (the
+    "must take at least one effect" gate).
+
     Order: ChooseSubAction("bake_bread") first if legal, then
-    ChooseSubAction("sow") if legal, then Stop() if legal (at least one
-    sub-action completed).
+    ChooseSubAction("sow") if legal, then Proceed() if its gate is met.
     """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    actions: list[Action] = []
     if not pending.bake_chosen and _can_bake_bread(state, p):
         actions.append(ChooseSubAction(name="bake_bread"))
     if not pending.sow_chosen and _can_sow(p):
         actions.append(ChooseSubAction(name="sow"))
     if pending.sow_chosen or pending.bake_chosen:
-        actions.append(Stop())
+        actions.append(Proceed())
     return actions
 
 
@@ -1249,19 +1258,27 @@ def _enumerate_pending_farm_expansion(
 ) -> list[Action]:
     """Enumerate legal actions at PendingFarmExpansion.
 
+    A Proceed-host (and/or; SPACE_HOST_REFACTOR.md §4.3). After-phase: after
+    triggers + Stop. Before-phase: any before triggers, then the legal
+    ChooseSubActions, then Proceed once at least one sub-action has run.
+
     Once-per-category: build_rooms and build_stables each appear only if the
     corresponding *_chosen flag is False AND the player can actually do it.
-    Stop is legal once at least one sub-action has been chosen (the
+    Proceed is legal once at least one sub-action has been chosen (the
     "must do at least one when entering the action" rule).
     """
-    actions: list[Action] = []
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
     if not pending.room_chosen and _can_build_room(p):
         actions.append(ChooseSubAction(name="build_rooms"))
     if not pending.stable_chosen and _can_build_stable(p, Resources(wood=2)):
         actions.append(ChooseSubAction(name="build_stables"))
     if pending.room_chosen or pending.stable_chosen:
-        actions.append(Stop())
+        actions.append(Proceed())
     return actions
 
 
@@ -1281,18 +1298,26 @@ def _enumerate_pending_farmland(
 def _enumerate_pending_cultivation(
     state: GameState, pending,
 ) -> list[Action]:
-    p = state.players[pending.player_idx]
-    actions: list[Action] = []
-    # Once an after_action_space trigger has fired, the base sub-actions close
-    # (a base action can't follow an after-effect). Derived, no stored flag (4b).
-    if not _after_action_space_fired(pending):
-        if not pending.plow_chosen and _can_plow(p):
-            actions.append(ChooseSubAction(name="plow"))
-        if not pending.sow_chosen and _can_sow(p):
-            actions.append(ChooseSubAction(name="sow"))
-    if pending.plow_chosen or pending.sow_chosen:   # Stop-gate
-        actions += _eligible_fire_triggers(state, pending, "after_action_space")
+    """Enumerate legal actions at PendingCultivation.
+
+    A Proceed-host (and/or; SPACE_HOST_REFACTOR.md §4.3). After-phase: after
+    triggers + Stop. Before-phase: any before triggers, the legal
+    ChooseSubActions (plow / sow), then Proceed once a sub-action has run.
+    Using the space (the first sub-action) is the implicit decline of any
+    before-window — the base sub-actions stay offered until Proceed.
+    """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    p = state.players[pending.player_idx]
+    if not pending.plow_chosen and _can_plow(p):
+        actions.append(ChooseSubAction(name="plow"))
+    if not pending.sow_chosen and _can_sow(p):
+        actions.append(ChooseSubAction(name="sow"))
+    if pending.plow_chosen or pending.sow_chosen:
+        actions.append(Proceed())
     return actions
 
 
@@ -1397,8 +1422,18 @@ def _enumerate_pending_stone_oven(
 def _enumerate_pending_house_redevelopment(
     state: GameState, pending,
 ) -> list[Action]:
+    """Enumerate legal actions at PendingHouseRedevelopment.
+
+    A Proceed-host (and-then; SPACE_HOST_REFACTOR.md §4.3): renovate is the
+    mandatory first sub-action (no Proceed until it has run), then the optional
+    improvement, then Proceed. After-phase: after triggers + Stop.
+    """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    actions: list[Action] = []
     if not pending.renovate_chosen and _can_renovate(p):
         actions.append(ChooseSubAction(name="renovate"))
     # The optional post-renovate improvement: build a major OR (card game) play a
@@ -1411,7 +1446,7 @@ def _enumerate_pending_house_redevelopment(
     if pending.renovate_chosen and not pending.improvement_chosen and can_improve:
         actions.append(ChooseSubAction(name="improvement"))
     if pending.renovate_chosen:
-        actions.append(Stop())
+        actions.append(Proceed())
     return actions
 
 
@@ -1512,13 +1547,19 @@ def _enumerate_pending_farm_redevelopment(
 ) -> list[Action]:
     """Enumerate legal actions at PendingFarmRedevelopment.
 
-    Mirrors `_enumerate_pending_house_redevelopment` with the optional second
-    step swapped from "improvement" to "build_fences". Renovate is mandatory
-    first (Stop illegal until renovate_chosen); Build Fences is offered only
-    after renovate AND only when at least one legal pasture commit exists.
+    A Proceed-host (and-then; SPACE_HOST_REFACTOR.md §4.3). Mirrors
+    `_enumerate_pending_house_redevelopment` with the optional second step
+    swapped from "improvement" to "build_fences". Renovate is mandatory first
+    (Proceed illegal until renovate_chosen); Build Fences is offered only after
+    renovate AND only when at least one legal pasture commit exists. After-phase:
+    after triggers + Stop.
     """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    actions: list[Action] = []
     if not pending.renovate_chosen and _can_renovate(p):
         actions.append(ChooseSubAction(name="renovate"))
     if (pending.renovate_chosen
@@ -1526,7 +1567,7 @@ def _enumerate_pending_farm_redevelopment(
             and _any_legal_pasture_commit(state, p)):
         actions.append(ChooseSubAction(name="build_fences"))
     if pending.renovate_chosen:
-        actions.append(Stop())
+        actions.append(Proceed())
     return actions
 
 
@@ -1666,21 +1707,6 @@ def _eligible_fire_triggers(state, pending, event: str) -> list:
         entries.append(entry)
     entries.sort(key=lambda e: e.card_id)
     return [FireTrigger(card_id=e.card_id) for e in entries]
-
-
-def _after_action_space_fired(pending) -> bool:
-    """Has an `after_action_space` trigger already fired on this space-host frame?
-
-    Derived from `triggers_resolved` + the registry — no stored flag needed (4b).
-    Once true, a Stop-terminated space stops offering its base sub-actions, so a
-    base action can't follow an after-effect (the rules-ordering the maintainer
-    flagged). A fresh frame has an empty triggers_resolved, so it starts false.
-    """
-    from agricola.cards.triggers import CARDS
-    return any(
-        c in CARDS and CARDS[c].event == "after_action_space"
-        for c in getattr(pending, "triggers_resolved", ())
-    )
 
 
 def _enumerate_pending_action_space(
