@@ -486,7 +486,7 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     """Play one occupation from hand: debit the frame's cost, move the card
     hand->tableau, then run its on-play effect. Dispatched with auto_pop=True, so
     the PendingPlayOccupation frame is popped by the generic dispatcher afterward."""
-    from agricola.cards.specs import OCCUPATIONS
+    from agricola.cards.specs import OCCUPATIONS, PLAY_OCCUPATION_VARIANTS
     cid = action.card_id
     top = state.pending_stack[-1]   # PendingPlayOccupation — the play cost lives here
     p = state.players[idx]
@@ -497,7 +497,13 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
         occupations=p.occupations | {cid},
     )
     state = _update_player(state, idx, p)
-    state = OCCUPATIONS[cid].on_play(state, idx)
+    # Variant-aware on-play: a card that registered a play-variant (Roof Ballaster)
+    # has its on_play called with the chosen variant; every other occupation keeps
+    # the (state, idx) signature — the unchanged common path.
+    if cid in PLAY_OCCUPATION_VARIANTS:
+        state = OCCUPATIONS[cid].on_play(state, idx, action.variant)
+    else:
+        state = OCCUPATIONS[cid].on_play(state, idx)
     # No current occupation on_play pushes a frame, so PendingPlayOccupation is
     # still on top — pivot it to its after-phase (firing after_play_occupation
     # autos); the trailing Stop pops. A future pushing on_play would need the
@@ -509,7 +515,9 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     """Play one minor improvement from hand: debit its printed cost, move it
     hand->tableau (or, for a traveling minor, execute then PASS it to the
     opponent — never kept in the tableau), then run its on-play effect.
-    Dispatched with auto_pop=True (PendingPlayMinor pops after). See
+    Dispatched with auto_pop=False — the effect pivots PendingPlayMinor to its
+    after-phase (no pop); the trailing Stop pops it (or, for a pushing on_play like
+    Shifting Cultivation, the pushed primitive resolves first, then Stop). See
     CARD_IMPLEMENTATION_PLAN.md II.4."""
     from agricola.cards.specs import MINORS
     cid = action.card_id
@@ -524,7 +532,6 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     if not spec.passing_left:                       # normal minor: keep in tableau
         p = fast_replace(p, minor_improvements=p.minor_improvements | {cid})
     state = _update_player(state, idx, p)
-    state = spec.on_play(state, idx)                # immediate effect (runs either way)
     if spec.passing_left:                           # traveling minor: pass to the opponent
         opp = 1 - idx
         state = _update_player(state, opp, fast_replace(
@@ -532,14 +539,29 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
             hand_minors=state.players[opp].hand_minors | {cid},
         ))
     # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos);
-    # the trailing Stop pops. (No current minor on_play pushes a frame.)
-    state = _enter_after_phase(state)
-    # Coarse "any improvement built" event (Category 5, Junk Room): a minor
-    # improvement IS an improvement — and "including this one", so Junk Room fires
-    # on its own play too. Mirrors the after_build_improvement fire in
-    # _execute_build_major. A no-op in the Family game (empty AUTO_EFFECTS).
+    # the trailing Stop pops. Then fire the coarse "any improvement built" event
+    # (Category 5, Junk Room): a minor IS an improvement, fired on its own play too.
+    # Both happen BEFORE the card's on_play below — and that ordering is load-bearing
+    # for on_plays that PUSH a frame (Shifting Cultivation pushes PendingPlow): the
+    # host must be flipped to "after" while it is still the top frame, exactly as
+    # _execute_build_major flips PendingBuildMajor before pushing the oven wrapper.
+    # The fired autos (+1 food etc.) are order-independent of any on_play gain, so
+    # firing them first is safe; both are Family no-ops (empty AUTO_EFFECTS).
     from agricola.cards.triggers import apply_auto_effects
-    return apply_auto_effects(state, "after_build_improvement", idx)
+    state = _enter_after_phase(state)
+    state = apply_auto_effects(state, "after_build_improvement", idx)
+    # Now run the immediate effect (runs whether kept or passed). A pushing on_play
+    # (Shifting Cultivation) lands its PendingPlow on top of the already-"after"
+    # PendingPlayMinor; when that primitive resolves and pops, the host's Stop pops
+    # it cleanly. A non-pushing on_play (the common case) leaves the host on top.
+    state = spec.on_play(state, idx)
+    # If on_play pushed a commit-terminated sub-action leaf (Shifting Cultivation →
+    # PendingPlow), fire its before-automatic effects at the push, the same seam as
+    # the granted-sub-action trigger path (_apply_fire_trigger → PendingPlow). A
+    # no-op in the Family game (empty AUTO_EFFECTS). Local import: engine imports
+    # resolution at load, so this back-edge is resolvable only at call time.
+    from agricola.engine import _fire_subaction_before_auto
+    return _fire_subaction_before_auto(state)
 
 
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {

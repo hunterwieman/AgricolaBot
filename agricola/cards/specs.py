@@ -40,6 +40,34 @@ def register_occupation(card_id: str, on_play: Callable) -> None:
     OCCUPATIONS[card_id] = OccupationSpec(card_id=card_id, on_play=on_play)
 
 
+# ---------------------------------------------------------------------------
+# Play-time variant occupations (CARD_IMPLEMENTATION_PLAN.md Category 2 — Roof
+# Ballaster)
+# ---------------------------------------------------------------------------
+# An occupation whose on-play carries an OPTIONAL, all-or-nothing choice — Roof
+# Ballaster: "you MAY pay 1 food to get 1 stone per room" — is modeled as a
+# play-VARIANT, exactly like Cooking Hearth's return-fireplace options in
+# CommitBuildMajor: playing it surfaces one CommitPlayOccupation per legal variant
+# (e.g. "with"/"without" the conversion), and the on-play reads the chosen variant.
+# No trigger, no extra frame — the choice is part of the single play action.
+#
+# A card registers a `variants_fn(state, idx) -> list[str]` here; the
+# PendingPlayOccupation enumerator expands its one CommitPlayOccupation into one
+# per returned variant, and `_execute_play_occupation` threads the chosen variant
+# into the on-play (calling it with 3 args only for these cards). A card with no
+# registered variants_fn plays via a single variant-less CommitPlayOccupation —
+# the unchanged common path. Empty registry in the Family game.
+#
+# variants_fn signature: (state, player_idx) -> list[str]  (must be non-empty —
+# at minimum the "do nothing" variant, so the card is always playable).
+PLAY_OCCUPATION_VARIANTS: dict[str, Callable] = {}
+
+
+def register_play_occupation_variant(card_id: str, variants_fn: Callable) -> None:
+    """Register an occupation's legal-play-variant enumerator (called at import)."""
+    PLAY_OCCUPATION_VARIANTS[card_id] = variants_fn
+
+
 @dataclass(frozen=True)
 class MinorSpec:
     """A minor improvement's static definition (CARD_IMPLEMENTATION_PLAN.md II.4).

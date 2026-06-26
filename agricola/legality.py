@@ -1806,10 +1806,16 @@ def _enumerate_pending_play_occupation(
     if top.phase == "after":
         actions.append(Stop())
         return actions
-    actions.extend(
-        CommitPlayOccupation(card_id=cid)
-        for cid in playable_occupations(state, top.player_idx)
-    )
+    from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
+    for cid in playable_occupations(state, top.player_idx):
+        variants_fn = PLAY_OCCUPATION_VARIANTS.get(cid)
+        if variants_fn is None:
+            # Ordinary occupation: a single variant-less commit (common path).
+            actions.append(CommitPlayOccupation(card_id=cid))
+            continue
+        # Play-variant occupation (Roof Ballaster): one commit per legal variant.
+        for v in variants_fn(state, top.player_idx):
+            actions.append(CommitPlayOccupation(card_id=cid, variant=v))
     return actions
 
 

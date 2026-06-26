@@ -129,8 +129,15 @@ class CommitPlayOccupation(CommitSubAction):
     `cost` field (route-dependent), not from this commit. `_execute_play_occupation`
     moves the card hand->tableau, debits the cost, and runs the card's on-play
     effect; the dispatcher then auto-pops the frame.
+
+    `variant` selects an on-play play-variant for occupations that register one
+    (Roof Ballaster's pay-or-not choice; see specs.PLAY_OCCUPATION_VARIANTS). It is
+    None for every ordinary occupation — the common, variant-less play — so two
+    CommitPlayOccupations for the same card with different variants are distinct
+    actions only when the card opts into the variant mechanism.
     """
     card_id: str
+    variant: str | None = None
 
 
 @dataclass(frozen=True)

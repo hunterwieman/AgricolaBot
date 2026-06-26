@@ -124,6 +124,45 @@ class ActionSpaceState:
 
 
 @dataclass(frozen=True)
+class CardStore:
+    """Sparse, hashable per-player side-map of persistent per-card state
+    (CARD_IMPLEMENTATION_PLAN.md II.7).
+
+    A few cards carry state beyond "played or not" — Tutor's occupation-count
+    snapshot, Moldboard Plow's uses-left, Big Country's banked bonus points. That
+    state lives here, NOT on `occupations` / `minor_improvements` (which stay plain
+    id frozensets). Only the cards that store something get an entry; a stateless
+    card (the vast majority) has none, so this is one small map per player, not one
+    object per played card.
+
+    `items` is a tuple of `(card_id, value)` pairs kept SORTED by card_id, so two
+    stores with the same logical contents are structurally identical → equal and
+    same-hash (the transposition table needs `GameState` hashable + stable). Values
+    are heterogeneous: an `int` for the common case (Tutor / Moldboard / Big
+    Country), a card-specific frozen payload dataclass for the rare complex card.
+
+    Being a frozen dataclass over a tuple field, the canonical serializer walks it
+    generically (no special-casing). Card-only: the default-empty store is added to
+    PlayerState's `__hash__` and to canonical's `_DEFAULT_SKIP_FIELDS`, so the
+    Family game is byte-identical (empty → omitted) and the C++ engine is untouched.
+    """
+    items: tuple = ()   # tuple[tuple[str, Hashable], ...], sorted by card_id
+
+    def get(self, cid: str, default=None):
+        """Value stored for `cid`, or `default` if the card has no entry."""
+        for k, v in self.items:
+            if k == cid:
+                return v
+        return default
+
+    def set(self, cid: str, value) -> "CardStore":
+        """A new CardStore with `cid` mapped to `value` (one value per card —
+        any existing entry is replaced). Re-sorted so the result is canonical."""
+        kept = tuple((k, v) for k, v in self.items if k != cid)
+        return CardStore(tuple(sorted(kept + ((cid, value),))))
+
+
+@dataclass(frozen=True)
 class PlayerState:
     resources:      Resources
     animals:        Animals
@@ -177,6 +216,12 @@ class PlayerState:
     used_this_round: frozenset = frozenset()  # reset on entry to the new round (_complete_preparation)
     fired_once:      frozenset = frozenset()  # per-game one-shots; never reset
 
+    # Persistent per-card state side-map (CARD_IMPLEMENTATION_PLAN.md II.7). A
+    # sparse, hashable CardStore — empty by default, so the Family game never
+    # populates it and stays byte-identical (added to __hash__ below + to
+    # canonical's _DEFAULT_SKIP_FIELDS → no C++ change). See CardStore above.
+    card_state:      "CardStore" = CardStore()
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -191,7 +236,7 @@ class PlayerState:
                       self.harvest_conversions_used,
                       self.hand_occupations, self.hand_minors,
                       self.used_this_turn, self.used_this_round,
-                      self.fired_once))
+                      self.fired_once, self.card_state))
             object.__setattr__(self, "_hash_cache", h)
         return h
 
