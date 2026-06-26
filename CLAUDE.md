@@ -22,8 +22,8 @@ The project — and this document — is organized into three phases, preceded b
 first):
 
 - **Phase 1 — The Game Engine.** Fast, correct, fully playable. **Done.**
-- **Phase 2 — Building an Agent.** A hand-built heuristic (2.1, *done* — it generates the
-  self-play training data), MCTS (2.2, *first pass done; PUCT search machinery now landed*), and a
+- **Phase 2 — Building an Agent.** A hand-built heuristic (2.1, *done, now retired* — it generated
+  the *initial* self-play training data), MCTS (2.2, *first pass done; PUCT search machinery now landed*), and a
   value/policy neural network (2.3, *value slice is the strongest agent; policy head + PUCT
   integration now underway, self-play loop still ahead*).
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
@@ -447,9 +447,9 @@ A stricter sibling, `strict_restricted_legal_actions`, layers additional MCTS-sp
 (Cultivation sow-max, hand-curated Fencing patterns, a harvest-feed cap). Who uses which:
 
 - **Heuristic agents now default to the *strict* wrapper** (`HeuristicAgent`'s class default; was
-  the engine's unrestricted set). The heuristics are used for **evaluation** only now — no longer
-  as MCTS leaves or for self-play data generation — so strict is the right default everywhere they
-  run. Pass an explicit `legal_actions_fn` to override per-case. (`NNAgent` is not a `HeuristicAgent`,
+  the engine's unrestricted set). The heuristics are **retired** (§2.1) — their data-generation and
+  eval-baseline jobs are done — so strict is simply the default for the few test-only paths where
+  they still run. Pass an explicit `legal_actions_fn` to override per-case. (`NNAgent` is not a `HeuristicAgent`,
   so it keeps the unrestricted default.)
 - **MCTS tree search** is mode-aware (§2.2 / MCTS_IMPLEMENTATION.md §7): **UCT → strict**, **PUCT →
   full unrestricted** (the policy prior is the sole prune).
@@ -459,6 +459,14 @@ A stricter sibling, `strict_restricted_legal_actions`, layers additional MCTS-sp
 Details: CHANGES.md Change 11, MCTS_DESIGN.md §7.
 
 ### 2.1 — Heuristic agent
+
+> **Retired (2026-06-26).** The heuristic agents existed only to (1) generate the *initial* self-play
+> data that bootstrapped NN training and (2) serve as the strength baseline for the *first* NN models.
+> Both jobs are complete and the heuristics **will not be used again** — not as an MCTS leaf, a data
+> generator, or an eval baseline (evaluation is now NN-vs-NN MCTS head-to-head, and the joint model
+> dominates this ensemble ~100%, so it no longer discriminates). The code (`agricola/agents/heuristic.py`,
+> the tuned configs) is kept in place as the genuine record of a completed project phase, **not**
+> archived. The rest of this section describes that phase as it was.
 
 Kept short by design: this stage is largely settled and matters least for future decisions.
 
@@ -791,8 +799,10 @@ Both modes run MCTS against MCTS, but for opposite purposes, and the scripts spl
   a `--leaf-ckpt` pointing at a joint `SharedTrunkModel` auto-wires that seat via `make_joint_fns`,
   so it drives both separate-net and joint models) and `scripts/nn/run_cpp_match.py` (the C++
   two-net `selfplay --match --model-dir-p0 A --model-dir-p1 B`, the OOM-safe way to run an 800-sim
-  match). `scripts/nn/eval_vs_ensemble.py` is the higher-level harness that drives a checkpoint
-  against the fixed 8-config ensemble — the cleanest *uncontaminated* strength yardstick.
+  match). `scripts/nn/eval_vs_ensemble.py` (drives a checkpoint against the fixed 8-config heuristic
+  ensemble) was the *uncontaminated* strength yardstick early on, but is **retired** (§2.1): the
+  joint model dominates the ensemble ~100%, so it no longer discriminates — evaluation is now
+  checkpoint-vs-checkpoint (`run_cpp_match.py`).
 
 The "port in different agents, or two of the same" flexibility is exactly this distinction: **same
 agent both seats = self-play generation; different agents per seat = evaluation match.** The agent at
