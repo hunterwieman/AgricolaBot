@@ -49,6 +49,7 @@ from agricola.constants import (
 )
 from agricola.pending import (
     ACTION_SPACE_PENDING_IDS,
+    SUBACTION_PENDING_IDS,
     PendingActionSpace,
     PendingBakeBread,
     PendingBuildFences,
@@ -316,6 +317,34 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     )
 
 
+def _fire_subaction_before_auto(state: GameState) -> GameState:
+    """If the stack's top is a commit-terminated sub-action leaf in its before-phase,
+    fire its `before_<PENDING_ID>` automatic effects (SUBACTION_HOOK_REFACTOR.md §4d).
+
+    The single central seam for sub-action before-autos — symmetric with
+    `_apply_place_worker` firing `before_action_space` when it pushes a space host,
+    and with `_enter_after_phase` firing the after-autos at the commit-flip. Called
+    at the two engine chokepoints where a sub-action leaf can be pushed: after a
+    `_choose_subaction_*` handler runs (`_apply_choose_sub_action`) and after a
+    trigger's `apply_fn` runs (`_apply_fire_trigger`, the card-grant push path —
+    Assistant Tiller → PendingPlow, Threshing Board / Oven Firing Boy → PendingBakeBread).
+
+    Gated on `SUBACTION_PENDING_IDS` so it fires only for the eight leaves, never for
+    a composite host (`PendingMajorMinorImprovement`, which fires its own
+    `before_major_minor_improvement`) or a Stop-terminated multi-shot builder (no
+    `phase`). A no-op in the Family game (empty AUTO_EFFECTS) → byte-identical state.
+    """
+    if not state.pending_stack:
+        return state
+    top = state.pending_stack[-1]
+    if type(top).PENDING_ID not in SUBACTION_PENDING_IDS:
+        return state
+    # A sub-action leaf is pushed in its before-phase; fire its before-autos there.
+    return apply_auto_effects(
+        state, f"before_{type(top).PENDING_ID}", top.player_idx,
+    )
+
+
 def _apply_choose_sub_action(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
@@ -327,7 +356,10 @@ def _apply_choose_sub_action(
             f"No ChooseSubAction handler registered for pending type "
             f"{type(top).__name__}"
         )
-    return handler(state, action)
+    # The handler pushes the chosen sub-action's frame (or, for the composite/
+    # Proceed paths, a non-leaf frame). If that new top is a commit-terminated
+    # sub-action leaf, fire its before-automatic effects at this push.
+    return _fire_subaction_before_auto(handler(state, action))
 
 
 def _apply_commit_subaction(
@@ -378,7 +410,11 @@ def _apply_fire_trigger(
         top, triggers_resolved=top.triggers_resolved | {action.card_id},
     )
     state = replace_top(state, new_top)
-    return entry.apply_fn(state, new_top.player_idx)
+    # A granted-sub-action trigger (Category 4) PUSHES a sub-action leaf primitive
+    # (Assistant Tiller → PendingPlow; Threshing Board / Oven Firing Boy →
+    # PendingBakeBread). If apply_fn left such a leaf on top, fire its
+    # before-automatic effects at this push (the same seam as ChooseSubAction).
+    return _fire_subaction_before_auto(entry.apply_fn(state, new_top.player_idx))
 
 
 def _apply_stop(state: GameState) -> GameState:

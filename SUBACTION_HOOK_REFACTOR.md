@@ -32,6 +32,10 @@ push (phase="before")
   → Stop: fire after_<id> automatic effects, then pop
 ```
 
+(Both before- and after-automatic effects now fire — the §4d before-auto
+deferral has since been lifted; see §4(d). The after-autos fire at the
+commit-flip inside `_enter_after_phase`, not at Stop; see §4(c).)
+
 This is the end-state that lets *any* sub-action host before- and after-triggers
 the same way an action space does — which the card system needs broadly, and which
 the auto-pop sub-actions currently make impossible (a card's after-trigger has no
@@ -184,15 +188,31 @@ after-autos at the work-complete boundary (the commit for sub-actions; `Proceed`
 the equivalent for space hosts), never at `Stop`. `Stop` is the explicit pop with no
 side effects.
 
-**(d) before-auto firing — DEFER (do not wire).** The before-*phase* exists and is
-load-bearing (it hosts the commit options and any before-*triggers* surfaced by the
-enumerator — e.g. Potter on `before_bake_bread`). But firing before-*automatic*
-effects at push (`apply_auto_effects("before_<id>", …)`) has **no in-scope
-consumer** and would scatter a call across every sub-action push site (the
-`_choose_subaction_*` handlers, Lessons, every card grant). Skip it; add it (at the
-specific push site) only when a card actually needs a before-auto on a sub-action.
-The before-*trigger* path (the more likely future need) already works via the
-enumerator with no push-site change.
+**(d) before-auto firing — LANDED (deferral lifted).** Originally deferred to
+avoid scattering an `apply_auto_effects("before_<id>", …)` call across every
+sub-action push site. The maintainer later lifted the deferral so the sub-action
+layer has the full before/after × auto/trigger suite (cards drop on cleanly). The
+scattering concern was avoided by a **single central seam** rather than per-site
+calls: `engine._fire_subaction_before_auto(state)` fires `before_<PENDING_ID>` autos
+iff the stack's top is one of the eight commit-terminated leaves (gated on
+`pending.SUBACTION_PENDING_IDS`), and it is called at the **two engine chokepoints**
+where a leaf can be pushed:
+
+- after `_apply_choose_sub_action`'s handler runs — covers every `_choose_subaction_*`
+  push (Grain Util/Cultivation/Side Job/oven free-bake), the `PendingSubActionSpace`
+  choose (Farmland plow, Major-space improvement, Lessons play_occupation), and the
+  House Redev / Farm Redev / Basic Wish / Meeting Place choose handlers (renovate,
+  family_growth, play_minor);
+- after `_apply_fire_trigger`'s `apply_fn` runs — covers card grants that push a leaf
+  (Assistant Tiller → `PendingPlow`; Threshing Board / Oven Firing Boy → `PendingBakeBread`).
+
+This is symmetric with how `_apply_place_worker` fires `before_action_space` when it
+pushes a space host, and with `_enter_after_phase` firing the after-autos at the
+commit-flip. The gate excludes `PendingMajorMinorImprovement` (a composite host
+firing its own `before_major_minor_improvement`) and the Stop-terminated multi-shot
+builders (`build_fences` is **not** in scope). A no-op in the Family game (empty
+`AUTO_EFFECTS`) → Family state byte-identical → C++ untouched, gates green. The
+before-*trigger* path was already working via the enumerator with no push-site change.
 
 **(e) `_apply_fire_trigger`** already records-before-applying (the granted-sub-action
 fix), so a trigger whose `apply_fn` pushes a primitive (Mining Hammer → push

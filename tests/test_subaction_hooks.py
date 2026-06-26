@@ -20,10 +20,12 @@ For each, three "should-work" dimensions are asserted:
   (2) a before-trigger is surfaced as a FireTrigger in the before-phase,
   (3) an after-trigger is surfaced as a FireTrigger in the after-phase.
 
-A fourth dimension — a before-*automatic* effect — is DEFERRED by design
-(SUBACTION_HOOK_REFACTOR §4d: before-autos are NOT fired at the sub-action push).
-``test_before_auto_is_deferred_not_fired_at_push`` pins that current behavior so
-the deferral is a known/tested limitation, not a silent gap.
+A fourth dimension — a before-*automatic* effect — now also fires at push
+(SUBACTION_HOOK_REFACTOR §4d, deferral LIFTED): when a commit-terminated
+sub-action leaf is pushed (its before-phase opens), its ``before_<id>`` automatic
+effects fire, via the central ``engine._fire_subaction_before_auto`` seam at the
+two push chokepoints (the ChooseSubAction handler push + the FireTrigger apply_fn
+push). ``test_before_auto_fires_at_push`` asserts this across all eight frames.
 
 The synthetic effects/triggers use the test-scoped ``register_auto`` / ``register``
 + try/finally cleanup pattern from ``tests/test_space_host_hooks.py`` and
@@ -441,27 +443,28 @@ def test_after_trigger_surfaced_in_after_phase(name):
 
 
 # ---------------------------------------------------------------------------
-# (4) before-automatic effects are DEFERRED by design (SUBACTION_HOOK_REFACTOR
-# §4d) — NOT fired at the sub-action push. This pins the current deferred
-# behavior so the deferral is a known/tested limitation, not a silent gap. Do
-# NOT "fix" this into firing without the §4d maintainer decision.
+# (4) before-automatic effects fire at the sub-action PUSH (SUBACTION_HOOK_REFACTOR
+# §4d, deferral LIFTED). When a commit-terminated sub-action leaf is pushed (its
+# before-phase opens), its before_<id> automatic effects fire — symmetric with the
+# action-space host before-auto (test_space_host_hooks.py) and with the after-auto
+# at the commit-flip (test_after_auto_fires_at_commit_flip).
 # ---------------------------------------------------------------------------
 
-def test_before_auto_is_deferred_not_fired_at_push():
-    """A before_<id> AUTOMATIC effect registered on a sub-action does NOT fire when
-    the sub-action frame is pushed (its before-phase begins) — the §4d deferral.
-
-    Contrast with the after-auto, which fires at the commit-flip
-    (test_after_auto_fires_at_commit_flip), and with the action-space *host*
-    before-auto, which DOES fire at push (test_space_host_hooks.py). Sub-action
-    before-autos are deliberately not wired; this test documents that."""
-    with _registered_auto("before_sow"):
-        state, cp = _build_sow()
+@pytest.mark.parametrize("name", _FRAME_IDS)
+def test_before_auto_fires_at_push(name):
+    """For every sub-action leaf frame, a before_<id> AUTOMATIC effect fires when
+    the frame is pushed (its before-phase begins) — before the commit. The bump
+    has landed while the frame is on top in phase=='before'."""
+    _name, frame_cls, eid, builder, to_before, commit = _row(name)
+    builder, to_before, commit = _resolve_driver(name, builder, to_before, commit)
+    with _registered_auto(f"before_{eid}"):
+        state, cp = builder()
         pre = state.players[cp].resources.stone
-        state = _to_before_sow(state)        # pushes PendingSow (before-phase)
+        state = to_before(state)             # pushes the leaf (before-phase)
         top = state.pending_stack[-1]
-        assert isinstance(top, PendingSow) and top.phase == "before"
-        assert state.players[cp].resources.stone == pre, (
-            "before_sow automatic effect fired at the sub-action push — the §4d "
-            "before-auto deferral has changed (see SUBACTION_HOOK_REFACTOR §4d)"
+        assert isinstance(top, frame_cls) and top.phase == "before", (
+            f"{name}: frame not on top in before-phase after push (top={top!r})"
+        )
+        assert state.players[cp].resources.stone == pre + 1, (
+            f"{name}: before_{eid} automatic effect did not fire at the push"
         )
