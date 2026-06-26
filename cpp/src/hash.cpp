@@ -88,13 +88,13 @@ inline void hf(std::uint64_t& h, const PendingGrainUtilization& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.sow_chosen); hi(h, f.bake_chosen);
 }
 inline void hf(std::uint64_t& h, const PendingSow& f) {
-  hpre(h, f.player_idx, f.initiated_by_id);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingBakeBread& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingPlow& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingFarmExpansion& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.room_chosen); hi(h, f.stable_chosen);
@@ -106,10 +106,10 @@ inline void hf(std::uint64_t& h, const PendingBuildRooms& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.max_builds); hi(h, f.num_built);
 }
 inline void hf(std::uint64_t& h, const PendingBuildMajor& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.build_chosen); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingRenovate& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingFarmland& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.plow_chosen); hi(h, f.triggers_resolved);

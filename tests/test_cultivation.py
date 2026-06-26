@@ -51,7 +51,8 @@ def test_cultivation_plow_only():
         PlaceWorker(space="cultivation"),
         ChooseSubAction(name="plow"),
         CommitPlow(row=0, col=2),
-        Stop(),
+        Stop(),   # pop PendingPlow's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].farmyard.grid[0][2].cell_type == CellType.FIELD
@@ -64,7 +65,8 @@ def test_cultivation_sow_only():
         PlaceWorker(space="cultivation"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=1, veg=0),
-        Stop(),
+        Stop(),   # pop PendingSow's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].farmyard.grid[0][2].grain == 3
@@ -78,9 +80,11 @@ def test_cultivation_plow_then_sow_on_new_field():
         PlaceWorker(space="cultivation"),
         ChooseSubAction(name="plow"),
         CommitPlow(row=0, col=2),
+        Stop(),   # pop PendingPlow's after-phase
         ChooseSubAction(name="sow"),
         CommitSow(grain=1, veg=0),
-        Stop(),
+        Stop(),   # pop PendingSow's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.players[0].farmyard.grid[0][2].cell_type == CellType.FIELD
     assert state.players[0].farmyard.grid[0][2].grain == 3
@@ -93,9 +97,11 @@ def test_cultivation_sow_then_plow():
         PlaceWorker(space="cultivation"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=1, veg=0),
+        Stop(),   # pop PendingSow's after-phase
         ChooseSubAction(name="plow"),
         CommitPlow(row=0, col=3),
-        Stop(),
+        Stop(),   # pop PendingPlow's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.players[0].farmyard.grid[0][2].grain == 3
     assert state.players[0].farmyard.grid[0][3].cell_type == CellType.FIELD

@@ -152,20 +152,24 @@ def test_grain_utilization_potter_zero_grain_full_walk():
     actions = legal_actions(state)
     assert actions == [CommitBake(grain=1)]
 
-    # Step 7: commit the bake.
+    # Step 7: commit the bake. PendingBakeBread pivots to its after-phase (no
+    # auto-pop); the parent's bake_chosen was set at choose time.
     state = step(state, CommitBake(grain=1))
-    # Pop PendingBakeBread; bake_chosen=True on parent.
-    assert len(state.pending_stack) == 1
-    assert isinstance(state.pending_stack[-1], PendingGrainUtilization)
-    assert state.pending_stack[-1].bake_chosen is True
+    assert len(state.pending_stack) == 2
+    assert isinstance(state.pending_stack[-1], PendingBakeBread)
+    assert state.pending_stack[-1].phase == "after"
+    assert state.pending_stack[-2].bake_chosen is True
     # Resources: -1 grain, +2 food (Fireplace).
     assert state.players[ap].resources.grain == 0
     assert state.players[ap].resources.food == pre_food + 2
 
-    # Step 8: only Stop is legal.
-    actions = legal_actions(state)
-    assert actions == [Stop()]
+    # Step 8: only Stop is legal at the bake after-phase; it pops back to the parent.
+    assert legal_actions(state) == [Stop()]
+    state = step(state, Stop())
+    assert isinstance(state.pending_stack[-1], PendingGrainUtilization)
 
+    # Step 9: only Stop at the parent; it ends the turn.
+    assert legal_actions(state) == [Stop()]
     state = step(state, Stop())
     assert state.pending_stack == ()
     # current_player has alternated.
@@ -213,7 +217,8 @@ def test_potter_re_eligible_in_new_pending_bake_bread():
         ChooseSubAction(name="bake_bread"),
         FireTrigger(card_id=CARD_ID),
         CommitBake(grain=1),
-        Stop(),
+        Stop(),   # pop PendingBakeBread's after-phase
+        Stop(),   # pop the parent
     ])
     # Now player has 1 clay, 0 grain, +2 food, no active pending.
     assert state.players[ap].resources.clay == 1

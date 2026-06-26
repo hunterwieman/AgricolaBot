@@ -54,7 +54,8 @@ def test_build_fireplace_idx0():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
-        Stop(),
+        Stop(),   # pop PendingBuildMajor's after-phase
+        Stop(),   # pop PendingMajorMinorImprovement
     ])
     assert state.pending_stack == ()
     assert state.board.major_improvement_owners[0] == 0
@@ -183,15 +184,16 @@ def test_clay_oven_purchase_plus_free_bake():
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
     ])
-    # After commit: PendingClayOven on top of PendingBuildMajor.
+    # After commit: PendingClayOven on top of the now-after-phase PendingBuildMajor.
     assert isinstance(state.pending_stack[-1], PendingClayOven)
     assert isinstance(state.pending_stack[-2], PendingBuildMajor)
-    assert state.pending_stack[-2].build_chosen is True
+    assert state.pending_stack[-2].phase == "after"   # was build_chosen; now phase
 
     # Continue with the optional free bake.
     state = run_actions(state, [
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
+        Stop(),  # pop PendingBakeBread's after-phase
         Stop(),  # pop PendingClayOven
         Stop(),  # pop PendingBuildMajor
         Stop(),  # pop PendingMajorMinorImprovement

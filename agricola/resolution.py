@@ -453,7 +453,12 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
         occupations=p.occupations | {cid},
     )
     state = _update_player(state, idx, p)
-    return OCCUPATIONS[cid].on_play(state, idx)
+    state = OCCUPATIONS[cid].on_play(state, idx)
+    # No current occupation on_play pushes a frame, so PendingPlayOccupation is
+    # still on top — pivot it to its after-phase (firing after_play_occupation
+    # autos); the trailing Stop pops. A future pushing on_play would need the
+    # record-before-apply treatment (cf. granted sub-actions).
+    return _enter_after_phase(state)
 
 
 def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
@@ -482,7 +487,9 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
             state.players[opp],
             hand_minors=state.players[opp].hand_minors | {cid},
         ))
-    return state
+    # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos);
+    # the trailing Stop pops. (No current minor on_play pushes a frame.)
+    return _enter_after_phase(state)
 
 
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
@@ -779,7 +786,8 @@ def _execute_family_growth(state: GameState, idx: int, action) -> GameState:
     PendingFamilyGrowth frame's initiated_by_id (the wish space). Reuses the shared
     growth logic; dispatched with auto_pop=True (the frame pops after)."""
     space_id = state.pending_stack[-1].initiated_by_id
-    return _resolve_wish_for_children(state, space_id)
+    state = _resolve_wish_for_children(state, space_id)
+    return _enter_after_phase(state)   # pivot PendingFamilyGrowth -> after; Stop pops
 
 
 CHOOSE_SUBACTION_HANDLERS: dict[type, Callable[[GameState, ChooseSubAction], GameState]] = {}
@@ -812,6 +820,26 @@ CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlaceCards] = _choose_subaction_meeting_
 # ---------------------------------------------------------------------------
 # Sub-action effect functions (used by engine.py)
 # ---------------------------------------------------------------------------
+
+def _enter_after_phase(state: GameState) -> GameState:
+    """Open a host frame's after-window: flip the top frame to `phase="after"`
+    (no pop) and fire its after-automatic effects, then return.
+
+    The single, uniform "after-window opens" point (SUBACTION_HOOK_REFACTOR.md).
+    Called by every commit-terminated sub-action effect at its commit, by the
+    animal markets, and (with the Proceed boundary) by the and/or-space parents.
+    The fired event is derived from the now-"after" frame via
+    `legality.trigger_event` — `after_action_space` for an action-space host,
+    `after_<PENDING_ID>` for a sub-action host (e.g. `after_renovate`). A no-op
+    in the Family game (empty AUTO_EFFECTS); the after-phase enumerator then
+    surfaces any after-triggers + Stop, and Stop pops.
+    """
+    from agricola.cards.triggers import apply_auto_effects
+    from agricola.legality import trigger_event
+    new_top = fast_replace(state.pending_stack[-1], phase="after")
+    state = replace_top(state, new_top)
+    return apply_auto_effects(state, trigger_event(new_top), new_top.player_idx)
+
 
 def _execute_sow(
     state: GameState,
@@ -866,7 +894,8 @@ def _execute_sow(
     new_player = fast_replace(
         p, resources=new_resources, farmyard=new_farmyard,
     )
-    return _update_player(state, player_idx, new_player)
+    state = _update_player(state, player_idx, new_player)
+    return _enter_after_phase(state)   # pivot PendingSow -> after; Stop pops
 
 
 def _execute_bake(
@@ -902,7 +931,8 @@ def _execute_bake(
         p,
         resources=p.resources + Resources(food=food, grain=-commit.grain),
     )
-    return _update_player(state, player_idx, new_player)
+    state = _update_player(state, player_idx, new_player)
+    return _enter_after_phase(state)   # pivot PendingBakeBread -> after; Stop pops
 
 
 def _execute_plow(
@@ -920,7 +950,8 @@ def _execute_plow(
     )
     new_farmyard = fast_replace(p.farmyard, grid=new_grid)
     new_player = fast_replace(p, farmyard=new_farmyard)
-    return _update_player(state, player_idx, new_player)
+    state = _update_player(state, player_idx, new_player)
+    return _enter_after_phase(state)   # pivot PendingPlow -> after; Stop pops
 
 
 def _execute_build_stable(
@@ -1009,7 +1040,8 @@ def _execute_renovate(
     new_player = fast_replace(
         p, resources=p.resources - pending.cost, house_material=new_material,
     )
-    return _update_player(state, player_idx, new_player)
+    state = _update_player(state, player_idx, new_player)
+    return _enter_after_phase(state)   # pivot PendingRenovate -> after; Stop pops
 
 
 def _execute_build_major(
@@ -1074,10 +1106,15 @@ def _execute_build_major(
         new_player = fast_replace(p, future_resources=tuple(new_future))
         state = _update_player(state, player_idx, new_player)
 
-    # 4. Set build_chosen=True on PendingBuildMajor (matters only if we linger for an oven).
-    state = replace_top(state, fast_replace(top, build_chosen=True))
+    # 4. Pivot PendingBuildMajor to its after-phase (no pop), firing
+    #    after_build_major automatic effects. Done BEFORE pushing any oven
+    #    wrapper so that when the wrapper's free bake pops back, this frame is
+    #    already "after" (offering after_build_major triggers + Stop). `phase`
+    #    now carries what `build_chosen` used to — the after-gate keys on it.
+    state = _enter_after_phase(state)
 
-    # 5. Branch on major_idx for the oven wrappers; otherwise pop.
+    # 5. Branch on major_idx for the oven wrappers; otherwise leave the
+    #    after-phase frame for its trailing Stop.
     if commit.major_idx == 5:  # Clay Oven
         return push(state, PendingClayOven(
             player_idx=player_idx, initiated_by_id="build_major",
@@ -1087,8 +1124,8 @@ def _execute_build_major(
             player_idx=player_idx, initiated_by_id="build_major",
         ))
 
-    # Non-oven: pop PendingBuildMajor immediately.
-    return pop(state)
+    # Non-oven: the after-phase PendingBuildMajor stays; Stop pops it.
+    return state
 
 
 def _execute_build_pasture(

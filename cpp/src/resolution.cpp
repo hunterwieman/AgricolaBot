@@ -303,8 +303,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.bake_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingBakeBread{nt.player_idx,
-                                      pending_id<PendingGrainUtilization>(),
-                                      {}});
+                                      pending_id<PendingGrainUtilization>()});
     }
   } else if (auto* f = std::get_if<PendingFarmland>(&top)) {
     if (name == "plow") {
@@ -312,7 +311,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.plow_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s,
-                  PendingPlow{nt.player_idx, pending_id<PendingFarmland>(), {}});
+                  PendingPlow{nt.player_idx, pending_id<PendingFarmland>()});
     }
   } else if (auto* c = std::get_if<PendingCultivation>(&top)) {
     PendingCultivation nt = *c;
@@ -320,7 +319,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.plow_chosen = true;
       GameState s = replace_top(state, nt);
       return push(
-          s, PendingPlow{nt.player_idx, pending_id<PendingCultivation>(), {}});
+          s, PendingPlow{nt.player_idx, pending_id<PendingCultivation>()});
     }
     if (name == "sow") {
       nt.sow_chosen = true;
@@ -345,7 +344,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.bake_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingBakeBread{nt.player_idx,
-                                      pending_id<PendingSideJob>(), {}});
+                                      pending_id<PendingSideJob>()});
     }
   } else if (auto* mm = std::get_if<PendingMajorMinorImprovement>(&top)) {
     if (name == "build_major") {
@@ -353,8 +352,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.major_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingBuildMajor{nt.player_idx,
-                                       pending_id<PendingMajorMinorImprovement>(),
-                                       false, {}});
+                                       pending_id<PendingMajorMinorImprovement>()});
     }
     // "play_minor" not in Family scope.
   } else if (auto* co = std::get_if<PendingClayOven>(&top)) {
@@ -363,7 +361,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.bake_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingBakeBread{nt.player_idx,
-                                      pending_id<PendingClayOven>(), {}});
+                                      pending_id<PendingClayOven>()});
     }
   } else if (auto* so = std::get_if<PendingStoneOven>(&top)) {
     if (name == "bake_bread") {
@@ -371,7 +369,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       nt.bake_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingBakeBread{nt.player_idx,
-                                      pending_id<PendingStoneOven>(), {}});
+                                      pending_id<PendingStoneOven>()});
     }
   } else if (auto* hr = std::get_if<PendingHouseRedevelopment>(&top)) {
     PendingHouseRedevelopment nt = *hr;
@@ -382,7 +380,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       GameState s = replace_top(state, nt);
       return push(s, PendingRenovate{nt.player_idx,
                                      pending_id<PendingHouseRedevelopment>(),
-                                     renovate_cost(p), {}});
+                                     renovate_cost(p)});
     }
     if (name == "improvement") {
       nt.improvement_chosen = true;
@@ -434,7 +432,7 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       GameState s = replace_top(state, nt);
       return push(s, PendingRenovate{nt.player_idx,
                                      pending_id<PendingFarmRedevelopment>(),
-                                     renovate_cost(p), {}});
+                                     renovate_cost(p)});
     }
     if (name == "build_fences") {
       nt.build_fences_chosen = true;
@@ -449,6 +447,17 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
 // ===========================================================================
 // _execute_* effect functions.
 // ===========================================================================
+
+// Flip the top frame to phase="after" (no pop) — the C++ mirror of Python's
+// _enter_after_phase. C++ Family has no automatic effects, so this is only the
+// phase flip; the trailing Stop pops. (SUBACTION_HOOK_REFACTOR.md)
+static GameState enter_after_phase(const GameState& state) {
+  PendingDecision nt = state.pending_stack.back();
+  std::visit([](auto& f) {
+    if constexpr (requires { f.phase; }) { f.phase = "after"; }
+  }, nt);
+  return replace_top(state, nt);
+}
 
 GameState execute_sow(const GameState& state, int player_idx,
                       const CommitSow& commit) {
@@ -472,7 +481,7 @@ GameState execute_sow(const GameState& state, int player_idx,
       }
     }
   p.farmyard.grid = grid;
-  return update_player(state, player_idx, p);
+  return enter_after_phase(update_player(state, player_idx, p));
 }
 
 GameState execute_bake(const GameState& state, int player_idx,
@@ -498,7 +507,7 @@ GameState execute_bake(const GameState& state, int player_idx,
   }
   PlayerState p = state.players[static_cast<size_t>(player_idx)];
   p.resources = p.resources + Resources{0, 0, 0, 0, food, -commit.grain, 0};
-  return update_player(state, player_idx, p);
+  return enter_after_phase(update_player(state, player_idx, p));
 }
 
 GameState execute_plow(const GameState& state, int player_idx,
@@ -508,7 +517,7 @@ GameState execute_plow(const GameState& state, int player_idx,
   field.cell_type = CellType::FIELD;
   p.farmyard.grid =
       grid_with_cell(p.farmyard.grid, commit.row, commit.col, field);
-  return update_player(state, player_idx, p);
+  return enter_after_phase(update_player(state, player_idx, p));
 }
 
 GameState execute_build_stable(const GameState& state, int player_idx,
@@ -556,13 +565,11 @@ GameState execute_renovate(const GameState& state, int player_idx,
   else
     throw std::runtime_error("CommitRenovate illegal on stone house");
   p.resources = p.resources - pending.cost;
-  return update_player(state, player_idx, p);
+  return enter_after_phase(update_player(state, player_idx, p));
 }
 
 GameState execute_build_major(const GameState& state, int player_idx,
                               const CommitBuildMajor& commit) {
-  const PendingBuildMajor& top =
-      std::get<PendingBuildMajor>(state.pending_stack.back());
   GameState s = state;
   const Resources& cost =
       MAJOR_IMPROVEMENT_COSTS[static_cast<size_t>(commit.major_idx)];
@@ -592,17 +599,17 @@ GameState execute_build_major(const GameState& state, int player_idx,
     s = update_player(s, player_idx, p);
   }
 
-  // 4. build_chosen=True (matters only for the oven linger).
-  PendingBuildMajor nt = top;
-  nt.build_chosen = true;
-  s = replace_top(s, nt);
+  // 4. Pivot PendingBuildMajor to its after-phase (no pop) BEFORE pushing any
+  //    oven wrapper, so the wrapper's free bake pops back to an "after" frame.
+  //    `phase` carries what `build_chosen` used to.
+  s = enter_after_phase(s);
 
-  // 5. Oven wrappers, else pop.
+  // 5. Oven wrappers, else leave the after-phase frame for its trailing Stop.
   if (commit.major_idx == 5)
     return push(s, PendingClayOven{player_idx, "build_major"});
   if (commit.major_idx == 6)
     return push(s, PendingStoneOven{player_idx, "build_major"});
-  return pop(s);
+  return s;
 }
 
 GameState execute_build_pasture(const GameState& state, int player_idx,

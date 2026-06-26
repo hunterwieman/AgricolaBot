@@ -29,14 +29,15 @@ from tests.test_utils import run_actions
 
 
 def test_farmland_basic_walk():
-    """PlaceWorker(farmland) -> ChooseSubAction(plow) -> CommitPlow -> Stop."""
+    """PlaceWorker(farmland) -> ChooseSubAction(plow) -> CommitPlow -> Stop (after-phase) -> Stop (parent)."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = run_actions(state, [
         PlaceWorker(space="farmland"),
         ChooseSubAction(name="plow"),
         CommitPlow(row=0, col=2),
-        Stop(),
+        Stop(),   # pop PendingPlow's after-phase
+        Stop(),   # pop the parent
     ])
     # Stack empty after Stop.
     assert state.pending_stack == ()
@@ -83,8 +84,9 @@ def test_farmland_choose_plow_marks_parent():
     assert new_parent.plow_chosen is True
 
 
-def test_farmland_commit_plow_does_not_modify_parent():
-    """CommitPlow pops PendingPlow without touching the parent's flag."""
+def test_farmland_commit_plow_flips_pending_plow_after_without_modifying_parent():
+    """CommitPlow pivots PendingPlow to its after-phase (no auto-pop) and does NOT
+    touch the parent's flag; the trailing Stop pops PendingPlow."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = run_actions(state, [
@@ -93,11 +95,23 @@ def test_farmland_commit_plow_does_not_modify_parent():
     ])
     # Parent has plow_chosen=True (set at choose time).
     pre_parent = state.pending_stack[-2]
+    assert isinstance(pre_parent, PendingFarmland)
+    assert pre_parent.plow_chosen is True
+
     state = step(state, CommitPlow(row=0, col=2))
-    post_parent = state.pending_stack[-1]
+    # PendingPlow stays on top in its after-phase; parent untouched.
+    assert len(state.pending_stack) == 2
+    assert isinstance(state.pending_stack[-1], PendingPlow)
+    assert state.pending_stack[-1].phase == "after"
+    post_parent = state.pending_stack[-2]
     assert isinstance(post_parent, PendingFarmland)
     # Same flag value — commit didn't modify it.
     assert post_parent.plow_chosen == pre_parent.plow_chosen
+
+    # The trailing Stop pops PendingPlow; back at the parent.
+    state = step(state, Stop())
+    assert len(state.pending_stack) == 1
+    assert isinstance(state.pending_stack[-1], PendingFarmland)
 
 
 def test_farmland_plow_cell_enumeration_excludes_non_empty():

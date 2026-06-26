@@ -59,13 +59,30 @@ bookkeeping) is deliberately left open for a later session.**
 > Board** (Cat 4, after-trigger granting a bake on Farmland/Cultivation). Remaining non-atomic Cat 4/5:
 > Moldboard Plow (needs CardStore), the build/renovate hooks (Cat 5).
 >
-> **Category 5 (build/renovate/bake/play hooks) is gated on a planned refactor — see
-> `SUBACTION_HOOK_REFACTOR.md`.** Those cards hook *sub-action* events; the commit-terminated sub-actions
-> auto-pop today, leaving an after-trigger grant (Mining Hammer, Bread Paddle) nowhere to be surfaced.
-> The refactor (maintainer-approved) makes every commit-terminated sub-action a uniform before/after host
-> like `PendingActionSpace`/the markets (non-auto-pop + `phase` + Stop). It is a dedicated pass (it
-> changes the Family sub-action trace → ~all sub-action tests + a C++ sub-action sync), to land BEFORE
-> the Category-5 card modules.
+> **Sub-action hook refactor DONE** (`SUBACTION_HOOK_REFACTOR.md`; mechanism only, no card modules).
+> Every commit-terminated sub-action — `PendingSow`, `PendingBakeBread`, `PendingPlow`, `PendingRenovate`,
+> `PendingBuildMajor`, `PendingFamilyGrowth`, `PendingPlayOccupation`, `PendingPlayMinor` — is now a
+> uniform before/after host like `PendingActionSpace`/the markets: **`auto_pop=False`**, a `phase`
+> (`"before"`/`"after"`) + `triggers_resolved`, and the commit **pivots the frame to its after-phase**
+> (via the shared `_enter_after_phase` helper, which also fires `after_<id>` automatic effects at that
+> flip — the after-window-open point); the trailing `Stop` pops. `PendingBuildMajor` dropped the
+> now-redundant `build_chosen` (the after-gate keys on `phase`; the oven wrapper is pushed *after* the
+> flip so the free bake pops back to an already-"after" host). The Family sub-action trace gained an
+> agent-auto-skipped `Stop` per sub-action; the 5 Family-reachable frames (Sow/Bake/Plow/Renovate/
+> BuildMajor) were C++-synced (`phase` field + flip + after-phase enumerator) — **all 136 differential
+> gates green**. This **unblocks the Category-5 after-trigger grants** (Mining Hammer on `after_renovate`,
+> Bread Paddle on `after_play_occupation`) and the after-auto build hooks. Lifecycle coverage:
+> `tests/test_subaction_hook_lifecycle.py`.
+>
+> **Still OPEN — the and/or-space *parent* Proceed pass.** The Stop-terminated multi-sub *parents*
+> (Grain Utilization, Cultivation, Farm Expansion, House/Farm Redevelopment) still surface their
+> `after_action_space` triggers at the Stop-gate and fire after-auto at `Stop` (the 4b model). The agreed
+> next refactor gives those parents a `phase` + an explicit **`Proceed`** boundary (the "done with the
+> base sub-actions" signal, gated on the existing `*_chosen` flags), so after-auto fires at the
+> after-window-open (Proceed) rather than at `Stop` and the base sub-actions/after-triggers stop
+> interleaving — needed by parent-hooking after cards (Sugar Baker, Full Peasant) and the end-of-turn
+> cards (Firewood Collector, Royal Wood, which need a separate end-of-turn event). Adds `phase` to those
+> 5 Family-reachable parent frames (a second C++ sync).
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6.

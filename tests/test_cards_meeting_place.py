@@ -51,8 +51,9 @@ def test_become_sp_then_play_minor():
     cs = step(cs, CommitPlayMinor(card_id="market_stall"))
     assert cs.players[cp].resources.veg == 1
     assert "market_stall" in cs.players[opp].hand_minors  # passing -> circulated
-    assert legal_actions(cs) == [Stop()]
-    cs = step(cs, Stop())
+    assert legal_actions(cs) == [Stop()]                  # PendingPlayMinor after-phase
+    cs = step(cs, Stop())                                 # pop after-phase
+    cs = step(cs, Stop())                                 # pop the parent
     assert cs.pending_stack == ()
 
 

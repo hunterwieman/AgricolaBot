@@ -1,8 +1,12 @@
 # SUBACTION_HOOK_REFACTOR.md
 
-**Status: design doc for a NOT-YET-STARTED refactor. Python-side spec is below; the
-implementing session is expected to discover the full blast radius from the method
-in §7 and re-green every gate (including the C++ differential).**
+**Status: LANDED.** Every commit-terminated sub-action frame named here now carries `phase`
++ `triggers_resolved`, flips to `phase="after"` on its commit (firing `after_<id>` autos via the
+shared `_enter_after_phase` helper), and is popped by a trailing `Stop`; `PendingBuildMajor`
+dropped `build_chosen` in favor of `phase`; the five Family-reachable frames are C++-synced and
+the differential gates are green. Lifecycle coverage is in `tests/test_subaction_hook_lifecycle.py`.
+The **action-space parent** layer (the frames a worker placement pushes) is the successor refactor
+— see `SPACE_HOST_REFACTOR.md`. The original design spec is retained below for provenance.
 
 Companion reading before you start: `CARD_IMPLEMENTATION_PLAN.md` §II.1–II.2 (the
 firing model + the action-space hook), and the two precedents this refactor
