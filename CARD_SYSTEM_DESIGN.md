@@ -208,7 +208,11 @@ def _should_host_space(state, space_id, acting_player) -> bool:
   through this — they're applied directly at the hook, never offered as a `FireTrigger`.
 - **Timing ruling (RULES.md "Trigger Timing"):** a bare "each time you use [space]" fires in the
   **before** phase (before the space's effect); cards that fire after say so explicitly
-  ("immediately after…", "at the end of that turn") → **after** phase.
+  ("immediately after…", "at the end of that turn") → **after** phase. This is a **correctness**
+  decision fixed by the card text + ruling, **not** a scheduling detail to settle by convenience:
+  classify every space-hook card's phase by this rule before writing the hook, even when the
+  observable end state would coincide either way. Never reason "before/after doesn't matter here,
+  I'll pick one" — that process is wrong even when its result happens to be right.
 - **Trigger vs automatic effect.** A choice ("you may…") → a **trigger** surfaced as a
   `FireTrigger` (Potter, Mushroom Collector). A mandatory, parameterless effect ("you get…") →
   an **automatic effect** applied as a system transition at the hook (no `FireTrigger`, no

@@ -282,6 +282,58 @@ def should_host_preparation(state) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Round-start deferred-effect hooks (CARD_IMPLEMENTATION_PLAN.md II.5)
+# ---------------------------------------------------------------------------
+# A FutureReward slot can carry effect-card ids (Handplow's deferred plow) whose
+# effect fires when its scheduled round is ENTERED — distinct from the
+# start-of-round phase hook above (which fires for every owning player every round
+# off the played-card set). Here the schedule itself names the cards: a card
+# placed `effect_card_ids={cid}` into a future slot, and at that round's start
+# `_collect_future_rewards` looks up the card's registered apply_fn here and runs
+# it. The apply_fn (state, owner_idx) -> GameState may push a frame (Handplow
+# pushes PendingPlow), which then sits on the WORK stack to be resolved by the
+# owner before placing a worker. Family game → no schedule → never consulted.
+ROUND_START_EFFECTS: dict[str, Callable] = {}
+
+
+def register_round_start_effect(card_id: str, apply_fn: Callable) -> None:
+    """Register `card_id`'s deferred round-start effect (II.5).
+
+    Called at card-module import. `apply_fn(state, owner_idx) -> GameState` runs
+    when a FutureReward slot scheduling this card id is collected at round start.
+    """
+    ROUND_START_EFFECTS[card_id] = apply_fn
+
+
+# ---------------------------------------------------------------------------
+# One-shot conditional latch (CARD_IMPLEMENTATION_PLAN.md II.3 / §6)
+# ---------------------------------------------------------------------------
+# Some cards fire ONCE, the first moment a standing condition becomes true —
+# "Once you live in a stone house, …" (Manservant), "Once you no longer live in a
+# wooden house, …" (Clay Hut Builder). These are level-triggered, not edge-
+# triggered on a specific action: the condition can become true via a renovate, or
+# already be true the instant the card is played (you renovated to stone, THEN
+# played Manservant). So they are checked by a small sweep, `_fire_ready_one_shots`
+# (engine.py), run at exactly the two points the condition can change for the
+# OWNER: right after a renovate applies, and right after a card is played. Each
+# fires at most once per game, recorded in the per-game `fired_once` latch (never
+# cleared). Family game → no conditional registered → the sweep is a no-op.
+#
+# condition_fn (state, owner_idx) -> bool: is the standing condition met now?
+# apply_fn     (state, owner_idx) -> GameState: the one-time effect.
+CONDITIONAL_ONE_SHOTS: dict[str, tuple[Callable, Callable]] = {}
+
+
+def register_conditional(card_id: str, condition_fn: Callable, apply_fn: Callable) -> None:
+    """Register `card_id` as a one-shot conditional (II.3 / §6).
+
+    Called at card-module import. Fires once, via `_fire_ready_one_shots`, the first
+    time `condition_fn(state, owner_idx)` is true for the OWNER.
+    """
+    CONDITIONAL_ONE_SHOTS[card_id] = (condition_fn, apply_fn)
+
+
+# ---------------------------------------------------------------------------
 # Mandatory-with-choice gate (CARD_IMPLEMENTATION_PLAN.md II.1)
 # ---------------------------------------------------------------------------
 # A host frame's phase-exit (Proceed/Stop) is withheld while an eligible, unfired

@@ -163,6 +163,41 @@ class CardStore:
 
 
 @dataclass(frozen=True)
+class FutureReward:
+    """A non-goods reward promised at the start of a future round
+    (CARD_IMPLEMENTATION_PLAN.md II.5).
+
+    Goods/food promised on a round space already ride on
+    `PlayerState.future_resources` (a `tuple[Resources, ...]`, used by the Well and
+    by the goods-scheduling Category-8 cards). This sibling tuple carries the two
+    things a plain `Resources` slot cannot: **animals** (collected and accommodated
+    at round start — Acorns Basket, deferred) and **effect-card hooks** (a card id
+    whose round-start effect fires when the round is entered — Handplow's deferred
+    plow). Splitting it out keeps the Family-reachable `future_resources` structure
+    (and its C++ serialization) untouched: this field is card-only, default-empty,
+    skipped in the canonical JSON, so the Family game is byte-identical.
+
+    Scheduling is **additive** — repeated placers stack on the same round slot
+    (animals add, effect_card_ids union).
+    """
+    animals: Animals = Animals()
+    effect_card_ids: frozenset = frozenset()   # round-start effect hooks (card ids)
+
+    def __bool__(self) -> bool:
+        """True iff this slot carries anything (so a default slot is falsy — lets
+        `_complete_preparation` skip the whole animals/hooks branch on empty slots,
+        the Family fast path). `Animals` has no `__bool__`, so check its counts."""
+        a = self.animals
+        return bool(a.sheep or a.boar or a.cattle or self.effect_card_ids)
+
+    def __add__(self, other: "FutureReward") -> "FutureReward":
+        return FutureReward(
+            animals=self.animals + other.animals,
+            effect_card_ids=self.effect_card_ids | other.effect_card_ids,
+        )
+
+
+@dataclass(frozen=True)
 class PlayerState:
     resources:      Resources
     animals:        Animals
@@ -180,6 +215,17 @@ class PlayerState:
     # rewards are not supported by this field; a FutureRewards wrapper will
     # be introduced when needed.
     future_resources: tuple = (Resources(),) * 14  # tuple[Resources, ...], length 14
+
+    # Non-goods rewards promised at the start of each future round
+    # (CARD_IMPLEMENTATION_PLAN.md II.5) — the FutureReward sibling of
+    # future_resources, one slot per round (indexed 0-13 → rounds 1-14). Each
+    # slot carries animals (collected + accommodated at round start) and
+    # effect-card hooks (a card id whose round-start effect fires). Card-only:
+    # the default is all-empty FutureReward()s, so the Family game never populates
+    # it (added to __hash__ below + to canonical's _DEFAULT_SKIP_FIELDS → byte-
+    # identical Family JSON, no C++ change). Goods/food schedules stay on
+    # future_resources; this carries only what a Resources slot cannot.
+    future_rewards: tuple = (FutureReward(),) * 14  # tuple[FutureReward, ...], length 14
 
     # Minor improvement and occupation card ids the player has played.
     # Cards are NOT directly playable in Task 5 (no spaces implement
@@ -232,6 +278,7 @@ class PlayerState:
             h = hash((self.resources, self.animals, self.farmyard,
                       self.house_material, self.people_total, self.people_home,
                       self.newborns, self.begging_markers, self.future_resources,
+                      self.future_rewards,
                       self.minor_improvements, self.occupations,
                       self.harvest_conversions_used,
                       self.hand_occupations, self.hand_minors,

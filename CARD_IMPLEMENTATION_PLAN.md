@@ -108,7 +108,13 @@ bookkeeping) is deliberately left open for a later session.**
 >   firing. Niche (a card hooking specifically "the free bake after building an oven"); low priority.
 > - The **round-start / Preparation / harvest (feed-breed)** phase hooks are a separate, larger system —
 >   tracked as **Step 6** below, not an extension of the action-space firing work.
-> - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
+> - **Step 5** — `FutureReward` + Category 8 (deferred goods) → **DONE (Unit 2)**. Implemented with
+>   design **(b)**, NOT the `future_resources`-generalization design (a) sketched in §II.5 below: the
+>   Family-reachable `future_resources` (the Well's `tuple[Resources]`) is kept UNCHANGED, and a
+>   **separate card-only `PlayerState.future_rewards: tuple[FutureReward]`** carries only what a
+>   `Resources` slot cannot (animals + round-start effect-card hooks). Card-only + default-skipped →
+>   Family byte-identical → **no C++ sync needed** (all C++ differential gates green untouched). See
+>   the Unit-2 block below.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6. **DONE.** Harvest-field hook — `PendingHarvestField` (II.6)
 >   + the `harvest_field` event + Category 6 (Scythe Worker, Butter Churn, Three-Field Rotation, Loom).
@@ -138,6 +144,28 @@ bookkeeping) is deliberately left open for a later session.**
 > flips the `PendingPlayMinor` host to `phase="after"` and fires the after-events BEFORE running
 > `on_play` (mirroring how `_execute_build_major` flips `PendingBuildMajor` before pushing the oven
 > wrapper), so the pushed `PendingPlow` lands on top of the already-flipped host and unwinds cleanly.
+>
+> **FutureReward + Category 8 (Unit 2) DONE** — the deferred-goods cards (`tests/test_cards_category8.py`,
+> `tests/test_cards_one_shot_latch.py`, `tests/test_cards_future_reward.py`; full suite + C++ gates green).
+> Infrastructure: **design (b)** for deferred rewards — goods/food ride the existing
+> `future_resources`; a card-only `future_rewards: tuple[FutureReward]` (animals + effect-card hooks,
+> default-skipped, in `PlayerState.__hash__`) carries the rest, so the Family game is byte-identical and
+> **no C++ change was needed**. `engine._collect_future_rewards` distributes each round's slot at
+> Preparation (animals auto-accommodated via the Pareto frontier — decision-free; effect hooks fired via
+> a `ROUND_START_EFFECTS` registry). The **one-shot conditional latch** (II.3 / §6) —
+> `register_conditional` + `engine._fire_ready_one_shots`, swept at the two points a standing house-
+> material condition can change for the owner (right after a renovate, and right after a card is played) —
+> latches in the per-game `fired_once` set. A shared `cards/schedules.py` (`schedule_resources` /
+> `schedule_effect`) holds the round-slot math. Cards: **Wall Builder** (after-build-rooms auto),
+> **Manservant** + **Clay Hut Builder** (conditional latch), **Pond Hut · Strawberry Patch · Large
+> Greenhouse · Sack Cart · Thick Forest** (on-play goods minors; Thick Forest's "5 Clay in Your Supply"
+> is a no-debit prereq), **Herring Pot** (`before_action_space` hook on Fishing, per the Trigger-Timing
+> ruling — "each time you use [space]" fires BEFORE the space's effect), and **Handplow** (a round-start
+> EFFECT on `future_rewards`, not goods). **One modeling compromise flagged for review:** Handplow's
+> "you *can* plow" is modeled as forced-if-a-legal-cell-exists (the round-start `PendingPlow` has no
+> decline path), so it cannot decline the plow — usually harmless (a free field), but declining can be
+> strategically correct late game when a new field consumes a wanted farmyard cell; revisit if a
+> declinable round-start primitive is wanted.
 >
 > **Deferred-within-category cards** still awaiting their infra: Cottager (build-or-renovate choice).
 
@@ -829,6 +857,16 @@ field.
 > (`"1 of Your People on \"Fishing\""` — Brook — is a worker-placement cost, but Brook is deferred/§7.)
 
 ## II.5 Deferred rewards — generalize `future_resources` to `FutureReward`
+
+> **Status: implemented as design (b), NOT the generalization below (design (a)).** This section
+> sketches replacing each `future_resources` slot with a `FutureReward`. The shipped Unit-2 code took
+> the cleaner **design (b)** instead: `future_resources` is kept UNCHANGED (Family-reachable, C++-
+> serialized, used by the Well + every goods-scheduling Category-8 card), and a **separate card-only
+> `PlayerState.future_rewards: tuple[FutureReward]`** carries only what a `Resources` slot cannot —
+> animals + round-start effect-card hooks. Card-only + canonical-default-skipped → Family byte-identical
+> → **no C++ change**. The dataclass shape below (`animals` + `effect_card_ids`) is exactly what landed;
+> only its *placement* differs (a sibling tuple, not a replacement). See the Unit-2 status block at the
+> top of this doc.
 
 `PlayerState.future_resources` is already a `tuple[Resources, ...]` of length 14, one slot per round,
 added at round start in `_complete_preparation`. (Index convention, matching the engine's Well code:

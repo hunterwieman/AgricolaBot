@@ -101,7 +101,7 @@ _build_registry()
 _DEFAULT_SKIP_FIELDS = frozenset({
     "mode", "hand_occupations", "hand_minors",
     "used_this_turn", "used_this_round", "fired_once",
-    "card_state",
+    "card_state", "future_rewards",
 })
 
 

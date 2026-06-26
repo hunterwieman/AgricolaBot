@@ -504,6 +504,12 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
         state = OCCUPATIONS[cid].on_play(state, idx, action.variant)
     else:
         state = OCCUPATIONS[cid].on_play(state, idx)
+    # One-shot conditional latch (II.3 / §6): playing a card can satisfy a standing
+    # house-material condition the instant it enters the tableau (renovated to stone
+    # first, THEN played Manservant) — the case the renovate hook misses. A no-op in
+    # the Family game (no conditional registered).
+    from agricola.engine import _fire_ready_one_shots
+    state = _fire_ready_one_shots(state, idx)
     # No current occupation on_play pushes a frame, so PendingPlayOccupation is
     # still on top — pivot it to its after-phase (firing after_play_occupation
     # autos); the trailing Stop pops. A future pushing on_play would need the
@@ -555,6 +561,12 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     # PendingPlayMinor; when that primitive resolves and pops, the host's Stop pops
     # it cleanly. A non-pushing on_play (the common case) leaves the host on top.
     state = spec.on_play(state, idx)
+    # One-shot conditional latch (II.3 / §6): a played minor can satisfy a standing
+    # condition the instant it enters the tableau. Touches only player state (no
+    # stack), so it is safe to run with any on_play-pushed frame on top. A no-op in
+    # the Family game (no conditional registered).
+    from agricola.engine import _fire_ready_one_shots
+    state = _fire_ready_one_shots(state, idx)
     # If on_play pushed a commit-terminated sub-action leaf (Shifting Cultivation →
     # PendingPlow), fire its before-automatic effects at the push, the same seam as
     # the granted-sub-action trigger path (_apply_fire_trigger → PendingPlow). A
@@ -1136,6 +1148,12 @@ def _execute_renovate(
         p, resources=p.resources - pending.cost, house_material=new_material,
     )
     state = _update_player(state, player_idx, new_player)
+    # One-shot conditional latch (II.3 / §6): a renovate can satisfy a standing
+    # house-material condition (Manservant's stone house, Clay Hut Builder's
+    # no-longer-wooden). Fire any now-ready one-shots for this player BEFORE the
+    # after-phase pivot. A no-op in the Family game (no conditional registered).
+    from agricola.engine import _fire_ready_one_shots
+    state = _fire_ready_one_shots(state, player_idx)
     return _enter_after_phase(state)   # pivot PendingRenovate -> after; Stop pops
 
 
