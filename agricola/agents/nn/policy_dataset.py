@@ -35,11 +35,12 @@ from agricola.agents.nn.dataset import _iter_worker_pickles, _seed_split
 from agricola.agents.nn.encoder import (
     ENCODED_DIM,
     ENCODED_DIM_CANDIDATE,
+    ENCODED_DIM_SPATIAL,
     ENCODING_VERSION,
     encode_state,
 )
 
-_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE})
+_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE, ENCODED_DIM_SPATIAL})
 from agricola.agents.nn.policy_heads import PLACEMENT_HEAD, DecisionHead
 from agricola.agents.nn.schema import GameRecord, load_game_records
 from agricola.agents.restricted import restricted_legal_actions

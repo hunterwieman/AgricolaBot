@@ -23,6 +23,14 @@ constexpr int kEncodedDim = 170;
 // mid 170-177. Begging is handled post-hoc on the value margin (begging_margin).
 constexpr int kEncodedDimCandidate = 178;
 
+// Spatial candidate encoder (agents/nn/encoder.py `encode_state_spatial`, tag
+// "cand_spatial_v1"): PURELY ADDITIVE on v2 — each per-player block is v2's 54
+// features followed by 52 per-cell masks (room/stable/field/enclosed over the
+// (3,5) grid minus the two always-room cells (1,0),(2,0)), so 106 per player.
+// 274 total. Block layout: own 0-105 | opp 106-211 | shared 212-265 | mid
+// 266-273. strip_begging=false (the v2 block is preserved unchanged).
+constexpr int kEncodedDimSpatial = 274;
+
 // decider_of(state): empty stack -> current_player; non-empty -> top frame's
 // player_idx (std::nullopt for PendingReveal = nature). Mirrors
 // agents/base.decider_of. Shared with the policy combiner.
@@ -38,6 +46,11 @@ std::array<float, kEncodedDim> encode(const GameState& state, int player_idx);
 // byte-identical to the Python candidate encoder.
 std::array<float, kEncodedDimCandidate> encode_candidate(const GameState& state,
                                                          int player_idx);
+
+// encode_state_spatial(state, player_idx) -> 274 float32 features,
+// byte-identical to the Python spatial encoder.
+std::array<float, kEncodedDimSpatial> encode_spatial(const GameState& state,
+                                                     int player_idx);
 
 // The P-frame contribution of current begging markers to the score margin:
 // -3 * (begging[perspective] - begging[1-perspective]). Stripped from the

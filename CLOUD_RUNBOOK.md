@@ -153,6 +153,26 @@ Pass this script at creation with `--metadata-from-file startup-script=job.sh` a
 VM runs it on boot, fully detached — you can close everything and it cleans up after
 itself. (Output goes to a bucket you make once: `gsutil mb -l us-central1 gs://NAME`.)
 
+**Refinement — gate self-delete on *success*, not on any exit, for a first-of-path run.**
+`trap self_delete EXIT` deletes on success, error, *and* crash — which erases the very
+evidence you need when a brand-new job fails (see "Self-deleting boxes erase their own
+evidence" below). The best-of-both pattern: have the job print a `JOB DONE` marker only
+*after* it has uploaded its output, then run a small detached watcher that deletes the box
+**only once that marker appears**. A setup failure (no marker) leaves the box alive and
+inspectable; the `--max-run-duration` backstop (Layer 2) still guarantees it can't bill
+forever. This honors fire-and-forget for proven jobs without blinding you on new ones:
+
+```sh
+# armed AFTER the job is launched (needs --scopes=cloud-platform + the SA's
+# compute.instanceAdmin.v1 role, same as any self-delete):
+nohup setsid bash -c '
+  while ! grep -q "JOB DONE" ~/job.out 2>/dev/null; do sleep 30; done
+  N=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
+  Z=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ "{print \$NF}")
+  gcloud compute instances delete "$N" --zone="$Z" --quiet
+' >/dev/null 2>&1 < /dev/null &
+```
+
 **Layer 2 — a hard time limit (the real backstop).** Even a self-deleting script fails
 to delete if it hangs forever. This flag makes Google delete the VM after a set time no
 matter what the code is doing — so a stuck job can never bill indefinitely:
@@ -234,6 +254,22 @@ session starts ahead of where this one did.
   command silently fail → empty output → downstream produced zero work yet reported success.
   Pass big lists via a **file or stdin**. Note this is *size-dependent*: a 10k-element slice
   (~50 KB) fit and "worked," so it passed in testing and only blew up at full scale.
+- **`gsutil cp -I` silently consumed only ~2 of N stdin URLs (gsutil 5.37, ARM Debian 12).**
+  Both `gsutil -m cp -I dest/ < urls.txt` and `cat urls.txt | gsutil cp -I dest/` copied just
+  the first two objects of a 203-line list, then reported success — a partial download that
+  reads as "done." This contradicts the "pass big lists via stdin" advice above for *this*
+  gsutil. The reliable form for a few-hundred URLs is the **args form**: `gsutil -m cp
+  $(cat urls.txt) dest/` (203 URLs ≈ 16 KB, well under the 128 KB argv cap). For truly huge
+  lists where neither stdin nor argv is safe, `cp` a prefix and filter, or batch the args.
+  **Always verify the downloaded file count against the expected count and abort if short** —
+  the silent truncation is invisible otherwise.
+- **`set -u` + a multi-var `local` reads the *outer* scope, not the just-assigned one.**
+  `local P0=$1 P1=$2 LABEL="${P0}_${P1}"` expands `${P0}` *before* `local` creates the
+  locals, so it reads an unset outer `P0` → under `set -u` the script dies with
+  `P0: unbound variable` (here, before any work ran). Split it: `local P0=$1 P1=$2` then
+  `local LABEL="${P0}_${P1}"`. This is exactly why the "dry-run logic-bearing scripts
+  locally" rule below matters — `bash -n` plus a 3-line `set -uo pipefail` repro on the
+  laptop catches it in seconds; shipping it cost a full create→ssh→fail cloud round-trip.
 - **Make "done" earned, not assumed.** A completion marker was written even though the box
   generated *zero* output (the step before it had silently failed). A success signal must be
   gated on the actual work product existing — **count the output files and refuse to mark
@@ -379,3 +415,90 @@ theory:
   *chunk rows*, not pickles, so nothing on the train path ever opens a stub. Before stubbing any
   "only-counted" input, confirm against the code that no path actually loads it — the value of
   the trick depends entirely on that read-vs-count distinction.
+
+### The Python/torch path (training, encoding, eval) — NOT just the C++ binary
+
+The "build/run recipe" above is for the **C++ `selfplay` binary**, which is torch-free and needs
+only `build-essential cmake python3-pybind11`. But **training, dataset-encoding, and any eval that
+uses a leaf/encoder with no C++ port** (e.g. a candidate encoder under evaluation) run the **Python
++ torch** path, which has its own setup pitfalls the C++ recipe never hits:
+
+- **A fresh Debian-12 box may not have `pip`.** `python3 -m pip` fails with `No module named pip`.
+  Run `sudo apt-get install -y python3-pip` first. (A box that has had a *prior* run can already
+  have it from that run — which masks the missing step; see the fresh-box warning below.)
+- **Debian 12 is PEP-668 "externally managed" — `pip install` refuses system-wide.** You get
+  `error: externally-managed-environment`. For a throwaway box use `pip install
+  --break-system-packages numpy torch`; for a reusable image, a venv. The ARM CPU torch wheel
+  (~200 MB) installs fine on T2A.
+- **A refused/failed dep install fails *silently* without `set -e`.** With `set -uo pipefail` but
+  no `set -e`, a `pip install` that errors does **not** stop the script — it marches into training,
+  which then dies on `import numpy`, and the traceback *looks like a code bug, not a setup bug*.
+  **Guard deps explicitly**: `pip install --break-system-packages numpy torch || { echo FATAL; exit 1; }`
+  then `python3 -c "import torch,numpy" || exit 1`. Same for the data download — count the files and
+  abort if short — so the box never "succeeds" into garbage.
+- **A box that has had a prior run is contaminated — test the clean script on a FRESH box.** One run
+  appeared to work only because an *earlier failed* run on the same box had already `apt install`ed
+  `python3-pip`; the streamlined script that dropped the explicit install then failed on the next
+  *fresh* box. Leftover apt/pip state hides missing setup steps. Validate the end-to-end script on a
+  brand-new instance, not the one you've been poking at.
+- **Size from a *measured* throughput — measured with the SAME thread config you'll deploy.**
+  Python-MCTS self-play/eval is much slower than the C++ binary. But the per-game time depends
+  heavily on torch threads: a quick M1 timing with *multi-thread* torch read ~95 s/game at 800 sims,
+  yet the production box runs `OMP_NUM_THREADS=1` (one thread per worker, see above), where each game
+  is ~**366 s/game/core** on T2A — ~4× slower per game (more games run in parallel, but per-game time
+  is what determines exposure). Sizing from the 95 s figure under-estimated a 1000-game matchup as
+  ~33 min when it actually takes ~2 h. **Time a couple of games with `OMP_NUM_THREADS=1` set**, the
+  way the real run will execute, not in a bare interactive shell.
+- **A ~2 h Spot matchup *will* get preempted — keep games few and uploads incremental.** Two 48-core
+  Spot eval boxes were both preempted mid-run (~70-90% done) precisely because each matchup sat in
+  the preemption window for ~2 h. Mitigations that worked / would have: upload a partial result every
+  ~30 s (the partials were the only reason the data survived); prefer a **smaller game count** (700
+  games already gives a ±3-4% CI — 1000 buys little and doubles the exposure); or, for a *single*
+  must-finish long matchup, fall back to **on-demand** (≈$3.60 for 2 h vs Spot's ~$1.16, but it can't
+  be reclaimed). Resume-by-seed isn't supported by `play_mcts_match`, so a preempt restarts from
+  seed 0 — which is why short+incremental beats long+all-or-nothing on Spot.
+- **Pin OMP threads to 1 for any multiprocessing-`Pool` torch job, or it self-thrashes to a halt.**
+  A torch process defaults its intra-op thread pool to the *core count*. So a `Pool(processes=nproc)`
+  job where each worker also uses torch spawns **nproc × nproc** threads — on a 48-core box that's
+  ~2300 threads, **load average ~500–600, and ~0 games completed** (it looks "hung," but it's
+  oversubscription thrash). The data-gen scripts already call `torch.set_num_threads(1)` per worker,
+  but **`play_mcts_match.py` does not** — and any ad-hoc Pool job won't either. Fix from the
+  environment so it covers every worker regardless: `export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+  OPENBLAS_NUM_THREADS=1` before launching (set it before the parent imports torch). The tell is
+  `ps -eo nlwp,comm` showing each `python3` at `NLWP=48` instead of `1`, and a load average many ×
+  the core count.
+- **`OMP_NUM_THREADS=1` makes `nproc` return 1 — use `nproc --all` for the core count.** GNU
+  coreutils `nproc` *honors* `OMP_NUM_THREADS`/`OMP_THREAD_LIMIT`, so the moment you `export
+  OMP_NUM_THREADS=1` (above), a `--jobs $(nproc)` becomes `--jobs 1` — the Pool runs a single worker
+  and the whole job goes sequential (one game at a time, an ETA of *days*), which looks like "slow"
+  rather than "misconfigured." These two fixes collide: pinning OMP threads silently zeroes your
+  parallelism. Compute the job/worker count with **`nproc --all`** (it ignores `OMP_NUM_THREADS` and
+  returns the installed CPU count) whenever you also pin OMP. The tell: the launched command shows
+  `--jobs 1` and only one `python3` worker exists.
+
+### Launching boxes & driving them over SSH
+
+- **`gcloud ssh`/`scp` right after `instances create` races sshd coming up.** The first call often
+  returns `255` / "Connection closed" while the box is still booting (and the first SSH also has to
+  generate your key). Retry with backoff (3–4 tries, ~10 s apart). `scp` succeeding while `ssh`
+  fails (or vice-versa) on the same box is just it still settling — **not** a dead box. Confirm the
+  box is actually healthy with `gcloud compute instances get-serial-port-output NAME --zone=Z`
+  before deeper debugging.
+- **Never `pkill -f <scriptname>` inside a command you run over SSH.** `pkill -f` matches the *full
+  command line*, and the remote shell executing your `--command` contains that script name in its
+  argv — so `pkill -f job.sh` kills its own session and `ssh` returns `255`. This masquerades as
+  "flaky SSH" and sends you debugging the wrong thing. Kill by pid, or by a pattern that can't match
+  your own command.
+- **GCE instance names must match `[a-z]([-a-z0-9]*[a-z0-9])?`** — lowercase only, no uppercase, no
+  trailing dash. `agricola-evalA` is rejected; use `agricola-eval-a`.
+- **Spot capacity is per-(zone, machine-type) and stocks out independently of quota.** `instances
+  create` can return `STOCKOUT` for a size in one zone while another has it free (the error names
+  `zonesAvailable`). **Loop over several zones at create time** rather than failing on the first.
+- **The Spot vCPU quota (`PREEMPTIBLE_CPUS`) caps your *concurrent* cores.** With a 96-core Spot cap
+  you cannot run 3×48-core Spot boxes at once (144 > 96) — plan the fleet against it. Check:
+  `gcloud compute regions describe us-central1 --format="value(quotas)" | tr ';' '\n' | grep PREEMPTIBLE_CPUS`.
+  (On-demand has a separate, usually larger `CPUS` cap, so a one-off can spill to on-demand.)
+- **Launch detached jobs with stdin redirected from `/dev/null`:**
+  `nohup setsid bash job.sh ARGS > ~/job.out 2>&1 < /dev/null &`. The script's stdout still reaches
+  both `~/job.out` and (via `exec > >(sudo tee /var/log/job.log)`) the root log, so you can `tail`
+  progress without `sudo`.

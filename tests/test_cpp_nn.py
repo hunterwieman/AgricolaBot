@@ -587,3 +587,97 @@ def test_cpp_joint_candidate_matches_python(tmp_path):
             worst_p = max(worst_p, abs(py.get(k, 0.0) - cpp.get(k, 0.0)))
     assert worst_v <= 1e-4, f"candidate joint value max |Δ|={worst_v:.3e}"
     assert worst_p <= 1e-4, f"candidate joint policy max |Δ|={worst_p:.3e}"
+
+
+# ---------------------------------------------------------------------------
+# Spatial encoder (exact, 274-d) — no torch needed. Purely additive on v2 (each
+# per-player block gains 52 per-cell masks); resolved from a model's manifest
+# `encoder_tag`, here exercised directly via the cpp `encode_spatial` binding.
+# ---------------------------------------------------------------------------
+
+
+def test_cpp_spatial_encode_matches_python():
+    from agricola.agents.nn.encoder import encode_state_spatial
+
+    worst = 0.0
+    worst_info = None
+    for state in _CORPUS:
+        d = dumps(state)
+        for p in (0, 1):
+            py = encode_state_spatial(state, p).astype(np.float64)
+            cpp = np.asarray(agricola_cpp.encode_spatial(d, p), dtype=np.float64)
+            assert cpp.shape == py.shape == (274,)
+            m = float(np.abs(cpp - py).max())
+            if m > worst:
+                worst = m
+                worst_info = (state.round_number, state.phase.name, p)
+    assert worst <= 1e-5, f"spatial encoder max |Δ|={worst:.3e} at {worst_info}"
+
+
+# ---------------------------------------------------------------------------
+# Spatial JOINT inference (≤1e-4) — the registry-dispatched 274-d encoder. Like
+# the candidate joint gate but with strip_begging=False (no begging add-back, so
+# it is simpler): a random SharedTrunkModel TAGGED `cand_spatial_v1` is exported
+# (encoder_tag in the manifest), loaded by C++ (registry -> encode_spatial), and
+# compared to Python make_joint_fns. A permanent gate on the spatial path.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _HAS_NN, reason="NN bindings not built")
+def test_cpp_joint_spatial_matches_python(tmp_path):
+    import subprocess
+
+    from agricola.agents.nn.dataset import NormStats
+    from agricola.agents.nn.encoder import (
+        ENCODED_DIM_SPATIAL,
+        ENCODING_VERSION,
+        SPATIAL_ENCODING_TAG,
+    )
+    from agricola.agents.nn.policy_heads import HEADS, POINTER_HEADS
+    from agricola.agents.nn.shared_model import SharedTrunkModel
+    from agricola.agents.nn.shared_policy import make_joint_fns
+
+    rng = np.random.default_rng(1)
+    d = ENCODED_DIM_SPATIAL
+    stats = NormStats(
+        input_mean=rng.standard_normal(d).astype(np.float32),
+        input_std=(1.0 + np.abs(rng.standard_normal(d))).astype(np.float32),
+        target_std=7.0, encoding_version=ENCODING_VERSION,
+        encoding_tag=SPATIAL_ENCODING_TAG)
+    model = SharedTrunkModel(
+        fixed_head_specs={n: h.num_classes for n, h in HEADS.items()},
+        pointer_head_specs={n: h.candidate_dim for n, h in POINTER_HEADS.items()},
+        norm_stats=stats, input_dim=d, trunk_hidden_dims=[32, 32], embedding_dim=16,
+        pointer_head_dims=[8])
+    model.value_scale = 4.0
+    for n, h in POINTER_HEADS.items():
+        model.set_pointer_cand_norm(
+            n, rng.standard_normal(h.candidate_dim).astype(np.float32),
+            (1.0 + np.abs(rng.standard_normal(h.candidate_dim))).astype(np.float32))
+
+    ckpt = tmp_path / "joint_spatial"
+    model.save(ckpt)
+    export_dir = tmp_path / "export_spatial"
+    subprocess.run(
+        [sys.executable, str(_ROOT / "scripts" / "nn" / "export_weights.py"),
+         "--value-ckpt", str(ckpt), "--out-dir", str(export_dir)],
+        check=True, cwd=str(_ROOT), capture_output=True)
+    manifest = json.loads((export_dir / "weights_manifest.json").read_text())
+    assert manifest.get("encoder_tag") == SPATIAL_ENCODING_TAG
+
+    vf, pf = make_joint_fns(model)
+    worst_v = worst_p = 0.0
+    md = str(export_dir)
+    for state in _CORPUS[::9]:
+        worst_v = max(worst_v, abs(agricola_cpp.nn_value(dumps(state), md) - vf(state)))
+        if state.phase == Phase.BEFORE_SCORING or decider_of(state) is None:
+            continue
+        if len(filter_implemented(legal_actions(state))) <= 1:
+            continue
+        py = {_norm_action(a): float(v)
+              for a, v in pf(state, list(legal_actions(state))).items()}
+        cpp = {_norm_json(s): float(v) for s, v in agricola_cpp.nn_policy(dumps(state), md)}
+        for k in set(py) | set(cpp):
+            worst_p = max(worst_p, abs(py.get(k, 0.0) - cpp.get(k, 0.0)))
+    assert worst_v <= 1e-4, f"spatial joint value max |Δ|={worst_v:.3e}"
+    assert worst_p <= 1e-4, f"spatial joint policy max |Δ|={worst_p:.3e}"

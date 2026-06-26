@@ -958,6 +958,151 @@ def clear_candidate_encoding_cache() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Spatial candidate encoder — per-cell farm-layout masks (cand_spatial_v1)
+# ---------------------------------------------------------------------------
+#
+# Purely ADDITIVE on v2: the full 170-feature v2 vector, then four per-cell
+# multi-hot masks per player (room / stable / field / enclosed-in-pasture)
+# over the (3, 5) farmyard grid. The two starting-house cells (1,0) and (2,0)
+# are ALWAYS rooms in every reachable state (rooms are only ever added, never
+# removed — setup.py:73), so they are zero-variance in all four masks and are
+# excluded: each mask is 13 cells, not 15. 170 + 4*13*2 = 274.
+#
+# Motivation: v2 carries only COUNTS of rooms/fields/stables/pastures — no
+# geometry — which is why the `fencing` policy head is spatially blind
+# (POLICY_HEAD.md), and the encoder gives no signal for the field/room
+# adjacency that gates future plows/builds (legality.py:235). These masks
+# hand the trunk per-cell occupancy + enclosure so those heads have the raw
+# spatial signal to work with.
+#
+# Unlike the begging-stripped feat178 candidate this REMOVES nothing of
+# substance (`strip_begging=False`) — every v2 feature is preserved by name;
+# the masks just extend each per-player block. The four masks are not
+# independent (room/field/stable are mutually exclusive cell types; enclosed
+# overlays empty/stable cells); the redundancy is deliberate — explicit
+# per-cell features are easier for the MLP than a compressed categorical.
+#
+# Feature NAMES keep the original (3,5) flat grid index `ri*5+ci`, so the two
+# excluded cells are simply the missing indices 5 and 10 — positions stay
+# unambiguous and a future conv can re-inflate to the full 15-cell grid (with
+# (1,0)/(2,0) as constant planes) without renumbering.
+#
+# Reference-`_assemble` path only (Python-eval-only); a fast index-writer and
+# the C++ port come if/when it is promoted. The masks describe the FINAL farm
+# layout, so they stay LIVE at terminal (not added to `_TERMINAL_ZERO_NAMES`).
+
+GRID_ROWS: int = 3
+GRID_COLS: int = 5
+
+# Always-room starting-house cells, excluded from the masks (zero variance).
+_ALWAYS_ROOM_CELLS: frozenset = frozenset({(1, 0), (2, 0)})
+
+# The (row, col) cells the masks cover, row-major, minus the constant rooms.
+_SPATIAL_CELLS: tuple = tuple(
+    (r, c) for r in range(GRID_ROWS) for c in range(GRID_COLS)
+    if (r, c) not in _ALWAYS_ROOM_CELLS
+)
+_N_SPATIAL_CELLS: int = len(_SPATIAL_CELLS)  # 13
+
+SPATIAL_ENCODING_TAG: str = "cand_spatial_v1"
+"""Opaque schema id for the spatial candidate. Stamped into a checkpoint's
+metadata and hard-checked at load — the spatial analog of `ENCODING_VERSION`,
+so v2 / feat178 / spatial checkpoints never silently cross-load. Bump the
+suffix when the mask set changes."""
+
+ENCODED_DIM_SPATIAL: int = ENCODED_DIM + 2 * 4 * _N_SPATIAL_CELLS  # 170 + 104 = 274
+"""Length of `encode_state_spatial`'s vector (v2 ENCODED_DIM 170 + 104)."""
+
+
+def _spatial_masks(p: PlayerState) -> list[tuple[str, float]]:
+    """Four 13-cell multi-hot masks (room / stable / field / enclosed) over the
+    (3,5) grid minus the two always-room cells → 52 (name, value) pairs. Bare
+    names (flat grid index `ri*5+ci`; indices 5 and 10 are absent); the caller
+    prefixes own_/opp_. A stable inside a pasture is set in BOTH `cell_stable_*`
+    and `cell_enclosed_*` (the masks overlap by design)."""
+    enc = enclosed_cells(p.farmyard)
+    grid = p.farmyard.grid
+    feats: list[tuple[str, float]] = []
+    masks = (
+        ("room",     lambda ri, ci: grid[ri][ci].cell_type is CellType.ROOM),
+        ("stable",   lambda ri, ci: grid[ri][ci].cell_type is CellType.STABLE),
+        ("field",    lambda ri, ci: grid[ri][ci].cell_type is CellType.FIELD),
+        ("enclosed", lambda ri, ci: (ri, ci) in enc),
+    )
+    for kind, predicate in masks:
+        for (ri, ci) in _SPATIAL_CELLS:
+            feats.append((f"cell_{kind}_{ri * GRID_COLS + ci}",
+                          1.0 if predicate(ri, ci) else 0.0))
+    return feats
+
+
+def _player_features_spatial(
+    state: GameState, p: PlayerState, player_idx: int,
+) -> list[tuple[str, float]]:
+    """v2's 54-feature per-player block + the 52 spatial masks (106 total).
+    Built atop `_player_features` so the shared features never drift."""
+    return _player_features(state, p, player_idx) + _spatial_masks(p)
+
+
+def _assemble_spatial(state: GameState, player_idx: int) -> list[tuple[str, float]]:
+    """Spatial analog of `_assemble`: own(106) + opp(106) + shared(54) + mid(8).
+    Reuses v2's terminal-zeroing — the spatial masks are absent from
+    `_TERMINAL_ZERO_NAMES`, so they stay live at terminal."""
+    own = state.players[player_idx]
+    opp = state.players[1 - player_idx]
+
+    pairs: list[tuple[str, float]] = []
+    pairs += [(f"own_{n}", v) for n, v in _player_features_spatial(state, own, player_idx)]
+    pairs += [(f"opp_{n}", v) for n, v in _player_features_spatial(state, opp, 1 - player_idx)]
+    pairs += _shared_features(state, player_idx)
+    pairs += _midaction_features(state)
+
+    if state.phase is Phase.BEFORE_SCORING:
+        pairs = [
+            (n, 0.0) if (n in _TERMINAL_ZERO_NAMES
+                         or n.startswith("subaction_avail_")) else (n, v)
+            for n, v in pairs
+        ]
+    return pairs
+
+
+def encode_state_spatial(state: GameState, player_idx: int) -> np.ndarray:
+    """Spatial candidate encoder — `float32` vector of length
+    `ENCODED_DIM_SPATIAL`. Reference-`_assemble` path (no fast writer)."""
+    pairs = _assemble_spatial(state, player_idx)
+    arr = np.fromiter((v for _, v in pairs), dtype=np.float32,
+                      count=ENCODED_DIM_SPATIAL)
+    assert arr.shape[0] == ENCODED_DIM_SPATIAL
+    return arr
+
+
+def feature_names_spatial(state: GameState | None = None) -> list[str]:
+    """Ordered spatial feature names (length `ENCODED_DIM_SPATIAL`)."""
+    if state is None:
+        from agricola.setup import setup
+        state = setup(0)
+    return [name for name, _ in _assemble_spatial(state, 0)]
+
+
+@lru_cache(maxsize=1 << 14)
+def _encode_spatial_cached(state: GameState, player_idx: int) -> np.ndarray:
+    """Per-(state, perspective) memo for the spatial inference path. Returned
+    arrays are READ-ONLY (fed straight to `torch.from_numpy`); never mutate."""
+    return encode_state_spatial(state, player_idx)
+
+
+def encode_for_inference_spatial(state: GameState, player_idx: int) -> np.ndarray:
+    """Cached spatial encoder for the MCTS/NNAgent inference path (no swap
+    optimization — simplicity over speed for the experiment loop)."""
+    return _encode_spatial_cached(state, player_idx)
+
+
+def clear_spatial_encoding_cache() -> None:
+    """Drop the spatial inference memo (test isolation / between-run hygiene)."""
+    _encode_spatial_cached.cache_clear()
+
+
+# ---------------------------------------------------------------------------
 # EncoderSpec — selectable encoder for the joint-model experiment loop
 # ---------------------------------------------------------------------------
 #
@@ -997,7 +1142,14 @@ ENCODER_CANDIDATE = EncoderSpec(
     encode=encode_state_candidate, encode_for_inference=encode_for_inference_candidate,
     strip_begging=True,
 )
-ENCODERS: dict[str, EncoderSpec] = {"v2": ENCODER_V2, "candidate": ENCODER_CANDIDATE}
+ENCODER_SPATIAL = EncoderSpec(
+    tag=SPATIAL_ENCODING_TAG, dim=ENCODED_DIM_SPATIAL,
+    encode=encode_state_spatial, encode_for_inference=encode_for_inference_spatial,
+    strip_begging=False,
+)
+ENCODERS: dict[str, EncoderSpec] = {
+    "v2": ENCODER_V2, "candidate": ENCODER_CANDIDATE, "spatial": ENCODER_SPATIAL,
+}
 
 
 def begging_margin(state: GameState, perspective: int) -> float:
