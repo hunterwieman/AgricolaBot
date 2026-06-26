@@ -42,7 +42,6 @@ from agricola.pending import (
     PendingBuildMajor,
     PendingClayOven,
     PendingFarmRedevelopment,
-    PendingFencing,
     PendingGrainUtilization,
     PendingHarvestBreed,
     PendingHarvestFeed,
@@ -312,12 +311,16 @@ def _initiate_grain_utilization(state: GameState) -> GameState:
 
 
 def _initiate_farmland(state: GameState) -> GameState:
-    """Initiate Farmland by pushing PendingFarmland."""
-    from agricola.pending import PendingFarmland
-    return push(state, PendingFarmland(
-        player_idx=state.current_player,
-        initiated_by_id="space:farmland",
+    """Initiate Farmland by pushing the generic Delegating space host
+    (PendingSubActionSpace) for "space:farmland"; its single sub-action is plow.
+    Fires before_action_space autos at the push (a Family no-op)."""
+    from agricola.pending import PendingSubActionSpace
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingSubActionSpace(
+        player_idx=ap, initiated_by_id="space:farmland",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_cultivation(state: GameState) -> GameState:
@@ -380,12 +383,20 @@ def _initiate_cattle_market(state: GameState) -> GameState:
 
 
 def _initiate_major_improvement(state: GameState) -> GameState:
-    """Initiate Major/Minor Improvement by pushing PendingMajorMinorImprovement."""
-    from agricola.pending import PendingMajorMinorImprovement
-    return push(state, PendingMajorMinorImprovement(
-        player_idx=state.current_player,
-        initiated_by_id="space:major_improvement",
+    """Initiate the Major Improvement space by pushing the Delegating space host
+    (PendingSubActionSpace) for "space:major_improvement" — the always-wrapper
+    (SPACE_HOST_REFACTOR.md §6). Its single sub-action ("improvement") pushes
+    PendingMajorMinorImprovement (the composite-action host), giving the space its
+    own `action_space` surface (Plumber) above the composite's
+    `major_minor_improvement` surface (Merchant). Fires before_action_space autos
+    at the push (a Family no-op)."""
+    from agricola.pending import PendingSubActionSpace
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingSubActionSpace(
+        player_idx=ap, initiated_by_id="space:major_improvement",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_house_redevelopment(state: GameState) -> GameState:
@@ -407,11 +418,16 @@ def _initiate_farm_expansion(state: GameState) -> GameState:
 
 
 def _initiate_fencing(state: GameState) -> GameState:
-    """Initiate Fencing by pushing PendingFencing."""
-    return push(state, PendingFencing(
-        player_idx=state.current_player,
-        initiated_by_id="space:fencing",
+    """Initiate Fencing by pushing the generic Delegating space host
+    (PendingSubActionSpace) for "space:fencing"; its single sub-action is
+    build_fences. Fires before_action_space autos at the push (a Family no-op)."""
+    from agricola.pending import PendingSubActionSpace
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingSubActionSpace(
+        player_idx=ap, initiated_by_id="space:fencing",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_farm_redevelopment(state: GameState) -> GameState:
@@ -423,19 +439,19 @@ def _initiate_farm_redevelopment(state: GameState) -> GameState:
 
 
 def _initiate_lessons(state: GameState) -> GameState:
-    """Initiate Lessons (card game): push PendingPlayOccupation carrying THIS play's
-    food cost (occupation_cost over how many occupations the player has already
-    played). The frame's enumerator then offers one CommitPlayOccupation per
-    playable hand occupation. See CARD_IMPLEMENTATION_PLAN.md II.4."""
-    from agricola.pending import PendingPlayOccupation
-    from agricola.legality import occupation_cost
-    idx = state.current_player
-    cost = occupation_cost(len(state.players[idx].occupations))
-    return push(state, PendingPlayOccupation(
-        player_idx=idx,
-        initiated_by_id="space:lessons",
-        cost=cost,
+    """Initiate Lessons (card game) by pushing the Delegating space host
+    (PendingSubActionSpace) for "space:lessons" — a single mandatory sub-action
+    "play one occupation" (SPACE_HOST_REFACTOR.md §8). The space host's
+    ChooseSubAction("play_occupation") computes THIS play's food cost and pushes
+    PendingPlayOccupation; Lessons thereby gains the action_space surface for free.
+    Fires before_action_space autos at the push."""
+    from agricola.pending import PendingSubActionSpace
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingSubActionSpace(
+        player_idx=ap, initiated_by_id="space:lessons",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
@@ -538,17 +554,47 @@ def _choose_subaction_grain_utilization(
     )
 
 
-def _choose_subaction_farmland(
+def _choose_subaction_subactionspace(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
-    from agricola.pending import PendingPlow
+    """ChooseSubAction handler for the generic Delegating space host
+    (PendingSubActionSpace; SPACE_HOST_REFACTOR.md §4.2/§8). Sets
+    `subaction_complete=True` and pushes the single mandatory child, dispatched by
+    the host's `space_id`. The child's `initiated_by_id` carries the space's id
+    (not the generic "action_space" PENDING_ID) so existing provenance is
+    preserved (e.g. PendingPlow.initiated_by_id == "farmland")."""
     top = state.pending_stack[-1]
-    if action.name == "plow":
-        state = replace_top(state, fast_replace(top, plow_chosen=True))
-        return push(state, PendingPlow(
-            player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
+    space_id = top.space_id
+    state = replace_top(state, fast_replace(top, subaction_complete=True))
+    p_idx = top.player_idx
+
+    if space_id == "farmland" and action.name == "plow":
+        from agricola.pending import PendingPlow
+        return push(state, PendingPlow(player_idx=p_idx, initiated_by_id=space_id))
+    if space_id == "fencing" and action.name == "build_fences":
+        return push(state, PendingBuildFences(
+            player_idx=p_idx, initiated_by_id=space_id,
         ))
-    raise ValueError(f"Unknown sub-action {action.name!r} for Farmland")
+    if space_id == "major_improvement" and action.name == "improvement":
+        # Preserve the composite host's provenance "space:major_improvement"
+        # (the old direct-push value), distinct from the House-Redev path's
+        # "house_redevelopment".
+        from agricola.pending import PendingMajorMinorImprovement
+        return push(state, PendingMajorMinorImprovement(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id,
+        ))
+    if space_id == "lessons" and action.name == "play_occupation":
+        # Card game: compute THIS play's occupation cost (mirrors the old Lessons
+        # initiator) and push the play-occupation primitive.
+        from agricola.pending import PendingPlayOccupation
+        from agricola.legality import occupation_cost
+        cost = occupation_cost(len(state.players[p_idx].occupations))
+        return push(state, PendingPlayOccupation(
+            player_idx=p_idx, initiated_by_id="space:lessons", cost=cost,
+        ))
+    raise ValueError(
+        f"Unknown sub-action {action.name!r} for space host {space_id!r}"
+    )
 
 
 def _choose_subaction_cultivation(
@@ -695,20 +741,6 @@ def _choose_subaction_farm_expansion(
     raise ValueError(f"Unknown sub-action {action.name!r} for Farm Expansion")
 
 
-def _choose_subaction_fencing(
-    state: GameState, action: ChooseSubAction,
-) -> GameState:
-    top = state.pending_stack[-1]
-    assert isinstance(top, PendingFencing)
-    if action.name == "build_fences":
-        state = replace_top(state, fast_replace(top, build_fences_chosen=True))
-        return push(state, PendingBuildFences(
-            player_idx=top.player_idx,
-            initiated_by_id=top.PENDING_ID,
-        ))
-    raise ValueError(f"Unknown sub-action {action.name!r} for Fencing")
-
-
 def _choose_subaction_farm_redevelopment(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
@@ -796,14 +828,14 @@ from agricola.pending import (
     PendingBasicWishForChildren,
     PendingCultivation,
     PendingFarmExpansion,
-    PendingFarmland,
     PendingHouseRedevelopment,
     PendingMajorMinorImprovement,
     PendingMeetingPlaceCards,
     PendingSideJob,
+    PendingSubActionSpace,
 )
 CHOOSE_SUBACTION_HANDLERS[PendingGrainUtilization] = _choose_subaction_grain_utilization
-CHOOSE_SUBACTION_HANDLERS[PendingFarmland] = _choose_subaction_farmland
+CHOOSE_SUBACTION_HANDLERS[PendingSubActionSpace] = _choose_subaction_subactionspace
 CHOOSE_SUBACTION_HANDLERS[PendingCultivation] = _choose_subaction_cultivation
 CHOOSE_SUBACTION_HANDLERS[PendingSideJob] = _choose_subaction_side_job
 CHOOSE_SUBACTION_HANDLERS[PendingMajorMinorImprovement] = _choose_subaction_major_minor_improvement
@@ -811,7 +843,6 @@ CHOOSE_SUBACTION_HANDLERS[PendingClayOven] = _choose_subaction_clay_oven
 CHOOSE_SUBACTION_HANDLERS[PendingStoneOven] = _choose_subaction_stone_oven
 CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
-CHOOSE_SUBACTION_HANDLERS[PendingFencing] = _choose_subaction_fencing
 CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingBasicWishForChildren] = _choose_subaction_basic_wish_for_children
 CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlaceCards] = _choose_subaction_meeting_place_cards

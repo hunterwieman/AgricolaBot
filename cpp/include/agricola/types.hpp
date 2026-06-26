@@ -193,12 +193,22 @@ struct PendingRenovate {
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingRenovate&) const = default;
 };
-struct PendingFarmland {
+// Generic Delegating action-space host (SPACE_HOST_REFACTOR.md §4.2/§5):
+// replaces the old per-space PendingFarmland / PendingFencing. The specific
+// child is dispatched by space_id (read off initiated_by_id = "space:<id>").
+struct PendingSubActionSpace {
   std::optional<int> player_idx;
-  std::string initiated_by_id;
-  bool plow_chosen = false;
+  std::string initiated_by_id;               // "space:<id>"
+  bool subaction_complete = false;
+  std::string phase = "before";              // "before" | "after"
   std::vector<std::string> triggers_resolved;
-  bool operator==(const PendingFarmland&) const = default;
+  // space_id = initiated_by_id after the "space:" prefix.
+  std::string space_id() const {
+    const std::string pfx = "space:";
+    if (initiated_by_id.rfind(pfx, 0) == 0) return initiated_by_id.substr(pfx.size());
+    return initiated_by_id;
+  }
+  bool operator==(const PendingSubActionSpace&) const = default;
 };
 struct PendingCultivation {
   std::optional<int> player_idx;
@@ -246,7 +256,10 @@ struct PendingMajorMinorImprovement {
   std::string initiated_by_id;
   bool major_chosen = false;
   bool minor_chosen = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR Delegating host)
   std::vector<std::string> triggers_resolved;
+  // Delegating work-complete signal (derived): a major built or a minor played.
+  bool subaction_complete() const { return major_chosen || minor_chosen; }
   bool operator==(const PendingMajorMinorImprovement&) const = default;
 };
 struct PendingHouseRedevelopment {
@@ -269,13 +282,6 @@ struct PendingStoneOven {
   std::string initiated_by_id;
   bool bake_chosen = false;
   bool operator==(const PendingStoneOven&) const = default;
-};
-struct PendingFencing {
-  std::optional<int> player_idx;
-  std::string initiated_by_id;
-  bool build_fences_chosen = false;
-  std::vector<std::string> triggers_resolved;
-  bool operator==(const PendingFencing&) const = default;
 };
 struct PendingBuildFences {
   std::optional<int> player_idx;
@@ -316,10 +322,10 @@ struct PendingReveal {
 using PendingDecision = std::variant<
     PendingGrainUtilization, PendingSow, PendingBakeBread, PendingPlow,
     PendingBuildStables, PendingBuildRooms, PendingBuildMajor, PendingRenovate,
-    PendingFarmExpansion, PendingFarmland, PendingCultivation, PendingSideJob,
+    PendingFarmExpansion, PendingSubActionSpace, PendingCultivation, PendingSideJob,
     PendingSheepMarket, PendingPigMarket, PendingCattleMarket,
     PendingMajorMinorImprovement, PendingHouseRedevelopment, PendingClayOven,
-    PendingStoneOven, PendingFencing, PendingBuildFences,
+    PendingStoneOven, PendingBuildFences,
     PendingFarmRedevelopment, PendingHarvestFeed, PendingHarvestBreed,
     PendingReveal>;
 

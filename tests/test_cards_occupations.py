@@ -5,7 +5,7 @@ Priest). The scoring-card path (Stable Architect) and minors land next.
 """
 import pytest
 
-from agricola.actions import CommitPlayOccupation, PlaceWorker, Stop
+from agricola.actions import ChooseSubAction, CommitPlayOccupation, PlaceWorker, Stop
 from agricola.cards.specs import OCCUPATIONS
 from agricola.constants import GameMode, HouseMaterial
 from agricola.engine import step
@@ -80,6 +80,7 @@ def test_play_consultant_via_lessons():
     assert cs.players[cp].resources.clay == 0
 
     cs = step(cs, PlaceWorker(space="lessons"))
+    cs = step(cs, ChooseSubAction(name="play_occupation"))   # singleton: push PendingPlayOccupation
     assert legal_actions(cs) == [CommitPlayOccupation(card_id="consultant")]
 
     cs = step(cs, CommitPlayOccupation(card_id="consultant"))
@@ -88,6 +89,7 @@ def test_play_consultant_via_lessons():
     assert "consultant" in p.occupations              # moved to tableau
     assert "consultant" not in p.hand_occupations     # removed from hand
     cs = step(cs, Stop())                             # pop PendingPlayOccupation's after-phase
+    cs = step(cs, Stop())                             # pop PendingSubActionSpace (lessons host)
     assert cs.pending_stack == ()                     # frame popped, turn ends
 
 
@@ -100,6 +102,7 @@ def test_first_occupation_is_free_later_costs_one_food():
         occupations=frozenset({"priest"}), hand=frozenset({"consultant"}), food=2,
     )
     cs = step(cs, PlaceWorker(space="lessons"))
+    cs = step(cs, ChooseSubAction(name="play_occupation"))   # singleton: push PendingPlayOccupation
     cs = step(cs, CommitPlayOccupation(card_id="consultant"))
     assert cs.players[cp].resources.food == 1         # 2 - 1
 
@@ -120,6 +123,7 @@ def test_priest_grants_in_clay_house_with_two_rooms():
     cs, cp = _card_state_with_hand(hand=frozenset({"priest"}), house=HouseMaterial.CLAY)
     before = cs.players[cp].resources
     cs = step(cs, PlaceWorker(space="lessons"))
+    cs = step(cs, ChooseSubAction(name="play_occupation"))   # singleton: push PendingPlayOccupation
     cs = step(cs, CommitPlayOccupation(card_id="priest"))
     after = cs.players[cp].resources
     assert (after.clay - before.clay, after.reed - before.reed,
@@ -131,6 +135,7 @@ def test_priest_grants_nothing_in_wood_house_but_is_still_played():
     cs, cp = _card_state_with_hand(hand=frozenset({"priest"}))  # default wood house
     before = cs.players[cp].resources
     cs = step(cs, PlaceWorker(space="lessons"))
+    cs = step(cs, ChooseSubAction(name="play_occupation"))   # singleton: push PendingPlayOccupation
     cs = step(cs, CommitPlayOccupation(card_id="priest"))
     after = cs.players[cp].resources
     assert after == before                              # condition false -> no gain

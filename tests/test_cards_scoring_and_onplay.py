@@ -105,8 +105,10 @@ def test_clay_embankment_gain_and_pass():
     cs = fast_replace(cs, players=tuple(p if i == cp else cs.players[i] for i in range(2)))
 
     cs = step(cs, PlaceWorker(space="major_improvement"))   # play-minor entry point
-    # choose the play-minor branch, then commit the card
+    # singleton improvement choose pushes PendingMajorMinorImprovement, then
+    # choose the play-minor branch and commit the card
     from agricola.actions import ChooseSubAction
+    cs = step(cs, ChooseSubAction(name="improvement"))
     cs = step(cs, ChooseSubAction(name="play_minor"))
     cs = step(cs, CommitPlayMinor(card_id="clay_embankment"))
     # 5 clay -> +2 clay (5//2) = 7; food paid (1 -> 0); passed, not kept.
@@ -129,6 +131,7 @@ def test_young_animal_market_swaps_sheep_for_cattle():
 
     from agricola.actions import ChooseSubAction
     cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     cs = step(cs, ChooseSubAction(name="play_minor"))
     cs = step(cs, CommitPlayMinor(card_id="young_animal_market"))
     assert cs.players[cp].animals.sheep == 1         # 2 - 1 (cost)

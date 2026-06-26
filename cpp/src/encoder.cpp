@@ -56,8 +56,6 @@ void frame_categories(const PendingDecision& f, std::array<float, 7>& bits) {
         } else if constexpr (std::is_same_v<T, PendingFarmExpansion>) {
           if (!fr.room_chosen) set(kBuildRooms);
           if (!fr.stable_chosen) set(kBuildStables);
-        } else if constexpr (std::is_same_v<T, PendingFarmland>) {
-          if (!fr.plow_chosen) set(kPlow);
         } else if constexpr (std::is_same_v<T, PendingCultivation>) {
           if (!fr.plow_chosen) set(kPlow);
           if (!fr.sow_chosen) set(kSow);
@@ -69,12 +67,23 @@ void frame_categories(const PendingDecision& f, std::array<float, 7>& bits) {
         } else if constexpr (std::is_same_v<T, PendingFarmRedevelopment>) {
           if (!fr.build_fences_chosen) set(kBuildFences);
         } else if constexpr (std::is_same_v<T, PendingMajorMinorImprovement>) {
-          if (!fr.major_chosen) set(kBuildMajor);
+          // The composite host's category is build-major until a child has run
+          // (subaction_complete = major_chosen || minor_chosen).
+          if (!fr.subaction_complete()) set(kBuildMajor);
         } else if constexpr (std::is_same_v<T, PendingClayOven> ||
                              std::is_same_v<T, PendingStoneOven>) {
           if (!fr.bake_chosen) set(kBake);
-        } else if constexpr (std::is_same_v<T, PendingFencing>) {
-          if (!fr.build_fences_chosen) set(kBuildFences);
+        } else if constexpr (std::is_same_v<T, PendingSubActionSpace>) {
+          // Generic Delegating space host (SPACE_HOST_REFACTOR.md §9): emit the
+          // same category the old per-space PendingFarmland / PendingFencing
+          // frames did, keyed off subaction_complete + space_id. major_improvement
+          // contributes nothing here (its composite category comes from the nested
+          // PendingMajorMinorImprovement frame).
+          if (!fr.subaction_complete) {
+            const std::string sid = fr.space_id();
+            if (sid == "farmland") set(kPlow);
+            else if (sid == "fencing") set(kBuildFences);
+          }
         } else if constexpr (std::is_same_v<T, PendingSow>) {
           set(kSow);
         } else if constexpr (std::is_same_v<T, PendingBakeBread>) {

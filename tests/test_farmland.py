@@ -1,9 +1,9 @@
 """Tests for the Farmland action space.
 
 Validates the Farmland non-atomic resolution: PlaceWorker pushes
-PendingFarmland, ChooseSubAction("plow") pushes PendingPlow and flips
-plow_chosen on the parent, CommitPlow places a FIELD cell, Stop pops the
-parent.
+PendingSubActionSpace(space_id="farmland"), ChooseSubAction("plow") pushes
+PendingPlow and flips subaction_complete on the parent, CommitPlow places a
+FIELD cell, Stop pops the parent.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from agricola.actions import (
 from agricola.constants import CellType
 from agricola.engine import step
 from agricola.legality import legal_actions
-from agricola.pending import PendingFarmland, PendingPlow
+from agricola.pending import PendingSubActionSpace, PendingPlow
 from agricola.setup import setup
 from agricola.state import Cell
 
@@ -46,7 +46,7 @@ def test_farmland_basic_walk():
 
 
 def test_farmland_stop_illegal_before_plow_chosen():
-    """Stop is not legal at PendingFarmland until plow has been chosen."""
+    """Stop is not legal at PendingSubActionSpace until plow has been chosen."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = step(state, PlaceWorker(space="farmland"))
@@ -68,20 +68,22 @@ def test_farmland_stop_legal_after_plow_chosen():
 
 
 def test_farmland_choose_plow_marks_parent():
-    """ChooseSubAction("plow") sets plow_chosen=True on PendingFarmland AND pushes PendingPlow."""
+    """ChooseSubAction("plow") sets subaction_complete=True on the host AND pushes PendingPlow."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = step(state, PlaceWorker(space="farmland"))
     parent = state.pending_stack[-1]
-    assert isinstance(parent, PendingFarmland)
-    assert parent.plow_chosen is False
+    assert isinstance(parent, PendingSubActionSpace)
+    assert parent.space_id == "farmland"
+    assert parent.subaction_complete is False
 
     state = step(state, ChooseSubAction(name="plow"))
     assert len(state.pending_stack) == 2
     assert isinstance(state.pending_stack[-1], PendingPlow)
     new_parent = state.pending_stack[-2]
-    assert isinstance(new_parent, PendingFarmland)
-    assert new_parent.plow_chosen is True
+    assert isinstance(new_parent, PendingSubActionSpace)
+    assert new_parent.space_id == "farmland"
+    assert new_parent.subaction_complete is True
 
 
 def test_farmland_commit_plow_flips_pending_plow_after_without_modifying_parent():
@@ -93,10 +95,10 @@ def test_farmland_commit_plow_flips_pending_plow_after_without_modifying_parent(
         PlaceWorker(space="farmland"),
         ChooseSubAction(name="plow"),
     ])
-    # Parent has plow_chosen=True (set at choose time).
+    # Parent has subaction_complete=True (set at choose time).
     pre_parent = state.pending_stack[-2]
-    assert isinstance(pre_parent, PendingFarmland)
-    assert pre_parent.plow_chosen is True
+    assert isinstance(pre_parent, PendingSubActionSpace)
+    assert pre_parent.subaction_complete is True
 
     state = step(state, CommitPlow(row=0, col=2))
     # PendingPlow stays on top in its after-phase; parent untouched.
@@ -104,14 +106,14 @@ def test_farmland_commit_plow_flips_pending_plow_after_without_modifying_parent(
     assert isinstance(state.pending_stack[-1], PendingPlow)
     assert state.pending_stack[-1].phase == "after"
     post_parent = state.pending_stack[-2]
-    assert isinstance(post_parent, PendingFarmland)
+    assert isinstance(post_parent, PendingSubActionSpace)
     # Same flag value — commit didn't modify it.
-    assert post_parent.plow_chosen == pre_parent.plow_chosen
+    assert post_parent.subaction_complete == pre_parent.subaction_complete
 
     # The trailing Stop pops PendingPlow; back at the parent.
     state = step(state, Stop())
     assert len(state.pending_stack) == 1
-    assert isinstance(state.pending_stack[-1], PendingFarmland)
+    assert isinstance(state.pending_stack[-1], PendingSubActionSpace)
 
 
 def test_farmland_plow_cell_enumeration_excludes_non_empty():

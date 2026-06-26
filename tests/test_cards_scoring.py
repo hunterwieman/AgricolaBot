@@ -2,7 +2,7 @@
 Category 1) and the first scoring occupation, Stable Architect (+1 VP per
 unfenced stable). Confirms the Family game is unaffected (card_points == 0).
 """
-from agricola.actions import CommitPlayOccupation, PlaceWorker
+from agricola.actions import ChooseSubAction, CommitPlayOccupation, PlaceWorker
 from agricola.cards.specs import OCCUPATIONS
 from agricola.cards.stable_architect import count_unfenced_stables
 from agricola.constants import CellType
@@ -99,6 +99,7 @@ def test_stable_architect_played_via_lessons_then_scores():
     cs = with_grid(cs, cp, {(0, 2): Cell(cell_type=CellType.STABLE)})
 
     cs = step(cs, PlaceWorker(space="lessons"))
+    cs = step(cs, ChooseSubAction(name="play_occupation"))   # singleton: push PendingPlayOccupation
     cs = step(cs, CommitPlayOccupation(card_id="stable_architect"))
     assert "stable_architect" in cs.players[cp].occupations
     _t, bd = score(cs, cp)

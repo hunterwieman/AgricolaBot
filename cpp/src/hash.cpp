@@ -113,8 +113,9 @@ inline void hf(std::uint64_t& h, const PendingBuildMajor& f) {
 inline void hf(std::uint64_t& h, const PendingRenovate& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
-inline void hf(std::uint64_t& h, const PendingFarmland& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.plow_chosen); hi(h, f.triggers_resolved);
+inline void hf(std::uint64_t& h, const PendingSubActionSpace& f) {
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.subaction_complete);
+  hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingCultivation& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.plow_chosen); hi(h, f.sow_chosen);
@@ -133,7 +134,8 @@ inline void hf(std::uint64_t& h, const PendingCattleMarket& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingMajorMinorImprovement& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.major_chosen); hi(h, f.minor_chosen); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.major_chosen); hi(h, f.minor_chosen);
+  hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingHouseRedevelopment& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.renovate_chosen); hi(h, f.improvement_chosen);
@@ -144,9 +146,6 @@ inline void hf(std::uint64_t& h, const PendingClayOven& f) {
 }
 inline void hf(std::uint64_t& h, const PendingStoneOven& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.bake_chosen);
-}
-inline void hf(std::uint64_t& h, const PendingFencing& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.build_fences_chosen); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingBuildFences& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.pastures_built); hi(h, f.fences_built);

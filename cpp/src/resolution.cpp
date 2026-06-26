@@ -179,7 +179,7 @@ GameState initiate_nonatomic(const GameState& state, const std::string& id) {
     return push(state,
                 PendingGrainUtilization{ap, "space:grain_utilization"});
   if (id == "farmland")
-    return push(state, PendingFarmland{ap, "space:farmland"});
+    return push(state, PendingSubActionSpace{ap, "space:farmland"});
   if (id == "cultivation")
     return push(state, PendingCultivation{ap, "space:cultivation"});
   if (id == "side_job") return push(state, PendingSideJob{ap, "space:side_job"});
@@ -218,13 +218,14 @@ GameState initiate_nonatomic(const GameState& state, const std::string& id) {
   }
   if (id == "major_improvement")
     return push(state,
-                PendingMajorMinorImprovement{ap, "space:major_improvement"});
+                PendingSubActionSpace{ap, "space:major_improvement"});
   if (id == "house_redevelopment")
     return push(state,
                 PendingHouseRedevelopment{ap, "space:house_redevelopment"});
   if (id == "farm_expansion")
     return push(state, PendingFarmExpansion{ap, "space:farm_expansion"});
-  if (id == "fencing") return push(state, PendingFencing{ap, "space:fencing"});
+  if (id == "fencing")
+    return push(state, PendingSubActionSpace{ap, "space:fencing"});
   if (id == "farm_redevelopment")
     return push(state,
                 PendingFarmRedevelopment{ap, "space:farm_redevelopment"});
@@ -252,8 +253,6 @@ std::string pending_id();
 template <>
 std::string pending_id<PendingGrainUtilization>() { return "grain_utilization"; }
 template <>
-std::string pending_id<PendingFarmland>() { return "farmland"; }
-template <>
 std::string pending_id<PendingCultivation>() { return "cultivation"; }
 template <>
 std::string pending_id<PendingSideJob>() { return "side_job"; }
@@ -271,8 +270,6 @@ std::string pending_id<PendingHouseRedevelopment>() {
 }
 template <>
 std::string pending_id<PendingFarmExpansion>() { return "farm_expansion"; }
-template <>
-std::string pending_id<PendingFencing>() { return "fencing"; }
 template <>
 std::string pending_id<PendingFarmRedevelopment>() {
   return "farm_redevelopment";
@@ -305,14 +302,28 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       return push(s, PendingBakeBread{nt.player_idx,
                                       pending_id<PendingGrainUtilization>()});
     }
-  } else if (auto* f = std::get_if<PendingFarmland>(&top)) {
-    if (name == "plow") {
-      PendingFarmland nt = *f;
-      nt.plow_chosen = true;
-      GameState s = replace_top(state, nt);
-      return push(s,
-                  PendingPlow{nt.player_idx, pending_id<PendingFarmland>()});
-    }
+  } else if (auto* sas = std::get_if<PendingSubActionSpace>(&top)) {
+    // Generic Delegating space host (SPACE_HOST_REFACTOR.md §4.2/§8): set
+    // subaction_complete and push the single mandatory child, dispatched by
+    // space_id. The child's initiated_by_id carries the space's id (not the
+    // generic "action_space" PENDING_ID) so existing provenance is preserved
+    // (e.g. PendingPlow.initiated_by_id == "farmland").
+    PendingSubActionSpace nt = *sas;
+    const std::string sid = nt.space_id();
+    nt.subaction_complete = true;
+    GameState s = replace_top(state, nt);
+    if (sid == "farmland" && name == "plow")
+      return push(s, PendingPlow{nt.player_idx, "farmland"});
+    if (sid == "fencing" && name == "build_fences")
+      return push(s, PendingBuildFences{nt.player_idx, "fencing"});
+    if (sid == "major_improvement" && name == "improvement")
+      // Preserve the composite host's provenance "space:major_improvement"
+      // (the host's full initiated_by_id), distinct from the House-Redev path's
+      // "house_redevelopment".
+      return push(s, PendingMajorMinorImprovement{nt.player_idx,
+                                                  nt.initiated_by_id});
+    throw std::runtime_error("choose_subaction: unknown sub-action " + name +
+                             " for space host " + sid);
   } else if (auto* c = std::get_if<PendingCultivation>(&top)) {
     PendingCultivation nt = *c;
     if (name == "plow") {
@@ -414,14 +425,6 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
       frame.max_builds = std::nullopt;
       frame.num_built = 0;
       return push(s, frame);
-    }
-  } else if (auto* fc = std::get_if<PendingFencing>(&top)) {
-    if (name == "build_fences") {
-      PendingFencing nt = *fc;
-      nt.build_fences_chosen = true;
-      GameState s = replace_top(state, nt);
-      return push(s, PendingBuildFences{nt.player_idx,
-                                        pending_id<PendingFencing>()});
     }
   } else if (auto* fr = std::get_if<PendingFarmRedevelopment>(&top)) {
     PendingFarmRedevelopment nt = *fr;

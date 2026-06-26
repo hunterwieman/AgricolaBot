@@ -248,9 +248,48 @@ GameState resolve_harvest_field(const GameState& state) {
 // _advance_until_decision: walk system transitions until the next decision /
 // terminal. Idempotent.
 // ---------------------------------------------------------------------------
+// A Delegating space host (SPACE_HOST_REFACTOR.md §5) — PendingSubActionSpace or
+// PendingMajorMinorImprovement — auto-advances to its after-phase once its single
+// mandatory sub-action has completed. The two helpers below recognize that frame
+// type and read its work-complete signal (subaction_complete is a real field on
+// PendingSubActionSpace, a derived property on PendingMajorMinorImprovement).
+bool is_delegating(const PendingDecision& top) {
+  return std::holds_alternative<PendingSubActionSpace>(top) ||
+         std::holds_alternative<PendingMajorMinorImprovement>(top);
+}
+bool delegating_subaction_complete(const PendingDecision& top) {
+  if (auto* sas = std::get_if<PendingSubActionSpace>(&top))
+    return sas->subaction_complete;
+  if (auto* mm = std::get_if<PendingMajorMinorImprovement>(&top))
+    return mm->subaction_complete();
+  return false;
+}
+std::string delegating_phase(const PendingDecision& top) {
+  if (auto* sas = std::get_if<PendingSubActionSpace>(&top)) return sas->phase;
+  if (auto* mm = std::get_if<PendingMajorMinorImprovement>(&top)) return mm->phase;
+  return "";
+}
+
 GameState advance_until_decision(GameState s) {
   while (true) {
-    if (!s.pending_stack.empty()) return s;
+    // Case 1: a pending frame is active — decision awaits the agent, UNLESS it is
+    // a Delegating space host whose single mandatory sub-action just completed
+    // (SPACE_HOST_REFACTOR.md §5): flip it to its after-phase (firing
+    // after_<event> autos — a Family no-op) before returning. The flip makes
+    // phase=="after", so the guard is False next iteration — idempotent.
+    if (!s.pending_stack.empty()) {
+      const PendingDecision& top = s.pending_stack.back();
+      if (is_delegating(top) && delegating_subaction_complete(top) &&
+          delegating_phase(top) == "before") {
+        PendingDecision nt = top;
+        std::visit([](auto& f) {
+          if constexpr (requires { f.phase; }) { f.phase = "after"; }
+        }, nt);
+        s = replace_top(s, nt);
+        continue;
+      }
+      return s;
+    }
 
     if (s.phase == Phase::PREPARATION) {
       if (count_revealed_stage_cards(s) == s.round_number)
