@@ -533,7 +533,13 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
         ))
     # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos);
     # the trailing Stop pops. (No current minor on_play pushes a frame.)
-    return _enter_after_phase(state)
+    state = _enter_after_phase(state)
+    # Coarse "any improvement built" event (Category 5, Junk Room): a minor
+    # improvement IS an improvement — and "including this one", so Junk Room fires
+    # on its own play too. Mirrors the after_build_improvement fire in
+    # _execute_build_major. A no-op in the Family game (empty AUTO_EFFECTS).
+    from agricola.cards.triggers import apply_auto_effects
+    return apply_auto_effects(state, "after_build_improvement", idx)
 
 
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
@@ -1179,6 +1185,14 @@ def _execute_build_major(
     #    already "after" (offering after_build_major triggers + Stop). `phase`
     #    now carries what `build_chosen` used to — the after-gate keys on it.
     state = _enter_after_phase(state)
+
+    # 4b. Coarse "any improvement built" event (Category 5, Junk Room): a major
+    #     improvement IS an improvement, so fire after_build_improvement here
+    #     (mirrored in _execute_play_minor for minors). +3-food/+1-food autos are
+    #     order-independent of any oven free-bake, so firing before the oven branch
+    #     is fine. A no-op in the Family game (empty AUTO_EFFECTS).
+    from agricola.cards.triggers import apply_auto_effects
+    state = apply_auto_effects(state, "after_build_improvement", player_idx)
 
     # 5. Branch on major_idx for the oven wrappers; otherwise leave the
     #    after-phase frame for its trailing Stop.
