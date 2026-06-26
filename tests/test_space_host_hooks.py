@@ -418,11 +418,11 @@ def test_major_minor_improvement_before_event_fires_at_push():
 
 def test_side_job_is_not_a_host_behaviorally():
     """Side Job is deliberately Stop-terminated, not a before/after host: it has no
-    `phase` field and its placement fires no before_action_space auto. (Note: the
-    `side_job` PENDING_ID is currently still listed in ACTION_SPACE_PENDING_IDS, but
-    that membership is INERT — PendingSideJob has no `phase`, so trigger_event /
-    _enter_after_phase are never invoked on it, and the card board has no Side Job
-    space at all. This test pins the behavior, not the stale set entry.)"""
+    `phase` field and its placement fires no before_action_space auto. (The
+    `side_job` PENDING_ID is deliberately NOT in ACTION_SPACE_PENDING_IDS —
+    PendingSideJob has no `phase`, so trigger_event / _enter_after_phase are never
+    invoked on it, and the card board has no Side Job space at all. This test pins
+    the behavior.)"""
     from agricola.pending import PendingSideJob
 
     assert "phase" not in PendingSideJob.__annotations__
