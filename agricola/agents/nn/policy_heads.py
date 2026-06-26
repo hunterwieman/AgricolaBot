@@ -464,7 +464,10 @@ def _build_stop_owns(state) -> bool:
 def _build_stop_label(action: Action) -> str | None:
     if isinstance(action, (CommitBuildRoom, CommitBuildStable)):
         return BUILD_LABEL
-    if isinstance(action, Stop):
+    # Proceed-as-Stop alias (§9): post the build-host refactor the multi-shot
+    # builders end their before-phase with Proceed (the work-complete flip), not
+    # Stop — both are this head's "stop building" class, so map them together.
+    if isinstance(action, (Stop, Proceed)):
         return STOP_LABEL
     return None
 

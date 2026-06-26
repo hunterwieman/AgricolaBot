@@ -36,7 +36,7 @@ from typing import Callable
 import numpy as np
 import torch
 
-from agricola.actions import Action, CommitBuildRoom, CommitBuildStable, Stop
+from agricola.actions import Action, CommitBuildRoom, CommitBuildStable, Proceed, Stop
 from agricola.agents.base import decider_of
 from agricola.agents.nn.encoder import ENCODER_V2, ENCODERS, begging_margin
 from agricola.agents.nn.model import model_device
@@ -189,7 +189,9 @@ def make_joint_fns(
             priority, commit_class = STABLE_PRIORITY, CommitBuildStable
         kept = _filter_cell_priority(list(legal), priority, commit_class)
         build_opts = [a for a in kept if isinstance(a, commit_class)]
-        stop_opts = [a for a in kept if isinstance(a, Stop)]
+        # Proceed-as-Stop alias (§9): the builder's before-phase "stop" action is now
+        # Proceed (the work-complete flip), not Stop — assign p_stop to it.
+        stop_opts = [a for a in kept if isinstance(a, (Stop, Proceed))]
         out: dict[Action, float] = {}
         if build_opts and p_build > 0:
             for a in build_opts:

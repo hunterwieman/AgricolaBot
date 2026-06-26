@@ -517,25 +517,29 @@ std::vector<Action> enum_plow(const GameState& s, const PendingPlow& pd) {
 
 std::vector<Action> enum_build_stables(const GameState& s,
                                        const PendingBuildStables& pd) {
+  // before/after host: after-phase = triggers (none in Family) + Stop.
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   bool cap_ok = !pd.max_builds.has_value() || pd.num_built < *pd.max_builds;
   if (cap_ok && can_build_stable(p, pd.cost))
     for (const auto& [r, c] : legal_stable_cells(p))
       a.push_back(CommitBuildStable{r, c});
-  if (pd.num_built >= 1) a.push_back(Stop{});
+  if (pd.num_built >= 1) a.push_back(Proceed{});
   return a;
 }
 
 std::vector<Action> enum_build_rooms(const GameState& s,
                                      const PendingBuildRooms& pd) {
+  // before/after host: after-phase = triggers (none in Family) + Stop.
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   bool cap_ok = !pd.max_builds.has_value() || pd.num_built < *pd.max_builds;
   if (cap_ok && can_afford(p, pd.cost))
     for (const auto& [r, c] : legal_room_cells(p))
       a.push_back(CommitBuildRoom{r, c});
-  if (pd.num_built >= 1) a.push_back(Stop{});
+  if (pd.num_built >= 1) a.push_back(Proceed{});
   return a;
 }
 

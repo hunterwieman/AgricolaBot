@@ -46,6 +46,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitPlow,
+    Proceed,
     Stop,
 )
 from agricola.agents.base import LegalActionsFn, decider_of
@@ -210,7 +211,9 @@ def _build_stop_distribution(state, model, legal, legal_actions_fn):
         priority, commit_class = STABLE_PRIORITY, CommitBuildStable
     kept = _filter_cell_priority(list(legal), priority, commit_class)
     build_opts = [a for a in kept if isinstance(a, commit_class)]
-    stop_opts = [a for a in kept if isinstance(a, Stop)]
+    # Proceed-as-Stop alias (§9): the multi-shot builder's before-phase "stop"
+    # action is now Proceed (the work-complete flip), not Stop — assign p_stop to it.
+    stop_opts = [a for a in kept if isinstance(a, (Stop, Proceed))]
     out: dict[Action, float] = {}
     if build_opts and p_build > 0:
         share = p_build / len(build_opts)

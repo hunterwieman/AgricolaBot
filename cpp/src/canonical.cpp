@@ -245,12 +245,16 @@ json tc(const PendingBuildStables& p) {
   json j = pframe("PendingBuildStables", p.player_idx, p.initiated_by_id);
   j["cost"] = tc(p.cost);  j["max_builds"] = opt_int_node(p.max_builds);
   j["num_built"] = p.num_built;
+  j["phase"] = p.phase;
+  j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
 json tc(const PendingBuildRooms& p) {
   json j = pframe("PendingBuildRooms", p.player_idx, p.initiated_by_id);
   j["cost"] = tc(p.cost);  j["max_builds"] = opt_int_node(p.max_builds);
   j["num_built"] = p.num_built;
+  j["phase"] = p.phase;
+  j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
 json tc(const PendingBuildMajor& p) {
@@ -472,10 +476,14 @@ PendingDecision pending_from(const json& j) {
                                 read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingBuildStables")
     return PendingBuildStables{pid, iby, resources_from(j.at("cost")),
-                               read_opt_int(j.at("max_builds")), j.at("num_built")};
+                               read_opt_int(j.at("max_builds")), j.at("num_built"),
+                               j.value("phase", std::string("before")),
+                               read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingBuildRooms")
     return PendingBuildRooms{pid, iby, resources_from(j.at("cost")),
-                             read_opt_int(j.at("max_builds")), j.at("num_built")};
+                             read_opt_int(j.at("max_builds")), j.at("num_built"),
+                             j.value("phase", std::string("before")),
+                             read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingBuildMajor")
     return PendingBuildMajor{pid, iby, j.value("phase", std::string("before")),
                              read_str_set(j.at("triggers_resolved"))};

@@ -879,7 +879,11 @@ std::vector<std::pair<Action, double>> NNInference::policy_impl(
       if (is_rooms && std::holds_alternative<CommitBuildRoom>(a)) has_build = true;
       if (!is_rooms && std::holds_alternative<CommitBuildStable>(a))
         has_build = true;
-      if (std::holds_alternative<Stop>(a)) has_stop = true;
+      // Proceed-as-Stop alias (§9): the builder's before-phase "stop building"
+      // action is now Proceed (the work-complete flip), not Stop. Both map to the
+      // head's stop class. (Never co-legal: before-phase = Proceed, after = Stop.)
+      if (std::holds_alternative<Stop>(a) || std::holds_alternative<Proceed>(a))
+        has_stop = true;
     }
     std::vector<bool> mask = {has_build, has_stop};
     std::vector<float> logits = impl_->fixed_logits(h, state, ext);
@@ -896,7 +900,8 @@ std::vector<std::pair<Action, double>> NNInference::policy_impl(
       if (is_rooms ? std::holds_alternative<CommitBuildRoom>(a)
                    : std::holds_alternative<CommitBuildStable>(a))
         build_opts.push_back(a);
-      else if (std::holds_alternative<Stop>(a))
+      else if (std::holds_alternative<Stop>(a) ||
+               std::holds_alternative<Proceed>(a))  // Proceed-as-Stop alias (§9)
         stop_opts.push_back(a);
     }
     std::vector<std::pair<Action, double>> out;

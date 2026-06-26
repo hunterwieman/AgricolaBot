@@ -475,17 +475,13 @@ def _apply_commit_card_choice(
 
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
-    # Multi-shot build-rooms work-complete boundary (Category 5, Roughcaster's
-    # clay-room clause): the multi-shot PendingBuildRooms frame has no before/after
-    # phase flip — each CommitBuildRoom replace_tops it, and the player's explicit
-    # Stop is the only session-end signal. So fire its after_build_rooms automatic
-    # effects HERE, once per build-rooms session, just before the pop. (The
-    # build-stables session has no after-auto card today, so it is not fired.) A
-    # no-op in the Family game — AUTO_EFFECTS is empty, so apply_auto_effects
-    # returns `state` unchanged and the pop is byte-identical.
+    # Build Rooms / Build Stables are now uniform before/after hosts: their
+    # after_build_<x> automatic effects fire at the Proceed work-complete boundary
+    # (_apply_proceed -> _enter_after_phase), BEFORE the after-triggers, so Stop here
+    # is a pure pop like every other host (the old multi-shot Stop-fires-autos
+    # special case is gone). Roughcaster's clay-room clause + Wall Builder ride that
+    # Proceed flip now.
     top = state.pending_stack[-1]
-    if isinstance(top, PendingBuildRooms):
-        state = apply_auto_effects(state, "after_build_rooms", top.player_idx)
     # End-of-turn card hook (CARD_IMPLEMENTATION_PLAN.md Category 3 — Firewood
     # Collector "at the end of that turn"). A worker-placement turn completes when
     # its OUTERMOST space-host frame is popped and the stack empties; fire the
@@ -529,10 +525,21 @@ def _apply_proceed(state: GameState) -> GameState:
     exits via Proceed — but it is a phase host with NO before/after `phase` flip and
     no "after" clause, so Proceed simply POPS it (its `start_of_round` autos already
     fired at push). Handled first, before the action-space-host assertion.
+
+    A fourth kind, the multi-shot sub-action builders (PendingBuildRooms /
+    PendingBuildStables): the rooms/stables were already built during the
+    before-phase, so Proceed runs no effect of its own — it is purely the explicit
+    work-complete signal that flips them to their after-phase (firing
+    after_build_<x> autos via the same `_enter_after_phase`). They are sub-action
+    hosts, not action-space hosts, so they are handled before that assertion.
     """
     top = state.pending_stack[-1]
     if isinstance(top, PendingPreparation):
         return pop(state)
+    if isinstance(top, (PendingBuildRooms, PendingBuildStables)):
+        assert getattr(top, "phase", None) == "before", (
+            f"Proceed expected a before-phase build host, got {top!r}")
+        return _enter_after_phase(state)
     assert (
         type(top).PENDING_ID in ACTION_SPACE_PENDING_IDS
         and getattr(top, "phase", None) == "before"

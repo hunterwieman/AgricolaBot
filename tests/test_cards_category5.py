@@ -161,7 +161,7 @@ def test_roughcaster_no_food_on_wood_to_clay_renovate():
 
 def test_roughcaster_food_on_clay_room_build():
     # Build a room in a CLAY house via Farm Expansion -> a clay room -> +3 food
-    # fired once at the build-rooms session-ending Stop.
+    # fired once at the build-rooms Proceed flip (the after_build_rooms boundary).
     cs = _card_state()
     cs = with_house(cs, 0, HouseMaterial.CLAY)
     cs = with_resources(cs, 0, clay=5, reed=2)   # clay-house room costs 5 clay + 2 reed
@@ -172,7 +172,8 @@ def test_roughcaster_food_on_clay_room_build():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),
-        Stop(),       # pop PendingBuildRooms (after_build_rooms fired here)
+        Proceed(),    # flip PendingBuildRooms to after (after_build_rooms fires here)
+        Stop(),       # pop PendingBuildRooms
         Proceed(),
         Stop(),
     ])
@@ -191,7 +192,8 @@ def test_roughcaster_no_food_on_wood_room_build():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),
-        Stop(),
+        Proceed(),    # flip PendingBuildRooms to after
+        Stop(),       # pop PendingBuildRooms
         Proceed(),
         Stop(),
     ])
