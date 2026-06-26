@@ -56,11 +56,14 @@ def test_assistant_tiller_grants_a_plow():
     s = step(s, FireTrigger(card_id="assistant_tiller"))
     assert isinstance(s.pending_stack[-1], PendingPlow)
     plows = legal_actions(s)
-    s = step(s, plows[0])                         # commit one plow (auto-pops PendingPlow)
+    s = step(s, plows[0])                         # commit one plow (flips PendingPlow to after)
     assert _num_fields(s, 0) == fields0 + 1
-    # Back at the host (after-phase); the grant is spent → only Stop remains.
+    # PendingPlow after-phase: Stop pops it.
     assert legal_actions(s) == [Stop()]
-    s = step(s, Stop())
+    s = step(s, Stop())                           # pop PendingPlow's after-phase
+    # Back at the host (after-phase); grant is spent → only Stop remains.
+    assert legal_actions(s) == [Stop()]
+    s = step(s, Stop())                           # pop the host frame
     assert not s.pending_stack
 
 
@@ -90,11 +93,14 @@ def test_oven_firing_boy_grants_a_bake():
 
     s = step(s, FireTrigger(card_id="oven_firing_boy"))
     assert isinstance(s.pending_stack[-1], PendingBakeBread)
-    s = step(s, CommitBake(grain=1))             # Fireplace: 1 grain -> 2 food (auto-pops)
+    s = step(s, CommitBake(grain=1))             # Fireplace: 1 grain -> 2 food (flips to after)
     assert s.players[0].resources.food == food0 + 2
     assert s.players[0].resources.grain == 1
-    assert legal_actions(s) == [Stop()]          # grant spent
-    s = step(s, Stop())
+    assert legal_actions(s) == [Stop()]          # PendingBakeBread after-phase
+    s = step(s, Stop())                          # pop PendingBakeBread's after-phase
+    # Back at the host (after-phase); grant is spent → only Stop remains.
+    assert legal_actions(s) == [Stop()]
+    s = step(s, Stop())                          # pop the host frame
     assert not s.pending_stack
 
 

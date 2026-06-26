@@ -53,9 +53,10 @@ def test_firewood_collector_on_farmland():
     s = step(s, PlaceWorker(space="farmland"))
     s = step(s, ChooseSubAction(name="plow"))
     s = _commit_plow(s)
-    assert legal_actions(s) == [Stop()]            # plow done, no after-triggers owned
-    s = step(s, Stop())
-    assert s.players[0].resources.wood == w0 + 1   # Firewood fired at Stop
+    s = step(s, Stop())                            # pop PendingPlow's after-phase
+    assert legal_actions(s) == [Stop()]            # Farmland gate; Firewood is auto, not surfaced
+    s = step(s, Stop())                            # pop PendingFarmland -> Firewood fires
+    assert s.players[0].resources.wood == w0 + 1   # Firewood fired at the space's Stop
     assert not s.pending_stack
 
 
@@ -94,6 +95,7 @@ def test_threshing_board_grants_bake_and_closes_subactions():
     s = step(s, PlaceWorker(space="cultivation"))
     s = step(s, ChooseSubAction(name="plow"))
     s = _commit_plow(s)
+    s = step(s, Stop())                                   # pop PendingPlow's after-phase
     # Stop-gate met: sow is still available AND the after-trigger is surfaced.
     la = legal_actions(s)
     assert ChooseSubAction(name="sow") in la
@@ -102,10 +104,11 @@ def test_threshing_board_grants_bake_and_closes_subactions():
 
     s = step(s, FireTrigger(card_id="threshing_board"))   # grant the bake
     s = step(s, CommitBake(grain=1))                      # Fireplace: 1 grain -> 2 food
+    s = step(s, Stop())                                   # pop the granted PendingBakeBread's after-phase
     assert s.players[0].resources.food == food0 + 2
     # after_started (derived) -> base sub-actions are now closed; only Stop.
     assert legal_actions(s) == [Stop()]
-    s = step(s, Stop())
+    s = step(s, Stop())                                   # pop PendingCultivation
     assert not s.pending_stack
 
 

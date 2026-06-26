@@ -77,7 +77,8 @@ def test_grain_util_sow_only_walk():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=1, veg=0),
-        Stop(),
+        Stop(),   # pop PendingSow's after-phase
+        Stop(),   # pop the parent
     ])
 
     # Resources: 0 grain (sown), no food gained (didn't bake).
@@ -100,7 +101,8 @@ def test_grain_util_bake_only_walk():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),
+        Stop(),   # pop PendingBakeBread's after-phase
+        Stop(),   # pop the parent
     ])
 
     # -1 grain, +2 food (Fireplace rate).
@@ -119,9 +121,11 @@ def test_grain_util_both_sub_actions_walk():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=2, veg=0),
+        Stop(),   # pop PendingSow's after-phase
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),
+        Stop(),   # pop PendingBakeBread's after-phase
+        Stop(),   # pop the parent
     ])
 
     # 3 - 2 (sown) - 1 (baked) = 0 grain remaining.
@@ -142,18 +146,22 @@ def test_grain_util_both_sub_actions_reverse_order():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
+        Stop(),   # pop PendingBakeBread's after-phase
         ChooseSubAction(name="sow"),
         CommitSow(grain=2, veg=0),
-        Stop(),
+        Stop(),   # pop PendingSow's after-phase
+        Stop(),   # pop the parent
     ])
     # Walk sow-first.
     state_b = run_actions(state, [
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=2, veg=0),
+        Stop(),   # pop PendingSow's after-phase
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),
+        Stop(),   # pop PendingBakeBread's after-phase
+        Stop(),   # pop the parent
     ])
     # Resources and field contents should be identical.
     assert state_a.players[ap].resources == state_b.players[ap].resources
@@ -217,6 +225,7 @@ def test_sow_becomes_illegal_after_baking_depletes_grain():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
+        Stop(),   # pop PendingBakeBread's after-phase -> back at the parent
     ])
     # Now at PendingGrainUtilization with grain=0, bake_chosen=True.
     actions = legal_actions(state)
@@ -254,6 +263,7 @@ def test_sow_remains_legal_after_partial_bake():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
+        Stop(),   # pop PendingBakeBread's after-phase -> back at the parent
     ])
     # Resources: 2 grain remaining. Sow still offered.
     actions = legal_actions(state)
@@ -271,6 +281,7 @@ def test_partial_field_fills_after_partial_sow():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=2, veg=0),
+        Stop(),   # pop PendingSow's after-phase -> back at the parent
     ])
     # Field at (0, 2) and (0, 3) filled; (0, 4) still empty.
     grid = state.players[ap].farmyard.grid
@@ -452,8 +463,9 @@ def test_choose_sow_marks_parent_sow_chosen_and_pushes_pending_sow():
     assert parent.bake_chosen is False
 
 
-def test_commit_sow_pops_pending_sow_without_modifying_parent():
-    """CommitSow pops PendingSow and does NOT modify parent (flag was set at choose time)."""
+def test_commit_sow_flips_pending_sow_after_without_modifying_parent():
+    """CommitSow pivots PendingSow to its after-phase (no auto-pop) and does NOT
+    modify the parent (flag was set at choose time); the trailing Stop pops."""
     state = _gu_setup(grain=1, empty_fields=1, with_fireplace=True)
     ap = state.current_player
 
@@ -467,7 +479,15 @@ def test_commit_sow_pops_pending_sow_without_modifying_parent():
     ])
 
     new_state = step(state, CommitSow(grain=1, veg=0))
-    # Stack back to length 1; flag remains True (set at choose time, untouched by commit).
+    # PendingSow stays on top in its after-phase; parent untouched.
+    assert len(new_state.pending_stack) == 2
+    assert isinstance(new_state.pending_stack[-1], PendingSow)
+    assert new_state.pending_stack[-1].phase == "after"
+    assert new_state.pending_stack[-2].sow_chosen is True
+    assert new_state.pending_stack[-2].bake_chosen is False
+
+    # The trailing Stop pops PendingSow; the parent is still unmodified.
+    new_state = step(new_state, Stop())
     assert len(new_state.pending_stack) == 1
     top = new_state.pending_stack[-1]
     assert isinstance(top, PendingGrainUtilization)
@@ -492,8 +512,9 @@ def test_choose_bake_marks_parent_bake_chosen_and_pushes_pending_bake_bread():
     assert parent.sow_chosen is False
 
 
-def test_commit_bake_pops_pending_bake_bread_without_modifying_parent():
-    """CommitBake pops PendingBakeBread and does NOT modify parent."""
+def test_commit_bake_flips_pending_bake_bread_after_without_modifying_parent():
+    """CommitBake pivots PendingBakeBread to its after-phase (no auto-pop) and
+    does NOT modify the parent; the trailing Stop pops."""
     state = _gu_setup(grain=1, with_fireplace=True)
     ap = state.current_player
 
@@ -505,6 +526,11 @@ def test_commit_bake_pops_pending_bake_bread_without_modifying_parent():
     ])
 
     new_state = step(state, CommitBake(grain=1))
+    assert len(new_state.pending_stack) == 2
+    assert isinstance(new_state.pending_stack[-1], PendingBakeBread)
+    assert new_state.pending_stack[-1].phase == "after"
+
+    new_state = step(new_state, Stop())
     assert len(new_state.pending_stack) == 1
     top = new_state.pending_stack[-1]
     assert isinstance(top, PendingGrainUtilization)

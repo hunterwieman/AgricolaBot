@@ -450,6 +450,7 @@ std::vector<Action> enum_grain_utilization(const GameState& s,
 }
 
 std::vector<Action> enum_sow(const GameState& s, const PendingSow& pd) {
+  if (pd.phase == "after") return {Stop{}};  // after-phase: triggers (none in Family) + Stop
   const auto& p = frame_player(s, pd.player_idx);
   int empty_fields = 0;
   const auto& g = p.farmyard.grid;
@@ -482,6 +483,7 @@ std::vector<BakingSpec> baking_specs(const GameState& s, int pid) {
 
 std::vector<Action> enum_bake_bread(const GameState& s,
                                     const PendingBakeBread& pd) {
+  if (pd.phase == "after") return {Stop{}};  // after-phase: triggers (none in Family) + Stop
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   // FireTrigger options: cards deferred, none ever eligible -> omitted.
@@ -502,6 +504,7 @@ std::vector<Action> enum_bake_bread(const GameState& s,
 }
 
 std::vector<Action> enum_plow(const GameState& s, const PendingPlow& pd) {
+  if (pd.phase == "after") return {Stop{}};  // after-phase: triggers (none in Family) + Stop
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   for (const auto& [r, c] : legal_plow_cells(p)) a.push_back(CommitPlow{r, c});
@@ -534,7 +537,7 @@ std::vector<Action> enum_build_rooms(const GameState& s,
 
 std::vector<Action> enum_build_major(const GameState& s,
                                      const PendingBuildMajor& pd) {
-  if (pd.build_chosen) return {Stop{}};
+  if (pd.phase == "after") return {Stop{}};  // was build_chosen; now phase
   const auto& owners = s.board.major_improvement_owners;
   const auto& p = frame_player(s, pd.player_idx);
   int pid = *pd.player_idx;
@@ -553,7 +556,8 @@ std::vector<Action> enum_build_major(const GameState& s,
   return a;
 }
 
-std::vector<Action> enum_renovate(const GameState&, const PendingRenovate&) {
+std::vector<Action> enum_renovate(const GameState&, const PendingRenovate& pd) {
+  if (pd.phase == "after") return {Stop{}};  // after-phase: triggers (none in Family) + Stop
   return {CommitRenovate{}};
 }
 

@@ -236,12 +236,17 @@ def _apply_action(state: GameState, action: Action) -> GameState:
 # Adding a new sub-action: define a new CommitX subclass + an
 # `_execute_x(state, player_idx, commit)` in resolution.py + a row here.
 COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
-    CommitSow:          (PendingSow,          _execute_sow,          True),
-    CommitBake:         (PendingBakeBread,    _execute_bake,         True),
-    CommitPlow:         (PendingPlow,         _execute_plow,         True),
+    # The commit-terminated sub-action HOSTS are all auto_pop=False
+    # (SUBACTION_HOOK_REFACTOR.md): their effect pivots the host frame to its
+    # after-phase (via _enter_after_phase) instead of popping; the trailing Stop
+    # pops. This gives every sub-action a uniform before/after host on which
+    # cards can surface after-triggers + fire after-automatic effects.
+    CommitSow:          (PendingSow,          _execute_sow,          False),
+    CommitBake:         (PendingBakeBread,    _execute_bake,         False),
+    CommitPlow:         (PendingPlow,         _execute_plow,         False),
     CommitBuildStable:  (PendingBuildStables, _execute_build_stable, False),
     CommitBuildRoom:    (PendingBuildRooms,   _execute_build_room,   False),
-    CommitRenovate:     (PendingRenovate,     _execute_renovate,     True),
+    CommitRenovate:     (PendingRenovate,     _execute_renovate,     False),
     # CommitAccommodate lands on any of three market parent pendings.
     # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.
     # auto_pop=False (4b): the effect pivots the host frame to its after-phase
@@ -267,14 +272,16 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     CommitHarvestConversion: (PendingHarvestFeed,  _execute_harvest_conversion, False),
     CommitConvert:           (PendingHarvestFeed,  _execute_convert,            False),
     CommitBreed:             (PendingHarvestBreed, _execute_breed,              False),
-    # Card game: play one occupation from hand. auto_pop=True — Lessons plays
-    # exactly one occupation, then PendingPlayOccupation pops and the turn ends.
-    CommitPlayOccupation:    (PendingPlayOccupation, _execute_play_occupation,  True),
-    # Card game: play one minor from hand. auto_pop=True — one minor played, then
-    # PendingPlayMinor pops; declining is the frame's Stop (also pops).
-    CommitPlayMinor:         (PendingPlayMinor,      _execute_play_minor,       True),
+    # Card game: play one occupation from hand. auto_pop=False — the effect
+    # plays the occupation then pivots PendingPlayOccupation to its after-phase
+    # (hosting e.g. Bread Paddle on after_play_occupation); the trailing Stop pops.
+    CommitPlayOccupation:    (PendingPlayOccupation, _execute_play_occupation,  False),
+    # Card game: play one minor from hand. auto_pop=False — the effect plays the
+    # minor then pivots PendingPlayMinor to its after-phase; the trailing Stop pops.
+    CommitPlayMinor:         (PendingPlayMinor,      _execute_play_minor,       False),
     # Card game: the family-growth primitive (mandatory; parameter-free singleton).
-    CommitFamilyGrowth:      (PendingFamilyGrowth,   _execute_family_growth,    True),
+    # auto_pop=False — pivots to after-phase, trailing Stop pops.
+    CommitFamilyGrowth:      (PendingFamilyGrowth,   _execute_family_growth,    False),
 }
 
 

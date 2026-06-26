@@ -133,17 +133,21 @@ struct PendingGrainUtilization {
 struct PendingSow {
   std::optional<int> player_idx;
   std::string initiated_by_id;
+  std::string phase = "before";  // "before" | "after" (SUBACTION_HOOK_REFACTOR)
+  std::vector<std::string> triggers_resolved;
   bool operator==(const PendingSow&) const = default;
 };
 struct PendingBakeBread {
   std::optional<int> player_idx;
   std::string initiated_by_id;
+  std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingBakeBread&) const = default;
 };
 struct PendingPlow {
   std::optional<int> player_idx;
   std::string initiated_by_id;
+  std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingPlow&) const = default;
 };
@@ -173,7 +177,7 @@ struct PendingBuildRooms {
 struct PendingBuildMajor {
   std::optional<int> player_idx;
   std::string initiated_by_id;
-  bool build_chosen = false;
+  std::string phase = "before";  // "before" | "after" (replaces old build_chosen)
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingBuildMajor&) const = default;
 };
@@ -181,6 +185,7 @@ struct PendingRenovate {
   std::optional<int> player_idx;
   std::string initiated_by_id;
   Resources cost{};
+  std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingRenovate&) const = default;
 };

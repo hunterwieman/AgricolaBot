@@ -1037,7 +1037,16 @@ def _enumerate_pending_sow(
       - grain + veg <= number of empty field cells
 
     Order: sorted by (grain, veg) ascending.
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): in the after-phase the
+    commit is done, so only after_sow triggers + Stop are offered. In the
+    before-phase, any before_sow triggers precede the CommitSow options.
     """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
     empty_fields = sum(
         1 for r in range(3) for c in range(5)
@@ -1045,7 +1054,6 @@ def _enumerate_pending_sow(
         and p.farmyard.grid[r][c].grain == 0
         and p.farmyard.grid[r][c].veg == 0
     )
-    actions: list[Action] = []
     for g in range(p.resources.grain + 1):
         for v in range(p.resources.veg + 1):
             if g + v == 0:
@@ -1067,27 +1075,21 @@ def _enumerate_pending_bake_bread(
 
     Order: FireTrigger entries alphabetically by card_id, then CommitBake
     entries in ascending grain amount.
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): the before-phase hosts
+    before_bake_bread triggers (e.g. Potter) + CommitBake; the after-phase hosts
+    after_bake_bread triggers + Stop. The trigger event is derived from `phase`
+    via `trigger_event` (no per-frame TRIGGER_EVENT).
     """
-    from agricola.cards.triggers import TRIGGERS  # local import to avoid load-order issues
+    # Eligible unfired triggers for this pending's <phase>_bake_bread event,
+    # ownership-checked + triggers_resolved-filtered, alphabetical.
+    actions: list[Action] = _eligible_fire_triggers(state, pending, trigger_event(pending))
+
+    if pending.phase == "after":
+        actions.append(Stop())
+        return actions
 
     p = state.players[pending.player_idx]
-    actions: list[Action] = []
-
-    # Eligible unfired triggers for this pending's event.
-    event = type(pending).TRIGGER_EVENT   # "before_bake_bread"
-    eligible_entries = []
-    for entry in TRIGGERS.get(event, []):
-        if entry.card_id in pending.triggers_resolved:
-            continue
-        if not entry.eligibility_fn(
-            state, pending.player_idx, pending.triggers_resolved,
-        ):
-            continue
-        eligible_entries.append(entry)
-    eligible_entries.sort(key=lambda e: e.card_id)
-    for entry in eligible_entries:
-        actions.append(FireTrigger(card_id=entry.card_id))
-
     # Commit options. The max grain that can be baked in this action is the
     # min of the player's supply and the sum of per-source caps (uncapped
     # sources, e.g. Fireplace/Hearth, lift the cap to player's grain supply).
@@ -1113,9 +1115,18 @@ def _enumerate_pending_plow(
 
     One CommitPlow per legal target cell (empty, non-enclosed, adjacent to
     an existing field — or anywhere if there are no fields yet).
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after-phase offers
+    after_plow triggers + Stop; before-phase offers before_plow triggers + the
+    CommitPlow options.
     """
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    if pending.phase == "after":
+        actions.append(Stop())
+        return actions
     p = state.players[pending.player_idx]
-    return [CommitPlow(row=r, col=c) for (r, c) in _legal_plow_cells(p)]
+    actions.extend(CommitPlow(row=r, col=c) for (r, c) in _legal_plow_cells(p))
+    return actions
 
 
 def _enumerate_pending_build_stables(
@@ -1173,16 +1184,19 @@ def _enumerate_pending_build_major(
 ) -> list[Action]:
     """Enumerate legal CommitBuildMajor actions at PendingBuildMajor.
 
-    If `build_chosen` is True, we're back here after an oven flow
-    completed; only Stop is legal. Otherwise enumerate every unowned,
-    affordable major as a CommitBuildMajor (standard payment), plus one
-    additional CommitBuildMajor per Fireplace owned (Cooking Hearth via
-    Fireplace return).
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): in the after-phase the
+    major is built (and any oven free-bake done), so only after_build_major
+    triggers + Stop are legal — `phase` here replaces the old `build_chosen`
+    flag. In the before-phase enumerate every unowned, affordable major as a
+    CommitBuildMajor (standard payment), plus one additional CommitBuildMajor
+    per Fireplace owned (Cooking Hearth via Fireplace return), after any
+    before_build_major triggers.
     """
-    if pending.build_chosen:
-        return [Stop()]
+    actions: list[Action] = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    if pending.phase == "after":
+        actions.append(Stop())
+        return actions
     owners = state.board.major_improvement_owners
-    actions: list[Action] = []
     p = state.players[pending.player_idx]
     for idx in range(10):
         if owners[idx] is not None:
@@ -1212,8 +1226,17 @@ def _enumerate_pending_renovate(
     """Enumerate legal CommitRenovate actions at PendingRenovate.
 
     Renovate has no per-action parameter — exactly one option.
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after-phase offers
+    after_renovate triggers (e.g. Mining Hammer's free stable) + Stop;
+    before-phase offers before_renovate triggers + the single CommitRenovate.
     """
-    return [CommitRenovate()]
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    if pending.phase == "after":
+        actions.append(Stop())
+        return actions
+    actions.append(CommitRenovate())
+    return actions
 
 
 # ---------------------------------------------------------------------------
@@ -1715,13 +1738,22 @@ def _enumerate_pending_play_occupation(
     state: GameState, top: PendingPlayOccupation,
 ) -> list[Action]:
     """Legal actions at PendingPlayOccupation: one CommitPlayOccupation per playable
-    hand occupation. Lessons plays exactly one occupation with no decline, so there
-    is no Stop — placement legality already guaranteed at least one playable,
-    affordable card."""
-    return [
+    hand occupation. Lessons plays exactly one occupation with no decline, so the
+    before-phase has no Stop — placement legality already guaranteed at least one
+    playable, affordable card.
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after the occupation is
+    played the frame is in its after-phase, offering after_play_occupation
+    triggers (e.g. Bread Paddle) + Stop."""
+    actions = _eligible_fire_triggers(state, top, trigger_event(top))
+    if top.phase == "after":
+        actions.append(Stop())
+        return actions
+    actions.extend(
         CommitPlayOccupation(card_id=cid)
         for cid in playable_occupations(state, top.player_idx)
-    ]
+    )
+    return actions
 
 
 def _enumerate_pending_basic_wish_for_children(
@@ -1743,8 +1775,16 @@ def _enumerate_pending_family_growth(
     state: GameState, top: PendingFamilyGrowth,
 ) -> list[Action]:
     """The family-growth primitive: a single mandatory, parameter-free
-    CommitFamilyGrowth (a singleton the agent auto-applies)."""
-    return [CommitFamilyGrowth()]
+    CommitFamilyGrowth (a singleton the agent auto-applies).
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after the growth the
+    frame is in its after-phase, offering after_family_growth triggers + Stop."""
+    actions = _eligible_fire_triggers(state, top, trigger_event(top))
+    if top.phase == "after":
+        actions.append(Stop())
+        return actions
+    actions.append(CommitFamilyGrowth())
+    return actions
 
 
 def _enumerate_pending_meeting_place_cards(
@@ -1765,11 +1805,20 @@ def _enumerate_pending_play_minor(
     """Legal actions at PendingPlayMinor: one CommitPlayMinor per playable hand
     minor — and nothing else. This frame is pushed only once the player has
     committed to playing a minor (so >=1 is always playable); whether playing was
-    optional is handled by the parent's Stop, not here."""
-    return [
+    optional is handled by the parent's Stop, not here.
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after the minor is
+    played the frame is in its after-phase, offering after_play_minor triggers
+    + Stop."""
+    actions = _eligible_fire_triggers(state, top, trigger_event(top))
+    if top.phase == "after":
+        actions.append(Stop())
+        return actions
+    actions.extend(
         CommitPlayMinor(card_id=cid)
         for cid in playable_minors(state, top.player_idx)
-    ]
+    )
+    return actions
 
 
 PENDING_ENUMERATORS: dict[type, Callable] = {

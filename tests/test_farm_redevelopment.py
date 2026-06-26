@@ -75,7 +75,8 @@ def test_renovate_only_walk():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
-        Stop(),
+        Stop(),   # pop PendingRenovate's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].house_material == HouseMaterial.CLAY
@@ -90,6 +91,7 @@ def test_renovate_then_build_fences_walk():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),                                 # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
         Stop(),                                 # pops PendingBuildFences
@@ -205,6 +207,7 @@ def test_inner_build_fences_provenance():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),   # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
     ])
     inner = state.pending_stack[-1]
@@ -227,6 +230,7 @@ def test_build_fences_subdivision_started_flag_works_via_farm_redev():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),   # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),     # new pasture, 4 fences
         CommitBuildPasture(cells=frozenset({(0, 2)})),     # adjacent new pasture, 3 fences
@@ -293,6 +297,7 @@ def test_build_fences_offered_when_legal_commit_exists():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),   # pop PendingRenovate's after-phase -> back at the parent
     ])
     legal = legal_actions(state)
     assert ChooseSubAction(name="build_fences") in legal
@@ -323,8 +328,15 @@ def test_stack_invariants_full_walk():
     assert isinstance(inner, PendingRenovate)
     assert inner.initiated_by_id == "farm_redevelopment"
 
-    # CommitRenovate pops PendingRenovate (auto_pop=True).
+    # CommitRenovate flips PendingRenovate to after-phase (no auto-pop).
     state = step(state, CommitRenovate())
+    assert len(state.pending_stack) == 2
+    assert isinstance(state.pending_stack[-1], PendingRenovate)
+    assert state.pending_stack[-1].phase == "after"
+    assert isinstance(state.pending_stack[-2], PendingFarmRedevelopment)
+
+    # Stop pops PendingRenovate's after-phase → back at parent.
+    state = step(state, Stop())
     assert len(state.pending_stack) == 1
     assert isinstance(state.pending_stack[-1], PendingFarmRedevelopment)
 

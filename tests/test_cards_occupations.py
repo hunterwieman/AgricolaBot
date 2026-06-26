@@ -5,7 +5,7 @@ Priest). The scoring-card path (Stable Architect) and minors land next.
 """
 import pytest
 
-from agricola.actions import CommitPlayOccupation, PlaceWorker
+from agricola.actions import CommitPlayOccupation, PlaceWorker, Stop
 from agricola.cards.specs import OCCUPATIONS
 from agricola.constants import GameMode, HouseMaterial
 from agricola.engine import step
@@ -87,6 +87,7 @@ def test_play_consultant_via_lessons():
     assert p.resources.clay == 3                      # 2-player branch: +3 clay
     assert "consultant" in p.occupations              # moved to tableau
     assert "consultant" not in p.hand_occupations     # removed from hand
+    cs = step(cs, Stop())                             # pop PendingPlayOccupation's after-phase
     assert cs.pending_stack == ()                     # frame popped, turn ends
 
 

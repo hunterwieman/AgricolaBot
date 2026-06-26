@@ -50,11 +50,13 @@ def _card_state(seed=5, *, minors):
 
 
 def _do_growth(cs):
-    """Drive the mandatory family-growth sub-action (the two singleton steps)."""
+    """Drive the mandatory family-growth sub-action and pop its after-phase."""
     assert legal_actions(cs) == [ChooseSubAction(name="family_growth")]
     cs = step(cs, ChooseSubAction(name="family_growth"))
     assert legal_actions(cs) == [CommitFamilyGrowth()]
-    return step(cs, CommitFamilyGrowth())
+    cs = step(cs, CommitFamilyGrowth())
+    cs = step(cs, Stop())   # pop PendingFamilyGrowth's after-phase
+    return cs
 
 
 def test_family_growth_is_the_mandatory_first_subaction():
@@ -84,8 +86,9 @@ def test_growth_then_play_minor():
     cs = step(cs, CommitPlayMinor(card_id="market_stall"))
     assert cs.players[cp].resources.veg == 1
     assert "market_stall" in cs.players[opp].hand_minors    # passing -> circulated
-    assert legal_actions(cs) == [Stop()]                    # minor done -> only Stop
-    cs = step(cs, Stop())
+    assert legal_actions(cs) == [Stop()]                    # minor done -> only Stop (after-phase)
+    cs = step(cs, Stop())                                   # pop PendingPlayMinor's after-phase
+    cs = step(cs, Stop())                                   # pop the parent
     assert cs.pending_stack == ()
 
 
@@ -93,7 +96,7 @@ def test_minor_is_optional_decline_with_stop():
     cs, cp = _card_state(minors=frozenset({"market_stall"}))
     cs = step(cs, PlaceWorker(space="basic_wish_for_children"))
     cs = _do_growth(cs)
-    cs = step(cs, Stop())                                    # decline the minor
+    cs = step(cs, Stop())                                    # decline the minor -> pop parent
     assert cs.pending_stack == ()
     assert "market_stall" in cs.players[cp].hand_minors      # not played
 

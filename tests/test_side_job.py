@@ -72,7 +72,8 @@ def test_side_job_bake_only():
         PlaceWorker(space="side_job"),
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),
+        Stop(),   # pop PendingBakeBread's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].resources.food == pre_food + 2  # Fireplace: 2 food/grain
@@ -83,8 +84,8 @@ def test_side_job_both():
     """Build stable AND bake bread in one action.
 
     Trace: build_stable (commit + Stop to exit the multi-shot frame),
-    then bake_bread (commit auto-pops PendingBakeBread), then Stop to
-    pop PendingSideJob.
+    then bake_bread (commit flips PendingBakeBread to after-phase + Stop pops it),
+    then Stop to pop PendingSideJob.
     """
     state = _sj_setup(wood=1, grain=1, with_fireplace=True)
     pre_food = state.players[0].resources.food
@@ -92,10 +93,11 @@ def test_side_job_both():
         PlaceWorker(space="side_job"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
-        Stop(),
+        Stop(),                                # pops PendingBuildStables (multi-shot)
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),
+        Stop(),                                # pop PendingBakeBread's after-phase
+        Stop(),                                # pop PendingSideJob
     ])
     assert state.pending_stack == ()
     assert state.players[0].farmyard.grid[0][2].cell_type == CellType.STABLE

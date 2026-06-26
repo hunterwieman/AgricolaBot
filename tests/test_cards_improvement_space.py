@@ -94,9 +94,12 @@ def test_play_minor_branch_is_mandatory_and_plays():
     cs = step(cs, CommitPlayMinor(card_id="market_stall"))
     assert cs.players[cp].resources.veg == 1                       # 1 grain -> 1 veg
     assert "market_stall" in cs.players[opp].hand_minors           # passing -> circulated
+    # PendingPlayMinor's after-phase: only Stop to pop it.
+    assert legal_actions(cs) == [Stop()]
+    cs = step(cs, Stop())                                          # pop after-phase
     # Back at the parent: minor done -> only Stop (no second action).
     assert legal_actions(cs) == [Stop()]
-    cs = step(cs, Stop())
+    cs = step(cs, Stop())                                          # pop the parent
     assert cs.pending_stack == ()
 
 
@@ -156,6 +159,7 @@ def test_house_redev_renovate_then_play_minor():
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
     cs = step(cs, CommitRenovate())
+    cs = step(cs, Stop())   # pop PendingRenovate's after-phase -> back at parent
     # Post-renovate: the improvement option is offered (a minor is playable), plus Stop.
     acts = legal_actions(cs)
     assert ChooseSubAction(name="improvement") in acts
@@ -176,7 +180,11 @@ def test_house_redev_improvement_is_optional():
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
     cs = step(cs, CommitRenovate())
+    # After CommitRenovate, top is PendingRenovate(after) → Stop pops it.
     assert Stop() in legal_actions(cs)
-    cs = step(cs, Stop())                       # decline the improvement
+    cs = step(cs, Stop())                       # pop PendingRenovate's after-phase
+    # Now at the parent frame; Stop declines the improvement.
+    assert Stop() in legal_actions(cs)
+    cs = step(cs, Stop())                       # decline the improvement -> pop parent
     assert cs.pending_stack == ()               # turn ends, no minor played
     assert "market_stall" in cs.players[cp].hand_minors

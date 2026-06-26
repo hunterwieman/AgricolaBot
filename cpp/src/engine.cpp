@@ -29,17 +29,17 @@ int top_player_idx(const GameState& s) {
 GameState apply_commit(const GameState& state, const Action& action) {
   int pidx = top_player_idx(state);
   if (auto* a = std::get_if<CommitSow>(&action))
-    return pop(execute_sow(state, pidx, *a));  // auto_pop=true
+    return execute_sow(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
   if (auto* a = std::get_if<CommitBake>(&action))
-    return pop(execute_bake(state, pidx, *a));  // auto_pop=true
+    return execute_bake(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
   if (auto* a = std::get_if<CommitPlow>(&action))
-    return pop(execute_plow(state, pidx, *a));  // auto_pop=true
+    return execute_plow(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
   if (auto* a = std::get_if<CommitBuildStable>(&action))
     return execute_build_stable(state, pidx, *a);  // auto_pop=false
   if (auto* a = std::get_if<CommitBuildRoom>(&action))
     return execute_build_room(state, pidx, *a);  // auto_pop=false
   if (auto* a = std::get_if<CommitRenovate>(&action))
-    return pop(execute_renovate(state, pidx, *a));  // auto_pop=true
+    return execute_renovate(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
   if (auto* a = std::get_if<CommitAccommodate>(&action))
     return execute_accommodate(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
   if (auto* a = std::get_if<CommitBuildMajor>(&action))

@@ -49,30 +49,44 @@ class PendingGrainUtilization:
 class PendingSow:
     """Inner pending pushed by ChooseSubAction("sow") at Grain Utilization.
 
-    Stack invariant: when CommitSow pops this frame, the new top is the
-    parent pending (PendingGrainUtilization in Task 5). Trigger frames
-    always push on top of PendingSow, never between it and its parent.
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    it carries a before/after `phase` and a `triggers_resolved` set, does NOT
+    auto-pop on CommitSow, and pivots to `phase="after"` at the commit (firing
+    `after_sow` automatic effects there). The after-phase enumerator then offers
+    any `after_sow` triggers + Stop, and Stop pops. The derived trigger event is
+    `<phase>_sow` (legality.trigger_event), so no per-frame TRIGGER_EVENT.
+
+    Stack invariant: when this frame finally pops (at Stop), the new top is the
+    parent pending. Trigger frames always push on top of PendingSow, never
+    between it and its parent.
     """
     PENDING_ID: ClassVar[str] = "sow"
     player_idx: int
     initiated_by_id: str   # mandatory
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
 class PendingBakeBread:
     """Inner pending pushed by ChooseSubAction("bake_bread").
 
-    `triggers_resolved` records which before-bake-bread card triggers have
-    already fired during THIS Bake Bread action. The set is scoped to this
+    `triggers_resolved` records which before-/after-bake-bread card triggers
+    have already fired during THIS Bake Bread action. The set is scoped to this
     frame's lifetime — when the frame pops, the set goes with it, and a
     new Bake Bread action starts with an empty set.
 
-    TRIGGER_EVENT identifies the registry event this pending handles.
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitBake (no auto-pop), firing
+    `after_bake_bread` automatic effects; the after-phase offers `after_bake_bread`
+    triggers + Stop. The before-phase still hosts Potter (`before_bake_bread`).
+    The event is derived `<phase>_bake_bread` (legality.trigger_event) — no
+    per-frame TRIGGER_EVENT.
     """
     PENDING_ID: ClassVar[str] = "bake_bread"
-    TRIGGER_EVENT: ClassVar[str] = "before_bake_bread"
     player_idx: int
     initiated_by_id: str   # mandatory
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()  # frozenset[str], card_ids
 
 
@@ -82,11 +96,16 @@ class PendingPlow:
 
     Consumed by Farmland and Cultivation; cards may also push this with
     `initiated_by_id="card:<card_id>"`.
+
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitPlow (no auto-pop), firing
+    `after_plow` automatic effects; the after-phase offers `after_plow` triggers
+    + Stop. Event derived `<phase>_plow` — no per-frame TRIGGER_EVENT.
     """
     PENDING_ID: ClassVar[str] = "plow"
-    TRIGGER_EVENT: ClassVar[str] = "before_plow"
     player_idx: int
     initiated_by_id: str
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
 
@@ -152,20 +171,22 @@ class PendingBuildRooms:
 class PendingBuildMajor:
     """Sub-action pending for Major Improvement purchase.
 
-    `build_chosen` is set by `_execute_build_major` when the build commits
-    (matters only for oven majors: PendingBuildMajor lingers below the
-    oven wrapper while the optional free bake resolves; on return, only
-    Stop is legal). For non-oven majors the pending is popped immediately
-    by `_execute_build_major`, so the flag is never observed externally.
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitBuildMajor (no auto-pop). For an
+    oven major the flip happens BEFORE the oven wrapper is pushed, so when the
+    free-bake wrapper pops back, this frame is already in its after-phase
+    (offering `after_build_major` triggers + Stop). For a non-oven major the
+    effect flips and leaves the frame for its trailing Stop. `phase=="after"`
+    therefore replaces the old `build_chosen` flag (they were exactly
+    redundant). Event derived `<phase>_build_major` — no per-frame TRIGGER_EVENT.
 
     Cost is NOT on this pending — it's keyed off `commit.major_idx` and
     looked up in `MAJOR_IMPROVEMENT_COSTS`.
     """
     PENDING_ID: ClassVar[str] = "build_major"
-    TRIGGER_EVENT: ClassVar[str] = "before_build_major"
     player_idx: int
     initiated_by_id: str
-    build_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
 
@@ -175,12 +196,18 @@ class PendingRenovate:
 
     `cost: Resources` is set at push time by the choose handler.
     `_execute_renovate` reads `pending.cost` and debits.
+
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitRenovate (no auto-pop), firing
+    `after_renovate` automatic effects; the after-phase offers `after_renovate`
+    triggers (e.g. Mining Hammer's free stable) + Stop. Event derived
+    `<phase>_renovate` — no per-frame TRIGGER_EVENT.
     """
     PENDING_ID: ClassVar[str] = "renovate"
-    TRIGGER_EVENT: ClassVar[str] = "before_renovate"
     player_idx: int
     initiated_by_id: str
     cost: Resources
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
 
@@ -424,15 +451,21 @@ class PendingPlayOccupation:
     play, set at push time (route-dependent — Lessons: `occupation_cost(...)`;
     Scholar: 1 food); `_execute_play_occupation` reads it and debits.
 
-    Card-trigger fields (`phase` / `triggers_resolved`) are intentionally omitted
-    until a card actually fires on this frame (e.g. Bread Paddle on
-    after_play_occupation); added then, per the pending-field YAGNI rule.
-    See CARD_IMPLEMENTATION_PLAN.md II.4.
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitPlayOccupation (no auto-pop), firing
+    `after_play_occupation` automatic effects; the after-phase offers
+    `after_play_occupation` triggers (e.g. Bread Paddle's free bake) + Stop. The
+    flip happens BEFORE the occupation's on-play runs (which may itself push a
+    sub-decision), mirroring the granted-sub-action record-before-apply rule.
+    Card-only frame: never reaches the C++ (Family) engine. Event derived
+    `<phase>_play_occupation`.
     """
     PENDING_ID: ClassVar[str] = "play_occupation"
     player_idx: int
     initiated_by_id: str
     cost: Resources = Resources()
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -452,13 +485,18 @@ class PendingPlayMinor:
     the parent offers the `play_minor` choice alongside its own Stop — so this
     frame needs no optionality of its own.
 
-    Card-trigger fields (phase / triggers_resolved) are omitted until a card
-    fires on this frame, per the pending-field YAGNI rule.
-    See CARD_IMPLEMENTATION_PLAN.md II.4.
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitPlayMinor (no auto-pop), firing
+    `after_play_minor` automatic effects; the after-phase offers
+    `after_play_minor` triggers + Stop. The flip happens BEFORE the minor's
+    on-play runs (which may push a sub-decision). Card-only frame: never reaches
+    the C++ (Family) engine. Event derived `<phase>_play_minor`.
     """
     PENDING_ID: ClassVar[str] = "play_minor"
     player_idx: int
     initiated_by_id: str
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -504,10 +542,18 @@ class PendingFamilyGrowth:
     by `initiated_by_id` (RULES: the newborn is placed next to the parent on the
     action space). Parameter-free — its only action is CommitFamilyGrowth. Pushed
     today by PendingBasicWishForChildren; reusable by any future space/card that
-    grants family growth. Mirrors PendingRenovate (a single-commit primitive)."""
+    grants family growth. Mirrors PendingRenovate (a single-commit primitive).
+
+    A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
+    `phase` flips "before"->"after" at CommitFamilyGrowth (no auto-pop), firing
+    `after_family_growth` automatic effects; the after-phase offers
+    `after_family_growth` triggers + Stop. Card-only frame: never reaches the
+    C++ (Family) engine. Event derived `<phase>_family_growth`."""
     PENDING_ID: ClassVar[str] = "family_growth"
     player_idx: int
     initiated_by_id: str
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)

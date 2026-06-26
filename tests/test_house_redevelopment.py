@@ -51,7 +51,8 @@ def test_house_redev_renovate_only():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
-        Stop(),
+        Stop(),   # pop PendingRenovate's after-phase
+        Stop(),   # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].house_material == HouseMaterial.CLAY
@@ -67,9 +68,11 @@ def test_house_redev_renovate_then_improvement():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),  # pop PendingRenovate's after-phase
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
+        Stop(),  # pop PendingBuildMajor's after-phase
         Stop(),  # pop PendingMajorMinorImprovement
         Stop(),  # pop PendingHouseRedevelopment
     ])
@@ -113,9 +116,11 @@ def test_house_redev_stop_legal_after_both_steps():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),  # pop PendingRenovate's after-phase
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
+        Stop(),  # pop PendingBuildMajor's after-phase
         Stop(),  # pop PendingMajorMinorImprovement -> back at PendingHouseRedevelopment
     ])
     # Now both renovate_chosen and improvement_chosen are True; Stop should be legal.
@@ -167,6 +172,7 @@ def test_house_redev_inner_improvement_provenance():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
+        Stop(),   # pop PendingRenovate's after-phase
         ChooseSubAction(name="improvement"),
     ])
     inner = state.pending_stack[-1]
