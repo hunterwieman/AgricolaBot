@@ -745,6 +745,59 @@ class PendingHarvestField:
 
 
 @dataclass(frozen=True)
+class PendingPreparation:
+    """Phase host frame for the start-of-round (preparation) phase, one per OWNING
+    player (card game only).
+
+    Pushed in `_complete_preparation` — *after* the mechanical round setup
+    (increment round, refill spaces, distribute future_resources, clear newborns)
+    but *before* the → WORK transition — and ONLY for a player who owns a
+    start-of-round card (the `owns_start_of_round_card` index, the preparation-phase
+    analog of the atomic host's `should_host_space`). Hosts the `start_of_round`
+    event: automatic effects (Small-scale Farmer, Scullery) fire immediately at
+    push; triggers (Plow Driver, Groom, Scholar) and mandatory-with-choice triggers
+    (Childless) are surfaced as `FireTrigger`. `Proceed` is the work-complete
+    boundary — it pops the frame (no after-phase: start-of-round cards have no
+    "after" clause). Round-scoped budgets use `used_this_round`.
+
+    A space-host frame in the action_space PENDING-id bucket so it shares the coarse
+    event derivation — but its derived event is overridden to `start_of_round` by
+    the enumerator (it is a phase host, not a worker-placement host, and has no
+    before/after `phase` flip — Proceed pops directly).
+
+    Default-inert: in the Family game (no start-of-round card owned) the push is
+    skipped entirely, so this frame is never constructed, the preparation trace is
+    byte-identical, and the C++ Family-only engine never sees it.
+    See CARD_IMPLEMENTATION_PLAN.md II.6 / Category 7.
+    """
+    PENDING_ID: ClassVar[str] = "preparation"
+    player_idx: int
+    initiated_by_id: str = "phase:preparation"
+    triggers_resolved: frozenset = frozenset()
+
+
+@dataclass(frozen=True)
+class PendingCardChoice:
+    """The forced-choice decision frame a mandatory-with-choice trigger pushes to
+    surface its decision (card game only) — Seasonal Worker's grain/veg, Childless's
+    crop, and any future "you must pick one of N" effect.
+
+    Its legal actions are exactly the options (a `CommitCardChoice(index)` per
+    option) with NO `Stop`/decline, so the player must pick one; a single-option
+    frame auto-resolves via singleton-skip. The pushing card's resolver — keyed on
+    the card id parsed off `initiated_by_id` ("card:<id>") in CARD_CHOICE_RESOLVERS
+    — applies the chosen option and pops this frame.
+
+    Card-only: never reaches the C++ (Family) engine. See CARD_IMPLEMENTATION_PLAN.md
+    II.6.
+    """
+    PENDING_ID: ClassVar[str] = "card_choice"
+    player_idx: int
+    initiated_by_id: str                  # "card:<id>" — which card pushed it
+    options: tuple = ()                   # tuple[Hashable, ...], e.g. ("grain", "veg")
+
+
+@dataclass(frozen=True)
 class PendingActionSpace:
     """Generic action-space host frame for ATOMIC spaces (card game only).
 
@@ -806,6 +859,8 @@ PendingDecision = Union[
     PendingHarvestBreed,
     PendingReveal,
     PendingHarvestField,
+    PendingPreparation,
+    PendingCardChoice,
     PendingActionSpace,
 ]
 

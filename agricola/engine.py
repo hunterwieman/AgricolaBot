@@ -21,6 +21,7 @@ from agricola.actions import (
     CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
+    CommitCardChoice,
     CommitConvert,
     CommitFamilyGrowth,
     CommitHarvestConversion,
@@ -64,7 +65,9 @@ from agricola.pending import (
     PendingPigMarket,
     PendingPlayMinor,
     PendingPlayOccupation,
+    PendingCardChoice,
     PendingPlow,
+    PendingPreparation,
     PendingRenovate,
     PendingReveal,
     PendingSheepMarket,
@@ -140,6 +143,15 @@ def step(state: GameState, action: Action) -> GameState:
     if state.phase == Phase.BEFORE_SCORING:
         raise RuntimeError("step called on a terminated game")
 
+    # The start-of-round phase hook (II.6, card-only) resolves its
+    # PendingPreparation / PendingCardChoice frames while phase==WORK (they sit on
+    # the stack after `_complete_preparation` flips to WORK). Resolving one is NOT a
+    # worker-placement turn, so it must NOT trigger the worker alternation in step 2.
+    # Detect it from the PRE-action top frame (the frame is popped by the action).
+    _resolving_prep = bool(state.pending_stack) and isinstance(
+        state.pending_stack[-1], (PendingPreparation, PendingCardChoice)
+    )
+
     # 1. Apply the agent's action.
     state = _apply_action(state, action)
 
@@ -155,7 +167,12 @@ def step(state: GameState, action: Action) -> GameState:
     #    is called in those phases, and we do NOT want to alternate workers
     #    when the player resolves a return-home trigger — workers aren't
     #    being placed during RETURN_HOME. The clause guards against that.
-    if state.phase == Phase.WORK and not state.pending_stack:
+    #
+    #    `_resolving_prep` extends that guard to the start-of-round hook: a
+    #    PendingPreparation/PendingCardChoice resolution empties the stack in WORK
+    #    but is not a worker turn, so it must not alternate (the starting player must
+    #    still take the round's first worker turn).
+    if state.phase == Phase.WORK and not state.pending_stack and not _resolving_prep:
         state = _advance_current_player(state)
 
     # 3. Walk through system-driven transitions (phase changes) until the
@@ -217,6 +234,8 @@ def _apply_action(state: GameState, action: Action) -> GameState:
         return _apply_place_worker(state, action)
     if isinstance(action, ChooseSubAction):
         return _apply_choose_sub_action(state, action)
+    if isinstance(action, CommitCardChoice):
+        return _apply_commit_card_choice(state, action)
     if isinstance(action, CommitSubAction):
         return _apply_commit_subaction(state, action)
     if isinstance(action, FireTrigger):
@@ -419,7 +438,39 @@ def _apply_fire_trigger(
     # (Assistant Tiller → PendingPlow; Threshing Board / Oven Firing Boy →
     # PendingBakeBread). If apply_fn left such a leaf on top, fire its
     # before-automatic effects at this push (the same seam as ChooseSubAction).
-    return _fire_subaction_before_auto(entry.apply_fn(state, new_top.player_idx))
+    #
+    # A play-variant trigger (Scholar) surfaces FireTriggers carrying a `variant`
+    # and its apply_fn takes `(state, idx, variant)`; thread it through only when a
+    # variant is present so every plain `(state, idx)` apply_fn is unaffected.
+    if action.variant is not None:
+        applied = entry.apply_fn(state, new_top.player_idx, action.variant)
+    else:
+        applied = entry.apply_fn(state, new_top.player_idx)
+    return _fire_subaction_before_auto(applied)
+
+
+def _apply_commit_card_choice(
+    state: GameState, action: CommitCardChoice,
+) -> GameState:
+    """Resolve a CommitCardChoice at a PendingCardChoice frame (card game only).
+
+    The frame names the pushing card via its `initiated_by_id` ("card:<id>"); the
+    chosen option is `options[action.index]`. Dispatches to that card's registered
+    resolver (CARD_CHOICE_RESOLVERS), which applies the option and pops the frame
+    (the resolver owns its stack, mirroring trigger apply_fns). Card-only path —
+    never reached in the Family game.
+    """
+    from agricola.cards.triggers import CARD_CHOICE_RESOLVERS
+
+    assert state.pending_stack, "CommitCardChoice called with empty pending_stack"
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingCardChoice), (
+        f"CommitCardChoice expected PendingCardChoice on top, got {type(top).__name__}"
+    )
+    card_id = top.initiated_by_id.split(":", 1)[1]
+    chosen = top.options[action.index]
+    resolver = CARD_CHOICE_RESOLVERS[card_id]
+    return resolver(state, top.player_idx, chosen)
 
 
 def _apply_stop(state: GameState) -> GameState:
@@ -435,6 +486,17 @@ def _apply_stop(state: GameState) -> GameState:
     top = state.pending_stack[-1]
     if isinstance(top, PendingBuildRooms):
         state = apply_auto_effects(state, "after_build_rooms", top.player_idx)
+    # End-of-turn card hook (CARD_IMPLEMENTATION_PLAN.md Category 3 — Firewood
+    # Collector "at the end of that turn"). A worker-placement turn completes when
+    # its OUTERMOST space-host frame is popped and the stack empties; fire the
+    # `end_of_turn` automatic effects for the acting player at that boundary, just
+    # before the pop, so the popped frame's `space_id` is still readable (Firewood's
+    # eligibility checks the turn's space). Gated on the pop emptying the stack AND
+    # the frame being a space host (carries `space_id`) — so it fires once per turn,
+    # not at every nested Stop. Card-dependent: a no-op in the Family game (empty
+    # AUTO_EFFECTS) → byte-identical pop, never reaches the C++ Family engine.
+    if len(state.pending_stack) == 1 and hasattr(top, "space_id"):
+        state = apply_auto_effects(state, "end_of_turn", top.player_idx)
     # Pure pop (SPACE_HOST_REFACTOR.md §11). Every other host's after-automatic
     # effects fire at its own work-complete boundary (Proceed for atomic/Proceed-
     # hosts, the commit for the markets, the auto-advance for Delegating hosts) —
@@ -462,8 +524,15 @@ def _apply_proceed(state: GameState) -> GameState:
     The flip + after-auto firing is `_enter_after_phase` (the same uniform
     "after-window opens" point the sub-action commits and the markets use); the
     derived event for an action-space host is `after_action_space`.
+
+    A third kind, the PendingPreparation start-of-round host (II.6, card-only), also
+    exits via Proceed — but it is a phase host with NO before/after `phase` flip and
+    no "after" clause, so Proceed simply POPS it (its `start_of_round` autos already
+    fired at push). Handled first, before the action-space-host assertion.
     """
     top = state.pending_stack[-1]
+    if isinstance(top, PendingPreparation):
+        return pop(state)
     assert (
         type(top).PENDING_ID in ACTION_SPACE_PENDING_IDS
         and getattr(top, "phase", None) == "before"
@@ -761,7 +830,47 @@ def _complete_preparation(state: GameState) -> GameState:
     # used-sets (II.3). No-op in the Family game (both always empty).
     result = _clear(result, "used_this_round")
     result = _clear(result, "used_this_turn")
+
+    # 4. Card-only start-of-round phase hook (CARD_IMPLEMENTATION_PLAN.md II.6):
+    #    push a PendingPreparation host frame for each player who owns a
+    #    start-of-round card, firing that player's `start_of_round` automatic
+    #    effects at push and surfacing its triggers as FireTrigger. The frames must
+    #    resolve (each Proceed pops one) before any worker placement, so they sit on
+    #    the stack while phase==WORK — _advance_until_decision Case 1 returns control
+    #    to the agent for them. Card-dependent (`should_host_preparation`), so the
+    #    Family game skips this entirely and _complete_preparation stays
+    #    byte-identical (no frame pushed → the C++ Family engine never sees it).
+    result = _fire_preparation_hook(result)
     return result
+
+
+def _fire_preparation_hook(state: GameState) -> GameState:
+    """Push a PendingPreparation frame for each owning player + fire their
+    `start_of_round` automatic effects (card game only).
+
+    A no-op when no player owns a start-of-round card — the Family fast path, so
+    `_complete_preparation` stays byte-identical. Push order mirrors the harvest
+    FEED/BREED hooks: the non-starting owner is pushed first (bottom), the starting
+    owner second (top), so the starting player resolves their start-of-round
+    decisions first. Each owner's `start_of_round` autos fire at push (after the
+    frame is on the stack, so an auto/eligibility read can inspect `top.player_idx`).
+    """
+    from agricola.cards.triggers import (
+        owns_start_of_round_card,
+        should_host_preparation,
+    )
+
+    if not should_host_preparation(state):
+        return state
+
+    sp = state.starting_player
+    # Non-starting owner first (bottom of stack), starting owner second (top).
+    for idx in ((sp + 1) % 2, sp):
+        if not owns_start_of_round_card(state.players[idx]):
+            continue
+        state = push(state, PendingPreparation(player_idx=idx))
+        state = apply_auto_effects(state, "start_of_round", idx)
+    return state
 
 
 # ---------------------------------------------------------------------------

@@ -26,11 +26,20 @@ class TriggerEntry:
 
     eligibility_fn signature: (state, player_idx, triggers_resolved) -> bool
     apply_fn signature:        (state, player_idx) -> GameState
+        (or (state, player_idx, variant) for a play-variant trigger such as
+        Scholar — see _apply_fire_trigger's variant threading).
+    mandatory: the third firing kind (CARD_IMPLEMENTATION_PLAN.md II.1). A
+        mandatory trigger is still surfaced as a FireTrigger, but its host frame's
+        phase-exit (Proceed/Stop) is GATED OFF while it is eligible and unfired —
+        the player cannot decline, only choose how to resolve it (its apply_fn
+        pushes a PendingCardChoice). Seasonal Worker (r6+) and Childless use it.
+        Default False (the ordinary optional trigger).
     """
     card_id: str
     event: str
     eligibility_fn: Callable
     apply_fn: Callable
+    mandatory: bool = False
 
 
 # Event-keyed registry — for "what eligible cards fire on event X?" queries.
@@ -45,17 +54,23 @@ def register(
     card_id: str,
     eligibility_fn: Callable,
     apply_fn: Callable,
+    *,
+    mandatory: bool = False,
 ) -> None:
     """Called at import time by each card module.
 
     Adds the trigger to both TRIGGERS (under the given event) and CARDS
     (under card_id). Both registries reference the same TriggerEntry.
+
+    `mandatory=True` registers the third firing kind (II.1): a trigger that gates
+    its host frame's phase-exit until it fires (Seasonal Worker, Childless).
     """
     entry = TriggerEntry(
         card_id=card_id,
         event=event,
         eligibility_fn=eligibility_fn,
         apply_fn=apply_fn,
+        mandatory=mandatory,
     )
     TRIGGERS.setdefault(event, []).append(entry)
     CARDS[card_id] = entry
@@ -219,3 +234,115 @@ def should_host_harvest_field(state) -> bool:
         HARVEST_FIELD_CARDS & (p.occupations | p.minor_improvements)
         for p in state.players
     )
+
+
+# ---------------------------------------------------------------------------
+# Start-of-round phase-hook index (CARD_IMPLEMENTATION_PLAN.md II.6)
+# ---------------------------------------------------------------------------
+# The start-of-round (preparation) phase stays purely mechanical (today's fast
+# path — increment round, refill, distribute future_resources, → WORK) UNTIL a
+# card could fire on it. `should_host_preparation` answers "should
+# _complete_preparation push a PendingPreparation host frame before the → WORK
+# transition?" by consulting this registration-time set of start-of-round card ids
+# — the preparation-phase analog of `should_host_space` / `should_host_harvest_field`.
+#
+# Family game → no card registered → the set is empty → should_host_preparation is
+# always False → preparation runs unhosted → byte-identical, no host frame ever
+# pushed (and the C++ Family-only engine never sees it). Per-player ownership is
+# what is indexed; the engine pushes a PendingPreparation per OWNING player.
+START_OF_ROUND_CARDS: set[str] = set()
+
+
+def register_start_of_round_hook(card_id: str) -> None:
+    """Index `card_id` as firing on the start-of-round phase hook.
+
+    Called at card-module import alongside the card's `register("start_of_round", …)`
+    or `register_auto("start_of_round", …)`.
+    """
+    START_OF_ROUND_CARDS.add(card_id)
+
+
+def owns_start_of_round_card(player_state) -> bool:
+    """Does this player own any start-of-round card? O(1) on the Family fast path
+    (the index is empty)."""
+    if not START_OF_ROUND_CARDS:
+        return False
+    return bool(
+        START_OF_ROUND_CARDS & (player_state.occupations | player_state.minor_improvements)
+    )
+
+
+def should_host_preparation(state) -> bool:
+    """Should the preparation phase push PendingPreparation host frames (vs. run
+    straight to WORK)? True iff SOME player owns a start-of-round card. Reads
+    PLAYED cards only. O(1) on the Family fast path (the index is empty)."""
+    if not START_OF_ROUND_CARDS:
+        return False
+    return any(owns_start_of_round_card(p) for p in state.players)
+
+
+# ---------------------------------------------------------------------------
+# Mandatory-with-choice gate (CARD_IMPLEMENTATION_PLAN.md II.1)
+# ---------------------------------------------------------------------------
+# A host frame's phase-exit (Proceed/Stop) is withheld while an eligible, unfired
+# `mandatory`-tagged trigger exists for the frame's current event. The player must
+# fire it (its apply_fn pushes a PendingCardChoice) before exiting the host.
+#
+# Family game → no mandatory trigger registered → TRIGGERS is empty for any event
+# → this is always False → no gate → byte-identical.
+
+def has_unfired_mandatory_trigger(state, pending, event: str) -> bool:
+    """True iff some owned, eligible, unfired `mandatory` trigger is registered on
+    `event` for `pending`'s player. The signal an enumerator uses to withhold the
+    frame's phase-exit (Proceed/Stop). Mirrors `_eligible_fire_triggers`' filters."""
+    p = state.players[pending.player_idx]
+    for entry in TRIGGERS.get(event, ()):
+        if not entry.mandatory:
+            continue
+        if not _owns(p, entry.card_id):
+            continue
+        if entry.card_id in pending.triggers_resolved:
+            continue
+        if not entry.eligibility_fn(state, pending.player_idx, pending.triggers_resolved):
+            continue
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# PendingCardChoice resolvers (CARD_IMPLEMENTATION_PLAN.md II.6)
+# ---------------------------------------------------------------------------
+# A mandatory-with-choice trigger's apply_fn pushes a PendingCardChoice(options).
+# When the agent picks CommitCardChoice(index), the engine looks up the pushing
+# card's resolver here (keyed on the card id parsed off the frame's
+# initiated_by_id "card:<id>") and calls it with the chosen option.
+#
+# resolver signature: (state, player_idx, chosen_option) -> GameState  (must pop
+# the PendingCardChoice frame itself, mirroring how trigger apply_fns own their
+# stack).
+CARD_CHOICE_RESOLVERS: dict[str, Callable] = {}
+
+
+def register_card_choice_resolver(card_id: str, resolver: Callable) -> None:
+    """Register the resolver a card uses to apply a chosen PendingCardChoice option
+    (called at card-module import)."""
+    CARD_CHOICE_RESOLVERS[card_id] = resolver
+
+
+# ---------------------------------------------------------------------------
+# Play-variant triggers (CARD_IMPLEMENTATION_PLAN.md Category 7 — Scholar)
+# ---------------------------------------------------------------------------
+# A few "you can do A OR B" cards (Scholar: play an occupation OR a minor) collapse
+# the route choice INTO the fire: the enumerator surfaces a distinct
+# FireTrigger(card_id, variant=...) per currently-legal route, and the trigger's
+# apply_fn takes the variant. This registry maps such a card_id to a function that
+# returns its currently-legal variant strings, so the host enumerator can expand the
+# card's one trigger into per-variant FireTriggers.
+#
+# variants_fn signature: (state, player_idx) -> list[str]  (empty = none legal now).
+PLAY_VARIANT_TRIGGERS: dict[str, Callable] = {}
+
+
+def register_play_variant_trigger(card_id: str, variants_fn: Callable) -> None:
+    """Register a card's legal-variant enumerator (called at card-module import)."""
+    PLAY_VARIANT_TRIGGERS[card_id] = variants_fn

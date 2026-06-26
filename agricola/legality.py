@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitFamilyGrowth,
+    CommitCardChoice,
     CommitHarvestConversion,
     CommitPlayMinor,
     CommitPlayOccupation,
@@ -68,9 +69,11 @@ from agricola.pending import (
     PendingFarmRedevelopment,
     PendingGrainUtilization,
     PendingMeetingPlace,
+    PendingCardChoice,
     PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
+    PendingPreparation,
     PendingRenovate,
     PendingReveal,
     PendingSow,
@@ -1738,9 +1741,18 @@ def _enumerate_pending_action_space(
     primary effect, advance to after). after-phase: any eligible after-triggers,
     then Stop (pop). With no eligible trigger this is a singleton [Proceed] /
     [Stop] the agent auto-skips — so a hosted Forest still plays in one decision.
+
+    Mandatory-with-choice gate (II.1): the phase-exit (Proceed in before, Stop in
+    after) is WITHHELD while an eligible, unfired `mandatory` trigger remains for
+    this phase's event — Seasonal Worker on Day Laborer cannot be declined. Once it
+    has fired, the exit reopens.
     """
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
-    actions.append(Proceed() if pending.phase == "before" else Stop())
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
+
+    event = trigger_event(pending)
+    actions = _eligible_fire_triggers(state, pending, event)
+    if not has_unfired_mandatory_trigger(state, pending, event):
+        actions.append(Proceed() if pending.phase == "before" else Stop())
     return actions
 
 
@@ -1890,7 +1902,58 @@ def _enumerate_pending_play_minor(
     return actions
 
 
+def _enumerate_pending_preparation(
+    state: GameState, pending: PendingPreparation,
+) -> list[Action]:
+    """Legal actions at a PendingPreparation start-of-round host (card game only).
+
+    The phase host for "at the start of each round, you can…" cards. Its event is
+    `start_of_round` (the autos already fired at push in `_fire_preparation_hook`);
+    this surfaces the remaining eligible, unfired `start_of_round` triggers (Plow
+    Driver, Groom, Scholar, and the mandatory Childless) as FireTrigger, then
+    `Proceed` — the work-complete boundary that pops the frame.
+
+    Proceed is GATED OFF (mandatory-with-choice, II.1) while an eligible, unfired
+    `mandatory` trigger remains for this player: Childless cannot be declined, so the
+    only legal exits are firing it (→ a PendingCardChoice crop pick) until it has
+    fired, after which Proceed reopens. With no mandatory trigger pending the host is
+    an ordinary optional-trigger phase: when no trigger is eligible this is a
+    singleton [Proceed] the agent auto-applies.
+    """
+    from agricola.cards.triggers import (
+        PLAY_VARIANT_TRIGGERS,
+        has_unfired_mandatory_trigger,
+    )
+
+    base = _eligible_fire_triggers(state, pending, "start_of_round")
+    # Expand any play-variant trigger (Scholar) into per-variant FireTriggers — the
+    # route (occupation / minor) is chosen AT the fire, not via an intermediate node.
+    actions: list[Action] = []
+    for ft in base:
+        variants_fn = PLAY_VARIANT_TRIGGERS.get(ft.card_id)
+        if variants_fn is None:
+            actions.append(ft)
+            continue
+        for v in variants_fn(state, pending.player_idx):
+            actions.append(FireTrigger(card_id=ft.card_id, variant=v))
+    if not has_unfired_mandatory_trigger(state, pending, "start_of_round"):
+        actions.append(Proceed())
+    return actions
+
+
+def _enumerate_pending_card_choice(
+    state: GameState, pending: PendingCardChoice,
+) -> list[Action]:
+    """Legal actions at a PendingCardChoice (card game only): exactly one
+    CommitCardChoice per option, NO Stop/decline (II.6). A single-option frame is a
+    singleton the agent auto-resolves; a multi-option frame (Childless / Seasonal
+    Worker r6+ grain-vs-veg) is the player's forced pick."""
+    return [CommitCardChoice(index=i) for i in range(len(pending.options))]
+
+
 PENDING_ENUMERATORS: dict[type, Callable] = {
+    PendingPreparation:         _enumerate_pending_preparation,
+    PendingCardChoice:          _enumerate_pending_card_choice,
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingPlayMinor:           _enumerate_pending_play_minor,
     PendingBasicWishForChildren: _enumerate_pending_basic_wish_for_children,
