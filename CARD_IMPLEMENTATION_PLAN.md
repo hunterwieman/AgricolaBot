@@ -88,6 +88,25 @@ bookkeeping) is deliberately left open for a later session.**
 > frames are C++-synced; full suite + all C++ differential gates green. This unblocks the parent-hooking
 > after cards (Sugar Baker, Full Peasant, Merchant, Plumber, …). Side Job stays Stop-terminated (Family-only,
 > never card-hooked). Royal Wood / Firewood Collector still await a future end-of-turn event.
+>
+> **Firing infrastructure COMPLETE for action spaces + commit-terminated sub-actions.** Every action
+> space, the composite major/minor action, and the eight commit-terminated sub-actions now fire the
+> full **before/after × automatic/trigger** suite — before-autos at push, after-autos at the
+> work-complete boundary, before/after triggers via the enumerator — each backed by gap-catching tests
+> (`tests/test_space_host_hooks.py`, `tests/test_subaction_hooks.py`, verified to fail without the firing).
+>
+> **Remaining firing deferrals (FUTURE WORK — not yet built):**
+> - **Multi-shot builders** (`PendingBuildStables` / `PendingBuildRooms` / `PendingBuildFences`) — these
+>   are Stop-terminated (build-loop, then `Stop`), so they have no `phase` host and **no before/after
+>   firing yet**. Needed by the build-fence/stable/room cards (Hedge Keeper, Asparagus Gift, Loppers,
+>   Lumberjack, Wall Builder, Pigswill, …). Approach: the derived `after_started` model (§2 of
+>   `SUBACTION_HOOK_REFACTOR.md`, no `phase` field) for the after-event, plus a before-event at push.
+>   This is the last *action-layer* firing gap; doing it would make the action/sub-action hook
+>   infrastructure fully complete.
+> - **Oven wrappers** (`PendingClayOven` / `PendingStoneOven`) — the free-bake sub-frames host no
+>   firing. Niche (a card hooking specifically "the free bake after building an oven"); low priority.
+> - The **round-start / Preparation / harvest (feed-breed)** phase hooks are a separate, larger system —
+>   tracked as **Step 6** below, not an extension of the action-space firing work.
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6.
