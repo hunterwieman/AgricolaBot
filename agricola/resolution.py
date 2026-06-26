@@ -311,11 +311,15 @@ ATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {
 # sub-actions dispatched by the engine.
 
 def _initiate_grain_utilization(state: GameState) -> GameState:
-    """Initiate Grain Utilization by pushing PendingGrainUtilization."""
-    return push(state, PendingGrainUtilization(
-        player_idx=state.current_player,
+    """Initiate Grain Utilization by pushing PendingGrainUtilization.
+    Fires before_action_space autos at the push (a Family no-op)."""
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingGrainUtilization(
+        player_idx=ap,
         initiated_by_id="space:grain_utilization",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_farmland(state: GameState) -> GameState:
@@ -332,12 +336,16 @@ def _initiate_farmland(state: GameState) -> GameState:
 
 
 def _initiate_cultivation(state: GameState) -> GameState:
-    """Initiate Cultivation by pushing PendingCultivation."""
+    """Initiate Cultivation by pushing PendingCultivation.
+    Fires before_action_space autos at the push (a Family no-op)."""
     from agricola.pending import PendingCultivation
-    return push(state, PendingCultivation(
-        player_idx=state.current_player,
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingCultivation(
+        player_idx=ap,
         initiated_by_id="space:cultivation",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_side_job(state: GameState) -> GameState:
@@ -408,21 +416,29 @@ def _initiate_major_improvement(state: GameState) -> GameState:
 
 
 def _initiate_house_redevelopment(state: GameState) -> GameState:
-    """Initiate House Redevelopment by pushing PendingHouseRedevelopment."""
+    """Initiate House Redevelopment by pushing PendingHouseRedevelopment.
+    Fires before_action_space autos at the push (a Family no-op)."""
     from agricola.pending import PendingHouseRedevelopment
-    return push(state, PendingHouseRedevelopment(
-        player_idx=state.current_player,
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingHouseRedevelopment(
+        player_idx=ap,
         initiated_by_id="space:house_redevelopment",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_farm_expansion(state: GameState) -> GameState:
-    """Initiate Farm Expansion by pushing PendingFarmExpansion."""
+    """Initiate Farm Expansion by pushing PendingFarmExpansion.
+    Fires before_action_space autos at the push (a Family no-op)."""
     from agricola.pending import PendingFarmExpansion
-    return push(state, PendingFarmExpansion(
-        player_idx=state.current_player,
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingFarmExpansion(
+        player_idx=ap,
         initiated_by_id="space:farm_expansion",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_fencing(state: GameState) -> GameState:
@@ -439,11 +455,15 @@ def _initiate_fencing(state: GameState) -> GameState:
 
 
 def _initiate_farm_redevelopment(state: GameState) -> GameState:
-    """Initiate Farm Redevelopment by pushing PendingFarmRedevelopment."""
-    return push(state, PendingFarmRedevelopment(
-        player_idx=state.current_player,
+    """Initiate Farm Redevelopment by pushing PendingFarmRedevelopment.
+    Fires before_action_space autos at the push (a Family no-op)."""
+    from agricola.cards.triggers import apply_auto_effects
+    ap = state.current_player
+    state = push(state, PendingFarmRedevelopment(
+        player_idx=ap,
         initiated_by_id="space:farm_redevelopment",
     ))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _initiate_lessons(state: GameState) -> GameState:
@@ -586,11 +606,15 @@ def _choose_subaction_subactionspace(
     if space_id == "major_improvement" and action.name == "improvement":
         # Preserve the composite host's provenance "space:major_improvement"
         # (the old direct-push value), distinct from the House-Redev path's
-        # "house_redevelopment".
+        # "house_redevelopment". The composite is itself a host: fire
+        # before_major_minor_improvement autos at its push (SPACE_HOST_REFACTOR.md
+        # §6) — a Family no-op (empty registry).
         from agricola.pending import PendingMajorMinorImprovement
-        return push(state, PendingMajorMinorImprovement(
+        from agricola.cards.triggers import apply_auto_effects
+        state = push(state, PendingMajorMinorImprovement(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id,
         ))
+        return apply_auto_effects(state, "before_major_minor_improvement", p_idx)
     if space_id == "lessons" and action.name == "play_occupation":
         # Card game: compute THIS play's occupation cost (mirrors the old Lessons
         # initiator) and push the play-occupation primitive.
@@ -716,10 +740,14 @@ def _choose_subaction_house_redevelopment(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID, cost=cost,
         ))
     if action.name == "improvement":
+        # The composite is itself a host: fire before_major_minor_improvement autos
+        # at its push (SPACE_HOST_REFACTOR.md §6) — a Family no-op (empty registry).
+        from agricola.cards.triggers import apply_auto_effects
         state = replace_top(state, fast_replace(top, improvement_chosen=True))
-        return push(state, PendingMajorMinorImprovement(
+        state = push(state, PendingMajorMinorImprovement(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
+        return apply_auto_effects(state, "before_major_minor_improvement", p_idx)
     raise ValueError(f"Unknown sub-action {action.name!r} for House Redevelopment")
 
 
