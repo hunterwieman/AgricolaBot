@@ -705,23 +705,25 @@ def test_build_stop_head_vocab_target_owns():
 
 
 def test_make_policy_fn_build_stop_split():
-    # With a build_stop model: {one cell-priority build cell: P(build), Stop: P(stop)}.
-    from agricola.actions import CommitBuildStable, Stop
+    # With a build_stop model: {one cell-priority build cell: P(build), <stop>: P(stop)}.
+    # Post the build-host refactor the before-phase "stop" action is Proceed (relabeled
+    # to Stop for the head), so accept either.
+    from agricola.actions import CommitBuildStable, Proceed, Stop
     from agricola.agents.nn.policy_heads import BUILD_STOP_HEAD
     s = _build_stop_state(num_built=1)
     pri = make_policy_fn([_tiny_policy_model(BUILD_STOP_HEAD)])(s, _full_legal(s))
     builds = [a for a in pri if isinstance(a, CommitBuildStable)]
-    stops = [a for a in pri if isinstance(a, Stop)]
+    stops = [a for a in pri if isinstance(a, (Stop, Proceed))]
     assert len(builds) == 1 and len(stops) == 1           # cell-priority collapses build
     assert abs(sum(pri.values()) - 1.0) < 1e-5
 
 
 def test_make_policy_fn_build_stop_absent_falls_back_to_uniform():
-    # No build_stop model → the crude cell-priority fallback (Stop + one cell, 50/50).
-    from agricola.actions import CommitBuildStable, Stop
+    # No build_stop model → the crude cell-priority fallback (<stop> + one cell, 50/50).
+    from agricola.actions import CommitBuildStable, Proceed, Stop
     s = _build_stop_state(num_built=1)
     pri = make_policy_fn([])(s, _full_legal(s))
-    assert any(isinstance(a, Stop) for a in pri)
+    assert any(isinstance(a, (Stop, Proceed)) for a in pri)
     assert any(isinstance(a, CommitBuildStable) for a in pri)
     vals = list(pri.values())
     assert all(abs(v - vals[0]) < 1e-9 for v in vals)     # uniform fallback

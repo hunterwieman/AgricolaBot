@@ -103,9 +103,11 @@ inline void hf(std::uint64_t& h, const PendingFarmExpansion& f) {
 }
 inline void hf(std::uint64_t& h, const PendingBuildStables& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.max_builds); hi(h, f.num_built);
+  hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingBuildRooms& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.cost); hi(h, f.max_builds); hi(h, f.num_built);
+  hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingBuildMajor& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);

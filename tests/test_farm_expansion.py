@@ -74,8 +74,8 @@ def _fe_setup(*, wood=0, clay=0, stone=0, reed=0, house=HouseMaterial.WOOD):
 
 def test_farm_expansion_rooms_only():
     """Build 1 room in a wood house: PlaceWorker -> ChooseSubAction(build_rooms)
-    -> CommitBuildRoom -> Stop (pops PendingBuildRooms) -> Proceed (flip parent to
-    after-phase) -> Stop (pops parent).
+    -> CommitBuildRoom -> Proceed (flip PendingBuildRooms to after) -> Stop (pops it)
+    -> Proceed (flip parent to after-phase) -> Stop (pops parent).
     """
     state = _fe_setup(wood=5, reed=2)
     pre_wood = state.players[0].resources.wood
@@ -83,6 +83,7 @@ def test_farm_expansion_rooms_only():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),  # adjacent to (1,0)
+        Proceed(),    # flip PendingBuildRooms to its after-phase
         Stop(),       # pop PendingBuildRooms
         Proceed(),    # flip the parent to its after-phase
         Stop(),       # pop the parent
@@ -100,6 +101,7 @@ def test_farm_expansion_stables_only():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
+        Proceed(),    # flip PendingBuildStables to its after-phase
         Stop(),       # pop PendingBuildStables
         Proceed(),    # flip the parent to its after-phase
         Stop(),       # pop the parent
@@ -116,9 +118,11 @@ def test_farm_expansion_rooms_then_stables():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),
+        Proceed(),    # flip PendingBuildRooms to after
         Stop(),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
+        Proceed(),    # flip PendingBuildStables to after
         Stop(),       # pop PendingBuildStables
         Proceed(),    # flip the parent to its after-phase
         Stop(),       # pop the parent
@@ -129,9 +133,11 @@ def test_farm_expansion_rooms_then_stables():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
+        Proceed(),    # flip PendingBuildStables to after
         Stop(),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),
+        Proceed(),    # flip PendingBuildRooms to after
         Stop(),       # pop PendingBuildRooms
         Proceed(),    # flip the parent to its after-phase
         Stop(),       # pop the parent
@@ -175,7 +181,8 @@ def test_farm_expansion_multi_room_adjacency_chaining():
     assert (0, 1) in cells_after
 
     # Step 3: build at (0,1) and confirm both rooms are in place.
-    state = run_actions(state, [CommitBuildRoom(row=0, col=1), Stop(), Proceed(), Stop()])
+    state = run_actions(state, [
+        CommitBuildRoom(row=0, col=1), Proceed(), Stop(), Proceed(), Stop()])
     assert state.players[0].farmyard.grid[0][0].cell_type == CellType.ROOM
     assert state.players[0].farmyard.grid[0][1].cell_type == CellType.ROOM
 
@@ -191,9 +198,9 @@ def test_farm_expansion_four_stables_exhausts_supply():
         CommitBuildStable(row=0, col=3),
         CommitBuildStable(row=0, col=4),
     ])
-    # 4 stables built, supply exhausted; only Stop legal.
+    # 4 stables built, supply exhausted; before-phase work-complete → only Proceed.
     actions = legal_actions(state)
-    assert actions == [Stop()]
+    assert actions == [Proceed()]
 
 
 # ---------------------------------------------------------------------------
@@ -214,9 +221,9 @@ def test_farm_expansion_supply_exhausted_singleton_stop():
         CommitBuildStable(row=0, col=2),
         CommitBuildStable(row=0, col=3),
     ])
-    # 4 stables on the grid; supply = 0. Only Stop legal.
+    # 4 stables on the grid; supply = 0. Before-phase work-complete → only Proceed.
     actions = legal_actions(state)
-    assert actions == [Stop()]
+    assert actions == [Proceed()]
 
 
 def test_farm_expansion_affordability_exhausted_singleton_stop():
@@ -233,9 +240,10 @@ def test_farm_expansion_affordability_exhausted_singleton_stop():
     ])
     p = state.players[0]
     assert p.resources.wood == 0
-    # 2 stables in supply still, but no wood => not buildable.
+    # 2 stables in supply still, but no wood => not buildable. Before-phase
+    # work-complete → only Proceed.
     actions = legal_actions(state)
-    assert actions == [Stop()]
+    assert actions == [Proceed()]
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +431,7 @@ def test_stable_inside_pasture_recomputes_pasture_cache():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=4),
+        Proceed(),    # flip PendingBuildStables to its after-phase
         Stop(),       # pop PendingBuildStables
         Proceed(),    # flip the parent to its after-phase
         Stop(),       # pop the parent
@@ -447,14 +456,15 @@ def test_stable_inside_pasture_recomputes_pasture_cache():
     ("build_stables", CommitBuildStable(row=0, col=2)),
 ])
 def test_once_per_category_after_stop(category, commit):
-    """After Stop exits a build-X session, ChooseSubAction(category) is no
+    """After Proceed+Stop exits a build-X session, ChooseSubAction(category) is no
     longer legal at the parent PendingFarmExpansion."""
     state = _fe_setup(wood=15, reed=6)  # enough for either category
     state = run_actions(state, [
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name=category),
         commit,
-        Stop(),
+        Proceed(),    # flip the build host to after
+        Stop(),       # pop the build host
     ])
     # Back at PendingFarmExpansion; the chosen category is now flagged.
     actions = legal_actions(state)
@@ -531,6 +541,7 @@ def test_stop_pops_pending_build_stables_back_to_parent():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
+        Proceed(),    # flip PendingBuildStables to after
         Stop(),
     ])
     # PendingBuildStables popped; back at PendingFarmExpansion.

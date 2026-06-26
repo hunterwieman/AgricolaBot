@@ -142,19 +142,23 @@ class PendingFarmExpansion:
 
 @dataclass(frozen=True)
 class PendingBuildStables:
-    """Multi-shot sub-action pending for stable construction.
+    """Multi-shot sub-action HOST for stable construction.
 
     Pushed by `_choose_subaction_*` handlers when the player enters the
     build-stables category. Holds the per-commit `cost: Resources` and a
     caller-imposed cap `max_builds: int | None` (None = no cap; Side Job
-    sets 1; Farm Expansion sets None). `num_built` increments on each
-    commit; when no commit is legal but num_built >= 1, only Stop is
-    legal and the player explicitly Stops to pop the pending.
+    sets 1; Farm Expansion sets None). `num_built` increments on each commit.
 
-    No card-trigger fields yet — `triggers_resolved` / `TRIGGER_EVENT`
-    will be added when the first card needs them (per the deferred
-    "card-trigger machinery on the new pendings" note in TASK_5D
-    Appendix A).
+    A uniform before/after host (SUBACTION_HOOK_REFACTOR.md), like the
+    single-commit sub-actions but with the work-complete signal made explicit:
+    in the `before` phase the player commits stables (and before-triggers may
+    fire), then `Proceed` (legal once num_built >= 1) flips to `after` — firing
+    `after_build_stables` automatic effects — where after-triggers + `Stop` are
+    legal and `Stop` pops. Multi-shot has no single commit to flip on (unlike
+    Sow/Bake/Plow, which flip on their commit), so `Proceed` is that explicit
+    signal, exactly as for the and/or space hosts. `triggers_resolved` tracks
+    fired triggers per the host family. (NN: Proceed is relabeled to Stop and the
+    trailing Stop is a singleton, so the policy/MCTS view is unchanged — §9.)
     """
     PENDING_ID: ClassVar[str] = "build_stables"
     player_idx: int
@@ -162,14 +166,19 @@ class PendingBuildStables:
     cost: Resources
     max_builds: int | None
     num_built: int = 0
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
 class PendingBuildRooms:
-    """Multi-shot sub-action pending for room construction.
+    """Multi-shot sub-action HOST for room construction.
 
-    Same shape as PendingBuildStables. `cost` is `ROOM_COSTS[house_material]`;
-    `max_builds=None` from Farm Expansion (the only caller in Task 5D).
+    Same shape and uniform before/after host lifecycle as PendingBuildStables
+    (see there): `before`-phase room commits + before-triggers, then `Proceed`
+    (num_built >= 1) flips to `after` firing `after_build_rooms` autos, then
+    after-triggers + `Stop` pops. `cost` is `ROOM_COSTS[house_material]`;
+    `max_builds=None` from Farm Expansion.
     """
     PENDING_ID: ClassVar[str] = "build_rooms"
     player_idx: int
@@ -177,6 +186,8 @@ class PendingBuildRooms:
     cost: Resources
     max_builds: int | None
     num_built: int = 0
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -890,20 +901,23 @@ ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
 })
 
 
-# PENDING_IDs of the eight commit-terminated sub-action LEAF frames — the hosts
-# that flip to phase="after" on their commit and surface before/after triggers
+# PENDING_IDs of the commit-terminated / multi-shot sub-action HOST frames — the
+# hosts that carry a before/after `phase` and surface before/after triggers
 # (SUBACTION_HOOK_REFACTOR.md). The before-automatic-effect firing at push gates
 # on this set (engine._fire_subaction_before_auto): a frame whose just-pushed top
 # has a PENDING_ID here fires its `before_<PENDING_ID>` autos (e.g. before_sow,
-# before_renovate). It is DISJOINT from ACTION_SPACE_PENDING_IDS — those hosts
-# fire `before_action_space` at push (engine._apply_place_worker) — and excludes
-# `major_minor_improvement` (PendingMajorMinorImprovement is a composite host
-# firing its own `before_major_minor_improvement`, not a sub-action leaf) and the
-# Stop-terminated multi-shot builders (`build_stables`/`build_rooms`/
-# `build_fences`, which have no before/after `phase`).
+# before_renovate, before_build_rooms). It is DISJOINT from ACTION_SPACE_PENDING_IDS
+# — those hosts fire `before_action_space` at push (engine._apply_place_worker) —
+# and excludes `major_minor_improvement` (PendingMajorMinorImprovement is a
+# composite host firing its own `before_major_minor_improvement`, not a sub-action
+# leaf). The single-commit leaves flip to phase="after" on their commit; the
+# multi-shot builders (`build_rooms`/`build_stables`) flip on `Proceed` (no single
+# commit to flip on). `build_fences` is NOT here — it remains the Stop-terminated
+# multi-shot exception (no before/after `phase`).
 SUBACTION_PENDING_IDS: frozenset = frozenset({
     "sow", "bake_bread", "plow", "renovate", "build_major",
     "family_growth", "play_occupation", "play_minor",
+    "build_rooms", "build_stables",
 })
 
 

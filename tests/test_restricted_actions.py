@@ -451,7 +451,9 @@ def test_room_cap_blocks_commit_at_build_rooms():
     actions = restricted_legal_actions(state)
     room_actions = [a for a in actions if isinstance(a, CommitBuildRoom)]
     assert room_actions == []
-    assert Stop() in actions
+    # Build Rooms is now a before/after host: the before-phase work-complete signal
+    # (left in place by the room-cap filter) is Proceed, not Stop.
+    assert Proceed() in actions
 
 
 def test_room_cap_inactive_when_below_max():

@@ -4,9 +4,10 @@ Validates the Side Job non-atomic resolution: build 1 stable for 1 wood
 and/or Bake Bread. Tests cost-on-pending pattern (PendingBuildStables.cost
 == Resources(wood=1), max_builds=1) and Potter Ceramics integration.
 
-Post-Task-5D: stable build uses the multi-shot PendingBuildStables with
-max_builds=1; trace shape is CommitBuildStable -> Stop -> Stop (one Stop
-to pop PendingBuildStables, a second to pop PendingSideJob).
+Post-build-host-refactor: stable build uses the multi-shot PendingBuildStables
+(max_builds=1), now a uniform before/after host. Trace shape is
+CommitBuildStable -> Proceed (flip to after) -> Stop (pop PendingBuildStables)
+-> Stop (pop PendingSideJob).
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from agricola.actions import (
     CommitBake,
     CommitBuildStable,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import CellType
@@ -48,14 +50,15 @@ def test_side_job_build_stable_only():
     """Build 1 stable for 1 wood, no bake.
 
     Multi-shot trace: ChooseSubAction pushes PendingBuildStables(max_builds=1);
-    CommitBuildStable leaves it on top (num_built=1); first Stop pops
-    PendingBuildStables; second Stop pops PendingSideJob.
+    CommitBuildStable leaves it on top (num_built=1); Proceed flips it to its
+    after-phase; first Stop pops PendingBuildStables; second Stop pops PendingSideJob.
     """
     state = _sj_setup(wood=1)
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
+        Proceed(),
         Stop(),
         Stop(),
     ])
@@ -83,7 +86,7 @@ def test_side_job_bake_only():
 def test_side_job_both():
     """Build stable AND bake bread in one action.
 
-    Trace: build_stable (commit + Stop to exit the multi-shot frame),
+    Trace: build_stable (commit + Proceed to flip + Stop to pop the multi-shot frame),
     then bake_bread (commit flips PendingBakeBread to after-phase + Stop pops it),
     then Stop to pop PendingSideJob.
     """
@@ -93,6 +96,7 @@ def test_side_job_both():
         PlaceWorker(space="side_job"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
+        Proceed(),                             # flip PendingBuildStables to after
         Stop(),                                # pops PendingBuildStables (multi-shot)
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
@@ -131,17 +135,20 @@ def test_side_job_pending_build_stables_cost_field():
 
 
 def test_side_job_stable_singleton_stop_after_commit():
-    """After the single CommitBuildStable, Stop is the only legal action
-    (max_builds=1 saturates the cap)."""
+    """After the single CommitBuildStable, Proceed is the only legal action
+    (max_builds=1 saturates the cap), and after Proceed only Stop (the after-phase
+    pop) is legal."""
     state = _sj_setup(wood=5)  # ample resources, only cap should bind
     state = run_actions(state, [
         PlaceWorker(space="side_job"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
     ])
-    # PendingBuildStables(num_built=1, max_builds=1) is on top; only Stop legal.
-    actions = legal_actions(state)
-    assert actions == [Stop()]
+    # PendingBuildStables(num_built=1, max_builds=1) before-phase: only Proceed.
+    assert legal_actions(state) == [Proceed()]
+    state = step(state, Proceed())
+    # After-phase: only Stop (pop).
+    assert legal_actions(state) == [Stop()]
 
 
 def test_side_job_potter_ceramics_integration():

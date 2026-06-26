@@ -235,9 +235,12 @@ def _filter_build_rooms_cap(
 
     This catches the case where the cap is reached mid-session (multi-shot:
     the player built their MAX_TOTAL_ROOMS-th room and a further build is
-    still offered by the engine but disallowed by policy). Stop is left in
-    place — the engine offers it once num_built >= 1, which is always true
-    in this branch because reaching the cap requires at least one commit.
+    still offered by the engine but disallowed by policy). The before-phase
+    work-complete signal (Proceed, the multi-shot host's flip-to-after) is left
+    in place — the engine offers it once num_built >= 1, which is always true in
+    this branch because reaching the cap requires at least one commit — so the
+    player can always exit. (Dropping only CommitBuildRoom keeps Proceed, which
+    is not a CommitBuildRoom.)
     """
     p = state.players[top.player_idx]
     if _count_rooms(p.farmyard.grid) < MAX_TOTAL_ROOMS:

@@ -168,6 +168,8 @@ struct PendingBuildStables {
   Resources cost{};
   std::optional<int> max_builds;
   int num_built = 0;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR before/after host)
+  std::vector<std::string> triggers_resolved;
   bool operator==(const PendingBuildStables&) const = default;
 };
 struct PendingBuildRooms {
@@ -176,6 +178,8 @@ struct PendingBuildRooms {
   Resources cost{};
   std::optional<int> max_builds;
   int num_built = 0;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR before/after host)
+  std::vector<std::string> triggers_resolved;
   bool operator==(const PendingBuildRooms&) const = default;
 };
 struct PendingBuildMajor {

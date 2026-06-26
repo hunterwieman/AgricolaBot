@@ -91,6 +91,22 @@ So the C++ sub-action sync is **5 frames**, not 8.
   use the **derived `after_started`** approach (the multi-sub-space pattern:
   `legality._after_action_space_fired` analog) — **no** `phase` field. Not needed
   by any in-scope card; defer.
+
+  > **Superseded for `PendingBuildRooms` / `PendingBuildStables` (later refactor).**
+  > Rather than the derived-`after_started` approach above, these two were given a
+  > real `phase` field and folded into the uniform before/after host model, so they
+  > standardize with every other host. Because a multi-shot frame has no single
+  > commit to flip on, the explicit work-complete signal is **`Proceed`** (exactly as
+  > for the and/or space hosts): the before-phase offers the cell commits + `Proceed`
+  > (once `num_built >= 1`), `Proceed` flips to the after-phase firing
+  > `after_build_<x>` autos via `_enter_after_phase`, and the trailing `Stop` is a
+  > pure pop. Both ids joined `SUBACTION_PENDING_IDS`. `after_build_rooms` autos
+  > (Roughcaster, Wall Builder) now fire at that `Proceed` flip, not at `Stop` (the
+  > old `_apply_stop` special case was removed). NN-transparent: `Proceed` is
+  > relabeled to `Stop` for the `build_stop` head + combiners and the new trailing
+  > `Stop` is a singleton, so the policy/MCTS view is unchanged (no retrain). C++
+  > re-ported (the differential gates cover the new `phase` field, the Proceed-flip,
+  > and the relabel). `PendingBuildFences` remains the Stop-terminated exception.
 - The **harvest** frames `PendingHarvestFeed` / `PendingHarvestBreed` (their
   commits are already `auto_pop=False`). No card hooks them; leave alone.
 - The **animal markets** and `PendingActionSpace` — already done.

@@ -1144,17 +1144,27 @@ def _enumerate_pending_plow(
 def _enumerate_pending_build_stables(
     state: GameState, pending: PendingBuildStables,
 ) -> list[Action]:
-    """Enumerate legal actions at PendingBuildStables (multi-shot).
+    """Enumerate legal actions at PendingBuildStables (multi-shot before/after host).
 
-    Three constraints filter CommitBuildStable options independently:
+    A uniform before/after host (SUBACTION_HOOK_REFACTOR.md): in the after-phase
+    the stables are built, so only after_build_stables triggers + Stop (pop) are
+    legal. In the before-phase, three constraints filter CommitBuildStable options:
       - Caller-imposed cap: max_builds is None or num_built < max_builds.
         Side Job's max_builds=1 saturates after the single commit;
         Farm Expansion's None never blocks here.
       - Buildability: _can_build_stable(p, cost) — combined supply +
         cell-availability + affordability check.
-    Stop is legal once num_built >= 1 (the "must do at least one" rule).
+    plus any before_build_stables triggers, then Proceed (the multi-shot's explicit
+    work-complete signal — flips to the after-phase) once num_built >= 1 (the
+    "must do at least one" rule).
     """
-    actions: list[Action] = []
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+
+    actions: list[Action] = _eligible_fire_triggers(
+        state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
@@ -1163,7 +1173,7 @@ def _enumerate_pending_build_stables(
             actions.append(CommitBuildStable(row=r, col=c))
 
     if pending.num_built >= 1:
-        actions.append(Stop())
+        actions.append(Proceed())
 
     return actions
 
@@ -1171,13 +1181,22 @@ def _enumerate_pending_build_stables(
 def _enumerate_pending_build_rooms(
     state: GameState, pending: PendingBuildRooms,
 ) -> list[Action]:
-    """Enumerate legal actions at PendingBuildRooms (multi-shot).
+    """Enumerate legal actions at PendingBuildRooms (multi-shot before/after host).
 
     Same shape as _enumerate_pending_build_stables. Cell list comes from
     _legal_room_cells (empty, non-enclosed, adjacent to existing ROOM —
-    naturally handles within-action adjacency chaining).
+    naturally handles within-action adjacency chaining). After-phase:
+    after_build_rooms triggers + Stop (pop). Before-phase: before_build_rooms
+    triggers, room commits, then Proceed (flips to the after-phase) once
+    num_built >= 1.
     """
-    actions: list[Action] = []
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+
+    actions: list[Action] = _eligible_fire_triggers(
+        state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
@@ -1186,7 +1205,7 @@ def _enumerate_pending_build_rooms(
             actions.append(CommitBuildRoom(row=r, col=c))
 
     if pending.num_built >= 1:
-        actions.append(Stop())
+        actions.append(Proceed())
 
     return actions
 
