@@ -87,7 +87,8 @@ bookkeeping) is deliberately left open for a later session.**
 > `before_action_space`; Firewood Collector deferred (needs an end-of-turn event). The 9 Family-reachable
 > frames are C++-synced; full suite + all C++ differential gates green. This unblocks the parent-hooking
 > after cards (Sugar Baker, Full Peasant, Merchant, Plumber, …). Side Job stays Stop-terminated (Family-only,
-> never card-hooked). Royal Wood / Firewood Collector still await a future end-of-turn event.
+> never card-hooked). Royal Wood still awaits a future end-of-turn event (Firewood Collector now lands on
+> the `end_of_turn` event added in Unit 4).
 >
 > **Firing infrastructure COMPLETE for action spaces + commit-terminated sub-actions.** Every action
 > space, the composite major/minor action, and the eight commit-terminated sub-actions now fire the
@@ -109,9 +110,16 @@ bookkeeping) is deliberately left open for a later session.**
 >   tracked as **Step 6** below, not an extension of the action-space firing work.
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
->   mandatory-with-choice gate) → Cat 7, 6. **Harvest-field hook DONE** — `PendingHarvestField` (II.6)
->   + the `harvest_field` event + Category 6 (Scythe Worker, Butter Churn, Three-Field Rotation, Loom);
->   the `PendingPreparation` / `PendingCardChoice` parts (Cat 7) are still pending.
+>   mandatory-with-choice gate) → Cat 7, 6. **DONE.** Harvest-field hook — `PendingHarvestField` (II.6)
+>   + the `harvest_field` event + Category 6 (Scythe Worker, Butter Churn, Three-Field Rotation, Loom).
+>   **Start-of-round hook + mandatory-with-choice + end-of-turn event (Unit 4) DONE** —
+>   `PendingPreparation` (II.6, card-dependent push in `_complete_preparation` → Family byte-identical,
+>   no C++), the `start_of_round` event, the third firing kind (a `mandatory`-tagged trigger that gates
+>   its host's Proceed/Stop and pushes `PendingCardChoice` + `CommitCardChoice` resolved by a card-keyed
+>   resolver), `FireTrigger.variant` for the collapsed play-variant (Scholar), and a dedicated
+>   `end_of_turn` event (fired at the turn-completion boundary in `_apply_stop`). Cards: **Small-scale
+>   Farmer, Childless, Scullery, Groom, Plow Driver, Scholar** (Cat 7), **Seasonal Worker** (Cat 3,
+>   mandatory-with-choice on Day Laborer), and **Firewood Collector un-deferred** onto `end_of_turn`.
 > - **Step 7** — deferred cards (Organic Farmer, Mini Pasture, Shepherd's Crook, Acorns Basket) last.
 >
 > **Deferred-within-category cards** awaiting their infra: CardStore cards (Tutor, Moldboard Plow, Big
@@ -1012,8 +1020,13 @@ play-cost-as-exchange pattern (cost `1 grain`/`1 sheep`, `on_play` gains `1 veg`
 passing. **Mini Pasture** is **deferred** (see "Deferred cards" — `PendingBuildFences` has no
 cap/free/size fields today, and its "fence a space" semantics need a ruling).
 
-## Category 3 — Action-space hook, automatic income (8 built + 1 deferred)
-**Wood Cutter · Geologist · Seasonal Worker · Canoe · Corn Scoop · Loam Pit · Stone Tongs · Pitchfork** (Firewood Collector deferred — needs end-of-turn event; see space-host refactor §11.1)
+## Category 3 — Action-space hook, automatic income (all built)
+**Wood Cutter · Geologist · Canoe · Corn Scoop · Loam Pit · Stone Tongs · Pitchfork** (`register_auto`
+on the space's before/after event). **Seasonal Worker** (Unit 4) is NOT a plain auto-effect — it is a
+**mandatory-with-choice** trigger on the Day Laborer host (II.1): +1 grain each use, or +1 veg from
+round 6, the choice surfaced as a round-dependent `PendingCardChoice`. **Firewood Collector** (Unit 4)
+lands on the dedicated **`end_of_turn`** event (fired at the turn-completion boundary in `_apply_stop`),
+no longer deferred.
 
 Hook: `register_auto` on `before_action_space` (or `after_action_space` for post-work income),
 filtered by `space_id`.

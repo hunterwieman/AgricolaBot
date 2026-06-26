@@ -249,13 +249,34 @@ class CommitBreed(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitCardChoice(CommitSubAction):
+    """Pick option `index` at a PendingCardChoice frame (card game).
+
+    Lands on PendingCardChoice (a mandatory-with-choice trigger's pushed decision —
+    Seasonal Worker's grain/veg, Childless's crop). `index` selects
+    `pending.options[index]`; the pushing card's resolver (keyed on the frame's
+    `initiated_by_id` card id in CARD_CHOICE_RESOLVERS) applies the option and pops
+    the frame. No decline — the frame offers exactly its options.
+    """
+    index: int
+
+
+@dataclass(frozen=True)
 class FireTrigger:
     """Fire a specific card trigger that's currently eligible at the top pending.
 
     Declining a trigger is implicit (player picks a commit or another trigger
     instead) — there is no SkipTrigger action.
+
+    `variant` distinguishes play-route variants of one trigger that the enumerator
+    surfaces as separate FireTriggers (Scholar's "occupation" vs "minor" route): two
+    FireTriggers with the same card_id but different variants are distinct actions,
+    and `_apply_fire_trigger` threads the variant into the trigger's apply_fn. Plain
+    triggers leave it None (backward-compatible) and their apply_fn takes
+    `(state, idx)`.
     """
     card_id: str
+    variant: str | None = None
 
 
 @dataclass(frozen=True)
@@ -312,6 +333,7 @@ Action = Union[
     CommitHarvestConversion,
     CommitConvert,
     CommitBreed,
+    CommitCardChoice,
     FireTrigger,
     Stop,
     Proceed,

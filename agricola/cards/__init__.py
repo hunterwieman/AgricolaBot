@@ -36,11 +36,12 @@ from agricola.cards import assistant_tiller     # noqa: F401
 from agricola.cards import oven_firing_boy      # noqa: F401
 # Category 9 (opponent-action hook; any-player automatic effect on Cattle Market).
 from agricola.cards import milk_jug             # noqa: F401
+# Category 3 (action-space hook) on the dedicated end_of_turn event — Firewood
+# Collector ("+1 wood at the END of the turn that used Farmland / Grain Seeds /
+# Grain Utilization / Cultivation"). The end_of_turn event fires at the turn's
+# completion boundary (engine._apply_stop), so this is now un-deferred (Unit 4).
+from agricola.cards import firewood_collector   # noqa: F401
 # Category 3/4 on non-atomic spaces' after-phase (the multi-sub after-trigger model).
-# Firewood Collector is DEFERRED (archived to archive/cards/) — its "+1 wood at the
-# END of that turn" needs a dedicated end-of-turn event, which the space-host firing
-# migration (SPACE_HOST_REFACTOR.md §11.1) does not add (after-autos now fire at the
-# work-complete boundary, mid-turn). It returns when that event exists.
 from agricola.cards import threshing_board      # noqa: F401
 # Category 5 (build / renovate / bake / play-card hooks). Roughcaster is an
 # occupation; the other four are minors registered below. The coarse
@@ -81,3 +82,21 @@ from agricola.cards import dutch_windmill       # noqa: F401
 from agricola.cards import loom                  # noqa: F401
 from agricola.cards import butter_churn          # noqa: F401
 from agricola.cards import three_field_rotation  # noqa: F401
+# Category 7 (start-of-round phase hook) — the PendingPreparation host fires the
+# `start_of_round` event. Auto-effects (Small-scale Farmer +1 wood at exactly 2
+# rooms; Scullery +1 food in a wooden house — a minor) fire immediately at push;
+# OPTIONAL triggers (Plow Driver pay-1-food-plow, Groom build-a-stable) surface as
+# FireTrigger; the MANDATORY-with-choice Childless (+1 food + grain/veg pick) gates
+# the host's Proceed; Scholar is the collapsed play-variant trigger (play an
+# occupation OR a minor at round start). All but Scholar/Childless/Plow Driver/Groom
+# also register_start_of_round_hook so the host frame is pushed when owned.
+from agricola.cards import small_scale_farmer    # noqa: F401
+from agricola.cards import scullery              # noqa: F401
+from agricola.cards import plow_driver           # noqa: F401
+from agricola.cards import groom                 # noqa: F401
+from agricola.cards import childless             # noqa: F401
+from agricola.cards import scholar               # noqa: F401
+# Category 3 (action-space hook) — Seasonal Worker is the MANDATORY-with-choice
+# trigger on the Day Laborer space-host: +1 grain each use (or +1 veg from round 6),
+# the choice surfaced as a PendingCardChoice whose options are round-dependent.
+from agricola.cards import seasonal_worker       # noqa: F401
