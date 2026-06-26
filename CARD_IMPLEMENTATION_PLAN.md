@@ -67,8 +67,12 @@ bookkeeping) is deliberately left open for a later session.**
 > agent-auto-skipped `Stop` per sub-action; the 5 Family-reachable frames (Sow/Bake/Plow/Renovate/
 > BuildMajor) were C++-synced (`phase` field + flip + after-phase enumerator) — **all 136 differential
 > gates green**. This **unblocks the Category-5 after-trigger grants** (Mining Hammer on `after_renovate`,
-> Bread Paddle on `after_play_occupation`) and the after-auto build hooks. Lifecycle coverage:
-> `tests/test_subaction_hook_lifecycle.py`.
+> Bread Paddle on `after_play_occupation`) and the after-auto build hooks. **Before-automatic effects now
+> also fire at the sub-action push** (the initially-deferred §4d, lifted): a single central seam
+> (`engine._fire_subaction_before_auto`, gated on `pending.SUBACTION_PENDING_IDS`) fires `before_<id>` autos
+> when a leaf is pushed, called at the two push chokepoints (`_apply_choose_sub_action` + `_apply_fire_trigger`'s
+> apply_fn) — so the sub-action layer now has the full before/after × auto/trigger suite. Lifecycle +
+> hook coverage: `tests/test_subaction_hook_lifecycle.py`, `tests/test_subaction_hooks.py`.
 >
 > **Space-host refactor DONE** (`SPACE_HOST_REFACTOR.md`; mechanism only, no new card modules). The
 > action-space *parent* frames are now uniform before/after hosts, in four mechanisms: **Atomic**

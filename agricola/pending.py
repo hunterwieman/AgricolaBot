@@ -806,6 +806,23 @@ ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
 })
 
 
+# PENDING_IDs of the eight commit-terminated sub-action LEAF frames — the hosts
+# that flip to phase="after" on their commit and surface before/after triggers
+# (SUBACTION_HOOK_REFACTOR.md). The before-automatic-effect firing at push gates
+# on this set (engine._fire_subaction_before_auto): a frame whose just-pushed top
+# has a PENDING_ID here fires its `before_<PENDING_ID>` autos (e.g. before_sow,
+# before_renovate). It is DISJOINT from ACTION_SPACE_PENDING_IDS — those hosts
+# fire `before_action_space` at push (engine._apply_place_worker) — and excludes
+# `major_minor_improvement` (PendingMajorMinorImprovement is a composite host
+# firing its own `before_major_minor_improvement`, not a sub-action leaf) and the
+# Stop-terminated multi-shot builders (`build_stables`/`build_rooms`/
+# `build_fences`, which have no before/after `phase`).
+SUBACTION_PENDING_IDS: frozenset = frozenset({
+    "sow", "bake_bread", "plow", "renovate", "build_major",
+    "family_growth", "play_occupation", "play_minor",
+})
+
+
 # ---------------------------------------------------------------------------
 # Stack operations
 # ---------------------------------------------------------------------------
