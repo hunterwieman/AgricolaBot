@@ -45,6 +45,7 @@ from torch.utils.data import Dataset
 from agricola.agents.nn.encoder import (
     ENCODED_DIM,
     ENCODED_DIM_CANDIDATE,
+    ENCODED_DIM_SPATIAL,
     ENCODING_VERSION,
     encode_state,
 )
@@ -52,7 +53,7 @@ from agricola.agents.nn.encoder import (
 # Feature-count guard for the dataset classes: accept the canonical v2 width or a
 # candidate width (the joint experiment loop), so the assert still catches real
 # off-by-N bugs without hardcoding 170.
-_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE})
+_VALID_DIMS = frozenset({ENCODED_DIM, ENCODED_DIM_CANDIDATE, ENCODED_DIM_SPATIAL})
 from agricola.agents.nn.schema import GameRecord, load_game_records
 
 

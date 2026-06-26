@@ -349,6 +349,40 @@ void write_player_block_candidate(float* out, int base, const GameState& state,
   out[base + 57] = n_rooms > p.people_total ? 1.0f : 0.0f;  // can_grow_family
 }
 
+// --- spatial per-player block (106 features) --------------------------------
+// = the v2 block (54) followed by 52 per-cell masks (room / stable / field /
+// enclosed) over the (3,5) grid minus the two always-room cells (1,0),(2,0),
+// in (kind-major, then row-major cell) order. Built atop write_player_block so
+// the shared v2 logic never drifts. Mirrors _player_features_spatial /
+// _spatial_masks in agents/nn/encoder.py.
+void write_player_block_spatial(float* out, int base, const GameState& state,
+                                const PlayerState& p, int player_idx) {
+  std::array<float, kEncodedDim> v2{};
+  write_player_block(v2.data(), 0, state, p, player_idx);
+  for (int i = 0; i < 54; ++i) out[base + i] = v2[i];  // 0..53 unchanged
+
+  // 52 spatial masks. _SPATIAL_CELLS = all (r,c) in (3,5) except (1,0),(2,0),
+  // row-major; for each of room/stable/field/enclosed, append 1/0 per cell.
+  std::set<Coord> enc = enclosed_cells(p.farmyard);
+  int idx = base + 54;
+  for (int kind = 0; kind < 4; ++kind) {
+    for (int ri = 0; ri < kRows; ++ri) {
+      for (int ci = 0; ci < kCols; ++ci) {
+        if ((ri == 1 && ci == 0) || (ri == 2 && ci == 0)) continue;  // always-room
+        const Cell& cell = p.farmyard.grid[ri][ci];
+        bool hit = false;
+        switch (kind) {
+          case 0: hit = cell.cell_type == CellType::ROOM; break;
+          case 1: hit = cell.cell_type == CellType::STABLE; break;
+          case 2: hit = cell.cell_type == CellType::FIELD; break;
+          case 3: hit = enc.find({ri, ci}) != enc.end(); break;
+        }
+        out[idx++] = hit ? 1.0f : 0.0f;
+      }
+    }
+  }
+}
+
 }  // namespace
 
 std::optional<int> encoder_decider_of(const GameState& state) {
@@ -409,6 +443,32 @@ std::array<float, kEncodedDimCandidate> encode_candidate(const GameState& state,
   return out;
 }
 
+std::array<float, kEncodedDimSpatial> encode_spatial(const GameState& state,
+                                                     int player_idx) {
+  std::array<float, kEncodedDimSpatial> out{};
+  write_player_block_spatial(out.data(), 0, state,
+                             state.players[player_idx], player_idx);
+  write_player_block_spatial(out.data(), 106, state,
+                             state.players[1 - player_idx], 1 - player_idx);
+  write_shared_block(out.data(), 212, state, player_idx);
+  write_midaction_block(out.data(), 266, state);
+
+  if (state.phase == Phase::BEFORE_SCORING) {
+    // Spatial terminal zeroing = v2's _TERMINAL_ZERO_NAMES at shifted offsets
+    // (the 52 spatial masks are NOT zeroed — they describe the final layout).
+    // v2 own offsets 27/28/52/53 -> own (0): 27,28,52,53; opp (106): 133,134,
+    // 158,159. v2 shared offsets 1/2/3 (current_player_is_own / in_harvest /
+    // rounds_until_next_harvest) -> shared (212): 213,214,215. mid (266):
+    // subaction_avail_* 266-272, stop_is_legal 273.
+    static const std::array<int, 11> kZero = {27,  28,  52,  53,  133, 134,
+                                              158, 159, 213, 214, 215};
+    for (int i : kZero) out[i] = 0.0f;
+    out[273] = 0.0f;                                  // stop_is_legal
+    for (int i = 266; i <= 272; ++i) out[i] = 0.0f;   // subaction_avail_*
+  }
+  return out;
+}
+
 double begging_margin(const GameState& state, int perspective) {
   int own = state.players[perspective].begging_markers;
   int opp = state.players[1 - perspective].begging_markers;
@@ -425,12 +485,17 @@ void encode_candidate_into(const GameState& s, int p, std::vector<float>& out) {
   std::array<float, kEncodedDimCandidate> a = encode_candidate(s, p);
   out.assign(a.begin(), a.end());
 }
+void encode_spatial_into(const GameState& s, int p, std::vector<float>& out) {
+  std::array<float, kEncodedDimSpatial> a = encode_spatial(s, p);
+  out.assign(a.begin(), a.end());
+}
 
 // THE registry. Add a row to register a future encoder (its encode fn + dim +
 // whether its value target was begging-stripped). Nothing else changes.
 const EncoderSpec kEncoders[] = {
     {"v2", kEncodedDim, false, &encode_v2_into},
     {"cand_feat178_v1", kEncodedDimCandidate, true, &encode_candidate_into},
+    {"cand_spatial_v1", kEncodedDimSpatial, false, &encode_spatial_into},
 };
 }  // namespace
 
