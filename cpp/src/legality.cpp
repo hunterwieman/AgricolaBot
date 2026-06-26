@@ -580,11 +580,38 @@ std::vector<Action> enum_farm_expansion(const GameState& s,
   return a;
 }
 
-std::vector<Action> enum_farmland(const GameState& s, const PendingFarmland& pd) {
+// The single mandatory ChooseSubAction the generic Delegating space host offers
+// in its before-phase, dispatched by space_id (SPACE_HOST_REFACTOR.md §4.2/§8).
+// Returns whether a legal choice exists, writing it into `out`. (Family C++:
+// "lessons" is card-only and never reached.)
+static bool subactionspace_choice(const GameState& s,
+                                  const PendingSubActionSpace& pd,
+                                  ChooseSubAction& out) {
+  const std::string sid = pd.space_id();
   const auto& p = frame_player(s, pd.player_idx);
+  if (sid == "farmland") {
+    if (can_plow(p)) { out = ChooseSubAction{"plow"}; return true; }
+    return false;
+  }
+  if (sid == "fencing") { out = ChooseSubAction{"build_fences"}; return true; }
+  if (sid == "major_improvement") {
+    if (can_afford_any_major(s, p)) { out = ChooseSubAction{"improvement"}; return true; }
+    return false;
+  }
+  throw std::runtime_error("Unknown sub-action space host " + sid);
+}
+
+std::vector<Action> enum_subactionspace(const GameState& s,
+                                        const PendingSubActionSpace& pd) {
+  // Generic Delegating space host (SPACE_HOST_REFACTOR.md §4.2). after-phase
+  // (reached via the auto-advance once the child popped): Stop. before-phase: the
+  // single mandatory ChooseSubAction (the child). The transient
+  // subaction_complete && phase=="before" state is never enumerated — the
+  // auto-advance flips it inside the same step.
+  if (pd.phase == "after") return {Stop{}};
   std::vector<Action> a;
-  if (!pd.plow_chosen && can_plow(p)) a.push_back(ChooseSubAction{"plow"});
-  if (pd.plow_chosen) a.push_back(Stop{});
+  ChooseSubAction choice{""};
+  if (subactionspace_choice(s, pd, choice)) a.push_back(choice);
   return a;
 }
 
@@ -626,11 +653,15 @@ std::vector<Action> enum_animal_market(const GameState& s, int pid,
 
 std::vector<Action> enum_major_minor(const GameState& s,
                                      const PendingMajorMinorImprovement& pd) {
+  // Delegating host (SPACE_HOST_REFACTOR.md §4.2/§6). after-phase (reached via the
+  // auto-advance once the child popped): Stop. before-phase: the exclusive
+  // build_major / play_minor choice (Family: only build_major). The transient
+  // subaction_complete state is never enumerated (the auto-advance flips it).
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   if (!pd.major_chosen && can_afford_any_major(s, p))
     a.push_back(ChooseSubAction{"build_major"});
-  if (pd.major_chosen || pd.minor_chosen) a.push_back(Stop{});
   return a;
 }
 
@@ -662,15 +693,6 @@ std::vector<Action> enum_house_redev(const GameState& s,
   if (pd.renovate_chosen && !pd.improvement_chosen && can_afford_any_major(s, p))
     a.push_back(ChooseSubAction{"improvement"});
   if (pd.renovate_chosen) a.push_back(Proceed{});
-  return a;
-}
-
-std::vector<Action> enum_fencing(const GameState&, const PendingFencing& pd) {
-  std::vector<Action> a;
-  if (!pd.build_fences_chosen)
-    a.push_back(ChooseSubAction{"build_fences"});
-  else
-    a.push_back(Stop{});
   return a;
 }
 
@@ -798,8 +820,8 @@ std::vector<Action> enumerate_pending(const GameState& s,
           return enum_renovate(s, pd);
         else if constexpr (std::is_same_v<T, PendingFarmExpansion>)
           return enum_farm_expansion(s, pd);
-        else if constexpr (std::is_same_v<T, PendingFarmland>)
-          return enum_farmland(s, pd);
+        else if constexpr (std::is_same_v<T, PendingSubActionSpace>)
+          return enum_subactionspace(s, pd);
         else if constexpr (std::is_same_v<T, PendingCultivation>)
           return enum_cultivation(s, pd);
         else if constexpr (std::is_same_v<T, PendingSideJob>)
@@ -821,8 +843,6 @@ std::vector<Action> enumerate_pending(const GameState& s,
           return enum_stone_oven(s, pd);
         else if constexpr (std::is_same_v<T, PendingHouseRedevelopment>)
           return enum_house_redev(s, pd);
-        else if constexpr (std::is_same_v<T, PendingFencing>)
-          return enum_fencing(s, pd);
         else if constexpr (std::is_same_v<T, PendingBuildFences>)
           return enum_build_fences(s, pd);
         else if constexpr (std::is_same_v<T, PendingFarmRedevelopment>)

@@ -30,6 +30,7 @@ from agricola.pending import (
     PendingMajorMinorImprovement,
     PendingPlayMinor,
     PendingSow,
+    PendingSubActionSpace,
 )
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -98,6 +99,7 @@ def test_build_major_clay_oven_free_bake_nested_lifecycle():
     pre_food = state.players[0].resources.food
 
     state = step(state, PlaceWorker(space="major_improvement"))
+    state = step(state, ChooseSubAction(name="improvement"))  # singleton: push PendingMajorMinorImprovement
     state = step(state, ChooseSubAction(name="build_major"))
     state = step(state, CommitBuildMajor(major_idx=5, return_fireplace_idx=None))
 
@@ -114,14 +116,19 @@ def test_build_major_clay_oven_free_bake_nested_lifecycle():
     assert state.pending_stack[-1].phase == "after"
     assert state.players[0].resources.food == pre_food + 5   # Clay Oven: 5 food/grain
 
-    # Unwind: bake after-phase -> oven wrapper -> build-major after -> parent.
+    # Unwind: bake after-phase -> oven wrapper -> build-major after ->
+    # MajorMinorImprovement after (Delegating auto-advance) -> space host.
     state = step(state, Stop())                        # pop PendingBakeBread
     assert isinstance(state.pending_stack[-1], PendingClayOven)
     state = step(state, Stop())                        # pop PendingClayOven
     assert isinstance(state.pending_stack[-1], PendingBuildMajor)
-    state = step(state, Stop())                        # pop PendingBuildMajor
+    state = step(state, Stop())                        # pop PendingBuildMajor; auto-advance MMI to after
     assert isinstance(state.pending_stack[-1], PendingMajorMinorImprovement)
-    state = step(state, Stop())                        # pop the parent
+    assert state.pending_stack[-1].phase == "after"
+    state = step(state, Stop())                        # pop PendingMajorMinorImprovement; auto-advance host to after
+    assert isinstance(state.pending_stack[-1], PendingSubActionSpace)
+    assert state.pending_stack[-1].phase == "after"
+    state = step(state, Stop())                        # pop the space host
     assert state.pending_stack == ()
     assert state.board.major_improvement_owners[5] == 0
 
@@ -151,12 +158,15 @@ def _improvement_state(*, minors, res):
 
 def test_minor_at_improvement_space_nested_host_lifecycle():
     """Play market_stall (cost 1 grain, +1 veg, then passes) via Major/Minor
-    Improvement. PendingPlayMinor flips to after and Stops back to the parent,
-    which then Stops — two nested host lifecycles."""
+    Improvement. PendingPlayMinor flips to after and Stops back to
+    PendingMajorMinorImprovement (Delegating: auto-advances to after, then
+    Stops), which Stops back to the PendingSubActionSpace host (which then
+    Stops) — three nested host lifecycles."""
     cs, cp = _improvement_state(minors=frozenset({"market_stall"}), res=Resources(grain=1))
     pre_veg = cs.players[cp].resources.veg
 
     cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))  # singleton: push PendingMajorMinorImprovement
     cs = step(cs, ChooseSubAction(name="play_minor"))
     # before-phase of the nested PendingPlayMinor: the commit is offered.
     assert isinstance(cs.pending_stack[-1], PendingPlayMinor)
@@ -170,13 +180,21 @@ def test_minor_at_improvement_space_nested_host_lifecycle():
     assert cs.players[cp].resources.veg == pre_veg + 1
     assert legal_actions(cs) == [Stop()]
 
-    # Stop pops PendingPlayMinor -> back at the parent space host.
+    # Stop pops PendingPlayMinor; the Delegating auto-advance flips
+    # PendingMajorMinorImprovement to its after-phase (minor_chosen stays True).
     cs = step(cs, Stop())
     assert isinstance(cs.pending_stack[-1], PendingMajorMinorImprovement)
     assert cs.pending_stack[-1].minor_chosen is True
+    assert cs.pending_stack[-1].phase == "after"
     assert legal_actions(cs) == [Stop()]
 
-    # Stop pops the parent -> turn ends.
+    # Stop pops PendingMajorMinorImprovement; auto-advance flips the space host to after.
+    cs = step(cs, Stop())
+    assert isinstance(cs.pending_stack[-1], PendingSubActionSpace)
+    assert cs.pending_stack[-1].phase == "after"
+    assert legal_actions(cs) == [Stop()]
+
+    # Stop pops the space host -> turn ends.
     cs = step(cs, Stop())
     assert cs.pending_stack == ()
 

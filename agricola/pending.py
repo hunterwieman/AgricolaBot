@@ -224,13 +224,36 @@ class PendingRenovate:
 
 
 @dataclass(frozen=True)
-class PendingFarmland:
-    """Top-level parent pending for the Farmland action space."""
-    PENDING_ID: ClassVar[str] = "farmland"
-    TRIGGER_EVENT: ClassVar[str] = "before_farmland"
+class PendingSubActionSpace:
+    """Generic action-space host for a space with exactly ONE mandatory
+    sub-action — a Delegating host (SPACE_HOST_REFACTOR.md §4.2/§5). Replaces the
+    old per-space PendingFarmland / PendingFencing classes; the specific child is
+    dispatched by `space_id` (read off `initiated_by_id`):
+      farmland          -> PendingPlow
+      fencing           -> PendingBuildFences
+      major_improvement -> PendingMajorMinorImprovement
+      lessons           -> PendingPlayOccupation   (card-only)
+
+    Lifecycle: pushed in the before-phase (firing before_action_space autos). The
+    before-phase offers any before_action_space triggers + the single
+    `ChooseSubAction(name=…)`, which sets `subaction_complete=True` and pushes the
+    child. When the child pops, `_advance_until_decision`'s Delegating auto-advance
+    (keyed on the DELEGATING marker + `subaction_complete && phase=="before"`)
+    flips this frame to its after-phase and fires after_action_space autos; the
+    after-phase offers after-triggers + Stop, and Stop pops. There is no Proceed —
+    the single mandatory sub-action's completion is the work-complete boundary,
+    detected by the engine (an auto-advance, never a player decision).
+
+    Shares `PENDING_ID = "action_space"` and the action_space event with
+    PendingActionSpace (both are in ACTION_SPACE_PENDING_IDS); the class is the
+    dispatch key, so sharing the id is safe.
+    """
+    PENDING_ID: ClassVar[str] = "action_space"
+    DELEGATING: ClassVar[bool] = True   # opt into the auto-advance (§5)
     player_idx: int
-    initiated_by_id: str
-    plow_chosen: bool = False
+    initiated_by_id: str                       # "space:<id>"
+    subaction_complete: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
     @property
@@ -331,14 +354,39 @@ class PendingCattleMarket:
 
 @dataclass(frozen=True)
 class PendingMajorMinorImprovement:
-    """Top-level parent pending for the Major/Minor Improvement action space."""
+    """The composite "build a major OR play a minor" action — a Delegating host
+    (SPACE_HOST_REFACTOR.md §4.2/§6). Pushed by the Major Improvement space (via
+    PendingSubActionSpace's `improvement` choose) AND reused as House
+    Redevelopment's optional second step, so its hook lives on a frame shared
+    across those entry points.
+
+    It fires the `major_minor_improvement` event (NOT `action_space`), so it is
+    deliberately OUT of ACTION_SPACE_PENDING_IDS — under House Redevelopment that
+    keeps it from firing a second after_action_space on top of House
+    Redevelopment's own.
+
+    Lifecycle: its single `ChooseSubAction("build_major" | "play_minor")` sets the
+    matching `*_chosen` flag and pushes the child primitive. The three-way
+    distinction (renovate-then-no / minor / major) is load-bearing for future
+    cards (Cabbage Buyer), so the flags are kept; `subaction_complete` is derived
+    as `major_chosen or minor_chosen`. When the child pops, the Delegating
+    auto-advance flips `phase` to "after" (firing after_major_minor_improvement
+    autos); the after-phase offers after-triggers + Stop, and Stop pops.
+    """
     PENDING_ID: ClassVar[str] = "major_minor_improvement"
-    TRIGGER_EVENT: ClassVar[str] = "before_major_minor_improvement"
+    DELEGATING: ClassVar[bool] = True   # opt into the auto-advance (§5)
     player_idx: int
     initiated_by_id: str
     major_chosen: bool = False
     minor_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def subaction_complete(self) -> bool:
+        """The Delegating work-complete signal (§5.2): the composite action ran
+        iff a major was built or a minor was played."""
+        return self.major_chosen or self.minor_chosen
 
 
 @dataclass(frozen=True)
@@ -387,26 +435,6 @@ class PendingStoneOven:
     player_idx: int
     initiated_by_id: str
     bake_chosen: bool = False
-
-
-@dataclass(frozen=True)
-class PendingFencing:
-    """Top-level parent pending for the Fencing action space.
-
-    A thin wrapper above PendingBuildFences. Without cards it carries one
-    boolean (`build_fences_chosen`) used by Stop-legality (Stop is illegal
-    until the build_fences sub-action has been entered). With cards it
-    hosts the space-specific `before_fencing` trigger event — distinct
-    from `before_build_fences`, which fires at the sub-action layer when
-    Build Fences is reached via Fencing, Farm Redevelopment, or card
-    effects.
-    """
-    PENDING_ID: ClassVar[str] = "fencing"
-    TRIGGER_EVENT: ClassVar[str] = "before_fencing"
-    player_idx: int
-    initiated_by_id: str
-    build_fences_chosen: bool = False
-    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -716,7 +744,7 @@ PendingDecision = Union[
     PendingBuildMajor,
     PendingRenovate,
     PendingFarmExpansion,
-    PendingFarmland,
+    PendingSubActionSpace,
     PendingCultivation,
     PendingSideJob,
     PendingSheepMarket,
@@ -726,7 +754,6 @@ PendingDecision = Union[
     PendingHouseRedevelopment,
     PendingClayOven,
     PendingStoneOven,
-    PendingFencing,
     PendingBuildFences,
     PendingFarmRedevelopment,
     PendingHarvestFeed,
@@ -737,17 +764,21 @@ PendingDecision = Union[
 
 
 # PENDING_IDs (frame ids, NOT space ids) of the action-space HOST frames — the
-# generic atomic host plus every non-atomic per-space parent. They share the
-# coarse before_/after_action_space event (legality.trigger_event) and are the
-# frames at whose Stop the engine fires after_action_space automatic effects
-# (CARD_IMPLEMENTATION_PLAN.md II.2 / 4b). Multi-shot sub-action frames
+# generic atomic/delegating host (PendingActionSpace + PendingSubActionSpace both
+# share id "action_space") plus every non-atomic per-space parent. They share the
+# coarse before_/after_action_space event (legality.trigger_event) and fire
+# after_action_space automatic effects at their work-complete boundary
+# (SPACE_HOST_REFACTOR.md §11). Multi-shot sub-action frames
 # (build_stables/_rooms/_fences) are deliberately NOT here — their Stop pops a
-# sub-action, not the space. Lives here (with the frames) so both legality and
-# engine import it.
+# sub-action, not the space. `major_minor_improvement` is deliberately NOT here
+# either — it is the composite-action host firing its OWN
+# major_minor_improvement event, not action_space (§6). `farmland` / `fencing`
+# are gone — those spaces are now PendingSubActionSpace ("action_space"). Lives
+# here (with the frames) so both legality and engine import it.
 ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
-    "action_space", "farm_expansion", "farmland", "side_job", "grain_utilization",
-    "sheep_market", "pig_market", "cattle_market", "major_minor_improvement",
-    "house_redevelopment", "cultivation", "farm_redevelopment", "fencing",
+    "action_space", "farm_expansion", "side_job", "grain_utilization",
+    "sheep_market", "pig_market", "cattle_market",
+    "house_redevelopment", "cultivation", "farm_redevelopment",
 })
 
 

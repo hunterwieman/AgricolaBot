@@ -580,12 +580,12 @@ class MCTSSearch:
         Three phases per macro:
 
           1. **Entry**: apply the trigger action; if the trigger pushed a
-             wrapper pending (PendingFencing for trigger 1) instead of
-             PendingBuildFences directly, auto-step through any singleton
-             decisions of the decider until PBF is on top.
-             - Trigger 1 (PlaceWorker(fencing)): trigger pushes PendingFencing;
-               ChooseSubAction("build_fences") is a singleton that lands us
-               in PBF.
+             wrapper pending (the generic PendingSubActionSpace space host for
+             trigger 1) instead of PendingBuildFences directly, auto-step through
+             any singleton decisions of the decider until PBF is on top.
+             - Trigger 1 (PlaceWorker(fencing)): trigger pushes the
+               PendingSubActionSpace("space:fencing") host; ChooseSubAction
+               ("build_fences") is a singleton that lands us in PBF.
              - Trigger 2 (ChooseSubAction("build_fences") at PendingFarmRedev):
                trigger pushes PBF directly; no entry singletons needed.
 
@@ -762,9 +762,9 @@ class MCTSSearch:
         """Auto-step through singletons after PBF pops.
 
         Used by trigger 1 (PlaceWorker) only — drains the outer
-        PendingFencing's mandatory Stop singleton so the macro's recorded
-        sequence ends with control fully handed off (rather than leaving
-        a singleton Stop for MCTS to burn sims on).
+        PendingSubActionSpace("space:fencing") host's auto-advanced after-phase
+        Stop singleton so the macro's recorded sequence ends with control fully
+        handed off (rather than leaving a singleton Stop for MCTS to burn sims on).
 
         Trigger 2 does NOT call this: after PBF pops we're back at
         PendingFarmRedev, where the agent's next decisions (renovate-vs-

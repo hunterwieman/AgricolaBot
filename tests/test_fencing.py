@@ -41,7 +41,7 @@ from agricola.legality import legal_actions
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBuildFences,
-    PendingFencing,
+    PendingSubActionSpace,
 )
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -111,7 +111,7 @@ def test_single_pasture_basic_walk():
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
         Stop(),                                    # pops PendingBuildFences
-        Stop(),                                    # pops PendingFencing
+        Stop(),                                    # pops PendingSubActionSpace
     ])
     assert state.pending_stack == ()
     fy = state.players[0].farmyard
@@ -326,10 +326,10 @@ def test_stop_legality_on_build_fences():
 
 
 def test_stop_legality_on_fencing_parent():
-    """Stop illegal on PendingFencing before build_fences_chosen; legal after."""
+    """Stop illegal on the fencing host before subaction_complete; legal after."""
     state = _fencing_setup(wood=4)
     state = step(state, PlaceWorker(space="fencing"))
-    # On PendingFencing with build_fences_chosen=False.
+    # On PendingSubActionSpace(space_id="fencing") with subaction_complete=False.
     legal = legal_actions(state)
     assert Stop() not in legal
     assert ChooseSubAction(name="build_fences") in legal
@@ -424,21 +424,22 @@ def test_stack_invariants():
     """Verify pendings, flags, and provenance throughout a walk."""
     state = _fencing_setup(wood=4)
 
-    # PlaceWorker pushes PendingFencing.
+    # PlaceWorker pushes PendingSubActionSpace(space_id="fencing").
     state = step(state, PlaceWorker(space="fencing"))
     assert len(state.pending_stack) == 1
     pf = state.pending_stack[-1]
-    assert isinstance(pf, PendingFencing)
+    assert isinstance(pf, PendingSubActionSpace)
+    assert pf.space_id == "fencing"
     assert pf.initiated_by_id == "space:fencing"
-    assert pf.build_fences_chosen is False
+    assert pf.subaction_complete is False
 
     # ChooseSubAction sets flag and pushes PendingBuildFences.
     state = step(state, ChooseSubAction(name="build_fences"))
     assert len(state.pending_stack) == 2
-    assert state.pending_stack[0].build_fences_chosen is True
+    assert state.pending_stack[0].subaction_complete is True
     pbf = state.pending_stack[-1]
     assert isinstance(pbf, PendingBuildFences)
-    assert pbf.initiated_by_id == "fencing"           # parent's PENDING_ID
+    assert pbf.initiated_by_id == "fencing"           # parent's space_id
     assert pbf.pastures_built == 0
     assert pbf.fences_built == 0
     assert pbf.subdivision_started is False
@@ -448,12 +449,12 @@ def test_stack_invariants():
     assert len(state.pending_stack) == 2
     assert state.pending_stack[-1].pastures_built == 1
 
-    # Stop on PendingBuildFences pops it.
+    # Stop on PendingBuildFences pops it; auto-advance flips host to after.
     state = step(state, Stop())
     assert len(state.pending_stack) == 1
-    assert isinstance(state.pending_stack[-1], PendingFencing)
+    assert isinstance(state.pending_stack[-1], PendingSubActionSpace)
 
-    # Stop on PendingFencing pops the parent.
+    # Stop on the fencing host pops the parent.
     state = step(state, Stop())
     assert state.pending_stack == ()
 

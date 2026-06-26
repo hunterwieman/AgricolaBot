@@ -77,6 +77,7 @@ def test_placeable_with_major_only():
 def test_both_options_offered_when_both_available():
     cs, _ = _card_state(minors=frozenset({"market_stall"}), res=Resources(clay=5, grain=1))
     cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     acts = legal_actions(cs)
     assert ChooseSubAction(name="build_major") in acts
     assert ChooseSubAction(name="play_minor") in acts
@@ -86,6 +87,7 @@ def test_play_minor_branch_is_mandatory_and_plays():
     cs, cp = _card_state(minors=frozenset({"market_stall"}), res=Resources(grain=1))
     opp = 1 - cp
     cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     assert ChooseSubAction(name="build_major") not in legal_actions(cs)  # can't afford one
 
     cs = step(cs, ChooseSubAction(name="play_minor"))
@@ -98,18 +100,24 @@ def test_play_minor_branch_is_mandatory_and_plays():
     # PendingPlayMinor's after-phase: only Stop to pop it.
     assert legal_actions(cs) == [Stop()]
     cs = step(cs, Stop())                                          # pop after-phase
-    # Back at the parent: minor done -> only Stop (no second action).
+    # Back at PendingMajorMinorImprovement's after-phase (Delegating auto-advance):
+    # minor done -> only Stop (no second action).
     assert legal_actions(cs) == [Stop()]
-    cs = step(cs, Stop())                                          # pop the parent
+    cs = step(cs, Stop())                                          # pop PendingMajorMinorImprovement
+    # Now at the PendingSubActionSpace host's after-phase: only Stop.
+    assert legal_actions(cs) == [Stop()]
+    cs = step(cs, Stop())                                          # pop the space host
     assert cs.pending_stack == ()
 
 
 def test_choosing_major_excludes_minor():
     cs, cp = _card_state(minors=frozenset({"market_stall"}), res=Resources(clay=5, grain=1))
     cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     cs = step(cs, ChooseSubAction(name="build_major"))
     cs = step(cs, CommitBuildMajor(major_idx=0))   # Fireplace (2 clay)
-    # Back at the parent: major done -> only Stop, no play_minor.
+    cs = step(cs, Stop())   # pop PendingBuildMajor's after-phase -> auto-advance MMI to after
+    # Back at PendingMajorMinorImprovement's after-phase: major done -> only Stop, no play_minor.
     assert legal_actions(cs) == [Stop()]
 
 
@@ -128,6 +136,7 @@ def test_family_major_improvement_never_offers_play_minor():
     s = fast_replace(s, players=tuple(p if i == cp else s.players[i] for i in range(2)))
     assert s.mode is GameMode.FAMILY
     s = step(s, PlaceWorker(space="major_improvement"))
+    s = step(s, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     acts = legal_actions(s)
     assert ChooseSubAction(name="play_minor") not in acts
     assert ChooseSubAction(name="build_major") in acts

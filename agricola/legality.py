@@ -66,7 +66,6 @@ from agricola.pending import (
     PendingFamilyGrowth,
     PendingFarmExpansion,
     PendingFarmRedevelopment,
-    PendingFencing,
     PendingGrainUtilization,
     PendingMeetingPlaceCards,
     PendingPlayMinor,
@@ -75,6 +74,7 @@ from agricola.pending import (
     PendingRenovate,
     PendingReveal,
     PendingSow,
+    PendingSubActionSpace,
 )
 from agricola.state import GameState, PlayerState, get_space
 
@@ -1282,16 +1282,47 @@ def _enumerate_pending_farm_expansion(
     return actions
 
 
-def _enumerate_pending_farmland(
+def _subactionspace_choice(state, pending) -> ChooseSubAction | None:
+    """The single mandatory ChooseSubAction the generic Delegating space host
+    offers in its before-phase, dispatched by `space_id` (SPACE_HOST_REFACTOR.md
+    §4.2/§8). Returns None if the sub-action isn't currently doable (only happens
+    for spaces whose placement legality doesn't guarantee it — none today, since
+    Farmland/Fencing/Major/Lessons all guarantee a doable mandatory at placement).
+    """
+    sid = pending.space_id
+    p = state.players[pending.player_idx]
+    if sid == "farmland":
+        return ChooseSubAction(name="plow") if _can_plow(p) else None
+    if sid == "fencing":
+        return ChooseSubAction(name="build_fences")
+    if sid == "major_improvement":
+        return (ChooseSubAction(name="improvement")
+                if _can_afford_any_major_improvement(state, p)
+                or (state.mode is GameMode.CARDS
+                    and bool(playable_minors(state, pending.player_idx)))
+                else None)
+    if sid == "lessons":
+        return ChooseSubAction(name="play_occupation")
+    raise AssertionError(f"Unknown sub-action space host {sid!r}")
+
+
+def _enumerate_pending_subactionspace(
     state: GameState, pending,
 ) -> list[Action]:
-    p = state.players[pending.player_idx]
-    actions: list[Action] = []
-    if not pending.plow_chosen and _can_plow(p):
-        actions.append(ChooseSubAction(name="plow"))
-    if pending.plow_chosen:                       # Stop-gate (the space's mandatory work done)
-        actions += _eligible_fire_triggers(state, pending, "after_action_space")
+    """Legal actions at a generic Delegating space host (PendingSubActionSpace;
+    SPACE_HOST_REFACTOR.md §4.2). before-phase: any before_action_space triggers +
+    the single mandatory ChooseSubAction (the child). after-phase (reached via the
+    auto-advance once the child popped): after_action_space triggers + Stop.
+
+    The transient `subaction_complete && phase=="before"` state is never
+    enumerated — the auto-advance flips it inside the same step (§5.1)."""
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    if pending.phase == "after":
         actions.append(Stop())
+        return actions
+    choice = _subactionspace_choice(state, pending)
+    if choice is not None:
+        actions.append(choice)
     return actions
 
 
@@ -1383,8 +1414,18 @@ def _enumerate_pending_animal_market(
 def _enumerate_pending_major_minor_improvement(
     state: GameState, pending,
 ) -> list[Action]:
+    """The composite "build a major OR play a minor" action — a Delegating host
+    (SPACE_HOST_REFACTOR.md §4.2/§6). after-phase (reached via the auto-advance
+    once the child popped): after_major_minor_improvement triggers + Stop.
+    before-phase: any before_major_minor_improvement triggers + the exclusive
+    build_major / play_minor choice. The transient subaction_complete state is
+    never enumerated (the auto-advance flips it inside the same step)."""
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    actions: list[Action] = []
     # "Build a major OR play a minor" — exclusive, so offer either only while
     # NEITHER has been chosen. (In the Family game minor_chosen is never set and
     # the play_minor branch is gated off by mode, so this is byte-identical.)
@@ -1394,8 +1435,6 @@ def _enumerate_pending_major_minor_improvement(
     if (neither and state.mode is GameMode.CARDS
             and playable_minors(state, pending.player_idx)):
         actions.append(ChooseSubAction(name="play_minor"))
-    if pending.major_chosen or pending.minor_chosen:
-        actions.append(Stop())
     return actions
 
 
@@ -1447,25 +1486,6 @@ def _enumerate_pending_house_redevelopment(
         actions.append(ChooseSubAction(name="improvement"))
     if pending.renovate_chosen:
         actions.append(Proceed())
-    return actions
-
-
-def _enumerate_pending_fencing(
-    state: GameState, pending: PendingFencing,
-) -> list[Action]:
-    """Enumerate legal actions at PendingFencing.
-
-    The space has a single sub-action category (build_fences). Before that
-    category has been entered, only ChooseSubAction("build_fences") is legal.
-    After entering and committing through PendingBuildFences (which has its
-    own Stop), control returns to PendingFencing where only Stop is legal.
-    """
-    actions: list[Action] = []
-    if not pending.build_fences_chosen:
-        actions.append(ChooseSubAction(name="build_fences"))
-    else:
-        actions.append(Stop())
-    # Future: eligible card triggers at `before_fencing` would be appended here.
     return actions
 
 
@@ -1749,7 +1769,6 @@ from agricola.pending import (
     PendingCattleMarket,
     PendingClayOven,
     PendingCultivation,
-    PendingFarmland,
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingHouseRedevelopment,
@@ -1862,7 +1881,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingBuildMajor:          _enumerate_pending_build_major,
     PendingRenovate:            _enumerate_pending_renovate,
     PendingFarmExpansion:       _enumerate_pending_farm_expansion,
-    PendingFarmland:            _enumerate_pending_farmland,
+    PendingSubActionSpace:      _enumerate_pending_subactionspace,
     PendingCultivation:         _enumerate_pending_cultivation,
     PendingSideJob:             _enumerate_pending_side_job,
     PendingSheepMarket:         _enumerate_pending_animal_market,
@@ -1872,7 +1891,6 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingClayOven:            _enumerate_pending_clay_oven,
     PendingStoneOven:           _enumerate_pending_stone_oven,
     PendingHouseRedevelopment:  _enumerate_pending_house_redevelopment,
-    PendingFencing:             _enumerate_pending_fencing,
     PendingBuildFences:         _enumerate_pending_build_fences,
     PendingFarmRedevelopment:   _enumerate_pending_farm_redevelopment,
     PendingHarvestFeed:         _enumerate_pending_harvest_feed,

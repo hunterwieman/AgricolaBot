@@ -50,9 +50,7 @@ from agricola.pending import (
     PendingClayOven,
     PendingCultivation,
     PendingFarmExpansion,
-    PendingFarmland,
     PendingFarmRedevelopment,
-    PendingFencing,
     PendingGrainUtilization,
     PendingHarvestFeed,
     PendingHouseRedevelopment,
@@ -61,6 +59,7 @@ from agricola.pending import (
     PendingSideJob,
     PendingSow,
     PendingStoneOven,
+    PendingSubActionSpace,
 )
 from agricola.scoring import score
 from agricola.state import GameState, PlayerState, get_space
@@ -356,13 +355,13 @@ def _frame_subaction_categories(frame) -> list[str]:
     contribute nothing (see §4.3 exclusions).
 
     **Singleton-skip and "dead-in-practice" branches.** Some parent
-    pendings host only one sub-action (`PendingFarmland` → plow only,
-    `PendingFencing` → build_fences only). For these, the
-    `ChooseSubAction` is a singleton and is resolved by the
+    pendings host only one sub-action (the generic `PendingSubActionSpace`
+    Delegating host → plow for Farmland / build_fences for Fencing). For
+    these, the `ChooseSubAction` is a singleton and is resolved by the
     `HeuristicAgent` / MCTS singleton-skip wrapper without ever invoking
     the agent — so by the time any agent decision involves these
-    parents, their `*_chosen` flag is already `True`. The
-    `else "plow"` / `else "build_fences"` branches here are therefore
+    parents, their `subaction_complete` flag is already `True`. The
+    `["plow"]` / `["build_fences"]` branches here are therefore
     UNREACHABLE in any singleton-skip-aware caller (training data,
     MCTS leaves, NNAgent inference). They're kept in the dispatch
     because the encoder is a structural `state -> vector` function
@@ -399,8 +398,6 @@ def _frame_subaction_categories(frame) -> list[str]:
         if not frame.stable_chosen:
             out.append("build_stables")
         return out
-    if isinstance(frame, PendingFarmland):
-        return [] if frame.plow_chosen else ["plow"]
     if isinstance(frame, PendingCultivation):
         out = []
         if not frame.plow_chosen:
@@ -422,11 +419,24 @@ def _frame_subaction_categories(frame) -> list[str]:
         # renovate excluded; optional second part is Build Fences.
         return [] if frame.build_fences_chosen else ["build_fences"]
     if isinstance(frame, PendingMajorMinorImprovement):
-        return [] if frame.major_chosen else ["build_major"]
+        # The composite host's category is the build-major option until a child
+        # has run (subaction_complete = major_chosen or minor_chosen).
+        return [] if frame.subaction_complete else ["build_major"]
     if isinstance(frame, (PendingClayOven, PendingStoneOven)):
         return [] if frame.bake_chosen else ["bake_bread"]
-    if isinstance(frame, PendingFencing):
-        return [] if frame.build_fences_chosen else ["build_fences"]
+    if isinstance(frame, PendingSubActionSpace):
+        # Generic Delegating space host (SPACE_HOST_REFACTOR.md §9): emit the same
+        # category the old per-space PendingFarmland / PendingFencing frames did,
+        # keyed off subaction_complete + space_id, so the value model's features
+        # are preserved. (major_improvement's own composite category is emitted by
+        # the nested PendingMajorMinorImprovement above; the space host itself adds
+        # nothing for it. Lessons -> play_occupation has no 7-vocab category.)
+        if frame.subaction_complete:
+            return []
+        return {
+            "farmland": ["plow"],
+            "fencing": ["build_fences"],
+        }.get(frame.space_id, [])
     # --- Sub-action pendings: own action (mid-resolving) ---
     if isinstance(frame, PendingSow):
         return ["sow"]

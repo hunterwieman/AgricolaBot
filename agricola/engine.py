@@ -488,8 +488,18 @@ def _advance_until_decision(state: GameState) -> GameState:
     it again produces the same state.
     """
     while True:
-        # Case 1: a pending frame is active. Decision is awaiting agent.
+        # Case 1: a pending frame is active. Decision is awaiting agent — UNLESS
+        # it is a Delegating space host whose single mandatory sub-action just
+        # completed (SPACE_HOST_REFACTOR.md §5): then auto-advance it to its
+        # after-phase (firing after_<event> autos) before returning. The flip
+        # makes phase=="after", so the guard is False next iteration — idempotent.
         if state.pending_stack:
+            top = state.pending_stack[-1]
+            if (getattr(type(top), "DELEGATING", False)
+                    and top.subaction_complete
+                    and top.phase == "before"):
+                state = _enter_after_phase(state)
+                continue
             return state
 
         # Case 2: PREPARATION phase, around the round-card reveal. Two-state,

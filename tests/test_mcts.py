@@ -45,7 +45,7 @@ from agricola.agents.mcts import (
 )
 from agricola.constants import Phase
 from agricola.engine import step
-from agricola.pending import PendingBuildFences, PendingFencing
+from agricola.pending import PendingBuildFences, PendingSubActionSpace
 from agricola.setup import setup, setup_env
 
 from tests.factories import (
@@ -389,21 +389,21 @@ def test_pbf_on_top_predicate():
 
     This is the chain-body termination predicate per MCTS_DESIGN §5.4 —
     the chain loop runs while this is True, and exits when it flips False.
-    Entry / exit phases handle wrapper pendings (PendingFencing for
+    Entry / exit phases handle wrapper pendings (PendingSubActionSpace for
     trigger 1) outside the body loop.
     """
     search = _small_search()
     # Empty stack → PBF not on top.
     state = _state_at_fencing_placeworker()
     assert not search._pbf_on_top(state)
-    # PendingFencing wrapper on top → PBF not on top (entry phase active).
+    # PendingSubActionSpace wrapper on top → PBF not on top (entry phase active).
     state_wrapper = with_pending_stack(state, [
-        PendingFencing(player_idx=0, initiated_by_id="space:fencing"),
+        PendingSubActionSpace(player_idx=0, initiated_by_id="space:fencing"),
     ])
     assert not search._pbf_on_top(state_wrapper)
     # PBF on top → True.
     state_pbf = with_pending_stack(state, [
-        PendingFencing(player_idx=0, initiated_by_id="space:fencing"),
+        PendingSubActionSpace(player_idx=0, initiated_by_id="space:fencing"),
         PendingBuildFences(
             player_idx=0, initiated_by_id="fencing",
             pastures_built=0, fences_built=0, subdivision_started=False,
@@ -414,10 +414,10 @@ def test_pbf_on_top_predicate():
 
 def test_enter_pbf_advances_singletons():
     """The entry phase auto-steps through the singleton
-    ChooseSubAction('build_fences') at PendingFencing until PBF is on top."""
+    ChooseSubAction('build_fences') at the fencing host until PBF is on top."""
     search = _small_search()
     state = _state_at_fencing_placeworker()
-    # Land in PendingFencing (post-trigger state).
+    # Land in PendingSubActionSpace (post-trigger state).
     state_in_wrapper = step(state, PlaceWorker(space="fencing"))
     seq: list = []
     final_state, final_seq, ok = search._enter_pbf(state_in_wrapper, seq, decider=0)
@@ -428,18 +428,21 @@ def test_enter_pbf_advances_singletons():
 
 
 def test_drain_wrapper_consumes_singleton_stop():
-    """The exit phase auto-steps through the outer PendingFencing's Stop
+    """The exit phase auto-steps through the outer fencing host's Stop
     singleton after PBF pops, so the macro's recorded sequence ends with
     control fully handed off."""
     search = _small_search()
     state = _state_at_fencing_placeworker()
-    # Construct a post-PBF state: wrapper has build_fences_chosen=True
+    # Construct a post-PBF state: the wrapper has subaction_complete=True
     # (set by ChooseSubAction at choose time per ENGINE_IMPLEMENTATION.md §5,
-    # Choose-time flag-setting), no PBF on top.
+    # Choose-time flag-setting) and the Delegating auto-advance has already
+    # flipped it to its after-phase (this is the state _drain_wrapper sees,
+    # since the auto-advance fires inside step before the drain runs). No PBF
+    # on top; the after-phase's sole action is the Stop singleton.
     state_after_pbf_pop = with_pending_stack(state, [
-        PendingFencing(
+        PendingSubActionSpace(
             player_idx=0, initiated_by_id="space:fencing",
-            build_fences_chosen=True,
+            subaction_complete=True, phase="after",
         ),
     ])
     seq: list = []

@@ -52,10 +52,12 @@ def test_build_fireplace_idx0():
     state = _mi_setup(resources={"clay": 2})
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
         Stop(),   # pop PendingBuildMajor's after-phase
-        Stop(),   # pop PendingMajorMinorImprovement
+        Stop(),   # pop PendingMajorMinorImprovement's after-phase
+        Stop(),   # pop PendingSubActionSpace
     ])
     assert state.pending_stack == ()
     assert state.board.major_improvement_owners[0] == 0
@@ -67,9 +69,12 @@ def test_build_cooking_hearth_pay_clay():
     state = _mi_setup(resources={"clay": 4})
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=2, return_fireplace_idx=None),
-        Stop(),
+        Stop(),   # pop PendingBuildMajor's after-phase
+        Stop(),   # pop PendingMajorMinorImprovement's after-phase
+        Stop(),   # pop PendingSubActionSpace
     ])
     assert state.board.major_improvement_owners[2] == 0
     assert state.players[0].resources.clay == 0
@@ -80,9 +85,12 @@ def test_build_cooking_hearth_return_fireplace():
     state = _mi_setup(owner_by_idx={0: 0})  # Player owns Fireplace at idx 0
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=2, return_fireplace_idx=0),
-        Stop(),
+        Stop(),   # pop PendingBuildMajor's after-phase
+        Stop(),   # pop PendingMajorMinorImprovement's after-phase
+        Stop(),   # pop PendingSubActionSpace
     ])
     # Cooking Hearth owned by player 0; Fireplace at idx 0 reverted to unowned.
     assert state.board.major_improvement_owners[2] == 0
@@ -94,6 +102,7 @@ def test_cooking_hearth_both_payment_modes_offered():
     state = _mi_setup(resources={"clay": 4}, owner_by_idx={0: 0, 1: 0})
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
     ])
     legal = legal_actions(state)
@@ -128,6 +137,7 @@ def test_cooking_hearth_standard_payment_gated_on_clay_not_on_fireplace():
     state = _mi_setup(resources={"clay": 0}, owner_by_idx={0: 0})  # Fireplace, 0 clay
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
     ])
     legal = legal_actions(state)
@@ -149,6 +159,7 @@ def test_clay_oven_standard_payment_gated_on_full_cost():
     state = _mi_setup(resources={"clay": 0, "stone": 1}, owner_by_idx={0: 0})
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
     ])
     legal = legal_actions(state)
@@ -165,9 +176,12 @@ def test_build_well_writes_future_resources():
     pre_round = state.round_number
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=4, return_fireplace_idx=None),
-        Stop(),
+        Stop(),   # pop PendingBuildMajor's after-phase
+        Stop(),   # pop PendingMajorMinorImprovement's after-phase
+        Stop(),   # pop PendingSubActionSpace
     ])
     fr = state.players[0].future_resources
     # Indices [round_number .. min(round_number+5, 14)) have +1 food.
@@ -181,6 +195,7 @@ def test_clay_oven_purchase_plus_free_bake():
     pre_food = state.players[0].resources.food
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
     ])
@@ -195,8 +210,9 @@ def test_clay_oven_purchase_plus_free_bake():
         CommitBake(grain=1),
         Stop(),  # pop PendingBakeBread's after-phase
         Stop(),  # pop PendingClayOven
-        Stop(),  # pop PendingBuildMajor
-        Stop(),  # pop PendingMajorMinorImprovement
+        Stop(),  # pop PendingBuildMajor's after-phase
+        Stop(),  # pop PendingMajorMinorImprovement's after-phase
+        Stop(),  # pop PendingSubActionSpace
     ])
     assert state.pending_stack == ()
     assert state.players[0].resources.food == pre_food + 5  # Clay Oven: 5 food/grain
@@ -210,11 +226,13 @@ def test_clay_oven_purchase_skip_bake():
     pre_food = state.players[0].resources.food
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
         Stop(),  # decline bake (pop PendingClayOven)
-        Stop(),  # pop PendingBuildMajor
-        Stop(),  # pop PendingMajorMinorImprovement
+        Stop(),  # pop PendingBuildMajor's after-phase
+        Stop(),  # pop PendingMajorMinorImprovement's after-phase
+        Stop(),  # pop PendingSubActionSpace
     ])
     assert state.pending_stack == ()
     assert state.players[0].resources.food == pre_food  # no bake, no food
@@ -227,6 +245,7 @@ def test_stone_oven_purchase_plus_free_bake_2_grain():
     pre_food = state.players[0].resources.food
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=6, return_fireplace_idx=None),
     ])
@@ -234,7 +253,9 @@ def test_stone_oven_purchase_plus_free_bake_2_grain():
     state = run_actions(state, [
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=2),
-        Stop(), Stop(), Stop(),
+        # bake after-phase, StoneOven, BuildMajor after-phase,
+        # MajorMinorImprovement after-phase, SubActionSpace.
+        Stop(), Stop(), Stop(), Stop(), Stop(),
     ])
     assert state.players[0].resources.food == pre_food + 8
     assert state.players[0].resources.grain == 0
@@ -249,12 +270,15 @@ def test_clay_oven_with_potter_ceramics_0_grain():
     pre_food = state.players[0].resources.food
     state = run_actions(state, [
         PlaceWorker(space="major_improvement"),
+        ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
         CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
         ChooseSubAction(name="bake_bread"),
         FireTrigger(card_id="potter_ceramics"),  # swaps 1 clay -> 1 grain
         CommitBake(grain=1),
-        Stop(), Stop(), Stop(),
+        # bake after-phase, ClayOven, BuildMajor after-phase,
+        # MajorMinorImprovement after-phase, SubActionSpace.
+        Stop(), Stop(), Stop(), Stop(), Stop(),
     ])
     # Clay: started 4, paid 3 for purchase, swapped 1 via Potter -> 0.
     # Grain: gained 1 via Potter, baked 1 -> 0.

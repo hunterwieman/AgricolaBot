@@ -108,8 +108,9 @@ def test_corpus_is_non_vacuous():
     assert "PendingHarvestBreed" in top_types
     # Market frames.
     assert top_types & {"PendingSheepMarket", "PendingPigMarket", "PendingCattleMarket"}
-    # Fencing frames.
-    assert top_types & {"PendingFencing", "PendingBuildFences"}
+    # Fencing frames (the Fencing space host is now the generic
+    # PendingSubActionSpace; the build-fences primitive is PendingBuildFences).
+    assert top_types & {"PendingSubActionSpace", "PendingBuildFences"}
     # Reveal (nature) frames.
     assert any(s.pending_stack and decider_of(s) is None for s in _CORPUS)
     # Terminal states.

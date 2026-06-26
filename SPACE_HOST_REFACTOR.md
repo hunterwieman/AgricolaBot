@@ -1,9 +1,12 @@
 # SPACE_HOST_REFACTOR.md
 
-**Status: IN PROGRESS — B1 landed.** Step **B1** (Proceed-hosts + the firing migration + the §9
-NN `Proceed`-as-`Stop` alias + the §11.1 card consequences) is implemented and all gates (the full
-Python suite + the C++ differential harness) are green; **B2 (Delegating) and B3 (Meeting Place)
-are next.** It is the successor to
+**Status: IN PROGRESS — B1 + B2 landed.** Step **B1** (Proceed-hosts + the firing migration + the
+§9 NN `Proceed`-as-`Stop` alias + the §11.1 card consequences) and step **B2** (the Delegating hosts
+— `PendingSubActionSpace` folding Farmland + Fencing + the always-wrapped Major Improvement space +
+Lessons; `PendingMajorMinorImprovement` as the composite-action Delegating host out of the
+action-space bucket; the `_advance_until_decision` auto-advance) are implemented and all gates (the
+full Python suite + the C++ differential harness) are green; **B3 (Meeting Place) is next.** It is
+the successor to
 `SUBACTION_HOOK_REFACTOR.md`, which is **already landed** (its sub-action frames already carry
 `phase` + `triggers_resolved` in the live code — that doc's own status header is stale). Read it
 first. That refactor (the *sub-action* pass) made every commit-terminated **sub-action** frame —
@@ -501,7 +504,7 @@ all gates (`pytest tests/` and `pytest tests/test_cpp_*.py`) before the next.
     **defer Firewood Collector**, and update the trigger-card tests whose surfacing point moves.
   - C++ sync: the five Proceed-host frames + the `apply_proceed`/`apply_stop`/`execute_accommodate`
     firing moves. (`PendingBasicWishForChildren` rides along, card-only.)
-- **B2 — Delegating.**
+- **B2 — Delegating. (LANDED.)**
   - Introduce `PendingSubActionSpace` (folding in Farmland and Fencing, child dispatched by
     `space_id`; remove the two old classes); give `PendingMajorMinorImprovement` its Delegating
     lifecycle and remove it from `ACTION_SPACE_PENDING_IDS`; build the Major Improvement
