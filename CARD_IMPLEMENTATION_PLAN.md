@@ -1331,12 +1331,14 @@ hook categories — not after.
      and a `space_id` property; their per-frame `TRIGGER_EVENT` ClassVars were dropped; event routing
      goes through `trigger_event`'s `PENDING_ID` bucket; `PendingFarmland`/`PendingFencing` were folded
      into the new `PendingSubActionSpace` (Delegating); the Proceed-host frames (`PendingGrainUtilization`,
-     `PendingCultivation`, `PendingFarmExpansion`, `PendingHouseRedevelopment`, `PendingFarmRedevelopment`,
-     `PendingBasicWishForChildren`) gained `phase` and explicit `Proceed` boundaries; Meeting Place was
-     renamed `PendingMeetingPlace` as a single-optional Proceed-host; after-auto firing migrated out of
-     `_apply_stop` (now pure-pop) to each host's work-complete boundary; 9 Family-reachable frames
-     C++-synced; full suite + all C++ differential gates green. Unlocks **Category 4** (granted
-     sub-actions), **5** (build/renovate hooks), **9** (Milk Jug, already landed).
+     `PendingCultivation`, `PendingFarmExpansion`, `PendingHouseRedevelopment`, `PendingFarmRedevelopment`)
+     gained `phase` and explicit `Proceed` boundaries; Meeting Place was renamed `PendingMeetingPlace` as
+     a single-optional Proceed-host; after-auto firing migrated out of `_apply_stop` (now pure-pop) to
+     each host's work-complete boundary; 9 Family-reachable frames C++-synced; full suite + all C++
+     differential gates green. Unlocks **Category 4** (granted sub-actions), **5** (build/renovate
+     hooks), **9** (Milk Jug, already landed). `PendingBasicWishForChildren` was converted to a
+     Proceed-host (and-then) as a follow-up commit after 4b (card-only, no C++ mirror required;
+     `basic_wish_for_children` added to `ACTION_SPACE_PENDING_IDS`; card-hook test added).
    - **Category 10** (Mushroom Collector, Basket) rides 4a's atomic-host trigger path — but both cards
      say *"place the [exchanged] wood on the accumulation space"*, which the Category-10 sketch code in
      Part III omits; implement the wood-return faithfully (the spent wood goes back onto the space, not

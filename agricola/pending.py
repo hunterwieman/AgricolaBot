@@ -567,18 +567,24 @@ class PendingBasicWishForChildren:
     PendingHouseRedevelopment: a mandatory primary sub-action (family growth) then
     an optional follow-up (play 1 minor).
 
-    Lifecycle: pushed at placement (card mode only). While `family_growth_done` is
-    False the enumerator offers only ChooseSubAction("family_growth") — a mandatory
-    singleton that pushes PendingFamilyGrowth; once growth has run, it offers
-    ChooseSubAction("play_minor") (if a minor is playable) plus Stop. The OR-style
-    once-only restriction lives in the enumerator. The Family game keeps the atomic
-    resolver and never pushes this frame. See CARD_IMPLEMENTATION_PLAN.md.
+    A Proceed-host action-space frame (and-then; SPACE_HOST_REFACTOR.md §4.3):
+    family growth is the mandatory first sub-action (no Proceed until it has run),
+    then the optional minor, then Proceed. Proceed flips `phase` to "after" (firing
+    after_action_space autos), the after-phase hosts after-triggers + Stop. Event
+    derives via the action_space bucket (legality.trigger_event) — no per-frame
+    TRIGGER_EVENT. `basic_wish_for_children` is in ACTION_SPACE_PENDING_IDS.
+
+    The Family game keeps the atomic resolver and never pushes this frame.
+    Card-only: never reaches the C++ (Family) engine.
+    See CARD_IMPLEMENTATION_PLAN.md.
     """
     PENDING_ID: ClassVar[str] = "basic_wish_for_children"
     player_idx: int
     initiated_by_id: str
     family_growth_done: bool = False
     minor_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -791,7 +797,8 @@ ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
     "action_space", "farm_expansion", "side_job", "grain_utilization",
     "sheep_market", "pig_market", "cattle_market",
     "house_redevelopment", "cultivation", "farm_redevelopment",
-    "meeting_place",   # card-only single-optional Proceed-host (§7)
+    "meeting_place",           # card-only single-optional Proceed-host (§7)
+    "basic_wish_for_children", # card-only and-then Proceed-host (follow-up to B1-B3)
 })
 
 

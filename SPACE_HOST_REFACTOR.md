@@ -377,10 +377,10 @@ host; the specific child is dispatched by `space_id` (from `initiated_by_id`):
 `PendingSubActionSpace` (child dispatched by `space_id`). `PendingMeetingPlaceCards` is renamed
 `PendingMeetingPlace`.
 
-**Frames that gained `triggers_resolved` in this refactor:** `PendingGrainUtilization`,
+**Frames that gained `triggers_resolved` in this refactor (B1–B3):** `PendingGrainUtilization`,
 `PendingFarmExpansion`, `PendingMeetingPlace` (née `PendingMeetingPlaceCards`). The others
-named below already had it. `PendingBasicWishForChildren` was not converted to a Proceed-host
-— it remains Stop-terminated with no `phase` or `triggers_resolved` (see its row below).
+named below already had it. `PendingBasicWishForChildren` gained `phase` and `triggers_resolved`
+as a follow-up conversion after B3 (see §14).
 
 | Frame | Mechanism | Event | Key fields beyond player_idx/initiated_by_id | Family-reachable → C++ |
 |---|---|---|---|---|
@@ -392,12 +392,12 @@ named below already had it. `PendingBasicWishForChildren` was not converted to a
 | `PendingFarmExpansion` | Proceed-host (and/or) | action_space | `phase`*, `room_chosen`, `stable_chosen`, `triggers_resolved`* | yes |
 | `PendingHouseRedevelopment` | Proceed-host (and-then) | action_space | `phase`*, `renovate_chosen`, `improvement_chosen`, `triggers_resolved` | yes |
 | `PendingFarmRedevelopment` | Proceed-host (and-then) | action_space | `phase`*, `renovate_chosen`, `build_fences_chosen`, `triggers_resolved` | yes |
-| `PendingBasicWishForChildren` | Stop-terminated (deferred) | — | `family_growth_done`, `minor_chosen` | card-only |
+| `PendingBasicWishForChildren` | Proceed-host (and-then) | action_space | `phase`†, `family_growth_done`, `minor_chosen`, `triggers_resolved`† | card-only |
 | `PendingMeetingPlace` *(rename)* | Proceed-host (single-optional) | action_space | `phase`*, `minor_chosen`, `triggers_resolved`* | card-only |
 | markets ×3 | Commit-terminated | action_space | `phase`, `gained`, `triggers_resolved` | yes *(only firing-site move)* |
 | `PendingSideJob` | **unchanged** (Stop-terminated; §13) | — | `stable_chosen`, `bake_chosen`, `triggers_resolved` | n/a |
 
-`*` = field added by this refactor. `PendingSubActionSpace` shares `PENDING_ID = "action_space"`
+`*` = field added in B1–B3. `†` = field added in the follow-up Basic Wish conversion (post-B3). `PendingSubActionSpace` shares `PENDING_ID = "action_space"`
 with `PendingActionSpace` (both fire `action_space`; both are in `ACTION_SPACE_PENDING_IDS`). Safe
 because `PENDING_ID` is used only for event derivation and bucket membership, never as a unique
 dispatch key — the enumerator table and the canonical `__type__` are keyed on the class, which is
@@ -514,8 +514,7 @@ all gates (`pytest tests/` and `pytest tests/test_cpp_*.py`) before the next.
     **defer Firewood Collector**, and update the trigger-card tests whose surfacing point moves.
   - C++ sync: the five Proceed-host frames + the `apply_proceed`/`apply_stop`/`execute_accommodate`
     firing moves. (`PendingBasicWishForChildren` was NOT converted to a Proceed-host in this step
-    or any subsequent step — it remains Stop-terminated without `phase`/`triggers_resolved`. Its
-    conversion is deferred to when a card actually hooks the Basic Wish space.)
+    — its conversion was deferred to a follow-up commit after B3.)
 - **B2 — Delegating. (LANDED.)**
   - Introduce `PendingSubActionSpace` (folding in Farmland and Fencing, child dispatched by
     `space_id`; remove the two old classes); give `PendingMajorMinorImprovement` its Delegating
@@ -528,6 +527,13 @@ all gates (`pytest tests/` and `pytest tests/test_cpp_*.py`) before the next.
   - The largest step; ~4 Family-reachable C++ frames plus the C++ auto-advance.
 - **B3 — Meeting Place. (LANDED.)** Rename to `PendingMeetingPlace`, make it the single-optional
   Proceed-host. Card-only, no C++.
+- **Basic Wish for Children follow-up. (LANDED.)** Convert `PendingBasicWishForChildren` to a
+  Proceed-host (and-then), closing the gap where `before_/after_action_space` hooks silently did
+  not fire on the Basic Wish space. Add `phase` + `triggers_resolved`; add `basic_wish_for_children`
+  to `ACTION_SPACE_PENDING_IDS`; rewrite the enumerator to match `_enumerate_pending_house_redevelopment`
+  (mandatory `family_growth`, optional `play_minor`, then `Proceed`); fire `before_action_space`
+  autos at push in `_resolve_basic_wish_for_children`. Card-only, no C++ mirror required. Added a
+  card-hook test (`test_card_hook_fires_on_basic_wish_space` in `tests/test_cards_basic_wish.py`).
 
 ---
 

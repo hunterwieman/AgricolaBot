@@ -1804,15 +1804,32 @@ def _enumerate_pending_play_occupation(
 def _enumerate_pending_basic_wish_for_children(
     state: GameState, pending: PendingBasicWishForChildren,
 ) -> list[Action]:
-    """Card game (mirrors House Redevelopment): family growth is the mandatory
-    first sub-action; once done, optionally play a minor, then Stop."""
+    """Card game — a Proceed-host (and-then; SPACE_HOST_REFACTOR.md §4.3).
+
+    Family growth is the mandatory first sub-action (no Proceed until it has run),
+    then the optional minor, then Proceed. Mirrors
+    `_enumerate_pending_house_redevelopment` with `family_growth` as the mandatory
+    step and `play_minor` as the optional second.
+
+    After-phase: after_action_space triggers + Stop.
+    Before-phase: any before_action_space triggers, then ChooseSubAction(
+    "family_growth") while not yet done, then ChooseSubAction("play_minor") (if a
+    minor is playable and not yet chosen) + Proceed once family_growth_done.
+    """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     if not pending.family_growth_done:
-        # Mandatory first — a singleton the agent auto-applies.
-        return [ChooseSubAction(name="family_growth")]
-    actions: list[Action] = []
+        # Mandatory first sub-action — a singleton the agent auto-applies.
+        actions.append(ChooseSubAction(name="family_growth"))
+        return actions
+    # Post-growth: optional minor.
     if not pending.minor_chosen and playable_minors(state, pending.player_idx):
         actions.append(ChooseSubAction(name="play_minor"))
-    actions.append(Stop())
+    # Proceed is the work-complete boundary (replaces the old Stop here).
+    actions.append(Proceed())
     return actions
 
 

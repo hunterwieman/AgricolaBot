@@ -262,14 +262,18 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
 def _resolve_basic_wish_for_children(state: GameState) -> GameState:
     from agricola.constants import GameMode
     if state.mode is GameMode.CARDS:
-        # Non-atomic (mirrors House Redevelopment): a parent frame sequences the
-        # mandatory family growth then an optional minor. Growth and minor run as
-        # sub-actions of that frame, not here. (Urgent Wish stays atomic.)
+        # Non-atomic Proceed-host (and-then; SPACE_HOST_REFACTOR.md §4.3): push the
+        # parent frame and fire before_action_space autos, exactly like Meeting Place
+        # (`_initiate_meeting_place_cards`). Growth and minor run as sub-actions of
+        # that frame, not here. Urgent Wish stays atomic.
         from agricola.pending import PendingBasicWishForChildren
-        return push(state, PendingBasicWishForChildren(
-            player_idx=state.current_player,
+        from agricola.cards.triggers import apply_auto_effects
+        ap = state.current_player
+        state = push(state, PendingBasicWishForChildren(
+            player_idx=ap,
             initiated_by_id="space:basic_wish_for_children",
         ))
+        return apply_auto_effects(state, "before_action_space", ap)
     # Family game: atomic family growth (unchanged).
     return _resolve_wish_for_children(state, "basic_wish_for_children")
 
