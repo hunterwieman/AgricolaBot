@@ -74,15 +74,20 @@ bookkeeping) is deliberately left open for a later session.**
 > Bread Paddle on `after_play_occupation`) and the after-auto build hooks. Lifecycle coverage:
 > `tests/test_subaction_hook_lifecycle.py`.
 >
-> **Still OPEN — the and/or-space *parent* Proceed pass.** The Stop-terminated multi-sub *parents*
-> (Grain Utilization, Cultivation, Farm Expansion, House/Farm Redevelopment) still surface their
-> `after_action_space` triggers at the Stop-gate and fire after-auto at `Stop` (the 4b model). The agreed
-> next refactor gives those parents a `phase` + an explicit **`Proceed`** boundary (the "done with the
-> base sub-actions" signal, gated on the existing `*_chosen` flags), so after-auto fires at the
-> after-window-open (Proceed) rather than at `Stop` and the base sub-actions/after-triggers stop
-> interleaving — needed by parent-hooking after cards (Sugar Baker, Full Peasant) and the end-of-turn
-> cards (Firewood Collector, Royal Wood, which need a separate end-of-turn event). Adds `phase` to those
-> 5 Family-reachable parent frames (a second C++ sync).
+> **Space-host refactor DONE** (`SPACE_HOST_REFACTOR.md`; mechanism only, no new card modules). The
+> action-space *parent* frames are now uniform before/after hosts, in four mechanisms: **Atomic**
+> (`PendingActionSpace`), **Commit-terminated** (the markets), **Delegating** (the new
+> `PendingSubActionSpace` — folding Farmland/Fencing, always-wrapping the Major Improvement space,
+> + Lessons — and `PendingMajorMinorImprovement` as the composite major/minor action, both
+> auto-advancing when their one child pops), and **Proceed-host** (the and/or + and-then spaces +
+> Meeting Place, which flip on an explicit `Proceed`). After-auto firing migrated out of `_apply_stop`
+> (now pure-pop) to each host's work-complete boundary, so it lands after the work and before the
+> after-triggers. The NN was preserved with **no retrain** by aliasing `Proceed` to `Stop` in the
+> policy label fn + the encoder's `stop_is_legal` feature (+ C++ mirror). Milk Jug moved to
+> `before_action_space`; Firewood Collector deferred (needs an end-of-turn event). The 9 Family-reachable
+> frames are C++-synced; full suite + all C++ differential gates green. This unblocks the parent-hooking
+> after cards (Sugar Baker, Full Peasant, Merchant, Plumber, …). Side Job stays Stop-terminated (Family-only,
+> never card-hooked). Royal Wood / Firewood Collector still await a future end-of-turn event.
 > - **Step 5** — `FutureReward` (generalize `future_resources`; C++ sync) → Cat 8.
 > - **Step 6** — phase hooks (`PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` + the
 >   mandatory-with-choice gate) → Cat 7, 6.
