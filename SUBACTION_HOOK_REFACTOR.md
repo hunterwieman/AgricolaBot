@@ -168,23 +168,21 @@ def _enumerate_pending_<x>(state, pending):
   both auto-skipped-as-singleton where they're singletons (so the common path is
   "agent picks the commit, then the Stop is auto-applied").
 
-**(c) `_apply_stop` (engine.py) — fire after-auto for sub-action frames too.**
-Today it fires `after_action_space` when `PENDING_ID in ACTION_SPACE_PENDING_IDS`.
-Extend it to also fire `after_<PENDING_ID>` when the popped frame is an in-scope
-sub-action host (i.e. it carries `phase` and is in its after-phase). Suggested:
+**(c) `_apply_stop` (engine.py) — what landed: pure pop, no after-auto firing.**
+The original spec proposed extending `_apply_stop` to fire `after_<PENDING_ID>` for
+in-scope sub-action frames. That approach was **dissolved** during implementation:
+every `_execute_*` function already calls `_enter_after_phase` at the commit-flip,
+which flips `phase` to `"after"` **and fires the after-automatic effects right
+there** (e.g. `after_renovate`, `after_bake_bread`). By the time `Stop` arrives, the
+after-autos have already fired, so `_apply_stop` is a **pure pop** — it fires
+nothing. Handling Dutch Windmill / Roughcaster / Junk Room / Wall Builder falls
+entirely to the `_enter_after_phase` call inside the appropriate `_execute_*`.
 
-```python
-top = state.pending_stack[-1]
-pid = type(top).PENDING_ID
-if pid in ACTION_SPACE_PENDING_IDS:
-    state = apply_auto_effects(state, "after_action_space", top.player_idx)
-elif getattr(top, "phase", None) == "after":   # a refactored sub-action at its Stop
-    state = apply_auto_effects(state, f"after_{pid}", top.player_idx)
-return pop(state)
-```
-
-(This is the single, uniform after-auto point, matching how the action spaces fire
-it. Handles Dutch Windmill / Roughcaster / Junk Room / Wall Builder.)
+The `_apply_stop` → pure pop design was later reinforced by the space-host refactor
+(`SPACE_HOST_REFACTOR.md §11`): both sub-action and action-space hosts fire their
+after-autos at the work-complete boundary (the commit for sub-actions; `Proceed` or
+the equivalent for space hosts), never at `Stop`. `Stop` is the explicit pop with no
+side effects.
 
 **(d) before-auto firing — DEFER (do not wire).** The before-*phase* exists and is
 load-bearing (it hosts the commit options and any before-*triggers* surfaced by the
@@ -331,40 +329,41 @@ auto-skip, but `step()`-scripted code does not). Find and fix the fallout by:
 
 ---
 
-## 9. Subtleties & open questions for the implementing session
+## 9. Resolved implementation decisions
 
-1. **Effect-flips-self vs dispatcher-flips.** §4(a) — choose one style and apply it
-   uniformly. The effect-flips-self style matches `_execute_accommodate`; a
-   dispatcher `flip_after` flag is less per-function code but must special-case the
-   push-cases (`build_major` oven, the granted-sub-action pushers). Decide and
-   document.
+1. **Effect-flips-self (resolved).** §4(a) — the **effect-flips-self** style was
+   chosen and applied uniformly. Every `_execute_*` function calls `_enter_after_phase`
+   at the end, which flips the top frame's `phase` to `"after"` and fires its
+   after-automatic effects. This matches the `_execute_accommodate` reference style.
+   The `build_major` special case (oven push) is handled by calling `_enter_after_phase`
+   *before* the oven push, so the frame is already in its after-phase when the oven
+   wrapper later pops back. No dispatcher `flip_after` flag was used.
 
-2. **`PendingBuildMajor` oven ordering** (§5) — the flip-then-push sequence; verify
-   the free bake returns to an "after" host and that no second `CommitBuildMajor` is
-   offered.
+2. **`PendingBuildMajor` oven ordering (resolved, §5).** `_execute_build_major` calls
+   `_enter_after_phase` first (flipping `PendingBuildMajor` to `"after"` and firing
+   `after_build_major` autos), then conditionally pushes the `PendingClayOven` /
+   `PendingStoneOven` wrapper. When the wrapper pops, the host is already in its
+   after-phase, offering `after_build_major` triggers + `Stop`. `phase=="after"`
+   gates the enumerator so no second `CommitBuildMajor` is offered.
 
-3. **`_apply_stop` event derivation** (§4c) — confirm the `getattr(top,"phase")
-   == "after"` discriminator is correct for *all* in-scope frames and never
-   misfires for a non-host frame that happens to gain a `phase` later. Consider a
-   small explicit predicate/helper instead of `getattr`.
+3. **`_apply_stop` discriminator (dissolved).** The original §4(c) plan for a
+   `getattr(top, "phase") == "after"` discriminator in `_apply_stop` was **not
+   implemented**. After-automatic effects fire at the commit (inside `_enter_after_phase`),
+   so `_apply_stop` needs no discriminator — it is a pure pop for all frames.
+   See the corrected §4(c) above.
 
-4. **Multi-shot frames left alone** (§2) — make sure none of them are accidentally
-   swept in. They keep their build-loop + `Stop`; their after-trigger surfacing (if
-   ever needed) is the *derived* `after_started`, a separate change.
+4. **Multi-shot frames left alone (confirmed, §2).** `PendingBuildStables`,
+   `PendingBuildRooms`, and `PendingBuildFences` were not swept in. They keep their
+   build-loop + `Stop` termination, with no `phase` field.
 
-5. **Play-card frames** (`PendingPlayOccupation` / `PlayMinor` /
-   `PendingFamilyGrowth`) — these are reached from card-mode entry points (Lessons,
-   the improvement spaces, Basic Wish, Meeting Place) and from card *grants*. Verify
-   the after-phase `Stop` composes correctly when these are pushed *on top of* a
-   parent space-host frame (e.g. a minor played at Major/Minor Improvement): the
-   sub-action's `Stop` pops back to the parent, which then runs its own
-   before/after/`Stop` — two nested host lifecycles. Add a test.
+5. **Play-card frames compose correctly.** `PendingPlayOccupation`, `PendingPlayMinor`,
+   and `PendingFamilyGrowth` are commit-terminated hosts in the same uniform shape.
+   When pushed on top of a parent space-host frame, the sub-action's `Stop` pops back
+   to the parent (now in its own before-phase if still working, or after-phase if done),
+   giving two nested host lifecycles with no interference.
 
-6. **`before_<id>` auto/trigger surfacing on sub-actions** is now uniformly
-   available; only Potter (`before_bake_bread`) uses it today. Don't build
-   speculative before-paths beyond wiring the uniform shape.
+6. **`before_<id>` surfacing on sub-actions.** Only Potter (`before_bake_bread`) uses
+   it today. No speculative before-paths were added.
 
-7. **Sequencing.** Land this as its own focused pass (mechanism + green gates) with
-   **no new cards**, then add the Category-5/8 card modules in follow-on commits.
-   The differential gates are the safety net for the C++ mirror; commit the Python
-   side and the C++ sync together (a red-gate interval is expected mid-work).
+7. **Sequencing respected.** This refactor landed as its own focused pass with no new
+   cards. Category-5/8 card modules come in follow-on commits.
