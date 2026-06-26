@@ -14,6 +14,7 @@ from agricola.actions import (
     CommitSow,
     FireTrigger,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import CellType
@@ -77,8 +78,9 @@ def test_grain_util_sow_only_walk():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="sow"),
         CommitSow(grain=1, veg=0),
-        Stop(),   # pop PendingSow's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingSow's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
 
     # Resources: 0 grain (sown), no food gained (didn't bake).
@@ -101,8 +103,9 @@ def test_grain_util_bake_only_walk():
         PlaceWorker(space="grain_utilization"),
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),   # pop PendingBakeBread's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingBakeBread's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
 
     # -1 grain, +2 food (Fireplace rate).
@@ -124,8 +127,9 @@ def test_grain_util_both_sub_actions_walk():
         Stop(),   # pop PendingSow's after-phase
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),   # pop PendingBakeBread's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingBakeBread's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
 
     # 3 - 2 (sown) - 1 (baked) = 0 grain remaining.
@@ -149,8 +153,9 @@ def test_grain_util_both_sub_actions_reverse_order():
         Stop(),   # pop PendingBakeBread's after-phase
         ChooseSubAction(name="sow"),
         CommitSow(grain=2, veg=0),
-        Stop(),   # pop PendingSow's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingSow's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
     # Walk sow-first.
     state_b = run_actions(state, [
@@ -160,8 +165,9 @@ def test_grain_util_both_sub_actions_reverse_order():
         Stop(),   # pop PendingSow's after-phase
         ChooseSubAction(name="bake_bread"),
         CommitBake(grain=1),
-        Stop(),   # pop PendingBakeBread's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingBakeBread's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
     # Resources and field contents should be identical.
     assert state_a.players[ap].resources == state_b.players[ap].resources
@@ -185,8 +191,11 @@ def test_grain_util_stop_illegal_at_start():
     assert Stop() not in actions
 
 
-def test_grain_util_stop_legal_after_one_sub_action():
-    """Stop becomes legal once at least one sub-action has been completed."""
+def test_grain_util_proceed_legal_after_one_sub_action():
+    """Proceed becomes legal once at least one sub-action has been completed.
+
+    Proceed is the turn-ending boundary at the parent's before-phase — it flips
+    the parent to its after-phase (where Stop pops it)."""
     state = _gu_setup(grain=0, with_fireplace=True)
     state = with_pending_stack(state, [
         PendingGrainUtilization(
@@ -196,11 +205,11 @@ def test_grain_util_stop_legal_after_one_sub_action():
         ),
     ])
     actions = legal_actions(state)
-    assert Stop() in actions
+    assert Proceed() in actions
 
 
-def test_grain_util_only_stop_when_both_done():
-    """When both sub-actions are done, only Stop is offered."""
+def test_grain_util_only_proceed_when_both_done():
+    """When both sub-actions are done, only Proceed is offered at the parent."""
     state = _gu_setup(grain=0, with_fireplace=True)
     state = with_pending_stack(state, [
         PendingGrainUtilization(
@@ -210,7 +219,7 @@ def test_grain_util_only_stop_when_both_done():
         ),
     ])
     actions = legal_actions(state)
-    assert actions == [Stop()]
+    assert actions == [Proceed()]
 
 
 # ---------------------------------------------------------------------------
@@ -231,9 +240,11 @@ def test_sow_becomes_illegal_after_baking_depletes_grain():
     actions = legal_actions(state)
     # ChooseSubAction("sow") is NOT offered because _can_sow requires grain or veg.
     assert ChooseSubAction(name="sow") not in actions
-    # Only Stop is legal.
-    assert actions == [Stop()]
+    # Only Proceed is legal at the parent's before-phase.
+    assert actions == [Proceed()]
 
+    # Proceed flips to the after-phase; Stop then pops the parent.
+    state = step(state, Proceed())
     state = step(state, Stop())
     assert state.pending_stack == ()
 

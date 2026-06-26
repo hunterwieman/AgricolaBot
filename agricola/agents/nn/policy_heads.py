@@ -63,6 +63,7 @@ from agricola.actions import (
     CommitHarvestConversion,
     CommitSow,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.fences import UNIVERSE_RESTRICTED_ENTRIES
@@ -206,7 +207,12 @@ def _subaction_owns(state) -> bool:
 def _subaction_label(action: Action) -> str | None:
     if isinstance(action, ChooseSubAction):
         return _SUBACTION_ALIAS.get(action.name, action.name)
-    if isinstance(action, Stop):
+    # Proceed-as-Stop alias (SPACE_HOST_REFACTOR.md §9): the and/or & and-then
+    # parents now end their before-phase with Proceed instead of Stop. Both are
+    # the "done with this space" action and never co-legal, so mapping Proceed to
+    # the head's STOP_LABEL slot keeps pre- and post-refactor data aligned (no
+    # relabel/retrain) and lets the MCTS prior treat Proceed exactly as Stop.
+    if isinstance(action, (Stop, Proceed)):
         return STOP_LABEL
     return None
 
@@ -216,7 +222,7 @@ def _subaction_legal_labels(state, legal_actions_fn) -> set[str]:
     for a in filter_implemented(legal_actions_fn(state)):
         if isinstance(a, ChooseSubAction):
             labels.add(_SUBACTION_ALIAS.get(a.name, a.name))
-        elif isinstance(a, Stop):
+        elif isinstance(a, (Stop, Proceed)):   # Proceed-as-Stop alias (§9)
             labels.add(STOP_LABEL)
     return labels
 

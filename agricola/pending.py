@@ -31,14 +31,22 @@ class PendingGrainUtilization:
     """Outer pending for Grain Utilization.
 
     Tracks which sub-action categories have been chosen. The Family-game
-    rule "must take at least one effect" is enforced via the Stop-legality
-    predicate: Stop is legal iff sow_chosen or bake_chosen.
+    rule "must take at least one effect" is enforced via the Proceed-legality
+    predicate: Proceed is legal iff sow_chosen or bake_chosen.
+
+    A Proceed-host action-space frame (and/or; SPACE_HOST_REFACTOR.md §4.3):
+    the before-phase hosts the legal ChooseSubActions + (once a sub-action has
+    run) Proceed; Proceed flips `phase` to "after" (firing after_action_space
+    autos), the after-phase hosts after-triggers + Stop, and Stop pops. The
+    event derives via the action_space bucket (legality.trigger_event).
     """
     PENDING_ID: ClassVar[str] = "grain_utilization"
     player_idx: int
     initiated_by_id: str   # mandatory; identifies what pushed this frame
     sow_chosen: bool = False
     bake_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
     @property
     def space_id(self) -> str:
@@ -117,15 +125,19 @@ class PendingFarmExpansion:
     enforcing the "once per category" rule (you cannot build rooms,
     switch to stables, then return to rooms).
 
-    No `triggers_resolved` field and no `TRIGGER_EVENT` classvar — card
-    machinery for the farm_expansion event is deferred until the first
-    such card lands.
+    A Proceed-host action-space frame (and/or; SPACE_HOST_REFACTOR.md §4.3):
+    the before-phase hosts the legal ChooseSubActions + (once a sub-action has
+    run) Proceed; Proceed flips `phase` to "after" (firing after_action_space
+    autos), the after-phase hosts after-triggers + Stop. Event derives via the
+    action_space bucket (legality.trigger_event).
     """
     PENDING_ID: ClassVar[str] = "farm_expansion"
     player_idx: int
     initiated_by_id: str
     room_chosen: bool = False
     stable_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -228,13 +240,20 @@ class PendingFarmland:
 
 @dataclass(frozen=True)
 class PendingCultivation:
-    """Top-level parent pending for the Cultivation action space."""
+    """Top-level parent pending for the Cultivation action space.
+
+    A Proceed-host action-space frame (and/or; SPACE_HOST_REFACTOR.md §4.3):
+    before-phase hosts the legal ChooseSubActions + (once a sub-action has run)
+    Proceed; Proceed flips `phase` to "after" (firing after_action_space autos),
+    the after-phase hosts after-triggers + Stop. Event derives via the
+    action_space bucket (legality.trigger_event) — no per-frame TRIGGER_EVENT.
+    """
     PENDING_ID: ClassVar[str] = "cultivation"
-    TRIGGER_EVENT: ClassVar[str] = "before_cultivation"
     player_idx: int
     initiated_by_id: str
     plow_chosen: bool = False
     sow_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
     @property
@@ -324,13 +343,22 @@ class PendingMajorMinorImprovement:
 
 @dataclass(frozen=True)
 class PendingHouseRedevelopment:
-    """Top-level parent pending for the House Redevelopment action space."""
+    """Top-level parent pending for the House Redevelopment action space.
+
+    A Proceed-host action-space frame (and-then; SPACE_HOST_REFACTOR.md §4.3):
+    a mandatory renovate, then an optional improvement, then Proceed. While
+    renovate is unchosen only it is offered (no Proceed); once renovate has run,
+    the optional improvement + Proceed are offered. Proceed flips `phase` to
+    "after" (firing after_action_space autos), the after-phase hosts
+    after-triggers + Stop. Event derives via the action_space bucket — no
+    per-frame TRIGGER_EVENT.
+    """
     PENDING_ID: ClassVar[str] = "house_redevelopment"
-    TRIGGER_EVENT: ClassVar[str] = "before_house_redevelopment"
     player_idx: int
     initiated_by_id: str
     renovate_chosen: bool = False
     improvement_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
 
@@ -431,13 +459,19 @@ class PendingFarmRedevelopment:
     (the parent's PENDING_ID, no prefix) — distinct from the Fencing-space
     path which pushes with `initiated_by_id="fencing"`. Future cards may
     gate on entry point via this provenance.
+
+    A Proceed-host action-space frame (and-then; SPACE_HOST_REFACTOR.md §4.3):
+    a mandatory renovate, then an optional Build Fences, then Proceed; Proceed
+    flips `phase` to "after" (firing after_action_space autos), the after-phase
+    hosts after-triggers + Stop. Event derives via the action_space bucket — no
+    per-frame TRIGGER_EVENT.
     """
     PENDING_ID: ClassVar[str] = "farm_redevelopment"
-    TRIGGER_EVENT: ClassVar[str] = "before_farm_redevelopment"
     player_idx: int
     initiated_by_id: str
     renovate_chosen: bool = False
     build_fences_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
 

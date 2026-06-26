@@ -1,6 +1,9 @@
 # SPACE_HOST_REFACTOR.md
 
-**Status: design doc for a NOT-YET-STARTED refactor.** It is the planned successor to
+**Status: IN PROGRESS — B1 landed.** Step **B1** (Proceed-hosts + the firing migration + the §9
+NN `Proceed`-as-`Stop` alias + the §11.1 card consequences) is implemented and all gates (the full
+Python suite + the C++ differential harness) are green; **B2 (Delegating) and B3 (Meeting Place)
+are next.** It is the successor to
 `SUBACTION_HOOK_REFACTOR.md`, which is **already landed** (its sub-action frames already carry
 `phase` + `triggers_resolved` in the live code — that doc's own status header is stale). Read it
 first. That refactor (the *sub-action* pass) made every commit-terminated **sub-action** frame —
@@ -485,7 +488,7 @@ The card-only frames (`PendingMeetingPlace`, `PendingBasicWishForChildren`, the 
 Land in three steps, each committing the Python change and the C++ sync together and re-greening
 all gates (`pytest tests/` and `pytest tests/test_cpp_*.py`) before the next.
 
-- **B1 — Proceed-hosts + the firing migration.**
+- **B1 — Proceed-hosts + the firing migration. (LANDED.)**
   - Give the five Proceed-host parents — `PendingGrainUtilization`, `PendingCultivation`,
     `PendingFarmExpansion`, `PendingHouseRedevelopment`, `PendingFarmRedevelopment` — `phase` (+
     `triggers_resolved` where missing: Grain Util, Farm Expansion) and the explicit `Proceed`

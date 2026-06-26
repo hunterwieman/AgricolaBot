@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitSow,
     FireTrigger,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.engine import step
@@ -168,7 +169,10 @@ def test_grain_utilization_potter_zero_grain_full_walk():
     state = step(state, Stop())
     assert isinstance(state.pending_stack[-1], PendingGrainUtilization)
 
-    # Step 9: only Stop at the parent; it ends the turn.
+    # Step 9: only Proceed at the parent's before-phase; it flips to the
+    # after-phase, where Stop pops the parent and ends the turn.
+    assert legal_actions(state) == [Proceed()]
+    state = step(state, Proceed())
     assert legal_actions(state) == [Stop()]
     state = step(state, Stop())
     assert state.pending_stack == ()
@@ -217,8 +221,9 @@ def test_potter_re_eligible_in_new_pending_bake_bread():
         ChooseSubAction(name="bake_bread"),
         FireTrigger(card_id=CARD_ID),
         CommitBake(grain=1),
-        Stop(),   # pop PendingBakeBread's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingBakeBread's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
     # Now player has 1 clay, 0 grain, +2 food, no active pending.
     assert state.players[ap].resources.clay == 1

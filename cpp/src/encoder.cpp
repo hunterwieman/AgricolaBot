@@ -293,12 +293,15 @@ void write_midaction_block(float* out, int base, const GameState& state) {
   for (int i = 0; i < 7; ++i) out[base + i] = bits[i];
 
   // stop_is_legal: never legal at an empty stack (Stop pops a frame); else
-  // dispatch to legal_actions and look for a Stop. Mirrors the encoder's
-  // empty-stack short-circuit.
+  // dispatch to legal_actions and look for a turn-ending action. Proceed-as-Stop
+  // alias (SPACE_HOST_REFACTOR.md §9): a Proceed-host's before-phase ends in
+  // Proceed (its after-phase in Stop) — both are the "turn-ending action
+  // available" signal, never co-legal, so count either. Mirrors the Python
+  // encoder's empty-stack short-circuit + Proceed alias.
   bool stop_legal = false;
   if (!state.pending_stack.empty()) {
     for (const auto& a : legal_actions(state)) {
-      if (std::holds_alternative<Stop>(a)) {
+      if (std::holds_alternative<Stop>(a) || std::holds_alternative<Proceed>(a)) {
         stop_legal = true;
         break;
       }

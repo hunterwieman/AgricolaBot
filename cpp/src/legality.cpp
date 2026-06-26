@@ -440,12 +440,16 @@ const PlayerState& frame_player(const GameState& s, std::optional<int> pid) {
 
 std::vector<Action> enum_grain_utilization(const GameState& s,
                                            const PendingGrainUtilization& pd) {
+  // Proceed-host (and/or; SPACE_HOST_REFACTOR.md §4.3). after-phase: Stop (the
+  // Family after-window has no triggers). before-phase: the legal
+  // ChooseSubActions + Proceed once a sub-action has run.
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   if (!pd.bake_chosen && can_bake_bread(s, p))
     a.push_back(ChooseSubAction{"bake_bread"});
   if (!pd.sow_chosen && can_sow(p)) a.push_back(ChooseSubAction{"sow"});
-  if (pd.sow_chosen || pd.bake_chosen) a.push_back(Stop{});
+  if (pd.sow_chosen || pd.bake_chosen) a.push_back(Proceed{});
   return a;
 }
 
@@ -563,6 +567,8 @@ std::vector<Action> enum_renovate(const GameState&, const PendingRenovate& pd) {
 
 std::vector<Action> enum_farm_expansion(const GameState& s,
                                         const PendingFarmExpansion& pd) {
+  // Proceed-host (and/or; SPACE_HOST_REFACTOR.md §4.3).
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   if (!pd.room_chosen && can_build_room(p))
@@ -570,7 +576,7 @@ std::vector<Action> enum_farm_expansion(const GameState& s,
   Resources cost; cost.wood = 2;
   if (!pd.stable_chosen && can_build_stable(p, cost))
     a.push_back(ChooseSubAction{"build_stables"});
-  if (pd.room_chosen || pd.stable_chosen) a.push_back(Stop{});
+  if (pd.room_chosen || pd.stable_chosen) a.push_back(Proceed{});
   return a;
 }
 
@@ -584,11 +590,13 @@ std::vector<Action> enum_farmland(const GameState& s, const PendingFarmland& pd)
 
 std::vector<Action> enum_cultivation(const GameState& s,
                                      const PendingCultivation& pd) {
+  // Proceed-host (and/or; SPACE_HOST_REFACTOR.md §4.3).
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   if (!pd.plow_chosen && can_plow(p)) a.push_back(ChooseSubAction{"plow"});
   if (!pd.sow_chosen && can_sow(p)) a.push_back(ChooseSubAction{"sow"});
-  if (pd.plow_chosen || pd.sow_chosen) a.push_back(Stop{});
+  if (pd.plow_chosen || pd.sow_chosen) a.push_back(Proceed{});
   return a;
 }
 
@@ -645,13 +653,15 @@ std::vector<Action> enum_stone_oven(const GameState& s,
 
 std::vector<Action> enum_house_redev(const GameState& s,
                                      const PendingHouseRedevelopment& pd) {
+  // Proceed-host (and-then; SPACE_HOST_REFACTOR.md §4.3).
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   if (!pd.renovate_chosen && can_renovate(p))
     a.push_back(ChooseSubAction{"renovate"});
   if (pd.renovate_chosen && !pd.improvement_chosen && can_afford_any_major(s, p))
     a.push_back(ChooseSubAction{"improvement"});
-  if (pd.renovate_chosen) a.push_back(Stop{});
+  if (pd.renovate_chosen) a.push_back(Proceed{});
   return a;
 }
 
@@ -679,6 +689,8 @@ std::vector<Action> enum_build_fences(const GameState& s,
 
 std::vector<Action> enum_farm_redev(const GameState& s,
                                     const PendingFarmRedevelopment& pd) {
+  // Proceed-host (and-then; SPACE_HOST_REFACTOR.md §4.3).
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   if (!pd.renovate_chosen && can_renovate(p))
@@ -686,7 +698,7 @@ std::vector<Action> enum_farm_redev(const GameState& s,
   if (pd.renovate_chosen && !pd.build_fences_chosen &&
       any_legal_pasture_commit(p))
     a.push_back(ChooseSubAction{"build_fences"});
-  if (pd.renovate_chosen) a.push_back(Stop{});
+  if (pd.renovate_chosen) a.push_back(Proceed{});
   return a;
 }
 

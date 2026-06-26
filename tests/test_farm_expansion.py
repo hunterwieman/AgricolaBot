@@ -29,6 +29,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import CellType, HouseMaterial
@@ -73,7 +74,8 @@ def _fe_setup(*, wood=0, clay=0, stone=0, reed=0, house=HouseMaterial.WOOD):
 
 def test_farm_expansion_rooms_only():
     """Build 1 room in a wood house: PlaceWorker -> ChooseSubAction(build_rooms)
-    -> CommitBuildRoom -> Stop (pops PendingBuildRooms) -> Stop (pops parent).
+    -> CommitBuildRoom -> Stop (pops PendingBuildRooms) -> Proceed (flip parent to
+    after-phase) -> Stop (pops parent).
     """
     state = _fe_setup(wood=5, reed=2)
     pre_wood = state.players[0].resources.wood
@@ -81,8 +83,9 @@ def test_farm_expansion_rooms_only():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),  # adjacent to (1,0)
-        Stop(),
-        Stop(),
+        Stop(),       # pop PendingBuildRooms
+        Proceed(),    # flip the parent to its after-phase
+        Stop(),       # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].farmyard.grid[0][0].cell_type == CellType.ROOM
@@ -97,8 +100,9 @@ def test_farm_expansion_stables_only():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
-        Stop(),
-        Stop(),
+        Stop(),       # pop PendingBuildStables
+        Proceed(),    # flip the parent to its after-phase
+        Stop(),       # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].farmyard.grid[0][2].cell_type == CellType.STABLE
@@ -115,8 +119,9 @@ def test_farm_expansion_rooms_then_stables():
         Stop(),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=2),
-        Stop(),
-        Stop(),
+        Stop(),       # pop PendingBuildStables
+        Proceed(),    # flip the parent to its after-phase
+        Stop(),       # pop the parent
     ])
 
     state_sr = _fe_setup(wood=7, reed=2)
@@ -127,8 +132,9 @@ def test_farm_expansion_rooms_then_stables():
         Stop(),
         ChooseSubAction(name="build_rooms"),
         CommitBuildRoom(row=0, col=0),
-        Stop(),
-        Stop(),
+        Stop(),       # pop PendingBuildRooms
+        Proceed(),    # flip the parent to its after-phase
+        Stop(),       # pop the parent
     ])
 
     # Both end states have: empty stack, room at (0,0), stable at (0,2), 0 wood, 0 reed.
@@ -169,7 +175,7 @@ def test_farm_expansion_multi_room_adjacency_chaining():
     assert (0, 1) in cells_after
 
     # Step 3: build at (0,1) and confirm both rooms are in place.
-    state = run_actions(state, [CommitBuildRoom(row=0, col=1), Stop(), Stop()])
+    state = run_actions(state, [CommitBuildRoom(row=0, col=1), Stop(), Proceed(), Stop()])
     assert state.players[0].farmyard.grid[0][0].cell_type == CellType.ROOM
     assert state.players[0].farmyard.grid[0][1].cell_type == CellType.ROOM
 
@@ -417,8 +423,9 @@ def test_stable_inside_pasture_recomputes_pasture_cache():
         PlaceWorker(space="farm_expansion"),
         ChooseSubAction(name="build_stables"),
         CommitBuildStable(row=0, col=4),
-        Stop(),
-        Stop(),
+        Stop(),       # pop PendingBuildStables
+        Proceed(),    # flip the parent to its after-phase
+        Stop(),       # pop the parent
     ])
 
     # Post-build: same pasture, but now num_stables=1, capacity doubled.

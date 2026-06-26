@@ -27,6 +27,7 @@ from agricola.actions import (
     CommitPlow,
     CommitSow,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.agents.restricted import (
@@ -188,7 +189,9 @@ def test_cultivation_sow_when_plow_already_chosen():
     ])
     actions = restricted_legal_actions(state)
     assert ChooseSubAction(name="sow") in actions
-    assert Stop() in actions
+    # Cultivation is a Proceed-host: at the parent's before-phase the
+    # turn-ending boundary is Proceed (it flips to the after-phase where Stop pops).
+    assert Proceed() in actions
 
 
 def test_cultivation_sow_only_when_plow_impossible():

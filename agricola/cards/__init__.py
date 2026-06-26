@@ -33,7 +33,10 @@ from agricola.cards import oven_firing_boy      # noqa: F401
 # Category 9 (opponent-action hook; any-player automatic effect on Cattle Market).
 from agricola.cards import milk_jug             # noqa: F401
 # Category 3/4 on non-atomic spaces' after-phase (the multi-sub after-trigger model).
-from agricola.cards import firewood_collector   # noqa: F401
+# Firewood Collector is DEFERRED (archived to archive/cards/) — its "+1 wood at the
+# END of that turn" needs a dedicated end-of-turn event, which the space-host firing
+# migration (SPACE_HOST_REFACTOR.md §11.1) does not add (after-autos now fire at the
+# work-complete boundary, mid-turn). It returns when that event exists.
 from agricola.cards import threshing_board      # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in

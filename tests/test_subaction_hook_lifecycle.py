@@ -17,6 +17,7 @@ from agricola.actions import (
     CommitPlayMinor,
     CommitSow,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.engine import step
@@ -44,7 +45,8 @@ from tests.factories import with_current_player, with_majors, with_resources
 
 def test_grain_util_bake_before_commit_after_stop_lifecycle():
     """place -> choose bake -> before-phase -> CommitBake -> after-phase [Stop]
-    -> Stop -> parent -> Stop. Explicit assertions at every boundary."""
+    -> Stop -> parent before-phase [Proceed] -> Proceed -> parent after-phase
+    [Stop] -> Stop. Explicit assertions at every boundary."""
     state = setup(seed=0)
     state = with_current_player(state, 0)
     state = with_resources(state, 0, grain=1)
@@ -66,8 +68,13 @@ def test_grain_util_bake_before_commit_after_stop_lifecycle():
     assert state.players[0].resources.food == pre_food + 2
     assert legal_actions(state) == [Stop()]            # after-phase: only Stop
 
-    # Stop pops PendingBakeBread -> back at the parent (still on the stack).
+    # Stop pops PendingBakeBread -> back at the parent's before-phase.
     state = step(state, Stop())
+    assert isinstance(state.pending_stack[-1], PendingGrainUtilization)
+    assert legal_actions(state) == [Proceed()]   # before-phase: only Proceed
+
+    # Proceed flips the parent to its after-phase, where only Stop is legal.
+    state = step(state, Proceed())
     assert isinstance(state.pending_stack[-1], PendingGrainUtilization)
     assert legal_actions(state) == [Stop()]
 

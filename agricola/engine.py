@@ -79,6 +79,7 @@ from agricola.resolution import (
     CHOOSE_SUBACTION_HANDLERS,
     NONATOMIC_HANDLERS,
     _apply_worker_placement,
+    _enter_after_phase,
     _execute_accommodate,
     _execute_bake,
     _execute_breed,
@@ -382,48 +383,50 @@ def _apply_fire_trigger(
 
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
-    # An action-space HOST frame's Stop is the space's exit → fire its
-    # after_action_space automatic effects here (the single, uniform after-auto
-    # point for atomic hosts, markets, and the Stop-terminated spaces; II.2/4b).
-    # No-op in the Family game (empty AUTO_EFFECTS). Multi-shot sub-action frames
-    # (build_stables/_rooms/_fences) are excluded — their PENDING_ID isn't in the
-    # bucket — since their Stop pops a sub-action, not the space.
-    top = state.pending_stack[-1]
-    if type(top).PENDING_ID in ACTION_SPACE_PENDING_IDS:
-        state = apply_auto_effects(state, "after_action_space", top.player_idx)
-    # Pop only the top frame. Do NOT assert the stack is empty afterward —
-    # future cards may have deeper stacks where Stop is legal at a non-bottom
-    # frame.
+    # Pure pop (SPACE_HOST_REFACTOR.md §11). Every host's after-automatic effects
+    # now fire at its work-complete boundary (Proceed for atomic/Proceed-hosts, the
+    # commit for the markets, the auto-advance for Delegating hosts) — BEFORE its
+    # after-triggers, fixing the §2 ordering bug — so nothing fires at Stop. Do NOT
+    # assert the stack is empty afterward: future cards may have deeper stacks where
+    # Stop is legal at a non-bottom frame.
     return pop(state)
 
 
 def _apply_proceed(state: GameState) -> GameState:
-    """Apply a PendingActionSpace host frame's primary effect, then flip to the
-    after-phase (II.2). Surfaced only at a before-phase action-space host.
+    """The work-complete boundary for the atomic and Proceed-host space frames
+    (SPACE_HOST_REFACTOR.md §4.1/§4.3/§11): flip the host to its after-phase and
+    fire its after_action_space automatic effects (after the work, before the
+    after-triggers — the §2 ordering).
 
-    Runs the atomic space's normal effect (ATOMIC_HANDLERS[space_id]), then
-    re-reads the still-top host frame (the atomic effect does not touch the stack)
-    and flips it to "after". The after-phase enumerator then offers after-triggers
-    + Stop; after-automatic-effects fire at that Stop (uniform with every other
-    space host — see _apply_stop).
+    Two host kinds reach here, both at their before-phase:
+      - **Atomic** (`PendingActionSpace`): the space's effect has NOT run yet, so
+        run it now (ATOMIC_HANDLERS[space_id]) — the atomic resolver operates on
+        current_player and leaves the stack alone, so the host stays on top — and
+        then flip + fire.
+      - **Proceed-host** (the and/or, and-then parents): the sub-actions already
+        ran during the before-phase, so Proceed runs no effect of its own; just
+        flip + fire.
+
+    The flip + after-auto firing is `_enter_after_phase` (the same uniform
+    "after-window opens" point the sub-action commits and the markets use); the
+    derived event for an action-space host is `after_action_space`.
     """
     top = state.pending_stack[-1]
-    assert isinstance(top, PendingActionSpace) and top.phase == "before", (
-        f"Proceed expected a before-phase PendingActionSpace, got {top!r}"
-    )
-    space_id = top.space_id
+    assert (
+        type(top).PENDING_ID in ACTION_SPACE_PENDING_IDS
+        and getattr(top, "phase", None) == "before"
+    ), f"Proceed expected a before-phase action-space host, got {top!r}"
 
-    # Primary effect. The atomic resolver operates on current_player and leaves
-    # the pending stack alone, so the host frame remains on top afterward. (The
-    # hosted set is true-atomic spaces only — never the card-mode handlers that
-    # themselves push, e.g. basic_wish / meeting_place — so no extra frame is
-    # interposed above the host.)
-    state = ATOMIC_HANDLERS[space_id](state)
+    if isinstance(top, PendingActionSpace):
+        # Atomic host: the primary effect has not run yet. (The hosted set is
+        # true-atomic spaces only — never the card-mode handlers that themselves
+        # push, e.g. basic_wish / meeting_place — so no extra frame is interposed
+        # above the host and it remains on top after the effect.)
+        state = ATOMIC_HANDLERS[top.space_id](state)
 
-    # Flip to the after-phase so after-triggers can be surfaced; the after-phase
-    # automatic effects fire later, uniformly at the host's Stop (see _apply_stop).
-    new_top = fast_replace(state.pending_stack[-1], phase="after")
-    return replace_top(state, new_top)
+    # Flip to the after-phase + fire after_action_space autos (no-op in Family;
+    # the after-phase enumerator then offers after-triggers + Stop).
+    return _enter_after_phase(state)
 
 
 # ---------------------------------------------------------------------------

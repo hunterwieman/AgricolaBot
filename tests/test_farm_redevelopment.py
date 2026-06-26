@@ -26,6 +26,7 @@ from agricola.actions import (
     CommitBuildPasture,
     CommitRenovate,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import HouseMaterial
@@ -75,8 +76,9 @@ def test_renovate_only_walk():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
         CommitRenovate(),
-        Stop(),   # pop PendingRenovate's after-phase
-        Stop(),   # pop the parent
+        Stop(),      # pop PendingRenovate's after-phase
+        Proceed(),   # flip the parent to its after-phase
+        Stop(),      # pop the parent
     ])
     assert state.pending_stack == ()
     assert state.players[0].house_material == HouseMaterial.CLAY
@@ -95,6 +97,7 @@ def test_renovate_then_build_fences_walk():
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
         Stop(),                                 # pops PendingBuildFences
+        Proceed(),                              # flip PendingFarmRedevelopment to after-phase
         Stop(),                                 # pops PendingFarmRedevelopment
     ])
     assert state.pending_stack == ()
@@ -354,6 +357,11 @@ def test_stack_invariants_full_walk():
 
     # Stop pops PendingBuildFences.
     state = step(state, Stop())
+    assert len(state.pending_stack) == 1
+    assert isinstance(state.pending_stack[-1], PendingFarmRedevelopment)
+
+    # Proceed flips PendingFarmRedevelopment to its after-phase.
+    state = step(state, Proceed())
     assert len(state.pending_stack) == 1
     assert isinstance(state.pending_stack[-1], PendingFarmRedevelopment)
 

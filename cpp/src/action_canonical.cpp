@@ -73,6 +73,7 @@ json params_of(const FireTrigger& a) {
   return json{{"card_id", a.card_id}};
 }
 json params_of(const Stop&) { return json::object(); }
+json params_of(const Proceed&) { return json::object(); }
 json params_of(const RevealCard& a) {
   return json{{"card", a.card}};
 }
@@ -97,6 +98,7 @@ const char* type_name(const Action& a) {
         else if constexpr (std::is_same_v<T, CommitBreed>) return "CommitBreed";
         else if constexpr (std::is_same_v<T, FireTrigger>) return "FireTrigger";
         else if constexpr (std::is_same_v<T, Stop>) return "Stop";
+        else if constexpr (std::is_same_v<T, Proceed>) return "Proceed";
         else if constexpr (std::is_same_v<T, RevealCard>) return "RevealCard";
       },
       a);
@@ -161,6 +163,7 @@ Action action_from_json(const std::string& text) {
   if (t == "FireTrigger")
     return FireTrigger{p.at("card_id").get<std::string>()};
   if (t == "Stop") return Stop{};
+  if (t == "Proceed") return Proceed{};
   if (t == "RevealCard") return RevealCard{p.at("card").get<std::string>()};
   throw std::runtime_error("action_from_json: unknown type " + t);
 }

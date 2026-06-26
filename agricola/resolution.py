@@ -1207,10 +1207,11 @@ def _execute_accommodate(
     newly gained from the space.
 
     Dispatched with auto_pop=False (4b): instead of popping, this is the market's
-    before->after pivot — it applies the accommodation and flips the host frame to
-    `phase="after"`. The after-phase enumerator then offers any after-triggers +
-    Stop; after_action_space automatic effects fire at that Stop, uniformly with
-    every other space host (see engine._apply_stop).
+    before->after pivot — it applies the accommodation, flips the host frame to
+    `phase="after"`, and fires after_action_space automatic effects at that flip
+    (the work-complete boundary, before the after-triggers — SPACE_HOST_REFACTOR.md
+    §11). The after-phase enumerator then offers any after-triggers + Stop, and Stop
+    pops (pure pop now — engine._apply_stop fires nothing).
     """
     from agricola.pending import PendingSheepMarket, PendingPigMarket, PendingCattleMarket
     pending = state.pending_stack[-1]
@@ -1235,9 +1236,10 @@ def _execute_accommodate(
     new_resources = p.resources + Resources(food=food)
     new_player = fast_replace(p, animals=new_animals, resources=new_resources)
     state = _update_player(state, player_idx, new_player)
-    # Pivot to the after-phase (do NOT pop): the frame now hosts after_action_space.
-    # The after-auto effects fire at the trailing Stop (engine._apply_stop).
-    return replace_top(state, fast_replace(state.pending_stack[-1], phase="after"))
+    # Pivot to the after-phase (do NOT pop) and fire after_action_space autos at
+    # this work-complete boundary (before the after-triggers). _enter_after_phase
+    # flips the frame + fires the derived `after_action_space` event.
+    return _enter_after_phase(state)
 
 
 # ---------------------------------------------------------------------------

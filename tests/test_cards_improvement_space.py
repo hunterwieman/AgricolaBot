@@ -12,6 +12,7 @@ from agricola.actions import (
     CommitPlayMinor,
     CommitRenovate,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import GameMode
@@ -160,10 +161,11 @@ def test_house_redev_renovate_then_play_minor():
     cs = step(cs, ChooseSubAction(name="renovate"))
     cs = step(cs, CommitRenovate())
     cs = step(cs, Stop())   # pop PendingRenovate's after-phase -> back at parent
-    # Post-renovate: the improvement option is offered (a minor is playable), plus Stop.
+    # Post-renovate: the improvement option is offered (a minor is playable),
+    # plus Proceed (the parent's before-phase turn-ending boundary).
     acts = legal_actions(cs)
     assert ChooseSubAction(name="improvement") in acts
-    assert Stop() in acts
+    assert Proceed() in acts
 
     cs = step(cs, ChooseSubAction(name="improvement"))
     # Delegated to PendingMajorMinorImprovement: only play_minor (no major affordable).
@@ -183,8 +185,9 @@ def test_house_redev_improvement_is_optional():
     # After CommitRenovate, top is PendingRenovate(after) → Stop pops it.
     assert Stop() in legal_actions(cs)
     cs = step(cs, Stop())                       # pop PendingRenovate's after-phase
-    # Now at the parent frame; Stop declines the improvement.
-    assert Stop() in legal_actions(cs)
-    cs = step(cs, Stop())                       # decline the improvement -> pop parent
+    # Now at the parent frame; Proceed declines the improvement (flips to after-phase).
+    assert Proceed() in legal_actions(cs)
+    cs = step(cs, Proceed())                    # decline the improvement -> after-phase
+    cs = step(cs, Stop())                       # pop the parent
     assert cs.pending_stack == ()               # turn ends, no minor played
     assert "market_stall" in cs.players[cp].hand_minors
