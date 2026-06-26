@@ -582,20 +582,32 @@ class PendingBasicWishForChildren:
 
 
 @dataclass(frozen=True)
-class PendingMeetingPlaceCards:
-    """Card-game Meeting Place follow-up. Become starting player is an IMMEDIATE
-    effect (applied in the resolver, no frame — it always happens and triggers no
-    cards), so this frame hosts only the OPTIONAL minor: its enumerator offers
-    ChooseSubAction("play_minor") (while not yet played and a minor is playable)
-    plus Stop — the decline, since the SP token was already taken. Pushed (card
-    mode only) right after become-SP, and only when a minor is playable. The
-    Family Meeting Place is the atomic food/SP resolver and never pushes this.
+class PendingMeetingPlace:
+    """Card-game Meeting Place follow-up — a single-optional Proceed-host
+    (SPACE_HOST_REFACTOR.md §7). Become starting player is an IMMEDIATE effect
+    (applied in the resolver, no frame — it always happens and triggers no cards),
+    so this frame hosts only the ONE OPTIONAL minor.
+
+    A Proceed-host action-space frame: the before-phase offers any
+    before_action_space triggers + ChooseSubAction("play_minor") (while not yet
+    played) + `Proceed` — and `Proceed` is legal FROM THE START (it *is* the
+    decline, since the SP token was already taken). Proceed flips `phase` to
+    "after" (firing after_action_space autos), the after-phase hosts after-triggers
+    + Stop, and Stop pops. `meeting_place` is in ACTION_SPACE_PENDING_IDS, so the
+    event derives via the action_space bucket (legality.trigger_event).
+
+    Pushed (card mode only) right after become-SP, and only when a minor is
+    playable — otherwise become-SP is the whole (atomic) action and no frame is
+    pushed. Card-only: the Family Meeting Place is the atomic food/SP resolver and
+    never pushes this, so it never reaches the C++ engine.
     See CARD_IMPLEMENTATION_PLAN.md I.3.
     """
     PENDING_ID: ClassVar[str] = "meeting_place"
     player_idx: int
     initiated_by_id: str
     minor_chosen: bool = False
+    phase: str = "before"               # "before" | "after"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -779,6 +791,7 @@ ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
     "action_space", "farm_expansion", "side_job", "grain_utilization",
     "sheep_market", "pig_market", "cattle_market",
     "house_redevelopment", "cultivation", "farm_redevelopment",
+    "meeting_place",   # card-only single-optional Proceed-host (§7)
 })
 
 

@@ -3,10 +3,14 @@
 The card Meeting Place reuses the family `meeting_place` slot (no new SPACE_IDS
 id), mode-branched in the resolver: family = food accumulation + become SP
 (atomic); cards = become SP (immediate, no food) then OPTIONALLY play one minor
-(a PendingMeetingPlaceCards frame, pushed only when a minor is playable). Card
-mode also skips the per-round food refill on that slot, so it never accumulates.
+(a PendingMeetingPlace single-optional Proceed-host, pushed only when a minor is
+playable; SPACE_HOST_REFACTOR.md §7). Proceed is the decline (legal from the
+start). Card mode also skips the per-round food refill on that slot, so it never
+accumulates.
 """
-from agricola.actions import ChooseSubAction, CommitPlayMinor, PlaceWorker, Stop
+from agricola.actions import (
+    ChooseSubAction, CommitPlayMinor, PlaceWorker, Proceed, Stop,
+)
 from agricola.agents.base import RandomAgent, play_game
 from agricola.constants import GameMode
 from agricola.engine import step
@@ -44,7 +48,8 @@ def test_become_sp_then_play_minor():
     cs = step(cs, PlaceWorker(space="meeting_place"))
     assert cs.starting_player == cp                       # became SP immediately
     acts = legal_actions(cs)
-    assert ChooseSubAction(name="play_minor") in acts and Stop() in acts
+    # before-phase: the optional minor + Proceed (the decline, legal from start).
+    assert ChooseSubAction(name="play_minor") in acts and Proceed() in acts
 
     cs = step(cs, ChooseSubAction(name="play_minor"))
     assert legal_actions(cs) == [CommitPlayMinor(card_id="market_stall")]
@@ -52,7 +57,11 @@ def test_become_sp_then_play_minor():
     assert cs.players[cp].resources.veg == 1
     assert "market_stall" in cs.players[opp].hand_minors  # passing -> circulated
     assert legal_actions(cs) == [Stop()]                  # PendingPlayMinor after-phase
-    cs = step(cs, Stop())                                 # pop after-phase
+    cs = step(cs, Stop())                                 # pop the play-minor after-phase
+    # back at the parent before-phase: minor played -> only Proceed remains.
+    assert legal_actions(cs) == [Proceed()]
+    cs = step(cs, Proceed())                              # flip the parent to after
+    assert legal_actions(cs) == [Stop()]                  # parent after-phase singleton
     cs = step(cs, Stop())                                 # pop the parent
     assert cs.pending_stack == ()
 
@@ -60,7 +69,11 @@ def test_become_sp_then_play_minor():
 def test_decline_minor_keeps_sp():
     cs, _env, cp = _card_state(minors=frozenset({"market_stall"}), sp_other=True)
     cs = step(cs, PlaceWorker(space="meeting_place"))
-    cs = step(cs, Stop())                                 # decline the optional minor
+    # Proceed is the decline (legal from the start) -> flip to after-phase.
+    assert Proceed() in legal_actions(cs)
+    cs = step(cs, Proceed())                              # decline the optional minor
+    assert legal_actions(cs) == [Stop()]                  # parent after-phase singleton
+    cs = step(cs, Stop())                                 # pop the parent
     assert cs.pending_stack == ()
     assert cs.starting_player == cp                       # SP kept
     assert "market_stall" in cs.players[cp].hand_minors   # not played
