@@ -791,10 +791,14 @@ PendingDecision = Union[
 # sub-action, not the space. `major_minor_improvement` is deliberately NOT here
 # either — it is the composite-action host firing its OWN
 # major_minor_improvement event, not action_space (§6). `farmland` / `fencing`
-# are gone — those spaces are now PendingSubActionSpace ("action_space"). Lives
-# here (with the frames) so both legality and engine import it.
+# are gone — those spaces are now PendingSubActionSpace ("action_space").
+# `side_job` is deliberately NOT here — Side Job is a Family-only, Stop-terminated
+# non-host (PendingSideJob has no `phase` and carries its own bespoke
+# `before_side_job` TRIGGER_EVENT); it is never a Proceed/atomic host, so it never
+# reaches the bucket-keyed trigger_event / _apply_proceed paths. Lives here (with
+# the frames) so both legality and engine import it.
 ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
-    "action_space", "farm_expansion", "side_job", "grain_utilization",
+    "action_space", "farm_expansion", "grain_utilization",
     "sheep_market", "pig_market", "cattle_market",
     "house_redevelopment", "cultivation", "farm_redevelopment",
     "meeting_place",           # card-only single-optional Proceed-host (§7)
