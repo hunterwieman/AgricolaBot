@@ -100,3 +100,16 @@ from agricola.cards import scholar               # noqa: F401
 # trigger on the Day Laborer space-host: +1 grain each use (or +1 veg from round 6),
 # the choice surfaced as a PendingCardChoice whose options are round-dependent.
 from agricola.cards import seasonal_worker       # noqa: F401
+# CardStore cards (per-card persistent state side-map, II.7). Tutor (occupation,
+# Cat 1 — on_play snapshots len(occupations), scoring term counts occupations after
+# it); Big Country (minor, Cat 2 — immediate food + banked bonus points scaled by
+# complete rounds left, scoring term reads the bank); Moldboard Plow (minor, Cat 4 —
+# twice-per-game granted plow on the Farmland after-hook, uses-left in CardStore);
+# Roof Ballaster (occupation, Cat 2 — optional pay-1-food→1-stone-per-room, modeled
+# as a play-VARIANT); Shifting Cultivation (minor, Cat 2, traveling — on_play pushes
+# PendingPlow on top of the after-flipped play host).
+from agricola.cards import tutor                 # noqa: F401
+from agricola.cards import big_country           # noqa: F401
+from agricola.cards import moldboard_plow        # noqa: F401
+from agricola.cards import roof_ballaster        # noqa: F401
+from agricola.cards import shifting_cultivation  # noqa: F401

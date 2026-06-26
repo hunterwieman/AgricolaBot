@@ -122,9 +122,24 @@ bookkeeping) is deliberately left open for a later session.**
 >   mandatory-with-choice on Day Laborer), and **Firewood Collector un-deferred** onto `end_of_turn`.
 > - **Step 7** — deferred cards (Organic Farmer, Mini Pasture, Shepherd's Crook, Acorns Basket) last.
 >
-> **Deferred-within-category cards** awaiting their infra: CardStore cards (Tutor, Moldboard Plow, Big
-> Country); play-variant on-play (Roof Ballaster); Shifting Cultivation (on-play push vs. the play-minor
-> auto_pop); Cottager (build-or-renovate choice).
+> **CardStore + leftovers (Unit 5) DONE** — `CardStore` (II.7): a sparse, hashable per-player side-map
+> `PlayerState.card_state` (sorted `(card_id, value)` tuple + `get`/`set`), card-only (added to the
+> manual `PlayerState.__hash__` AND canonical's `_DEFAULT_SKIP_FIELDS`; the canonical walker serializes
+> it generically as a frozen dataclass over a tuple) → the Family game is byte-identical (empty store
+> omitted) → **no C++ change** (all 138 differential gates green untouched). Cards: **Tutor** (Cat 1 —
+> `on_play` snapshots `len(occupations)`, scoring term returns `len(occupations) − 1 − snapshot`);
+> **Big Country** (Cat 2 — immediate food + banked bonus points scaled by complete rounds left, scoring
+> term reads the bank; prereq "all farmyard spaces used"); **Moldboard Plow** (Cat 4 — twice-per-game
+> granted plow on Farmland's after-hook, uses-left in CardStore, decremented per fire); **Roof Ballaster**
+> (Cat 2 — optional pay-1-food→1-stone-per-room, modeled as a play-VARIANT: a new
+> `specs.PLAY_OCCUPATION_VARIANTS` registry + `CommitPlayOccupation.variant` surfaces one commit per legal
+> variant, like Cooking Hearth's return-fireplace options); **Shifting Cultivation** (Cat 2, traveling —
+> `on_play` pushes `PendingPlow`). The Shifting Cultivation **flip handling**: `_execute_play_minor` now
+> flips the `PendingPlayMinor` host to `phase="after"` and fires the after-events BEFORE running
+> `on_play` (mirroring how `_execute_build_major` flips `PendingBuildMajor` before pushing the oven
+> wrapper), so the pushed `PendingPlow` lands on top of the already-flipped host and unwinds cleanly.
+>
+> **Deferred-within-category cards** still awaiting their infra: Cottager (build-or-renovate choice).
 
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card
@@ -931,10 +946,11 @@ frozensets (blast radius + lost `id in set` membership) and wrap every stateless
 The sparse `card_id → value` map leaves `occupations`/`minor_improvements` untouched and pays only for
 the cards that carry state.
 
-**Build now, defer payloads.** Ship `CardStore` + `int` values for Tutor / Moldboard immediately; the
-typed payload shapes for genuinely complex cards (`GrocerState`, …) are designed in the dedicated
-Grocer session (`CARD_SYSTEM_DESIGN.md` §9) and slot into the same container without touching
-`PlayerState`'s schema again.
+**Build now, defer payloads.** *(Status: `CardStore` + `int` values are LANDED — Tutor's snapshot, Big
+Country's banked points, Moldboard Plow's uses-left all use the side-map.)* The typed payload shapes for
+genuinely complex cards (`GrocerState`, …) are designed in the dedicated Grocer session
+(`CARD_SYSTEM_DESIGN.md` §9) and slot into the same container without touching `PlayerState`'s schema
+again.
 
 ---
 
@@ -1406,6 +1422,18 @@ hook categories — not after.
 6. **Phase hooks** — `PendingPreparation`, `PendingHarvestField`, `PendingCardChoice` (II.6) —
    Categories **7 (start-of-round)** and **6 (harvest-field)**.
 7. **Deferred cards** (Organic Farmer, Mini Pasture, Shepherd's Crook, Acorns Basket) last.
+
+**`CardStore` (II.7) + leftovers — DONE.** The sparse, hashable per-player side-map
+`PlayerState.card_state: CardStore` (sorted `(card_id, value)` tuple + `get`/`set`); card-only (added
+to the manual `PlayerState.__hash__` AND canonical's `_DEFAULT_SKIP_FIELDS`; the canonical walker
+serializes it generically) → Family byte-identical → **no C++ change** (138 differential gates green
+untouched). Cards landed: **Tutor** (Cat 1, snapshot + scoring), **Big Country** (Cat 2, immediate food
++ banked points; prereq "all spaces used"), **Moldboard Plow** (Cat 4, twice-per-game granted Farmland
+plow with uses-left), **Roof Ballaster** (Cat 2, optional pay-1-food→1-stone-per-room via a new
+play-VARIANT mechanism: `specs.PLAY_OCCUPATION_VARIANTS` + `CommitPlayOccupation.variant`),
+**Shifting Cultivation** (Cat 2 traveling, `on_play` pushes `PendingPlow`). The play-minor flip order in
+`_execute_play_minor` was reordered to flip the host to `phase="after"` BEFORE `on_play` runs (like the
+oven case), so a pushing `on_play` lands its primitive on the already-flipped host and unwinds cleanly.
 
 Each card is then a single small module registering into the relevant registry, mirroring
 `cards/potter_ceramics.py`, and added to `cards/__init__.py` so its `register*()` calls fire at
