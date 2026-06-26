@@ -288,6 +288,14 @@ Proceed → flip to after, fire after_action_space autos
 after:  [after_action_space triggers, Stop] → Stop pops
 ```
 
+`PendingMeetingPlace` is **always pushed** in card mode — uniform with how the Major Improvement
+space is always-wrapped — regardless of whether a minor is currently playable. When no minor is
+playable the before-phase is simply `[before_action_space triggers, Proceed]`; the
+`ChooseSubAction("play_minor")` option is gated on `playable_minors(...)` inside the enumerator
+(see `_enumerate_pending_meeting_place` in `legality.py`), not in the push site. Always wrapping
+ensures cards that hook the space via `before_/after_action_space` fire even when the player has
+no playable minor.
+
 `PendingMeetingPlaceCards` is renamed `PendingMeetingPlace` and gains `phase` + `triggers_resolved`
 (keeping `minor_chosen`); `meeting_place` is added to `ACTION_SPACE_PENDING_IDS`. It is
 **card-only** (the Family Meeting Place stays the atomic food/SP resolver and never pushes this

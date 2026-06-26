@@ -199,21 +199,22 @@ def _resolve_meeting_place(state: GameState) -> GameState:
 
 def _initiate_meeting_place_cards(state: GameState) -> GameState:
     """Card-game Meeting Place: become starting player (immediate, no food), then
-    OPTIONALLY play one minor. Push the single-optional Proceed-host frame
-    (PendingMeetingPlace; SPACE_HOST_REFACTOR.md §7) only when a minor is playable;
-    otherwise become-SP is the whole action (atomic). The worker is already placed
-    (cross-cutting), so this is always a legal placement. Fires before_action_space
-    autos at the push. See CARD_IMPLEMENTATION_PLAN.md I.3."""
+    OPTIONALLY play one minor. Always push the single-optional Proceed-host frame
+    (PendingMeetingPlace; SPACE_HOST_REFACTOR.md §7) — uniform with how the Major
+    Improvement space is always-wrapped. The before-phase offers ChooseSubAction
+    ("play_minor") only when a minor is playable, otherwise just before-triggers +
+    Proceed (the decline). Always wrapping ensures cards hooking the space via
+    before_/after_action_space fire even when no minor is playable. The worker is
+    already placed (cross-cutting). Fires before_action_space autos at the push.
+    See CARD_IMPLEMENTATION_PLAN.md I.3."""
     ap = state.current_player
     state = _become_starting_player(state, ap)
-    from agricola.legality import playable_minors
-    if playable_minors(state, ap):
-        from agricola.pending import PendingMeetingPlace
-        from agricola.cards.triggers import apply_auto_effects
-        state = push(state, PendingMeetingPlace(
-            player_idx=ap, initiated_by_id="space:meeting_place",
-        ))
-        state = apply_auto_effects(state, "before_action_space", ap)
+    from agricola.pending import PendingMeetingPlace
+    from agricola.cards.triggers import apply_auto_effects
+    state = push(state, PendingMeetingPlace(
+        player_idx=ap, initiated_by_id="space:meeting_place",
+    ))
+    state = apply_auto_effects(state, "before_action_space", ap)
     return state
 
 
