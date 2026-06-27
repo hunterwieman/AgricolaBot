@@ -59,6 +59,7 @@ from agricola.actions import (
     CommitBake,
     CommitBreed,
     CommitBuildMajor,
+    CommitCardChoice,
     CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
@@ -71,6 +72,7 @@ from agricola.actions import (
     CommitSow,
     FireTrigger,
     PlaceWorker,
+    Proceed,
     RevealCard,
     Stop,
 )
@@ -728,7 +730,8 @@ def _ui_hint_for(action: Action) -> str:
         return "space"
     if isinstance(action, Stop):
         return "stop"
-    if isinstance(action, (ChooseSubAction, FireTrigger, CommitRenovate)):
+    if isinstance(action, (ChooseSubAction, FireTrigger, CommitRenovate, Proceed,
+                           CommitCardChoice)):
         return "button"
     if isinstance(action, CommitBuildMajor):
         return "major"
@@ -786,6 +789,8 @@ def _action_params(action: Action) -> dict:
         return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
     if isinstance(action, CommitPlayMinor):
         return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
+    if isinstance(action, CommitCardChoice):
+        return {"index": action.index}
     return {}
 
 
@@ -978,13 +983,25 @@ def _pending_to_dict(state: GameState) -> list:
     return out
 
 
+def _card_choice_display(state: GameState, action: CommitCardChoice) -> str:
+    """Label a CommitCardChoice by the option it picks (e.g. "Choose: grain"),
+    read off the top PendingCardChoice frame's `options`, instead of the raw repr."""
+    top = state.pending_stack[-1] if state.pending_stack else None
+    opts = getattr(top, "options", ())
+    if 0 <= action.index < len(opts):
+        return f"Choose: {opts[action.index]}"
+    return _web_action_display(action)
+
+
 def _legal_actions_to_dicts(state: GameState, actions: list[Action]) -> list[dict]:
     out = []
     for i, a in enumerate(actions):
+        display = (_card_choice_display(state, a)
+                   if isinstance(a, CommitCardChoice) else _web_action_display(a))
         out.append({
             "index": i,
             "type": type(a).__name__,
-            "display": _web_action_display(a),
+            "display": display,
             "params": _action_params(a),
             "ui_hint": _ui_hint_for(a),
         })
