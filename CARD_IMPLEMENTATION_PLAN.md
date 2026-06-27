@@ -173,7 +173,15 @@ bookkeeping) is deliberately left open for a later session.**
 > consume on FIRE. (The earlier forced-plow implementation was corrected per the general ruling that a
 > granted sub-action is optional unless the text is explicitly mandatory.)
 >
-> **Deferred-within-category cards** still awaiting their infra: Cottager (build-or-renovate choice).
+> **Cottager (build-or-renovate choice) DONE.** The one Category-4 card that grants a *choice*
+> between two primitives (build exactly 1 room OR renovate, paying the cost). Modeled as a play-variant
+> trigger (like Scholar) on the action-space host: an optional `before_action_space` trigger on the
+> `day_laborer` host, expanded into `FireTrigger(variant="room")` / `FireTrigger(variant="renovate")` by
+> the host enumerator, with the host's Proceed as the decline. This generalized the variant-expansion
+> from the start-of-round host to a shared `_expand_variant_triggers` helper used by both the
+> start-of-round and action-space enumerators (card-only → Family byte-identical → no C++). Firing pushes
+> the standard `PendingBuildRooms(max_builds=1)` / `PendingRenovate` with the normal cost; the host's
+> `triggers_resolved` gives once-per-use semantics. No deferred-within-category cards remain.
 
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card
