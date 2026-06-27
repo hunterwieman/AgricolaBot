@@ -16,6 +16,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitConvert,
+    CommitDraftPick,
     CommitFamilyGrowth,
     CommitCardChoice,
     CommitHarvestConversion,
@@ -64,6 +65,7 @@ from agricola.pending import (
     PendingBuildRooms,
     PendingBuildStables,
     PendingDecision,
+    PendingDraftPick,
     PendingFamilyGrowth,
     PendingFarmExpansion,
     PendingFarmRedevelopment,
@@ -1993,6 +1995,18 @@ def _enumerate_pending_card_choice(
     return [CommitCardChoice(index=i) for i in range(len(pending.options))]
 
 
+def _enumerate_pending_draft_pick(
+    state: GameState, pending: PendingDraftPick,
+) -> list[Action]:
+    """One CommitDraftPick per card remaining in the active player's pool."""
+    p0_occ, p0_min, p1_occ, p1_min = state.draft_pools
+    if pending.player_idx == 0:
+        pool = p0_occ if pending.card_type == "occupation" else p0_min
+    else:
+        pool = p1_occ if pending.card_type == "occupation" else p1_min
+    return [CommitDraftPick(card_id=cid) for cid in pool]
+
+
 PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPreparation:         _enumerate_pending_preparation,
     PendingCardChoice:          _enumerate_pending_card_choice,
@@ -2026,6 +2040,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingHarvestBreed:        _enumerate_pending_harvest_breed,
     PendingReveal:              _enumerate_pending_reveal,
     PendingActionSpace:         _enumerate_pending_action_space,
+    PendingDraftPick:           _enumerate_pending_draft_pick,
 }
 
 

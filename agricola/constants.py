@@ -4,6 +4,7 @@ from agricola.resources import Resources
 
 
 class Phase(Enum):
+    DRAFT = auto()
     WORK = auto()
     RETURN_HOME = auto()
     PREPARATION = auto()

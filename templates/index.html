@@ -165,6 +165,62 @@
     </div>
   </div>
 
+  <!-- Draft card picker — full-screen overlay during Phase.DRAFT.
+       Shows both pools (occupation + minor) simultaneously; player selects one
+       of each and confirms. Sits above the boards, not in the decision panel. -->
+  <div id="draft-modal" class="modal hidden">
+    <div class="modal-body draft-modal-body">
+      <div class="draft-modal-hdr">
+        <h2 id="draft-modal-title">Draft</h2>
+        <p id="draft-modal-sub" class="draft-modal-sub"></p>
+      </div>
+      <div class="draft-modal-cols">
+        <div class="draft-modal-col">
+          <div class="draft-col-hdr">
+            Occupation
+            <span id="draft-occ-badge" class="draft-sel-badge draft-sel-none">none chosen</span>
+          </div>
+          <div id="draft-occ-cards" class="draft-pool-cards"></div>
+        </div>
+        <div class="draft-modal-col">
+          <div class="draft-col-hdr">
+            Minor Improvement
+            <span id="draft-min-badge" class="draft-sel-badge draft-sel-none">none chosen</span>
+          </div>
+          <div id="draft-min-cards" class="draft-pool-cards"></div>
+        </div>
+      </div>
+      <div id="draft-picked-section" class="draft-picked-section hidden">
+        <div class="draft-picked-hdr">Your picks so far</div>
+        <div class="draft-picked-cols">
+          <div class="draft-picked-col">
+            <div class="draft-picked-col-label">Occupations</div>
+            <div id="draft-picked-occs" class="draft-picked-cards"></div>
+          </div>
+          <div class="draft-picked-col">
+            <div class="draft-picked-col-label">Minor Improvements</div>
+            <div id="draft-picked-mins" class="draft-picked-cards"></div>
+          </div>
+        </div>
+      </div>
+      <div class="draft-modal-footer">
+        <button id="draft-confirm-btn" class="draft-confirm-btn" disabled>
+          Confirm picks
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Draft handoff overlay — shown in pass-and-play drafts between player picks.
+       A blank screen prevents the active player from seeing the next player's pool. -->
+  <div id="draft-handoff-modal" class="modal hidden">
+    <div class="modal-body draft-handoff-body">
+      <h2 id="draft-handoff-title">Player's turn to pick</h2>
+      <p id="draft-handoff-info" class="draft-handoff-info"></p>
+      <button type="button" id="draft-handoff-ready" class="draft-handoff-btn">Ready</button>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

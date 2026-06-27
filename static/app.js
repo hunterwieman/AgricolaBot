@@ -22,6 +22,12 @@
   // Recomputed in render() from the current legal actions.
   let currentPlayableCardIds = new Set();
 
+  // ---- Draft modal selection state ----
+  // Which card ids are currently selected in the draft picker (null = nothing).
+  // Reset when a new pool is shown (different player / round).
+  let _draftSelOcc = null;  // card_id string or null
+  let _draftSelMin = null;  // card_id string or null
+
   // ---- "Show analysis" overlay state (frontend-only; does NOT POST) ----
   // When on, each human decision triggers a background /api/analyze call; the
   // returned per-move {visits, q} are overlaid on the board spaces and the
@@ -363,6 +369,13 @@
     const name = document.createElement('div');
     name.className = 'picker-card-name';
     name.textContent = card.name || card.id;
+    if (card.vps) {
+      const vpBadge = document.createElement('span');
+      vpBadge.className = 'hand-card-vps';
+      vpBadge.title = 'printed victory points';
+      vpBadge.textContent = ` ${card.vps} pt${card.vps === 1 ? '' : 's'}`;
+      name.appendChild(vpBadge);
+    }
     div.appendChild(name);
 
     if (card.cost && card.cost !== '—') {
@@ -466,25 +479,32 @@
       if (oppStr === null) return;
       const opp = oppStr.trim().toLowerCase() === 'human' ? 'human' : 'random';
 
-      // Hand-picker: optionally let the player choose their hand when vs a bot.
-      let custom_hand = null;
-      if (opp !== 'human') {
-        const chooseStr = prompt(
-          'Choose your hand?\n' +
-          '  yes = pick your occupations and minor improvements\n' +
-          '  no  = random hand (default)',
-          'no');
-        if (chooseStr === null) return;  // user hit Cancel
-        if (chooseStr.trim().toLowerCase().startsWith('y')) {
-          const picked = await showHandPicker();
-          if (picked === null) return;  // user cancelled the picker
-          if (picked.occupations.length || picked.minors.length) {
-            custom_hand = picked;
-          }
+      // Hand setup: three options. "Choose your hand" only available vs non-human.
+      const handOptStr = prompt(
+        'Hand setup?\n' +
+        '  draft  = competitive draft — pick one card at a time (default)\n' +
+        '  random = fully random deal\n' +
+        (opp !== 'human' ? '  choose = pick your own hand\n' : '') +
+        '\n(hit Enter for draft)',
+        'draft');
+      if (handOptStr === null) return;
+      const handOpt = handOptStr.trim().toLowerCase() || 'draft';
+
+      let hand_mode, custom_hand = null;
+      if (handOpt === 'choose' && opp !== 'human') {
+        hand_mode = 'choose';
+        const picked = await showHandPicker();
+        if (picked === null) return;  // user cancelled the picker
+        if (picked.occupations.length || picked.minors.length) {
+          custom_hand = picked;
         }
+      } else if (handOpt === 'random') {
+        hand_mode = 'random';
+      } else {
+        hand_mode = 'draft';
       }
 
-      body = { seed, seats: ['human', opp], game_mode: 'cards', custom_hand };
+      body = { seed, seats: ['human', opp], game_mode: 'cards', hand_mode, custom_hand };
     } else {
       // Family game — the existing human-vs-MCTS setup.
       // Sims/move: default to the current game's value, else the last choice,
@@ -752,6 +772,8 @@
     renderDecisionPanel(state);
     renderRoundLog(state);
     renderGameOver(state);
+    renderDraftModal(state);
+    renderDraftHandoff(state);
   }
 
   // -------- turn controls (Confirm / Undo), rendered ABOVE the boards --------
@@ -783,10 +805,11 @@
   // -------- header --------
 
   function renderHeader(state) {
+    const isDraft = state.phase === 'DRAFT';
     document.getElementById('round-label').textContent =
-      `Round ${state.round_number}/14`;
+      isDraft ? 'Draft' : `Round ${state.round_number}/14`;
     document.getElementById('phase-label').textContent =
-      `Phase ${state.phase}`;
+      isDraft ? 'Picking cards' : `Phase ${state.phase}`;
     document.getElementById('sp-label').textContent =
       `SP P${state.starting_player}`;
     document.getElementById('decider-label').textContent =
@@ -1559,6 +1582,13 @@
 
     // (Mid-turn Undo is rendered above the boards by renderTurnControls.)
 
+    // Draft phase: the full-screen #draft-modal handles picking (renderDraftModal).
+    // Nothing needed here — the modal overlays the boards and this panel.
+    if (state.phase === 'DRAFT') {
+      menu.appendChild(el('div', { class: 'muted' }, 'Draft in progress — see the picker above.'));
+      return;
+    }
+
     // Card-play actions (ui_hint:"card") are pulled out and rendered as their
     // own group below — identified by ui_hint, not a fixed action type.
     const cardActions = (state.legal_actions || []).filter((a) => a.ui_hint === 'card');
@@ -1683,10 +1713,300 @@
     }
   }
 
+  // -------- draft handoff overlay --------
+
+  // -------- draft card picker modal --------
+
+  function renderDraftModal(state) {
+    const modal = document.getElementById('draft-modal');
+    if (!modal) return;
+
+    // Show only when: draft phase, no handoff pending, human is deciding.
+    const show = state.phase === 'DRAFT'
+      && !state.draft_handoff
+      && !state.game_over
+      && !isAiDecider(state);
+    modal.classList.toggle('hidden', !show);
+    if (!show) return;
+
+    const info = state.draft_info || {};
+    const p = info.picking_player != null ? info.picking_player : state.decider;
+    const cardType = info.card_type || 'occupation';
+    const round = info.round;
+    const total = info.total_rounds || 7;
+
+    const titleEl = document.getElementById('draft-modal-title');
+    if (titleEl) titleEl.textContent = `P${p} — Draft Round ${round} of ${total}`;
+    const subEl = document.getElementById('draft-modal-sub');
+    if (subEl) subEl.textContent = 'Select one occupation and one minor improvement, then confirm.';
+
+    const occPool = info.occ_pool || [];
+    const minPool = info.min_pool || [];
+
+    // Reset stale selections (pool changed — new player or new round).
+    const occIds = new Set(occPool.map((c) => c.card_id));
+    const minIds = new Set(minPool.map((c) => c.card_id));
+    if (_draftSelOcc && !occIds.has(_draftSelOcc)) _draftSelOcc = null;
+    if (_draftSelMin && !minIds.has(_draftSelMin)) _draftSelMin = null;
+
+    // Render occupation column.
+    const occEl = document.getElementById('draft-occ-cards');
+    if (occEl) {
+      occEl.innerHTML = '';
+      if (cardType === 'minor') {
+        // Occupation already picked this round — show placeholder.
+        occEl.appendChild(el('div', { class: 'draft-already-picked' },
+          'Occupation already chosen this round.'));
+      } else {
+        for (const c of occPool) occEl.appendChild(_makeDraftCard(c, 'occ'));
+      }
+    }
+
+    // Render minor column.
+    const minEl = document.getElementById('draft-min-cards');
+    if (minEl) {
+      minEl.innerHTML = '';
+      for (const c of minPool) minEl.appendChild(_makeDraftCard(c, 'min'));
+    }
+
+    // Render "picks so far" section.
+    const pickedOccs = info.picked_occs || [];
+    const pickedMins = info.picked_mins || [];
+    const pickedSection = document.getElementById('draft-picked-section');
+    if (pickedSection) {
+      const hasPicks = pickedOccs.length > 0 || pickedMins.length > 0;
+      pickedSection.classList.toggle('hidden', !hasPicks);
+      const occPickedEl = document.getElementById('draft-picked-occs');
+      const minPickedEl = document.getElementById('draft-picked-mins');
+      if (occPickedEl) {
+        occPickedEl.innerHTML = '';
+        for (const c of pickedOccs) occPickedEl.appendChild(_makePickedCard(c));
+      }
+      if (minPickedEl) {
+        minPickedEl.innerHTML = '';
+        for (const c of pickedMins) minPickedEl.appendChild(_makePickedCard(c));
+      }
+    }
+
+    // Update badges + confirm button.
+    _updateDraftUI(cardType);
+
+    // Wire confirm button (replace onclick each render to avoid stale closure).
+    const confirmBtn = document.getElementById('draft-confirm-btn');
+    if (confirmBtn) {
+      confirmBtn.onclick = () => confirmDraftPicks(cardType);
+    }
+  }
+
+  // Build one selectable card element for the draft modal.
+  function _makeDraftCard(c, kind) {
+    const div = document.createElement('div');
+    div.className = 'picker-card';
+    const sel = kind === 'occ' ? _draftSelOcc : _draftSelMin;
+    if (c.card_id === sel) div.classList.add('selected');
+
+    // Name row with optional VP badge.
+    const nameRow = document.createElement('div');
+    nameRow.className = 'picker-card-name';
+    nameRow.textContent = c.name || c.card_id;
+    if (c.vps) {
+      const vpBadge = document.createElement('span');
+      vpBadge.className = 'hand-card-vps';
+      vpBadge.title = 'printed victory points';
+      vpBadge.textContent = ` ${c.vps} pt${c.vps === 1 ? '' : 's'}`;
+      nameRow.appendChild(vpBadge);
+    }
+    div.appendChild(nameRow);
+
+    if (c.cost && c.cost !== '—') {
+      div.appendChild(el('div', { class: 'picker-card-cost' }, `Cost: ${c.cost}`));
+    }
+    if (c.prereq) {
+      div.appendChild(el('div', { class: 'picker-card-prereq' }, `Needs: ${c.prereq}`));
+    }
+    if (c.text) {
+      div.appendChild(el('div', { class: 'picker-card-text' }, c.text));
+    }
+
+    div.addEventListener('click', () => {
+      if (kind === 'occ') {
+        // Radio-style: deselect the previous occ card.
+        const prev = document.querySelector('#draft-occ-cards .picker-card.selected');
+        if (prev) prev.classList.remove('selected');
+        _draftSelOcc = (_draftSelOcc === c.card_id) ? null : c.card_id;
+        if (_draftSelOcc) div.classList.add('selected');
+      } else {
+        const prev = document.querySelector('#draft-min-cards .picker-card.selected');
+        if (prev) prev.classList.remove('selected');
+        _draftSelMin = (_draftSelMin === c.card_id) ? null : c.card_id;
+        if (_draftSelMin) div.classList.add('selected');
+      }
+      _updateDraftUI(currentState?.draft_info?.card_type || 'occupation');
+    });
+
+    return div;
+  }
+
+  // Read-only version of the draft card — same visual, no click handler.
+  function _makePickedCard(c) {
+    const div = document.createElement('div');
+    div.className = 'picker-card picker-card-readonly';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'picker-card-name';
+    nameRow.textContent = c.name || c.card_id;
+    if (c.vps) {
+      const vpBadge = document.createElement('span');
+      vpBadge.className = 'hand-card-vps';
+      vpBadge.title = 'victory points';
+      vpBadge.textContent = ` ${c.vps} pt${c.vps === 1 ? '' : 's'}`;
+      nameRow.appendChild(vpBadge);
+    }
+    div.appendChild(nameRow);
+
+    if (c.cost && c.cost !== '—') {
+      div.appendChild(el('div', { class: 'picker-card-cost' }, `Cost: ${c.cost}`));
+    }
+    if (c.prereq) {
+      div.appendChild(el('div', { class: 'picker-card-prereq' }, `Needs: ${c.prereq}`));
+    }
+    if (c.text) {
+      div.appendChild(el('div', { class: 'picker-card-text' }, c.text));
+    }
+
+    return div;
+  }
+
+  // Update the selection badges and confirm button enabled state.
+  function _updateDraftUI(cardType) {
+    const isMinorOnly = cardType === 'minor';
+    const occOk = isMinorOnly || !!_draftSelOcc;
+    const minOk = !!_draftSelMin;
+
+    const occBadge = document.getElementById('draft-occ-badge');
+    if (occBadge) {
+      if (isMinorOnly) {
+        occBadge.textContent = '✓ picked';
+        occBadge.className = 'draft-sel-badge draft-sel-ok';
+      } else if (_draftSelOcc) {
+        occBadge.textContent = '✓ chosen';
+        occBadge.className = 'draft-sel-badge draft-sel-ok';
+      } else {
+        occBadge.textContent = 'none chosen';
+        occBadge.className = 'draft-sel-badge draft-sel-none';
+      }
+    }
+    const minBadge = document.getElementById('draft-min-badge');
+    if (minBadge) {
+      if (_draftSelMin) {
+        minBadge.textContent = '✓ chosen';
+        minBadge.className = 'draft-sel-badge draft-sel-ok';
+      } else {
+        minBadge.textContent = 'none chosen';
+        minBadge.className = 'draft-sel-badge draft-sel-none';
+      }
+    }
+
+    const btn = document.getElementById('draft-confirm-btn');
+    if (btn) btn.disabled = !(occOk && minOk);
+  }
+
+  // Submit the draft picks: occ first (if occupation round), then auto-submit minor.
+  async function confirmDraftPicks(cardType) {
+    if (inputLocked) return;
+    const isMinorOnly = cardType === 'minor';
+    if (!isMinorOnly && !_draftSelOcc) return;
+    if (!_draftSelMin) return;
+
+    const selOcc = _draftSelOcc;
+    const selMin = _draftSelMin;
+    _draftSelOcc = null;
+    _draftSelMin = null;
+
+    // Hide the draft modal immediately — don't wait for the server.
+    document.getElementById('draft-modal')?.classList.add('hidden');
+
+    setInputLocked(true);
+    // Track the best-known state so the finally block always re-renders
+    // (which re-shows the modal if the draft is still in progress).
+    let finalState = currentState;
+    try {
+      if (!isMinorOnly) {
+        // Step 1: pick the occupation.
+        const occAct = (finalState.legal_actions || []).find(
+          (a) => a.ui_hint === 'draft_card' && a.params?.card_id === selOcc
+        );
+        if (!occAct) return;
+        const r1 = await fetch('/api/step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action_index: occAct.index }),
+        });
+        const d1 = await r1.json();
+        if (d1.state) finalState = d1.state;
+        if (!d1.ok) return;
+      }
+
+      // Step 2: auto-submit the pre-selected minor.
+      const minAct = (finalState.legal_actions || []).find(
+        (a) => a.ui_hint === 'draft_card' && a.params?.card_id === selMin
+      );
+      if (!minAct) return;
+      const r2 = await fetch('/api/step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_index: minAct.index }),
+      });
+      const d2 = await r2.json();
+      if (d2.state) finalState = d2.state;
+    } finally {
+      setInputLocked(false);
+      applyState(finalState);  // always re-render; modal re-appears if draft still active
+    }
+  }
+
+  // -------- draft handoff overlay --------
+
+  function renderDraftHandoff(state) {
+    const modal = document.getElementById('draft-handoff-modal');
+    if (!modal) return;
+    const show = !!(state.draft_handoff);
+    modal.classList.toggle('hidden', !show);
+    if (!show) return;
+
+    const info = state.draft_info || {};
+    const p = info.picking_player != null ? info.picking_player : state.decider;
+    const cardType = info.card_type || 'card';
+    const round = info.round;
+    const total = info.total_rounds || 7;
+
+    const title = document.getElementById('draft-handoff-title');
+    if (title) title.textContent = `P${p}'s turn to pick`;
+    const infoEl = document.getElementById('draft-handoff-info');
+    if (infoEl) {
+      const roundStr = round != null ? ` (round ${round} of ${total})` : '';
+      infoEl.textContent = `Pass the device to P${p} to choose their cards${roundStr}.`;
+    }
+
+    const btn = document.getElementById('draft-handoff-ready');
+    if (btn) {
+      btn.onclick = async () => {
+        modal.classList.add('hidden');
+        try {
+          const resp = await fetch('/api/draft_handoff_ack', { method: 'POST' });
+          const data = await resp.json();
+          if (data.ok) applyState(data.state);
+        } catch (_) {}
+      };
+    }
+  }
+
   function renderPendingBreadcrumb(container, state) {
     container.innerHTML = '';
     if (!state.pending_stack.length) {
-      container.textContent = 'No pending — choose a worker placement.';
+      container.textContent = state.phase === 'DRAFT'
+        ? 'Draft — choose a card from your pool.'
+        : 'No pending — choose a worker placement.';
       return;
     }
     const chain = state.pending_stack

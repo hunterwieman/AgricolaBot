@@ -861,6 +861,24 @@ class PendingActionSpace:
         return self.initiated_by_id.split(":", 1)[1]
 
 
+@dataclass(frozen=True)
+class PendingDraftPick:
+    """Draft-pick decision: the active player selects one card from their pool.
+
+    Pushed by engine._advance_until_decision during Phase.DRAFT when the
+    stack is empty, once per card type per player per round. `player_idx`
+    is who is picking; `card_type` is 'occupation' or 'minor'. The matching
+    CommitDraftPick moves the card from the pool into the player's hand and
+    pops this frame.
+
+    No triggers_resolved — draft picks have no card hooks.
+    Card-only: never reaches the C++ (Family) engine.
+    """
+    PENDING_ID: ClassVar[str] = "draft_pick"
+    player_idx: int
+    card_type: str   # "occupation" or "minor"
+
+
 # The PendingDecision union. New pending types are added here as the
 # non-atomic resolution surface grows.
 PendingDecision = Union[
@@ -892,6 +910,7 @@ PendingDecision = Union[
     PendingPreparation,
     PendingCardChoice,
     PendingActionSpace,
+    PendingDraftPick,
 ]
 
 
