@@ -299,6 +299,123 @@
     if (modal) modal.classList.add('hidden');
   }
 
+  // -----------------------------------------------------------------------
+  // Hand-picker modal — Cards mode, vs non-human opponent.
+  // -----------------------------------------------------------------------
+
+  const HAND_LIMIT = 7;
+  let _handPickerResolve = null;
+  let _handPickerSelOccs = new Set();
+  let _handPickerSelMins = new Set();
+
+  function _updateHandPickerCounts() {
+    const occEl = document.getElementById('hand-picker-occ-count');
+    const minEl = document.getElementById('hand-picker-min-count');
+    if (occEl) {
+      occEl.textContent = `${_handPickerSelOccs.size} / ${HAND_LIMIT}`;
+      occEl.classList.toggle('at-limit', _handPickerSelOccs.size >= HAND_LIMIT);
+    }
+    if (minEl) {
+      minEl.textContent = `${_handPickerSelMins.size} / ${HAND_LIMIT}`;
+      minEl.classList.toggle('at-limit', _handPickerSelMins.size >= HAND_LIMIT);
+    }
+  }
+
+  function _togglePickerCard(id, kind, cardEl) {
+    const sel = kind === 'occ' ? _handPickerSelOccs : _handPickerSelMins;
+    if (sel.has(id)) {
+      sel.delete(id);
+      cardEl.classList.remove('selected');
+    } else if (sel.size < HAND_LIMIT) {
+      sel.add(id);
+      cardEl.classList.add('selected');
+    }
+    _updateHandPickerCounts();
+  }
+
+  function _makePickerCard(card, kind) {
+    const div = document.createElement('div');
+    div.className = 'picker-card';
+    div.dataset.id = card.id;
+
+    const name = document.createElement('div');
+    name.className = 'picker-card-name';
+    name.textContent = card.name || card.id;
+    div.appendChild(name);
+
+    if (card.cost && card.cost !== '—') {
+      const cost = document.createElement('div');
+      cost.className = 'picker-card-cost';
+      cost.textContent = `Cost: ${card.cost}`;
+      div.appendChild(cost);
+    }
+    if (card.prereq) {
+      const prereq = document.createElement('div');
+      prereq.className = 'picker-card-prereq';
+      prereq.textContent = `Needs: ${card.prereq}`;
+      div.appendChild(prereq);
+    }
+    if (card.text) {
+      const text = document.createElement('div');
+      text.className = 'picker-card-text';
+      text.textContent = card.text;
+      div.appendChild(text);
+    }
+
+    div.addEventListener('click', () => _togglePickerCard(card.id, kind, div));
+    return div;
+  }
+
+  function _renderHandPickerCards(cardsList) {
+    const occsEl = document.getElementById('hand-picker-occs');
+    const minsEl = document.getElementById('hand-picker-mins');
+    if (!occsEl || !minsEl) return;
+    occsEl.innerHTML = '';
+    minsEl.innerHTML = '';
+    for (const c of cardsList.occupations || []) {
+      occsEl.appendChild(_makePickerCard(c, 'occ'));
+    }
+    for (const c of cardsList.minors || []) {
+      minsEl.appendChild(_makePickerCard(c, 'min'));
+    }
+  }
+
+  function _closeHandPicker(result) {
+    const modal = document.getElementById('hand-picker-modal');
+    if (modal) modal.classList.add('hidden');
+    if (_handPickerResolve) {
+      _handPickerResolve(result);
+      _handPickerResolve = null;
+    }
+  }
+
+  // Shows the hand-picker modal and returns a Promise that resolves with
+  // {occupations:[...ids], minors:[...ids]} on "Start game" / "Fully random",
+  // or null on "Cancel".
+  async function showHandPicker() {
+    _handPickerSelOccs.clear();
+    _handPickerSelMins.clear();
+    _updateHandPickerCounts();
+
+    let cardsList;
+    try {
+      const res = await fetch('/api/cards_list');
+      cardsList = await res.json();
+    } catch (e) {
+      console.warn('hand-picker: failed to fetch cards_list', e);
+      return { occupations: [], minors: [] };  // fall back to fully random
+    }
+
+    _renderHandPickerCards(cardsList);
+
+    const modal = document.getElementById('hand-picker-modal');
+    if (modal) modal.classList.remove('hidden');
+
+    return new Promise((resolve) => {
+      _handPickerResolve = resolve;
+    });
+  }
+
   // Step 2 of a new game: the variant has been chosen. Gather the
   // mode-specific prompts and POST /api/reset.
   //   'family' → human-vs-MCTS: seed + sims/move + opponent prior-mix.
@@ -326,7 +443,26 @@
         'random');
       if (oppStr === null) return;
       const opp = oppStr.trim().toLowerCase() === 'human' ? 'human' : 'random';
-      body = { seed, seats: ['human', opp], game_mode: 'cards' };
+
+      // Hand-picker: optionally let the player choose their hand when vs a bot.
+      let custom_hand = null;
+      if (opp !== 'human') {
+        const chooseStr = prompt(
+          'Choose your hand?\n' +
+          '  yes = pick your occupations and minor improvements\n' +
+          '  no  = random hand (default)',
+          'no');
+        if (chooseStr === null) return;  // user hit Cancel
+        if (chooseStr.trim().toLowerCase().startsWith('y')) {
+          const picked = await showHandPicker();
+          if (picked === null) return;  // user cancelled the picker
+          if (picked.occupations.length || picked.minors.length) {
+            custom_hand = picked;
+          }
+        }
+      }
+
+      body = { seed, seats: ['human', opp], game_mode: 'cards', custom_hand };
     } else {
       // Family game — the existing human-vs-MCTS setup.
       // Sims/move: default to the current game's value, else the last choice,
@@ -1606,6 +1742,28 @@
     if (familyBtn) familyBtn.addEventListener('click', () => startGame('family'));
     const cardsBtn = document.getElementById('mode-select-cards');
     if (cardsBtn) cardsBtn.addEventListener('click', () => startGame('cards'));
+    // Hand-picker modal buttons.
+    const hpStart = document.getElementById('hand-picker-start');
+    if (hpStart) hpStart.addEventListener('click', () => {
+      _closeHandPicker({
+        occupations: Array.from(_handPickerSelOccs),
+        minors: Array.from(_handPickerSelMins),
+      });
+    });
+    const hpSkip = document.getElementById('hand-picker-skip');
+    if (hpSkip) hpSkip.addEventListener('click', () => {
+      _closeHandPicker({ occupations: [], minors: [] });
+    });
+    const hpClear = document.getElementById('hand-picker-clear');
+    if (hpClear) hpClear.addEventListener('click', () => {
+      _handPickerSelOccs.clear();
+      _handPickerSelMins.clear();
+      document.querySelectorAll('#hand-picker-modal .picker-card.selected')
+        .forEach((c) => c.classList.remove('selected'));
+      _updateHandPickerCounts();
+    });
+    const hpCancel = document.getElementById('hand-picker-cancel');
+    if (hpCancel) hpCancel.addEventListener('click', () => _closeHandPicker(null));
     // Download-trace button: navigate to /api/trace, which is served with a
     // Content-Disposition: attachment header so the browser saves it as
     // `agricola-trace-seed<seed>.json` instead of rendering it inline.

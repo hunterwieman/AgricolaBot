@@ -126,6 +126,41 @@
     </div>
   </div>
 
+  <!-- Hand-picker modal — Cards mode, vs non-human opponent only. -->
+  <div id="hand-picker-modal" class="modal hidden">
+    <div class="modal-body hand-picker-body">
+      <h2>Choose your hand <span class="mode-beta">optional</span></h2>
+      <p class="hand-picker-intro">
+        Pick up to 7 occupations and 7 minor improvements.
+        Unselected slots are filled randomly from the remaining cards.
+      </p>
+      <div class="hand-picker-controls">
+        <button type="button" id="hand-picker-clear">Clear all</button>
+        <button type="button" id="hand-picker-skip">Fully random</button>
+      </div>
+      <div class="hand-picker-sections">
+        <div class="hand-picker-section">
+          <div class="hand-picker-section-hdr">
+            <span class="hand-picker-section-title">Occupations</span>
+            <span id="hand-picker-occ-count" class="hand-picker-count">0 / 7</span>
+          </div>
+          <div id="hand-picker-occs" class="hand-picker-cards"></div>
+        </div>
+        <div class="hand-picker-section">
+          <div class="hand-picker-section-hdr">
+            <span class="hand-picker-section-title">Minor Improvements</span>
+            <span id="hand-picker-min-count" class="hand-picker-count">0 / 7</span>
+          </div>
+          <div id="hand-picker-mins" class="hand-picker-cards"></div>
+        </div>
+      </div>
+      <div class="hand-picker-footer">
+        <button type="button" id="hand-picker-cancel">Cancel</button>
+        <button type="button" id="hand-picker-start" class="hand-picker-start-btn">Start game</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

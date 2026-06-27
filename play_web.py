@@ -173,7 +173,7 @@ from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
 from agricola.pending import PendingHarvestBreed, PendingHarvestFeed
 from agricola.scoring import score, tiebreaker
-from agricola.setup import CardPool, setup, setup_env
+from agricola.setup import CardPool, HAND_SIZE, setup, setup_env
 from agricola.state import GameState
 
 
@@ -611,6 +611,53 @@ def _card_pool() -> "CardPool":
     import agricola.cards  # noqa: F401  (registers OCCUPATIONS / MINORS)
     from agricola.cards.specs import OCCUPATIONS, MINORS
     return CardPool(occupations=tuple(OCCUPATIONS), minors=tuple(MINORS))
+
+
+def _apply_custom_hand(
+    state: "GameState",
+    selected_occs: list,
+    selected_mins: list,
+    card_pool: "CardPool",
+    seed: int,
+) -> "GameState":
+    """Overwrite P0's hand with the player's selections for the hand-picker feature.
+
+    Selected cards are guaranteed to be in P0's hand.  Any slots not filled by
+    the player (up to HAND_SIZE each) are drawn randomly from the remaining
+    pool.  P1 receives the next HAND_SIZE cards from whatever is left over.
+    A separate RNG (derived from the seed) is used so the game's own randomness
+    is not perturbed.
+    """
+    import numpy as np
+    from agricola.replace import fast_replace
+
+    rng = np.random.default_rng(int(seed) ^ 0x7A5F3B91)
+
+    pool_occs: set[str] = set(card_pool.occupations)
+    pool_mins: set[str] = set(card_pool.minors)
+
+    # Clamp to valid pool members and hand-size limit.
+    sel_occs: list[str] = [c for c in selected_occs if c in pool_occs][:HAND_SIZE]
+    sel_mins: list[str] = [c for c in selected_mins if c in pool_mins][:HAND_SIZE]
+
+    # Cards not reserved by the player — shuffled for filling + P1.
+    other_occs: list[str] = sorted(pool_occs - set(sel_occs))
+    other_mins: list[str] = sorted(pool_mins - set(sel_mins))
+    rng.shuffle(other_occs)  # type: ignore[arg-type]
+    rng.shuffle(other_mins)  # type: ignore[arg-type]
+
+    n_fill_occ = HAND_SIZE - len(sel_occs)
+    n_fill_min = HAND_SIZE - len(sel_mins)
+
+    p0_occs = frozenset(sel_occs) | frozenset(other_occs[:n_fill_occ])
+    p0_mins = frozenset(sel_mins) | frozenset(other_mins[:n_fill_min])
+
+    p1_occs = frozenset(other_occs[n_fill_occ : n_fill_occ + HAND_SIZE])
+    p1_mins = frozenset(other_mins[n_fill_min : n_fill_min + HAND_SIZE])
+
+    new_p0 = fast_replace(state.players[0], hand_occupations=p0_occs, hand_minors=p0_mins)
+    new_p1 = fast_replace(state.players[1], hand_occupations=p1_occs, hand_minors=p1_mins)
+    return fast_replace(state, players=(new_p0, new_p1))
 
 
 def _card_slug(name: str) -> str:
@@ -1901,6 +1948,7 @@ class Session:
         mcts_policy: str = "unweighted",
         opponent_mix: float = 0.0,
         game_mode: str = "family",
+        custom_hand: dict | None = None,
     ) -> None:
         _validate_seats(seats, game_mode)
         # Cancel any in-flight analysis from the previous game.
@@ -1918,6 +1966,15 @@ class Session:
             self.humans = {i for i, s in enumerate(seats) if s == "human"}
             self.agents = self._make_agents()
             self.state, self.env = self._setup_for_mode(seed)
+            # Hand-picker: overwrite P0's dealt hand with the player's selection.
+            if custom_hand and self.game_mode == "cards":
+                self.state = _apply_custom_hand(
+                    self.state,
+                    custom_hand.get("occupations", []),
+                    custom_hand.get("minors", []),
+                    _card_pool(),
+                    seed,
+                )
             self.log = RoundLog(self.humans)
             self.current_round = self.state.round_number
             self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
@@ -2160,6 +2217,20 @@ def _make_handler(registry: SessionRegistry):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if path == "/api/cards_list":
+                # All cards available in the pool, with display metadata.
+                # Used by the hand-picker overlay in the Cards new-game flow.
+                pool = _card_pool()
+                occs = sorted(
+                    [_card_info(cid) for cid in pool.occupations],
+                    key=lambda c: c["name"],
+                )
+                mins = sorted(
+                    [_card_info(cid) for cid in pool.minors],
+                    key=lambda c: c["name"],
+                )
+                self._send_json(HTTPStatus.OK, {"occupations": occs, "minors": mins})
+                return
             if path == "/api/ai_preview":
                 ok, msg, rows = self._session().ai_preview()
                 status = HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST
@@ -2319,7 +2390,18 @@ def _make_handler(registry: SessionRegistry):
                         })
                         return
                     seats = tuple(seats)
-                    session.reset(seed, seats, game_mode="cards")
+                    # Optional hand selection from the hand-picker UI.
+                    # {occupations: [...ids], minors: [...ids]} — any subset of
+                    # the pool; missing slots are randomised.  None = fully random.
+                    custom_hand = body.get("custom_hand")
+                    if custom_hand is not None and not isinstance(custom_hand, dict):
+                        self._send_json(HTTPStatus.BAD_REQUEST, {
+                            "ok": False,
+                            "error": "custom_hand must be an object or null",
+                        })
+                        return
+                    session.reset(seed, seats, game_mode="cards",
+                                  custom_hand=custom_hand or None)
                     self._send_json(HTTPStatus.OK, {
                         "ok": True,
                         "seed": seed,
