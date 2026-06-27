@@ -139,6 +139,10 @@ class PendingFarmExpansion:
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
+
 
 @dataclass(frozen=True)
 class PendingBuildStables:
@@ -420,6 +424,10 @@ class PendingHouseRedevelopment:
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
+
 
 @dataclass(frozen=True)
 class PendingClayOven:
@@ -511,6 +519,10 @@ class PendingFarmRedevelopment:
     build_fences_chosen: bool = False
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
 
 
 @dataclass(frozen=True)

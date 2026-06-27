@@ -60,6 +60,55 @@ def _occupy(state, space_id, player=1):
                                                 fast_replace(sp, workers=workers)))
 
 
+def test_all_action_space_host_frames_expose_space_id():
+    """CONTRACT: every action-space host frame (PENDING_ID in
+    ACTION_SPACE_PENDING_IDS) must expose a `space_id` property.
+
+    18 cards read `state.pending_stack[-1].space_id` in their before/after-
+    action_space eligibility WITHOUT an isinstance guard, so a host frame that
+    omits the property crashes legal_actions / step for any action-space-hook
+    owner — the Meeting Place (seed 11583) and Farm Expansion / House
+    Redevelopment (seed 63519) web locks. This introspects EVERY host frame, so
+    it catches all current and future omissions at once."""
+    import dataclasses
+    import inspect
+
+    import agricola.pending as P
+    from agricola.legality import ACTION_SPACE_PENDING_IDS
+
+    offenders = []
+    for name, obj in vars(P).items():
+        if not (inspect.isclass(obj) and dataclasses.is_dataclass(obj)):
+            continue
+        pid = getattr(obj, "PENDING_ID", None)
+        fields = {f.name for f in dataclasses.fields(obj)}
+        if pid in ACTION_SPACE_PENDING_IDS and "initiated_by_id" in fields:
+            if not isinstance(inspect.getattr_static(obj, "space_id", None), property):
+                offenders.append(name)
+    assert not offenders, f"action-space host frames missing space_id: {offenders}"
+
+
+def test_andor_host_with_action_space_hook_owner_no_crash():
+    """Regression for the seed-63519 web lock. The player owned Wood Cutter (an
+    occupation whose `before_action_space` eligibility reads `top.space_id`).
+    Placing on Farm Expansion pushed PendingFarmExpansion — an and/or Proceed-host
+    that was missing `space_id` — so firing the before-automatics raised
+    AttributeError and the worker placement silently failed (the UI let you click
+    Farm Expansion endlessly with no effect). Drives that exact path."""
+    from agricola.actions import ChooseSubAction
+
+    s = fast_replace(_card_state(), current_player=0)
+    s = _own(s, 0, occupations=("wood_cutter",))
+    # Afford a stable so Farm Expansion is a legal placement.
+    p0 = fast_replace(s.players[0], resources=Resources(wood=10, reed=5))
+    s = fast_replace(s, players=(p0, s.players[1]))
+
+    assert PlaceWorker(space="farm_expansion") in legal_actions(s)
+    s = step(s, PlaceWorker(space="farm_expansion"))   # pre-fix: AttributeError
+    acts = legal_actions(s)
+    assert any(isinstance(a, ChooseSubAction) for a in acts), acts
+
+
 def _play_hosted_space(state, space_id):
     """Drive the full hosted lifecycle: place, then auto-skip Proceed and Stop.
     Returns the state after the turn (asserting the singleton lifecycle shape)."""
