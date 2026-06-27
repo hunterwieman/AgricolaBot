@@ -721,11 +721,24 @@ def _load_card_meta() -> dict[str, dict]:
         import agricola.cards  # noqa: F401
         from agricola.cards.specs import OCCUPATIONS, MINORS
         data_dir = os.path.join(HERE, "agricola", "cards", "data")
+        # Join key is the slugged name (== card_id). Two DISTINCT cards can share
+        # a name — e.g. the Base-Revised "Market Stall" (the one we implement) and
+        # the unrelated Corbarius "Market Stall" — so the slug, and thus card_id,
+        # collides. Disambiguate by status: a card_id refers to the printing marked
+        # "implemented", so prefer that row over any same-named non-implemented one
+        # (otherwise a later, unimplemented printing would shadow the real card's
+        # name/text/cost in the UI). Self-correcting as more cards are implemented.
         by_slug: dict[str, dict] = {}
         for fname in ("revised_occupations.json", "revised_minor_improvements.json"):
             with open(os.path.join(data_dir, fname)) as f:
                 for row in json.load(f):
-                    by_slug[_card_slug(row["name"])] = row
+                    slug = _card_slug(row["name"])
+                    prev = by_slug.get(slug)
+                    if (prev is not None
+                            and prev.get("status") == "implemented"
+                            and row.get("status") != "implemented"):
+                        continue   # keep the implemented printing; skip the shadow
+                    by_slug[slug] = row
         for cid in OCCUPATIONS:
             row = by_slug.get(cid)
             meta[cid] = {
