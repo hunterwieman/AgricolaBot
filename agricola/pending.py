@@ -458,16 +458,27 @@ class PendingStoneOven:
 
 @dataclass(frozen=True)
 class PendingBuildFences:
-    """Multi-shot sub-action pending for fence building.
+    """Multi-shot sub-action HOST for fence building.
 
-    Pushed by `_choose_subaction_fencing` and by `_choose_subaction_farm_redevelopment`
-    (and by future card effects). Each `CommitBuildPasture` names one pasture
-    cell-set; the effect function debits wood for the new fence edges and
-    increments the counters below.
+    Pushed when the player enters the build_fences category — Fencing (via the
+    generic delegating space host) and Farm Redevelopment — and by future card
+    effects. Each `CommitBuildPasture` names one pasture cell-set; the effect
+    function debits wood for the new fence edges and increments the counters below.
+
+    A uniform before/after host (SUBACTION_HOOK_REFACTOR.md), like the other
+    multi-shot builders `PendingBuildStables` / `PendingBuildRooms`: in the
+    `before` phase the player commits pastures (and `before_build_fences` triggers
+    may fire), then `Proceed` (legal once `pastures_built >= 1`) flips to `after` —
+    firing `after_build_fences` automatic effects via `_enter_after_phase` — where
+    after-triggers + `Stop` are legal and `Stop` pops. Multi-shot has no single
+    commit to flip on (unlike Sow/Bake/Plow, which flip on their commit), so
+    `Proceed` is that explicit signal, exactly as for the and/or space hosts.
+    (NN: Proceed is relabeled to Stop for the `fencing` head + combiners and the
+    trailing Stop is a singleton, so the policy/MCTS view is unchanged.)
 
     State fields:
       - `pastures_built`: number of CommitBuildPasture commits landed so far.
-        Stop-legality requires `pastures_built >= 1`.
+        Proceed-legality requires `pastures_built >= 1`.
       - `fences_built`: total fence-edges placed across all commits. Carries
         forward for card patterns like "each time you build N fences ≥ current
         round, get 1 vegetable".
@@ -477,15 +488,16 @@ class PendingBuildFences:
         commits are no longer offered in the enumerator.
 
     The matching `CommitBuildPasture` handler never pops: each commit replaces
-    the top with updated counters and leaves the pending on the stack; Stop pops it.
+    the top with updated counters and leaves the pending in the before-phase;
+    `Proceed` flips to after, `Stop` pops.
     """
     PENDING_ID: ClassVar[str] = "build_fences"
-    TRIGGER_EVENT: ClassVar[str] = "before_build_fences"
     player_idx: int
     initiated_by_id: str
     pastures_built: int = 0
     fences_built: int = 0
     subdivision_started: bool = False
+    phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
 
@@ -920,8 +932,8 @@ PendingDecision = Union[
 # coarse before_/after_action_space event (legality.trigger_event) and fire
 # after_action_space automatic effects at their work-complete boundary
 # (SPACE_HOST_REFACTOR.md §11). Multi-shot sub-action frames
-# (build_stables/_rooms/_fences) are deliberately NOT here — their Stop pops a
-# sub-action, not the space. `major_minor_improvement` is deliberately NOT here
+# (build_stables/_rooms/_fences) are deliberately NOT here — their Proceed/Stop
+# ends a sub-action, not the space. `major_minor_improvement` is deliberately NOT here
 # either — it is the composite-action host firing its OWN
 # major_minor_improvement event, not action_space (§6). `farmland` / `fencing`
 # are gone — those spaces are now PendingSubActionSpace ("action_space").
@@ -949,13 +961,12 @@ ACTION_SPACE_PENDING_IDS: frozenset = frozenset({
 # and excludes `major_minor_improvement` (PendingMajorMinorImprovement is a
 # composite host firing its own `before_major_minor_improvement`, not a sub-action
 # leaf). The single-commit leaves flip to phase="after" on their commit; the
-# multi-shot builders (`build_rooms`/`build_stables`) flip on `Proceed` (no single
-# commit to flip on). `build_fences` is NOT here — it remains the Stop-terminated
-# multi-shot exception (no before/after `phase`).
+# multi-shot builders (`build_rooms`/`build_stables`/`build_fences`) flip on
+# `Proceed` (no single commit to flip on; no Stop-terminated exception remains).
 SUBACTION_PENDING_IDS: frozenset = frozenset({
     "sow", "bake_bread", "plow", "renovate", "build_major",
     "family_growth", "play_occupation", "play_minor",
-    "build_rooms", "build_stables",
+    "build_rooms", "build_stables", "build_fences",
 })
 
 

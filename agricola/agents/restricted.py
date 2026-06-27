@@ -73,6 +73,7 @@ from agricola.actions import (
     CommitHarvestConversion,
     CommitPlow,
     CommitSow,
+    Proceed,
     Stop,
 )
 from agricola.constants import CellType
@@ -687,7 +688,11 @@ def _filter_fencing_patterns(
         if isinstance(a, CommitBuildPasture):
             if a.cells in allowed_cells:
                 narrowed.append(a)
-        elif isinstance(a, Stop):
+        elif isinstance(a, (Stop, Proceed)):
+            # Proceed-as-Stop alias: post the build-host refactor the before-phase
+            # "stop fencing" action is Proceed (the work-complete flip); `stop_allowed`
+            # gates it just as it gated Stop. (The after-phase trailing Stop is a
+            # singleton this filter passes through via _safe_narrow if it's dropped.)
             if stop_allowed:
                 narrowed.append(a)
         else:

@@ -151,7 +151,7 @@ inline void hf(std::uint64_t& h, const PendingStoneOven& f) {
 }
 inline void hf(std::uint64_t& h, const PendingBuildFences& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.pastures_built); hi(h, f.fences_built);
-  hi(h, f.subdivision_started); hi(h, f.triggers_resolved);
+  hi(h, f.subdivision_started); hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingFarmRedevelopment& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.renovate_chosen); hi(h, f.build_fences_chosen);

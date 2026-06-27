@@ -312,9 +312,13 @@ The `space:` / `phase:` / `card:` prefixes make the namespaces disjoint by const
 - `PlaceWorker(space=…)` pushes the space's parent frame.
 - `ChooseSubAction(name=…)` sets the parent's `<cat>_chosen` flag **and** pushes the category
   frame (one handler, both effects).
-- `CommitX(…)` pops the category frame (auto_pop=True). **Multi-shot exception:** for
+- `CommitX(…)` flips its single-commit sub-action host to `phase="after"` (via
+  `_enter_after_phase`); the trailing `Stop` pops. **Multi-shot hosts:** for
   `PendingBuildStables` / `PendingBuildRooms` / `PendingBuildFences`, the commit increments a
-  counter and `replace_top`s, leaving the frame on top; `Stop` is the explicit exit that pops.
+  counter and `replace_top`s, leaving the frame in its before-phase; **`Proceed`** (legal once the
+  counter `>= 1`) flips it to after, and the trailing `Stop` pops. (The old per-commit
+  `auto_pop=True` was removed when every sub-action became a uniform before/after host —
+  SUBACTION_HOOK_REFACTOR.md.)
 - `CommitBuildMajor` is the one commit that can *push* instead of pop: a plain major pops
   `PendingBuildMajor`, but a Clay/Stone Oven purchase pushes that oven's pending (which hosts a
   free Bake) on top, extending the chain.
@@ -367,24 +371,25 @@ or `BoardState`, not on frames. The stack holds *active* decisions, not a per-ga
 
 ### The commit dispatch table
 
-Every `Commit*` action maps to an `(expected_pending, effect_fn, auto_pop)` row in
+Every `Commit*` action maps to an `(expected_pending, effect_fn)` row in
 `COMMIT_SUBACTION_HANDLERS` (`engine.py`), dispatched generically by `_apply_commit_subaction`
-(§1). `auto_pop=True` → the dispatcher pops the sub-action frame after the effect runs.
-`auto_pop=False` → the effect function owns its stack manipulation, used by the multi-shot
-pendings (`replace_top` per commit; `Stop` pops), by `CommitBuildMajor` (pop for a plain major,
-or push an oven pending), and by the harvest commits.
+(§1). The dispatcher never pops — the effect function owns all stack manipulation. Once every
+sub-action became a uniform before/after host (SUBACTION_HOOK_REFACTOR.md) the old per-row
+`auto_pop` flag was uniformly `False`, so it was removed; the effect always either flips its host
+to `phase="after"` (so the trailing `Stop` pops) or `replace_top`s for a multi-shot. The
+"behavior" column below is what each effect does after applying its effect:
 
-| Commit | Pending | `auto_pop` |
+| Commit | Pending | Behavior |
 |---|---|---|
-| `CommitSow` | `PendingSow` | True |
-| `CommitBake` | `PendingBakeBread` | True |
-| `CommitPlow` | `PendingPlow` | True |
-| `CommitBuildStable` | `PendingBuildStables` | False (multi-shot) |
-| `CommitBuildRoom` | `PendingBuildRooms` | False (multi-shot) |
-| `CommitRenovate` | `PendingRenovate` | True |
-| `CommitAccommodate` | `(PendingSheepMarket, PendingPigMarket, PendingCattleMarket)` | False (pivots the market host to its after-phase, then `Stop` pops — the uniform non-atomic lifecycle; CARD_IMPLEMENTATION_PLAN.md 4b) |
-| `CommitBuildMajor` | `PendingBuildMajor` | False (effect pops, or pushes an oven pending) |
-| `CommitBuildPasture` | `PendingBuildFences` | False (multi-shot) |
+| `CommitSow` | `PendingSow` | flip to after (`Stop` pops) |
+| `CommitBake` | `PendingBakeBread` | flip to after (`Stop` pops) |
+| `CommitPlow` | `PendingPlow` | flip to after (`Stop` pops) |
+| `CommitBuildStable` | `PendingBuildStables` | multi-shot: `replace_top`; `Proceed` flips, `Stop` pops |
+| `CommitBuildRoom` | `PendingBuildRooms` | multi-shot: `replace_top`; `Proceed` flips, `Stop` pops |
+| `CommitRenovate` | `PendingRenovate` | flip to after (`Stop` pops) |
+| `CommitAccommodate` | `(PendingSheepMarket, PendingPigMarket, PendingCattleMarket)` | pivots the market host to its after-phase, then `Stop` pops (CARD_IMPLEMENTATION_PLAN.md 4b) |
+| `CommitBuildMajor` | `PendingBuildMajor` | flip to after, then pop (plain major) or push an oven pending |
+| `CommitBuildPasture` | `PendingBuildFences` | multi-shot: `replace_top`; `Proceed` flips, `Stop` pops |
 | `CommitHarvestConversion` | `PendingHarvestFeed` | False |
 | `CommitConvert` | `PendingHarvestFeed` | False |
 | `CommitBreed` | `PendingHarvestBreed` | False |
@@ -457,37 +462,43 @@ state plus commit parameters together.
 ### Multi-shot sub-action pendings
 
 Some categories allow multiple commits within one invocation: Farm Expansion's rooms/stables
-(Side Job's stable is a degenerate cap-1 case) and Fencing's pastures. Stables and rooms share
-the canonical shape described below; `PendingBuildFences` is a variant (noted at the end). The
-pattern:
+(Side Job's stable is a degenerate cap-1 case) and Fencing's pastures. All three are **uniform
+before/after hosts** (SUBACTION_HOOK_REFACTOR.md): they carry a `phase` ("before"/"after") and a
+`triggers_resolved` set, exactly like the single-commit sub-actions, but because a multi-shot
+frame has **no single commit to flip on**, the work-complete flip is an explicit **`Proceed`**
+(the same signal the and/or space hosts use). The pattern:
 
-- Two integer fields: `max_builds: int | None` (caller cap, push time; `None` = uncapped) and
-  `num_built: int = 0` (increments per commit).
-- `max_builds` encodes only **caller intent**. Affordability, supply, and placement availability
+- A counter (`num_built` for rooms/stables, `pastures_built` for fences; increments per commit)
+  and, for rooms/stables, `max_builds: int | None` (caller cap, push time; `None` = uncapped).
+  `max_builds` encodes only **caller intent** — affordability, supply, and placement availability
   are checked separately in the per-pending enumerator. Side Job pushes `max_builds=1`; Farm
-  Expansion pushes `None` and lets the dynamic enumerator constraints do all the bounding.
-- The effect is registered `auto_pop=False`. Each commit applies its effect, increments
-  `num_built`, and `replace_top`s — it does **not** pop.
-- `Stop` is the explicit exit, legal at `num_built >= 1` ("must do at least one when entering a
-  category"); not legal at `num_built == 0`.
-- The enumerator offers `Commit*` only while `(max_builds is None or num_built < max_builds)` AND
-  affordability/placement/supply permit. When no commit is legal but `num_built >= 1`, `Stop` is
-  the only legal action — a singleton-`Stop` state that arises uniformly whether the cap, supply,
-  affordability, or cell-availability is the binding constraint. (Side Job's cap-1 stable surfaces
-  this singleton `Stop` after its one commit; there's no auto-pop shortcut — uniformity over
-  optimization, matching the engine's "no auto-resolved singleton decisions" principle.)
+  Expansion pushes `None`. `PendingBuildFences` has **no `max_builds`** (uncapped — the
+  enumerator's dynamic constraints do all the bounding) and carries the builds-before-subdivisions
+  flag `subdivision_started`.
+- Each commit applies its effect, increments the counter, and `replace_top`s, leaving the frame in
+  its **before-phase** — it does **not** pop and does **not** flip. (`COMMIT_SUBACTION_HANDLERS`
+  no longer carries the old `auto_pop` flag; it was uniformly `False` once every sub-action became
+  a before/after host, so it was removed — §1.)
+- **`Proceed`** is the before-phase exit, legal once the counter `>= 1` ("must do at least one when
+  entering a category"); not legal at `0`. It flips the frame to `phase="after"` via
+  `_enter_after_phase` (firing the `after_<id>` automatic effects), where the enumerator offers
+  `after_<id>` triggers + `Stop`, and **`Stop` pops** (a pure pop).
+- The before-phase enumerator offers `Commit*` only while `(max_builds is None or num_built <
+  max_builds)` AND affordability/placement/supply permit, plus `before_<id>` triggers, plus
+  `Proceed` once the counter `>= 1`. When no commit is legal but the counter `>= 1`, `Proceed` is
+  the only legal action — a singleton that arises uniformly whether the cap, supply, affordability,
+  or cell-availability is the binding constraint, and which the agents auto-skip (the after-phase
+  `Stop` is likewise a singleton). This matches the engine's "no auto-resolved singleton decisions"
+  principle — uniformity over optimization.
 
-**The `PendingBuildFences` variant** keeps the multi-shot shape (`auto_pop=False`; commit,
-increment, `replace_top`; `Stop` pops) but diverges in its fields: it counts with `pastures_built`
-(plus `fences_built`, carried for card patterns), has **no `max_builds`** (uncapped — the
-enumerator's dynamic constraints do all the bounding), and carries the builds-before-subdivisions
-flag `subdivision_started`.
-
-Card-trigger fields are mixed across these pendings: `PendingBuildStables` / `PendingBuildRooms`
-(Task 5D) deliberately omit `triggers_resolved` / `TRIGGER_EVENT` — added per-pending when the
-first card needs them — whereas `PendingBuildFences` (Task 6) already carries
-`TRIGGER_EVENT = "before_build_fences"`. When `triggers_resolved` lands on a multi-shot pending,
-the persist-across-commits-vs-reset-per-commit question gets settled by the rules interpretation.
+The events these hosts fire are **derived** (`before_/after_<PENDING_ID>` — e.g.
+`before_build_fences`, `after_build_rooms`) via `legality.trigger_event` from the `phase` field, not
+stored as a per-frame `TRIGGER_EVENT` ClassVar (that ClassVar was dropped — invariant 9). All three
+ids are in `SUBACTION_PENDING_IDS`, so a freshly-pushed frame fires its `before_<id>` autos at the
+push (`_fire_subaction_before_auto`). `triggers_resolved` is scoped to the frame's lifetime
+(invariant 10), so it persists across the multi-shot's commits within one invocation. The lone
+remaining Stop-terminated (no-`phase`) sub-action frame is `PendingSideJob` (Family-only, never
+card-hooked).
 
 ---
 

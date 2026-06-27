@@ -703,6 +703,10 @@ std::vector<Action> enum_house_redev(const GameState& s,
 
 std::vector<Action> enum_build_fences(const GameState& s,
                                       const PendingBuildFences& pd) {
+  // before/after host (mirrors enum_build_stables/_rooms): after-phase =
+  // triggers (none in Family) + Stop; before-phase = pasture commits, then
+  // Proceed (the multi-shot work-complete flip) once at least one is built.
+  if (pd.phase == "after") return {Stop{}};
   const auto& p = frame_player(s, pd.player_idx);
   FenceScanCtx ctx =
       make_ctx(p.farmyard, p.resources.wood, pd.subdivision_started);
@@ -710,7 +714,7 @@ std::vector<Action> enum_build_fences(const GameState& s,
   for (const auto& entry : restricted_universe_entries())
     if (check_entry_legal(entry, ctx))
       a.push_back(CommitBuildPasture{entry.cells});
-  if (pd.pastures_built >= 1) a.push_back(Stop{});
+  if (pd.pastures_built >= 1) a.push_back(Proceed{});
   return a;
 }
 

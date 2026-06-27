@@ -1520,26 +1520,37 @@ def _enumerate_pending_build_fences(
     entries: tuple | None     = None,
     universe_set: frozenset | None = None,
 ) -> list[Action]:
-    """Enumerate legal CommitBuildPasture + Stop actions at PendingBuildFences.
+    """Enumerate legal actions at PendingBuildFences (multi-shot before/after host).
 
-    Implements the unified pasture-commit legality chain (TASK_6 §4.5) via
-    `_check_entry_legal`. Walks every entry in `entries` and emits one
-    CommitBuildPasture per legal entry. Stop is appended once at least one
-    pasture has been committed.
+    A uniform before/after host (SUBACTION_HOOK_REFACTOR.md), like
+    `_enumerate_pending_build_stables` / `_rooms`: in the after-phase the fences
+    are built, so only after_build_fences triggers + Stop (pop) are legal. In the
+    before-phase, the unified pasture-commit legality chain (TASK_6 §4.5) via
+    `_check_entry_legal` emits one CommitBuildPasture per legal entry, preceded by
+    any before_build_fences triggers, then Proceed (the multi-shot's explicit
+    work-complete signal — flips to the after-phase) once at least one pasture has
+    been committed.
 
     Universe resolution: when `entries` or `universe_set` is None, the
     corresponding `ACTIVE_FENCE_UNIVERSE_*` module constant is read at call
     time. This lets `active_universe(...)` reassignments affect this call
     site without requiring an explicit kwarg.
     """
+    if pending.phase == "after":
+        actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+        actions.append(Stop())
+        return actions
+
     if opt_config.FENCE_SCAN_CACHE and entries is None and universe_set is None:
         p = state.players[pending.player_idx]
         legal = _legal_pasture_commits_cached(
             p.farmyard, p.resources.wood, pending.subdivision_started,
         )
-        actions: list[Action] = [CommitBuildPasture(cells=e.cells) for e in legal]
+        actions: list[Action] = _eligible_fire_triggers(
+            state, pending, trigger_event(pending))
+        actions += [CommitBuildPasture(cells=e.cells) for e in legal]
         if pending.pastures_built >= 1:
-            actions.append(Stop())
+            actions.append(Proceed())
         return actions
 
     if entries is None:
@@ -1573,16 +1584,16 @@ def _enumerate_pending_build_fences(
         universe_set=universe_set,
     )
 
-    actions: list[Action] = []
+    actions: list[Action] = _eligible_fire_triggers(
+        state, pending, trigger_event(pending))
     for entry in entries:
         ok, _h, _v = _check_entry_legal(entry, **common)
         if ok:
             actions.append(CommitBuildPasture(cells=entry.cells))
 
     if pending.pastures_built >= 1:
-        actions.append(Stop())
+        actions.append(Proceed())
 
-    # Future: eligible card triggers at `before_build_fences` would be appended here.
     return actions
 
 

@@ -78,6 +78,11 @@ from agricola.cards import junk_room            # noqa: F401
 from agricola.cards import mining_hammer        # noqa: F401
 from agricola.cards import bread_paddle         # noqa: F401
 from agricola.cards import dutch_windmill       # noqa: F401
+# Shepherd's Crook (minor): a before/after_build_fences automatic pair — snapshot
+# the pasture decomposition before fencing, then grant 2 sheep per new >= 4-space
+# pasture after. The first card to hook the build_fences host (which gained its
+# before/after phase for exactly this card).
+from agricola.cards import shepherds_crook       # noqa: F401
 # Category 6 (harvest-field hook) minors. Loom (1/2/3 food at ≥1/4/7 sheep + a
 # scoring term), Butter Churn (1 food per 3 sheep + 1 per 2 cattle), Three-Field
 # Rotation (3 food with a grain + veg + empty field). All register_auto on the

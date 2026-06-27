@@ -96,6 +96,7 @@ def test_renovate_then_build_fences_walk():
         Stop(),                                 # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
+        Proceed(),                              # flip PendingBuildFences to after-phase
         Stop(),                                 # pops PendingBuildFences
         Proceed(),                              # flip PendingFarmRedevelopment to after-phase
         Stop(),                                 # pops PendingFarmRedevelopment

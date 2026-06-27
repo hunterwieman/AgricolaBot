@@ -21,6 +21,7 @@ from agricola.actions import (
     ChooseSubAction,
     CommitBuildPasture,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.engine import step
@@ -104,12 +105,13 @@ def _with_initial_pasture(state, player_idx, cells):
 # ---------------------------------------------------------------------------
 
 def test_single_pasture_basic_walk():
-    """Wood + supply, no existing pastures → build a 1×1 → Stop → Stop."""
+    """Wood + supply, no existing pastures → build a 1×1 → Proceed → Stop → Stop."""
     state = _fencing_setup(wood=4)
     state = run_actions(state, [
         PlaceWorker(space="fencing"),
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
+        Proceed(),                                 # flips PendingBuildFences to after
         Stop(),                                    # pops PendingBuildFences
         Stop(),                                    # pops PendingSubActionSpace
     ])
@@ -132,6 +134,7 @@ def test_multi_pasture_in_one_action():
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),     # 4 fences, 4 wood
         CommitBuildPasture(cells=frozenset({(0, 2)})),     # adjacent; 3 new fences
+        Proceed(),
         Stop(),
         Stop(),
     ])
@@ -152,6 +155,7 @@ def test_subdivision_splits_existing_pasture():
         PlaceWorker(space="fencing"),
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
+        Proceed(),
         Stop(),
         Stop(),
     ])
@@ -314,15 +318,23 @@ def test_restate_existing_pasture_filtered():
 
 
 def test_stop_legality_on_build_fences():
-    """Stop illegal at pastures_built=0; legal at pastures_built≥1."""
+    """Proceed (the multi-shot work-complete flip) illegal at pastures_built=0;
+    legal at pastures_built≥1. The trailing Stop lives in the after-phase reached
+    via Proceed."""
     state = _fencing_setup(wood=4)
     state = run_actions(state, [
         PlaceWorker(space="fencing"),
         ChooseSubAction(name="build_fences"),
     ])
+    assert Proceed() not in legal_actions(state)
     assert Stop() not in legal_actions(state)
     state = step(state, CommitBuildPasture(cells=frozenset({(0, 1)})))
-    assert Stop() in legal_actions(state)
+    # Before-phase: Proceed is the exit; Stop is not yet legal.
+    assert Proceed() in legal_actions(state)
+    assert Stop() not in legal_actions(state)
+    # Proceed flips to the after-phase, where Stop pops the host.
+    state = step(state, Proceed())
+    assert legal_actions(state) == [Stop()]
 
 
 def test_stop_legality_on_fencing_parent():

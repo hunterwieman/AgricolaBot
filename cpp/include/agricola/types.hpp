@@ -293,6 +293,7 @@ struct PendingBuildFences {
   int pastures_built = 0;
   int fences_built = 0;
   bool subdivision_started = false;
+  std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR before/after host)
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingBuildFences&) const = default;
 };

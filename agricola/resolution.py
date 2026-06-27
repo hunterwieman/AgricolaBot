@@ -1255,8 +1255,9 @@ def _execute_build_pasture(
     state: GameState, player_idx: int, commit: CommitBuildPasture,
 ) -> GameState:
     """Multi-shot pasture build: place one pasture's fences, increment the
-    PendingBuildFences counters, leave the pending on top (the dispatcher never
-    pops; Stop pops — PendingBuildFences is the Stop-terminated multi-shot exception).
+    PendingBuildFences counters, leave the pending on top in its before-phase (the
+    dispatcher never pops; Proceed flips to the after-phase, then Stop pops — the
+    uniform multi-shot before/after host, like PendingBuildStables / _Rooms).
 
     Steps:
       1. Pack commit.cells to a bitmap.
@@ -1306,7 +1307,8 @@ def _execute_build_pasture(
     )
     state = _update_player(state, player_idx, new_player)
 
-    # 8. Bump pending counters + ordering-rule flag. No auto-pop; Stop pops.
+    # 8. Bump pending counters + ordering-rule flag. No auto-pop; stays in the
+    #    before-phase (Proceed flips to after, then Stop pops).
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildFences)
     new_top = fast_replace(

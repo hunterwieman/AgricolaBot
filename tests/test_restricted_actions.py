@@ -873,8 +873,9 @@ def test_fencing_rule_5_extend_top_right_with_one_cell():
     commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
     assert len(commits) == 1
     assert commits[0].cells == frozenset({(0, 3)})
-    # Stop is allowed by the rule AND legal at the pending (pastures_built=1).
-    assert Stop() in actions
+    # The exit is allowed by the rule AND legal at the pending (pastures_built=1).
+    # Post the build-host refactor the before-phase exit is Proceed, not Stop.
+    assert Proceed() in actions
 
 
 def test_fencing_rule_6_extend_down_two_cells():
@@ -884,7 +885,7 @@ def test_fencing_rule_6_extend_down_two_cells():
     commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
     assert len(commits) == 1
     assert commits[0].cells == frozenset({(1, 4), (2, 4)})
-    assert Stop() in actions
+    assert Proceed() in actions
 
 
 def test_fencing_rule_7_subdivide_2x2_at_top_right():
@@ -896,8 +897,9 @@ def test_fencing_rule_7_subdivide_2x2_at_top_right():
     commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
     assert len(commits) == 1
     assert commits[0].cells == frozenset({(0, 3), (0, 4)})
-    # Stop is NOT in the rule's allowed set, so it's filtered out.
-    assert Stop() not in actions
+    # The exit (Proceed, before-phase) is NOT in the rule's allowed set, so it's
+    # filtered out.
+    assert Proceed() not in actions
 
 
 def test_fencing_rule_8_extend_top_2_when_split_into_one_pasture():
@@ -909,7 +911,7 @@ def test_fencing_rule_8_extend_top_2_when_split_into_one_pasture():
     commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
     assert len(commits) == 1
     assert commits[0].cells == frozenset({(1, 3), (1, 4)})
-    assert Stop() in actions
+    assert Proceed() in actions
 
 
 def test_fencing_rule_8_extend_top_2_when_split_into_two_pastures():
@@ -948,7 +950,7 @@ def test_fencing_rule_9_extend_top_2_into_bottom_2x2():
     commits = [a for a in actions if isinstance(a, CommitBuildPasture)]
     assert len(commits) == 1
     assert commits[0].cells == frozenset({(1, 3), (1, 4), (2, 3), (2, 4)})
-    assert Stop() in actions
+    assert Proceed() in actions
 
 
 def test_fencing_no_rule_match_passes_through():

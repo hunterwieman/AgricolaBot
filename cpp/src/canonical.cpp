@@ -340,6 +340,7 @@ json tc(const PendingBuildFences& p) {
   json j = pframe("PendingBuildFences", p.player_idx, p.initiated_by_id);
   j["pastures_built"] = p.pastures_built;  j["fences_built"] = p.fences_built;
   j["subdivision_started"] = p.subdivision_started;
+  j["phase"] = p.phase;
   j["triggers_resolved"] = str_set_node(p.triggers_resolved);
   return j;
 }
@@ -531,6 +532,7 @@ PendingDecision pending_from(const json& j) {
   if (t == "PendingBuildFences")
     return PendingBuildFences{pid, iby, j.at("pastures_built"), j.at("fences_built"),
                               j.at("subdivision_started"),
+                              j.value("phase", std::string("before")),
                               read_str_set(j.at("triggers_resolved"))};
   if (t == "PendingFarmRedevelopment")
     return PendingFarmRedevelopment{pid, iby, j.at("renovate_chosen"),

@@ -412,7 +412,12 @@ def _fencing_label(action: Action) -> str | None:
     if isinstance(action, CommitBuildPasture):
         i = _FENCE_INDEX.get(action.cells)
         return None if i is None else f"p{i}"
-    if isinstance(action, Stop):
+    # Proceed-as-Stop alias: post the build-host refactor PendingBuildFences ends
+    # its before-phase with Proceed (the multi-shot work-complete flip), not Stop;
+    # both are this head's "stop fencing" class and never co-legal, so map them
+    # together (the trailing after-phase Stop is an auto-skipped singleton). No
+    # retrain — the learned STOP class now also covers Proceed.
+    if isinstance(action, (Stop, Proceed)):
         return STOP_LABEL
     return None
 

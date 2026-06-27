@@ -243,10 +243,11 @@ Action spaces and sub-actions are **before/after hosts**. A host carries a `phas
 ("before"→"after") and a `triggers_resolved` set. When pushed, its before-automatic
 effects fire; its before-triggers are surfaced as `FireTrigger`s alongside the work
 options. When the work completes (a single-commit sub-action *flips* on its commit; a
-multi-shot builder and an and/or space *flip* on an explicit `Proceed`; a delegating space
-auto-advances), the host enters its after-phase, firing after-automatic effects; its
-after-triggers are surfaced alongside `Stop`; `Stop` pops. (`PendingBuildFences` is the one
-remaining Stop-terminated multi-shot exception — no phase.)
+multi-shot builder — including `PendingBuildFences` — and an and/or space *flip* on an
+explicit `Proceed`; a delegating space auto-advances), the host enters its after-phase,
+firing after-automatic effects; its after-triggers are surfaced alongside `Stop`; `Stop`
+pops. (Every sub-action host now carries a `phase`; the lone Stop-terminated holdout is
+`PendingSideJob`, a Family-only space that is never card-hooked.)
 
 ### Event names
 
@@ -256,8 +257,10 @@ A card registers an effect against an **event string**:
   spaces; filter by `space_id` in eligibility). The composite improvement host uses
   `before_major_minor_improvement` / `after_major_minor_improvement`.
 - **Sub-actions:** `before_<id>` / `after_<id>` for `id` in `sow`, `bake_bread`, `plow`,
-  `renovate`, `build_major`, `build_rooms`, `build_stables`, `play_occupation`,
-  `play_minor`, `family_growth`.
+  `renovate`, `build_major`, `build_rooms`, `build_stables`, `build_fences`,
+  `play_occupation`, `play_minor`, `family_growth`. (`build_fences` joined the uniform
+  host model — it flips to its after-phase on `Proceed`, like the other multi-shot
+  builders; Shepherd's Crook hooks `before_/after_build_fences`.)
 - **Phase hooks:** `start_of_round`, `harvest_field`.
 - (`end_of_turn` was removed with Firewood Collector — see §2 and §9.)
 

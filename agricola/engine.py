@@ -290,7 +290,8 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # underneath) for ovens.
     CommitBuildMajor:   (PendingBuildMajor,   _execute_build_major),
     # CommitBuildPasture (multi-shot): the effect increments PendingBuildFences's
-    # counters via replace_top and leaves the pending on the stack; Stop pops it.
+    # counters via replace_top and leaves the pending in its before-phase; Proceed
+    # flips to the after-phase (firing after_build_fences autos), then Stop pops.
     CommitBuildPasture: (PendingBuildFences,  _execute_build_pasture),
     # Harvest sub-actions (Task 7): the trailing Stop is the explicit exit.
     # PendingHarvestFeed hosts both CommitHarvestConversion (zero or more) and
@@ -353,10 +354,10 @@ def _fire_subaction_before_auto(state: GameState) -> GameState:
     trigger's `apply_fn` runs (`_apply_fire_trigger`, the card-grant push path —
     Assistant Tiller → PendingPlow, Threshing Board / Oven Firing Boy → PendingBakeBread).
 
-    Gated on `SUBACTION_PENDING_IDS` so it fires only for the eight leaves, never for
-    a composite host (`PendingMajorMinorImprovement`, which fires its own
-    `before_major_minor_improvement`) or a Stop-terminated multi-shot builder (no
-    `phase`). A no-op in the Family game (empty AUTO_EFFECTS) → byte-identical state.
+    Gated on `SUBACTION_PENDING_IDS` so it fires only for the sub-action host leaves,
+    never for a composite host (`PendingMajorMinorImprovement`, which fires its own
+    `before_major_minor_improvement`). A no-op in the Family game (empty AUTO_EFFECTS)
+    → byte-identical state.
     """
     if not state.pending_stack:
         return state
@@ -513,16 +514,17 @@ def _apply_proceed(state: GameState) -> GameState:
     fired at push). Handled first, before the action-space-host assertion.
 
     A fourth kind, the multi-shot sub-action builders (PendingBuildRooms /
-    PendingBuildStables): the rooms/stables were already built during the
-    before-phase, so Proceed runs no effect of its own — it is purely the explicit
-    work-complete signal that flips them to their after-phase (firing
-    after_build_<x> autos via the same `_enter_after_phase`). They are sub-action
-    hosts, not action-space hosts, so they are handled before that assertion.
+    PendingBuildStables / PendingBuildFences): the rooms/stables/pastures were
+    already built during the before-phase, so Proceed runs no effect of its own —
+    it is purely the explicit work-complete signal that flips them to their
+    after-phase (firing after_build_<x> autos via the same `_enter_after_phase`).
+    They are sub-action hosts, not action-space hosts, so they are handled before
+    that assertion.
     """
     top = state.pending_stack[-1]
     if isinstance(top, PendingPreparation):
         return pop(state)
-    if isinstance(top, (PendingBuildRooms, PendingBuildStables)):
+    if isinstance(top, (PendingBuildRooms, PendingBuildStables, PendingBuildFences)):
         assert getattr(top, "phase", None) == "before", (
             f"Proceed expected a before-phase build host, got {top!r}")
         return _enter_after_phase(state)

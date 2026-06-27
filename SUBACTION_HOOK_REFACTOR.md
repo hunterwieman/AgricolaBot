@@ -106,7 +106,23 @@ So the C++ sub-action sync is **5 frames**, not 8.
   > relabeled to `Stop` for the `build_stop` head + combiners and the new trailing
   > `Stop` is a singleton, so the policy/MCTS view is unchanged (no retrain). C++
   > re-ported (the differential gates cover the new `phase` field, the Proceed-flip,
-  > and the relabel). `PendingBuildFences` remains the Stop-terminated exception.
+  > and the relabel).
+  >
+  > **`PendingBuildFences` subsequently folded in too (Shepherd's Crook refactor).**
+  > It was the last Stop-terminated multi-shot holdout; the minor improvement
+  > Shepherd's Crook needs `before_/after_build_fences` (snapshot the pasture
+  > decomposition, then grant sheep per new ≥4-space pasture), so build_fences was
+  > given the identical treatment: a real `phase` field, `Proceed` as the
+  > work-complete flip (legal once `pastures_built >= 1`) firing `after_build_fences`
+  > autos via `_enter_after_phase`, a trailing pure-pop `Stop`, and `build_fences`
+  > added to `SUBACTION_PENDING_IDS`. NN-transparent via the same Proceed-as-Stop
+  > alias, now extended to the 110-class `fencing` head (`_fencing_label` in
+  > Python / the fencing branch in `nn.cpp`). Family-reachable (Fencing + Farm
+  > Redevelopment), so C++ was re-ported (`phase` on `PendingBuildFences` in
+  > types/canonical/hash, the before/after split in `enum_build_fences`) and the
+  > differential gates stay green. No Stop-terminated multi-shot exception remains;
+  > the lone Stop-terminated frame is now `PendingSideJob` (Family-only, never
+  > card-hooked).
 - The **harvest** frames `PendingHarvestFeed` / `PendingHarvestBreed` (their
   commits are already `auto_pop=False`). No card hooks them; leave alone.
 - The **animal markets** and `PendingActionSpace` — already done.
@@ -388,9 +404,14 @@ auto-skip, but `step()`-scripted code does not). Find and fix the fallout by:
    so `_apply_stop` needs no discriminator — it is a pure pop for all frames.
    See the corrected §4(c) above.
 
-4. **Multi-shot frames left alone (confirmed, §2).** `PendingBuildStables`,
-   `PendingBuildRooms`, and `PendingBuildFences` were not swept in. They keep their
-   build-loop + `Stop` termination, with no `phase` field.
+4. **Multi-shot frames (later swept in via the Proceed-flip model).** At this
+   refactor's landing `PendingBuildStables`, `PendingBuildRooms`, and
+   `PendingBuildFences` were left alone (build-loop + `Stop`, no `phase`).
+   `PendingBuildRooms` / `PendingBuildStables` were folded into the uniform host
+   model in a follow-on pass, and `PendingBuildFences` in the Shepherd's Crook
+   refactor (see the superseded note in §2). All three now carry a `phase` field
+   and flip to their after-phase on an explicit `Proceed` (the multi-shot
+   work-complete signal), the trailing `Stop` a pure pop.
 
 5. **Play-card frames compose correctly.** `PendingPlayOccupation`, `PendingPlayMinor`,
    and `PendingFamilyGrowth` are commit-terminated hosts in the same uniform shape.

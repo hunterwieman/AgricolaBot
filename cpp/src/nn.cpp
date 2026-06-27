@@ -745,7 +745,11 @@ std::vector<std::pair<Action, double>> NNInference::policy_impl(
               break;
             }
           if (idx >= 0) candidates.push_back({a, idx});
-        } else if (std::holds_alternative<Stop>(a)) {
+        } else if (std::holds_alternative<Stop>(a) ||
+                   std::holds_alternative<Proceed>(a)) {
+          // Proceed-as-Stop alias (§9): post the build-host refactor the
+          // before-phase "stop fencing" action is Proceed (the work-complete
+          // flip), the after-phase Stop a singleton. Both map to __stop__.
           candidates.push_back({a, static_cast<int>(entries.size())});  // __stop__
         }
       }

@@ -662,8 +662,16 @@ def _apply_custom_hand(
 
 
 def _card_slug(name: str) -> str:
-    """The card_id bridge: slug(json_name) == card_id for every implemented card."""
-    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    """The card_id bridge: slug(json_name) == card_id for every implemented card.
+
+    Apostrophes are DROPPED (not turned into a separator) so a possessive name
+    slugs to the natural id — "Shepherd's Crook" -> "shepherds_crook", not
+    "shepherd_s_crook". Every other run of non-alphanumerics collapses to a single
+    "_". (Dropping apostrophes introduces no new same-slug collisions across the
+    full catalog — 18 names carry one, e.g. Carpenter's Apprentice, Potter's Yard.)
+    """
+    bare = name.lower().replace("'", "").replace("’", "")   # ASCII + curly apostrophe
+    return re.sub(r"[^a-z0-9]+", "_", bare).strip("_")
 
 
 def _fmt_cost(cost) -> str:
