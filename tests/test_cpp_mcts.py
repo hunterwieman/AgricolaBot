@@ -333,28 +333,31 @@ def test_cpp_mcts_beats_random():
 
 @_torch_gate
 def test_cpp_mcts_parity_vs_python_mcts():
-    """Statistical parity: C++ MCTS vs Python MCTSAgent (same NN value leaf +
-    combined policy, PUCT/FLATTEN/full legality). WIDE band — this is a 'plays
-    comparably' / not-grossly-broken sanity, NOT a bit-identity test (RNG + float
-    order diverge, §7.6). Modest game count / low sims to stay fast.
+    """Statistical strength parity: C++ MCTS vs Python MCTSAgent (same NN value leaf
+    + combined policy, PUCT / FLATTEN / full legality), played SEAT-BALANCED — each
+    seed once with C++ as P0 and once as P1 — so the result measures ENGINE strength
+    rather than the starting-player/seat advantage. A 'plays equivalently' sanity,
+    NOT a bit-identity test (the two RNG streams + float-summation order diverge,
+    §7.6).
 
-    KNOWN DIVERGENCE — UNDER INVESTIGATION (not yet root-caused). C++ MCTS measures
-    a STABLE ~30-36% vs Python MCTS at this 48-sim budget (seeds 0-19 = 25%
-    post-/30% pre-fence-host-refactor, seeds 20-39 = 32.5%, seeds 0-59 = 35.8%).
-    A stable sub-50% over 60 games is NOT mere RNG/float noise (that centers on
-    50%); it points to a real SEARCH-LOGIC divergence between agricola/agents/mcts.py
-    and cpp/src/mcts.cpp. The inference is byte-identical (the encoder/value/policy
-    gates prove the leaf evaluator + NN match exactly — same joint model, same
-    value_scale 3.2984, same margin-leaf formula), so per CPP_ENGINE_PLAN.md §7.6
-    "any divergence is a search-logic bug, not an inference bug", and §7.6's stated
-    target is ~50%. The gap is PRE-EXISTING (the 30% pre-refactor baseline predates
-    the fence-host change). Top suspects: cap_total_sims budget accounting under
-    tree reuse, re_root carryover, FPU / unvisited-node handling.
+    Seat-balancing is load-bearing. An earlier version of this test fixed C++ at P0
+    and read a "stable ~32%", which looked like a C++ deficit but was NOT: at this
+    low 48-sim budget the second seat has a large advantage, and within-engine
+    self-play (PY-vs-PY and CPP-vs-CPP) both give P0 only ~42% on the same seeds —
+    i.e. the skew is seat-driven and engine-independent. A 2026-06-27 investigation
+    (21-agent code audit + experiments) confirmed there is NO search-logic
+    divergence: every search component matches line-for-line, the leaf evaluator +
+    policy are byte-identical (≤7e-7 / ≤1e-4 vs the Python make_joint_fns), and
+    seat-balanced head-to-head measures **~46%** for C++ (150 games @48 sims, 95% CI
+    [38%, 54%]) — statistically equivalent to 50% (the CI includes it; the point
+    estimate may be a hair below 50%, within noise, and no bias mechanism was found).
 
-    TEMPORARY: the floor is lowered to 0.20 (was 0.30, which the seeds-0-19 draw
-    sat exactly on) only so the suite stays green while this is investigated — it
-    MASKS the divergence rather than fixing it, and still catches *gross* breakage
-    (<20%). Restore ~0.45 once the search-logic gap is root-caused."""
+    Band: [0.30, 0.62] brackets that measured rate with margin (this test samples
+    ~41% on its 60 fixed seeds; the broader estimate is ~46%). It catches a GROSS
+    engine regression (a broken C++ lands far below 0.30) while tolerating the
+    seed/binomial noise. It is NOT a tight equivalence band: pinning the rate tightly
+    enough for a [0.40,0.60] band needs ~150+ games — too slow for a gate. Raise
+    N_SEEDS to tighten. The result is ~deterministic (all RNG is seeded)."""
     from agricola.agents import FenceMode, MCTSSearch
     from agricola.agents.mcts import MCTSAgent
     from agricola.agents.nn.model import load_value_evaluator
@@ -388,12 +391,21 @@ def test_cpp_mcts_parity_vs_python_mcts():
             cap_total_sims=True,
         )
 
-    n = 20
-    wins = _play_cpp_vs(py_factory, n_seeds=n, sims=sims, c_uct=1.4, cpp_seat=0,
-                        model_dir=joint_dir)
-    rate = wins / n
-    print(f"\n[strength] C++ MCTS vs Python MCTS: {rate:.2%} ({wins}/{n})")
-    assert 0.20 <= rate <= 0.70, (
-        f"C++ vs Python MCTS win-rate {rate:.0%} outside parity band "
-        f"[20%, 70%] — likely a search-logic divergence (see calibration note)"
+    # Seat-balanced: play each seed BOTH ways (C++ as P0 and as P1) and combine, so
+    # the starting-player/seat advantage cancels and we measure engine strength.
+    # ~60 games keeps the [0.35,0.65] band ~2%-flake; raise/lower N_SEEDS to trade
+    # reliability for runtime.
+    N_SEEDS = 30
+    wins_p0 = _play_cpp_vs(py_factory, n_seeds=N_SEEDS, sims=sims, c_uct=1.4,
+                           cpp_seat=0, model_dir=joint_dir)
+    wins_p1 = _play_cpp_vs(py_factory, n_seeds=N_SEEDS, sims=sims, c_uct=1.4,
+                           cpp_seat=1, model_dir=joint_dir)
+    games = 2 * N_SEEDS
+    rate = (wins_p0 + wins_p1) / games
+    print(f"\n[strength] C++ vs Python MCTS (seat-balanced, {games} games): "
+          f"{rate:.2%}  [C++ as P0: {wins_p0}/{N_SEEDS}, as P1: {wins_p1}/{N_SEEDS}]")
+    assert 0.30 <= rate <= 0.62, (
+        f"C++ vs Python seat-balanced win-rate {rate:.0%} outside [30%, 62%] — a "
+        f"real engine regression (measured ~46%; see docstring). Per-seat C++: "
+        f"P0={wins_p0/N_SEEDS:.0%}, P1={wins_p1/N_SEEDS:.0%}."
     )
