@@ -950,20 +950,27 @@
       farmEl.appendChild(hint);
     }
 
-    // Improvements
+    // Improvements. Majors stay a compact name line; played occupations and
+    // minor improvements are a PUBLIC tableau (shown for BOTH players) rendered
+    // as cards with their effect text, so a played card never just vanishes.
     impEl.innerHTML = '';
     const majorsLine = p.majors.length
       ? p.majors.map((m) => `${m.idx}:${m.name}`).join(', ')
       : '—';
-    const minorsLine = p.minors.length ? p.minors.join(', ') : '—';
     impEl.appendChild(el('div', { class: 'improv-list' },
       el('div', { class: 'row' },
         el('span', { class: 'label' }, 'Majors: '),
         el('span', {}, majorsLine)),
-      el('div', { class: 'row' },
-        el('span', { class: 'label' }, 'Minors: '),
-        el('span', {}, minorsLine)),
     ));
+    const playedGroup = (label, cards) => {
+      if (!cards || !cards.length) return;
+      impEl.appendChild(el('div', { class: 'card-hand-group-label' }, label));
+      const row = el('div', { class: 'card-hand' });
+      for (const c of cards) row.appendChild(renderPlayedCard(c));
+      impEl.appendChild(row);
+    };
+    playedGroup('Occupations', p.played_occupations);
+    playedGroup('Minors', p.played_minors);
 
     // Hand (cards mode only). Rendered face-up for a human seat (server sends
     // the full `hand`), face-down for a hidden opponent (only `hand_counts`).
@@ -1016,9 +1023,38 @@
     const playable = currentPlayableCardIds.has(c.id);
     const cls = 'hand-card' + (playable ? ' playable' : '');
     const card = el('div', { class: cls, title: c.text || '' });
-    card.appendChild(el('div', { class: 'hand-card-name' }, c.name || c.id));
+    card.appendChild(cardNameRow(c));
     if (c.cost) {
       card.appendChild(el('div', { class: 'hand-card-cost' }, c.cost));
+    }
+    if (c.prereq) {
+      card.appendChild(el('div', { class: 'hand-card-prereq' }, `Needs: ${c.prereq}`));
+    }
+    if (c.text) {
+      card.appendChild(el('div', { class: 'hand-card-text' }, c.text));
+    }
+    return card;
+  }
+
+  // Card name row: the name, plus a printed-VP badge ("N pt(s)") when the card
+  // scores victory points, so point-scoring cards advertise their points.
+  function cardNameRow(c) {
+    const row = el('div', { class: 'hand-card-name' }, c.name || c.id);
+    if (c.vps) {
+      row.appendChild(el('span', { class: 'hand-card-vps',
+        title: 'printed victory points' }, `${c.vps} pt${c.vps === 1 ? '' : 's'}`));
+    }
+    return row;
+  }
+
+  // A single PLAYED card in a player's public tableau: bold name + effect text
+  // (also as a hover tooltip). No cost / no playable highlight — it's already
+  // played and visible to both players.
+  function renderPlayedCard(c) {
+    const card = el('div', { class: 'hand-card played-card', title: c.text || '' });
+    card.appendChild(cardNameRow(c));
+    if (c.prereq) {
+      card.appendChild(el('div', { class: 'hand-card-prereq' }, `Needs: ${c.prereq}`));
     }
     if (c.text) {
       card.appendChild(el('div', { class: 'hand-card-text' }, c.text));
