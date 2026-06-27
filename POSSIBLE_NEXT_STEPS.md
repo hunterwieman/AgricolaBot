@@ -1,186 +1,110 @@
 # Possible Next Steps
 
-A sketch of directions the project could take next, organized by project phase. Originally written 2026-05-13 after Task 5; revised after Task 5C, Task 6, the harvest implementation, and the Change-8 hashability work; restructured 2026-05-21 to fold performance work (formerly items C and E) into a single pointer to SPEEDUPS.md.
-
-636 tests passing. The engine is feature-complete for the Family game (all 14 rounds, all 6 harvests, Potter Ceramics as the one card). `GameState` is hashable. The engine has been profiled and a first wave of optimizations has landed (Change 9). Letter labels are preserved across removals so cross-references in CHANGES.md / SESSION_HISTORY.md to historical items remain valid.
-
-This is a planning document, not a commitment.
+Last updated 2026-06-27. This is a planning document, not a commitment. Items are lettered within each section; letters are stable so SESSION_HISTORY.md cross-references stay valid.
 
 ---
 
-## Engine performance
+## 1. Implementation Fixes
 
-### C. Performance work (catalog in SPEEDUPS.md)
+### A. At-any-time food conversions for card costs
 
-Performance work has its own living document — **`SPEEDUPS.md`** — which catalogs specific optimization ideas, organized by what they target. The split is intentional: this file is about project *direction* (what to build next); SPEEDUPS.md is about *making existing code faster*, with the bias toward measure-before-acting.
+Cards with a food cost (and other costs payable from convertible goods) need the engine to expose at-any-time grain/veg/animal → food conversions at the point the cost is charged, rather than only at harvest feeding. The Pareto-frontier approach that already governs harvest feeding is the natural model.
 
-**What's already landed (Change 9, 2026-05-21):**
+### B. Scythe Worker optional effect audit
 
-- A profiling harness (`scripts/profile_engine.py`, `scripts/profile_states.py`, plus the counter and microbench scripts) producing reproducible numbers across three workloads.
-- `fast_replace` — drop-in faster equivalent of `dataclasses.replace` (~20% per-call speedup, microbenched).
-- `legal_actions_cache()` — opt-in identity-keyed memoizer in `agricola/legality.py`, dormant outside a `with` block; parked for MCTS to be the first consumer.
-- `__debug__` gate on `_assert_nonnegative_state` — production runs under `python -O` skip the safety net.
-- Round-end-reset guard in `_resolve_return_home` — skips redundant `replace` calls for already-empty action spaces.
+Scythe Worker's bonus grain-from-field is currently mandatory; it should be optional (the card grants a sub-action, not a forced effect). Once fixed, do a full pass over all implemented cards and check for the same class of error: effects worded as grants that are implemented as forced.
 
-See **PROFILING.md** for the methodology and headline numbers, and **CHANGES.md Change 9** for the full breakdown.
+### C. Full correctness audit of the first card batch
 
-**The catalog lives in SPEEDUPS.md** — don't duplicate it here. It is restructured into **Part 1 Implemented** (every optimization in the code + why) and **Part 2 Potential next steps**. Much has **landed** since this doc was written: the `opt_config` frontier/fence caches, the cached `GameState.__hash__` (S5), and the NN-inference encoder optimizations (S10–S13) — together a **~2× MCTS per-move speedup** (see PROFILING.md's current production profile). The remaining candidates — and the *measured no-gos* (jit.trace, the encoding-keyed cache) — are in SPEEDUPS.md Part 2; the recommended next NN lever is **leaf-batching**. (The original S1–S6 list that was here is superseded: S5 landed, S1/S2 turned out cold in NN-leaf PUCT, S3 was rejected; S4/S6/S9 remain low-priority candidates in SPEEDUPS.md.)
+Systematically verify every implemented card (Consultant, Priest, Stable Architect, Market Stall) against the card text in `agricola/cards/data/`. Check cost, trigger timing, effect, VP, and any edge cases (e.g. Priest's "exactly 2 rooms" branch, Market Stall circulation).
 
-**When to consult SPEEDUPS.md:**
+### D. Oven purchase implementation review
 
-- When profiling identifies a hot path that one of the catalogued items targets.
-- When MCTS scales up rollouts and per-action cost becomes the dominant cost.
-- When considering a structural change (e.g., adding a transposition table) and you want to know what optimizations are pre-thought-through.
+Decide whether `PendingClayOven` / `PendingStoneOven` are the right abstraction or whether the oven purchase flow should be collapsed into the generic `CommitBuildMajor` path. The current design adds two pending types for a relatively narrow use case; review whether eliminating them simplifies the stack without losing anything.
 
-When *not* to consult it:
+### E. Trigger/hook system — Milestone 2
 
-- Speculatively, ahead of evidence. Every entry has a "profile first" disclaimer; the catalog is reference material, not a TODO list to walk top-down.
+The next major infrastructure step per `CARD_IMPLEMENTATION_PLAN.md`: implement the three firing kinds (automatic, triggered, mandatory-with-choice), the coarse `before_/after_action_space` lifecycle hooks keyed by `PENDING_ID`, and scoped used-sets. This is the prerequisite for the vast majority of remaining cards; nothing that reacts to another player's action or to entering/leaving a space can land before this.
 
----
+### F. CardStore — per-card persistent state
 
-## Phase 2 — baseline agents
+`CardStore` was deferred within Milestone 1 (pending a concrete consumer). It lands when the first card that needs it does — likely Tutor or Moldboard Plow. Implement at that point rather than speculatively.
 
-Useful as benchmarks for the trained agent and as scaffolding for MCTS.
+### G. Deferred Milestone-1 cards
 
-### F. Heuristic agent — **landed 2026-05-22 (V1) and 2026-05-22 evening (V3)**
-
-Hand-written policies implementing reasonable Agricola strategy. Three Hubris versions ship plus Simple/Random infrastructure:
-
-- **`SimpleHeuristic`** — MVP. `score(state)` + linear resource bonuses + food/begging term.
-- **`HubrisHeuristicV1`** — original V1 architecture. ~70 coefficients in `HeuristicConfig` covering family-future, empty rooms, breeding opportunities, location bonuses, context-aware resources, majors with cooking-primary + round-decay, stage-1×1.5 multiplier, etc. **`CONFIG_V1_T2`** is the round-2-tuned constant (58 params tuned; +8.85 holdout vs default; 90-1-9 record). Wired as the `hubris` seat alias.
-- **`HubrisHeuristicV2`** — V1 with `harvest_feed_frontier` for joint goods-or-food optimization. Theoretically more correct but loses head-to-head to V1.
-- **`HubrisHeuristicV3`** — current main heuristic. ~250 parameters across blend / additive / joint-alpha categories + three-component resources. Carries over V1's family-future, empty-room, location bonuses, SP, renovation, major-override, and food/begging helpers via duck typing. `tuned_configs/v3_best.json` auto-maintained pointer to the strongest V3 config. See **`V3_DESIGN.md`** for the architecture.
-
-**CMA-ES tuning pipeline** (`scripts/tune_heuristic.py` + `scripts/run_iterative_v3.py`) implements Thread A from HEURISTIC_TUNING_PLAN.md. Per-category tuning with save/resume via pickle, x0 fallback to prevent chain-forward regression, automatic `<arch>_best.json` updates, parallel CMA-ES population evaluation. See **`V3_TRAINING_PIPELINE.md`** for operational guide.
-
-Web UI: `python play_web.py --seats human hubris_v3 --v3-config tuned_configs/v3_best.json` plays you against the current champion. New-game dropdown simplified to human/random/v1/v3.
-
-**Current state:** V1+T2 (= `CONFIG_V1_T2`, the round-2-tuned V1) is the project's strongest standalone heuristic. The current `v3_best.json` is the iter1 V3 manually ported into the post-refactor schema — beats V1+T2 by ~12 margin (the strongest V3 we have). The previous v3_best (post-iter4 alphas) lost to V1+T2 by ~11 (chained-baseline drift, now caught by the multi-baseline + regression-detector tooling). See V3_TRAINING_PIPELINE.md §2.5, §6, §8.
-
-**Open V3 next steps:**
-
-- **F1.** ~~Finish the current iterative run~~ — superseded by the V3 retune planned in F12.
-- **F2.** Promote `v3_best.json` to a Python constant `CONFIG_V3_T1` once tuning converges (mirror the `CONFIG_V1_T2` pattern). Document in CHANGES.md.
-- **F3.** Address V1's food double-count in V3. Options: convertible-discount-by-stage (add 6-element array scaling `convertible` in the food shortfall calculation by stage); V2-style joint frontier with "will I actually convert?" weighting. See HUBRIS_V1_NOTES.md §4 for the V2 history.
-- **F4.** Discrete-cutoff sweep — manual sweep, not CMA-ES. Test alternative values for: pasture "capacity ≥ 4" threshold (currently K=4 for `pasture_value_large`), "≤2 rooms" threshold for `wood_pre_3rd_room_vector` activation, "≥3 capacity per pasture" threshold for breeding-capable, "round 12 cap" in empty-room helper, stage boundaries in `_stage_of_round`. See V3_DESIGN.md §8.6.
-- **F5.** Per-stage joint-alpha split. `score_joint_alpha_by_stage` currently modulates clay_rooms + stone_rooms + people + bonus_points with ONE curve. Could split into 4 separate curves (24 params) if tuning suggests the lump is too coarse.
-- **F6.** Slot-indexed stone-major vector. Stone currently has only renovation + generic; could add a `stone_major_vector` indexed by stone count, analogous to `wood_fence_vector`. Defer until tuning suggests stone is under-modeled.
-- **F7.** Per-vector pasture alphas. `pasture_value_all` and `pasture_value_large` share one blend α; per-vector alphas would let the optimizer give the "large pasture bonus" a different time profile.
-- **F8.** ~~Baseline graduation~~ — **OBSOLETE**. The chained-baseline approach this proposed is exactly what caused the iter2 drift. Use `--baselines` (mix of references) + `--regression-baseline t2` instead. See V3_TRAINING_PIPELINE.md §2.5.
-- **F9.** Seed-rotation during training. Currently all candidates in all generations play games against the same fixed seeds 0-99. Could rotate per-gen to broaden environmental coverage and reduce overfitting. Lower priority now that multi-baseline addresses overfitting from a different angle.
-- **F10.** V4 architectural ideas (defer until V3 has clearly converged). Possible directions: per-round arrays instead of per-stage step functions; explicit regime-conditional vectors instead of additive overlays; an explicit "moves remaining" axis on every category.
-- **F11.** ~~x0 from warm-start base bug~~ — **FIXED** in earlier session (`_x0_from_base` extracts at run-time).
-- **F12. V3 retune from the recovered ported baseline using the new multi-baseline + regression-detector tooling.** Run `python -O scripts/tune_heuristic.py --category v3_all --from tuned_configs/v3_best.json --baselines t2 v3_best --regression-baseline t2 --popsize 30 --max-gens 30 --n-seeds 50`. Inspect output JSON's `regression_history`. Should improve over the current `+12 vs V1+T2`. If it doesn't, the V3 architecture may be near its ceiling and the next leverage is structural (F10/V4) rather than parameter tuning.
-- **F13. Reed weight audit.** Hypothesis (raised this session): V3 over-values reed because of implicit "reed denial" dynamics from V3-vs-V3 self-tuning. Inspect `v3_best.json`'s reed-related fields vs V1's structure to test this; no compute needed. May explain why V3 lost ground to V1 during iter2's drift.
-
-### G. MCTS scaffolding — **landed**
-
-`agricola/agents/mcts.py` ships `MCTSAgent` / `MCTSSearch` / `MCTSNode` / `MacroFencingAction`. Vanilla UCT + FPU + DAG-with-transpositions + leaf-evaluation (no rollouts) + macro-enumeration for Fencing + strict-restricted legality. See **`MCTS_DESIGN.md`** for the full design and **`agricola/agents/mcts.py`** for the implementation.
-
-`MCTSSearch` accepts `evaluator_fn` and `heuristic` parameters so the same scaffold can run with V1, V3, or an NN as the leaf evaluator. The `evaluator_fn` must return a P0-frame margin (the old `leaf_differential` flag was removed; the evaluator now owns the margin convention, and terminal leaves use the exact `score()` margin).
-
-**Current empirical finding:** at 200-500 sims with vanilla UCT and the project's V1 / V3 heuristics as leaf evaluators, MCTS **loses 3-5 points** vs the same heuristic used standalone (e.g. MCTS-V1 vs V1-heuristic = −3.88 at 500 sims; MCTS-V3-ported vs V3-ported-heuristic = −5.58 at 200 sims). The +2.5-3 lift seen against the old (drifted) v3_best was MCTS partially compensating for V3's weakness, not absolute value.
-
-**MCTS remains the project's long-term direction** (Phase 5 AlphaZero-style self-play): the current finding scopes what UCT-with-1-turn-leaf-eval does NOW with the CURRENT evaluators at modest sim budgets, not whether MCTS will eventually pay off. PUCT priors + a learned-value NN + higher sim budgets are the natural follow-ups (see N below).
-
-### G2. MCTS asymptote study
-
-Does MCTS-V1 vs V1-heuristic margin cross 0 at high sim budgets (1000, 2000, 5000), or saturate negative? Trend so far: 200 sims = −5.43, 500 sims = −3.88 (small improvement with more sims). Settles whether MCTS at the current scaffolding is just under-budgeted or fundamentally not pulling weight against strong heuristics in this game. Compute: ~30-90 min depending on top budget. Useful before investing more in MCTS scaffold improvements vs jumping to learned evaluators (P).
+Four cards from `CARD_IMPLEMENTATION_PLAN.md` were explicitly deferred: Mini Pasture, Organic Farmer, Shepherd's Crook, Acorns Basket. Revisit each when its blocking mechanism (CardStore, trigger system, or cost-modifier extension) is available.
 
 ---
 
-## Phase 3 — card system
+## 2. Additional Game Features / Variants
 
-The largest single piece of remaining work. Several open design questions block large-scale card implementation; resolving them is itself a meaningful task. Each open question is best addressed when the first card needing it actually lands — don't speculate ahead of concrete consumers.
+### A. Draft mode
 
-### H. Compound card interactions
+Replace the random hand deal with a pick-and-pass draft (standard Agricola setup for competitive play). Each player sees N cards, keeps one, passes the rest. Requires a new setup phase and UI affordances; the engine's private-hand model already supports it structurally.
 
-The Pan-Baker-plus-Potter-Ceramics example flagged in TASK_5.md and IMPLEMENTATION_CHOICES.md. When checking `PlaceWorker(space)` legality, the system needs to apply all owned cards' on-placement transformations to a hypothetical state, then ask the existing sub-action predicates against that hypothetical. The trigger registry already supports arbitrary event names; the missing piece is the legality-side speculative application.
+### B. More cards
 
-Probably worth doing before adding many more cards. Without H, the card system can only handle cards of the Potter Ceramics shape (purely-during-resolution triggers, no on-placement effects).
+Ongoing implementation of the ~59-card tractable base-game subset (and eventually the expansion cards), gated on the trigger/hook system (1E) and CardStore (1F) as they land.
 
-### I. `after_X` trigger event mechanics
+### C. 4-player variant
 
-The codebase has precedent for `before_X` events on sub-action pendings. `after_X` events have no precedent. Candidate consumers:
-- The vegetable-card example mentioned during Fencing design ("each time you build N fences ≥ current round, gain 1 vegetable").
-- Cards like Cottager and Hardware Store that attach to atomic spaces with before/after semantics.
+A real undertaking: player-alternation already uses modular arithmetic, but `setup`, the action board, and the starting-player model all assume 2 players. Listed here as a long-term possibility, not near-term scope.
 
-Three candidate mechanisms documented in the design conversations: a resolve-on-pop hook on every pending type, an explicit `ApplyAfterTriggers` action, or overloaded `Stop` semantics. Decision deferred until the first such card lands.
+### D. Game replay viewer
 
-### J. Atomic-space trigger hosting
-
-Atomic spaces currently apply their effect immediately on `PlaceWorker`. For cards that attach to specific atomic spaces (Cottager fires before Day Laborer's food, Hardware Store fires after), atomic spaces need to push trigger-host pendings rather than resolve in one step. Two design questions documented in ENGINE_IMPLEMENTATION.md §6 (card-trigger machinery & deferred design questions):
-
-- **Phase tracking.** Generic `primary_effect_applied: bool` on every space pending vs. a `phase: Literal["before", "after"]` field.
-- **Phase-transition mechanism.** Explicit transition action vs. overloaded `Stop` vs. nested pendings.
-
-Likely addressed alongside H when card work begins in earnest.
-
-### K. Free-fence accounting and cost-modifier extension
-
-Cards modifying per-edge fence cost (material substitution, free perimeter fences, etc.) need an extension mechanism on `compute_new_fence_edges`. The pattern would mirror `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` / `BAKING_SPEC_EXTENSIONS` in `legality.py`. Free-fence counter fields on `PendingBuildFences` may also be needed (currently excluded per the YAGNI-on-pending-fields principle). Defer until the first such card lands.
-
-### L. The remaining ~470 cards
-
-Largest piece of work in the project. Once H–K above are settled, this becomes ongoing card-by-card implementation. Two related action-space paths unblock alongside cards:
-
-- **Minor improvement play paths.** Optional minor-improvement steps at Basic Wish for Children, House Redevelopment, Major Improvement, and Farm Redevelopment all currently dead-end (no path commits a minor in Family scope). Unblocked by minor-card support.
-
-- **The Lessons action space.** Permanently illegal in the Family game today; the legality predicate omits it from `NON_ATOMIC_LEGALITY`. Enabled once occupation cards exist.
+A UI mode that replays a downloaded trace (the existing `.json` trace format) move-by-move in the browser, with the full board state shown at each step. Useful for post-game analysis and debugging without running the server.
 
 ---
 
-## Phases 4–6 — training and evaluation
+## 3. Starting the AI Pipeline (Card Game)
 
-Furthest out. Listed for completeness.
+### A. Port the card game engine to C++
 
-### M. Imitation learning bootstrap
+Extend the C++ twin (`cpp/`) — today a faithful *Family-only* engine — to support the full card game, so card-game self-play can run at C++ speed (~4× Python) the way Family self-play already does. The differential-test harness (`tests/test_cpp_*.py`) keeps the port honest; follow the same staged-build + green-gate discipline as the Family port.
 
-Train a policy on human game data to bootstrap the agent before self-play. Requires a corpus of human Agricola games (e.g., from BGA logs or other online play). Less compute-intensive than self-play; gets the agent to "plays the game competently" before RL refines it. Optional but accelerates phase 5.
+**When to do this, and the cost it locks in.** This is a *throughput* lever, not a correctness prerequisite: the card game can self-play in pure Python first (slower), and only needs the C++ port once data generation is the bottleneck — exactly the order the Family pipeline followed. The reason not to rush it is the maintenance economics. Today, card changes are "free" against C++: the engine is Family-only, so card-only state and logic never reach it and the gates stay green without a re-port (which is why all of this session's card work touched no C++). The moment cards live in C++, that reverses — *every* future change to card rules, legality, scoring, the encoder, or the state shape must be re-ported to keep the gates green (the same invariant the Family engine already carries). So port when the card system is **stable enough** that paying the ongoing two-engine tax is worth the self-play speed — not mid-development while cards are still churning.
 
-### N. AlphaZero-style self-play RL
+**What the C++ twin has vs. needs.** The Family engine, MCTS, NN inference, canonical serialization, and hash are all in place, and the before/after host *scaffolding* from the recent refactors already exists (the pending frames carry `phase`, the enumerators have before/after branches). But the card machinery is stubbed: the trigger/auto firing is empty ("none in Family"), `FireTrigger` throws, the card-only host (`PendingActionSpace`) is never produced, and there is no `GameMode`, no hands, no card registries, no card catalog. The differential corpus is Family-only (built from `setup_env(seed)` with no card pool).
 
-Self-play with MCTS guided by a neural network. The network outputs `(policy, value)` given state; MCTS uses the policy as priors and the value as rollout estimates. Iterated self-play improves the network over time.
+**Staged plan** (each stage gated green before the next, mirroring the Family port):
 
-Depends on G (MCTS scaffolding), and ideally on H–K (card system mostly complete; otherwise the agent learns to play a non-Agricola game). M (imitation bootstrap) is helpful but not required.
+1. **Extend the differential harness to card states first.** Build the safety net before the thing it guards: teach the corpus generators to deal card-mode games (`setup_env(seed, card_pool=…)`) and play random card games, and assert C++ matches Python over *card* states. This is the gate every later stage leans on; without it the port is unverified.
+2. **State-model + serialization parity.** Add the card-only state to the C++ `GameState`/`PlayerState` (game mode, private hands, played-card sets, the scoped used-sets, `CardStore`, `future_rewards`) and the card-only pending frames (play-occupation/minor, the atomic action-space host, card-choice, the phase hooks), plus their canonical (de)serialization and hashing. The canonical JSON is the cross-language contract, so this stage is "C++ can round-trip any card state byte-for-byte." (Card-only fields are default-skipped today so Family JSON is unaffected; card states emit them and C++ must read/write them in declaration order.)
+3. **Setup with a card pool.** Mirror `setup_env`'s hand-dealing exactly — same seeded RNG, same non-overlapping 7+7 deal — so an identical (seed, pool) yields a byte-identical starting state on both sides.
+4. **The firing infrastructure.** Un-stub the host model: the card registries (triggers / automatic effects / mandatory-with-choice), `apply_auto_effects`, the before/after firing at push / flip / the work-complete boundary, the action-space host (`should_host_space` + the atomic-host Proceed lifecycle), and the start-of-round / harvest-field phase hooks. This is the engine *machinery*, separate from any specific card; it can be smoke-gated with a single synthetic card before the catalog lands.
+5. **The card catalog — the bulk of the work.** Reimplement each implemented card's cost / prerequisite / on-play / trigger / automatic effect in C++, ported in batches by category to match the Python build order, with the card-mode differential gate run per batch. C++ needs an analog of Python's import-time self-registration (a card registry populated at startup). This stage scales with the card count and must track the Python catalog as it grows.
+6. **Mode-branched legality / resolution + card-play actions.** Port the card-mode deltas in `legal_actions`/`step` (mode-branched placement; the Lessons / Meeting Place / Major-Minor / House-Redevelopment / Basic-Wish play-card paths; the play-card commits; surfacing eligible triggers), then run the full card-mode random-game differential to green.
 
-### O. Evaluation tooling
+**Scope boundary.** 3A is *engine* parity only — `step`, `legal_actions`, `scoring`, canonical, and hash over card states. It deliberately stops short of the NN: the card *encoding* (3C) and ISMCTS for hidden hands (3E) sit above the engine and are tracked separately. Hidden information doesn't complicate the engine differential itself, since the gates compare full ground-truth `GameState`s, not per-player observations — determinization is an agent-layer concern, not part of this port.
 
-Elo ratings between agent versions, score distribution analysis, game-length variance, trace replay viewer, head-to-head match infrastructure. Useful throughout training to detect regressions and to compare experimental variants. Some pieces (trace replay, score distribution) are useful immediately for the existing engine and could ship ahead of the full evaluation pipeline.
+### B. Augment the non-card AI to play with cards
 
-### P. NN value-function training
+Before training a card-game NN, a playable card-game agent is needed to generate data. The most practical bootstrap is probably the existing joint-trunk bot for the non-card decisions plus a simple heuristic (or random) for card-play choices. Assess how much card quality matters for data diversity.
 
-Train a neural network value function that takes a `GameState` (or a featurized view of it) and predicts the expected score margin from that player's perspective. Replaces V1/V3 as the leaf evaluator inside MCTS — and potentially as a standalone agent via 1-turn lookahead.
+### C. Card encoding for the NN
 
-Why this matters: the empirical bottleneck for agent strength is the EVALUATOR, not the search algorithm. V1/V3 are hand-designed feature combinations with finite expressiveness; a NN can learn arbitrary nonlinear interactions. If a learned value function beats V1 as a standalone evaluator (1-ply margin), it can then be dropped into MCTS as a leaf — and the AlphaZero-style training loop (G → P → better G → ...) becomes available.
+The existing ~170-feature encoder has no card representation. Decide how to encode private hands and played cards: one-hot over the full card vocabulary, a bag-of-features summary, or a learned card embedding. The choice shapes the NN architecture and the encoder registry (`EncoderSpec` in `encoder.py`).
 
-**Minimum viable approach:**
+### D. Training pipeline for the card game
 
-1. **Feature extractor:** `GameState → fixed-size float vector` (or sparse representation). Should capture resources, animals, farmyard cells, pending stack, current player, round number, etc. Design choice between raw features and hand-engineered features (mimicking V3's structure) — start with both available and let training preference settle it.
-2. **Generate self-play training data:** ~10K-50K games of `V1-heuristic` self-play (with temperature > 0 for diversity), recording (state, final-margin) pairs. ~3-10 hours compute on 8 cores.
-3. **Train a value-only NN** (~50K-500K params, hidden dim 64-256). PyTorch. Target: predict final margin from each state.
-4. **Evaluate as standalone agent** (1-ply argmax over NN scores) vs V1-heuristic. If NN beats V1, the AlphaZero loop unlocks.
+Once a card-game agent and encoder exist, adapt the self-play loop — data generation, joint shared-trunk training, C++ export, evaluation — to the card game. The Family pipeline is the template; the main additions are the card encoding and ISMCTS (3E) for hidden-hand play.
 
-If NN beats V1 by ANY margin, use it as the MCTS leaf evaluator and re-test G (MCTS vs heuristic). MCTS with a stronger leaf should perform better than the current MCTS-with-V1.
+### E. ISMCTS for hidden hand information
 
-**Setup work before any results:** feature extractor, data-generation harness with diversity (temperature + random openings, possibly your exogenous-randomization ideas), PyTorch training script, evaluation framework. Probably 1-2 sessions of pure infrastructure before training data hits the network.
+The Family game has no hidden state (the round-card order is symmetric). The card game does: each player's hand is private. The current MCTS assumes perfect information and cannot handle this correctly. Information Set MCTS (ISMCTS) — which samples from the opponent's possible hands at each node — is the standard approach and a prerequisite for a principled card-game agent.
 
-**Uncertainty:** I'd give roughly equal probability (~33% each) to "NN beats V1 by a meaningful margin," "NN ≈ V1 (no improvement)," and "NN clearly worse than V1." No specific prior for Agricola here.
+### F. Card-game heuristic for data bootstrapping
+
+AlphaZero-style self-play needs *some* agent to generate the initial training corpus. For the Family game the heuristic ensemble served this role. For the card game, decide whether to write a lightweight card-play heuristic (evaluate each playable card by its expected effect) or rely on the non-card bot + random card plays and accept noisier initial data.
 
 ---
 
-## My take (advisory, not prescriptive)
+## Other
 
-**Current strongest agent: V1+T2** (`HubrisHeuristicV1` + `CONFIG_V1_T2`). The V3 architecture exists and the strongest historical V3 (now in `v3_best.json` via the iter1 port) beats V1 by ~12 in heuristic head-to-head — but the V3 tuning pipeline previously drifted via chained-baseline overfitting (caught by new multi-baseline + regression-detector tooling). MCTS as currently configured doesn't lift over strong heuristics at 200-500 sims.
+### A. Web UI fix punch list
 
-**Three natural next directions, in priority order:**
+`FRONTEND_FIXES.md` contains a prioritized list of known frontend gaps in `static/app.js` / `static/style.css` / `templates/index.html`. None are blocking, but several affect usability (e.g. display issues in the card-play UI). Work through them opportunistically when the backend is stable.
 
-1. **V3 retune (F12)** — exercise the new multi-baseline + regression-detector tooling on a real run from the recovered V3 baseline. Goal: V3 that beats V1+T2 by MORE than +12 without drifting. ~2-3 hours. Validates whether the V3 architecture has more headroom than the broken tuning suggested, or whether it's near its real ceiling.
+### B. NN leaf-batching
 
-2. **NN value function (P)** — the most likely path to a meaningfully stronger agent. The MCTS finding shows search isn't the bottleneck at current evaluator quality; better evaluators is the leverage point. Setup-heavy (1-2 sessions of infrastructure work before any results), but the strategic payoff is large if it works.
-
-3. **MCTS asymptote (G2)** — settles whether MCTS is "just under-budgeted" or "fundamentally not pulling weight" at the current scaffolding level. Quick to run (~1 hour), tells us whether to invest in MCTS scaffold improvements (PUCT, better priors, more sims) or jump straight to learned evaluators (P).
-
-Smaller items: **F13 (reed weight audit)** is free (no compute) and could clarify why V3 drifted. **F3 (V3 food double-count)** is a meaningful but bounded improvement. F4-F7 are architectural V3 expansions, defer until F12 settles V3's headroom.
-
-**Card system (H-L)** still a separate track that can run in parallel. Open design questions (H, I, J, K) should be settled when the first card needing each lands.
+The single largest remaining MCTS speedup per `SPEEDUPS.md` Part 2: batch multiple leaf evaluations into one NN forward pass instead of one per leaf. Deferred until sim budgets grow large enough that NN forward-pass cost is the dominant MCTS cost again.
