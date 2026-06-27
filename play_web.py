@@ -1008,10 +1008,26 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
     if actions is None:
         actions = legal_actions(state) if not game_over else []
 
-    # A player's private hand is revealed only for a human seat (so an AI/
-    # opponent seat's hand stays hidden). Family hands are empty, so this is
-    # harmless there.
+    # A player's private hand is only ever revealed for a HUMAN seat (an AI/
+    # opponent seat's hand always stays hidden). Among human seats the rule
+    # depends on how many there are:
+    #   - One human (vs an AI): that human always sees their own hand, even
+    #     while the AI is on the clock.
+    #   - Two humans (pass-and-play): only the ACTIVE player's hand is shown,
+    #     so handing the device over doesn't leak the other player's cards.
+    # The active player is the current decider (whose decision is awaited); at
+    # a nature step (decider is None) we fall back to current_player. Family
+    # hands are empty, so this is harmless there.
     seat_list = list(seats) if seats is not None else ["human", "human"]
+    human_seats = [i for i in (0, 1) if seat_list[i] == "human"]
+    active_player = decider if decider is not None else state.current_player
+
+    def _reveal_hand(i: int) -> bool:
+        if seat_list[i] != "human":
+            return False
+        if len(human_seats) <= 1:
+            return True
+        return i == active_player
 
     payload = {
         "round_number": state.round_number,
@@ -1023,7 +1039,7 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
         "game_over": game_over,
         "seats": seat_list,
         "players": [
-            _player_to_dict(state, i, decider, reveal_hand=(seat_list[i] == "human"))
+            _player_to_dict(state, i, decider, reveal_hand=_reveal_hand(i))
             for i in (0, 1)
         ],
         "board": _board_to_dict(state),
