@@ -1,5 +1,12 @@
 # CARD_IMPLEMENTATION_PLAN.md
 
+> **Implementing more cards? Read `CARD_AUTHORING_GUIDE.md` first.** It is the practical,
+> pitfall-focused framework for reading a card, classifying it against the machinery, and fitting it
+> in — including the obscure rulings a coding agent reliably misses ("each time you use" = before;
+> "end of turn" ≠ end of the action; granted sub-actions are optional) and the cardinal rule to
+> **defer and ask the user** when a card doesn't clearly fit. This file is the build *plan* + status;
+> that guide is the *how-to*.
+
 **Status: implementation design doc for the *tractable* base-game card subset. Concrete build
 plan + canonical code per category. The cross-cutting design decisions are settled (see "Decisions &
 open sub-questions" at the end); one search-layer sub-question (`observe` hand-cardinality
