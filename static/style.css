@@ -680,6 +680,17 @@ body.is-submitting * { cursor: wait !important; }
 }
 .hand-card-name { font-weight: bold; line-height: 1.2; }
 .hand-card-cost { font-size: 10px; color: #8a4a2a; }
+.hand-card-prereq { font-size: 10px; color: #6a5a8a; font-style: italic; }
+.hand-card-vps {
+  float: right;
+  font-size: 9px;
+  font-weight: bold;
+  color: #6a4a1a;
+  background: #f2d98a;
+  border-radius: 8px;
+  padding: 0 5px;
+  margin-left: 4px;
+}
 .hand-card-text {
   font-size: 10px;
   color: #5a4a2a;
@@ -696,6 +707,11 @@ body.is-submitting * { cursor: wait !important; }
   background: repeating-linear-gradient(
     45deg, #8B6F47, #8B6F47 4px, #7a5f3a 4px, #7a5f3a 8px);
   border-color: #5a4530;
+}
+/* Played cards (public tableau): a settled, owned look distinct from the hand. */
+.hand-card.played-card {
+  background: #eef3e0;
+  border-left: 3px solid var(--accent-active);
 }
 
 /* Card-play action button in the decision menu. */

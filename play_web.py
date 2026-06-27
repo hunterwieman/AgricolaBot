@@ -633,13 +633,39 @@ def _fmt_cost(cost) -> str:
     return ", ".join(parts) if parts else "—"
 
 
+def _is_blank_json(value) -> bool:
+    """A JSON cost/prerequisite cell that carries no real condition."""
+    return value is None or str(value).strip().lower() in ("", "none", "-")
+
+
+def _card_prereq(row: "dict | None", *, spendable_cost_empty: bool) -> str:
+    """Human-readable prerequisite for a card, drawn from the JSON catalog.
+
+    Two sources, joined: (1) the JSON `prerequisites` cell (e.g. Loom's "2
+    Occupations"); and (2) a "have N in your supply" CONDITION that the catalog
+    files under the `cost` cell for cards with no spendable cost (e.g. Thick
+    Forest's "5 Clay in Your Supply" — the engine models it as a prereq, not a
+    debit, so it would otherwise be invisible). Empty string if neither."""
+    if not row:
+        return ""
+    parts: list[str] = []
+    pre = row.get("prerequisites")
+    if not _is_blank_json(pre):
+        parts.append(str(pre).strip())
+    jc = row.get("cost")
+    if spendable_cost_empty and not _is_blank_json(jc):
+        parts.append(str(jc).strip())
+    return "; ".join(parts)
+
+
 def _load_card_meta() -> dict[str, dict]:
-    """Build {card_id: {name, type, text, cost}} for every implemented card.
+    """Build {card_id: {name, type, text, cost, prereq}} for every implemented card.
 
     Joins the implemented OCCUPATIONS / MINORS registries to the card-data
     JSON rows by slugged name. Occupations are free (cost ""); minors format
-    their structured Cost. Guarded so a missing/malformed JSON leaves the
-    table possibly partial rather than crashing the server at import."""
+    their structured Cost. `prereq` surfaces occupation/supply requirements.
+    Guarded so a missing/malformed JSON leaves the table possibly partial
+    rather than crashing the server at import."""
     meta: dict[str, dict] = {}
     try:
         import agricola.cards  # noqa: F401
@@ -657,14 +683,19 @@ def _load_card_meta() -> dict[str, dict]:
                 "type": "occupation",
                 "text": row.get("text", "") if row else "",
                 "cost": "",
+                "prereq": _card_prereq(row, spendable_cost_empty=True),
+                "vps": 0,   # occupations carry no printed VP in this game
             }
         for cid in MINORS:
             row = by_slug.get(cid)
+            cost_str = _fmt_cost(MINORS[cid].cost)
             meta[cid] = {
                 "name": row["name"] if row else cid.replace("_", " ").title(),
                 "type": "minor",
                 "text": row.get("text", "") if row else "",
-                "cost": _fmt_cost(MINORS[cid].cost),
+                "cost": cost_str,
+                "prereq": _card_prereq(row, spendable_cost_empty=(cost_str == "—")),
+                "vps": int(MINORS[cid].vps),   # printed victory points (yellow circle)
             }
     except Exception as exc:  # pragma: no cover — defensive at import time
         print(f"[play_web] WARNING: card metadata load failed: {exc}", file=sys.stderr)
@@ -675,13 +706,15 @@ _CARD_META: dict[str, dict] = _load_card_meta()
 
 
 def _card_info(card_id: str) -> dict:
-    """Display info for one card: {id, name, type, text, cost}. Falls back to a
-    title-cased id with empty text/cost for an unknown id."""
+    """Display info for one card: {id, name, type, text, cost, prereq}. Falls
+    back to a title-cased id with empty fields for an unknown id."""
     fallback = {
         "name": card_id.replace("_", " ").title(),
         "type": "",
         "text": "",
         "cost": "",
+        "prereq": "",
+        "vps": 0,
     }
     return {"id": card_id, **_CARD_META.get(card_id, fallback)}
 
@@ -857,7 +890,13 @@ def _player_to_dict(state: GameState, idx: int, decider: int,
         "stables_built":  4  - stables_left,
         "stables_total":  4,
         "majors": majors,
-        "minors": sorted(p.minor_improvements),
+        # Played occupations and minor improvements are PUBLIC tableau — visible
+        # to both players (unlike the private hand) with full name + effect text,
+        # so each is sent as a card-info dict regardless of `reveal_hand`. Empty in
+        # the Family game. `played_occupations` is new (occupations were previously
+        # not surfaced at all, so they vanished once played).
+        "played_occupations": [_card_info(cid) for cid in sorted(p.occupations)],
+        "played_minors": [_card_info(cid) for cid in sorted(p.minor_improvements)],
         "farmyard": _farmyard_to_dict(p.farmyard),
         # Hand sizes are common knowledge (empty in Family mode); the hand
         # CONTENTS are private and only revealed for a human seat.
@@ -978,6 +1017,11 @@ SCORE_ROWS = [
     ("Begging",         "begging_markers"),
     ("Major imp.",      "major_improvement_points"),
     ("Craft bonus",     "bonus_points"),
+    # Occupation + minor card scoring: printed VPs (the yellow circle) plus
+    # per-card scoring terms (e.g. Loom's 1 VP per 3 sheep). 0 in the Family
+    # game. Without this row the line items don't sum to the total and card
+    # points (Loom, etc.) appear nowhere.
+    ("Cards",           "card_points"),
 ]
 
 
