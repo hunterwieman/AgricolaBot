@@ -1751,6 +1751,28 @@ def _eligible_fire_triggers(state, pending, event: str) -> list:
     return [FireTrigger(card_id=e.card_id) for e in entries]
 
 
+def _expand_variant_triggers(state, pending, base: list) -> list:
+    """Expand each play-variant trigger in `base` into one FireTrigger per legal
+    variant — the route is chosen AT the fire (carried in `FireTrigger.variant`),
+    not via an intermediate decision node — passing plain triggers through unchanged.
+
+    Shared by the start-of-round host (Scholar's occupation-vs-minor route) and the
+    action-space host (Cottager's build-room-vs-renovate route). A no-op when no card
+    in `base` is registered in PLAY_VARIANT_TRIGGERS, so the Family game (no triggers
+    at all) is unaffected.
+    """
+    from agricola.cards.triggers import PLAY_VARIANT_TRIGGERS
+    actions: list[Action] = []
+    for ft in base:
+        variants_fn = PLAY_VARIANT_TRIGGERS.get(ft.card_id)
+        if variants_fn is None:
+            actions.append(ft)
+            continue
+        for v in variants_fn(state, pending.player_idx):
+            actions.append(FireTrigger(card_id=ft.card_id, variant=v))
+    return actions
+
+
 def _enumerate_pending_action_space(
     state: GameState, pending: PendingActionSpace,
 ) -> list[Action]:
@@ -1761,6 +1783,10 @@ def _enumerate_pending_action_space(
     then Stop (pop). With no eligible trigger this is a singleton [Proceed] /
     [Stop] the agent auto-skips — so a hosted Forest still plays in one decision.
 
+    Play-variant triggers (Cottager's build-room-vs-renovate on Day Laborer) are
+    expanded into one FireTrigger per legal variant, the same way the start-of-round
+    host expands Scholar.
+
     Mandatory-with-choice gate (II.1): the phase-exit (Proceed in before, Stop in
     after) is WITHHELD while an eligible, unfired `mandatory` trigger remains for
     this phase's event — Seasonal Worker on Day Laborer cannot be declined. Once it
@@ -1769,7 +1795,8 @@ def _enumerate_pending_action_space(
     from agricola.cards.triggers import has_unfired_mandatory_trigger
 
     event = trigger_event(pending)
-    actions = _eligible_fire_triggers(state, pending, event)
+    actions = _expand_variant_triggers(
+        state, pending, _eligible_fire_triggers(state, pending, event))
     if not has_unfired_mandatory_trigger(state, pending, event):
         actions.append(Proceed() if pending.phase == "before" else Stop())
     return actions
@@ -1945,22 +1972,12 @@ def _enumerate_pending_preparation(
     an ordinary optional-trigger phase: when no trigger is eligible this is a
     singleton [Proceed] the agent auto-applies.
     """
-    from agricola.cards.triggers import (
-        PLAY_VARIANT_TRIGGERS,
-        has_unfired_mandatory_trigger,
-    )
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
 
     base = _eligible_fire_triggers(state, pending, "start_of_round")
     # Expand any play-variant trigger (Scholar) into per-variant FireTriggers — the
     # route (occupation / minor) is chosen AT the fire, not via an intermediate node.
-    actions: list[Action] = []
-    for ft in base:
-        variants_fn = PLAY_VARIANT_TRIGGERS.get(ft.card_id)
-        if variants_fn is None:
-            actions.append(ft)
-            continue
-        for v in variants_fn(state, pending.player_idx):
-            actions.append(FireTrigger(card_id=ft.card_id, variant=v))
+    actions = _expand_variant_triggers(state, pending, base)
     if not has_unfired_mandatory_trigger(state, pending, "start_of_round"):
         actions.append(Proceed())
     return actions

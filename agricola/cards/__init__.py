@@ -43,6 +43,9 @@ from agricola.cards import milk_jug             # noqa: F401
 # is preserved under archive/deferred_cards/. See CARD_IMPLEMENTATION_PLAN.md.
 # Category 3/4 on non-atomic spaces' after-phase (the multi-sub after-trigger model).
 from agricola.cards import threshing_board      # noqa: F401
+# Category 4 — the build-room-OR-renovate choice on the Day Laborer host, modeled as
+# a play-variant trigger (build_room / renovate) on before_action_space.
+from agricola.cards import cottager             # noqa: F401
 # Category 5 (build / renovate / bake / play-card hooks). Roughcaster is an
 # occupation; the other four are minors registered below. The coarse
 # `after_build_improvement` event (Junk Room) is fired by _execute_build_major
