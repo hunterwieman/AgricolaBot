@@ -444,7 +444,7 @@ def test_stack_invariants():
     assert pbf.fences_built == 0
     assert pbf.subdivision_started is False
 
-    # CommitBuildPasture: does NOT pop (auto_pop=False).
+    # CommitBuildPasture: does NOT pop (the dispatcher never pops; Stop pops).
     state = step(state, CommitBuildPasture(cells=frozenset({(0, 1)})))
     assert len(state.pending_stack) == 2
     assert state.pending_stack[-1].pastures_built == 1

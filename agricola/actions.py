@@ -98,8 +98,8 @@ class CommitBuildMajor(CommitSubAction):
     set to 0 or 1 to pay by returning the named Fireplace instead of
     paying clay. For all other majors, `return_fireplace_idx` must be None.
 
-    Dispatched via the generic commit dispatcher with `auto_pop=False`
-    (registered in `COMMIT_SUBACTION_HANDLERS`). The effect function
+    Dispatched via the generic commit dispatcher (registered in
+    `COMMIT_SUBACTION_HANDLERS`), which never pops — the effect function
     `_execute_build_major` owns the stack manipulation: pop
     `PendingBuildMajor` for non-oven majors, or push
     `PendingClayOven` / `PendingStoneOven` for Clay/Stone Oven.
@@ -182,8 +182,8 @@ class CommitBuildPasture(CommitSubAction):
     `agricola.fences`. This is the 4th sub-action cost-handling bucket
     (ENGINE_IMPLEMENTATION.md §3 — sub-action cost handling).
 
-    Dispatched via `auto_pop=False`: the effect function leaves
-    PendingBuildFences on top with updated counters; Stop pops it.
+    The dispatcher never pops: the effect function leaves PendingBuildFences on
+    top with updated counters; Stop pops it.
     """
     cells: frozenset                          # frozenset[tuple[int, int]]
 
@@ -201,7 +201,7 @@ class CommitHarvestConversion(CommitSubAction):
     `player.harvest_conversions_used` so the enumerator no longer offers it for
     the remainder of this harvest's FEED. There is no "decline" variant:
     declining a craft is simply not firing it before `CommitConvert`, which
-    forfeits every still-undecided craft. Dispatched with `auto_pop=False` — the
+    forfeits every still-undecided craft. The dispatcher never pops — the
     pending stays on top to host further craft decisions and the final
     CommitConvert.
     """
@@ -223,7 +223,7 @@ class CommitConvert(CommitSubAction):
     REMAINING-goods tuples returned by harvest_feed_frontier (consumed =
     player_max - remaining).
 
-    Dispatched with `auto_pop=False`. After this commit, only Stop is legal
+    The dispatcher never pops. After this commit, only Stop is legal
     on the pending — `conversion_done` is set True. `_execute_convert` is
     the sole food-payment site: it adds food_produced to supply, then pays
     `min(need, supply + food_produced)` from the combined pool, leaves any
@@ -247,7 +247,7 @@ class CommitBreed(CommitSubAction):
     `breeding_frontier(player_state, rates[:3])`; the legality enumerator
     only emits frontier points.
 
-    Dispatched with `auto_pop=False`: the effect sets the chosen counts and
+    The dispatcher never pops: the effect sets the chosen counts and
     adds the frontier's `food_gained` to supply; Stop is the explicit exit.
     """
     sheep:  int
