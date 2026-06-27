@@ -1,5 +1,4 @@
-"""Tests for the Category-7 start-of-round cards + Seasonal Worker (Cat 3) +
-Firewood Collector (Cat 3, end-of-turn), all landed in Unit 4.
+"""Tests for the Category-7 start-of-round cards + Seasonal Worker (Cat 3).
 
 Category 7 rides the start-of-round phase hook (II.6): `_complete_preparation` pushes
 a `PendingPreparation` host for each player who owns a start-of-round card and fires
@@ -7,8 +6,11 @@ the `start_of_round` event. Auto-effects (Small-scale Farmer, Scullery) fire at 
 optional triggers (Plow Driver, Groom) surface as FireTrigger; the mandatory-with-
 choice Childless gates Proceed; Scholar is the collapsed play-variant trigger.
 
-Seasonal Worker is the mandatory-with-choice trigger on the Day Laborer space-host;
-Firewood Collector is the automatic effect on the dedicated end_of_turn event.
+Seasonal Worker is the mandatory-with-choice trigger on the Day Laborer space-host.
+
+(Firewood Collector — "+1 wood at the end of that turn" — was deferred: its end-of-turn
+timing has no correct anchor until "at any time" card effects define a post-action
+turn-end window. See CARD_IMPLEMENTATION_PLAN.md.)
 
 Cards are exercised by driving the engine through a placement turn / a constructed
 PendingPreparation host (mirroring tests/test_cards_category6.py / _preparation_hook).
@@ -104,7 +106,7 @@ def _run_turn(state):
 
 def test_category7_cards_registered():
     for cid in ("small_scale_farmer", "plow_driver", "groom", "childless",
-                "scholar", "seasonal_worker", "firewood_collector"):
+                "scholar", "seasonal_worker"):
         assert cid in OCCUPATIONS
     assert "scullery" in MINORS
     # Scullery's cost (verbatim "1 Wood,1 Clay"); no VPs/prereq/passing.
@@ -341,40 +343,3 @@ def test_seasonal_worker_round6_offers_veg_choice():
             s = step(s, la[0])
         steps += 1
     assert seen == ("grain", "veg")
-
-
-# ---------------------------------------------------------------------------
-# Firewood Collector — +1 wood at the end of a listed-space turn
-# ---------------------------------------------------------------------------
-
-def test_firewood_collector_listed_space():
-    s, env = setup_env(0)
-    ap = s.current_player
-    s = _own_occ(s, ap, "firewood_collector")
-    w0 = s.players[ap].resources.wood
-    s = step(s, PlaceWorker(space="farmland"))
-    s = _run_turn(s)
-    assert s.players[ap].resources.wood == w0 + 1
-
-
-def test_firewood_collector_grain_seeds_atomic_hosted():
-    # Grain Seeds is atomic but must be HOSTED when Firewood is owned.
-    s, env = setup_env(0)
-    ap = s.current_player
-    s = _own_occ(s, ap, "firewood_collector")
-    g0 = s.players[ap].resources.grain
-    w0 = s.players[ap].resources.wood
-    s = step(s, PlaceWorker(space="grain_seeds"))
-    s = _run_turn(s)
-    assert s.players[ap].resources.grain == g0 + 1   # grain seeds income
-    assert s.players[ap].resources.wood == w0 + 1    # + Firewood end-of-turn
-
-
-def test_firewood_collector_unlisted_space_no_wood():
-    s, env = setup_env(0)
-    ap = s.current_player
-    s = _own_occ(s, ap, "firewood_collector")
-    w0 = s.players[ap].resources.wood
-    s = step(s, PlaceWorker(space="fishing"))   # not a listed space
-    s = _run_turn(s)
-    assert s.players[ap].resources.wood == w0

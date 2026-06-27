@@ -36,11 +36,11 @@ from agricola.cards import assistant_tiller     # noqa: F401
 from agricola.cards import oven_firing_boy      # noqa: F401
 # Category 9 (opponent-action hook; any-player automatic effect on Cattle Market).
 from agricola.cards import milk_jug             # noqa: F401
-# Category 3 (action-space hook) on the dedicated end_of_turn event — Firewood
-# Collector ("+1 wood at the END of the turn that used Farmland / Grain Seeds /
-# Grain Utilization / Cultivation"). The end_of_turn event fires at the turn's
-# completion boundary (engine._apply_stop), so this is now un-deferred (Unit 4).
-from agricola.cards import firewood_collector   # noqa: F401
+# NOTE: Firewood Collector ("+1 wood at the END of that turn") is DEFERRED, not
+# imported here — its "end of turn" timing has no correct anchor until "at any time"
+# card effects define a post-action turn-end window (firing at the space-host pop, as
+# an earlier version did, would make the wood spendable within the turn). The module
+# is preserved under archive/deferred_cards/. See CARD_IMPLEMENTATION_PLAN.md.
 # Category 3/4 on non-atomic spaces' after-phase (the multi-sub after-trigger model).
 from agricola.cards import threshing_board      # noqa: F401
 # Category 5 (build / renovate / bake / play-card hooks). Roughcaster is an

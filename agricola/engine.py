@@ -467,30 +467,20 @@ def _apply_commit_card_choice(
 
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
-    # Build Rooms / Build Stables are now uniform before/after hosts: their
-    # after_build_<x> automatic effects fire at the Proceed work-complete boundary
-    # (_apply_proceed -> _enter_after_phase), BEFORE the after-triggers, so Stop here
-    # is a pure pop like every other host (the old multi-shot Stop-fires-autos
-    # special case is gone). Roughcaster's clay-room clause + Wall Builder ride that
-    # Proceed flip now.
-    top = state.pending_stack[-1]
-    # End-of-turn card hook (CARD_IMPLEMENTATION_PLAN.md Category 3 — Firewood
-    # Collector "at the end of that turn"). A worker-placement turn completes when
-    # its OUTERMOST space-host frame is popped and the stack empties; fire the
-    # `end_of_turn` automatic effects for the acting player at that boundary, just
-    # before the pop, so the popped frame's `space_id` is still readable (Firewood's
-    # eligibility checks the turn's space). Gated on the pop emptying the stack AND
-    # the frame being a space host (carries `space_id`) — so it fires once per turn,
-    # not at every nested Stop. Card-dependent: a no-op in the Family game (empty
-    # AUTO_EFFECTS) → byte-identical pop, never reaches the C++ Family engine.
-    if len(state.pending_stack) == 1 and hasattr(top, "space_id"):
-        state = apply_auto_effects(state, "end_of_turn", top.player_idx)
-    # Pure pop (SPACE_HOST_REFACTOR.md §11). Every other host's after-automatic
-    # effects fire at its own work-complete boundary (Proceed for atomic/Proceed-
-    # hosts, the commit for the markets, the auto-advance for Delegating hosts) —
-    # BEFORE its after-triggers, fixing the §2 ordering bug. Do NOT assert the stack
-    # is empty afterward: future cards may have deeper stacks where Stop is legal at
-    # a non-bottom frame.
+    # Pure pop (SPACE_HOST_REFACTOR.md §11). Every host's after-automatic effects
+    # fire at its own work-complete boundary (Proceed for atomic/Proceed-hosts and
+    # the multi-shot builders, the commit for the markets, the auto-advance for
+    # Delegating hosts) — BEFORE its after-triggers, fixing the §2 ordering bug — so
+    # Stop only ever pops. Do NOT assert the stack is empty afterward: future cards
+    # may have deeper stacks where Stop is legal at a non-bottom frame.
+    #
+    # NOTE: there is deliberately NO "end of turn" firing here. The space-host pop
+    # coincides with turn-end only because nothing player-controllable currently sits
+    # between the action's resolution and the turn ending; once "at any time" card
+    # effects add such a window, an end-of-turn hook fired here would land one window
+    # too early (goods would be spendable within the turn). So end-of-turn effects
+    # (and Firewood Collector) are DEFERRED until a real post-at-any-time turn-end
+    # boundary exists. See CARD_IMPLEMENTATION_PLAN.md (Firewood / end-of-turn).
     return pop(state)
 
 

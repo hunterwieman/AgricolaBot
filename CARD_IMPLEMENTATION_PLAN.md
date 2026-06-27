@@ -125,7 +125,9 @@ bookkeeping) is deliberately left open for a later session.**
 >   resolver), `FireTrigger.variant` for the collapsed play-variant (Scholar), and a dedicated
 >   `end_of_turn` event (fired at the turn-completion boundary in `_apply_stop`). Cards: **Small-scale
 >   Farmer, Childless, Scullery, Groom, Plow Driver, Scholar** (Cat 7), **Seasonal Worker** (Cat 3,
->   mandatory-with-choice on Day Laborer), and **Firewood Collector un-deferred** onto `end_of_turn`.
+>   mandatory-with-choice on Day Laborer). (Unit 4 also un-deferred **Firewood Collector** onto
+>   `end_of_turn`, but it was **subsequently re-deferred and the `end_of_turn` event removed** — the
+>   space-host-pop firing point is wrong once "at any time" effects exist; see the Category 3 note below.)
 > - **Step 7** — deferred cards (Organic Farmer, Mini Pasture, Shepherd's Crook, Acorns Basket) last.
 >
 > **CardStore + leftovers (Unit 5) DONE** — `CardStore` (II.7): a sparse, hashable per-player side-map
@@ -1082,9 +1084,24 @@ cap/free/size fields today, and its "fence a space" semantics need a ruling).
 **Wood Cutter · Geologist · Canoe · Corn Scoop · Loam Pit · Stone Tongs · Pitchfork** (`register_auto`
 on the space's before/after event). **Seasonal Worker** (Unit 4) is NOT a plain auto-effect — it is a
 **mandatory-with-choice** trigger on the Day Laborer host (II.1): +1 grain each use, or +1 veg from
-round 6, the choice surfaced as a round-dependent `PendingCardChoice`. **Firewood Collector** (Unit 4)
-lands on the dedicated **`end_of_turn`** event (fired at the turn-completion boundary in `_apply_stop`),
-no longer deferred.
+round 6, the choice surfaced as a round-dependent `PendingCardChoice`.
+
+> **Firewood Collector is DEFERRED (re-deferred after Unit 4); the `end_of_turn` event was removed
+> with it.** Its text is "Each time you use [Farmland / Grain Seeds / Grain Utilization / Cultivation],
+> **at the end of that turn**, you get 1 wood." The "at the end of that turn" wording is a deliberate
+> deferral so the wood is *not* spendable within the action that earned it. Unit 4 modeled this with an
+> `end_of_turn` automatic effect fired at the worker-placement turn's completion — the moment the
+> outermost space-host frame pops in `_apply_stop`. That is correct **only while nothing
+> player-controllable sits between the action's resolution and the turn ending.** The moment "at any
+> time" card effects (the deferred §8/§15 hard set) add such a window, firing at the space-host pop would
+> land the wood *one window too early* — it would become spendable by those at-any-time effects within
+> the same turn, silently violating the card. The space-host pop is only a *proxy* for "turn end"
+> (exact today, lossy once an at-any-time window exists), and an end-of-turn effect can't have a correct
+> anchor until that window is defined — so end-of-turn timing and at-any-time modeling are
+> **co-dependent** and must be designed together. Rather than ship a card that would go *silently* wrong,
+> Firewood is deferred and the single-consumer `end_of_turn` event removed; the module is preserved under
+> `archive/deferred_cards/firewood_collector.py`. **Re-introduce both — with the firing anchored to a
+> real post-at-any-time turn-end boundary, not the space-host pop — when the at-any-time effects land.**
 
 Hook: `register_auto` on `before_action_space` (or `after_action_space` for post-work income),
 filtered by `space_id`.
