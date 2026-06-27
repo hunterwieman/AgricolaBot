@@ -598,3 +598,109 @@ body.is-submitting * { cursor: wait !important; }
   cursor: pointer;
   border-radius: 3px;
 }
+
+/* ---------- mode-select overlay ---------- */
+
+.mode-select-intro { margin: 0 0 14px; color: #5a4a2a; }
+.mode-select-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mode-select-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px 18px;
+  background: #fff8e0;
+  border: 2px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-dark);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mode-select-btn:hover {
+  background: #ffeeb8;
+  border-color: var(--accent-active);
+}
+.mode-select-title { font-size: 16px; font-weight: bold; }
+.mode-select-sub   { font-size: 12px; color: #6e5828; }
+.mode-beta {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: var(--accent-active);
+  padding: 1px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+/* ---------- card hand ---------- */
+
+.card-hand-section {
+  margin: 8px 0 3px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #3A2D14;
+  border-top: 1px solid #c8b58a;
+  padding-top: 5px;
+}
+.card-hand-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6e5828;
+  margin: 4px 0 2px;
+}
+.card-hand-empty { font-size: 11px; color: #888; }
+.card-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.hand-card {
+  background: #fff8e0;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  padding: 4px 6px;
+  width: calc(50% - 4px);
+  font-size: 11px;
+  overflow: hidden;
+}
+.hand-card.playable {
+  border-color: var(--accent-active);
+  box-shadow: 0 0 0 1px var(--accent-active);
+  background: #f3f8e4;
+}
+.hand-card-name { font-weight: bold; line-height: 1.2; }
+.hand-card-cost { font-size: 10px; color: #8a4a2a; }
+.hand-card-text {
+  font-size: 10px;
+  color: #5a4a2a;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hand-card.facedown {
+  width: 26px;
+  height: 36px;
+  padding: 0;
+  background: repeating-linear-gradient(
+    45deg, #8B6F47, #8B6F47 4px, #7a5f3a 4px, #7a5f3a 8px);
+  border-color: #5a4530;
+}
+
+/* Card-play action button in the decision menu. */
+.action-btn.card-action {
+  background: #f3f8e4;
+  border-color: var(--accent-active);
+}
+.action-btn.card-action:hover { background: #e6f0d0; }

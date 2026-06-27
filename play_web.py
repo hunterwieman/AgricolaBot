@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -63,6 +64,8 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitHarvestConversion,
+    CommitPlayMinor,
+    CommitPlayOccupation,
     CommitPlow,
     CommitRenovate,
     CommitSow,
@@ -167,7 +170,7 @@ from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
 from agricola.pending import PendingHarvestBreed, PendingHarvestFeed
 from agricola.scoring import score, tiebreaker
-from agricola.setup import setup, setup_env
+from agricola.setup import CardPool, setup, setup_env
 from agricola.state import GameState
 
 
@@ -556,6 +559,25 @@ def _build_agent(
         return NNAgent(_load_nn_model(), seed=seed, **extra)
     raise ValueError(f"unknown seat type {seat_type!r}; choose from {AGENT_TYPES}")
 
+
+# Seat types allowed in the cards game. Cards has no bot yet, so an AI seat is
+# limited to "random" (alongside "human"); the heuristic/MCTS/NN agents are
+# Family-only.
+CARDS_AGENT_TYPES: tuple[str, ...] = ("human", "random")
+
+
+def _validate_seats(seats: tuple[str, str], game_mode: str) -> None:
+    """Raise ValueError if any seat is illegal for the given game mode. Family
+    mode allows every AGENT_TYPES seat; cards mode allows only human/random."""
+    allowed = CARDS_AGENT_TYPES if game_mode == "cards" else AGENT_TYPES
+    for s in seats:
+        if s not in allowed:
+            raise ValueError(
+                f"unknown seat type {s!r} for game_mode {game_mode!r}; "
+                f"choose from {allowed}"
+            )
+
+
 # Reuse formatting helpers from play.py.
 from play import (
     HOUSE_MATERIAL_NAME,
@@ -570,6 +592,97 @@ from play import (
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(HERE, "static")
 TEMPLATES_DIR = os.path.join(HERE, "templates")
+
+
+# ---------------------------------------------------------------------------
+# Cards mode — card pool + display metadata
+# ---------------------------------------------------------------------------
+#
+# The cards game is set up via setup_env(seed, card_pool=...) with the pool
+# of all implemented cards; setup_env deals each player a non-overlapping 7
+# occupations + 7 minors. _CARD_META holds display name / effect text / cost
+# for every implemented card, joined from the card-data JSON by slugged name.
+
+def _card_pool() -> "CardPool":
+    """The card pool for a cards game: every implemented occupation + minor."""
+    import agricola.cards  # noqa: F401  (registers OCCUPATIONS / MINORS)
+    from agricola.cards.specs import OCCUPATIONS, MINORS
+    return CardPool(occupations=tuple(OCCUPATIONS), minors=tuple(MINORS))
+
+
+def _card_slug(name: str) -> str:
+    """The card_id bridge: slug(json_name) == card_id for every implemented card."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def _fmt_cost(cost) -> str:
+    """Render a Cost (Resources + Animals) as 'N name, ...' or '—' if free."""
+    parts: list[str] = []
+    r = cost.resources
+    for field in ("wood", "clay", "reed", "stone", "food", "grain", "veg"):
+        n = getattr(r, field)
+        if n:
+            parts.append(f"{n} {field}")
+    a = cost.animals
+    if a is not None:
+        for field in ("sheep", "boar", "cattle"):
+            n = getattr(a, field)
+            if n:
+                parts.append(f"{n} {field}")
+    return ", ".join(parts) if parts else "—"
+
+
+def _load_card_meta() -> dict[str, dict]:
+    """Build {card_id: {name, type, text, cost}} for every implemented card.
+
+    Joins the implemented OCCUPATIONS / MINORS registries to the card-data
+    JSON rows by slugged name. Occupations are free (cost ""); minors format
+    their structured Cost. Guarded so a missing/malformed JSON leaves the
+    table possibly partial rather than crashing the server at import."""
+    meta: dict[str, dict] = {}
+    try:
+        import agricola.cards  # noqa: F401
+        from agricola.cards.specs import OCCUPATIONS, MINORS
+        data_dir = os.path.join(HERE, "agricola", "cards", "data")
+        by_slug: dict[str, dict] = {}
+        for fname in ("revised_occupations.json", "revised_minor_improvements.json"):
+            with open(os.path.join(data_dir, fname)) as f:
+                for row in json.load(f):
+                    by_slug[_card_slug(row["name"])] = row
+        for cid in OCCUPATIONS:
+            row = by_slug.get(cid)
+            meta[cid] = {
+                "name": row["name"] if row else cid.replace("_", " ").title(),
+                "type": "occupation",
+                "text": row.get("text", "") if row else "",
+                "cost": "",
+            }
+        for cid in MINORS:
+            row = by_slug.get(cid)
+            meta[cid] = {
+                "name": row["name"] if row else cid.replace("_", " ").title(),
+                "type": "minor",
+                "text": row.get("text", "") if row else "",
+                "cost": _fmt_cost(MINORS[cid].cost),
+            }
+    except Exception as exc:  # pragma: no cover — defensive at import time
+        print(f"[play_web] WARNING: card metadata load failed: {exc}", file=sys.stderr)
+    return meta
+
+
+_CARD_META: dict[str, dict] = _load_card_meta()
+
+
+def _card_info(card_id: str) -> dict:
+    """Display info for one card: {id, name, type, text, cost}. Falls back to a
+    title-cased id with empty text/cost for an unknown id."""
+    fallback = {
+        "name": card_id.replace("_", " ").title(),
+        "type": "",
+        "text": "",
+        "cost": "",
+    }
+    return {"id": card_id, **_CARD_META.get(card_id, fallback)}
 
 
 # ---------------------------------------------------------------------------
@@ -589,6 +702,8 @@ def _ui_hint_for(action: Action) -> str:
         return "cell"
     if isinstance(action, CommitBuildPasture):
         return "cell_set"
+    if isinstance(action, (CommitPlayOccupation, CommitPlayMinor)):
+        return "card"
     # CommitSow, CommitBake, CommitAccommodate, CommitBreed, CommitConvert,
     # CommitHarvestConversion -> numeric / button-list.
     return "numeric"
@@ -633,7 +748,26 @@ def _action_params(action: Action) -> dict:
         }
     if isinstance(action, CommitBreed):
         return {"sheep": action.sheep, "boar": action.boar, "cattle": action.cattle}
+    if isinstance(action, CommitPlayOccupation):
+        return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
+    if isinstance(action, CommitPlayMinor):
+        return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
     return {}
+
+
+def _web_action_display(action: Action) -> str:
+    """Human-readable label for an action in the web UI.
+
+    Same as play.py's `_fmt_action_inline` for every action type EXCEPT the two
+    card-play commits, which render as the card's real display name (e.g.
+    "Clay Hut Builder") instead of the raw dataclass repr. Lets the decision
+    menu show a card name on the button rather than `CommitPlayOccupation(...)`.
+    """
+    if isinstance(action, (CommitPlayOccupation, CommitPlayMinor)):
+        name = _card_info(action.card_id)["name"]
+        variant = getattr(action, "variant", None)
+        return f"{name} [{variant}]" if variant else name
+    return _fmt_action_inline(action)
 
 
 # ---------------------------------------------------------------------------
@@ -690,7 +824,8 @@ def _decider_of(state: GameState) -> "int | None":
     return state.current_player
 
 
-def _player_to_dict(state: GameState, idx: int, decider: int) -> dict:
+def _player_to_dict(state: GameState, idx: int, decider: int,
+                    reveal_hand: bool = False) -> dict:
     p = state.players[idx]
     majors = [
         {"idx": i, "name": MAJOR_NAMES[i]}
@@ -703,7 +838,7 @@ def _player_to_dict(state: GameState, idx: int, decider: int) -> dict:
     # "Built" = total - in_supply.
     fences_left  = fences_in_supply(p.farmyard)
     stables_left = stables_in_supply(p.farmyard)
-    return {
+    out = {
         "idx": idx,
         "is_sp": state.starting_player == idx,
         "is_decider": decider == idx,
@@ -723,7 +858,19 @@ def _player_to_dict(state: GameState, idx: int, decider: int) -> dict:
         "majors": majors,
         "minors": sorted(p.minor_improvements),
         "farmyard": _farmyard_to_dict(p.farmyard),
+        # Hand sizes are common knowledge (empty in Family mode); the hand
+        # CONTENTS are private and only revealed for a human seat.
+        "hand_counts": {
+            "occupations": len(p.hand_occupations),
+            "minors": len(p.hand_minors),
+        },
     }
+    if reveal_hand:
+        out["hand"] = (
+            [{**_card_info(cid), "type": "occupation"} for cid in sorted(p.hand_occupations)]
+            + [_card_info(cid) for cid in sorted(p.hand_minors)]
+        )
+    return out
 
 
 # Short effect blurbs shown under the name for the non-atomic spaces whose
@@ -786,7 +933,7 @@ def _legal_actions_to_dicts(state: GameState, actions: list[Action]) -> list[dic
         out.append({
             "index": i,
             "type": type(a).__name__,
-            "display": _fmt_action_inline(a),
+            "display": _web_action_display(a),
             "params": _action_params(a),
             "ui_hint": _ui_hint_for(a),
         })
@@ -861,6 +1008,11 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
     if actions is None:
         actions = legal_actions(state) if not game_over else []
 
+    # A player's private hand is revealed only for a human seat (so an AI/
+    # opponent seat's hand stays hidden). Family hands are empty, so this is
+    # harmless there.
+    seat_list = list(seats) if seats is not None else ["human", "human"]
+
     payload = {
         "round_number": state.round_number,
         "phase": state.phase.name,
@@ -869,8 +1021,11 @@ def state_to_json(state: GameState, log_entries: list[dict], game_over: bool,
         "decider": decider,
         "harvest_note": _harvest_note(state),
         "game_over": game_over,
-        "seats": list(seats) if seats is not None else ["human", "human"],
-        "players": [_player_to_dict(state, i, decider) for i in (0, 1)],
+        "seats": seat_list,
+        "players": [
+            _player_to_dict(state, i, decider, reveal_hand=(seat_list[i] == "human"))
+            for i in (0, 1)
+        ],
         "board": _board_to_dict(state),
         "pending_stack": _pending_to_dict(state),
         "legal_actions": _legal_actions_to_dicts(state, actions),
@@ -980,10 +1135,10 @@ class Session:
         mcts_policy: str = "unweighted",
         fast_mode: bool = False,
         confirm_mode: bool = False,
+        game_mode: str = "family",
     ) -> None:
-        for s in seats:
-            if s not in AGENT_TYPES:
-                raise ValueError(f"unknown seat type {s!r}; choose from {AGENT_TYPES}")
+        _validate_seats(seats, game_mode)
+        self.game_mode = game_mode
         self.seed = seed
         self.seats = seats
         self.mcts_sims = mcts_sims  # None means use _MCTS_SIMS_DEFAULT
@@ -1038,7 +1193,7 @@ class Session:
         self._analysis_lock = threading.Lock()
         # Per-seat agent objects; None for human seats.
         self.agents = self._make_agents()
-        self.state, self.env = setup_env(seed)
+        self.state, self.env = self._setup_for_mode(seed)
         self.log = RoundLog(self.humans)
         self.current_round = self.state.round_number
         self.lock = threading.Lock()
@@ -1089,6 +1244,13 @@ class Session:
             _build_agent(self.seats[0], self.seed ^ 0x10000, **mcts_kw),
             _build_agent(self.seats[1], self.seed ^ 0x20000, **mcts_kw),
         )
+
+    def _setup_for_mode(self, seed: int):
+        """Build the initial (state, env) for this session's game mode: the
+        cards game (full card pool) when game_mode == 'cards', else Family."""
+        if self.game_mode == "cards":
+            return setup_env(seed, card_pool=_card_pool())
+        return setup_env(seed)
 
     # ---------- state queries ----------
 
@@ -1149,7 +1311,7 @@ class Session:
             "decider": dec,
             "type": type(action).__name__,
             "params": _action_params(action),
-            "display": _fmt_action_inline(action),
+            "display": _web_action_display(action),
         })
         self.log.add(dec, action, self.current_round)
         # Record stage-card reveals in order (drives the action-board layout).
@@ -1232,6 +1394,7 @@ class Session:
             seats=self.seats,
             interactive_ai_paused=self._interactive_ai_paused_here_locked(),
         )
+        payload["game_mode"] = self.game_mode
         payload["awaiting_confirm"] = self.awaiting_confirm
         payload["confirm_mode"] = self.confirm_mode
         payload["fast_mode"] = self.fast_mode
@@ -1466,7 +1629,7 @@ class Session:
             row = {
                 "type": type(action).__name__,
                 "params": _action_params(action),
-                "display": _fmt_action_inline(action),
+                "display": _web_action_display(action),
                 "score": float(score),
                 "is_top": (score == top_score),
                 "is_close_call": (top_score - score) <= 0.5,
@@ -1648,13 +1811,13 @@ class Session:
         mcts_search: str = "uct",
         mcts_policy: str = "unweighted",
         opponent_mix: float = 0.0,
+        game_mode: str = "family",
     ) -> None:
-        for s in seats:
-            if s not in AGENT_TYPES:
-                raise ValueError(f"unknown seat type {s!r}")
+        _validate_seats(seats, game_mode)
         # Cancel any in-flight analysis from the previous game.
         self._cancel_analysis()
         with self.lock:
+            self.game_mode = game_mode
             self.seed = seed
             self.seats = seats
             self.mcts_sims = mcts_sims
@@ -1665,7 +1828,7 @@ class Session:
             self.opponent_mix = max(0.0, float(opponent_mix))
             self.humans = {i for i, s in enumerate(seats) if s == "human"}
             self.agents = self._make_agents()
-            self.state, self.env = setup_env(seed)
+            self.state, self.env = self._setup_for_mode(seed)
             self.log = RoundLog(self.humans)
             self.current_round = self.state.round_number
             self.game_over = (self.state.phase == Phase.BEFORE_SCORING)
@@ -2040,13 +2203,42 @@ def _make_handler(registry: SessionRegistry):
                     "ok": ok, "children": children, "value_target": value_target})
                 return
             if path == "/api/reset":
-                # New game in the SAME session (same cookie). Fixed setup:
-                # human vs the joint-model MCTS bot. Only the seed is taken
-                # from the client (optional).
+                # New game in the SAME session (same cookie). The seed is taken
+                # from the client (optional). game_mode picks Family (human vs
+                # the joint-model MCTS bot) or cards (human vs random — cards
+                # has no bot yet, so the MCTS knobs are ignored there).
                 body = self._read_body()
                 seed = body.get("seed")
                 if not isinstance(seed, int):
                     seed = secrets.randbits(31)
+                game_mode = body.get("game_mode", "family")
+                if game_mode not in ("family", "cards"):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {
+                        "ok": False,
+                        "error": "game_mode must be 'family' or 'cards'",
+                    })
+                    return
+                if game_mode == "cards":
+                    # Cards: human vs random by default; no bot, so no MCTS
+                    # knobs. Seats are taken from the body (each human/random).
+                    seats = body.get("seats", ["human", "random"])
+                    if (not isinstance(seats, list) or len(seats) != 2
+                            or any(s not in CARDS_AGENT_TYPES for s in seats)):
+                        self._send_json(HTTPStatus.BAD_REQUEST, {
+                            "ok": False,
+                            "error": f"cards seats must each be one of {CARDS_AGENT_TYPES}",
+                        })
+                        return
+                    seats = tuple(seats)
+                    session.reset(seed, seats, game_mode="cards")
+                    self._send_json(HTTPStatus.OK, {
+                        "ok": True,
+                        "seed": seed,
+                        "seats": list(seats),
+                        "game_mode": "cards",
+                        "state": session.snapshot(),
+                    })
+                    return
                 seats = _DEFAULT_SEATS
                 # Optional sims/move override for the MCTS bot.
                 mcts_sims = body.get("mcts_sims")
@@ -2064,12 +2256,13 @@ def _make_handler(registry: SessionRegistry):
                         "error": "opponent_mix must be a number >= 0",
                     })
                     return
-                session.reset(seed, seats, mcts_sims=mcts_sims,
+                session.reset(seed, seats, game_mode="family", mcts_sims=mcts_sims,
                               opponent_mix=float(opponent_mix))
                 self._send_json(HTTPStatus.OK, {
                     "ok": True,
                     "seed": seed,
                     "seats": list(seats),
+                    "game_mode": "family",
                     "mcts_sims": mcts_sims if mcts_sims is not None else _MCTS_SIMS_DEFAULT,
                     "opponent_mix": float(opponent_mix),
                     "state": session.snapshot(),
