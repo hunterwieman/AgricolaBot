@@ -321,6 +321,18 @@ class RevealCard:
     card: str   # a stage-card space id
 
 
+@dataclass(frozen=True)
+class CommitDraftPick:
+    """Draft one card from the current player's pool.
+
+    A top-level action like RevealCard (NOT a CommitSubAction). The card
+    is moved from the player's draft pool into their hand. Dispatched in
+    engine._apply_draft_pick during Phase.DRAFT when PendingDraftPick is
+    on the stack.
+    """
+    card_id: str
+
+
 # The Action union. Dispatch in `_apply_action` is by `isinstance`.
 # Concrete commit subclasses are listed individually (CommitSubAction base
 # itself is intentionally not in the union — only concrete options are
@@ -345,4 +357,5 @@ Action = Union[
     Stop,
     Proceed,
     RevealCard,
+    CommitDraftPick,
 ]

@@ -23,6 +23,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitCardChoice,
     CommitConvert,
+    CommitDraftPick,
     CommitFamilyGrowth,
     CommitHarvestConversion,
     CommitPlayMinor,
@@ -58,6 +59,7 @@ from agricola.pending import (
     PendingBuildStables,
     PendingBuildMajor,
     PendingCattleMarket,
+    PendingDraftPick,
     PendingFamilyGrowth,
     PendingHarvestBreed,
     PendingHarvestFeed,
@@ -244,6 +246,8 @@ def _apply_action(state: GameState, action: Action) -> GameState:
         return _apply_stop(state)
     if isinstance(action, Proceed):
         return _apply_proceed(state)
+    if isinstance(action, CommitDraftPick):
+        return _apply_draft_pick(state, action)
     if isinstance(action, RevealCard):
         return _apply_reveal_card(state, action)
     raise TypeError(f"Unknown action type: {type(action).__name__}")
@@ -644,6 +648,20 @@ def _advance_until_decision(state: GameState) -> GameState:
                 continue
             return state
 
+        # Case 1.5: DRAFT phase with empty stack. Push the next pick frame,
+        # or transition to PREPARATION once all pools are empty.
+        if state.phase == Phase.DRAFT:
+            next_pick = _next_draft_pick(state.draft_pools)
+            if next_pick is None:
+                state = fast_replace(state, phase=Phase.PREPARATION, draft_pools=None)
+            else:
+                player_idx, card_type = next_pick
+                state = push(state, PendingDraftPick(
+                    player_idx=player_idx,
+                    card_type=card_type,
+                ))
+            continue
+
         # Case 2: PREPARATION phase, around the round-card reveal. Two-state,
         # discriminated by the `count == round_number` invariant (round_number
         # still names the round just completed; the reveal is deferred to the
@@ -765,6 +783,71 @@ def _count_revealed_stage_cards(state: GameState) -> int:
         for card_id in cards
         if get_space(state.board, card_id).revealed
     )
+
+
+def _next_draft_pick(draft_pools: tuple) -> tuple | None:
+    """Return (player_idx, card_type) for the next pick, or None if all pools empty.
+
+    Pick order within each round: P0_occ → P0_min → P1_occ → P1_min.
+    Encoded by checking which pool has the maximum size in that priority order.
+    """
+    p0_occ, p0_min, p1_occ, p1_min = draft_pools
+    max_size = max(len(p0_occ), len(p0_min), len(p1_occ), len(p1_min))
+    if max_size == 0:
+        return None
+    if len(p0_occ) == max_size:
+        return (0, "occupation")
+    if len(p0_min) == max_size:
+        return (0, "minor")
+    if len(p1_occ) == max_size:
+        return (1, "occupation")
+    return (1, "minor")
+
+
+def _apply_draft_pick(state: GameState, action: CommitDraftPick) -> GameState:
+    """Remove the picked card from the player's draft pool and add it to their hand.
+
+    After all 4 picks in a round (all pool sizes equal and > 0), swap the pools:
+    P0 gets P1's remaining cards and vice versa.
+    """
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingDraftPick)
+    player_idx = top.player_idx
+    card_type = top.card_type
+    card_id = action.card_id
+
+    p0_occ, p0_min, p1_occ, p1_min = state.draft_pools
+
+    if player_idx == 0 and card_type == "occupation":
+        new_pool = tuple(c for c in p0_occ if c != card_id)
+        new_pools = (new_pool, p0_min, p1_occ, p1_min)
+        sizes = (len(new_pool), len(p0_min), len(p1_occ), len(p1_min))
+    elif player_idx == 0 and card_type == "minor":
+        new_pool = tuple(c for c in p0_min if c != card_id)
+        new_pools = (p0_occ, new_pool, p1_occ, p1_min)
+        sizes = (len(p0_occ), len(new_pool), len(p1_occ), len(p1_min))
+    elif player_idx == 1 and card_type == "occupation":
+        new_pool = tuple(c for c in p1_occ if c != card_id)
+        new_pools = (p0_occ, p0_min, new_pool, p1_min)
+        sizes = (len(p0_occ), len(p0_min), len(new_pool), len(p1_min))
+    else:
+        new_pool = tuple(c for c in p1_min if c != card_id)
+        new_pools = (p0_occ, p0_min, p1_occ, new_pool)
+        sizes = (len(p0_occ), len(p0_min), len(p1_occ), len(new_pool))
+
+    p = state.players[player_idx]
+    if card_type == "occupation":
+        new_p = fast_replace(p, hand_occupations=p.hand_occupations | {card_id})
+    else:
+        new_p = fast_replace(p, hand_minors=p.hand_minors | {card_id})
+    new_players = state.players[:player_idx] + (new_p,) + state.players[player_idx + 1:]
+
+    # After every pick in a round all 4 pools shrink by 1 each, reaching equal
+    # size. Swap at end of round: P0 gets P1's remaining pool and vice versa.
+    if sizes[0] == sizes[1] == sizes[2] == sizes[3] and sizes[0] > 0:
+        new_pools = (new_pools[2], new_pools[3], new_pools[0], new_pools[1])
+
+    return pop(fast_replace(state, players=new_players, draft_pools=new_pools))
 
 
 def _apply_reveal_card(state: GameState, action: RevealCard) -> GameState:

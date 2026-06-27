@@ -166,8 +166,32 @@ def _deal_hands(rng: np.random.Generator, card_pool: CardPool) -> tuple:
     return tuple(hands)
 
 
-def setup_env(seed: int, *, card_pool: Optional[CardPool] = None) -> tuple:
-    """Initialise a 2-player game; return (round-1 WORK state, Environment).
+def _deal_draft_pools(rng: np.random.Generator, card_pool: CardPool) -> tuple:
+    """Deal four separate draft pools: (p0_occ, p0_min, p1_occ, p1_min).
+
+    Each pool is HAND_SIZE cards, all drawn without replacement across both
+    players. Returns a 4-tuple of tuple[str, ...] of card ids.
+    """
+    occ = list(card_pool.occupations)
+    minr = list(card_pool.minors)
+    need = 2 * HAND_SIZE
+    if len(occ) < need or len(minr) < need:
+        raise ValueError(
+            f"card pool too small: need >= {need} of each type, got "
+            f"{len(occ)} occupations / {len(minr)} minors"
+        )
+    occ_pick = rng.choice(len(occ), size=need, replace=False)
+    min_pick = rng.choice(len(minr), size=need, replace=False)
+    p0_occ = tuple(occ[i] for i in occ_pick[:HAND_SIZE])
+    p1_occ = tuple(occ[i] for i in occ_pick[HAND_SIZE:])
+    p0_min = tuple(minr[i] for i in min_pick[:HAND_SIZE])
+    p1_min = tuple(minr[i] for i in min_pick[HAND_SIZE:])
+    return (p0_occ, p0_min, p1_occ, p1_min)
+
+
+def setup_env(seed: int, *, card_pool: Optional[CardPool] = None,
+              draft: bool = False) -> tuple:
+    """Initialise a 2-player game; return (initial state, Environment).
 
     `card_pool=None` → the Family game (GameMode.FAMILY): today's board, empty
     hands — byte-identical to before (the RNG draw sequence is unchanged on this
@@ -175,13 +199,18 @@ def setup_env(seed: int, *, card_pool: Optional[CardPool] = None) -> tuple:
     dealt from the pool and `GameState.mode` is set to CARDS. See
     CARD_IMPLEMENTATION_PLAN.md I.6.
 
-    All randomness (starting player, dealt hands, per-stage card shuffle) is
+    `draft=True` (card game only): instead of dealing complete hands, deal four
+    draft pools and return a Phase.DRAFT state. Players pick one card at a time
+    (occupation then minor per round) and pass pools between rounds. The returned
+    state is NOT the round-1 WORK state — it is the DRAFT state before any picks.
+    The caller drives the draft via legal_actions/step (CommitDraftPick actions)
+    until the state advances to Phase.PREPARATION and then to Phase.WORK normally.
+
+    All randomness (starting player, dealt hands/pools, per-stage card shuffle) is
     resolved here from the seeded RNG. The shuffled reveal order is hidden
-    information and lives in the returned Environment — NOT in GameState. Round 1
-    is dealt internally (its reveal is resolved via the env), so the returned
-    GameState is a round-1 WORK state — the game's first player decision. Full-game
-    drivers that cross a round boundary use this and pass `env.resolve` as the
-    reveal dealer for rounds 2–14. See HIDDEN_INFO_DESIGN.md §3.3 / §3.5.
+    information and lives in the returned Environment — NOT in GameState. When
+    draft=False the round 1 reveal is pre-dealt, so the returned GameState is a
+    round-1 WORK state. See HIDDEN_INFO_DESIGN.md §3.3 / §3.5.
     """
     # Local imports: keep `agricola.setup` import-time light and avoid any cycle
     # (engine / environment are leaves consumed here, not at module load).
@@ -197,6 +226,10 @@ def setup_env(seed: int, *, card_pool: Optional[CardPool] = None) -> tuple:
 
     mode = GameMode.FAMILY if card_pool is None else GameMode.CARDS
     if card_pool is None:
+        players = tuple(_make_player(food_for[p]) for p in range(2))
+    elif draft:
+        # Draft mode: deal four separate pools; hands start empty.
+        draft_pools = _deal_draft_pools(rng, card_pool)
         players = tuple(_make_player(food_for[p]) for p in range(2))
     else:
         # Card mode draws from the RNG here; the Family path above does not, so
@@ -222,6 +255,26 @@ def setup_env(seed: int, *, card_pool: Optional[CardPool] = None) -> tuple:
         action_spaces=_make_action_spaces_family(),
         major_improvement_owners=tuple(None for _ in range(NUM_MAJOR_IMPROVEMENTS)),
     )
+
+    if draft and card_pool is not None:
+        # Draft start: return Phase.DRAFT state; no round is pre-dealt.
+        # The engine drives picks via CommitDraftPick until all pools are empty,
+        # then advances to PREPARATION → WORK normally (including the round-1 reveal).
+        raw = GameState(
+            round_number=0,
+            phase=Phase.DRAFT,
+            current_player=starting_player,
+            starting_player=starting_player,
+            players=players,
+            board=board,
+            pending_stack=(),
+            mode=mode,
+            draft_pools=draft_pools,
+        )
+        # Advance so the first PendingDraftPick frame is on the stack before
+        # returning — callers (and legal_actions) expect a paused state.
+        state = _advance_until_decision(raw)
+        return state, env
 
     # Pre-round-1 state: round_number=0, PREPARATION, empty stack, nothing revealed.
     pre = GameState(

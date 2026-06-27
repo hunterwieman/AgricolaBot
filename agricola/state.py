@@ -355,12 +355,18 @@ class GameState:
     # variants diverge. See CARD_IMPLEMENTATION_PLAN.md I.1.
     mode: GameMode = GameMode.FAMILY
 
+    # Four draft pools during Phase.DRAFT: (p0_occ, p0_min, p1_occ, p1_min),
+    # each a tuple[str, ...] of card ids. None for Family and random-deal games.
+    # Swapped between players at the end of each draft round (all pools equal
+    # size > 0). Set to None when the draft completes (all pools empty).
+    draft_pools: tuple | None = None
+
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
         if h is None:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
-                      self.pending_stack, self.mode))
+                      self.pending_stack, self.mode, self.draft_pools))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

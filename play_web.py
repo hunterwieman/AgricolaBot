@@ -64,6 +64,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitConvert,
+    CommitDraftPick,
     CommitHarvestConversion,
     CommitPlayMinor,
     CommitPlayOccupation,
@@ -171,7 +172,7 @@ from agricola.canonical import dumps
 from agricola.engine import step
 from agricola.helpers import fences_in_supply, stables_in_supply
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestBreed, PendingHarvestFeed
+from agricola.pending import PendingDraftPick, PendingHarvestBreed, PendingHarvestFeed
 from agricola.scoring import score, tiebreaker
 from agricola.setup import CardPool, HAND_SIZE, setup, setup_env
 from agricola.state import GameState
@@ -788,6 +789,8 @@ def _ui_hint_for(action: Action) -> str:
         return "cell_set"
     if isinstance(action, (CommitPlayOccupation, CommitPlayMinor)):
         return "card"
+    if isinstance(action, CommitDraftPick):
+        return "draft_card"
     # CommitSow, CommitBake, CommitAccommodate, CommitBreed, CommitConvert,
     # CommitHarvestConversion -> numeric / button-list.
     return "numeric"
@@ -838,6 +841,8 @@ def _action_params(action: Action) -> dict:
         return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
     if isinstance(action, CommitCardChoice):
         return {"index": action.index}
+    if isinstance(action, CommitDraftPick):
+        return {"card_id": action.card_id}
     return {}
 
 
@@ -862,6 +867,8 @@ def _web_action_display(action: Action) -> str:
       distinct buttons ("Cottager: build a room" / "Cottager: renovate") rather
       than two identical `FireTrigger('cottager')`s.
     """
+    if isinstance(action, CommitDraftPick):
+        return _card_info(action.card_id)["name"]
     if isinstance(action, (CommitPlayOccupation, CommitPlayMinor)):
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
@@ -1291,6 +1298,7 @@ class Session:
         fast_mode: bool = False,
         confirm_mode: bool = False,
         game_mode: str = "family",
+        hand_mode: str = "draft",
     ) -> None:
         _validate_seats(seats, game_mode)
         # A random per-Session identity, sent to the client in every snapshot. The
@@ -1301,6 +1309,16 @@ class Session:
         # id is stable across resets and never false-triggers the notice.
         self.instance_id = secrets.token_hex(8)
         self.game_mode = game_mode
+        # How card hands are set up: "draft" (competitive pick-one-at-a-time),
+        # "random" (fully random deal), or "choose" (player-selected hand via the
+        # hand picker UI, vs non-human opponents only). Only meaningful for
+        # game_mode == "cards". For human-vs-human, "draft" is the only
+        # interactive option (pass-and-play handoff).
+        self.hand_mode: str = hand_mode if game_mode == "cards" else "random"
+        # Pass-and-play draft handoff: set True when the decider changes during
+        # Phase.DRAFT; requires /api/draft_handoff_ack before human actions proceed.
+        self._draft_handoff_pending: bool = False
+        self._prev_draft_decider: int = -1  # -1 sentinel: no previous pick yet
         self.seed = seed
         self.seats = seats
         self.mcts_sims = mcts_sims  # None means use _MCTS_SIMS_DEFAULT
@@ -1408,9 +1426,10 @@ class Session:
         )
 
     def _setup_for_mode(self, seed: int):
-        """Build the initial (state, env) for this session's game mode: the
-        cards game (full card pool) when game_mode == 'cards', else Family."""
+        """Build the initial (state, env) for this session's game mode."""
         if self.game_mode == "cards":
+            if self.hand_mode == "draft":
+                return setup_env(seed, card_pool=_card_pool(), draft=True)
             return setup_env(seed, card_pool=_card_pool())
         return setup_env(seed)
 
@@ -1537,6 +1556,18 @@ class Session:
         dec = _decider_of(self.state)
         if dec not in self.humans:
             return
+
+        # Draft handoff detection (pass-and-play only: both seats human).
+        if (len(self.humans) == 2
+                and self.state.phase == Phase.DRAFT
+                and self.state.pending_stack):
+            top = self.state.pending_stack[-1]
+            if isinstance(top, PendingDraftPick):
+                if (self._prev_draft_decider != -1
+                        and top.player_idx != self._prev_draft_decider):
+                    self._draft_handoff_pending = True
+                self._prev_draft_decider = top.player_idx
+
         sig = self._turn_signature_locked()
         if self.turn_snapshot is None:
             self._capture_turn_snapshot_locked(sig)
@@ -1557,6 +1588,33 @@ class Session:
             interactive_ai_paused=self._interactive_ai_paused_here_locked(),
         )
         payload["game_mode"] = self.game_mode
+        payload["hand_mode"] = self.hand_mode
+        payload["draft_handoff"] = self._draft_handoff_pending
+        # Draft info: which round of the draft, who is picking, and what type.
+        if self.state.phase == Phase.DRAFT and self.state.pending_stack:
+            from agricola.setup import HAND_SIZE as _HAND_SIZE
+            top = self.state.pending_stack[-1]
+            if isinstance(top, PendingDraftPick):
+                p0_occ, p0_min, p1_occ, p1_min = self.state.draft_pools
+                max_size = max(len(p0_occ), len(p0_min), len(p1_occ), len(p1_min))
+                # Include full card metadata for both the picking player's pools
+                # so the draft modal can render card details without an extra fetch.
+                player_occ = p0_occ if top.player_idx == 0 else p1_occ
+                player_min = p0_min if top.player_idx == 0 else p1_min
+                def _pool_meta(ids):
+                    return [{"card_id": cid, **_CARD_META.get(cid, {"name": cid})}
+                            for cid in ids]
+                player = self.state.players[top.player_idx]
+                payload["draft_info"] = {
+                    "round": _HAND_SIZE - max_size + 1,
+                    "total_rounds": _HAND_SIZE,
+                    "picking_player": top.player_idx,
+                    "card_type": top.card_type,
+                    "occ_pool": _pool_meta(player_occ),
+                    "min_pool": _pool_meta(player_min),
+                    "picked_occs": _pool_meta(sorted(player.hand_occupations)),
+                    "picked_mins": _pool_meta(sorted(player.hand_minors)),
+                }
         payload["session_id"] = self.instance_id
         payload["awaiting_confirm"] = self.awaiting_confirm
         payload["confirm_mode"] = self.confirm_mode
@@ -1659,6 +1717,8 @@ class Session:
                 return False, "game over"
             if self.awaiting_confirm:
                 return False, "awaiting turn confirmation"
+            if self._draft_handoff_pending:
+                return False, "awaiting draft handoff acknowledgment"
             actions = legal_actions(self.state)
             if not (0 <= action_index < len(actions)):
                 # The board the client clicked is stale (already changed). The
@@ -1975,6 +2035,7 @@ class Session:
         mcts_policy: str = "unweighted",
         opponent_mix: float = 0.0,
         game_mode: str = "family",
+        hand_mode: str = "draft",
         custom_hand: dict | None = None,
     ) -> None:
         _validate_seats(seats, game_mode)
@@ -1982,6 +2043,9 @@ class Session:
         self._cancel_analysis()
         with self.lock:
             self.game_mode = game_mode
+            self.hand_mode = hand_mode if game_mode == "cards" else "random"
+            self._draft_handoff_pending = False
+            self._prev_draft_decider = -1
             self.seed = seed
             self.seats = seats
             self.mcts_sims = mcts_sims
@@ -2289,6 +2353,13 @@ def _make_handler(registry: SessionRegistry):
                     "state": session.snapshot(),
                 })
                 return
+            if path == "/api/draft_handoff_ack":
+                # Acknowledge the pass-and-play draft handoff (human clicked "Ready").
+                # Clears the pending flag so the new picker's actions are accepted.
+                with session.lock:
+                    session._draft_handoff_pending = False
+                self._send_json(HTTPStatus.OK, {"ok": True, "state": session.snapshot()})
+                return
             if path == "/api/confirm_turn":
                 # Commit a turn paused awaiting confirmation (drive the AI).
                 ok, msg = session.confirm_turn()
@@ -2417,23 +2488,39 @@ def _make_handler(registry: SessionRegistry):
                         })
                         return
                     seats = tuple(seats)
-                    # Optional hand selection from the hand-picker UI.
+                    # hand_mode: "draft" (pick one card at a time), "random" (fully
+                    # random deal), or "choose" (player-selected hand, non-human opp only).
+                    hand_mode = body.get("hand_mode", "draft")
+                    if hand_mode not in ("draft", "random", "choose"):
+                        self._send_json(HTTPStatus.BAD_REQUEST, {
+                            "ok": False,
+                            "error": "hand_mode must be 'draft', 'random', or 'choose'",
+                        })
+                        return
+                    if hand_mode == "choose" and all(s == "human" for s in seats):
+                        self._send_json(HTTPStatus.BAD_REQUEST, {
+                            "ok": False,
+                            "error": "hand_mode 'choose' is only available vs a non-human opponent",
+                        })
+                        return
+                    # Optional hand selection from the hand-picker UI (choose mode only).
                     # {occupations: [...ids], minors: [...ids]} — any subset of
                     # the pool; missing slots are randomised.  None = fully random.
-                    custom_hand = body.get("custom_hand")
+                    custom_hand = body.get("custom_hand") if hand_mode == "choose" else None
                     if custom_hand is not None and not isinstance(custom_hand, dict):
                         self._send_json(HTTPStatus.BAD_REQUEST, {
                             "ok": False,
                             "error": "custom_hand must be an object or null",
                         })
                         return
-                    session.reset(seed, seats, game_mode="cards",
+                    session.reset(seed, seats, game_mode="cards", hand_mode=hand_mode,
                                   custom_hand=custom_hand or None)
                     self._send_json(HTTPStatus.OK, {
                         "ok": True,
                         "seed": seed,
                         "seats": list(seats),
                         "game_mode": "cards",
+                        "hand_mode": hand_mode,
                         "state": session.snapshot(),
                     })
                     return
