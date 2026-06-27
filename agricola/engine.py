@@ -251,63 +251,59 @@ def _apply_action(state: GameState, action: Action) -> GameState:
 
 # Metadata dispatch table for Commit* sub-actions. Each entry maps a
 # CommitSubAction subclass to:
-#   (expected_pending_type, effect_fn, auto_pop)
+#   (expected_pending_type, effect_fn)
 # Co-located with its sole consumer (_apply_commit_subaction below).
 #
-# `auto_pop` semantics:
-#   True  -> dispatcher pops the sub-action pending after the effect runs.
-#   False -> dispatcher leaves the stack alone; the effect function is
-#            responsible for any stack manipulation (pop, push wrapper, etc.).
+# The dispatcher NEVER pops — the effect function owns ALL stack manipulation.
+# Every commit-terminated host pivots to its after-phase (via _enter_after_phase)
+# so cards can surface after-triggers + fire after-automatic effects, and the
+# trailing Stop pops; multi-shot hosts replace_top and Stop pops. (There used to
+# be a per-entry `auto_pop` flag; it was always False once every sub-action became
+# a uniform before/after host, so it was removed — see SUBACTION_HOOK_REFACTOR.md.)
 #
 # Adding a new sub-action: define a new CommitX subclass + an
 # `_execute_x(state, player_idx, commit)` in resolution.py + a row here.
 COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
-    # The commit-terminated sub-action HOSTS are all auto_pop=False
-    # (SUBACTION_HOOK_REFACTOR.md): their effect pivots the host frame to its
-    # after-phase (via _enter_after_phase) instead of popping; the trailing Stop
-    # pops. This gives every sub-action a uniform before/after host on which
-    # cards can surface after-triggers + fire after-automatic effects.
-    CommitSow:          (PendingSow,          _execute_sow,          False),
-    CommitBake:         (PendingBakeBread,    _execute_bake,         False),
-    CommitPlow:         (PendingPlow,         _execute_plow,         False),
-    CommitBuildStable:  (PendingBuildStables, _execute_build_stable, False),
-    CommitBuildRoom:    (PendingBuildRooms,   _execute_build_room,   False),
-    CommitRenovate:     (PendingRenovate,     _execute_renovate,     False),
+    # Commit-terminated sub-action HOSTS (SUBACTION_HOOK_REFACTOR.md): their effect
+    # pivots the host frame to its after-phase (via _enter_after_phase); the
+    # trailing Stop pops. Uniform before/after host for card hooks.
+    CommitSow:          (PendingSow,          _execute_sow),
+    CommitBake:         (PendingBakeBread,    _execute_bake),
+    CommitPlow:         (PendingPlow,         _execute_plow),
+    CommitBuildStable:  (PendingBuildStables, _execute_build_stable),
+    CommitBuildRoom:    (PendingBuildRooms,   _execute_build_room),
+    CommitRenovate:     (PendingRenovate,     _execute_renovate),
     # CommitAccommodate lands on any of three market parent pendings.
     # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.
-    # auto_pop=False (4b): the effect pivots the host frame to its after-phase
-    # instead of popping; the trailing Stop pops (the uniform non-atomic exit).
+    # The effect pivots the host to its after-phase; the trailing Stop pops.
     CommitAccommodate:  (
         (PendingSheepMarket, PendingPigMarket, PendingCattleMarket),
         _execute_accommodate,
-        False,
     ),
-    # CommitBuildMajor: auto_pop=False because the effect function owns its
-    # own conditional stack manipulation — pop PendingBuildMajor for non-oven
-    # majors, or push PendingClayOven / PendingStoneOven (leaving
-    # PendingBuildMajor on the stack underneath) for ovens.
-    CommitBuildMajor:   (PendingBuildMajor,   _execute_build_major,  False),
-    # CommitBuildPasture: auto_pop=False (multi-shot). The effect function
-    # increments PendingBuildFences's counters via replace_top and leaves
-    # the pending on the stack; Stop pops it.
-    CommitBuildPasture: (PendingBuildFences,  _execute_build_pasture, False),
-    # Harvest sub-actions (Task 7). All auto_pop=False — the trailing Stop is
-    # the explicit exit. PendingHarvestFeed hosts both CommitHarvestConversion
-    # (zero or more) and CommitConvert (exactly one), with `conversion_done`
-    # gating Stop.
-    CommitHarvestConversion: (PendingHarvestFeed,  _execute_harvest_conversion, False),
-    CommitConvert:           (PendingHarvestFeed,  _execute_convert,            False),
-    CommitBreed:             (PendingHarvestBreed, _execute_breed,              False),
-    # Card game: play one occupation from hand. auto_pop=False — the effect
-    # plays the occupation then pivots PendingPlayOccupation to its after-phase
-    # (hosting e.g. Bread Paddle on after_play_occupation); the trailing Stop pops.
-    CommitPlayOccupation:    (PendingPlayOccupation, _execute_play_occupation,  False),
-    # Card game: play one minor from hand. auto_pop=False — the effect plays the
-    # minor then pivots PendingPlayMinor to its after-phase; the trailing Stop pops.
-    CommitPlayMinor:         (PendingPlayMinor,      _execute_play_minor,       False),
+    # CommitBuildMajor: the effect function owns its own conditional stack
+    # manipulation — pop PendingBuildMajor for non-oven majors, or push
+    # PendingClayOven / PendingStoneOven (leaving PendingBuildMajor on the stack
+    # underneath) for ovens.
+    CommitBuildMajor:   (PendingBuildMajor,   _execute_build_major),
+    # CommitBuildPasture (multi-shot): the effect increments PendingBuildFences's
+    # counters via replace_top and leaves the pending on the stack; Stop pops it.
+    CommitBuildPasture: (PendingBuildFences,  _execute_build_pasture),
+    # Harvest sub-actions (Task 7): the trailing Stop is the explicit exit.
+    # PendingHarvestFeed hosts both CommitHarvestConversion (zero or more) and
+    # CommitConvert (exactly one), with `conversion_done` gating Stop.
+    CommitHarvestConversion: (PendingHarvestFeed,  _execute_harvest_conversion),
+    CommitConvert:           (PendingHarvestFeed,  _execute_convert),
+    CommitBreed:             (PendingHarvestBreed, _execute_breed),
+    # Card game: play one occupation from hand. The effect plays the occupation
+    # then pivots PendingPlayOccupation to its after-phase (hosting e.g. Bread
+    # Paddle on after_play_occupation); the trailing Stop pops.
+    CommitPlayOccupation:    (PendingPlayOccupation, _execute_play_occupation),
+    # Card game: play one minor from hand. The effect plays the minor then pivots
+    # PendingPlayMinor to its after-phase; the trailing Stop pops.
+    CommitPlayMinor:         (PendingPlayMinor,      _execute_play_minor),
     # Card game: the family-growth primitive (mandatory; parameter-free singleton).
-    # auto_pop=False — pivots to after-phase, trailing Stop pops.
-    CommitFamilyGrowth:      (PendingFamilyGrowth,   _execute_family_growth,    False),
+    # The effect pivots PendingFamilyGrowth to its after-phase; the trailing Stop pops.
+    CommitFamilyGrowth:      (PendingFamilyGrowth,   _execute_family_growth),
 }
 
 
@@ -391,12 +387,11 @@ def _apply_commit_subaction(
 ) -> GameState:
     """Generic handler for any CommitSubAction subclass.
 
-    Looks up `(expected_pending_type, effect_fn, auto_pop)` in
-    `COMMIT_SUBACTION_HANDLERS`, asserts the expected pending is on top,
-    applies the effect, and (if `auto_pop`) pops the sub-action pending.
-
-    When `auto_pop=False`, the effect function is responsible for any stack
-    manipulation it needs (pop, push wrapper, replace_top, etc.).
+    Looks up `(expected_pending_type, effect_fn)` in `COMMIT_SUBACTION_HANDLERS`,
+    asserts the expected pending is on top, and applies the effect. The dispatcher
+    NEVER pops — the effect function is responsible for ALL stack manipulation it
+    needs (pivot to after-phase via `_enter_after_phase`, push a wrapper,
+    replace_top, etc.). The trailing Stop pops the host.
 
     Parent `*_chosen` flags are set earlier, by the `_choose_subaction_*`
     handler that pushed the sub-action pending. This dispatcher does not
@@ -405,16 +400,13 @@ def _apply_commit_subaction(
     assert state.pending_stack, (
         f"{type(action).__name__} called with empty pending_stack"
     )
-    pending_type, effect_fn, auto_pop = COMMIT_SUBACTION_HANDLERS[type(action)]
+    pending_type, effect_fn = COMMIT_SUBACTION_HANDLERS[type(action)]
     top = state.pending_stack[-1]
     assert isinstance(top, pending_type), (
         f"{type(action).__name__} expected top={pending_type.__name__}, "
         f"got {type(top).__name__}"
     )
-    state = effect_fn(state, top.player_idx, action)
-    if auto_pop:
-        state = pop(state)
-    return state
+    return effect_fn(state, top.player_idx, action)
 
 
 def _apply_fire_trigger(

@@ -23,35 +23,38 @@ int top_player_idx(const GameState& s) {
 }
 
 // ---------------------------------------------------------------------------
-// Commit dispatch (mirrors COMMIT_SUBACTION_HANDLERS: expected-top + effect +
-// auto_pop). auto_pop=true pops the sub-action pending after the effect.
+// Commit dispatch (mirrors COMMIT_SUBACTION_HANDLERS: expected-top + effect).
+// The dispatcher never pops — each effect owns its own stack manipulation (pivot
+// to the after-phase, push a wrapper, or replace_top for multi-shot); the trailing
+// Stop pops the host. (The Python side once had a per-entry auto_pop flag; it was
+// always false and has been removed — see SUBACTION_HOOK_REFACTOR.md.)
 // ---------------------------------------------------------------------------
 GameState apply_commit(const GameState& state, const Action& action) {
   int pidx = top_player_idx(state);
   if (auto* a = std::get_if<CommitSow>(&action))
-    return execute_sow(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
+    return execute_sow(state, pidx, *a);  // pivots to after-phase
   if (auto* a = std::get_if<CommitBake>(&action))
-    return execute_bake(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
+    return execute_bake(state, pidx, *a);  // pivots to after-phase
   if (auto* a = std::get_if<CommitPlow>(&action))
-    return execute_plow(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
+    return execute_plow(state, pidx, *a);  // pivots to after-phase
   if (auto* a = std::get_if<CommitBuildStable>(&action))
-    return execute_build_stable(state, pidx, *a);  // auto_pop=false
+    return execute_build_stable(state, pidx, *a);  // multi-shot: replace_top; Proceed flips, Stop pops
   if (auto* a = std::get_if<CommitBuildRoom>(&action))
-    return execute_build_room(state, pidx, *a);  // auto_pop=false
+    return execute_build_room(state, pidx, *a);  // multi-shot: replace_top; Proceed flips, Stop pops
   if (auto* a = std::get_if<CommitRenovate>(&action))
-    return execute_renovate(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
+    return execute_renovate(state, pidx, *a);  // pivots to after-phase
   if (auto* a = std::get_if<CommitAccommodate>(&action))
-    return execute_accommodate(state, pidx, *a);  // auto_pop=false (pivots to after-phase)
+    return execute_accommodate(state, pidx, *a);  // pivots to after-phase
   if (auto* a = std::get_if<CommitBuildMajor>(&action))
-    return execute_build_major(state, pidx, *a);  // auto_pop=false
+    return execute_build_major(state, pidx, *a);  // pop or push oven wrapper
   if (auto* a = std::get_if<CommitBuildPasture>(&action))
-    return execute_build_pasture(state, pidx, *a);  // auto_pop=false
+    return execute_build_pasture(state, pidx, *a);  // multi-shot: replace_top; Stop pops
   if (auto* a = std::get_if<CommitHarvestConversion>(&action))
-    return execute_harvest_conversion(state, pidx, *a);  // auto_pop=false
+    return execute_harvest_conversion(state, pidx, *a);  // stays on top; Stop pops
   if (auto* a = std::get_if<CommitConvert>(&action))
-    return execute_convert(state, pidx, *a);  // auto_pop=false
+    return execute_convert(state, pidx, *a);  // stays on top; Stop pops
   if (auto* a = std::get_if<CommitBreed>(&action))
-    return execute_breed(state, pidx, *a);  // auto_pop=false
+    return execute_breed(state, pidx, *a);  // stays on top; Stop pops
   throw std::runtime_error("apply_commit: not a commit action");
 }
 

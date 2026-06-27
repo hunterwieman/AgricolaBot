@@ -351,7 +351,7 @@ def test_stack_invariants_full_walk():
     assert isinstance(bf, PendingBuildFences)
     assert bf.initiated_by_id == "farm_redevelopment"
 
-    # CommitBuildPasture leaves PendingBuildFences on top (auto_pop=False).
+    # CommitBuildPasture leaves PendingBuildFences on top (the dispatcher never pops).
     state = step(state, CommitBuildPasture(cells=frozenset({(0, 1)})))
     assert len(state.pending_stack) == 2
 

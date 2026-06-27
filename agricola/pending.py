@@ -468,9 +468,8 @@ class PendingBuildFences:
         (TASK_6.md Part 2.3): once a subdivision has happened, new-pasture
         commits are no longer offered in the enumerator.
 
-    `auto_pop=False` for the matching `CommitBuildPasture` handler: each
-    commit replaces the top with updated counters and leaves the pending
-    on the stack; Stop pops it.
+    The matching `CommitBuildPasture` handler never pops: each commit replaces
+    the top with updated counters and leaves the pending on the stack; Stop pops it.
     """
     PENDING_ID: ClassVar[str] = "build_fences"
     TRIGGER_EVENT: ClassVar[str] = "before_build_fences"

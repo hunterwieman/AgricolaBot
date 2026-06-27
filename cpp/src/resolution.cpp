@@ -716,8 +716,8 @@ GameState execute_harvest_conversion(const GameState& state, int player_idx,
               p.harvest_conversions_used.end());
   }
   return update_player(state, player_idx, p);
-  // No side_effect_fn for the three built-in crafts; stack untouched (auto_pop
-  // false in dispatcher -> top stays).
+  // No side_effect_fn for the three built-in crafts; stack untouched — the
+  // dispatcher never pops, so the host stays on top (Stop pops it).
 }
 
 GameState execute_convert(const GameState& state, int player_idx,

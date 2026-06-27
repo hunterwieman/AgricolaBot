@@ -484,8 +484,8 @@ def _initiate_lessons(state: GameState) -> GameState:
 
 def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     """Play one occupation from hand: debit the frame's cost, move the card
-    hand->tableau, then run its on-play effect. Dispatched with auto_pop=True, so
-    the PendingPlayOccupation frame is popped by the generic dispatcher afterward."""
+    hand->tableau, then run its on-play effect. Pivots PendingPlayOccupation to its
+    after-phase (firing after_play_occupation autos); the trailing Stop pops it."""
     from agricola.cards.specs import OCCUPATIONS, PLAY_OCCUPATION_VARIANTS
     cid = action.card_id
     top = state.pending_stack[-1]   # PendingPlayOccupation — the play cost lives here
@@ -521,8 +521,8 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     """Play one minor improvement from hand: debit its printed cost, move it
     hand->tableau (or, for a traveling minor, execute then PASS it to the
     opponent — never kept in the tableau), then run its on-play effect.
-    Dispatched with auto_pop=False — the effect pivots PendingPlayMinor to its
-    after-phase (no pop); the trailing Stop pops it (or, for a pushing on_play like
+    The effect pivots PendingPlayMinor to its after-phase (no pop); the trailing
+    Stop pops it (or, for a pushing on_play like
     Shifting Cultivation, the pushed primitive resolves first, then Stop). See
     CARD_IMPLEMENTATION_PLAN.md II.4."""
     from agricola.cards.specs import MINORS
@@ -892,7 +892,7 @@ def _choose_subaction_meeting_place(
 def _execute_family_growth(state: GameState, idx: int, action) -> GameState:
     """Run the family-growth primitive: add one newborn on the space named by the
     PendingFamilyGrowth frame's initiated_by_id (the wish space). Reuses the shared
-    growth logic; dispatched with auto_pop=True (the frame pops after)."""
+    growth logic, then pivots PendingFamilyGrowth to its after-phase; Stop pops."""
     space_id = state.pending_stack[-1].initiated_by_id
     state = _resolve_wish_for_children(state, space_id)
     return _enter_after_phase(state)   # pivot PendingFamilyGrowth -> after; Stop pops
@@ -1065,7 +1065,8 @@ def _execute_build_stable(
     state: GameState, player_idx: int, commit: CommitBuildStable,
 ) -> GameState:
     """Multi-shot stable build: place one stable, increment num_built, leave
-    PendingBuildStables on top (dispatcher's auto_pop=False).
+    PendingBuildStables on top (the dispatcher never pops; Proceed flips it to its
+    after-phase and Stop pops).
 
     The cost is on the pending frame (set at push time by the choose
     handler) — different callers (Side Job, Farm Expansion, future cards)
@@ -1104,7 +1105,8 @@ def _execute_build_room(
     state: GameState, player_idx: int, commit: CommitBuildRoom,
 ) -> GameState:
     """Multi-shot room build: place one room, increment num_built, leave
-    PendingBuildRooms on top (dispatcher's auto_pop=False).
+    PendingBuildRooms on top (the dispatcher never pops; Proceed flips it to its
+    after-phase and Stop pops).
 
     Pasture cache is unaffected: rooms cannot legally land in enclosed
     cells (RULES.md "House and Rooms"); `_legal_room_cells` enforces this.
@@ -1165,9 +1167,9 @@ def _execute_build_major(
     PendingBuildMajor (non-oven majors) or push the oven wrapper
     (Clay/Stone Oven, hosting the optional free Bake Bread).
 
-    Dispatched via the generic `_apply_commit_subaction` path with
-    `auto_pop=False` — the dispatcher does NOT pop after the effect runs.
-    This function owns all its own stack manipulation: pop for non-ovens
+    Dispatched via the generic `_apply_commit_subaction` path — the dispatcher
+    never pops after the effect runs. This function owns all its own stack
+    manipulation: pop for non-ovens
     (line below), or push the wrapper for ovens (leaving PendingBuildMajor
     in place underneath).
     """
@@ -1253,7 +1255,8 @@ def _execute_build_pasture(
     state: GameState, player_idx: int, commit: CommitBuildPasture,
 ) -> GameState:
     """Multi-shot pasture build: place one pasture's fences, increment the
-    PendingBuildFences counters, leave the pending on top (auto_pop=False).
+    PendingBuildFences counters, leave the pending on top (the dispatcher never
+    pops; Stop pops — PendingBuildFences is the Stop-terminated multi-shot exception).
 
     Steps:
       1. Pack commit.cells to a bitmap.
@@ -1327,8 +1330,8 @@ def _execute_accommodate(
     markets). Reads `pending.gained` to determine which animal type was
     newly gained from the space.
 
-    Dispatched with auto_pop=False (4b): instead of popping, this is the market's
-    before->after pivot — it applies the accommodation, flips the host frame to
+    (4b) Instead of popping, this is the market's before->after pivot — it applies
+    the accommodation, flips the host frame to
     `phase="after"`, and fires after_action_space automatic effects at that flip
     (the work-complete boundary, before the after-triggers — SPACE_HOST_REFACTOR.md
     §11). The after-phase enumerator then offers any after-triggers + Stop, and Stop
@@ -1380,8 +1383,8 @@ def _execute_harvest_conversion(
     food_owed bookkeeping on the pending. Declining a craft is implicit (commit
     CommitConvert without firing it), so this handler only ever fires.
 
-    auto_pop=False — the pending stays on top to host further craft
-    decisions plus the final CommitConvert.
+    The pending stays on top to host further craft decisions plus the final
+    CommitConvert.
     """
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 
@@ -1436,8 +1439,8 @@ def _execute_convert(
 
     After commit, only Stop is legal on this pending (`conversion_done=True`).
 
-    auto_pop=False — the trailing Stop is the explicit exit, matching the
-    other multi-stage pendings.
+    The trailing Stop is the explicit exit, matching the other multi-stage
+    pendings.
     """
     top = state.pending_stack[-1]
     assert isinstance(top, PendingHarvestFeed)
@@ -1496,7 +1499,7 @@ def _execute_breed(
     construction without recomputing the whole frontier. Mirrors the direct-formula
     style of the sibling `_execute_accommodate` / `_execute_convert` handlers.
 
-    auto_pop=False; trailing Stop is the explicit exit.
+    The dispatcher never pops; the trailing Stop is the explicit exit.
     """
     top = state.pending_stack[-1]
     assert isinstance(top, PendingHarvestBreed)
