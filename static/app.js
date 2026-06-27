@@ -67,6 +67,7 @@
   // can't arrive out of order, and the latest response is the truth.
   function applyState(state) {
     if (!state) return;
+    checkSessionContinuity(state);
     setConnState(true);
     currentState = state;
     cellSelection = new Set();  // a server step happened → drop partial selection
@@ -80,6 +81,27 @@
       fetchAnalysis(analysisGen);
     }
     render(currentState);
+  }
+
+  // Detect that the game we were playing is gone. The server stamps each Session
+  // with a random `session_id`; a user "New game" reuses the same Session (stable
+  // id), but a server restart/redeploy (in-memory state, no datastore) or an
+  // eviction builds a NEW Session with a NEW id. We remember the last id in
+  // localStorage; when an incoming state carries a different one, the prior game
+  // was lost and the server handed us a fresh board — tell the user instead of
+  // silently jumping them to a different round-1 game.
+  function checkSessionContinuity(state) {
+    const id = state && state.session_id;
+    if (!id) return;  // older server without the field — nothing to compare
+    let prev = null;
+    try { prev = localStorage.getItem('agricola.sessionId'); } catch (e) { /* private mode */ }
+    try { localStorage.setItem('agricola.sessionId', id); } catch (e) { /* ignore */ }
+    if (prev && prev !== id) showSessionResetBanner();
+  }
+
+  function showSessionResetBanner() {
+    const banner = document.getElementById('session-banner');
+    if (banner) banner.classList.remove('hidden');
   }
 
   // Is the current decider a human seat? (Used to gate the analysis fetch.)
@@ -1737,6 +1759,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     // "New game" opens the mode-select overlay (step 1 of the new-game flow).
     document.getElementById('reset-btn').addEventListener('click', resetGame);
+    // Dismiss the "server restarted" banner.
+    const banDismiss = document.getElementById('session-banner-dismiss');
+    if (banDismiss) banDismiss.addEventListener('click', () => {
+      document.getElementById('session-banner').classList.add('hidden');
+    });
     // Mode-select overlay buttons → step 2 (startGame) for each variant.
     const familyBtn = document.getElementById('mode-select-family');
     if (familyBtn) familyBtn.addEventListener('click', () => startGame('family'));

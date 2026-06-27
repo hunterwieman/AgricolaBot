@@ -1293,6 +1293,13 @@ class Session:
         game_mode: str = "family",
     ) -> None:
         _validate_seats(seats, game_mode)
+        # A random per-Session identity, sent to the client in every snapshot. The
+        # client remembers it; when it changes underneath them (the server
+        # restarted/redeployed and this in-memory registry was rebuilt, or their
+        # session was evicted), the client knows the game it was playing is gone.
+        # A user-initiated "New game" reuses THIS Session object (reset()), so the
+        # id is stable across resets and never false-triggers the notice.
+        self.instance_id = secrets.token_hex(8)
         self.game_mode = game_mode
         self.seed = seed
         self.seats = seats
@@ -1550,6 +1557,7 @@ class Session:
             interactive_ai_paused=self._interactive_ai_paused_here_locked(),
         )
         payload["game_mode"] = self.game_mode
+        payload["session_id"] = self.instance_id
         payload["awaiting_confirm"] = self.awaiting_confirm
         payload["confirm_mode"] = self.confirm_mode
         payload["fast_mode"] = self.fast_mode
