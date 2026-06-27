@@ -273,6 +273,17 @@ pottery, basketmaker, consumed(g,v,s,b,c), begging]`. Candidates come from full
 - **Result — no benefit at 40k.** Training metrics ~identical (spatial val_mae 2.297 vs v2 2.291; spatial's only edge was fencing-head CE 1.047 vs 1.058, ~1%). **800-sim head-to-head:** spatial-vs-v2 ≈ wash (~47%, spatial if anything marginally behind); spatial-vs-champion ~38%; **v2-vs-champion 39.5% (C++, 1000 games, margin −0.97)** — spatial ≈ v2 against the champion too. The per-cell masks added nothing at this scale; whether they'd help at 300k is untested.
 - **Status**: experiment-only, neither promoted. C++ exports at `nn_models/cpp_export_{v2_40k,spatial_40k}`; checkpoints in GCS `gs://…/spatial_exp/`.
 
+### `spatial_a256_300k` / `spatial_b512_300k` — per-cell spatial encoder at full 300k (2026-06-26)
+
+- **Purpose**: the 40k A/B above was a wash; this is the scaled-up retest on the **clean 300k corpus** (`gen300k`, snapshot-keep 0.5), mirroring the two real champion architectures so the head-to-heads are apples-to-apples. Same `cand_spatial_v1` encoder (274-d), champion recipe (GELU, dropout 0.2, value-weight 9, bs 2048, lr 1e-3, **random-init**), trained on GCP (the encode fanned across 6 spot boxes; training on a right-sized spot box, warm-resumed through preemptions).
+  - **`spatial_a256_300k`** — trunk `[256,256]→128` (mirrors champion `joint_a256_300k`). Converged **val_mse ≈ 0.5479** (vs champion's 0.5452, ~0.003 worse).
+  - **`spatial_b512_300k`** — trunk `[512,512]→256` (mirrors candidate `B_wide`). Converged **val_mse ≈ 0.5405** (vs B_wide's 0.5376, same ~0.003 gap).
+- **Head-to-head (C++ MCTS, mix leaf α=0.9, both seats' value+outcome scales re-measured on ONE common 6k-state gen300k set — a256 2.846/0.529 vs champ 2.846/0.529; b512 2.954/0.558 vs B_wide 2.932/0.561, near-identical → fair):**
+  - **a256-spatial vs champion `joint_a256_300k`** (5000 games/condition): **48.2% @ 800 sims** (+0.19), **45.4% @ 1600** (−0.14). (A noisier 1000-game @800 run read 50.3% — the 5k tightened it to ~48%.)
+  - **b512-spatial vs `B_wide`** (2000 games/condition): **45.9% @ 800** (−0.18), **47.1% @ 1600** (−0.04).
+- **Result — no benefit at 300k either; a mild regression.** Every condition is below 50% on both architectures and both search depths. The per-cell spatial masks (incl. for the spatially-blind fencing head, the wide-model case they were most expected to help) add no value and slightly hurt. Confirms the 40k null at full scale. Note the **MAE≠strength** texture: a256's ~0.003-worse val_mse showed as a clear head-to-head loss, sharpest at deeper search.
+- **Status**: experiment-only, **neither promoted** — the spatial encoder is retired as a dead end. Checkpoints in GCS `gs://…/spatial300k/ckpts/{a256,b512}/`; C++ exports under `gs://…/spatial300k/eval/`. The 62 GB encode chunk cache was deleted post-experiment (regenerable from `gen300k`).
+
 ---
 
 ## Combined policy functions (`scripts/nn/build_combined_policy.py`)
