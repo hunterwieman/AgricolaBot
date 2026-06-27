@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <stdexcept>
 
 #include "agricola/constants.hpp"
 #include "agricola/fences.hpp"
