@@ -29,6 +29,12 @@ agricola-trace-seed*.json
 # Local debug scratch script (not part of the engine or test suite).
 _replay_fence_debug.py
 
+# Local cloud-run workspace (GCP spatial-encoder experiment scratch).
+_cloud_spatial/
+
+# Editor / local tooling config (Claude Code preview launch config, etc.).
+.claude/
+
 # NN training datasets — generated artifacts, often >100MB per production run.
 # Deterministic from (code_sha, base_seed, approved_configs) per FIRST_NN.md §6.8,
 # so re-runnable rather than checked in. Each run dir under data/nn_training/runs/
