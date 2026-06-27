@@ -1429,6 +1429,7 @@
       'FireTrigger',
       'PlaceWorker',
       'CommitBuildMajor',
+      'Proceed',
       'Stop',
     ];
 
@@ -1483,7 +1484,7 @@
 
       for (const a of opts) {
         const btn = el('button',
-          { class: 'action-btn' + (key === 'Stop' ? ' stop' : ''),
+          { class: 'action-btn' + (key === 'Stop' || key === 'Proceed' ? ' stop' : ''),
             onclick: () => submitAction(a.index) },
           a.display);
         // "Show analysis" overlay on the sub-action button (ChooseSubAction /
@@ -1498,6 +1499,23 @@
             ' ' + analysisBadgeText(info)));
         }
         menu.appendChild(btn);
+        anyButtons = true;
+      }
+    }
+
+    // Catch-all: render any action type NOT named in ORDER above (and not a
+    // ui_hint:"card" play, handled separately) as plain buttons — so a new or
+    // uncommon action type (CommitCardChoice, CommitFamilyGrowth, …) is never
+    // SILENTLY DROPPED from the menu. (ORDER controls placement/styling for the
+    // common types; this guarantees completeness for the rest.)
+    for (const [key, opts] of groups) {
+      if (ORDER.includes(key)) continue;
+      menu.appendChild(el('div', { class: 'action-group-header' },
+        `${key} (${opts.length})`));
+      for (const a of opts) {
+        menu.appendChild(el('button',
+          { class: 'action-btn', onclick: () => submitAction(a.index) },
+          a.display));
         anyButtons = true;
       }
     }

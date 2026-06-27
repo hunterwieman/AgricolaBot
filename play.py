@@ -31,6 +31,7 @@ from agricola.actions import (
     CommitSubAction,
     FireTrigger,
     PlaceWorker,
+    Proceed,
     Stop,
 )
 from agricola.constants import (
@@ -393,6 +394,8 @@ def _fmt_action_inline(action: Action) -> str:
         return f"FireTrigger({action.card_id!r})"
     if isinstance(action, Stop):
         return "Stop"
+    if isinstance(action, Proceed):
+        return "Proceed"
     if isinstance(action, CommitSow):
         return f"CommitSow(grain={action.grain}, veg={action.veg})"
     if isinstance(action, CommitBake):
