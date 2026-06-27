@@ -1,4 +1,4 @@
-"""Loom (minor improvement, B39; Base Revised; cost 1 wood, 2-occupation prereq).
+"""Loom (minor improvement, B39; Base Revised; cost 2 wood, 2-occupation prereq).
 
 Card text: "In the field phase of each harvest, if you have at least 1/4/7 sheep,
 you get 1/2/3 food. During scoring, you get 1 bonus point for every 3 sheep."
@@ -42,7 +42,7 @@ def _score(state: GameState, idx: int) -> int:
     return state.players[idx].animals.sheep // 3   # 1 bonus point per 3 sheep
 
 
-register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), min_occupations=2, vps=1)
+register_minor(CARD_ID, cost=Cost(resources=Resources(wood=2)), min_occupations=2, vps=1)
 register_auto("harvest_field", CARD_ID, _eligible, _apply)
 register_harvest_field_hook(CARD_ID)
 register_scoring(CARD_ID, _score)
