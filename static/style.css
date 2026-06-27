@@ -50,6 +50,8 @@ h3 {
 /* ---------- header ---------- */
 
 #header {
+  position: relative;
+  z-index: 1001;
   display: flex;
   justify-content: space-between;
   align-items: center;
