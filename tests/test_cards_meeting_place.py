@@ -161,6 +161,50 @@ def test_card_hook_fires_with_no_playable_minor():
         ]
 
 
+def test_meeting_place_and_basic_wish_expose_space_id():
+    """Every action-space host frame must expose `.space_id` — 18 cards read
+    `state.pending_stack[-1].space_id` in their trigger eligibility WITHOUT an
+    isinstance check (pending.py's uniform host contract). These two Proceed-host
+    frames were missing the property, so any action-space-hook owner crashed
+    `legal_actions` the moment one was on top of the stack (the seed-11583 web
+    soft-lock)."""
+    from agricola.pending import PendingBasicWishForChildren, PendingMeetingPlace
+    mp = PendingMeetingPlace(player_idx=0, initiated_by_id="space:meeting_place")
+    assert mp.space_id == "meeting_place"
+    bw = PendingBasicWishForChildren(
+        player_idx=0, initiated_by_id="space:basic_wish_for_children")
+    assert bw.space_id == "basic_wish_for_children"
+
+
+def test_action_space_hook_owner_no_crash_at_meeting_place():
+    """Regression for the seed-11583 web soft-lock. P0 owned Assistant Tiller (an
+    occupation that hooks the Day Laborer space via `after_action_space` and reads
+    `top.space_id` in its eligibility check). The instant P0 played a minor at
+    Meeting Place, the top of the stack was PendingMeetingPlace — which lacked
+    `space_id` — so enumerating `legal_actions` raised AttributeError and the UI
+    soft-locked. This drives that exact path and asserts the turn completes."""
+    import agricola.cards  # noqa: F401 — ensure card triggers are registered
+    cs, _env, cp = _card_state(minors=frozenset({"market_stall"}), sp_other=True)
+    # Own Assistant Tiller (played occupation → its after_action_space hook fires).
+    p = fast_replace(cs.players[cp], occupations=frozenset({"assistant_tiller"}))
+    cs = fast_replace(cs, players=tuple(
+        p if i == cp else cs.players[i] for i in range(2)))
+
+    cs = step(cs, PlaceWorker(space="meeting_place"))
+    assert isinstance(cs.pending_stack[-1], PendingMeetingPlace)
+    # Pre-fix: AttributeError ('PendingMeetingPlace' has no attribute 'space_id').
+    acts = legal_actions(cs)
+    assert ChooseSubAction(name="play_minor") in acts
+
+    cs = step(cs, ChooseSubAction(name="play_minor"))
+    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, Stop())        # pop the play-minor after-phase
+    cs = step(cs, Proceed())     # flip parent to after (hook re-enumerated here too)
+    assert legal_actions(cs) == [Stop()]
+    cs = step(cs, Stop())        # pop the parent — turn closes cleanly, no lock
+    assert cs.pending_stack == ()
+
+
 def test_card_meeting_place_never_accumulates_food():
     # In card mode the slot is not refilled, and the resolver gives no food, so
     # its accumulated_amount stays 0 throughout a whole game.
