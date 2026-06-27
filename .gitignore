@@ -26,6 +26,9 @@ archive/
 # Debug game traces dumped at the repo root by play_web.py / play.py.
 agricola-trace-seed*.json
 
+# Local debug scratch script (not part of the engine or test suite).
+_replay_fence_debug.py
+
 # NN training datasets — generated artifacts, often >100MB per production run.
 # Deterministic from (code_sha, base_seed, approved_configs) per FIRST_NN.md §6.8,
 # so re-runnable rather than checked in. Each run dir under data/nn_training/runs/
