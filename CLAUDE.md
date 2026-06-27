@@ -889,12 +889,30 @@ were capped at a 12-vCPU on-demand instance. (Bigger picture in CLAUDE.md memory
 ## 2.6 — Web UI & online deployment
 
 The browser game (`play_web.py` + `static/` + `templates/`) is playable **online** at
-**https://agricolabot.fly.dev/**, deployed to **Fly.io** as a single always-on container. Human-vs-bot
-only; the bot is the joint-trunk champion (`joint_a256_300k`, as of 2026-06-25; was `joint_gelu_rand_240k`) driven by **C++ MCTS PUCT** (the `selfplay
---move` binary via `_CppMctsAgent`, falling back to Python MCTS if the binary / `cpp_export_best` is
-absent), playing the **mix leaf at α=0.9** (§2.3 — `play_web.py` sets `_CPP_LEAF_MODE="mix"` /
-`_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`). Deploy
-walkthrough: **`DEPLOY.md`**; web-UI polish inbox: **`FRONTEND_FIXES.md`**.
+**https://agricolabot.fly.dev/**, deployed to **Fly.io** as a single always-on container. On entry (and on
+every "New game") the player first picks the **game mode** via a landing overlay: **Family** (the cardless
+2-player game) or **Cards (beta)**. The two modes share one server, registry, and wire format; a session
+carries its mode and the choice never sticks across games.
+
+In **Family** mode the game is human-vs-bot, and the bot is the joint-trunk champion (`joint_a256_300k`,
+as of 2026-06-25; was `joint_gelu_rand_240k`) driven by **C++ MCTS PUCT** (the `selfplay --move` binary via
+`_CppMctsAgent`, falling back to Python MCTS if the binary / `cpp_export_best` is absent), playing the
+**mix leaf at α=0.9** (§2.3 — `play_web.py` sets `_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed
+through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`).
+
+In **Cards** mode the seats are **human-vs-random or human-vs-human** (no trained bot exists for the card
+game yet, so MCTS/NN seats and the analysis overlay are disabled), and `setup_env(seed, card_pool=...)` is
+called with a pool of **all implemented cards** (currently 22 occupations + 31 minors) so each player is
+dealt a random non-overlapping 7-occupation + 7-minor hand. The snapshot serializes each player's hand
+under **hidden-information rules**: a hand is shown face-up only for a *human* seat, and among two human
+seats (pass-and-play) only the **active player's** hand is revealed (the inactive seat sees a face-down
+count) so handing the device over doesn't leak cards; a sole human (vs an AI) always sees their own hand.
+The reveal rule lives in `state_to_json`'s `_reveal_hand`; card metadata (display name + effect text + the
+structured minor cost) is built once at import into `_CARD_META` from `agricola/cards/data/*.json`, joined
+to the implemented-card registries by slugified name. Card-play actions carry a `card` `ui_hint` and render
+as named buttons.
+
+Deploy walkthrough: **`DEPLOY.md`**; web-UI polish inbox: **`FRONTEND_FIXES.md`**.
 
 **Server architecture.** A stdlib `ThreadingHTTPServer` (only non-stdlib dep is `numpy`). Every endpoint is
 a single request/response that returns the full authoritative state — `{ok, …, "state":
@@ -920,10 +938,12 @@ asserts rendered == authoritative across the move/undo/confirm/new-game flows.
 | `cell` | `CommitPlow`, `CommitBuildStable`, `CommitBuildRoom` | click a highlighted farmyard cell |
 | `cell_set` | `CommitBuildPasture` | multi-select cells, confirm when the selection matches a legal pasture |
 | `numeric` | `CommitSow`, `CommitBake`, `CommitAccommodate`, `CommitBreed`, `CommitConvert`, `CommitHarvestConversion` | button-list (Pareto frontiers are small) |
+| `card` | `CommitPlayOccupation`, `CommitPlayMinor` | Cards mode only — a named-button group ("Play card") labeled by card name, highlighting the matching hand card |
 
-**Per-game New-Game inputs** (prompted on "New game"): the **seed**, the **sims/move** budget (default
-800), and the **opponent prior-mix** `w` (default `0.0`; see §2.2 — broadens the bot's search, found not
-stronger so default off).
+**Per-game New-Game inputs** (prompted on "New game"): first the **game mode** (Family / Cards). In
+**Family**: the **seed**, the **sims/move** budget (default 800), and the **opponent prior-mix** `w`
+(default `0.0`; see §2.2 — broadens the bot's search, found not stronger so default off). In **Cards**: the
+**seed** and the **opponent type** (random / human); the bot-only inputs are omitted.
 
 **Toggles** (header): **Fast mode** (auto-submit singleton/forced actions and skip confirm on them);
 **Confirm turns** (pause after each *non-forced* human turn to confirm/undo before the bot replies — undo
@@ -1109,7 +1129,7 @@ Archived (in `archive/`, fully superseded by current docs):
 AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
 
-    play_web.py                     # Top-level entry point — browser-based human-vs-bot play UI (CLAUDE.md §2.6). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs: seed, sims/move (default 800), opponent prior-mix (default 0). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, async, cancel-on-move, prior-mix 0.05; decoupled from the bot — a control row sends per-request `leaf_mode`/`mix_alpha`/`sims`/`c_uct`, so the human can analyze with the margin/outcome/mix head, any α, any budget, any exploration, changeable mid-game; the overlay denormalizes the tree Q by the analysis leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
+    play_web.py                     # Top-level entry point — browser-based human play UI (CLAUDE.md §2.6). Dual-mode: a New-Game landing choice picks **Family** (human-vs-bot, cardless) or **Cards (beta)** (human-vs-random / human-vs-human, all implemented cards dealt as random non-overlapping 7+7 hands via `setup_env(seed, card_pool=...)`). The session carries `game_mode`; the payload carries it top-level. Card hands serialize under hidden-info rules (`state_to_json`'s `_reveal_hand`: face-up only for a human seat; in pass-and-play only the active player's hand, else face-down count). Card metadata (name/effect/structured minor cost) is built once into `_CARD_META` from `agricola/cards/data/*.json` (joined by slugified name); card-play actions get a `card` ui_hint + named-button display (`_web_action_display`). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The Family `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs (Family): seed, sims/move (default 800), opponent prior-mix (default 0); Cards: seed + opponent type. Analysis/MCTS UI is disabled in Cards mode (no trained card bot). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, async, cancel-on-move, prior-mix 0.05; decoupled from the bot — a control row sends per-request `leaf_mode`/`mix_alpha`/`sims`/`c_uct`, so the human can analyze with the margin/outcome/mix head, any α, any budget, any exploration, changeable mid-game; the overlay denormalizes the tree Q by the analysis leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
 
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
 
@@ -1133,7 +1153,7 @@ AgricolaBot/
 
     static/                         # Web UI assets served by `play_web.py` — frontend JS + CSS.
 
-        app.js                      # The browser frontend (~1.2k lines): fetches game state from `play_web.py`, renders the farmyard / action board / scoreboard, and dispatches the player's chosen action back to the backend. The target of FRONTEND_FIXES.md.
+        app.js                      # The browser frontend (~1.2k lines): fetches game state from `play_web.py`, renders the farmyard / action board / scoreboard, and dispatches the player's chosen action back to the backend. Also hosts the New-Game **mode-select** overlay (Family / Cards), per-player **hand** rendering for Cards mode (face-up `hand` cards grouped by type, or face-down placeholders from `hand_counts`), the `card` ui_hint card-play buttons, and hides the analysis/MCTS controls in Cards mode. The target of FRONTEND_FIXES.md.
 
         style.css                   # Web UI styling: board layout, farmyard grid, action-space tiles, scoreboard.
 
