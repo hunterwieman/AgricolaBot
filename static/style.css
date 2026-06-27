@@ -85,6 +85,28 @@ h3 {
 /* Analysis control row — appears below the header only while "Show analysis"
    is on. Configures the read-only overlay (model / sims / c_uct / α). */
 .hidden { display: none !important; }
+
+/* "Server restarted — game lost" notice (shown when the session id changes). */
+#session-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f6d27a;
+  color: #4a3210;
+  border-bottom: 2px solid #b9892f;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+#session-banner button {
+  margin-left: auto;
+  background: #b9892f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
 #analysis-controls {
   display: flex;
   flex-wrap: wrap;
