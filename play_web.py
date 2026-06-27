@@ -799,7 +799,7 @@ def _action_params(action: Action) -> dict:
     if isinstance(action, ChooseSubAction):
         return {"name": action.name}
     if isinstance(action, FireTrigger):
-        return {"card_id": action.card_id}
+        return {"card_id": action.card_id, "variant": getattr(action, "variant", None)}
     if isinstance(action, Stop):
         return {}
     if isinstance(action, CommitSow):
@@ -841,18 +841,37 @@ def _action_params(action: Action) -> dict:
     return {}
 
 
+# Friendly labels for play-variant trigger routes (Cottager, Scholar), so the two
+# buttons of a single trigger read distinctly instead of both as the card name.
+_TRIGGER_VARIANT_LABELS = {
+    "room": "build a room",
+    "renovate": "renovate",
+    "occupation": "play an occupation",
+    "minor": "play a minor",
+}
+
+
 def _web_action_display(action: Action) -> str:
     """Human-readable label for an action in the web UI.
 
-    Same as play.py's `_fmt_action_inline` for every action type EXCEPT the two
-    card-play commits, which render as the card's real display name (e.g.
-    "Clay Hut Builder") instead of the raw dataclass repr. Lets the decision
-    menu show a card name on the button rather than `CommitPlayOccupation(...)`.
+    Same as play.py's `_fmt_action_inline` for most action types, EXCEPT:
+    - the two card-play commits render as the card's real display name (e.g.
+      "Clay Hut Builder") instead of the raw dataclass repr; and
+    - a FireTrigger renders as its card's name, with its play-variant route
+      appended when present — so a variant trigger like Cottager shows two
+      distinct buttons ("Cottager: build a room" / "Cottager: renovate") rather
+      than two identical `FireTrigger('cottager')`s.
     """
     if isinstance(action, (CommitPlayOccupation, CommitPlayMinor)):
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
         return f"{name} [{variant}]" if variant else name
+    if isinstance(action, FireTrigger):
+        name = _card_info(action.card_id)["name"]
+        variant = getattr(action, "variant", None)
+        if variant:
+            return f"{name}: {_TRIGGER_VARIANT_LABELS.get(variant, variant)}"
+        return name
     return _fmt_action_inline(action)
 
 
