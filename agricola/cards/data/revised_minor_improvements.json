@@ -1322,7 +1322,7 @@
     "type": "Minor Improvement",
     "status": "todo",
     "name": "Loom",
-    "cost": "1 Wood",
+    "cost": "2 Wood",
     "vps": 1,
     "prerequisites": "2 Occupations",
     "passing_left": null,
