@@ -639,9 +639,12 @@
 
   // -------- action board --------
 
+  // Both 'side_job' and 'lessons' occupy the same conceptual slot: the Family
+  // game shows Side Job, the card game shows Lessons. The backend omits whichever
+  // is inert for the current mode, so only one of the pair is ever rendered.
   const PERMANENT_ORDER = [
     'forest', 'clay_pit', 'reed_bank', 'fishing', 'meeting_place',
-    'grain_seeds', 'farmland', 'day_laborer', 'side_job', 'farm_expansion',
+    'grain_seeds', 'farmland', 'day_laborer', 'side_job', 'lessons', 'farm_expansion',
   ];
 
   function placeWorkerActionMap(state) {

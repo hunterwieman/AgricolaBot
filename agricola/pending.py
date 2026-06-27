@@ -596,6 +596,10 @@ class PendingBasicWishForChildren:
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
 
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
+
 
 @dataclass(frozen=True)
 class PendingMeetingPlace:
@@ -624,6 +628,10 @@ class PendingMeetingPlace:
     minor_chosen: bool = False
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+
+    @property
+    def space_id(self) -> str:
+        return self.initiated_by_id.split(":", 1)[1]
 
 
 @dataclass(frozen=True)

@@ -84,6 +84,7 @@ from agricola.constants import (
     STAGE_CARDS,
     STAGE_ROUNDS,
     CellType,
+    GameMode,
     HouseMaterial,
     Phase,
 )
@@ -897,9 +898,20 @@ def _space_stage(space_id: str) -> int | None:
     return None
 
 
+# The fixed 25-space board carries BOTH "side_job" and "lessons", but each game
+# mode uses only one of that pair: the Family game uses Side Job (Lessons is a
+# permanently-inert dead tile), and the card game replaces Side Job with Lessons.
+# Hide the mode-inert tile so the action board shows only the usable one in that
+# slot, rather than a confusing tile you can never place on.
+_MODE_INERT_SPACE = {GameMode.FAMILY: "lessons", GameMode.CARDS: "side_job"}
+
+
 def _board_to_dict(state: GameState) -> dict:
     spaces = []
+    inert = _MODE_INERT_SPACE.get(state.mode)
     for sid, ss in zip(SPACE_IDS, state.board.action_spaces):
+        if sid == inert:
+            continue
         spaces.append({
             "id": sid,
             "name": SPACE_DISPLAY_NAMES.get(sid, sid),
