@@ -235,20 +235,41 @@ def test_scythe_worker_on_play_grain():
 
 def test_scythe_worker_extra_grain_per_grain_field():
     state = _own_occ(_field_state(), 0, "scythe_worker")
-    # Two grain fields + one veg field. Scythe adds +1 grain per GRAIN field (2);
-    # the mechanical take then removes 1 grain from each grain field (+2) and 1
-    # veg from the veg field (+1).
+    # Two grain fields (3 grain each) + one veg field. Scythe takes 1 ADDITIONAL
+    # grain FROM each grain field (+2 grain, each field -1), then the mechanical
+    # take removes another 1 grain from each (+2 grain) and 1 veg from the veg
+    # field (+1). So each grain field is depleted by 2 this harvest: 3 -> 1.
     state = with_sown_fields(state, 0, grain_fields=[(0, 2), (0, 3)],
                              veg_fields=[(1, 2)])
     grain0 = state.players[0].resources.grain
     veg0 = state.players[0].resources.veg
     after = _resolve_harvest_field(state)
-    # Scythe: +2 (one per grain field). Take: +2 grain, +1 veg.
+    # Scythe: +2 (one per >=2-grain field). Take: +2 grain, +1 veg.
     assert after.players[0].resources.grain == grain0 + 2 + 2
     assert after.players[0].resources.veg == veg0 + 1
-    # The take still leaves the fields decremented by exactly one.
-    assert after.players[0].farmyard.grid[0][2].grain == 2
-    assert after.players[0].farmyard.grid[0][3].grain == 2
+    # Each grain field is depleted by 2 (the additional + the mechanical take):
+    # 3 -> 1. (Regression: previously the field lost only 1 — duplicated grain.)
+    assert after.players[0].farmyard.grid[0][2].grain == 1
+    assert after.players[0].farmyard.grid[0][3].grain == 1
+
+
+def test_scythe_worker_caps_additional_at_field_grain():
+    """The additional grain only comes from a field with >= 2 grain. A 1-grain
+    field gives its single grain to the mechanical take with none to spare, and a
+    2-grain field is fully exhausted (1 additional + 1 take = 2)."""
+    state = _own_occ(_field_state(), 0, "scythe_worker")
+    # One 1-grain field at (0,2), one 2-grain field at (0,3).
+    state = with_grid(state, 0, {
+        (0, 2): Cell(cell_type=CellType.FIELD, grain=1),
+        (0, 3): Cell(cell_type=CellType.FIELD, grain=2),
+    })
+    grain0 = state.players[0].resources.grain
+    after = _resolve_harvest_field(state)
+    # 1-grain field: 1 total (no additional). 2-grain field: 2 total (1 additional
+    # + 1 take). Supply gains 1 + 2 = 3.
+    assert after.players[0].resources.grain == grain0 + 3
+    assert after.players[0].farmyard.grid[0][2].grain == 0   # 1-grain field emptied
+    assert after.players[0].farmyard.grid[0][3].grain == 0   # 2-grain field exhausted
 
 
 def test_scythe_worker_no_extra_without_grain_fields():
