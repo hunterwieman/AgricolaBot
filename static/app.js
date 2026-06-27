@@ -17,6 +17,10 @@
   // Selection state for multi-cell pasture build. Reset on every state push.
   // Stored as Set<"r,c">.
   let cellSelection = new Set();
+  // Set of card_ids that have a legal "play card" action (ui_hint:"card") in
+  // the current state — used to highlight the matching card in the hand panel.
+  // Recomputed in render() from the current legal actions.
+  let currentPlayableCardIds = new Set();
 
   // ---- "Show analysis" overlay state (frontend-only; does NOT POST) ----
   // When on, each human decision triggers a background /api/analyze call; the
@@ -281,44 +285,83 @@
     return BACKEND_TO_LABEL[backend] || backend;
   }
 
-  async function resetGame() {
-    // Fixed human-vs-MCTS setup. Prompt for a seed (blank = random) and the
-    // AI's sims/move (higher = stronger but slower).
+  // Step 1 of a new game: show the mode-select overlay. The user picks the
+  // variant (Family vs Cards) via the two buttons, which call startGame().
+  function resetGame() {
+    const modal = document.getElementById('mode-select-modal');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  // Hide the mode-select overlay (after a choice is made, or — for the very
+  // first load — if the user dismisses it without picking).
+  function hideModeSelect() {
+    const modal = document.getElementById('mode-select-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  // Step 2 of a new game: the variant has been chosen. Gather the
+  // mode-specific prompts and POST /api/reset.
+  //   'family' → human-vs-MCTS: seed + sims/move + opponent prior-mix.
+  //   'cards'  → human-vs-(random|human): seed + opponent type, NO bot knobs
+  //              (the trained MCTS bot is Family-only).
+  async function startGame(mode) {
+    hideModeSelect();
+
     const seedStr = prompt(
       'Seed for new game? (blank = random)', String(Date.now() & 0xffff));
     if (seedStr === null) return;
-    const trimmed = seedStr.trim();
-    const seed = trimmed === ''
+    const seedTrim = seedStr.trim();
+    const seed = seedTrim === ''
       ? (Date.now() & 0xffff)
-      : (parseInt(trimmed, 10) || 0);
+      : (parseInt(seedTrim, 10) || 0);
 
-    // Sims/move: default to the current game's value, else the last choice,
-    // else 800. Persisted so it sticks across games.
-    const simsDefault = (currentState && currentState.mcts_sims)
-      || parseInt(localStorage.getItem('agricola.mctsSims'), 10)
-      || 800;
-    const simsStr = prompt(
-      'AI strength — MCTS sims per move?\n' +
-      '  higher = stronger but slower\n' +
-      '  800 = default,  ~1500+ = strong,  300 = quick',
-      String(simsDefault));
-    if (simsStr === null) return;
-    const simsTrim = simsStr.trim();
-    const mctsSims = simsTrim === '' ? simsDefault : Math.max(1, parseInt(simsTrim, 10) || simsDefault);
-    localStorage.setItem('agricola.mctsSims', String(mctsSims));
+    let body;
+    if (mode === 'cards') {
+      // Opponent type: "random" (default) or "human" (hot-seat). No MCTS bot
+      // for the card game yet, so no sims/mix knobs.
+      const oppStr = prompt(
+        'Opponent for the card game?\n' +
+        '  random = a random-move bot (default)\n' +
+        '  human  = play both seats yourself (hot-seat)',
+        'random');
+      if (oppStr === null) return;
+      const opp = oppStr.trim().toLowerCase() === 'human' ? 'human' : 'random';
+      body = { seed, seats: ['human', opp], game_mode: 'cards' };
+    } else {
+      // Family game — the existing human-vs-MCTS setup.
+      // Sims/move: default to the current game's value, else the last choice,
+      // else 800. Persisted so it sticks across games.
+      const simsDefault = (currentState && currentState.mcts_sims)
+        || parseInt(localStorage.getItem('agricola.mctsSims'), 10)
+        || 800;
+      const simsStr = prompt(
+        'AI strength — MCTS sims per move?\n' +
+        '  higher = stronger but slower\n' +
+        '  800 = default,  ~1500+ = strong,  300 = quick',
+        String(simsDefault));
+      if (simsStr === null) return;
+      const simsTrim = simsStr.trim();
+      const mctsSims = simsTrim === '' ? simsDefault : Math.max(1, parseInt(simsTrim, 10) || simsDefault);
+      localStorage.setItem('agricola.mctsSims', String(mctsSims));
 
-    // Opponent's prior-uniform mix for this game (0 = standard/strongest bot).
-    const mixDefault = (currentState && currentState.opponent_mix)
-      || parseFloat(localStorage.getItem('agricola.opponentMix'))
-      || 0;
-    const mixStr = prompt(
-      'Opponent mix? (uniform mix into the bot\'s prior)\n' +
-      '  0 = standard bot (default),  ~0.05 = a bit more varied / slightly weaker',
-      String(mixDefault));
-    if (mixStr === null) return;
-    const mixTrim = mixStr.trim();
-    const opponentMix = mixTrim === '' ? mixDefault : Math.max(0, parseFloat(mixTrim) || 0);
-    localStorage.setItem('agricola.opponentMix', String(opponentMix));
+      // Opponent's prior-uniform mix for this game (0 = standard/strongest bot).
+      const mixDefault = (currentState && currentState.opponent_mix)
+        || parseFloat(localStorage.getItem('agricola.opponentMix'))
+        || 0;
+      const mixStr = prompt(
+        'Opponent mix? (uniform mix into the bot\'s prior)\n' +
+        '  0 = standard bot (default),  ~0.05 = a bit more varied / slightly weaker',
+        String(mixDefault));
+      if (mixStr === null) return;
+      const mixTrim = mixStr.trim();
+      const opponentMix = mixTrim === '' ? mixDefault : Math.max(0, parseFloat(mixTrim) || 0);
+      localStorage.setItem('agricola.opponentMix', String(opponentMix));
+
+      body = {
+        seed, seats: ['human', 'mcts'], game_mode: 'family',
+        mcts_sims: mctsSims, opponent_mix: opponentMix,
+      };
+    }
 
     if (inputLocked) return;  // a request is in flight — serialize
     setInputLocked(true);
@@ -326,10 +369,7 @@
       const res = await fetch('/api/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          seed, seats: ['human', 'mcts'],
-          mcts_sims: mctsSims, opponent_mix: opponentMix,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       applyState(data.state);  // render the fresh game from the response
@@ -521,6 +561,29 @@
     // is NOT server-synced — its checkbox is wired directly to setAnalysis.)
     syncToggle('confirm_mode', state, 'confirm-turn-toggle', (v) => { confirmMode = v; });
     syncToggle('fast_mode', state, 'fast-mode-toggle', (v) => { fastMode = v; });
+
+    // Recompute which hand cards are playable this turn (for the hand-panel
+    // highlight). Empty outside cards mode / when no card-play action is legal.
+    currentPlayableCardIds = new Set();
+    for (const a of state.legal_actions || []) {
+      if (a.ui_hint === 'card' && a.params && a.params.card_id != null) {
+        currentPlayableCardIds.add(a.params.card_id);
+      }
+    }
+
+    // Cards mode has no trained bot, so the analysis overlay is meaningless —
+    // hide its toggle (and, defensively, force it off + collapse its control
+    // row). Fast mode / Confirm turns stay available.
+    const cardsMode = state.game_mode === 'cards';
+    const analysisLabel = document.getElementById('analysis-toggle-label');
+    if (analysisLabel) analysisLabel.classList.toggle('hidden', cardsMode);
+    if (cardsMode && analysisOn) {
+      analysisOn = false;
+      const cb = document.getElementById('analysis-toggle');
+      if (cb) cb.checked = false;
+      analysisByKey.clear();
+      updateAnalysisControls();
+    }
 
     renderHeader(state);
     renderTurnControls(state);
@@ -781,6 +844,7 @@
     const summaryEl = document.getElementById(`p${idx}-summary`);
     const farmEl = document.getElementById(`p${idx}-farmyard-container`);
     const impEl = document.getElementById(`p${idx}-improvements`);
+    const handEl = document.getElementById(`p${idx}-hand`);
     const colEl = document.getElementById(`col-p${idx}`);
 
     // Header tags
@@ -897,6 +961,66 @@
         el('span', { class: 'label' }, 'Minors: '),
         el('span', {}, minorsLine)),
     ));
+
+    // Hand (cards mode only). Rendered face-up for a human seat (server sends
+    // the full `hand`), face-down for a hidden opponent (only `hand_counts`).
+    renderHand(handEl, state, p);
+  }
+
+  // Render a player's hand container. Empty in Family mode; in Cards mode
+  // either the revealed cards (grouped Occupations / Minors) or face-down
+  // placeholders sized from hand_counts.
+  function renderHand(handEl, state, p) {
+    if (!handEl) return;
+    handEl.innerHTML = '';
+    if (state.game_mode !== 'cards') return;  // Family game — no hand UI
+
+    handEl.appendChild(el('div', { class: 'card-hand-section' }, 'Hand'));
+
+    if (Array.isArray(p.hand)) {
+      // Revealed (this is a human seat). Group by type.
+      const occ = p.hand.filter((c) => c.type === 'occupation');
+      const min = p.hand.filter((c) => c.type === 'minor');
+      const group = (label, cards) => {
+        if (!cards.length) return;
+        handEl.appendChild(el('div', { class: 'card-hand-group-label' }, label));
+        const row = el('div', { class: 'card-hand' });
+        for (const c of cards) row.appendChild(renderHandCard(c));
+        handEl.appendChild(row);
+      };
+      group('Occupations', occ);
+      group('Minors', min);
+      if (!p.hand.length) {
+        handEl.appendChild(el('div', { class: 'card-hand-empty' }, '(empty)'));
+      }
+    } else {
+      // Hidden opponent — only counts are known.
+      const hc = p.hand_counts || { occupations: 0, minors: 0 };
+      const total = (hc.occupations || 0) + (hc.minors || 0);
+      handEl.appendChild(el('div', { class: 'card-hand-group-label' },
+        `Hidden: ${hc.occupations || 0} occ / ${hc.minors || 0} min`));
+      const row = el('div', { class: 'card-hand' });
+      for (let i = 0; i < total; i++) {
+        row.appendChild(el('div', { class: 'hand-card facedown' }));
+      }
+      handEl.appendChild(row);
+    }
+  }
+
+  // A single face-up hand card: bold name, optional cost (minors), text.
+  // Highlighted (.playable) when a card-play action for it is legal this turn.
+  function renderHandCard(c) {
+    const playable = currentPlayableCardIds.has(c.id);
+    const cls = 'hand-card' + (playable ? ' playable' : '');
+    const card = el('div', { class: cls, title: c.text || '' });
+    card.appendChild(el('div', { class: 'hand-card-name' }, c.name || c.id));
+    if (c.cost) {
+      card.appendChild(el('div', { class: 'hand-card-cost' }, c.cost));
+    }
+    if (c.text) {
+      card.appendChild(el('div', { class: 'hand-card-text' }, c.text));
+    }
+    return card;
   }
 
   // -------- cell-selection helpers --------
@@ -1238,9 +1362,14 @@
 
     // (Mid-turn Undo is rendered above the boards by renderTurnControls.)
 
-    // Group actions by type so the menu reads cleanly.
+    // Card-play actions (ui_hint:"card") are pulled out and rendered as their
+    // own group below — identified by ui_hint, not a fixed action type.
+    const cardActions = (state.legal_actions || []).filter((a) => a.ui_hint === 'card');
+
+    // Group the remaining actions by type so the menu reads cleanly.
     const groups = new Map();
     for (const a of state.legal_actions) {
+      if (a.ui_hint === 'card') continue;  // handled separately
       const key = a.type;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(a);
@@ -1277,6 +1406,22 @@
     const CELL_COLLAPSE_THRESHOLD = 6;
 
     let anyButtons = false;
+
+    // Card-play actions first — a dedicated button group at the top of the
+    // menu. Each is an .action-btn (with .card-action) that POSTs its index
+    // like any other action.
+    if (cardActions.length) {
+      menu.appendChild(el('div', { class: 'action-group-header' },
+        `Play card (${cardActions.length})`));
+      for (const a of cardActions) {
+        menu.appendChild(el('button',
+          { class: 'action-btn card-action',
+            onclick: () => submitAction(a.index) },
+          a.display));
+        anyButtons = true;
+      }
+    }
+
     for (const key of ORDER) {
       const opts = groups.get(key);
       if (!opts) continue;
@@ -1397,7 +1542,13 @@
   // ---------------------------------------------------------------------
 
   document.addEventListener('DOMContentLoaded', () => {
+    // "New game" opens the mode-select overlay (step 1 of the new-game flow).
     document.getElementById('reset-btn').addEventListener('click', resetGame);
+    // Mode-select overlay buttons → step 2 (startGame) for each variant.
+    const familyBtn = document.getElementById('mode-select-family');
+    if (familyBtn) familyBtn.addEventListener('click', () => startGame('family'));
+    const cardsBtn = document.getElementById('mode-select-cards');
+    if (cardsBtn) cardsBtn.addEventListener('click', () => startGame('cards'));
     // Download-trace button: navigate to /api/trace, which is served with a
     // Content-Disposition: attachment header so the browser saves it as
     // `agricola-trace-seed<seed>.json` instead of rendering it inline.
@@ -1452,9 +1603,13 @@
       }
     });
     // Load the initial state. From here on, every render comes from an action
-    // or toggle response — there is no push channel.
+    // or toggle response — there is no push channel. The server pre-creates a
+    // default Family game; after the first render we pop up the mode-select
+    // overlay so the very first thing the user sees is the variant choice
+    // (picking one just resets the pre-created game).
     fetch('/api/state').then((r) => r.json()).then((s) => {
       applyState(s);
+      resetGame();  // show the mode-select overlay on first load
     }).catch((err) => {
       setConnState(false);
       console.error('initial state fetch failed', err);

@@ -19,7 +19,7 @@
         <input type="checkbox" id="fast-mode-toggle">
         <span>Fast mode</span>
       </label>
-      <label class="header-toggle" title="Show the AI's value (Q) and visit count for each of your options. Runs in the background; never blocks your move. Configure the analysis model/budget in the row that appears below.">
+      <label class="header-toggle" id="analysis-toggle-label" title="Show the AI's value (Q) and visit count for each of your options. Runs in the background; never blocks your move. Configure the analysis model/budget in the row that appears below.">
         <input type="checkbox" id="analysis-toggle">
         <span>Show analysis</span>
       </label>
@@ -75,6 +75,7 @@
       <div id="p0-summary" class="player-summary"></div>
       <div id="p0-farmyard-container" class="farmyard-container"></div>
       <div id="p0-improvements"></div>
+      <div id="p0-hand"></div>
     </div>
 
     <div id="col-p1" class="panel">
@@ -82,6 +83,7 @@
       <div id="p1-summary" class="player-summary"></div>
       <div id="p1-farmyard-container" class="farmyard-container"></div>
       <div id="p1-improvements"></div>
+      <div id="p1-hand"></div>
     </div>
   </div>
 
@@ -102,6 +104,25 @@
       <h2>Game over</h2>
       <div id="game-over-content"></div>
       <button id="game-over-close">Close</button>
+    </div>
+  </div>
+
+  <!-- Mode-select landing overlay — shown on first load and on "New game".
+       Picks the game variant before any seed/opponent prompts. -->
+  <div id="mode-select-modal" class="modal hidden">
+    <div class="modal-body">
+      <h2>New game</h2>
+      <p class="mode-select-intro">Choose how you want to play.</p>
+      <div class="mode-select-buttons">
+        <button type="button" id="mode-select-family" class="mode-select-btn">
+          <span class="mode-select-title">Play without cards</span>
+          <span class="mode-select-sub">Family game vs the trained bot</span>
+        </button>
+        <button type="button" id="mode-select-cards" class="mode-select-btn">
+          <span class="mode-select-title">Play with cards <span class="mode-beta">beta</span></span>
+          <span class="mode-select-sub">Occupations &amp; minor improvements</span>
+        </button>
+      </div>
     </div>
   </div>
 
