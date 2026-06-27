@@ -720,3 +720,105 @@ body.is-submitting * { cursor: wait !important; }
   border-color: var(--accent-active);
 }
 .action-btn.card-action:hover { background: #e6f0d0; }
+
+/* ---------- hand-picker modal ---------- */
+
+.hand-picker-body {
+  min-width: 680px;
+  max-width: 95vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.hand-picker-body h2 { margin: 0 0 2px; font-size: 18px; }
+.hand-picker-intro { margin: 0; font-size: 12px; color: #5a4a2a; }
+.hand-picker-controls {
+  display: flex;
+  gap: 8px;
+}
+.hand-picker-controls button {
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  background: #fff8e0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.hand-picker-controls button:hover { background: #ffeeb8; }
+.hand-picker-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.hand-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+.hand-picker-section-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.hand-picker-section-title { font-weight: bold; font-size: 13px; }
+.hand-picker-count {
+  font-size: 11px;
+  color: #8a6a2a;
+  font-weight: bold;
+}
+.hand-picker-count.at-limit { color: #c04030; }
+.hand-picker-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 3px;
+}
+.picker-card {
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: #fff8e0;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  user-select: none;
+}
+.picker-card:hover { background: #ffeeb8; border-color: #c8a840; }
+.picker-card.selected {
+  background: #dff0c8;
+  border-color: var(--accent-active);
+  box-shadow: inset 0 0 0 1px var(--accent-active);
+}
+.picker-card-name { font-weight: bold; font-size: 12px; line-height: 1.3; }
+.picker-card-cost { font-size: 10px; color: #8a4a2a; margin-top: 1px; }
+.picker-card-prereq { font-size: 10px; color: #6a5a8a; font-style: italic; margin-top: 1px; }
+.picker-card-text { font-size: 10px; color: #4a4a4a; margin-top: 2px; line-height: 1.4; }
+.hand-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--panel-border);
+}
+.hand-picker-footer button {
+  padding: 5px 14px;
+  border-radius: 3px;
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.hand-picker-start-btn {
+  background: var(--accent-active) !important;
+  color: #fff !important;
+  border-color: var(--accent-active) !important;
+}
+.hand-picker-start-btn:hover { opacity: 0.9; }
