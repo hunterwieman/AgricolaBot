@@ -75,6 +75,7 @@ struct CommitBuildMajor {
 };
 struct CommitRenovate {
   Resources payment{};  // base renovate cost (Family: num_rooms of next material + 1 reed)
+  HouseMaterial to_material{};  // target tier (Family: always the next tier)
   bool operator==(const CommitRenovate&) const = default;
   auto operator<=>(const CommitRenovate&) const = default;
 };

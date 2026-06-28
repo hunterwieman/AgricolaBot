@@ -179,7 +179,7 @@ def test_bricklayer_discounts_renovate_end_to_end():
     state = _hr_state_owning("bricklayer", resources=Resources(clay=2, reed=1))
     state, payments = _drive_to_renovate(state)
     assert payments == [Resources(clay=1, reed=1)]   # the discounted singleton
-    state = step(state, CommitRenovate(payment=payments[0]))
+    state = step(state, CommitRenovate(payment=payments[0], to_material=HouseMaterial.CLAY))
     assert state.players[0].house_material == HouseMaterial.CLAY
     assert state.players[0].resources == Resources(clay=1)   # paid 1 clay + 1 reed of 2c1r
 
@@ -194,7 +194,8 @@ def test_frame_builder_offers_conversion_route_end_to_end():
         Resources(wood=1, reed=1),           # 2 clay -> 1 wood
     }
     # Take the conversion route and confirm the debit lands on wood, not clay.
-    state = step(state, CommitRenovate(payment=Resources(wood=1, reed=1)))
+    state = step(state, CommitRenovate(
+        payment=Resources(wood=1, reed=1), to_material=HouseMaterial.CLAY))
     assert state.players[0].house_material == HouseMaterial.CLAY
     assert state.players[0].resources == Resources(clay=2)   # wood + reed spent, clay kept
 
@@ -268,6 +269,36 @@ def test_frame_builder_room_conversion_two_step():
     state = step(state, CommitChooseCost(payment=Resources(clay=3, reed=2, wood=1)))
     assert isinstance(state.pending_stack[-1], PendingBuildRooms)
     assert state.players[0].resources == Resources(clay=2)   # 5-3 clay, 2-2 reed, 1-1 wood
+
+
+def test_pending_breadcrumb_renders_with_costless_frames():
+    """Regression (seed-47088 'Cottager: build a room → nothing happens'): the
+    cost-modifier refactor removed `cost` from PendingBuildRooms and PendingRenovate
+    (cost is resolved via `effective_payments` now). The shared pending-stack
+    breadcrumb renderer (`play._pending_detail`, used by the web UI's `state_to_json`)
+    must not assume `.cost` — otherwise building the snapshot raises AttributeError
+    while such a frame is on the stack, 500-ing `/api/action` so the client never
+    updates ('nothing happens')."""
+    from play import render_pending
+
+    # Build Rooms host (no `cost` field) on the stack — and the PendingChooseCost
+    # two-step it pushes when a card offers >1 payment.
+    state = _fe_state_owning(
+        "frame_builder", material=HouseMaterial.CLAY,
+        resources=Resources(clay=5, reed=2, wood=1))
+    state, room = _drive_to_build_rooms(state)
+    assert isinstance(state.pending_stack[-1], PendingBuildRooms)
+    assert isinstance(render_pending(state), str)          # no AttributeError
+    state = step(state, room)
+    assert isinstance(state.pending_stack[-1], PendingChooseCost)
+    assert isinstance(render_pending(state), str)
+
+    # Renovate host (also no `cost` field).
+    rstate = _hr_state_owning("frame_builder", resources=Resources(clay=2, reed=1, wood=1))
+    rstate, _ = _drive_to_renovate(rstate)
+    from agricola.pending import PendingRenovate
+    assert isinstance(rstate.pending_stack[-1], PendingRenovate)
+    assert isinstance(render_pending(rstate), str)
 
 
 # ===========================================================================
@@ -363,7 +394,7 @@ def test_clay_plasterer_plus_bricklayer_renovate_is_section_4_2():
         "clay_plasterer", "bricklayer", resources=Resources(clay=2, reed=1))
     state, payments = _drive_to_renovate(state)
     assert payments == [Resources(reed=1)]
-    state = step(state, CommitRenovate(payment=Resources(reed=1)))
+    state = step(state, CommitRenovate(payment=Resources(reed=1), to_material=HouseMaterial.CLAY))
     assert state.players[0].house_material == HouseMaterial.CLAY
     assert state.players[0].resources == Resources(clay=2)        # paid only 1 reed
 
@@ -531,3 +562,51 @@ def test_millwright_stable_budget_is_per_action():
     state = step(state, stables[0])
     assert isinstance(state.pending_stack[-1], PendingBuildStables)   # NOT PendingChooseCost
     assert grain0 - state.players[0].resources.grain == 2
+
+
+# ===========================================================================
+# Conservator (occupation) — the renovate-TARGET model: a wood house may renovate
+# directly to STONE (skipping clay); the stone-tier cost flows through the chokepoint.
+# ===========================================================================
+
+def test_conservator_offers_wood_to_stone_target():
+    # With Conservator, the renovate decision offers BOTH wood->clay (2 clay + 1 reed)
+    # and wood->stone (2 stone + 1 reed); each commit carries its target.
+    state = _hr_state_owning("conservator", resources=Resources(clay=2, reed=1, stone=2))
+    state = step(state, PlaceWorker(space="house_redevelopment"))
+    state = step(state, ChooseSubAction(name="renovate"))
+    opts = {(a.to_material, a.payment) for a in legal_actions(state)
+            if isinstance(a, CommitRenovate)}
+    assert opts == {
+        (HouseMaterial.CLAY, Resources(clay=2, reed=1)),
+        (HouseMaterial.STONE, Resources(stone=2, reed=1)),
+    }
+    # Take the direct-to-stone option: house goes straight to stone, stone+reed debited.
+    cr = next(a for a in legal_actions(state)
+              if isinstance(a, CommitRenovate) and a.to_material is HouseMaterial.STONE)
+    state = step(state, cr)
+    assert state.players[0].house_material is HouseMaterial.STONE
+    assert state.players[0].resources == Resources(clay=2)   # paid 2 stone + 1 reed
+
+
+def test_without_conservator_only_clay_target():
+    state = _hr_state_owning(resources=Resources(clay=2, reed=1, stone=2))
+    state = step(state, PlaceWorker(space="house_redevelopment"))
+    state = step(state, ChooseSubAction(name="renovate"))
+    targets = {a.to_material for a in legal_actions(state)
+               if isinstance(a, CommitRenovate)}
+    assert targets == {HouseMaterial.CLAY}
+
+
+def test_conservator_stone_target_unaffected_by_clay_reduction():
+    # Bricklayer (-1 clay on renovate) discounts the CLAY target but not the STONE one.
+    state = _hr_state_owning(
+        "conservator", "bricklayer", resources=Resources(clay=2, reed=1, stone=2))
+    state = step(state, PlaceWorker(space="house_redevelopment"))
+    state = step(state, ChooseSubAction(name="renovate"))
+    opts = {(a.to_material, a.payment) for a in legal_actions(state)
+            if isinstance(a, CommitRenovate)}
+    assert opts == {
+        (HouseMaterial.CLAY, Resources(clay=1, reed=1)),    # 2 clay - 1 (Bricklayer)
+        (HouseMaterial.STONE, Resources(stone=2, reed=1)),  # stone tier, untouched
+    }

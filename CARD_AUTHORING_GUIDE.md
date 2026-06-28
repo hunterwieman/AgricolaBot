@@ -454,6 +454,7 @@ Find the row that matches your card's shape and copy that module's structure.
 | Cost modifier — reduction ("costs N less") | `bricklayer.py`, `lumber_mill.py`, `master_bricklayer.py` (state-dependent delta) |
 | Cost modifier — whole-cost formula ("only costs X") | `carpenter.py`, `clay_plasterer.py` (conditional), `carpenters_parlor.py` |
 | Cost modifier — conversion ("replace A with B") / per-action-budgeted sink | `frame_builder.py`, `millwright.py` (the per-action-budget + `record` pattern) |
+| Cost modifier — renovate-target extension ("renovate wood→stone directly") | `conservator.py` (`register_renovate_target_extension`; cost follows the target) |
 | On-play: gain goods | `consultant.py`, `clay_embankment.py` |
 | On-play: push a primitive (plow/etc.) | `shifting_cultivation.py` |
 | Passing (traveling) minor | `market_stall.py` |

@@ -678,6 +678,17 @@ deferred; the cost frontier must not assume current `p.resources` is final.**
 3. **Two real cards on renovate.** ✅ Bricklayer (reduction) + Frame Builder (conversion), now live
    in `cards/__init__` — exercises reductions, conversions, the §4.3 ordering, and the apply-each-once
    closure, both at the chokepoint and end-to-end through House Redevelopment.
+   - **Renovate-target model (2026-06-28) — generalizes renovate beyond the next tier.** Renovation's
+     *target* tier is now a degree of freedom: `_renovate_ctx(p, to_material)` is parameterized;
+     `_legal_renovate_targets(state, p)` returns the next tier plus any **card-added** targets via the
+     `RENOVATE_TARGET_EXTENSIONS` registry (mirrors `BAKE_BREAD_ELIGIBILITY_EXTENSIONS`); the enumerator
+     goes wide over (target × payment); `CommitRenovate` gained **`to_material`** and `_execute_renovate`
+     upgrades to exactly it. **Conservator** (occupation A87) is the first user — a renovate-target
+     extension adding wood→stone (skipping clay); the stone-tier cost flows through the chokepoint, so
+     reductions/conversions compose per target and there's no payment-provenance guessing. Chosen over a
+     cost-formula+flag model precisely to avoid that provenance trap, and it absorbs Wood Slide Hammer
+     (another wood→stone-direct card) cleanly. `to_material` adds to the trace serde (the bare enum
+     name) and was re-ported to C++ (Family target is always the next tier, byte-identical).
 4. **C++ re-port** ✅ for the renovate shape changes (§3.8); `tests/test_cpp_*.py` green (139).
 5. **Extend** to rooms (two-step + `PendingChooseCost`, §3.7), then minors, then majors, then
    build-stable. Build-fence is out of scope. Sub-status:

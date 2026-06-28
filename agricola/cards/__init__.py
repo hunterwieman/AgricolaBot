@@ -74,6 +74,9 @@ from agricola.cards import master_bricklayer    # noqa: F401
 # REDUCTION; "every improvement" = major OR minor only, not rooms/renovation).
 from agricola.cards import carpenters_parlor    # noqa: F401
 from agricola.cards import lumber_mill          # noqa: F401
+# Conservator (occupation): a renovate-TARGET extension — wood house may renovate
+# directly to stone (skipping clay); the stone-tier cost flows through the chokepoint.
+from agricola.cards import conservator          # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

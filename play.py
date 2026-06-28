@@ -347,11 +347,19 @@ def _pending_detail(frame, state: GameState) -> str:
         return ", ".join(bits)
     if cls in ("PendingBuildStables", "PendingBuildRooms"):
         cap = "inf" if frame.max_builds is None else str(frame.max_builds)
-        return f"num_built={frame.num_built}, cap={cap}, cost/build={_fmt_cost(frame.cost)}"
+        detail = f"num_built={frame.num_built}, cap={cap}"
+        # Build Stables still carries a caller-supplied base cost on the frame; Build
+        # Rooms now resolves cost through the cost-modifier chokepoint
+        # (`effective_payments`), so it no longer stores one (COST_MODIFIER_DESIGN.md).
+        if hasattr(frame, "cost"):
+            detail += f", cost/build={_fmt_cost(frame.cost)}"
+        return detail
     if cls in ("PendingSheepMarket", "PendingPigMarket", "PendingCattleMarket"):
         return f"gained={frame.gained}"
     if cls == "PendingRenovate":
-        return f"cost={_fmt_cost(frame.cost)}"
+        # Cost is resolved via `effective_payments` / `CommitRenovate.payment`
+        # (cost-modifier system); it is not stored on the frame.
+        return ""
     return ""
 
 

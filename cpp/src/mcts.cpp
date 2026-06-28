@@ -58,7 +58,7 @@ inline void af(std::size_t& h, const PaymentOption& pay) {
 }
 inline void hf(std::size_t& h, const CommitBuildRoom& a) { af(h, a.row); af(h, a.col); }
 inline void hf(std::size_t& h, const CommitBuildMajor& a) { af(h, a.major_idx); af(h, a.payment); }
-inline void hf(std::size_t& h, const CommitRenovate& a) { af(h, a.payment); }
+inline void hf(std::size_t& h, const CommitRenovate& a) { af(h, a.payment); af(h, static_cast<int>(a.to_material)); }
 inline void hf(std::size_t& h, const CommitAccommodate& a) { af(h, a.sheep); af(h, a.boar); af(h, a.cattle); }
 inline void hf(std::size_t& h, const CommitBuildPasture& a) {
   for (const auto& [r, c] : a.cells) { af(h, r); af(h, c); }

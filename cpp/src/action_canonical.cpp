@@ -18,6 +18,23 @@ namespace agricola {
 namespace {
 using json = nlohmann::json;
 
+// HouseMaterial <-> enum-name string (CommitRenovate.to_material serializes as the
+// bare enum NAME, e.g. "CLAY" — mirror of Python's `v.name` / `HouseMaterial[v]`).
+const char* house_material_name(HouseMaterial m) {
+  switch (m) {
+    case HouseMaterial::WOOD: return "WOOD";
+    case HouseMaterial::CLAY: return "CLAY";
+    case HouseMaterial::STONE: return "STONE";
+  }
+  throw std::runtime_error("bad HouseMaterial");
+}
+HouseMaterial house_material_from_name(const std::string& n) {
+  if (n == "WOOD") return HouseMaterial::WOOD;
+  if (n == "CLAY") return HouseMaterial::CLAY;
+  if (n == "STONE") return HouseMaterial::STONE;
+  throw std::runtime_error("bad HouseMaterial name: " + n);
+}
+
 // Serialize a PaymentOption as the tagged dict Python's trace_replay._payment_to_json
 // emits: a Resources is {"route":"resources", + 7 flat components}; a non-resource
 // route is {"route":"return_improvement","improvement_idx":i}. NO __type__.
@@ -67,8 +84,10 @@ json params_of(const CommitBuildMajor& a) {
   return json{{"major_idx", a.major_idx}, {"payment", payment_to_json(a.payment)}};
 }
 json params_of(const CommitRenovate& a) {
-  // Family renovate is always a Resources payment (no route).
-  return json{{"payment", payment_to_json(a.payment)}};
+  // Family renovate is always a Resources payment (no route); to_material is the
+  // bare enum name.
+  return json{{"payment", payment_to_json(a.payment)},
+              {"to_material", house_material_name(a.to_material)}};
 }
 json params_of(const CommitAccommodate& a) {
   return json{{"sheep", a.sheep}, {"boar", a.boar}, {"cattle", a.cattle}};
@@ -155,8 +174,11 @@ Action action_from_json(const std::string& text) {
     return CommitBuildMajor{p.at("major_idx").get<int>(),
                             payment_from_json(p.at("payment"))};
   if (t == "CommitRenovate")
-    // Family renovate is always a Resources payment (no route).
-    return CommitRenovate{std::get<Resources>(payment_from_json(p.at("payment")))};
+    // Family renovate is always a Resources payment (no route); to_material is the
+    // bare enum name.
+    return CommitRenovate{
+        std::get<Resources>(payment_from_json(p.at("payment"))),
+        house_material_from_name(p.at("to_material").get<std::string>())};
   if (t == "CommitAccommodate")
     return CommitAccommodate{p.at("sheep").get<int>(), p.at("boar").get<int>(),
                              p.at("cattle").get<int>()};

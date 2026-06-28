@@ -574,12 +574,16 @@ std::vector<Action> enum_renovate(const GameState& s,
   if (pd.phase == "after") return {Stop{}};  // after-phase: triggers (none in Family) + Stop
   // Payment = the base renovate cost (num_rooms of the next material + 1 reed):
   // WOOD->clay, CLAY->stone. Mirrors agricola/legality.py + renovate_cost().
+  // to_material = the next tier (Family has no target extension — Conservator's
+  // wood->stone route is card-only).
   const PlayerState& p = frame_player(s, pd.player_idx);
   int nr = num_rooms(p);
-  Resources payment = (p.house_material == HouseMaterial::WOOD)
-                          ? Resources{0, nr, 1, 0, 0, 0, 0}   // clay=nr, reed=1
-                          : Resources{0, 0, 1, nr, 0, 0, 0};  // stone=nr, reed=1
-  return {CommitRenovate{payment}};
+  bool wood = p.house_material == HouseMaterial::WOOD;
+  Resources payment = wood ? Resources{0, nr, 1, 0, 0, 0, 0}   // clay=nr, reed=1
+                           : Resources{0, 0, 1, nr, 0, 0, 0};  // stone=nr, reed=1
+  HouseMaterial to_material =
+      wood ? HouseMaterial::CLAY : HouseMaterial::STONE;
+  return {CommitRenovate{payment, to_material}};
 }
 
 std::vector<Action> enum_farm_expansion(const GameState& s,

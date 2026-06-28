@@ -32,6 +32,7 @@ from agricola.actions import (
 )
 from agricola.agents.base import RandomAgent
 from agricola.agents.nn.recording import play_recording_game
+from agricola.constants import HouseMaterial
 from agricola.cost import ReturnImprovement
 from agricola.resources import Resources
 from agricola.agents.nn.trace_replay import (
@@ -54,8 +55,8 @@ _SAMPLE_ACTIONS = [
     CommitBuildRoom(row=1, col=1),
     CommitBuildMajor(major_idx=2, payment=Resources(clay=4)),               # standard payment
     CommitBuildMajor(major_idx=2, payment=ReturnImprovement(improvement_idx=0)),  # fireplace route
-    CommitRenovate(payment=Resources(clay=2, reed=1)),       # Resources payment serde
-    CommitRenovate(payment=ReturnImprovement(improvement_idx=0)),  # route payment serde
+    CommitRenovate(payment=Resources(clay=2, reed=1), to_material=HouseMaterial.CLAY),
+    CommitRenovate(payment=Resources(stone=2, reed=1), to_material=HouseMaterial.STONE),
     CommitAccommodate(sheep=1, boar=2, cattle=3),
     CommitBuildPasture(cells=frozenset({(0, 1), (0, 2)})),
     CommitHarvestConversion(conversion_id="joinery"),

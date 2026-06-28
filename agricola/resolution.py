@@ -1188,12 +1188,13 @@ def _execute_renovate(
     pending = state.pending_stack[-1]
     assert isinstance(pending, PendingRenovate)
     p = state.players[player_idx]
-    if p.house_material == HouseMaterial.WOOD:
-        new_material = HouseMaterial.CLAY
-    elif p.house_material == HouseMaterial.CLAY:
-        new_material = HouseMaterial.STONE
-    else:
-        raise AssertionError("CommitRenovate illegal on stone house")
+    # The target tier rides on the commit (the renovate-target model): usually the next
+    # tier, but a card (Conservator) can make wood→stone legal. Resolution upgrades to
+    # exactly `commit.to_material` rather than deriving the next tier.
+    assert p.house_material is not HouseMaterial.STONE, (
+        "CommitRenovate illegal on a stone house"
+    )
+    new_material = commit.to_material
     assert isinstance(commit.payment, Resources), (
         "renovate has no non-resource payment routes"
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 
+from agricola.constants import HouseMaterial
 from agricola.cost import PaymentOption
 
 
@@ -126,8 +127,16 @@ class CommitRenovate(CommitSubAction):
     that cost. `_execute_renovate` debits it. Renovate has no non-resource routes, so
     in practice `payment` is always a `Resources`, but the field is typed over the full
     `PaymentOption` union for uniformity with the other wide commits.
+
+    `to_material` is the target tier of this renovation. Normally it is just the next
+    tier (WOOD→CLAY, CLAY→STONE), but a card can make additional targets legal — e.g.
+    Conservator lets a wood house renovate directly to STONE — so the *target* is a
+    degree of freedom carried on the commit, and `_execute_renovate` upgrades to exactly
+    `to_material` (rather than deriving the next tier). `payment` is the cost of reaching
+    that target (COST_MODIFIER_DESIGN.md §3.2; the renovate-target model).
     """
     payment: PaymentOption
+    to_material: HouseMaterial
 
 
 @dataclass(frozen=True)

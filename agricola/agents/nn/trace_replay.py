@@ -41,7 +41,7 @@ from agricola.agents.nn.schema import (
     compute_winner,
 )
 from agricola.canonical import from_canonical, to_canonical
-from agricola.constants import Phase
+from agricola.constants import HouseMaterial, Phase
 from agricola.engine import step
 from agricola.legality import legal_actions
 from agricola.scoring import score, tiebreaker
@@ -98,6 +98,8 @@ def action_to_params(action: Action) -> dict[str, Any]:
             params[f.name] = [list(t) for t in sorted(v)]
         elif isinstance(v, (Resources, ReturnImprovement)):
             params[f.name] = _payment_to_json(v)
+        elif f.name == "to_material":
+            params[f.name] = v.name          # HouseMaterial enum -> "WOOD"/"CLAY"/"STONE"
         else:
             params[f.name] = v
     return params
@@ -112,6 +114,8 @@ def action_from_params(type_name: str, params: dict[str, Any]) -> Action:
             kwargs[k] = frozenset(tuple(c) for c in v)
         elif isinstance(v, dict) and "route" in v:
             kwargs[k] = _payment_from_json(v)
+        elif k == "to_material":
+            kwargs[k] = HouseMaterial[v]
         else:
             kwargs[k] = v
     return cls(**kwargs)

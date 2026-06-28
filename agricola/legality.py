@@ -129,6 +129,20 @@ def register_bake_bread_extension(fn: Callable) -> None:
     BAKE_BREAD_ELIGIBILITY_EXTENSIONS.append(fn)
 
 
+# Card-supplied renovate-TARGET extensions. Renovation normally goes one tier
+# (WOOD→CLAY, CLAY→STONE); a card may make further targets legal — Conservator lets a
+# wood house renovate directly to STONE. Each fn takes (state, player_idx,
+# current_material) -> list[HouseMaterial] (extra legal targets) and self-gates on its
+# own ownership. Consumed by `_legal_renovate_targets`. (The cost of each target then
+# flows through the cost-modifier chokepoint as usual.) See COST_MODIFIER_DESIGN.md.
+RENOVATE_TARGET_EXTENSIONS: list[Callable] = []
+
+
+def register_renovate_target_extension(fn: Callable) -> None:
+    """Add a card-supplied fn that may add legal renovate targets."""
+    RENOVATE_TARGET_EXTENSIONS.append(fn)
+
+
 # Card-supplied baking sources. Each registered fn takes (state, player_idx)
 # and returns a list of (max_grain_per_action, food_per_grain) tuples for
 # baking sources the player owns from non-major-improvement origins
@@ -455,39 +469,53 @@ def _can_build_room(state: GameState, p: PlayerState) -> bool:
     return _can_afford_room(state, p) and _has_room_placement(p)
 
 
-def _renovate_ctx(p: PlayerState) -> CostCtx:
-    """The cost-resolution context for renovating player `p`'s house one tier up.
+_RENOVATE_BASE_FIELD = {HouseMaterial.CLAY: "clay", HouseMaterial.STONE: "stone"}
 
-    Base (printed) cost: 1 of the next material per room + 1 reed total
-    (Wood→Clay: `num_rooms` clay + 1 reed; Clay→Stone: `num_rooms` stone + 1 reed).
-    `to_material` is the upgrade target, which cost-modifier cards may read
-    (e.g. a card that only discounts the clay tier). Assumes the house is not stone
-    — callers gate on that via `_can_renovate`'s STONE guard.
+
+def _renovate_ctx(p: PlayerState, to_material: HouseMaterial) -> CostCtx:
+    """The cost-resolution context for renovating player `p`'s house to `to_material`.
+
+    Base (printed) cost: 1 of the TARGET material per room + 1 reed total (to clay:
+    `num_rooms` clay + 1 reed; to stone: `num_rooms` stone + 1 reed). `to_material` is a
+    degree of freedom — usually the next tier, but a card may make a further tier legal
+    (Conservator: wood→stone). Cost-modifier cards may read `to_material` (e.g. a card
+    that only discounts the stone tier).
     """
     num_rooms = _num_rooms(p)
-    if p.house_material == HouseMaterial.WOOD:
-        return CostCtx(
-            "renovate", Resources(clay=num_rooms, reed=1),
-            to_material=HouseMaterial.CLAY, num_rooms=num_rooms,
-        )
-    return CostCtx(  # CLAY -> STONE (STONE filtered out by _can_renovate)
-        "renovate", Resources(stone=num_rooms, reed=1),
-        to_material=HouseMaterial.STONE, num_rooms=num_rooms,
-    )
+    base = Resources(**{_RENOVATE_BASE_FIELD[to_material]: num_rooms, "reed": 1})
+    return CostCtx("renovate", base, to_material=to_material, num_rooms=num_rooms)
+
+
+def _legal_renovate_targets(state: GameState, p: PlayerState) -> list:
+    """The house materials player `p` may renovate to right now. Normally the single
+    next tier (WOOD→[CLAY], CLAY→[STONE], STONE→[]); card extensions add more
+    (Conservator: a wood house may also go straight to STONE)."""
+    mat = p.house_material
+    if mat == HouseMaterial.WOOD:
+        targets = [HouseMaterial.CLAY]
+    elif mat == HouseMaterial.CLAY:
+        targets = [HouseMaterial.STONE]
+    else:  # STONE — already top tier
+        targets = []
+    idx = 0 if p is state.players[0] else 1
+    for ext in RENOVATE_TARGET_EXTENSIONS:
+        for t in ext(state, idx, mat):
+            if t not in targets:
+                targets.append(t)
+    return targets
 
 
 def _can_renovate(state: GameState, p: PlayerState) -> bool:
-    """The house is wood or clay AND the player can afford to upgrade ALL rooms.
-
-    Affordability runs through the cost-modifier chokepoint `can_pay`, so a player
-    who cannot pay the printed cost but owns a cost card (formula / conversion /
-    non-resource route) is still allowed to renovate. In the Family game `can_pay`
-    reduces to "can afford the printed base", i.e. the old inline check.
+    """At least one legal renovate target exists AND is payable through the cost-modifier
+    chokepoint `can_pay` (so a card that discounts/converts/extends a target makes it
+    reachable). In the Family game this reduces to "can afford the next tier's printed
+    cost", i.e. the old inline check.
     """
-    if p.house_material == HouseMaterial.STONE:
-        return False
     idx = 0 if p is state.players[0] else 1
-    return can_pay(state, idx, _renovate_ctx(p))
+    return any(
+        can_pay(state, idx, _renovate_ctx(p, t))
+        for t in _legal_renovate_targets(state, p)
+    )
 
 
 def _build_major_ctx(idx: int) -> CostCtx:
@@ -1352,10 +1380,11 @@ def _enumerate_pending_renovate(
 ) -> list[Action]:
     """Enumerate legal CommitRenovate actions at PendingRenovate.
 
-    Renovate is a *wide* action: its only degree of freedom is which payment to make
-    (COST_MODIFIER_DESIGN.md §3.4). The before-phase emits one `CommitRenovate` per
-    entry of the cost-modifier frontier `effective_payments` — exactly one option in
-    the Family game (the singleton printed cost), several when cost cards are owned.
+    Renovate is *wide* over (target, payment) (COST_MODIFIER_DESIGN.md §3.4 + the
+    renovate-target model): for each legal target tier (usually just the next one;
+    Conservator adds wood→stone), the before-phase emits one `CommitRenovate` per entry
+    of that target's cost-modifier frontier `effective_payments` — exactly one option in
+    the Family game (the next tier's singleton printed cost), several with cost cards.
 
     Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after-phase offers
     after_renovate triggers (e.g. Mining Hammer's free stable) + Stop;
@@ -1366,8 +1395,10 @@ def _enumerate_pending_renovate(
         actions.append(Stop())
         return actions
     p = state.players[pending.player_idx]
-    for payment in effective_payments(state, pending.player_idx, _renovate_ctx(p)):
-        actions.append(CommitRenovate(payment=payment))
+    for target in _legal_renovate_targets(state, p):
+        ctx = _renovate_ctx(p, target)
+        for payment in effective_payments(state, pending.player_idx, ctx):
+            actions.append(CommitRenovate(payment=payment, to_material=target))
     return actions
 
 

@@ -539,12 +539,10 @@ GameState execute_renovate(const GameState& state, int player_idx,
   // Assert the frame type (the payment now rides on the commit, not the frame).
   (void)std::get<PendingRenovate>(state.pending_stack.back());
   PlayerState p = state.players[static_cast<size_t>(player_idx)];
-  if (p.house_material == HouseMaterial::WOOD)
-    p.house_material = HouseMaterial::CLAY;
-  else if (p.house_material == HouseMaterial::CLAY)
-    p.house_material = HouseMaterial::STONE;
-  else
+  if (p.house_material == HouseMaterial::STONE)
     throw std::runtime_error("CommitRenovate illegal on stone house");
+  // Upgrade to the chosen target tier (Family: == the derived next tier).
+  p.house_material = commit.to_material;
   p.resources = p.resources - commit.payment;
   return enter_after_phase(update_player(state, player_idx, p));
 }
