@@ -80,6 +80,12 @@ def _fmt(card: dict, implemented: set[str]) -> str:
         if key in card and card[key] not in (None, "X", ""):
             lines.append(f"  {label}: {card[key]}")
     lines.append(f"  text: {card['text']}")
+    # Compendium rulings (added from the Unofficial Compendium): clarifications are
+    # community/official rulings; errata are official corrections (may change the card).
+    if card.get("clarifications"):
+        lines.append(f"  clarifications: {card['clarifications']}")
+    if card.get("errata"):
+        lines.append(f"  errata: {card['errata']}")
     return "\n".join(lines)
 
 
