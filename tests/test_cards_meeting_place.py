@@ -10,7 +10,7 @@ is always the decline (legal from the start). Card mode also skips the per-round
 food refill on that slot, so it never accumulates.
 """
 from agricola.actions import (
-    ChooseSubAction, CommitPlayMinor, PlaceWorker, Proceed, Stop,
+    ChooseSubAction, PlaceWorker, Proceed, Stop,
 )
 from agricola.agents.base import RandomAgent, play_game
 from agricola.constants import GameMode
@@ -20,6 +20,7 @@ from agricola.pending import PendingMeetingPlace
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import CardPool, setup_env
+from tests.test_utils import sole_play_minor
 from agricola.state import get_space
 
 _POOL = CardPool(
@@ -54,8 +55,8 @@ def test_become_sp_then_play_minor():
     assert ChooseSubAction(name="play_minor") in acts and Proceed() in acts
 
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    assert legal_actions(cs) == [CommitPlayMinor(card_id="market_stall")]
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    assert legal_actions(cs) == [sole_play_minor(cs, "market_stall")]
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     assert cs.players[cp].resources.veg == 1
     assert "market_stall" in cs.players[opp].hand_minors  # passing -> circulated
     assert legal_actions(cs) == [Stop()]                  # PendingPlayMinor after-phase
@@ -178,14 +179,14 @@ def test_meeting_place_and_basic_wish_expose_space_id():
 
 def test_action_space_hook_owner_no_crash_at_meeting_place():
     """Regression for the seed-11583 web soft-lock. P0 owned Assistant Tiller (an
-    occupation that hooks the Day Laborer space via `after_action_space` and reads
+    occupation that hooks the Day Laborer space via `before_action_space` and reads
     `top.space_id` in its eligibility check). The instant P0 played a minor at
     Meeting Place, the top of the stack was PendingMeetingPlace — which lacked
     `space_id` — so enumerating `legal_actions` raised AttributeError and the UI
     soft-locked. This drives that exact path and asserts the turn completes."""
     import agricola.cards  # noqa: F401 — ensure card triggers are registered
     cs, _env, cp = _card_state(minors=frozenset({"market_stall"}), sp_other=True)
-    # Own Assistant Tiller (played occupation → its after_action_space hook fires).
+    # Own Assistant Tiller (played occupation → its before_action_space hook fires).
     p = fast_replace(cs.players[cp], occupations=frozenset({"assistant_tiller"}))
     cs = fast_replace(cs, players=tuple(
         p if i == cp else cs.players[i] for i in range(2)))
@@ -197,7 +198,7 @@ def test_action_space_hook_owner_no_crash_at_meeting_place():
     assert ChooseSubAction(name="play_minor") in acts
 
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     cs = step(cs, Stop())        # pop the play-minor after-phase
     cs = step(cs, Proceed())     # flip parent to after (hook re-enumerated here too)
     assert legal_actions(cs) == [Stop()]

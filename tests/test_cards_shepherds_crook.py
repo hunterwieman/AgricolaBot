@@ -12,7 +12,6 @@ Farm Redevelopment), per CARD_AUTHORING_GUIDE §5.
 from agricola.actions import (
     ChooseSubAction,
     CommitBuildPasture,
-    CommitRenovate,
     PlaceWorker,
     Proceed,
     Stop,
@@ -25,6 +24,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Resources
 from tests.factories import with_house, with_resources
 from tests.test_fencing import _fencing_setup, _with_initial_pasture
+from tests.test_utils import sole_renovate
 
 from agricola.constants import HouseMaterial
 
@@ -182,7 +182,7 @@ def test_via_farm_redevelopment():
     state = with_space(state, "farm_redevelopment", revealed=True)
     state = step(state, PlaceWorker(space="farm_redevelopment"))
     state = step(state, ChooseSubAction(name="renovate"))
-    state = step(state, CommitRenovate())
+    state = step(state, sole_renovate(state))
     state = step(state, Stop())                                  # pop PendingRenovate
     state = step(state, ChooseSubAction(name="build_fences"))
     state = step(state, CommitBuildPasture(cells=_2x2_TR))

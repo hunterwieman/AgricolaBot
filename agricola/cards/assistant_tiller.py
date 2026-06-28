@@ -7,8 +7,12 @@ Category 4 (action-space hook, granted sub-action). A grant is the player's
 choice → an OPTIONAL trigger (register, not register_auto) whose apply_fn pushes
 the existing PendingPlow primitive. Eligibility gates on a plow actually being
 possible (a free, plowable cell), so we never grant a dead-end sub-action. Fires
-on Day Laborer's after-phase (the +2 food first, then the optional plow). Played
-via Lessons; on-play is a no-op. See CARD_IMPLEMENTATION_PLAN.md Category 4.
+on Day Laborer's BEFORE-phase: "each time you use [space]" fires before the
+space's own effect (the Trigger-Timing ruling). This also puts it in the same
+host phase as Cottager (the other "each time you use Day Laborer" grant), so when
+a player owns both, the two grants are offered together and can be taken in either
+order. Played via Lessons; on-play is a no-op. See CARD_IMPLEMENTATION_PLAN.md
+Category 4.
 """
 from __future__ import annotations
 
@@ -33,5 +37,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)
-register("after_action_space", CARD_ID, _eligible, _apply)
+register("before_action_space", CARD_ID, _eligible, _apply)
 register_action_space_hook(CARD_ID, SPACES)

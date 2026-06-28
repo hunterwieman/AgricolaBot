@@ -537,7 +537,8 @@ std::vector<Action> enum_build_rooms(const GameState& s,
   const auto& p = frame_player(s, pd.player_idx);
   std::vector<Action> a;
   bool cap_ok = !pd.max_builds.has_value() || pd.num_built < *pd.max_builds;
-  if (cap_ok && can_afford(p, pd.cost))
+  // Room cost recomputed (Family: singleton ROOM_COSTS), not read off the frame.
+  if (cap_ok && can_afford(p, room_cost(p.house_material)))
     for (const auto& [r, c] : legal_room_cells(p))
       a.push_back(CommitBuildRoom{r, c});
   if (pd.num_built >= 1) a.push_back(Proceed{});
@@ -553,21 +554,32 @@ std::vector<Action> enum_build_major(const GameState& s,
   std::vector<Action> a;
   for (int idx = 0; idx < 10; ++idx) {
     if (owners[idx].has_value()) continue;
+    // Wide commit: one CommitBuildMajor per affordable PaymentOption — the printed
+    // Resources cost (when affordable) + each owned-Fireplace return route for
+    // Cooking Hearth. Same decision set as before, packaged as payments.
     if (can_afford(p, MAJOR_IMPROVEMENT_COSTS[idx]))
-      a.push_back(CommitBuildMajor{idx, std::nullopt});
+      a.push_back(CommitBuildMajor{idx, MAJOR_IMPROVEMENT_COSTS[idx]});
     // Cooking Hearth via Fireplace return.
     if (idx == 2 || idx == 3) {
       for (int fp : FIREPLACE_INDICES)
         if (owners[fp].has_value() && *owners[fp] == pid)
-          a.push_back(CommitBuildMajor{idx, std::optional<int>(fp)});
+          a.push_back(CommitBuildMajor{idx, ReturnImprovement{fp}});
     }
   }
   return a;
 }
 
-std::vector<Action> enum_renovate(const GameState&, const PendingRenovate& pd) {
+std::vector<Action> enum_renovate(const GameState& s,
+                                  const PendingRenovate& pd) {
   if (pd.phase == "after") return {Stop{}};  // after-phase: triggers (none in Family) + Stop
-  return {CommitRenovate{}};
+  // Payment = the base renovate cost (num_rooms of the next material + 1 reed):
+  // WOOD->clay, CLAY->stone. Mirrors agricola/legality.py + renovate_cost().
+  const PlayerState& p = frame_player(s, pd.player_idx);
+  int nr = num_rooms(p);
+  Resources payment = (p.house_material == HouseMaterial::WOOD)
+                          ? Resources{0, nr, 1, 0, 0, 0, 0}   // clay=nr, reed=1
+                          : Resources{0, 0, 1, nr, 0, 0, 0};  // stone=nr, reed=1
+  return {CommitRenovate{payment}};
 }
 
 std::vector<Action> enum_farm_expansion(const GameState& s,

@@ -368,7 +368,6 @@ def test_room_cell_priority_picks_top_available():
         PendingBuildRooms(
             player_idx=0,
             initiated_by_id="farm_expansion",
-            cost=Resources(wood=5, reed=2),
             max_builds=None,
             num_built=0,
         ),
@@ -443,7 +442,6 @@ def test_room_cap_blocks_commit_at_build_rooms():
         PendingBuildRooms(
             player_idx=0,
             initiated_by_id="farm_expansion",
-            cost=Resources(wood=5, reed=2),
             max_builds=None,
             num_built=1,  # at least one room built this session ⇒ Stop legal
         ),

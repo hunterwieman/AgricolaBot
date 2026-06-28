@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 
+from agricola.cost import PaymentOption
+
 
 # ---------------------------------------------------------------------------
 # Action types
@@ -94,9 +96,13 @@ class CommitBuildRoom(CommitSubAction):
 class CommitBuildMajor(CommitSubAction):
     """Commit a Major Improvement purchase.
 
-    For Cooking Hearth (major_idx 2 or 3), `return_fireplace_idx` can be
-    set to 0 or 1 to pay by returning the named Fireplace instead of
-    paying clay. For all other majors, `return_fireplace_idx` must be None.
+    A *wide* commit (COST_MODIFIER_DESIGN.md §3.4): `payment` is the chosen
+    `PaymentOption` from the cost-modifier frontier `effective_payments` — either a
+    `Resources` vector (the printed clay/etc. cost, or a card-reduced/converted
+    variant) or, for Cooking Hearth (major_idx 2 or 3), a `ReturnImprovement(fp)`
+    route that pays by returning a Fireplace (idx 0 or 1) you own instead of paying
+    clay (§4.5). Replaces the old `return_fireplace_idx` field — a route is now just a
+    `ReturnImprovement` payment.
 
     Dispatched via the generic commit dispatcher (registered in
     `COMMIT_SUBACTION_HANDLERS`), which never pops — the effect function
@@ -105,12 +111,39 @@ class CommitBuildMajor(CommitSubAction):
     `PendingClayOven` / `PendingStoneOven` for Clay/Stone Oven.
     """
     major_idx: int
-    return_fireplace_idx: int | None = None
+    payment: PaymentOption
 
 
 @dataclass(frozen=True)
 class CommitRenovate(CommitSubAction):
-    """Commit a renovation (all rooms at once)."""
+    """Commit a renovation (all rooms at once), paying `payment`.
+
+    `payment` is the chosen `PaymentOption` from the renovate frontier produced by
+    `effective_payments` (COST_MODIFIER_DESIGN.md §3.2). Renovate is a *wide* action
+    — its only degree of freedom is which payment to make — so the payment rides
+    directly on the commit (no separate cost frame). In the Family game (no
+    cost-modifier cards) the frontier is the singleton printed cost, so `payment` is
+    that cost. `_execute_renovate` debits it. Renovate has no non-resource routes, so
+    in practice `payment` is always a `Resources`, but the field is typed over the full
+    `PaymentOption` union for uniformity with the other wide commits.
+    """
+    payment: PaymentOption
+
+
+@dataclass(frozen=True)
+class CommitChooseCost(CommitSubAction):
+    """Pick which payment to make for an in-progress build, at a `PendingChooseCost`
+    frame — the two-step payment path for build-room / build-stable (card game only).
+
+    Used when a cost-modifier card surfaces MORE THAN ONE payment for the same build
+    geometry (e.g. Frame Builder's "pay the clay, or convert 2 clay → 1 wood"): the
+    cell is already placed by the preceding `CommitBuildRoom` / `CommitBuildStable`,
+    so the only remaining decision is which `payment` to make (COST_MODIFIER_DESIGN.md
+    §3.7). `_execute_choose_cost` debits `payment` and pops the frame, returning to the
+    build host. In the Family game the frontier is always a singleton, so this frame
+    never arises (the build debits its one payment inline).
+    """
+    payment: PaymentOption
 
 
 @dataclass(frozen=True)
@@ -144,12 +177,17 @@ class CommitPlayOccupation(CommitSubAction):
 class CommitPlayMinor(CommitSubAction):
     """Play the named minor improvement from hand (card game).
 
-    Lands on PendingPlayMinor. The cost is the card's printed cost (read from its
-    MinorSpec). `_execute_play_minor` debits the cost, moves the card
-    hand->tableau (or, for a traveling minor, passes it to the opponent), and
-    runs its on-play effect; the dispatcher then auto-pops the frame.
+    Lands on PendingPlayMinor. This is a *wide* commit (COST_MODIFIER_DESIGN.md §3.4):
+    `payment` is the chosen `PaymentOption` for the card's RESOURCE cost, from the
+    cost-modifier frontier `effective_payments` — the printed cost when no cost card
+    applies, or a reduced / converted variant otherwise. A minor's *animal* cost (if
+    any) is not card-modifiable (the `PaymentOption` union is resource-only), so it is
+    debited as printed, separately. `_execute_play_minor` debits `payment` + the animal
+    cost, moves the card hand->tableau (or, for a traveling minor, passes it to the
+    opponent), and runs its on-play effect; the dispatcher then auto-pops the frame.
     """
     card_id: str
+    payment: PaymentOption
 
 
 @dataclass(frozen=True)
@@ -347,6 +385,7 @@ Action = Union[
     CommitBuildRoom,
     CommitBuildMajor,
     CommitRenovate,
+    CommitChooseCost,
     CommitAccommodate,
     CommitBuildPasture,
     CommitHarvestConversion,

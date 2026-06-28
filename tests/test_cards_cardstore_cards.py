@@ -13,7 +13,6 @@
 """
 from agricola.actions import (
     ChooseSubAction,
-    CommitPlayMinor,
     CommitPlayOccupation,
     PlaceWorker,
     Stop,
@@ -29,6 +28,7 @@ from agricola.scoring import score
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import CardStore, get_space, with_space
 from tests.factories import with_grid, with_house, with_resources
+from tests.test_utils import sole_play_minor
 
 _POOL = CardPool(
     occupations=("tutor", "roof_ballaster") + tuple(f"o{i}" for i in range(20)),
@@ -86,7 +86,7 @@ def _play_minor_via_improvement(state, cp, card_id):
     state = step(state, PlaceWorker(space="major_improvement"))
     state = step(state, ChooseSubAction(name="improvement"))
     state = step(state, ChooseSubAction(name="play_minor"))
-    return step(state, CommitPlayMinor(card_id=card_id))
+    return step(state, sole_play_minor(state, card_id))
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +146,58 @@ def test_big_country_prereq_all_spaces_used():
     assert prereq_met(MINORS["big_country"], s_full, 0)
 
 
+def _fence_pasture(state, idx, cells):
+    """Enclose `cells` (a set of (r,c)) as one pasture by setting the boundary fence
+    arrays, and recompute the cached pasture decomposition. The cells keep their
+    cell_type (EMPTY unless already a stable) — a fenced-but-empty pasture cell."""
+    from agricola.pasture import compute_pastures_from_arrays
+    fy = state.players[idx].farmyard
+    h = [list(row) for row in fy.horizontal_fences]   # (4, 5)
+    v = [list(row) for row in fy.vertical_fences]      # (3, 6)
+    for (r, c) in cells:
+        if (r - 1, c) not in cells: h[r][c] = True       # top edge
+        if (r + 1, c) not in cells: h[r + 1][c] = True   # bottom edge
+        if (r, c - 1) not in cells: v[r][c] = True       # left edge
+        if (r, c + 1) not in cells: v[r][c + 1] = True   # right edge
+    h = tuple(tuple(row) for row in h)
+    v = tuple(tuple(row) for row in v)
+    pastures = compute_pastures_from_arrays(fy.grid, h, v)
+    new_fy = fast_replace(fy, horizontal_fences=h, vertical_fences=v, pastures=pastures)
+    new_p = fast_replace(state.players[idx], farmyard=new_fy)
+    return fast_replace(state, players=tuple(
+        new_p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_big_country_prereq_counts_empty_fenced_pasture_cells():
+    """Regression (seed-40062): a farm whose only empty cells are fenced into a
+    pasture has ALL its farmyard spaces used — a fenced pasture space counts even
+    when the cell is empty (no stable). The prereq must not require a non-EMPTY
+    cell_type on those cells (pastures aren't a CellType — they're fence-derived)."""
+    from agricola.state import Cell
+    s = setup(0)
+    # Fill everything with FIELD, then carve two of those cells back to EMPTY and
+    # fence them into a 2-cell pasture. Every cell is now FIELD or empty-but-fenced.
+    s = _fill_farmyard(s, 0)
+    s = with_grid(s, 0, {(0, 0): Cell(cell_type=CellType.EMPTY),
+                         (0, 1): Cell(cell_type=CellType.EMPTY)})
+    s = _fence_pasture(s, 0, {(0, 0), (0, 1)})
+    # Sanity: those two cells really are empty and enclosed.
+    from agricola.helpers import enclosed_cells
+    assert {(0, 0), (0, 1)} <= enclosed_cells(s.players[0].farmyard)
+    assert s.players[0].farmyard.grid[0][0].cell_type is CellType.EMPTY
+    # The prereq is met (it would fail under the old cell_type-only check).
+    assert prereq_met(MINORS["big_country"], s, 0)
+
+
+def test_big_country_prereq_unfenced_empty_cell_fails():
+    """Control: an empty cell that is NOT fenced leaves a space unused → prereq fails."""
+    from agricola.state import Cell
+    s = setup(0)
+    s = _fill_farmyard(s, 0)
+    s = with_grid(s, 0, {(0, 0): Cell(cell_type=CellType.EMPTY)})   # empty, unfenced
+    assert not prereq_met(MINORS["big_country"], s, 0)
+
+
 def test_big_country_immediate_food_and_banked_points():
     cs, env = setup_env(5, card_pool=_POOL)
     cp = cs.current_player
@@ -175,14 +227,19 @@ def test_big_country_scoring_reads_bank():
 
 def _use_farmland_and_plow_once(state, cp):
     """Place a worker on Farmland, do the base plow, then fire Moldboard's grant
-    in the after-phase and commit its plow. Returns the state after the host pops."""
+    and commit its plow. Returns the state after the host pops.
+
+    Moldboard is a "when you use Farmland" BEFORE-trigger, so it is offered in the
+    before-phase. Doing the base plow first does NOT drop it: Farmland is a
+    delegating host and the engine holds its post-plow auto-advance while the grant
+    is still eligible (so the grant survives either order)."""
     state = step(state, PlaceWorker(space="farmland"))
     # Base sub-action: plow (singleton choose), then commit the one base plow.
     state = step(state, ChooseSubAction(name="plow"))
     base_plows = [a for a in legal_actions(state)]
     state = step(state, base_plows[0])                    # CommitPlow (base)
     state = step(state, Stop())                           # pop base PendingPlow's after
-    # Now at the Farmland host's after-phase: Moldboard grant available.
+    # Still in the Farmland host's before-phase (flip held): Moldboard grant offered.
     from agricola.actions import FireTrigger
     la = legal_actions(state)
     assert FireTrigger(card_id="moldboard_plow") in la
@@ -191,6 +248,7 @@ def _use_farmland_and_plow_once(state, cp):
     granted = legal_actions(state)
     state = step(state, granted[0])                       # commit the granted plow
     state = step(state, Stop())                           # pop granted PendingPlow's after
+    # Grant now exhausted-this-frame → engine auto-advances to the after-phase.
     state = step(state, Stop())                           # pop the Farmland host
     return state
 
@@ -316,7 +374,7 @@ def test_shifting_cultivation_nested_plow_walk():
     cs = step(cs, PlaceWorker(space="major_improvement"))
     cs = step(cs, ChooseSubAction(name="improvement"))
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    cs = step(cs, CommitPlayMinor(card_id="shifting_cultivation"))
+    cs = step(cs, sole_play_minor(cs, "shifting_cultivation"))
 
     # The play frame flipped to "after" and on_play pushed PendingPlow ON TOP of it:
     # the top is the plow, with the (after-phase) PendingPlayMinor host underneath.

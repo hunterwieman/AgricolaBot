@@ -29,12 +29,10 @@ import pytest
 from agricola.actions import (
     ChooseSubAction,
     CommitAccommodate,
-    CommitBuildMajor,
     CommitFamilyGrowth,
     CommitPlayMinor,
     CommitPlayOccupation,
     CommitPlow,
-    CommitRenovate,
     PlaceWorker,
     Proceed,
     Stop,
@@ -59,6 +57,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import CardPool, setup_env
 from agricola.state import Cell, get_space, with_space
+from tests.test_utils import sole_build_major, sole_renovate
 
 # A generous card pool so the owner has hand minors / occupations to play where a
 # host needs one. Card ids o*/m* are unregistered, so they never get OFFERED — the
@@ -297,7 +296,7 @@ def _drive_to_after(cs, cp, space_id):
         return cs
     if space_id in ("house_redevelopment", "farm_redevelopment"):
         cs = step(cs, ChooseSubAction(name="renovate"))
-        cs = step(cs, CommitRenovate())
+        cs = step(cs, sole_renovate(cs))
         cs = step(cs, Stop())               # pop PendingRenovate after-phase
         cs = step(cs, Proceed())            # flip parent to after
         return cs
@@ -322,7 +321,7 @@ def _drive_to_after(cs, cp, space_id):
         # PendingSubActionSpace auto-advances to its after-phase.
         cs = step(cs, ChooseSubAction(name="improvement"))
         cs = step(cs, ChooseSubAction(name="build_major"))
-        cs = step(cs, CommitBuildMajor(major_idx=0, return_fireplace_idx=None))
+        cs = step(cs, sole_build_major(cs, 0))
         cs = step(cs, Stop())               # pop PendingBuildMajor after-phase
         cs = step(cs, Stop())               # pop the composite after-phase
         return cs
@@ -385,7 +384,7 @@ def test_major_minor_improvement_fires_its_own_after_event():
         assert isinstance(cs.pending_stack[-1], PendingMajorMinorImprovement)
         pre = cs.players[cp].resources.stone
         cs = step(cs, ChooseSubAction(name="build_major"))
-        cs = step(cs, CommitBuildMajor(major_idx=0, return_fireplace_idx=None))
+        cs = step(cs, sole_build_major(cs, 0))
         cs = step(cs, Stop())               # pop PendingBuildMajor; composite auto-advances
         # The composite frame auto-advanced to after, firing its own event.
         top = cs.pending_stack[-1]

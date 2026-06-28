@@ -27,10 +27,8 @@ from agricola.cards.triggers import (
     register_action_space_hook,
     register_play_variant_trigger,
 )
-from agricola.constants import HouseMaterial, ROOM_COSTS
-from agricola.legality import _can_build_room, _can_renovate, _num_rooms
+from agricola.legality import _can_build_room, _can_renovate
 from agricola.pending import PendingBuildRooms, PendingRenovate, push
-from agricola.resources import Resources
 from agricola.state import GameState
 
 CARD_ID = "cottager"
@@ -43,9 +41,9 @@ def _legal_variants(state: GameState, idx: int) -> list[str]:
     affordable. Empty list → nothing to do this use."""
     p = state.players[idx]
     variants: list[str] = []
-    if _can_build_room(p):
+    if _can_build_room(state, p):
         variants.append("room")
-    if _can_renovate(p):
+    if _can_renovate(state, p):
         variants.append("renovate")
     return variants
 
@@ -60,26 +58,21 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
 
 
 def _apply(state: GameState, idx: int, variant: str) -> GameState:
-    # Push the chosen primitive with the normal cost; the pushed frame's own
-    # enumerator then offers the build/renovate commits + exit. The host's Proceed
-    # (decline) is the "do neither" path — reached only by NOT firing this trigger.
-    p = state.players[idx]
+    # Push the chosen primitive; the pushed frame's own enumerator then offers the
+    # build/renovate commits + exit, and resolves cost through the cost-modifier
+    # chokepoint. The host's Proceed (decline) is the "do neither" path — reached
+    # only by NOT firing this trigger.
     if variant == "room":
         return push(state, PendingBuildRooms(
             player_idx=idx,
             initiated_by_id="card:cottager",
-            cost=ROOM_COSTS[p.house_material],
             max_builds=1,                       # "exactly 1 room"
         ))
-    # renovate: cost mirrors House Redevelopment — 1 of the next material per room,
-    # + 1 reed total (STONE is filtered out upstream by _can_renovate).
-    num_rooms = _num_rooms(p)
-    if p.house_material == HouseMaterial.WOOD:
-        cost = Resources(clay=num_rooms, reed=1)
-    else:  # CLAY
-        cost = Resources(stone=num_rooms, reed=1)
+    # renovate: cost is resolved through the cost-modifier chokepoint at the pushed
+    # frame's enumerator (COST_MODIFIER_DESIGN.md §3.3), exactly like House
+    # Redevelopment — nothing to compute or store here.
     return push(state, PendingRenovate(
-        player_idx=idx, initiated_by_id="card:cottager", cost=cost))
+        player_idx=idx, initiated_by_id="card:cottager"))
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect

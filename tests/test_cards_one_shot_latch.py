@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from agricola.actions import (
     ChooseSubAction,
-    CommitRenovate,
     PlaceWorker,
     Proceed,
     Stop,
@@ -36,7 +35,7 @@ from tests.factories import (
     with_resources,
     with_space,
 )
-from tests.test_utils import run_actions
+from tests.test_utils import run_actions, sole_renovate
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +181,7 @@ def test_manservant_fires_via_real_renovate():
     cs = run_actions(cs, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),
         Proceed(),
         Stop(),

@@ -34,7 +34,12 @@ from agricola.actions import (
 )
 from agricola.constants import CellType, HouseMaterial
 from agricola.engine import step
-from agricola.legality import legal_actions, legal_placements
+from agricola.legality import (
+    _build_room_ctx,
+    effective_payments,
+    legal_actions,
+    legal_placements,
+)
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
     PendingBuildRooms,
@@ -300,9 +305,13 @@ def test_pending_build_rooms_cost_by_house_material(house, expected_cost):
     ])
     pending = state.pending_stack[-1]
     assert isinstance(pending, PendingBuildRooms)
-    assert pending.cost == expected_cost
     assert pending.max_builds is None
     assert pending.num_built == 0
+    # The room cost now lives on the cost-modifier frontier (a singleton == ROOM_COSTS
+    # in the Family game), resolved at the build, not stored on the frame.
+    p = state.players[pending.player_idx]
+    assert effective_payments(
+        state, pending.player_idx, _build_room_ctx(p, 0)) == [expected_cost]
 
 
 def test_pending_build_stables_farm_expansion_cost():

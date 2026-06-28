@@ -117,8 +117,9 @@ def test_category7_cards_registered():
     so = {e.card_id: e.mandatory for e in TRIGGERS.get("start_of_round", [])}
     assert so["childless"] is True
     assert so["plow_driver"] is False
-    aas = {e.card_id: e.mandatory for e in TRIGGERS.get("after_action_space", [])}
-    assert aas["seasonal_worker"] is True
+    # Seasonal Worker is a mandatory "each time you use [space]" grant → before-phase.
+    bas = {e.card_id: e.mandatory for e in TRIGGERS.get("before_action_space", [])}
+    assert bas["seasonal_worker"] is True
     # Scholar is the play-variant trigger.
     assert "scholar" in PLAY_VARIANT_TRIGGERS
 

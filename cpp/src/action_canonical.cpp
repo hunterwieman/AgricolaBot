@@ -1,9 +1,9 @@
 // Action -> {type, params} JSON, matching agents/nn/trace_replay.action_to_params.
 //
 // The Python type name is the dataclass class name; params mirror the
-// dataclass fields. The only non-scalar field is CommitBuildPasture.cells
-// (frozenset[tuple] -> sorted [[r,c],...]). CommitBuildMajor.return_fireplace_idx
-// is None when not set (JSON null).
+// dataclass fields. Non-scalar fields: CommitBuildPasture.cells
+// (frozenset[tuple] -> sorted [[r,c],...]) and the wide commits' `payment`
+// (a PaymentOption -> tagged route dict, see payment_to_json).
 //
 // The differential gate normalizes both sides through json.loads + json.dumps
 // (sort_keys), so key order is irrelevant; only the type string + param values
@@ -17,6 +17,30 @@
 namespace agricola {
 namespace {
 using json = nlohmann::json;
+
+// Serialize a PaymentOption as the tagged dict Python's trace_replay._payment_to_json
+// emits: a Resources is {"route":"resources", + 7 flat components}; a non-resource
+// route is {"route":"return_improvement","improvement_idx":i}. NO __type__.
+json payment_to_json(const Resources& r) {
+  return json{{"route", "resources"}, {"wood", r.wood},   {"clay", r.clay},
+              {"reed", r.reed},       {"stone", r.stone}, {"food", r.food},
+              {"grain", r.grain},     {"veg", r.veg}};
+}
+json payment_to_json(const PaymentOption& pay) {
+  if (const auto* r = std::get_if<Resources>(&pay)) return payment_to_json(*r);
+  const auto& ri = std::get<ReturnImprovement>(pay);
+  return json{{"route", "return_improvement"},
+              {"improvement_idx", ri.improvement_idx}};
+}
+// Inverse of payment_to_json (mirror of _payment_from_json).
+PaymentOption payment_from_json(const json& d) {
+  if (d.value("route", std::string()) == "return_improvement")
+    return ReturnImprovement{d.at("improvement_idx").get<int>()};
+  return Resources{d.at("wood").get<int>(),  d.at("clay").get<int>(),
+                   d.at("reed").get<int>(),  d.at("stone").get<int>(),
+                   d.at("food").get<int>(),  d.at("grain").get<int>(),
+                   d.at("veg").get<int>()};
+}
 
 json params_of(const PlaceWorker& a) {
   return json{{"space", a.space}};
@@ -40,15 +64,12 @@ json params_of(const CommitBuildRoom& a) {
   return json{{"row", a.row}, {"col", a.col}};
 }
 json params_of(const CommitBuildMajor& a) {
-  json p;
-  p["major_idx"] = a.major_idx;
-  if (a.return_fireplace_idx.has_value())
-    p["return_fireplace_idx"] = *a.return_fireplace_idx;
-  else
-    p["return_fireplace_idx"] = nullptr;
-  return p;
+  return json{{"major_idx", a.major_idx}, {"payment", payment_to_json(a.payment)}};
 }
-json params_of(const CommitRenovate&) { return json::object(); }
+json params_of(const CommitRenovate& a) {
+  // Family renovate is always a Resources payment (no route).
+  return json{{"payment", payment_to_json(a.payment)}};
+}
 json params_of(const CommitAccommodate& a) {
   return json{{"sheep", a.sheep}, {"boar", a.boar}, {"cattle", a.cattle}};
 }
@@ -113,13 +134,6 @@ std::string action_to_json(const Action& action) {
   return j.dump();
 }
 
-namespace {
-std::optional<int> read_opt(const json& p, const char* key) {
-  if (!p.contains(key) || p.at(key).is_null()) return std::nullopt;
-  return std::optional<int>(p.at(key).get<int>());
-}
-}  // namespace
-
 Action action_from_json(const std::string& text) {
   const json j = json::parse(text);
   const std::string t = j.at("type").get<std::string>();
@@ -139,8 +153,10 @@ Action action_from_json(const std::string& text) {
     return CommitBuildRoom{p.at("row").get<int>(), p.at("col").get<int>()};
   if (t == "CommitBuildMajor")
     return CommitBuildMajor{p.at("major_idx").get<int>(),
-                            read_opt(p, "return_fireplace_idx")};
-  if (t == "CommitRenovate") return CommitRenovate{};
+                            payment_from_json(p.at("payment"))};
+  if (t == "CommitRenovate")
+    // Family renovate is always a Resources payment (no route).
+    return CommitRenovate{std::get<Resources>(payment_from_json(p.at("payment")))};
   if (t == "CommitAccommodate")
     return CommitAccommodate{p.at("sheep").get<int>(), p.at("boar").get<int>(),
                              p.at("cattle").get<int>()};

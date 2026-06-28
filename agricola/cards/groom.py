@@ -39,7 +39,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     p = state.players[idx]
     return (CARD_ID not in p.used_this_round
             and p.house_material is HouseMaterial.STONE
-            and _can_build_stable(p, _STABLE_COST))
+            and _can_build_stable(state, p, _STABLE_COST))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

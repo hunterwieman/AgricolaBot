@@ -407,8 +407,10 @@ def _fmt_action_inline(action: Action) -> str:
     if isinstance(action, CommitBuildRoom):
         return f"CommitBuildRoom(row={action.row}, col={action.col})"
     if isinstance(action, CommitBuildMajor):
+        from agricola.cost import ReturnImprovement
         name = MAJOR_NAMES[action.major_idx]
-        ret = "" if action.return_fireplace_idx is None else f", return_fireplace_idx={action.return_fireplace_idx}"
+        ret = (f", return_fireplace_idx={action.payment.improvement_idx}"
+               if isinstance(action.payment, ReturnImprovement) else "")
         return f"CommitBuildMajor(major_idx={action.major_idx}{ret}) - {name}"
     if isinstance(action, CommitRenovate):
         return "CommitRenovate"
@@ -508,11 +510,16 @@ def _p_convert(toks):
 
 
 def _p_build_major(toks):
+    # Terminal UI (Family game, no cost cards): the payment is the printed cost for a
+    # standard buy, or a ReturnImprovement(fireplace) for the Cooking-Hearth route.
+    from agricola.constants import MAJOR_IMPROVEMENT_COSTS
+    from agricola.cost import ReturnImprovement
     if not (1 <= len(toks) <= 2):
         raise ValueError("expected 1 or 2 integers")
     major_idx = int(toks[0])
-    ret = int(toks[1]) if len(toks) == 2 else None
-    return CommitBuildMajor(major_idx=major_idx, return_fireplace_idx=ret)
+    payment = (ReturnImprovement(int(toks[1])) if len(toks) == 2
+               else MAJOR_IMPROVEMENT_COSTS[major_idx])
+    return CommitBuildMajor(major_idx=major_idx, payment=payment)
 
 
 def _p_harvest_conversion(toks):

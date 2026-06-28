@@ -212,10 +212,12 @@ std::string label_subaction(const Action& a) {
 std::string label_major(const Action& a) {
   auto* m = as<CommitBuildMajor>(a);
   if (!m) return "";
-  if (!m->return_fireplace_idx.has_value())
-    return "m" + std::to_string(m->major_idx);
-  return "m" + std::to_string(m->major_idx) + "_rf" +
-         std::to_string(*m->return_fireplace_idx);
+  // Vocab unchanged: a Resources payment is "m{idx}"; a ReturnImprovement route
+  // is "m{idx}_rf{improvement_idx}" (mirrors Python _major_label reading payment).
+  if (const auto* ri = std::get_if<ReturnImprovement>(&m->payment))
+    return "m" + std::to_string(m->major_idx) + "_rf" +
+           std::to_string(ri->improvement_idx);
+  return "m" + std::to_string(m->major_idx);
 }
 std::string label_sow(const Action& a) {
   auto* s = as<CommitSow>(a);

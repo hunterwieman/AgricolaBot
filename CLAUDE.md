@@ -1341,6 +1341,8 @@ AgricolaBot/
 
         profile_engine.py           # Three-workload runner (A: random from setup; B: random from wealthy prefab; C: micro-bench across 9 prefab states) with cProfile + wall-clock.
 
+        card_text.py                # Card-text lookup CLI (CARD_AUTHORING_GUIDE.md §1 step 1). `python scripts/card_text.py "<name or slug>" [...]` searches `agricola/cards/data/revised_*.json` by name/slug and prints each card's VERBATIM text + cost/prereq/vps/passing + deck/number/category, and marks whether it is already IMPLEMENTED (slug registered in OCCUPATIONS/MINORS). Use it to honor the rule "read a card's exact text before reasoning about or implementing it" (never paraphrase). `--exact` for full-name match.
+
         verify_web_sync.py          # Web-UI regression harness (CLAUDE.md §2.6). HTTP-drives a live `play_web.py` server and asserts the client-rendered state == the server's authoritative state across the move (farmland→plow), undo, confirm-turns, new-game, and opponent-mix flows. Prints "RESULT: ALL CHECKS PASSED". Guards the single-channel request/response invariant.
 
         profile_states.py           # 9 prefab `GameState` factories covering early/mid/late game; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).

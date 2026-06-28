@@ -35,6 +35,11 @@ class HouseMaterial(Enum):
 
 
 class CellType(Enum):
+    # NOTE: there is deliberately no PASTURE value. A pasture is derived from the
+    # Farmyard fence arrays, not stored on the cell, so a fenced-but-empty pasture
+    # cell keeps cell_type == EMPTY. Any "is this space used / empty?" check must
+    # also consult helpers.enclosed_cells(farmyard) — never cell_type alone. (See
+    # big_country._all_farmyard_spaces_used and CARD_AUTHORING_GUIDE.md §2.)
     EMPTY = auto()
     ROOM = auto()
     FIELD = auto()

@@ -38,12 +38,9 @@ import pytest
 from agricola.actions import (
     ChooseSubAction,
     CommitBake,
-    CommitBuildMajor,
     CommitFamilyGrowth,
-    CommitPlayMinor,
     CommitPlayOccupation,
     CommitPlow,
-    CommitRenovate,
     CommitSow,
     FireTrigger,
     PlaceWorker,
@@ -68,6 +65,7 @@ from agricola.setup import CardPool, setup, setup_env
 from agricola.state import Cell, get_space, with_space
 
 from tests.factories import add_resources, with_current_player, with_majors, with_resources
+from tests.test_utils import sole_build_major, sole_play_minor, sole_renovate
 
 
 # A generous card pool so card-only frames have hand cards to play. The o*/m*
@@ -235,7 +233,7 @@ def _to_before_renovate(state):
 
 
 def _commit_renovate(state):
-    return step(state, CommitRenovate())
+    return step(state, sole_renovate(state))
 
 
 # --- PendingBuildMajor (Major Improvement) --------------------------------
@@ -257,7 +255,7 @@ def _to_before_major(state):
 def _commit_major(state):
     # A non-oven major (Fireplace, idx 0) so the frame is on top in its
     # after-phase (no oven wrapper interposed).
-    return step(state, CommitBuildMajor(major_idx=0, return_fireplace_idx=None))
+    return step(state, sole_build_major(state, 0))
 
 
 # --- Card-only frames -----------------------------------------------------
@@ -310,7 +308,7 @@ def _to_before_play_minor(state):
 
 
 def _commit_play_minor(state):
-    return step(state, CommitPlayMinor(card_id="market_stall"))
+    return step(state, sole_play_minor(state, "market_stall"))
 
 
 # ---------------------------------------------------------------------------

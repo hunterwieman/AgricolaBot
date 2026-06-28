@@ -9,8 +9,10 @@ it is a single `mandatory`-tagged trigger on the Day Laborer space-host whose
 PendingCardChoice OPTIONS are round-dependent — `("grain",)` before round 6 (a
 singleton the agent auto-resolves, i.e. always +1 grain) and `("grain", "veg")` from
 round 6 on. The round-6 rule lives in the options, not the firing kind. It fires on
-the host's `after_action_space` event ("each time you use" → after the space's
-income), gating the host's Stop until it fires.
+the host's `before_action_space` event ("each time you use [space]" fires before the
+space's own effect — the Trigger-Timing ruling), gating the host's Proceed until it
+fires, and sharing the before-phase with the other "each time you use Day Laborer"
+grants (Cottager, Assistant Tiller) so all are offered together.
 
 Day Laborer is an atomic space, so it must be HOSTED when this card is owned
 (`register_action_space_hook`) for the PendingActionSpace frame to surface the
@@ -58,6 +60,6 @@ def _resolve(state: GameState, idx: int, chosen: str) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register("after_action_space", CARD_ID, _eligible, _apply, mandatory=True)
+register("before_action_space", CARD_ID, _eligible, _apply, mandatory=True)
 register_action_space_hook(CARD_ID, SPACES)   # required so atomic Day Laborer is hosted
 register_card_choice_resolver(CARD_ID, _resolve)

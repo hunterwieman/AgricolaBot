@@ -52,6 +52,28 @@ from agricola.cards import cottager             # noqa: F401
 # and _execute_play_minor; `after_build_rooms` (Roughcaster's clay-room clause) is
 # fired by _apply_stop at the build-rooms session end.
 from agricola.cards import roughcaster          # noqa: F401
+# Cost-modifier occupations (COST_MODIFIER_DESIGN.md). Passive cards that change what
+# a build/renovate/improvement costs by registering rows in the cost-mod registries
+# (agricola.cards.cost_mods), resolved through the `effective_payments` chokepoint;
+# their on-play is a no-op. The three modifier kinds are all represented:
+# Bricklayer (clay REDUCTION), Frame Builder (2 clay/stone -> 1 wood CONVERSION),
+# Carpenter + Clay Plasterer (whole-cost FORMULAs). Renovate, build-room, and
+# play-minor are the actions wired through the chokepoint so far.
+from agricola.cards import bricklayer           # noqa: F401
+from agricola.cards import frame_builder        # noqa: F401
+from agricola.cards import carpenter            # noqa: F401
+from agricola.cards import clay_plasterer       # noqa: F401
+# Millwright: on-play +1 grain, plus the conversion SINK (replace up to 2 building
+# resources with 1 grain each) that chains after feeder conversions (§4.4/§4.7).
+from agricola.cards import millwright           # noqa: F401
+# Master Bricklayer (occupation): build_major stone REDUCTION by the number of rooms
+# built beyond the two starting rooms (a state-dependent delta, floored at 0).
+from agricola.cards import master_bricklayer    # noqa: F401
+# Cost-modifier MINORS. Carpenter's Parlor (build_room whole-cost FORMULA — 2 wood +
+# 2 reed — only in a WOOD house); Lumber Mill (build_major + play_minor −1-wood
+# REDUCTION; "every improvement" = major OR minor only, not rooms/renovation).
+from agricola.cards import carpenters_parlor    # noqa: F401
+from agricola.cards import lumber_mill          # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

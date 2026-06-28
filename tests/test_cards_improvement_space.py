@@ -8,9 +8,6 @@ must play one (the OR-alternative — no decline). The Family game is unchanged
 """
 from agricola.actions import (
     ChooseSubAction,
-    CommitBuildMajor,
-    CommitPlayMinor,
-    CommitRenovate,
     PlaceWorker,
     Proceed,
     Stop,
@@ -22,6 +19,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import get_space, with_space
+from tests.test_utils import sole_build_major, sole_play_minor, sole_renovate
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -92,9 +90,9 @@ def test_play_minor_branch_is_mandatory_and_plays():
 
     cs = step(cs, ChooseSubAction(name="play_minor"))
     # Mandatory: only the play, no Stop.
-    assert legal_actions(cs) == [CommitPlayMinor(card_id="market_stall")]
+    assert legal_actions(cs) == [sole_play_minor(cs, "market_stall")]
 
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     assert cs.players[cp].resources.veg == 1                       # 1 grain -> 1 veg
     assert "market_stall" in cs.players[opp].hand_minors           # passing -> circulated
     # PendingPlayMinor's after-phase: only Stop to pop it.
@@ -115,7 +113,7 @@ def test_choosing_major_excludes_minor():
     cs = step(cs, PlaceWorker(space="major_improvement"))
     cs = step(cs, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     cs = step(cs, ChooseSubAction(name="build_major"))
-    cs = step(cs, CommitBuildMajor(major_idx=0))   # Fireplace (2 clay)
+    cs = step(cs, sole_build_major(cs, 0))   # Fireplace (2 clay)
     cs = step(cs, Stop())   # pop PendingBuildMajor's after-phase -> auto-advance MMI to after
     # Back at PendingMajorMinorImprovement's after-phase: major done -> only Stop, no play_minor.
     assert legal_actions(cs) == [Stop()]
@@ -168,7 +166,7 @@ def test_house_redev_renovate_then_play_minor():
     opp = 1 - cp
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
-    cs = step(cs, CommitRenovate())
+    cs = step(cs, sole_renovate(cs))
     cs = step(cs, Stop())   # pop PendingRenovate's after-phase -> back at parent
     # Post-renovate: the improvement option is offered (a minor is playable),
     # plus Proceed (the parent's before-phase turn-ending boundary).
@@ -180,7 +178,7 @@ def test_house_redev_renovate_then_play_minor():
     # Delegated to PendingMajorMinorImprovement: only play_minor (no major affordable).
     assert legal_actions(cs) == [ChooseSubAction(name="play_minor")]
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     assert cs.players[cp].resources.veg == 1
     assert "market_stall" in cs.players[opp].hand_minors
 
@@ -190,7 +188,7 @@ def test_house_redev_improvement_is_optional():
     cs, cp = _house_redev_state()
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
-    cs = step(cs, CommitRenovate())
+    cs = step(cs, sole_renovate(cs))
     # After CommitRenovate, top is PendingRenovate(after) → Stop pops it.
     assert Stop() in legal_actions(cs)
     cs = step(cs, Stop())                       # pop PendingRenovate's after-phase

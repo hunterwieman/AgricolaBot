@@ -47,6 +47,9 @@ struct Resources {
   int grain = 0;
   int veg = 0;
   bool operator==(const Resources&) const = default;
+  // Ordering so structs carrying a Resources (e.g. CommitRenovate.payment) keep
+  // a working defaulted operator<=> (matches the action-struct convention).
+  auto operator<=>(const Resources&) const = default;
 };
 
 struct Animals {
@@ -175,7 +178,6 @@ struct PendingBuildStables {
 struct PendingBuildRooms {
   std::optional<int> player_idx;
   std::string initiated_by_id;
-  Resources cost{};
   std::optional<int> max_builds;
   int num_built = 0;
   std::string phase = "before";  // "before" | "after" (SPACE_HOST_REFACTOR before/after host)
@@ -192,7 +194,6 @@ struct PendingBuildMajor {
 struct PendingRenovate {
   std::optional<int> player_idx;
   std::string initiated_by_id;
-  Resources cost{};
   std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
   bool operator==(const PendingRenovate&) const = default;

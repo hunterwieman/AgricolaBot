@@ -55,13 +55,26 @@ struct CommitBuildRoom {
   bool operator==(const CommitBuildRoom&) const = default;
   auto operator<=>(const CommitBuildRoom&) const = default;
 };
+// A non-resource payment route: pay for a build by returning a major improvement
+// you own (Family's only instance is Cooking Hearth via returning a Fireplace).
+// Mirror of agricola/cost.py ReturnImprovement.
+struct ReturnImprovement {
+  int improvement_idx = 0;
+  bool operator==(const ReturnImprovement&) const = default;
+  auto operator<=>(const ReturnImprovement&) const = default;
+};
+// The unit of payment carried by a wide commit: a Resources vector (the printed /
+// reduced cost) OR a non-resource route. Mirror of agricola/cost.py PaymentOption.
+using PaymentOption = std::variant<Resources, ReturnImprovement>;
+
 struct CommitBuildMajor {
   int major_idx = 0;
-  std::optional<int> return_fireplace_idx;  // None unless paying via Fireplace return
+  PaymentOption payment{};  // Resources (printed cost) or ReturnImprovement (Cooking Hearth)
   bool operator==(const CommitBuildMajor&) const = default;
   auto operator<=>(const CommitBuildMajor&) const = default;
 };
 struct CommitRenovate {
+  Resources payment{};  // base renovate cost (Family: num_rooms of next material + 1 reed)
   bool operator==(const CommitRenovate&) const = default;
   auto operator<=>(const CommitRenovate&) const = default;
 };
@@ -135,7 +148,7 @@ std::string action_to_json(const Action& action);
 
 // Inverse of action_to_json: parse a {type, params} JSON string into an Action.
 // All 17 types; CommitBuildPasture.cells from [[r,c],...] -> sorted cell list;
-// CommitBuildMajor.return_fireplace_idx may be JSON null. Defined in
+// the wide commits' `payment` from the tagged route dict. Defined in
 // action_canonical.cpp.
 Action action_from_json(const std::string& text);
 

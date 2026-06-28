@@ -13,6 +13,7 @@ from agricola.actions import (
     PlaceWorker,
     Stop,
 )
+from agricola.cost import ReturnImprovement
 from agricola.engine import step
 from agricola.legality import legal_actions
 from agricola.pending import (
@@ -31,7 +32,7 @@ from tests.factories import (
     with_resources,
     with_space,
 )
-from tests.test_utils import run_actions
+from tests.test_utils import build_major, run_actions
 
 
 def _mi_setup(*, resources=None, owner_by_idx=None, minors=None):
@@ -54,7 +55,7 @@ def test_build_fireplace_idx0():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
+        build_major(0),
         Stop(),   # pop PendingBuildMajor's after-phase
         Stop(),   # pop PendingMajorMinorImprovement's after-phase
         Stop(),   # pop PendingSubActionSpace
@@ -71,7 +72,7 @@ def test_build_cooking_hearth_pay_clay():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=2, return_fireplace_idx=None),
+        build_major(2),
         Stop(),   # pop PendingBuildMajor's after-phase
         Stop(),   # pop PendingMajorMinorImprovement's after-phase
         Stop(),   # pop PendingSubActionSpace
@@ -87,7 +88,7 @@ def test_build_cooking_hearth_return_fireplace():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=2, return_fireplace_idx=0),
+        build_major(2, 0),
         Stop(),   # pop PendingBuildMajor's after-phase
         Stop(),   # pop PendingMajorMinorImprovement's after-phase
         Stop(),   # pop PendingSubActionSpace
@@ -111,28 +112,33 @@ def test_cooking_hearth_both_payment_modes_offered():
         a for a in legal
         if isinstance(a, CommitBuildMajor) and a.major_idx == 2
     ]
-    return_fp_options = {a.return_fireplace_idx for a in options_for_hearth2}
-    assert None in return_fp_options       # pay clay
-    assert 0 in return_fp_options          # return Fireplace 0
-    assert 1 in return_fp_options          # return Fireplace 1
+    # The standard route pays Resources; each return-Fireplace route pays a
+    # ReturnImprovement(fp). Inspect the payment to identify each option.
+    has_clay_pay = any(
+        isinstance(a.payment, Resources) for a in options_for_hearth2)
+    returned_fps = {
+        a.payment.improvement_idx for a in options_for_hearth2
+        if isinstance(a.payment, ReturnImprovement)
+    }
+    assert has_clay_pay                    # pay clay
+    assert 0 in returned_fps               # return Fireplace 0
+    assert 1 in returned_fps               # return Fireplace 1
 
 
 def test_cooking_hearth_standard_payment_gated_on_clay_not_on_fireplace():
     """Regression test for the negative-clay leak surfaced by random play.
 
-    Player owns Fireplace (idx 0) but has 0 clay. Two legal actions should
-    appear for Cooking Hearth (idx 2): the Fireplace-return option only.
-    The standard-clay-payment option (`return_fireplace_idx=None`) must be
-    EXCLUDED — paying the 4-clay cost from 0 clay would silently produce
-    negative clay.
+    Player owns Fireplace (idx 0) but has 0 clay. Only the Fireplace-return
+    option should appear for Cooking Hearth (idx 2). The standard-clay-payment
+    option (a Resources payment) must be EXCLUDED — paying the 4-clay cost from
+    0 clay would silently produce negative clay.
 
     Before the fix, `_can_afford_major(state, p, 2)` returned True via the
     `OR owns_fireplace` branch and the enumerator emitted both options.
-    `CommitBuildMajor(major_idx=2, return_fireplace_idx=None)` then
-    committed, driving clay to -4. The non-negative invariant in
-    `engine.step` now catches this case at the assertion boundary; this
-    test verifies the enumerator never emits the bad option in the first
-    place.
+    The standard Resources-payment commit then drove clay to -4. The
+    non-negative invariant in `engine.step` now catches this case at the
+    assertion boundary; this test verifies the enumerator never emits the
+    bad option in the first place.
     """
     state = _mi_setup(resources={"clay": 0}, owner_by_idx={0: 0})  # Fireplace, 0 clay
     state = run_actions(state, [
@@ -145,9 +151,14 @@ def test_cooking_hearth_standard_payment_gated_on_clay_not_on_fireplace():
         a for a in legal
         if isinstance(a, CommitBuildMajor) and a.major_idx == 2
     ]
-    return_fp_options = {a.return_fireplace_idx for a in options_for_hearth2}
-    assert None not in return_fp_options    # standard payment EXCLUDED
-    assert 0 in return_fp_options           # Fireplace-return INCLUDED
+    has_clay_pay = any(
+        isinstance(a.payment, Resources) for a in options_for_hearth2)
+    returned_fps = {
+        a.payment.improvement_idx for a in options_for_hearth2
+        if isinstance(a.payment, ReturnImprovement)
+    }
+    assert not has_clay_pay                  # standard payment EXCLUDED
+    assert 0 in returned_fps                 # Fireplace-return INCLUDED
 
 
 def test_clay_oven_standard_payment_gated_on_full_cost():
@@ -178,7 +189,7 @@ def test_build_well_writes_future_resources():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=4, return_fireplace_idx=None),
+        build_major(4),
         Stop(),   # pop PendingBuildMajor's after-phase
         Stop(),   # pop PendingMajorMinorImprovement's after-phase
         Stop(),   # pop PendingSubActionSpace
@@ -197,7 +208,7 @@ def test_clay_oven_purchase_plus_free_bake():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
+        build_major(5),
     ])
     # After commit: PendingClayOven on top of the now-after-phase PendingBuildMajor.
     assert isinstance(state.pending_stack[-1], PendingClayOven)
@@ -228,7 +239,7 @@ def test_clay_oven_purchase_skip_bake():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
+        build_major(5),
         Stop(),  # decline bake (pop PendingClayOven)
         Stop(),  # pop PendingBuildMajor's after-phase
         Stop(),  # pop PendingMajorMinorImprovement's after-phase
@@ -247,7 +258,7 @@ def test_stone_oven_purchase_plus_free_bake_2_grain():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=6, return_fireplace_idx=None),
+        build_major(6),
     ])
     assert isinstance(state.pending_stack[-1], PendingStoneOven)
     state = run_actions(state, [
@@ -272,7 +283,7 @@ def test_clay_oven_with_potter_ceramics_0_grain():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=5, return_fireplace_idx=None),
+        build_major(5),
         ChooseSubAction(name="bake_bread"),
         FireTrigger(card_id="potter_ceramics"),  # swaps 1 clay -> 1 grain
         CommitBake(grain=1),

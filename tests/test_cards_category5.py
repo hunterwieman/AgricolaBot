@@ -18,12 +18,9 @@ where a real flow exists), so the firing-point wiring is exercised end-to-end.
 from agricola.actions import (
     ChooseSubAction,
     CommitBake,
-    CommitBuildMajor,
     CommitBuildRoom,
     CommitBuildStable,
-    CommitPlayMinor,
     CommitPlayOccupation,
-    CommitRenovate,
     FireTrigger,
     PlaceWorker,
     Proceed,
@@ -46,7 +43,7 @@ from tests.factories import (
     with_resources,
     with_space,
 )
-from tests.test_utils import run_actions
+from tests.test_utils import build_major, play_minor, run_actions, sole_renovate
 
 _POOL = CardPool(
     occupations=("roughcaster", "consultant") + tuple(f"o{i}" for i in range(20)),
@@ -133,7 +130,7 @@ def test_roughcaster_food_on_clay_to_stone_renovate():
     cs = run_actions(cs, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),      # pop PendingRenovate's after-phase (after_renovate fired here)
         Proceed(),   # flip the parent to its after-phase
         Stop(),      # pop the parent
@@ -150,7 +147,7 @@ def test_roughcaster_no_food_on_wood_to_clay_renovate():
     cs = run_actions(cs, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),
         Proceed(),
         Stop(),
@@ -215,7 +212,7 @@ def test_junk_room_food_on_major_build():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
+        build_major(0),
         Stop(),   # pop PendingBuildMajor after-phase
         Stop(),   # pop PendingMajorMinorImprovement after-phase
         Stop(),   # pop PendingSubActionSpace
@@ -236,7 +233,7 @@ def test_junk_room_fires_on_its_own_play():
         PlaceWorker(space="major_improvement"),
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="play_minor"),
-        CommitPlayMinor(card_id="junk_room"),
+        play_minor("junk_room"),
         Stop(),   # pop PendingPlayMinor after-phase
         Stop(),   # pop PendingMajorMinorImprovement after-phase
         Stop(),   # pop PendingSubActionSpace
@@ -257,7 +254,7 @@ def test_mining_hammer_grants_free_stable_on_renovate():
     wood0 = cs.players[0].resources.wood
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
-    cs = step(cs, CommitRenovate())   # flips PendingRenovate to its after-phase
+    cs = step(cs, sole_renovate(cs))   # flips PendingRenovate to its after-phase
     # The renovate after-hook surfaces the Mining Hammer grant at PendingRenovate's
     # after-phase (alongside Stop).
     la = legal_actions(cs)
@@ -277,7 +274,7 @@ def test_mining_hammer_decline_grant():
     cs = run_actions(cs, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),      # decline the grant + pop PendingRenovate after-phase
         Proceed(),   # flip the host (house_redevelopment) to its after-phase
         Stop(),      # pop the host (skip the optional improvement step)
@@ -301,7 +298,7 @@ def test_mining_hammer_not_offered_when_no_stable_buildable():
     cs = with_grid(cs, 0, overrides)
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
-    cs = step(cs, CommitRenovate())
+    cs = step(cs, sole_renovate(cs))
     assert FireTrigger(card_id="mining_hammer") not in legal_actions(cs)
     assert legal_actions(cs) == [Stop()]
 

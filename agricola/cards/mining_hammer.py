@@ -39,7 +39,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     return (CARD_ID not in triggers_resolved
-            and _can_build_stable(state.players[idx], _FREE))
+            and _can_build_stable(state, state.players[idx], _FREE))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

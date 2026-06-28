@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from agricola.actions import (
     CommitBuildRoom,
-    CommitRenovate,
     FireTrigger,
     PlaceWorker,
     Proceed,
@@ -28,6 +27,7 @@ from agricola.pending import PendingBuildRooms, PendingRenovate
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup_env
+from tests.test_utils import sole_renovate
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ def test_cottager_renovate_upgrades_house():
     clay0 = s.players[ap].resources.clay
     s = step(s, FireTrigger(card_id="cottager", variant="renovate"))
     assert isinstance(s.pending_stack[-1], PendingRenovate)
-    s = step(s, CommitRenovate())
+    s = step(s, sole_renovate(s))
     s = step(s, Stop())   # pop PendingRenovate's after-phase
     assert s.players[ap].house_material is HouseMaterial.CLAY
     assert s.players[ap].resources.clay == clay0 - 2   # 1 clay per room (2 rooms)

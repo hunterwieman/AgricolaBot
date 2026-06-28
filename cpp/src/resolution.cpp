@@ -48,14 +48,6 @@ Grid grid_with_cell(const Grid& grid, int row, int col, const Cell& cell) {
   return out;
 }
 
-int player_count_rooms(const PlayerState& p) {
-  int n = 0;
-  for (int r = 0; r < kRows; ++r)
-    for (int c = 0; c < kCols; ++c)
-      if (p.farmyard.grid[r][c].cell_type == CellType::ROOM) ++n;
-  return n;
-}
-
 }  // namespace
 
 // ===========================================================================
@@ -275,13 +267,6 @@ std::string pending_id<PendingFarmRedevelopment>() {
   return "farm_redevelopment";
 }
 
-Resources renovate_cost(const PlayerState& p) {
-  int nr = player_count_rooms(p);
-  if (p.house_material == HouseMaterial::WOOD)
-    return Resources{0, nr, 1, 0, 0, 0, 0};  // clay=nr, reed=1
-  return Resources{0, 0, 1, nr, 0, 0, 0};    // stone=nr, reed=1
-}
-
 }  // namespace
 
 GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
@@ -384,14 +369,11 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
     }
   } else if (auto* hr = std::get_if<PendingHouseRedevelopment>(&top)) {
     PendingHouseRedevelopment nt = *hr;
-    int pidx = *nt.player_idx;
-    const PlayerState& p = state.players[static_cast<size_t>(pidx)];
     if (name == "renovate") {
       nt.renovate_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingRenovate{nt.player_idx,
-                                     pending_id<PendingHouseRedevelopment>(),
-                                     renovate_cost(p)});
+                                     pending_id<PendingHouseRedevelopment>()});
     }
     if (name == "improvement") {
       nt.improvement_chosen = true;
@@ -402,15 +384,12 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
     }
   } else if (auto* fe = std::get_if<PendingFarmExpansion>(&top)) {
     PendingFarmExpansion nt = *fe;
-    int pidx = *nt.player_idx;
-    const PlayerState& p = state.players[static_cast<size_t>(pidx)];
     if (name == "build_rooms") {
       nt.room_chosen = true;
       GameState s = replace_top(state, nt);
       PendingBuildRooms frame;
       frame.player_idx = nt.player_idx;
       frame.initiated_by_id = pending_id<PendingFarmExpansion>();
-      frame.cost = room_cost(p.house_material);
       frame.max_builds = std::nullopt;
       frame.num_built = 0;
       return push(s, frame);
@@ -428,14 +407,11 @@ GameState choose_subaction(const GameState& state, const ChooseSubAction& act) {
     }
   } else if (auto* fr = std::get_if<PendingFarmRedevelopment>(&top)) {
     PendingFarmRedevelopment nt = *fr;
-    int pidx = *nt.player_idx;
-    const PlayerState& p = state.players[static_cast<size_t>(pidx)];
     if (name == "renovate") {
       nt.renovate_chosen = true;
       GameState s = replace_top(state, nt);
       return push(s, PendingRenovate{nt.player_idx,
-                                     pending_id<PendingFarmRedevelopment>(),
-                                     renovate_cost(p)});
+                                     pending_id<PendingFarmRedevelopment>()});
     }
     if (name == "build_fences") {
       nt.build_fences_chosen = true;
@@ -549,7 +525,9 @@ GameState execute_build_room(const GameState& state, int player_idx,
   room.cell_type = CellType::ROOM;
   p.farmyard.grid =
       grid_with_cell(p.farmyard.grid, commit.row, commit.col, room);
-  p.resources = p.resources - top.cost;
+  // Room cost recomputed at build time (Family: singleton ROOM_COSTS) rather
+  // than read from a stale frame cache (COST_MODIFIER_DESIGN.md §3.3).
+  p.resources = p.resources - room_cost(p.house_material);
   GameState s = update_player(state, player_idx, p);
   PendingBuildRooms nt = top;
   nt.num_built += 1;
@@ -557,9 +535,9 @@ GameState execute_build_room(const GameState& state, int player_idx,
 }
 
 GameState execute_renovate(const GameState& state, int player_idx,
-                           const CommitRenovate&) {
-  const PendingRenovate& pending =
-      std::get<PendingRenovate>(state.pending_stack.back());
+                           const CommitRenovate& commit) {
+  // Assert the frame type (the payment now rides on the commit, not the frame).
+  (void)std::get<PendingRenovate>(state.pending_stack.back());
   PlayerState p = state.players[static_cast<size_t>(player_idx)];
   if (p.house_material == HouseMaterial::WOOD)
     p.house_material = HouseMaterial::CLAY;
@@ -567,24 +545,24 @@ GameState execute_renovate(const GameState& state, int player_idx,
     p.house_material = HouseMaterial::STONE;
   else
     throw std::runtime_error("CommitRenovate illegal on stone house");
-  p.resources = p.resources - pending.cost;
+  p.resources = p.resources - commit.payment;
   return enter_after_phase(update_player(state, player_idx, p));
 }
 
 GameState execute_build_major(const GameState& state, int player_idx,
                               const CommitBuildMajor& commit) {
   GameState s = state;
-  const Resources& cost =
-      MAJOR_IMPROVEMENT_COSTS[static_cast<size_t>(commit.major_idx)];
 
-  // 1. Pay: deduct cost, or return a Fireplace (Cooking Hearth only).
-  if (!commit.return_fireplace_idx.has_value()) {
-    PlayerState p = s.players[static_cast<size_t>(player_idx)];
-    p.resources = p.resources - cost;
-    s = update_player(s, player_idx, p);
+  // 1. Pay via the chosen PaymentOption: a ReturnImprovement returns a Fireplace
+  //    (Cooking Hearth only); otherwise debit the Resources payment (the printed
+  //    cost now rides on the commit, not read from MAJOR_IMPROVEMENT_COSTS).
+  if (const auto* ri = std::get_if<ReturnImprovement>(&commit.payment)) {
+    s.board.major_improvement_owners[static_cast<size_t>(ri->improvement_idx)] =
+        std::nullopt;
   } else {
-    int ret = *commit.return_fireplace_idx;
-    s.board.major_improvement_owners[static_cast<size_t>(ret)] = std::nullopt;
+    PlayerState p = s.players[static_cast<size_t>(player_idx)];
+    p.resources = p.resources - std::get<Resources>(commit.payment);
+    s = update_player(s, player_idx, p);
   }
 
   // 2. Assign the new major.

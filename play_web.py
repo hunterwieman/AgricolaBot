@@ -60,6 +60,7 @@ from agricola.actions import (
     CommitBreed,
     CommitBuildMajor,
     CommitCardChoice,
+    CommitChooseCost,
     CommitBuildPasture,
     CommitBuildRoom,
     CommitBuildStable,
@@ -817,6 +818,26 @@ def _ui_hint_for(action: Action) -> str:
     return "numeric"
 
 
+def _payment_str(payment) -> str:
+    """Render a PaymentOption (CommitRenovate / CommitChooseCost) for the web UI: a
+    resource vector as 'N good, ...', a non-resource route by what it returns."""
+    from agricola.cost import ReturnImprovement
+    if isinstance(payment, ReturnImprovement):
+        return f"return improvement #{payment.improvement_idx}"
+    parts = [f"{getattr(payment, f)} {f}"
+             for f in ("wood", "clay", "reed", "stone", "food", "grain", "veg")
+             if getattr(payment, f)]
+    return ", ".join(parts) if parts else "nothing"
+
+
+def _payment_params(payment) -> dict:
+    """JSON-able form of a PaymentOption for the action's `params`."""
+    from agricola.cost import ReturnImprovement
+    if isinstance(payment, ReturnImprovement):
+        return {"route": "return_improvement", "improvement_idx": payment.improvement_idx}
+    return {"route": "resources", **_resources_to_dict(payment)}
+
+
 def _action_params(action: Action) -> dict:
     if isinstance(action, PlaceWorker):
         return {"space": action.space}
@@ -837,12 +858,22 @@ def _action_params(action: Action) -> dict:
     if isinstance(action, CommitBuildRoom):
         return {"row": action.row, "col": action.col}
     if isinstance(action, CommitBuildMajor):
+        # CommitBuildMajor is now wide (payment: PaymentOption). Keep the derived
+        # `return_fireplace_idx` in the wire format (None for a resource payment, the
+        # fireplace idx for a ReturnImprovement route) so the existing frontend
+        # (static/app.js) renders the Cooking-Hearth return variants unchanged.
+        from agricola.cost import ReturnImprovement
+        rf = (action.payment.improvement_idx
+              if isinstance(action.payment, ReturnImprovement) else None)
         return {
             "major_idx": action.major_idx,
-            "return_fireplace_idx": action.return_fireplace_idx,
+            "return_fireplace_idx": rf,
+            "payment": _payment_params(action.payment),
         }
     if isinstance(action, CommitRenovate):
-        return {}
+        return {"payment": _payment_params(action.payment)}
+    if isinstance(action, CommitChooseCost):
+        return {"payment": _payment_params(action.payment)}
     if isinstance(action, CommitAccommodate):
         return {"sheep": action.sheep, "boar": action.boar, "cattle": action.cattle}
     if isinstance(action, CommitBuildPasture):
@@ -900,6 +931,12 @@ def _web_action_display(action: Action) -> str:
         if variant:
             return f"{name}: {_TRIGGER_VARIANT_LABELS.get(variant, variant)}"
         return name
+    # Payment-bearing commits (cost-modifier cards): show the chosen payment so the
+    # multiple options of a renovate / two-step build read distinctly.
+    if isinstance(action, CommitRenovate):
+        return f"Renovate (pay {_payment_str(action.payment)})"
+    if isinstance(action, CommitChooseCost):
+        return f"Pay {_payment_str(action.payment)}"
     return _fmt_action_inline(action)
 
 

@@ -6,7 +6,7 @@ need no new infra beyond Milestone 1's scoring registry + on_play dispatch:
   - Clay Embankment (minor, passing): +1 clay per 2 clay held.
   - Young Animal Market (minor, passing): cost 1 sheep, gain 1 cattle (Animals cost).
 """
-from agricola.actions import CommitPlayMinor, PlaceWorker
+from agricola.actions import PlaceWorker
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.constants import HouseMaterial
 from agricola.engine import step
@@ -17,6 +17,7 @@ from agricola.scoring import score
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import get_space, with_space
 from tests.factories import with_animals, with_house, with_resources
+from tests.test_utils import sole_play_minor
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -110,7 +111,7 @@ def test_clay_embankment_gain_and_pass():
     from agricola.actions import ChooseSubAction
     cs = step(cs, ChooseSubAction(name="improvement"))
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    cs = step(cs, CommitPlayMinor(card_id="clay_embankment"))
+    cs = step(cs, sole_play_minor(cs, "clay_embankment"))
     # 5 clay -> +2 clay (5//2) = 7; food paid (1 -> 0); passed, not kept.
     assert cs.players[cp].resources.clay == 7
     assert "clay_embankment" not in cs.players[cp].minor_improvements
@@ -133,7 +134,7 @@ def test_young_animal_market_swaps_sheep_for_cattle():
     cs = step(cs, PlaceWorker(space="major_improvement"))
     cs = step(cs, ChooseSubAction(name="improvement"))   # singleton: push PendingMajorMinorImprovement
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    cs = step(cs, CommitPlayMinor(card_id="young_animal_market"))
+    cs = step(cs, sole_play_minor(cs, "young_animal_market"))
     assert cs.players[cp].animals.sheep == 1         # 2 - 1 (cost)
     assert cs.players[cp].animals.cattle == 1        # +1 (on_play)
     assert "young_animal_market" in cs.players[1 - cp].hand_minors

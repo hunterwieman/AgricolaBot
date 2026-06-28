@@ -13,8 +13,6 @@ under a parent space host), and an after-automatic effect firing at the flip.
 from agricola.actions import (
     ChooseSubAction,
     CommitBake,
-    CommitBuildMajor,
-    CommitPlayMinor,
     CommitSow,
     PlaceWorker,
     Proceed,
@@ -38,6 +36,7 @@ from agricola.setup import CardPool, setup, setup_env
 from agricola.state import get_space, with_space
 
 from tests.factories import with_current_player, with_majors, with_resources
+from tests.test_utils import sole_build_major, sole_play_minor
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +100,7 @@ def test_build_major_clay_oven_free_bake_nested_lifecycle():
     state = step(state, PlaceWorker(space="major_improvement"))
     state = step(state, ChooseSubAction(name="improvement"))  # singleton: push PendingMajorMinorImprovement
     state = step(state, ChooseSubAction(name="build_major"))
-    state = step(state, CommitBuildMajor(major_idx=5, return_fireplace_idx=None))
+    state = step(state, sole_build_major(state, 5))
 
     # PendingBuildMajor already flipped to after; the oven wrapper is on top.
     assert isinstance(state.pending_stack[-1], PendingClayOven)
@@ -171,9 +170,9 @@ def test_minor_at_improvement_space_nested_host_lifecycle():
     # before-phase of the nested PendingPlayMinor: the commit is offered.
     assert isinstance(cs.pending_stack[-1], PendingPlayMinor)
     assert cs.pending_stack[-1].phase == "before"
-    assert CommitPlayMinor(card_id="market_stall") in legal_actions(cs)
+    assert sole_play_minor(cs, "market_stall") in legal_actions(cs)
 
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     # Nested host pivoted to after-phase (no pop); the minor's effect applied.
     assert isinstance(cs.pending_stack[-1], PendingPlayMinor)
     assert cs.pending_stack[-1].phase == "after"

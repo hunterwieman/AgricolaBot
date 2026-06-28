@@ -11,6 +11,7 @@ from agricola.actions import (
     CommitBuildMajor,
     CommitBuildPasture,
     CommitBuildRoom,
+    CommitChooseCost,
     CommitBuildStable,
     CommitConvert,
     CommitHarvestConversion,
@@ -38,6 +39,7 @@ from agricola.pending import (
     PendingBakeBread,
     PendingBuildFences,
     PendingBuildRooms,
+    PendingChooseCost,
     PendingBuildStables,
     PendingBuildMajor,
     PendingClayOven,
@@ -529,9 +531,14 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     cid = action.card_id
     spec = MINORS[cid]
     p = state.players[idx]
+    # Wide commit: the chosen resource payment rides on `action.payment` (the
+    # cost-modifier frontier point picked at enumeration — §3.4). Minors have no
+    # non-resource routes, so it is always a Resources. The animal cost (if any) is
+    # not card-modifiable and is debited as printed.
+    assert isinstance(action.payment, Resources), "minor cost routes are resource-only"
     p = fast_replace(
         p,
-        resources=p.resources - spec.cost.resources,
+        resources=p.resources - action.payment,
         animals=p.animals - spec.cost.animals,
         hand_minors=p.hand_minors - {cid},
     )
@@ -764,20 +771,13 @@ def _choose_subaction_house_redevelopment(
     p_idx = top.player_idx
     p = state.players[p_idx]
     if action.name == "renovate":
-        # Compute renovation cost at push time. The pending carries the cost
-        # so future card triggers / alternate-formula choose handlers can
-        # vary it without changing _execute_renovate.
-        num_rooms = sum(
-            1 for r in range(3) for c in range(5)
-            if p.farmyard.grid[r][c].cell_type == CellType.ROOM
-        )
-        if p.house_material == HouseMaterial.WOOD:
-            cost = Resources(clay=num_rooms, reed=1)  # 1 clay per room, 1 reed total
-        else:  # CLAY — STONE filtered out by _can_renovate at parent enumerator
-            cost = Resources(stone=num_rooms, reed=1)
+        # The renovation cost is resolved through `effective_payments` at enumeration
+        # time (and debited from `CommitRenovate.payment`), not stored on the frame —
+        # so cost-modifier cards apply without a per-frame cost cache
+        # (COST_MODIFIER_DESIGN.md §3.3).
         state = replace_top(state, fast_replace(top, renovate_chosen=True))
         return push(state, PendingRenovate(
-            player_idx=p_idx, initiated_by_id=top.PENDING_ID, cost=cost,
+            player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
     if action.name == "improvement":
         # The composite is itself a host: fire before_major_minor_improvement autos
@@ -803,7 +803,6 @@ def _choose_subaction_farm_expansion(
         return push(state, PendingBuildRooms(
             player_idx=p_idx,
             initiated_by_id=top.PENDING_ID,
-            cost=ROOM_COSTS[p.house_material],
             max_builds=None,
         ))
     if action.name == "build_stables":
@@ -831,17 +830,11 @@ def _choose_subaction_farm_redevelopment(
     p_idx = top.player_idx
     p = state.players[p_idx]
     if action.name == "renovate":
-        num_rooms = sum(
-            1 for r in range(3) for c in range(5)
-            if p.farmyard.grid[r][c].cell_type == CellType.ROOM
-        )
-        if p.house_material == HouseMaterial.WOOD:
-            cost = Resources(clay=num_rooms, reed=1)
-        else:  # CLAY (STONE filtered out by _can_renovate at the parent enumerator)
-            cost = Resources(stone=num_rooms, reed=1)
+        # Cost resolved via `effective_payments` / `CommitRenovate.payment`, not stored
+        # on the frame (COST_MODIFIER_DESIGN.md §3.3); mirrors House Redevelopment.
         state = replace_top(state, fast_replace(top, renovate_chosen=True))
         return push(state, PendingRenovate(
-            player_idx=p_idx, initiated_by_id=top.PENDING_ID, cost=cost,
+            player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
     if action.name == "build_fences":
         state = replace_top(state, fast_replace(top, build_fences_chosen=True))
@@ -1068,22 +1061,29 @@ def _execute_build_stable(
     PendingBuildStables on top (the dispatcher never pops; Proceed flips it to its
     after-phase and Stop pops).
 
-    The cost is on the pending frame (set at push time by the choose
-    handler) — different callers (Side Job, Farm Expansion, future cards)
-    specify different costs.
+    The base cost stays on the pending frame (`top.cost`) — it is caller-dependent
+    (Side Job 1 wood, Farm Expansion 2 wood, card grants 0), not derivable from player
+    state. It is resolved per stable through the cost-modifier chokepoint with that base:
+    a singleton frontier (always in Family — debit it inline + record any per-action
+    conversion budget) or, when a cost card offers >1 payment, the two-step
+    `PendingChooseCost`. CommitBuildStable stays geometry-only. Like build-rooms, the
+    rules treat "Build Stables" as ONE action building all stables at once; the engine
+    spreads it into per-stable commits, so a per-action budget (Millwright) is shared
+    across them (handled by the chokepoint's `record`/reset, not here).
 
-    Recomputes Farmyard.pastures explicitly: a stable placed inside an
-    existing pasture changes that pasture's num_stables (and capacity).
-    Although no pasture can yet exist in current scope (Fencing is
-    unimplemented and no other resolver builds fences), this is the
-    documented convention for pasture-changing resolvers
-    (ENGINE_IMPLEMENTATION.md §4.1 — the Farmyard.pastures caching
-    exception) — fixes the latent bug in Task 5C's version and means
-    Fencing won't have to revisit this function later.
+    Recomputes Farmyard.pastures explicitly: a stable placed inside an existing pasture
+    changes that pasture's num_stables (and capacity); the documented convention for
+    pasture-changing resolvers (ENGINE_IMPLEMENTATION.md §4.1).
     """
+    from agricola.legality import _build_stable_ctx, effective_payments
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildStables)
     p = state.players[player_idx]
+    # Resolve this stable's payment frontier (base = the frame's caller-supplied cost)
+    # BEFORE placing it; build_index = the 0-based stable within this multi-shot action.
+    payments = effective_payments(
+        state, player_idx, _build_stable_ctx(p, top.cost, top.num_built))
+    # Place the stable geometry + advance the multi-shot counter.
     new_grid = _new_grid_with_cell(
         p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.STABLE),
     )
@@ -1094,11 +1094,22 @@ def _execute_build_stable(
             new_grid, p.farmyard.horizontal_fences, p.farmyard.vertical_fences,
         ),
     )
-    new_player = fast_replace(
-        p, resources=p.resources - top.cost, farmyard=new_farmyard,
-    )
-    state = _update_player(state, player_idx, new_player)
-    return replace_top(state, fast_replace(top, num_built=top.num_built + 1))
+    p = fast_replace(p, farmyard=new_farmyard)
+    state = _update_player(state, player_idx, p)
+    state = replace_top(state, fast_replace(top, num_built=top.num_built + 1))
+    if len(payments) == 1:
+        # Singleton frontier (always in Family == top.cost): debit inline + record any
+        # per-action conversion-budget usage (Millwright); stay on the build host.
+        assert isinstance(payments[0], Resources), "build-stable has no non-resource routes"
+        from agricola.cards.cost_mods import record_conversion_usage
+        p = state.players[player_idx]
+        state = _update_player(
+            state, player_idx, fast_replace(p, resources=p.resources - payments[0]))
+        return record_conversion_usage("build_stable", state, player_idx, payments[0])
+    # >1 payment (a cost-modifier card offers a choice): defer the debit to the two-step.
+    return push(state, PendingChooseCost(
+        player_idx=player_idx, initiated_by_id=top.PENDING_ID,
+        payments=tuple(payments), action_kind="build_stable"))
 
 
 def _execute_build_room(
@@ -1114,28 +1125,65 @@ def _execute_build_room(
     people_total is unchanged here — a newly built room is empty until
     populated by a Wish for Children action.
     """
+    from agricola.legality import _build_room_ctx, effective_payments
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildRooms)
     p = state.players[player_idx]
+    # Resolve this room's payment frontier through the cost-modifier chokepoint BEFORE
+    # placing it (build_index = the 0-based room within this multi-shot session).
+    # Singleton in the Family game (= ROOM_COSTS), possibly several with a cost card.
+    payments = effective_payments(state, player_idx, _build_room_ctx(p, top.num_built))
+    # Place the room geometry + advance the multi-shot counter (the geometry is
+    # committed regardless of how the payment is then resolved).
     new_grid = _new_grid_with_cell(
         p.farmyard.grid, commit.row, commit.col, Cell(cell_type=CellType.ROOM),
     )
-    new_farmyard = fast_replace(p.farmyard, grid=new_grid)
-    new_player = fast_replace(
-        p, resources=p.resources - top.cost, farmyard=new_farmyard,
-    )
-    state = _update_player(state, player_idx, new_player)
-    return replace_top(state, fast_replace(top, num_built=top.num_built + 1))
+    p = fast_replace(p, farmyard=fast_replace(p.farmyard, grid=new_grid))
+    state = _update_player(state, player_idx, p)
+    state = replace_top(state, fast_replace(top, num_built=top.num_built + 1))
+    if len(payments) == 1:
+        # Singleton frontier (always in Family): debit inline, stay on the build host.
+        assert isinstance(payments[0], Resources), "build-room has no non-resource routes"
+        p = state.players[player_idx]
+        state = _update_player(
+            state, player_idx, fast_replace(p, resources=p.resources - payments[0]))
+        # Record any per-action conversion-budget usage (Millwright) — a Family no-op.
+        from agricola.cards.cost_mods import record_conversion_usage
+        return record_conversion_usage("build_room", state, player_idx, payments[0])
+    # >1 payment (a cost-modifier card offers a choice): defer the debit to a
+    # PendingChooseCost two-step pushed on top of the build host (card game only).
+    return push(state, PendingChooseCost(
+        player_idx=player_idx, initiated_by_id=top.PENDING_ID,
+        payments=tuple(payments), action_kind="build_room"))
+
+
+def _execute_choose_cost(
+    state: GameState, player_idx: int, commit: CommitChooseCost,
+) -> GameState:
+    """Debit the chosen payment for a two-step build and pop the PendingChooseCost
+    frame, returning to the build host underneath (card game only — §3.7)."""
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingChooseCost)
+    assert isinstance(commit.payment, Resources), "build cost routes are resource-only"
+    p = state.players[player_idx]
+    state = _update_player(
+        state, player_idx, fast_replace(p, resources=p.resources - commit.payment))
+    # Record per-action conversion-budget usage (Millwright) against the underlying
+    # build's action kind, BEFORE popping back to the build host.
+    from agricola.cards.cost_mods import record_conversion_usage
+    state = record_conversion_usage(top.action_kind, state, player_idx, commit.payment)
+    return pop(state)
 
 
 def _execute_renovate(
     state: GameState, player_idx: int, commit: CommitRenovate,
 ) -> GameState:
-    """Renovate all rooms to the next material tier, paying `pending.cost`.
+    """Renovate all rooms to the next material tier, paying `commit.payment`.
 
-    The cost is on the pending frame (set at push time by the choose
-    handler). Material transition (WOOD->CLAY or CLAY->STONE) is derived
-    from the player's current `house_material`.
+    The chosen payment rides on the commit (the renovate frontier point picked at
+    enumeration time — COST_MODIFIER_DESIGN.md §3.2), not on the frame. Renovate has
+    no non-resource routes, so `payment` is always a `Resources` (asserted). Material
+    transition (WOOD->CLAY or CLAY->STONE) is derived from `house_material`.
     """
     pending = state.pending_stack[-1]
     assert isinstance(pending, PendingRenovate)
@@ -1146,10 +1194,18 @@ def _execute_renovate(
         new_material = HouseMaterial.STONE
     else:
         raise AssertionError("CommitRenovate illegal on stone house")
+    assert isinstance(commit.payment, Resources), (
+        "renovate has no non-resource payment routes"
+    )
     new_player = fast_replace(
-        p, resources=p.resources - pending.cost, house_material=new_material,
+        p, resources=p.resources - commit.payment, house_material=new_material,
     )
     state = _update_player(state, player_idx, new_player)
+    # Record any per-action conversion-budget usage (Millwright on renovate) — a Family
+    # no-op. Renovate is a single build, so this just sets the count that after_renovate
+    # then resets; the budget never binds within one renovate.
+    from agricola.cards.cost_mods import record_conversion_usage
+    state = record_conversion_usage("renovate", state, player_idx, commit.payment)
     # One-shot conditional latch (II.3 / §6): a renovate can satisfy a standing
     # house-material condition (Manservant's stone house, Clay Hut Builder's
     # no-longer-wooden). Fire any now-ready one-shots for this player BEFORE the
@@ -1173,32 +1229,32 @@ def _execute_build_major(
     (line below), or push the wrapper for ovens (leaving PendingBuildMajor
     in place underneath).
     """
+    from agricola.cost import ReturnImprovement
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildMajor)
     p = state.players[player_idx]
-    cost = MAJOR_IMPROVEMENT_COSTS[commit.major_idx]
 
-    # 1. Pay: either deduct cost, or return a Fireplace (Cooking Hearth only).
-    if commit.return_fireplace_idx is None:
-        new_player = fast_replace(p, resources=p.resources - cost)
-        state = _update_player(state, player_idx, new_player)
-    else:
+    # 1. Pay the chosen PaymentOption (§3.2/§4.5): a Resources vector (the printed
+    #    cost or a cost-card variant) is deducted; a ReturnImprovement route returns
+    #    the named Fireplace (Cooking Hearth only) instead of paying clay.
+    if isinstance(commit.payment, ReturnImprovement):
+        fp = commit.payment.improvement_idx
         assert commit.major_idx in COOKING_HEARTH_INDICES, (
-            "return_fireplace_idx only valid for Cooking Hearth purchase"
+            "Fireplace-return only valid for a Cooking Hearth purchase"
         )
-        assert commit.return_fireplace_idx in FIREPLACE_INDICES
+        assert fp in FIREPLACE_INDICES
         owners = state.board.major_improvement_owners
-        assert owners[commit.return_fireplace_idx] == player_idx, (
-            "must own the Fireplace being returned"
-        )
+        assert owners[fp] == player_idx, "must own the Fireplace being returned"
         new_owners = tuple(
-            None if i == commit.return_fireplace_idx else owners[i]
-            for i in range(len(owners))
+            None if i == fp else owners[i] for i in range(len(owners))
         )
         state = fast_replace(
             state,
             board=fast_replace(state.board, major_improvement_owners=new_owners),
         )
+    else:
+        new_player = fast_replace(p, resources=p.resources - commit.payment)
+        state = _update_player(state, player_idx, new_player)
 
     # 2. Assign the new major to the player.
     owners = state.board.major_improvement_owners

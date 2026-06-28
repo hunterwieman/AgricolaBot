@@ -322,7 +322,7 @@ def test_can_build_stable_legal_with_wood(state, active):
     # Fresh state: 13 empty cells, all 4 stables in supply. Add wood for Side Job cost.
     state = _set_resources(state, active, wood=1)
     p = state.players[active]
-    assert _can_build_stable(p, Resources(wood=1)) is True
+    assert _can_build_stable(state, p, Resources(wood=1)) is True
 
 
 def test_can_build_stable_no_supply(state, active):
@@ -335,7 +335,7 @@ def test_can_build_stable_no_supply(state, active):
     })
     state = _set_resources(state, active, wood=10)
     p = state.players[active]
-    assert _can_build_stable(p, Resources(wood=1)) is False
+    assert _can_build_stable(state, p, Resources(wood=1)) is False
 
 
 def test_can_build_stable_no_empty_cell(state, active):
@@ -348,23 +348,23 @@ def test_can_build_stable_no_empty_cell(state, active):
     state = _set_grid(state, active, cells)
     state = _set_resources(state, active, wood=10)
     p = state.players[active]
-    assert _can_build_stable(p, Resources(wood=1)) is False
+    assert _can_build_stable(state, p, Resources(wood=1)) is False
 
 
 def test_can_build_stable_insufficient_wood(state, active):
     # 13 empty cells + supply, but no wood — cost check fails.
     p = state.players[active]  # fresh state has 0 wood
-    assert _can_build_stable(p, Resources(wood=1)) is False
+    assert _can_build_stable(state, p, Resources(wood=1)) is False
 
 
 def test_can_build_stable_farm_expansion_cost(state, active):
     # Farm Expansion uses 2 wood per stable, distinct from Side Job's 1 wood.
     state = _set_resources(state, active, wood=1)
     p = state.players[active]
-    assert _can_build_stable(p, Resources(wood=2)) is False
+    assert _can_build_stable(state, p, Resources(wood=2)) is False
     state = _set_resources(state, active, wood=2)
     p = state.players[active]
-    assert _can_build_stable(p, Resources(wood=2)) is True
+    assert _can_build_stable(state, p, Resources(wood=2)) is True
 
 
 # ---------------------------------------------------------------------------
@@ -375,14 +375,14 @@ def test_can_afford_room_legal(state, active):
     # Wood house at fresh setup needs 5 wood + 2 reed.
     state = _set_resources(state, active, wood=5, reed=2)
     p = state.players[active]
-    assert _can_afford_room(p) is True
+    assert _can_afford_room(state, p) is True
 
 
 def test_can_afford_room_insufficient(state, active):
     # 4 wood < 5 required, with reed satisfied.
     state = _set_resources(state, active, wood=4, reed=2)
     p = state.players[active]
-    assert _can_afford_room(p) is False
+    assert _can_afford_room(state, p) is False
 
 
 def test_has_room_placement_legal(state, active):
@@ -426,14 +426,14 @@ def test_can_build_room_legal(state, active):
     # and adjacent to the existing rooms at (1,0) and (2,0).
     state = _set_resources(state, active, wood=5, reed=2)
     p = state.players[active]
-    assert _can_build_room(p) is True
+    assert _can_build_room(state, p) is True
 
 
 def test_can_build_room_no_resources(state, active):
     # 4 wood < 5 required.
     state = _set_resources(state, active, wood=4, reed=2)
     p = state.players[active]
-    assert _can_build_room(p) is False
+    assert _can_build_room(state, p) is False
 
 
 def test_can_build_room_no_adjacent_empty(state, active):
@@ -445,7 +445,7 @@ def test_can_build_room_no_adjacent_empty(state, active):
         (2, 1): Cell(cell_type=CellType.FIELD),
     })
     p = state.players[active]
-    assert _can_build_room(p) is False
+    assert _can_build_room(state, p) is False
 
 
 # ---------------------------------------------------------------------------
@@ -456,21 +456,21 @@ def test_can_renovate_wood_to_clay(state, active):
     # Fresh state: 2-room wood house. 2 clay + 1 reed required.
     state = _set_resources(state, active, clay=2, reed=1)
     p = state.players[active]
-    assert _can_renovate(p) is True
+    assert _can_renovate(state, p) is True
 
 
 def test_can_renovate_already_stone(state, active):
     state = _set_player(state, active, house_material=HouseMaterial.STONE)
     state = _set_resources(state, active, stone=99, reed=99)
     p = state.players[active]
-    assert _can_renovate(p) is False
+    assert _can_renovate(state, p) is False
 
 
 def test_can_renovate_insufficient_resources(state, active):
     # Wood house, 2 rooms; 1 clay (< 2 needed).
     state = _set_resources(state, active, clay=1, reed=1)
     p = state.players[active]
-    assert _can_renovate(p) is False
+    assert _can_renovate(state, p) is False
 
 
 # ---------------------------------------------------------------------------

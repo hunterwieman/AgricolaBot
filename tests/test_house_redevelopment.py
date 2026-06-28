@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from agricola.actions import (
     ChooseSubAction,
-    CommitBuildMajor,
-    CommitRenovate,
     PlaceWorker,
     Proceed,
     Stop,
@@ -31,7 +29,7 @@ from tests.factories import (
     with_resources,
     with_space,
 )
-from tests.test_utils import run_actions
+from tests.test_utils import build_major, run_actions, sole_renovate
 
 
 def _hr_setup(*, material=HouseMaterial.WOOD, resources=None):
@@ -51,7 +49,7 @@ def test_house_redev_renovate_only():
     state = run_actions(state, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),      # pop PendingRenovate's after-phase
         Proceed(),   # flip the parent to its after-phase
         Stop(),      # pop the parent
@@ -69,11 +67,11 @@ def test_house_redev_renovate_then_improvement():
     state = run_actions(state, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),  # pop PendingRenovate's after-phase
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
+        build_major(0),
         Stop(),     # pop PendingBuildMajor's after-phase
         Stop(),     # pop PendingMajorMinorImprovement
         Proceed(),  # flip PendingHouseRedevelopment to its after-phase
@@ -106,7 +104,7 @@ def test_house_redev_stop_legal_after_renovate_skip_improvement():
     state = run_actions(state, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
     ])
     legal = legal_actions(state)
     assert Stop() in legal
@@ -120,11 +118,11 @@ def test_house_redev_proceed_legal_after_both_steps():
     state = run_actions(state, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),  # pop PendingRenovate's after-phase
         ChooseSubAction(name="improvement"),
         ChooseSubAction(name="build_major"),
-        CommitBuildMajor(major_idx=0, return_fireplace_idx=None),
+        build_major(0),
         Stop(),  # pop PendingBuildMajor's after-phase
         Stop(),  # pop PendingMajorMinorImprovement -> back at PendingHouseRedevelopment
     ])
@@ -153,10 +151,10 @@ def test_house_redev_renovation_cost_wood_to_clay():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
     ])
-    # Check the pending's cost field reflects the convention.
-    pending = state.pending_stack[-1]
-    assert isinstance(pending, PendingRenovate)
-    assert pending.cost == Resources(clay=2, reed=1)
+    # The cost lives on the renovate frontier now (a singleton in the Family game),
+    # surfaced as the sole legal CommitRenovate's payment.
+    assert isinstance(state.pending_stack[-1], PendingRenovate)
+    assert sole_renovate(state).payment == Resources(clay=2, reed=1)
 
 
 def test_house_redev_renovation_cost_clay_to_stone():
@@ -166,9 +164,8 @@ def test_house_redev_renovation_cost_clay_to_stone():
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
     ])
-    pending = state.pending_stack[-1]
-    assert isinstance(pending, PendingRenovate)
-    assert pending.cost == Resources(stone=2, reed=1)
+    assert isinstance(state.pending_stack[-1], PendingRenovate)
+    assert sole_renovate(state).payment == Resources(stone=2, reed=1)
 
 
 def test_house_redev_inner_improvement_provenance():
@@ -177,7 +174,7 @@ def test_house_redev_inner_improvement_provenance():
     state = run_actions(state, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),   # pop PendingRenovate's after-phase
         ChooseSubAction(name="improvement"),
     ])

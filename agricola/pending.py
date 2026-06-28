@@ -181,13 +181,17 @@ class PendingBuildRooms:
     Same shape and uniform before/after host lifecycle as PendingBuildStables
     (see there): `before`-phase room commits + before-triggers, then `Proceed`
     (num_built >= 1) flips to `after` firing `after_build_rooms` autos, then
-    after-triggers + `Stop` pops. `cost` is `ROOM_COSTS[house_material]`;
-    `max_builds=None` from Farm Expansion.
+    after-triggers + `Stop` pops. `max_builds=None` from Farm Expansion.
+
+    The room cost is NOT stored on this frame — it is resolved per room through the
+    cost-modifier chokepoint `effective_payments` (base `ROOM_COSTS[house_material]`),
+    so a cost card can reduce / convert / discount the Nth room without a stale cache
+    (COST_MODIFIER_DESIGN.md §3.3). `_execute_build_room` debits the singleton frontier
+    point directly, or — when a card offers >1 payment — pushes `PendingChooseCost`.
     """
     PENDING_ID: ClassVar[str] = "build_rooms"
     player_idx: int
     initiated_by_id: str
-    cost: Resources
     max_builds: int | None
     num_built: int = 0
     phase: str = "before"               # "before" | "after"
@@ -221,8 +225,12 @@ class PendingBuildMajor:
 class PendingRenovate:
     """Sub-action pending for house renovation.
 
-    `cost: Resources` is set at push time by the choose handler.
-    `_execute_renovate` reads `pending.cost` and debits.
+    The renovation cost is NOT stored on this frame. It is derived on demand from
+    the player (one of the next material per room + 1 reed) and resolved through the
+    cost-modifier chokepoint `effective_payments`; the chosen `PaymentOption` rides
+    on `CommitRenovate.payment`, which `_execute_renovate` debits
+    (COST_MODIFIER_DESIGN.md §3.3 — the old stored `cost` was a cache of a derived
+    value that goes stale once cost cards make it depend on owned cards).
 
     A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
     `phase` flips "before"->"after" at CommitRenovate (no auto-pop), firing
@@ -233,9 +241,34 @@ class PendingRenovate:
     PENDING_ID: ClassVar[str] = "renovate"
     player_idx: int
     initiated_by_id: str
-    cost: Resources
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+
+
+@dataclass(frozen=True)
+class PendingChooseCost:
+    """Payment-selection frame for a two-step build (card game only).
+
+    Pushed on top of a build host (`PendingBuildRooms` / `PendingBuildStables`) by
+    that build's effect when the cost-modifier chokepoint surfaces MORE THAN ONE
+    payment for the geometry just committed — the cell is already placed, so the only
+    remaining decision is which payment to make. Its enumerator offers one
+    `CommitChooseCost` per entry of `payments`; that commit debits the chosen payment
+    and pops this frame, returning to the build host for the next build / Stop.
+    Singleton frontiers skip this frame entirely (the build debits its one payment
+    inline), so it never arises in the Family game (COST_MODIFIER_DESIGN.md §3.7).
+
+    Not a host: no card triggers fire on "choosing a cost", so there is no
+    before/after phase or `triggers_resolved` — just the frozen `payments` frontier.
+    `initiated_by_id` is the build host's PENDING_ID, for provenance. `action_kind` is the
+    cost-modifier action kind of the underlying build (e.g. "build_room"), so the commit
+    can record per-action conversion-budget usage (Millwright) against the right cards.
+    """
+    PENDING_ID: ClassVar[str] = "choose_cost"
+    player_idx: int
+    initiated_by_id: str
+    payments: tuple                      # tuple[PaymentOption, ...], frozen at push
+    action_kind: str                     # cost-modifier action kind, e.g. "build_room"
 
 
 @dataclass(frozen=True)
@@ -902,6 +935,7 @@ PendingDecision = Union[
     PendingBuildRooms,
     PendingBuildMajor,
     PendingRenovate,
+    PendingChooseCost,
     PendingFarmExpansion,
     PendingSubActionSpace,
     PendingCultivation,

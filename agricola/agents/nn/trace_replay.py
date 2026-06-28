@@ -32,6 +32,8 @@ from typing import Any, Callable
 from agricola import actions as _actions_mod
 from agricola.actions import Action, RevealCard
 from agricola.agents.base import LegalActionsFn, decider_of
+from agricola.cost import RESOURCE_FIELDS, ReturnImprovement
+from agricola.resources import Resources
 from agricola.agents.nn.schema import (
     DATA_VERSION,
     DecisionSnapshot,
@@ -65,18 +67,37 @@ _ACTION_CLASSES: dict[str, type] = {
 # ---------------------------------------------------------------------------
 
 
+def _payment_to_json(pay: Any) -> dict[str, Any]:
+    """Serialize a ``PaymentOption`` (``CommitRenovate.payment`` etc.) — a tagged dict
+    so the inverse can tell a resource payment from a non-resource route. Mirrored by
+    the C++ trace emitter (CPP_ENGINE_PLAN.md / COST_MODIFIER_DESIGN.md §3.8)."""
+    if isinstance(pay, ReturnImprovement):
+        return {"route": "return_improvement", "improvement_idx": pay.improvement_idx}
+    return {"route": "resources", **{f: getattr(pay, f) for f in RESOURCE_FIELDS}}
+
+
+def _payment_from_json(d: dict[str, Any]) -> Any:
+    if d.get("route") == "return_improvement":
+        return ReturnImprovement(int(d["improvement_idx"]))
+    return Resources(**{f: int(d[f]) for f in RESOURCE_FIELDS})
+
+
 def action_to_params(action: Action) -> dict[str, Any]:
     """Serialize an action's fields to a JSON-able ``params`` dict.
 
-    The only non-scalar field across all action types is
-    ``CommitBuildPasture.cells`` (a ``frozenset[tuple[int, int]]``), emitted as
-    a sorted list of ``[row, col]`` pairs.
+    Two non-scalar field shapes occur across the action types:
+    ``CommitBuildPasture.cells`` (a ``frozenset[tuple[int, int]]``), emitted as a
+    sorted list of ``[row, col]`` pairs; and the ``payment`` of the wide commits
+    (a ``PaymentOption`` — ``Resources`` or ``ReturnImprovement``), emitted as a
+    tagged dict (:func:`_payment_to_json`).
     """
     params: dict[str, Any] = {}
     for f in dataclasses.fields(action):
         v = getattr(action, f.name)
         if isinstance(v, frozenset):
             params[f.name] = [list(t) for t in sorted(v)]
+        elif isinstance(v, (Resources, ReturnImprovement)):
+            params[f.name] = _payment_to_json(v)
         else:
             params[f.name] = v
     return params
@@ -89,6 +110,8 @@ def action_from_params(type_name: str, params: dict[str, Any]) -> Action:
     for k, v in params.items():
         if k == "cells":
             kwargs[k] = frozenset(tuple(c) for c in v)
+        elif isinstance(v, dict) and "route" in v:
+            kwargs[k] = _payment_from_json(v)
         else:
             kwargs[k] = v
     return cls(**kwargs)

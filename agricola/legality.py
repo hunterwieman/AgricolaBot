@@ -23,6 +23,7 @@ from agricola.actions import (
     CommitPlayMinor,
     CommitPlayOccupation,
     CommitPlow,
+    CommitChooseCost,
     CommitRenovate,
     CommitSow,
     FireTrigger,
@@ -53,6 +54,7 @@ from agricola.fences import (
     pack_fences_h,
     pack_fences_v,
 )
+from agricola.cost import CostCtx
 from agricola.resources import Resources
 from agricola.helpers import enclosed_cells, fences_in_supply, stables_in_supply
 from agricola.pending import (
@@ -76,6 +78,7 @@ from agricola.pending import (
     PendingPlayOccupation,
     PendingPlow,
     PendingPreparation,
+    PendingChooseCost,
     PendingRenovate,
     PendingReveal,
     PendingSow,
@@ -243,17 +246,30 @@ def _can_plow(p: PlayerState) -> bool:
     return bool(_legal_plow_cells(p))
 
 
-def _can_build_stable(p: PlayerState, cost: Resources) -> bool:
-    """Combined legality check for one stable build at the given cost.
+def _build_stable_ctx(p: PlayerState, base_cost: Resources, build_index: int = 0) -> CostCtx:
+    """Cost-resolution context for building ONE stable. Unlike rooms, the base (printed)
+    cost is caller-supplied (`base_cost`) — Side Job 1 wood, Farm Expansion 2 wood, card
+    grants 0 — not derivable from player state, so it stays on `PendingBuildStables.cost`
+    and is passed in here. `build_index` (the running `num_built`) lets a cost card discount
+    the Nth stable (Carpenter's Apprentice)."""
+    return CostCtx(
+        "build_stable", base_cost, num_rooms=_num_rooms(p), build_index=build_index,
+    )
 
-    Empty cell exists + ≥1 stable in supply + can afford `cost`.
-    Parameterized on cost: Farm Expansion uses 2 wood; Side Job uses 1 wood;
-    future cards may inject other costs.
+
+def _can_build_stable(state: GameState, p: PlayerState, cost: Resources) -> bool:
+    """Combined legality check for one stable build at the given base cost.
+
+    Empty cell exists + ≥1 stable in supply + the cost is payable through the cost-modifier
+    chokepoint (`can_pay`). In the Family game `can_pay` reduces to "can afford `cost`";
+    with cost cards it also accepts a reduced / converted payment. Parameterized on cost:
+    Farm Expansion uses 2 wood; Side Job uses 1 wood; card grants inject their own.
     """
+    idx = 0 if p is state.players[0] else 1
     return (
         stables_in_supply(p.farmyard) >= 1
         and bool(_legal_stable_cells(p))
-        and _can_afford(p, cost)
+        and can_pay(state, idx, _build_stable_ctx(p, cost))
     )
 
 
@@ -312,15 +328,86 @@ def _can_afford(p: PlayerState, cost: Resources) -> bool:
     return all(getattr(r, f) >= getattr(cost, f) for f in _RESOURCE_FIELDS)
 
 
-def _can_afford_room(p: PlayerState) -> bool:
-    """Affordability check for one room only.
+# ---------------------------------------------------------------------------
+# Cost resolution — the cost-modifier-card chokepoint (COST_MODIFIER_DESIGN.md)
+# ---------------------------------------------------------------------------
+# `effective_payments` is THE place a payment frontier is produced; enumeration and
+# the debit read it. Legality reads its cheaper existence-view, `can_pay`. Both live
+# here, beside `_can_afford` (which they call) and the per-pending enumerators that
+# consume them; the modifier registries live in `agricola.cards.cost_mods` and are
+# imported lazily (the Family game never registers, so the folds are no-ops).
 
-    Cost: 5 of the current house material + 2 reed (`ROOM_COSTS` in constants).
+def effective_payments(state, idx: int, ctx) -> list:
+    """The Pareto-minimal set of `PaymentOption`s player `idx` may use for the build
+    described by `ctx` (COST_MODIFIER_DESIGN.md §2.1). Family game (no cost cards) →
+    returns exactly `[ctx.base]`."""
+    from agricola.cards.cost_mods import (
+        apply_reductions, base_routes, expand_conversions, formula_mods,
+    )
+    from agricola.cost import pareto_min_over_goods
+    p = state.players[idx]
+    # 1. Resource bases: printed cost + each owned formula card's alternative.
+    resource_bases = [ctx.base] + formula_mods(ctx.action_kind, state, idx, ctx)
+    # 2. Conversions expand each base (before reductions, §2.4). 3. Reductions (signed, floor 0).
+    cands = [c for b in resource_bases
+             for c in expand_conversions(ctx.action_kind, state, idx, ctx, b)]
+    cands = [apply_reductions(ctx.action_kind, state, idx, ctx, c) for c in cands]
+    # 4. Keep affordable (resource payments + non-resource routes), then Pareto-min over goods.
+    affordable: list = [c for c in cands if _can_afford(p, c)]
+    affordable += [r for r in base_routes(ctx.action_kind, state, idx, ctx)
+                   if _route_affordable(state, idx, r)]
+    return pareto_min_over_goods(affordable)
 
-    Split out from `_can_build_room` so future card support can vary the
-    affordability calc without touching placement geometry.
+
+def can_pay(state, idx: int, ctx) -> bool:
+    """Short-circuiting existence view of `effective_payments`, for legality — does NOT
+    build the full frontier (COST_MODIFIER_DESIGN.md §2.6 / A4). Tries the base first
+    (the common / Family case), then any formula base / conversion path / non-resource
+    route, stopping at the first affordable one."""
+    p = state.players[idx]
+    if _can_afford(p, ctx.base):
+        return True
+    from agricola.cards.cost_mods import (
+        apply_reductions, base_routes, expand_conversions, formula_mods,
+    )
+    for b in [ctx.base] + formula_mods(ctx.action_kind, state, idx, ctx):
+        for c in expand_conversions(ctx.action_kind, state, idx, ctx, b):
+            if _can_afford(p, apply_reductions(ctx.action_kind, state, idx, ctx, c)):
+                return True
+    return any(_route_affordable(state, idx, r)
+               for r in base_routes(ctx.action_kind, state, idx, ctx))
+
+
+def _route_affordable(state, idx: int, route) -> bool:
+    """Whether a non-resource `ReturnImprovement` route is takeable now — i.e. the
+    player owns the major improvement it returns."""
+    return state.board.major_improvement_owners[route.improvement_idx] == idx
+
+
+def _build_room_ctx(p: PlayerState, build_index: int = 0) -> CostCtx:
+    """Cost-resolution context for building ONE room for player `p`.
+
+    Base (printed) cost is `ROOM_COSTS[house_material]` (5 of the house material +
+    2 reed). `build_index` is the 0-based index of the room within a multi-shot
+    build session (the running `num_built`), which a cost card may read to discount
+    the Nth room (Carpenter's Apprentice); `num_rooms` is the current room count.
     """
-    return _can_afford(p, ROOM_COSTS[p.house_material])
+    return CostCtx(
+        "build_room", ROOM_COSTS[p.house_material],
+        num_rooms=_num_rooms(p), build_index=build_index,
+    )
+
+
+def _can_afford_room(state: GameState, p: PlayerState, build_index: int = 0) -> bool:
+    """Affordability check for one room, through the cost-modifier chokepoint.
+
+    In the Family game `can_pay` reduces to "can afford `ROOM_COSTS`" (5 of the
+    current house material + 2 reed); with cost cards it also accepts a reduced /
+    converted / routed payment. Split out from `_can_build_room` so card cost
+    support varies affordability without touching placement geometry.
+    """
+    idx = 0 if p is state.players[0] else 1
+    return can_pay(state, idx, _build_room_ctx(p, build_index))
 
 
 def _legal_room_cells(p: PlayerState) -> list:
@@ -363,71 +450,63 @@ def _has_room_placement(p: PlayerState) -> bool:
     return bool(_legal_room_cells(p))
 
 
-def _can_build_room(p: PlayerState) -> bool:
+def _can_build_room(state: GameState, p: PlayerState) -> bool:
     """The player can afford one room AND has a valid placement cell."""
-    return _can_afford_room(p) and _has_room_placement(p)
+    return _can_afford_room(state, p) and _has_room_placement(p)
 
 
-def _can_renovate(p: PlayerState) -> bool:
+def _renovate_ctx(p: PlayerState) -> CostCtx:
+    """The cost-resolution context for renovating player `p`'s house one tier up.
+
+    Base (printed) cost: 1 of the next material per room + 1 reed total
+    (Wood→Clay: `num_rooms` clay + 1 reed; Clay→Stone: `num_rooms` stone + 1 reed).
+    `to_material` is the upgrade target, which cost-modifier cards may read
+    (e.g. a card that only discounts the clay tier). Assumes the house is not stone
+    — callers gate on that via `_can_renovate`'s STONE guard.
+    """
+    num_rooms = _num_rooms(p)
+    if p.house_material == HouseMaterial.WOOD:
+        return CostCtx(
+            "renovate", Resources(clay=num_rooms, reed=1),
+            to_material=HouseMaterial.CLAY, num_rooms=num_rooms,
+        )
+    return CostCtx(  # CLAY -> STONE (STONE filtered out by _can_renovate)
+        "renovate", Resources(stone=num_rooms, reed=1),
+        to_material=HouseMaterial.STONE, num_rooms=num_rooms,
+    )
+
+
+def _can_renovate(state: GameState, p: PlayerState) -> bool:
     """The house is wood or clay AND the player can afford to upgrade ALL rooms.
 
-    Wood→Clay: 1 clay per room + 1 reed total.
-    Clay→Stone: 1 stone per room + 1 reed total.
+    Affordability runs through the cost-modifier chokepoint `can_pay`, so a player
+    who cannot pay the printed cost but owns a cost card (formula / conversion /
+    non-resource route) is still allowed to renovate. In the Family game `can_pay`
+    reduces to "can afford the printed base", i.e. the old inline check.
     """
-    material = p.house_material
-    if material == HouseMaterial.STONE:
+    if p.house_material == HouseMaterial.STONE:
         return False
-    num_rooms = _num_rooms(p)
-    res = p.resources
-    if material == HouseMaterial.WOOD:
-        return res.clay >= num_rooms and res.reed >= 1
-    else:  # CLAY
-        return res.stone >= num_rooms and res.reed >= 1
+    idx = 0 if p is state.players[0] else 1
+    return can_pay(state, idx, _renovate_ctx(p))
+
+
+def _build_major_ctx(idx: int) -> CostCtx:
+    """Cost-resolution context for building major improvement `idx` (base = its printed
+    `MAJOR_IMPROVEMENT_COSTS` entry; `major_idx` lets cost cards / the built-in
+    Cooking-Hearth Fireplace-return route dispatch on which major)."""
+    return CostCtx("build_major", MAJOR_IMPROVEMENT_COSTS[idx], major_idx=idx)
 
 
 def _can_afford_major(state: GameState, p: PlayerState, idx: int) -> bool:
     """Whether the given player can afford the major improvement at index `idx`.
 
-    The player's index is derived from `p` itself (by identity comparison
-    against `state.players`), not from `state.current_player`.
-
-    Cost table (from RULES.md):
-      0: clay ≥ 2
-      1: clay ≥ 3
-      2: clay ≥ 4 OR owns Fireplace (idx 0 or 1)
-      3: clay ≥ 5 OR owns Fireplace (idx 0 or 1)
-      4: stone ≥ 3 AND wood ≥ 1
-      5: clay  ≥ 3 AND stone ≥ 1
-      6: clay  ≥ 1 AND stone ≥ 3
-      7: wood  ≥ 2 AND stone ≥ 2
-      8: clay  ≥ 2 AND stone ≥ 2
-      9: reed  ≥ 2 AND stone ≥ 2
-    """
+    Routes through the cost-modifier chokepoint `can_pay`, which covers the printed
+    cost (`MAJOR_IMPROVEMENT_COSTS[idx]`), any owned cost-card variant, AND the built-in
+    Cooking-Hearth Fireplace-return route (idx 2/3 are payable by returning an owned
+    Fireplace — §4.5). In the Family game this reduces to the printed cost-or-Fireplace
+    check. The player's index is derived from `p` by identity (not `current_player`)."""
     player_idx = 0 if p is state.players[0] else 1
-    res = p.resources
-    owns = state.board.major_improvement_owners
-    owns_fireplace = owns[0] == player_idx or owns[1] == player_idx
-    if idx == 0:
-        return res.clay >= 2
-    if idx == 1:
-        return res.clay >= 3
-    if idx == 2:
-        return res.clay >= 4 or owns_fireplace
-    if idx == 3:
-        return res.clay >= 5 or owns_fireplace
-    if idx == 4:
-        return res.stone >= 3 and res.wood >= 1
-    if idx == 5:
-        return res.clay >= 3 and res.stone >= 1
-    if idx == 6:
-        return res.clay >= 1 and res.stone >= 3
-    if idx == 7:
-        return res.wood >= 2 and res.stone >= 2
-    if idx == 8:
-        return res.clay >= 2 and res.stone >= 2
-    if idx == 9:
-        return res.reed >= 2 and res.stone >= 2
-    raise ValueError(f"Invalid major improvement index: {idx}")
+    return can_pay(state, player_idx, _build_major_ctx(idx))
 
 
 def _can_afford_any_major_improvement(state: GameState, p: PlayerState) -> bool:
@@ -524,7 +603,7 @@ def _legal_farm_expansion(state: GameState) -> bool:
     if not _is_available(state, "farm_expansion"):
         return False
     p = state.players[state.current_player]
-    return _can_build_room(p) or _can_build_stable(p, Resources(wood=2))
+    return _can_build_room(state, p) or _can_build_stable(state, p, Resources(wood=2))
 
 
 def _legal_farmland(state: GameState) -> bool:
@@ -538,7 +617,7 @@ def _legal_side_job(state: GameState) -> bool:
     if not _is_available(state, "side_job"):
         return False
     p = state.players[state.current_player]
-    can_stable = _can_build_stable(p, Resources(wood=1))
+    can_stable = _can_build_stable(state, p, Resources(wood=1))
     can_bake = _can_bake_bread(state, p)
     return can_stable or can_bake
 
@@ -582,7 +661,7 @@ def _legal_house_redevelopment(state: GameState) -> bool:
     if not _is_available(state, "house_redevelopment"):
         return False
     p = state.players[state.current_player]
-    return _can_renovate(p)
+    return _can_renovate(state, p)
 
 
 def _legal_cultivation(state: GameState) -> bool:
@@ -596,7 +675,7 @@ def _legal_farm_redevelopment(state: GameState) -> bool:
     if not _is_available(state, "farm_redevelopment"):
         return False
     p = state.players[state.current_player]
-    return _can_renovate(p)
+    return _can_renovate(state, p)
 
 
 def _legal_fencing(state: GameState) -> bool:
@@ -892,21 +971,45 @@ def _legal_major_improvement_cards(state: GameState) -> bool:
 
 
 def _can_afford_cost(p: PlayerState, cost) -> bool:
-    """Affordability for a card Cost (Resources + Animals)."""
+    """Affordability for a card Cost (Resources + Animals), at the PRINTED price.
+
+    Note: this does NOT apply cost-modifier cards — it is the plain printed-cost check.
+    For a minor's playability (which a card may discount), use `playable_minors`, whose
+    resource gate routes through the chokepoint `can_pay`."""
     a, ca = p.animals, cost.animals
     return (_can_afford(p, cost.resources)
             and a.sheep >= ca.sheep and a.boar >= ca.boar and a.cattle >= ca.cattle)
 
 
+def _play_minor_ctx(card_id: str, spec) -> CostCtx:
+    """Cost-resolution context for playing minor `card_id` (base = its printed
+    RESOURCE cost). A minor's animal cost, if any, is NOT modifiable by cost cards
+    (the Resources-based `PaymentOption` doesn't cover animals), so it is checked and
+    debited separately (COST_MODIFIER_DESIGN.md §5)."""
+    return CostCtx("play_minor", spec.cost.resources, card_id=card_id)
+
+
+def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
+    """The (unmodifiable) animal portion of a minor's cost is affordable."""
+    a = p.animals
+    return a.sheep >= animals.sheep and a.boar >= animals.boar and a.cattle >= animals.cattle
+
+
 def playable_minors(state: GameState, idx: int) -> list[str]:
     """Minor card ids in player `idx`'s hand that can currently be played:
     registered spec + prerequisite met + cost affordable. Filtered to registered
-    MinorSpecs so an as-yet-unimplemented hand card is simply not offered."""
+    MinorSpecs so an as-yet-unimplemented hand card is simply not offered.
+
+    The resource portion of the cost runs through the cost-modifier chokepoint
+    (`can_pay`) so an owned cost card (e.g. Bricklayer's clay reduction) makes a
+    previously-unaffordable minor playable; the animal portion is checked directly."""
     from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
     p = state.players[idx]
     return [
         cid for cid in sorted(p.hand_minors & MINORS.keys())
-        if prereq_met(MINORS[cid], state, idx) and _can_afford_cost(p, MINORS[cid].cost)
+        if prereq_met(MINORS[cid], state, idx)
+        and can_pay(state, idx, _play_minor_ctx(cid, MINORS[cid]))
+        and _can_afford_minor_animals(p, MINORS[cid].cost.animals)
     ]
 
 
@@ -1170,7 +1273,7 @@ def _enumerate_pending_build_stables(
     p = state.players[pending.player_idx]
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
-    if cap_ok and _can_build_stable(p, pending.cost):
+    if cap_ok and _can_build_stable(state, p, pending.cost):
         for (r, c) in _legal_stable_cells(p):
             actions.append(CommitBuildStable(row=r, col=c))
 
@@ -1202,7 +1305,12 @@ def _enumerate_pending_build_rooms(
     p = state.players[pending.player_idx]
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
-    if cap_ok and _can_afford(p, pending.cost):
+    # Affordability runs through the cost-modifier chokepoint (a card may reduce /
+    # convert / route the room cost); CommitBuildRoom stays geometry-only — the
+    # payment is resolved after the cell is chosen (singleton debit in Family,
+    # PendingChooseCost two-step when a card offers >1 payment). §3.4/§3.7.
+    if cap_ok and can_pay(state, pending.player_idx,
+                          _build_room_ctx(p, pending.num_built)):
         for (r, c) in _legal_room_cells(p):
             actions.append(CommitBuildRoom(row=r, col=c))
 
@@ -1217,39 +1325,25 @@ def _enumerate_pending_build_major(
 ) -> list[Action]:
     """Enumerate legal CommitBuildMajor actions at PendingBuildMajor.
 
-    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): in the after-phase the
-    major is built (and any oven free-bake done), so only after_build_major
-    triggers + Stop are legal — `phase` here replaces the old `build_chosen`
-    flag. In the before-phase enumerate every unowned, affordable major as a
-    CommitBuildMajor (standard payment), plus one additional CommitBuildMajor
-    per Fireplace owned (Cooking Hearth via Fireplace return), after any
-    before_build_major triggers.
+    Wide over (major, payment) (COST_MODIFIER_DESIGN.md §3.4): for every unowned major,
+    one CommitBuildMajor per entry of its cost-modifier frontier `effective_payments` —
+    the printed resource cost (when affordable) plus, for Cooking Hearth, the built-in
+    Fireplace-return `ReturnImprovement` route(s), plus any owned cost-card variants.
+
+    Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): in the after-phase the major is
+    built (and any oven free-bake done), so only after_build_major triggers + Stop are
+    legal — `phase` here replaces the old `build_chosen` flag.
     """
     actions: list[Action] = _eligible_fire_triggers(state, pending, trigger_event(pending))
     if pending.phase == "after":
         actions.append(Stop())
         return actions
     owners = state.board.major_improvement_owners
-    p = state.players[pending.player_idx]
     for idx in range(10):
         if owners[idx] is not None:
             continue
-        # Standard-payment option requires the raw cost specifically. We can't
-        # use `_can_afford_major` here because for Cooking Hearth (idx 2, 3)
-        # that predicate also accepts the Fireplace-return alternative; using
-        # it as a gate for the standard-payment option leaks unaffordable
-        # standard-payment commits (the player ends with negative clay).
-        # The Fireplace-return alternative is emitted separately below.
-        if _can_afford(p, MAJOR_IMPROVEMENT_COSTS[idx]):
-            actions.append(CommitBuildMajor(major_idx=idx, return_fireplace_idx=None))
-        # Cooking Hearth via Fireplace return: emit one option per Fireplace owned.
-        from agricola.constants import COOKING_HEARTH_INDICES, FIREPLACE_INDICES
-        if idx in COOKING_HEARTH_INDICES:
-            for fp_idx in FIREPLACE_INDICES:
-                if owners[fp_idx] == pending.player_idx:
-                    actions.append(CommitBuildMajor(
-                        major_idx=idx, return_fireplace_idx=fp_idx,
-                    ))
+        for payment in effective_payments(state, pending.player_idx, _build_major_ctx(idx)):
+            actions.append(CommitBuildMajor(major_idx=idx, payment=payment))
     return actions
 
 
@@ -1258,18 +1352,34 @@ def _enumerate_pending_renovate(
 ) -> list[Action]:
     """Enumerate legal CommitRenovate actions at PendingRenovate.
 
-    Renovate has no per-action parameter — exactly one option.
+    Renovate is a *wide* action: its only degree of freedom is which payment to make
+    (COST_MODIFIER_DESIGN.md §3.4). The before-phase emits one `CommitRenovate` per
+    entry of the cost-modifier frontier `effective_payments` — exactly one option in
+    the Family game (the singleton printed cost), several when cost cards are owned.
 
     Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after-phase offers
     after_renovate triggers (e.g. Mining Hammer's free stable) + Stop;
-    before-phase offers before_renovate triggers + the single CommitRenovate.
+    before-phase offers before_renovate triggers + the renovate commit(s).
     """
     actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     if pending.phase == "after":
         actions.append(Stop())
         return actions
-    actions.append(CommitRenovate())
+    p = state.players[pending.player_idx]
+    for payment in effective_payments(state, pending.player_idx, _renovate_ctx(p)):
+        actions.append(CommitRenovate(payment=payment))
     return actions
+
+
+def _enumerate_pending_choose_cost(
+    state: GameState, pending,
+) -> list[Action]:
+    """Enumerate legal actions at PendingChooseCost (the two-step build-payment frame,
+    card game only): one CommitChooseCost per entry of the frozen `payments` frontier
+    (COST_MODIFIER_DESIGN.md §3.7). No Stop — a payment must be made for the geometry
+    already committed; the frontier is non-empty by construction (the build's effect
+    only pushes this frame when >1 affordable payment survived)."""
+    return [CommitChooseCost(payment=pay) for pay in pending.payments]
 
 
 # ---------------------------------------------------------------------------
@@ -1297,9 +1407,9 @@ def _enumerate_pending_farm_expansion(
         return actions
     actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    if not pending.room_chosen and _can_build_room(p):
+    if not pending.room_chosen and _can_build_room(state, p):
         actions.append(ChooseSubAction(name="build_rooms"))
-    if not pending.stable_chosen and _can_build_stable(p, Resources(wood=2)):
+    if not pending.stable_chosen and _can_build_stable(state, p, Resources(wood=2)):
         actions.append(ChooseSubAction(name="build_stables"))
     if pending.room_chosen or pending.stable_chosen:
         actions.append(Proceed())
@@ -1338,11 +1448,26 @@ def _enumerate_pending_subactionspace(
     the single mandatory ChooseSubAction (the child). after-phase (reached via the
     auto-advance once the child popped): after_action_space triggers + Stop.
 
-    The transient `subaction_complete && phase=="before"` state is never
-    enumerated — the auto-advance flips it inside the same step (§5.1)."""
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    The base sub-action and any `before_action_space` triggers (e.g. Moldboard Plow
+    / Threshing Board on Farmland) may be taken in either order. Normally the
+    `subaction_complete && phase=="before"` state is never enumerated — the
+    auto-advance flips it inside the same step (§5.1). The exception is when a
+    before-trigger is still eligible after the base sub-action ran: the engine holds
+    the flip (so the grant isn't dropped) and we enumerate the remaining
+    before-triggers + Proceed (the explicit advance, gated like any host exit while a
+    mandatory before-trigger is unfired)."""
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
+    event = trigger_event(pending)
+    actions = _eligible_fire_triggers(state, pending, event)
     if pending.phase == "after":
         actions.append(Stop())
+        return actions
+    if pending.subaction_complete:
+        # Base sub-action done; only reached while a before-trigger remains eligible
+        # (else the engine already flipped to the after-phase). Offer Proceed to
+        # advance once the optional grants are declined.
+        if not has_unfired_mandatory_trigger(state, pending, event):
+            actions.append(Proceed())
         return actions
     choice = _subactionspace_choice(state, pending)
     if choice is not None:
@@ -1382,7 +1507,7 @@ def _enumerate_pending_side_job(
     p = state.players[pending.player_idx]
     actions: list[Action] = []
     if not pending.stable_chosen:
-        if _can_build_stable(p, Resources(wood=1)):
+        if _can_build_stable(state, p, Resources(wood=1)):
             actions.append(ChooseSubAction(name="build_stables"))
     if not pending.bake_chosen and _can_bake_bread(state, p):
         actions.append(ChooseSubAction(name="bake_bread"))
@@ -1497,7 +1622,7 @@ def _enumerate_pending_house_redevelopment(
         return actions
     actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    if not pending.renovate_chosen and _can_renovate(p):
+    if not pending.renovate_chosen and _can_renovate(state, p):
         actions.append(ChooseSubAction(name="renovate"))
     # The optional post-renovate improvement: build a major OR (card game) play a
     # minor. The "improvement" choose pushes PendingMajorMinorImprovement, which
@@ -1615,7 +1740,7 @@ def _enumerate_pending_farm_redevelopment(
         return actions
     actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
-    if not pending.renovate_chosen and _can_renovate(p):
+    if not pending.renovate_chosen and _can_renovate(state, p):
         actions.append(ChooseSubAction(name="renovate"))
     if (pending.renovate_chosen
             and not pending.build_fences_chosen
@@ -1960,10 +2085,14 @@ def _enumerate_pending_play_minor(
     if top.phase == "after":
         actions.append(Stop())
         return actions
-    actions.extend(
-        CommitPlayMinor(card_id=cid)
-        for cid in playable_minors(state, top.player_idx)
-    )
+    # Wide over (card, payment): one CommitPlayMinor per playable card per resource-cost
+    # frontier point (§3.4). A singleton frontier today (no conversion/formula minor),
+    # several once such a card lands. The animal cost (if any) rides on the spec, not here.
+    from agricola.cards.specs import MINORS  # local import: load-order safe
+    for cid in playable_minors(state, top.player_idx):
+        ctx = _play_minor_ctx(cid, MINORS[cid])
+        for payment in effective_payments(state, top.player_idx, ctx):
+            actions.append(CommitPlayMinor(card_id=cid, payment=payment))
     return actions
 
 
@@ -2034,6 +2163,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingBuildRooms:          _enumerate_pending_build_rooms,
     PendingBuildMajor:          _enumerate_pending_build_major,
     PendingRenovate:            _enumerate_pending_renovate,
+    PendingChooseCost:          _enumerate_pending_choose_cost,
     PendingFarmExpansion:       _enumerate_pending_farm_expansion,
     PendingSubActionSpace:      _enumerate_pending_subactionspace,
     PendingCultivation:         _enumerate_pending_cultivation,

@@ -24,7 +24,6 @@ import pytest
 from agricola.actions import (
     ChooseSubAction,
     CommitBuildPasture,
-    CommitRenovate,
     PlaceWorker,
     Proceed,
     Stop,
@@ -46,7 +45,7 @@ from tests.factories import (
     with_resources,
     with_space,
 )
-from tests.test_utils import run_actions
+from tests.test_utils import run_actions, sole_renovate
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +74,7 @@ def test_renovate_only_walk():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),      # pop PendingRenovate's after-phase
         Proceed(),   # flip the parent to its after-phase
         Stop(),      # pop the parent
@@ -92,7 +91,7 @@ def test_renovate_then_build_fences_walk():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),                                 # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),
@@ -136,7 +135,7 @@ def test_stop_legal_after_renovate_skip_build_fences():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
     ])
     legal = legal_actions(state)
     assert Stop() in legal
@@ -151,7 +150,7 @@ def test_material_progression_wood_to_clay():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),
     ])
     assert state.players[0].house_material == HouseMaterial.CLAY
@@ -162,7 +161,7 @@ def test_material_progression_clay_to_stone():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),
     ])
     assert state.players[0].house_material == HouseMaterial.STONE
@@ -184,9 +183,8 @@ def test_renovation_cost_wood_to_clay():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
     ])
-    pending = state.pending_stack[-1]
-    assert isinstance(pending, PendingRenovate)
-    assert pending.cost == Resources(clay=2, reed=1)
+    assert isinstance(state.pending_stack[-1], PendingRenovate)
+    assert sole_renovate(state).payment == Resources(clay=2, reed=1)
 
 
 def test_renovation_cost_clay_to_stone():
@@ -195,9 +193,8 @@ def test_renovation_cost_clay_to_stone():
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
     ])
-    pending = state.pending_stack[-1]
-    assert isinstance(pending, PendingRenovate)
-    assert pending.cost == Resources(stone=2, reed=1)
+    assert isinstance(state.pending_stack[-1], PendingRenovate)
+    assert sole_renovate(state).payment == Resources(stone=2, reed=1)
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +207,7 @@ def test_inner_build_fences_provenance():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),   # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
     ])
@@ -233,7 +230,7 @@ def test_build_fences_subdivision_started_flag_works_via_farm_redev():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),   # pop PendingRenovate's after-phase
         ChooseSubAction(name="build_fences"),
         CommitBuildPasture(cells=frozenset({(0, 1)})),     # new pasture, 4 fences
@@ -287,7 +284,7 @@ def test_build_fences_not_offered_when_no_legal_commit():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
     ])
     legal = legal_actions(state)
     assert ChooseSubAction(name="build_fences") not in legal
@@ -300,7 +297,7 @@ def test_build_fences_offered_when_legal_commit_exists():
     state = run_actions(state, [
         PlaceWorker(space="farm_redevelopment"),
         ChooseSubAction(name="renovate"),
-        CommitRenovate(),
+        sole_renovate,
         Stop(),   # pop PendingRenovate's after-phase -> back at the parent
     ])
     legal = legal_actions(state)
@@ -333,7 +330,7 @@ def test_stack_invariants_full_walk():
     assert inner.initiated_by_id == "farm_redevelopment"
 
     # CommitRenovate flips PendingRenovate to after-phase (no auto-pop).
-    state = step(state, CommitRenovate())
+    state = step(state, sole_renovate(state))
     assert len(state.pending_stack) == 2
     assert isinstance(state.pending_stack[-1], PendingRenovate)
     assert state.pending_stack[-1].phase == "after"

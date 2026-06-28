@@ -48,10 +48,23 @@ Work through these steps for every card, in order. Do **not** skip step 1.
 
 ### Step 1 — Read the EXACT card text from the data files
 
-Never reason from memory or from a paraphrase. The authoritative text lives in:
+Never reason from memory or from a paraphrase — **every time a card is named (by you or the
+user), look up its exact text before reasoning about or implementing it.** This is a hard
+rule: a paraphrase has burned us (e.g. "Side Job stable" / Feed Fence misreads). The
+authoritative text lives in:
 
 - `agricola/cards/data/revised_occupations.json`
 - `agricola/cards/data/revised_minor_improvements.json`
+
+**Use the lookup tool** rather than grepping the JSON by hand:
+
+```
+python scripts/card_text.py "feed fence" millwright "carpenter's parlor"
+```
+
+It searches both files by name **or** slug, prints the verbatim `text` plus
+`cost`/`prerequisites`/`vps`/`passing_left` and deck/number/category, and marks whether each
+card is already **IMPLEMENTED** (its slug is registered). `--exact` matches the full name.
 
 Each entry has `deck`, `number`, `name`, `card_category`, `text`, and (for minors) `cost`,
 `prerequisites`, `passing_left`, `vps`. The card id used throughout the code is the
@@ -185,6 +198,52 @@ flip / Proceed / auto-advance) → after-triggers are surfaced → Stop pops.** 
 fire at the *flip*, **not** at the trailing Stop (Stop is a pure pop). Getting this order
 wrong (firing after-autos at Stop) was a real regression.
 
+### Build Rooms / Build Stables / Build Fences is ONE action, not a sequence
+
+**The rule.** Each of *Build Rooms*, *Build Stables*, and *Build Fences* is a **single,
+instantaneous action that builds everything you pay for at once.** Building three rooms is
+*one* action that produces three rooms simultaneously — there is no game-time moment, no
+"step," and no recognized timing/event/trigger opportunity *between* the individual rooms.
+The action has exactly two timing boundaries the rules recognize: just **before** it (its
+cost/effects are about to happen) and just **after** it (everything it did is now done).
+
+**The implementation.** For tractability — branching factor for MCTS / policy-head width
+(the action-shaping Foundation: a layout is a *path* of small commits, not one choice over
+all final layouts) — the engine resolves these actions as a **chain of one-piece commits**:
+`CommitBuildRoom` / `CommitBuildStable` / `CommitBuildPasture`, each placing a single piece,
+with the multi-shot host (`PendingBuildRooms` / `PendingBuildStables` / `PendingBuildFences`)
+staying on top until `Proceed` ends the action. **This split is a search/representation
+convenience, not a change to game semantics.** The chain must produce exactly the effects
+the one-shot rule would.
+
+**The invariant (load-bearing).** The chain's *internal* boundaries — the gaps between one
+piece-commit and the next — are **not** a recognized time/event/trigger opportunity, so
+**no card effect (trigger, automatic effect, reward, anything) may fire there.** Effects
+fire only at the **action** boundaries: the host's before-phase (fired at push) and its
+after-phase (fired at the `Proceed` work-complete flip). The before/after host model
+enforces this — `before_/after_build_rooms` (etc.) fire at push/Proceed, never per piece —
+so the way to *stay* correct is: **hook the action boundary, never a per-piece moment
+(there is no such event to hook).**
+
+**What this means when you author a card that interacts with one of these actions:**
+- **Compute per-action effects over the WHOLE action, not per piece.** A budget, a count,
+  a comparison, or a reward that the card text scopes to "when you build rooms/stables/
+  fences" spans every piece of that one action.
+  - *Millwright* ("replace up to 2 building resources … each time you build … rooms"): the
+    2 is a per-**action** budget shared across every room/stable in the action — tracked in
+    the card's `CardStore` (each piece-commit's debit reads the running count and caps,
+    `record` adds what it used, the `after_build_*` auto resets it), **never** 2-per-piece.
+  - *Shepherd's Crook* ("each time you fence a new pasture covering ≥4 spaces …"): snapshots
+    the pasture decomposition in `before_build_fences` and computes the grant **once** in
+    `after_build_fences` by diffing before-vs-after — **never** per `CommitBuildPasture`
+    (that's also why a 6→4+2 split in one action grants only for the undivided 4).
+  - *Feed Fence* ("for each new stable … for your last one, get 3 food"): the "last stable"
+    is only knowable once the whole action is done → an after-phase computation, not per
+    piece.
+- **Do not invent a per-piece event or fire between commits.** If you find yourself wanting
+  something to happen "after this one room but before the next," stop — that moment does not
+  exist in the rules. It's either a before-action effect, an after-action effect, or a §0.
+
 ### Atomic spaces must be explicitly HOSTED to be hookable
 
 A truly *atomic* action space (Forest, Day Laborer, Grain Seeds, Fishing, the accumulation
@@ -195,6 +254,21 @@ host when your card is owned. **Non-atomic** spaces (Farm Expansion, Grain Utili
 Cultivation, House Redevelopment, the animal markets, …) are always hosted, so they need
 no hook registration — just register the trigger/auto on `before_/after_action_space` and
 filter by `space_id` in the eligibility predicate.
+
+### A pasture is not a `CellType` — empty fenced cells read as `EMPTY`
+
+`CellType` has only `EMPTY / ROOM / FIELD / STABLE`; there is **no `PASTURE` value**.
+Pastures are derived from the fence arrays, not stored on the cell — so a cell that is
+fenced into a pasture but holds no stable keeps `cell_type == EMPTY`. Any card that reasons
+about farmyard-space occupancy ("all spaces used," "an empty space," counting pastures, etc.)
+must therefore **consult the fences, not just `cell_type`**: a cell is *used* when
+`cell_type != EMPTY` **or** it is in `enclosed_cells(farmyard)` (from `agricola/helpers.py`,
+which reads the cached `farmyard.pastures`). Checking `cell_type` alone silently undercounts
+every empty pasture cell. This is exactly the bug that made **Big Country**'s "All Farmyard
+Spaces Used" prerequisite reject a fully-fenced farm; `big_country.py`'s
+`_all_farmyard_spaces_used` is the reference for the correct check. (Pasture *capacity* and
+animal counts likewise come from `farmyard.pastures` / the accommodation helpers, never from
+the grid.)
 
 ### Hidden information — do not leak hands
 
@@ -377,6 +451,9 @@ Find the row that matches your card's shape and copy that module's structure.
 
 | Card shape | Copy from |
 |---|---|
+| Cost modifier — reduction ("costs N less") | `bricklayer.py`, `lumber_mill.py`, `master_bricklayer.py` (state-dependent delta) |
+| Cost modifier — whole-cost formula ("only costs X") | `carpenter.py`, `clay_plasterer.py` (conditional), `carpenters_parlor.py` |
+| Cost modifier — conversion ("replace A with B") / per-action-budgeted sink | `frame_builder.py`, `millwright.py` (the per-action-budget + `record` pattern) |
 | On-play: gain goods | `consultant.py`, `clay_embankment.py` |
 | On-play: push a primitive (plow/etc.) | `shifting_cultivation.py` |
 | Passing (traveling) minor | `market_stall.py` |
@@ -431,8 +508,15 @@ even when it turns out to be the right call.
 These are **not** buildable on today's machinery. Do not attempt them without the user;
 they need design decisions, not just code.
 
-- **Cost-modifier cards** (a card that makes other actions/builds cheaper) — needs a
-  cost-modification layer that does not exist.
+- **Cost-modifier cards** (a card that makes a build/renovate/improvement cheaper, or lets
+  you pay it differently) — **NOW SUPPORTED** for renovate / build-room / build-major /
+  play-minor / build-stable via the cost-modifier chokepoint (`COST_MODIFIER_DESIGN.md`;
+  registries in `agricola/cards/cost_mods.py`: `register_reduction` / `register_formula` /
+  `register_conversion`). See the §7 template row. Still deferred: **build-FENCE** cost cards
+  (plan in `COST_MODIFIER_DESIGN.md` §9, not yet wired) and the *exotic* shapes — per-segment
+  "Nth fence/room" discounts, per-action *total*-reduction budgets (Hunting Trophy), and a
+  card whose cost is payable from at-any-time-convertible goods (the conversion-closure set,
+  below).
 - **Cards whose cost is payable from convertible goods** — needs the at-any-time-cost
   machinery (surface the Pareto-frontier conversion at the moment the cost is charged).
 - **At-any-time conversion / "conversion closure" cards** — see §2; these are deliberately
@@ -458,7 +542,8 @@ blocker is built, re-read its text (§1) and re-classify before implementing.
 
 ## 10. Discipline checklist (every card)
 
-- [ ] Read the **exact** card text from the data files; quoted in the docstring.
+- [ ] Read the **exact** card text from the data files (`python scripts/card_text.py "<name>"`);
+      quoted in the docstring.
 - [ ] Classified timing + firing kind + primitives; it clearly fits — **or** deferred and
       asked (§0).
 - [ ] Module created + imported in `cards/__init__.py`.

@@ -16,7 +16,6 @@ mandatory singletons the agent auto-applies; these tests drive them explicitly.
 from agricola.actions import (
     ChooseSubAction,
     CommitFamilyGrowth,
-    CommitPlayMinor,
     PlaceWorker,
     Proceed,
     Stop,
@@ -29,6 +28,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import Cell, get_space, with_space
+from tests.test_utils import sole_play_minor
 from tests.factories import with_grid
 
 _POOL = CardPool(
@@ -92,8 +92,8 @@ def test_growth_then_play_minor():
     assert Stop() not in acts  # Stop is only in the after-phase
 
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    assert legal_actions(cs) == [CommitPlayMinor(card_id="market_stall")]  # mandatory once chosen
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    assert legal_actions(cs) == [sole_play_minor(cs, "market_stall")]  # mandatory once chosen
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     assert cs.players[cp].resources.veg == 1
     assert "market_stall" in cs.players[opp].hand_minors    # passing -> circulated
     assert legal_actions(cs) == [Stop()]                    # minor done -> only Stop (after-phase)

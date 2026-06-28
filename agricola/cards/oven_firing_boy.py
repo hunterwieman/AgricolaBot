@@ -9,8 +9,11 @@ apply_fn pushes the existing PendingBakeBread primitive — including Potter
 Ceramics firing inside it for free, since the bake-bread machinery is unchanged.
 Eligibility gates on a bake actually being usable (`_can_bake_bread`: a baking
 improvement + grain, or a card extension), so it never grants an unresolvable
-bake. Fires on the wood space's after-phase. On-play is a no-op.
-See CARD_IMPLEMENTATION_PLAN.md Category 4.
+bake. Fires on the wood space's BEFORE-phase: "each time you use [space]" fires
+before the space's own effect (the Trigger-Timing ruling). The bake needs grain,
+not the space's wood, so before is observationally correct; the wood-consuming
+"immediately after" cards (Mushroom Collector, Basket) stay on the after-phase.
+On-play is a no-op. See CARD_IMPLEMENTATION_PLAN.md Category 4.
 """
 from __future__ import annotations
 
@@ -35,5 +38,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)
-register("after_action_space", CARD_ID, _eligible, _apply)
+register("before_action_space", CARD_ID, _eligible, _apply)
 register_action_space_hook(CARD_ID, WOOD_SPACES)

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.constants import CellType
+from agricola.helpers import enclosed_cells
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.scoring import register_scoring
@@ -28,10 +29,19 @@ CARD_ID = "big_country"
 
 
 def _all_farmyard_spaces_used(state: GameState, idx: int) -> bool:
-    """Prerequisite: every farmyard cell is non-empty (room/field/pasture/stable)."""
-    grid = state.players[idx].farmyard.grid
+    """Prerequisite: every farmyard space is used — a room, field, stable, or a
+    fenced pasture cell.
+
+    A pasture is not its own `CellType`; it is derived from the fence arrays, so a
+    fenced-but-empty pasture cell keeps `cell_type == EMPTY`. Such a cell IS a used
+    space (it is a pasture), so the check is "cell_type != EMPTY OR the cell is
+    enclosed by fences" — not "cell_type != EMPTY" alone, which would wrongly fail
+    the prereq on any farm whose pastures contain an empty, stable-less cell."""
+    fy = state.players[idx].farmyard
+    grid = fy.grid
+    enclosed = enclosed_cells(fy)
     return all(
-        grid[r][c].cell_type is not CellType.EMPTY
+        grid[r][c].cell_type is not CellType.EMPTY or (r, c) in enclosed
         for r in range(3)
         for c in range(5)
     )

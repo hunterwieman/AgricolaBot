@@ -248,11 +248,17 @@ CHOOSE_SUBACTION_HEAD = DecisionHead(
 
 
 def _major_label(action: Action) -> str | None:
+    # CommitBuildMajor is now a *wide* commit carrying a PaymentOption (the old
+    # return_fireplace_idx became a ReturnImprovement payment). The vocab is unchanged
+    # — a Resources payment is the standard "m{idx}" class, a ReturnImprovement(fp) is
+    # the "m{idx}_rf{fp}" class — so the trained head's weights stay valid; only this
+    # label adapter reads `payment` instead of `return_fireplace_idx`.
+    from agricola.cost import ReturnImprovement
     if not isinstance(action, CommitBuildMajor):
         return None
-    if action.return_fireplace_idx is None:
-        return f"m{action.major_idx}"
-    return f"m{action.major_idx}_rf{action.return_fireplace_idx}"
+    if isinstance(action.payment, ReturnImprovement):
+        return f"m{action.major_idx}_rf{action.payment.improvement_idx}"
+    return f"m{action.major_idx}"
 
 
 def _build_major_vocab() -> tuple[str, ...]:

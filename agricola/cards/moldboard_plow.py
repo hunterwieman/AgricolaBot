@@ -10,14 +10,17 @@ uses-left counter (starting at 2) stored in the per-card CardStore (II.7); each
 granted plow decrements it, and the grant is no longer offered once it hits 0.
 
 Mechanically an OPTIONAL trigger (register, not register_auto) on Farmland's
-after-phase whose apply_fn pushes the existing PendingPlow primitive — mirrors
-Assistant Tiller / Threshing Board. Farmland is always hosted (non-atomic, pushes
-PendingSubActionSpace), so no register_action_space_hook is needed. Eligibility
-gates on uses-left > 0, the card not already fired THIS frame (triggers_resolved),
-and a plow actually being possible (_can_plow) — so it never grants a dead-end and
-never exceeds twice per game. The uses-left decrement happens in apply_fn, so each
-fire across two separate Farmland turns consumes one use. See
-CARD_IMPLEMENTATION_PLAN.md Category 4 / II.7.
+BEFORE-phase whose apply_fn pushes the existing PendingPlow primitive — mirrors
+Assistant Tiller / Threshing Board. "When you use [space]" fires before the space's
+own effect (the Trigger-Timing ruling), so the card plow is offered together with
+the base Farmland plow, takeable in either order. Farmland is always hosted
+(non-atomic, pushes PendingSubActionSpace, a delegating host); the engine holds that
+host's post-plow auto-advance while this grant is eligible, so it is never dropped.
+No register_action_space_hook is needed. Eligibility gates on uses-left > 0, the
+card not already fired THIS frame (triggers_resolved), and a plow actually being
+possible (_can_plow) — so it never grants a dead-end and never exceeds twice per
+game. The uses-left decrement happens in apply_fn, so each fire across two separate
+Farmland turns consumes one use. See CARD_IMPLEMENTATION_PLAN.md Category 4 / II.7.
 """
 from __future__ import annotations
 
@@ -57,4 +60,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=2)), min_occupations=1)
-register("after_action_space", CARD_ID, _eligible, _apply)
+register("before_action_space", CARD_ID, _eligible, _apply)

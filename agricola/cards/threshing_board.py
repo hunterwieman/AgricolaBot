@@ -4,14 +4,16 @@ prereq 2 occupations, 1 VP).
 Card text: "Each time you use the 'Farmland' or 'Cultivation' action space, you get
 an additional 'Bake Bread' action."
 
-Category 4 (action-space hook, granted sub-action) on the **after** event — an
+Category 4 (action-space hook, granted sub-action) on the **before** event — an
 OPTIONAL trigger whose apply_fn pushes the existing PendingBakeBread primitive.
-Eligibility gates on a bake being usable (`_can_bake_bread`), so it never grants
-a dead-end. Both spaces are non-atomic (always hosted), so no host-index entry is
-needed. Firing it records Threshing Board in the host frame's triggers_resolved,
-from which `_after_action_space_fired` derives that the base sub-actions are now
-closed (no plow/sow after the bake — the rules ordering). See
-CARD_IMPLEMENTATION_PLAN.md Category 4.
+"Each time you use [space]" fires before the space's own effect (the Trigger-Timing
+ruling), so the bake is offered together with the space's base plow/sow (and any
+other "use Farmland" grant, e.g. Moldboard Plow), takeable in either order.
+Eligibility gates on a bake being usable (`_can_bake_bread`), so it never grants a
+dead-end. Both spaces are non-atomic (always hosted): Cultivation is a Proceed-host
+(before-triggers coexist with plow/sow until Proceed) and Farmland a delegating host
+(the engine holds its post-plow auto-advance while this grant is eligible, so it is
+never dropped). See CARD_IMPLEMENTATION_PLAN.md Category 4.
 """
 from __future__ import annotations
 
@@ -38,4 +40,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)),
                min_occupations=2, vps=1)
-register("after_action_space", CARD_ID, _eligible, _apply)
+register("before_action_space", CARD_ID, _eligible, _apply)

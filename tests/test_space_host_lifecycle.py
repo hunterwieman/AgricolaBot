@@ -25,9 +25,7 @@ Covered here:
 """
 from agricola.actions import (
     ChooseSubAction,
-    CommitBuildMajor,
     CommitPlow,
-    CommitRenovate,
     CommitSow,
     PlaceWorker,
     Proceed,
@@ -55,6 +53,7 @@ from tests.factories import (
     with_resources,
     with_space,
 )
+from tests.test_utils import sole_build_major, sole_play_minor, sole_renovate
 
 
 def _commit_plow(state):
@@ -180,7 +179,7 @@ def test_house_redev_mandatory_only_proceed_walk():
     assert Proceed() not in la
 
     state = step(state, ChooseSubAction(name="renovate"))
-    state = step(state, CommitRenovate())
+    state = step(state, sole_renovate(state))
     state = step(state, Stop())          # pop PendingRenovate's after-phase
 
     # Renovate done -> Proceed offered (improvement optional, declined here).
@@ -231,7 +230,7 @@ def test_major_space_three_layer_auto_advance():
     state = step(state, ChooseSubAction(name="build_major"))
     # Layer 3: the build-major primitive.
     assert isinstance(state.pending_stack[-1], PendingBuildMajor)
-    state = step(state, CommitBuildMajor(major_idx=0, return_fireplace_idx=None))
+    state = step(state, sole_build_major(state, 0))
     # PendingBuildMajor flipped to its after-phase (sub-action pass).
     assert state.pending_stack[-1].phase == "after"
     assert state.board.major_improvement_owners[0] == 0
@@ -270,7 +269,7 @@ def test_major_minor_host_reused_under_house_redevelopment():
     state = step(state, PlaceWorker(space="house_redevelopment"))
     assert isinstance(state.pending_stack[-1], PendingHouseRedevelopment)
     state = step(state, ChooseSubAction(name="renovate"))
-    state = step(state, CommitRenovate())
+    state = step(state, sole_renovate(state))
     state = step(state, Stop())          # pop PendingRenovate's after-phase
 
     # House Redev before-phase: the optional improvement + Proceed.
@@ -285,7 +284,7 @@ def test_major_minor_host_reused_under_house_redevelopment():
     assert not any(isinstance(f, PendingSubActionSpace) for f in state.pending_stack)
 
     state = step(state, ChooseSubAction(name="build_major"))
-    state = step(state, CommitBuildMajor(major_idx=0, return_fireplace_idx=None))
+    state = step(state, sole_build_major(state, 0))
     state = step(state, Stop())          # pop PendingBuildMajor; auto-advance flips composite host
     top = state.pending_stack[-1]
     assert isinstance(top, PendingMajorMinorImprovement) and top.phase == "after"
@@ -346,12 +345,11 @@ def test_meeting_place_decline_proceed_from_start():
 
 def test_meeting_place_take_minor_then_proceed():
     """Take the optional minor, then Proceed, then Stop."""
-    from agricola.actions import CommitPlayMinor
     from agricola.pending import PendingMeetingPlace
     cs, cp = _meeting_place_card_state()
     cs = step(cs, PlaceWorker(space="meeting_place"))
     cs = step(cs, ChooseSubAction(name="play_minor"))
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     cs = step(cs, Stop())                # pop the play-minor after-phase
     # minor played -> only Proceed remains in the parent's before-phase.
     assert legal_actions(cs) == [Proceed()]

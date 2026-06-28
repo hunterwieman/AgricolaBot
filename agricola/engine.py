@@ -22,6 +22,7 @@ from agricola.actions import (
     CommitBuildRoom,
     CommitBuildStable,
     CommitCardChoice,
+    CommitChooseCost,
     CommitConvert,
     CommitDraftPick,
     CommitFamilyGrowth,
@@ -59,6 +60,7 @@ from agricola.pending import (
     PendingBuildStables,
     PendingBuildMajor,
     PendingCattleMarket,
+    PendingChooseCost,
     PendingDraftPick,
     PendingFamilyGrowth,
     PendingHarvestBreed,
@@ -94,6 +96,7 @@ from agricola.resolution import (
     _execute_build_pasture,
     _execute_build_room,
     _execute_build_stable,
+    _execute_choose_cost,
     _execute_convert,
     _execute_family_growth,
     _execute_harvest_conversion,
@@ -114,6 +117,7 @@ import agricola.cards  # noqa: F401
 # to import here without a load-order cycle.
 from agricola.cards.triggers import (
     apply_auto_effects,
+    has_eligible_trigger,
     should_host_harvest_field,
     should_host_space,
 )
@@ -277,6 +281,9 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     CommitBuildStable:  (PendingBuildStables, _execute_build_stable),
     CommitBuildRoom:    (PendingBuildRooms,   _execute_build_room),
     CommitRenovate:     (PendingRenovate,     _execute_renovate),
+    # CommitChooseCost (card game two-step): lands on PendingChooseCost; the effect
+    # debits the chosen payment and POPS the frame itself, returning to the build host.
+    CommitChooseCost:   (PendingChooseCost,   _execute_choose_cost),
     # CommitAccommodate lands on any of three market parent pendings.
     # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.
     # The effect pivots the host to its after-phase; the trailing Stop pops.
@@ -641,13 +648,26 @@ def _advance_until_decision(state: GameState) -> GameState:
         # completed (SPACE_HOST_REFACTOR.md §5): then auto-advance it to its
         # after-phase (firing after_<event> autos) before returning. The flip
         # makes phase=="after", so the guard is False next iteration — idempotent.
+        #
+        # Exception: hold the flip while a `before_<event>` trigger is still
+        # eligible. The base sub-action can be done before the player has resolved
+        # an optional "each time you use [space]" before-trigger (Moldboard Plow /
+        # Threshing Board on Farmland); flipping straight to the after-phase would
+        # silently drop that grant. Instead we stay in the before-phase, where the
+        # enumerator offers the remaining before-triggers + Proceed. With no such
+        # trigger eligible this is the original unconditional flip — byte-identical
+        # for the Family game and for trigger-free delegating spaces.
         if state.pending_stack:
             top = state.pending_stack[-1]
             if (getattr(type(top), "DELEGATING", False)
                     and top.subaction_complete
                     and top.phase == "before"):
-                state = _enter_after_phase(state)
-                continue
+                _pid = type(top).PENDING_ID
+                _before_event = (
+                    f"before_{'action_space' if _pid in ACTION_SPACE_PENDING_IDS else _pid}")
+                if not has_eligible_trigger(state, top, _before_event):
+                    state = _enter_after_phase(state)
+                    continue
             return state
 
         # Case 1.5: DRAFT phase with empty stack. Push the next pick frame,

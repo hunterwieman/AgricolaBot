@@ -47,9 +47,18 @@ inline void hf(std::size_t& h, const CommitSow& a) { af(h, a.grain); af(h, a.veg
 inline void hf(std::size_t& h, const CommitBake& a) { af(h, a.grain); }
 inline void hf(std::size_t& h, const CommitPlow& a) { af(h, a.row); af(h, a.col); }
 inline void hf(std::size_t& h, const CommitBuildStable& a) { af(h, a.row); af(h, a.col); }
+inline void af(std::size_t& h, const Resources& r) {
+  af(h, r.wood); af(h, r.clay); af(h, r.reed); af(h, r.stone);
+  af(h, r.food); af(h, r.grain); af(h, r.veg);
+}
+inline void af(std::size_t& h, const PaymentOption& pay) {
+  // route discriminant + payload (so a Resources and a ReturnImprovement differ).
+  if (const auto* r = std::get_if<Resources>(&pay)) { amix(h, 0); af(h, *r); }
+  else { amix(h, 1); af(h, std::get<ReturnImprovement>(pay).improvement_idx); }
+}
 inline void hf(std::size_t& h, const CommitBuildRoom& a) { af(h, a.row); af(h, a.col); }
-inline void hf(std::size_t& h, const CommitBuildMajor& a) { af(h, a.major_idx); af(h, a.return_fireplace_idx); }
-inline void hf(std::size_t&, const CommitRenovate&) {}
+inline void hf(std::size_t& h, const CommitBuildMajor& a) { af(h, a.major_idx); af(h, a.payment); }
+inline void hf(std::size_t& h, const CommitRenovate& a) { af(h, a.payment); }
 inline void hf(std::size_t& h, const CommitAccommodate& a) { af(h, a.sheep); af(h, a.boar); af(h, a.cattle); }
 inline void hf(std::size_t& h, const CommitBuildPasture& a) {
   for (const auto& [r, c] : a.cells) { af(h, r); af(h, c); }

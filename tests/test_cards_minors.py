@@ -9,7 +9,6 @@ land next, so these drive PendingPlayMinor by pushing it onto the stack directly
 """
 import pytest
 
-from agricola.actions import CommitPlayMinor
 from agricola.cards.specs import MINORS, MinorSpec, prereq_met, register_minor
 from agricola.engine import step
 from agricola.legality import _can_afford_cost, legal_actions, playable_minors
@@ -18,6 +17,7 @@ from agricola.replace import fast_replace
 from agricola.resources import Animals, Cost, Resources
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_pending_stack
+from tests.test_utils import sole_play_minor
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -114,7 +114,7 @@ def test_enumerator_offers_plays_only():
     cs = _push_minor(cs, cp)
     # PendingPlayMinor plays exactly one minor — no Stop here. The skip (where
     # allowed) is the PARENT frame's Stop, not this frame's.
-    assert legal_actions(cs) == [CommitPlayMinor(card_id="market_stall")]
+    assert legal_actions(cs) == [sole_play_minor(cs, "market_stall")]
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ def test_play_market_stall_passes_to_opponent():
     cs, cp = _card_state(cp_minors=frozenset({"market_stall"}), cp_res=Resources(grain=2))
     opp = 1 - cp
     cs = _push_minor(cs, cp)
-    cs = step(cs, CommitPlayMinor(card_id="market_stall"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
     p = cs.players[cp]
     assert p.resources.grain == 1 and p.resources.veg == 1     # paid 1 grain, gained 1 veg
     assert "market_stall" not in p.minor_improvements          # passing -> not kept
@@ -144,7 +144,7 @@ def test_play_market_stall_passes_to_opponent():
 def test_play_non_passing_minor_kept_in_tableau(kept_minor):
     cs, cp = _card_state(cp_minors=frozenset({kept_minor}), cp_res=Resources(wood=2))
     cs = _push_minor(cs, cp)
-    cs = step(cs, CommitPlayMinor(card_id=kept_minor))
+    cs = step(cs, sole_play_minor(cs, kept_minor))
     p = cs.players[cp]
     assert kept_minor in p.minor_improvements                  # kept
     assert kept_minor not in p.hand_minors                     # left hand

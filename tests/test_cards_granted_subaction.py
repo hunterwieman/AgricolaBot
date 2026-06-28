@@ -42,16 +42,19 @@ def _num_fields(state, idx):
 # ---------------------------------------------------------------------------
 
 def test_assistant_tiller_grants_a_plow():
+    # "Each time you use [space]" fires BEFORE the space's own effect, so the plow
+    # grant is offered before Day Laborer's +2 food (and in the same before-phase as
+    # Cottager, when both are owned — see test_assistant_tiller_with_cottager_same_phase).
     s = _own_occ(_card_state(), 0, "assistant_tiller")
     food0 = s.players[0].resources.food
     fields0 = _num_fields(s, 0)
 
     s = step(s, PlaceWorker(space="day_laborer"))
-    s = step(s, Proceed())                       # Day Laborer: +2 food, flip to after
-    assert s.players[0].resources.food == food0 + 2
+    # Before-phase: the grant is offered, and the food has NOT been gained yet.
     la = legal_actions(s)
     assert FireTrigger(card_id="assistant_tiller") in la
-    assert Stop() in la
+    assert Proceed() in la
+    assert s.players[0].resources.food == food0
 
     s = step(s, FireTrigger(card_id="assistant_tiller"))
     assert isinstance(s.pending_stack[-1], PendingPlow)
@@ -61,7 +64,10 @@ def test_assistant_tiller_grants_a_plow():
     # PendingPlow after-phase: Stop pops it.
     assert legal_actions(s) == [Stop()]
     s = step(s, Stop())                           # pop PendingPlow's after-phase
-    # Back at the host (after-phase); grant is spent → only Stop remains.
+    # Back at the host (before-phase); grant is spent → only Proceed remains.
+    assert legal_actions(s) == [Proceed()]
+    s = step(s, Proceed())                        # Day Laborer effect (+2 food), flip to after
+    assert s.players[0].resources.food == food0 + 2
     assert legal_actions(s) == [Stop()]
     s = step(s, Stop())                           # pop the host frame
     assert not s.pending_stack
@@ -71,10 +77,38 @@ def test_assistant_tiller_decline():
     s = _own_occ(_card_state(), 0, "assistant_tiller")
     fields0 = _num_fields(s, 0)
     s = step(s, PlaceWorker(space="day_laborer"))
-    s = step(s, Proceed())
-    s = step(s, Stop())                          # decline the plow
+    s = step(s, Proceed())                        # decline the plow (before-phase) + take food
+    s = step(s, Stop())                           # pop the host after-phase
     assert not s.pending_stack
     assert _num_fields(s, 0) == fields0
+
+
+def test_assistant_tiller_with_cottager_same_phase():
+    """Both "Each time you use the Day Laborer action space, you can also…" grants
+    (Cottager: build a room / renovate; Assistant Tiller: plow) must be offered in
+    the SAME host phase, so the player can resolve them in either order. Regression
+    for the seed-40062 report where Cottager (before) was forced ahead of Assistant
+    Tiller (after) because the two hooked different phases."""
+    s = _own_occ(_card_state(), 0, "assistant_tiller")
+    s = _own_occ(s, 0, "cottager")
+    s = with_resources(s, 0, wood=5, reed=2)      # afford a wood-house room for Cottager
+
+    s = step(s, PlaceWorker(space="day_laborer"))
+    la = legal_actions(s)
+    # Both grants live in the before-phase, alongside Proceed — neither is forced first.
+    assert FireTrigger(card_id="assistant_tiller") in la
+    assert FireTrigger(card_id="cottager", variant="room") in la
+    assert Proceed() in la
+
+    # Take the plow first (the previously-impossible order), then the room grant is
+    # still available — i.e. free ordering.
+    s = step(s, FireTrigger(card_id="assistant_tiller"))
+    s = step(s, legal_actions(s)[0])              # commit the plow
+    s = step(s, Stop())                           # pop PendingPlow's after-phase
+    la = legal_actions(s)
+    assert FireTrigger(card_id="cottager", variant="room") in la
+    assert Proceed() in la
+    assert FireTrigger(card_id="assistant_tiller") not in la   # spent (once per use)
 
 
 # ---------------------------------------------------------------------------
@@ -82,13 +116,14 @@ def test_assistant_tiller_decline():
 # ---------------------------------------------------------------------------
 
 def test_oven_firing_boy_grants_a_bake():
+    # "Each time you use [space]" fires in the BEFORE-phase (the bake needs grain,
+    # not the space's wood, so it is observationally correct before the wood income).
     s = _own_occ(_card_state(), 0, "oven_firing_boy")
     s = with_majors(s, owner_by_idx={0: 0})      # Fireplace (index 0): grain->2 food on bake
     s = with_resources(s, 0, grain=2)
     food0 = s.players[0].resources.food
 
     s = step(s, PlaceWorker(space="forest"))
-    s = step(s, Proceed())                       # take the accumulated wood, flip to after
     assert FireTrigger(card_id="oven_firing_boy") in legal_actions(s)
 
     s = step(s, FireTrigger(card_id="oven_firing_boy"))
@@ -98,7 +133,9 @@ def test_oven_firing_boy_grants_a_bake():
     assert s.players[0].resources.grain == 1
     assert legal_actions(s) == [Stop()]          # PendingBakeBread after-phase
     s = step(s, Stop())                          # pop PendingBakeBread's after-phase
-    # Back at the host (after-phase); grant is spent → only Stop remains.
+    # Back at the host (before-phase); grant is spent → only Proceed remains.
+    assert legal_actions(s) == [Proceed()]
+    s = step(s, Proceed())                       # take the accumulated wood, flip to after
     assert legal_actions(s) == [Stop()]
     s = step(s, Stop())                          # pop the host frame
     assert not s.pending_stack

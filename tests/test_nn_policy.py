@@ -533,12 +533,19 @@ def test_policy_prior_choose_subaction(small_games):
 
 def test_commit_build_major_vocab_and_target():
     from agricola.actions import CommitBuildMajor
+    from agricola.cost import ReturnImprovement
+    from agricola.resources import Resources
     h = COMMIT_BUILD_MAJOR_HEAD
     assert h.num_classes == 14  # 8 non-hearth majors + 2 hearths × 3 variants
-    assert h.target_index(CommitBuildMajor(major_idx=5, return_fireplace_idx=None)) == h.vocab.index("m5")
-    assert h.target_index(CommitBuildMajor(major_idx=2, return_fireplace_idx=None)) == h.vocab.index("m2")
-    assert h.target_index(CommitBuildMajor(major_idx=2, return_fireplace_idx=0)) == h.vocab.index("m2_rf0")
-    assert h.target_index(CommitBuildMajor(major_idx=3, return_fireplace_idx=1)) == h.vocab.index("m3_rf1")
+    # The label is derived from the wide commit's `payment`: a Resources payment is the
+    # standard "m{idx}" class; a ReturnImprovement(fp) is the "m{idx}_rf{fp}" class.
+    std = Resources(clay=4)
+    assert h.target_index(CommitBuildMajor(major_idx=5, payment=std)) == h.vocab.index("m5")
+    assert h.target_index(CommitBuildMajor(major_idx=2, payment=std)) == h.vocab.index("m2")
+    assert h.target_index(CommitBuildMajor(
+        major_idx=2, payment=ReturnImprovement(0))) == h.vocab.index("m2_rf0")
+    assert h.target_index(CommitBuildMajor(
+        major_idx=3, payment=ReturnImprovement(1))) == h.vocab.index("m3_rf1")
     assert h.target_index(PlaceWorker(space="forest")) is None
 
 
@@ -784,7 +791,7 @@ def _room_cap_build_rooms_state():
     return with_pending_stack(state, [
         PendingBuildRooms(
             player_idx=0, initiated_by_id="farm_expansion",
-            cost=Resources(wood=5, reed=2), max_builds=None, num_built=1,
+            max_builds=None, num_built=1,
         ),
     ])
 
