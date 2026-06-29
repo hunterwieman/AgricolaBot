@@ -27,18 +27,22 @@ from __future__ import annotations
 from agricola.actions import (
     ChooseSubAction,
     CommitBuildPasture,
+    CommitChooseCost,
     PlaceWorker,
     Proceed,
     Stop,
 )
 from agricola.cards.hedge_keeper import CARD_ID
+from agricola.cards.millwright import CARD_ID as MILLWRIGHT_ID
 from agricola.cards.specs import OCCUPATIONS
 from agricola.constants import GameMode
 from agricola.engine import step
 from agricola.legality import legal_actions
-from agricola.pending import PendingBuildFences
+from agricola.pending import PendingBuildFences, PendingChooseCost
 from agricola.replace import fast_replace
+from agricola.resources import Resources
 
+from tests.factories import with_resources
 from tests.test_fencing import _fencing_setup, _with_initial_pasture
 
 
@@ -240,3 +244,127 @@ def test_tight_wood_five_edge_build_pays_two_ending_at_zero():
     assert top.free_fence_budget == 0         # budget consumed
     state = _finish(state)
     assert _wood(state) == 0                  # 2 - 2, ended at zero
+
+
+# ---------------------------------------------------------------------------
+# Millwright-on-fences: the settle PAYMENT MENU (COST_MODIFIER_DESIGN.md §9.2 / Part B)
+# ---------------------------------------------------------------------------
+# Millwright (occupation) lets you replace up to 2 of the fence bill's wood with grain
+# (1:1), but ONLY at the whole-action Proceed settle (`_build_fence_ctx(..., settle=True)`).
+# So a Build Fences action whose accrued bill is >0 wood surfaces a `PendingChooseCost`
+# (action_kind="build_fence") with >1 options at the Proceed settle; picking the
+# convert-to-grain option debits (N-k) wood + k grain, and the after-grants then fire.
+# Without Millwright the settle frontier is a singleton (no menu).
+
+def _millwright_setup(*, wood, grain, pre_pasture=None):
+    """A CARDS-mode fencing state owning Millwright (NOT Hedge Keeper, so the whole
+    bill is paid — no free fences) with the given wood + grain on hand."""
+    state = _fencing_setup(wood=wood)
+    state = with_resources(state, 0, wood=wood, grain=grain)
+    state = fast_replace(state, mode=GameMode.CARDS)
+    if pre_pasture is not None:
+        state = _with_initial_pasture(state, 0, pre_pasture)
+    p = state.players[0]
+    p = fast_replace(p, occupations=p.occupations | {MILLWRIGHT_ID})
+    state = fast_replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2))
+    )
+    return state
+
+
+def _grain(state, idx=0):
+    return state.players[idx].resources.grain
+
+
+def test_millwright_settle_surfaces_payment_menu():
+    # 5-edge build (pre-1x1 at (0,2) + adjacent top 1x2) -> accrued 5 wood. Millwright +
+    # ample wood/grain: the Proceed settle pauses on a PendingChooseCost with >1 options.
+    state = _millwright_setup(wood=20, grain=5, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    assert state.pending_stack[-1].free_fence_budget == 0   # Millwright frees nothing
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    assert state.pending_stack[-1].accrued_cost.wood == 5   # full bill accrued (no frees)
+    assert _wood(state) == 20                                # nothing debited yet
+    # Proceed: the settle finds >1 payment and pauses on the menu (no debit, no after yet).
+    state = step(state, Proceed())
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingChooseCost)
+    assert top.action_kind == "build_fence"
+    # Underneath the menu the paused before-phase build host survives.
+    assert isinstance(state.pending_stack[-2], PendingBuildFences)
+    assert state.pending_stack[-2].phase == "before"
+    options = {a.payment for a in legal_actions(state)
+               if isinstance(a, CommitChooseCost)}
+    # Up to 2 of the 5 wood may become grain (1:1), per-action budget 2.
+    assert options == {
+        Resources(wood=5),                       # all wood (decline the conversion)
+        Resources(wood=4, grain=1),              # 1 wood -> 1 grain
+        Resources(wood=3, grain=2),              # 2 wood -> 2 grain
+    }
+    assert _wood(state) == 20                                # still nothing debited
+
+
+def test_millwright_settle_choose_convert_two_then_grants_fire():
+    # Choose the convert-2-to-grain option: debits 3 wood + 2 grain, the menu pops, the
+    # paused settle completes (accrued zeroed), the after-grants fire, the action ends.
+    state = _millwright_setup(wood=20, grain=5, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    state = step(state, Proceed())
+    assert isinstance(state.pending_stack[-1], PendingChooseCost)
+    state = step(state, CommitChooseCost(payment=Resources(wood=3, grain=2)))
+    # The menu popped; the build host flipped to its after-phase (grants fired). The
+    # remaining stack is PendingBuildFences (after) + PendingSubActionSpace; both drained
+    # by Stop, exactly as the singleton path's _finish does.
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences)
+    assert top.phase == "after"                  # _enter_after_phase ran (grants fired)
+    assert top.accrued_cost.wood == 0            # settle completed: accrued zeroed
+    assert _wood(state) == 17                     # 20 - 3 wood
+    assert _grain(state) == 3                     # 5 - 2 grain
+    state = step(state, Stop())                   # pop PendingBuildFences
+    state = step(state, Stop())                   # pop PendingSubActionSpace
+    assert not any(isinstance(f, (PendingBuildFences, PendingChooseCost))
+                   for f in state.pending_stack)
+
+
+def test_millwright_settle_choose_all_wood_pays_n_wood():
+    # Choosing the all-wood option pays the full N (=5) wood, 0 grain.
+    state = _millwright_setup(wood=20, grain=5, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    state = step(state, Proceed())
+    state = step(state, CommitChooseCost(payment=Resources(wood=5)))
+    assert isinstance(state.pending_stack[-1], PendingBuildFences)
+    assert state.pending_stack[-1].phase == "after"
+    assert _wood(state) == 15                      # 20 - 5 wood
+    assert _grain(state) == 5                       # grain untouched
+
+
+def test_no_menu_without_millwright_singleton_settle():
+    # Regression: WITHOUT Millwright the settle is a singleton (no PendingChooseCost) even
+    # with grain on hand — Proceed debits inline and flips straight to the after-phase.
+    state = _cards_setup(wood=20, own_card=False, pre_pasture=_PRE_1x1)
+    state = with_resources(state, 0, wood=20, grain=5)   # grain present but unusable
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    assert state.pending_stack[-1].accrued_cost.wood == 5
+    state = step(state, Proceed())
+    # No menu — straight to the after-phase build host (singleton inline debit).
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences)
+    assert top.phase == "after"
+    assert _wood(state) == 15                        # 20 - 5 wood, no conversion
+    assert _grain(state) == 5                         # grain untouched (no Millwright)
+
+
+def test_millwright_during_building_legality_unchanged_wood_only():
+    # The settle-only gate: Millwright is INVISIBLE to the per-pasture during-building
+    # affordability. With only 1 wood (no Hedge Keeper) the 5-edge layout is NOT offered,
+    # even though the player holds enough grain to fund it at settle — the during-building
+    # legality stays wood-only (the documented conservative follow-up).
+    state = _millwright_setup(wood=1, grain=5, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    commits = {a.cells for a in legal_actions(state)
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 not in commits, "5-edge build is wood-unaffordable; grain doesn't enable it"

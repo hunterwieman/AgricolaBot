@@ -1219,18 +1219,42 @@ def _execute_choose_cost(
     state: GameState, player_idx: int, commit: CommitChooseCost,
 ) -> GameState:
     """Debit the chosen payment for a two-step build and pop the PendingChooseCost
-    frame, returning to the build host underneath (card game only — §3.7)."""
+    frame, returning to the build host underneath (card game only — §3.7).
+
+    Two underlying-build shapes, by `action_kind`:
+
+    - **build_room / build_stable** (per-build two-step): pop returns to the multi-shot
+      build host (`PendingBuildRooms` / `PendingBuildStables`) in its before-phase, which
+      then offers the next build / Proceed / Stop. Unchanged.
+
+    - **build_fence** (whole-action settle two-step): the parent is the paused before-phase
+      `PendingBuildFences` whose Proceed settle surfaced this menu. After the debit+pop we
+      complete that settle — zero the frame's `accrued_cost` (a re-entered flip can't
+      re-debit) and run `_enter_after_phase` to fire the after-grants — finishing the
+      settle -> pay -> grants order `_apply_proceed` deferred when it saw the menu pushed
+      (COST_MODIFIER_DESIGN.md §9.2)."""
     top = state.pending_stack[-1]
     assert isinstance(top, PendingChooseCost)
     assert isinstance(commit.payment, Resources), "build cost routes are resource-only"
+    action_kind = top.action_kind
     p = state.players[player_idx]
     state = _update_player(
         state, player_idx, fast_replace(p, resources=p.resources - commit.payment))
     # Record per-action conversion-budget usage (Millwright) against the underlying
     # build's action kind, BEFORE popping back to the build host.
     from agricola.cards.cost_mods import record_conversion_usage
-    state = record_conversion_usage(top.action_kind, state, player_idx, commit.payment)
-    return pop(state)
+    state = record_conversion_usage(action_kind, state, player_idx, commit.payment)
+    state = pop(state)
+    if action_kind == "build_fence":
+        # Resume the paused fence settle: zero the accrued bill on the build host below,
+        # then fire the after-grants (the after-host the menu pushed in front of).
+        parent = state.pending_stack[-1]
+        assert isinstance(parent, PendingBuildFences) and parent.phase == "before", (
+            f"build_fence choose-cost expected a before-phase PendingBuildFences parent, "
+            f"got {parent!r}")
+        state = replace_top(state, fast_replace(parent, accrued_cost=Resources()))
+        return _enter_after_phase(state)
+    return state
 
 
 def _execute_renovate(

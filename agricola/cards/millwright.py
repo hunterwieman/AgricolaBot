@@ -27,9 +27,17 @@ grain, even through a Frame-Builder chain), and the `after_build_rooms` / `after
 / `after_renovate` autos reset the count when the action completes. Renovate is a single
 build (one CommitRenovate upgrades all rooms), so its budget never binds.
 
-Build-fence is out of project scope, so only renovate / build_room / build_stable clauses
-are registered; build_stable does not route through the chokepoint yet, so that clause is
-inert until stables are wired (registered now so the card's effect is complete).
+The build-fence clause is a SETTLE-ONLY conversion (COST_MODIFIER_DESIGN.md §9.2): fences
+pay once at the whole-action Proceed settle, where `_build_fence_ctx(..., settle=True)` is
+built, so Millwright's `build_fence` generator is gated on `ctx.settle is True`. It is thus
+visible only in the settle payment menu — over the whole-action wood bill, with the full
+2-grain budget — and INVISIBLE to the per-pasture during-building affordability
+(`_check_entry_legal`, ctx `settle=False`). That gate matters: if the during-building path
+saw Millwright it would over-grant the per-action cap and could enable a build whose settle
+has no affordable payment. NOTE (documented follow-up): the during-building legality stays
+wood-only (conservative) — Millwright's `min(grain, 2)` is NOT added to the per-pasture
+affordability capacity, so a wood-affordable build can *choose* grain at settle but a
+wood-TIGHT build is not enabled by holding grain. Enabling that is a separate increment.
 """
 from __future__ import annotations
 
@@ -95,6 +103,20 @@ def _expand(state, idx, ctx, cost: Resources) -> list[Resources]:
     return list(out)
 
 
+def _expand_fence(state, idx, ctx, cost: Resources) -> list[Resources]:
+    """The fence clause of Millwright — a SETTLE-ONLY conversion (COST_MODIFIER_DESIGN.md
+    §9.2). It mirrors `_expand` (replace up to 2 building-resource units with 1 grain each,
+    sharing the per-action budget) but is gated on `ctx.settle is True`: fences pay once at
+    the whole-action Proceed settle (`_build_fence_ctx(..., settle=True)`), so the conversion
+    is offered ONLY there — over the whole-action wood bill with the full budget. During the
+    per-pasture building affordability (`ctx.settle is False`) it returns the unchanged cost,
+    so it is invisible to the during-building legality (which would otherwise over-grant the
+    per-action cap and could enable a build with no affordable settle)."""
+    if not getattr(ctx, "settle", False):
+        return [cost]
+    return _expand(state, idx, ctx, cost)
+
+
 def _record(state, idx, payment) -> GameState:
     """Add the grain a committed payment converted (= Millwright units used) to this
     action's running count. The printed base of every affected build has 0 grain, so any
@@ -116,6 +138,9 @@ def _reset(state: GameState, idx: int) -> GameState:
 
 for _action in ("renovate", "build_room", "build_stable"):
     register_conversion(_action, CARD_ID, _expand, order=_SINK_ORDER, record=_record)
-for _event in ("after_renovate", "after_build_rooms", "after_build_stables"):
+# build_fence: settle-only (see _expand_fence). Whole-action bill at the Proceed settle.
+register_conversion("build_fence", CARD_ID, _expand_fence, order=_SINK_ORDER, record=_record)
+for _event in ("after_renovate", "after_build_rooms", "after_build_stables",
+               "after_build_fences"):
     register_auto(_event, CARD_ID, lambda state, idx: True, _reset)
 register_occupation(CARD_ID, _on_play)

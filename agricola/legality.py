@@ -280,20 +280,28 @@ def _build_stable_ctx(p: PlayerState, base_cost: Resources, build_index: int = 0
 
 def _build_fence_ctx(
     p: PlayerState, wood_cost: int, *,
-    build_index: int = 0, space_id: str | None = None,
+    build_index: int = 0, space_id: str | None = None, settle: bool = False,
 ) -> CostCtx:
     """Cost-resolution context for ONE `CommitBuildPasture` (the pasture's new fence
-    edges). Unlike rooms/stables, the base is geometry-derived: `wood_cost` is the
-    number of new edges this pasture encloses (`compute_new_fence_edges(...)[2]`), each
-    1 wood, so the base is `Resources(wood=wood_cost)`. `build_index` is the running
-    pasture count within this multi-shot Build Fences action and `space_id` the action's
-    entry point (Fencing / Farm Redevelopment) — discriminators future per-segment /
-    per-entry-point fence cards will read; no cost card reads them in the Family game, so
-    `effective_payments`/`can_pay` reduce to "can afford `wood_cost` wood" (byte-identical
-    to the old raw `new_count > wood` check)."""
+    edges) OR, with `settle=True`, the whole-action bill at the Proceed settle. Unlike
+    rooms/stables, the base is geometry-derived: `wood_cost` is the number of new edges
+    this pasture encloses (`compute_new_fence_edges(...)[2]`), each 1 wood, so the base is
+    `Resources(wood=wood_cost)`. `build_index` is the running pasture count within this
+    multi-shot Build Fences action and `space_id` the action's entry point (Fencing /
+    Farm Redevelopment) — discriminators future per-segment / per-entry-point fence cards
+    will read; no cost card reads them in the Family game, so `effective_payments`/`can_pay`
+    reduce to "can afford `wood_cost` wood" (byte-identical to the old raw `new_count > wood`
+    check).
+
+    `settle` (COST_MODIFIER_DESIGN.md §9.2) is True ONLY when the whole-action fence bill is
+    resolved at the Proceed settle (`_settle_build_fences`). A settle-only fence conversion —
+    Millwright — gates on it, so it appears in the settle payment menu but is invisible to the
+    per-pasture during-building affordability (`_check_entry_legal`, which uses the default
+    `settle=False`). Without that gate, the per-pasture path would over-grant Millwright's
+    per-action cap and could enable a build whose settle has no affordable payment."""
     return CostCtx(
         "build_fence", Resources(wood=wood_cost),
-        build_index=build_index, space_id=space_id,
+        build_index=build_index, space_id=space_id, settle=settle,
     )
 
 
