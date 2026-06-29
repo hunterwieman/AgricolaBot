@@ -1003,6 +1003,20 @@
     return div;
   }
 
+  // "Owed" line: per-future-round goods/benefits, e.g. "Owed: R5 1 food  ·
+  // R6 1 food". Round labels render in normal weight; the goods text is bold,
+  // matching the summary convention. Spans both summary columns (see CSS).
+  function buildOwedLine(owed) {
+    const div = el('div', { class: 'summary-owed' });
+    div.appendChild(el('span', { class: 'label' }, 'Owed: '));
+    owed.forEach((entry, i) => {
+      if (i > 0) div.appendChild(el('span', { class: 'sep' }, '  ·  '));
+      div.appendChild(document.createTextNode(`R${entry.round} `));
+      div.appendChild(el('span', { class: 'val' }, entry.text));
+    });
+    return div;
+  }
+
   function buildFooterLine(p) {
     const div = el('div', { class: 'summary-footer' });
     // House / Begging / Score on the left, Built totals on the right — all
@@ -1087,6 +1101,12 @@
       'Total ',    { bold: p.people_total },
     ]));
     summaryEl.appendChild(buildFooterLine(p));
+    // Forward-looking: goods/benefits this player is owed at the start of future
+    // rounds (the Well's per-round food, etc.). Public info, so shown for both
+    // seats; only present when something is actually scheduled.
+    if (p.owed_future && p.owed_future.length) {
+      summaryEl.appendChild(buildOwedLine(p.owed_future));
+    }
 
     // Farmyard SVG. Only the decider's farmyard is interactive, and only for
     // pendings whose legal actions are cell / cell_set hinted.

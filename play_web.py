@@ -955,6 +955,46 @@ def _animals_to_dict(a) -> dict:
     return {"sheep": a.sheep, "boar": a.boar, "cattle": a.cattle}
 
 
+# Order goods are listed in an "owed" slot — food first, since the Well (the
+# only Family-game source) promises food.
+_OWED_RESOURCE_ORDER = ("food", "grain", "veg", "wood", "clay", "reed", "stone")
+
+
+def _owed_future(p, round_number: int) -> list[dict]:
+    """Goods/benefits a player is promised at the START of future rounds — the
+    Well grants +1 food at the start of each of its next 5 rounds (and, with
+    cards, scheduled goods/animals). This is PUBLIC information (a built Well is
+    visible to both players), so it is surfaced for both seats; the UI must not
+    hide non-hidden information.
+
+    `future_resources[idx]` / `future_rewards[idx]` are delivered at the start of
+    round `idx + 1`, so only slots for rounds strictly after the current one are
+    still owed. Returns one entry per such round that carries anything, in round
+    order: `{"round": int, "text": str}` (display string built server-side, per
+    the wire-format convention)."""
+    out = []
+    for idx in range(len(p.future_resources)):
+        rnd = idx + 1
+        if rnd <= round_number:
+            continue  # already delivered (the slot was cleared at that round's start)
+        parts = []
+        res = p.future_resources[idx]
+        for fld in _OWED_RESOURCE_ORDER:
+            v = getattr(res, fld)
+            if v:
+                parts.append(f"{v} {fld}")
+        # future_rewards is card-only (empty in the Family game) — forward-compat:
+        # surface any scheduled animals too.
+        animals = p.future_rewards[idx].animals
+        for fld in ("sheep", "boar", "cattle"):
+            v = getattr(animals, fld)
+            if v:
+                parts.append(f"{v} {fld}")
+        if parts:
+            out.append({"round": rnd, "text": ", ".join(parts)})
+    return out
+
+
 def _cell_to_dict(cell) -> dict:
     return {
         "type": cell.cell_type.name,
@@ -1021,6 +1061,10 @@ def _player_to_dict(state: GameState, idx: int, decider: int,
         "interim_score": total,
         "resources": _resources_to_dict(p.resources),
         "animals": _animals_to_dict(p.animals),
+        # Goods/benefits owed at the start of future rounds (Well food, etc.) —
+        # public info, shown for both seats. Empty unless a Well/scheduling card
+        # has been built.
+        "owed_future": _owed_future(p, state.round_number),
         "fences_built":   15 - fences_left,
         "fences_total":   15,
         "stables_built":  4  - stables_left,
