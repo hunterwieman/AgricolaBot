@@ -70,6 +70,15 @@ Each entry has `deck`, `number`, `name`, `card_category`, `text`, and (for minor
 `prerequisites`, `passing_left`, `vps`. The card id used throughout the code is the
 slugified name (e.g. `"clay_hut_builder"`). Quote the exact text in the module docstring.
 
+The full card set spans decks **A–E** — deck E is the Ephipparius expansion (the 5th
+mini-expansion). Entries may also carry two fields sourced from the Unofficial Compendium:
+`errata` and `clarifications` (the lookup tool prints both). **Always read these before
+implementing a card** — `errata` is an *official correction that can change how the card
+works* (e.g. "the jump may only be done once per turn", "remove the 'If you do' clause"), so
+it overrides the printed `text`; `clarifications` resolve exactly the obscure timing/scope
+rulings this guide is about (§2). A card with errata is a strong signal to slow down and, if
+the corrected behaviour doesn't map cleanly onto the machinery, **defer and ask (§0)**.
+
 ### Step 2 — Classify the static facts
 
 - **Occupation or minor?** Occupations register via `register_occupation`; minors via
