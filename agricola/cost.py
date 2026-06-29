@@ -53,14 +53,6 @@ class CostCtx:
     card_id: str | None = None
     space_id: str | None = None          # entry-point scope (Hunting Trophy, House Artist)
     build_index: int | None = None       # Nth room/stable/fence (Carpenter's Apprentice)
-    settle: bool = False                  # True only when the fence bill is being resolved at
-    #                                       the whole-action Proceed settle (COST_MODIFIER_DESIGN
-    #                                       §9.2). A settle-only fence conversion (Millwright)
-    #                                       gates on this so it offers its choice once, against
-    #                                       the whole-action total — and is INVISIBLE to the
-    #                                       per-pasture during-building affordability (which uses
-    #                                       the default False), where over-granting the per-action
-    #                                       cap could enable a build with no affordable settle.
     reserved_animals: Animals = Animals()  # animal portion of THIS cost — reserved before
     #                                        counting animals as food-liquidation fuel, so
     #                                        liquidation never double-spends an animal the cost

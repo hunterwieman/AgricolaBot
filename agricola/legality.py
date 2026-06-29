@@ -280,28 +280,27 @@ def _build_stable_ctx(p: PlayerState, base_cost: Resources, build_index: int = 0
 
 def _build_fence_ctx(
     p: PlayerState, wood_cost: int, *,
-    build_index: int = 0, space_id: str | None = None, settle: bool = False,
+    build_index: int = 0, space_id: str | None = None,
 ) -> CostCtx:
-    """Cost-resolution context for ONE `CommitBuildPasture` (the pasture's new fence
-    edges) OR, with `settle=True`, the whole-action bill at the Proceed settle. Unlike
-    rooms/stables, the base is geometry-derived: `wood_cost` is the number of new edges
-    this pasture encloses (`compute_new_fence_edges(...)[2]`), each 1 wood, so the base is
-    `Resources(wood=wood_cost)`. `build_index` is the running pasture count within this
+    """Cost-resolution context for a fence wood bill of `wood_cost` edges. Unlike
+    rooms/stables, the base is geometry-derived: each new fence edge is 1 wood, so the base
+    is `Resources(wood=wood_cost)`. `build_index` is the running pasture count within this
     multi-shot Build Fences action and `space_id` the action's entry point (Fencing /
     Farm Redevelopment) — discriminators future per-segment / per-entry-point fence cards
     will read; no cost card reads them in the Family game, so `effective_payments`/`can_pay`
     reduce to "can afford `wood_cost` wood" (byte-identical to the old raw `new_count > wood`
     check).
 
-    `settle` (COST_MODIFIER_DESIGN.md §9.2) is True ONLY when the whole-action fence bill is
-    resolved at the Proceed settle (`_settle_build_fences`). A settle-only fence conversion —
-    Millwright — gates on it, so it appears in the settle payment menu but is invisible to the
-    per-pasture during-building affordability (`_check_entry_legal`, which uses the default
-    `settle=False`). Without that gate, the per-pasture path would over-grant Millwright's
-    per-action cap and could enable a build whose settle has no affordable payment."""
+    `wood_cost` is always a WHOLE-ACTION RUNNING TOTAL, never one pasture's edges in isolation
+    (COST_MODIFIER_DESIGN.md §9.2): the during-building affordability check passes the running
+    paid-edge total `accrued_cost.wood + this_pasture_paid` and the Proceed settle passes the
+    final `accrued_cost.wood`. This is what makes a PER-ACTION-CAPPED conversion (Millwright's
+    "up to 2 grain per action") correct — its 2-grain budget is counted ONCE against the whole
+    action, not re-granted per pasture, so a wood-tight build that grain funds is enabled during
+    building and pays with grain at settle, with no during-building / settle divergence."""
     return CostCtx(
         "build_fence", Resources(wood=wood_cost),
-        build_index=build_index, space_id=space_id, settle=settle,
+        build_index=build_index, space_id=space_id,
     )
 
 
@@ -851,6 +850,7 @@ def _check_entry_legal(
     state: GameState | None = None,
     idx: int | None = None,
     free_budget: int = 0,
+    accrued_wood: int = 0,
 ) -> tuple[bool, int, int]:
     """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
     universe entry against precomputed per-call state.
@@ -859,24 +859,36 @@ def _check_entry_legal(
     Both callers (`_any_legal_pasture_commit` and
     `_enumerate_pending_build_fences`) share this function.
 
-    Free-fence-aware affordability (COST_MODIFIER_DESIGN.md §9.2/§9.4): the per-action
-    free-fence budget covers the first `free_budget` of this pasture's new edges, so the
-    WOOD that must be paid is `paid = max(0, new_count - free_budget)`. Gating on `paid`
-    (not `new_count`) means a tight-wood build the budget covers is *enabled*, not merely
-    discounted at settle. `free_budget` is the REMAINING budget — the frame's
-    `free_fence_budget` (during building) or the anticipated seed (at placement). It
-    defaults 0, so the Family / cached path gates on exactly `new_count` as before. The
-    fence-PIECE supply check (`new_count > fences_left`) is on full edge count — free
-    fences still consume pieces (§9.7).
+    Free-fence-aware, running-total affordability (COST_MODIFIER_DESIGN.md §9.2/§9.4). Two
+    adjustments turn this pasture's raw new-edge count into the wood actually tested:
+      * the per-action free-fence budget covers the first `free_budget` of this pasture's new
+        edges, so this pasture's PAID edges are `paid = max(0, new_count - free_budget)`; and
+      * affordability is checked against the WHOLE-ACTION RUNNING TOTAL
+        `running = accrued_wood + paid` — the paid edges of every pasture committed so far this
+        Build Fences action (`accrued_wood` = the frame's `accrued_cost.wood`) plus this one —
+        not this pasture in isolation.
+    The running total is what makes a PER-ACTION-CAPPED conversion correct: Millwright's "up to
+    2 grain per action" is counted once against `running`, never re-granted per pasture, so a
+    grain-funded build is *enabled* during building and pays with grain at the Proceed settle,
+    with no during-building/settle divergence (this replaces the earlier settle-only Millwright
+    gate). Gating on `running` (not `new_count`) likewise means a tight-wood build that the free
+    budget or a conversion covers is enabled, not merely discounted at settle.
 
-    The `paid`-wood affordability runs through the cost-modifier chokepoint `can_pay`
-    (with the geometry-derived base) when `state`/`idx` are supplied — the non-cached,
-    canonical path. The projection-keyed cached scan (`_legal_pasture_commits_compute`)
-    passes neither (and `free_budget=0`) and falls back to the equivalent `paid > wood`
-    arithmetic: in the Family game (empty cost registries, zero budget) `can_pay` against
-    `Resources(wood=new_count)` reduces to exactly `wood >= new_count`, a pure function of
-    the cache key `(farmyard, wood, subdivision_started)`, so cache and chokepoint agree
-    byte-for-byte (`test_fence_scan_cache_transparent`).
+    `free_budget` is the REMAINING per-action budget — the frame's `free_fence_budget` (during
+    building) or the anticipated seed (at placement). `accrued_wood` is the frame's
+    `accrued_cost.wood` (0 at placement — the first pasture — and in Family, which debits
+    per-commit and never accrues). Both default 0, so the Family / cached path gates on exactly
+    `new_count` as before. The fence-PIECE supply check (`new_count > fences_left`) is on full
+    edge count — free fences still consume pieces (§9.7).
+
+    The `running`-wood affordability runs through the cost-modifier chokepoint `can_pay` (with
+    the geometry-derived base) when `state`/`idx` are supplied — the non-cached, canonical path.
+    The projection-keyed cached scan (`_legal_pasture_commits_compute`) passes neither (and
+    `free_budget = accrued_wood = 0`) and falls back to the equivalent `running > wood`
+    arithmetic: in the Family game (empty cost registries, zero budget/accrual) `can_pay` against
+    `Resources(wood=new_count)` reduces to exactly `wood >= new_count`, a pure function of the
+    cache key `(farmyard, wood, subdivision_started)`, so cache and chokepoint agree byte-for-byte
+    (`test_fence_scan_cache_transparent`).
     """
     bm = entry.cells_bm
 
@@ -918,10 +930,11 @@ def _check_entry_legal(
     # equivalent raw arithmetic in the cached scan (see the docstring). Fence-PIECE supply
     # is checked separately on FULL edge count — free fences still use pieces (§9.7).
     paid = max(0, new_count - free_budget)
+    running = accrued_wood + paid   # whole-action running paid-edge total (§9.2)
     if state is not None and idx is not None:
-        if not can_pay(state, idx, _build_fence_ctx(state.players[idx], paid)):
+        if not can_pay(state, idx, _build_fence_ctx(state.players[idx], running)):
             return False, 0, 0
-    elif paid > wood:
+    elif running > wood:
         return False, 0, 0
     if new_count > fences_left:
         return False, 0, 0
@@ -1892,6 +1905,7 @@ def _enumerate_pending_build_fences(
         state=state,
         idx=pending.player_idx,
         free_budget=pending.free_fence_budget,   # the REMAINING per-action budget (§9.4)
+        accrued_wood=pending.accrued_cost.wood,  # whole-action paid-edge running total (§9.2)
     )
 
     actions: list[Action] = _eligible_fire_triggers(

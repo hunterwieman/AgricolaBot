@@ -247,13 +247,19 @@ def test_tight_wood_five_edge_build_pays_two_ending_at_zero():
 
 
 # ---------------------------------------------------------------------------
-# Millwright-on-fences: the settle PAYMENT MENU (COST_MODIFIER_DESIGN.md §9.2 / Part B)
+# Millwright-on-fences: a PLAIN conversion on the running total (COST_MODIFIER_DESIGN.md §9.2)
 # ---------------------------------------------------------------------------
-# Millwright (occupation) lets you replace up to 2 of the fence bill's wood with grain
-# (1:1), but ONLY at the whole-action Proceed settle (`_build_fence_ctx(..., settle=True)`).
-# So a Build Fences action whose accrued bill is >0 wood surfaces a `PendingChooseCost`
-# (action_kind="build_fence") with >1 options at the Proceed settle; picking the
-# convert-to-grain option debits (N-k) wood + k grain, and the after-grants then fire.
+# Millwright (occupation) lets you replace up to 2 of the fence bill's building resources with
+# grain (1:1), capped PER ACTION. It is a normal `build_fence` conversion checked against the
+# WHOLE-ACTION RUNNING TOTAL — both during building (`_check_entry_legal`'s
+# `running = accrued_cost.wood + this_pasture_paid`) and at the Proceed settle
+# (`effective_payments` over the final `accrued_cost.wood`). So:
+#   * during building it ENABLES a grain-funded build the wood alone couldn't afford (the §2
+#     running-total fix — the earlier settle-only gate that hid Millwright here is gone), and
+#   * at settle a >1-option bill surfaces a `PendingChooseCost` (action_kind="build_fence")
+#     wood/grain menu; picking the convert option debits (N-k) wood + k grain, then the
+#     after-grants fire. A bill with one affordable payment settles inline (no menu).
+# The 2-grain cap is counted ONCE against the whole-action total, never re-granted per pasture.
 # Without Millwright the settle frontier is a singleton (no menu).
 
 def _millwright_setup(*, wood, grain, pre_pasture=None):
@@ -358,13 +364,36 @@ def test_no_menu_without_millwright_singleton_settle():
     assert _grain(state) == 5                         # grain untouched (no Millwright)
 
 
-def test_millwright_during_building_legality_unchanged_wood_only():
-    # The settle-only gate: Millwright is INVISIBLE to the per-pasture during-building
-    # affordability. With only 1 wood (no Hedge Keeper) the 5-edge layout is NOT offered,
-    # even though the player holds enough grain to fund it at settle — the during-building
-    # legality stays wood-only (the documented conservative follow-up).
+def test_millwright_enables_grain_funded_build_during_building():
+    # The §2 running-total fix: Millwright is now VISIBLE to the per-pasture during-building
+    # affordability (checked on the running total), so it ENABLES a build the wood alone
+    # couldn't afford. 3 wood + 2 grain + Millwright: the 5-edge layout's running total is 5,
+    # payable as 3 wood + 2 grain (Millwright converts 2). The OLD settle-only gate hid
+    # Millwright during building, so 5 > 3 wood made this layout illegal; now it is offered.
+    state = _millwright_setup(wood=3, grain=2, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    assert state.pending_stack[-1].free_fence_budget == 0   # Millwright frees nothing
+    commits = {a.cells for a in legal_actions(state)
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 in commits, "5-edge build is grain-fundable (3 wood + 2 grain), now legal"
+    # Build it and settle: the only affordable payment is 3 wood + 2 grain (a singleton — all-
+    # wood and 4-wood+1-grain need >3 wood), so it pays inline, ending at 0 wood / 0 grain.
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    assert state.pending_stack[-1].accrued_cost.wood == 5
+    state = step(state, Proceed())
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences) and top.phase == "after"   # singleton inline settle
+    assert _wood(state) == 0                      # 3 - 3
+    assert _grain(state) == 0                     # 2 - 2
+
+
+def test_millwright_two_grain_cap_bounds_during_building():
+    # The per-action cap is 2: with 1 wood + 5 grain the 5-edge layout is STILL not offered,
+    # because Millwright can convert only 2 of the 5 wood (1 wood + 2 grain = 3 < 5). This is
+    # now the running total honoring the cap — not the old "Millwright invisible" gate. Extra
+    # grain beyond 2 does not help, proving the cap is counted once against the whole action.
     state = _millwright_setup(wood=1, grain=5, pre_pasture=_PRE_1x1)
     state = _enter_build_fences(state)
     commits = {a.cells for a in legal_actions(state)
                if isinstance(a, CommitBuildPasture)}
-    assert _TOP_1x2_34 not in commits, "5-edge build is wood-unaffordable; grain doesn't enable it"
+    assert _TOP_1x2_34 not in commits, "5-edge needs >2 of the wood as grain; the 2-cap blocks it"

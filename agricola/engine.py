@@ -511,7 +511,11 @@ def _settle_build_fences(state: GameState) -> GameState:
     The top frame is a before-phase `PendingBuildFences` whose `accrued_cost` is the
     running wood owed across this action's pasture commits (after per-action frees,
     §9.4). Resolve the whole-action bill through the cost-modifier chokepoint
-    (`effective_payments` with base = `accrued_cost`, ctx `settle=True`). Two shapes:
+    (`effective_payments` with base = `accrued_cost.wood`). This is the same base the
+    during-building legality already checked as its running total on the LAST pasture, so
+    the settle frontier agrees with what was enabled — a per-action-capped conversion
+    (Millwright's 2 grain) is counted once against the whole-action total at both points.
+    Two shapes:
 
     - **Singleton frontier** (the common case — no conversion card, or Hedge Keeper, which
       only frees fences and offers no conversion): debit the one payment inline + zero the
@@ -519,7 +523,7 @@ def _settle_build_fences(state: GameState) -> GameState:
       (`_apply_proceed`) runs `_enter_after_phase` to flip this frame to its after-phase and
       fire the after-autos (the grants).
 
-    - **>1 payment** (a settle-only conversion card — Millwright-on-fences — offers a choice):
+    - **>1 payment** (a conversion card — Millwright-on-fences — offers a wood/grain choice):
       push the two-step `PendingChooseCost(action_kind="build_fence")` over the frontier, ONCE,
       against the whole-action total, and do NOT debit / zero / enter-after here. The player
       picks a `CommitChooseCost`; `_execute_choose_cost` debits it, pops the menu back to this
@@ -537,12 +541,12 @@ def _settle_build_fences(state: GameState) -> GameState:
     payments = effective_payments(
         state, idx,
         _build_fence_ctx(p, top.accrued_cost.wood, build_index=top.pastures_built,
-                         space_id=top.initiated_by_id, settle=True),
+                         space_id=top.initiated_by_id),
     )
     if len(payments) > 1:
-        # A settle-only conversion (Millwright) surfaces a payment menu over the
-        # whole-action total. Defer the debit + accrued-zero + the after-grants to
-        # CommitChooseCost / _execute_choose_cost (resume-to-grants).
+        # A conversion (Millwright) surfaces a payment menu over the whole-action total.
+        # Defer the debit + accrued-zero + the after-grants to CommitChooseCost /
+        # _execute_choose_cost (resume-to-grants).
         return push(state, PendingChooseCost(
             player_idx=idx, initiated_by_id=top.PENDING_ID,
             payments=tuple(payments), action_kind="build_fence"))
