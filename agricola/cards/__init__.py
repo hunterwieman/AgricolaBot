@@ -94,6 +94,11 @@ from agricola.cards import rammed_clay           # noqa: F401
 # card — board-perimeter fence edges cost no wood (ungated, any fence build). Registers a
 # free-fence EDGE fn (distinct from the scalar seed registry); prereq 1 animal of each type.
 from agricola.cards import briar_hedge           # noqa: F401
+# Field Fences (minor, COST_MODIFIER_DESIGN.md §9): GRANTS a Build Fences action on play
+# (on_play pushes PendingBuildFences, initiated_by_id "card:field_fences") with a POSITIONAL
+# discount scoped to that grant — edges next to a field tile cost no wood. Combines the grant
+# pattern (Shifting Cultivation) with the provenance-gated positional fold. Cost 2 food.
+from agricola.cards import field_fences          # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

@@ -1025,6 +1025,7 @@ def _any_legal_pasture_commit(
     smallest_entries: tuple | None = None,
     universe_set: frozenset | None = None,
     space_id: str = "fencing",
+    initiated_by_id: str | None = None,
 ) -> bool:
     """Return True iff at least one pasture commit is legal for `p` in `state`.
 
@@ -1098,6 +1099,8 @@ def _any_legal_pasture_commit(
         state=state,
         idx=idx,
         free_budget=free_budget,
+        initiated_by_id=initiated_by_id,   # provenance for positional gating (Field Fences)
+        build_fences_action=True,
     )
 
     # Fast path: precomputed 1×1 tuple (~13 entries under RESTRICTED).
