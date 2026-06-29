@@ -87,6 +87,21 @@ PERIMETER_EDGE_COUNT_PER_CELL: tuple[int, ...] = tuple(
 # 3×5 grid = 16 perimeter edges (4 corners × 2 + 8 non-corner-perimeter × 1).
 
 
+# Board-EDGE fence bitmaps, in the `pack_fences_h` / `pack_fences_v` bit layout (NOT the
+# cell layout `PERIMETER_BM` above). A board-edge fence is one on the outer boundary of the
+# 3×5 board: a HORIZONTAL edge in the top row (r==0) or just below the bottom row
+# (r==NUM_ROWS), or a VERTICAL edge left of col 0 (c==0) or right of the last col
+# (c==NUM_COLS). Perimeter-discount cards (Briar Hedge — "fences on the edge of your farmyard
+# board") use these to classify which of a pasture's NEW edges sit on the board edge. 10 h +
+# 6 v = 16 board-edge fences, matching the per-cell count above.
+PERIMETER_H_BM: int = sum(
+    1 << (r * NUM_COLS + c) for r in (0, NUM_ROWS) for c in range(NUM_COLS)
+)
+PERIMETER_V_BM: int = sum(
+    1 << (r * (NUM_COLS + 1) + c) for r in range(NUM_ROWS) for c in (0, NUM_COLS)
+)
+
+
 # ─── Part 2: UNIVERSE_FULL and UNIVERSE_FAMILY filters ───────────────────
 
 

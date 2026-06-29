@@ -851,6 +851,8 @@ def _check_entry_legal(
     idx: int | None = None,
     free_budget: int = 0,
     accrued_wood: int = 0,
+    initiated_by_id: str | None = None,
+    build_fences_action: bool = True,
 ) -> tuple[bool, int, int]:
     """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
     universe entry against precomputed per-call state.
@@ -877,9 +879,14 @@ def _check_entry_legal(
     `free_budget` is the REMAINING per-action budget — the frame's `free_fence_budget` (during
     building) or the anticipated seed (at placement). `accrued_wood` is the frame's
     `accrued_cost.wood` (0 at placement — the first pasture — and in Family, which debits
-    per-commit and never accrues). Both default 0, so the Family / cached path gates on exactly
-    `new_count` as before. The fence-PIECE supply check (`new_count > fences_left`) is on full
-    edge count — free fences still consume pieces (§9.7).
+    per-commit and never accrues). `initiated_by_id` / `build_fences_action` are the frame's
+    provenance + literal-action flag, read by the per-edge POSITIONAL fold
+    (`positional_free_edge_count`) so a positional card can gate on them (Field Fences on its
+    grant) or ignore them (Briar Hedge, any build). Positional frees are computed only on the
+    canonical (state/idx) path; all four free-related inputs default to the no-card value, so
+    the Family / cached path gates on exactly `new_count` as before. The fence-PIECE supply
+    check (`new_count > fences_left`) is on full edge count — free fences still consume pieces
+    (§9.7).
 
     The `running`-wood affordability runs through the cost-modifier chokepoint `can_pay` (with
     the geometry-derived base) when `state`/`idx` are supplied — the non-cached, canonical path.
@@ -925,11 +932,19 @@ def _check_entry_legal(
     new_count = h_new.bit_count() + v_new.bit_count()
     if new_count < 1:
         return False, 0, 0
-    # WOOD affordability on the PAID edges (after the per-action free-fence budget covers
-    # the first `free_budget`): through the cost chokepoint (the canonical path), else the
-    # equivalent raw arithmetic in the cached scan (see the docstring). Fence-PIECE supply
-    # is checked separately on FULL edge count — free fences still use pieces (§9.7).
-    paid = max(0, new_count - free_budget)
+    # WOOD affordability on the PAID edges: POSITIONAL per-edge frees (board-perimeter /
+    # next-to-field cards) cover specific new edges by geometry, THEN the per-action
+    # free-fence budget covers the next `free_budget` (§9.4 greedy order), and the rest is
+    # paid — checked through the cost chokepoint (the canonical path), else the equivalent raw
+    # arithmetic in the cached scan (see the docstring). Fence-PIECE supply is checked
+    # separately on FULL edge count — free fences still use pieces (§9.7).
+    positional_free = 0
+    if state is not None and idx is not None:
+        from agricola.cards.cost_mods import positional_free_edge_count
+        positional_free = positional_free_edge_count(
+            state, idx, state.players[idx].farmyard, h_new, v_new,
+            initiated_by_id=initiated_by_id, build_fences_action=build_fences_action)
+    paid = max(0, new_count - positional_free - free_budget)
     running = accrued_wood + paid   # whole-action running paid-edge total (§9.2)
     if state is not None and idx is not None:
         if not can_pay(state, idx, _build_fence_ctx(state.players[idx], running)):
@@ -1906,6 +1921,8 @@ def _enumerate_pending_build_fences(
         idx=pending.player_idx,
         free_budget=pending.free_fence_budget,   # the REMAINING per-action budget (§9.4)
         accrued_wood=pending.accrued_cost.wood,  # whole-action paid-edge running total (§9.2)
+        initiated_by_id=pending.initiated_by_id,  # provenance for positional gating (Field Fences)
+        build_fences_action=pending.build_fences_action,
     )
 
     actions: list[Action] = _eligible_fire_triggers(

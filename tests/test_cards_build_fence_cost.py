@@ -32,8 +32,10 @@ from agricola.actions import (
     Proceed,
     Stop,
 )
+from agricola.cards.briar_hedge import CARD_ID as BRIAR_HEDGE_ID
 from agricola.cards.hedge_keeper import CARD_ID
 from agricola.cards.millwright import CARD_ID as MILLWRIGHT_ID
+from agricola.cards.rammed_clay import CARD_ID as RAMMED_CLAY_ID
 from agricola.cards.specs import OCCUPATIONS
 from agricola.constants import GameMode
 from agricola.engine import step
@@ -42,7 +44,7 @@ from agricola.pending import PendingBuildFences, PendingChooseCost
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 
-from tests.factories import with_resources
+from tests.factories import with_animals, with_resources
 from tests.test_fencing import _fencing_setup, _with_initial_pasture
 
 
@@ -397,3 +399,163 @@ def test_millwright_two_grain_cap_bounds_during_building():
     commits = {a.cells for a in legal_actions(state)
                if isinstance(a, CommitBuildPasture)}
     assert _TOP_1x2_34 not in commits, "5-edge needs >2 of the wood as grain; the 2-cap blocks it"
+
+
+# ---------------------------------------------------------------------------
+# Rammed Clay: clay substitutes for wood, 1:1, UNLIMITED (COST_MODIFIER_DESIGN.md §9)
+# ---------------------------------------------------------------------------
+# Rammed Clay (minor) — "You can use clay instead of wood to build fences" (both in one
+# action, any split). A plain per-edge conversion (no per-action cap): the fence bill's wood
+# may be paid as any wood/clay mix. So the settle surfaces every affordable wood/clay split as
+# a PendingChooseCost menu, and — because affordability is the running total — clay ENABLES a
+# wood-tight build. On play it also gives +1 clay.
+
+def _rammed_clay_setup(*, wood, clay, pre_pasture=None):
+    """A CARDS-mode fencing state owning Rammed Clay (NOT Hedge Keeper) with the given
+    wood + clay on hand."""
+    state = _fencing_setup(wood=wood)
+    state = with_resources(state, 0, wood=wood, clay=clay)
+    state = fast_replace(state, mode=GameMode.CARDS)
+    if pre_pasture is not None:
+        state = _with_initial_pasture(state, 0, pre_pasture)
+    p = state.players[0]
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {RAMMED_CLAY_ID})
+    state = fast_replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2))
+    )
+    return state
+
+
+def _clay(state, idx=0):
+    return state.players[idx].resources.clay
+
+
+def test_rammed_clay_on_play_gives_clay():
+    from agricola.cards.specs import MINORS
+    assert RAMMED_CLAY_ID in MINORS
+    s = _fencing_setup(wood=1)
+    before = _clay(s)
+    s2 = MINORS[RAMMED_CLAY_ID].on_play(s, 0)
+    assert _clay(s2) == before + 1
+
+
+def test_rammed_clay_settle_menu_lists_every_split():
+    # 5-edge build -> accrued 5 wood. With ample wood + clay the settle menu lists all 6
+    # wood/clay splits (Pareto-incomparable — wood and clay are different goods).
+    state = _rammed_clay_setup(wood=20, clay=20, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    assert state.pending_stack[-1].accrued_cost.wood == 5
+    state = step(state, Proceed())
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingChooseCost) and top.action_kind == "build_fence"
+    options = {a.payment for a in legal_actions(state)
+               if isinstance(a, CommitChooseCost)}
+    assert options == {Resources(wood=5 - k, clay=k) for k in range(6)}
+
+
+def test_rammed_clay_enables_clay_funded_build_during_building():
+    # The running-total fix applied to a conversion: 2 wood + 3 clay can build the 5-edge
+    # layout (pay 2 wood + 3 clay), which is unaffordable on wood alone. The during-building
+    # legality offers it; the settle pays the only affordable split (2 wood + 3 clay) inline.
+    state = _rammed_clay_setup(wood=2, clay=3, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    commits = {a.cells for a in legal_actions(state)
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 in commits, "5-edge is clay-fundable (2 wood + 3 clay), now legal"
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    state = step(state, Proceed())
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences) and top.phase == "after"   # singleton inline settle
+    assert _wood(state) == 0                      # 2 - 2
+    assert _clay(state) == 0                       # 3 - 3
+
+
+def test_clay_does_not_pay_fences_without_rammed_clay():
+    # Regression: clay funds fences ONLY with Rammed Clay. 2 wood + 3 clay, no card -> the
+    # 5-edge layout (full 5 wood) is unaffordable and not offered.
+    state = _cards_setup(wood=2, own_card=False, pre_pasture=_PRE_1x1)
+    state = with_resources(state, 0, wood=2, clay=3)
+    state = _enter_build_fences(state)
+    commits = {a.cells for a in legal_actions(state)
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 not in commits, "clay can't pay fences without Rammed Clay"
+
+
+# ---------------------------------------------------------------------------
+# Briar Hedge: POSITIONAL per-edge frees — board-perimeter edges cost no wood (§9.4 source 1)
+# ---------------------------------------------------------------------------
+# Briar Hedge (minor) — "You do not need to pay wood for fences that you build on the edge of
+# your farmyard board." Ungated (any fence build). A fresh top-1x2 adjacent to a pre-1x1 at
+# (0,2) encloses 5 new edges, of which 3 sit on the board edge (the two top edges + the right
+# edge of (0,4)) and 2 are interior (the two bottom edges) -> 2 wood paid with Briar Hedge.
+# An INTERIOR 1x1 at (1,1) has 0 perimeter edges, so Briar Hedge frees nothing there.
+
+_INTERIOR_1x1 = frozenset({(1, 1)})     # a fresh first pasture with NO board-edge edges
+
+
+def _briar_setup(*, wood, pre_pasture=None):
+    """A CARDS-mode fencing state owning Briar Hedge with the given wood (no other fence
+    card). The prereq (1 animal of each type) gates PLAY, not the effect, so the owned card
+    frees perimeter edges regardless of animals held."""
+    state = _fencing_setup(wood=wood)
+    state = fast_replace(state, mode=GameMode.CARDS)
+    if pre_pasture is not None:
+        state = _with_initial_pasture(state, 0, pre_pasture)
+    p = state.players[0]
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {BRIAR_HEDGE_ID})
+    state = fast_replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2))
+    )
+    return state
+
+
+def test_briar_hedge_prereq_one_of_each_animal():
+    from agricola.cards.specs import MINORS, prereq_met
+    spec = MINORS[BRIAR_HEDGE_ID]
+    s = _fencing_setup(wood=1)                                  # no animals
+    assert not prereq_met(spec, s, 0)
+    assert prereq_met(spec, with_animals(s, 0, sheep=1, boar=1, cattle=1), 0)
+    assert not prereq_met(spec, with_animals(s, 0, sheep=1, boar=1), 0)   # missing cattle
+
+
+def test_briar_hedge_perimeter_edges_free():
+    # 5-edge layout: 3 board-edge edges free -> accrued 2 wood (the 2 interior edges).
+    state = _briar_setup(wood=20, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    top = state.pending_stack[-1]
+    assert top.accrued_cost.wood == 2          # 5 new edges - 3 on the board edge
+    assert _wood(state) == 20                    # nothing debited per-commit in CARDS
+    state = _finish(state)
+    assert _wood(state) == 18                    # 20 - 2
+
+
+def test_briar_hedge_frees_nothing_for_interior_pasture():
+    # A fresh interior 1x1 at (1,1) has 4 edges, NONE on the board edge -> Briar Hedge frees
+    # nothing, full 4 wood accrued.
+    state = _briar_setup(wood=20)
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_INTERIOR_1x1))
+    assert state.pending_stack[-1].accrued_cost.wood == 4    # no perimeter edges, full price
+    state = _finish(state)
+    assert _wood(state) == 16                                 # 20 - 4
+
+
+def test_briar_hedge_enables_tight_wood_perimeter_build():
+    # 2 wood + Briar Hedge: the 5-edge layout is offered (pays 2 after the 3 perimeter frees)
+    # and built, ending at 0 wood. Without the card it needs the full 5 wood (illegal at 2).
+    state = _briar_setup(wood=2, pre_pasture=_PRE_1x1)
+    commits = {a.cells for a in legal_actions(_enter_build_fences(state))
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 in commits, "5-edge build pays 2 wood after perimeter frees"
+    no_card = _cards_setup(wood=2, own_card=False, pre_pasture=_PRE_1x1)
+    no_card_commits = {a.cells for a in legal_actions(_enter_build_fences(no_card))
+                       if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 not in no_card_commits, "without Briar Hedge the full 5 wood is unaffordable"
+    # Full flow to zero wood.
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    assert state.pending_stack[-1].accrued_cost.wood == 2
+    state = _finish(state)
+    assert _wood(state) == 0                                   # 2 - 2

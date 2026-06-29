@@ -85,6 +85,15 @@ from agricola.cards import conservator          # noqa: F401
 # budget covers is enabled, not merely discounted. Cards-only deferred tally; no
 # on-play effect.
 from agricola.cards import hedge_keeper          # noqa: F401
+# Rammed Clay (minor, COST_MODIFIER_DESIGN.md §9): a build_fence CONVERSION (clay may
+# substitute for wood, 1:1, unlimited) + on-play +1 clay. A plain producer conversion;
+# the settle payment menu surfaces the wood/clay splits, and the running-total legality
+# lets clay enable a wood-tight build.
+from agricola.cards import rammed_clay           # noqa: F401
+# Briar Hedge (minor, COST_MODIFIER_DESIGN.md §9): the first POSITIONAL per-edge free-fence
+# card — board-perimeter fence edges cost no wood (ungated, any fence build). Registers a
+# free-fence EDGE fn (distinct from the scalar seed registry); prereq 1 animal of each type.
+from agricola.cards import briar_hedge           # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

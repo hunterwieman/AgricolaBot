@@ -40,6 +40,13 @@ BASE_ROUTES: dict[str, list[tuple[str | None, Callable]]] = {}
 # Not action_kind-keyed: a free-fence seed is about the Build Fences action as a whole, gated
 # on ownership + (for the seed_fn to read) the literal-action flag / entry-point space.
 FREE_FENCE_SEEDS: dict[str, Callable] = {}
+# card_id -> edge_fn; per-edge POSITIONAL free-fence sources (Briar Hedge = board-perimeter
+# edges; Field Fences = edges next to field tiles). DISTINCT from FREE_FENCE_SEEDS, which is a
+# SCALAR per-action budget: a positional card frees SPECIFIC edges by board geometry, so its
+# edge_fn returns the (h, v) edge BITMAPS it covers, and the fold unions them across owned
+# cards (an edge two cards free is counted once) before intersecting with the pasture's new
+# edges. Positional frees apply BEFORE the per-action budget (§9.4 greedy order).
+FREE_FENCE_EDGES: dict[str, Callable] = {}
 
 
 def register_formula(action_kind: str, card_id: str, applies: Callable, formula: Callable) -> None:
@@ -171,6 +178,36 @@ def base_routes(action_kind: str, state, idx: int, ctx) -> list:
         if card_id is None or _owns(p, card_id):
             out.extend(routes_fn(state, idx, ctx))
     return out
+
+
+def register_free_fence_edges(card_id: str, edge_fn: Callable) -> None:
+    """Register a card's POSITIONAL per-edge free-fence contribution (COST_MODIFIER_DESIGN.md
+    §9.4 source 1). `edge_fn(farmyard, h_new, v_new, *, state, idx, initiated_by_id,
+    build_fences_action) -> (h_free_bm, v_free_bm)` returns which of the pasture's NEW edges
+    (subsets of `h_new` / `v_new`) this card pays no wood for, by board geometry — e.g. Briar
+    Hedge returns the board-perimeter intersection, ungated; Field Fences (later) returns the
+    field-adjacent edges, gated on `initiated_by_id`. Ownership-gated; empty in the Family game,
+    so `positional_free_edge_count` is always 0 there and the Family path stays byte-identical."""
+    FREE_FENCE_EDGES[card_id] = edge_fn
+
+
+def positional_free_edge_count(state, idx: int, farmyard, h_new: int, v_new: int, *,
+                               initiated_by_id=None, build_fences_action: bool = True) -> int:
+    """How many of a pasture's NEW edges (`h_new` / `v_new`) owned positional cards free of
+    wood (COST_MODIFIER_DESIGN.md §9.4 source 1). Unions each owned card's free-edge bitmaps
+    (an edge two cards free is counted once), intersects with the new edges, and returns the
+    popcount. Applied BEFORE the per-action `free_fence_budget` (a positional-free edge never
+    consumes the budget). 0 in the Family game (empty registry)."""
+    p = state.players[idx]
+    h_free = v_free = 0
+    for card_id, edge_fn in FREE_FENCE_EDGES.items():
+        if _owns(p, card_id):
+            hf, vf = edge_fn(farmyard, h_new, v_new, state=state, idx=idx,
+                             initiated_by_id=initiated_by_id,
+                             build_fences_action=build_fences_action)
+            h_free |= hf
+            v_free |= vf
+    return (h_free & h_new).bit_count() + (v_free & v_new).bit_count()
 
 
 def free_fence_budget_for(state, idx: int, *, build_fences_action: bool, space_id) -> int:

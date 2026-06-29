@@ -1454,11 +1454,10 @@ def _execute_build_pasture(
     #   `Resources(wood=wood_cost)` debit did. The frontier is always a singleton
     #   (no cost cards in Family).
     #
-    #   CARDS — deferred accrue, NO debit here. Apply this commit's slice of the
-    #   per-action free-fence budget (§9.4 source 2), accrue the paid wood onto the
-    #   frame, and settle the whole-action bill once at the Proceed flip (Part C).
-    #   (Positional per-edge frees — Briar Hedge / Field Fences — are a later
-    #   increment; not applied here.)
+    #   CARDS — deferred accrue, NO debit here. Apply this commit's POSITIONAL per-edge
+    #   frees (§9.4 source 1, Briar Hedge / Field Fences) then its slice of the per-action
+    #   free-fence budget (source 2), accrue the paid wood onto the frame, and settle the
+    #   whole-action bill once at the Proceed flip (Part C).
     if state.mode is GameMode.FAMILY:
         payments = effective_payments(
             state, player_idx,
@@ -1471,8 +1470,14 @@ def _execute_build_pasture(
         new_accrued = top.accrued_cost
         new_budget = top.free_fence_budget
     else:  # CARDS: deferred accrue, no debit (settled at the Proceed flip).
-        free_used = min(wood_cost, top.free_fence_budget)
-        paid = wood_cost - free_used
+        from agricola.cards.cost_mods import positional_free_edge_count
+        positional_free = positional_free_edge_count(
+            state, player_idx, farmyard, h_new, v_new,
+            initiated_by_id=top.initiated_by_id,
+            build_fences_action=top.build_fences_action)
+        after_positional = wood_cost - positional_free      # source 1: positional edges
+        free_used = min(after_positional, top.free_fence_budget)  # source 2: per-action budget
+        paid = after_positional - free_used
         new_budget = top.free_fence_budget - free_used
         new_resources = p.resources                      # no debit; deferred to settle
         new_accrued = top.accrued_cost + Resources(wood=paid)
