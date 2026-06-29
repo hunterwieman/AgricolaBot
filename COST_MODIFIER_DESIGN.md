@@ -663,8 +663,8 @@ deferred; the cost frontier must not assume current `p.resources` is final.**
 > (⚠ FLAGGED — wide breaks the trained `commit_build_major` policy head; see step 5 sub-status for the
 > recommended recompute-singleton path, deferred to the owner) and **build-stable** (owner-greenlit,
 > after the doc — Millwright's stable clause is already registered, so this is mostly the same two-step
-> wiring as build-room + a small Family C++ re-port for `PendingBuildStables.cost`). Build-fence is out
-> of scope.
+> wiring as build-room + a small Family C++ re-port for `PendingBuildStables.cost`). Build-fence is **now
+> designed** (§9 — the deferred-tally model); implementation pending.
 
 1. **Chokepoint, no cards.** ✅ `PaymentOption`, `CostCtx`, `effective_payments`, `can_pay`,
    `pareto_min_over_goods`, `_route_affordable`; the registries + fold accessors (`formula_mods`,
@@ -763,70 +763,347 @@ deferred; the cost frontier must not assume current `p.resources` is final.**
 
 ---
 
-## 9. Build-fence cost modifiers — plan (NOT YET IMPLEMENTED)
+## 9. Build-fence cost modifiers — design (settled; NOT YET IMPLEMENTED)
 
-Build-fence was held out of the cost-modifier wiring (renovate / build-room / play-minor / build-major
-/ build-stable are done). This section is the plan for extending discounts + conversions to it. The
-base wiring is straightforward and mirrors build-stable; the *exotic* fence cards are genuine §0s.
+> **Status (2026-06-29):** the design below is **settled** (forks resolved with the owner in a
+> dedicated design pass) and **supersedes the earlier per-commit sketch.** That sketch mirrored
+> build-stable — debit per `CommitBuildPasture`, Python-only / no C++. It is replaced: fences pay
+> **once at the end of the whole Build Fences action** (the *deferred-tally* model), which is the
+> natural fit for fences and does require a (mechanical) C++ re-port. No code is written yet; this is
+> the spec to implement against.
 
-### 9.1 What makes fences different
+Build-fence was the one build action held out of the cost-modifier wiring (renovate / build-room /
+play-minor / build-major / build-stable are done — §8.1). This section is the full design for adding
+discounts, conversions, formulas, and free-fence effects to it.
 
-- **The base cost is geometry-derived, not a stored/fixed value.** A `CommitBuildPasture(cells)` costs
-  the wood for the *new* fence edges that pasture encloses — `compute_new_fence_edges(farmyard, cells)`
-  returns `(h_new, v_new, wood_cost)` and `_execute_build_pasture` debits `Resources(wood=wood_cost)`.
-  (This is the "4th cost bucket" — cost as a pure function of state+geometry — ENGINE_IMPLEMENTATION §3.)
-  So the cost-ctx's `base` is computed per commit from the chosen cells, not read off the frame.
-- **"Build Fences" is ONE action** (the §2 / CARD_AUTHORING_GUIDE §2 rule): the engine resolves it as a
-  multi-shot chain of `CommitBuildPasture`s on `PendingBuildFences`, flipping to its after-phase on
-  `Proceed`. Per-action budgets/totals (Millwright; "N wood less total") span the whole action.
-- **MCTS macro-fencing.** `mcts.py` collapses a fence layout into a single `MacroFencingAction` (a path
-  of pasture-commits) to bound tree depth. It assumes each commit's cost is deterministic. With a cost
-  card that surfaces a payment *choice* (the two-step), that assumption breaks — but CARDS mode has no
-  trained policy / MCTS bot today, so this is **moot now**; flag it for whenever a card-game searcher is
-  built (the macro would need to thread the per-pasture payment choice, or fence-cost cards be excluded
-  from macro collapse).
+### 9.1 What makes fences different (and why the per-commit model doesn't fit)
 
-### 9.2 The base wiring (straightforward; mirrors build-stable, Python-only / no C++)
+Fences are not build-stable with a different base. Four structural differences drive a different model:
 
-- **`_build_fence_ctx(state, p, cells)`** → `CostCtx("build_fence", Resources(wood=wood_cost), build_index=<num_built>, space_id=<"fencing" | "farm_redevelopment">)`, where `wood_cost` comes from
-  `compute_new_fence_edges`. `space_id` lets a card scope to one entry point (Hunting Trophy is
-  Farm-Redevelopment-only).
-- **Legality:** the `_any_legal_pasture_commit` / per-candidate scan gates on `can_pay(state, idx,
-  _build_fence_ctx(...))` instead of a raw wood check, so a card makes an otherwise-unaffordable pasture
-  payable. (Perf note: the universe scan is cached behind `FENCE_SCAN_CACHE`; adding a per-candidate
-  `can_pay` adds a cost-resolution per candidate — measure, and keep the Family path on the cheap
-  `_can_afford` fast path inside `can_pay`.)
-- **`_execute_build_pasture`:** resolve `payments = effective_payments(state, idx, _build_fence_ctx(...))`
-  with the geometry-derived base; singleton (always in Family) → debit inline + `record_conversion_usage("build_fence", …)`; >1 → push the two-step `PendingChooseCost(action_kind="build_fence")`. `CommitBuildPasture`
-  stays geometry-only (`cells`); `PendingBuildFences` keeps no stored cost (it never had one). Because the
-  Family frontier is the singleton `wood_cost`, **Family stays byte-identical and the C++ twin needs no
-  change** — exactly like build-stable.
-- **Millwright on fences:** add `"build_fence"` to Millwright's `register_conversion` set + an
-  `after_build_fences` reset auto (its per-action grain budget then shares across the whole fencing
-  action, via the existing CardStore `record` mechanism). This handles the user's "Rammed Clay → /
-  Feed-Fence-style → Millwright" fence chains for the simple per-action-budget case.
+- **The base cost is geometry-derived per commit.** A `CommitBuildPasture(cells)` costs the wood for
+  the *new* fence edges that pasture encloses — `compute_new_fence_edges(farmyard, cells)` returns
+  `(h_new, v_new, wood_cost)`. (The "4th cost bucket": cost as a pure function of state + geometry —
+  ENGINE_IMPLEMENTATION §3.) So the ctx `base` is computed per commit from the chosen cells.
+- **One `CommitBuildPasture` adds *many* edges.** Build-room / build-stable add *one* unit per commit,
+  so per-commit payment is natural there. A pasture adds several edges at once, and the interesting
+  fence discounts classify or budget *edges*.
+- **"Build Fences" is ONE action** (CARD_AUTHORING_GUIDE §2): the engine resolves it as a multi-shot
+  chain of `CommitBuildPasture`s on `PendingBuildFences`, flipping to its after-phase on `Proceed`. No
+  effect fires *between* commits — the chain is not a recognized trigger time. Per-action budgets and
+  totals (Millwright's "up to 2", Hedge Keeper's "3 free", Hunting Trophy's "3 wood less total") span
+  the whole action.
+- **Fences are limited pieces** (15 per player), and some cards move/remove pieces independently of
+  building (§9.7).
 
-### 9.3 The exotic fence cards (§0 — decide per card before implementing)
+The consequence: the natural unit of payment is **the whole action, not the pasture.** Every
+interesting fence discount is per-edge (positional) or a per-action budget over edges — both want to
+see all the action's edges together. So we **defer payment to the end of the action** (§9.2) rather
+than debiting per commit.
 
-- **Per-action TOTAL reductions / free counts** — Hunting Trophy ("fences on Farm Redevelopment cost a
-  total of 3 wood less"), Hedge Keeper ("3 free fences per action"). These are a per-ACTION *reduction*
-  budget (a total across the action), whereas the current per-action mechanism budgets *conversions*
-  (the `record` hook on `register_conversion`). Extending it to reductions (a per-action reduction
-  allowance in CardStore, decremented per pasture, reset at `after_build_fences`) is a modest but real
-  generalization — decide the API with the owner.
-- **Per-fence-segment "Nth fence" cards** — Carpenter's Apprentice ("your 13th–15th fence each cost
-  nothing"). The cost is per new *edge*; "Nth fence" counts cumulative fence segments *across the game*,
-  and a single `CommitBuildPasture` can add several edges of which only some are the 13th–15th. This
-  needs a per-game fence-segment counter (CardStore) AND sub-pasture edge granularity in the cost — more
-  than the per-pasture chokepoint models. **Defer.**
-- **Conversions that only exist on fences** — Rammed Clay (fence wood→clay), etc.: fine under §9.2's
-  base wiring once build-fence is a registered `action_kind`; just register the conversion. (Rammed Clay
-  also has an on-play clay gain — a separate Category-2 effect.)
+### 9.2 The deferred-tally model
 
-### 9.4 Recommended order
+During the Build Fences action, each `CommitBuildPasture` **builds its edges and accumulates the
+running cost on the frame — it does NOT debit.** At the action's after-host (the `Proceed`
+work-complete flip), the engine **settles**: tally the accrued cost, present the payment, then fire
+the after-grants. So the after-host order is **settle → pay → grants** (the owner-confirmed ordering:
+a settled payment before Shepherd's-Crook-style grants).
 
-1. §9.2 base wiring + Millwright-on-fences (Python-only, no C++, mirrors build-stable) — covers the
-   plain discount/conversion fence cards.
-2. The per-action **total-reduction** generalization (Hunting Trophy / Hedge Keeper) — one API decision.
-3. Defer the per-segment "Nth fence" cards and revisit the MCTS-macro-cost interaction only if/when a
-   card-game searcher is built.
+Frame state on `PendingBuildFences` (the deferred path):
+- **`accrued_cost: Resources`** — the running wood owed after frees (the base `effective_payments`
+  consumes at settle, so Millwright / Rammed Clay conversions apply to the whole-action total).
+- **`free_fence_budget: int`** — a *generic* per-action free-fence allowance, seeded at push and
+  decremented as it covers paid edges (§9.4). Dies with the frame.
+- **`build_fences_action: bool`** — literal Build Fences action vs card effect (§9.6).
+
+Settle: `payments = effective_payments(state, idx, ctx with base=accrued_cost)`. Singleton (the common
+case) → debit inline. >1 (a conversion offers a choice — Millwright / Rammed Clay) → push the two-step
+`PendingChooseCost(action_kind="build_fence")` **once**, over the *whole-action* total. So a multi-pasture
+layout with Millwright surfaces **one** payment menu against the full bill, with the full 2-grain budget
+— not chained per-pasture menus. (This one menu can be bigger than other actions' — Rammed Clay's
+wood/clay split × Millwright's up-to-2 grain × up to ~15 unpaid edges — but bounded at a few dozen
+options (~50 worst case); fine for a pointer-head, just chunky as a human menu.)
+
+Legality during building: each candidate `CommitBuildPasture` is gated on "**the running total stays
+affordable**" (`can_pay` against `accrued_cost + this pasture`, conversions included), not on this
+pasture's cost alone — so the player can never build a layout it can't pay for at settle.
+
+**One shared affordability/free-fence function.** The "running total stays affordable" gate (legality)
+and the actual settle debit (resolution) must compute the discount + free-fence allocation with the
+*same* function — otherwise legality offers a pasture that resolution then can't pay for. The existing
+1×1 fast path (`_any_legal_pasture_commit` — "if any pasture is legal, some 1×1 is") is **kept** for the
+placement-time "is Build Fences available?" question; only its per-candidate affordability test swaps
+the raw wood check for that shared `can_pay`-with-discounts. That shared function also has to
+**anticipate** the per-action budget at *placement* time — the frame doesn't exist yet, so the budget
+isn't seeded — by computing the budget the action *would* seed for this entry point (Hedge Keeper's +3
+on any Build Fences action; Hunting Trophy's +3 only at Farm Redevelopment). Same budget-computing
+function, just called speculatively; easy, one extra call site.
+
+**The settle payment pause is ordinary stack resumption, not new machinery.** When the settle finds >1
+payment and pushes `PendingChooseCost`, the wrap-up pauses; `CommitChooseCost` pops it and
+`_advance_until_decision` — being state-driven — resumes and fires the grants. At most a boolean (or
+just "`accrued_cost` is now settled") marks the wrap-up phase so resume continues to grants — quite
+possibly nothing new is needed. Because payment is *before* any grant, nothing has fired during the
+pause, so there is no interleaving to reason about. (So we keep `settle → pay → grants`; no reorder.)
+
+### 9.3 Family vs Cards (Fork 1): deferred is the Cards model; Family stays per-commit
+
+Deferred-tally is THE model — the engine is built around the cards game. **Family keeps the current
+per-commit debit, behind a `game_mode == FAMILY` branch in the settle path.** Not a compromise:
+
+- **The champion NN is preserved.** The Family encoder reads wood-in-supply and has no "unpaid fence
+  liability" feature; deferring in Family would make mid-fencing states show too-much wood and
+  miscalibrate the champion. Per-commit Family avoids encoder surgery + a retrain.
+- **C++ stays mechanical.** The C++ twin is Family-only, so the *deferred logic never ports* — it's
+  Cards-only Python. The frame gains its fields, but in Family they're inert/defaulted, so the C++
+  re-port is "add the defaulted fields to the struct + serialization," not a control-flow change.
+- **The future Cards NN is designed for the deferred trajectory from day one** (it encodes the accrued
+  liability, or only evaluates at settle). So per-commit-Family / deferred-Cards lines up with "two
+  modes, two NNs, two encoders."
+
+### 9.4 The free-fence model (three sources + greedy order)
+
+A fence edge is freed by one of three source kinds, consumed **positional → per-action budget →
+persistent pool**:
+
+1. **Positional, per-edge** (no budget) — Briar Hedge ("edge of the farmyard board"), Field Fences
+   ("next to field tiles"). Classified per commit from the new-edge geometry (`h_new`/`v_new` from
+   `compute_new_fence_edges`, plus the farmyard for "next to a field"). A positionally-free edge costs
+   no wood and consumes no budget. **The fence ctx must carry the new-edge geometry** so these are
+   computable (the scalar `wood_cost` alone is insufficient).
+2. **Per-action budget** — the generic `free_fence_budget` on the frame, seeded at push by a
+   `before_build_fences` auto and gated *there* on the frame's identity (read at the before-host, before
+   any cost ctx exists — §9.5): Hedge Keeper seeds +3 when owned && `build_fences_action`; Hunting Trophy
+   seeds +3 when the frame's **entry point** is Farm Redevelopment. **Unified:** "3 wood less total" ≡
+   "3 free fences" because a fence is always 1 wood/edge — so there is ONE per-action mechanism, not a
+   separate reduction path, and multiple sources **stack** (Hedge Keeper + Hunting Trophy on a Farm-Redev
+   action → 6). Dies with the frame (correct per-action lifetime; no reset machinery).
+3. **Persistent pool (Ash Trees) — a separate pool, NOT part of `free_fence_budget`.** Ash Trees' "5
+   fences from this card cost nothing" is a per-game pool in the card's CardStore with its own lifetime,
+   so it must stay out of the per-action `free_fence_budget` (which dies with the frame). Its 5 fences
+   **raise the player's fence-building capacity** for legality/enumeration (a pasture unaffordable in
+   wood alone becomes legal), and are **spent greedily at settle**, covering paid edges *last* (after
+   positional + the frame budget) so they're never wasted on already-free edges. Greedy-at-settle is
+   loss-less: a fence is a flat 1 wood whenever built, so spending Ash now vs. saving it for a later
+   fence saves the same wood — and "now" is guaranteed while "later" may never come. An Ash-covered edge
+   uses a *card* piece, so it does **not** decrement the player's fence supply (§9.7); since Ash is
+   decided at settle, the supply/Ash piece split — hence the supply decrement — is resolved there too.
+
+Order rationale: positional first (free, no budget, so a budget never covers an already-free edge);
+the *expiring* per-action budget before the *persistent* pool (never leave a use-it-or-lose-it free
+unused while spending a persistent one). Per-commit greedy with this order is optimal — every paid edge
+is worth exactly 1 wood, so covering any is equivalent.
+
+### 9.5 Gating scopes — two frame signals, read at build-time
+
+The `PendingBuildFences` frame records its **entry point at push** — which space pushed it (Fencing /
+Farm Redevelopment) or, for a card grant, the card. This single fact, read off the frame, drives all
+fence-discount scoping, and is available immediately at the `before_build_fences` host — *before* any
+cost ctx exists (the ctx is built at settle). `_build_fence_ctx` then mirrors the *space* part into
+`ctx.space_id`, so the existing cost-system space-scoping also works at settle. There are two genuinely
+**distinct** signals (the earlier "they're the same `initiated_by_id` mechanism" claim was wrong):
+
+| Scope | Example | Gate | Granularity |
+|---|---|---|---|
+| Always (when owned) | Briar Hedge | ownership only | — |
+| Space-scoped | Hunting Trophy ("on Farm Redevelopment") | the frame's entry-point space (mirrored to `ctx.space_id`) | *which space* |
+| Grant-scoped | Field Fences ("during *this* granted action") | the frame's `initiated_by_id` | *the exact pusher (a card)* |
+| Cost-pipeline (when owned) | Millwright / Rammed Clay conversions | ownership, read off the ctx | — (settle-time) |
+
+**Space-scoped and grant-scoped are different granularities.** Hunting Trophy scopes to a real *space*
+(Farm Redevelopment) — the same `space_id` granularity its own House-Redevelopment clause uses, so it's
+consistent across both clauses. Field Fences isn't "a space" at all — its granted action is a card
+effect — so `space_id` can't express it; it needs the *exact-pusher* `initiated_by_id`. Both signals
+live on the frame (so a build-time free-fence seeder reads them at the before-host); only the space part
+is mirrored into `ctx.space_id` for settle-time cost-pipeline use.
+
+**Why provenance, not a card-state latch.** "During Field Fences' grant" is identically "the active
+fence frame's `initiated_by_id` is `field_fences`," so the frame's existence *is* the scope — no
+set/unset, no "off for the rest of the game" cleanup, no stale latch. A normal Fencing-space action gets
+neither Hunting Trophy (wrong *space* — not Farm Redevelopment) nor Field Fences (wrong *pusher* — not
+its grant) even when owned — which a plain ownership gate (like Briar Hedge) would get wrong. Provenance
+is documented as exactly this
+"card-gating breadcrumb." (Boundary: this works because each such card pushes its own frame, or scopes
+to a space that does. A hypothetical "your *next* fence action — whoever starts it — is discounted" card
+would need a one-shot latch; no such fence card exists.)
+
+### 9.6 The `build_*_action` flags
+
+`PendingBuildFences`, `PendingBuildStables`, and `PendingBuildRooms` each gain a
+`build_{fences,stables,rooms}_action: bool` set at push time, distinguishing the **literal action**
+(Fencing space / Farm Redevelopment for fences; Farm Expansion for stables/rooms; grant cards that say
+"take a *Build Fences* action") from a **card effect that builds** (Mini Pasture "fence a space", Open
+Air Farmer "build a pasture", Shelter/Hawktower "build a stable/room").
+
+- **Set at push from the card's text**, not derived from `initiated_by_id` — Field Fences is
+  card-initiated yet *is* a Build Fences action ("take a Build Fences action"), so provenance alone
+  can't classify it.
+- Its consumer is **action-scoped triggers** (Hedge Keeper: "each time you take a *Build Fences*
+  action" — its clarification explicitly excludes Mini Pasture / Overhaul). It does NOT gate the
+  before/after hosts (Millwright's per-action reset, Shepherd's Crook's snapshot fire regardless — a
+  one-off card stable is still its own build action for budget/grant purposes).
+- All three flags are added **now**, not deferred — the point of going action-by-action is uniform
+  machinery; each is a defaulted bool + a mechanical defaulted C++ field.
+
+### 9.7 Fence (and stable) supply becomes stored state
+
+`fences_in_supply` and `stables_in_supply` are converted from **derived** helpers (`15 − built` /
+`4 − built` in `helpers.py`) to **stored `PlayerState` fields** (a reserve pile is the player's, not
+part of the farmyard grid), decremented on build and by cards. Reason: once a card moves or removes a
+piece *independently of building*, the `cap − built` derivation is wrong:
+- **Ash Trees** moves up to 5 fences from supply onto the card; building one from the card's pool puts
+  an edge on the board (counted as "built") that **never left your supply** — so `supply ≠ 15 − built`.
+- **Open Air Farmer** "removes exactly 3 stables in your supply *from play*" — gone, never built.
+- (Deferred: Loppers exchanges a fence out of supply; Midnight Fencer takes opponents' and can exceed 15.)
+
+So supply is genuinely independent state, not a cache (a built piece may not have come from supply).
+Both counts convert now (uniform machinery; Open Air Farmer needs stables, Ash Trees needs fences).
+Family is byte-identical *in value* (always `cap − built` there, since no card moves pieces), so the
+C++ re-port is mechanical (add the field, init to cap, decrement on build) + canonical serialization.
+Building from a card pool (Ash Trees) does NOT decrement supply; building from supply (incl.
+positionally-free Briar-Hedge edges — "you still use your fence pieces") does. **Decrement timing follows
+the Fork-1 split:** Family decrements per-commit (its existing behavior); the Cards deferred path resolves
+the supply/Ash-pool piece split at **settle** (alongside payment) and decrements there. (Rooms have no
+piece-pile supply — board-space-limited — so no change there.)
+
+Because the stored field is **redundant in Family** (always `cap − built`, a pure function of the fence
+arrays), it adds no distinguishing power there — so MCTS transposition equivalence classes are unchanged
+and the champion's behavior is undisturbed (§9.3); the field carries new information only in Cards.
+
+**The fence-scan cache (Python-only) is eliminated in Cards, not rebuilt.** The legal-pasture scan is
+memoized for MCTS speed in the Family game — `_legal_pasture_commits_cached` (legality.py), an
+`lru_cache` keyed on `(farmyard, wood, subdivision_started)`, behind `opt_config.FENCE_SCAN_CACHE`. It
+is **not** rebuilt card-aware: Cards mode has no MCTS bot, so there is nothing to speed up there, and a
+card-aware key (owned cards + resources + free-fence budget + supply) would add complexity and lower the
+hit rate for zero current benefit (revisit if/when a Cards searcher exists). Instead:
+- The **Cards legality path computes fresh and never consults the cache** (microseconds against human
+  play).
+- The consult site carries a precondition **`assert`** (the key `(farmyard, wood, subdivision)` is
+  complete only when no fence-cost modifier applies) so a future mis-wire **fails loud** rather than
+  silently returning a stale legal-pasture set.
+- The **Family path is unchanged** — it's the only path that reaches the cache, and there
+  `fences_in_supply == 15 − built` is still derivable from the farmyard's fence arrays, so the scan keeps
+  deriving its `fences_left` from `farmyard` internally (a one-line tweak: count built fences off the
+  arrays rather than calling the now-`PlayerState` helper), and the cache signature / key stay as they
+  are.
+
+**C++ has no fence-scan cache** (`any_legal_pasture_commit`, cpp/legality.cpp, recomputes directly), so
+none of the above touches the C++ twin.
+
+### 9.8 Restrictions (deferred) + the Open Air Farmer decomposition
+
+The restricted-grant cards (Mini Pasture, Open Air Farmer, Shelter) are an *alternative-build* axis,
+not a cost axis, so they are **deferred out of the cost slice — but planned as the next fence
+sub-project** (they validate the `FenceRestrictions` descriptor below on real cards): **Mini Pasture
+first** (restriction + free + grant — no extra cost mechanics), then **Open Air Farmer** (adds its
+stable-consumption cost + the grant-scoped flat-price formula). When built, the restriction rides on the
+frame as a **small structured descriptor** (serializable + hashable — NOT an open-ended callback, which
+would break the frame's hash / canonical JSON):
+
+```python
+@dataclass(frozen=True)
+class FenceRestrictions:
+    max_pastures: int | None = None      # Mini Pasture / Open Air Farmer = 1
+    exact_size:   int | None = None      # Mini Pasture = 1 cell, Open Air Farmer = 2
+    forbid_subdivision: bool = False      # Mini Pasture (per owner): must be a NEW 1×1 enclosure, not a split of an existing pasture
+    require_adjacent: bool = False        # Mini Pasture *card text* adds "adjacent to an existing pasture if you have one" — RECONCILE with forbid_subdivision when implementing (rules nuance, owner to confirm)
+```
+
+Default (all None/False) = unrestricted = normal Build Fences; the legality enumerator filters
+candidates by it. **Open Air Farmer decomposes cleanly:** its own resolution pays the non-resource cost
+(decrement 3 stables, §9.7), then pushes a `PendingBuildFences` carrying just the geometry restriction
+(size 2, max 1) with `build_fences_action=False`; the frame never knows about stables. OAF's "pay a
+total of 2 wood" is a grant-scoped **base-override formula** (flat 2 wood regardless of geometry),
+provenance-gated like Field Fences but a *formula*, not Field Fences' positional discount.
+
+### 9.9 State-placement rule (general — guides every future card)
+
+The grant-scoping decision crystallizes when to use each state home. Three-way split by **lifetime and
+meaning**:
+
+- **`initiated_by_id`** = "which card/site caused *this exact frame*." An *identity*, for gating
+  frame-scoped behavior (grant-scoping). Not a general state bag.
+- **Dedicated frame fields** (`accrued_cost`, `free_fence_budget`, `build_*_action`, `FenceRestrictions`)
+  = **frame-scoped state/parameters** that live and die with one frame.
+- **CardStore** = **card-owned state with its own lifecycle**, spanning frames (Ash Trees' game-long
+  pool, Millwright's per-action conversion budget, Shepherd's Crook's before→after snapshot).
+
+Corollary for the encoder: a frame-scoped fact the NN needs (e.g. "Field Fences' grant is live") is
+*derived by the encoder from the frame at encode time*, not pre-materialized onto the card — the engine
+stays clean (provenance), the projection does the work, and the choice is reversible (add a card bool
+later if a card-state-centric encoder ever prefers it).
+
+### 9.10 Card coverage
+
+**The cost slice (this work):** Millwright-on-fences (the live gap — registered for renovate/room/stable
+but has no `build_fence` hook yet; on fences it is a **settle-time conversion** on the whole-action total
+— `effective_payments` caps it at 2 in that single call, so the per-action-ness is automatic — **not**
+the per-commit CardStore `record`/reset budget that rooms/stables use; don't reuse that path here),
+Rammed Clay (wood→clay conversion + on-play clay), Hedge Keeper (per-action budget +3), Hunting Trophy
+(per-action budget +3, space-scoped; its
+*play* cost is *animal* — return/cook a boar — not food), Briar Hedge (positional), Field Fences (grant
++ positional, grant-scoped; 2-food *play* cost on the play-minor path), Ash Trees (persistent pool +
+supply −5).
+
+**Deferred (each its own §0 decision):** Carpenter's Apprentice (per-game "13th–15th fence" — needs a
+cumulative segment counter + sub-pasture edge granularity), Wood Palisades (a parallel non-piece fence
+type scoring VP — board-feature), Overhaul (raze-and-rebuild — new primitive), Master Fencer (recurring
+start-of-round grant + a grant-scoped flat-price formula — the cost aspect fits formula+provenance,
+deferred for the start-of-round recurrence), the restricted grants (§9.8), and the one genuinely new
+cost-constraint type — **Carpenter's Bench's "use only the taken wood"** (a *payment-source restriction*
+`effective_payments` can't express; flag for when it lands, so we don't claim the cost model is
+complete).
+
+**Separate axes / passes (not cost machinery):** the build-fence *trigger* cards (Asparagus Gift,
+Blackberry Farmer, Trimmer, Lumberjack, Loppers, Stablehand, Toolbox — before/after hosts + the
+decomposition diff, Shepherd's Crook precedent; round-space goods via `future_resources`, confirmed
+built), grant-a-Build-Fences-action cards (Prophet, Established Person, Nail Basket, Trellis, Agrarian
+Fences, Confidant), Fencing-space triggers (Pigswill, Wood Barterer), comparative scoring (Animal
+Activist, Lord of the Manor), capacity modifiers (Animal Bedding, Stable Master), and extra-placement
+action-economy cards (Stock Protector). **Out of scope (3+/4+ player):** Cattle Buyer (4+), Full
+Peasant (3+) — the only effect-food-cost fence cards, both multiplayer.
+
+### 9.11 Dependencies + food-cost separation (confirmed)
+
+- **`FutureReward` is built.** `PlayerState.future_resources` (`tuple[Resources, ...]`, 14 slots)
+  carries goods/food placed on round spaces (Well + Category-8 cards); `future_rewards` carries animals
+  + round-start effect hooks. So the "place food/wood on the next round spaces" trigger cards are
+  unblocked (the *count* comes from the after-host diff). Not a cost-slice dependency.
+- **The build-fence cost machinery is 100% wood** (+ conversions to clay/grain). It never touches food,
+  so it does not collide with the parallel food-cost refactor. The only overlap is **Field Fences'
+  2-food *play* cost**, which is the play-minor path (the food refactor's territory), independent of its
+  fence discount (ours) — implement the discount and let the play cost ride that refactor.
+
+### 9.12 C++ scope
+
+Family-only twin. **Ports (mechanical, defaulted fields):** the stored `fences_in_supply` /
+`stables_in_supply` fields (init to cap, decrement on build) — Family-reachable, so the canonical JSON +
+`tests/test_cpp_*.py` gates must stay green. This is the **only** C++ touch in the whole effort, and it
+rides with Ash Trees (§9.13 step 4). **Does NOT port (all Python-only):** the three `build_*_action`
+flags (turned out to be default-True canonical skip-fields — omitted from Family JSON, so the C++ twin
+never sees them; **done, no C++ change**), the deferred-tally settle logic, `accrued_cost` /
+`free_fence_budget` consumption (also inert-in-Family skip-fields), and the free-fence / provenance
+machinery — all Cards-only (the C++ twin keeps Family's per-commit debit unchanged).
+
+### 9.13 Build order (resequenced 2026-06-29 — value-first; the C++ gates change once, at the end)
+
+1. ✅ **The three `build_*_action` flags** — default-True canonical skip-fields (Family byte-identical,
+   **Python-only, no C++**). **Done** (309 tests incl. C++ gates green).
+2. **The deferred-tally cost path** (Python-only — the frame fields are inert-in-Family skip-fields, so
+   Family stays per-commit byte-identical and the C++ gates are untouched):
+   - **2a** — route fence cost through `effective_payments` *per-commit* (the Family path), mirroring the
+     build-stable wiring: a `build_fence` action_kind, `_build_fence_ctx` (geometry base + the frame's
+     entry-point / `initiated_by_id`), fence WOOD legality via `can_pay`. Byte-identical in Family.
+   - **2b** — the Cards deferred-tally: `accrued_cost` / `free_fence_budget` skip-fields on
+     `PendingBuildFences`, the settle (tally → pay → grants, resuming after any `PendingChooseCost`), the
+     `game_mode == FAMILY` per-commit branch, legality on the running total (Cards computes fresh,
+     bypasses the scan cache + precondition `assert`).
+3. **The cost-slice cards** (Python-only): Millwright-on-fences, Rammed Clay, Hedge Keeper, Hunting
+   Trophy, Briar Hedge, Field Fences (grant + provenance discount). None move pieces out of supply, so
+   they run on the *derived* `fences_in_supply` — no stored field needed yet.
+4. **Stored supply + Ash Trees** — the derived→stored `fences_in_supply` / `stables_in_supply` conversion
+   + its mechanical C++ re-port, bundled with **Ash Trees** (its first consumer): the **one** time the
+   C++ gates change. (Farmyard-vs-PlayerState home settled here — lean **Farmyard**, since the scan +
+   readers are farmyard-keyed.)
+5. **Defer:** restrictions / restricted-grants (Mini Pasture, then Open Air Farmer — the next
+   sub-project), the per-segment "Nth fence" cards, Carpenter's Bench's payment-source restriction, and
+   the MCTS-macro-cost interaction (moot — no card searcher today).

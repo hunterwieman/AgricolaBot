@@ -173,6 +173,7 @@ class PendingBuildStables:
     num_built: int = 0
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    build_stables_action: bool = True   # literal Build Stables action vs a card effect that builds (§9.6); default-True canonical skip-field → Family byte-identical, no C++
 
 
 @dataclass(frozen=True)
@@ -197,6 +198,7 @@ class PendingBuildRooms:
     num_built: int = 0
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    build_rooms_action: bool = True     # literal Build Rooms action vs a card effect that builds (§9.6); default-True canonical skip-field → Family byte-identical, no C++
 
 
 @dataclass(frozen=True)
@@ -533,6 +535,7 @@ class PendingBuildFences:
     subdivision_started: bool = False
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    build_fences_action: bool = True    # literal Build Fences action (Fencing / Farm Redev) vs a card effect that fences (§9.6); default-True canonical skip-field → Family byte-identical, no C++
 
 
 @dataclass(frozen=True)

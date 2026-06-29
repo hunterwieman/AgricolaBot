@@ -97,11 +97,17 @@ _build_registry()
 # existing fields routinely equal their defaults in a Family game (pending_stack=(),
 # newborns=0, harvest_conversions_used=frozenset(), …) and skipping THOSE would
 # change the Family JSON and break the very gates this protects. The names below
-# occur only on GameState / PlayerState. See CARD_IMPLEMENTATION_PLAN.md I.1.
+# occur on GameState / PlayerState, plus the three `build_*_action` flags on the
+# build-pending frames (PendingBuildFences / Stables / Rooms): those are
+# Family-constant True (every Family build IS a literal action), so omitting them
+# keeps the Family JSON byte-identical and needs no C++ change; a CARDS card-effect
+# build sets one False, which is then emitted (and read by the card port).
+# See CARD_IMPLEMENTATION_PLAN.md I.1 and COST_MODIFIER_DESIGN.md §9.6.
 _DEFAULT_SKIP_FIELDS = frozenset({
     "mode", "hand_occupations", "hand_minors",
     "used_this_turn", "used_this_round", "fired_once",
     "card_state", "future_rewards", "draft_pools",
+    "build_fences_action", "build_stables_action", "build_rooms_action",
 })
 
 
