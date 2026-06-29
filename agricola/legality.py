@@ -52,6 +52,7 @@ from agricola.fences import (
     UNIVERSE_RESTRICTED_ENTRIES,
     UNIVERSE_RESTRICTED_SET,
     UNIVERSE_RESTRICTED_SMALLEST_ENTRIES,
+    compute_new_fence_edges,
     pack_fences_h,
     pack_fences_v,
 )
@@ -274,6 +275,25 @@ def _build_stable_ctx(p: PlayerState, base_cost: Resources, build_index: int = 0
     the Nth stable (Carpenter's Apprentice)."""
     return CostCtx(
         "build_stable", base_cost, num_rooms=_num_rooms(p), build_index=build_index,
+    )
+
+
+def _build_fence_ctx(
+    p: PlayerState, wood_cost: int, *,
+    build_index: int = 0, space_id: str | None = None,
+) -> CostCtx:
+    """Cost-resolution context for ONE `CommitBuildPasture` (the pasture's new fence
+    edges). Unlike rooms/stables, the base is geometry-derived: `wood_cost` is the
+    number of new edges this pasture encloses (`compute_new_fence_edges(...)[2]`), each
+    1 wood, so the base is `Resources(wood=wood_cost)`. `build_index` is the running
+    pasture count within this multi-shot Build Fences action and `space_id` the action's
+    entry point (Fencing / Farm Redevelopment) — discriminators future per-segment /
+    per-entry-point fence cards will read; no cost card reads them in the Family game, so
+    `effective_payments`/`can_pay` reduce to "can afford `wood_cost` wood" (byte-identical
+    to the old raw `new_count > wood` check)."""
+    return CostCtx(
+        "build_fence", Resources(wood=wood_cost),
+        build_index=build_index, space_id=space_id,
     )
 
 
@@ -820,6 +840,8 @@ def _check_entry_legal(
     wood: int,
     fences_left: int,
     universe_set: frozenset,
+    state: GameState | None = None,
+    idx: int | None = None,
 ) -> tuple[bool, int, int]:
     """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
     universe entry against precomputed per-call state.
@@ -827,6 +849,15 @@ def _check_entry_legal(
     Returns (is_legal, h_new_bm, v_new_bm). h_new/v_new are 0 if not legal.
     Both callers (`_any_legal_pasture_commit` and
     `_enumerate_pending_build_fences`) share this function.
+
+    The per-pasture WOOD affordability runs through the cost-modifier chokepoint
+    `can_pay` (with the geometry-derived base) when `state`/`idx` are supplied — the
+    non-cached, canonical path. The projection-keyed cached scan
+    (`_legal_pasture_commits_compute`) passes neither and falls back to the equivalent
+    `new_count > wood` arithmetic: in the Family game (empty cost registries) `can_pay`
+    against `Resources(wood=new_count)` reduces to exactly `wood >= new_count`, a pure
+    function of the cache key `(farmyard, wood, subdivision_started)`, so cache and
+    chokepoint agree byte-for-byte (`test_fence_scan_cache_transparent`).
     """
     bm = entry.cells_bm
 
@@ -863,7 +894,13 @@ def _check_entry_legal(
     new_count = h_new.bit_count() + v_new.bit_count()
     if new_count < 1:
         return False, 0, 0
-    if new_count > wood:
+    # WOOD affordability: through the cost chokepoint (the canonical path), else the
+    # equivalent raw arithmetic in the cached scan (see the docstring). Fence-PIECE
+    # supply is checked separately — it is not a cost.
+    if state is not None and idx is not None:
+        if not can_pay(state, idx, _build_fence_ctx(state.players[idx], new_count)):
+            return False, 0, 0
+    elif new_count > wood:
         return False, 0, 0
     if new_count > fences_left:
         return False, 0, 0
@@ -987,6 +1024,8 @@ def _any_legal_pasture_commit(
         wood=wood,
         fences_left=fences_left,
         universe_set=universe_set,
+        state=state,
+        idx=(0 if p is state.players[0] else 1),
     )
 
     # Fast path: precomputed 1×1 tuple (~13 entries under RESTRICTED).
@@ -1801,6 +1840,8 @@ def _enumerate_pending_build_fences(
         wood=wood,
         fences_left=fences_left,
         universe_set=universe_set,
+        state=state,
+        idx=pending.player_idx,
     )
 
     actions: list[Action] = _eligible_fire_triggers(

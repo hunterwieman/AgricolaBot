@@ -1395,6 +1395,7 @@ def _execute_build_pasture(
       8. Increment counters on PendingBuildFences and OR in subdivision_started
          if this commit was a subdivision.
     """
+    from agricola.legality import _build_fence_ctx, effective_payments
     p = state.players[player_idx]
     farmyard = p.farmyard
 
@@ -1411,6 +1412,22 @@ def _execute_build_pasture(
     # 3. Compute new-edge deltas + cost.
     h_new, v_new, wood_cost = compute_new_fence_edges(farmyard, cells_bm)
 
+    # 3b. Resolve this pasture's payment frontier through the cost-modifier chokepoint
+    #     (base = the geometry-derived wood cost) BEFORE mutating the farmyard.
+    #     build_index = the running pasture count within this multi-shot action.
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences)
+    payments = effective_payments(
+        state, player_idx,
+        _build_fence_ctx(p, wood_cost, build_index=top.pastures_built,
+                         space_id=top.initiated_by_id),
+    )
+    # Family per-commit path: the frontier is always a singleton (no cost cards), so
+    # debit it inline exactly as the old `Resources(wood=wood_cost)` debit did. (The
+    # >1-payment / whole-action deferred-tally path is increment 2b.)
+    assert len(payments) == 1, "build-fence frontier is a singleton in the Family game"
+    assert isinstance(payments[0], Resources), "build-fence has no non-resource routes"
+
     # 4. Apply fence-array updates.
     new_h = apply_fence_edges_h(farmyard.horizontal_fences, h_new)
     new_v = apply_fence_edges_v(farmyard.vertical_fences, v_new)
@@ -1422,8 +1439,8 @@ def _execute_build_pasture(
         pastures=new_pastures,
     )
 
-    # 6 + 7. Debit wood + update player.
-    new_resources = p.resources - Resources(wood=wood_cost)
+    # 6 + 7. Debit the chosen payment + update player.
+    new_resources = p.resources - payments[0]
     new_player = fast_replace(
         p, farmyard=new_farmyard, resources=new_resources,
     )
