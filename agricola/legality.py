@@ -842,6 +842,7 @@ def _check_entry_legal(
     universe_set: frozenset,
     state: GameState | None = None,
     idx: int | None = None,
+    free_budget: int = 0,
 ) -> tuple[bool, int, int]:
     """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
     universe entry against precomputed per-call state.
@@ -850,14 +851,24 @@ def _check_entry_legal(
     Both callers (`_any_legal_pasture_commit` and
     `_enumerate_pending_build_fences`) share this function.
 
-    The per-pasture WOOD affordability runs through the cost-modifier chokepoint
-    `can_pay` (with the geometry-derived base) when `state`/`idx` are supplied — the
-    non-cached, canonical path. The projection-keyed cached scan
-    (`_legal_pasture_commits_compute`) passes neither and falls back to the equivalent
-    `new_count > wood` arithmetic: in the Family game (empty cost registries) `can_pay`
-    against `Resources(wood=new_count)` reduces to exactly `wood >= new_count`, a pure
-    function of the cache key `(farmyard, wood, subdivision_started)`, so cache and
-    chokepoint agree byte-for-byte (`test_fence_scan_cache_transparent`).
+    Free-fence-aware affordability (COST_MODIFIER_DESIGN.md §9.2/§9.4): the per-action
+    free-fence budget covers the first `free_budget` of this pasture's new edges, so the
+    WOOD that must be paid is `paid = max(0, new_count - free_budget)`. Gating on `paid`
+    (not `new_count`) means a tight-wood build the budget covers is *enabled*, not merely
+    discounted at settle. `free_budget` is the REMAINING budget — the frame's
+    `free_fence_budget` (during building) or the anticipated seed (at placement). It
+    defaults 0, so the Family / cached path gates on exactly `new_count` as before. The
+    fence-PIECE supply check (`new_count > fences_left`) is on full edge count — free
+    fences still consume pieces (§9.7).
+
+    The `paid`-wood affordability runs through the cost-modifier chokepoint `can_pay`
+    (with the geometry-derived base) when `state`/`idx` are supplied — the non-cached,
+    canonical path. The projection-keyed cached scan (`_legal_pasture_commits_compute`)
+    passes neither (and `free_budget=0`) and falls back to the equivalent `paid > wood`
+    arithmetic: in the Family game (empty cost registries, zero budget) `can_pay` against
+    `Resources(wood=new_count)` reduces to exactly `wood >= new_count`, a pure function of
+    the cache key `(farmyard, wood, subdivision_started)`, so cache and chokepoint agree
+    byte-for-byte (`test_fence_scan_cache_transparent`).
     """
     bm = entry.cells_bm
 
@@ -894,13 +905,15 @@ def _check_entry_legal(
     new_count = h_new.bit_count() + v_new.bit_count()
     if new_count < 1:
         return False, 0, 0
-    # WOOD affordability: through the cost chokepoint (the canonical path), else the
-    # equivalent raw arithmetic in the cached scan (see the docstring). Fence-PIECE
-    # supply is checked separately — it is not a cost.
+    # WOOD affordability on the PAID edges (after the per-action free-fence budget covers
+    # the first `free_budget`): through the cost chokepoint (the canonical path), else the
+    # equivalent raw arithmetic in the cached scan (see the docstring). Fence-PIECE supply
+    # is checked separately on FULL edge count — free fences still use pieces (§9.7).
+    paid = max(0, new_count - free_budget)
     if state is not None and idx is not None:
-        if not can_pay(state, idx, _build_fence_ctx(state.players[idx], new_count)):
+        if not can_pay(state, idx, _build_fence_ctx(state.players[idx], paid)):
             return False, 0, 0
-    elif new_count > wood:
+    elif paid > wood:
         return False, 0, 0
     if new_count > fences_left:
         return False, 0, 0
@@ -972,6 +985,7 @@ def _any_legal_pasture_commit(
     entries: tuple | None     = None,
     smallest_entries: tuple | None = None,
     universe_set: frozenset | None = None,
+    space_id: str = "fencing",
 ) -> bool:
     """Return True iff at least one pasture commit is legal for `p` in `state`.
 
@@ -986,14 +1000,32 @@ def _any_legal_pasture_commit(
     question (Farm Redev's optional Build Fences offer) — no in-progress
     Build Fences action exists at either call site.
 
+    Free-fence anticipation (COST_MODIFIER_DESIGN.md §9.2): the Build Fences frame
+    doesn't exist yet here, so its per-action `free_fence_budget` isn't seeded — but the
+    affordability question must already account for it (else a tight-wood build the budget
+    would cover is wrongly reported unavailable). So in Cards mode we compute the budget
+    the frame *would* seed for a literal Build Fences action at this entry point (`space_id`)
+    and gate on the discounted cost. `space_id` defaults to "fencing"; the Farm Redev caller
+    passes "farm_redevelopment" (Hedge Keeper ignores it; future entry-point-scoped cards read
+    it). Family game → anticipated budget 0 → identical to the old behavior.
+
     Universe resolution: when any of `entries`, `smallest_entries`, or
     `universe_set` is None, the corresponding `ACTIVE_FENCE_UNIVERSE_*`
     module constant is read at call time. This lets `active_universe(...)`
     reassignments affect this call site without requiring an explicit kwarg.
     """
+    # The projection-keyed cache knows nothing about the free-fence budget, so it serves
+    # ONLY the Family game (COST_MODIFIER_DESIGN.md §9.7); Cards computes fresh below through
+    # the budget-aware `_check_entry_legal`. In Family the anticipated budget is always 0.
     if (opt_config.FENCE_SCAN_CACHE
-            and entries is None and smallest_entries is None and universe_set is None):
+            and entries is None and smallest_entries is None and universe_set is None
+            and state.mode is GameMode.FAMILY):
         return bool(_legal_pasture_commits_cached(p.farmyard, p.resources.wood, False))
+
+    idx = 0 if p is state.players[0] else 1
+    from agricola.cards.cost_mods import free_fence_budget_for
+    free_budget = free_fence_budget_for(
+        state, idx, build_fences_action=True, space_id=space_id)
 
     if entries is None:
         entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
@@ -1025,7 +1057,8 @@ def _any_legal_pasture_commit(
         fences_left=fences_left,
         universe_set=universe_set,
         state=state,
-        idx=(0 if p is state.players[0] else 1),
+        idx=idx,
+        free_budget=free_budget,
     )
 
     # Fast path: precomputed 1×1 tuple (~13 entries under RESTRICTED).
@@ -1799,7 +1832,15 @@ def _enumerate_pending_build_fences(
         actions.append(Stop())
         return actions
 
-    if opt_config.FENCE_SCAN_CACHE and entries is None and universe_set is None:
+    # The projection-keyed cache is keyed only on (farmyard, wood, subdivision_started) —
+    # it knows nothing about the free-fence budget or any cost modifier — so it is consulted
+    # ONLY in the Family game (COST_MODIFIER_DESIGN.md §9.7). Cards computes fresh through the
+    # budget-aware `_check_entry_legal` below. The `assert` fails loud if a card state ever
+    # reaches the cache (the key would be incomplete → a stale legal-pasture set).
+    if (opt_config.FENCE_SCAN_CACHE and entries is None and universe_set is None
+            and state.mode is GameMode.FAMILY):
+        assert pending.free_fence_budget == 0, (
+            "fence-scan cache reached with a nonzero free_fence_budget — key is incomplete")
         p = state.players[pending.player_idx]
         legal = _legal_pasture_commits_cached(
             p.farmyard, p.resources.wood, pending.subdivision_started,
@@ -1842,6 +1883,7 @@ def _enumerate_pending_build_fences(
         universe_set=universe_set,
         state=state,
         idx=pending.player_idx,
+        free_budget=pending.free_fence_budget,   # the REMAINING per-action budget (§9.4)
     )
 
     actions: list[Action] = _eligible_fire_triggers(
@@ -1879,7 +1921,7 @@ def _enumerate_pending_farm_redevelopment(
         actions.append(ChooseSubAction(name="renovate"))
     if (pending.renovate_chosen
             and not pending.build_fences_chosen
-            and _any_legal_pasture_commit(state, p)):
+            and _any_legal_pasture_commit(state, p, space_id="farm_redevelopment")):
         actions.append(ChooseSubAction(name="build_fences"))
     if pending.renovate_chosen:
         actions.append(Proceed())

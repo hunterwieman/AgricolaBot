@@ -78,9 +78,12 @@ from agricola.cards import lumber_mill          # noqa: F401
 # directly to stone (skipping clay); the stone-tier cost flows through the chokepoint.
 from agricola.cards import conservator          # noqa: F401
 # Hedge Keeper (occupation, COST_MODIFIER_DESIGN.md §9): the first free-fence card —
-# a before_build_fences auto seeding +3 to the per-action free_fence_budget on a
-# LITERAL Build Fences action (gated on build_fences_action). Cards-only deferred
-# tally; no on-play effect.
+# registers a free-fence SEED of +3 on a LITERAL Build Fences action (gated on
+# build_fences_action). The seed is the single source of truth for the per-action
+# free_fence_budget at all three sites (frame push, placement anticipation, during-
+# building enumerator), so legality is now free-fence-aware: a tight-wood build the
+# budget covers is enabled, not merely discounted. Cards-only deferred tally; no
+# on-play effect.
 from agricola.cards import hedge_keeper          # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in

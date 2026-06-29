@@ -9,16 +9,18 @@ of 3 (a `before_build_fences` automatic effect) on a LITERAL Build Fences action
 the first 3 paid edges of the action cost no wood.
 
 These tests drive the REAL fencing flow (the Fencing space), per CARD_AUTHORING_GUIDE
-§5, in an explicit CARDS-mode state with Hedge Keeper owned and ample wood (so wood
-legality is never the binding constraint — see the KNOWN GAP below).
+§5, in an explicit CARDS-mode state with Hedge Keeper owned.
 
-KNOWN GAP (documented, not fixed here): the during-building legality stays 2a's gross
-`can_pay` check — a player whose *gross* wood < edges cannot yet build even when the
-free budget would cover the gap. Free-fence-aware legality (the budget *enabling* a
-marginal tight-wood build, not merely *discounting* a gross-affordable one) is a
-separate follow-up (§9.2 shared-affordability + placement-anticipation). So these
-tests give the player ample wood; Hedge Keeper discounts the bill, it doesn't unlock
-otherwise-illegal builds.
+FREE-FENCE-AWARE LEGALITY (§9.2 shared-affordability + placement-anticipation): the
+free budget now *enables* a marginal tight-wood build, not merely *discounts* a
+gross-affordable one. The legality affordability gates on `paid = max(0, edges -
+free_budget)`, not the gross edge count — so a player with 2 wood + Hedge Keeper (3
+free) can build a 5-edge layout, paying 2 wood. The budget the not-yet-pushed frame
+*would* seed is anticipated at placement (`_any_legal_pasture_commit`) and read off
+the frame during building (`_enumerate_pending_build_fences`), both through the single
+shared `free_fence_budget_for` seed function. The cache is bypassed in Cards mode (its
+key is free-budget-blind); Family still uses it and is byte-identical (budget 0). The
+tight-wood tests at the bottom exercise this; the discount tests above give ample wood.
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ from agricola.cards.hedge_keeper import CARD_ID
 from agricola.cards.specs import OCCUPATIONS
 from agricola.constants import GameMode
 from agricola.engine import step
+from agricola.legality import legal_actions
 from agricola.pending import PendingBuildFences
 from agricola.replace import fast_replace
 
@@ -183,3 +186,57 @@ def test_budget_spans_multiple_commits_in_one_action():
     assert top.accrued_cost.wood == 2 + sub_edges   # 2 (discounted) + full-price subdiv
     state = _finish(state)
     assert _wood(state) == 20 - (2 + sub_edges)
+
+
+# ---------------------------------------------------------------------------
+# Free-fence-AWARE legality: the budget ENABLES a tight-wood build (§9.2)
+# ---------------------------------------------------------------------------
+# The 5-edge layout: a pre-existing 1x1 at (0,2) plus the adjacent top 1x2 at
+# (0,3),(0,4) encloses exactly 5 new edges. With 2 wood + Hedge Keeper (3 free)
+# the paid cost is 5 - 3 = 2 wood, so the build is now affordable; without Hedge
+# Keeper the gross 5 wood is unaffordable and the layout is illegal.
+
+def test_placement_offered_with_tight_wood_and_card():
+    # 2 wood + Hedge Keeper: Build Fences is available at placement (a 1x1 alone is
+    # free, but more to the point the anticipated budget makes tight builds legal).
+    state = _cards_setup(wood=2, pre_pasture=_PRE_1x1)
+    placements = [a for a in legal_actions(state)
+                  if isinstance(a, PlaceWorker) and a.space == "fencing"]
+    assert placements, "Fencing should be offered at placement with 2 wood + Hedge Keeper"
+
+
+def test_five_edge_layout_legal_with_card_tight_wood():
+    # 2 wood + Hedge Keeper: the 5-edge CommitBuildPasture is OFFERED during building
+    # (paid = 5 - 3 = 2 <= 2 wood).
+    state = _cards_setup(wood=2, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    assert state.pending_stack[-1].free_fence_budget == 3
+    commits = {a.cells for a in legal_actions(state)
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 in commits, "the 5-edge layout should be legal (2 wood pays 5-3)"
+
+
+def test_five_edge_layout_illegal_without_card_tight_wood():
+    # 2 wood, NO Hedge Keeper: the 5-edge layout costs the full 5 wood, unaffordable,
+    # so it is NOT offered during building.
+    state = _cards_setup(wood=2, own_card=False, pre_pasture=_PRE_1x1)
+    state = _enter_build_fences(state)
+    assert state.pending_stack[-1].free_fence_budget == 0
+    commits = {a.cells for a in legal_actions(state)
+               if isinstance(a, CommitBuildPasture)}
+    assert _TOP_1x2_34 not in commits, "the 5-edge layout is unaffordable at 2 wood, no card"
+
+
+def test_tight_wood_five_edge_build_pays_two_ending_at_zero():
+    # The full flow: 2 wood + Hedge Keeper builds the 5-edge layout, settles 2 wood at
+    # Proceed, ending at 0 wood.
+    state = _cards_setup(wood=2, pre_pasture=_PRE_1x1)
+    assert _wood(state) == 2
+    state = _enter_build_fences(state)
+    state = step(state, CommitBuildPasture(cells=_TOP_1x2_34))
+    top = state.pending_stack[-1]
+    assert _wood(state) == 2                  # nothing debited per-commit in CARDS
+    assert top.accrued_cost.wood == 2         # 5 edges - 3 free
+    assert top.free_fence_budget == 0         # budget consumed
+    state = _finish(state)
+    assert _wood(state) == 0                  # 2 - 2, ended at zero

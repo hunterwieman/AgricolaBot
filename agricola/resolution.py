@@ -699,8 +699,11 @@ def _choose_subaction_subactionspace(
         from agricola.pending import PendingPlow
         return push(state, PendingPlow(player_idx=p_idx, initiated_by_id=space_id))
     if space_id == "fencing" and action.name == "build_fences":
+        from agricola.cards.cost_mods import free_fence_budget_for
         return push(state, PendingBuildFences(
             player_idx=p_idx, initiated_by_id=space_id,
+            free_fence_budget=free_fence_budget_for(
+                state, p_idx, build_fences_action=True, space_id="fencing"),
         ))
     if space_id == "major_improvement" and action.name == "improvement":
         # Preserve the composite host's provenance "space:major_improvement"
@@ -889,9 +892,12 @@ def _choose_subaction_farm_redevelopment(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
         ))
     if action.name == "build_fences":
+        from agricola.cards.cost_mods import free_fence_budget_for
         state = replace_top(state, fast_replace(top, build_fences_chosen=True))
         return push(state, PendingBuildFences(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
+            free_fence_budget=free_fence_budget_for(
+                state, p_idx, build_fences_action=True, space_id="farm_redevelopment"),
         ))
     raise ValueError(f"Unknown sub-action {action.name!r} for Farm Redevelopment")
 

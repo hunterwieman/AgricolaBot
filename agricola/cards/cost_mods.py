@@ -36,6 +36,10 @@ REDUCTIONS: dict[str, list[tuple[str, Callable]]] = {}
 CONVERSIONS: dict[str, list[tuple[int, str, Callable, Callable | None]]] = {}
 # action_kind -> list of (card_id_or_None, routes_fn); card_id None = a built-in route
 BASE_ROUTES: dict[str, list[tuple[str | None, Callable]]] = {}
+# card_id -> seed_fn; the per-action free-fence allowance sources (Hedge Keeper, etc.).
+# Not action_kind-keyed: a free-fence seed is about the Build Fences action as a whole, gated
+# on ownership + (for the seed_fn to read) the literal-action flag / entry-point space.
+FREE_FENCE_SEEDS: dict[str, Callable] = {}
 
 
 def register_formula(action_kind: str, card_id: str, applies: Callable, formula: Callable) -> None:
@@ -73,6 +77,20 @@ def register_base_route(action_kind: str, card_id: str | None, routes_fn: Callab
     """`routes_fn(state, idx, ctx) -> list[ReturnImprovement]`. `card_id=None` for a
     built-in route (always available); a card id gates the route on ownership."""
     BASE_ROUTES.setdefault(action_kind, []).append((card_id, routes_fn))
+
+
+def register_free_fence_seed(card_id: str, seed_fn: Callable) -> None:
+    """Register a card's contribution to the per-action free-fence budget
+    (COST_MODIFIER_DESIGN.md §9.4 source 2). `seed_fn(state, idx, *, build_fences_action,
+    space_id) -> int` returns how many fence edges this card frees for the Build Fences
+    action described by those two signals (Hedge Keeper: 3 when `build_fences_action`).
+
+    ONE seed function is the single source of truth for three call sites that must agree:
+    the seed at frame push (resolution), the placement-time anticipation (legality's
+    "is Build Fences available?"), and — via the remaining budget on the frame — the
+    during-building enumerator. Ownership-gated like the other cost registries, so the
+    Family game (no cards owned) gets `free_fence_budget_for(...) == 0`."""
+    FREE_FENCE_SEEDS[card_id] = seed_fn
 
 
 # --- ownership + flooring helpers ---
@@ -153,6 +171,19 @@ def base_routes(action_kind: str, state, idx: int, ctx) -> list:
         if card_id is None or _owns(p, card_id):
             out.extend(routes_fn(state, idx, ctx))
     return out
+
+
+def free_fence_budget_for(state, idx: int, *, build_fences_action: bool, space_id) -> int:
+    """Total per-action free-fence budget player `idx` would get for a Build Fences action
+    with the given literal-action flag + entry-point space (COST_MODIFIER_DESIGN.md §9.4).
+    Sums every owned free-fence card's `seed_fn` (sources stack). Family (no owned cards) → 0,
+    so the `free_fence_budget` frame field stays default and the Family path is byte-identical."""
+    p = state.players[idx]
+    return sum(
+        seed_fn(state, idx, build_fences_action=build_fences_action, space_id=space_id)
+        for card_id, seed_fn in FREE_FENCE_SEEDS.items()
+        if _owns(p, card_id)
+    )
 
 
 # --- built-in (non-card) routes ---------------------------------------------
