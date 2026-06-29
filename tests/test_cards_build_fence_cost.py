@@ -202,6 +202,26 @@ def test_budget_spans_multiple_commits_in_one_action():
 # the paid cost is 5 - 3 = 2 wood, so the build is now affordable; without Hedge
 # Keeper the gross 5 wood is unaffordable and the layout is illegal.
 
+def test_zero_wood_fencing_offered_with_free_fences():
+    # The free-fence-aware placement guard (§9.2 step): a 0-wood Cards player with Hedge Keeper
+    # + a subdividable pasture can build a fully-free subdivision (<=3 edges, covered by the 3
+    # budget), so the Fencing space IS offered even at 0 wood.
+    state = _cards_setup(wood=0, pre_pasture=[(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)])
+    placements = [a for a in legal_actions(state)
+                  if isinstance(a, PlaceWorker) and a.space == "fencing"]
+    assert placements, "0-wood Hedge Keeper player can build a free subdivision -> Fencing offered"
+
+
+def test_zero_wood_fencing_not_offered_without_free_fences():
+    # Same 0 wood, NO free-fence card: nothing is buildable, so Fencing is not offered (the
+    # guard's intent preserved — `_any_legal_pasture_commit` correctly finds nothing affordable).
+    state = _cards_setup(wood=0, own_card=False,
+                         pre_pasture=[(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)])
+    placements = [a for a in legal_actions(state)
+                  if isinstance(a, PlaceWorker) and a.space == "fencing"]
+    assert not placements, "0-wood, no free fences -> nothing buildable -> Fencing not offered"
+
+
 def test_placement_offered_with_tight_wood_and_card():
     # 2 wood + Hedge Keeper: Build Fences is available at placement (a 1x1 alone is
     # free, but more to the point the anticipated budget makes tight builds legal).

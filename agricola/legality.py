@@ -791,15 +791,18 @@ def _legal_farm_redevelopment(state: GameState) -> bool:
 def _legal_fencing(state: GameState) -> bool:
     """Placement legality for the Fencing action space.
 
-    Requires: space available + ≥1 wood + ≥1 fence in supply + at least one
-    legal pasture commit exists at the current state. The last check uses
-    `_any_legal_pasture_commit`'s two-pass iteration (1×1 fast path, then
-    larger shapes) over the active universe.
-    """
+    Requires: space available + ≥1 fence in supply + at least one legal pasture commit
+    exists at the current state. The commit check uses `_any_legal_pasture_commit`'s
+    two-pass iteration (1×1 fast path, then larger shapes) over the active universe — which
+    is itself free-fence-aware, so it is the single authority on "can the player afford any
+    fence." In the Family game a 0-wood player can afford none, so a fast `wood < 1` reject is
+    kept; in the card game free-fence cards (Hedge Keeper's budget, Briar Hedge's perimeter
+    frees) can make a fully-free build affordable at 0 wood, so the wood proxy is dropped
+    there and `_any_legal_pasture_commit` decides (COST_MODIFIER_DESIGN.md §9.2)."""
     if not _is_available(state, "fencing"):
         return False
     p = state.players[state.current_player]
-    if p.resources.wood < 1:
+    if state.mode is GameMode.FAMILY and p.resources.wood < 1:
         return False
     if fences_in_supply(p.farmyard) < 1:
         return False
