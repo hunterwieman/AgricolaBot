@@ -18,6 +18,7 @@ from agricola.actions import (
     CommitConvert,
     CommitDraftPick,
     CommitFamilyGrowth,
+    CommitFoodPayment,
     CommitCardChoice,
     CommitHarvestConversion,
     CommitPlayMinor,
@@ -55,8 +56,12 @@ from agricola.fences import (
     pack_fences_v,
 )
 from agricola.cost import CostCtx
-from agricola.resources import Resources
-from agricola.helpers import enclosed_cells, fences_in_supply, stables_in_supply
+from agricola.replace import fast_replace
+from agricola.resources import Animals, Resources
+from agricola.helpers import (
+    cooking_rates, enclosed_cells, fences_in_supply, food_payment_frontier,
+    stables_in_supply,
+)
 from agricola.pending import (
     ACTION_SPACE_PENDING_IDS,
     PendingActionSpace,
@@ -71,6 +76,7 @@ from agricola.pending import (
     PendingFamilyGrowth,
     PendingFarmExpansion,
     PendingFarmRedevelopment,
+    PendingFoodPayment,
     PendingGrainUtilization,
     PendingMeetingPlace,
     PendingCardChoice,
@@ -342,6 +348,50 @@ def _can_afford(p: PlayerState, cost: Resources) -> bool:
     return all(getattr(r, f) >= getattr(cost, f) for f in _RESOURCE_FIELDS)
 
 
+def _liquidatable_to(
+    state: GameState, idx: int, p: PlayerState, cost: Resources,
+    reserved_animals: Animals = Animals(),
+) -> bool:
+    """True iff `cost` (a resource payment) is affordable when the food component may be
+    raised mid-turn by converting crops/animals to food (FOOD_PAYMENT_DESIGN.md §4).
+
+    The non-food components must be on hand outright (liquidation only ever *produces*
+    food). The animal portion of the surrounding cost — `reserved_animals` — is set aside
+    before counting animals as conversion fuel, so liquidation never spends an animal the
+    cost itself needs. The max-producible-food math here MUST agree with
+    `food_payment_frontier`'s feasibility (same rates over the same goods) so a card the
+    gate marks playable always yields a non-empty payment frontier at execution."""
+    if not _can_afford(p, fast_replace(cost, food=0)):       # non-food must be on hand
+        return False
+    if not _can_afford_minor_animals(p, reserved_animals):
+        return False
+    owe = cost.food - p.resources.food
+    if owe <= 0:
+        return True
+    rem = p.resources - fast_replace(cost, food=0)            # food untouched; non-food reserved
+    sR, bR, cR, vR = cooking_rates(state, idx)
+    max_food = (
+        rem.grain + rem.veg * vR
+        + (p.animals.sheep  - reserved_animals.sheep)  * sR
+        + (p.animals.boar   - reserved_animals.boar)   * bR
+        + (p.animals.cattle - reserved_animals.cattle) * cR
+    )
+    return max_food >= owe
+
+
+def _payable(
+    state: GameState, idx: int, p: PlayerState, cost: Resources,
+    reserved_animals: Animals = Animals(),
+) -> bool:
+    """A resource payment is affordable now, possibly by liquidating crops/animals to
+    cover its food component. A `food == 0` cost takes the plain `_can_afford` fast path
+    (every Family build cost) and never touches the liquidation frontier — the perf/clarity
+    guard of FOOD_PAYMENT_DESIGN.md §4; only a food-bearing card cost consults liquidation."""
+    return _can_afford(p, cost) or (
+        cost.food > 0 and _liquidatable_to(state, idx, p, cost, reserved_animals)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Cost resolution — the cost-modifier-card chokepoint (COST_MODIFIER_DESIGN.md)
 # ---------------------------------------------------------------------------
@@ -367,7 +417,10 @@ def effective_payments(state, idx: int, ctx) -> list:
              for c in expand_conversions(ctx.action_kind, state, idx, ctx, b)]
     cands = [apply_reductions(ctx.action_kind, state, idx, ctx, c) for c in cands]
     # 4. Keep affordable (resource payments + non-resource routes), then Pareto-min over goods.
-    affordable: list = [c for c in cands if _can_afford(p, c)]
+    #    `_payable` accepts a food-short-but-liquidatable payment (food raised at execution via
+    #    PendingFoodPayment) so it must agree with `can_pay`'s gate — else a card the gate marks
+    #    playable would emit zero pay buttons (FOOD_PAYMENT_DESIGN.md §4 gate↔frontier agreement).
+    affordable: list = [c for c in cands if _payable(state, idx, p, c, ctx.reserved_animals)]
     affordable += [r for r in base_routes(ctx.action_kind, state, idx, ctx)
                    if _route_affordable(state, idx, r)]
     return pareto_min_over_goods(affordable)
@@ -379,14 +432,16 @@ def can_pay(state, idx: int, ctx) -> bool:
     (the common / Family case), then any formula base / conversion path / non-resource
     route, stopping at the first affordable one."""
     p = state.players[idx]
-    if _can_afford(p, ctx.base):
+    if _payable(state, idx, p, ctx.base, ctx.reserved_animals):
         return True
     from agricola.cards.cost_mods import (
         apply_reductions, base_routes, expand_conversions, formula_mods,
     )
     for b in [ctx.base] + formula_mods(ctx.action_kind, state, idx, ctx):
         for c in expand_conversions(ctx.action_kind, state, idx, ctx, b):
-            if _can_afford(p, apply_reductions(ctx.action_kind, state, idx, ctx, c)):
+            if _payable(state, idx, p,
+                        apply_reductions(ctx.action_kind, state, idx, ctx, c),
+                        ctx.reserved_animals):
                 return True
     return any(_route_affordable(state, idx, r)
                for r in base_routes(ctx.action_kind, state, idx, ctx))
@@ -985,7 +1040,10 @@ def _legal_lessons_cards(state: GameState) -> bool:
     p = state.players[idx]
     if not playable_occupations(state, idx):
         return False
-    return _can_afford(p, occupation_cost(len(p.occupations)))
+    # The 2nd+ occupation's 1-food cost may be raised by liquidation at execution
+    # (FOOD_PAYMENT_DESIGN.md §4.1); occupations carry no animal cost. Occupations stay
+    # off `effective_payments` — no cost card touches occupation play cost.
+    return _payable(state, idx, p, occupation_cost(len(p.occupations)))
 
 
 def _legal_major_improvement_cards(state: GameState) -> bool:
@@ -1013,8 +1071,13 @@ def _play_minor_ctx(card_id: str, spec) -> CostCtx:
     """Cost-resolution context for playing minor `card_id` (base = its printed
     RESOURCE cost). A minor's animal cost, if any, is NOT modifiable by cost cards
     (the Resources-based `PaymentOption` doesn't cover animals), so it is checked and
-    debited separately (COST_MODIFIER_DESIGN.md §5)."""
-    return CostCtx("play_minor", spec.cost.resources, card_id=card_id)
+    debited separately (COST_MODIFIER_DESIGN.md §5). The animal portion rides on
+    `reserved_animals` so food-liquidation affordability sets it aside before counting
+    animals as conversion fuel (FOOD_PAYMENT_DESIGN.md §4)."""
+    return CostCtx(
+        "play_minor", spec.cost.resources, card_id=card_id,
+        reserved_animals=spec.cost.animals,
+    )
 
 
 def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
@@ -2022,15 +2085,21 @@ def _enumerate_pending_play_occupation(
         actions.append(Stop())
         return actions
     from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
+    p = state.players[top.player_idx]
     for cid in playable_occupations(state, top.player_idx):
         variants_fn = PLAY_OCCUPATION_VARIANTS.get(cid)
         if variants_fn is None:
             # Ordinary occupation: a single variant-less commit (common path).
             actions.append(CommitPlayOccupation(card_id=cid))
             continue
-        # Play-variant occupation (Roof Ballaster): one commit per legal variant.
-        for v in variants_fn(state, top.player_idx):
-            actions.append(CommitPlayOccupation(card_id=cid, variant=v))
+        # Play-variant occupation (Roof Ballaster): one commit per variant whose
+        # base-play-cost + declared SURCHARGE is payable (liquidation-aware). The base play
+        # cost lives on the frame (`top.cost`); the surcharge rides on the variant (§8). This
+        # is the single affordability gate for the surcharge — `_payable` here folds in food
+        # liquidation, so the latent "pay then go negative" bug cannot recur.
+        for v, surcharge in variants_fn(state, top.player_idx):
+            if _payable(state, top.player_idx, p, top.cost + surcharge):
+                actions.append(CommitPlayOccupation(card_id=cid, variant=v))
     return actions
 
 
@@ -2127,6 +2196,50 @@ def _enumerate_pending_play_minor(
     return actions
 
 
+def _enumerate_pending_food_payment(
+    state: GameState, top: PendingFoodPayment,
+) -> list[Action]:
+    """Legal actions at PendingFoodPayment: one CommitFoodPayment per Pareto-optimal
+    crops/animals-to-food conversion bundle that fully covers the shortfall
+    (FOOD_PAYMENT_DESIGN.md §4). A closed frame — only these frontier points, no Stop/triggers.
+
+    `owe` is derived live from the player's current food. The frontier is run over goods MINUS
+    `top.reserved` — the convertible part of the cost the resumed action will itself debit — so
+    a reserved good is never offered as conversion fuel and can't be double-spent (§5). Invert
+    `food_payment_frontier`'s REMAINING tuples to CONSUMED amounts (relative to the reduced
+    goods), exactly as `_enumerate_pending_harvest_feed` does. The frontier is asserted
+    non-empty: the gate (`_liquidatable_to`) guarantees feasibility over the same reduced
+    goods, so an empty frontier here is a gate↔frontier mismatch and must fail loud."""
+    p = state.players[top.player_idx]
+    owe = max(0, top.food_needed - p.resources.food)
+    rates = cooking_rates(state, top.player_idx)
+    avail = fast_replace(
+        p,
+        resources=p.resources - top.reserved.resources,
+        animals=p.animals - top.reserved.animals,
+    )
+    grain_pre  = avail.resources.grain
+    veg_pre    = avail.resources.veg
+    sheep_pre  = avail.animals.sheep
+    boar_pre   = avail.animals.boar
+    cattle_pre = avail.animals.cattle
+    frontier = food_payment_frontier(avail, owe, rates)
+    assert frontier, (
+        f"PendingFoodPayment frontier empty: owe={owe} food_needed={top.food_needed} "
+        f"reserved={top.reserved} resume_kind={top.resume_kind} — gate↔frontier mismatch"
+    )
+    return [
+        CommitFoodPayment(
+            grain  = grain_pre  - g_rem,
+            veg    = veg_pre    - v_rem,
+            sheep  = sheep_pre  - s_rem,
+            boar   = boar_pre   - b_rem,
+            cattle = cattle_pre - c_rem,
+        )
+        for (g_rem, v_rem, s_rem, b_rem, c_rem) in frontier
+    ]
+
+
 def _enumerate_pending_preparation(
     state: GameState, pending: PendingPreparation,
 ) -> list[Action]:
@@ -2183,6 +2296,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingCardChoice:          _enumerate_pending_card_choice,
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingPlayMinor:           _enumerate_pending_play_minor,
+    PendingFoodPayment:         _enumerate_pending_food_payment,
     PendingBasicWishForChildren: _enumerate_pending_basic_wish_for_children,
     PendingFamilyGrowth:        _enumerate_pending_family_growth,
     PendingMeetingPlace:        _enumerate_pending_meeting_place,

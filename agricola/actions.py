@@ -369,6 +369,28 @@ class RevealCard:
 
 
 @dataclass(frozen=True)
+class CommitFoodPayment(CommitSubAction):
+    """Commit a crops/animals-to-food conversion bundle to pay a card-game food cost
+    (FOOD_PAYMENT_DESIGN.md §3.1). Lands on a PendingFoodPayment frame.
+
+    Fields hold CONSUMED amounts — values subtracted from supply at commit time, the same
+    convention as CommitConvert. `_execute_food_payment` adds the produced food (each good at
+    its `cooking_rates` rate) — RAISE-ONLY, banking any overshoot; it does NOT debit the cost
+    (the resumed action debits it from the now-sufficient supply) — then pops the frame and
+    resumes the action the food was for.
+
+    The legality enumerator constructs these by inverting the REMAINING-goods tuples from
+    `food_payment_frontier`, run over the player's goods MINUS the frame's `reserved` cost
+    goods (consumed = reduced_max - remaining).
+    """
+    grain:  int
+    veg:    int
+    sheep:  int
+    boar:   int
+    cattle: int
+
+
+@dataclass(frozen=True)
 class CommitDraftPick:
     """Draft one card from the current player's pool.
 
@@ -401,6 +423,7 @@ Action = Union[
     CommitConvert,
     CommitBreed,
     CommitCardChoice,
+    CommitFoodPayment,
     FireTrigger,
     Stop,
     Proceed,

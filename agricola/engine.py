@@ -24,6 +24,7 @@ from agricola.actions import (
     CommitCardChoice,
     CommitChooseCost,
     CommitConvert,
+    CommitFoodPayment,
     CommitDraftPick,
     CommitFamilyGrowth,
     CommitHarvestConversion,
@@ -63,6 +64,7 @@ from agricola.pending import (
     PendingChooseCost,
     PendingDraftPick,
     PendingFamilyGrowth,
+    PendingFoodPayment,
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingHarvestField,
@@ -99,6 +101,7 @@ from agricola.resolution import (
     _execute_choose_cost,
     _execute_convert,
     _execute_family_growth,
+    _execute_food_payment,
     _execute_harvest_conversion,
     _execute_play_minor,
     _execute_play_occupation,
@@ -316,6 +319,10 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # Card game: the family-growth primitive (mandatory; parameter-free singleton).
     # The effect pivots PendingFamilyGrowth to its after-phase; the trailing Stop pops.
     CommitFamilyGrowth:      (PendingFamilyGrowth,   _execute_family_growth),
+    # Card game: raise food to pay a food cost (FOOD_PAYMENT_DESIGN.md). The effect applies
+    # the chosen conversion bundle, debits the cost, POPS PendingFoodPayment itself, and
+    # resumes the play (play_minor / play_occupation body) — a closed frame, no trailing Stop.
+    CommitFoodPayment:       (PendingFoodPayment,    _execute_food_payment),
 }
 
 

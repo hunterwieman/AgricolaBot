@@ -48,24 +48,52 @@ def register_occupation(card_id: str, on_play: Callable) -> None:
 # Ballaster: "you MAY pay 1 food to get 1 stone per room" — is modeled as a
 # play-VARIANT, exactly like Cooking Hearth's return-fireplace options in
 # CommitBuildMajor: playing it surfaces one CommitPlayOccupation per legal variant
-# (e.g. "with"/"without" the conversion), and the on-play reads the chosen variant.
-# No trigger, no extra frame — the choice is part of the single play action.
+# (e.g. "pay"/"decline"), and the on-play reads the chosen variant. No trigger, no
+# extra frame — the choice is part of the single play action.
 #
-# A card registers a `variants_fn(state, idx) -> list[str]` here; the
-# PendingPlayOccupation enumerator expands its one CommitPlayOccupation into one
-# per returned variant, and `_execute_play_occupation` threads the chosen variant
-# into the on-play (calling it with 3 args only for these cards). A card with no
-# registered variants_fn plays via a single variant-less CommitPlayOccupation —
-# the unchanged common path. Empty registry in the Family game.
+# A card registers a `variants_fn(state, idx) -> list[(variant: str, surcharge:
+# Resources)]` here. Each variant declares its own food/resource SURCHARGE on top of the
+# base play cost (FOOD_PAYMENT_DESIGN.md §8 — the cost lives on the option that surfaces it,
+# not a side table). The PendingPlayOccupation enumerator offers one CommitPlayOccupation per
+# variant whose base+surcharge is payable (liquidation-aware), `_execute_play_occupation`
+# folds the chosen variant's surcharge into the debited play cost (routing any food shortfall
+# through PendingFoodPayment) and threads the variant into the on-play (3-arg call), and the
+# on-play grants the variant's BENEFIT without re-debiting the surcharge. A card with no
+# registered variants_fn plays via a single variant-less CommitPlayOccupation — the unchanged
+# common path. Empty registry in the Family game. Surcharges are resource-only today (an
+# animal surcharge would need the occupation executor to debit animals — deferred, no card
+# needs it).
 #
-# variants_fn signature: (state, player_idx) -> list[str]  (must be non-empty —
-# at minimum the "do nothing" variant, so the card is always playable).
+# variants_fn signature: (state, player_idx) -> list[tuple[str, Resources]]  (must be
+# non-empty — at minimum a zero-surcharge "do nothing" variant, so the card is always
+# playable).
 PLAY_OCCUPATION_VARIANTS: dict[str, Callable] = {}
 
 
 def register_play_occupation_variant(card_id: str, variants_fn: Callable) -> None:
     """Register an occupation's legal-play-variant enumerator (called at import)."""
     PLAY_OCCUPATION_VARIANTS[card_id] = variants_fn
+
+
+# ---------------------------------------------------------------------------
+# Post-food-payment continuations (FOOD_PAYMENT_DESIGN.md §6)
+# ---------------------------------------------------------------------------
+# When a card's food cost is raised mid-action via a PendingFoodPayment frame, the
+# engine must continue with whatever the food was FOR once the payment commits. The
+# frame can't store a closure (it is frozen / hashable / JSON-serializable), so the
+# continuation is recorded as data — the frame's `resume_kind` — and dispatched by
+# `_resume` (resolution.py). `resume_kind == "rerun"` re-dispatches the stored commit (the
+# unified path for play-minor / play-occupation / build-major). A CARD-SPECIFIC GRANT
+# continuation (Ox Goad: pay 2 food → grant a plow) registers here under the card id, which
+# the frame carries as its `resume_kind`; `_resume` falls through to this registry for any
+# non-"rerun" key. apply_fn signature: (state, owner_idx) -> state — it debits the food (the
+# frame is raise-only) and typically pushes the granted primitive (e.g. PendingPlow).
+FOOD_PAYMENT_RESUMES: dict[str, Callable] = {}
+
+
+def register_food_payment_resume(resume_kind: str, apply_fn: Callable) -> None:
+    """Register a card's post-food-payment continuation (called at card-module import)."""
+    FOOD_PAYMENT_RESUMES[resume_kind] = apply_fn
 
 
 @dataclass(frozen=True)

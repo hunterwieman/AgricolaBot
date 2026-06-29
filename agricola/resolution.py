@@ -44,6 +44,7 @@ from agricola.pending import (
     PendingBuildMajor,
     PendingClayOven,
     PendingFarmRedevelopment,
+    PendingFoodPayment,
     PendingGrainUtilization,
     PendingHarvestBreed,
     PendingHarvestFeed,
@@ -55,7 +56,7 @@ from agricola.pending import (
     replace_top,
 )
 from agricola.replace import fast_replace
-from agricola.resources import Animals, Resources
+from agricola.resources import Animals, Cost, Resources
 from agricola.state import Cell, GameState, PlayerState, get_space, with_space
 
 
@@ -485,61 +486,72 @@ def _initiate_lessons(state: GameState) -> GameState:
 
 
 def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
-    """Play one occupation from hand: debit the frame's cost, move the card
-    hand->tableau, then run its on-play effect. Pivots PendingPlayOccupation to its
-    after-phase (firing after_play_occupation autos); the trailing Stop pops it."""
+    """Play one occupation from hand: debit the frame's (route-supplied) cost, move the card
+    hand->tableau, run its (variant-aware) on_play, fire one-shots, and pivot
+    PendingPlayOccupation to its after-phase (firing after_play_occupation autos; the trailing
+    Stop pops). A play-variant occupation (Roof Ballaster) folds its chosen variant's SURCHARGE
+    into the cost — re-derived from the same variants_fn the enumerator used; the variant's
+    BENEFIT (e.g. stone) is granted in its on_play, not debited there.
+
+    Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §5): if the cost's food exceeds food on hand,
+    push a PendingFoodPayment to RAISE the shortfall into supply (no debit) and re-run this exact
+    play. The guard is re-entrant — on the re-run the food is sufficient, so it debits and plays
+    normally. Occupation costs are food-only today, so there is nothing to reserve."""
     from agricola.cards.specs import OCCUPATIONS, PLAY_OCCUPATION_VARIANTS
     cid = action.card_id
     top = state.pending_stack[-1]   # PendingPlayOccupation — the play cost lives here
     p = state.players[idx]
+    cost = top.cost                 # Resources (food-only for Lessons / Scholar)
+    variants_fn = PLAY_OCCUPATION_VARIANTS.get(cid)
+    if variants_fn is not None and action.variant is not None:
+        cost = cost + dict(variants_fn(state, idx))[action.variant]
+    if p.resources.food < cost.food:                 # raise the shortfall, then re-run
+        return push(state, PendingFoodPayment(
+            player_idx=idx, food_needed=cost.food, resume_kind="rerun",
+            reserved=Cost(resources=fast_replace(cost, food=0)), action=action))
     p = fast_replace(
-        p,
-        resources=p.resources - top.cost,
+        p, resources=p.resources - cost,
         hand_occupations=p.hand_occupations - {cid},
         occupations=p.occupations | {cid},
     )
     state = _update_player(state, idx, p)
-    # Variant-aware on-play: a card that registered a play-variant (Roof Ballaster)
-    # has its on_play called with the chosen variant; every other occupation keeps
-    # the (state, idx) signature — the unchanged common path.
+    # Variant-aware on-play: a card that registered a play-variant (Roof Ballaster) has its
+    # on_play called with the chosen variant; every other occupation keeps (state, idx).
     if cid in PLAY_OCCUPATION_VARIANTS:
         state = OCCUPATIONS[cid].on_play(state, idx, action.variant)
     else:
         state = OCCUPATIONS[cid].on_play(state, idx)
     # One-shot conditional latch (II.3 / §6): playing a card can satisfy a standing
-    # house-material condition the instant it enters the tableau (renovated to stone
-    # first, THEN played Manservant) — the case the renovate hook misses. A no-op in
-    # the Family game (no conditional registered).
+    # house-material condition the instant it enters the tableau. No-op in the Family game.
     from agricola.engine import _fire_ready_one_shots
     state = _fire_ready_one_shots(state, idx)
-    # No current occupation on_play pushes a frame, so PendingPlayOccupation is
-    # still on top — pivot it to its after-phase (firing after_play_occupation
-    # autos); the trailing Stop pops. A future pushing on_play would need the
-    # record-before-apply treatment (cf. granted sub-actions).
     return _enter_after_phase(state)
 
 
 def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
-    """Play one minor improvement from hand: debit its printed cost, move it
-    hand->tableau (or, for a traveling minor, execute then PASS it to the
-    opponent — never kept in the tableau), then run its on-play effect.
-    The effect pivots PendingPlayMinor to its after-phase (no pop); the trailing
-    Stop pops it (or, for a pushing on_play like
-    Shifting Cultivation, the pushed primitive resolves first, then Stop). See
-    CARD_IMPLEMENTATION_PLAN.md II.4."""
+    """Play one minor from hand: debit its (cost-modifier-resolved) cost, move it
+    hand->tableau (or, for a traveling minor, PASS it to the opponent — never kept), then run
+    its on_play. The chosen resource payment rides on `action.payment` (the frontier point
+    picked at enumeration — §3.4); the animal cost (if any) rides on the spec.
+
+    Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §5): if the payment's food exceeds food on
+    hand, RESERVE the cost's convertible goods (its non-food resources + animals) and push a
+    PendingFoodPayment to raise the shortfall into supply (no debit), then re-run this play.
+    Reserving keeps the frame from cooking a good the cost still needs (no double-spend); on the
+    re-run the food is sufficient, so it debits the full cost and plays normally."""
     from agricola.cards.specs import MINORS
     cid = action.card_id
     spec = MINORS[cid]
     p = state.players[idx]
-    # Wide commit: the chosen resource payment rides on `action.payment` (the
-    # cost-modifier frontier point picked at enumeration — §3.4). Minors have no
-    # non-resource routes, so it is always a Resources. The animal cost (if any) is
-    # not card-modifiable and is debited as printed.
-    assert isinstance(action.payment, Resources), "minor cost routes are resource-only"
+    pay = action.payment
+    assert isinstance(pay, Resources), "minor cost routes are resource-only"
+    if p.resources.food < pay.food:                  # raise the shortfall, then re-run
+        reserved = Cost(resources=fast_replace(pay, food=0), animals=spec.cost.animals)
+        return push(state, PendingFoodPayment(
+            player_idx=idx, food_needed=pay.food, resume_kind="rerun",
+            reserved=reserved, action=action))
     p = fast_replace(
-        p,
-        resources=p.resources - action.payment,
-        animals=p.animals - spec.cost.animals,
+        p, resources=p.resources - pay, animals=p.animals - spec.cost.animals,
         hand_minors=p.hand_minors - {cid},
     )
     if not spec.passing_left:                       # normal minor: keep in tableau
@@ -551,36 +563,76 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
             state.players[opp],
             hand_minors=state.players[opp].hand_minors | {cid},
         ))
-    # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos);
-    # the trailing Stop pops. Then fire the coarse "any improvement built" event
-    # (Category 5, Junk Room): a minor IS an improvement, fired on its own play too.
-    # Both happen BEFORE the card's on_play below — and that ordering is load-bearing
-    # for on_plays that PUSH a frame (Shifting Cultivation pushes PendingPlow): the
-    # host must be flipped to "after" while it is still the top frame, exactly as
-    # _execute_build_major flips PendingBuildMajor before pushing the oven wrapper.
-    # The fired autos (+1 food etc.) are order-independent of any on_play gain, so
-    # firing them first is safe; both are Family no-ops (empty AUTO_EFFECTS).
+    # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos); the trailing
+    # Stop pops. Then fire the coarse "any improvement built" event (Category 5, Junk Room).
+    # Both happen BEFORE the card's on_play — load-bearing for on_plays that PUSH a frame
+    # (Shifting Cultivation pushes PendingPlow): the host must be flipped to "after" while it
+    # is still the top frame. Family no-ops (empty AUTO_EFFECTS).
     from agricola.cards.triggers import apply_auto_effects
     state = _enter_after_phase(state)
     state = apply_auto_effects(state, "after_build_improvement", idx)
-    # Now run the immediate effect (runs whether kept or passed). A pushing on_play
-    # (Shifting Cultivation) lands its PendingPlow on top of the already-"after"
-    # PendingPlayMinor; when that primitive resolves and pops, the host's Stop pops
-    # it cleanly. A non-pushing on_play (the common case) leaves the host on top.
+    # Run the immediate effect (whether kept or passed). A pushing on_play lands its primitive
+    # on top of the already-"after" host.
     state = spec.on_play(state, idx)
-    # One-shot conditional latch (II.3 / §6): a played minor can satisfy a standing
-    # condition the instant it enters the tableau. Touches only player state (no
-    # stack), so it is safe to run with any on_play-pushed frame on top. A no-op in
-    # the Family game (no conditional registered).
+    # One-shot conditional latch (II.3 / §6); a no-op in the Family game.
     from agricola.engine import _fire_ready_one_shots
     state = _fire_ready_one_shots(state, idx)
-    # If on_play pushed a commit-terminated sub-action leaf (Shifting Cultivation →
-    # PendingPlow), fire its before-automatic effects at the push, the same seam as
-    # the granted-sub-action trigger path (_apply_fire_trigger → PendingPlow). A
-    # no-op in the Family game (empty AUTO_EFFECTS). Local import: engine imports
-    # resolution at load, so this back-edge is resolvable only at call time.
+    # If on_play pushed a sub-action leaf (Shifting Cultivation → PendingPlow), fire its
+    # before-autos at the push — the same seam as the granted-sub-action trigger path.
     from agricola.engine import _fire_subaction_before_auto
     return _fire_subaction_before_auto(state)
+
+
+def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
+    """Apply the chosen crops/animals-to-food conversion bundle at PendingFoodPayment, pop the
+    frame, and resume the action the food was for (FOOD_PAYMENT_DESIGN.md §5/§6).
+
+    RAISE-ONLY: this only PRODUCES food (each consumed good at its `cooking_rates` rate, banking
+    any overshoot); it does NOT debit. The resumed action debits the full cost itself, from the
+    now-sufficient supply. `action` holds CONSUMED amounts (the enumerator inverted the frontier
+    over goods MINUS the frame's reserved cost goods, so nothing here touches a reserved good)."""
+    top = state.pending_stack[-1]   # PendingFoodPayment
+    sR, bR, cR, vR = cooking_rates(state, idx)
+    produced = (action.grain + action.veg * vR
+                + action.sheep * sR + action.boar * bR + action.cattle * cR)
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        resources=(p.resources - Resources(grain=action.grain, veg=action.veg)
+                   + Resources(food=produced)),
+        animals=p.animals - Animals(action.sheep, action.boar, action.cattle),
+    )
+    state = _update_player(pop(state), idx, p)   # pop PendingFoodPayment; host back on top
+    return _resume(state, idx, top)
+
+
+def _resume(state: GameState, idx: int, top: PendingFoodPayment) -> GameState:
+    """Dispatch the post-food-payment continuation, recorded as DATA on the popped frame (a
+    frozen/hashable/JSON-serializable frame can't hold a closure — §6). The food was raised into
+    supply but NOT debited; the continuation debits the full cost itself.
+
+    `resume_kind == "rerun"` re-dispatches the stored commit through the normal handler table —
+    the unified path for play-minor / play-occupation / build-major and future food-bearing
+    builds. The executor's own food-shortfall guard now passes (food is sufficient), so it debits
+    the full cost and runs to completion; its host is back on top after the pop, so its after-phase
+    pivot / any pushing on_play land exactly as on the direct path. A re-run is NOT wrapped in
+    `_fire_subaction_before_auto` — the re-dispatched executor owns its own firing, and wrapping
+    would re-fire its host's before-autos in the after-phase.
+
+    Any other `resume_kind` is a card id with a registered GRANT continuation (Ox Goad: debit the
+    food + push a plow). A grant leaves a fresh sub-action leaf on top, so its before-autos ARE
+    fired here, mirroring `_apply_fire_trigger`'s post-apply seam for the food-on-hand path."""
+    if top.resume_kind == "rerun":
+        from agricola.engine import COMMIT_SUBACTION_HANDLERS
+        _ptype, effect_fn = COMMIT_SUBACTION_HANDLERS[type(top.action)]
+        return effect_fn(state, idx, top.action)
+    from agricola.cards.specs import FOOD_PAYMENT_RESUMES
+    from agricola.engine import _fire_subaction_before_auto
+    resume_fn = FOOD_PAYMENT_RESUMES.get(top.resume_kind)
+    assert resume_fn is not None, (
+        f"unknown PendingFoodPayment resume_kind: {top.resume_kind!r}"
+    )
+    return _fire_subaction_before_auto(resume_fn(state, idx))
 
 
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {

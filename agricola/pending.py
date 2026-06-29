@@ -20,9 +20,10 @@ from dataclasses import dataclass, field
 from typing import ClassVar, TYPE_CHECKING, Union
 
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Cost, Resources
 
 if TYPE_CHECKING:
+    from agricola.actions import Action
     from agricola.state import GameState
 
 
@@ -712,6 +713,41 @@ class PendingFamilyGrowth:
 
 
 @dataclass(frozen=True)
+class PendingFoodPayment:
+    """Raise food to cover a card-game food cost, then resume the action it serves
+    (FOOD_PAYMENT_DESIGN.md §3). Pushed at execution when a chosen cost needs more food than
+    is on hand; its enumerator offers the `food_payment_frontier` of crops/animals-to-food
+    conversion bundles (one CommitFoodPayment each), and `_execute_food_payment` applies the
+    chosen bundle, pops this frame, and dispatches the resume.
+
+    **Raise-only, not raise-and-debit.** The frame only *produces* food (banking any overshoot)
+    until supply covers `food_needed`; it does NOT debit. The resumed action debits the full
+    cost itself, from the now-sufficient supply — so one uniform mechanism serves both a
+    re-run of a cost-paying commit (the resumed executor debits) and a card grant (its resume
+    debits). `owe = food_needed - p.resources.food` is recomputed live, never stored (CLAUDE.md
+    Foundations, Derived data not cached).
+
+    **`reserved`** names the goods the conversion must NOT consume — the convertible part of
+    the cost the resumed action will itself debit (a minor's grain/veg/animal cost; a major's
+    building resources). Without it the frame could cook a good the cost still needs and
+    double-spend it (FOOD_PAYMENT_DESIGN.md §5). The enumerator runs the frontier over
+    `(player goods − reserved)`, so a reserved good is never offered as fuel. (This is the
+    execution-time twin of the affordability gate's `reserved_animals`.)
+
+    **Resume as DATA** (a frozen / hashable / JSON-serializable frame can't hold a closure):
+    `resume_kind == "rerun"` re-dispatches the stored `action` (a `Commit*`) through the normal
+    handler table — the unified path for play-minor / play-occupation / build-major and future
+    food-bearing builds; any other `resume_kind` is a card id with a registered grant
+    continuation (Ox Goad → plow). Card-only frame: never reaches the C++ (Family) engine."""
+    PENDING_ID: ClassVar[str] = "food_payment"
+    player_idx: int
+    food_needed: int
+    resume_kind: str
+    reserved: Cost = Cost()
+    action: "Action | None" = None
+
+
+@dataclass(frozen=True)
 class PendingHarvestFeed:
     """Phase-driven pending for the HARVEST_FEED sub-phase, one per player.
 
@@ -949,6 +985,7 @@ PendingDecision = Union[
     PendingStoneOven,
     PendingBuildFences,
     PendingFarmRedevelopment,
+    PendingFoodPayment,
     PendingHarvestFeed,
     PendingHarvestBreed,
     PendingReveal,

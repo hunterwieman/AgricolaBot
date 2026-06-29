@@ -66,6 +66,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitDraftPick,
+    CommitFoodPayment,
     CommitHarvestConversion,
     CommitPlayMinor,
     CommitPlayOccupation,
@@ -880,7 +881,7 @@ def _action_params(action: Action) -> dict:
         return {"cells": sorted([list(c) for c in action.cells])}
     if isinstance(action, CommitHarvestConversion):
         return {"conversion_id": action.conversion_id}
-    if isinstance(action, CommitConvert):
+    if isinstance(action, (CommitConvert, CommitFoodPayment)):
         return {
             "grain": action.grain, "veg": action.veg,
             "sheep": action.sheep, "boar": action.boar, "cattle": action.cattle,
@@ -937,6 +938,13 @@ def _web_action_display(action: Action) -> str:
         return f"Renovate (pay {_payment_str(action.payment)})"
     if isinstance(action, CommitChooseCost):
         return f"Pay {_payment_str(action.payment)}"
+    if isinstance(action, CommitFoodPayment):
+        # Raise food to pay a card cost: show the goods cooked/eaten (animals at their
+        # cooking_rates, grain/veg at 1:1). Always non-empty — the frame only appears when
+        # food on hand is short, so every frontier point consumes something.
+        spent = [f"{getattr(action, f)} {f}"
+                 for f in ("grain", "veg", "sheep", "boar", "cattle") if getattr(action, f)]
+        return "Pay with " + (", ".join(spent) if spent else "food on hand")
     return _fmt_action_inline(action)
 
 

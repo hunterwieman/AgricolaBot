@@ -33,21 +33,24 @@ def _num_rooms(p: PlayerState) -> int:
     )
 
 
-def _variants(state: GameState, idx: int) -> list[str]:
-    """Legal play routes: always "decline"; "pay" only when 1 food is affordable."""
-    variants = ["decline"]
-    if state.players[idx].resources.food >= 1:
-        variants.append("pay")
-    return variants
+def _variants(state: GameState, idx: int) -> list[tuple[str, Resources]]:
+    """Legal play routes, each declaring its food SURCHARGE on top of the base play cost
+    (FOOD_PAYMENT_DESIGN.md §8): "decline" (no surcharge) and "pay" (1 food → 1 stone per
+    room). Both are returned unconditionally — affordability of base+surcharge (with
+    liquidation) is filtered by the play-occupation enumerator, which knows the base play
+    cost. This removes the old pre-debit `food >= 1` check that could drive food negative on
+    a 2nd-occupation play with exactly 1 food."""
+    return [("decline", Resources()), ("pay", Resources(food=1))]
 
 
 def _on_play(state: GameState, idx: int, variant: str | None = None) -> GameState:
+    """Grant the stone for the "pay" variant. The 1-food surcharge is NOT debited here — it is
+    folded into the play cost and debited by `_execute_play_occupation` (raising it via the
+    shared food-payment path if short) before this on_play runs (FOOD_PAYMENT_DESIGN.md §8)."""
     if variant != "pay":
         return state                       # declined: no exchange
     p = state.players[idx]
-    p = fast_replace(
-        p, resources=p.resources + Resources(food=-1, stone=_num_rooms(p)),
-    )
+    p = fast_replace(p, resources=p.resources + Resources(stone=_num_rooms(p)))
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )

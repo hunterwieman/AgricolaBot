@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agricola.resources import Resources
+from agricola.resources import Animals, Resources
 
 # The seven spendable resource components, in canonical order. The Pareto-min
 # compares payments over exactly these and nothing else (never any attached reward
@@ -53,6 +53,12 @@ class CostCtx:
     card_id: str | None = None
     space_id: str | None = None          # entry-point scope (Hunting Trophy, House Artist)
     build_index: int | None = None       # Nth room/stable/fence (Carpenter's Apprentice)
+    reserved_animals: Animals = Animals()  # animal portion of THIS cost — reserved before
+    #                                        counting animals as food-liquidation fuel, so
+    #                                        liquidation never double-spends an animal the cost
+    #                                        itself needs (FOOD_PAYMENT_DESIGN.md §4). Resource-
+    #                                        only payments don't carry animals, so the modifier
+    #                                        pipeline ignores it; only `_liquidatable_to` reads it.
 
 
 def _goods_key(r: Resources) -> tuple:
