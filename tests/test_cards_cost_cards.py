@@ -20,10 +20,12 @@ import agricola.cards.carpenters_parlor  # noqa: F401  (registers its room formu
 import agricola.cards.corn_scoop         # noqa: F401  (a 1-wood minor, for the play_minor test)
 import agricola.cards.lumber_mill        # noqa: F401  (registers its −1-wood reductions)
 import agricola.cards.master_bricklayer  # noqa: F401  (registers its stone reduction)
+import agricola.cards.wood_expert         # noqa: F401  (food-for-wood conversion + on-play)
 from agricola.actions import (
     ChooseSubAction,
     CommitBuildMajor,
     CommitBuildRoom,
+    CommitFoodPayment,
     CommitPlayMinor,
     PlaceWorker,
 )
@@ -31,7 +33,7 @@ from agricola.constants import CellType, GameMode, HouseMaterial
 from agricola.cost import CostCtx
 from agricola.engine import step
 from agricola.legality import effective_payments, legal_actions, playable_minors
-from agricola.pending import PendingBuildRooms, PendingPlayMinor
+from agricola.pending import PendingBuildRooms, PendingFoodPayment, PendingPlayMinor
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -293,3 +295,117 @@ def test_lumber_mill_and_master_bricklayer_stack_on_major():
     state = with_grid(state, 0, {(0, 0): Cell(cell_type=CellType.ROOM)})
     ctx = CostCtx("build_major", Resources(wood=2, stone=2), major_idx=7)
     assert _as_set(effective_payments(state, 0, ctx)) == {Resources(wood=1, stone=1)}
+
+
+# ===========================================================================
+# Wood Expert (occupation) — pay 1 food instead of up to 2 wood per IMPROVEMENT
+# (majors + minors), +2 wood on play. The food a substitution introduces is raised,
+# when short, by the shared food-payment path (FOOD_PAYMENT_DESIGN.md §9).
+# ===========================================================================
+
+def test_wood_expert_registered():
+    from agricola.cards.specs import OCCUPATIONS
+    from agricola.cards.cost_mods import CONVERSIONS
+    assert "wood_expert" in OCCUPATIONS
+    assert any(c[1] == "wood_expert" for c in CONVERSIONS.get("build_major", []))
+    assert any(c[1] == "wood_expert" for c in CONVERSIONS.get("play_minor", []))
+
+
+# Generous goods INCLUDING food, so the food-substituted payment survives the affordability
+# filter and both base + substitution appear at the chokepoint (the player can afford either).
+_GENEROUS_FOOD = Resources(wood=20, clay=20, reed=20, stone=20, food=20)
+
+
+def test_wood_expert_offers_food_for_two_wood_on_major():
+    # Joinery (idx 7): 2 wood + 2 stone -> base, or 1 food + 2 stone (2 wood -> 1 food).
+    state = _state_owning("wood_expert", resources=_GENEROUS_FOOD)
+    ctx = CostCtx("build_major", Resources(wood=2, stone=2), major_idx=7)
+    assert _as_set(effective_payments(state, 0, ctx)) == {
+        Resources(wood=2, stone=2), Resources(food=1, stone=2)}
+
+
+def test_wood_expert_caps_substitution_at_available_wood():
+    # Well (idx 4): only 1 wood in the cost, so the substitution removes 1 wood for 1 food.
+    state = _state_owning("wood_expert", resources=_GENEROUS_FOOD)
+    ctx = CostCtx("build_major", Resources(wood=1, stone=3), major_idx=4)
+    assert _as_set(effective_payments(state, 0, ctx)) == {
+        Resources(wood=1, stone=3), Resources(food=1, stone=3)}
+
+
+def test_wood_expert_offers_food_for_wood_on_minor():
+    # The conversion is registered on play_minor too (canoe costs 2 wood).
+    state = _state_owning("wood_expert", resources=_GENEROUS_FOOD)
+    ctx = CostCtx("play_minor", Resources(wood=2), card_id="canoe")
+    assert _as_set(effective_payments(state, 0, ctx)) == {
+        Resources(wood=2), Resources(food=1)}
+
+
+def test_wood_expert_does_not_affect_room_renovate_stable():
+    # "Improvement" = majors + minors only — NOT rooms, renovations, or stables.
+    state = _state_owning("wood_expert")
+    room   = CostCtx("build_room", Resources(wood=5, reed=2))
+    reno   = CostCtx("renovate",   Resources(wood=2, reed=1))
+    stable = CostCtx("build_stable", Resources(wood=1))
+    assert _as_set(effective_payments(state, 0, room))   == {Resources(wood=5, reed=2)}
+    assert _as_set(effective_payments(state, 0, reno))   == {Resources(wood=2, reed=1)}
+    assert _as_set(effective_payments(state, 0, stable)) == {Resources(wood=1)}
+
+
+def test_wood_expert_on_play_gains_two_wood():
+    state = setup(0)
+    state = fast_replace(state, mode=GameMode.CARDS)
+    state = with_space(state, "lessons", revealed=True)
+    p0 = fast_replace(state.players[0], hand_occupations=frozenset({"wood_expert"}),
+                      resources=Resources())
+    state = fast_replace(state, players=(p0, state.players[1]), current_player=0)
+    state = step(state, PlaceWorker(space="lessons"))
+    state = step(state, ChooseSubAction(name="play_occupation"))
+    state = step(state, legal_actions(state)[0])   # the sole CommitPlayOccupation(wood_expert)
+    assert state.players[0].resources.wood == 2
+    assert "wood_expert" in state.players[0].occupations
+
+
+def test_wood_expert_builds_major_paying_food_end_to_end():
+    # 0 wood, plenty of food + stone: Joinery is buildable only via the 1-food substitution.
+    state = setup(0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, stone=10, food=5)   # no wood
+    state = with_space(state, "major_improvement", revealed=True)
+    p0 = fast_replace(state.players[0], occupations=frozenset({"wood_expert"}))
+    state = fast_replace(state, players=(p0, state.players[1]))
+    state = step(state, PlaceWorker(space="major_improvement"))
+    state = step(state, ChooseSubAction(name="improvement"))
+    state = step(state, ChooseSubAction(name="build_major"))
+    pay = Resources(food=1, stone=2)
+    opts = [a.payment for a in legal_actions(state)
+            if isinstance(a, CommitBuildMajor) and a.major_idx == 7]
+    assert opts == [pay]                                  # base (2 wood) unaffordable, dropped
+    state = step(state, CommitBuildMajor(major_idx=7, payment=pay))
+    assert state.board.major_improvement_owners[7] == 0
+    assert state.players[0].resources.food == 4           # 5 - 1
+    assert state.players[0].resources.stone == 8          # 10 - 2
+
+
+def test_wood_expert_builds_major_via_liquidation():
+    # 0 wood, 0 food, 1 grain: the 1-food substitution is liquidatable (grain -> food). The
+    # build-major food-shortfall guard raises it, then re-runs the build (Part B / §9).
+    state = setup(0)
+    state = with_current_player(state, 0)
+    state = with_resources(state, 0, stone=10, grain=1)
+    state = with_space(state, "major_improvement", revealed=True)
+    p0 = fast_replace(state.players[0], occupations=frozenset({"wood_expert"}))
+    state = fast_replace(state, players=(p0, state.players[1]))
+    state = step(state, PlaceWorker(space="major_improvement"))
+    state = step(state, ChooseSubAction(name="improvement"))
+    state = step(state, ChooseSubAction(name="build_major"))
+    pay = Resources(food=1, stone=2)
+    assert any(isinstance(a, CommitBuildMajor) and a.major_idx == 7 and a.payment == pay
+               for a in legal_actions(state))
+    state = step(state, CommitBuildMajor(major_idx=7, payment=pay))
+    # Food short -> a raise-only PendingFoodPayment; pay 1 grain -> 1 food, then build re-runs.
+    assert isinstance(state.pending_stack[-1], PendingFoodPayment)
+    state = step(state, CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0))
+    assert state.board.major_improvement_owners[7] == 0
+    assert state.players[0].resources.food == 0           # raised 1, paid 1
+    assert state.players[0].resources.grain == 0
+    assert state.players[0].resources.stone == 8          # reserved, then debited by the build

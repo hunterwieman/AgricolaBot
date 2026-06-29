@@ -1281,11 +1281,24 @@ def _execute_build_major(
     manipulation: pop for non-ovens
     (line below), or push the wrapper for ovens (leaving PendingBuildMajor
     in place underneath).
+
+    Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §9): a cost-card payment (Wood Expert's
+    "1 food instead of up to 2 wood") may name food the player can't cover. If so, push a
+    raise-only PendingFoodPayment to raise it and RE-RUN this exact build with the food now
+    in supply (the unified produce-then-pay path). The major's building resources are
+    `reserved` so the conversion never spends them; they are also disjoint from the food
+    fuel today, so this is robust to a future at-any-time clay->food card. Re-entrant: on the
+    re-run the food is sufficient, so it pays and builds normally.
     """
     from agricola.cost import ReturnImprovement
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildMajor)
     p = state.players[player_idx]
+
+    if isinstance(commit.payment, Resources) and p.resources.food < commit.payment.food:
+        return push(state, PendingFoodPayment(
+            player_idx=player_idx, food_needed=commit.payment.food, resume_kind="rerun",
+            reserved=Cost(resources=fast_replace(commit.payment, food=0)), action=commit))
 
     # 1. Pay the chosen PaymentOption (§3.2/§4.5): a Resources vector (the printed
     #    cost or a cost-card variant) is deducted; a ReturnImprovement route returns

@@ -149,6 +149,9 @@ from agricola.cards import shifting_cultivation  # noqa: F401
 # Food-from-a-trigger (FOOD_PAYMENT_DESIGN.md §8): Ox Goad — pay 2 food (via the shared
 # food-payment path, liquidation-aware) after Cattle Market to plow 1 field.
 from agricola.cards import ox_goad               # noqa: F401
+# Food-in-a-build-cost (FOOD_PAYMENT_DESIGN.md §9): Wood Expert — pay 1 food instead of up to
+# 2 wood per improvement (a cost conversion on build_major/play_minor), +2 wood on play.
+from agricola.cards import wood_expert           # noqa: F401
 # Category 8 (deferred goods / effects on round spaces, II.5). These schedule goods
 # onto future round-space slots (future_resources), collected at the start of each
 # scheduled round in _complete_preparation. Wall Builder (occupation, food on the

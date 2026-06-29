@@ -1,11 +1,14 @@
 # Food Payment & At-Any-Time Liquidation — Design
 
-**Status: build-order steps 1–4 implemented (2026-06-29); step 5 deferred.** Liquidation-aware
-affordability, the `PendingFoodPayment` produce-then-pay frame (play-minor + play-occupation resume),
-Roof Ballaster's variant surcharge, and **Ox Goad** (pay 2 food from an `after_action_space` trigger,
-then plow — the first food-from-a-trigger card, via the `FOOD_PAYMENT_RESUMES` registry generalization
-of `_resume`) are landed and tested (`tests/test_cards_food_payment.py`); the Family game stays
-byte-identical (C++ gates green). Still ahead: build-cost food (step 5). This document specifies how a
+**Status: build-order steps 1–4 + the build-major slice of step 5 implemented (2026-06-29).** Landed and
+tested: liquidation-aware affordability; the **raise-only `PendingFoodPayment`** produce-then-pay frame
+with `reserved` goods (the unified store-the-commit / re-run design — §3.1/§5); Roof Ballaster's variant
+surcharge; **Ox Goad** (pay 2 food from an `after_action_space` trigger → plow, via the
+`FOOD_PAYMENT_RESUMES` grant registry); and **Wood Expert** (pay 1 food instead of up to 2 wood per
+improvement — a cost conversion on build_major/play_minor + the build-major food-shortfall guard, §9).
+The Family game stays byte-identical (C++ gates green). Still deferred: the *other* build-cost-food cards
+(Stable Cleaner, Trowel), which are also "at-any-time" and blocked on that separate machinery. This
+document specifies how a
 player pays the **food** costs that the card game introduces, including the ability to raise food mid-turn by
 converting crops and animals (the "at-any-time" liquidation that the Family game only ever needs at
 harvest feeding). It is the design companion for the food-payment slice of Phase 3 (Cards). It
@@ -381,7 +384,14 @@ cost off the frame rather than recomputing.
    branch (mirroring `_apply_fire_trigger`'s seam for the food-on-hand path). Eligibility gates on both
    2-food affordability (with liquidation) AND a plowable cell; the plow is mandatory once the trigger
    is fired (optionality is the FireTrigger).
-5. **Build-cost food** — deferred; revisit per card (Wood Expert → build-major first).
+5. **Build-cost food** — **build-major [DONE]** (Wood Expert): the unified raise-only + `reserved` +
+   re-run design (steps 2–4) made this a one-line **entry guard** on `_execute_build_major` — if the
+   chosen payment's food exceeds food on hand, push a raise-only `PendingFoodPayment` (reserving the
+   major's building resources) and re-dispatch the same `CommitBuildMajor` once the food is raised. No
+   executor split; the major's affordability/enumeration already route through the liquidation-aware
+   pipeline, so the food-substituted payment is offered when liquidatable for free. The **other**
+   build-cost-food cards (Stable Cleaner = build-stables, Trowel = renovate) stay deferred — both are
+   *also* "at any time" actions, blocked on that separate machinery, not on this.
 
 ---
 
