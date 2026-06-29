@@ -103,11 +103,18 @@ _build_registry()
 # keeps the Family JSON byte-identical and needs no C++ change; a CARDS card-effect
 # build sets one False, which is then emitted (and read by the card port).
 # See CARD_IMPLEMENTATION_PLAN.md I.1 and COST_MODIFIER_DESIGN.md §9.6.
+#
+# `accrued_cost` / `free_fence_budget` on PendingBuildFences are the Cards-only
+# deferred-tally fields (COST_MODIFIER_DESIGN.md §9.2): a Family build debits
+# per-commit and never accrues, so both hold their defaults (Resources(), 0) in
+# every Family state — omitting them keeps the Family JSON byte-identical and
+# needs no C++ change; a CARDS fence build sets them, which is then emitted.
 _DEFAULT_SKIP_FIELDS = frozenset({
     "mode", "hand_occupations", "hand_minors",
     "used_this_turn", "used_this_round", "fired_once",
     "card_state", "future_rewards", "draft_pools",
     "build_fences_action", "build_stables_action", "build_rooms_action",
+    "accrued_cost", "free_fence_budget",
 })
 
 

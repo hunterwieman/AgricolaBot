@@ -1395,6 +1395,7 @@ def _execute_build_pasture(
       8. Increment counters on PendingBuildFences and OR in subdivision_started
          if this commit was a subdivision.
     """
+    from agricola.constants import GameMode
     from agricola.legality import _build_fence_ctx, effective_payments
     p = state.players[player_idx]
     farmyard = p.farmyard
@@ -1412,21 +1413,39 @@ def _execute_build_pasture(
     # 3. Compute new-edge deltas + cost.
     h_new, v_new, wood_cost = compute_new_fence_edges(farmyard, cells_bm)
 
-    # 3b. Resolve this pasture's payment frontier through the cost-modifier chokepoint
-    #     (base = the geometry-derived wood cost) BEFORE mutating the farmyard.
-    #     build_index = the running pasture count within this multi-shot action.
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildFences)
-    payments = effective_payments(
-        state, player_idx,
-        _build_fence_ctx(p, wood_cost, build_index=top.pastures_built,
-                         space_id=top.initiated_by_id),
-    )
-    # Family per-commit path: the frontier is always a singleton (no cost cards), so
-    # debit it inline exactly as the old `Resources(wood=wood_cost)` debit did. (The
-    # >1-payment / whole-action deferred-tally path is increment 2b.)
-    assert len(payments) == 1, "build-fence frontier is a singleton in the Family game"
-    assert isinstance(payments[0], Resources), "build-fence has no non-resource routes"
+
+    # 3b. Payment. Two paths, branched on game mode (COST_MODIFIER_DESIGN.md §9.3):
+    #
+    #   FAMILY — per-commit debit (the 2a path, unchanged). Resolve this pasture's
+    #   payment frontier through the cost-modifier chokepoint (base = the
+    #   geometry-derived wood cost) and debit it inline, exactly as the old
+    #   `Resources(wood=wood_cost)` debit did. The frontier is always a singleton
+    #   (no cost cards in Family).
+    #
+    #   CARDS — deferred accrue, NO debit here. Apply this commit's slice of the
+    #   per-action free-fence budget (§9.4 source 2), accrue the paid wood onto the
+    #   frame, and settle the whole-action bill once at the Proceed flip (Part C).
+    #   (Positional per-edge frees — Briar Hedge / Field Fences — are a later
+    #   increment; not applied here.)
+    if state.mode is GameMode.FAMILY:
+        payments = effective_payments(
+            state, player_idx,
+            _build_fence_ctx(p, wood_cost, build_index=top.pastures_built,
+                             space_id=top.initiated_by_id),
+        )
+        assert len(payments) == 1, "build-fence frontier is a singleton in the Family game"
+        assert isinstance(payments[0], Resources), "build-fence has no non-resource routes"
+        new_resources = p.resources - payments[0]
+        new_accrued = top.accrued_cost
+        new_budget = top.free_fence_budget
+    else:  # CARDS: deferred accrue, no debit (settled at the Proceed flip).
+        free_used = min(wood_cost, top.free_fence_budget)
+        paid = wood_cost - free_used
+        new_budget = top.free_fence_budget - free_used
+        new_resources = p.resources                      # no debit; deferred to settle
+        new_accrued = top.accrued_cost + Resources(wood=paid)
 
     # 4. Apply fence-array updates.
     new_h = apply_fence_edges_h(farmyard.horizontal_fences, h_new)
@@ -1439,15 +1458,15 @@ def _execute_build_pasture(
         pastures=new_pastures,
     )
 
-    # 6 + 7. Debit the chosen payment + update player.
-    new_resources = p.resources - payments[0]
+    # 6 + 7. Update player (Family debits payment[0]; Cards leaves resources intact).
     new_player = fast_replace(
         p, farmyard=new_farmyard, resources=new_resources,
     )
     state = _update_player(state, player_idx, new_player)
 
-    # 8. Bump pending counters + ordering-rule flag. No auto-pop; stays in the
-    #    before-phase (Proceed flips to after, then Stop pops).
+    # 8. Bump pending counters + ordering-rule flag + fold in the deferred-tally
+    #    fields. No auto-pop; stays in the before-phase (Proceed flips to after,
+    #    then Stop pops).
     top = state.pending_stack[-1]
     assert isinstance(top, PendingBuildFences)
     new_top = fast_replace(
@@ -1455,6 +1474,8 @@ def _execute_build_pasture(
         pastures_built=top.pastures_built + 1,
         fences_built=top.fences_built + wood_cost,
         subdivision_started=top.subdivision_started or is_subdivision,
+        accrued_cost=new_accrued,
+        free_fence_budget=new_budget,
     )
     return replace_top(state, new_top)
 

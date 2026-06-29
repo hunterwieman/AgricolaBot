@@ -526,6 +526,18 @@ class PendingBuildFences:
     The matching `CommitBuildPasture` handler never pops: each commit replaces
     the top with updated counters and leaves the pending in the before-phase;
     `Proceed` flips to after, `Stop` pops.
+
+    Deferred-tally fields (COST_MODIFIER_DESIGN.md §9.2 — the Cards-only payment
+    model). In the Family game these always hold their defaults (Family debits
+    per-commit, never accruing), so they are default canonical skip-fields and the
+    Family JSON / C++ engine are untouched:
+      - `accrued_cost`: in CARDS mode, the running wood owed (after per-action
+        frees) across all this action's pasture commits — debited once at the
+        Proceed settle through `effective_payments`. Family never sets it.
+      - `free_fence_budget`: the generic per-action free-fence allowance (§9.4
+        source 2), seeded at the `before_build_fences` host (e.g. Hedge Keeper +3)
+        and decremented as it covers paid edges. Dies with the frame. Family
+        never seeds it.
     """
     PENDING_ID: ClassVar[str] = "build_fences"
     player_idx: int
@@ -536,6 +548,8 @@ class PendingBuildFences:
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
     build_fences_action: bool = True    # literal Build Fences action (Fencing / Farm Redev) vs a card effect that fences (§9.6); default-True canonical skip-field → Family byte-identical, no C++
+    accrued_cost: Resources = Resources()  # Cards deferred-tally: running wood owed, settled at Proceed (§9.2); default → Family byte-identical skip-field, no C++
+    free_fence_budget: int = 0          # Cards per-action free-fence allowance (Hedge Keeper +3, §9.4); default → Family byte-identical skip-field, no C++
 
 
 @dataclass(frozen=True)

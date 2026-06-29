@@ -77,6 +77,11 @@ from agricola.cards import lumber_mill          # noqa: F401
 # Conservator (occupation): a renovate-TARGET extension — wood house may renovate
 # directly to stone (skipping clay); the stone-tier cost flows through the chokepoint.
 from agricola.cards import conservator          # noqa: F401
+# Hedge Keeper (occupation, COST_MODIFIER_DESIGN.md §9): the first free-fence card —
+# a before_build_fences auto seeding +3 to the per-action free_fence_budget on a
+# LITERAL Build Fences action (gated on build_fences_action). Cards-only deferred
+# tally; no on-play effect.
+from agricola.cards import hedge_keeper          # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

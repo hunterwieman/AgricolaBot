@@ -503,6 +503,48 @@ def _apply_stop(state: GameState) -> GameState:
     return pop(state)
 
 
+def _settle_build_fences(state: GameState) -> GameState:
+    """Pay the deferred Build Fences bill (CARDS only) at the Proceed work-complete
+    flip, BEFORE the after-grants fire (COST_MODIFIER_DESIGN.md §9.2 — the settle ->
+    pay -> grants order).
+
+    The top frame is a before-phase `PendingBuildFences` whose `accrued_cost` is the
+    running wood owed across this action's pasture commits (after per-action frees,
+    §9.4). Resolve the whole-action bill through the cost-modifier chokepoint
+    (`effective_payments` with base = `accrued_cost`), debit the chosen payment, and
+    zero the frame's `accrued_cost` so a re-entered flip cannot double-debit. The
+    caller (`_apply_proceed`) then runs `_enter_after_phase`, which flips this frame
+    to its after-phase and fires the after-autos (the grants).
+
+    Singleton frontier only for now: the >1-payment / `PendingChooseCost` path
+    arrives with a conversion card (Millwright-on-fences), a later increment. Hedge
+    Keeper — the first free-fence card — produces no conversion, so the frontier is
+    always a singleton.
+    """
+    from agricola.legality import _build_fence_ctx, effective_payments
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences)
+    idx = top.player_idx
+    p = state.players[idx]
+    payments = effective_payments(
+        state, idx,
+        _build_fence_ctx(p, top.accrued_cost.wood, build_index=top.pastures_built,
+                         space_id=top.initiated_by_id),
+    )
+    # >1-payment / PendingChooseCost menu (Millwright) is a later increment; Hedge
+    # Keeper offers no conversion, so the whole-action frontier is a singleton.
+    assert len(payments) == 1, "build-fence settle frontier is a singleton (no conversion card yet)"
+    assert isinstance(payments[0], Resources), "build-fence has no non-resource routes"
+    new_p = fast_replace(p, resources=p.resources - payments[0])
+    state = fast_replace(
+        state,
+        players=tuple(new_p if i == idx else state.players[i] for i in range(2)),
+    )
+    # Zero the accrued bill (defensive: a re-entered flip can't re-debit).
+    return replace_top(state, fast_replace(state.pending_stack[-1], accrued_cost=Resources()))
+
+
 def _apply_proceed(state: GameState) -> GameState:
     """The work-complete boundary for the atomic and Proceed-host space frames
     (SPACE_HOST_REFACTOR.md §4.1/§4.3/§11): flip the host to its after-phase and
@@ -541,6 +583,14 @@ def _apply_proceed(state: GameState) -> GameState:
     if isinstance(top, (PendingBuildRooms, PendingBuildStables, PendingBuildFences)):
         assert getattr(top, "phase", None) == "before", (
             f"Proceed expected a before-phase build host, got {top!r}")
+        # Cards deferred-tally settle (COST_MODIFIER_DESIGN.md §9.2): a fence build
+        # accrued its wood on the frame instead of debiting per-commit, so the bill
+        # is paid HERE — before the after-grants (Shepherd's-Crook-style) fire — for
+        # the owner-confirmed order settle -> pay -> grants. (Family already debited
+        # per-commit in _execute_build_pasture, leaving accrued_cost at its default,
+        # so it skips the settle and reaches _enter_after_phase unchanged.)
+        if isinstance(top, PendingBuildFences) and state.mode is GameMode.CARDS:
+            state = _settle_build_fences(state)
         return _enter_after_phase(state)
     assert (
         type(top).PENDING_ID in ACTION_SPACE_PENDING_IDS
