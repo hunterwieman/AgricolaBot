@@ -1271,17 +1271,19 @@ def _can_afford_cost(p: PlayerState, cost) -> bool:
             and a.sheep >= ca.sheep and a.boar >= ca.boar and a.cattle >= ca.cattle)
 
 
-def _play_minor_ctx(card_id: str, spec) -> CostCtx:
-    """Cost-resolution context for playing minor `card_id` (base = its printed
-    RESOURCE cost). A minor's animal cost, if any, is NOT modifiable by cost cards
-    (the Resources-based `PaymentOption` doesn't cover animals), so it is checked and
-    debited separately (COST_MODIFIER_DESIGN.md §5). The animal portion rides on
-    `reserved_animals` so food-liquidation affordability sets it aside before counting
-    animals as conversion fuel (FOOD_PAYMENT_DESIGN.md §4)."""
-    return CostCtx(
-        "play_minor", spec.cost.resources, card_id=card_id,
-        reserved_animals=spec.cost.animals,
-    )
+def _play_minor_ctx(card_id: str, spec, state: GameState, idx: int) -> CostCtx:
+    """Cost-resolution context for playing minor `card_id`.
+
+    Base cost comes from `spec.cost_fn(state, idx)` when present (cards whose cost
+    scales with game state, e.g. Bottles), otherwise from the static `spec.cost`.
+    The animal portion is NOT modifiable by cost cards and rides on `reserved_animals`
+    so food-liquidation affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4)."""
+    if spec.cost_fn is not None:
+        cost = spec.cost_fn(state, idx)
+        base, animals = cost.resources, cost.animals
+    else:
+        base, animals = spec.cost.resources, spec.cost.animals
+    return CostCtx("play_minor", base, card_id=card_id, reserved_animals=animals)
 
 
 def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
@@ -1300,12 +1302,18 @@ def playable_minors(state: GameState, idx: int) -> list[str]:
     previously-unaffordable minor playable; the animal portion is checked directly."""
     from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
     p = state.players[idx]
-    return [
-        cid for cid in sorted(p.hand_minors & MINORS.keys())
-        if prereq_met(MINORS[cid], state, idx)
-        and can_pay(state, idx, _play_minor_ctx(cid, MINORS[cid]))
-        and _can_afford_minor_animals(p, MINORS[cid].cost.animals)
-    ]
+    result = []
+    for cid in sorted(p.hand_minors & MINORS.keys()):
+        spec = MINORS[cid]
+        if not prereq_met(spec, state, idx):
+            continue
+        cost = spec.cost_fn(state, idx) if spec.cost_fn is not None else spec.cost
+        if not can_pay(state, idx, _play_minor_ctx(cid, spec, state, idx)):
+            continue
+        if not _can_afford_minor_animals(p, cost.animals):
+            continue
+        result.append(cid)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -2440,7 +2448,7 @@ def _enumerate_pending_play_minor(
     # several once such a card lands. The animal cost (if any) rides on the spec, not here.
     from agricola.cards.specs import MINORS  # local import: load-order safe
     for cid in playable_minors(state, top.player_idx):
-        ctx = _play_minor_ctx(cid, MINORS[cid])
+        ctx = _play_minor_ctx(cid, MINORS[cid], state, top.player_idx)
         for payment in effective_payments(state, top.player_idx, ctx):
             actions.append(CommitPlayMinor(card_id=cid, payment=payment))
     return actions

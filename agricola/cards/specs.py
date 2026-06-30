@@ -122,6 +122,9 @@ class MinorSpec:
     """A minor improvement's static definition (CARD_IMPLEMENTATION_PLAN.md II.4).
 
     cost            — the spendable Cost (Resources + Animals), paid at play.
+    cost_fn         — optional (state, idx) -> Cost; when present, overrides
+                      `cost` at play time (for cards whose cost scales with game
+                      state, e.g. Bottles: people_total × clay+food).
     min/max_occupations — the dominant prerequisite (occupations-count): >=N via
                       min, <=N via max, exactly-N via min==max, "no occupations"
                       via max=0. Covers ~76 of the 154 prereq-bearing minors.
@@ -135,6 +138,7 @@ class MinorSpec:
     """
     card_id: str
     cost: Cost = Cost()
+    cost_fn: Optional[Callable] = None
     min_occupations: int = 0
     max_occupations: Optional[int] = None
     prereq: Optional[Callable] = None
@@ -150,6 +154,7 @@ def register_minor(
     card_id: str,
     *,
     cost: Cost = Cost(),
+    cost_fn: Optional[Callable] = None,
     min_occupations: int = 0,
     max_occupations: Optional[int] = None,
     prereq: Optional[Callable] = None,
@@ -159,7 +164,7 @@ def register_minor(
 ) -> None:
     """Register a minor improvement's spec (called at card-module import)."""
     MINORS[card_id] = MinorSpec(
-        card_id=card_id, cost=cost, min_occupations=min_occupations,
+        card_id=card_id, cost=cost, cost_fn=cost_fn, min_occupations=min_occupations,
         max_occupations=max_occupations, prereq=prereq, passing_left=passing_left,
         vps=vps, on_play=on_play,
     )

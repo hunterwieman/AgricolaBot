@@ -186,6 +186,9 @@ from agricola.cards import big_country           # noqa: F401
 # Mantlepiece (minor, Cat 2 — bank 1 bonus point per complete round left, scoring term
 # reads it back; −3 printed VPs; renovation permanently forbidden via _can_renovate).
 from agricola.cards import mantlepiece           # noqa: F401
+# Bottles (minor, Cat 2 — variable cost: people_total × (1 clay + 1 food) via cost_fn;
+# 4 printed VPs; no on-play effect beyond paying the cost).
+from agricola.cards import bottles               # noqa: F401
 from agricola.cards import moldboard_plow        # noqa: F401
 from agricola.cards import roof_ballaster        # noqa: F401
 # Capacity-modifier occupation: Animal Tamer — wide wood/grain play-variant + the house
