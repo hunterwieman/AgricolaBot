@@ -396,6 +396,9 @@
       text.textContent = card.text;
       div.appendChild(text);
     }
+    if (card.deck) {
+      div.appendChild(el('div', { class: 'hand-card-deck' }, card.deck));
+    }
 
     div.addEventListener('click', () => _togglePickerCard(card.id, kind, div));
     return div;
@@ -1234,6 +1237,9 @@
     if (c.text) {
       card.appendChild(el('div', { class: 'hand-card-text' }, c.text));
     }
+    if (c.deck) {
+      card.appendChild(el('div', { class: 'hand-card-deck' }, c.deck));
+    }
     return card;
   }
 
@@ -1259,6 +1265,9 @@
     }
     if (c.text) {
       card.appendChild(el('div', { class: 'hand-card-text' }, c.text));
+    }
+    if (c.deck) {
+      card.appendChild(el('div', { class: 'hand-card-deck' }, c.deck));
     }
     return card;
   }
@@ -1847,6 +1856,9 @@
     if (c.text) {
       div.appendChild(el('div', { class: 'picker-card-text' }, c.text));
     }
+    if (c.deck) {
+      div.appendChild(el('div', { class: 'hand-card-deck' }, c.deck));
+    }
 
     div.addEventListener('click', () => {
       if (kind === 'occ') {
@@ -1892,6 +1904,9 @@
     }
     if (c.text) {
       div.appendChild(el('div', { class: 'picker-card-text' }, c.text));
+    }
+    if (c.deck) {
+      div.appendChild(el('div', { class: 'hand-card-deck' }, c.deck));
     }
 
     return div;

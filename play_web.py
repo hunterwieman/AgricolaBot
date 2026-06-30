@@ -758,6 +758,7 @@ def _load_card_meta() -> dict[str, dict]:
                 "cost": "",
                 "prereq": _card_prereq(row, spendable_cost_empty=True),
                 "vps": 0,   # occupations carry no printed VP in this game
+                "deck": row.get("deck", "") if row else "",
             }
         for cid in MINORS:
             row = by_slug.get(cid)
@@ -769,6 +770,7 @@ def _load_card_meta() -> dict[str, dict]:
                 "cost": cost_str,
                 "prereq": _card_prereq(row, spendable_cost_empty=(cost_str == "—")),
                 "vps": int(MINORS[cid].vps),   # printed victory points (yellow circle)
+                "deck": row.get("deck", "") if row else "",
             }
     except Exception as exc:  # pragma: no cover — defensive at import time
         print(f"[play_web] WARNING: card metadata load failed: {exc}", file=sys.stderr)

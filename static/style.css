@@ -694,13 +694,13 @@ body.is-submitting * { cursor: wait !important; }
   margin-bottom: 4px;
 }
 .hand-card {
-  background: #fff8e0;
+  background: #ecdcbf;
   border: 1px solid var(--panel-border);
   border-radius: 3px;
-  padding: 4px 6px;
+  padding: 4px 6px 15px;
   width: calc(50% - 4px);
   font-size: 11px;
-  overflow: hidden;
+  position: relative;
 }
 .hand-card.playable {
   border-color: var(--accent-active);
@@ -736,6 +736,23 @@ body.is-submitting * { cursor: wait !important; }
   background: repeating-linear-gradient(
     45deg, #8B6F47, #8B6F47 4px, #7a5f3a 4px, #7a5f3a 8px);
   border-color: #5a4530;
+}
+.hand-card-deck {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3a6b2a;
+  border: 1.5px solid #2a5020;
+  color: #e8f5e0;
+  font-size: 7px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 /* Played cards (public tableau): a settled, owned look distinct from the hand. */
 .hand-card.played-card {
@@ -812,13 +829,14 @@ body.is-submitting * { cursor: wait !important; }
   padding-right: 3px;
 }
 .picker-card {
-  padding: 6px 8px;
+  padding: 6px 8px 17px;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
-  background: #fff8e0;
+  background: #ecdcbf;
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s;
   user-select: none;
+  position: relative;
 }
 .picker-card:hover { background: #ffeeb8; border-color: #c8a840; }
 .picker-card.selected {
