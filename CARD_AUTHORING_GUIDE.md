@@ -161,6 +161,31 @@ card text and the ruling — *never* chosen by convenience, and never "before/af
 matter here, I'll pick one" (a real bug was caught from exactly that reasoning). When the
 observable outcome would coincide either way, still classify by the ruling.
 
+> **⚠️ Never resolve a textual silence with a "these are equivalent" assumption — DEFER and ASK. The user will know.**
+> Map the card's literal words to the precise mechanic. When the text is *silent* on
+> something load-bearing — the order of a granted effect relative to the base action,
+> optionality, whether two effects "commute" — that silence is resolved by the **Agricola
+> rule default** (above), not by your judgment that "order doesn't matter here." If you
+> cannot pin it down from the text plus the rules, **defer and ask. The user will know.**
+>
+> **This is not hypothetical.** The user has substantially deeper command of the Agricola
+> rules and cardbase than the coding agent, and has repeatedly caught the agent confidently
+> asserting that two choices were identical when they were not — the agent's inability to
+> *find* a difference is not evidence that none exists. Two real bugs from exactly this:
+> - A session moved **Moldboard Plow** from `after_action_space` to `before_action_space` (a
+>   correct timing fix) but, assuming the bonus plow "commutes" with the base plow, added an
+>   engine held-flip so it could be taken in *either order* — silently breaking enforce-first
+>   for **every** `before_action_space` trigger on a delegating host.
+> - A session put **Writing Desk** on `after_action_space`, reasoning the extra occupation
+>   "was independent of the ramp." It is not: via Paper Maker ("each occupation after this
+>   one"), after-timing lets you play Paper Maker as the base occupation and then have it
+>   subsidize the granted one — which `before` (enforce-first) blocks.
+>
+> **The mechanic this established.** A `before_action_space` trigger on a delegating host
+> (Farmland / Lessons / Major Improvement) fires **only** in the before-window; taking the
+> mandatory sub-action closes that window and declines any unfired one. There is **no
+> "either order."** A grant the player wants must be fired *before* using the space.
+
 ### "End of turn" is NOT "after the action's effects and triggers"
 
 A worker-placement turn does not end when the action space's effect and all its
@@ -197,6 +222,19 @@ grant requires affording the cost *and* a legal placement cell, a renovate grant
 a non-stone house and the materials. Use the engine's own predicates (`_can_plow`,
 `_can_build_room`, `_can_renovate`, `_can_bake_bread`, …) so the card matches native
 legality. (Cottager's `_legal_variants` is the model.)
+
+**And: a `before_action_space` grant must not strand the mandatory sub-action.** Because it
+fires *before* the host's mandatory, non-declinable sub-action (enforce-first), its
+eligibility must also ensure that sub-action stays legal *after* the grant resolves — not
+merely that the grant itself is doable. A granted "plow 1 additional field" on Farmland
+requires **two** sequential plows (`_can_plow_twice`), not one (`_can_plow`): with a single
+plowable cell the grant would consume it and leave the base plow no target. (Plowing is
+adjacency-constrained — plowing one cell can open new adjacent targets — so this is a
+two-step simulation, not a cell count.) Writing Desk likewise requires **≥2** playable
+occupations (one for the grant, one for the mandatory Lessons play). This guard is only
+needed on the delegating, single-mandatory-sub-action hosts (Farmland / Lessons), where the
+grant strictly precedes the base action — not on Cultivation (a separate, non-delegating
+host).
 
 ### before/after the host: what fires when
 

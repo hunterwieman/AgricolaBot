@@ -93,7 +93,7 @@ from agricola.pending import (
     PendingSow,
     PendingSubActionSpace,
 )
-from agricola.state import GameState, PlayerState, get_space
+from agricola.state import Cell, GameState, PlayerState, get_space
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +378,29 @@ def _legal_plow_cells(p: PlayerState) -> list:
         for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]
     }
     return [cell for cell in empty_unenclosed if cell in adjacent_to_field]
+
+
+def _can_plow_twice(p: PlayerState) -> bool:
+    """True iff the player can legally plow two fields in sequence: some first legal plow
+    after which a second plow is still legal.
+
+    Gates a granted "plow 1 additional field" before-trigger on Farmland, whose mandatory
+    base plow CANNOT be declined — the grant must never be offered when firing it would
+    strand that base plow (CARD_AUTHORING_GUIDE.md). Plowing is adjacency-constrained (a
+    second field must touch an existing one) AND plowing the first field can OPEN new
+    adjacent targets, so this is a genuine two-step simulation, not a plowable-cell count
+    (e.g. with no field yet, two non-adjacent empty cells do NOT allow a second plow).
+    Plowing only converts an EMPTY, non-enclosed cell to FIELD, so it never changes
+    enclosure — only the field set the second plow's adjacency reads."""
+    grid = p.farmyard.grid
+    for (r, c) in _legal_plow_cells(p):
+        new_row = tuple(Cell(cell_type=CellType.FIELD) if cc == c else grid[r][cc]
+                        for cc in range(len(grid[r])))
+        new_grid = tuple(new_row if rr == r else grid[rr] for rr in range(len(grid)))
+        p2 = fast_replace(p, farmyard=fast_replace(p.farmyard, grid=new_grid))
+        if _legal_plow_cells(p2):
+            return True
+    return False
 
 
 def _legal_stable_cells(p: PlayerState) -> list:
@@ -1754,26 +1777,20 @@ def _enumerate_pending_subactionspace(
     the single mandatory ChooseSubAction (the child). after-phase (reached via the
     auto-advance once the child popped): after_action_space triggers + Stop.
 
-    The base sub-action and any `before_action_space` triggers (e.g. Moldboard Plow
-    / Threshing Board on Farmland) may be taken in either order. Normally the
-    `subaction_complete && phase=="before"` state is never enumerated — the
-    auto-advance flips it inside the same step (§5.1). The exception is when a
-    before-trigger is still eligible after the base sub-action ran: the engine holds
-    the flip (so the grant isn't dropped) and we enumerate the remaining
-    before-triggers + Proceed (the explicit advance, gated like any host exit while a
-    mandatory before-trigger is unfired)."""
-    from agricola.cards.triggers import has_unfired_mandatory_trigger
+    A `before_action_space` trigger is offered ONLY in the before-phase (while
+    subaction_complete == False); taking the mandatory ChooseSubAction closes the
+    before-window and implicitly declines any unfired one (SPACE_HOST_REFACTOR.md
+    §5.1). The auto-advance flips the host to its after-phase the instant the
+    mandatory sub-action completes — within the same step — so the
+    `subaction_complete && phase=="before"` state is purely transient and never
+    enumerated here. A card whose "each time you use [space]" grant the player wants
+    must therefore fire it before using the space (CARD_AUTHORING_GUIDE.md); a grant
+    that competes with the mandatory sub-action for a resource must gate its own
+    eligibility so the sub-action stays legal after it fires."""
     event = trigger_event(pending)
     actions = _eligible_fire_triggers(state, pending, event)
     if pending.phase == "after":
         actions.append(Stop())
-        return actions
-    if pending.subaction_complete:
-        # Base sub-action done; only reached while a before-trigger remains eligible
-        # (else the engine already flipped to the after-phase). Offer Proceed to
-        # advance once the optional grants are declined.
-        if not has_unfired_mandatory_trigger(state, pending, event):
-            actions.append(Proceed())
         return actions
     choice = _subactionspace_choice(state, pending)
     if choice is not None:

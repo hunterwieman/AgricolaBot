@@ -12,7 +12,7 @@ flow (PlaceWorker → FireTrigger → the space's own sub-action), not frame pok
 import agricola.cards.thresher  # noqa: F401  (registers the card)
 
 from agricola.actions import (
-    ChooseSubAction, CommitPlow, FireTrigger, PlaceWorker, Proceed, Stop,
+    ChooseSubAction, CommitPlow, FireTrigger, PlaceWorker, Stop,
 )
 from agricola.cards.triggers import TRIGGERS, CARDS
 from agricola.constants import CellType
@@ -107,12 +107,11 @@ def test_buy_is_optional_decline_changes_nothing():
 
     s = run_actions(s, [
         PlaceWorker(space="farmland"),
-        ChooseSubAction(name="plow"),       # decline the buy, just plow
+        ChooseSubAction(name="plow"),       # taking the base plow declines the buy (closes the before-window)
         CommitPlow(row=0, col=2),
         Stop(),       # pop PendingPlow after-phase
-        # Thresher is still eligible (declined), so the delegating host holds its
-        # flip and offers Proceed rather than auto-advancing.
-        Proceed(),    # advance the Farmland host to its after-phase
+        # Base sub-action done → the host auto-advances to its after-phase (no held
+        # flip); the unfired Thresher buy is declined. Nothing to do but exit.
         Stop(),       # pop the parent
     ])
 

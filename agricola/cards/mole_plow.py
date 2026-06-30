@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow
+from agricola.legality import _can_plow, _can_plow_twice
 from agricola.pending import PendingPlow, push
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -39,9 +39,14 @@ def _prereq(state: GameState, idx: int) -> bool:
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
-    return (CARD_ID not in triggers_resolved
-            and state.pending_stack[-1].space_id in SPACES
-            and _can_plow(state.players[idx]))
+    sid = state.pending_stack[-1].space_id
+    if CARD_ID in triggers_resolved or sid not in SPACES:
+        return False
+    p = state.players[idx]
+    # On Farmland (an enforce-first delegating host whose base plow is mandatory) the grant
+    # must leave a second plow for that base plow; Cultivation rides its own host, where a
+    # single plowable cell suffices (CARD_AUTHORING_GUIDE.md).
+    return _can_plow_twice(p) if sid == "farmland" else _can_plow(p)
 
 
 def _apply(state: GameState, idx: int) -> GameState:

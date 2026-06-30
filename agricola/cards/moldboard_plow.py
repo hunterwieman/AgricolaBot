@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow
+from agricola.legality import _can_plow_twice
 from agricola.pending import PendingPlow, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -42,10 +42,13 @@ def _uses_left(state: GameState, idx: int) -> int:
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
+    # Enforce-first before-trigger on Farmland: require TWO sequential plows so firing
+    # this grant cannot strand the mandatory base plow (CARD_AUTHORING_GUIDE.md) — e.g.
+    # with only one empty space left, the grant is not offered.
     return (CARD_ID not in triggers_resolved
             and state.pending_stack[-1].space_id in SPACES
             and _uses_left(state, idx) > 0
-            and _can_plow(state.players[idx]))
+            and _can_plow_twice(state.players[idx]))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

@@ -120,7 +120,6 @@ import agricola.cards  # noqa: F401
 # to import here without a load-order cycle.
 from agricola.cards.triggers import (
     apply_auto_effects,
-    has_eligible_trigger,
     should_host_harvest_field,
     should_host_space,
 )
@@ -728,25 +727,24 @@ def _advance_until_decision(state: GameState) -> GameState:
         # after-phase (firing after_<event> autos) before returning. The flip
         # makes phase=="after", so the guard is False next iteration — idempotent.
         #
-        # Exception: hold the flip while a `before_<event>` trigger is still
-        # eligible. The base sub-action can be done before the player has resolved
-        # an optional "each time you use [space]" before-trigger (Moldboard Plow /
-        # Threshing Board on Farmland); flipping straight to the after-phase would
-        # silently drop that grant. Instead we stay in the before-phase, where the
-        # enumerator offers the remaining before-triggers + Proceed. With no such
-        # trigger eligible this is the original unconditional flip — byte-identical
-        # for the Family game and for trigger-free delegating spaces.
+        # The flip is UNCONDITIONAL (SPACE_HOST_REFACTOR.md §5.1): taking the
+        # mandatory sub-action closes the before-window and IMPLICITLY DECLINES any
+        # unfired `before_<event>` trigger. before-triggers are surfaced only while
+        # subaction_complete == False, so a card whose "each time you use [space]"
+        # grant the player wants must fire it BEFORE using the space. The
+        # (subaction_complete && phase=="before") state is therefore purely
+        # transient — flipped here within the same step, before legal_actions is
+        # ever called on it. (A prior held-flip kept this window open after the main
+        # sub-action so grants could fire "in either order"; order is load-bearing
+        # per the rules, so that was a bug — see CARD_AUTHORING_GUIDE.md.) A no-op in
+        # the Family game (no triggers → nothing a hold would have changed anyway).
         if state.pending_stack:
             top = state.pending_stack[-1]
             if (getattr(type(top), "DELEGATING", False)
                     and top.subaction_complete
                     and top.phase == "before"):
-                _pid = type(top).PENDING_ID
-                _before_event = (
-                    f"before_{'action_space' if _pid in ACTION_SPACE_PENDING_IDS else _pid}")
-                if not has_eligible_trigger(state, top, _before_event):
-                    state = _enter_after_phase(state)
-                    continue
+                state = _enter_after_phase(state)
+                continue
             return state
 
         # Case 1.5: DRAFT phase with empty stack. Push the next pick frame,

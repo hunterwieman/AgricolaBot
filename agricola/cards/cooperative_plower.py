@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow
+from agricola.legality import _can_plow_twice
 from agricola.pending import PendingPlow, push
 from agricola.state import GameState, get_space
 
@@ -36,10 +36,12 @@ def _grain_seeds_occupied(state: GameState) -> bool:
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
+    # Enforce-first before-trigger on Farmland: require TWO sequential plows so the
+    # mandatory base plow survives firing this grant (CARD_AUTHORING_GUIDE.md).
     return (CARD_ID not in triggers_resolved
             and state.pending_stack[-1].space_id == "farmland"
             and _grain_seeds_occupied(state)
-            and _can_plow(state.players[idx]))
+            and _can_plow_twice(state.players[idx]))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

@@ -229,21 +229,17 @@ def test_big_country_scoring_reads_bank():
 # ---------------------------------------------------------------------------
 
 def _use_farmland_and_plow_once(state, cp):
-    """Place a worker on Farmland, do the base plow, then fire Moldboard's grant
-    and commit its plow. Returns the state after the host pops.
+    """Place a worker on Farmland and, under the enforce-first before-window, fire
+    Moldboard's granted plow BEFORE the mandatory base plow, then do the base plow.
+    Returns the state after the host pops.
 
-    Moldboard is a "when you use Farmland" BEFORE-trigger, so it is offered in the
-    before-phase. Doing the base plow first does NOT drop it: Farmland is a
-    delegating host and the engine holds its post-plow auto-advance while the grant
-    is still eligible (so the grant survives either order)."""
-    state = step(state, PlaceWorker(space="farmland"))
-    # Base sub-action: plow (singleton choose), then commit the one base plow.
-    state = step(state, ChooseSubAction(name="plow"))
-    base_plows = [a for a in legal_actions(state)]
-    state = step(state, base_plows[0])                    # CommitPlow (base)
-    state = step(state, Stop())                           # pop base PendingPlow's after
-    # Still in the Farmland host's before-phase (flip held): Moldboard grant offered.
+    Moldboard is a "when you use Farmland" BEFORE-trigger: it is offered only in the
+    before-phase, and taking the mandatory base plow closes that before-window
+    (implicitly declining any unfired grant). So to use the grant the player must
+    fire it before doing the base plow."""
     from agricola.actions import FireTrigger
+    state = step(state, PlaceWorker(space="farmland"))
+    # Before-phase: the Moldboard grant is offered alongside the base plow's choice.
     la = legal_actions(state)
     assert FireTrigger(card_id="moldboard_plow") in la
     state = step(state, FireTrigger(card_id="moldboard_plow"))
@@ -251,7 +247,13 @@ def _use_farmland_and_plow_once(state, cp):
     granted = legal_actions(state)
     state = step(state, granted[0])                       # commit the granted plow
     state = step(state, Stop())                           # pop granted PendingPlow's after
-    # Grant now exhausted-this-frame → engine auto-advances to the after-phase.
+    # Back in the host's before-phase (the grant did not set subaction_complete); now
+    # do the mandatory base plow, which closes the before-window.
+    state = step(state, ChooseSubAction(name="plow"))
+    base_plows = [a for a in legal_actions(state)]
+    state = step(state, base_plows[0])                    # CommitPlow (base)
+    state = step(state, Stop())                           # pop base PendingPlow's after
+    # Base sub-action done → engine auto-advances the host to its after-phase.
     state = step(state, Stop())                           # pop the Farmland host
     return state
 
@@ -310,6 +312,25 @@ def test_moldboard_plow_grant_can_be_declined():
     assert not s.pending_stack
     assert _num_fields(s, 0) == fields0 + 1               # only the base plow
     assert s.players[0].card_state.get("moldboard_plow") is None  # untouched (still 2)
+
+
+def test_moldboard_not_offered_when_it_would_strand_the_base_plow():
+    """Stranding guard: with only one plowable cell, firing Moldboard's grant would
+    consume it and leave the MANDATORY (non-declinable) base plow with no legal target.
+    So the grant is suppressed in the before-window, while the base plow's own choice is
+    still offered (it plows that last cell)."""
+    from agricola.actions import FireTrigger
+    from agricola.state import Cell
+    s = _own_minor(_card_state(), 0, "moldboard_plow")
+    # Fill every farmyard cell with ROOM except a single isolated EMPTY cell, and no field
+    # exists — so plowing that cell opens no adjacent target (can't plow twice).
+    overrides = {(r, c): Cell(cell_type=CellType.ROOM)
+                 for r in range(3) for c in range(5) if (r, c) != (0, 0)}
+    s = with_grid(s, 0, overrides)
+    s = step(s, PlaceWorker(space="farmland"))
+    la = legal_actions(s)
+    assert FireTrigger(card_id="moldboard_plow") not in la   # grant suppressed
+    assert ChooseSubAction(name="plow") in la                # the base plow is still legal
 
 
 # ---------------------------------------------------------------------------
