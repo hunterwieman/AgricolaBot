@@ -370,3 +370,42 @@ from agricola.cards import blade_shears  # noqa: F401
 from agricola.cards import private_forest  # noqa: F401
 from agricola.cards import wood_cart  # noqa: F401
 from agricola.cards import plant_fertilizer  # noqa: F401
+
+# Corbarius (deck C) — tier-2 batch (from-scratch triage; 2026-06-30). Specs in
+# CARD_TRIAGE_CDE.md. (Granary deferred — '/' alt-cost; not written.)
+from agricola.cards import butler  # noqa: F401
+from agricola.cards import tree_guard  # noqa: F401
+from agricola.cards import schnapps_distiller  # noqa: F401
+from agricola.cards import home_brewer  # noqa: F401
+from agricola.cards import thresher  # noqa: F401
+from agricola.cards import winter_caretaker  # noqa: F401
+from agricola.cards import soil_scientist  # noqa: F401
+from agricola.cards import excavator  # noqa: F401
+from agricola.cards import wooden_hut_extender  # noqa: F401
+from agricola.cards import second_spouse  # noqa: F401
+from agricola.cards import private_teacher  # noqa: F401
+from agricola.cards import straw_thatched_roof  # noqa: F401
+from agricola.cards import trellis  # noqa: F401
+from agricola.cards import cattle_whisperer  # noqa: F401
+from agricola.cards import stable  # noqa: F401
+from agricola.cards import steam_machine  # noqa: F401
+from agricola.cards import flail  # noqa: F401
+from agricola.cards import teachers_desk  # noqa: F401
+from agricola.cards import elephantgrass_plant  # noqa: F401
+from agricola.cards import clay_deposit  # noqa: F401
+from agricola.cards import farm_store  # noqa: F401
+from agricola.cards import farm_building  # noqa: F401
+from agricola.cards import stew  # noqa: F401
+from agricola.cards import garden_claw  # noqa: F401
+from agricola.cards import studio  # noqa: F401
+from agricola.cards import woodcraft  # noqa: F401
+from agricola.cards import schnapps_distillery  # noqa: F401
+from agricola.cards import beer_stein  # noqa: F401
+from agricola.cards import corn_schnapps_distillery  # noqa: F401
+from agricola.cards import clay_supply  # noqa: F401
+from agricola.cards import reed_hatted_toad  # noqa: F401
+from agricola.cards import stone_cart  # noqa: F401
+from agricola.cards import rocky_terrain  # noqa: F401
+from agricola.cards import hardware_store  # noqa: F401
+from agricola.cards import field_watchman  # noqa: F401
+from agricola.cards import cube_cutter  # noqa: F401
