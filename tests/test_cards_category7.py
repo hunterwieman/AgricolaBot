@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from agricola.actions import (
     CommitCardChoice,
+    CommitFoodPayment,
+    CommitPlayOccupation,
     FireTrigger,
     PlaceWorker,
     Proceed,
@@ -30,6 +32,7 @@ from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions
 from agricola.pending import (
     PendingCardChoice,
+    PendingFoodPayment,
     PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
@@ -206,6 +209,36 @@ def test_plow_driver_once_per_round():
     assert legal_actions(s) == [Proceed()]   # already fired this round
 
 
+def test_plow_driver_fires_via_liquidation_when_food_short():
+    # 0 food but 1 grain: Plow Driver must still be offered (the 1 food is liquidatable),
+    # firing pushes a raise-only PendingFoodPayment, and paying it raises the food and plows.
+    s = _own_occ(setup(0), 0, "plow_driver")
+    p = fast_replace(s.players[0], house_material=HouseMaterial.STONE,
+                     resources=Resources(grain=1))   # 0 food, 1 grain
+    s = fast_replace(s, players=(p, s.players[1]))
+    s = _host(s, 0)
+    assert FireTrigger(card_id="plow_driver") in legal_actions(s)
+
+    s = step(s, FireTrigger(card_id="plow_driver"))
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingFoodPayment) and top.food_needed == 1
+    s = step(s, CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0))
+    assert isinstance(s.pending_stack[-1], PendingPlow)   # resume debited the food + plowed
+    assert s.players[0].resources.food == 0               # raised 1, paid 1
+    assert s.players[0].resources.grain == 0
+    assert "plow_driver" in s.players[0].used_this_round   # latched once-per-round
+
+
+def test_plow_driver_not_offered_when_food_short_and_no_fuel():
+    # 0 food, nothing convertible -> truly unaffordable -> not offered (regression guard).
+    s = _own_occ(setup(0), 0, "plow_driver")
+    p = fast_replace(s.players[0], house_material=HouseMaterial.STONE,
+                     resources=Resources())
+    s = fast_replace(s, players=(p, s.players[1]))
+    s = _host(s, 0)
+    assert legal_actions(s) == [Proceed()]
+
+
 # ---------------------------------------------------------------------------
 # Groom — on-play +1 wood + optional stable trigger
 # ---------------------------------------------------------------------------
@@ -304,6 +337,31 @@ def test_scholar_not_offered_in_wooden_house():
     s = fast_replace(s, players=(p, s.players[1]))   # wooden house default
     s = _host(s, 0)
     assert legal_actions(s) == [Proceed()]
+
+
+def test_scholar_occupation_variant_offered_and_paid_via_liquidation():
+    # Stone house, a playable occupation in hand, 0 food but 1 grain: the "occupation"
+    # variant must be offered (the flat 1-food cost is liquidatable), and playing the
+    # occupation raises the food via _execute_play_occupation's shortfall guard.
+    s = _own_occ(setup(0), 0, "scholar")
+    p = fast_replace(s.players[0], house_material=HouseMaterial.STONE,
+                     hand_occupations=s.players[0].hand_occupations | {"consultant"},
+                     resources=Resources(grain=1))   # 0 food, 1 grain
+    s = fast_replace(s, players=(p, s.players[1]))
+    s = _host(s, 0)
+    assert FireTrigger(card_id="scholar", variant="occupation") in legal_actions(s)
+
+    s = step(s, FireTrigger(card_id="scholar", variant="occupation"))
+    assert isinstance(s.pending_stack[-1], PendingPlayOccupation)
+    s = step(s, CommitPlayOccupation(card_id="consultant"))
+    # Food short -> the play-occupation guard raised a PendingFoodPayment; pay 1 grain.
+    assert isinstance(s.pending_stack[-1], PendingFoodPayment)
+    s = step(s, CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0))
+    p0 = s.players[0]
+    assert "consultant" in p0.occupations      # the occupation was played
+    assert p0.resources.food == 0              # raised 1, paid the flat 1-food cost
+    assert p0.resources.grain == 0
+    assert p0.resources.clay == 3              # consultant's on-play (+3 clay) ran
 
 
 # ---------------------------------------------------------------------------

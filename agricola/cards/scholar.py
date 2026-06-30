@@ -26,6 +26,7 @@ from agricola.cards.triggers import (
 from agricola.constants import HouseMaterial
 from agricola.legality import playable_minors, playable_occupations
 from agricola.pending import PendingPlayMinor, PendingPlayOccupation, push
+from agricola.legality import _liquidatable_to
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -36,11 +37,16 @@ _OCC_COST = Resources(food=1)   # Scholar's flat occupation cost (not the Lesson
 
 def _legal_variants(state: GameState, idx: int) -> list[str]:
     """The play routes currently legal for Scholar: 'occupation' when a hand
-    occupation is playable and the flat 1-food cost is affordable; 'minor' when a
-    hand minor is playable. Empty list → nothing to play this round."""
+    occupation is playable and the flat 1-food cost is affordable (liquidation-aware —
+    the food may be raised by converting crops/animals); 'minor' when a hand minor is
+    playable. Empty list → nothing to play this round.
+
+    The food itself is raised, when short, by `_execute_play_occupation` (the pushed
+    PendingPlayOccupation carries `cost=1 food`, and its food-shortfall guard handles the
+    liquidation), so the only fix here is the liquidation-aware eligibility gate."""
     p = state.players[idx]
     variants: list[str] = []
-    if playable_occupations(state, idx) and p.resources.food >= 1:
+    if playable_occupations(state, idx) and _liquidatable_to(state, idx, p, _OCC_COST):
         variants.append("occupation")
     if playable_minors(state, idx):
         variants.append("minor")
