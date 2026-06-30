@@ -192,6 +192,41 @@ bookkeeping) is deliberately left open for a later session.**
 > start-of-round and action-space enumerators (card-only → Family byte-identical → no C++). Firing pushes
 > the standard `PendingBuildRooms(max_builds=1)` / `PendingRenovate` with the normal cost; the host's
 > `triggers_resolved` gives once-per-use semantics. No deferred-within-category cards remain.
+>
+> **Pay-food → plow expansion cluster (PAY_FOOD_PLOW_CARDS.md) DONE** (`tests/test_cards_pay_food_plow.py`;
+> targeted tests + full suite + C++ gates green). Five cards in (or adjacent to) the Ox Goad shape — an
+> optional trigger that grants a plow, paid through the shared liquidation-aware food-payment path
+> (`_liquidatable_to` eligibility + `PendingFoodPayment` raise-only frame + a `register_food_payment_resume`
+> body), gated on `_can_plow` so a granted plow never dead-ends:
+> - **Plow Maker** (occ D90): `before_action_space` filtered to `{farmland, cultivation}`, **1 food**.
+>   "Each time you use [space]" = the BEFORE phase (Trigger-Timing ruling). Both spaces non-atomic → no hook.
+> - **Shifting Cultivator** (occ A91): `before_action_space` on the **Forest** wood-accumulation space
+>   (verified the only one in the 2-player engine via `constants.SPACE_IDS`), **3 food**. Forest is ATOMIC →
+>   `register_action_space_hook(card_id, {"forest"})`. The before-phase is consistent with the clarification
+>   that food obtained *after* the space (Basket) can't pay — no extra code.
+> - **Drill Harrow** (minor D17, cost 1 wood): `before_sow`, **3 food**. Every sow in the implemented set is
+>   unconditional (no conditional-sow card exists), so it fires on every `before_sow`; flagged in the
+>   docstring to re-gate on `PendingSow` provenance if a conditional-sow card is ever added.
+> - **Plow Hero** (occ C91): Plow Maker plus a "first worker placed this round" gate, **1 food**. **BUILT**
+>   (was a build-or-defer): the predicate is cleanly derivable as `people_home == people_total − 1` at the
+>   before-phase (the placing worker is already decremented; newborn/Wish inflation is paired with a
+>   consumed worker, so the identity is exact for the first Farmland/Cultivation placement). No new state.
+> - **Mole Plow** (minor C20, cost 3 wood + 1 food, prereq round ≥ 9): the FREE-plow OUTLIER — the granted
+>   plow has no food in the effect (the food is the play cost), so it is the **Assistant Tiller** template
+>   (optional trigger pushing a free `PendingPlow`) filtered to `{farmland, cultivation}`, with a custom
+>   `prereq=state.round_number >= 9`.
+>
+> **Deferred from this cluster (CARD_AUTHORING_GUIDE.md §0):**
+> - **Seed Almanac** (minor E18, cost 1 reed, prereq 4 occupations): "each time after you play a minor
+>   improvement **after this one**, pay 1 food to plow 1 field." DEFERRED — `after_play_minor` /
+>   `PendingPlayMinor` carry NO played-card id (only `player_idx` / `initiated_by_id` (the host) / `phase` /
+>   `triggers_resolved`), and the just-played minor is already in `minor_improvements` when the event fires,
+>   so the eligibility predicate cannot distinguish Seed Almanac's OWN play (must NOT fire) from a later
+>   minor's play (must fire). Excluding self needs new wiring (thread the played card id onto the event /
+>   frame). Re-classify when that lands.
+> - **Dung Collector** (occ E90): "each time you get 2+ newborn animals, pay 1 food to plow 1 field."
+>   DEFERRED — there is NO trigger event for newborns-gained (breeding is the harvest-breed phase; no
+>   `after_breed` / `newborns_gained` hook exists). New machinery → §0. Revisit when such an event is added.
 
 This doc is the concrete build plan for the **59 base-game cards that need no cost-modification,
 no legality/affordability reachability search, no at-any-time conversion closure, and no per-card

@@ -186,6 +186,20 @@ from agricola.cards import shifting_cultivation  # noqa: F401
 # Food-from-a-trigger (FOOD_PAYMENT_DESIGN.md §8): Ox Goad — pay 2 food (via the shared
 # food-payment path, liquidation-aware) after Cattle Market to plow 1 field.
 from agricola.cards import ox_goad               # noqa: F401
+# Pay-food → plow cluster (PAY_FOOD_PLOW_CARDS.md): the same trigger shape as Ox Goad,
+# differing only in event / filter / food amount. Plow Maker (occ, before_action_space on
+# Farmland/Cultivation, 1 food); Shifting Cultivator (occ, before_action_space on the
+# Forest wood-accumulation space — atomic, so action-space-hooked — 3 food); Drill Harrow
+# (minor, before_sow — every sow is unconditional in the implemented set — 3 food); Plow
+# Hero (occ, like Plow Maker but only with the FIRST worker placed in a round, derived
+# from people_home == people_total − 1, 1 food). Mole Plow (minor) is the OUTLIER — the
+# granted plow is FREE (the food is the play cost), so it is the Assistant Tiller template
+# (optional trigger pushing a free PendingPlow) with a "round ≥ 9" prereq.
+from agricola.cards import plow_maker            # noqa: F401
+from agricola.cards import shifting_cultivator   # noqa: F401
+from agricola.cards import drill_harrow          # noqa: F401
+from agricola.cards import plow_hero             # noqa: F401
+from agricola.cards import mole_plow             # noqa: F401
 # Food-in-a-build-cost (FOOD_PAYMENT_DESIGN.md §9): Wood Expert — pay 1 food instead of up to
 # 2 wood per improvement (a cost conversion on build_major/play_minor), +2 wood on play.
 from agricola.cards import wood_expert           # noqa: F401

@@ -364,6 +364,24 @@ def test_roof_ballaster_decline_variant_pays_nothing():
 # Shifting Cultivation — on_play pushes PendingPlow (the nested-pending walk)
 # ---------------------------------------------------------------------------
 
+def test_shifting_cultivation_requires_a_plowable_field():
+    # The plow is MANDATORY ("Immediately plow 1 field"), so the card is unplayable when
+    # no legal plow target exists — gating playability on `_can_plow`. This both matches
+    # the rule and prevents the dead state (PendingPlow with an empty legal-action set).
+    from agricola.state import Cell
+    cs, _env = setup_env(5, card_pool=_POOL)
+    cp = cs.current_player
+    spec = MINORS["shifting_cultivation"]
+    assert prereq_met(spec, cs, cp) is True                # open farm: plowable
+    # Fill the whole 3x5 grid with FIELD -> no empty cell -> no legal plow.
+    full = fast_replace(cs.players[cp].farmyard, grid=tuple(
+        tuple(Cell(cell_type=CellType.FIELD) for _ in range(5)) for _ in range(3)))
+    p = fast_replace(cs.players[cp], farmyard=full)
+    cs_full = fast_replace(cs, players=tuple(
+        p if i == cp else cs.players[i] for i in range(2)))
+    assert prereq_met(spec, cs_full, cp) is False           # full farm: not playable
+
+
 def test_shifting_cultivation_nested_plow_walk():
     cs, env = setup_env(5, card_pool=_POOL)
     cp = cs.current_player
