@@ -94,6 +94,10 @@ nn_models/exp_q_t002/
 nn_models/exp_visit_t07/
 nn_models/exp_visit_t10/
 nn_models/exp_visit_combined/train_log.jsonl
+# 300k-corpus architecture sweep arms — results in REGISTRY.md.
+nn_models/joint_b512_300k_bwide/
+nn_models/spatial_a256_300k/
+nn_models/spatial_b512_300k/
 
 # Regret-sweep diagnostic artifacts (regenerable via scripts/replay_regret_sweep.py)
 regret_out/
