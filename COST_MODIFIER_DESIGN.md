@@ -883,36 +883,43 @@ per-commit debit, behind a `game_mode == FAMILY` branch in the settle path.** No
 
 ### 9.4 The free-fence model (three sources + greedy order)
 
-A fence edge is freed by one of three source kinds, consumed **positional → per-action budget →
-persistent pool**:
+**As built**, a fence edge is freed by one of three source kinds, consumed **positional → per-action
+budget → persistent pool**. Each kind is a **registry in `cards/cost_mods.py`**, so the engine stays
+card-agnostic (it consults the registries; cards register one row at import):
 
-1. **Positional, per-edge** (no budget) — Briar Hedge ("edge of the farmyard board"), Field Fences
-   ("next to field tiles"). Classified per commit from the new-edge geometry (`h_new`/`v_new` from
-   `compute_new_fence_edges`, plus the farmyard for "next to a field"). A positionally-free edge costs
-   no wood and consumes no budget. **The fence ctx must carry the new-edge geometry** so these are
-   computable (the scalar `wood_cost` alone is insufficient).
-2. **Per-action budget** — the generic `free_fence_budget` on the frame, seeded at push by a
-   `before_build_fences` auto and gated *there* on the frame's identity (read at the before-host, before
-   any cost ctx exists — §9.5): Hedge Keeper seeds +3 when owned && `build_fences_action`; Hunting Trophy
-   seeds +3 when the frame's **entry point** is Farm Redevelopment. **Unified:** "3 wood less total" ≡
-   "3 free fences" because a fence is always 1 wood/edge — so there is ONE per-action mechanism, not a
-   separate reduction path, and multiple sources **stack** (Hedge Keeper + Hunting Trophy on a Farm-Redev
-   action → 6). Dies with the frame (correct per-action lifetime; no reset machinery).
-3. **Persistent pool (Ash Trees) — a separate pool, NOT part of `free_fence_budget`.** Ash Trees' "5
-   fences from this card cost nothing" is a per-game pool in the card's CardStore with its own lifetime,
-   so it must stay out of the per-action `free_fence_budget` (which dies with the frame). Its 5 fences
-   **raise the player's fence-building capacity** for legality/enumeration (a pasture unaffordable in
-   wood alone becomes legal), and are **spent greedily at settle**, covering paid edges *last* (after
-   positional + the frame budget) so they're never wasted on already-free edges. Greedy-at-settle is
-   loss-less: a fence is a flat 1 wood whenever built, so spending Ash now vs. saving it for a later
-   fence saves the same wood — and "now" is guaranteed while "later" may never come. An Ash-covered edge
-   uses a *card* piece, so it does **not** decrement the player's fence supply (§9.7); since Ash is
-   decided at settle, the supply/Ash piece split — hence the supply decrement — is resolved there too.
+1. **Positional, per-edge** (`FREE_FENCE_EDGES` / `register_free_fence_edges`) — Briar Hedge ("edge of
+   the farmyard board"), Field Fences ("next to field tiles"). A card's `edge_fn(farmyard, h_new, v_new,
+   …) -> (h_free_bm, v_free_bm)` returns which NEW edges it frees; the fold `positional_free_edge_count`
+   unions them across owned cards and intersects with the new edges. The geometry rides **directly to
+   the fold** (`h_new`/`v_new` computed in `_check_entry_legal` / `_execute_build_pasture`), NOT through
+   the cost ctx — the scalar `wood_cost` alone is insufficient, but the ctx didn't need to grow. Briar
+   Hedge uses `PERIMETER_H_BM`/`PERIMETER_V_BM` (board-edge masks in `fences.py`), ungated; Field Fences
+   classifies field-adjacent edges and gates on `initiated_by_id == "card:field_fences"` (its grant).
+2. **Per-action budget** (`FREE_FENCE_SEEDS` / `register_free_fence_seed`) — the generic
+   `free_fence_budget` on the frame, seeded at push from `free_fence_budget_for(...)` (which sums every
+   owned card's `seed_fn`), with the SAME function consulted at three sites so they can't drift (push-time
+   seed in resolution, placement-time anticipation, during-building remaining). Hedge Keeper seeds +3 when
+   `build_fences_action`; Hunting Trophy seeds +3 when the entry-point `space_id == "farm_redevelopment"`.
+   **Unified:** "3 wood less total" ≡ "3 free fences" (a fence is always 1 wood/edge), so there is ONE
+   per-action mechanism and sources **stack** (Hedge Keeper + Hunting Trophy on a Farm-Redev action → 6).
+   The remaining budget rides on the frame (`free_fence_budget`), decremented per commit; dies with the
+   frame (correct per-action lifetime).
+3. **Persistent pool** (`FREE_FENCE_POOLS` / `register_free_fence_pool`) — Ash Trees' "5 fences from this
+   card cost nothing" is a per-game pool in the card's CardStore (`free_fence_pool_remaining` /
+   `spend_fence_pools`), separate from the per-action budget. Its fences **count toward
+   `buildable_fences`** (a pasture unaffordable in wood alone becomes legal) and are **spent greedily
+   PER-COMMIT** (in `_execute_build_pasture`, after positional + the frame budget) — not at settle: the
+   running-total legality needs the pool decremented as you build so the next commit sees the remainder.
+   A pool-covered edge uses a *card* piece, so it does **not** decrement the supply pile (§9.7); the
+   supply / pool piece split is resolved per-commit alongside the spend. (Only the WOOD payment is
+   deferred to the settle.) Greedy is loss-less: a fence is a flat 1 wood whenever built.
 
 Order rationale: positional first (free, no budget, so a budget never covers an already-free edge);
 the *expiring* per-action budget before the *persistent* pool (never leave a use-it-or-lose-it free
 unused while spending a persistent one). Per-commit greedy with this order is optimal — every paid edge
-is worth exactly 1 wood, so covering any is equivalent.
+is worth exactly 1 wood, so covering any is equivalent. The during-building affordability checks the
+**running total** `accrued_cost.wood + this_pasture_paid` against the conversions (Millwright counted
+once per action), not per-pasture — see §9.2.
 
 ### 9.5 Gating scopes — two frame signals, read at build-time
 
@@ -930,9 +937,11 @@ cost ctx exists (the ctx is built at settle). `_build_fence_ctx` then mirrors th
 | Grant-scoped | Field Fences ("during *this* granted action") | the frame's `initiated_by_id` | *the exact pusher (a card)* |
 | Cost-pipeline (when owned) | Millwright / Rammed Clay conversions | ownership, read off the ctx | — (settle-time) |
 
-**Space-scoped and grant-scoped are different granularities.** Hunting Trophy scopes to a real *space*
-(Farm Redevelopment) — the same `space_id` granularity its own House-Redevelopment clause uses, so it's
-consistent across both clauses. Field Fences isn't "a space" at all — its granted action is a card
+**Space-scoped and grant-scoped are different granularities.** Hunting Trophy's FENCE clause scopes to a
+real *space* (Farm Redevelopment) via the frame's entry-point `space_id`. (Its *other*, non-fence clause —
+the House-Redevelopment improvement discount — turned out NOT to need `space_id` on the improvement ctx at
+all: as built it gates on a `PendingHouseRedevelopment` frame being on the stack while the inner
+improvement resolves — see the §9 status note.) Field Fences isn't "a space" at all — its granted action is a card
 effect — so `space_id` can't express it; it needs the *exact-pusher* `initiated_by_id`. Both signals
 live on the frame (so a build-time free-fence seeder reads them at the before-host); only the space part
 is mirrored into `ctx.space_id` for settle-time cost-pipeline use.
@@ -965,19 +974,22 @@ Air Farmer "build a pasture", Shelter/Hawktower "build a stable/room").
 - All three flags are added **now**, not deferred — the point of going action-by-action is uniform
   machinery; each is a defaulted bool + a mechanical defaulted C++ field.
 
-### 9.7 Fence (and stable) supply becomes stored state
+### 9.7 Fence supply becomes stored state (stables stay derived)
 
-`fences_in_supply` and `stables_in_supply` are converted from **derived** helpers (`15 − built` /
-`4 − built` in `helpers.py`) to **stored `PlayerState` fields** (a reserve pile is the player's, not
-part of the farmyard grid), decremented on build and by cards. Reason: once a card moves or removes a
-piece *independently of building*, the `cap − built` derivation is wrong:
+**`fences_in_supply`** is converted from a **derived** helper (`15 − built` in `helpers.py`) to a
+**stored `PlayerState` field** (a reserve pile is the player's, not part of the farmyard grid),
+decremented on build and by cards. Reason: once a card moves or removes a piece *independently of
+building*, the `cap − built` derivation is wrong:
 - **Ash Trees** moves up to 5 fences from supply onto the card; building one from the card's pool puts
   an edge on the board (counted as "built") that **never left your supply** — so `supply ≠ 15 − built`.
-- **Open Air Farmer** "removes exactly 3 stables in your supply *from play*" — gone, never built.
 - (Deferred: Loppers exchanges a fence out of supply; Midnight Fencer takes opponents' and can exceed 15.)
 
-So supply is genuinely independent state, not a cache (a built piece may not have come from supply).
-Both counts convert now (uniform machinery; Open Air Farmer needs stables, Ash Trees needs fences).
+So fence supply is genuinely independent state, not a cache (a built piece may not have come from
+supply). **`stables_in_supply` is NOT converted** — it stays the derived `4 − built`: the only card that
+removes a stable from supply (**Open Air Farmer** — "removes 3 stables from play") is 4+ / out of scope,
+so no in-scope card breaks `cap − built` for stables. (`buildable_fences(player)` = the stored supply +
+the on-card pools is the "pieces you can place" count the legality uses; `fences_built(farmyard)` is the
+pure board count the Family cached scan inlines.)
 Family is byte-identical *in value* (always `cap − built` there, since no card moves pieces), so the
 C++ re-port is mechanical (add the field, init to cap, decrement on build) + canonical serialization.
 Building from a card pool (Ash Trees) does NOT decrement supply; building from supply (incl.
@@ -1074,21 +1086,24 @@ later if a card-state-centric encoder ever prefers it).
 
 ### 9.10 Card coverage
 
-**The cost slice (this work):** Millwright-on-fences (the live gap — registered for renovate/room/stable
-but has no `build_fence` hook yet; on fences it is a **settle-time conversion** on the whole-action total
-— `effective_payments` caps it at 2 in that single call, so the per-action-ness is automatic — **not**
-the per-commit CardStore `record`/reset budget that rooms/stables use; don't reuse that path here),
-Rammed Clay (wood→clay conversion + on-play clay), Hedge Keeper (per-action budget +3), Hunting Trophy
-(per-action budget +3, space-scoped; its
-*play* cost is *animal* — return/cook a boar — not food), Briar Hedge (positional), Field Fences (grant
-+ positional, grant-scoped; 2-food *play* cost on the play-minor path), Ash Trees (persistent pool +
-supply −5).
+**The cost slice (all IMPLEMENTED — see the §9 status note + the `feat(cards):` git log):**
+Millwright-on-fences (a `build_fence` CONVERSION checked on the whole-action **running total**, so its
+"up to 2 grain per action" cap is counted once — §9.2; the earlier settle-only gate, and `CostCtx.settle`,
+were removed), Rammed Clay (wood→clay conversion + on-play clay), Hedge Keeper (per-action budget +3 on a
+literal Build Fences action), Hunting Trophy (per-action fence budget +3, space-scoped to Farm
+Redevelopment; an *animal* play cost — "return or cook a boar" = a 1-boar cost + an on-play cook-for-food
+bonus; PLUS a non-fence House-Redevelopment improvement discount gated on a `PendingHouseRedevelopment`
+stack frame), Briar Hedge (positional, board perimeter), Field Fences (an **optional** grant via the
+`PendingGrantedBuildFences` choose-or-decline wrapper + a positional next-to-field discount, grant-scoped;
+2-food *play* cost on the play-minor path), Ash Trees (persistent pool + supply −5), and **Mini Pasture**
+(the restricted grant — §9.8, the `FenceRestrictions` descriptor + a mandatory free 1×1 + a playability
+prereq). The free-fence-aware `_legal_fencing` placement guard landed alongside.
 
 **Deferred (each its own §0 decision):** Carpenter's Apprentice (per-game "13th–15th fence" — needs a
 cumulative segment counter + sub-pasture edge granularity), Wood Palisades (a parallel non-piece fence
 type scoring VP — board-feature), Overhaul (raze-and-rebuild — new primitive), Master Fencer (recurring
 start-of-round grant + a grant-scoped flat-price formula — the cost aspect fits formula+provenance,
-deferred for the start-of-round recurrence), the restricted grants (§9.8), and the one genuinely new
+deferred for the start-of-round recurrence), and the one genuinely new
 cost-constraint type — **Carpenter's Bench's "use only the taken wood"** (a *payment-source restriction*
 `effective_payments` can't express; flag for when it lands, so we don't claim the cost model is
 complete).
@@ -1115,10 +1130,14 @@ Peasant (3+) — the only effect-food-cost fence cards, both multiplayer.
 
 ### 9.12 C++ scope
 
-Family-only twin. **Ports (mechanical, defaulted fields):** the stored `fences_in_supply` /
-`stables_in_supply` fields (init to cap, decrement on build) — Family-reachable, so the canonical JSON +
-`tests/test_cpp_*.py` gates must stay green. This is the **only** C++ touch in the whole effort, and it
-rides with Ash Trees (§9.13 step 4). **Does NOT port (all Python-only):** the three `build_*_action`
+Family-only twin. **Ported (mechanical):** the stored `fences_in_supply` field on **`PlayerState`**
+(init 15, decremented per-commit at the build site) — Family-reachable + serialized, so the C++
+`PlayerState` field + canonical serialize/deserialize (after `harvest_conversions_used`) + the
+build-site decrement + the hash all landed, with `tests/test_cpp_*.py` green. This was the **only** C++
+touch in the whole effort (it rode with Ash Trees, §9.13 step 4). `stables_in_supply` did **NOT**
+convert — it stays the derived `4 − built` (no in-scope card moves a stable out of supply; Open Air
+Farmer, its only would-be consumer, is 4+ / out of scope), so it needed no C++ change. **Does NOT port
+(all Python-only):** the three `build_*_action`
 flags (turned out to be default-True canonical skip-fields — omitted from Family JSON, so the C++ twin
 never sees them; **done, no C++ change**), the deferred-tally settle logic, `accrued_cost` /
 `free_fence_budget` consumption (also inert-in-Family skip-fields), and the free-fence / provenance
