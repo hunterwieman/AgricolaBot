@@ -9,7 +9,7 @@
     "name": "Homekeeper",
     "card_category": "Farm Planner",
     "text": "Exactly one clay or stone room in your house can hold an additional person if the room is adjacent to both a field and a pasture.",
-    "clarifications": "Field cards may not count as adjacent. ● If the room later loses adjacency to the field and/or pasture, the capacity for an additional person is lost (e.g. after playing Overhaul C001)"
+    "clarifications": "Field cards may not count as adjacent.  If the room later loses adjacency to the field and/or pasture, the capacity for an additional person is lost (e.g. after playing Overhaul C001)"
   },
   {
     "expansion": "Artifex Expansion",
@@ -298,7 +298,7 @@
     "name": "Lodger",
     "card_category": "Farm Planner",
     "text": "This card provides room for one person, but only until the returning home phase of round 9. If, by then, there is no room elsewhere for that person, remove it from play.",
-    "clarifications": "If you remove it from play, it can never grow back. ● This card does not count as a room."
+    "clarifications": "If you remove it from play, it can never grow back.  This card does not count as a room."
   },
   {
     "expansion": "Artifex Expansion",
@@ -390,7 +390,7 @@
     "name": "Drudgery Reeve",
     "card_category": "Points Provider",
     "text": "If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with 1+/2+/3+ building resources of each type gets 1/3/5 bonus points.",
-    "clarifications": "The resources worth bonus points for the craft majors are spent and DO NOT count towards this card’s bonus effect. ● These resources DO count towards the tiebreaker."
+    "clarifications": "The resources worth bonus points for the craft majors are spent and DO NOT count towards this card’s bonus effect.  These resources DO count towards the tiebreaker."
   },
   {
     "expansion": "Artifex Expansion",
@@ -523,7 +523,7 @@
     "name": "Minstrel",
     "card_category": "Actions Booster",
     "text": "At the start of each returning home phase, if only one action space card on round space 1 to 4 is unoccupied, you can use that action space.",
-    "clarifications": "The space is not considered used, e.g. for Master Workman A126. ● Unrevealed action spaces are effectively occupied during rounds 1-3.",
+    "clarifications": "The space is not considered used, e.g. for Master Workman A126.  Unrevealed action spaces are effectively occupied during rounds 1-3.",
     "errata": "ERRATA: “...use the effect of that action space.”"
   },
   {
@@ -646,7 +646,7 @@
     "name": "Wood Worker",
     "card_category": "Livestock Provider",
     "text": "Each time you take wood from an accumulation space, you can exchange 1 wood for 1 sheep. Place the wood on the accumulation space.",
-    "clarifications": "If you take less than 1 wood from a wood accumulation space, you may still use this card. ● You may immediately convert the sheep to food in order to use the Shifting Cultivator A091."
+    "clarifications": "If you take less than 1 wood from a wood accumulation space, you may still use this card.  You may immediately convert the sheep to food in order to use the Shifting Cultivator A091."
   },
   {
     "expansion": "Artifex Expansion",
@@ -716,7 +716,7 @@
     "name": "Hedge Keeper",
     "card_category": "Farm Planner",
     "text": "Each time you take a \"Build Fences\" action, you do not have to pay wood for 3 of the fences you build.",
-    "clarifications": "You may spend 0 wood to build 1-3 fences. ● Mini Pasture B002, Overhaul C001, and other fencing effects that are not the literal “Build Fences” action, do not trigger this card."
+    "clarifications": "You may spend 0 wood to build 1-3 fences.  Mini Pasture B002, Overhaul C001, and other fencing effects that are not the literal “Build Fences” action, do not trigger this card."
   },
   {
     "expansion": "Base (Revised)",
@@ -740,7 +740,7 @@
     "name": "Adoptive Parents",
     "card_category": "Actions Booster",
     "text": "For 1 food, you can take an action with offspring in the same round you get it. If you do, the offspring does not count as \"newborn\".",
-    "clarifications": "This card may be played and triggered any time after growth in the same round’s work phase. ● If this effect is used in a Harvest round, the person must be fed 2 food in the Harvest (3 for solo game.)"
+    "clarifications": "This card may be played and triggered any time after growth in the same round’s work phase.  If this effect is used in a Harvest round, the person must be fed 2 food in the Harvest (3 for solo game.)"
   },
   {
     "expansion": "Base (Revised)",
@@ -775,7 +775,7 @@
     "name": "Mushroom Collector",
     "card_category": "Food Provider",
     "text": "Immediately after each time you use a wood accumulation space, you can exchange 1 wood for 2 food. If you do, place the wood on the accumulation space.",
-    "clarifications": "You may take less than 1 wood from a wood accumulation space and still use this effect. ● Food obtained from this effect may not be used to pay for Shifting Cultivator A091."
+    "clarifications": "You may take less than 1 wood from a wood accumulation space and still use this effect.  Food obtained from this effect may not be used to pay for Shifting Cultivator A091."
   },
   {
     "expansion": "Base (Revised)",
@@ -1243,7 +1243,7 @@
     "name": "Farm Hand",
     "card_category": "Farm Planner",
     "text": "Once you have 4 field tiles arranged in a 2x2, you can use a \"Build Stables\" action to build a stable in the center of the 2x2. This stable provides room for a person but no animal.",
-    "clarifications": "You may only build one such stable. ● 《You may build additional stables as normal with the same “Build Stables” action.》"
+    "clarifications": "You may only build one such stable.  《You may build additional stables as normal with the same “Build Stables” action.》"
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1357,7 +1357,7 @@
     "name": "Field Merchant",
     "card_category": "Goods Provider",
     "text": "When you play this card, you immediately get 1 wood and 1 reed. Each time you decline a \"Minor/Major Improvement\" action, you get 1 food/vegetable instead.",
-    "clarifications": "Merchant C096 does not double a decline. ● Stone Company A023 improvements are conditional on spending stone and can’t be declined. ● 《You can place onto the “Major Improvement” or “Improvement” (6p) action space just to decline it.》"
+    "clarifications": "Merchant C096 does not double a decline.  Stone Company A023 improvements are conditional on spending stone and can’t be declined.  《You can place onto the “Major Improvement” or “Improvement” (6p) action space just to decline it.》"
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1436,7 +1436,7 @@
     "name": "Tinsmith Master",
     "card_category": "Crop Provider",
     "text": "You can hold 1 additional animal in each pasture without a stable. Each time you sow in a field, you can place 1 additional crop of the respective type in that field.",
-    "clarifications": "This effect places one extra crop on top of the usual stack, not a second stack in each field. ● You may not add anything except grain or vegetable. ● This does not add a condition to sowing."
+    "clarifications": "This effect places one extra crop on top of the usual stack, not a second stack in each field.  You may not add anything except grain or vegetable.  This does not add a condition to sowing."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -2055,7 +2055,7 @@
     "name": "Skillful Renovator",
     "card_category": "Building Resource Provider",
     "text": "When you play this card, you immediately get 1 wood and 1 clay. Each time after you renovate, you get a number of wood equal to the number of people you placed that round.",
-    "clarifications": "If you renovate with your 3rd placed person of a round, this card triggers a payout of 3 wood. ● Newborns are not placed."
+    "clarifications": "If you renovate with your 3rd placed person of a round, this card triggers a payout of 3 wood.  Newborns are not placed."
   },
   {
     "expansion": "Consul Dirigens Expansion",
@@ -2325,7 +2325,7 @@
     "name": "Fodder Planter",
     "card_category": "Crop Provider",
     "text": "In the breeding phase of each harvest, for each newborn animal you get, you can sow crops in exactly 1 field.",
-    "clarifications": "You must be able to accommodate each newborn in order to get it. ● You may not plant onto Wood Field D075 this way."
+    "clarifications": "You must be able to accommodate each newborn in order to get it.  You may not plant onto Wood Field D075 this way."
   },
   {
     "expansion": "Consul Dirigens Expansion",
@@ -2930,7 +2930,7 @@
     "name": "Mud Wallower",
     "card_category": "Farm Planner",
     "text": "Each time you use an accumulation space, place 1 clay from the general supply on this card. You must immediately exchange 4 clay on this card for 1 wild boar, held by this card.",
-    "clarifications": "This card only holds boar received via this effect. ● The boars may participate in breeding (but the newborn boar must find space elsewhere.)"
+    "clarifications": "This card only holds boar received via this effect.  The boars may participate in breeding (but the newborn boar must find space elsewhere.)"
   },
   {
     "expansion": "Corbarius Expansion",
@@ -3111,7 +3111,7 @@
     "name": "Game Catcher",
     "card_category": "Livestock Provider",
     "text": "When you play this card, pay 1 food for each remaining harvest to immediately get 1 cattle and 1 wild boar.",
-    "clarifications": "If you are forced to play this card (e.g. with Paper Knife A003) and can’t afford the extra cost, then it may not be played and is removed from the game. ● If played during a harvest (e.g. with Begging Student D097) the current harvest does not add to the cost."
+    "clarifications": "If you are forced to play this card (e.g. with Paper Knife A003) and can’t afford the extra cost, then it may not be played and is removed from the game.  If played during a harvest (e.g. with Begging Student D097) the current harvest does not add to the cost."
   },
   {
     "expansion": "Corbarius Expansion",
@@ -3156,7 +3156,7 @@
     "name": "Millwright",
     "card_category": "Farm Planner",
     "text": "You immediately get 1 grain. Each time you build fences, stables, and rooms, or renovate your house, you can replace up to 2 building resources of any type with 1 grain each.",
-    "clarifications": "Allows 1 or 2 substitutions per type of thing built. ● Common misread is to forget the last “each”."
+    "clarifications": "Allows 1 or 2 substitutions per type of thing built.  Common misread is to forget the last “each”."
   },
   {
     "expansion": "Dulcinaria Expansion",
@@ -4347,7 +4347,7 @@
     "name": "Omnifarmer",
     "card_category": "Points Provider",
     "text": "Each harvest, you can place 1 harvested crop or 1 newborn animal on this card, irretrievably. Once this game, exchange 2/3/4/5 different goods on this for 3/5/7/9 bonus points.",
-    "clarifications": "You must be able to accommodate each newborn in order to get it. ● Once goods are on this card, they are effectively unusable except for the points exchange."
+    "clarifications": "You must be able to accommodate each newborn in order to get it.  Once goods are on this card, they are effectively unusable except for the points exchange."
   },
   {
     "expansion": "Ephipparius Expansion",

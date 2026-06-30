@@ -103,3 +103,6 @@ sweep_out/
 sweep_driver_*.log
 sweep_out_driver.log
 sweep_progress.log
+
+# Session handoff docs (working notes; the design docs + git log are the durable record)
+*_HANDOFF.md

@@ -1176,17 +1176,17 @@ AgricolaBot/
 
         environment.py              # The Environment frozen dataclass — the hidden ground truth + nature policy for one game. Holds the per-game stage-card reveal order (NOT in GameState); exposes resolve(state) (the driver-facing nature seam) and reveal_action(state) -> RevealCard. The dealer in real games; agents and MCTS never see it. Forward-compat home for future private hands / draw deck + the observe(state, env, i) projection (identity today). See HIDDEN_INFO_DESIGN.md §3.4 / §3.6.
 
-        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState, BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
+        state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState (incl. the Cards-only `fences_in_supply: int = 15` — the stored fence-supply pile, distinct from "buildable", decremented per fence build; COST_MODIFIER_DESIGN.md §9.7), BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
 
         canonical.py                # Canonical, deterministic GameState↔JSON (`dumps`/`loads`) — the shared serialization CONTRACT the C++ engine must reproduce byte-for-byte (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). Tag-driven generic dataclass walker (drift-proof); test/interop scaffolding only, not on any production path. The Python engine is untouched.
 
         setup.py                    # setup_env(seed) -> (GameState, Environment) — the full constructor for the initial 2-player Family game: builds the per-stage shuffled reveal order into the Environment, pre-deals round 1 (via env.reveal_action), and returns the round-1 WORK state. setup(seed) = setup_env(seed)[0] (drops the env). All randomness (starting player, per-stage card shuffle) is resolved here via a seeded NumPy RNG; the order is hidden in the Environment and the engine is fully deterministic afterward.
 
-        helpers.py                  # Pure derived-quantity functions (fences_in_supply, stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
+        helpers.py                  # Pure derived-quantity functions (fences_built (board fence count) + buildable_fences (stored supply pile + on-card pools = pieces still placeable — replacing the old derived fences_in_supply), stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
 
         actions.py                  # All Action dataclasses (PlaceWorker, ChooseSubAction, the full Commit* family, FireTrigger, Stop, RevealCard) plus the CommitSubAction marker base used by the generic commit dispatcher. RevealCard (nature's round-card reveal) is a top-level transition, not a CommitSubAction.
 
-        pending.py                  # All Pending* frozen dataclasses (sub-action + parent + wrapper variants, plus the PendingReveal nature/phase frame with player_idx=None), the PendingDecision union alias, and the three pure stack ops (push, pop, replace_top).
+        pending.py                  # All Pending* frozen dataclasses (sub-action + parent + wrapper variants, plus the PendingReveal nature/phase frame with player_idx=None), the PendingDecision union alias, and the three pure stack ops (push, pop, replace_top). Cards add FenceRestrictions (restricted-grant geometry: max_pastures / exact_size / forbid_subdivision) and PendingGrantedBuildFences (an optional choose-or-decline wrapper for a granted Build Fences action); PendingBuildFences gained the Cards-only skip-fields accrued_cost / free_fence_budget / restrictions / build_fences_action.
 
         legality.py                 # Top-level legal_actions (stack-state dispatch) + legal_placements + per-space placement predicates + shared helpers (_can_bake_bread, _can_build_stable, …) + per-pending sub-action enumerators (incl. _enumerate_pending_reveal, the ≤3 candidate RevealCards for the round being entered, derived purely from public state) + card extension registries.
 
@@ -1200,18 +1200,27 @@ AgricolaBot/
 
         fence_universe.py           # Experimental tooling for swapping the active fence universe: the active_universe(spec) context manager (named universes or explicit triples), restrict_to(predicate, base=...) builder for derived universes, NAMED_UNIVERSES registry, and current_universe() accessor.
 
-        cards/                      # Card framework + concrete card modules + harvest-conversion registry.
+        cards/                      # Card framework + concrete card modules + harvest-conversion + cost-modifier registries. NOTE: this tree lists only the foundational + cost-modifier modules; the full ~84-module set is non-exhaustive here (all imported in cards/__init__.py).
 
-            __init__.py             # Imports each card module + harvest_conversions so their register() calls fire at load time, populating TRIGGERS / CARDS / HARVEST_CONVERSIONS and BAKE_BREAD_ELIGIBILITY_EXTENSIONS.
+            __init__.py             # Imports each card module + harvest_conversions + cost_mods so their register() calls fire at load time, populating TRIGGERS / CARDS / HARVEST_CONVERSIONS / the cost-modifier + free-fence registries and BAKE_BREAD_ELIGIBILITY_EXTENSIONS.
 
             triggers.py             # Two parallel registries — TRIGGERS (event-keyed list, used by enumerators) and CARDS (card-id-keyed direct lookup, used by _apply_fire_trigger) — plus the register() function called by card modules at import time.
 
             specs.py                # OccupationSpec / OCCUPATIONS + register_occupation (occupation on-play effects); MinorSpec / MINORS + register_minor + prereq_met (minor cost/prereq/passing/vps/on-play). The play-card registries the engine dispatches through (Milestone 1).
 
+            cost_mods.py            # Cost-modifier registries + fold accessors read by the effective_payments chokepoint in legality.py (COST_MODIFIER_DESIGN.md): register_formula / register_reduction / register_conversion / register_base_route (the three modifier kinds + non-resource routes) and, for fences, the three free-fence registries FREE_FENCE_SEEDS (per-action budget — free_fence_budget_for), FREE_FENCE_EDGES (per-edge positional — positional_free_edge_count), FREE_FENCE_POOLS (persistent on-card pool — free_fence_pool_remaining / spend_fence_pools). Ownership-gated; all registries empty (no-op) in the Family game.
+
             consultant.py           # Occupation (B102): on play, +3 clay (2-player branch).
             priest.py               # Occupation (A125): on play, if clay house with exactly 2 rooms, +3 clay/2 reed/2 stone.
             stable_architect.py     # Occupation (A98): scoring term (+1 VP per unfenced stable) via register_scoring; no-op on play.
             market_stall.py         # Minor (B8, passing): cost 1 grain, on play +1 veg, then circulate to the opponent.
+
+            rammed_clay.py          # Minor (A16): on-play +1 clay + a build_fence CONVERSION (clay substitutes for wood 1:1, unlimited).
+            briar_hedge.py          # Minor (E16): the first POSITIONAL per-edge free-fence card — board-perimeter fence edges cost no wood, ungated; prereq 1 animal of each type.
+            field_fences.py         # Minor (C16): GRANTS an OPTIONAL Build Fences action (via the PendingGrantedBuildFences wrapper) with a grant-scoped positional discount (edges next to a field tile are free); cost 2 food.
+            ash_trees.py            # Minor (E74): on play moves up to 5 fences from the supply pile onto the card (a persistent CardStore free-fence POOL), spent free when building (the third free-fence source); prereq 2 planted (sown) fields.
+            hunting_trophy.py       # Minor (D82, 1 VP): 1-boar cost with an on-play cook-for-food bonus (cooking_rates), a +3 free-fence seed on Farm Redevelopment, and a "1 building resource of your choice less" conversion on improvements built via House Redevelopment (gated on a PendingHouseRedevelopment frame on the stack).
+            mini_pasture.py         # Minor (B2): the first RESTRICTED grant — on play, MANDATORY-fence a free NEW 1×1 enclosure (FenceRestrictions exact_size=1 / forbid_subdivision / max_pastures=1; build_fences_action=False); unplayable unless such a 1×1 is buildable (its prereq); cost 2 food.
 
             potter_ceramics.py      # Forward-compat trigger-machinery test (NOT in any game yet): "exchange 1 clay for 1 grain before each Bake Bread action, at most once per action."
 

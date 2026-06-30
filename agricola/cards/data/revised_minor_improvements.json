@@ -26,7 +26,7 @@
     "passing_left": "X",
     "card_category": "Actions Booster",
     "text": "Select 3 occupations in your hand. Select one of them randomly, which you can play immediately without paying an occupation cost.",
-    "clarifications": "May not be played if you have 2 or fewer occupations in your hand. ● If you select an occupation that has an additional cost you cannot pay, that occupation is removed from the game instead of played."
+    "clarifications": "May not be played if you have 2 or fewer occupations in your hand.  If you select an occupation that has an additional cost you cannot pay, that occupation is removed from the game instead of played."
   },
   {
     "expansion": "Artifex Expansion",
@@ -55,7 +55,7 @@
     "passing_left": "X",
     "card_category": "Building Resource Provider",
     "text": "If you have the Well, Joinery, Pottery, and/or Basketmaker's Workshop, you immediately get 1 stone, 1 wood, 1 clay, and/or 1 reed, respectively.",
-    "clarifications": "You may only get 1 of each resource, even in a 6-player game with multiple copies of the same improvement. ● Applies to the 10 (or 18 in 6p) major improvements."
+    "clarifications": "You may only get 1 of each resource, even in a 6-player game with multiple copies of the same improvement.  Applies to the 10 (or 18 in 6p) major improvements."
   },
   {
     "expansion": "Artifex Expansion",
@@ -98,7 +98,7 @@
     "passing_left": null,
     "card_category": "Farm Planner",
     "text": "This card can only be played via a \"Major Improvement\" action. It provides room for one person. You may no longer renovate.",
-    "clarifications": "May not be played on the “House Redevelopment” action space, as the “Renovate” action is mandatory and comes before the improvement action. ● May be played through the effect of a card, such as Angler A095."
+    "clarifications": "May not be played on the “House Redevelopment” action space, as the “Renovate” action is mandatory and comes before the improvement action.  May be played through the effect of a card, such as Angler A095."
   },
   {
     "expansion": "Artifex Expansion",
@@ -170,7 +170,7 @@
     "passing_left": null,
     "card_category": "Farm Planner",
     "text": "After the next time you take animals from an accumulation space and accommodate all of them on your farm, you can plow 1 field.",
-    "clarifications": "Taking, but not fully accommodating, the animals neither triggers nor voids the effect. ● It is legal to avoid accommodating all animals even if you can, e.g. by eating them with a Fireplace."
+    "clarifications": "Taking, but not fully accommodating, the animals neither triggers nor voids the effect.  It is legal to avoid accommodating all animals even if you can, e.g. by eating them with a Fireplace."
   },
   {
     "expansion": "Artifex Expansion",
@@ -244,7 +244,7 @@
     "passing_left": null,
     "card_category": "Actions Booster",
     "text": "Immediately after each time you use a \"Quarry\" accumulation space, you get a \"Major or Minor Improvement\" action during which you must spend at least 1 stone.",
-    "clarifications": "You may not decline an automatic stone discount in order to trigger this card’s effect, e.g. from Stonecutter A143. ● Improvement action is not declinable in order to use Field Merchant B103."
+    "clarifications": "You may not decline an automatic stone discount in order to trigger this card’s effect, e.g. from Stonecutter A143.  Improvement action is not declinable in order to use Field Merchant B103."
   },
   {
     "expansion": "Artifex Expansion",
@@ -259,7 +259,7 @@
     "passing_left": null,
     "card_category": "Actions Booster",
     "text": "Each work phase, you can place a(nother) person on the first non-accumulating action space used by any player (including you), as long as there is only 1 person on that space.",
-    "clarifications": "This refers to 1 specific space, not 1 space for every player’s first non-accumulating action space. ● Note that Family Growth usually leaves 2 people on the space. ● The relevant space can be provided by another card, such as the one from Forest Tallyman A162. ● Meeting Place may never be used a second time, even if it is the relevant space. ● 《Mark this space with a suggestion/claim marker.》"
+    "clarifications": "This refers to 1 specific space, not 1 space for every player’s first non-accumulating action space.  Note that Family Growth usually leaves 2 people on the space.  The relevant space can be provided by another card, such as the one from Forest Tallyman A162.  Meeting Place may never be used a second time, even if it is the relevant space.  《Mark this space with a suggestion/claim marker.》"
   },
   {
     "expansion": "Artifex Expansion",
@@ -515,7 +515,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "Each time after you obtain at least 1 wood, if you then have 5 or more wood in your supply, you can exchange 1 wood for 3 food. With 7 or more wood, you must do so.",
-    "clarifications": "Food obtained from this effect is during a turn/action, and can be used to pay for Shifting Cultivator A091. ● 《If you have multiple sources of wood obtained at the same time (e.g. in the preparation phase,) you can activate the Shaving Horse effect multiple times if (and only if) you perform an effect (e.g. playing a card with Scholar B097) or receive a non-wood good (e.g. food from Pond Hut A044) in-between the multiple wood (e.g. 2 uses of Stable Tree A074.)》"
+    "clarifications": "Food obtained from this effect is during a turn/action, and can be used to pay for Shifting Cultivator A091.  《If you have multiple sources of wood obtained at the same time (e.g. in the preparation phase,) you can activate the Shaving Horse effect multiple times if (and only if) you perform an effect (e.g. playing a card with Scholar B097) or receive a non-wood good (e.g. food from Pond Hut A044) in-between the multiple wood (e.g. 2 uses of Stable Tree A074.)》"
   },
   {
     "expansion": "Artifex Expansion",
@@ -629,7 +629,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "At any time: Vegetable → 4 Food; Sheep → 3 Food; Cattle → 5 Food \"Bake Bread\" action: Grain → 2 Food",
-    "clarifications": "This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once. ● If returned to pay for a Cooking Hearth 3 / 4, remove this card from the game. ● 《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》"
+    "clarifications": "This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once.  If returned to pay for a Cooking Hearth 3 / 4, remove this card from the game.  《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》"
   },
   {
     "expansion": "Artifex Expansion",
@@ -1056,7 +1056,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "In the returning home phase of each round, if you gained at least 7 building resources in the preceding work phase, you get 2 food.",
-    "clarifications": "Count the total of all gains during the work phase even if resources were lost in the process. ● Resources gained at the start of a round don’t count."
+    "clarifications": "Count the total of all gains during the work phase even if resources were lost in the process.  Resources gained at the start of a round don’t count."
   },
   {
     "expansion": "Base (Revised)",
@@ -1085,7 +1085,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "Immediately after each time you use a wood accumulation space, you can exchange 2 wood for 3 food. If you do, place those 2 wood on the accumulation space.",
-    "clarifications": "You may take less than 2 wood from a wood accumulation space and still use this effect. ● Food obtained from this effect may not be used to pay for Shifting Cultivator A091."
+    "clarifications": "You may take less than 2 wood from a wood accumulation space and still use this effect.  Food obtained from this effect may not be used to pay for Shifting Cultivator A091."
   },
   {
     "expansion": "Base (Revised)",
@@ -1198,7 +1198,7 @@
     "passing_left": null,
     "card_category": "Livestock Provider",
     "text": "Each time you fence a new pasture covering at least 4 farmyard spaces, you immediately get 2 sheep on this pasture.",
-    "clarifications": "To receive sheep, new pasture(s) can’t be divided. ● Building 2 such pastures at once gives you 4 sheep."
+    "clarifications": "To receive sheep, new pasture(s) can’t be divided.  Building 2 such pastures at once gives you 4 sheep."
   },
   {
     "expansion": "Base (Revised)",
@@ -1567,7 +1567,7 @@
     "passing_left": "X",
     "card_category": "Actions Booster",
     "text": "Randomly select an occupation in your hand. Either play it for an occupation cost of 2 food, or give it to the player to your left.",
-    "clarifications": "If you cannot pay to play an occupation and/or its additional cost, that occupation must be passed left (or removed from play in a solo game.) ● May not be played with no occupations in hand."
+    "clarifications": "If you cannot pay to play an occupation and/or its additional cost, that occupation must be passed left (or removed from play in a solo game.)  May not be played with no occupations in hand."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1769,7 +1769,7 @@
     "card_category": "Actions Booster",
     "text": "You immediately get 2 food. You must immediately place a person from your supply. If you do, in the next returning home phase, you must remove that person from play.",
     "clarifications": "Consequently, you may never grow to 5 people.",
-    "errata": "《RECOMMENDED ERRATA: This card must be played in the work phase.》 ● ERRATA: remove the “If you do” clause."
+    "errata": "《RECOMMENDED ERRATA: This card must be played in the work phase.》  ERRATA: remove the “If you do” clause."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1813,7 +1813,7 @@
     "passing_left": null,
     "card_category": "Actions Booster",
     "text": "In the work phase, after each turn in which you build at least 1 room, stable, or fence, you can build the \"Joinery\", \"pottery\", or Basketmaker's Workshop\" major improvement.",
-    "clarifications": "Stables built off-turn, e.g. with Stable Planner A089 or Groom B089, do not trigger this card. ● Pay the cost of the major improvement normally."
+    "clarifications": "Stables built off-turn, e.g. with Stable Planner A089 or Groom B089, do not trigger this card.  Pay the cost of the major improvement normally."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -1900,7 +1900,7 @@
     "passing_left": null,
     "card_category": "Points Provider",
     "text": "The next time you take animals from an accumulation space and accommodate all of them on your farm, you get 1 bonus point for each of these animals.",
-    "clarifications": "Taking, but not fully accommodating, the animals neither triggers nor voids the effect. ● 《It’s legal to avoid accommodating all animals even if you can, e.g. by eating them with a Fireplace.》"
+    "clarifications": "Taking, but not fully accommodating, the animals neither triggers nor voids the effect.  《It’s legal to avoid accommodating all animals even if you can, e.g. by eating them with a Fireplace.》"
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -2057,7 +2057,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "Each time after you place an improvement or occupation in front of you, if you then have the same number of improvements and occupations in play, you get 2 food.",
-    "clarifications": "Passing cards will not trigger this effect, as they are never in front of you. ● Occupations which let the player immediately build/play an improvement (or vice-versa, e.g. Task Artisan A096) only triggers Scales after both cards are played, thereby giving 0 or 4 food."
+    "clarifications": "Passing cards will not trigger this effect, as they are never in front of you.  Occupations which let the player immediately build/play an improvement (or vice-versa, e.g. Task Artisan A096) only triggers Scales after both cards are played, thereby giving 0 or 4 food."
   },
   {
     "expansion": "Bubulcus Expansion",
@@ -2637,7 +2637,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "Each time another player uses the \"Fishing\" accumulation space, they must first pay you 1 food. Then, in the returning home phase of that round, place 2 food on \"Fishing\".",
-    "clarifications": "Others must have 1 food before using “Fishing”. ● Food from the “Fishing” action space may not be used to pay the card owner. ● The 2 food is only placed for rounds in which another player used “Fishing”."
+    "clarifications": "Others must have 1 food before using “Fishing”.  Food from the “Fishing” action space may not be used to pay the card owner.  The 2 food is only placed for rounds in which another player used “Fishing”."
   },
   {
     "expansion": "Consul Dirigens Expansion",
@@ -3033,7 +3033,7 @@
     "passing_left": null,
     "card_category": "Building Resource Provider",
     "text": "You can plant wood on this card as though it were 2 fields, but it is considered 1 field. Sow and harvest wood on this card as you would grain.",
-    "clarifications": "You may plant 2 wood at once with 1 trigger of the Chief Forester A115. ● Planted wood may not be spent during scoring for the Joinery 8 / 18.",
+    "clarifications": "You may plant 2 wood at once with 1 trigger of the Chief Forester A115.  Planted wood may not be spent during scoring for the Joinery 8 / 18.",
     "errata": "ERRATA: add “You can plant only wood on this card.”"
   },
   {
@@ -3149,7 +3149,7 @@
     "passing_left": "X",
     "card_category": "Crop Provider",
     "text": "In each field with exactly 1 good, you can immediately place 1 additional good of the same type.",
-    "clarifications": "Boar held on unplanted fields (from Mud Patch A011) do not apply for this effect. ● 《If there is exactly 1 wood on the Wood Field D075, another wood may be added on either the same or a different stack.》"
+    "clarifications": "Boar held on unplanted fields (from Mud Patch A011) do not apply for this effect.  《If there is exactly 1 wood on the Wood Field D075, another wood may be added on either the same or a different stack.》"
   },
   {
     "expansion": "Corbarius Expansion",
@@ -3320,7 +3320,7 @@
     "passing_left": null,
     "card_category": "Actions Booster",
     "text": "At the start of the next harvest, you get a \"Family Growth\" action if you have room for the newborn.",
-    "clarifications": "Only works in the next harvest after it is played. ● The newborn must be fed."
+    "clarifications": "Only works in the next harvest after it is played.  The newborn must be fed."
   },
   {
     "expansion": "Corbarius Expansion",
@@ -3393,7 +3393,7 @@
     "passing_left": null,
     "card_category": "Points Provider",
     "text": "During scoring, if you then have at least 2/4/5/6 unplanted fields, you get 1/2/3/5 bonus points.",
-    "clarifications": "Garden Designer C099 allows planting of food (see errata) so such fields do not count. ● Boar held on unplanted field tiles (from Mud Patch A011) do not affect scoring of this card. ● Fields checked after the final harvest is completed."
+    "clarifications": "Garden Designer C099 allows planting of food (see errata) so such fields do not count.  Boar held on unplanted field tiles (from Mud Patch A011) do not affect scoring of this card.  Fields checked after the final harvest is completed."
   },
   {
     "expansion": "Corbarius Expansion",
@@ -4527,7 +4527,7 @@
     "passing_left": null,
     "card_category": "Food Provider",
     "text": "At any time: Vegetable → 3 Food; Sheep → 2 Food; Wild boar → 3 Food; Cattle → 3 Food \"Bake Bread\" action: Grain → 2 Food",
-    "clarifications": "This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once. ● 《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》"
+    "clarifications": "This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once.  《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》"
   },
   {
     "expansion": "Dulcinaria Expansion",
@@ -4766,7 +4766,7 @@
     "passing_left": null,
     "card_category": "Building Resource Provider",
     "text": "Improvements built on \"House Redevelopment\" cost you 1 building resource of your choice less. Fences built on \"Farm Redevelopment\" cost you a total of 3 wood less.",
-    "clarifications": "Alone, “built” can refer to either improvement type. ● 《lmprovements played by Merchant C096 do not get discounted.》"
+    "clarifications": "Alone, “built” can refer to either improvement type.  《lmprovements played by Merchant C096 do not get discounted.》"
   },
   {
     "expansion": "Dulcinaria Expansion",
@@ -5874,7 +5874,7 @@
     "passing_left": null,
     "card_category": "Building Resource Provider",
     "text": "When you play this card, you can immediately exchange up to 4 building resources for an equal number of other building resources.",
-    "clarifications": "It is a single exchange. ● You can’t trade wood-for-wood, for example."
+    "clarifications": "It is a single exchange.  You can’t trade wood-for-wood, for example."
   },
   {
     "expansion": "Ephipparius Expansion",
