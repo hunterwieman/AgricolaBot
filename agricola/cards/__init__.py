@@ -247,3 +247,98 @@ from agricola.cards import handplow              # noqa: F401
 # occupancy-override predicate consulted by `_is_available` only on the occupied branch
 # (counts PLAYERS, not workers — a used wish space already holds the parent + newborn).
 from agricola.cards import sleeping_corner       # noqa: F401
+
+
+# ===========================================================================
+
+# Artifex (deck A) + Bubulcus (deck B) tier-1/2 batch + rescued tier-3 + a base
+
+# card (Acorns Basket). Implemented 2026-06-30 via the card-batch process; full
+
+# per-card specs in CARD_BATCH_TRIAGE.md, deferred siblings in CARD_DEFERRED_PLANS.md.
+
+# ===========================================================================
+
+# Artifex (A) — tier 1/2
+from agricola.cards import fellow_grazer  # noqa: F401
+from agricola.cards import cookery_outfitter  # noqa: F401
+from agricola.cards import barrow_pusher  # noqa: F401
+from agricola.cards import wood_carrier  # noqa: F401
+from agricola.cards import pan_baker  # noqa: F401
+from agricola.cards import seed_pellets  # noqa: F401
+from agricola.cards import clay_puncher  # noqa: F401
+from agricola.cards import food_basket  # noqa: F401
+from agricola.cards import milking_parlor  # noqa: F401
+from agricola.cards import gardeners_knife  # noqa: F401
+from agricola.cards import storage_barn  # noqa: F401
+from agricola.cards import drift_net_boat  # noqa: F401
+from agricola.cards import forest_lake_hut  # noqa: F401
+from agricola.cards import throwing_axe  # noqa: F401
+from agricola.cards import hod  # noqa: F401
+from agricola.cards import trellises  # noqa: F401
+from agricola.cards import claw_knife  # noqa: F401
+from agricola.cards import fire_protection_pond  # noqa: F401
+from agricola.cards import cob  # noqa: F401
+from agricola.cards import stable_planner  # noqa: F401
+from agricola.cards import carpenters_axe  # noqa: F401
+from agricola.cards import feeding_dish  # noqa: F401
+from agricola.cards import wood_harvester  # noqa: F401
+from agricola.cards import slurry_spreader  # noqa: F401
+from agricola.cards import catcher  # noqa: F401
+from agricola.cards import heresy_teacher  # noqa: F401
+from agricola.cards import calcium_fertilizers  # noqa: F401
+from agricola.cards import asparagus_gift  # noqa: F401
+from agricola.cards import interim_storage  # noqa: F401
+from agricola.cards import debt_security  # noqa: F401
+from agricola.cards import bucksaw  # noqa: F401
+from agricola.cards import loppers  # noqa: F401
+from agricola.cards import portmonger  # noqa: F401
+from agricola.cards import garden_hoe  # noqa: F401
+from agricola.cards import small_trader  # noqa: F401
+
+# Bubulcus (B) — tier 1/2
+from agricola.cards import case_builder  # noqa: F401
+from agricola.cards import lumberjack  # noqa: F401
+from agricola.cards import estate_worker  # noqa: F401
+from agricola.cards import grange  # noqa: F401
+from agricola.cards import excursion_to_the_quarry  # noqa: F401
+from agricola.cards import brewery_pond  # noqa: F401
+from agricola.cards import chick_stable  # noqa: F401
+from agricola.cards import club_house  # noqa: F401
+from agricola.cards import reed_belt  # noqa: F401
+from agricola.cards import gift_basket  # noqa: F401
+from agricola.cards import cooperative_plower  # noqa: F401
+from agricola.cards import tree_farm_joiner  # noqa: F401
+from agricola.cards import furniture_carpenter  # noqa: F401
+from agricola.cards import pavior  # noqa: F401
+from agricola.cards import rustic  # noqa: F401
+from agricola.cards import mineralogist  # noqa: F401
+from agricola.cards import trimmer  # noqa: F401
+from agricola.cards import wood_pile  # noqa: F401
+from agricola.cards import chain_float  # noqa: F401
+from agricola.cards import chophouse  # noqa: F401
+from agricola.cards import digging_spade  # noqa: F401
+from agricola.cards import growing_farm  # noqa: F401
+from agricola.cards import tumbrel  # noqa: F401
+from agricola.cards import crack_weeder  # noqa: F401
+from agricola.cards import food_chest  # noqa: F401
+from agricola.cards import brewing_water  # noqa: F401
+from agricola.cards import tasting  # noqa: F401
+from agricola.cards import mill_wheel  # noqa: F401
+from agricola.cards import hand_truck  # noqa: F401
+from agricola.cards import harvest_house  # noqa: F401
+from agricola.cards import wood_workshop  # noqa: F401
+from agricola.cards import corf  # noqa: F401
+
+# Rescued tier-3 (Artifex/Bubulcus/base) — re-examined as buildable now
+from agricola.cards import nest_site  # noqa: F401
+from agricola.cards import maintenance_premium  # noqa: F401
+from agricola.cards import grassland_harrow  # noqa: F401
+from agricola.cards import baking_sheet  # noqa: F401
+from agricola.cards import pottery_yard  # noqa: F401
+from agricola.cards import beer_keg  # noqa: F401
+from agricola.cards import forest_school  # noqa: F401
+from agricola.cards import forestry_studies  # noqa: F401
+
+# Base (Revised) — scheduled-animal grant (Acorns Basket, next-2-rounds boar)
+from agricola.cards import acorns_basket  # noqa: F401

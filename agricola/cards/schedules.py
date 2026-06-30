@@ -28,7 +28,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from agricola.replace import fast_replace
-from agricola.resources import Resources
+from agricola.resources import Animals, Resources
 from agricola.state import FutureReward, GameState
 
 
@@ -66,4 +66,22 @@ def schedule_effect(
         slot = rnd - 1
         if 0 <= slot < len(slots):
             slots[slot] = slots[slot] + FutureReward(effect_card_ids=frozenset({card_id}))
+    return _update_player(state, idx, fast_replace(p, future_rewards=tuple(slots)))
+
+
+def schedule_animals(
+    state: GameState, idx: int, rounds: Iterable[int], animals: Animals,
+) -> GameState:
+    """Add `animals` to player `idx`'s future_rewards for each 1-indexed round in
+    `rounds` that is still in the game (slot r-1). Additive (repeated placers stack on
+    the same slot); rounds outside 1..14 are dropped. The animals are collected AND
+    auto-accommodated (best `pareto_frontier` point, decision-free) at the start of
+    each scheduled round by `engine._collect_future_rewards`. The animal sibling of
+    `schedule_resources` (Acorns Basket; the boar half of Hauberg)."""
+    p = state.players[idx]
+    slots = list(p.future_rewards)
+    for rnd in rounds:
+        slot = rnd - 1
+        if 0 <= slot < len(slots):
+            slots[slot] = slots[slot] + FutureReward(animals=animals)
     return _update_player(state, idx, fast_replace(p, future_rewards=tuple(slots)))

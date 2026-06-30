@@ -76,9 +76,13 @@ def test_category6_cards_registered():
     assert "scythe_worker" in OCCUPATIONS
     for cid in ("loom", "butter_churn", "three_field_rotation"):
         assert cid in MINORS
-    assert HARVEST_FIELD_CARDS == {
+    # These four are the original Category-6 harvest-field cards; assert they are
+    # registered as a SUBSET (later batches add more harvest-field cards — e.g.
+    # wood_harvester / slurry_spreader / crack_weeder — so an exact-equality check
+    # would be brittle and is not the point of this registration test).
+    assert {
         "scythe_worker", "loom", "butter_churn", "three_field_rotation",
-    }
+    } <= HARVEST_FIELD_CARDS
     # Printed VPs (verbatim from JSON): Loom 1, Butter Churn 1, Three-Field 0.
     assert MINORS["loom"].vps == 1
     assert MINORS["butter_churn"].vps == 1
