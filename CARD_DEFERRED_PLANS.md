@@ -1,0 +1,260 @@
+# Deferred-Card Design Plans (Artifex / Bubulcus + rescued base cards)
+
+_Written 2026-06-30 (overnight autonomous session). The companion to `CARD_BATCH_TRIAGE.md`
+(the 67 implemented this session) — this doc covers everything **deferred**, clustered by the
+single mechanism/decision that blocks each cluster, with a concrete build proposal, effort/risk,
+and the questions only you can answer. Goal: a fast morning decision surface — approve a group
+and I build every card in it._
+
+The clusters are ordered **cheapest-and-highest-yield first**. Group A items are small, well-scoped
+engine additions that each unblock multiple cards and keep the Family game byte-identical. Group B
+needs more design care. Group C is the deliberate engine boundaries (a real design decision). The
+long tail of genuinely-blocked cards (geometry, new shared spaces, return-home hooks, randomness,
+temp extra workers, hidden round-space identity, card-as-animal-holder, per-card goods stacks) is
+summarized at the end — those need substantial new subsystems and are correctly deferred.
+
+> Convention reminder (verified this session): a card-only field added to `PlayerState`/a pending
+> must default to a Family-game value and be added to the manual `__hash__` + `canonical._DEFAULT_SKIP_FIELDS`,
+> so the Family game stays byte-identical and the C++ gates stay green. Every Group-A/B plan respects this.
+
+---
+
+## Group A — small, well-scoped, high-yield (recommend building on approval)
+
+### A1. Card-granted Family Growth with NO space placement
+**Cards unblocked:** A93 Bed Maker, B92 Little Stick Knitter, A21 Family Friend Home (rescued).
+
+**Blocker.** Per the rules (your ruling), a card-granted "Family Growth" places the newborn on **no
+action space**. But the engine's only growth primitive, `PendingFamilyGrowth`, resolves through
+`_execute_family_growth` → `_resolve_wish_for_children`, which **forces** placing the newborn worker
+on a board space (`_update_space(space_id, workers=…)`). So there is no correct `initiated_by_id` for
+a card grant — a real space id mis-places the newborn (and would be read by worker-scanning cards like
+Wood Pile), and a `"card:…"` id `KeyError`s.
+
+**Proposed build.** Add `place_on_space: bool = True` to `PendingFamilyGrowth` (card-only, default
+`True` → Family byte-identical; add to `__hash__` + skip-fields). Factor the people-increment out of
+`_resolve_wish_for_children`; in `_execute_family_growth`, when `place_on_space=False`, increment
+`people_total`/`newborns` **without** the `_update_space` call. Each card pushes
+`PendingFamilyGrowth(initiated_by_id="card:<id>", place_on_space=False)` from an **optional**
+`after_build_rooms` (A93, A21) / `before_action_space` sheep_market (B92) trigger, with eligibility
+gated on the room predicate `people_total < 5 and people_total < _num_rooms(p)` (the primitive does
+**not** self-check this) and, for A93, the 1-wood-1-grain cost.
+
+**Effort:** ~15 lines engine + 3 thin card modules. **Risk:** low.
+**Question (A21 Family Friend Home only):** "if you have more rooms than people" — measured **before**
+or **after** the just-built rooms? (`after_build_rooms` naturally reads the post-build count.) And does
+its **+1 food** couple to firing the growth, or is it unconditional on the build? I'll default to
+post-build count + food-bundled-with-growth unless you say otherwise.
+
+### A2. "On your turn" build exclusion (off-turn builds don't trigger)
+**Cards unblocked:** A43 Farmyard Manure, A74 Stable Tree.
+
+**Blocker.** Both schedule goods "each time you build 1+ stables **on your turn**," and the printed
+clarification excludes off-turn builds (Groom B089 / Stable Planner A089). A naïve `after_build_stables`
+auto also fires on those start-of-round grants.
+
+**Proposed build.** A card-local eligibility predicate — the build is "on your turn" iff **no
+`PendingPreparation` frame is on the stack**. In the current card set every off-turn stable build is a
+`start_of_round` grant (Groom, Stable Planner), which carries a `PendingPreparation` frame at the
+bottom of the stack; a real worker-placement build never does. So
+`not any(isinstance(f, PendingPreparation) for f in state.pending_stack)` in the auto's eligibility is
+exact today. No engine change. I'd add a shared helper `_is_on_turn_build(state)` for reuse.
+
+**Effort:** ~5 lines/card + a 3-line helper. **Risk:** low-medium — correct for *all* current off-turn
+sources; a future card that builds stables on the **opponent's** turn would need the predicate widened
+(flag it then). I recommend building; it's a clean, testable predicate.
+
+### A3. Minor-improvement play-variant (on-play binary choice)
+**Cards unblocked:** B41 Hauberg (with A6 schedule_animals), B9 Beating Rod (partial — see note), and the
+whole "you decide what to start with" family; also a prerequisite for some Group-B renovate cards.
+
+**Blocker.** A *minor* with an on-play choice ("get 1 reed **or** −1 reed +1 cattle"; "start with
+wood **or** boar") can't be expressed — play-variant machinery is **occupation-only**
+(`register_play_occupation_variant`; `CommitPlayMinor` has no `variant`, the enumerator emits no
+per-variant commits).
+
+**Proposed build.** Mirror the occupation path: a `PLAY_MINOR_VARIANTS` registry +
+`register_play_minor_variant(card_id, variants_fn)`; the `PendingPlayMinor` enumerator offers one
+`CommitPlayMinor` per legal variant; `on_play` becomes `(state, idx, variant)`. (Symmetric with the
+existing Roof-Ballaster occupation path, so the shape is proven.)
+
+**Effort:** ~30 lines engine. **Risk:** medium (new enumerator branch; needs a test for the
+two-variant offer + each on_play).
+**Note (B9 Beating Rod):** even with this, the "+1 cattle" variant is an **immediate** animal grant,
+which has no accommodation path (only scheduled/market/breeding/harvest do). So B9 needs *both* this
+**and** an immediate-animal-accommodation decision — keep it deferred until we decide the immediate-grant
+policy (see C-note). B41 Hauberg, by contrast, **schedules** its boar (sound per the red-team), so it is
+fully unblocked by A3 + A6.
+
+### A4. Optional renovate grant (declinable)
+**Cards unblocked:** B1 Upscale Lifestyle; partially Renovation Company (A13), Established Person (B88).
+
+**Blocker.** A card that grants an **optional** renovation ("if you take the action…") can't use a bare
+`PendingRenovate` — its before-phase enumerator emits only `CommitRenovate`, no `Stop`, so there's no
+decline path.
+
+**Proposed build.** A `PendingGrantedRenovate` choose-or-decline wrapper, exactly mirroring the existing
+`PendingGrantedBuildFences` (sole sub-action `renovate` → push real `PendingRenovate`; the wrapper's
+`Stop` is the decline). No change to House Redevelopment / Cottager.
+
+**Effort:** ~20 lines. **Risk:** low-medium.
+
+### A5. Bottom-row major classification
+**Card unblocked:** B7 Wage ("+1 food per owned bottom-row major improvement").
+
+**Blocker.** Needs a `BOTTOM_ROW_MAJORS` constant that doesn't exist; its membership is a rules fact.
+
+**Proposed build.** Add the constant + a ~10-line `register_scoring`/on-play read.
+**Question:** confirm the bottom-row set. My proposed reading of the Revised supply board:
+**bottom = {Clay Oven (5), Stone Oven (6), Joinery (7), Pottery (8), Basketmaker's Workshop (9)}**,
+**top = {Fireplace ×2 (0,1), Cooking Hearth ×2 (2,3), Well (4)}**. The only one I'm unsure of is the
+**Well (idx 4)** — top or bottom row? (≥1 other deferred/expansion card reuses this, so it's worth pinning.)
+
+### A6. `schedule_animals` helper + Acorns Basket
+**Cards unblocked:** B84 Acorns Basket (and the boar half of B41 Hauberg with A3).
+
+**Blocker.** No `schedule_animals` helper (only `schedule_resources` for `Resources` and
+`schedule_effect` for effect ids). The accommodation path itself is **sound** (red-teamed this session).
+
+**Proposed build.** Add `schedule_animals(state, idx, rounds, Animals)` to `cards/schedules.py`,
+mirroring `schedule_resources` but writing `FutureReward(animals=…)` additively. Acorns Basket's
+`on_play` then schedules 1 boar onto its target rounds.
+**Question:** Acorns Basket's text is "Place 1 wild boar on each of **the 2 round spaces**" — the data
+doesn't say *which* two (the physical card's diagram designates them). Which 2 rounds? (If it's simply
+"the next 2 rounds," say so and I'll build it.)
+
+### A7. Passing-status confirmation
+**Card unblocked:** B5 Store of Experience (an otherwise-trivial tiered on-play; ~15 lines once known).
+**Question:** is Store of Experience a **passing/traveling** minor (like Market Stall — executed then
+handed to the opponent) or **kept**? Its text gives no passing instruction and the `passing_left` data
+field has proven unreliable (it appears on both traveling and kept cards). Passing changes ownership +
+scoring, so I won't guess.
+
+---
+
+## Group B — medium infra (build with more design care)
+
+### B1. Resource high-water-mark latch — B35 Hook Knife
+"Once this game, when you have 8 sheep → +2 VP." The one-shot latch sweep (`_fire_ready_one_shots`) only
+runs at the play-card/renovate seams, never on an animal-count change, so it never fires at the right
+moment. **Plan:** either call the sweep at every animal-count-increasing site (markets, breeding,
+scheduled collection), or add a dedicated resource-threshold latch checked there. Generalizes to
+boar/cattle/grain/veg threshold cards. **Medium effort, medium risk** (new call sites).
+
+### B2. Passing-card-excluded after-event — B49 Scales
+"+2 food when your occupations = your improvements; **passing cards never trigger this**." But
+`after_play_minor` fires for passing minors too, and the auto signature `(state, owner)` can't tell a
+passing-fire from a coincidentally-equal count. **Plan:** add an `after_play_kept_minor` event fired only
+when `minor_improvements` actually grew (cleaner than threading the card id through every auto). **Medium.**
+
+### B3. Build-payment provenance — A41 Vegetable Slicer
+"+2 wood +1 veg when you build a Cooking Hearth **by returning a Fireplace**." `after_build_major` never
+receives `commit.payment`, and post-build state can't distinguish "upgraded from my Fireplace" from
+"never owned one." **Plan:** thread the `CommitBuildMajor` payment/variant into the `after_build_major`
+event, or snapshot fireplace ownership before/after via CardStore. **Medium.**
+
+### B4. Consumed-space snapshot + improvement grant — A95 Angler
+"Each time you take ≤2 food from Fishing → you may play a Minor/Major Improvement." The catch amount is
+zeroed by the resolver, so the ≤2 test needs a **before**-snapshot (CardStore), and firing pushes a
+`PendingMajorMinorImprovement`. **Plan:** before_action_space snapshot the catch; after_action_space
+optional trigger gated on stored catch ≤2 → push the improvement. **Verify** a card can push
+`PendingMajorMinorImprovement`. **Medium.**
+
+### B5. Scheduled-goods provenance — B76 Ceilings
+"On next renovate, remove the wood **this card** still has promised on round spaces." `future_resources`
+is a flat additive tuple with no per-card provenance, so a blind subtract is wrong when another scheduler
+wrote the same slots. **Plan:** a CardStore record of which round slots Ceilings seeded + amounts;
+`after_renovate` subtracts only its own remaining wood. **Medium** (generalizes to any "take back promised
+goods" card).
+
+---
+
+## Group C — deliberate engine boundaries (a design decision, not just code)
+
+### C1. Standalone "buy food → good" / at-any-time conversion
+**Cards:** B70 New Purchase (round-start 2 food→1 grain / 4 food→1 veg), B82 Value Assets (post-harvest
+food→building-resource buys), B29 Cookery Lesson (use a cooking improvement *the same turn*), B32 Kettle,
+B69 Potters Market, A60 Oriental Fireplace, plus the §15 Grocer/Clay Carrier family.
+**The boundary.** The engine deliberately never surfaces at-any-time / standalone conversions (a rational
+agent defers them to where proceeds are needed). These cards each want a standalone optional buy. **Decision
+needed:** do we introduce a standalone optional buy-conversion frame, and where is it hosted? B70 fits the
+existing `start_of_round` host cleanly (it's the mildest — round-start-gated, no affordability closure); B82
+additionally needs an **after-harvest** host that doesn't exist. I'd suggest starting with **B70 alone** as
+the first member (lowest risk) if you want to test the shape.
+
+### C2. Action substitution — A97 Freshman
+"Instead of taking a Bake Bread action, you can play an occupation." Substitution (not the additive grant
+the triage first assumed) + a legality change. Needs substitution machinery. **Question:** scope of "each
+time you get a Bake Bread action" — only Grain Utilization's bake, or every granted bake (Oven Firing Boy /
+Bread Paddle / the ovens)? And does its once-per-turn cap span sources? Defer until the substitution model
+is designed with you.
+
+### C3. Take-from-accumulation-without-placement — A82 Work Certificate (rescued), B81 Handcart
+You flagged this exact mechanism as a blocker. The rescue pass argued it's just editing `sp.accumulated`
+(as Basket/Mushroom Collector do). **Decision needed:** are you comfortable surfacing an optional "take 1
+building resource off an accumulation space holding ≥N, no worker placed" as an `after_action_space` /
+`start_of_round` trigger? If yes, both are ~clean (PendingCardChoice over the qualifying spaces). I deferred
+to your call since you named it.
+
+### C4. Multi-plow chain — A18 Wheel Plow (rescued)
+The rescue proposed chaining `PendingPlow` via an `after_plow` re-arm (a 2-plow grant, once per game). It's
+plausible but **unproven** — no existing card chains plows this way, and the re-arm/termination gating
+(only re-arm from this card's own chain, cap at 2) needs careful testing. **Decision:** want me to build it
+as proposed, or hold for the cleaner "bounded multi-plow" primitive (which would also unblock Double-Turn
+Plow A20)?
+
+### C5. Complex composition — B93 Confidant (rescued)
+Buildable in principle (play-occupation-variant N=2/3/4 + scheduled food + a round-start sow/fences play-
+variant grant), but it composes 4–5 mechanisms at once — high implementation risk. I'd build it **after**
+A3 (minor play-variant) lands and only with a careful test. Holding for your go-ahead.
+
+---
+
+## The long tail — genuinely blocked (each needs a substantial new subsystem)
+
+These are correctly deferred; grouped by the missing subsystem, for visibility (not proposing to build):
+
+- **Grid/adjacency geometry:** Homekeeper (A85), Farm Hand (B85), Future Building Site (B38),
+  Love for Agriculture (B72), Pottery-Yard-style orthogonal adjacency (**note:** B31 Pottery Yard was
+  *rescued* — its adjacency is computed inline, no API needed), Shelter (A1, 1-cell-pasture restriction).
+- **Return-home / end-of-round / after-work-phase hook (no such phase event):** Curator (A100),
+  Asparagus Knife (A58), Lifting Machine (A70), Silage (A84), Ale-Benches, Credit (A54),
+  Sculpture Course (B53), Informant (B117), Toolbox (B27, turn-end build detection).
+- **New shared action space:** Chapel (A39), Forest Inn (B42), Final Scenario (B23, owner-private space).
+- **Randomness inside `step` (determinism invariant):** Paper Knife (A3), Moonshine (B3).
+- **Temporary / extra worker:** Telegram (A22), Bassinet (A25), Stock Protector (B94),
+  Walking Boots (B22), Lazy Sowman (A94, also needs a "declined sub-action" event).
+- **Hidden round-space identity (reveal order is in the Environment, not GameState):** Knapper (A124),
+  Master Workman (A126), Silokeeper (B112), Sweep (B120), Telegram's round-space half.
+- **Card-as-animal-holder / new capacity slot:** Truffle Searcher (B86), Feedyard (B11), Stockyard (B12),
+  Mud Patch (A11), Special Food (B34, needs an accommodation event).
+- **Per-card goods stack (beyond a CardStore scalar):** Hayloft Barn (B21), Muddy Puddles (B83),
+  Forest Plow (B17, return-wood-to-space + partial-take legality), Forest Stone (B48 — also an
+  alternative cost), Maintenance Premium (**note:** B55 was *rescued* — it needs only a scalar).
+- **Alternative printed cost ("A OR B" for the card's own play):** Baseboards (A4), Barley Mill (A64),
+  Forest Stone (B48). `MinorSpec.cost` is a single `Cost`; no OR-alternation, and you don't own the card
+  while playing it (so the cost-formula registry can't help). A small `alt_costs` list on `MinorSpec` +
+  an affordability/choice at play would unblock all three — a candidate Group-A item if you want it.
+- **Legality / sub-action-menu changes:** Wooden Shed (A10), Forest School (**rescued** via the existing
+  occupancy-override registry), Agrarian Fences (B26), Oven Site (A27, constrained build-major),
+  Stone Company (A23), Carpenter's Hammer (A14, per-action build-count discount), Chief Forester (A115,
+  capped sow).
+- **Misc one-offs:** Shaving Horse (A48, "after you obtain wood" event), Winnowing Fan (A61, state-dependent
+  baking-rate conversion), Potato Ridger (A59, optional-at-harvest-field — the field hook is auto-only),
+  Reclamation Plow (A17) / Wheel/Double-Turn plows, Grain Depot (B65, reads which resource paid),
+  Moral Crusader (B106) / Shoreforester (B116) (pre-refill round-space read), Clutterer (B100, fragile
+  static "accumulation-space text" card set + exact scoring rule), Wood Palisades (B30, alt fence piece +
+  supply-cap bypass), Hawktower (B14), Carpenter's Bench (B15), Grassland Harrow was **rescued**.
+
+---
+
+## Summary for the morning
+
+- **Group A (6 build-items, ~7 cards + a family):** all small, Family-safe, high-yield. Approve any subset
+  and I build them. **Questions embedded:** A1 (A21 room-count timing + food coupling), A5 (bottom-row majors,
+  esp. the Well), A6 (Acorns Basket's 2 rounds), A7 (B5 passing?).
+- **Group B (5 cards):** medium infra; I can build on approval, each with a focused test.
+- **Group C (decisions):** standalone conversions (C1), action substitution (C2), take-without-placement
+  (C3, you flagged it), multi-plow (C4), Confidant (C5).
+- The long tail stays deferred (real subsystems). One cheap extra: a small `alt_costs` on `MinorSpec`
+  would unblock Baseboards / Barley Mill / Forest Stone — say the word.

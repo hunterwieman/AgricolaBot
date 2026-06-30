@@ -538,11 +538,22 @@ they need design decisions, not just code.
 - **"At the end of that turn" cards** (e.g. Firewood Collector) — DEFERRED until a true
   post-at-any-time turn-end boundary exists; co-dependent with the at-any-time design
   (§2). Do not anchor them to the action-space pop.
-- **Individually deferred base cards** with known blockers: **Mini Pasture** (needs a
-  free-standing fence primitive), **Organic Farmer** (scoring over aggregate animal counts
-  + the end-game "remove animals to free capacity" play), **Shepherd's Crook**,
+- **Individually deferred base cards** with known blockers: **Organic Farmer** (scoring over
+  aggregate animal counts + the end-game "remove animals to free capacity" play),
   **Acorns Basket** (deferred animals scheduling). Revisit each only when its blocker
-  lands.
+  lands. (**Mini Pasture** and **Shepherd's Crook** were on this list but are now
+  IMPLEMENTED — `mini_pasture.py` via the restricted free-fence grant, `shepherds_crook.py`
+  via the before/after `build_fences` CardStore snapshot.)
+- **Animal grants have NO general accommodation path.** Animals are only kept-or-overflowed
+  through the accommodation machinery at four points: the animal-market action spaces and
+  breeding (`pareto_frontier` / `breeding_frontier`), harvest feeding, and the deterministic
+  round-start collection of *scheduled* animals (`engine._collect_future_rewards`, which
+  auto-takes the best accommodatable `pareto_frontier` point). A card that grants animals
+  **immediately** — `p.animals + Animals(...)` in an `on_play` or trigger — bypasses all of
+  this and simply inflates the count past capacity (silently wrong). So an immediate animal
+  grant is a **defer-and-ask** unless the grant is guaranteed to fit (e.g. 2 sheep onto a
+  brand-new ≥4-cell pasture, Shepherd's Crook). A "place N animals on the next round spaces"
+  schedule is the safe shape — it routes through `_collect_future_rewards`'s accommodation.
 
 `CARD_SYSTEM_DESIGN.md` §8/§15 is the authoritative list of the hard set and the flagged
 cards; `CARD_IMPLEMENTATION_PLAN.md` tracks current per-card status. When a deferred card's
