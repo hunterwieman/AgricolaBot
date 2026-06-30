@@ -763,18 +763,39 @@ deferred; the cost frontier must not assume current `p.resources` is final.**
 
 ---
 
-## 9. Build-fence cost modifiers — design (settled; NOT YET IMPLEMENTED)
+## 9. Build-fence cost modifiers — design + implementation (DONE)
 
-> **Status (2026-06-29):** the design below is **settled** (forks resolved with the owner in a
-> dedicated design pass) and **supersedes the earlier per-commit sketch.** That sketch mirrored
-> build-stable — debit per `CommitBuildPasture`, Python-only / no C++. It is replaced: fences pay
-> **once at the end of the whole Build Fences action** (the *deferred-tally* model), which is the
-> natural fit for fences and does require a (mechanical) C++ re-port. No code is written yet; this is
-> the spec to implement against.
+> **Status (2026-06-29):** **IMPLEMENTED.** The deferred-tally model + every named fence cost card
+> are built and green (full suite incl. the C++ differential gates; Family byte-identical). The
+> design below held; the as-built **refinements** (deltas worth knowing) are:
+> - **Supply field on `PlayerState`** (§9.7), maintained **B-manual**: decremented per-commit in
+>   *both* modes (the pieces move to the board when built); only the WOOD payment is deferred to the
+>   Cards settle. (The §9.13-step-4 "lean Farmyard" was overruled by §9.7's `PlayerState` — `PlayerState`
+>   it is. `helpers.buildable_fences(player)` = supply + on-card pools; the Family fence-scan path
+>   inlines `15 − fences_built(farmyard)`.)
+> - **Three free-fence sources are registry-driven** so the engine stays card-agnostic:
+>   `FREE_FENCE_SEEDS` (per-action budget — Hedge Keeper, Hunting Trophy's fence clause),
+>   `FREE_FENCE_EDGES` (per-edge positional — Briar Hedge, Field Fences), `FREE_FENCE_POOLS` (persistent
+>   pool — Ash Trees), applied in the §9.4 greedy order positional → budget → pool.
+> - **Millwright** is a plain `build_fence` conversion checked on the running total (§9.2) — no
+>   settle-only gate; `CostCtx.settle` was removed.
+> - **Field Fences'** granted Build Fences is **optional** — a `PendingGrantedBuildFences`
+>   choose-or-decline wrapper (optionality at the parent's choose+Stop, not a per-frame flag).
+> - **Hunting Trophy:** "Return or Cook 1 Wild Boar" = a 1-boar animal cost + an `on_play`
+>   cook-for-food bonus (`cooking_rates[1]`); the House-Redev "1 building resource of your choice less"
+>   discount is a `build_major`/`play_minor` conversion gated on a `PendingHouseRedevelopment` frame on
+>   the stack (no entry-point/`space_id` threading needed — the host stays while the inner improvement
+>   resolves).
+>
+> The git log (`feat(cards):` from the Millwright fix through Hunting Trophy, 2026-06-29) is the
+> per-increment record. **Still deferred** (need new machinery, not the cost pipeline): the restricted
+> grants (Mini Pasture — §9.8), the per-segment "Nth fence" cards (Carpenter's Apprentice), Carpenter's
+> Bench's payment-source restriction, and Overhaul's raze-and-rebuild. Open Air Farmer is 4+ → out of
+> scope.
 
 Build-fence was the one build action held out of the cost-modifier wiring (renovate / build-room /
-play-minor / build-major / build-stable are done — §8.1). This section is the full design for adding
-discounts, conversions, formulas, and free-fence effects to it.
+play-minor / build-major / build-stable were done first — §8.1); it is now wired in too. This section
+is the full design for adding discounts, conversions, formulas, and free-fence effects to it.
 
 ### 9.1 What makes fences different (and why the per-commit model doesn't fit)
 
@@ -960,10 +981,14 @@ Both counts convert now (uniform machinery; Open Air Farmer needs stables, Ash T
 Family is byte-identical *in value* (always `cap − built` there, since no card moves pieces), so the
 C++ re-port is mechanical (add the field, init to cap, decrement on build) + canonical serialization.
 Building from a card pool (Ash Trees) does NOT decrement supply; building from supply (incl.
-positionally-free Briar-Hedge edges — "you still use your fence pieces") does. **Decrement timing follows
-the Fork-1 split:** Family decrements per-commit (its existing behavior); the Cards deferred path resolves
-the supply/Ash-pool piece split at **settle** (alongside payment) and decrements there. (Rooms have no
-piece-pile supply — board-space-limited — so no change there.)
+positionally-free Briar-Hedge edges — "you still use your fence pieces") does. **As built, the PIECE
+split is resolved PER-COMMIT in both modes** — each `CommitBuildPasture` spends the pool greedily
+(`spend_fence_pools`) and decrements supply by `wood_cost − pool_used` immediately, because the pieces
+physically move to the board when built AND the during-building legality must see the remaining pool /
+supply on the next commit. Only the WOOD is deferred: Family debits it per-commit (existing behavior),
+Cards accrues it and pays once at the Proceed settle. (An earlier draft said the piece split happens "at
+settle"; that can't work — the running-total legality needs the pool decremented per-commit. Rooms have
+no piece-pile supply — board-space-limited — so no change there.)
 
 Because the stored field is **redundant in Family** (always `cap − built`, a pure function of the fence
 arrays), it adds no distinguishing power there — so MCTS transposition equivalence classes are unchanged
@@ -1005,8 +1030,14 @@ class FenceRestrictions:
     max_pastures: int | None = None      # Mini Pasture / Open Air Farmer = 1
     exact_size:   int | None = None      # Mini Pasture = 1 cell, Open Air Farmer = 2
     forbid_subdivision: bool = False      # Mini Pasture (per owner): must be a NEW 1×1 enclosure, not a split of an existing pasture
-    require_adjacent: bool = False        # Mini Pasture *card text* adds "adjacent to an existing pasture if you have one" — RECONCILE with forbid_subdivision when implementing (rules nuance, owner to confirm)
 ```
+
+> **Owner ruling (2026-06-29):** Mini Pasture is a **new 1×1 enclosure adjacent to an existing
+> pasture, never a subdivision.** So `forbid_subdivision=True` + `exact_size=1` + `max_pastures=1`.
+> No `require_adjacent` field is needed — the standard pasture-commit chain (`_check_entry_legal`)
+> *already* requires a new (non-subdivision) pasture to touch an existing one when any exist
+> (first-pasture rule otherwise), so the card-text "adjacent to an existing one" is subsumed by the
+> existing adjacency rule once subdivisions are forbidden.
 
 Default (all None/False) = unrestricted = normal Build Fences; the legality enumerator filters
 candidates by it. **Open Air Farmer decomposes cleanly:** its own resolution pays the non-resource cost
@@ -1084,26 +1115,32 @@ never sees them; **done, no C++ change**), the deferred-tally settle logic, `acc
 `free_fence_budget` consumption (also inert-in-Family skip-fields), and the free-fence / provenance
 machinery — all Cards-only (the C++ twin keeps Family's per-commit debit unchanged).
 
-### 9.13 Build order (resequenced 2026-06-29 — value-first; the C++ gates change once, at the end)
+### 9.13 Build order (executed 2026-06-29 — value-first; the C++ gates changed once, in step 4)
 
-1. ✅ **The three `build_*_action` flags** — default-True canonical skip-fields (Family byte-identical,
-   **Python-only, no C++**). **Done** (309 tests incl. C++ gates green).
-2. **The deferred-tally cost path** (Python-only — the frame fields are inert-in-Family skip-fields, so
-   Family stays per-commit byte-identical and the C++ gates are untouched):
-   - **2a** — route fence cost through `effective_payments` *per-commit* (the Family path), mirroring the
-     build-stable wiring: a `build_fence` action_kind, `_build_fence_ctx` (geometry base + the frame's
-     entry-point / `initiated_by_id`), fence WOOD legality via `can_pay`. Byte-identical in Family.
-   - **2b** — the Cards deferred-tally: `accrued_cost` / `free_fence_budget` skip-fields on
-     `PendingBuildFences`, the settle (tally → pay → grants, resuming after any `PendingChooseCost`), the
-     `game_mode == FAMILY` per-commit branch, legality on the running total (Cards computes fresh,
-     bypasses the scan cache + precondition `assert`).
-3. **The cost-slice cards** (Python-only): Millwright-on-fences, Rammed Clay, Hedge Keeper, Hunting
-   Trophy, Briar Hedge, Field Fences (grant + provenance discount). None move pieces out of supply, so
-   they run on the *derived* `fences_in_supply` — no stored field needed yet.
-4. **Stored supply + Ash Trees** — the derived→stored `fences_in_supply` / `stables_in_supply` conversion
-   + its mechanical C++ re-port, bundled with **Ash Trees** (its first consumer): the **one** time the
-   C++ gates change. (Farmyard-vs-PlayerState home settled here — lean **Farmyard**, since the scan +
-   readers are farmyard-keyed.)
-5. **Defer:** restrictions / restricted-grants (Mini Pasture, then Open Air Farmer — the next
-   sub-project), the per-segment "Nth fence" cards, Carpenter's Bench's payment-source restriction, and
-   the MCTS-macro-cost interaction (moot — no card searcher today).
+All steps below are **DONE** (full suite + C++ differential gates green; Family byte-identical):
+
+1. ✅ **The three `build_*_action` flags** — default-True canonical skip-fields (Python-only, no C++).
+2. ✅ **The deferred-tally cost path** (Python-only): **2a** routed fence cost through `effective_payments`
+   (a `build_fence` action_kind, `_build_fence_ctx`, fence WOOD legality via `can_pay`); **2b** added the
+   Cards deferred-tally (`accrued_cost` / `free_fence_budget` skip-fields on `PendingBuildFences`, the
+   settle = tally → pay → grants resuming after any `PendingChooseCost`, the `game_mode == FAMILY`
+   per-commit branch, legality on the running total — Cards computes fresh, bypasses the scan cache +
+   precondition `assert`).
+3. ✅ **The cost-slice cards** (Python-only): Millwright-on-fences (running total, not a settle-gate),
+   Rammed Clay, Hedge Keeper, Hunting Trophy (cook bonus + Farm-Redev frees + the stack-gated House-Redev
+   discount), Briar Hedge (positional perimeter), Field Fences (an *optional* grant via
+   `PendingGrantedBuildFences` + the field-adjacency discount). Plus the free-fence-aware `_legal_fencing`
+   placement guard.
+4. ✅ **Stored supply + Ash Trees** — `fences_in_supply` converted derived→stored on **`PlayerState`**
+   (NOT Farmyard — the §9.7 call won over the earlier Farmyard lean here: a supply pile is the player's,
+   and the Family fence-scan path inlines `15 − fences_built(farmyard)` so the cache key is untouched),
+   with its mechanical C++ re-port (the **one** time the gates changed): the C++ `PlayerState` field +
+   canonical serialize/deserialize after `harvest_conversions_used` + the build-site decrement + the hash.
+   `stables_in_supply` stays **derived** (`4 − built`) — no in-scope card moves a stable out of supply
+   (Open Air Farmer, its only consumer, is 4+ / out of scope). Ash Trees rides on the new field via the
+   `FREE_FENCE_POOLS` registry (the third free-fence source).
+5. **Still deferred** (need new machinery, not the cost pipeline): the restricted grants (**Mini Pasture**
+   — §9.8; owner ruling: a new 1×1 enclosure adjacent to an existing pasture, never a subdivision), the
+   per-segment **"Nth fence"** cards (Carpenter's Apprentice), **Carpenter's Bench's** payment-source
+   restriction, **Overhaul's** raze-and-rebuild, and the MCTS-macro-cost interaction (moot — no card
+   searcher today). Open Air Farmer is 4+ → out of scope.
