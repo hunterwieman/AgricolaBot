@@ -104,6 +104,11 @@ from agricola.cards import field_fences          # noqa: F401
 # them free (the THIRD free-fence source, after positional + per-action budget). Uses the
 # stored fences_in_supply field. Prereq 2 planted fields.
 from agricola.cards import ash_trees             # noqa: F401
+# Hunting Trophy (minor, COST_MODIFIER_DESIGN.md §9): three pieces — a 1-boar cost with an
+# on-play cook-for-food bonus (cooking_rates), a +3 free-fence SEED on Farm Redevelopment, and
+# a "1 building resource of your choice less" CONVERSION on improvements built via House
+# Redevelopment (gated on a PendingHouseRedevelopment frame on the stack). 1 VP.
+from agricola.cards import hunting_trophy         # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
