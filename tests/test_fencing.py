@@ -92,7 +92,12 @@ def _with_initial_pasture(state, player_idx, cells):
         vertical_fences=new_v,
         pastures=new_pastures,
     )
-    new_player = dataclasses.replace(p, farmyard=new_farmyard)
+    # Bypasses the build path, so keep the supply pile consistent (B-manual): decrement it by
+    # the fence pieces just placed.
+    from agricola.helpers import fences_built
+    placed = fences_built(new_farmyard) - fences_built(farmyard)
+    new_player = dataclasses.replace(
+        p, farmyard=new_farmyard, fences_in_supply=p.fences_in_supply - placed)
     new_players = tuple(
         new_player if i == player_idx else state.players[i]
         for i in range(len(state.players))
@@ -285,14 +290,13 @@ def test_fences_in_supply_binding():
     new_farmyard = dataclasses.replace(
         fy, horizontal_fences=new_h, pastures=new_pastures,
     )
-    state = dataclasses.replace(
-        state,
-        players=(dataclasses.replace(state.players[0], farmyard=new_farmyard),
-                 state.players[1]),
-    )
-    # Should have 1 fence in supply now (6 + 8 = 14 placed; 15 - 14 = 1).
-    from agricola.helpers import fences_in_supply
-    assert fences_in_supply(new_farmyard) == 1
+    # 14 fences placed (6 + 8); supply = 15 - 14 = 1. This prefab places fences directly, so
+    # set the supply pile explicitly to stay consistent (B-manual).
+    from agricola.helpers import buildable_fences, fences_built
+    new_p0 = dataclasses.replace(state.players[0], farmyard=new_farmyard,
+                                 fences_in_supply=15 - fences_built(new_farmyard))
+    state = dataclasses.replace(state, players=(new_p0, state.players[1]))
+    assert buildable_fences(new_p0) == 1
     state = run_actions(state, [
         PlaceWorker(space="fencing"),
         ChooseSubAction(name="build_fences"),

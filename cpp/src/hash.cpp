@@ -60,6 +60,7 @@ void hi(std::uint64_t& h, const PlayerState& p) {
   mix(h, p.occupations.size());
   for (const auto& s : p.harvest_conversions_used) hi(h, s);
   mix(h, p.harvest_conversions_used.size());
+  hi(h, p.fences_in_supply);
 }
 void hi(std::uint64_t& h, const BoardState& b) {
   for (const auto& s : b.action_spaces) hi(h, s);

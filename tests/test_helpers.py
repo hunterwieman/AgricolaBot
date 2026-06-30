@@ -11,7 +11,6 @@ from agricola.helpers import (
     cooking_rates,
     enclosed_cells,
     extract_slots,
-    fences_in_supply,
     food_payment_frontier,
     harvest_feed_frontier,
     pareto_frontier,

@@ -268,6 +268,17 @@ class PlayerState:
     # canonical's _DEFAULT_SKIP_FIELDS → no C++ change). See CardStore above.
     card_state:      "CardStore" = CardStore()
 
+    # Fence pieces in the player's SUPPLY (location 4 of the four a fence can be in: on the
+    # board / removed from play / on a card / in supply). Distinct from "buildable" fences,
+    # which also includes those held on a card (Ash Trees) — see helpers.buildable_fences.
+    # Maintained as an independent pile (decremented when a fence LEAVES supply: built from
+    # supply, moved onto a card, or removed), NOT derived, because building from a card does
+    # not touch supply yet does add a board fence, so `15 - built` would be wrong once a card
+    # holds fences. In the Family game every fence comes from supply, so this stays exactly
+    # `15 - fences_built` — but it is NOT a skip-field (its value varies), so it IS serialized
+    # in Family and the C++ PlayerState mirrors it (decrement at the fence-build site).
+    fences_in_supply: int = 15
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -283,7 +294,8 @@ class PlayerState:
                       self.harvest_conversions_used,
                       self.hand_occupations, self.hand_minors,
                       self.used_this_turn, self.used_this_round,
-                      self.fired_once, self.card_state))
+                      self.fired_once, self.card_state,
+                      self.fences_in_supply))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

@@ -104,7 +104,13 @@ def _add_pasture(state, player_idx, cells, num_stables=0):
         vertical_fences=new_vf,
         pastures=new_pastures,
     )
-    new_player = dataclasses.replace(p, farmyard=new_farmyard)
+    # Keep the fence-supply pile consistent with the directly-placed fences (B-manual): these
+    # prefab states feed the frontier-opt cache-transparency test, where the cached path uses
+    # 15 - built and the fresh path reads buildable_fences (= the supply field).
+    from agricola.helpers import fences_built
+    placed = fences_built(new_farmyard) - fences_built(fy)
+    new_player = dataclasses.replace(
+        p, farmyard=new_farmyard, fences_in_supply=p.fences_in_supply - placed)
     new_players = tuple(
         new_player if i == player_idx else state.players[i] for i in range(2)
     )

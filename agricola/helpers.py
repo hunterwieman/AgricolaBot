@@ -14,13 +14,29 @@ from agricola.state import Farmyard, GameState, PlayerState
 # Part 1: Simple derived quantities
 # ---------------------------------------------------------------------------
 
-def fences_in_supply(farmyard: Farmyard) -> int:
-    """Count fence pieces not yet placed. Derived from fence arrays."""
-    built = (
+def fences_built(farmyard: Farmyard) -> int:
+    """Count fence pieces placed on the board (derived from the fence arrays)."""
+    return (
         sum(sum(row) for row in farmyard.horizontal_fences)
         + sum(sum(row) for row in farmyard.vertical_fences)
     )
-    return 15 - built
+
+
+def _fences_on_cards(player: PlayerState) -> int:
+    """Fences the player holds ON A CARD (Ash Trees, location 3) — part of the buildable
+    supply (they can still be placed) but free of wood. 0 until such a card is in play; the
+    pool lives in the card's own CardStore slot. (Only Ash Trees moves fences onto a card in
+    the in-scope set; a registry would generalize if more such cards land.)"""
+    return player.card_state.get("ash_trees", 0)
+
+
+def buildable_fences(player: PlayerState) -> int:
+    """Fence PIECES the player can still place onto the board: the supply pile
+    (`fences_in_supply`, location 4) plus any held on cards (Ash Trees, location 3) — both are
+    placeable; only the wood differs. Distinct from the SUPPLY count, which excludes the
+    on-card pieces (the conflation that motivated the stored `fences_in_supply` field). In the
+    Family game (no cards) this equals `15 - fences_built(farmyard)`, the old derived value."""
+    return player.fences_in_supply + _fences_on_cards(player)
 
 
 def stables_in_supply(farmyard: Farmyard) -> int:

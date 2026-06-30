@@ -163,7 +163,10 @@ def _fence_pasture(state, idx, cells):
     v = tuple(tuple(row) for row in v)
     pastures = compute_pastures_from_arrays(fy.grid, h, v)
     new_fy = fast_replace(fy, horizontal_fences=h, vertical_fences=v, pastures=pastures)
-    new_p = fast_replace(state.players[idx], farmyard=new_fy)
+    from agricola.helpers import fences_built          # keep supply consistent (B-manual)
+    placed = fences_built(new_fy) - fences_built(fy)
+    new_p = fast_replace(state.players[idx], farmyard=new_fy,
+                         fences_in_supply=state.players[idx].fences_in_supply - placed)
     return fast_replace(state, players=tuple(
         new_p if i == idx else state.players[i] for i in range(2)))
 

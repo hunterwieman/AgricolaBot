@@ -60,7 +60,7 @@ from agricola.cost import CostCtx
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Resources
 from agricola.helpers import (
-    cooking_rates, enclosed_cells, fences_in_supply, food_payment_frontier,
+    buildable_fences, cooking_rates, enclosed_cells, fences_built, food_payment_frontier,
     stables_in_supply,
 )
 from agricola.pending import (
@@ -805,7 +805,7 @@ def _legal_fencing(state: GameState) -> bool:
     p = state.players[state.current_player]
     if state.mode is GameMode.FAMILY and p.resources.wood < 1:
         return False
-    if fences_in_supply(p.farmyard) < 1:
+    if buildable_fences(p) < 1:
         return False
     return _any_legal_pasture_commit(state, p)
 
@@ -987,7 +987,7 @@ def _legal_pasture_commits_compute(farmyard, wood, subdivision_started):
         existing_pasture_cells_bm |= P_bm
     h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
     v_fences_bm = pack_fences_v(farmyard.vertical_fences)
-    fences_left = fences_in_supply(farmyard)
+    fences_left = 15 - fences_built(farmyard)   # Family cached path: buildable == 15 - built
     has_existing_pastures = bool(pasture_bms)
     common = dict(
         enclosable_bm=enclosable_bm,
@@ -1083,7 +1083,7 @@ def _any_legal_pasture_commit(
     h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
     v_fences_bm = pack_fences_v(farmyard.vertical_fences)
     wood = p.resources.wood
-    fences_left = fences_in_supply(farmyard)
+    fences_left = buildable_fences(p)
     has_existing_pastures = bool(pasture_bms)
 
     common = dict(
@@ -1910,7 +1910,7 @@ def _enumerate_pending_build_fences(
     h_fences_bm = pack_fences_h(farmyard.horizontal_fences)
     v_fences_bm = pack_fences_v(farmyard.vertical_fences)
     wood = p.resources.wood
-    fences_left = fences_in_supply(farmyard)
+    fences_left = buildable_fences(p)
     has_existing_pastures = bool(pasture_bms)
 
     common = dict(

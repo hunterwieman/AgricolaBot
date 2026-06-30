@@ -618,9 +618,10 @@ GameState execute_build_pasture(const GameState& state, int player_idx,
   // 5. Recompute pasture decomposition (pasture-changing).
   fy.pastures = compute_pastures(fy);
 
-  // 6 + 7. Debit wood + update player.
+  // 6 + 7. Debit wood + decrement fence supply + update player.
   p.farmyard = fy;
   p.resources = p.resources - Resources{edges.wood_cost, 0, 0, 0, 0, 0, 0};
+  p.fences_in_supply -= edges.wood_cost;  // new fence edges drawn from supply
   GameState s = update_player(state, player_idx, p);
 
   // 8. Bump counters + ordering flag.

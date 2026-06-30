@@ -133,7 +133,8 @@ def test_setup_different_seeds():
 def test_fences_in_supply_derivation():
     state = setup(seed=0)
     for player_state in state.players:
-        assert fences_in_supply(player_state.farmyard) == 15
+        assert player_state.fences_in_supply == 15            # the stored supply pile
+        assert fences_in_supply(player_state.farmyard) == 15  # = 15 - built on a fresh farm
 
 
 def test_stables_in_supply_derivation():

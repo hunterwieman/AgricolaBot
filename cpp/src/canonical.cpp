@@ -186,6 +186,7 @@ json tc(const PlayerState& p) {
   j["minor_improvements"] = str_set_node(p.minor_improvements);
   j["occupations"] = str_set_node(p.occupations);
   j["harvest_conversions_used"] = str_set_node(p.harvest_conversions_used);
+  j["fences_in_supply"] = p.fences_in_supply;
   return j;
 }
 json tc(const BoardState& b) {
@@ -443,6 +444,7 @@ PlayerState player_from(const json& j) {
   p.minor_improvements = read_str_set(j.at("minor_improvements"));
   p.occupations = read_str_set(j.at("occupations"));
   p.harvest_conversions_used = read_str_set(j.at("harvest_conversions_used"));
+  p.fences_in_supply = j.value("fences_in_supply", 15);
   return p;
 }
 BoardState board_from(const json& j) {
