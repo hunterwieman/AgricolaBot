@@ -253,7 +253,8 @@ card field defaults empty/inert; every guard is O(1) and short-circuits on empty
 24 occupations + 35 minors, grouped by the engine machinery they need (Part III headings). Hard
 cards excluded here and tracked in `CARD_SYSTEM_DESIGN.md`: cost-modifiers (Carpenter, Master
 Bricklayer, Hedge Keeper, Frame Builder, Lumber Mill, Carpenter's Parlor, Rammed Clay), legality
-changers (Conservator, Adoptive Parents, Paper Maker, Lasso, Sleeping Corner, Mantlepiece),
+changers (Conservator, Adoptive Parents, Paper Maker, Lasso, Mantlepiece; **Sleeping Corner is
+now DONE** — see note below),
 capacity-gating (Drinking Trough, Caravan→`wontfix`; **Animal Tamer is now DONE** — see note
 below), at-any-time conversions / §15
 (Sheep Walker, Grocer, Hard Porcelain, Clearing Spade), deferred subsystems (Claypipe cumulative
@@ -273,6 +274,21 @@ counter, Brook board-geometry, Beanfield field-card).
 > built):** Milking Place D012 explicitly negates this (drives house capacity to 0) — the `max`-fold
 > in `capacity_mods` can't express that, so the two must be co-designed when Milking Place lands (noted
 > in the module docstring).
+
+> **Sleeping Corner (minor A26) — DONE.** "You can use any 'Wish for Children' action space even if it
+> is occupied by one other player's person." (Clarification: "But not if occupied by 2+ other player's
+> people.") A LEGALITY RELAXATION on worker placement, not a "legality changer" needing the
+> `*_EXTENSIONS` generalization the doc feared — it is a single, lazily-consulted occupancy override.
+> A new chokepoint mirroring the bake-bread extension pattern: **`register_occupancy_override`** in
+> `legality.py` registers `(state, space_id) -> bool` predicates that `_is_available` consults **only
+> on the occupied branch** (so the common unoccupied path and the entire Family game pay nothing; empty
+> registry → Family byte-identical, C++ gates untouched). Two load-bearing rulings, both confirmed with
+> the user: (1) **count PLAYERS, not workers** — a normally-used wish space already holds the opponent's
+> parent + newborn (2 workers, 1 player; modeled in `_resolve_wish_for_children`), so "2+ people" means
+> 2+ other *players* with a worker there, encoded as `others_with_workers == 1` (which also generalizes
+> to the 4-player variant); (2) the prereq "2 Grain Fields" = 2 FIELD cells with `grain > 0` (an empty
+> or veg field doesn't count). Card module `agricola/cards/sleeping_corner.py`; tests
+> `tests/test_cards_sleeping_corner.py`.
 
 ---
 

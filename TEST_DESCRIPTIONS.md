@@ -102,6 +102,7 @@ The build-fence cost-modifier cards (COST_MODIFIER_DESIGN.md §9): the three fre
 - **`tests/test_cards_ash_trees.py`** — Ash Trees: the on-card free-fence pool (the planted-fields prereq, the supply→pool move on play, free builds drawn from the pool, and greedy pool-spend ordered after the positional + per-action-budget frees).
 - **`tests/test_cards_hunting_trophy.py`** — Hunting Trophy: cook-for-food on play, the +3 free-fence seed on Farm Redevelopment, and the stack-gated House-Redevelopment improvement discount (one building resource less, gated on a `PendingHouseRedevelopment` frame).
 - **`tests/test_cards_mini_pasture.py`** — Mini Pasture: the mandatory free 1×1 grant, the playability prereq (unplayable unless a new 1×1 enclosure is buildable), and that only 1×1 / new-enclosure commits are offered under the restricted grant.
+- **`tests/test_cards_sleeping_corner.py`** — Sleeping Corner: the occupancy-override relaxation (the owner may place on a "Wish for Children" space held by one opponent), its boundaries (no ownership / non-wish space / owner already there / 2+ other players), the "count players, not workers" tolerance of an opponent's parent+newborn pair, and the 2-grain-fields prereq (empty/veg fields don't count).
 
 ### `tests/test_bake_bread.py`
 

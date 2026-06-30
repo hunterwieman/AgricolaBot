@@ -138,6 +138,23 @@ def register_bake_bread_extension(fn: Callable) -> None:
     BAKE_BREAD_ELIGIBILITY_EXTENSIONS.append(fn)
 
 
+# Cards may let the CURRENT player place a worker on an OCCUPIED space (normally
+# illegal). Each override is `(state, space_id) -> bool`, consulted by
+# `_is_available` ONLY on the occupied branch — so the common unoccupied path,
+# and the entire Family game (empty registry), pay nothing. An override
+# self-gates on its own card's ownership, the space id, and the precise
+# occupancy shape it relaxes. Sleeping Corner is the first: use a "Wish for
+# Children" space occupied by exactly one OTHER player (counting PLAYERS with a
+# worker there, not workers — a normally-used wish space already holds the
+# parent + newborn). See CARD_AUTHORING_GUIDE.md.
+OCCUPANCY_OVERRIDE_EXTENSIONS: list[Callable] = []
+
+
+def register_occupancy_override(fn: Callable) -> None:
+    """Add a card-supplied predicate that may permit placing on an OCCUPIED space."""
+    OCCUPANCY_OVERRIDE_EXTENSIONS.append(fn)
+
+
 # Card-supplied renovate-TARGET extensions. Renovation normally goes one tier
 # (WOOD→CLAY, CLAY→STONE); a card may make further targets legal — Conservator lets a
 # wood house renovate directly to STONE. Each fn takes (state, player_idx,
@@ -194,10 +211,20 @@ def baking_specs_for_player(
 # ---------------------------------------------------------------------------
 
 def _is_available(state: GameState, space: str) -> bool:
-    """Cross-cutting check: space is unoccupied and currently revealed."""
+    """Cross-cutting check: the current player may place a worker here — the
+    space is revealed and either unoccupied, or a card grants an occupancy
+    exemption for it. The occupancy-override registry is consulted ONLY on the
+    occupied branch, so the common unoccupied path (and the entire Family game)
+    pay nothing."""
     sp = get_space(state.board, space)
-    unoccupied = sp.workers == (0, 0)
-    return unoccupied and sp.revealed
+    if not sp.revealed:
+        return False
+    if sp.workers == (0, 0):
+        return True
+    for override in OCCUPANCY_OVERRIDE_EXTENSIONS:
+        if override(state, space):
+            return True
+    return False
 
 
 def _num_rooms(player: PlayerState) -> int:

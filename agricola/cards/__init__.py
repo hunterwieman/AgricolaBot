@@ -233,3 +233,8 @@ from agricola.cards import sack_cart             # noqa: F401
 from agricola.cards import thick_forest          # noqa: F401
 from agricola.cards import herring_pot           # noqa: F401
 from agricola.cards import handplow              # noqa: F401
+# Legality relaxation (occupancy override): Sleeping Corner (minor A26) — the owner may
+# place on a "Wish for Children" space occupied by ONE other player. Registers an
+# occupancy-override predicate consulted by `_is_available` only on the occupied branch
+# (counts PLAYERS, not workers — a used wish space already holds the parent + newborn).
+from agricola.cards import sleeping_corner       # noqa: F401
