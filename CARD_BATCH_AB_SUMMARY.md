@@ -100,3 +100,78 @@ categorization; revisit after C/D/E.
   `HARVEST_FIELD_CARDS == {...}`) — fix those to **subset** checks.
 - For C/D/E there are NO categorization hypotheses — the triage agent classifies from the verbatim text
   alone (cheat-sheet in the handoff). Defer liberally; the from-scratch classification IS the tiering.
+
+---
+
+## Addendum — residual details, proposals & process notes (answering "anything else?")
+
+### Per-card residual decisions / risks (beyond the headline interpretation defaults)
+- **Catcher (A107) — newborn ruling (mine):** a newborn does NOT count as a "person you place"
+  (you don't *place* a newborn; it's born) — encoded by `(people_total − newborns) − people_home`.
+  The verify agent left this rules question open; this is my call. Confirm if you disagree.
+- **Beer Keg (A62) — prefix-based once-per-harvest guard is slightly fragile:** the 3 variants
+  (`beer_keg_1/2/3`) enforce once-per-harvest via `is_owned_fn` checking
+  `not any(cid.startswith("beer_keg") for cid in harvest_conversions_used)`. Correct today, but a
+  future `conversion_id` beginning "beer_keg…" would collide. If we add more multi-variant harvest
+  conversions, switch to an explicit variant-group field instead of `startswith`.
+- **Nest Site (A49) — couples to Reed Bank rate == 1:** eligibility uses
+  `reed_bank.accumulated.reed >= 2` as the proxy for "1 reed placed on a *non-empty* Reed Bank"
+  (post-refill = pre+1). Breaks if any card ever changes Reed Bank's accumulation rate. Fine now; note it.
+- **Pottery Yard (B31) — VERIFIED correct + consistent:** "+2 iff ≥2 orthogonally-adjacent unused
+  spaces" matches verbatim; "Pottery (or an Upgrade Thereof)" implemented as owning Pottery (idx 8)
+  ONLY — the SAME "or an upgrade thereof → base major only" default I chose for B101 (Joinery idx 7).
+  The two are consistent: if you rule "upgrade" includes the other workshops, BOTH change together.
+- **Grassland Harrow (B18) — n==0 edge handled:** with 0 building resources left after the 2-wood
+  cost, the field schedules onto the already-current round (a wasted but legal play). Handled, not forced.
+- **Forest School (A28)** is the first card combining `occupancy_override` + `occupation_food_source`;
+  sound, but watch if a later card stacks more onto Lessons.
+
+### Where the residual risk actually is (verification honesty)
+Of the 67 A/B cards I personally deep-read only ~6 (Beer Keg, Forest School, Catcher, Hand Truck,
+Grassland Harrow, Pottery Yard) + the templates. The other ~61 I trusted: the agent's own passing
+test + the adversarial-verify verdict (`correct` for ~60; 7 flagged = 5 wiring + 2 real bugs I fixed)
++ the green full suite. Adversarial-verify is good but not infallible, so residual risk concentrates
+in the ~60 "verify-said-correct, not personally read" cards — especially any with non-trivial
+before/after or harvest/trigger ordering. Cheap follow-up if you want more assurance: a second
+adversarial sweep over just those, or spot-read the ordering-sensitive ones.
+
+### PROPOSED shared-infra additions (prioritized) — build once, unblock many across ALL decks
+The deferred cards cluster onto a few missing mechanisms, and **C/D/E will hit the SAME ones
+repeatedly**. Building the small ones (with your approval) BEFORE/early in the C/D/E implement pass
+unblocks far more than deferring each card individually — a strategic lever that should raise the
+C/D/E yield substantially. Small → large:
+1. **`place_on_space: bool = True` on `PendingFamilyGrowth`** (card-only, default-skip) → A93, B92,
+   A21 + every card-granted family growth. ~15 lines.
+2. **A "card-game accumulation spaces" set** = `ACCUMULATION_SPACES − {meeting_place}` → fixes Wood
+   Pile / Hand Truck and any future "people/goods on an accumulation space" card. ~3 lines + the
+   meeting_place ruling.
+3. **`_is_on_turn_build(state)` helper** (no `PendingPreparation` on the stack) → off-turn-build
+   exclusion (A43, A74) + reusable. ~5 lines.
+4. **`alt_costs` (an OR-cost list) on `MinorSpec`** + the play-time choice → Baseboards, Barley Mill,
+   Forest Stone + likely several C/D/E cards. ~20 lines.
+5. **`PLAY_MINOR_VARIANTS` registry** (mirror `register_play_occupation_variant`) → B9, B41 + the
+   whole "you decide what to start with" family. ~30 lines.
+6. **`PendingGrantedRenovate`** choose-or-decline wrapper (mirror `PendingGrantedBuildFences`) → B1,
+   Renovation Company, Established Person. ~20 lines.
+Bigger design decisions (need your call first): a SURFACED harvest-field host (optional harvest
+triggers — Potato Ridger etc.); a standalone optional buy-conversion frame (food→good buys / the
+Grocer family — B70, B82); a return-home / end-of-round phase hook (the whole return-home cluster);
+per-card goods-stack state (Hayloft Barn, Muddy Puddles, …).
+
+### Process improvements for the C/D/E pass (folding the A/B learnings back in)
+- **Tell the verify agents that a card's absence from `__init__.py` is EXPECTED** (central wiring) so
+  they don't flag it — in A/B that was 5 of 7 flags, noise that nearly buried the 2 real bugs.
+- **Agent self-tests have a structural blind spot:** they test what the agent BUILT, not what it
+  SHOULD have built — both real bugs lived in paths the agent's own test never exercised (Catcher's
+  newborn, Hand Truck's 0-grain). Keep the adversarial-verify + full-suite gate, and have verify
+  explicitly ask "what real-game path does this test NOT cover?"
+- **From-scratch C/D/E triage is less-vetted than A/B** (no hypotheses, and I cannot human-review 489
+  specs the way I reviewed 85). So C/D/E implement+verify needs EXTRA scrutiny and even more
+  defer-liberal triage; lean on the pipeline's self-protection (implementers defer if it doesn't fit).
+
+### Calibration & deck composition
+- A/B yield ≈ 78% of triaged tier-1/2 + rescue cards implemented (76 of ~97 attempted); ~3% real-bug
+  rate post-verify (2/67). Expect a LOWER implement rate from-scratch on C/D/E.
+- **Decks A–E each total 168 and INTERLEAVE Base (Revised) + the named expansion** (e.g. Acorns Basket
+  is "Base (Revised) · deck B"). So C/D/E's 489 unimplemented includes Base cards — some will match
+  already-built patterns (cost-modifiers, scoring, on-play goods). Not pure-expansion.
