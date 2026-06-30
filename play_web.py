@@ -172,7 +172,7 @@ def _load_v3_config_from_json(path: str) -> HeuristicConfigV3:
     return HeuristicConfigV3(**data["best_config"])
 from agricola.canonical import dumps
 from agricola.engine import step
-from agricola.helpers import fences_in_supply, stables_in_supply
+from agricola.helpers import buildable_fences, stables_in_supply
 from agricola.legality import legal_actions
 from agricola.pending import PendingDraftPick, PendingHarvestBreed, PendingHarvestFeed
 from agricola.scoring import score, tiebreaker
@@ -1054,7 +1054,7 @@ def _player_to_dict(state: GameState, idx: int, decider: int,
     total, _bd = score(state, idx)
     # Per-player supply totals are fixed by the rules (15 fences, 4 stables).
     # "Built" = total - in_supply.
-    fences_left  = fences_in_supply(p.farmyard)
+    fences_left  = buildable_fences(p)
     stables_left = stables_in_supply(p.farmyard)
     out = {
         "idx": idx,
