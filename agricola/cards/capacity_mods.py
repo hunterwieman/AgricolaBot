@@ -35,6 +35,21 @@ def register_house_capacity(card_id: str, capacity_fn: Callable) -> None:
     HOUSE_CAPACITY_MODS.append((card_id, capacity_fn))
 
 
+# (card_id, fn(player_state) -> int): a flat per-PASTURE additive capacity bonus — added to
+# EVERY pasture's capacity (Drinking Trough: +2). Summed across owned cards, applied in
+# extract_slots to each pasture's already-computed capacity. Empty registry -> 0 -> Family
+# byte-identical. Distinct from HOUSE_CAPACITY_MODS (the house's flexible-slot count): this
+# raises individual pasture capacities, which each still hold exactly one animal type.
+PASTURE_CAPACITY_MODS: list[tuple[str, Callable]] = []
+
+
+def register_pasture_capacity(card_id: str, bonus_fn: Callable) -> None:
+    """Register a flat per-pasture capacity bonus. `bonus_fn(player_state) -> int` returns
+    the amount added to EVERY pasture's capacity (Drinking Trough: 2). Called at card-module
+    import; ownership-gated in the fold below."""
+    PASTURE_CAPACITY_MODS.append((card_id, bonus_fn))
+
+
 def _owns(player_state, card_id: str) -> bool:
     return card_id in player_state.occupations or card_id in player_state.minor_improvements
 
@@ -47,3 +62,16 @@ def house_pet_capacity(player_state) -> int:
         if _owns(player_state, card_id):
             cap = max(cap, capacity_fn(player_state))
     return cap
+
+
+def pasture_capacity_bonus(player_state) -> int:
+    """Flat per-pasture capacity bonus from owned cards (Drinking Trough: +2 each), summed.
+    Empty registry / no owned modifier -> 0 (Family byte-identity). Applied AFTER the stable
+    doubling — the card adds animals to the FINAL pasture capacity ("with or without a
+    stable"), so extract_slots adds it to each already-computed pasture capacity, not inside
+    the 2*cells*2^stables formula."""
+    total = 0
+    for card_id, bonus_fn in PASTURE_CAPACITY_MODS:
+        if _owns(player_state, card_id):
+            total += bonus_fn(player_state)
+    return total

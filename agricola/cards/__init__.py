@@ -118,6 +118,9 @@ from agricola.cards import mini_pasture           # noqa: F401
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.
 from agricola.cards import market_stall         # noqa: F401
+# Capacity-modifier minor: Drinking Trough — +2 animals per pasture (a flat per-pasture
+# capacity bonus via the capacity_mods registry, the Animal Tamer pair).
+from agricola.cards import drinking_trough      # noqa: F401
 # Category 3 automatic-income minors.
 from agricola.cards import corn_scoop           # noqa: F401
 from agricola.cards import stone_tongs          # noqa: F401

@@ -119,6 +119,66 @@ def test_harvest_feed_frontier_equiv(food_owed):
             )
 
 
+# ---------------------------------------------------------------------------
+# Non-canonical pasture capacities (Drinking Trough) — the red-team item.
+#
+# Every state above has pasture capacities of the form 2*cells*2^stables. Drinking
+# Trough adds a flat +2 per pasture, so its capacities (e.g. 4+2=6, 8+2=10) are the
+# FIRST non-formula values to flow into the level-2/3 projection caches (_phi_cached /
+# _animal_points_cached). Those caches sit below extract_slots and key on its output, and
+# _build_phi is defined purely through the same can_accommodate oracle as level 0 — so the
+# optimized path should match by construction. This test makes that explicit: it owns
+# Drinking Trough on the pasture-bearing prefabs (and loads animals so capacity binds) and
+# asserts level 0 == levels 1-3 on the resulting non-canonical capacities.
+# ---------------------------------------------------------------------------
+
+def _drinking_trough_states():
+    """Pasture-bearing prefab states with player 0 owning Drinking Trough + animals near
+    capacity, so its non-canonical (+2) pasture capacities are the binding constraint."""
+    import dataclasses
+
+    from agricola.resources import Animals as _An
+
+    out = []
+    for name in ("mid_round_6_basic", "mid_round_8_animals"):
+        state = STATES[name]()
+        p = state.players[0]
+        p = dataclasses.replace(
+            p,
+            minor_improvements=p.minor_improvements | {"drinking_trough"},
+            animals=_An(sheep=8, boar=6, cattle=6),   # exceed capacity -> frontier binds
+        )
+        state = dataclasses.replace(
+            state, players=tuple(p if i == 0 else state.players[i] for i in range(2)))
+        out.append((f"{name}+drinking_trough", state))
+    return out
+
+
+@pytest.mark.parametrize("gained", GAINED)
+def test_pareto_frontier_equiv_non_canonical_caps(gained):
+    for name, state in _drinking_trough_states():
+        ps = state.players[0]
+        rates3 = helpers.cooking_rates(state, 0)[:3]
+        # sanity: Drinking Trough is active, so caps are the boosted (non-formula) values
+        # and the test isn't vacuous.
+        from agricola.cards.capacity_mods import pasture_capacity_bonus
+        assert pasture_capacity_bonus(ps) == 2
+        _assert_equiv(
+            lambda ps=ps, r=rates3, g=gained: helpers.pareto_frontier(ps, g, r),
+            _norm_animal,
+        )
+
+
+def test_breeding_frontier_equiv_non_canonical_caps():
+    for name, state in _drinking_trough_states():
+        ps = state.players[0]
+        rates3 = helpers.cooking_rates(state, 0)[:3]
+        _assert_equiv(
+            lambda ps=ps, r=rates3: helpers.breeding_frontier(ps, r),
+            _norm_animal,
+        )
+
+
 def test_default_opt_settings_are_on():
     """The caches default ON — they exist to speed up the engine and are used
     by default (changed 2026-06-05). FENCE_SCAN_CACHE is result-identical;

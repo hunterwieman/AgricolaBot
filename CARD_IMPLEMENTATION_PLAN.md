@@ -275,6 +275,21 @@ counter, Brook board-geometry, Beanfield field-card).
 > in `capacity_mods` can't express that, so the two must be co-designed when Milking Place lands (noted
 > in the module docstring).
 
+> **Drinking Trough (minor A12, cost 1 clay) — DONE.** "Each of your pastures (with or without a
+> stable) can hold up to 2 more animals." A passive per-pasture capacity bonus: every pasture's
+> capacity gains a flat +2, applied **after** the stable doubling ("with or without a stable" → +2 to
+> the final capacity, not inside the `2·cells·2^stables` formula). Built on the Animal Tamer chokepoint
+> — a second registry in `capacity_mods.py` (`register_pasture_capacity` / `pasture_capacity_bonus`),
+> folded into `extract_slots`. It flows into exactly the two capacity-gated decisions (animal
+> **acquisition** + **breeding**); feeding/food-payment aren't capacity-gated and correctly ignore it.
+> **Red-team item resolved:** Drinking Trough is the first card to feed *non-canonical* pasture
+> capacities (`…+2`) into the level-2/3 projection caches; those caches key on `extract_slots` output
+> and `_build_phi` is defined through the same `can_accommodate` oracle as level 0, so they're correct
+> by construction — now also validated empirically by a non-canonical-capacity cross-level equivalence
+> test (`tests/test_frontier_opt.py::test_*_non_canonical_caps`). Card tests:
+> `tests/test_cards_drinking_trough.py`. (Clarification "cards holding animals are not pastures" is a
+> no-op today — no card acts as a pasture.)
+
 > **Sleeping Corner (minor A26) — DONE.** "You can use any 'Wish for Children' action space even if it
 > is occupied by one other player's person." (Clarification: "But not if occupied by 2+ other player's
 > people.") A LEGALITY RELAXATION on worker placement, not a "legality changer" needing the
