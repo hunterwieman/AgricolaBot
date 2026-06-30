@@ -254,9 +254,25 @@ card field defaults empty/inert; every guard is O(1) and short-circuits on empty
 cards excluded here and tracked in `CARD_SYSTEM_DESIGN.md`: cost-modifiers (Carpenter, Master
 Bricklayer, Hedge Keeper, Frame Builder, Lumber Mill, Carpenter's Parlor, Rammed Clay), legality
 changers (Conservator, Adoptive Parents, Paper Maker, Lasso, Sleeping Corner, Mantlepiece),
-capacity-gating (Animal Tamer, Drinking Trough, Caravan→`wontfix`), at-any-time conversions / §15
+capacity-gating (Drinking Trough, Caravan→`wontfix`; **Animal Tamer is now DONE** — see note
+below), at-any-time conversions / §15
 (Sheep Walker, Grocer, Hard Porcelain, Clearing Spade), deferred subsystems (Claypipe cumulative
 counter, Brook board-geometry, Beanfield field-card).
+
+> **Animal Tamer (occupation A86) — DONE.** "Get your choice of 1 wood or 1 grain. Instead of just
+> 1 animal total, you can keep any 1 animal in each room of your house." Two parts: (1) the wood/grain
+> choice is implemented **wide** as a play-VARIANT (two `CommitPlayOccupation`s, `variant="wood"` /
+> `"grain"`, both zero-surcharge — the Roof Ballaster pattern). (2) The capacity grant raises the
+> house's *flexible-slot* count from 1 (the single pet) to `num_rooms`. This needed a small new
+> chokepoint mirroring `cost_mods`: **`agricola/cards/capacity_mods.py`** (`register_house_capacity`
+> / `house_pet_capacity`), folded into `extract_slots` (helpers.py) via a load-order-safe local
+> import; empty registry → returns 1 → Family byte-identical (C++ gates untouched). Crucially the
+> "each room a different animal type" rule needed **no** new accommodation structure — the existing
+> flexible-slot model already lets each capacity-1 slot hold any type (overflow is summed across types
+> in `can_accommodate`). Tests: `tests/test_cards_animal_tamer.py`. **Known interaction (not yet
+> built):** Milking Place D012 explicitly negates this (drives house capacity to 0) — the `max`-fold
+> in `capacity_mods` can't express that, so the two must be co-designed when Milking Place lands (noted
+> in the module docstring).
 
 ---
 

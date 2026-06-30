@@ -182,6 +182,9 @@ from agricola.cards import tutor                 # noqa: F401
 from agricola.cards import big_country           # noqa: F401
 from agricola.cards import moldboard_plow        # noqa: F401
 from agricola.cards import roof_ballaster        # noqa: F401
+# Capacity-modifier occupation: Animal Tamer — wide wood/grain play-variant + the house
+# holds one (any-type) animal per room (raises the house-pet flexible-slot count).
+from agricola.cards import animal_tamer          # noqa: F401
 from agricola.cards import shifting_cultivation  # noqa: F401
 # Food-from-a-trigger (FOOD_PAYMENT_DESIGN.md §8): Ox Goad — pay 2 food (via the shared
 # food-payment path, liquidation-aware) after Cattle Market to plow 1 field.

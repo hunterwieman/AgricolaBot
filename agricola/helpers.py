@@ -99,7 +99,8 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     """Return (pasture_capacities, num_flexible_slots).
 
     pasture_capacities: list of ints, one per pasture.
-    num_flexible_slots: standalone stables + 1 (house pet).
+    num_flexible_slots: standalone stables + the house-pet capacity (1 by default; raised
+    by a capacity card such as Animal Tamer — see agricola/cards/capacity_mods.py).
     """
     pastures = player_state.farmyard.pastures
     pasture_capacities = [p.capacity for p in pastures]
@@ -108,7 +109,13 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     stables_in_pastures = sum(p.num_stables for p in pastures)
     standalone_stables = total_stables_built - stables_in_pastures
 
-    num_flexible = standalone_stables + 1  # +1 for house pet
+    # House provides 1 flexible slot (the default pet) unless an owned capacity card raises
+    # it — Animal Tamer grants one per room (each may hold a different animal type, which the
+    # flexible-slot model already captures). Local import: the cards package imports engine
+    # modules, so a top-level import here would cycle — the load-order-safe pattern legality.py
+    # uses for cost_mods. Empty registry (Family game) -> 1, so this stays byte-identical.
+    from agricola.cards.capacity_mods import house_pet_capacity
+    num_flexible = standalone_stables + house_pet_capacity(player_state)
 
     return pasture_capacities, num_flexible
 
