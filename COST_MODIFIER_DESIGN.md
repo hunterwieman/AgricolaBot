@@ -1014,13 +1014,22 @@ hit rate for zero current benefit (revisit if/when a Cards searcher exists). Ins
 **C++ has no fence-scan cache** (`any_legal_pasture_commit`, cpp/legality.cpp, recomputes directly), so
 none of the above touches the C++ twin.
 
-### 9.8 Restrictions (deferred) + the Open Air Farmer decomposition
+### 9.8 Restrictions (Mini Pasture DONE) + the Open Air Farmer decomposition (out of scope)
+
+> **Status (2026-06-29):** **Mini Pasture is IMPLEMENTED** — the first restricted grant, validating
+> the `FenceRestrictions` descriptor below. It is a MANDATORY, free, NEW 1×1 enclosure
+> (`FenceRestrictions(exact_size=1, forbid_subdivision=True, max_pastures=1)` + `free_fence_budget=4`
+> + `build_fences_action=False`), pushed directly by its on_play and gated by a playability prereq (the
+> card is unplayable unless a free 1×1 can be built — `_any_legal_pasture_commit` with the restrictions
+> + free budget). **Open Air Farmer is 4+ → out of scope**, so the restricted-grant sub-project is
+> effectively complete; the OAF decomposition below is kept as a design note should a 2-player analogue
+> ever appear. No `require_adjacent` field was needed (the standard adjacency rule subsumes it).
 
 The restricted-grant cards (Mini Pasture, Open Air Farmer, Shelter) are an *alternative-build* axis,
-not a cost axis, so they are **deferred out of the cost slice — but planned as the next fence
-sub-project** (they validate the `FenceRestrictions` descriptor below on real cards): **Mini Pasture
-first** (restriction + free + grant — no extra cost mechanics), then **Open Air Farmer** (adds its
-stable-consumption cost + the grant-scoped flat-price formula). When built, the restriction rides on the
+not a cost axis, so they were **deferred out of the cost slice** (they validate the `FenceRestrictions`
+descriptor below on real cards): **Mini Pasture** (restriction + free + grant — no extra cost mechanics,
+**now done**), then **Open Air Farmer** (would add its stable-consumption cost + the grant-scoped
+flat-price formula — out of scope at 2 players). The restriction rides on the
 frame as a **small structured descriptor** (serializable + hashable — NOT an open-ended callback, which
 would break the frame's hash / canonical JSON):
 
@@ -1139,8 +1148,9 @@ All steps below are **DONE** (full suite + C++ differential gates green; Family 
    `stables_in_supply` stays **derived** (`4 − built`) — no in-scope card moves a stable out of supply
    (Open Air Farmer, its only consumer, is 4+ / out of scope). Ash Trees rides on the new field via the
    `FREE_FENCE_POOLS` registry (the third free-fence source).
-5. **Still deferred** (need new machinery, not the cost pipeline): the restricted grants (**Mini Pasture**
-   — §9.8; owner ruling: a new 1×1 enclosure adjacent to an existing pasture, never a subdivision), the
-   per-segment **"Nth fence"** cards (Carpenter's Apprentice), **Carpenter's Bench's** payment-source
-   restriction, **Overhaul's** raze-and-rebuild, and the MCTS-macro-cost interaction (moot — no card
-   searcher today). Open Air Farmer is 4+ → out of scope.
+5. ✅ **Mini Pasture** — the first restricted grant (the `FenceRestrictions` descriptor, §9.8): a
+   mandatory free new 1×1 enclosure with a playability prereq. **Done.**
+6. **Still deferred** (need new machinery, not the cost pipeline): the per-segment **"Nth fence"** cards
+   (Carpenter's Apprentice — a per-game ordinal counter), **Carpenter's Bench's** payment-source
+   restriction ("use only the taken wood"), **Overhaul's** raze-and-rebuild (a new primitive), and the
+   MCTS-macro-cost interaction (moot — no card searcher today). Open Air Farmer is 4+ → out of scope.
