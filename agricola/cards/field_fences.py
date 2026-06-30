@@ -5,15 +5,17 @@ to pay wood for fences that you build next to field tiles."
 Cost: 2 Food. No prerequisite; kept (not traveling); no printed VPs.
 
 Two mechanisms:
-- a GRANT of a Build Fences action (on play): `_on_play` pushes a `PendingBuildFences` host
-  with `initiated_by_id="card:field_fences"` and `build_fences_action=True` (the card grants
-  the LITERAL "Build Fences" action — so action-scoped frees like Hedge Keeper's +3 still
-  apply, seeded via `free_fence_budget_for`). The player then builds pastures through the
-  normal multi-shot host; in CARDS mode the deferred-tally settle pays the (discounted) bill
-  at the Proceed flip. If no pasture is buildable the grant is FORFEITED (on_play returns the
-  state unchanged), mirroring Shifting Cultivation's no-plow-possible case. The on_play runs
-  AFTER the play host flips to its after-phase, so the grant lands on top of it (the nested
-  walk: build the fences, the host pops, the play host's after-phase Stop pops it).
+- an OPTIONAL GRANT of a Build Fences action (on play): "you CAN take a Build Fences action"
+  is optional, so `_on_play` pushes the thin `PendingGrantedBuildFences` choose-or-decline
+  wrapper (NOT the build host directly — that would force the build). The wrapper offers
+  ChooseSubAction("build_fences") when a pasture is buildable under this grant's discount, else
+  only Stop (decline). Choosing build_fences pushes the real multi-shot `PendingBuildFences`
+  with `initiated_by_id="card:field_fences"` and `build_fences_action=True` (the LITERAL Build
+  Fences action — action-scoped frees like Hedge Keeper's +3 still apply, seeded then via
+  `free_fence_budget_for`); in CARDS mode the deferred-tally settle pays the (discounted) bill
+  at the Proceed flip. The on_play runs AFTER the play host flips to its after-phase, so the
+  wrapper lands on top of it (the nested walk: optionally build, the inner host pops, the
+  wrapper pops, the play host's after-phase Stop pops it).
 - a POSITIONAL per-edge discount SCOPED TO THIS GRANT: every new fence edge "next to a field
   tile" costs no wood. A new edge is next to a field iff the cell on the FAR side of it (the
   one outside the pasture) is a FIELD; since pasture cells are never fields (only EMPTY/STABLE
@@ -44,19 +46,13 @@ FRAME_ID = "card:field_fences"   # the granted Build Fences frame's initiated_by
 
 
 def _on_play(state: GameState, idx: int) -> GameState:
-    from agricola.cards.cost_mods import free_fence_budget_for
-    from agricola.legality import _any_legal_pasture_commit
-    from agricola.pending import PendingBuildFences, push
-    # Forfeit if nothing is buildable (the anticipation sees this grant's field-adjacency
-    # discount via initiated_by_id, so a build only the discount enables is NOT forfeited).
-    if not _any_legal_pasture_commit(
-            state, state.players[idx], space_id=FRAME_ID, initiated_by_id=FRAME_ID):
-        return state
-    return push(state, PendingBuildFences(
-        player_idx=idx, initiated_by_id=FRAME_ID,
-        free_fence_budget=free_fence_budget_for(
-            state, idx, build_fences_action=True, space_id=FRAME_ID),
-    ))
+    from agricola.pending import PendingGrantedBuildFences, push
+    # "You CAN take a Build Fences action" — OPTIONAL. Push the choose-or-decline wrapper
+    # (not the build host directly); it offers ChooseSubAction("build_fences") when a pasture
+    # is buildable under this grant's field-adjacency discount, else only Stop (decline). The
+    # wrapper's build_fences choice pushes the real PendingBuildFences with initiated_by_id
+    # FRAME_ID, seeding any other card's free-fence budget at that point.
+    return push(state, PendingGrantedBuildFences(player_idx=idx, initiated_by_id=FRAME_ID))
 
 
 def _field_adjacent_edges(farmyard, h_new: int, v_new: int, *, initiated_by_id, **_kw):

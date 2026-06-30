@@ -77,6 +77,7 @@ from agricola.pending import (
     PendingFamilyGrowth,
     PendingFarmExpansion,
     PendingFarmRedevelopment,
+    PendingGrantedBuildFences,
     PendingFoodPayment,
     PendingGrainUtilization,
     PendingMeetingPlace,
@@ -1973,6 +1974,26 @@ def _enumerate_pending_farm_redevelopment(
     return actions
 
 
+def _enumerate_pending_granted_build_fences(
+    state: GameState, pending: "PendingGrantedBuildFences",
+) -> list[Action]:
+    """Enumerate legal actions at PendingGrantedBuildFences — an OPTIONAL granted Build
+    Fences (Field Fences). Offers ChooseSubAction("build_fences") (only before the build is
+    taken AND when at least one pasture is buildable under THIS grant's provenance — so the
+    grant's positional discount is anticipated, mirroring Farm Redev's offer) plus Stop
+    (decline before, or finish after). After the inner build pops, `build_fences_chosen` is
+    True, so only Stop remains."""
+    actions: list[Action] = []
+    if not pending.build_fences_chosen:
+        p = state.players[pending.player_idx]
+        if _any_legal_pasture_commit(
+                state, p, space_id=pending.initiated_by_id,
+                initiated_by_id=pending.initiated_by_id):
+            actions.append(ChooseSubAction(name="build_fences"))
+    actions.append(Stop())
+    return actions
+
+
 def _enumerate_pending_harvest_feed(
     state: GameState, pending,
 ) -> list[Action]:
@@ -2450,6 +2471,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingHouseRedevelopment:  _enumerate_pending_house_redevelopment,
     PendingBuildFences:         _enumerate_pending_build_fences,
     PendingFarmRedevelopment:   _enumerate_pending_farm_redevelopment,
+    PendingGrantedBuildFences:  _enumerate_pending_granted_build_fences,
     PendingHarvestFeed:         _enumerate_pending_harvest_feed,
     PendingHarvestBreed:        _enumerate_pending_harvest_breed,
     PendingReveal:              _enumerate_pending_reveal,

@@ -977,6 +977,31 @@ class PendingDraftPick:
     card_type: str   # "occupation" or "minor"
 
 
+@dataclass(frozen=True)
+class PendingGrantedBuildFences:
+    """An OPTIONAL granted Build Fences action (a card grant — e.g. Field Fences).
+
+    "You CAN take a 'Build Fences' action" — the optionality. This thin PARENT host offers
+    the choice (ChooseSubAction("build_fences")) OR a decline (Stop), instead of forcing the
+    build (CARD_AUTHORING_GUIDE: granted sub-actions are optional; optionality lives at the
+    parent's choose+Stop, never a per-frame flag on the inner host — so the inner
+    PendingBuildFences keeps its mandatory ">=1 build" shape, and this wrapper is where
+    declining lives). Choosing build_fences pushes the real multi-shot PendingBuildFences
+    carrying THIS frame's `initiated_by_id`, so the card's positional discount + provenance +
+    any seeded free-fence budget all apply (mirrors Farm Redevelopment's optional build-fences
+    step, but with the card's own provenance rather than "farm_redevelopment"). Stop pops —
+    declining if no build was taken, or finishing after the inner build has popped.
+
+    `initiated_by_id` is the grant's provenance (e.g. "card:field_fences"). `build_fences_chosen`
+    flips True when the build is entered, so build_fences is offered at most once (after the
+    inner build pops, only Stop remains). Card-only: never reaches the C++ (Family) engine.
+    """
+    PENDING_ID: ClassVar[str] = "granted_build_fences"
+    player_idx: int
+    initiated_by_id: str
+    build_fences_chosen: bool = False
+
+
 # The PendingDecision union. New pending types are added here as the
 # non-atomic resolution surface grows.
 PendingDecision = Union[
@@ -1002,6 +1027,7 @@ PendingDecision = Union[
     PendingStoneOven,
     PendingBuildFences,
     PendingFarmRedevelopment,
+    PendingGrantedBuildFences,
     PendingFoodPayment,
     PendingHarvestFeed,
     PendingHarvestBreed,

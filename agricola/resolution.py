@@ -41,6 +41,7 @@ from agricola.pending import (
     PendingBuildRooms,
     PendingChooseCost,
     PendingBuildStables,
+    PendingGrantedBuildFences,
     PendingBuildMajor,
     PendingClayOven,
     PendingFarmRedevelopment,
@@ -902,6 +903,27 @@ def _choose_subaction_farm_redevelopment(
     raise ValueError(f"Unknown sub-action {action.name!r} for Farm Redevelopment")
 
 
+def _choose_subaction_granted_build_fences(
+    state: GameState, action: ChooseSubAction,
+) -> GameState:
+    """Card-game choose handler for an OPTIONAL granted Build Fences (Field Fences). The
+    sole sub-action `build_fences` flips the wrapper's `build_fences_chosen` and pushes the
+    real multi-shot PendingBuildFences carrying the grant's own provenance (so the card's
+    positional discount applies) + any seeded free-fence budget. Declining is the wrapper's
+    Stop, not handled here. Mirrors Farm Redevelopment's build-fences push."""
+    from agricola.cards.cost_mods import free_fence_budget_for
+    top = state.pending_stack[-1]
+    p_idx = top.player_idx
+    if action.name == "build_fences":
+        state = replace_top(state, fast_replace(top, build_fences_chosen=True))
+        return push(state, PendingBuildFences(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id,
+            free_fence_budget=free_fence_budget_for(
+                state, p_idx, build_fences_action=True, space_id=top.initiated_by_id),
+        ))
+    raise ValueError(f"Unknown sub-action {action.name!r} for granted Build Fences")
+
+
 def _choose_subaction_basic_wish_for_children(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
@@ -971,6 +993,7 @@ CHOOSE_SUBACTION_HANDLERS[PendingStoneOven] = _choose_subaction_stone_oven
 CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
 CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
+CHOOSE_SUBACTION_HANDLERS[PendingGrantedBuildFences] = _choose_subaction_granted_build_fences
 CHOOSE_SUBACTION_HANDLERS[PendingBasicWishForChildren] = _choose_subaction_basic_wish_for_children
 CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlace] = _choose_subaction_meeting_place
 
