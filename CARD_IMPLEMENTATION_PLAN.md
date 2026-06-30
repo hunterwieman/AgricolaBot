@@ -253,10 +253,10 @@ card field defaults empty/inert; every guard is O(1) and short-circuits on empty
 24 occupations + 35 minors, grouped by the engine machinery they need (Part III headings). Hard
 cards excluded here and tracked in `CARD_SYSTEM_DESIGN.md`: cost-modifiers (Carpenter, Master
 Bricklayer, Hedge Keeper, Frame Builder, Lumber Mill, Carpenter's Parlor, Rammed Clay), legality
-changers (Conservator, Adoptive Parents, Paper Maker, Lasso, Mantlepiece; **Sleeping Corner is
-now DONE** — see note below),
-capacity-gating (Drinking Trough, Caravan→`wontfix`; **Animal Tamer is now DONE** — see note
-below), at-any-time conversions / §15
+changers (Conservator, Adoptive Parents, Paper Maker, Lasso; **Sleeping Corner and Mantlepiece are
+now DONE** — see notes below),
+capacity-gating (Caravan→`wontfix`; **Animal Tamer and Drinking Trough are now DONE** — see
+notes below), at-any-time conversions / §15
 (Sheep Walker, Grocer, Hard Porcelain, Clearing Spade), deferred subsystems (Claypipe cumulative
 counter, Brook board-geometry, Beanfield field-card).
 
@@ -1149,8 +1149,8 @@ needs ≥1 animal + ≥3 unused capacity, i.e. capacity ≥ 4 with few animals i
 optimization — and the end-game "remove animals to free capacity" play needs the deferred
 before-scoring conversion phase (Sheep Walker; `CARD_SYSTEM_DESIGN.md` §7).
 
-## Category 2 — On-play one-shot effects (9 + 1 deferred)
-**Consultant · Priest · Roof Ballaster · Big Country · Bottles · Clay Embankment · Market Stall · Young Animal Market · Shifting Cultivation** (Mini Pasture deferred)
+## Category 2 — On-play one-shot effects (10 + 1 deferred)
+**Consultant · Priest · Roof Ballaster · Big Country · Mantlepiece · Bottles · Clay Embankment · Market Stall · Young Animal Market · Shifting Cultivation** (Mini Pasture deferred)
 
 Hook: the `on_play` callback dispatched by `_execute_play_{occupation,minor}` (II.4). Of the 9 built
 here, **four** are passing minors (also circulate): Clay Embankment, Market Stall, Young Animal Market,

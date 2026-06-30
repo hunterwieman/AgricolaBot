@@ -651,7 +651,12 @@ def _can_renovate(state: GameState, p: PlayerState) -> bool:
     chokepoint `can_pay` (so a card that discounts/converts/extends a target makes it
     reachable). In the Family game this reduces to "can afford the next tier's printed
     cost", i.e. the old inline check.
+
+    Mantlepiece permanently forbids renovation for its owner (card ownership is checked
+    directly — no extra state needed since it is a permanent effect).
     """
+    if "mantlepiece" in p.minor_improvements:
+        return False
     idx = 0 if p is state.players[0] else 1
     return any(
         can_pay(state, idx, _renovate_ctx(p, t))

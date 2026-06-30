@@ -183,6 +183,9 @@ from agricola.cards import seasonal_worker       # noqa: F401
 # PendingPlow on top of the after-flipped play host).
 from agricola.cards import tutor                 # noqa: F401
 from agricola.cards import big_country           # noqa: F401
+# Mantlepiece (minor, Cat 2 — bank 1 bonus point per complete round left, scoring term
+# reads it back; −3 printed VPs; renovation permanently forbidden via _can_renovate).
+from agricola.cards import mantlepiece           # noqa: F401
 from agricola.cards import moldboard_plow        # noqa: F401
 from agricola.cards import roof_ballaster        # noqa: F401
 # Capacity-modifier occupation: Animal Tamer — wide wood/grain play-variant + the house
