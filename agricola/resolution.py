@@ -1492,25 +1492,31 @@ def _execute_build_pasture(
         new_resources = p.resources - payments[0]
         new_accrued = top.accrued_cost
         new_budget = top.free_fence_budget
+        new_card_state = p.card_state
+        supply_drawn = wood_cost                          # Family: every piece from supply
     else:  # CARDS: deferred accrue, no debit (settled at the Proceed flip).
-        from agricola.cards.cost_mods import positional_free_edge_count
+        from agricola.cards.cost_mods import (
+            positional_free_edge_count, spend_fence_pools)
         positional_free = positional_free_edge_count(
             state, player_idx, farmyard, h_new, v_new,
             initiated_by_id=top.initiated_by_id,
             build_fences_action=top.build_fences_action)
         after_positional = wood_cost - positional_free      # source 1: positional edges
         free_used = min(after_positional, top.free_fence_budget)  # source 2: per-action budget
-        paid = after_positional - free_used
+        after_budget = after_positional - free_used
+        pool_used, new_card_state = spend_fence_pools(p, after_budget)  # source 3: persistent pool
+        paid = after_budget - pool_used
         new_budget = top.free_fence_budget - free_used
         new_resources = p.resources                      # no debit; deferred to settle
         new_accrued = top.accrued_cost + Resources(wood=paid)
+        supply_drawn = wood_cost - pool_used   # pool pieces come from the card, not supply
 
-    # Fence PIECES drawn from the SUPPLY pile (location 4): every new edge except those built
-    # from a card's reserve (Ash Trees — a later increment; 0 here). A positional/budget WOOD
-    # free still draws a supply piece, so the supply decrements by the full new-edge count for
-    # now (both modes). In Family every fence comes from supply, so this keeps the field at
-    # exactly `15 - fences_built`.
-    new_supply = p.fences_in_supply - wood_cost
+    # Fence PIECES drawn from the SUPPLY pile (location 4) = every new edge except those built
+    # from a card's reserve (Ash Trees pool, drawn from the card). A positional/budget WOOD
+    # free still draws a SUPPLY piece (only the wood is waived), so `supply_drawn` excludes
+    # only the pool pieces. In Family every fence comes from supply, so the field stays exactly
+    # `15 - fences_built`.
+    new_supply = p.fences_in_supply - supply_drawn
 
     # 4. Apply fence-array updates.
     new_h = apply_fence_edges_h(farmyard.horizontal_fences, h_new)
@@ -1524,10 +1530,11 @@ def _execute_build_pasture(
     )
 
     # 6 + 7. Update player (Family debits payment[0]; Cards leaves resources intact). Both
-    # decrement the fence supply pile by the pieces drawn from it.
+    # decrement the fence supply pile by the supply pieces drawn; CARDS also decrements any
+    # spent card pool (new_card_state).
     new_player = fast_replace(
         p, farmyard=new_farmyard, resources=new_resources,
-        fences_in_supply=new_supply,
+        fences_in_supply=new_supply, card_state=new_card_state,
     )
     state = _update_player(state, player_idx, new_player)
 

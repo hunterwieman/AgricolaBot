@@ -99,6 +99,11 @@ from agricola.cards import briar_hedge           # noqa: F401
 # discount scoped to that grant — edges next to a field tile cost no wood. Combines the grant
 # pattern (Shifting Cultivation) with the provenance-gated positional fold. Cost 2 food.
 from agricola.cards import field_fences          # noqa: F401
+# Ash Trees (minor, COST_MODIFIER_DESIGN.md §9): the persistent free-fence POOL — on play
+# moves up to 5 fences from the supply pile onto the card (a CardStore pool); building spends
+# them free (the THIRD free-fence source, after positional + per-action budget). Uses the
+# stored fences_in_supply field. Prereq 2 planted fields.
+from agricola.cards import ash_trees             # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

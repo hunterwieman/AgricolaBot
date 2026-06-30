@@ -180,6 +180,49 @@ def base_routes(action_kind: str, state, idx: int, ctx) -> list:
     return out
 
 
+# card_id -> CardStore key holding that card's PERSISTENT free-fence POOL (Ash Trees). The
+# THIRD free-fence source (COST_MODIFIER_DESIGN.md §9.4), distinct from the per-action SEEDS
+# (a budget reset each action) and the per-edge geometric EDGES: a pool is a reserve of fence
+# PIECES held on the card, placed for free and SPENT (decremented) as used. The pieces were
+# moved from the player's 15-supply at play, so the total never exceeds 15; the pool counts
+# toward `buildable_fences` (the pieces ARE placeable) AND waives their wood.
+FREE_FENCE_POOLS: dict[str, str] = {}
+
+
+def register_free_fence_pool(card_id: str, store_key: str) -> None:
+    """Register a card's persistent free-fence pool, held in `card_state[store_key]`
+    (Ash Trees). Ownership-gated; empty in the Family game."""
+    FREE_FENCE_POOLS[card_id] = store_key
+
+
+def free_fence_pool_remaining(player) -> int:
+    """Total free fences across the player's owned pools (Ash Trees) — both BUILDABLE pieces
+    and free of wood. Read by `buildable_fences` (piece count) and `_check_entry_legal` /
+    the build accrue (free-wood source). 0 in the Family game (empty registry)."""
+    return sum(player.card_state.get(key, 0)
+               for cid, key in FREE_FENCE_POOLS.items() if _owns(player, cid))
+
+
+def spend_fence_pools(player, n: int):
+    """Spend up to `n` free fences across the player's owned pools (greedy, registration
+    order); return (spent, new_card_state) with each used pool decremented. Called by the
+    build path AFTER positional frees + the per-action budget (§9.4 source 3). The spent
+    pieces come from the card, so the caller does NOT decrement the supply pile for them."""
+    spent = 0
+    card_state = player.card_state
+    for cid, key in FREE_FENCE_POOLS.items():
+        if spent >= n:
+            break
+        if not _owns(player, cid):
+            continue
+        avail = card_state.get(key, 0)
+        take = min(avail, n - spent)
+        if take:
+            card_state = card_state.set(key, avail - take)
+            spent += take
+    return spent, card_state
+
+
 def register_free_fence_edges(card_id: str, edge_fn: Callable) -> None:
     """Register a card's POSITIONAL per-edge free-fence contribution (COST_MODIFIER_DESIGN.md
     §9.4 source 1). `edge_fn(farmyard, h_new, v_new, *, state, idx, initiated_by_id,

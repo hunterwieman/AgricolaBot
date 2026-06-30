@@ -943,12 +943,15 @@ def _check_entry_legal(
     # arithmetic in the cached scan (see the docstring). Fence-PIECE supply is checked
     # separately on FULL edge count — free fences still use pieces (§9.7).
     positional_free = 0
+    pool_free = 0
     if state is not None and idx is not None:
-        from agricola.cards.cost_mods import positional_free_edge_count
+        from agricola.cards.cost_mods import (
+            free_fence_pool_remaining, positional_free_edge_count)
         positional_free = positional_free_edge_count(
             state, idx, state.players[idx].farmyard, h_new, v_new,
             initiated_by_id=initiated_by_id, build_fences_action=build_fences_action)
-    paid = max(0, new_count - positional_free - free_budget)
+        pool_free = free_fence_pool_remaining(state.players[idx])   # source 3 (Ash Trees)
+    paid = max(0, new_count - positional_free - free_budget - pool_free)
     running = accrued_wood + paid   # whole-action running paid-edge total (§9.2)
     if state is not None and idx is not None:
         if not can_pay(state, idx, _build_fence_ctx(state.players[idx], running)):
