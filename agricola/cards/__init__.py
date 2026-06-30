@@ -342,3 +342,31 @@ from agricola.cards import forestry_studies  # noqa: F401
 
 # Base (Revised) — scheduled-animal grant (Acorns Basket, next-2-rounds boar)
 from agricola.cards import acorns_basket  # noqa: F401
+
+# ===========================================================================
+# Corbarius (deck C) — tier-1 batch (from-scratch triage; 2026-06-30). Specs in
+# CARD_TRIAGE_CDE.md. (Canvas Sack deferred — minor play-variant '/' cost, archived.)
+# ===========================================================================
+from agricola.cards import potato_harvester  # noqa: F401
+from agricola.cards import small_animal_breeder  # noqa: F401
+from agricola.cards import wood_collector  # noqa: F401
+from agricola.cards import skillful_renovator  # noqa: F401
+from agricola.cards import clay_kneader  # noqa: F401
+from agricola.cards import freemason  # noqa: F401
+from agricola.cards import soldier  # noqa: F401
+from agricola.cards import sheep_provider  # noqa: F401
+from agricola.cards import market_crier  # noqa: F401
+from agricola.cards import cowherd  # noqa: F401
+from agricola.cards import resource_analyzer  # noqa: F401
+from agricola.cards import half_timbered_house  # noqa: F401
+from agricola.cards import abort_oriel  # noqa: F401
+from agricola.cards import greening_plan  # noqa: F401
+from agricola.cards import lantern_house  # noqa: F401
+from agricola.cards import christianity  # noqa: F401
+from agricola.cards import writing_boards  # noqa: F401
+from agricola.cards import remodeling  # noqa: F401
+from agricola.cards import bookcase  # noqa: F401
+from agricola.cards import blade_shears  # noqa: F401
+from agricola.cards import private_forest  # noqa: F401
+from agricola.cards import wood_cart  # noqa: F401
+from agricola.cards import plant_fertilizer  # noqa: F401
