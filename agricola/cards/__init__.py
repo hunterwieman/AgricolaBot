@@ -203,6 +203,11 @@ from agricola.cards import shifting_cultivator   # noqa: F401
 from agricola.cards import drill_harrow          # noqa: F401
 from agricola.cards import plow_hero             # noqa: F401
 from agricola.cards import mole_plow             # noqa: F401
+# Paper Maker (occ, FOOD_PAYMENT_DESIGN.md): an optional before_play_occupation trigger — pay
+# 1 wood to get 1 food per occupation in front of you. Self-excludes via ownership timing.
+# Also an OCCUPATION_FOOD_SOURCE so the Lessons/Scholar gate (`_payable_occupation`) offers a
+# play payable only by firing it first; the play-occ commit gate then forces the fire order.
+from agricola.cards import paper_maker           # noqa: F401
 # Food-in-a-build-cost (FOOD_PAYMENT_DESIGN.md §9): Wood Expert — pay 1 food instead of up to
 # 2 wood per improvement (a cost conversion on build_major/play_minor), +2 wood on play.
 from agricola.cards import wood_expert           # noqa: F401

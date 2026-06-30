@@ -26,7 +26,7 @@ from agricola.cards.triggers import (
 from agricola.constants import HouseMaterial
 from agricola.legality import playable_minors, playable_occupations
 from agricola.pending import PendingPlayMinor, PendingPlayOccupation, push
-from agricola.legality import _liquidatable_to
+from agricola.legality import _payable_occupation
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -46,7 +46,7 @@ def _legal_variants(state: GameState, idx: int) -> list[str]:
     liquidation), so the only fix here is the liquidation-aware eligibility gate."""
     p = state.players[idx]
     variants: list[str] = []
-    if playable_occupations(state, idx) and _liquidatable_to(state, idx, p, _OCC_COST):
+    if playable_occupations(state, idx) and _payable_occupation(state, idx, p, _OCC_COST):
         variants.append("occupation")
     if playable_minors(state, idx):
         variants.append("minor")

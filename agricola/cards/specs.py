@@ -96,6 +96,27 @@ def register_food_payment_resume(resume_kind: str, apply_fn: Callable) -> None:
     FOOD_PAYMENT_RESUMES[resume_kind] = apply_fn
 
 
+# ---------------------------------------------------------------------------
+# Occupation-cost food sources (Paper Maker — PAY_FOOD_PLOW_CARDS.md / FOOD_PAYMENT_DESIGN.md)
+# ---------------------------------------------------------------------------
+# A card that, at the moment of playing an occupation, can PRODUCE food usable for the
+# occupation's food cost (Paper Maker: "pay 1 wood to get 1 food per occupation"). Such a
+# card is implemented as a `before_play_occupation` trigger (so it fires as a real, optional
+# step — and is still offered when you already have enough food, a pure value trade). But the
+# occupation-affordability GATE (Lessons / Scholar) must also know the food is reachable, or a
+# play payable only by firing the source would never be offered (you'd never reach the frame
+# to fire it). Each source registers here a `(state, idx) -> (food_produced, inputs:
+# Resources) | None` — its food AND the resources it consumes — so the gate can simulate
+# firing it (spend inputs, add food) and re-check `_payable`, which reserves the inputs from
+# any competing liquidation (forward-compatible with a future wood->food liquidation).
+OCCUPATION_FOOD_SOURCES: dict[str, Callable] = {}
+
+
+def register_occupation_food_source(card_id: str, source_fn: Callable) -> None:
+    """Register a card that can produce food toward an occupation play cost (Paper Maker)."""
+    OCCUPATION_FOOD_SOURCES[card_id] = source_fn
+
+
 @dataclass(frozen=True)
 class MinorSpec:
     """A minor improvement's static definition (CARD_IMPLEMENTATION_PLAN.md II.4).

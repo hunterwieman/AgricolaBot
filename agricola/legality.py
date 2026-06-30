@@ -421,6 +421,36 @@ def _payable(
     )
 
 
+def _payable_occupation(state: GameState, idx: int, p: PlayerState, cost: Resources) -> bool:
+    """Can `idx` pay an occupation play cost — directly, via liquidation, OR by first firing
+    an owned occupation-cost FOOD SOURCE (Paper Maker: 1 wood -> N food)?
+
+    This is the affordability GATE for offering an occupation play (Lessons / Scholar). A
+    source is simulated by spending its inputs and adding its food, then re-running `_payable`,
+    so the liquidation it competes with sees the reduced goods — the spent wood is reserved
+    automatically (forward-compatible with a future wood->food liquidation). The source itself
+    is a real `before_play_occupation` trigger; the play-occupation enumerator's commit gate
+    (`_payable(top.cost)`) then forces it to be fired before the commit unlocks, so there is no
+    empty-frontier dead state. (Single-source today; a multi-source future would need to
+    consider firing combinations.)"""
+    if _payable(state, idx, p, cost):
+        return True
+    from agricola.cards.specs import OCCUPATION_FOOD_SOURCES
+    owned = p.occupations | p.minor_improvements
+    for source_card, source_fn in OCCUPATION_FOOD_SOURCES.items():
+        if source_card not in owned:
+            continue
+        result = source_fn(state, idx)          # (food_produced, inputs: Resources) | None
+        if result is None:
+            continue
+        produced, inputs = result
+        p_fired = fast_replace(
+            p, resources=p.resources - inputs + Resources(food=produced))
+        if _payable(state, idx, p_fired, cost):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Cost resolution — the cost-modifier-card chokepoint (COST_MODIFIER_DESIGN.md)
 # ---------------------------------------------------------------------------
@@ -1182,9 +1212,10 @@ def _legal_lessons_cards(state: GameState) -> bool:
     if not playable_occupations(state, idx):
         return False
     # The 2nd+ occupation's 1-food cost may be raised by liquidation at execution
-    # (FOOD_PAYMENT_DESIGN.md §4.1); occupations carry no animal cost. Occupations stay
-    # off `effective_payments` — no cost card touches occupation play cost.
-    return _payable(state, idx, p, occupation_cost(len(p.occupations)))
+    # (FOOD_PAYMENT_DESIGN.md §4.1) OR by firing an owned occupation-cost food source first
+    # (Paper Maker). `_payable_occupation` folds in both; occupations carry no animal cost and
+    # stay off `effective_payments` (no cost card touches occupation play cost).
+    return _payable_occupation(state, idx, p, occupation_cost(len(p.occupations)))
 
 
 def _legal_major_improvement_cards(state: GameState) -> bool:
@@ -2271,8 +2302,13 @@ def _enumerate_pending_play_occupation(
     for cid in playable_occupations(state, top.player_idx):
         variants_fn = PLAY_OCCUPATION_VARIANTS.get(cid)
         if variants_fn is None:
-            # Ordinary occupation: a single variant-less commit (common path).
-            actions.append(CommitPlayOccupation(card_id=cid))
+            # Ordinary occupation: a single variant-less commit — offered only when its play
+            # cost is CURRENTLY payable (liquidation-aware). This is the gate↔frontier guard:
+            # if the cost is short and not liquidatable, the commit is withheld (a `before_
+            # play_occupation` food source like Paper Maker must be fired first to raise the
+            # food), so committing never pushes an empty-frontier PendingFoodPayment.
+            if _payable(state, top.player_idx, p, top.cost):
+                actions.append(CommitPlayOccupation(card_id=cid))
             continue
         # Play-variant occupation (Roof Ballaster): one commit per variant whose
         # base-play-cost + declared SURCHARGE is payable (liquidation-aware). The base play
