@@ -493,6 +493,22 @@ class PendingStoneOven:
 
 
 @dataclass(frozen=True)
+class FenceRestrictions:
+    """A restricted-grant geometry descriptor on PendingBuildFences (COST_MODIFIER_DESIGN.md
+    §9.8). A small, hashable, serializable structure (NOT a callback — that would break the
+    frame's hash / canonical JSON) the legal-pasture enumerator filters by. Default (all
+    None/False) = unrestricted = a normal Build Fences action.
+
+    Mini Pasture = `FenceRestrictions(exact_size=1, forbid_subdivision=True, max_pastures=1)`
+    (a new 1×1 enclosure, never a subdivision, exactly one). "Adjacent to an existing pasture"
+    needs no field — `_check_entry_legal`'s adjacency rule already requires a non-subdivision
+    new pasture to touch an existing one when any exist (owner ruling, §9.8)."""
+    max_pastures: int | None = None       # cap the action's commit count (Mini Pasture = 1)
+    exact_size:   int | None = None       # require this many cells per pasture (Mini Pasture = 1)
+    forbid_subdivision: bool = False      # only NEW enclosures, never a split of an existing pasture
+
+
+@dataclass(frozen=True)
 class PendingBuildFences:
     """Multi-shot sub-action HOST for fence building.
 
@@ -550,6 +566,7 @@ class PendingBuildFences:
     build_fences_action: bool = True    # literal Build Fences action (Fencing / Farm Redev) vs a card effect that fences (§9.6); default-True canonical skip-field → Family byte-identical, no C++
     accrued_cost: Resources = Resources()  # Cards deferred-tally: running wood owed, settled at Proceed (§9.2); default → Family byte-identical skip-field, no C++
     free_fence_budget: int = 0          # Cards per-action free-fence allowance (Hedge Keeper +3, §9.4); default → Family byte-identical skip-field, no C++
+    restrictions: "FenceRestrictions" = FenceRestrictions()  # restricted-grant geometry (Mini Pasture, §9.8); default unrestricted → Family byte-identical skip-field, no C++
 
 
 @dataclass(frozen=True)

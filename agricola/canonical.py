@@ -114,7 +114,7 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     "used_this_turn", "used_this_round", "fired_once",
     "card_state", "future_rewards", "draft_pools",
     "build_fences_action", "build_stables_action", "build_rooms_action",
-    "accrued_cost", "free_fence_budget",
+    "accrued_cost", "free_fence_budget", "restrictions",
 })
 
 

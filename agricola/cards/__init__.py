@@ -109,6 +109,11 @@ from agricola.cards import ash_trees             # noqa: F401
 # a "1 building resource of your choice less" CONVERSION on improvements built via House
 # Redevelopment (gated on a PendingHouseRedevelopment frame on the stack). 1 VP.
 from agricola.cards import hunting_trophy         # noqa: F401
+# Mini Pasture (minor, COST_MODIFIER_DESIGN.md §9.8): the first RESTRICTED grant — on play,
+# MANDATORY-fence a free NEW 1×1 enclosure (FenceRestrictions exact_size=1, forbid_subdivision,
+# max_pastures=1; free_fence_budget=4; build_fences_action=False). Unplayable unless such a 1×1
+# is buildable (its prereq). Cost 2 food.
+from agricola.cards import mini_pasture           # noqa: F401
 
 # Minor improvements (card game). Importing each registers its MinorSpec in
 # agricola.cards.specs.MINORS at package load. See CARD_IMPLEMENTATION_PLAN.md II.4.

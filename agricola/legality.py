@@ -76,6 +76,7 @@ from agricola.pending import (
     PendingDraftPick,
     PendingFamilyGrowth,
     PendingFarmExpansion,
+    FenceRestrictions,
     PendingFarmRedevelopment,
     PendingGrantedBuildFences,
     PendingFoodPayment,
@@ -857,6 +858,7 @@ def _check_entry_legal(
     accrued_wood: int = 0,
     initiated_by_id: str | None = None,
     build_fences_action: bool = True,
+    restrictions: FenceRestrictions = FenceRestrictions(),
 ) -> tuple[bool, int, int]:
     """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
     universe entry against precomputed per-call state.
@@ -903,6 +905,11 @@ def _check_entry_legal(
     """
     bm = entry.cells_bm
 
+    # 0. Restricted-grant geometry (Mini Pasture etc., §9.8): exact cell count. Default
+    #    (exact_size None) = unrestricted, so the Family / normal path is unaffected.
+    if restrictions.exact_size is not None and bm.bit_count() != restrictions.exact_size:
+        return False, 0, 0
+
     # 1. Enclosable cells only.
     if bm & ~enclosable_bm:
         return False, 0, 0
@@ -922,6 +929,10 @@ def _check_entry_legal(
 
     # 2b. Builds-before-subdivisions ordering rule (TASK_6 §2.3).
     if (not is_subdivision) and subdivision_started:
+        return False, 0, 0
+
+    # 2c. Restricted grant: only NEW enclosures (Mini Pasture forbids subdivisions, §9.8).
+    if restrictions.forbid_subdivision and is_subdivision:
         return False, 0, 0
 
     # 3. Adjacency: subdivision is fine (within); new-pasture must touch an
@@ -1030,8 +1041,17 @@ def _any_legal_pasture_commit(
     universe_set: frozenset | None = None,
     space_id: str = "fencing",
     initiated_by_id: str | None = None,
+    restrictions: FenceRestrictions = FenceRestrictions(),
+    free_budget: int | None = None,
+    build_fences_action: bool = True,
 ) -> bool:
     """Return True iff at least one pasture commit is legal for `p` in `state`.
+
+    `restrictions` / `free_budget` / `build_fences_action` support restricted-grant playability
+    checks (Mini Pasture's "is a free 1×1 new-enclosure possible?" prereq): pass the grant's
+    `FenceRestrictions`, its fixed free-fence allowance (`free_budget` overrides the
+    literal-action anticipation), and `build_fences_action=False`. Defaults reproduce the
+    original placement / Farm-Redev-offer behavior exactly.
 
     Two-pass iteration: precomputed 1×1 fast-path first, then the rest of the
     universe (skipping 1×1's already checked). The fast path capitalizes on
@@ -1063,13 +1083,15 @@ def _any_legal_pasture_commit(
     # the budget-aware `_check_entry_legal`. In Family the anticipated budget is always 0.
     if (opt_config.FENCE_SCAN_CACHE
             and entries is None and smallest_entries is None and universe_set is None
+            and restrictions == FenceRestrictions()
             and state.mode is GameMode.FAMILY):
         return bool(_legal_pasture_commits_cached(p.farmyard, p.resources.wood, False))
 
     idx = 0 if p is state.players[0] else 1
-    from agricola.cards.cost_mods import free_fence_budget_for
-    free_budget = free_fence_budget_for(
-        state, idx, build_fences_action=True, space_id=space_id)
+    if free_budget is None:                  # default: anticipate the literal-action budget
+        from agricola.cards.cost_mods import free_fence_budget_for
+        free_budget = free_fence_budget_for(
+            state, idx, build_fences_action=build_fences_action, space_id=space_id)
 
     if entries is None:
         entries = ACTIVE_FENCE_UNIVERSE_ENTRIES
@@ -1104,7 +1126,8 @@ def _any_legal_pasture_commit(
         idx=idx,
         free_budget=free_budget,
         initiated_by_id=initiated_by_id,   # provenance for positional gating (Field Fences)
-        build_fences_action=True,
+        build_fences_action=build_fences_action,
+        restrictions=restrictions,         # restricted-grant geometry (Mini Pasture prereq)
     )
 
     # Fast path: precomputed 1×1 tuple (~13 entries under RESTRICTED).
@@ -1887,6 +1910,8 @@ def _enumerate_pending_build_fences(
             and state.mode is GameMode.FAMILY):
         assert pending.free_fence_budget == 0, (
             "fence-scan cache reached with a nonzero free_fence_budget — key is incomplete")
+        assert pending.restrictions == FenceRestrictions(), (
+            "fence-scan cache reached with a restricted grant — key is incomplete")
         p = state.players[pending.player_idx]
         legal = _legal_pasture_commits_cached(
             p.farmyard, p.resources.wood, pending.subdivision_started,
@@ -1933,14 +1958,19 @@ def _enumerate_pending_build_fences(
         accrued_wood=pending.accrued_cost.wood,  # whole-action paid-edge running total (§9.2)
         initiated_by_id=pending.initiated_by_id,  # provenance for positional gating (Field Fences)
         build_fences_action=pending.build_fences_action,
+        restrictions=pending.restrictions,        # restricted-grant geometry (Mini Pasture, §9.8)
     )
 
     actions: list[Action] = _eligible_fire_triggers(
         state, pending, trigger_event(pending))
-    for entry in entries:
-        ok, _h, _v = _check_entry_legal(entry, **common)
-        if ok:
-            actions.append(CommitBuildPasture(cells=entry.cells))
+    # A restricted grant caps the action's commit count (Mini Pasture = 1): once the cap is
+    # reached, offer no more commits (the player Proceeds to finish). Unrestricted = no cap.
+    cap = pending.restrictions.max_pastures
+    if cap is None or pending.pastures_built < cap:
+        for entry in entries:
+            ok, _h, _v = _check_entry_legal(entry, **common)
+            if ok:
+                actions.append(CommitBuildPasture(cells=entry.cells))
 
     if pending.pastures_built >= 1:
         actions.append(Proceed())
