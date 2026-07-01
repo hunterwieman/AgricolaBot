@@ -115,6 +115,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     "card_state", "future_rewards", "draft_pools",
     "build_fences_action", "build_stables_action", "build_rooms_action",
     "accrued_cost", "free_fence_budget", "restrictions",
+    "must_preserve_base",
+    # PendingPlow multi-shot grant fields (Swing/Turnwrest/Wheel Plow): Family-constant
+    # defaults (every Family plow is single-shot), so omitting them keeps the Family JSON
+    # byte-identical and needs no C++ change.
+    "max_plows", "num_plowed",
 })
 
 

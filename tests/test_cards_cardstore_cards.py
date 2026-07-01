@@ -333,6 +333,26 @@ def test_moldboard_not_offered_when_it_would_strand_the_base_plow():
     assert ChooseSubAction(name="plow") in la                # the base plow is still legal
 
 
+def test_moldboard_granted_plow_excludes_stranding_cells():
+    """Cell-level stranding guard: when Moldboard IS offered (a safe two-plow sequence
+    exists) but the board also has an ISOLATED plowable cell, the granted plow must not
+    offer that isolated cell — plowing it would strand the mandatory base plow."""
+    from agricola.actions import CommitPlow, FireTrigger
+    from agricola.state import Cell
+    s = _own_minor(_card_state(), 0, "moldboard_plow")
+    # 0 fields; (0,0)&(0,1) adjacent empties (a safe pair → grant eligible); (0,3) an
+    # isolated empty (no empty neighbours); everything else ROOM.
+    empties = {(0, 0), (0, 1), (0, 3)}
+    overrides = {(r, c): (Cell(cell_type=CellType.EMPTY) if (r, c) in empties
+                          else Cell(cell_type=CellType.ROOM))
+                 for r in range(3) for c in range(5)}
+    s = with_grid(s, 0, overrides)
+    s = step(s, PlaceWorker(space="farmland"))
+    s = step(s, FireTrigger(card_id="moldboard_plow"))       # eligible via the (0,0)-(0,1) pair
+    cells = {(a.row, a.col) for a in legal_actions(s) if isinstance(a, CommitPlow)}
+    assert cells == {(0, 0), (0, 1)}                         # isolated (0,3) excluded
+
+
 # ---------------------------------------------------------------------------
 # Roof Ballaster — optional pay-1-food → 1-stone-per-room play variant
 # ---------------------------------------------------------------------------

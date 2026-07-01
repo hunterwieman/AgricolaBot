@@ -35,9 +35,9 @@ This is exactly Potter Ceramics' situation, solved the same way: a
 ``register_bake_bread_extension`` that broadens ``_can_bake_bread`` for this card.
 
 Count = "each of YOUR people occupying an accumulation space": the OWNER's own
-workers (``ActionSpaceState.workers[idx]``) summed over the ten spaces in
-``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces and the 5
-food/animal spaces). The bake host (Grain Utilization / Side Job / the ovens) is
+workers (``ActionSpaceState.workers[idx]``) summed over the nine spaces in
+``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces and 4 food/animal
+spaces — meeting_place is excluded, as it accumulates nothing in the card game). The bake host (Grain Utilization / Side Job / the ovens) is
 not an accumulation space, so the worker that initiated this bake is correctly
 not self-counted. Eligibility gates on count > 0 so an empty +0-grain grant is
 never applied. See CARD_AUTHORING_GUIDE.md and wood_pile.py (the same
@@ -54,13 +54,6 @@ from agricola.resources import Cost, Resources
 from agricola.state import GameState, PlayerState, get_space
 
 CARD_ID = "hand_truck"
-
-# NOTE (flagged for review): ACCUMULATION_SPACES includes `meeting_place`, which in the
-# CARD game is a become-starting-player space with NO goods accumulation (its food-rate
-# entry is "Family game only"). So a worker parked on Meeting Place is arguably NOT
-# "occupying an accumulation space" for this card. Kept here for consistency with Wood
-# Pile (the other card-game worker-counter), pending a ruling — see CARD_DEFERRED_PLANS.md.
-
 
 def _people_on_accumulation_spaces(state: GameState, idx: int) -> int:
     """Count the OWNER's workers currently on accumulation spaces."""

@@ -7,10 +7,10 @@ No cost, no prerequisite, no printed VPs. It is a TRAVELING (passing) card —
 after the immediate effect it is passed to the opponent rather than kept.
 
 Category 2 (on-play one-shot) + passing. "Accumulation spaces" are exactly the
-ten spaces in ``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces
-— forest / clay_pit / reed_bank / western_quarry / eastern_quarry — and the 5
-food/animal spaces — fishing / meeting_place / sheep_market / pig_market /
-cattle_market). The count is of the OWNER's own people currently on those
+nine spaces in ``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces
+— forest / clay_pit / reed_bank / western_quarry / eastern_quarry — and 4
+food/animal spaces — fishing / sheep_market / pig_market / cattle_market). In the
+card game meeting_place accumulates nothing, so it is excluded. The count is of the OWNER's own people currently on those
 spaces: ``ActionSpaceState.workers[idx]`` summed over those space ids. The
 improvement space the playing worker sits on is not an accumulation space, so
 the worker that plays Wood Pile is correctly not self-counted.

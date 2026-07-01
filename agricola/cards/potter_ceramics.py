@@ -1,18 +1,39 @@
-"""Potter Ceramics (minor improvement).
+"""Potter Ceramics (minor improvement, D66; Consul Dirigens Expansion).
 
-Effect: Each time before a Bake Bread action, the owner may exchange
-exactly 1 clay for 1 grain. Available at most once per Bake Bread action.
+Card text (verbatim): "Each time before you take a 'Bake Bread' action, you
+can exchange 1 clay for 1 grain."
+Clarification: "You must bake if you make this exchange."
 
-Task 5 implements this card as the canonical worked example for the
-pending-stack's trigger machinery. It exercises:
+Cost: none (free). No prerequisite, no printed VPs, not a passing card.
+
+Effect: each time before a Bake Bread action, the owner MAY exchange exactly
+1 clay for 1 grain. Available at most once per Bake Bread action. This is an
+OPTIONAL ("you can") exchange, so it is a declinable `register()` FireTrigger
+— NOT a mandatory `register_auto` — that fires on the `before_bake_bread`
+sub-action event.
+
+The "you must bake if you make this exchange" clarification is satisfied
+STRUCTURALLY, not by a separate guard: the swap fires inside a PendingBakeBread
+frame, which the host only pushes when a Bake Bread action is being taken, and
+that frame's before-phase only exits via CommitBake (Stop appears only in the
+after-phase). So "exchange the clay, then walk away without baking" is
+impossible — no special handling needed (the same property Hand Truck relies on).
+
+This card was originally implemented as the canonical worked example for the
+pending-stack's trigger machinery (it predates the play-card path), so the
+trigger + the `_can_bake_bread` extension below already existed. The only
+addition to make it a playable, dealable minor is the `register_minor` wiring
+at the bottom of this module. It exercises:
   - The trigger registry (TRIGGERS / CARDS) via register().
   - The legality-extension registry via register_bake_bread_extension(),
     which broadens _can_bake_bread to accept "clay >= 1 + baker + Potter
     Ceramics" as a valid baking precondition (the trigger will swap clay
-    for grain mid-action).
+    for grain mid-action), so the owner can take a Bake Bread action even
+    at 0 grain in order to first swap for grain and then bake it.
   - The pending-stack's per-frame `triggers_resolved` scoping (Potter
     re-becomes-eligible on every new Bake Bread action because each new
-    PendingBakeBread has an empty `triggers_resolved` set).
+    PendingBakeBread has an empty `triggers_resolved` set) — the "each time"
+    semantics.
 
 The card has no on-placement effect, so it does NOT participate in the
 "compound card interaction" limitation (see ENGINE_IMPLEMENTATION.md §6 —
@@ -21,8 +42,7 @@ entirely through the trigger machinery.
 """
 from __future__ import annotations
 
-import dataclasses
-
+from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
 from agricola.legality import register_bake_bread_extension, _owns_baker
 from agricola.replace import fast_replace
@@ -91,3 +111,12 @@ def _can_bake_bread_extension(state: GameState, p: PlayerState) -> bool:
 
 
 register_bake_bread_extension(_can_bake_bread_extension)
+
+
+# ---------------------------------------------------------------------------
+# Playable-minor wiring
+# ---------------------------------------------------------------------------
+# Free, no prerequisite, not a passing card, 0 printed VPs (the card data has
+# cost / prereq / vps / passing_left all null → every register_minor default).
+# Makes Potter Ceramics dealable + playable; its effect rides on the trigger above.
+register_minor(CARD_ID)

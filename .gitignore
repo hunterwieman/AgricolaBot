@@ -111,6 +111,7 @@ sweep_progress.log
 
 # Session handoff docs (working notes; the design docs + git log are the durable record)
 *_HANDOFF.md
+POST_COMPACTION_DETOUR.md
 
 # Personal cloud ops files — removed from public history 2026-06-30, kept locally only
 /CLOUD_RUNBOOK.md

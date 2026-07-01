@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow, _can_plow_twice, _liquidatable_to
+from agricola.legality import _can_plow_twice, _liquidatable_to
 from agricola.pending import PendingFoodPayment, PendingPlow, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -63,7 +63,10 @@ def _pay_and_plow(state: GameState, idx: int) -> GameState:
                      resources=state.players[idx].resources - Resources(food=_FOOD_COST))
     state = fast_replace(state, players=tuple(
         p if i == idx else state.players[i] for i in range(2)))
-    return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
+    # Restrict the granted plow's cells (safe_plow_cells) so the base plow stays legal — on
+    # both Farmland and Cultivation (loss-less; see _eligible).
+    return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}",
+                                   must_preserve_base=True))
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
@@ -75,11 +78,11 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if not _is_first_placement_this_round(state, idx):     # only with the first worker
         return False
     p = state.players[idx]
-    # Never a dead-end: the 1 food must be payable (with liquidation) AND a plow legal. On
-    # Farmland the mandatory base plow must survive the grant (enforce-first → a second
-    # sequential plow must exist); Cultivation rides its own host (single plow ok).
-    plow_ok = _can_plow_twice(p) if sid == "farmland" else _can_plow(p)
-    return plow_ok and _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
+    # Never a dead-end: the 1 food must be payable (with liquidation) AND the grant must leave
+    # the base plow legal (`_can_plow_twice` + must_preserve_base=True) — on BOTH spaces
+    # (loss-less on Cultivation; see mole_plow / CARD_AUTHORING_GUIDE.md — no card rewards
+    # declining the base plow; Lazy Sowman A94 rewards declining the sow, untouched here).
+    return _can_plow_twice(p) and _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

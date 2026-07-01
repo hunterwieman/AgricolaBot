@@ -45,7 +45,10 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
 
 
 def _apply(state: GameState, idx: int) -> GameState:
-    return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
+    # Farmland's base plow is mandatory → the granted plow must leave it legal: restrict
+    # its cell choice to non-stranding cells (legality.safe_plow_cells).
+    return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}",
+                                   must_preserve_base=True))
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect

@@ -24,10 +24,11 @@ exact; a future extra-worker card would need to revisit this.)
 "ACCUMULATION SPACE" — the 9 goods-accumulating spaces (`_ACCUMULATION_SPACES`): the 6
 ATOMIC building/food spaces (forest / clay_pit / reed_bank / western_quarry /
 eastern_quarry / fishing) + the 3 NON-ATOMIC animal markets (sheep / pig / cattle).
-`meeting_place` is deliberately EXCLUDED: it is in `constants.ACCUMULATION_SPACES`, but
-in the card game Meeting Place gives no food and accumulates nothing (it is
-become-start-player + an optional minor), so it is not functioning as an accumulation
-space and must not satisfy "the last action space you use is an accumulation space."
+`meeting_place` is excluded: in the card game Meeting Place gives no food and
+accumulates nothing (it is become-start-player + an optional minor), so it is not
+functioning as an accumulation space and must not satisfy "the last action space you
+use is an accumulation space." `constants.ACCUMULATION_SPACES` already excludes it
+(it is the card-game accumulation set), so this falls out for free.
 
 HOSTING — `register_action_space_hook` is needed ONLY for the 6 ATOMIC accumulation
 spaces, so that placing on them pushes a `PendingActionSpace` host whose after-phase can
@@ -60,8 +61,9 @@ from agricola.state import GameState
 
 CARD_ID = "steam_machine"
 
-# The 9 goods-accumulating spaces (drop meeting_place — no goods in the card game).
-_ACCUMULATION_SPACES = frozenset(ACCUMULATION_SPACES) - {"meeting_place"}
+# The 9 goods-accumulating spaces (ACCUMULATION_SPACES is the card-game set, so
+# meeting_place — no goods in the card game — is already excluded).
+_ACCUMULATION_SPACES = frozenset(ACCUMULATION_SPACES)
 # Of those, only the ATOMIC ones need an explicit host hook; the 3 markets self-host.
 _ACC_ATOMIC = frozenset(s for s in _ACCUMULATION_SPACES if s in ATOMIC_HANDLERS)
 

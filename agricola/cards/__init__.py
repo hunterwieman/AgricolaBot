@@ -409,3 +409,64 @@ from agricola.cards import rocky_terrain  # noqa: F401
 from agricola.cards import hardware_store  # noqa: F401
 from agricola.cards import field_watchman  # noqa: F401
 from agricola.cards import cube_cutter  # noqa: F401
+
+# ===========================================================================
+# Dulcinaria (deck D) — tier-1/2 batch (from-scratch triage; 2026-06-30). Specs in
+# CARD_TRIAGE_CDE.md. potter_ceramics (D66) is the pre-existing forward-compat trigger
+# card, now made a dealable free minor (register_minor wiring added) — imported above.
+# hammer_crusher (D14) deferred: "renovate to stone" needs target-conditional
+# before_renovate firing (the renovate target isn't known until commit; gating on a
+# clay house misses the reachable Conservator wood->stone case). See CARD_DEFERRED_PLANS.md.
+# ===========================================================================
+from agricola.cards import artisan_district  # noqa: F401
+from agricola.cards import bale_of_straw  # noqa: F401
+from agricola.cards import beer_tap  # noqa: F401
+from agricola.cards import bookshelf  # noqa: F401
+from agricola.cards import cesspit  # noqa: F401
+from agricola.cards import churchyard  # noqa: F401
+from agricola.cards import civic_facade  # noqa: F401
+from agricola.cards import clay_supports  # noqa: F401
+from agricola.cards import cross_cut_wood  # noqa: F401
+from agricola.cards import dwelling_plan  # noqa: F401
+from agricola.cards import education_bonus  # noqa: F401
+from agricola.cards import field_clay  # noqa: F401
+from agricola.cards import fodder_chamber  # noqa: F401
+from agricola.cards import forest_well  # noqa: F401
+from agricola.cards import game_trade  # noqa: F401
+from agricola.cards import grain_sieve  # noqa: F401
+from agricola.cards import gritter  # noqa: F401
+from agricola.cards import horse_drawn_boat  # noqa: F401
+from agricola.cards import hutch  # noqa: F401
+from agricola.cards import lord_of_the_manor  # noqa: F401
+from agricola.cards import luxurious_hostel  # noqa: F401
+from agricola.cards import lynchet  # noqa: F401
+from agricola.cards import milking_stool  # noqa: F401
+from agricola.cards import new_market  # noqa: F401
+from agricola.cards import petrified_wood  # noqa: F401
+from agricola.cards import plowman  # noqa: F401
+from agricola.cards import pulverizer_plow  # noqa: F401
+from agricola.cards import reap_hook  # noqa: F401
+from agricola.cards import reed_pond  # noqa: F401
+from agricola.cards import roof_ladder  # noqa: F401
+from agricola.cards import sculpture  # noqa: F401
+from agricola.cards import sheep_well  # noqa: F401
+from agricola.cards import small_basket  # noqa: F401
+from agricola.cards import small_greenhouse  # noqa: F401
+from agricola.cards import stable_manure  # noqa: F401
+from agricola.cards import stablehand  # noqa: F401
+from agricola.cards import storeroom  # noqa: F401
+from agricola.cards import summer_house  # noqa: F401
+from agricola.cards import supply_boat  # noqa: F401
+from agricola.cards import trident  # noqa: F401
+from agricola.cards import trout_pool  # noqa: F401
+from agricola.cards import truffle_slicer  # noqa: F401
+from agricola.cards import wholesale_market  # noqa: F401
+from agricola.cards import wood_rake  # noqa: F401
+from agricola.cards import wooden_whey_bucket  # noqa: F401
+from agricola.cards import writing_desk  # noqa: F401
+
+# "Plow up to 2 extra fields on Farmland/Cultivation" minors (multi-shot granted plow;
+# per-use cap of 2 + lifetime tile pool / once-per-game). See POST_COMPACTION_DETOUR.md.
+from agricola.cards import swing_plow  # noqa: F401
+from agricola.cards import turnwrest_plow  # noqa: F401
+from agricola.cards import wheel_plow  # noqa: F401

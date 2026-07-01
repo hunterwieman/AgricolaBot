@@ -978,6 +978,14 @@ Dockerfile edit.
 
 ## Phase 3 — Cards (and maybe 4-player)
 
+> ⚠️ **STALE STATUS — this section is well out of date.** The full card-firing system (host
+> before/after lifecycle, `before_/after_action_space` and sub-action triggers, automatic effects,
+> harvest/start-of-round/opponent hooks, CardStore, cost-modifiers, multi-shot grants, …) is BUILT,
+> and **~270 cards across decks A–E are implemented and registered** — not "Milestone 1, four cards."
+> For current ground truth see the `feat(cards)` git history, `CARD_BATCH_HANDOFF.md`,
+> `POST_COMPACTION_DETOUR.md`, and the `OCCUPATIONS` / `MINORS` registries. The text below describes
+> the *original* plan and is kept for design rationale only.
+
 **Started — Milestone 1 (the play-card foundation) is done; the trigger/hook system is next.** The
 full Agricola card system (the ~470 occupation and minor-improvement cards) is the largest remaining
 piece of game content. The plan: implement the cards, possibly add the 4-player variant, then *repeat

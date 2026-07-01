@@ -11,10 +11,11 @@ PendingPlow), filtered to Farmland or Cultivation, with no food in the grant.
 
 "Each time you use [space]" fires in the BEFORE phase (the Trigger-Timing ruling,
 CARD_AUTHORING_GUIDE.md §2). A grant is the player's choice → an OPTIONAL trigger
-(register, not register_auto). Eligibility gates on a plowable cell (`_can_plow`) so we
-never grant a dead-end sub-action; once-per-use via the host's `triggers_resolved`. Both
-Farmland and Cultivation are non-atomic (always hosted), so no
-`register_action_space_hook` is needed.
+(register, not register_auto). Eligibility gates on `_can_plow_twice` and the granted plow
+sets `must_preserve_base=True` (cells restricted to the non-stranding `safe_plow_cells`) so
+firing it never strands the base plow — on BOTH Farmland and Cultivation (loss-less; see
+_eligible). Once-per-use via the host's `triggers_resolved`. Both Farmland and Cultivation
+are non-atomic (always hosted), so no `register_action_space_hook` is needed.
 
 The "Play in Round 9 or Later" prerequisite is a custom `prereq` predicate on
 `state.round_number >= 9` (a HAVE/when-check on the round, not a cost). See
@@ -24,7 +25,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow, _can_plow_twice
+from agricola.legality import _can_plow_twice
 from agricola.pending import PendingPlow, push
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -42,15 +43,20 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     sid = state.pending_stack[-1].space_id
     if CARD_ID in triggers_resolved or sid not in SPACES:
         return False
-    p = state.players[idx]
-    # On Farmland (an enforce-first delegating host whose base plow is mandatory) the grant
-    # must leave a second plow for that base plow; Cultivation rides its own host, where a
-    # single plowable cell suffices (CARD_AUTHORING_GUIDE.md).
-    return _can_plow_twice(p) if sid == "farmland" else _can_plow(p)
+    # The grant must leave the base plow legal so it never strands it — `_can_plow_twice`
+    # and `must_preserve_base=True` on BOTH spaces. On Farmland the base plow is mandatory;
+    # on Cultivation it is declinable (you may sow), but spending a LIMITED granted plow on a
+    # cell the FREE base plow could take is strictly dominated, and no card rewards declining
+    # the base PLOW (Lazy Sowman A94 rewards declining the SOW, which this never constrains),
+    # so the same restriction is loss-less on Cultivation too. See CARD_AUTHORING_GUIDE.md.
+    return _can_plow_twice(state.players[idx])
 
 
 def _apply(state: GameState, idx: int) -> GameState:
-    return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
+    # Restrict the granted plow's cells (safe_plow_cells) so the base plow stays legal — on
+    # both Farmland and Cultivation (loss-less; see _eligible).
+    return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}",
+                                   must_preserve_base=True))
 
 
 register_minor(

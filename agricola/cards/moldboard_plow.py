@@ -59,7 +59,11 @@ def _apply(state: GameState, idx: int) -> GameState:
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
-    return push(state, PendingPlow(player_idx=idx, initiated_by_id="card:moldboard_plow"))
+    # Farmland's base plow is mandatory and cannot be declined, so this granted plow must
+    # leave it legal — restrict its cell choice to non-stranding cells (the cell-level
+    # half of the stranding guard; eligibility uses _can_plow_twice). See safe_plow_cells.
+    return push(state, PendingPlow(
+        player_idx=idx, initiated_by_id="card:moldboard_plow", must_preserve_base=True))
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=2)), min_occupations=1)

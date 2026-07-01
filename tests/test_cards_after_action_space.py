@@ -53,7 +53,7 @@ def _commit_plow(s):
 # Threshing Board — before-trigger granting a bake in Cultivation's before-phase
 # ---------------------------------------------------------------------------
 
-def test_threshing_board_grants_bake_in_before_phase():
+def test_threshing_board_grant_offered_in_before_window_then_baked():
     s = _state(minors=("threshing_board",))
     s = _reveal(s, "cultivation")
     s = with_majors(s, owner_by_idx={0: 0})         # Fireplace (grain -> 2 food on bake)
@@ -69,25 +69,47 @@ def test_threshing_board_grants_bake_in_before_phase():
     assert ChooseSubAction(name="plow") in la
     assert Proceed() not in la
 
-    # Do a base plow first; the grant must still be available afterwards (free
-    # ordering — the grant is not consumed by using the space).
-    s = step(s, ChooseSubAction(name="plow"))
-    s = _commit_plow(s)
-    s = step(s, Stop())                                   # pop PendingPlow's after-phase
-    la = legal_actions(s)
-    assert FireTrigger(card_id="threshing_board") in la
-    assert Proceed() in la                                # base sub-action done → can advance
-
+    # Fire the grant in the before-window (before using the space), bake, then do the
+    # mandatory base plow. (The reverse order is the decline test below.)
     s = step(s, FireTrigger(card_id="threshing_board"))   # grant the bake
     s = step(s, CommitBake(grain=1))                      # Fireplace: 1 grain -> 2 food
     s = step(s, Stop())                                   # pop the granted PendingBakeBread's after-phase
     assert s.players[0].resources.food == food0 + 2
-    # Threshing Board already fired -> no longer offered.
+    # Back in the before-phase; the grant already fired → not re-offered, and the base
+    # plow is still required.
     assert FireTrigger(card_id="threshing_board") not in legal_actions(s)
+    s = step(s, ChooseSubAction(name="plow"))
+    s = _commit_plow(s)
+    s = step(s, Stop())                                   # pop PendingPlow's after-phase
     assert Proceed() in legal_actions(s)
     s = step(s, Proceed())                                # flip Cultivation to after
     assert legal_actions(s) == [Stop()]
     s = step(s, Stop())                                   # pop PendingCultivation
+    assert not s.pending_stack
+
+
+def test_threshing_board_grant_declined_by_taking_base_subaction():
+    # Enforce-first: the grant is offered in the before-window, but taking a base
+    # sub-action (here the plow) closes that window and declines the unfired grant.
+    s = _state(minors=("threshing_board",))
+    s = _reveal(s, "cultivation")
+    s = with_majors(s, owner_by_idx={0: 0})
+    s = with_resources(s, 0, grain=3)
+    food0 = s.players[0].resources.food
+
+    s = step(s, PlaceWorker(space="cultivation"))
+    assert FireTrigger(card_id="threshing_board") in legal_actions(s)
+    # Take the base plow first → closes the before-window → the bake grant is gone.
+    s = step(s, ChooseSubAction(name="plow"))
+    s = _commit_plow(s)
+    s = step(s, Stop())                                   # pop PendingPlow's after-phase
+    la = legal_actions(s)
+    assert FireTrigger(card_id="threshing_board") not in la
+    assert Proceed() in la                                # base done → can advance
+    s = step(s, Proceed())
+    assert s.players[0].resources.food == food0           # no bake happened (grant declined)
+    assert legal_actions(s) == [Stop()]
+    s = step(s, Stop())
     assert not s.pending_stack
 
 

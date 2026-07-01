@@ -4,9 +4,9 @@ Card text: "Each time you take 1/2/3+ food from a food accumulation space, you a
 get 1 vegetable/grain/reed." Banded / single-tier: take 1 → 1 veg, 2 → 1 grain,
 3+ → 1 reed.
 
-Implemented as a before_action_space automatic effect on the food accumulation
-spaces (fishing / meeting_place), hosted via register_action_space_hook. Mirrors
-tests/test_cards_action_space_hook.py.
+Implemented as a before_action_space automatic effect on the card-game food
+accumulation space (fishing only — Meeting Place pays no food in the card game),
+hosted via register_action_space_hook. Mirrors tests/test_cards_action_space_hook.py.
 """
 import agricola.cards.portmonger  # noqa: F401  (registers the card; not yet in cards/__init__)
 
@@ -71,7 +71,10 @@ def test_registration():
     auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
     assert "portmonger" in auto_ids
     assert "portmonger" in OWN_ACTION_HOOK_CARDS["fishing"]
-    assert "portmonger" in OWN_ACTION_HOOK_CARDS["meeting_place"]
+    # meeting_place is NOT hooked: card-mode Meeting Place pays no food, so Portmonger
+    # can never fire there. Hooking it would make the engine host the space (should_host_space
+    # reads registrations, not eligibility), colliding with Meeting Place's pushing handler.
+    assert "portmonger" not in OWN_ACTION_HOOK_CARDS.get("meeting_place", set())
 
 
 # ---------------------------------------------------------------------------
@@ -146,17 +149,31 @@ def test_does_not_fire_on_non_food_space():
 
 def test_meeting_place_pays_no_food_in_cards_mode():
     """CARDS-mode Meeting Place never accumulates food → Portmonger grants nothing
-    there. (Hooking it is inert in card mode; kept for faithfulness/future-proofing.)"""
+    there, and a Portmonger owner can use Meeting Place and decline without soft-locking.
+
+    Regression guard for the meeting-place double-host cycle: a Portmonger owner placing
+    on Meeting Place must NOT host it (Portmonger no longer hooks the space), so following
+    the LEGAL action at each step terminates the turn — under the old bug (Portmonger
+    hooking meeting_place → should_host_space True) the legal path was an infinite
+    Proceed↔Stop cycle. We drive `legal_actions` (not a forced Stop) so the cycle would
+    fail this test rather than pass it."""
     s = _own(_card_state(), 0, occupations=("portmonger",))
     s = fast_replace(s, current_player=0)
     assert get_space(s.board, "meeting_place").accumulated_amount == 0
     before = s.players[0].resources
 
     s = step(s, PlaceWorker(space="meeting_place"))
-    # Meeting Place self-hosts (PendingMeetingPlace) in CARDS mode; decline the minor.
-    s = step(s, Proceed())
-    while s.pending_stack:
-        s = step(s, Stop())
+    # Follow the legal path, always declining (prefer Proceed/Stop), bounded so a
+    # regression of the cycle fails loudly instead of hanging.
+    for _ in range(12):
+        if not s.pending_stack:
+            break
+        legal = legal_actions(s)
+        decline = next((a for a in legal if isinstance(a, (Proceed, Stop))), None)
+        assert decline is not None, f"no decline action available: {legal}"
+        s = step(s, decline)
+    else:
+        pytest.fail("Meeting Place did not terminate — soft-lock cycle regressed")
     # No banded good (the >= 1 guard fails at an empty food space).
     assert s.players[0].resources.veg == before.veg
     assert s.players[0].resources.grain == before.grain

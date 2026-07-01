@@ -380,27 +380,37 @@ def _legal_plow_cells(p: PlayerState) -> list:
     return [cell for cell in empty_unenclosed if cell in adjacent_to_field]
 
 
-def _can_plow_twice(p: PlayerState) -> bool:
-    """True iff the player can legally plow two fields in sequence: some first legal plow
-    after which a second plow is still legal.
+def safe_plow_cells(p: PlayerState) -> list:
+    """The legal plow cells that leave a base plow STILL legal after they are plowed.
 
-    Gates a granted "plow 1 additional field" before-trigger on Farmland, whose mandatory
-    base plow CANNOT be declined — the grant must never be offered when firing it would
-    strand that base plow (CARD_AUTHORING_GUIDE.md). Plowing is adjacency-constrained (a
-    second field must touch an existing one) AND plowing the first field can OPEN new
-    adjacent targets, so this is a genuine two-step simulation, not a plowable-cell count
-    (e.g. with no field yet, two non-adjacent empty cells do NOT allow a second plow).
-    Plowing only converts an EMPTY, non-enclosed cell to FIELD, so it never changes
-    enclosure — only the field set the second plow's adjacency reads."""
+    A granted "plow 1 additional field" before-trigger on Farmland precedes the
+    mandatory (non-declinable) base plow, so the granted plow must not consume the last
+    cell the base plow needs. Two uses (CARD_AUTHORING_GUIDE.md): the granted plow's cell
+    choice is restricted to this set (via `PendingPlow.must_preserve_base`), and
+    `_can_plow_twice` is the existence check over it (the eligibility gate that never
+    offers the grant when this set is empty).
+
+    Plowing is adjacency-constrained (a second field must touch an existing one) AND
+    plowing the first field can OPEN new adjacent targets, so this is a per-cell
+    simulation, not a count (e.g. with no field yet, two non-adjacent empty cells do NOT
+    allow a second plow). Plowing only converts an EMPTY, non-enclosed cell to FIELD, so
+    it never changes enclosure — only the field set the second plow's adjacency reads."""
     grid = p.farmyard.grid
+    out = []
     for (r, c) in _legal_plow_cells(p):
         new_row = tuple(Cell(cell_type=CellType.FIELD) if cc == c else grid[r][cc]
                         for cc in range(len(grid[r])))
         new_grid = tuple(new_row if rr == r else grid[rr] for rr in range(len(grid)))
         p2 = fast_replace(p, farmyard=fast_replace(p.farmyard, grid=new_grid))
         if _legal_plow_cells(p2):
-            return True
-    return False
+            out.append((r, c))
+    return out
+
+
+def _can_plow_twice(p: PlayerState) -> bool:
+    """True iff the player can legally plow two fields in sequence — the existence check
+    over `safe_plow_cells` (see it for the rationale and the simulation)."""
+    return bool(safe_plow_cells(p))
 
 
 def _legal_stable_cells(p: PlayerState) -> list:
@@ -1457,7 +1467,10 @@ def _enumerate_pending_grain_utilization(
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): once a base sub-action has been
+    # chosen, using the space has closed the before-window — no before_action_space triggers.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
     if not pending.bake_chosen and _can_bake_bread(state, p):
         actions.append(ChooseSubAction(name="bake_bread"))
@@ -1562,13 +1575,30 @@ def _enumerate_pending_plow(
     Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after-phase offers
     after_plow triggers + Stop; before-phase offers before_plow triggers + the
     CommitPlow options.
+
+    Multi-shot grant (`max_plows > 1`; Swing/Turnwrest/Wheel Plow): the before-phase
+    offers a CommitPlow for each legal cell while `num_plowed < max_plows`, and once at
+    least one field has been plowed (`num_plowed >= 1`) also offers Proceed to finish the
+    grant early (mirroring the multi-shot build hosts — Proceed flips to the after-phase,
+    Stop then pops). The single-shot default (max_plows=1) flips to its after-phase on the
+    first commit (see _execute_plow), so this `num_plowed >= 1` branch never fires for it —
+    byte-identical to the pre-multi-shot enumerator.
     """
     actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     if pending.phase == "after":
         actions.append(Stop())
         return actions
     p = state.players[pending.player_idx]
-    actions.extend(CommitPlow(row=r, col=c) for (r, c) in _legal_plow_cells(p))
+    # A granted plow that must leave the mandatory base plow legal (Moldboard Plow et al.
+    # on Farmland) restricts its cell choice to the non-stranding cells; the plain base
+    # plow offers every legal cell (CARD_AUTHORING_GUIDE.md). The non-stranding set is
+    # recomputed here from the CURRENT state, so the second plow of a multi-shot grant is
+    # re-checked against the board left by the first.
+    if pending.num_plowed < pending.max_plows:
+        cells = safe_plow_cells(p) if pending.must_preserve_base else _legal_plow_cells(p)
+        actions.extend(CommitPlow(row=r, col=c) for (r, c) in cells)
+    if pending.num_plowed >= 1:
+        actions.append(Proceed())   # finish a multi-shot grant early (never reached at max_plows=1)
     return actions
 
 
@@ -1734,7 +1764,10 @@ def _enumerate_pending_farm_expansion(
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): once a base sub-action has been
+    # chosen, using the space has closed the before-window — no before_action_space triggers.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
     if not pending.room_chosen and _can_build_room(state, p):
         actions.append(ChooseSubAction(name="build_rooms"))
@@ -1813,7 +1846,10 @@ def _enumerate_pending_cultivation(
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): once a base sub-action has been
+    # chosen, using the space has closed the before-window — no before_action_space triggers.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
     if not pending.plow_chosen and _can_plow(p):
         actions.append(ChooseSubAction(name="plow"))
@@ -1943,7 +1979,10 @@ def _enumerate_pending_house_redevelopment(
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): once a base sub-action has been
+    # chosen, using the space has closed the before-window — no before_action_space triggers.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
     if not pending.renovate_chosen and _can_renovate(state, p):
         actions.append(ChooseSubAction(name="renovate"))
@@ -2082,7 +2121,10 @@ def _enumerate_pending_farm_redevelopment(
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): once a base sub-action has been
+    # chosen, using the space has closed the before-window — no before_action_space triggers.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
     if not pending.renovate_chosen and _can_renovate(state, p):
         actions.append(ChooseSubAction(name="renovate"))

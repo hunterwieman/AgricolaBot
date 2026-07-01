@@ -36,6 +36,13 @@ Concretely:
   design decision, not a coding task; surface it.
 - When you defer, record *why* (which mechanism is missing, or which ruling is unclear)
   in `CARD_IMPLEMENTATION_PLAN.md`, so the next session and the user can pick it up.
+- **When delegating card work to a subagent, inject the load-bearing rulings from §2 into
+  the prompt.** Subagents start cold and will guess at timing, optionality, and eligibility
+  — and guess wrong in the same ways documented here. Do not assume they will read this
+  document. At minimum propagate: "each time you use" = `before_action_space` (never chosen
+  by convenience); granted sub-actions are optional even when worded as commands; before-
+  grants on delegating hosts must not strand the mandatory sub-action; immediate animal
+  grants bypass accommodation and are silently wrong.
 
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
@@ -230,8 +237,9 @@ merely that the grant itself is doable. A granted "plow 1 additional field" on F
 requires **two** sequential plows (`_can_plow_twice`), not one (`_can_plow`): with a single
 plowable cell the grant would consume it and leave the base plow no target. (Plowing is
 adjacency-constrained — plowing one cell can open new adjacent targets — so this is a
-two-step simulation, not a cell count.) Writing Desk likewise requires **≥2** playable
-occupations (one for the grant, one for the mandatory Lessons play). This guard is only
+two-step simulation, not a cell count.) An additional granted occupation on Lessons (e.g.
+Writing Desk) likewise requires **≥2** playable occupations (one for the grant, one for the
+mandatory Lessons play). This guard is only
 needed on the delegating, single-mandatory-sub-action hosts (Farmland / Lessons), where the
 grant strictly precedes the base action — not on Cultivation (a separate, non-delegating
 host).

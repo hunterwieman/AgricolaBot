@@ -54,7 +54,21 @@ Every host frame has the same shape: a **before-phase**, then its work, then an 
 then it pops. The events fire at fixed points, and the ordering is load-bearing:
 
 1. **before-automatic effects** fire at **push** (when the host is created).
-2. **before-triggers** are surfaced by the enumerator throughout the before-phase.
+2. **before-triggers** ("each time you use [space]") are surfaced by the enumerator **only while
+   the before-window is open — i.e. before the host's work begins**. Taking the work *closes*
+   the before-window and declines any unfired before-trigger (the timing ruling: the grant
+   precedes the space's effect). This is **enforce-first**, and it is enforced two ways by host
+   shape: a **Delegating** host auto-advances to its after-phase the instant its one mandatory
+   sub-action completes, so its before-phase already implies "work not started"; a **Proceed**
+   host has no auto-advance (it lingers across multiple sub-actions until `Proceed`), so its
+   enumerator gates the before-trigger offering on `not subaction_started` (a derived property =
+   OR of its `*_chosen` flags). An **atomic** host has no sub-action to start, so its
+   before-window is the whole before-phase up to `Proceed`. *(A regression in commit `20b6b83`
+   added a "held-flip" that kept the Delegating before-window open after the work — letting
+   before-triggers fire "in either order" — which is wrong because order is load-bearing, e.g.
+   Moldboard Plow's cell choice and Writing Desk + Paper Maker. Reverted to the unconditional
+   flip of §5.1; the Proceed-host `subaction_started` gate closes the matching, endemic hole that
+   the flip never covered. See `CARD_AUTHORING_GUIDE.md`.)*
 3. The host does its **work** (an effect, a commit, or one-or-more sub-actions).
 4. **after-automatic effects** fire **the instant the work completes** — *after* the work, and
    *before* the after-triggers are offered.
@@ -146,12 +160,22 @@ No `Proceed`. The work-complete boundary is the child popping, detected by `_adv
 
 ```
 push → fire before_action_space autos
-before: [before_action_space triggers, <the legal ChooseSubActions>, (Proceed once its gate is met)]
+before: [before_action_space triggers (only while NOT subaction_started), <the legal ChooseSubActions>,
+         (Proceed once its gate is met)]
   the player does zero-or-more ⟨sub-action⟩s (per the space's rules)
   Proceed → flip to after, fire after_action_space autos   (the sub-actions already ran; Proceed
                                                              runs no effect of its own)
 after:  [after_action_space triggers, Stop] → Stop pops
 ```
+
+**The before-window closes on the first sub-action.** A Proceed-host has no auto-advance to close
+its before-window, so its enumerator gates the `before_action_space` trigger offering on
+`not pending.subaction_started` (a derived property = OR of its `*_chosen` flags). The *first*
+`ChooseSubAction` sets a `*_chosen` flag, which closes the window and declines any unfired
+before-trigger — matching the Delegating §5.1 rule. (Firing a before-trigger pushes a sub-action
+*leaf*, which does not set a `*_chosen` flag, so multiple before-triggers can still be taken in the
+before-window before the base sub-action.) Without this gate before-triggers would leak past the
+first sub-action — the endemic Proceed-host half of the `20b6b83` regression (§2).
 
 The `Proceed` gate differs by sub-kind:
 

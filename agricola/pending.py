@@ -53,6 +53,13 @@ class PendingGrainUtilization:
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
 
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        any base sub-action has been chosen. `before_action_space` triggers are offered
+        only while this is False — taking the space's work closes the before-window."""
+        return self.sow_chosen or self.bake_chosen
+
 
 @dataclass(frozen=True)
 class PendingSow:
@@ -116,6 +123,20 @@ class PendingPlow:
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # Card-only: a granted plow that precedes a mandatory base plow (e.g. Moldboard Plow
+    # on Farmland) sets this so its cell choice is restricted to cells that leave the base
+    # plow legal (legality.safe_plow_cells). Always False in the Family game (base plows
+    # and Cultivation plows), so it is a default canonical-skip field — no C++ change.
+    must_preserve_base: bool = False
+    # Card-only: a granted MULTI-SHOT plow (Swing/Turnwrest/Wheel Plow's "plow up to N
+    # fields") commits up to `max_plows` cells from one grant, one CommitPlow each, before
+    # flipping to the after-phase / popping. `num_plowed` counts commits so far. The
+    # default (max_plows=1, num_plowed=0) is the single-shot plow — every Family plow and
+    # the single-grant plow cards — so the granted plow flips to after on its first commit,
+    # byte-identical to before. Both are Family-constant defaults → canonical-skip fields,
+    # no C++ change.
+    max_plows: int = 1
+    num_plowed: int = 0
 
 
 @dataclass(frozen=True)
@@ -143,6 +164,13 @@ class PendingFarmExpansion:
     @property
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
+
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        any base sub-action has been chosen; `before_action_space` triggers are offered
+        only while this is False."""
+        return self.room_chosen or self.stable_chosen
 
 
 @dataclass(frozen=True)
@@ -334,6 +362,13 @@ class PendingCultivation:
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
 
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        any base sub-action has been chosen; `before_action_space` triggers are offered
+        only while this is False."""
+        return self.plow_chosen or self.sow_chosen
+
 
 @dataclass(frozen=True)
 class PendingSideJob:
@@ -463,6 +498,13 @@ class PendingHouseRedevelopment:
     @property
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
+
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        any base sub-action has been chosen; `before_action_space` triggers are offered
+        only while this is False."""
+        return self.renovate_chosen or self.improvement_chosen
 
 
 @dataclass(frozen=True)
@@ -604,6 +646,13 @@ class PendingFarmRedevelopment:
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
 
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        any base sub-action has been chosen; `before_action_space` triggers are offered
+        only while this is False."""
+        return self.renovate_chosen or self.build_fences_chosen
+
 
 @dataclass(frozen=True)
 class PendingPlayOccupation:
@@ -708,10 +757,14 @@ class PendingMeetingPlace:
     + Stop, and Stop pops. `meeting_place` is in ACTION_SPACE_PENDING_IDS, so the
     event derives via the action_space bucket (legality.trigger_event).
 
-    Pushed (card mode only) right after become-SP, and only when a minor is
-    playable — otherwise become-SP is the whole (atomic) action and no frame is
-    pushed. Card-only: the Family Meeting Place is the atomic food/SP resolver and
-    never pushes this, so it never reaches the C++ engine.
+    Pushed (card mode only) right after become-SP, and ALWAYS pushed — even when no
+    minor is playable (the before-phase is then just before-triggers + Proceed), so
+    that cards hooking the space via before_/after_action_space still fire. This is
+    the SOLE host for card-mode Meeting Place: `engine._apply_place_worker` dispatches
+    the space directly to its handler ahead of the generic atomic-host wrapper, so it
+    is never double-hosted (a redundant PendingActionSpace wrapper over this pushing
+    handler soft-locks the turn). Card-only: the Family Meeting Place is the atomic
+    food/SP resolver and never pushes this, so it never reaches the C++ engine.
     See CARD_IMPLEMENTATION_PLAN.md I.3.
     """
     PENDING_ID: ClassVar[str] = "meeting_place"

@@ -9,6 +9,8 @@ no minor is playable the before-phase is just [before-triggers, Proceed]. Procee
 is always the decline (legal from the start). Card mode also skips the per-round
 food refill on that slot, so it never accumulates.
 """
+import pytest
+
 from agricola.actions import (
     ChooseSubAction, PlaceWorker, Proceed, Stop,
 )
@@ -160,6 +162,55 @@ def test_card_hook_fires_with_no_playable_minor():
             e for e in AUTO_EFFECTS.get("after_action_space", [])
             if e.card_id != card_id
         ]
+
+
+def test_action_space_hook_owner_does_not_double_host_meeting_place():
+    """Regression for the meeting-place double-host soft-lock cycle.
+
+    When a card registers a HOSTING hook on Meeting Place (`register_action_space_hook`,
+    e.g. Portmonger), `should_host_space("meeting_place")` becomes True. Before the fix,
+    that routed card-mode Meeting Place through the generic atomic-host wrapper, which
+    pushed a redundant `PendingActionSpace` ON TOP of the space's own pushing handler —
+    a double-host whose only legal actions were an infinite `Proceed`<->`Stop` cycle when
+    the minor was declined. The fix dispatches card-mode Meeting Place directly to its
+    self-hosting handler, ahead of the wrapper, so `PendingMeetingPlace` is the SOLE host.
+
+    The existing meeting-place hook tests register only a `register_auto` effect (NOT a
+    `register_action_space_hook`), so `should_host_space` stayed False and they never
+    exercised this path — which is why the cycle shipped. This test registers the real
+    hosting hook and drives the legal decline path to termination."""
+    from agricola.cards.triggers import OWN_ACTION_HOOK_CARDS, register_action_space_hook
+
+    card_id = "_test_mp_hosting_hook"
+    register_action_space_hook(card_id, {"meeting_place"})
+    try:
+        # Owner has no playable minor → the cycle's exact trigger (decline-only path).
+        cs, _env, cp = _card_state(minors=frozenset(), grain=0)
+        p = fast_replace(
+            cs.players[cp],
+            minor_improvements=cs.players[cp].minor_improvements | {card_id},
+        )
+        cs = fast_replace(cs, players=tuple(p if i == cp else cs.players[i] for i in range(2)))
+
+        cs = step(cs, PlaceWorker(space="meeting_place"))
+        # SOLE host: exactly one PendingMeetingPlace frame, NO generic wrapper.
+        assert [type(f).__name__ for f in cs.pending_stack] == ["PendingMeetingPlace"]
+        assert not any(type(f).__name__ == "PendingActionSpace" for f in cs.pending_stack)
+
+        # Follow the LEGAL path, always declining — bounded so a regressed cycle fails
+        # loudly instead of hanging. (Pre-fix this loop never terminated.)
+        for _ in range(12):
+            if not cs.pending_stack:
+                break
+            legal = legal_actions(cs)
+            decline = next((a for a in legal if isinstance(a, (Proceed, Stop))), None)
+            assert decline is not None, f"no decline action available: {legal}"
+            cs = step(cs, decline)
+        else:
+            pytest.fail("Meeting Place did not terminate — double-host cycle regressed")
+        assert cs.pending_stack == ()
+    finally:
+        OWN_ACTION_HOOK_CARDS.get("meeting_place", set()).discard(card_id)
 
 
 def test_meeting_place_and_basic_wish_expose_space_id():

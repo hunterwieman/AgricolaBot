@@ -192,11 +192,15 @@ def _become_starting_player(state: GameState, idx: int) -> GameState:
 
 
 def _resolve_meeting_place(state: GameState) -> GameState:
-    from agricola.constants import GameMode
-    if state.mode is GameMode.CARDS:
-        return _initiate_meeting_place_cards(state)
+    """Family-game Meeting Place (atomic): collect accumulated food, reset the slot,
+    and become starting player.
+
+    The CARD-game Meeting Place is NON-atomic and self-hosting: it is dispatched
+    directly to `_initiate_meeting_place_cards` in `engine._apply_place_worker`,
+    ahead of the generic atomic-host wrapper, so this atomic resolver runs only in
+    the Family game. (Routing card-mode Meeting Place through the wrapper would
+    double-host the pushing card handler and soft-lock the turn.)"""
     ap = state.current_player
-    # Family game: collect accumulated food, reset, and become starting player.
     state = _resolve_food_accumulation(state, "meeting_place")
     return _become_starting_player(state, ap)
 
@@ -1124,6 +1128,18 @@ def _execute_plow(
     Precondition (enforced by `_enumerate_pending_plow`): (row, col) is a
     legal plow cell (EMPTY, non-enclosed, adjacent to existing field or
     the first field on the farm).
+
+    Base plow (every Family plow + single-grant plow cards' one plow): flip the frame to
+    its after-phase on this one commit, then Stop pops. A BASE plow (a Farmland /
+    Cultivation host plow, `initiated_by_id` not "card:…") leaves `num_plowed` at its
+    default 0 so its frame is byte-identical to the pre-multi-shot engine (the C++ Family
+    gate). A CARD-grant plow always counts `num_plowed` (only meaningful in CARDS mode,
+    where the field is anyway emitted) so a multi-tile grant's CardStore debit reads the
+    fields actually plowed — even a one-tile grant (`max_plows==1`).
+
+    Multi-shot grant (`max_plows>1`; Swing/Turnwrest/Wheel Plow): stay in the before-phase
+    so another CommitPlow / early Proceed is offered, until the budget is spent or no
+    further (non-stranding) cell remains, at which point flip to the after-phase.
     """
     p = state.players[player_idx]
     new_grid = _new_grid_with_cell(
@@ -1132,7 +1148,32 @@ def _execute_plow(
     new_farmyard = fast_replace(p.farmyard, grid=new_grid)
     new_player = fast_replace(p, farmyard=new_farmyard)
     state = _update_player(state, player_idx, new_player)
-    return _enter_after_phase(state)   # pivot PendingPlow -> after; Stop pops
+
+    top = state.pending_stack[-1]
+    is_card_grant = top.initiated_by_id.startswith("card:")
+    if not is_card_grant:
+        # Base Farmland/Cultivation plow: single-shot, num_plowed untouched (default 0) →
+        # byte-identical Family frame.
+        return _enter_after_phase(state)   # pivot PendingPlow -> after; Stop pops
+    # Card grant: count this plow (for the per-grant CardStore tile debit at after_plow).
+    num_plowed = top.num_plowed + 1
+    state = replace_top(state, fast_replace(top, num_plowed=num_plowed))
+    # Multi-shot: stay in before-phase while budget AND a legal next cell remain (recomputed
+    # against the board this plow just produced — adjacency can open/close targets).
+    if num_plowed < top.max_plows and _more_plows_available(state, state.pending_stack[-1]):
+        return state
+    return _enter_after_phase(state)   # budget spent / no next cell → pivot to after
+
+
+def _more_plows_available(state: GameState, top) -> bool:
+    """True iff another granted plow could legally follow, under the same cell rule the
+    enumerator uses (non-stranding on Farmland via `must_preserve_base`, else any legal
+    plow cell). Used only by multi-shot grants; a single-shot plow flips to after on its
+    first commit and never reaches here."""
+    from agricola.legality import _legal_plow_cells, safe_plow_cells
+    p = state.players[top.player_idx]
+    cells = safe_plow_cells(p) if top.must_preserve_base else _legal_plow_cells(p)
+    return bool(cells)
 
 
 def _execute_build_stable(

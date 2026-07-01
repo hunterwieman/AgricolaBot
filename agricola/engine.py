@@ -106,6 +106,7 @@ from agricola.resolution import (
     _execute_play_minor,
     _execute_play_occupation,
     _execute_plow,
+    _initiate_meeting_place_cards,
     _execute_renovate,
     _execute_sow,
     _update_player,
@@ -328,6 +329,18 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
 def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     # Cross-cutting bookkeeping: workers, people_home.
     state = _apply_worker_placement(state, action.space)
+
+    # Card-mode Meeting Place is a non-atomic, SELF-HOSTING space: its handler pushes
+    # a PendingMeetingPlace frame that fires before_/after_action_space on its own
+    # lifecycle (before at push, after at the Proceed flip). It must therefore NOT
+    # enter the generic atomic-host wrapper below — that path is for TRULY-atomic
+    # spaces whose handler does not push, and wrapping the pushing meeting-place
+    # handler in a second generic PendingActionSpace host produces a double-host that
+    # soft-locks the turn (an infinite Proceed<->Stop cycle) the moment any card hooks
+    # the space. Dispatch it directly here, ahead of should_host_space. (Family
+    # Meeting Place stays atomic — _resolve_meeting_place via ATOMIC_HANDLERS below.)
+    if action.space == "meeting_place" and state.mode is GameMode.CARDS:
+        return _initiate_meeting_place_cards(state)
 
     if action.space in ATOMIC_HANDLERS:
         # Card game (II.2): if a card could fire on this atomic space, HOST it
@@ -595,6 +608,15 @@ def _apply_proceed(state: GameState) -> GameState:
     top = state.pending_stack[-1]
     if isinstance(top, PendingPreparation):
         return pop(state)
+    # Multi-shot granted plow (CARDS only — Swing/Turnwrest/Wheel Plow): the player has
+    # plowed >=1 of up to max_plows fields and chooses to finish early. Like the build
+    # hosts, the work already happened during the before-phase, so Proceed is purely the
+    # explicit work-complete signal — flip to the after-phase (firing after_plow autos),
+    # then Stop pops. A single-shot plow flips on its commit and never exposes Proceed.
+    if isinstance(top, PendingPlow):
+        assert getattr(top, "phase", None) == "before" and top.num_plowed >= 1, (
+            f"Proceed expected a before-phase multi-shot plow with >=1 done, got {top!r}")
+        return _enter_after_phase(state)
     if isinstance(top, (PendingBuildRooms, PendingBuildStables, PendingBuildFences)):
         assert getattr(top, "phase", None) == "before", (
             f"Proceed expected a before-phase build host, got {top!r}")

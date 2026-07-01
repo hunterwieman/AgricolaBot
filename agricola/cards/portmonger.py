@@ -17,7 +17,15 @@ spaces, hosted via `register_action_space_hook`. Firing happens in the BEFORE
 phase, while the food is still sitting on the space, so `accumulated_amount` is the
 amount about to be taken (the atomic `fishing` handler zeroes it only later, at the
 host's Proceed). The eligibility `accumulated_amount >= 1` guard means an empty
-space (e.g. card-game Meeting Place, which never accumulates food) yields nothing.
+space yields nothing.
+
+In the card game (the only mode this occupation plays in) `fishing` is the sole
+food accumulation space — Meeting Place pays food ONLY in the Family game and
+accumulates nothing here, so it is NOT a food accumulation space for this card and
+is deliberately NOT hooked. (Hooking it would be inert per the guard above, but the
+mere registration makes the engine HOST Meeting Place — `should_host_space` reads
+registrations, not eligibility — which collides with Meeting Place's pushing card
+handler and soft-locks the turn.)
 
 No cost / prereq / vps / passing (pure occupation; played via Lessons — the whole
 effect is the hook).
@@ -31,11 +39,9 @@ from agricola.resources import Resources
 from agricola.state import GameState, get_space
 
 CARD_ID = "portmonger"
-# The food accumulation spaces (constants.FOOD_ANIMAL_ACCUMULATION_RATES of kind
-# "food"). meeting_place pays food only in the Family game; in CARDS mode (the only
-# mode this card plays in) it never accumulates food, so the eligibility guard
-# below makes hooking it inert there — kept for faithfulness to the card text.
-SPACES = frozenset({"fishing", "meeting_place"})
+# The card-game food accumulation spaces: just `fishing` (meeting_place pays food
+# only in Family, which this occupation never sees — see the module docstring).
+SPACES = frozenset({"fishing"})
 
 
 def _eligible(state: GameState, idx: int) -> bool:

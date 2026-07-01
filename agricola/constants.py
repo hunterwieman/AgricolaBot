@@ -185,8 +185,18 @@ FOOD_ANIMAL_ACCUMULATION_RATES: dict[str, tuple] = {
     "cattle_market": ("cattle", 1),
 }
 
-# Combined set of all accumulation space IDs — derived, never duplicated:
-ACCUMULATION_SPACES = frozenset(BUILDING_ACCUMULATION_RATES) | frozenset(FOOD_ANIMAL_ACCUMULATION_RATES)
+# The set of accumulation spaces that card effects count over (Wood Pile, Hand
+# Truck, Steam Machine). This is the CARD-game set, which deliberately EXCLUDES
+# meeting_place: in the card game Meeting Place gives no goods (it is become-SP +
+# an optional minor), so it is not an accumulation space there. meeting_place IS
+# a food-accumulation space in the FAMILY game (see FOOD_ANIMAL_ACCUMULATION_RATES);
+# the Family refill machinery iterates the rate dicts directly, never this set, so
+# this set has only card-mode consumers — there is nothing to mode-switch at
+# runtime. ACCUMULATION_SPACES_FAMILY carries the Family-true set for completeness.
+ACCUMULATION_SPACES = (
+    frozenset(BUILDING_ACCUMULATION_RATES) | frozenset(FOOD_ANIMAL_ACCUMULATION_RATES)
+) - {"meeting_place"}
+ACCUMULATION_SPACES_FAMILY = ACCUMULATION_SPACES | {"meeting_place"}
 
 PERMANENT_ACTION_SPACES_SET = frozenset(PERMANENT_ACTION_SPACES)
 
