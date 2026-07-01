@@ -254,9 +254,8 @@ def test_mining_hammer_grants_free_stable_on_renovate():
     wood0 = cs.players[0].resources.wood
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
-    cs = step(cs, sole_renovate(cs))   # flips PendingRenovate to its after-phase
-    # The renovate after-hook surfaces the Mining Hammer grant at PendingRenovate's
-    # after-phase (alongside Stop).
+    # Mining Hammer is a `before_renovate` grant (flat, no renovate-outcome dependence):
+    # it is surfaced at the PendingRenovate BEFORE-phase, before the renovate commits.
     la = legal_actions(cs)
     assert FireTrigger(card_id="mining_hammer") in la
     cs = step(cs, FireTrigger(card_id="mining_hammer"))
@@ -286,7 +285,7 @@ def test_mining_hammer_decline_grant():
 def test_mining_hammer_not_offered_when_no_stable_buildable():
     # Fill every empty cell with fields (not a legal stable target) so no stable
     # can be placed -> the grant's eligibility (_can_build_stable) is False -> not
-    # offered, only Stop remains at the renovate after-phase.
+    # offered in the renovate BEFORE-phase (only the renovate commit(s) remain).
     cs = _renovate_setup(HouseMaterial.WOOD, clay=2, reed=1)
     cs = _own_minor(cs, 0, "mining_hammer")
     overrides = {}
@@ -298,9 +297,10 @@ def test_mining_hammer_not_offered_when_no_stable_buildable():
     cs = with_grid(cs, 0, overrides)
     cs = step(cs, PlaceWorker(space="house_redevelopment"))
     cs = step(cs, ChooseSubAction(name="renovate"))
-    cs = step(cs, sole_renovate(cs))
-    assert FireTrigger(card_id="mining_hammer") not in legal_actions(cs)
-    assert legal_actions(cs) == [Stop()]
+    # BEFORE-phase (before committing the renovate): the grant is not offered.
+    la = legal_actions(cs)
+    assert FireTrigger(card_id="mining_hammer") not in la
+    assert all(not isinstance(a, FireTrigger) for a in la)
 
 
 # ---------------------------------------------------------------------------

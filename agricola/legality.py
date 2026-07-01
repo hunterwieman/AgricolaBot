@@ -1624,8 +1624,12 @@ def _enumerate_pending_build_stables(
         actions.append(Stop())
         return actions
 
-    actions: list[Action] = _eligible_fire_triggers(
-        state, pending, trigger_event(pending))
+    # before-window gate (mirrors the Proceed-host gate, SPACE_HOST_REFACTOR.md §5.1):
+    # a multi-shot build is ONE action, so once the first piece is committed the
+    # before-window has closed — offer before_build_stables triggers only before any
+    # build (num_built == 0). No effect fires between pieces.
+    actions: list[Action] = ([] if pending.num_built else _eligible_fire_triggers(
+        state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
@@ -1656,8 +1660,11 @@ def _enumerate_pending_build_rooms(
         actions.append(Stop())
         return actions
 
-    actions: list[Action] = _eligible_fire_triggers(
-        state, pending, trigger_event(pending))
+    # before-window gate (see _enumerate_pending_build_stables): once the first room
+    # is built the before-window has closed — offer before_build_rooms triggers only
+    # before any build (num_built == 0). The multi-shot build is ONE action.
+    actions: list[Action] = ([] if pending.num_built else _eligible_fire_triggers(
+        state, pending, trigger_event(pending)))
     p = state.players[pending.player_idx]
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
@@ -2043,8 +2050,10 @@ def _enumerate_pending_build_fences(
         legal = _legal_pasture_commits_cached(
             p.farmyard, p.resources.wood, pending.subdivision_started,
         )
-        actions: list[Action] = _eligible_fire_triggers(
-            state, pending, trigger_event(pending))
+        # before-window gate (consistency with the card path below; a no-op here since
+        # this cached branch is Family-only where no before_build_fences triggers exist).
+        actions: list[Action] = ([] if pending.pastures_built else _eligible_fire_triggers(
+            state, pending, trigger_event(pending)))
         actions += [CommitBuildPasture(cells=e.cells) for e in legal]
         if pending.pastures_built >= 1:
             actions.append(Proceed())
@@ -2088,8 +2097,12 @@ def _enumerate_pending_build_fences(
         restrictions=pending.restrictions,        # restricted-grant geometry (Mini Pasture, §9.8)
     )
 
-    actions: list[Action] = _eligible_fire_triggers(
-        state, pending, trigger_event(pending))
+    # before-window gate (see _enumerate_pending_build_stables): once the first pasture
+    # is committed the before-window has closed — offer before_build_fences triggers only
+    # before any build (pastures_built == 0). A multi-shot fence build is ONE action; no
+    # effect (e.g. Loppers) fires between pasture commits.
+    actions: list[Action] = ([] if pending.pastures_built else _eligible_fire_triggers(
+        state, pending, trigger_event(pending)))
     # A restricted grant caps the action's commit count (Mini Pasture = 1): once the cap is
     # reached, offer no more commits (the player Proceeds to finish). Unrestricted = no cap.
     cap = pending.restrictions.max_pastures

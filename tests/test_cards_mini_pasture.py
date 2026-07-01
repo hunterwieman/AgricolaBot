@@ -2,16 +2,17 @@
 (COST_MODIFIER_DESIGN.md §9.8)."""
 from __future__ import annotations
 
-from agricola.actions import CommitBuildPasture, Proceed, Stop
+from agricola.actions import CommitBuildPasture, CommitPlayMinor, Proceed, Stop
 from agricola.cards.mini_pasture import CARD_ID
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.constants import GameMode
 from agricola.engine import step
 from agricola.legality import legal_actions
-from agricola.pending import PendingBuildFences
+from agricola.pending import PendingBuildFences, PendingPlayMinor
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 
+from tests.factories import with_pending_stack
 from tests.test_fencing import _fencing_setup, _with_initial_pasture
 
 _2x3 = [(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]
@@ -104,3 +105,47 @@ def test_only_new_enclosures_never_subdivisions():
     assert all(len(c) == 1 for c in commits)
     assert frozenset({(0, 3)}) not in commits          # a cell INSIDE the 2×3 -> a subdivision, excluded
     assert frozenset({(0, 2)}) in commits              # a new 1×1 adjacent to the 2×3 -> offered
+
+
+# ---------------------------------------------------------------------------
+# Traveling minor: after the mandatory grant resolves, the card is circulated to
+# the OPPONENT's hand and NOT kept in the owner's tableau (passing_left="X").
+# ---------------------------------------------------------------------------
+
+def test_registration_is_passing():
+    assert MINORS[CARD_ID].passing_left is True
+
+
+def test_play_end_to_end_circulates_to_opponent_and_grant_resolves():
+    # Full play through _execute_play_minor: owner (P0) plays Mini Pasture off-hand for 2 food,
+    # the mandatory free 1×1 grant is pushed and resolved, and the card ends up in the
+    # OPPONENT's hand — never in the owner's minor_improvements (it is a traveling minor).
+    s = _cards()                                        # fresh farm, 0 wood, supply 15
+    p0 = fast_replace(s.players[0],
+                      hand_minors=frozenset({CARD_ID}),
+                      resources=s.players[0].resources + Resources(food=2))
+    p1 = fast_replace(s.players[1], hand_minors=frozenset())
+    s = fast_replace(s, players=(p0, p1), current_player=0)
+    s = with_pending_stack(s, [PendingPlayMinor(player_idx=0, initiated_by_id="lessons")])
+
+    play = CommitPlayMinor(card_id=CARD_ID, payment=Resources(food=2))
+    assert play in legal_actions(s)
+    s = step(s, play)                                   # debit cost, circulate, push the grant
+
+    # Circulation happened at play time (before the grant), a pure data move on the hands:
+    assert CARD_ID not in s.players[0].minor_improvements   # NOT kept by the owner
+    assert CARD_ID not in s.players[0].hand_minors          # left the owner's hand
+    assert CARD_ID in s.players[1].hand_minors              # now in the opponent's hand
+
+    # The mandatory grant is still live for the OWNER and resolves normally, with no dangling
+    # reference to the (already-circulated) card.
+    top = s.pending_stack[-1]
+    assert isinstance(top, PendingBuildFences) and top.player_idx == 0
+    s = step(s, CommitBuildPasture(cells=frozenset({(1, 1)})))   # a fresh 1×1 = 4 free edges
+    assert _supply(s) == 15 - 4                              # 4 pieces drawn from supply
+    assert _wood(s) == 0                                     # no wood paid (free grant)
+    s = step(s, Proceed())                                  # settle the free grant (0 cost)
+
+    # Grant resolved for the owner; ownership unchanged by the resolution.
+    assert CARD_ID not in s.players[0].minor_improvements
+    assert CARD_ID in s.players[1].hand_minors

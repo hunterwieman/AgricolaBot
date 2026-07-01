@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_food_payment_resume, register_minor
 from agricola.cards.triggers import register
-from agricola.legality import _can_plow, _liquidatable_to
+from agricola.legality import _can_afford, _can_plow, _liquidatable_to
 from agricola.pending import PendingFoodPayment, PendingPlow, push
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -45,12 +45,37 @@ def _pay_and_plow(state: GameState, idx: int) -> GameState:
     return push(state, PendingPlow(player_idx=idx, initiated_by_id=f"card:{CARD_ID}"))
 
 
+def _seed_reserving_liquidatable(state: GameState, idx: int) -> bool:
+    """True iff the 3 food can be raised while leaving the mandatory Sow at least one seed.
+
+    The host is a PendingSow whose before-phase offers only FireTrigger + CommitSow — no
+    Stop — so the sow is forced and needs >= 1 seed (grain OR veg) to have any legal
+    CommitSow after this trigger resolves. A plain `_liquidatable_to(food=3)` would freely
+    burn grain AND veg as conversion fuel, so it can raise the 3 food by consuming the
+    player's LAST seed and strand the sow (empty legal set on a non-empty stack).
+
+    Guard: the 3 food must be raisable from everything EXCEPT one reserved seed — either
+    reserving 1 grain OR reserving 1 veg. We check by running the liquidation-affordability
+    test against a player copy whose resources hold one fewer of that seed (so it is not in
+    the conversion pool); if either reservation still affords the 3 food, the reserved seed
+    survives to feed the mandatory sow."""
+    p = state.players[idx]
+    for reserve in (Resources(grain=1), Resources(veg=1)):
+        if not _can_afford(p, reserve):
+            continue   # no such seed to reserve
+        reserved_p = fast_replace(p, resources=p.resources - reserve)
+        if _liquidatable_to(state, idx, reserved_p, Resources(food=_FOOD_COST)):
+            return True
+    return False
+
+
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:                       # once per this sow
         return False
     p = state.players[idx]
-    # Never a dead-end: the 3 food must be payable (with liquidation) AND a plow legal.
-    return _can_plow(p) and _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
+    # Never a dead-end: a plow must be legal AND the 3 food payable via liquidation WITHOUT
+    # burning the mandatory sow's last seed (grain OR veg). See _seed_reserving_liquidatable.
+    return _can_plow(p) and _seed_reserving_liquidatable(state, idx)
 
 
 def _apply(state: GameState, idx: int) -> GameState:

@@ -6,22 +6,32 @@ Clarification: "You must bake normally to make this exchange."
 Prerequisite: "No Grain Field" (you have no field with grain on it). Printed 0 VP
 (the bonus point is earned per exchange, not a flat printed score).
 
-A "Points Provider" card, the same shape as Bucksaw — an OPTIONAL after-action
-trigger that converts a resource and banks a bonus point per use:
+A "Points Provider" card with IDENTICAL mechanics to Beer Stein (C61) — an OPTIONAL
+trigger that converts a resource and banks a bonus point per use. Baking Sheet differs
+from Beer Stein only in its cost (none vs 1 clay) and its prerequisite (Baking Sheet
+requires "No Grain Field").
 
 - **each Bake Bread** → an OPTIONAL trigger (`register`, not `register_auto` — the
   text says "you CAN use this card", so the player chooses) on the bake host's
-  AFTER-phase (`after_bake_bread`). The before-phase of `PendingBakeBread` offers
-  only FireTrigger + CommitBake (no Proceed/Stop), so the after-phase is reachable
-  only once a normal bake has been committed — which is exactly what auto-satisfies
-  the "you must bake normally to make this exchange" clarification (no separate
-  guard is needed; the trigger only fires from a live, post-CommitBake frame).
+  BEFORE-phase (`before_bake_bread`). The Trigger-Timing ruling is that a bare
+  "each time you take a 'Bake Bread' action" fires in the BEFORE phase, before the
+  bake resolves — the reward is FLAT ("exchange 1 grain for 2 food and 1 bonus
+  point"), so it never needs to read what the bake produced and has no reason to be
+  `after`. The "you must bake normally to make this exchange" clarification is a GATE
+  (a real bake must happen), NOT an ordering that pushes the exchange after the bake:
+  the `PendingBakeBread` before-phase offers only FireTrigger + CommitBake (no Stop),
+  so a bake is still structurally forced after the exchange fires.
+- **the stranding guard** → because a bake is forced and the exchange spends 1 grain
+  BEFORE that bake, eligibility must ensure a legal bake still remains after the −1.
+  A normal bake needs ≥1 grain, so the exchange requires `grain >= 2`: one grain is
+  consumed by the exchange and at least one remains to satisfy the mandatory bake.
+  (At `grain == 1` firing would leave 0 grain and strand the forced CommitBake.)
 - when fired it pays exactly 1 grain and gains 2 food immediately, and BANKS 1
   bonus point in the per-card CardStore.
 - **the bonus point** → BANKED in CardStore and read at scoring
-  (`register_scoring`), exactly like Bucksaw / Big Country: a use-count-dependent
-  quantity, so a flat `vps=` on the minor spec would wrongly award it without ever
-  exchanging.
+  (`register_scoring`), exactly like Beer Stein / Bucksaw / Big Country: a
+  use-count-dependent quantity, so a flat `vps=` on the minor spec would wrongly
+  award it without ever exchanging.
 
 Once per Bake Bread action is automatic: `_apply_fire_trigger` stamps
 `triggers_resolved` before applying, and `_eligible` reads it (each new Bake Bread
@@ -61,14 +71,16 @@ def _no_grain_field(state: GameState, idx: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Trigger: optional, fires on the bake host's after-phase, once per action.
+# Trigger: optional, fires on the bake host's before-phase, once per action.
 # ---------------------------------------------------------------------------
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
-    # Optional, once per Bake Bread action, only when 1 grain is available to
-    # exchange. (The "must bake normally" clarification is satisfied structurally:
-    # the after_bake_bread phase is only reached after a CommitBake.)
-    return CARD_ID not in triggers_resolved and state.players[idx].resources.grain >= 1
+    # Optional, once per Bake Bread action. Fires BEFORE the bake, so it must leave
+    # enough grain for the still-mandatory bake: the exchange spends 1 grain and a
+    # normal bake needs ≥1 more, so require grain >= 2 (else firing strands the
+    # forced CommitBake). This grain>=2 guard also satisfies the "must bake normally"
+    # gate — a real bake is structurally forced after the exchange.
+    return CARD_ID not in triggers_resolved and state.players[idx].resources.grain >= 2
 
 
 def _apply(state: GameState, idx: int) -> GameState:
@@ -89,5 +101,5 @@ def _score(state: GameState, idx: int) -> int:
 
 
 register_minor(CARD_ID, prereq=_no_grain_field)
-register("after_bake_bread", CARD_ID, _eligible, _apply)
+register("before_bake_bread", CARD_ID, _eligible, _apply)
 register_scoring(CARD_ID, _score)

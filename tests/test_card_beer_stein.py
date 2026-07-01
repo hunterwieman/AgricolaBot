@@ -5,12 +5,15 @@
     Clarification: "You must bake normally to make this exchange."
     Cost: 1 Clay. No prerequisite.
 
-An OPTIONAL `after_bake_bread` trigger that exchanges 1 grain for 2 food + a banked
-bonus point (read back at scoring). Mechanically identical to Baking Sheet (A30),
-differing only in cost (1 clay) and the absence of a prerequisite. Each firing test
+An OPTIONAL `before_bake_bread` trigger that exchanges 1 grain for 2 food + a banked
+bonus point (read back at scoring). Per the Trigger-Timing ruling, a bare "each time
+you take a 'Bake Bread' action" fires in the BEFORE phase (the reward is flat, so it
+need not read the bake's outcome); the "must bake normally" clarification is a GATE,
+not an ordering. Because the before-phase offers only FireTrigger + CommitBake (a bake
+is forced) and the exchange spends 1 grain, eligibility requires grain >= 2 so a legal
+bake still remains — otherwise firing would strand the mandatory bake. Each firing test
 drives the real Bake Bread flow through Grain Utilization (place -> bake_bread
-sub-action -> CommitBake flips PendingBakeBread to its after-phase), so the firing
-point — and the "must bake normally" structural guarantee — is exercised end-to-end.
+sub-action -> the PendingBakeBread before-phase surfaces the trigger + CommitBake).
 """
 import agricola.cards.beer_stein  # noqa: F401  (registers the card; not yet in cards/__init__.py)
 
@@ -51,12 +54,12 @@ def _bake_setup(*, owner=0, current_player=0, grain=2, seed=0):
     return s
 
 
-def _bake_to_after_phase(s):
-    """Drive place -> choose bake_bread -> CommitBake(1); leaves the bake host in
-    its after-phase (where the Beer Stein trigger is offered alongside Stop)."""
+def _to_bake_before_phase(s):
+    """Drive place -> choose bake_bread; leaves the bake host in its BEFORE-phase,
+    where the Beer Stein trigger is offered alongside the CommitBake options (no
+    Stop — the bake is forced)."""
     s = step(s, PlaceWorker(space="grain_utilization"))
     s = step(s, ChooseSubAction(name="bake_bread"))
-    s = step(s, CommitBake(grain=1))
     return s
 
 
@@ -73,10 +76,13 @@ def test_registered():
     assert any(cid == CARD_ID for cid, _ in SCORING_TERMS)
 
 
-def test_registered_on_after_bake_bread():
+def test_registered_on_before_bake_bread():
     from agricola.cards.triggers import TRIGGERS
-    entries = TRIGGERS.get("after_bake_bread", [])
+    entries = TRIGGERS.get("before_bake_bread", [])
     assert any(e.card_id == CARD_ID and not e.mandatory for e in entries), entries
+    # And NOT on the after-phase (the timing bug this fix corrects).
+    after = TRIGGERS.get("after_bake_bread", [])
+    assert not any(e.card_id == CARD_ID for e in after), after
 
 
 def test_prereq_always_met():
@@ -86,22 +92,29 @@ def test_prereq_always_met():
 
 
 # ---------------------------------------------------------------------------
-# Firing: exchange 1 grain -> +2 food + 1 banked bonus point
+# Firing: exchange 1 grain -> +2 food + 1 banked bonus point, BEFORE the bake
 # ---------------------------------------------------------------------------
 
-def test_fires_after_bake_bread():
-    s = _bake_setup(owner=0, grain=2)   # 1 grain baked normally leaves 1 to exchange
-    s = _bake_to_after_phase(s)
-    grain_after_bake = s.players[0].resources.grain
-    food_after_bake = s.players[0].resources.food
-    assert grain_after_bake == 1        # 2 - 1 baked
-    # The after-phase surfaces the optional Beer Stein trigger (alongside Stop).
-    assert FireTrigger(card_id=CARD_ID) in legal_actions(s)
+def test_fires_before_bake_bread():
+    s = _bake_setup(owner=0, grain=2)   # exchange 1 (leaves 1) then bake that 1
+    s = _to_bake_before_phase(s)
+    grain0 = s.players[0].resources.grain
+    food0 = s.players[0].resources.food
+    assert grain0 == 2                   # nothing consumed yet (before-phase)
+    # The before-phase surfaces the optional Beer Stein trigger AND CommitBake (no Stop).
+    la = legal_actions(s)
+    assert FireTrigger(card_id=CARD_ID) in la
+    assert CommitBake(grain=1) in la
+    assert Stop() not in la              # bake is forced, no decline path at this frame
+    # Fire the exchange: a pure state edit -1 grain, +2 food, +1 banked point.
     s = step(s, FireTrigger(card_id=CARD_ID))
-    # No pending pushed — a pure state edit: -1 grain, +2 food, +1 banked point.
-    assert s.players[0].resources.grain == grain_after_bake - 1
-    assert s.players[0].resources.food == food_after_bake + 2
+    assert s.players[0].resources.grain == grain0 - 1   # 2 - 1 exchanged = 1
+    assert s.players[0].resources.food == food0 + 2
     assert s.players[0].card_state.get(CARD_ID, 0) == 1
+    # A legal bake still remains (the stranding guard did its job) and can be committed.
+    assert CommitBake(grain=1) in legal_actions(s)
+    s = step(s, CommitBake(grain=1))
+    assert s.players[0].resources.grain == 0            # 1 baked
     # Finish the turn (pop bake host after-phase, then the Grain Utilization host).
     s = step(s, Stop())
     s = step(s, Stop())
@@ -110,7 +123,7 @@ def test_fires_after_bake_bread():
 
 def test_scores_banked_point():
     s = _bake_setup(owner=0, grain=2)
-    s = _bake_to_after_phase(s)
+    s = _to_bake_before_phase(s)
     s = step(s, FireTrigger(card_id=CARD_ID))
     assert s.players[0].card_state.get(CARD_ID, 0) == 1
     # A direct read of the registered scoring term confirms the +1 it contributes.
@@ -125,48 +138,51 @@ def test_scores_banked_point():
 
 
 # ---------------------------------------------------------------------------
-# Optionality: declinable via the host's Stop
+# Optionality: declinable by baking without firing
 # ---------------------------------------------------------------------------
 
 def test_decline():
     s = _bake_setup(owner=0, grain=2)
-    s = _bake_to_after_phase(s)
+    s = _to_bake_before_phase(s)
     grain0 = s.players[0].resources.grain
     food0 = s.players[0].resources.food
-    s = step(s, Stop())   # decline + pop the bake host after-phase
-    s = step(s, Stop())   # pop the Grain Utilization host; turn ends
+    s = step(s, CommitBake(grain=1))   # bake without firing -> decline the exchange
+    s = step(s, Stop())                # pop the bake host after-phase
+    s = step(s, Stop())                # pop the Grain Utilization host; turn ends
     assert s.pending_stack == ()
-    assert s.players[0].resources.grain == grain0   # nothing exchanged
-    assert s.players[0].resources.food == food0
-    assert s.players[0].card_state.get(CARD_ID, 0) == 0   # no point banked
+    assert s.players[0].resources.grain == grain0 - 1   # only the bake spent grain
+    assert s.players[0].resources.food == food0 + 2     # bake payout (Fireplace 2:1)
+    assert s.players[0].card_state.get(CARD_ID, 0) == 0  # no point banked
 
 
 # ---------------------------------------------------------------------------
-# Eligibility boundaries
+# Eligibility boundaries — the stranding guard
 # ---------------------------------------------------------------------------
 
-def test_not_offered_without_grain_to_exchange():
-    # Exactly 1 grain: baking it normally leaves 0 -> nothing left to exchange.
+def test_not_offered_at_one_grain_would_strand_bake():
+    # Exactly 1 grain: firing (-1) would leave 0 grain, stranding the MANDATORY bake.
+    # The guard (grain >= 2) suppresses the exchange; only CommitBake is offered.
     s = _bake_setup(owner=0, grain=1)
-    s = _bake_to_after_phase(s)
-    assert s.players[0].resources.grain == 0
-    assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
-    assert legal_actions(s) == [Stop()]
+    s = _to_bake_before_phase(s)
+    assert s.players[0].resources.grain == 1
+    la = legal_actions(s)
+    assert FireTrigger(card_id=CARD_ID) not in la
+    assert CommitBake(grain=1) in la     # the bake itself is still available
 
 
 def test_not_offered_when_unowned():
     s = _bake_setup(owner=None, grain=2)
-    s = _bake_to_after_phase(s)
+    s = _to_bake_before_phase(s)
     assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
 
 
 def test_once_per_bake_action():
     # After firing once, the trigger is stamped in triggers_resolved -> not offered
     # again within the same Bake Bread action (even with grain still available).
-    s = _bake_setup(owner=0, grain=3)   # bake 1, exchange 1, still 1 left
-    s = _bake_to_after_phase(s)
+    s = _bake_setup(owner=0, grain=3)   # exchange 1, still 2 left before baking
+    s = _to_bake_before_phase(s)
     s = step(s, FireTrigger(card_id=CARD_ID))
-    assert s.players[0].resources.grain == 1     # 3 - 1 baked - 1 exchanged
+    assert s.players[0].resources.grain == 2     # 3 - 1 exchanged
     assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
     assert s.players[0].card_state.get(CARD_ID, 0) == 1   # only banked once
 
@@ -174,23 +190,22 @@ def test_once_per_bake_action():
 def test_re_eligible_on_a_new_bake_action():
     # "Each time you take a Bake Bread action" — a fresh PendingBakeBread has an
     # empty triggers_resolved, so the card re-becomes eligible on the next action.
-    # grain=4: action #1 bakes 1 + exchanges 1 (2 left), action #2 bakes 1 (1 left).
     s = _bake_setup(owner=0, grain=4)
-    s = _bake_to_after_phase(s)
-    s = step(s, FireTrigger(card_id=CARD_ID))   # fire on action #1
-    s = step(s, Stop())                          # pop bake host
+    s = _to_bake_before_phase(s)
+    s = step(s, FireTrigger(card_id=CARD_ID))   # fire on action #1 (4 -> 3)
+    s = step(s, CommitBake(grain=1))             # bake normally (3 -> 2)
+    s = step(s, Stop())                          # pop bake host after-phase
     s = step(s, Stop())                          # end the Grain Utilization turn
     assert s.pending_stack == ()
     assert s.players[0].card_state.get(CARD_ID, 0) == 1
-    assert s.players[0].resources.grain == 2     # 4 - 1 baked - 1 exchanged
+    assert s.players[0].resources.grain == 2     # 4 - 1 exchanged - 1 baked
 
     # Force a second independent Bake Bread action via a fresh bake frame.
     from agricola.pending import PendingBakeBread, push
-    from agricola.resolution import _execute_bake
     s = with_current_player(s, 0)
     s = push(s, PendingBakeBread(player_idx=0, initiated_by_id="space:grain_utilization"))
-    s = _execute_bake(s, 0, CommitBake(grain=1))   # bake normally -> after-phase
-    assert s.players[0].resources.grain == 1       # 1 left to exchange
+    # The fresh frame's before-phase re-offers the exchange (grain 2 >= 2).
     assert FireTrigger(card_id=CARD_ID) in legal_actions(s)
     s = step(s, FireTrigger(card_id=CARD_ID))       # fire on action #2
     assert s.players[0].card_state.get(CARD_ID, 0) == 2   # banked twice total
+    assert s.players[0].resources.grain == 1              # 2 - 1 exchanged

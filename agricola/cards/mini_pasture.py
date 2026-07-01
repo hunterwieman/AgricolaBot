@@ -2,7 +2,8 @@
 
 Card text: "Immediately fence a farmyard space, without paying wood for the fences. (If you
 already have pastures, the new one must be adjacent to an existing one.)"
-Cost: 2 Food.
+Cost: 2 Food. This is a TRAVELING (passing) minor (`passing_left="X"` in the card data): after
+its immediate effect it is passed to the opponent's hand, never kept in the owner's tableau.
 Owner ruling (2026-06-29): a NEW 1×1 enclosure, adjacent to an existing pasture (if any),
 NEVER a subdivision; and the grant is MANDATORY — the card is UNPLAYABLE unless a valid free
 1×1 can actually be built (enough fence pieces in supply AND a legal location: a first pasture,
@@ -58,4 +59,4 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(food=2)),
-               prereq=_can_fence_new_1x1, on_play=_on_play)
+               passing_left=True, prereq=_can_fence_new_1x1, on_play=_on_play)

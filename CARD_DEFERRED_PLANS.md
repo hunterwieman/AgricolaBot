@@ -258,3 +258,78 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   (C3, you flagged it), multi-plow (C4), Confidant (C5).
 - The long tail stays deferred (real subsystems). One cheap extra: a small `alt_costs` on `MinorSpec`
   would unblock Baseboards / Barley Mill / Forest Stone — say the word.
+
+---
+
+## Round-end effects — the `PendingRoundEnd` frame (design; NOT yet implemented)
+
+**User-directed plan (2026-07-01). Deferred: do not implement until scheduled.** Three related
+card families all resolve at the end of a round and none has a home in the engine today. They
+share one new phase frame, `PendingRoundEnd`, pushed at the round-end boundary (the
+**returning-home phase**, i.e. `RETURN_HOME`, before `PREPARATION`/the reveal).
+
+### The three families the frame hosts
+
+1. **Use-it-or-lose-it "once per round, you can …" options.** Cards worded *"Once per round, you
+   can [pay a good to gain something]"* with **no** "at the start of each round" and **no**
+   person-placement qualifier. They are usable at **any point during the round** and the option
+   **expires at round end** if unused. The engine deliberately does not surface anytime
+   conversions (a rational agent defers them to the last useful moment — see
+   `CARD_AUTHORING_GUIDE.md` §2), so the correct realization is to offer each still-unused option
+   as an **optional round-end `FireTrigger`** (the last moment it can be used). Modeling them at
+   `start_of_round` is **wrong** (it forces the choice before the player has acquired the goods
+   and removes the anytime flexibility). Members in the current data:
+   - **Corn Schnapps Distillery (C64)** — pay 1 grain → 1 food on each of the next 4 round spaces.
+     *(Was implemented at `start_of_round`; DEFERRED + archived 2026-07-01.)*
+   - **Mandoline (C46)** — pay 1 vegetable → 1 bonus point + food on next round spaces. *(not implemented)*
+   - **Pellet Press (D46)** — pay 1 reed → food on each of the next 4 round spaces. *(not implemented)*
+   - *Not this family:* Tea House (D53, tied to skipping the 2nd person placement — a
+     placement-time effect); Clay Carrier (D122, "at any time, but only once per round" — the
+     anytime-conversion family, a separate deferral); Guest Room (E22, different mechanism).
+
+2. **Round-end automatic effects** (choice-free). Example: **Claypipe** — "In the returning-home
+   phase of each round, if you gained at least 7 building resources in the preceding work phase,
+   you get 2 food." (Also needs a new *"building resources gained this work phase"* counter — a
+   small piece of extra infra beyond the frame itself.)
+
+3. **"At round end" triggers** — optional/at-round-end-worded card effects (the general case of
+   family 2, surfaced as `FireTrigger`s rather than autos).
+
+### Firing order (load-bearing)
+
+Within `PendingRoundEnd`, resolve in this order:
+1. **use-it-or-lose-it triggers FIRST** (family 1) — so their proceeds are on hand *before* the
+   round-end automatics/at-round-end triggers compute or consume state;
+2. then **round-end automatic effects** (family 2);
+3. then **"at round end" triggers** (family 3).
+
+### Status
+Design only, per user direction — **do not implement yet.** When built, re-read each member
+card's exact text (§1) and re-classify. Corn Schnapps Distillery's module + test are preserved in
+`archive/deferred_cards/` and should be un-archived and rebuilt on this frame.
+
+---
+
+## After-the-feeding-phase conversions — `PendingHarvestFeed` after-phase (design; NOT implemented)
+
+**Deferred 2026-07-01 (user-approved deferral).** Cards worded *"After the feeding phase of
+each harvest, you can …"* must fire **once feeding is fully resolved**, so their proceeds
+cannot pay that harvest's feeding. Today they have no home: `PendingHarvestFeed` has **no
+phase/after model** (its only fields are `player_idx`, `initiated_by_id`, `conversion_done`),
+and the harvest-conversion registry (`register_harvest_conversion` → `CommitHarvestConversion`)
+offers its conversions **during** `HARVEST_FEED`.
+
+**The bug this caused (now deferred):** **Farm Store (C41)** — "After the feeding phase of each
+harvest, you can exchange exactly 1 food for 2 different building resources of your choice or 1
+vegetable" — was implemented as a during-feed `register_harvest_conversion`. Offered during
+feeding, a player can buy a **vegetable** for 1 food and then **cook it** (Fireplace/Hearth) to
+pay that same feeding — a food-laundering exploit the "after" wording exists to forbid. Farm
+Store's module + test are archived in `archive/deferred_cards/`.
+
+**What's needed:** give `PendingHarvestFeed` a before/after phase (or add a distinct
+post-feed frame pushed after the feeding payment resolves) that hosts **after-feed triggers** —
+offered only after `CommitConvert`/the feeding payment is done, so their output cannot re-enter
+the feeding calculation. This is harvest-subsystem surgery (the feed frontier + deferred food
+payment are the engine's most delicate area — see CLAUDE.md Foundations / the harvest §), hence
+deferred. Any other "after the feeding phase" card joins Farm Store here. When built, un-archive
+Farm Store, move it off `register_harvest_conversion` onto the new after-feed hook, and re-test.

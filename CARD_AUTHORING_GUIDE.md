@@ -37,12 +37,33 @@ Concretely:
 - When you defer, record *why* (which mechanism is missing, or which ruling is unclear)
   in `CARD_IMPLEMENTATION_PLAN.md`, so the next session and the user can pick it up.
 - **When delegating card work to a subagent, inject the load-bearing rulings from §2 into
-  the prompt.** Subagents start cold and will guess at timing, optionality, and eligibility
-  — and guess wrong in the same ways documented here. Do not assume they will read this
-  document. At minimum propagate: "each time you use" = `before_action_space` (never chosen
-  by convenience); granted sub-actions are optional even when worded as commands; before-
-  grants on delegating hosts must not strand the mandatory sub-action; immediate animal
-  grants bypass accommodation and are silently wrong.
+  the prompt — and impress on them that precise rule-adherence IS the task, not a nicety.**
+  Subagents start cold and will guess at timing, optionality, eligibility, and cost — and
+  guess wrong in the same ways documented here. Tell them explicitly: **a card that passes
+  its own tests but reads the rules wrong is a FAILURE, not a success** (the agent's test
+  only checks what it built, not what the rules require); when the text is silent or unclear,
+  **defer (§0)** — do not pick the reading that is least work. Do not assume they will read
+  this document. At minimum propagate, verbatim:
+  - **"each time you [take / use / do X]" = the BEFORE window of X** — for **sub-actions**
+    (Bake Bread / sow / plow / renovate / build) exactly as for action spaces
+    (`before_bake_bread`, not `after`). The `after_` bias is a trap: after "just works" in a
+    test because the mandatory sub-action already ran, but it is a BUG unless the text says
+    "after". A reward is `after` **only** when it must read *what the action produced* or *its
+    chosen target*; a **flat** reward fires **before**. (Beer Stein / Baking Sheet shipped on
+    `after_bake_bread` — wrong.)
+  - **The "you must do X normally to get the bonus" clarification is a GATE, not an ordering**
+    — it means the bonus needs a completed X, not that it comes *after* X. Still `before` + a
+    stranding guard.
+  - **a before-trigger must not STRAND the host's mandatory sub-action** — its eligibility must
+    verify that sub-action stays legal *after* the trigger spends its resources (grain for a
+    before_bake conversion, cells for a Farmland plow grant, an occupation for a Lessons grant).
+  - **a `/` or "or" in a COST is an alternative to pay ONE of, never a sum** (Club House
+    shipped paying both) — a §0 today.
+  - **"after the feeding phase" ≠ during feeding** — an exchange whose proceeds could pay the
+    feeding must fire only after feeding resolves (Farm Store).
+  - granted sub-actions are optional even when worded as commands; immediate animal grants
+    bypass accommodation and are silently wrong; counts ("Nth person", "in hand") must exclude
+    same-turn artifacts.
 
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
@@ -157,16 +178,41 @@ adapt. If no template matches, you are probably in §0 territory.
 These are the things a coding agent reliably gets wrong. Most are settled rulings; when a
 new one comes up that *isn't* settled here, that's a §0 (ask the user).
 
-### "Each time you use [action space]" fires BEFORE the space's effect
+### "Each time you [take / use / do X]" fires BEFORE X — action spaces AND sub-actions
 
-The official Trigger-Timing ruling: a bare *"each time you use [X]"* triggers in the
-**before** phase, before the space's own effect resolves — **not** after. This is the same
-ruling that puts Milk Jug, Wood Cutter, Corn Scoop, Herring Pot, and Cottager on
-`before_action_space`. A card fires in the **after** phase only when its text says so
-explicitly ("immediately after…"). The phase is a **correctness** decision fixed by the
-card text and the ruling — *never* chosen by convenience, and never "before/after doesn't
-matter here, I'll pick one" (a real bug was caught from exactly that reasoning). When the
-observable outcome would coincide either way, still classify by the ruling.
+The official Trigger-Timing ruling: a bare *"each time you [do X]"* triggers in the
+**before** phase of X, before X's own effect resolves — **not** after. This holds whether X
+is an **action space** ("each time you use the 'Forest' space" → `before_action_space`) **or a
+sub-action** ("each time you take a 'Bake Bread' action" → `before_bake_bread`; likewise sow /
+plow / renovate / build). A card fires in the **after** phase **only** when its text says so
+explicitly ("immediately after…", "after you …"). The phase is a **correctness** decision
+fixed by the card text + the ruling — *never* chosen by convenience, and never "before/after
+doesn't matter here, I'll pick one" (real bugs were caught from exactly that reasoning). When
+the observable outcome would coincide either way, still classify by the ruling. This is the
+same ruling that puts Milk Jug, Wood Cutter, Corn Scoop, Herring Pot, and Cottager on
+`before_action_space`.
+
+**Flat reward → before; outcome-dependent reward → after.** The one legitimate reason to use
+`after_<X>` without an explicit "after" in the text is that the effect must read *what X
+produced* or *X's chosen target* — e.g. a reward scaled by how many rooms a build produced, or
+Roughcaster needing to know a renovate went clay→stone (only knowable post-application). A
+**flat** reward ("get 1 food", "turn 1 grain into 2 food") does **not** need the outcome, so it
+fires **before**. Do not use "I put it after so the state was settled" as a reason — that is the
+`after_` **convenience bias**, and it is the single most common timing bug: `after_` "just
+works" in a test because the mandatory sub-action already ran and there is nothing left to
+strand. That ease is exactly the trap.
+
+> **The "you must [X] normally to get the bonus" clarification is a GATE, not an ordering.**
+> A card like *Beer Stein* / *Baking Sheet* — "Each time you take a 'Bake Bread' action, you
+> can [convert 1 grain to 2 food + a bonus point]," clarified "you must bake normally to make
+> this exchange" — is `before_bake_bread`, **not** `after`. The clarification means the bonus is
+> only available *as part of* a real bake (no bonus without baking); it does **not** say the
+> bonus comes *after* the bake. With before-timing the gate is satisfied structurally — the
+> `PendingBakeBread` before-phase offers only FireTrigger + CommitBake (no Stop), so a bake is
+> still forced — **and you must add a stranding guard**: the exchange spends grain, so its
+> eligibility has to verify a legal bake remains *after* the −1 grain (≥2 grain + a baker), or
+> the mandatory bake is stranded. Both cards shipped on `after_bake_bread` on exactly the wrong
+> reading of this clarification; that is the mistake this paragraph exists to stop.
 
 > **⚠️ Never resolve a textual silence with a "these are equivalent" assumption — DEFER and ASK. The user will know.**
 > Map the card's literal words to the precise mechanic. When the text is *silent* on
@@ -192,6 +238,33 @@ observable outcome would coincide either way, still classify by the ruling.
 > (Farmland / Lessons / Major Improvement) fires **only** in the before-window; taking the
 > mandatory sub-action closes that window and declines any unfired one. There is **no
 > "either order."** A grant the player wants must be fired *before* using the space.
+
+### A "/" or "or" in the COST means ALTERNATIVE cost (pay ONE), never a sum
+
+A minor's printed cost like **"3 Wood / 2 Clay"** (or "3 wood or 2 clay") is an
+**alternative**: you pay 3 wood *or* 2 clay — whichever you choose and can afford, **not
+both**. `MinorSpec.cost` is a **single** `Cost` and cannot express an alternative, so encoding
+it as `Cost(resources=Resources(wood=3, clay=2))` — paying BOTH — is a silent, roughly
+double-price bug (this shipped on **Club House**). The correct behavior is to offer the play
+**wide**: one play option per affordable alternative, mirroring how builds surface
+`effective_payments`. Until that alternative-cost machinery exists, an alternative-cost card is
+a **§0 — defer and ask.** **Always scan the `cost` field for `/` or "or"** when classifying (§1
+step 2). The same applies to a `/` in a *reward* or effect ("1 veg / 4 wood") — that is an
+OR-reward / play-variant, and for minors there is no play-variant mechanism, so **defer**.
+
+### "After the feeding phase" is NOT "during feeding" — a conversion must not feed itself
+
+A harvest conversion registered with `register_harvest_conversion` is offered **during**
+`HARVEST_FEED`, where its output can be routed back into paying the feeding cost. That is
+correct for a food-**producing** feeding conversion, but WRONG for a card whose text says the
+exchange happens **"after the feeding phase"** (e.g. **Farm Store**: "After the feeding phase of
+each harvest, you can exchange exactly 1 food for … 1 vegetable"). Offered during feeding, the
+player can buy a vegetable for 1 food and then **cook it with a Fireplace/Hearth to pay that
+same feeding** — a food-laundering exploit the "after" wording exists to forbid. An
+"after the feeding phase" exchange must fire **only once feeding is fully resolved** (after the
+feeding payment / `CommitConvert`), so its proceeds cannot pay the feeding. There is no
+post-feeding conversion window today → **§0: defer and ask** (or build the window with the
+user), rather than shoehorning it into the during-feeding hook.
 
 ### "End of turn" is NOT "after the action's effects and triggers"
 
@@ -230,19 +303,30 @@ a non-stone house and the materials. Use the engine's own predicates (`_can_plow
 `_can_build_room`, `_can_renovate`, `_can_bake_bread`, …) so the card matches native
 legality. (Cottager's `_legal_variants` is the model.)
 
-**And: a `before_action_space` grant must not strand the mandatory sub-action.** Because it
-fires *before* the host's mandatory, non-declinable sub-action (enforce-first), its
-eligibility must also ensure that sub-action stays legal *after* the grant resolves — not
-merely that the grant itself is doable. A granted "plow 1 additional field" on Farmland
-requires **two** sequential plows (`_can_plow_twice`), not one (`_can_plow`): with a single
-plowable cell the grant would consume it and leave the base plow no target. (Plowing is
-adjacency-constrained — plowing one cell can open new adjacent targets — so this is a
-two-step simulation, not a cell count.) An additional granted occupation on Lessons (e.g.
-Writing Desk) likewise requires **≥2** playable occupations (one for the grant, one for the
-mandatory Lessons play). This guard is only
-needed on the delegating, single-mandatory-sub-action hosts (Farmland / Lessons), where the
-grant strictly precedes the base action — not on Cultivation (a separate, non-delegating
-host).
+**And: a before-trigger must not STRAND the host's mandatory sub-action.** Any trigger that
+fires *before* a host's mandatory, non-declinable sub-action (enforce-first) — whether a
+`before_action_space` grant or a `before_<sub>` effect — and **consumes a resource that
+mandatory sub-action needs** must gate its eligibility on that sub-action staying legal *after*
+the trigger resolves, not merely on the trigger itself being doable. This is about the *shared
+resource*, not just about granted sub-actions:
+- **Cells** — a granted "plow 1 additional field" on Farmland requires **two** sequential
+  plows (`_can_plow_twice`), not one (`_can_plow`): with a single plowable cell the grant would
+  consume it and leave the base plow no target. (Plowing is adjacency-constrained — plowing one
+  cell can open new adjacent targets — so this is a two-step simulation, not a cell count.)
+- **Occupations** — an additional granted occupation on Lessons (Writing Desk) requires **≥2**
+  playable occupations (one for the grant, one for the mandatory Lessons play).
+- **Goods** — a `before_bake_bread` grain conversion (Beer Stein) must leave enough grain for
+  the mandatory bake: eligibility requires ≥2 grain (1 to convert, ≥1 to bake) **plus** a baker,
+  or it strands the bake. The same logic covers any before-trigger that spends grain/veg/wood/…
+  a mandatory sub-action would otherwise use.
+
+The delegating, single-mandatory-sub-action hosts (Farmland / Lessons / a live bake host) are
+where the base action is strictly forced, so the guard is *required* there. On **Cultivation**
+(whose mandatory work is plow **or** sow, so the base plow is declinable) the plow granters
+still apply `must_preserve_base=True` + `_can_plow_twice` — a **user-approved** decision: it is
+loss-less because spending a *limited* granted plow on a cell the *free* base plow could take is
+strictly dominated, and no card rewards declining the base plow. Do not "simplify" that guard
+away on Cultivation.
 
 ### before/after the host: what fires when
 
@@ -584,6 +668,31 @@ they need design decisions, not just code.
 - **"At the end of that turn" cards** (e.g. Firewood Collector) — DEFERRED until a true
   post-at-any-time turn-end boundary exists; co-dependent with the at-any-time design
   (§2). Do not anchor them to the action-space pop.
+- **"Once per round, you can …" (use-it-or-lose-it) cards, "at round end" triggers, and
+  round-end automatic effects** — DEFERRED pending a `PendingRoundEnd` frame (design in
+  `CARD_DEFERRED_PLANS.md`). A card worded *"Once per round, you can [pay a good to gain
+  something]"* — with **no** "at the start of each round" or person-placement qualifier — is a
+  **use-it-or-lose-it** option usable at any point during the round, expiring at round end
+  (members in the data: Corn Schnapps Distillery C64, Mandoline C46, Pellet Press D46). Because
+  the engine deliberately does not surface anytime conversions (§2), the correct home is a
+  round-end offering, **not** `start_of_round` (modeling it at round start wrongly forces the
+  choice before the player has the goods and drops the anytime flexibility — Corn Schnapps was
+  built that way and is now deferred). This is co-dependent with **round-end automatic effects**
+  (e.g. Claypipe: "in the returning-home phase, if you gained ≥7 building resources this work
+  phase, +2 food") and **"at round end" triggers**; all three share the `PendingRoundEnd`
+  host, which must fire the **use-it-or-lose-it triggers FIRST**, then the automatic effects and
+  at-round-end triggers. Do **not** approximate any of these with `start_of_round`. ("At any
+  time, but only once per round" — Clay Carrier D122 — is instead the anytime-conversion family,
+  §2.)
+- **"After the feeding phase of each harvest, you can …" cards** — DEFERRED pending an after-phase
+  on `PendingHarvestFeed` (design in `CARD_DEFERRED_PLANS.md`). These must fire only once feeding
+  is fully resolved, so their proceeds can't pay that harvest's feeding; a during-feed
+  `register_harvest_conversion` is **wrong** (e.g. Farm Store C41 lets you buy a vegetable for 1
+  food then cook it to pay the feeding — the exact exploit the "after" wording forbids). No
+  after-feed window exists today (`PendingHarvestFeed` has no phase model), and the harvest is the
+  engine's most delicate subsystem, so building it is a §0. (Farm Store is archived in
+  `archive/deferred_cards/`.) Contrast an ordinary during-feed conversion — "each harvest you can
+  buy X for food" with no "after" — which correctly stays a `register_harvest_conversion`.
 - **Individually deferred base cards** with known blockers: **Organic Farmer** (scoring over
   aggregate animal counts + the end-game "remove animals to free capacity" play),
   **Acorns Basket** (deferred animals scheduling). Revisit each only when its blocker

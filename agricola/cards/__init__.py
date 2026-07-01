@@ -393,7 +393,6 @@ from agricola.cards import flail  # noqa: F401
 from agricola.cards import teachers_desk  # noqa: F401
 from agricola.cards import elephantgrass_plant  # noqa: F401
 from agricola.cards import clay_deposit  # noqa: F401
-from agricola.cards import farm_store  # noqa: F401
 from agricola.cards import farm_building  # noqa: F401
 from agricola.cards import stew  # noqa: F401
 from agricola.cards import garden_claw  # noqa: F401
@@ -401,7 +400,6 @@ from agricola.cards import studio  # noqa: F401
 from agricola.cards import woodcraft  # noqa: F401
 from agricola.cards import schnapps_distillery  # noqa: F401
 from agricola.cards import beer_stein  # noqa: F401
-from agricola.cards import corn_schnapps_distillery  # noqa: F401
 from agricola.cards import clay_supply  # noqa: F401
 from agricola.cards import reed_hatted_toad  # noqa: F401
 from agricola.cards import stone_cart  # noqa: F401
