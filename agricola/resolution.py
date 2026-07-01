@@ -550,13 +550,18 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     p = state.players[idx]
     pay = action.payment
     assert isinstance(pay, Resources), "minor cost routes are resource-only"
+    # The ANIMAL portion is not card-modifiable and does not ride on `payment` (a
+    # Resources vector); it comes from the chosen "/"-alternative (`action.cost`) when
+    # set, else the printed `spec.cost` — the ordinary single-cost case.
+    chosen_animals = (action.cost.animals if action.cost is not None
+                      else spec.cost.animals)
     if p.resources.food < pay.food:                  # raise the shortfall, then re-run
-        reserved = Cost(resources=fast_replace(pay, food=0), animals=spec.cost.animals)
+        reserved = Cost(resources=fast_replace(pay, food=0), animals=chosen_animals)
         return push(state, PendingFoodPayment(
             player_idx=idx, food_needed=pay.food, resume_kind="rerun",
             reserved=reserved, action=action))
     p = fast_replace(
-        p, resources=p.resources - pay, animals=p.animals - spec.cost.animals,
+        p, resources=p.resources - pay, animals=p.animals - chosen_animals,
         hand_minors=p.hand_minors - {cid},
     )
     if not spec.passing_left:                       # normal minor: keep in tableau

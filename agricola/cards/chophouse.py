@@ -50,6 +50,14 @@ def _apply(state: GameState, idx: int) -> GameState:
     return schedule_resources(state, idx, range(R + 1, R + 1 + n), Resources(food=1))
 
 
-register_minor(CARD_ID, cost=Cost(resources=Resources(wood=2, clay=2)), vps=1)
+# Cost is "2 Wood / 2 Clay" — an ALTERNATIVE ("/") cost: pay EITHER 2 wood OR 2 clay,
+# not both. The printed 2-wood cost is `cost`; the 2-clay alternative rides on
+# `alt_costs`. The play path enumerates one CommitPlayMinor per affordable alternative.
+register_minor(
+    CARD_ID,
+    cost=Cost(resources=Resources(wood=2)),
+    alt_costs=(Cost(resources=Resources(clay=2)),),
+    vps=1,
+)
 register_auto("before_action_space", CARD_ID, _eligible, _apply)
 register_action_space_hook(CARD_ID, SPACES)

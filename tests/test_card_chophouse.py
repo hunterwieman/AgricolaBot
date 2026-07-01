@@ -14,14 +14,16 @@ effect is automatic (no FireTrigger surfaced).
 """
 import agricola.cards.chophouse  # noqa: F401  (registers the card)
 
-from agricola.actions import PlaceWorker
+from agricola.actions import CommitPlayMinor, PlaceWorker
 from agricola.cards.specs import MINORS
 from agricola.cards.triggers import AUTO_EFFECTS
 from agricola.engine import step
 from agricola.legality import legal_actions
+from agricola.pending import PendingPlayMinor
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
-from agricola.setup import setup_env
+from agricola.setup import CardPool, setup_env
+from tests.factories import with_pending_stack
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +56,10 @@ def _run_turn(state):
 def test_chophouse_registered():
     assert "chophouse" in MINORS
     spec = MINORS["chophouse"]
-    assert spec.cost == Cost(resources=Resources(wood=2, clay=2))
+    # "2 Wood / 2 Clay" is an ALTERNATIVE ("/") cost: printed 2-wood in `cost`, the
+    # 2-clay alternative in `alt_costs` — pay ONE, not both.
+    assert spec.cost == Cost(resources=Resources(wood=2))
+    assert spec.alt_costs == (Cost(resources=Resources(clay=2)),)
     assert spec.vps == 1
     assert not spec.passing_left
     assert spec.prereq is None
@@ -167,3 +172,78 @@ def test_chophouse_food_collected_at_round_start():
     # The scheduled 1 food for round 2 was collected; the slot is now consumed.
     assert s.players[ap].resources.food == food_before + 1
     assert _food(s, ap)[1] == 0
+
+
+# ---------------------------------------------------------------------------
+# Alternative ("/") cost: pay EITHER 2 wood OR 2 clay, not both
+# ---------------------------------------------------------------------------
+
+_POOL = CardPool(
+    occupations=tuple(f"o{i}" for i in range(20)),
+    minors=("chophouse",) + tuple(f"m{i}" for i in range(20)),
+)
+
+
+def _play_minor_state(res):
+    """A CARDS state at a PendingPlayMinor with `chophouse` in the current player's
+    hand and `res` resources on hand. Returns (state, current_player)."""
+    cs, _env = setup_env(5, card_pool=_POOL)
+    cp = cs.current_player
+    p = fast_replace(
+        cs.players[cp], hand_minors=frozenset({"chophouse"}), resources=res)
+    opp = fast_replace(cs.players[1 - cp], hand_minors=frozenset())
+    cs = fast_replace(cs, players=tuple(p if i == cp else opp for i in range(2)))
+    cs = with_pending_stack(
+        cs, (PendingPlayMinor(player_idx=cp, initiated_by_id="space:meeting_place_cards"),))
+    return cs, cp
+
+
+def _minor_commits(state, card_id="chophouse"):
+    return [a for a in legal_actions(state)
+            if isinstance(a, CommitPlayMinor) and a.card_id == card_id]
+
+
+def test_both_alternatives_offered_when_both_affordable():
+    # Enough of BOTH wood and clay -> two distinct CommitPlayMinor options (one per
+    # alternative), paying 2 wood XOR 2 clay.
+    cs, _cp = _play_minor_state(Resources(wood=2, clay=2))
+    commits = _minor_commits(cs)
+    payments = sorted((c.payment.wood, c.payment.clay) for c in commits)
+    assert payments == [(0, 2), (2, 0)]   # a 2-clay option and a 2-wood option
+
+
+def test_pay_via_wood_debits_only_wood():
+    cs, cp = _play_minor_state(Resources(wood=2, clay=2))
+    wood_commit = next(c for c in _minor_commits(cs) if c.payment.wood == 2)
+    out = step(cs, wood_commit)
+    p = out.players[cp]
+    assert p.resources.wood == 0    # wood spent
+    assert p.resources.clay == 2    # clay untouched
+    assert "chophouse" in p.minor_improvements   # effect/kept: card played
+    assert "chophouse" not in p.hand_minors
+
+
+def test_pay_via_clay_debits_only_clay():
+    cs, cp = _play_minor_state(Resources(wood=2, clay=2))
+    clay_commit = next(c for c in _minor_commits(cs) if c.payment.clay == 2)
+    out = step(cs, clay_commit)
+    p = out.players[cp]
+    assert p.resources.clay == 0    # clay spent
+    assert p.resources.wood == 2    # wood untouched
+    assert "chophouse" in p.minor_improvements   # card played
+
+
+def test_only_wood_alternative_offered_when_only_wood_affordable():
+    # 2 wood but only 1 clay -> only the wood alternative is playable.
+    cs, _cp = _play_minor_state(Resources(wood=2, clay=1))
+    commits = _minor_commits(cs)
+    assert len(commits) == 1
+    assert commits[0].payment.wood == 2 and commits[0].payment.clay == 0
+
+
+def test_only_clay_alternative_offered_when_only_clay_affordable():
+    # 2 clay but only 1 wood -> only the clay alternative is playable.
+    cs, _cp = _play_minor_state(Resources(wood=1, clay=2))
+    commits = _minor_commits(cs)
+    assert len(commits) == 1
+    assert commits[0].payment.clay == 2 and commits[0].payment.wood == 0

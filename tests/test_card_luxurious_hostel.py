@@ -10,13 +10,14 @@ Shape: a pure end-game scoring term (Category 1). +4 only when the player has
 STRICTLY more stone rooms than people (people = people_total), and stone rooms
 exist only when the house is stone.
 """
+import agricola.cards.half_timbered_house  # noqa: F401  (registers the sibling)
 import agricola.cards.luxurious_hostel  # noqa: F401  (registers the card)
 
 from agricola.cards.specs import MINORS
 from agricola.constants import CellType, HouseMaterial
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
-from agricola.scoring import SCORING_TERMS, score
+from agricola.scoring import SCORING_GROUPS, SCORING_TERMS, score
 from agricola.setup import setup
 from agricola.state import Cell
 from tests.factories import (
@@ -27,11 +28,12 @@ from tests.factories import (
 )
 
 CARD_ID = "luxurious_hostel"
+GROUP_ID = "stone_house_bonus"
 
 
 def _scorer():
-    """The registered scoring fn for this card."""
-    return next(fn for cid, fn in SCORING_TERMS if cid == CARD_ID)
+    """The registered scoring fn for this card (from its scoring group)."""
+    return next(fn for cid, fn in SCORING_GROUPS[GROUP_ID] if cid == CARD_ID)
 
 
 def _stone_house_with_rooms(state, idx, *, n_rooms, people):
@@ -67,8 +69,11 @@ def test_luxurious_hostel_registered():
     assert spec.max_occupations is None
     assert spec.passing_left is False         # kept, not passing
     assert spec.vps == 0                       # the 4 points are conditional, not flat
-    # The conditional bonus is read at scoring.
-    assert CARD_ID in {cid for cid, _ in SCORING_TERMS}
+    # The conditional bonus is read at scoring, via the mutual-exclusion group
+    # (NOT the plain SCORING_TERMS path — that would double-count with the
+    # sibling stone-house card).
+    assert CARD_ID in {cid for cid, _ in SCORING_GROUPS[GROUP_ID]}
+    assert CARD_ID not in {cid for cid, _ in SCORING_TERMS}
 
 
 def test_on_play_is_noop():
@@ -151,3 +156,61 @@ def test_non_owner_with_qualifying_house_scores_no_bonus():
     with_card, _ = score(with_minors(s, 1, frozenset({CARD_ID})), 1)
     without_card, _ = score(s, 1)
     assert with_card - without_card == 4
+
+
+# ---------------------------------------------------------------------------
+# Mutual exclusion with Half-Timbered House (SC1): owning BOTH scores the MAX,
+# never the sum — "you can only use one card ... for your stone house."
+# ---------------------------------------------------------------------------
+
+HALF_TIMBERED = "half_timbered_house"  # scores 1 per stone room
+
+
+def _bonus_from_scoring(state, idx):
+    """Bonus attributable to the stone-house-bonus cards owned by idx = its
+    card_points delta vs an identical farmyard owning NEITHER card."""
+    stripped = with_minors(state, idx, frozenset())
+    return score(state, idx)[0] - score(stripped, idx)[0]
+
+
+def test_luxurious_hostel_wins_max_when_owning_both():
+    # 3 stone rooms, 2 people: luxurious_hostel = 4 (rooms > people),
+    # half_timbered = 3 (1/room). Owning BOTH must score max(4, 3) = 4, not 7.
+    s = setup(seed=7)
+    s = _stone_house_with_rooms(s, 0, n_rooms=3, people=2)
+    s = with_minors(s, 0, frozenset({CARD_ID, HALF_TIMBERED}))
+    assert _bonus_from_scoring(s, 0) == 4    # max, not 4 + 3 = 7
+
+
+def test_half_timbered_wins_max_when_owning_both():
+    # 5 stone rooms, 5 people: luxurious_hostel = 0 (rooms NOT > people),
+    # half_timbered = 5 (1/room). Owning BOTH must score max(0, 5) = 5.
+    s = setup(seed=7)
+    s = _stone_house_with_rooms(s, 0, n_rooms=5, people=5)
+    s = with_minors(s, 0, frozenset({CARD_ID, HALF_TIMBERED}))
+    assert _bonus_from_scoring(s, 0) == 5    # max, not 0 + 5 (which happens to = 5 anyway)
+
+    # A case where the sum would visibly exceed the max: 6 rooms, 2 people.
+    # luxurious_hostel = 4, half_timbered = 6 → max 6, sum would be 10.
+    s2 = setup(seed=7)
+    s2 = _stone_house_with_rooms(s2, 0, n_rooms=6, people=2)
+    s2 = with_minors(s2, 0, frozenset({CARD_ID, HALF_TIMBERED}))
+    assert _bonus_from_scoring(s2, 0) == 6    # max(4, 6), NOT 4 + 6 = 10
+
+
+def test_owning_both_never_double_counts_via_score_breakdown():
+    # Verify through the ScoreBreakdown.card_points that only one member counts.
+    s = setup(seed=7)
+    s = _stone_house_with_rooms(s, 0, n_rooms=6, people=2)  # lux=4, half=6
+    s_both = with_minors(s, 0, frozenset({CARD_ID, HALF_TIMBERED}))
+    s_lux = with_minors(s, 0, frozenset({CARD_ID}))
+    s_half = with_minors(s, 0, frozenset({HALF_TIMBERED}))
+
+    _, bd_both = score(s_both, 0)
+    _, bd_lux = score(s_lux, 0)
+    _, bd_half = score(s_half, 0)
+
+    assert bd_lux.card_points == 4
+    assert bd_half.card_points == 6
+    # Owning both = max(4, 6) = 6, NOT 4 + 6 = 10.
+    assert bd_both.card_points == 6

@@ -191,12 +191,24 @@ class CommitPlayMinor(CommitSubAction):
     cost-modifier frontier `effective_payments` — the printed cost when no cost card
     applies, or a reduced / converted variant otherwise. A minor's *animal* cost (if
     any) is not card-modifiable (the `PaymentOption` union is resource-only), so it is
-    debited as printed, separately. `_execute_play_minor` debits `payment` + the animal
+    debited as printed, separately.
+
+    `cost` names the chosen ALTERNATIVE for a "/"-cost minor (Chophouse "2 Wood / 2
+    Clay"; MinorSpec.alt_costs): the full set of ways to pay is `(spec.cost,) +
+    spec.alt_costs`, and each alternative is enumerated as its own CommitPlayMinor.
+    `payment` (a Resources vector) already distinguishes the alternatives by their
+    resource cost, so `cost` is only load-bearing for the alternative's ANIMAL portion,
+    which `payment` cannot carry. `cost is None` (the default) means "use `spec.cost`" —
+    the ordinary single-cost card. Because it defaults to None and minors are card-mode
+    only, a Family state never carries a non-default value (byte-identity preserved).
+
+    `_execute_play_minor` debits `payment` (resources) + the chosen alternative's animal
     cost, moves the card hand->tableau (or, for a traveling minor, passes it to the
     opponent), and runs its on-play effect; the dispatcher then auto-pops the frame.
     """
     card_id: str
     payment: PaymentOption
+    cost: object | None = None  # chosen alternative Cost (animal portion); None -> spec.cost
 
 
 @dataclass(frozen=True)

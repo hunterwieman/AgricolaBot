@@ -23,7 +23,7 @@ from agricola.cards.specs import MINORS
 from agricola.constants import CellType, HouseMaterial
 from agricola.engine import step
 from agricola.replace import fast_replace
-from agricola.scoring import SCORING_TERMS, score
+from agricola.scoring import SCORING_GROUPS, SCORING_TERMS, score
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import Cell, get_space, with_space
 from tests.factories import with_grid, with_house, with_resources
@@ -71,9 +71,15 @@ def _play_half_timbered(cs):
 # Registration
 # ---------------------------------------------------------------------------
 
+GROUP_ID = "stone_house_bonus"
+
+
 def test_registered_in_both_registries():
     assert CARD_ID in MINORS                                    # playable as a minor
-    assert any(cid == CARD_ID for cid, _ in SCORING_TERMS)      # scores at end-game
+    # Scores at end-game via the mutual-exclusion group (NOT the plain
+    # SCORING_TERMS path — that would double-count with Luxurious Hostel).
+    assert any(cid == CARD_ID for cid, _ in SCORING_GROUPS[GROUP_ID])
+    assert not any(cid == CARD_ID for cid, _ in SCORING_TERMS)
 
 
 def test_registered_cost_fields():

@@ -16,20 +16,23 @@ material, `ps.house_material`), so a wood/clay house always scores 0 here.
 Category 1 (end-game scoring). No stored state — derived from the farmyard.
 
 The trailing clause "You can only use one card to get bonus points for your
-stone house" is a cross-card de-duplication rule among the Dulcinaria
-stone-house bonus cards. No sibling such card is implemented today, so this
-clause is inert and a standalone scoring term is faithful; a shared mutual-
-exclusion mechanism would be needed if/when a sibling card is added.
+stone house" is a cross-card mutual-exclusion rule: a player who also owns
+Half-Timbered House (the other stone-house bonus card) may only benefit from
+ONE of the two — whichever scores higher — not the sum. Both cards therefore
+register into the shared "stone_house_bonus" scoring GROUP (via
+register_scoring_group), which `score()` resolves by taking the max of the
+owned members exactly once (never also summing them through SCORING_TERMS).
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.constants import CellType, HouseMaterial
 from agricola.resources import Cost, Resources
-from agricola.scoring import register_scoring
+from agricola.scoring import register_scoring_group
 from agricola.state import GameState
 
 CARD_ID = "luxurious_hostel"
+STONE_HOUSE_BONUS_GROUP = "stone_house_bonus"
 
 
 def _stone_rooms(state: GameState, idx: int) -> int:
@@ -58,4 +61,4 @@ register_minor(
     cost=Cost(resources=Resources(wood=1, clay=2)),
     on_play=lambda state, idx: state,
 )
-register_scoring(CARD_ID, _score)
+register_scoring_group(STONE_HOUSE_BONUS_GROUP, CARD_ID, _score)

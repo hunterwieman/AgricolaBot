@@ -1304,19 +1304,30 @@ def _can_afford_cost(p: PlayerState, cost) -> bool:
             and a.sheep >= ca.sheep and a.boar >= ca.boar and a.cattle >= ca.cattle)
 
 
-def _play_minor_ctx(card_id: str, spec, state: GameState, idx: int) -> CostCtx:
-    """Cost-resolution context for playing minor `card_id`.
+def _minor_cost_alternatives(spec, state: GameState, idx: int) -> tuple:
+    """The alternative costs for playing this minor, as a tuple of `Cost`s — the
+    player pays exactly ONE affordable member (Chophouse "2 Wood / 2 Clay").
 
-    Base cost comes from `spec.cost_fn(state, idx)` when present (cards whose cost
-    scales with game state, e.g. Bottles), otherwise from the static `spec.cost`.
-    The animal portion is NOT modifiable by cost cards and rides on `reserved_animals`
-    so food-liquidation affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4)."""
+    A `cost_fn` card computes a single scaling cost (no printed alternatives);
+    otherwise the alternatives are `(spec.cost,) + spec.alt_costs` — the printed
+    cost first, then any "/"-alternatives. Ordinary single-cost cards (empty
+    `alt_costs`) yield exactly one Cost, unchanged from before."""
     if spec.cost_fn is not None:
-        cost = spec.cost_fn(state, idx)
-        base, animals = cost.resources, cost.animals
-    else:
-        base, animals = spec.cost.resources, spec.cost.animals
-    return CostCtx("play_minor", base, card_id=card_id, reserved_animals=animals)
+        return (spec.cost_fn(state, idx),)
+    return (spec.cost,) + spec.alt_costs
+
+
+def _play_minor_ctx(card_id: str, cost, state: GameState, idx: int) -> CostCtx:
+    """Cost-resolution context for playing minor `card_id` with a SPECIFIC alternative
+    `cost` (a `Cost`, one member of `_minor_cost_alternatives`).
+
+    The resource portion is the cost-modifier `base`; the animal portion is NOT
+    modifiable by cost cards and rides on `reserved_animals` so food-liquidation
+    affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4)."""
+    return CostCtx(
+        "play_minor", cost.resources, card_id=card_id,
+        reserved_animals=cost.animals,
+    )
 
 
 def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
@@ -1332,7 +1343,10 @@ def playable_minors(state: GameState, idx: int) -> list[str]:
 
     The resource portion of the cost runs through the cost-modifier chokepoint
     (`can_pay`) so an owned cost card (e.g. Bricklayer's clay reduction) makes a
-    previously-unaffordable minor playable; the animal portion is checked directly."""
+    previously-unaffordable minor playable; the animal portion is checked directly.
+
+    For a "/"-alternative-cost minor (Chophouse) the card is playable iff ANY one
+    alternative is fully affordable (resources via `can_pay` AND its own animals)."""
     from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
     p = state.players[idx]
     result = []
@@ -1340,12 +1354,12 @@ def playable_minors(state: GameState, idx: int) -> list[str]:
         spec = MINORS[cid]
         if not prereq_met(spec, state, idx):
             continue
-        cost = spec.cost_fn(state, idx) if spec.cost_fn is not None else spec.cost
-        if not can_pay(state, idx, _play_minor_ctx(cid, spec, state, idx)):
-            continue
-        if not _can_afford_minor_animals(p, cost.animals):
-            continue
-        result.append(cid)
+        if any(
+            can_pay(state, idx, _play_minor_ctx(cid, cost, state, idx))
+            and _can_afford_minor_animals(p, cost.animals)
+            for cost in _minor_cost_alternatives(spec, state, idx)
+        ):
+            result.append(cid)
     return result
 
 
@@ -2515,14 +2529,30 @@ def _enumerate_pending_play_minor(
     if top.phase == "after":
         actions.append(Stop())
         return actions
-    # Wide over (card, payment): one CommitPlayMinor per playable card per resource-cost
-    # frontier point (§3.4). A singleton frontier today (no conversion/formula minor),
-    # several once such a card lands. The animal cost (if any) rides on the spec, not here.
+    # Wide over (card, alternative-cost, payment): one CommitPlayMinor per playable card,
+    # per printed/"/"-alternative cost, per resource-cost frontier point (§3.4). The
+    # `payment` (a `PaymentOption` = Resources vector) already encodes WHICH alternative
+    # was chosen — a "2 Wood" alternative and a "2 Clay" alternative yield distinct
+    # payments — so no extra field is needed to disambiguate; `_execute_play_minor`
+    # debits exactly that payment. A card with no alternatives + no cost card yields the
+    # single printed cost, unchanged. The animal cost (if any) rides on the spec, checked
+    # per-alternative inside `effective_payments` via the ctx's reserved_animals.
     from agricola.cards.specs import MINORS  # local import: load-order safe
     for cid in playable_minors(state, top.player_idx):
-        ctx = _play_minor_ctx(cid, MINORS[cid], state, top.player_idx)
-        for payment in effective_payments(state, top.player_idx, ctx):
-            actions.append(CommitPlayMinor(card_id=cid, payment=payment))
+        spec = MINORS[cid]
+        alternatives = _minor_cost_alternatives(spec, state, top.player_idx)
+        for i, cost in enumerate(alternatives):
+            ctx = _play_minor_ctx(cid, cost, state, top.player_idx)
+            # `cost` rides on the commit ONLY when it is a genuine alternative (not the
+            # printed `spec.cost`, i.e. index > 0), so ordinary single-cost minors keep
+            # the default `cost=None` and their commits are unchanged (existing cards +
+            # Family byte-identity untouched). `_execute_play_minor` reads the chosen
+            # alternative's animal portion from it; the resource debit is `payment`.
+            commit_cost = None if i == 0 else cost
+            for payment in effective_payments(state, top.player_idx, ctx):
+                actions.append(
+                    CommitPlayMinor(card_id=cid, payment=payment, cost=commit_cost)
+                )
     return actions
 
 

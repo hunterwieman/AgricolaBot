@@ -25,6 +25,34 @@ def register_scoring(card_id: str, fn: Callable) -> None:
     SCORING_TERMS.append((card_id, fn))
 
 
+# ---------------------------------------------------------------------------
+# Mutually-exclusive scoring GROUPS
+# ---------------------------------------------------------------------------
+# Some cards carry a rule like "you can only use one card to get bonus points
+# for your stone house": a player who owns several members of such a group may
+# only benefit from ONE of them — the best-scoring — not the sum.
+#
+# Members are keyed by group_id. For each group a player owns >=1 member of,
+# scoring adds `max(fn(state, idx) for each owned member)` exactly once. A group
+# member is registered ONLY here (never also via register_scoring), so it is not
+# double-counted through the plain SCORING_TERMS sum path.
+#
+# SCORING_GROUPS maps group_id -> list of (card_id, fn). Empty in the Family
+# game (no cards), so grouped card_points is 0 there and the family total — the
+# value the C++ differential checks — is unchanged.
+SCORING_GROUPS: dict[str, list[tuple[str, Callable]]] = {}
+
+
+def register_scoring_group(group_id: str, card_id: str, fn: Callable) -> None:
+    """Register a card into a mutually-exclusive scoring group.
+
+    Only the highest-scoring OWNED member of each group counts (the game rule
+    "you can only use one card to get bonus points ..."). Members go here and
+    NOT into SCORING_TERMS, so there is no double-count.
+    """
+    SCORING_GROUPS.setdefault(group_id, []).append((card_id, fn))
+
+
 def _owns(ps: PlayerState, card_id: str) -> bool:
     return card_id in ps.occupations or card_id in ps.minor_improvements
 
@@ -239,6 +267,13 @@ def score(state: GameState, player_idx: int) -> tuple[int, ScoreBreakdown]:
         fn(state, player_idx) for card_id, fn in SCORING_TERMS
         if _owns(ps, card_id)
     )
+    # Mutually-exclusive scoring groups: for each group the player owns >=1
+    # member of, count only the single best-scoring owned member (the "you can
+    # only use one card ..." rule). Empty in the Family game → 0.
+    for members in SCORING_GROUPS.values():
+        owned = [fn(state, player_idx) for cid, fn in members if _owns(ps, cid)]
+        if owned:
+            card_points += max(owned)
     # Plus each kept minor improvement's printed victory points (the yellow
     # circle). Passing minors are never kept, so they never reach here; the
     # Family game has no minors, so this is 0 (C++ family-score gate undisturbed).

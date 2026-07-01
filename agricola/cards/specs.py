@@ -122,6 +122,12 @@ class MinorSpec:
     """A minor improvement's static definition (CARD_IMPLEMENTATION_PLAN.md II.4).
 
     cost            — the spendable Cost (Resources + Animals), paid at play.
+    alt_costs       — additional ALTERNATIVE costs for cards printed with a "/"
+                      cost (e.g. Chophouse "2 Wood / 2 Clay"): the full set of
+                      ways to pay is `(cost,) + alt_costs`, and the player pays
+                      exactly ONE affordable member. Default () → the ordinary
+                      single-cost card (only `cost` applies). Not combinable with
+                      `cost_fn` (a scaling cost has no printed alternatives).
     cost_fn         — optional (state, idx) -> Cost; when present, overrides
                       `cost` at play time (for cards whose cost scales with game
                       state, e.g. Bottles: people_total × clay+food).
@@ -138,6 +144,7 @@ class MinorSpec:
     """
     card_id: str
     cost: Cost = Cost()
+    alt_costs: tuple[Cost, ...] = ()
     cost_fn: Optional[Callable] = None
     min_occupations: int = 0
     max_occupations: Optional[int] = None
@@ -154,6 +161,7 @@ def register_minor(
     card_id: str,
     *,
     cost: Cost = Cost(),
+    alt_costs: tuple[Cost, ...] = (),
     cost_fn: Optional[Callable] = None,
     min_occupations: int = 0,
     max_occupations: Optional[int] = None,
@@ -164,9 +172,9 @@ def register_minor(
 ) -> None:
     """Register a minor improvement's spec (called at card-module import)."""
     MINORS[card_id] = MinorSpec(
-        card_id=card_id, cost=cost, cost_fn=cost_fn, min_occupations=min_occupations,
-        max_occupations=max_occupations, prereq=prereq, passing_left=passing_left,
-        vps=vps, on_play=on_play,
+        card_id=card_id, cost=cost, alt_costs=alt_costs, cost_fn=cost_fn,
+        min_occupations=min_occupations, max_occupations=max_occupations,
+        prereq=prereq, passing_left=passing_left, vps=vps, on_play=on_play,
     )
 
 

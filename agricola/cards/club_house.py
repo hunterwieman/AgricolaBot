@@ -39,9 +39,13 @@ def _on_play(state: GameState, idx: int) -> GameState:
     return schedule_resources(state, idx, [R + 5], Resources(stone=1))
 
 
+# Cost is "3 Wood / 2 Clay" — an ALTERNATIVE ("/") cost: pay EITHER 3 wood OR 2 clay,
+# not both. The printed 3-wood cost is `cost`; the 2-clay alternative rides on
+# `alt_costs`. The play path enumerates one CommitPlayMinor per affordable alternative.
 register_minor(
     CARD_ID,
-    cost=Cost(resources=Resources(wood=3, clay=2)),
+    cost=Cost(resources=Resources(wood=3)),
+    alt_costs=(Cost(resources=Resources(clay=2)),),
     vps=1,
     on_play=_on_play,
 )
