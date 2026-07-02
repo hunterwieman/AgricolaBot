@@ -45,20 +45,11 @@ CARD_ID = "wood_workshop"
 
 
 def _eligible(state: GameState, idx: int) -> bool:
-    # Fire only in the host frame's BEFORE phase — i.e. the genuine "before you
-    # play/build the improvement" moment, when the leaf is first pushed and its
-    # cost has not yet been charged. This gate matters for `before_play_minor`:
-    # `_execute_play_minor` ends by calling `_fire_subaction_before_auto` again (to
-    # catch a sub-action leaf that a minor's `on_play` may have pushed, e.g. Shifting
-    # Cultivation → PendingPlow). For a minor whose `on_play` pushes nothing, the top
-    # at that second call is still the *same* PendingPlayMinor — but now flipped to
-    # its AFTER phase by the preceding `_enter_after_phase`. Without this gate the
-    # grant would fire a second time and hand out +2 wood per minor. Reading
-    # `phase == "before"` fires exactly once, at the real before-payment moment. (For
-    # `before_build_major`, `_execute_build_major` never re-fires, so this is a
-    # harmless no-op there — the single fire is always in the before phase.)
-    top = state.pending_stack[-1]
-    return getattr(top, "phase", "before") == "before"
+    # Unconditional: the before-auto seam (`engine._fire_subaction_before_auto`) is
+    # depth-guarded to fire exactly once, at the leaf's push — a per-card phase gate
+    # used to be needed here to block a re-fire from `_execute_play_minor`'s trailing
+    # seam call, but that guard now lives in the seam itself.
+    return True
 
 
 def _apply(state: GameState, idx: int) -> GameState:
