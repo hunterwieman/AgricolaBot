@@ -507,7 +507,7 @@
     "deck": "A",
     "number": 48,
     "type": "Minor Improvement",
-    "status": "todo",
+    "status": "wontfix",
     "name": "Shaving Horse",
     "cost": "1 Wood",
     "vps": null,

@@ -87,7 +87,7 @@
     "deck": "A",
     "number": 97,
     "type": "Occupation",
-    "status": "todo",
+    "status": "wontfix",
     "players": "1+",
     "name": "Freshman",
     "card_category": "Actions Booster",
@@ -3133,7 +3133,8 @@
     "players": "1+",
     "name": "Reader",
     "card_category": "Farm Planner",
-    "text": "As soon as you have 6 occupations in front of you (including this one), this cards provides room for one person. In the draft variant, you need 7 occupations to play this."
+    "text": "As soon as you have 6 occupations in front of you (including this one), this cards provides room for one person. In the draft variant, you need 7 occupations to play this.",
+    "clarifications": "IMPLEMENTATION NOTE (this project): assume the draft variant is always in play — hardcode the play prerequisite as 7 occupations. The 'room for one person' benefit still activates once you have 6 occupations in front of you (always satisfied once the card is played)."
   },
   {
     "expansion": "Dulcinaria Expansion",
