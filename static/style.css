@@ -720,6 +720,17 @@ body.is-submitting * { cursor: wait !important; }
   padding: 0 5px;
   margin-left: 4px;
 }
+.hand-card-state {
+  clear: both;
+  font-size: 10px;
+  font-weight: bold;
+  color: #2f5d34;
+  background: #dcefdc;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin: 3px 0;
+  display: inline-block;
+}
 .hand-card-text {
   font-size: 10px;
   color: #5a4a2a;

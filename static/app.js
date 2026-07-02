@@ -1251,6 +1251,17 @@
       row.appendChild(el('span', { class: 'hand-card-vps',
         title: 'printed victory points' }, `${c.vps} pt${c.vps === 1 ? '' : 's'}`));
     }
+    // Live "+X vp" emblem for cards whose bonus points are only knowable from
+    // game history (Big Country, Mantelpiece, Tutor, …). Same look as the printed
+    // badge, distinguished by the "+" prefix. Appended AFTER the printed badge so
+    // (both float:right) it sits to the LEFT of it — e.g. Mantelpiece shows
+    // "+X vp" then "-3 pts".
+    if (c.bonus_vps != null) {
+      const n = c.bonus_vps;
+      row.appendChild(el('span', { class: 'hand-card-vps',
+        title: 'bonus victory points earned so far' },
+        `+${n} pt${n === 1 ? '' : 's'}`));
+    }
     return row;
   }
 
@@ -1260,6 +1271,11 @@
   function renderPlayedCard(c) {
     const card = el('div', { class: 'hand-card played-card', title: c.text || '' });
     card.appendChild(cardNameRow(c));
+    // Live per-card state for resource/counter cards (Interim Storage goods held,
+    // Moldboard Plow plows left) — info the player can't read off the board.
+    if (c.state_text) {
+      card.appendChild(el('div', { class: 'hand-card-state' }, c.state_text));
+    }
     if (c.prereq) {
       card.appendChild(el('div', { class: 'hand-card-prereq' }, `Needs: ${c.prereq}`));
     }
