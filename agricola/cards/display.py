@@ -4,14 +4,15 @@ Some cards carry per-player `CardStore` state that a human needs to see but cann
 read off the visible board. Two kinds get surfaced:
 
   - **History-derived victory points** — bonus points banked at play time or
-    accumulated across harvests, so their value depends on *when/how* the card was
-    used, not on final board state: Big Country, Mantelpiece, Tutor, Beer Keg,
-    Furniture Carpenter. These show a "+X vp" emblem (the live points-if-the-game-
-    ended-now). Cards whose bonus points ARE derivable from public state — Loom
-    (sheep owned), Half-Timbered House (stone rooms) — are deliberately EXCLUDED:
-    the player can read those straight off the board, so no emblem is needed.
-    The emblem value reuses the card's own registered scoring term, so it can never
-    drift from what is actually scored.
+    accumulated across events (harvest conversions, per-use counters, play-time
+    gates), so their value depends on *when / how often* the card was used and can't
+    be reconstructed from the final board. The tell is structural: these cards store
+    their score in `card_state`. They show a "+X vp" emblem (the live points-if-the-
+    game-ended-now, reusing the card's own scoring term so it can't drift). Cards
+    whose bonus points ARE derivable from public state — Loom (sheep owned),
+    Stable Architect (unfenced stables) — compute from the board and are EXCLUDED:
+    the player reads those straight off it. The full classification of every scoring
+    card lives in HISTORY_VP_CARDS / PUBLIC_VP_CARDS below.
 
   - **Accumulated resources / remaining-use counters** — Interim Storage (goods
     held on the card), Moldboard Plow (plows left). These show a plain state badge.
@@ -25,12 +26,34 @@ from __future__ import annotations
 from agricola.resources import Resources
 from agricola.scoring import SCORING_TERMS
 
-# Card ids whose end-game bonus points are knowable ONLY from game history (the
-# stored CardStore snapshot). See the module docstring for why public-info scoring
-# cards (Loom, Half-Timbered House) are excluded.
-HISTORY_VP_CARDS: frozenset[str] = frozenset(
-    {"big_country", "mantlepiece", "tutor", "beer_keg", "furniture_carpenter"}
-)
+# Every card whose end-game scoring term reads a banked / snapshot value out of
+# `card_state` — i.e. its points depend on WHEN or HOW OFTEN it was used and cannot
+# be reconstructed from the visible board. These show the "+X vp" emblem (the live
+# points-if-the-game-ended-now, via the card's own scoring term).
+#
+# The distinguishing rule is structural: a card stores its score in `card_state`
+# precisely because that score is NOT recomputable from public state. So this set is
+# exactly {scoring cards that read card_state}, and its complement below is
+# {scoring cards that compute from the board}. `test_card_display` asserts the two
+# sets partition every registered scoring term, so adding a new scoring card without
+# classifying it FAILS the suite rather than silently going emblem-less.
+HISTORY_VP_CARDS: frozenset[str] = frozenset({
+    "baking_sheet", "beer_keg", "beer_stein", "big_country", "bucksaw", "butler",
+    "clay_deposit", "cube_cutter", "elephantgrass_plant", "furniture_carpenter",
+    "home_brewer", "loppers", "mantlepiece", "rustic", "truffle_slicer", "tutor",
+    "wood_rake",
+})
+
+# Scoring cards whose points ARE derivable from the current public board (animals,
+# rooms, fields, resources, majors) — the player reads them straight off the board,
+# so NO emblem. Listed explicitly only so the partition test can catch an
+# unclassified new card; nothing consumes this set at runtime.
+PUBLIC_VP_CARDS: frozenset[str] = frozenset({
+    "artisan_district", "cookery_outfitter", "debt_security", "fellow_grazer",
+    "fodder_chamber", "greening_plan", "lantern_house", "loom", "lord_of_the_manor",
+    "manger", "milking_stool", "pottery_yard", "schnapps_distillery", "soldier",
+    "stable_architect", "storeroom", "summer_house", "wool_blankets",
+})
 
 _SCORING_BY_ID: dict[str, "callable"] | None = None
 
