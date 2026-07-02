@@ -18,25 +18,30 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 179 implemented · 🚫 2 won't-fix/banned · ⬜ 239 not yet · ⚖ 153 high-effort adjudicated · 🔶 0 residual (low-confidence).
+**420 minors** — ✅ 179 implemented · 🚫 2 won't-fix/banned · ⬜ 239 not yet · ⚖ 274 high-effort adjudicated · 🔶 2 residual (low-confidence).
+
+### Residual — low-confidence, worth a human look
+
+- **A25 Bassinet** — _Each work phase, you can place a(nother) person on the first non-accumulating action space used by any player (including you), as long as there is only 1 person on that space.  [CLARIFICATION: This refers to 1 specific space, not 1 space for every player’s first non-accumulating action space.  Note that Family Growth usually leaves 2 people on the space.  The relevant space can be provided by another card, such as the one from Forest Tallyman A162.  Meeting Place may never be used a second time, even if it is the relevant space.  《Mark this space with a suggestion/claim marker.》]_ — `ATWILL CAP-ROUND E-EXTRAPLACE L-OCCUPY ST-PLACELOG ST-STORE` — The card does not fire on the space-use event — that event only DEFINES the claimed space (marker per clarification → ST-STORE, and you must know which space each round's first non-accumulating placement hit → ST-PLACELOG); the player then chooses when to place a(nother) person there during the work phase, once per work phase → ATWILL + CAP-ROUND, placing onto a 1-person-occupied space (L-OCCUPY, E-EXTRAPLACE).
+- **A39 Chapel** — _This is an action space for all. A player who uses it gets 3 bonus points. If another player uses it, they must first pay you 1 grain._ — `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP L-CARDSPACE E-SCORE E-OPPTRANSFER ST-COUNTER` — The card is an action space (L-CARDSPACE) whose effects fire on use by ANY player — B's HOOK framing captures the machinery: S-SPACE, both actors, F-AUTO ('gets'/'must'), T-BEFORE (opponent 'must FIRST pay you 1 grain' = E-OPPTRANSFER); 3 bonus points per use accumulate per player (E-SCORE + ST-COUNTER). A's bare ONPLAY misses the recurring per-use firing entirely.
 
 ### Deck A
 
 - ⬜ **A1 Shelter** · passing
   - _You can immediately build a stable at no cost, but only if you place it in a pasture covering exactly 1 farmyard space._
-  - `ONPLAY E-GRANTSUB E-COSTMOD E-PIECECOST E-PASSING L-GEOMFARM` — Kept L-GEOMFARM: the stable must be placed in a pasture of a specific SHAPE/size (exactly 1 farmyard space) — a genuine shape constraint on farm tiles.
+  - `ONPLAY E-GRANTSUB E-PASSING` — Optional on-play grant of a build-stable sub-action; 'at no cost' is a parameter of the grant (like Side Job's priced stable), not standing cost-mod machinery, so no E-COSTMOD; no piece is paid so no E-PIECECOST; 'pasture covering exactly 1 space' is a per-pasture size restriction, which the taxonomy explicitly excludes from L-GEOMFARM; passing_left confirmed in data.
 - ✅ **A2 Shifting Cultivation** · cost: 2 Food · passing
   - _Immediately plow 1 field._
   - `ONPLAY E-GRANTSUB E-PASSING` — On play, immediately plow 1 field (granted plow), then pass.
 - ⬜ **A3 Paper Knife** · cost: 1 Wood · passing
   - _Select 3 occupations in your hand. Select one of them randomly, which you can play immediately without paying an occupation cost.  [CLARIFICATION: May not be played if you have 2 or fewer occupations in your hand.  If you select an occupation that has an additional cost you cannot pay, that occupation is removed from the game instead of played.]_
-  - `ONPLAY E-GRANTACT L-RANDOM E-PASSING` — Passing minor; randomly select and play an occupation for free (grants playing a card = an action); randomness during play.
+  - `ONPLAY E-GRANTSUB L-RANDOM E-PASSING` — Random draw among 3 hand occupations (L-RANDOM) then an optional immediate play of that card — play-a-card is listed among the primitive sub-actions (S-SUB), so the grant is E-GRANTSUB, not E-GRANTACT; the waived occupation cost is grant-scoped; passing minor.
 - ⬜ **A4 Baseboards** · cost: 2 Food/1 Grain · passing
   - _You immediately get 1 wood for each room you have. If you have more rooms than people, you get 1 additional wood._
-  - `ONPLAY E-GOODS E-PASSING` — Passing minor; immediate wood based on plain state read (rooms, rooms>people); NONE-level effect otherwise.
+  - `ONPLAY E-GOODS E-ALTCOST E-FOODCOST E-PASSING` — Immediate wood per room (E-GOODS, plain state read); the printed play cost is a fork '2 Food / 1 Grain' for the same effect (E-ALTCOST) whose food branch may need conversion (E-FOODCOST) — the rulings say exactly these cost codes get flagged; passing minor.
 - ✅ **A5 Clay Embankment** · cost: 1 Food · passing
   - _You immediately get 1 clay for every 2 clay you already have in your supply._
-  - `ONPLAY E-GOODS E-PASSING` — On play gain clay based on current clay count (plain state read), then pass.
+  - `ONPLAY E-GOODS E-PASSING` — Passing minor (passing_left flag in the catalog) with an immediate clay gain; E-PASSING is a mechanic, so NONE does not apply.
 - ✅ **A6 Storage Barn** · passing
   - _If you have the Well, Joinery, Pottery, and/or Basketmaker's Workshop, you immediately get 1 stone, 1 wood, 1 clay, and/or 1 reed, respectively.  [CLARIFICATION: You may only get 1 of each resource, even in a 6-player game with multiple copies of the same improvement.  Applies to the 10 (or 18 in 6p) major improvements.]_
   - `ONPLAY E-GOODS E-PASSING` — Passing minor; immediate resources conditional on owned majors — plain state read.
@@ -45,37 +50,37 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS E-PASSING` — Passing minor; immediate food/grain per field type — plain state read.
 - ✅ **A8 Food Basket** · cost: 1 Reed · prereq: 2 Occupations and 2 Improvements · passing
   - _You immediately get 1 grain and 1 vegetable._
-  - `ONPLAY E-GOODS E-PASSING NONE` — Passing minor; immediate grain+veg, trivial goods.
+  - `ONPLAY E-GOODS E-PASSING` — Plain immediate crops (prereq is a HAVE-check, no tag), but the card is a confirmed passing minor — E-PASSING is a real mechanic, so NONE does not apply.
 - ✅ **A9 Young Animal Market** · cost: 1 Sheep · passing
   - _You immediately get 1 cattle. (Effectively, you are exchanging 1 sheep for 1 cattle.)_
-  - `ONPLAY E-GOODS E-ANIMALS E-PASSING` — On play gain 1 cattle (must be accommodated); passing minor.
+  - `ONPLAY E-ANIMALS E-PASSING` — The gained cattle is an animal needing farm accommodation → E-ANIMALS, not E-GOODS (goods/food/crops only); passing minor per the catalog flag.
 - ⬜ **A10 Wooden Shed** · cost: 2 Wood,1 Reed · prereq: Still in Wooden House
   - _This card can only be played via a "Major Improvement" action. It provides room for one person. You may no longer renovate.  [CLARIFICATION: May not be played on the “House Redevelopment” action space, as the “Renovate” action is mandatory and comes before the improvement action.  May be played through the effect of a card, such as Angler A095.]_
-  - `ONPLAY E-CAPNEW E-CAPNEG L-EXT` — A room-providing card playable only via Major Improvement (a new person-holder = E-CAPNEW) that forbids future renovation (E-CAPNEG). L-EXT covers it being a new build/play target outside House Redevelopment. E-SUBSTITUTE is wrong — it does not replace one action with another, it just restricts the play path.
+  - `ONPLAY PASSIVE E-CAPNEW L-EXT` — Provides a person slot on play (E-CAPNEW); 'can only be played via a Major Improvement action' changes play eligibility (L-EXT); 'you may no longer renovate' is an always-on rule change (PASSIVE) — E-CAPNEG is animal-capacity-specific and wrong here.
 - ⬜ **A11 Mud Patch**
   - _When you play this card, you immediately get 1 wild boar. You can hold 1 wild boar on each of your unplanted field tiles._
-  - `ONPLAY E-GOODS E-ANIMALS E-CAPNEW` — Removed L-CARDFIELD: the boars are held on your existing UNPLANTED FIELD TILES, not on the card itself; the card is not a field you sow/harvest on.
+  - `ONPLAY PASSIVE E-ANIMALS E-CAPNEW` — On-play boar is an animal needing accommodation (E-ANIMALS, not E-GOODS — animals are separated from goods); 1 boar per unplanted field is a new always-on holder type (E-CAPNEW + PASSIVE).
 - ✅ **A12 Drinking Trough** · cost: 1 Clay
   - _Each of your pastures (with or without a stable) can hold up to 2 more animals.  [CLARIFICATION: Cards holding animals are not pastures unless explicitly stated.]_
   - `PASSIVE E-CAPGROW` — Continuous +2 capacity to each existing pasture.
 - ⬜ **A13 Renovation Company** · cost: 4 Wood · prereq: In Wooden House with Exactly 2 Rooms
   - _When you play this card, you immediately get 3 clay. Immediately after, you can renovate without paying any building resources.  [CLARIFICATION: The renovation can be declined, but the free cost cannot be applied later.]_
-  - `ONPLAY E-GOODS E-GRANTSUB E-COSTMOD CAP-GAME` — On play: gain 3 clay (E-GOODS) then an optional free renovate sub-action (E-GRANTSUB) with no building resources (E-COSTMOD). It happens once, at play, and cannot recur — CAP-GAME is appropriate (an on-play one-shot).
+  - `ONPLAY E-GOODS E-GRANTSUB` — On-play +3 clay plus an optional, declinable renovate grant; 'without paying building resources' is the grant's own cost parameter (clarification: cannot be applied later), not a standing E-COSTMOD; CAP-GAME is wrong — ONPLAY is inherently once and CAP-* only caps ATWILL frequency.
 - ⬜ **A14 Carpenter's Hammer** · cost: 1 Wood
   - _Each time you build at least 2 wood/clay/stone rooms at once, you get a total discount of 2 reed as well as 2 wood/3 clay/4 stone._
-  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-COSTMOD` — Each time you build >=2 rooms at once, apply a resource discount — cost modification on build-room sub-action.
+  - `PASSIVE E-COSTMOD` — A conditional discount on multi-room builds is a continuous cost rule folded into what the build costs (same shape as the PASSIVE exemplar 'every improvement costs 1 wood less'), applied at payment computation — not a fired event, so no HOOK dimensions.
 - ✅ **A15 Carpenter's Axe** · cost: 1 Wood
   - _Each time after you use a wood accumulation space, if you then have at least 7 wood in your supply, you can build exactly 1 stable for 1 wood._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB E-PIECECOST ST-PROV` — After using a wood accumulation space, if >=7 wood, optionally build 1 stable for 1 wood; keyed on named wood space + supply-count check.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB` — Optional stable build after using a wood accumulation space; the 1-wood price is an ordinary resource cost on the granted sub-action (not E-PIECECOST — that is for paying WITH a stable/fence piece), and the 7-wood condition is a plain state read after the space resolves, needing no event provenance (no ST-PROV).
 - ✅ **A16 Rammed Clay**
   - _When you play this card, you immediately get 1 clay. You can use clay instead of wood to build fences.  [CLARIFICATION: You can use both wood and clay for the same “Build Fences” action.]_
   - `ONPLAY E-GOODS PASSIVE E-COSTMOD` — On play +1 clay; continuous rule allowing clay to substitute for wood on fences.
 - ⬜ **A17 Reclamation Plow** · cost: 1 Wood
   - _After the next time you take animals from an accumulation space and accommodate all of them on your farm, you can plow 1 field.  [CLARIFICATION: Taking, but not fully accommodating, the animals neither triggers nor voids the effect.  It is legal to avoid accommodating all animals even if you can, e.g. by eating them with a Fireplace.]_
-  - `HOOK T-AFTER S-OBTAIN F-TRIG A-OWN E-GRANTSUB CAP-GAME ST-STORE` — Fires after you take-and-fully-accommodate animals from an accumulation space — keyed on obtaining/accommodating animals, so S-OBTAIN over S-SPACE. Optional plow grant (F-TRIG+E-GRANTSUB), one-time (CAP-GAME), needs an armed flag (ST-STORE). A-OWN default.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-GAME E-GRANTSUB ST-PROV` — One-shot ('the next time' → CAP-GAME) optional plow after an ACTION-SPACE use — taking animals from an accumulation space is a space use (S-SPACE), not S-OBTAIN; the 'accommodate ALL of them' check needs the payload of which animals that space provided vs placed → ST-PROV; CAP-GAME already encodes the one-shot, no separate ST-STORE.
 - ✅ **A18 Wheel Plow** · cost: 2 Wood · prereq: 2 Occupations
   - _Once this game, when you use the "Farmland" or Cultivation" action space with the first person you place in a round, you can plow 2 additional fields._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB CAP-GAME ST-STORE ST-PLACELOG` — Fires on using Farmland/Cultivation with the first person placed in a round: 'first person placed' needs to know which/how-many workers placed this round (ST-PLACELOG), not board position — L-GEOMBOARD is wrong. Optional 2-field plow grant (F-TRIG+E-GRANTSUB) before the action (T-BEFORE), once per game (CAP-GAME+ST-STORE).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN CAP-GAME E-GRANTSUB` — 'When you use Farmland/Cultivation' → T-BEFORE per the default ruling; 'first person you place in a round' is computable from state (your placed-worker count), so no ST-PLACELOG, and CAP-GAME covers the once-per-game flag without ST-STORE.
 - ✅ **A19 Handplow** · cost: 1 Wood
   - _Add 5 to the current round and place 1 field tile on the corresponding round space. At the start of that round, you can plow the field._
   - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB` — Places a field tile on a future round space; at start of that round may plow it.
@@ -84,19 +89,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GRANTSUB E-FOODCOST` — On play optionally plow up to 2 fields; the play-cost's +1 food (round-4/5 clause) is a food cost. Round restriction is a plain prereq.
 - ⬜ **A21 Family Friend Home** · prereq: 1 Occupation
   - _Each time you take a "Build Rooms" action while having more rooms than people already, you also get a "Family Growth" action and 1 food.  [CLARIFICATION: This card allows exactly 1 growth action regardless of how many rooms are built.]_
-  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB E-GROWTH E-GOODS` — Each time you take a Build Rooms action (a sub-action, S-SUB) while rooms>people, get a Family Growth (E-GROWTH via granted sub-action E-GRANTSUB) + 1 food (E-GOODS). Fires each qualifying occurrence — no CAP (the clarification just caps 1 growth per action, inherent). Not once-per-game, so drop CAP-GAME/ST-STORE.
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS E-GRANTSUB E-GROWTH` — 'Each time you take a Build Rooms action' → default T-BEFORE (no 'immediately after' wording), and the rooms-vs-people condition is checked with 'already' at initiation; grants an optional Family Growth (E-GRANTSUB + E-GROWTH, exactly 1 per clarification) plus 1 food (E-GOODS).
 - ⬜ **A22 Telegram** · cost: 2 Food · prereq: At Least 1 Fence in Supply
   - _Add 1 to the current round for each fence in your supply and mark the corresponding round space. In that round only, you can place a person from your supply.  [CLARIFICATION: The person is returned to your supply in the “returning home” phase.]_
-  - `ONPLAY E-SCHED E-EXTRAPLACE ST-STORE` — On play, marks a future round space by fence count and lets you place an ADDITIONAL person from supply that round (an extra placement beyond normal = E-EXTRAPLACE, not merely E-NOPLACE). Scheduling onto a future round space is E-SCHED, not L-GEOMBOARD. ST-STORE for the marked round. Fence-count read + round marking; no genuine ambiguity.
+  - `ONPLAY E-EXTRAPLACE E-PEOPLE E-FOODCOST ST-STORE` — On-play marks a computed future round (ST-STORE) in which you place a person FROM SUPPLY that returns to supply at round end — a temporary worker (E-PEOPLE) giving an additional placement (E-EXTRAPLACE); the 2-Food play cost is E-FOODCOST per the cost ruling; nothing is placed on round spaces as goods, so no E-SCHED.
 - ⬜ **A23 Stone Company** · cost: 2 Clay,1 Reed
   - _Immediately after each time you use a "Quarry" accumulation space, you get a "Major or Minor Improvement" action during which you must spend at least 1 stone.  [CLARIFICATION: You may not decline an automatic stone discount in order to trigger this card’s effect, e.g. from Stonecutter A143.  Improvement action is not declinable in order to use Field Merchant B103.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG E-GRANTACT E-FOODCOST` — After using a Quarry, grants a Major/Minor Improvement action that must spend >=1 stone; may not decline discounts to trigger.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT` — 'Immediately after each time you use a Quarry space' → HOOK T-AFTER S-SPACE A-OWN, granting a full Major-or-Minor Improvement action (E-GRANTACT, optional per the granted-action rule; the must-spend-1-stone clause constrains the granted action, it is no separate code); labelA's E-FOODCOST is wrong (cost is clay+reed) and A-OWN was missing.
 - ✅ **A24 Threshing Board** · cost: 1 Wood · prereq: 2 Occupations
   - _Each time you use the "Farmland" or "Cultivation" action space, you get an additional "Bake Bread" action._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB` — Each use of Farmland/Cultivation grants an additional Bake Bread action (optional).
-- ⬜ **A25 Bassinet** · cost: 1 Wood,1 Reed
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — "Each time you use [space]" fires T-BEFORE by explicit ruling (T-AFTER only for 'immediately after'/'at the end of'); the granted Bake Bread sub-action is optional (F-TRIG).
+- ⬜ **A25 Bassinet** 🔶 · cost: 1 Wood,1 Reed
   - _Each work phase, you can place a(nother) person on the first non-accumulating action space used by any player (including you), as long as there is only 1 person on that space.  [CLARIFICATION: This refers to 1 specific space, not 1 space for every player’s first non-accumulating action space.  Note that Family Growth usually leaves 2 people on the space.  The relevant space can be provided by another card, such as the one from Forest Tallyman A162.  Meeting Place may never be used a second time, even if it is the relevant space.  《Mark this space with a suggestion/claim marker.》]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN A-OPP E-EXTRAPLACE L-OCCUPY ST-PLACELOG` — Each work phase you may place an extra person on the first non-accumulating space any player used (fires after that space is first used; triggers on own or opponent action; needs to log which space; lets you use an occupied space).
+  - `ATWILL CAP-ROUND E-EXTRAPLACE L-OCCUPY ST-PLACELOG ST-STORE` — The card does not fire on the space-use event — that event only DEFINES the claimed space (marker per clarification → ST-STORE, and you must know which space each round's first non-accumulating placement hit → ST-PLACELOG); the player then chooses when to place a(nother) person there during the work phase, once per work phase → ATWILL + CAP-ROUND, placing onto a 1-person-occupied space (L-OCCUPY, E-EXTRAPLACE).
 - ✅ **A26 Sleeping Corner** · cost: 1 Wood · prereq: 2 Grain Fields
   - _You can use any "Wish for Children" action space even if it is occupied by one other player's person.  [CLARIFICATION: But not if occupied by 2+ other player’s people.]_
   - `PASSIVE L-OCCUPY` — Always-on continuous rule change letting you use an occupied Wish for Children space (PASSIVE + L-OCCUPY). No firing event, no goods.
@@ -105,52 +110,52 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS E-GRANTACT E-COSTMOD` — On play +2 wood and may immediately build Clay/Stone Oven major at reduced cost (1 clay + 1 stone).
 - ✅ **A28 Forest School** · cost: 1 Wood,1 Clay
   - _You can consider the "Lessons" action spaces not occupied. You can replace each food that an occupation costs with wood._
-  - `PASSIVE E-COSTMOD L-OCCUPY L-EXT` — Two always-on rule changes: treat Lessons as unoccupied (L-OCCUPY) and replace occupation food cost with wood (E-COSTMOD, a currency substitution which is also L-EXT changing what currency pays a cost).
+  - `PASSIVE L-OCCUPY L-EXT E-COSTMOD` — Two always-on rules: treat Lessons as unoccupied (L-OCCUPY, and 'considering a space unoccupied' is an explicit L-EXT example) and pay occupation food costs in wood (currency substitution — E-COSTMOD, also an explicit L-EXT example), so L-EXT belongs alongside both.
 - ⬜ **A29 Ale-Benches** · cost: 1 Wood · prereq: 2 Occupations
   - _In the returning home phase of each round, you can pay exactly 1 grain from your supply to get 1 bonus point. If you do, each other player gets 1 food._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG E-FOODCOST E-SCORE E-OPPTRANSFER` — Returning-home each round: optionally pay 1 grain for 1 bonus point; each opponent then gets 1 food.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-SCORE E-OPPTRANSFER ST-COUNTER` — Optional hook each returning-home phase (F-TRIG, A-OWN default); grain is an ordinary cost so A's E-FOODCOST is wrong (E-FOODCOST = food costs only); opponents gaining food = E-OPPTRANSFER; repeatedly-earned bonus points need a running count (ST-COUNTER).
 - ✅ **A30 Baking Sheet** · prereq: No Grain Field
   - _Each time you take a "Bake Bread" action, you can use this card to exchange exactly 1 grain for 2 food and 1 bonus point.  [CLARIFICATION: You must bake normally to make this exchange.]_
-  - `HOOK T-AFTER S-SUB F-TRIG E-CONVERT E-SCORE` — On a Bake Bread action, may exchange 1 grain for 2 food + 1 bonus point (must bake normally).
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-CONVERT E-SCORE ST-COUNTER` — "Each time you take a Bake Bread action" = T-BEFORE by the default ruling (no 'immediately after' wording); grain→food is a real good-for-good exchange (E-CONVERT), so B's extra E-GOODS is redundant; A-OWN mandatory on own-action hooks; accrued bonus points = ST-COUNTER.
 - ✅ **A31 Debt Security** · cost: 2 Food
   - _During scoring, you get 1 bonus point for each major improvement you have, up to the number of your unused farmyard spaces._
-  - `E-SCORE` — Scoring rule: 1 bonus pt per major improvement, capped at unused farmyard spaces; computed at end, no hook.
+  - `PASSIVE E-SCORE E-FOODCOST` — Pure end-game scoring rule (E-SCORE, no HOOK per ruling) — but >=1 ACTIVATION is required and a standing scoring rule is PASSIVE; the 2-food play cost gets E-FOODCOST per the cost ruling (food costs are flagged, unlike ordinary resources). Min(majors, unused spaces) is a plain count, not E-SCOREOPT.
 - ✅ **A32 Manger** · cost: 2 Wood
   - _During scoring, if your pastures cover at least 6/7/8/10 farm yard spaces, you get 1/2/3/4 bonus points._
-  - `E-SCORE` — End-game bonus points by pasture farmyard-space coverage threshold (plain threshold).
+  - `PASSIVE E-SCORE` — Pure end-game bonus-point rule (coverage threshold = plain E-SCORE, not E-SCOREOPT); PASSIVE supplies the required ACTIVATION tag for a continuous scoring rule, matching the A38 convention.
 - ✅ **A33 Big Country** · prereq: All Farmyard Spaces Used
   - _For each complete round left to play, you immediately get 1 bonus point and 2 food._
-  - `ONPLAY E-GOODS E-SCORE` — On-play gain of food (E-GOODS) AND a text-stated bonus-point rule tied to rounds-left; the bonus points are a text scoring rule beyond the plain VP circle, so E-SCORE applies, not NONE.
+  - `ONPLAY E-GOODS E-SCORE` — One-shot at play: 2 food per remaining round (E-GOODS) plus bonus points per remaining round — bonus points from card text are E-SCORE even when earned at play time (the ruling only bars HOOK/S-BEFORESCORE, and explicitly allows E-SCORE earned through an action).
 - ✅ **A34 Loppers** · cost: 1 Wood · prereq: 2 Occupations
   - _Each time you build 1 or more fences, you can also use this card to exchange 1 wood and 1 fence in your supply for 2 food and 1 bonus point._
-  - `HOOK T-AFTER S-SUB F-TRIG E-CONVERT E-PIECECOST E-SCORE` — On building fences, may exchange 1 wood + 1 fence piece from supply for 2 food + 1 bonus point.
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-CONVERT E-PIECECOST E-SCORE ST-COUNTER` — "Each time you build fences" = own fence sub-action hook, T-BEFORE default; the exchange spends a fence piece (E-PIECECOST) and converts goods (E-CONVERT — food output is part of the conversion, so no separate E-GOODS); bonus points accrue over the game (ST-COUNTER).
 - ⬜ **A35 Swimming Class** · cost: 1 Food · prereq: 2 Occupations
   - _In the returning home phase of each round, if you return a person from the "Fishing" accumulation space, you get 2 bonus points for each newborn that you return home.  [CLARIFICATION: If you used Adoptive Parents A092, there is no longer a newborn to return home.]_
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG E-SCORE ST-PLACELOG` — Returning-home: if returning a person from Fishing, 2 bonus pts per newborn returned home; needs to know worker was on Fishing.
+  - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-SCORE E-PEOPLE ST-PLACELOG ST-COUNTER` — "You get" = mandatory, so F-AUTO (A's F-TRIG wrong); needs which worker sat on Fishing (ST-PLACELOG) and per-person newborn classification (explicitly within E-PEOPLE's definition — the Adoptive Parents clarification confirms it keys on newborn status); points earned across rounds = ST-COUNTER.
 - ⬜ **A36 Facades Carving** · cost: 2 Clay,1 Reed · prereq: Wood in Your Supply >= Current Round
   - _When you play this card, you can exchange any number of food for 1 bonus point each, up to the number of completed harvests._
-  - `ONPLAY E-CONVERT E-SCORE` — On play, exchange food for bonus points capped by completed harvests; conversion to VP plus a text bonus-point rule. The harvest count is read from live state, not stored, so no ST-STORE.
+  - `ONPLAY E-FOODCOST E-SCORE ST-STORE` — One-shot at play. Paying food for the effect = E-FOODCOST (B right, A missed it). Food→points is NOT E-CONVERT (points aren't a good; the key-ruling example 'pay 1 grain for 1 bonus point' tags E-SCORE without E-CONVERT — both labelers over-tagged). The chosen point total must be remembered until scoring (ST-STORE); 'completed harvests' is computable from the round, no extra state.
 - ✅ **A37 Bucksaw** · cost: 1 Wood
   - _Each time you renovate, you can also pay 1 wood to get 1 bonus point and 1 grain._
-  - `HOOK T-AFTER S-SUB F-TRIG E-SCORE E-GOODS` — On renovate, may pay 1 wood for 1 bonus point + 1 grain.
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS E-SCORE ST-COUNTER` — "Each time you renovate" = own renovate sub-action hook, T-BEFORE by the each-time default (A's T-AFTER lacks 'immediately after' wording); wood cost is ordinary (no code); gains 1 grain (E-GOODS) + a bonus point (E-SCORE) that accrues (ST-COUNTER); A-OWN is mandatory on own-action hooks.
 - ✅ **A38 Wool Blankets** · prereq: 5 Sheep
   - _During scoring, if you live in a wooden/clay/stone house by then, you get 3/2/0 bonus points._
-  - `PASSIVE E-SCORE E-SCOREGRP` — Bonus points at scoring based on house material; mutually-exclusive-style house-material scoring (SCOREGRP for stone-house grouping). Plain threshold read, no optimization.
-- ⬜ **A39 Chapel** · cost: 3 Wood,2 Clay · prereq: 2 Occupations
+  - `PASSIVE E-SCORE` — Graded house-material scoring rule; neither the text nor any clarification states mutual exclusivity with other house-scoring cards, so E-SCOREGRP is unsupported.
+- ⬜ **A39 Chapel** 🔶 · cost: 3 Wood,2 Clay · prereq: 2 Occupations
   - _This is an action space for all. A player who uses it gets 3 bonus points. If another player uses it, they must first pay you 1 grain._
-  - `ONPLAY L-CARDSPACE E-SCORE E-OPPTRANSFER` — Card is an action space (L-CARDSPACE) granting 3 bonus points (E-SCORE); opponents pay you 1 grain (E-OPPTRANSFER). Grain paid is a plain resource cost, not a food-conversion, so no E-FOODCOST.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP L-CARDSPACE E-SCORE E-OPPTRANSFER ST-COUNTER` — The card is an action space (L-CARDSPACE) whose effects fire on use by ANY player — B's HOOK framing captures the machinery: S-SPACE, both actors, F-AUTO ('gets'/'must'), T-BEFORE (opponent 'must FIRST pay you 1 grain' = E-OPPTRANSFER); 3 bonus points per use accumulate per player (E-SCORE + ST-COUNTER). A's bare ONPLAY misses the recurring per-use firing entirely.
 - ⬜ **A40 Potter's Yard** · cost: 1 Wood,1 Reed · prereq: At Most 7 Unused Farmyard Spaces
   - _Immediately place 1 clay on each unused space in your farmyard. Each time you turn a space into a used space, you get the clay and you can immediately exchange it for 2 food._
-  - `ONPLAY HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS E-CONVERT ST-STACK` — On play seeds clay on unused farmyard spaces (kept on card = ST-STACK); each time you turn a space into a used space you get the clay and may convert it to food. Turning a space used is an action-space effect, not a distinct primitive, and it is your own farmyard not an action space others use, so no L-CARDSPACE.
+  - `ONPLAY HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-CONVERT ST-STACK` — Clay is laid out on play and stockpiled on farmyard spaces (ST-STACK); a space becomes used as the RESULT of a sub-action (plow/build room/stable/fence) so the hook is S-SUB and fires after it; 'you get the clay' is mandatory (F-AUTO), with the 2-food exchange an optional rider (E-CONVERT).
 - ⬜ **A41 Vegetable Slicer** · cost: 1 Wood
   - _Each time you upgrade a Fireplace to a Cooking Hearth, you immediately get 2 wood and 1 vegetable (not retroactively)._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — After upgrading Fireplace to Cooking Hearth you get 2 wood + 1 veg. A hook that fires on a one-time-per-nature sub-action needs no CAP-GAME; the once-ever limit is implicit in the trigger, so CAP-GAME is omitted.
+  - `HOOK T-AFTER S-MAJMIN F-AUTO A-OWN E-GOODS ST-PROV` — The Fireplace-to-Cooking-Hearth upgrade happens via the improvement-buying action, not a listed primitive sub-action, so S-MAJMIN; the card must see WHICH improvement was built and that a Fireplace was returned in payment (ST-PROV); 'immediately get' = T-AFTER + F-AUTO.
 - ✅ **A42 Forest Lake Hut** · cost: 2 Clay
   - _Each time you use the "Fishing"/"Forest" accumulation space, you also get 1 wood/food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Fishing/Forest space you also get 1 wood/food; automatic per-use.
 - ⬜ **A43 Farmyard Manure** · prereq: 1 Animal
   - _Each time you build 1 or more stables in one turn, you place 1 food on each of the next 3 round spaces. At the start of these rounds, you get the food.  [CLARIFICATION: Stables built off-turn, e.g. with Stable Planner A089 or Groom B089, do not trigger this card.]_
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-SCHED` — Building 1+ stables in one turn places 1 food on next 3 round spaces; only on-turn builds trigger (clarification).
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-SCHED CAP-TURN ST-STORE` — Build-stable sub-action hook placing food on the next 3 round spaces (E-SCHED); '1 or more stables in one turn' collapses multiple builds (Farm Expansion is multi-shot) into ONE firing per turn — an explicit per-turn cap needing a fired-this-turn flag, so CAP-TURN + ST-STORE; the clarification only excludes off-turn builds.
 - ✅ **A44 Pond Hut** · cost: 1 Wood · prereq: Exactly 2 Occupations
   - _Place 1 food on each of the next 3 round spaces. At the start of these rounds, you get the food._
   - `ONPLAY E-SCHED` — On play, place 1 food on each of next 3 round spaces, collected at start of those rounds.
@@ -168,7 +173,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-OBTAIN F-TRIG A-OWN E-CONVERT` — BANNED. On obtaining wood: wood->3 food (mandatory at 7+).
 - ✅ **A49 Nest Site** · cost: 1 Food · prereq: 1 Occupation
   - _Each time 1 reed is placed on a non-empty "Reed Bank" accumulation space during the preparation phase, you get 1 food._
-  - `HOOK T-AFTER S-REVEAL F-AUTO A-OWN E-GOODS` — Each time reed is placed on a non-empty Reed Bank during preparation phase (the reveal/refill step) you get 1 food; automatic gain keyed on the preparation refill.
+  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — The trigger is the preparation-phase accumulation refill of the Reed Bank (a start-of-round system event), not a card reveal — S-SOR, not S-REVEAL; food gain is automatic after the reed lands on a non-empty space.
 - ✅ **A50 Milk Jug** · cost: 1 Clay
   - _Each time any player (including you) uses the "Cattle Market" accumulation space, you get 3 food, and each other player gets 1 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP E-GOODS E-OPPTRANSFER` — Each time any player uses Cattle Market: you get 3 food, each other player gets 1 food (transfer/gain to others).
@@ -180,7 +185,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each use of a wood accumulation space, if boar present on Pig Market, also get 2 food; conditional board-state read.
 - ⬜ **A53 Claypipe** · cost: 1 Clay
   - _In the returning home phase of each round, if you gained at least 7 building resources in the preceding work phase, you get 2 food.  [CLARIFICATION: Count the total of all gains during the work phase even if resources were lost in the process.  Resources gained at the start of a round don’t count.]_
-  - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS ST-COUNTER ST-PROV` — At returning-home phase, if >=7 building resources gained in the preceding work phase, get 2 food; needs running count of work-phase gains.
+  - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS ST-COUNTER` — Returning-home auto payout gated on a running count of building resources gained during the work phase (ST-COUNTER, gross gains, start-of-round excluded); no per-event payload beyond the count is needed, so ST-PROV is unwarranted.
 - ⬜ **A54 Credit** · prereq: At Most 3 Occupations
   - _When you play this card, you immediately get 5 food. At the end of each round that does not end with a harvest, you must pay 1 food, or else take a begging marker._
   - `ONPLAY HOOK T-AFTER S-ROUNDEND F-MANDCHOICE A-OWN E-GOODS E-FOODCOST` — On play get 5 food; at end of each non-harvest round pay 1 food or take a begging marker — a mandatory choice with a decline-into-penalty branch (F-MANDCHOICE), food cost payable by conversion.
@@ -189,37 +194,37 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — Each time after you build an improvement (a card being played/built), get 1 food.
 - ✅ **A56 Basket** · cost: 1 Reed
   - _Immediately after each time you use a wood accumulation space, you can exchange 2 wood for 3 food. If you do, place those 2 wood on the accumulation space.  [CLARIFICATION: You may take less than 2 wood from a wood accumulation space and still use this effect.  Food obtained from this effect may not be used to pay for Shifting Cultivator A091.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS` — Immediately after using a wood accumulation space, optional exchange 2 wood for 3 food, returning the 2 wood to the space.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT` — Optional post-space exchange 2 wood → 3 food is a pure conversion (E-CONVERT); tagging the food proceeds as E-GOODS double-counts the conversion. The returned wood goes onto the space, not the player's supply.
 - ✅ **A57 Milking Parlor** · cost: 2 Wood · prereq: At Least 4 Unused Farmyard Spaces
   - _When you play this card, if you have at least 1/3/4 sheep, you immediately get 2/3/4 food. The same applies if you have at least 1/2/3 cattle._
-  - `ONPLAY E-GOODS` — On play, food based on sheep/cattle counts; plain state read + immediate goods.
+  - `ONPLAY E-GOODS NONE` — One-time on-play food conditional on a plain state read (sheep/cattle counts) — exactly the trivially-implementable case the NONE tag is defined for, so NONE rides alongside ONPLAY+E-GOODS.
 - ⬜ **A58 Asparagus Knife** · cost: 1 Wood
   - _In the returning home phase of rounds 8, 10, and 12, you can take 1 vegetable from exactly 1 vegetable field. You can immediately exchange it for 3 food and 1 bonus point._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CROPMANIP E-CONVERT E-GOODS E-SCORE` — Returning-home-phase hook on specific rounds, optional (you can), fires on own action; takes a veg from a field (E-CROPMANIP) and exchanges it for food+bonus point. A HOOK firing on named rounds is once-per-occurrence, so no CAP-ROUND; the bonus point earned through the action is E-SCORE. Include A-OWN per convention.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CROPMANIP E-GOODS E-CONVERT E-SCORE ST-COUNTER` — Optional returning-home hook in fixed rounds 8/10/12 (fixed round numbers are not geometry): pulls a planted vegetable off a field (E-CROPMANIP) with an optional exchange for food + a bonus point (E-CONVERT + action-earned E-SCORE); the bonus points earned across up to three firings must be accumulated to scoring, so ST-COUNTER.
 - ⬜ **A59 Potato Ridger** · cost: 1 Wood
   - _Each time after you harvest 1+ vegetables, if you then have 3+ vegetables in your supply, you can turn exactly 1 vegetable into 6 food. With 4+ vegetables, you must do so.  [CLARIFICATION: 《”Harvest” is equivalent to the field phase, or any literal effect of a card saying “Harvest a [crop/vegetable].》]_
-  - `HOOK T-AFTER S-SUB F-MANDCHOICE A-OWN E-CONVERT E-GOODS ST-STORE` — Fires after harvesting vegetables (clarification: field phase OR any card 'harvest a crop' effect), so the seam is the harvest sub-action generally, not only S-HFIELD; T-AFTER. Optional at 3+ veg, mandatory at 4+ (F-MANDCHOICE covers the forced case; the 3+ optional case is a can-decline path but F-MANDCHOICE is the load-bearing tag). ST-STORE for the veg-count threshold check.
+  - `HOOK T-AFTER S-HFIELD F-TRIG F-AUTO A-OWN E-CONVERT` — Per the clarification 'harvest' = the field phase, so S-HFIELD (not S-SUB); fires after harvesting vegetables, optional at 3+ veg (F-TRIG) but mandatory at 4+ (F-AUTO) — a state-dependent firing, not F-MANDCHOICE (no choice among options); the 3+/4+ check is a plain supply read, no ST-STORE; the food arrives via the conversion so E-CONVERT alone, not E-GOODS.
 - ⬜ **A60 Oriental Fireplace** · cost: Return Fireplace/Cooking Hearth
   - _At any time: Vegetable → 4 Food; Sheep → 3 Food; Cattle → 5 Food "Bake Bread" action: Grain → 2 Food  [CLARIFICATION: This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once.  If returned to pay for a Cooking Hearth 3 / 4, remove this card from the game.  《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》]_
-  - `ATWILL E-CONVERT E-BAKESPEC E-RETURNCOMP` — At-any-time good→food conversions plus a bake-bread grain→2food rate (E-BAKESPEC); play cost is returning Fireplace/Cooking Hearth (E-RETURNCOMP). The conversions consume the player's own goods but that is normal for E-CONVERT; E-FOODCOST is for effects that COST food, not effects that produce food, so it does not apply.
+  - `ATWILL E-CONVERT E-BAKESPEC E-RETURNCOMP L-EXT` — At-will good-to-food conversions plus a bake-bread rate (E-BAKESPEC); play cost returns a placed Fireplace/Cooking Hearth (E-RETURNCOMP); the clarification that it counts as either a minor OR major improvement (and can be returned to pay for Cooking Hearth 3/4) extends eligibility for other effects — L-EXT.
 - ⬜ **A61 Winnowing Fan** · cost: 1 Reed · prereq: Baking Improvement
   - _After the field phase of each harvest, you can use a baking improvement but only to turn exactly 1 grain into food. (This is not considered a "Bake Bread" action.)_
-  - `HOOK T-AFTER S-HFIELD F-TRIG E-CONVERT E-BAKESPEC` — After the field phase of each harvest, optionally use a baking improvement to turn exactly 1 grain into food (not a Bake action).
+  - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT` — Optional harvest hook after the field phase (A-OWN is mandatory on own-turn hooks, which labelA missed); the effect converts 1 grain to food at the owned baking improvement's rate — it USES an improvement, it does not add/change one, so E-BAKESPEC does not apply.
 - ✅ **A62 Beer Keg** · cost: 1 Wood · prereq: 2 Grain in Your Supply
   - _In the feeding phase of each harvest, you can use this card to exchange 1/2/3 grain for 0/1/2 bonus points and exactly 3 food._
-  - `HOOK T-AFTER S-HFEED F-TRIG E-CONVERT E-GOODS E-SCORE` — In feeding phase, optional exchange grain for bonus points + 3 food; scoring bonus tied to the choice.
+  - `HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE` — Optional exchange DURING the feeding phase — the 3 food must be available to pay feeding, so it fires before the feeding resolves (T-BEFORE); grain→food+bonus-points is a conversion producing goods, and points earned through an action legitimately combine HOOK+E-SCORE. A-OWN is mandatory.
 - ✅ **A63 Dutch Windmill** · cost: 2 Wood,2 Stone
   - _Each time you take a "Bake Bread" action in a round immediately following a harvest, you get 3 additional food._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — 'Round immediately following a harvest' is round TIMING (fixed every game), not board layout -> L-GEOMBOARD removed.
 - ⬜ **A64 Barley Mill** · cost: 1 Wood,4 Clay/2 Stone
   - _In the field phase of each harvest, you get 1 food for each grain field that you harvest._
-  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS E-ALTCOST` — Field-phase hook giving food per harvested grain field, mandatory (you get). Printed cost '4 Clay/2 Stone' is a pay-one-or-other for the same effect, so E-ALTCOST applies. Include A-OWN per convention.
+  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS E-ALTCOST` — Automatic food gain tied to harvesting grain fields in the field phase; the printed play-cost '1 Wood, 4 Clay/2 Stone' is a clay-OR-stone choice, so E-ALTCOST applies (labelB dropped it).
 - ✅ **A65 Seed Pellets** · prereq: 3 Fields
   - _Each time before you take an unconditional "Sow" action, you get 1 grain._
-  - `HOOK T-BEFORE S-SUB F-AUTO E-GOODS` — Before an unconditional Sow sub-action, get 1 grain.
+  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS` — Mandatory grain gain before your own Sow sub-action; labelA merely omitted the required A-OWN default actor.
 - ✅ **A66 Feeding Dish** · cost: 1 Wood
   - _Each time you use an animal accumulation space while already having an animal of that type, you get 1 grain.  [CLARIFICATION: Animal Dealer A147‘s effect can be used before this.]_
-  - `HOOK T-BEFORE S-SPACE F-AUTO E-GOODS` — Each time you use an animal accumulation space while already holding that animal type, get 1 grain.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — 'Each time you use [space]' fires T-BEFORE by ruling (the already-have-that-animal condition is checked before taking); mandatory grain gain on an own-space use — labelA only missed the mandatory A-OWN.
 - ✅ **A67 Corn Scoop** · cost: 1 Wood
   - _Each time you use the "Grain Seeds" action space, you get 1 additional grain._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Grain Seeds space, get 1 additional grain.
@@ -231,118 +236,118 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-SCHED` — On play, place 1 vegetable on round spaces 4/7/9 ahead, collected at start of those rounds.
 - ⬜ **A70 Lifting Machine** · cost: 1 Wood · prereq: 3 Fields
   - _At the end of each round that does not end with a harvest, you can move 1 vegetable from one of your fields to your supply. (This is not considered a field phase.)_
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CROPMANIP E-GOODS` — End-of-round hook (rounds without harvest), optional (you can), moving a veg from a field to supply (E-CROPMANIP producing loose goods). A HOOK firing each qualifying round is once-per-occurrence, so no CAP-ROUND. Include A-OWN.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CROPMANIP` — Optional end-of-non-harvest-round hook; moving a planted vegetable from a field to supply is crop manipulation, which by definition excludes tagging the supply arrival as separate E-GOODS (labelA's extra tag).
 - ⬜ **A71 Clearing Spade** · cost: 1 Wood
   - _At any time, you can move 1 crop from a planted field containing at least 2 crops to an empty field._
   - `ATWILL E-CROPMANIP` — At any time, move 1 crop from a planted field (>=2 crops) to an empty field.
 - ✅ **A72 Calcium Fertilizers** · prereq: No Field Tiles
   - _Each time you use a "Quarry" accumulation space, add 1 additional good of the respective type to each of your planted fields growing a single type of crop._
-  - `HOOK T-AFTER S-SPACE F-AUTO E-CROPMANIP` — Using a Quarry space adds 1 good to each single-crop planted field (changes crops on fields).
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-CROPMANIP` — 'Each time you use a Quarry space' → T-BEFORE per the explicit ruling (labelA's T-AFTER contradicts it), A-OWN mandatory; adding goods onto planted fields is crop-on-field manipulation.
 - ⬜ **A73 Agricultural Fertilizers** · prereq: 1 Pasture
   - _Each time after you turn at least 2 unused spaces into used spaces in one action, you get an additional "Sow" action._
-  - `HOOK T-AFTER S-SUB F-TRIG E-GRANTSUB` — After turning 2+ unused spaces to used in one action (plow/build/fence), granted an extra optional Sow sub-action.
+  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB ST-COUNTER` — Fires after space-consuming sub-actions (plow/fence/build) and grants an optional Sow (granted sub-actions → F-TRIG); the 'at least 2 spaces in one action' threshold must be accumulated across a multi-commit action (e.g. sequential fencing/room builds), so a running per-action counter is needed.
 - ⬜ **A74 Stable Tree** · cost: 1 Wood
   - _Each time you build 1 or more stables on your turn, place 1 wood on each of the next 3 round spaces. At the start of these rounds, you get the wood.  [CLARIFICATION: Stables built off-turn, e.g. with Stable Planner A089 or Groom B089, do not trigger this card.]_
-  - `HOOK T-AFTER S-SUB F-AUTO E-SCHED` — Build 1+ stables on your turn -> place wood on next 3 round spaces; off-turn builds excluded.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-SCHED` — A-OWN is the mandatory default actor on an own-turn hook (clarification confirms off-turn builds don't trigger); build-stables sub-action hook, mandatory, schedules wood on the next 3 round spaces.
 - ✅ **A75 Lumber Mill** · cost: 2 Stone · prereq: At Most 3 Occupations
   - _Every improvement costs you 1 wood less._
   - `PASSIVE E-COSTMOD` — Every improvement costs 1 wood less; always-on cost reduction.
 - ✅ **A76 Cob** · cost: 1 Food
   - _At the start of each work phase, if you have at least 1 clay in your supply, you can exchange exactly 1 grain for 2 clay and 1 food._
-  - `HOOK T-AFTER S-SOR F-TRIG A-OWN E-CONVERT E-GOODS` — Start-of-each-work-phase hook (S-SOR), optional exchange grain->clay+food (E-CONVERT/E-GOODS). Firing each work phase is once-per-occurrence, so no CAP-ROUND; T-AFTER as it resolves at the start seam. Include A-OWN.
+  - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-CONVERT` — Optional grain-for-clay+food exchange at the start of each work phase (before work begins → T-BEFORE); a pure exchange is E-CONVERT, so E-GOODS is redundant.
 - ✅ **A77 Hod** · cost: 1 Wood
   - _When you play this card, you immediately get 1 clay. Each time any player (including you) uses the "Pig Market" accumulation space, you immediately get 2 clay._
-  - `ONPLAY HOOK T-AFTER S-SPACE F-AUTO A-OPP E-GOODS` — On play +1 clay; each time any player uses Pig Market space, get 2 clay (fires on opponent too).
+  - `ONPLAY E-GOODS HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP` — Fires on ANY player's Pig Market use → tag both A-OWN and A-OPP; 'each time ... uses' defaults to T-BEFORE ('immediately get' is not 'immediately after'); plus on-play +1 clay.
 - ✅ **A78 Canoe** · cost: 2 Wood · prereq: 1 Occupation
   - _Each time you use the "Fishing" accumulation space, you get an additional 1 food and 1 reed._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Fishing space, get 1 additional food and 1 reed.
 - ✅ **A79 Garden Hoe** · cost: 1 Wood
   - _Each time you take an unconditional "Sow" action planting vegetables in at least 1 field, you get 1 clay and 1 stone._
-  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS` — Each time you sow veg, before the sub-action get clay+stone. Sub-action seam, owner, optional gain.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-PROV` — 'You get' is mandatory → F-AUTO; the condition (vegetables planted in ≥1 field) requires the sow's payload, so it fires after the sow with ST-PROV.
 - ✅ **A80 Stone Tongs** · cost: 1 Wood
   - _Each time you use a stone accumulation space, you get 1 additional stone._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use a stone accumulation space, get 1 additional stone.
 - ✅ **A81 Interim Storage** · cost: 2 Food
   - _Each time you use a clay/reed/stone accumulation space, place 1 wood/clay/reed on this card. At the start of rounds 7, 11, and 14, move all the goods on this card to your supply._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCHED ST-STACK` — Two mechanics: 'each time you use' a clay/reed/stone accumulation space places a good on the card (T-BEFORE, S-SPACE, mandatory), and the goods sit on the card (ST-STACK) until moved off at the start of rounds 7/11/14. The start-of-round collection is scheduled release of card-held goods (E-SCHED); it is not a separate S-SOR trigger dimension worth splitting, the accumulation hook is the primary firing. Keep single T-BEFORE/S-SPACE.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN ST-STACK E-SCHED` — The good placed is fixed by which accumulation space was used — no choice, so F-AUTO not F-MANDCHOICE; the fixed-round (7/11/14) release is scheduled collection (E-SCHED) off the on-card pile (ST-STACK), not an immediate E-GOODS or a separate S-SOR hook.
 - ⬜ **A82 Work Certificate** · prereq: 3 Occupations
   - _Each time after you use an action space, you can take 1 building resource from a building resource accumulation space with at least 4 building resources on it.  [CLARIFICATION: Can be immediately triggered.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS` — After using an action space, optionally take a building resource from a space with >=4 on it.
 - ✅ **A83 Shepherd's Crook** · cost: 1 Wood
   - _Each time you fence a new pasture covering at least 4 farmyard spaces, you immediately get 2 sheep on this pasture.  [CLARIFICATION: To receive sheep, new pasture(s) can’t be divided.  Building 2 such pastures at once gives you 4 sheep.]_
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS L-GEOMFARM` — Kept L-GEOMFARM: the pasture must cover a SHAPE of at least 4 farmyard spaces and be undivided — a genuine shape constraint on farm tiles.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS ST-PROV` — Fires after the fence sub-action; '≥4 spaces' is a pasture size COUNT, which the L-GEOMFARM ruling explicitly excludes; the hook needs the just-built pasture's identity/size (undivided check, sheep placed on it) → ST-PROV; mandatory sheep (F-AUTO, E-ANIMALS).
 - ⬜ **A84 Silage** · prereq: 2 Fields
   - _In each returning home phase after which there is no harvest, you can pay exactly 1 grain—even from a field-to breed exactly one type of animal._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-FOODCOST E-BREEDMOD E-ANIMALS E-CROPMANIP` — In returning-home phases with no harvest, may pay 1 grain (even from a field) to breed one type outside the breeding phase.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-ANIMALS E-BREEDMOD E-CROPMANIP` — The cost is 1 grain, not food — E-FOODCOST applies only to food costs; optional returning-home-phase breed outside harvest (E-BREEDMOD), grain payable from a field (E-CROPMANIP), yields an animal (E-ANIMALS).
 
 ### Deck B
 
 - ⬜ **B1 Upscale Lifestyle** · cost: 3 Wood · passing
   - _You immediately get 5 clay and a "Renovation" action. If you take the action, you must pay the renovation cost._
-  - `ONPLAY E-GOODS E-GRANTACT E-PASSING` — Immediately +5 clay and a Renovation action (must pay cost if taken); passing minor.
+  - `ONPLAY E-GOODS E-GRANTSUB E-PASSING` — On play: 5 clay (E-GOODS) plus an optional Renovation at normal cost — renovate is explicitly in E-GRANTSUB's primitive list (the reusable renovate sub-action), not a whole action-space action (E-GRANTACT); Bubulcus traveler (passing_left=X) = E-PASSING.
 - ✅ **B2 Mini Pasture** · cost: 2 Food · passing
   - _Immediately fence a farmyard space, without paying wood for the fences. (If you already have pastures, the new one must be adjacent to an existing one.)_
-  - `ONPLAY E-FREEFENCE E-GRANTSUB L-GEOMFARM` — Kept L-GEOMFARM: the new pasture must be orthogonally ADJACENT to an existing pasture — a real adjacency constraint between farm tiles.
+  - `ONPLAY E-GRANTSUB E-FREEFENCE L-GEOMFARM` — On-play fence of one space at no wood cost (E-GRANTSUB + E-FREEFENCE); the must-be-adjacent-to-an-existing-pasture constraint is genuine orthogonal farm-tile adjacency (L-GEOMFARM); nothing in the text passes the card, so E-PASSING is wrong.
 - ⬜ **B3 Moonshine** · passing
   - _Randomly select an occupation in your hand. Either play it for an occupation cost of 2 food, or give it to the player to your left.  [CLARIFICATION: If you cannot pay to play an occupation and/or its additional cost, that occupation must be passed left (or removed from play in a solo game.)  May not be played with no occupations in hand.]_
-  - `ONPLAY L-RANDOM E-PASSING E-FOODCOST E-PLAYVARIANT` — Randomly selects an occupation (L-RANDOM); either play it for 2 food (E-FOODCOST) or pass it left (E-PASSING); the fork of paying-to-play vs giving-away is a play-variant choice (E-PLAYVARIANT).
+  - `ONPLAY L-RANDOM E-PLAYVARIANT E-FOODCOST E-PASSING` — Random draw from hand (L-RANDOM); the mandatory fork — play the occupation for 2 food (E-FOODCOST) OR give it left — is a cost/reward fork (E-PLAYVARIANT, per the prior adjudication of this exact card), not a plain granted sub-action; the card itself passes left (E-PASSING).
 - ✅ **B4 Wood Pile** · passing
   - _You immediately get a number of wood equal to the number of people you have on accumulation spaces._
-  - `ONPLAY E-GOODS ST-PLACELOG` — On-play gain of wood equal to people on accumulation spaces; needs to know which spaces workers sit on (ST-PLACELOG). Nothing indicates it is a passing minor, so E-PASSING is wrong.
+  - `ONPLAY E-GOODS ST-PLACELOG E-PASSING` — One-shot wood gain scaled by people currently on accumulation spaces — needs worker-placement locations (ST-PLACELOG); the catalog marks it passing_left=X (Bubulcus traveler), so E-PASSING belongs (labelA missed it).
 - ⬜ **B5 Store of Experience** · passing
   - _If you have 0-4/5/6/7 occupations left in hand, you immediately get 1 stone/reed/clay/wood._
-  - `ONPLAY E-GOODS E-PASSING` — Immediately get 1 good keyed to count of occupations left in hand; plain conditional goods; passing.
+  - `ONPLAY E-GOODS E-PASSING` — One-shot good gain off a plain hand-count read, but it is a passing traveler (passing_left=X) — E-PASSING is a real mechanic beyond plain goods, so NONE does not apply by definition.
 - ✅ **B6 Excursion to the Quarry** · cost: 2 Food · prereq: 1 Occupation · passing
   - _You immediately get a number of stone equal to the number of people you have.  [CLARIFICATION: A newborn is a person.]_
-  - `ONPLAY E-GOODS E-PASSING` — Passing minor; immediate stone = person count (plain state read). Passing so E-PASSING.
+  - `ONPLAY E-GOODS E-PASSING E-FOODCOST` — One-shot stone gain per person (newborns count — plain state read); the printed 2-Food play cost is exactly the food-that-may-need-conversion case the rulings say to flag (E-FOODCOST); passing traveler (passing_left=X).
 - ⬜ **B7 Wage** · passing
   - _You immediately get 2 food and 1 additional food for each major improvement you have from the bottom row of the supply board._
   - `ONPLAY E-GOODS E-PASSING` — Passing minor; immediate food scaled by major-improvement count (plain state read).
 - ✅ **B8 Market Stall** · cost: 1 Grain · passing
   - _You immediately get 1 vegetable. (Effectively, you are exchanging 1 grain for 1 vegetable)._
-  - `ONPLAY E-GOODS E-CONVERT E-PASSING` — On play gain 1 veg (effectively converting the 1 grain cost); passing minor.
+  - `ONPLAY E-GOODS E-PASSING` — The 'exchange' is just the printed play-cost (1 grain) plus an on-play vegetable gain; ordinary-resource costs get no code, so E-CONVERT is wrong. Passing minor.
 - ⬜ **B9 Beating Rod** · passing
   - _You can immediately choose to either get 1 reed or exchange 1 reed for 1 cattle._
   - `ONPLAY E-GOODS E-CONVERT E-ANIMALS E-PASSING` — Choose gain 1 reed OR convert 1 reed->1 cattle; convert + provides animal; passing.
 - 🚫 **B10 Caravan** · cost: 3 Wood,3 Food
   - _This card provides room for 1 person.  [CLARIFICATION: The Caravan is not a room.]_
-  - `ONPLAY E-CAPNEW` — Card itself holds a person (room for 1 person), not a room.
+  - `PASSIVE E-CAPNEW E-PEOPLE` — A persistent always-on capacity rule, not a one-shot: the card itself is a new holder for 1 person (E-CAPNEW) and thereby changes person capacity (E-PEOPLE). Nothing fires, so PASSIVE not ONPLAY.
 - ⬜ **B11 Feedyard** · cost: 1 Clay,1 Grain
   - _This card can hold 1 animal for each pasture you have, even different types. After the breeding phase of each harvest, you get 1 food for each unused spot on this card._
-  - `ONPLAY E-CAPNEW HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-GOODS` — Card holds animals (E-CAPNEW, ONPLAY). Food payout fires 'after the breeding phase of each harvest' = after feeding/breeding is done; S-AFTERFEED is the closest post-feeding seam and matches 'after breeding phase' better than S-HBREED (which is the breeding phase itself, this fires after it).
+  - `PASSIVE HOOK T-AFTER S-HBREED F-AUTO A-OWN E-CAPNEW E-GOODS` — The holder capacity is a continuous rule (PASSIVE, like the pasture-capacity example), not a one-shot ONPLAY effect; the food fires 'after the breeding phase' — that is S-HBREED+T-AFTER, not S-AFTERFEED (feeding is a different phase). Mandatory gain -> F-AUTO, A-OWN.
 - ⬜ **B12 Stockyard** · cost: 1 Wood,1 Stone
   - _This card can hold up to 3 animals of the same type. (It is not considered a pasture)._
-  - `ONPLAY E-CAPNEW` — Card is a new holder for up to 3 same-type animals; not a pasture.
+  - `PASSIVE E-CAPNEW` — Pure capacity holder: nothing happens once at play; 'can hold up to 3 animals' is an always-on rule change, matching the PASSIVE definition ('your pastures can hold 2 more animals').
 - ✅ **B13 Carpenter's Parlor** · cost: 1 Wood,1 Stone
   - _Wooden rooms only cost you 2 wood and 2 reed each._
   - `PASSIVE E-COSTMOD` — Continuous cost change: wooden rooms cost 2 wood + 2 reed.
 - ⬜ **B14 Hawktower** · cost: 2 Clay · prereq: Play in Round 7 or Before
   - _Place a stone room on round space 12. If you live in a stone house at the start of the round, you can build the stone room at no cost. Otherwise, discard the stone room._
-  - `ONPLAY E-SCHED HOOK S-SOR T-BEFORE F-TRIG A-OWN E-COSTMOD ST-STORE` — On play schedules a stone room on round space 12 (E-SCHED, ONPLAY). At start of that round (S-SOR, before, F-TRIG optional build) you may build it free if in a stone house — building at no cost is E-COSTMOD; must remember the queued room (ST-STORE). Not L-GEOMBOARD (scheduling to a future round space is E-SCHED). Not LATCH (fires at a specific round conditional on state, then discards).
+  - `ONPLAY HOOK T-AFTER S-SOR F-TRIG A-OWN E-SCHED E-GRANTSUB` — On play it schedules a piece onto round space 12 (E-SCHED); at start of that round the player MAY build the room (granted sub-action -> optional -> F-TRIG, E-GRANTSUB). 'At no cost' is the grant's own push-time cost parameter, not a cost-modifier on normal builds, so no E-COSTMOD; E-SCHED already carries the round-space piece, so no ST-STORE. SOR hooks fire as the round begins (T-AFTER; the timing dim is nominal for a phase seam).
 - ⬜ **B15 Carpenter's Bench** · cost: 1 Wood
   - _Immediately after each time you use a wood accumulation space, you can use the taken wood (and only that) to build exactly 1 pasture. If you do, one of the fences is free.  [CLARIFICATION: Subdividing a pasture does not qualify as building.]_
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OWN E-GRANTACT E-FREEFENCE ST-PROV` — Immediately after using a wood space (T-AFTER, S-SPACE, F-TRIG), build exactly 1 pasture with the taken wood, one fence free. Building a pasture is a full Build-Fences-style action -> E-GRANTACT; E-FREEFENCE for the free fence. Needs which wood was taken (ST-PROV). No ONPLAY effect (1-wood cost is just the play cost).
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB E-FREEFENCE ST-PROV` — 'Immediately after each time you use a wood accumulation space' -> HOOK T-AFTER S-SPACE, optional -> F-TRIG. Building exactly 1 pasture is a restricted fence-building primitive (E-GRANTSUB), not a full Build Fences action (E-GRANTACT). One free fence -> E-FREEFENCE; payment restricted to 'the taken wood (and only that)' needs the event's payload -> ST-PROV.
 - ✅ **B16 Mining Hammer** · cost: 1 Wood
   - _When you play this card, you immediately get 1 food. Each time you renovate, you can also build a stable without paying wood._
-  - `ONPLAY HOOK T-AFTER S-SUB F-TRIG A-OWN E-GOODS E-GRANTSUB E-FREEFENCE E-PIECECOST` — On-play +1 food, plus a hook on the renovate sub-action granting an optional free stable build; stable is a supply piece (E-PIECECOST), built without wood cost (E-FREEFENCE), granted sub-action (E-GRANTSUB, F-TRIG, A-OWN).
+  - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB` — On-play +1 food; each renovate (a sub-action) optionally grants a free stable build ('can also' -> T-AFTER, F-TRIG). A stable is not a fence (no E-FREEFENCE) and E-PIECECOST is for play-costs paid with a piece, not a free grant.
 - ⬜ **B17 Forest Plow** · cost: 1 Wood
   - _Each time you use a wood accumulation space, you can pay 2 wood to plow 1 field. Place the paid wood on the accumulation space (for the next visitor).  [CLARIFICATION: You may take less than 2 wood from the space and still use this card’s effect.]_
-  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-GRANTSUB E-COSTMOD ST-PROV` — 'Each time you use a wood accumulation space' = T-BEFORE, S-SPACE, F-TRIG. Grants a plow sub-action (E-GRANTSUB) for a nonstandard 2-wood cost placed back on the space (E-COSTMOD; also needs to track the paid-wood provenance -> ST-PROV). No standalone ONPLAY effect.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB EXOTIC` — 'Each time you use' -> T-BEFORE by ruling; optional pay-2-wood-to-plow is a granted sub-action with an ordinary resource cost (no E-COSTMOD — nothing about a build's cost changes; and the wood is paid from supply per the clarification, so no ST-PROV). The one uncaptured mechanic is depositing the paid wood ONTO the accumulation space for the next visitor (goods added to a board space) -> EXOTIC.
 - ✅ **B18 Grassland Harrow** · cost: 2 Wood · prereq: 2 Occupations, 1 Building Resource in Your Supply
   - _Add 1 to the current round for each building resource in your supply and place 1 field on the corresponding round space. A the start of the round, you can plow the field._
   - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB` — Removed L-GEOMBOARD: placing a field on a future round space is scheduling (E-SCHED), not action-board position/adjacency geometry.
 - ✅ **B19 Moldboard Plow** · cost: 2 Wood · prereq: 1 Occupation
   - _Place 2 field tiles on this card. Twice this game, when you use the "Farmland" action space, you can also plow 1 field from this card._
-  - `ONPLAY HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB CAP-GAME ST-STACK ST-STORE` — Place 2 field tiles on card (stack); twice this game using Farmland grants an optional extra plow from the card; uses-left counter.
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB CAP-GAME ST-STACK` — 'When you use the Farmland action space' is the 'each time you use [space]' shape -> T-BEFORE per the ruling; optional extra plow = E-GRANTSUB/F-TRIG, twice per game = CAP-GAME. The 2 field tiles on the card are a consumed pool (ST-STACK) that itself tracks uses, so ST-STORE is redundant.
 - ✅ **B20 Chain Float** · cost: 3 Wood
   - _Add 7, 8, and 9 to the current round and place 1 field on each corresponding round space. At the start of these rounds, you can plow the field._
   - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB` — Removed L-GEOMBOARD: placing fields on specific future round spaces is scheduling (E-SCHED), not board position/adjacency geometry.
 - ⬜ **B21 Hayloft Barn** · cost: 3 Wood · prereq: 1 Occupation
   - _Place 4 food on this card. Each time you obtain at least 1 grain, you also get 1 food from this card. Once it is empty, you get a "Family Growth Even without Room" action.  [CLARIFICATION: 《Harvesting 2+ grain at once only counts as obtaining once, regardless of any other crops harvested.》]_
-  - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS E-GROWTH ST-STACK` — Place 4 food stack on card; each time you obtain grain get 1 food from card; once empty grant Family Growth even without room.
+  - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS E-GRANTSUB E-GROWTH ST-STACK ST-THRESHOLD` — On play stocks 4 food on the card (ST-STACK); each grain-obtain automatically pays 1 food out (HOOK S-OBTAIN T-AFTER F-AUTO, E-GOODS). Emptying the stack is a one-time count-reaches-zero fire (ST-THRESHOLD) that grants a family-growth-even-without-room action — family growth is a listed primitive, so E-GRANTSUB + E-GROWTH (granted, hence optional).
 - ⬜ **B22 Walking Boots** · prereq: At Most 4 People
   - _You immediately get 2 food. You must immediately place a person from your supply. If you do, in the next returning home phase, you must remove that person from play.  [ERRATA: 《RECOMMENDED ERRATA: This card must be played in the work phase.》  ERRATA: remove the “If you do” clause.]  [CLARIFICATION: Consequently, you may never grow to 5 people.]_
-  - `ONPLAY E-GOODS E-EXTRAPLACE E-PEOPLE ST-PLACELOG` — Errata: on play get 2 food (E-GOODS) and must place an extra person from supply (E-EXTRAPLACE — an additional placement, temporary worker via E-PEOPLE), then must remove that person in the next returning-home phase — so it must remember which person/where (ST-PLACELOG). Not E-GROWTH: it never grows to 5 people (temporary worker, removed).
+  - `ONPLAY HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS E-EXTRAPLACE E-PEOPLE ST-STORE` — On play: 2 food + a mandatory immediate extra placement (E-EXTRAPLACE) of a temporary person (E-PEOPLE). The errata'd mandatory removal fires at the next returning-home phase — a real delayed game-event fire -> HOOK S-ROUNDEND F-AUTO. People are fungible, so no need to know which SPACE the worker occupied (not ST-PLACELOG); a pending-removal flag (ST-STORE) suffices.
 - ⬜ **B23 Final Scenario** · prereq: Round 13 or Before
   - _Place the action space card for round 14 face up in front of you. Only you can use it until it is placed on the game board._
   - `ONPLAY EXOTIC L-CARDSPACE L-HIDDEN` — Reserve the round-14 action-space card as an owner-private space.
@@ -351,79 +356,79 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY PASSIVE E-EXTRAPLACE` — Place two people back-to-back if one uses an animal market; extra placement. A named-space reference is NOT board geometry (L-GEOMBOARD dropped).
 - ✅ **B25 Bread Paddle** · cost: 1 Wood
   - _When you play this card, you immediately get 1 food. For each occupation you play, you get an additional "Bake Bread" action.  [CLARIFICATION: Note the errata for Freshman A097.]_
-  - `ONPLAY E-GOODS HOOK T-AFTER S-PLAY F-TRIG A-OWN E-GRANTSUB E-BAKESPEC` — On play +1 food; each occupation played grants an additional optional Bake Bread action.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-PLAY F-TRIG A-OWN E-GRANTSUB` — On-play +1 food; each occupation played grants an optional extra Bake Bread sub-action (S-PLAY, T-AFTER, F-TRIG). It grants the action, it does not add/change a baking improvement or rate, so no E-BAKESPEC.
 - ⬜ **B26 Agrarian Fences**
   - _Each time you use the "Grain Utilization" action space, you can take a "Build Fences" action instead of one of the two actions provide by the action space.  [CLARIFICATION: You can take a “Build Fences” action in this way without the ability to sow or bake.]_
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTACT E-SUBSTITUTE` — Each time you use Grain Utilization, may take a Build Fences action instead of one of its two actions — substitute granted action.
 - ⬜ **B27 Toolbox** · cost: 1 Wood
   - _In the work phase, after each turn in which you build at least 1 room, stable, or fence, you can build the "Joinery", "pottery", or Basketmaker's Workshop" major improvement.  [CLARIFICATION: Stables built off-turn, e.g. with Stable Planner A089 or Groom B089, do not trigger this card.  Pay the cost of the major improvement normally.]_
-  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTACT` — After a turn in which you build a room/stable/fence, may take the build-major-improvement action (Joinery/Pottery/Basketmaker) paying its cost; off-turn stables excluded.
+  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTACT ST-COUNTER` — The trigger is 'after each TURN in which you build at least 1 room/stable/fence' — once per qualifying turn, not per build sub-action (multiple builds in a turn fire it once, and off-turn builds don't count per the clarification), so S-TURNEND with a per-turn built-this-turn tracker (ST-COUNTER), not S-SUB. Granted major-improvement build, paid normally -> E-GRANTACT, optional -> F-TRIG.
 - ✅ **B28 Forestry Studies** · cost: 2 Food
   - _Each time after you use the "Forest" accumulation space, you can return 2 wood to that space to play 1 occupation without paying an occupation costs._
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OWN E-CONVERT E-GRANTACT E-COSTMOD` — 'Each time after you use the Forest space' = T-AFTER, S-SPACE, F-TRIG. Return 2 wood to the space (E-CONVERT) to play 1 occupation with no occupation cost (E-GRANTACT plays the whole play-occupation action; E-COSTMOD waives the occupation cost).
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — Optional after-Forest hook granting an occupation play at no occupation cost; the taxonomy lists play-a-card under S-SUB primitives, so the grant is E-GRANTSUB (not E-GRANTACT), and 'without paying occupation costs' is E-COSTMOD. Returning 2 wood is an ordinary cost, not E-CONVERT (nothing is exchanged for goods at a rate).
 - ⬜ **B29 Cookery Lesson** · cost: 2 Food
   - _Each time you use a "Lesson" action space and a cooking improvement on the same turn, you get 1 bonus point.  [CLARIFICATION: Cooking improvements have the bowl icon.]_
-  - `HOOK S-SPACE T-AFTER F-AUTO A-OWN E-SCORE ST-PROV` — Bonus point earned through an action (using a Lesson space + a cooking improvement same turn) -> legitimate HOOK + E-SCORE per convention 3. T-AFTER/S-SPACE; F-AUTO (get 1 bonus point, no choice). Needs to know a cooking improvement was used that turn (ST-PROV).
+  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-SCORE ST-STORE` — The conjunction (Lessons space + cooking improvement, either order, same turn) has no single-event seam — 'used a cooking improvement' is not a listed seam — so the expressible model is a turn-end check over two per-turn flags: S-TURNEND, with the flags being ST-STORE (small flags, not a running ST-COUNTER and not event payload ST-PROV). Bonus point via play is legitimately HOOK+E-SCORE.
 - ⬜ **B30 Wood Palisades** · cost: 1 Food
   - _Instead of a fence piece, you can place 2 wood from your supply on the fence spaces at the edge of your farmyard. These fence spaces with 2 wood are worth 1 bonus point.  [CLARIFICATION: The spaces with 2 wood (“palisades”) function as fences. Therefore, functionally, you may have more than 15 fences by building palisades and fences.]_
-  - `ATWILL E-SUBSTITUTE E-FREEFENCE E-SCORE EXOTIC` — Instead of a fence piece, place 2 wood on an edge fence space; functions as a fence, worth 1 bonus point each; overrides fence supply cap. | candidate mechanic: PALISADE: place 2 wood on a perimeter fence space that functions as a fence and scores 1 VP, bypassing the 15-fence supply limit.
+  - `PASSIVE E-COSTMOD E-SCORE L-GEOMFARM L-EXT ST-STORE` — Always-on option inside any fence build (no independent timing, so PASSIVE not ATWILL): paying 2 wood instead of a fence piece is currency substitution when paying = E-COSTMOD (fences aren't free, so not E-FREEFENCE); it extends legality past the 15-piece supply = L-EXT; edge-of-farmyard-only = L-GEOMFARM; palisade locations must be remembered for the 1-bonus-point-each scoring (E-SCORE, ST-STORE). E-SUBSTITUTE dropped — it replaces a component/cost, not one action with another.
 - ✅ **B31 Pottery Yard** · prereq: Pottery (or an Upgrade Thereof)
   - _During the scoring, if there are at least 2 orthogonally adjacent unused spaces in your farm, you get 2 bonus points. (You still get the negative points for those unused spaces._
-  - `E-SCORE L-GEOMFARM` — Kept L-GEOMFARM: the bonus depends on orthogonally ADJACENT unused farmyard spaces — a genuine adjacency/shape test between farm cells.
+  - `PASSIVE E-SCORE L-GEOMFARM` — Pure end-game scoring rule (computed, never hooked) keyed on orthogonal adjacency of unused farm spaces = E-SCORE + L-GEOMFARM; PASSIVE supplies the required activation for an always-on scoring rule. Threshold check, not an arrangement optimization, so no E-SCOREOPT.
 - ⬜ **B32 Kettle** · cost: 1 Clay · prereq: 1 Grain Field
   - _At any time, you can exchange 1/3/5 grain for 3/4/5 food and 0/1/2 bonus points._
-  - `ATWILL E-CONVERT E-GOODS E-SCORE` — At any time exchange 1/3/5 grain for 3/4/5 food and 0/1/2 bonus points (tiered convert + fired bonus points).
+  - `ATWILL E-CONVERT E-SCORE` — 'At any time' exchange = ATWILL; grain→food at fixed rates = E-CONVERT (the food is the conversion output, so no separate E-GOODS); the bonus points are E-SCORE. Bonus points accrue to the generic player tally — no per-card ST-COUNTER needed to detect or resolve anything.
 - ✅ **B33 Mantlepiece** · cost: 1 Stone · prereq: Clay or Stone House
   - _When you play this card, you immediately get 1 bonus point for each complete round left to play. You may no longer renovate your house._
-  - `ONPLAY E-SCORE L-EXT` — On-play bonus points per round-left (E-SCORE text rule), plus a permanent restriction removing renovation eligibility (L-EXT changing what is legal); it is a legality change, better than a firing PASSIVE tag here.
+  - `ONPLAY E-SCORE ST-STORE PASSIVE` — Bonus points earned at play time from rounds remaining must be snapshotted until scoring (ST-STORE); 'you may no longer renovate' is a permanent always-on rule change (PASSIVE). L-EXT is for extending legality, not restricting it.
 - ⬜ **B34 Special Food** · prereq: No Animal
   - _The next time you take animals from an accumulation space and accommodate all of them on your farm, you get 1 bonus point for each of these animals.  [CLARIFICATION: Taking, but not fully accommodating, the animals neither triggers nor voids the effect.  《It’s legal to avoid accommodating all animals even if you can, e.g. by eating them with a Fireplace.》]_
-  - `HOOK S-OBTAIN T-AFTER F-AUTO A-OWN CAP-GAME E-SCORE ST-STORE` — One-shot on the NEXT time you take+accommodate animals from an accumulation space -> S-OBTAIN, T-AFTER (after accommodating), F-AUTO, CAP-GAME (fires once). Bonus VP per animal = E-SCORE. Needs a one-shot armed/used flag -> ST-STORE. Not ST-LATCH: this is 'the next time you take action X' (an action trigger), not a standing-condition-first-true latch.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-GAME E-SCORE ST-PROV ST-STORE` — One-shot ('the next time' → CAP-GAME + a fired/pending ST-STORE flag) hook on taking animals from an accumulation space — a space use, so S-SPACE, not the any-source S-OBTAIN — resolved after accommodation (T-AFTER), scoring 1 point per animal taken (E-SCORE), which needs the event payload of how many animals came off the space and whether all were placed (ST-PROV). F-TRIG rather than F-AUTO: the clarification makes the condition player-steerable (you may legally decline to accommodate all, e.g. eat one), so the fire is effectively optional.
 - ⬜ **B35 Hook Knife** · cost: 1 Wood
   - _Once this game, when you have 9/8/7/6/5/5 sheep on your farm in a 1-/2-3-/4-/5-/6- player game, you immediately get 2 bonus points._
-  - `LATCH ST-LATCH ST-THRESHOLD CAP-GAME E-SCORE` — One-shot bonus points the first moment sheep count reaches threshold: LATCH fires on a standing COUNT becoming true, so ST-LATCH + ST-THRESHOLD both apply; once-ever = CAP-GAME; the bonus VP is a scoring-rule effect (E-SCORE).
+  - `LATCH CAP-GAME E-SCORE ST-THRESHOLD` — One-time fire the first moment a sheep COUNT threshold is reached = LATCH + ST-THRESHOLD (the count-latch state code; ST-LATCH is the standing-condition sibling and would be redundant/misapplied here) + CAP-GAME; the 2 bonus points are E-SCORE.
 - ✅ **B36 Bottles** · cost: see below
   - _For each person you have, you must pay an additional 1 clay and 1 food to play this card.  [CLARIFICATION: A newborn is a person.]_
-  - `ONPLAY NONE` — Only a per-person additional play cost (1 clay + 1 food each); no ongoing mechanic. Cost scaling by person count; card text states no further effect.
+  - `ONPLAY E-FOODCOST` — The play cost includes food (1 per person), which the rulings explicitly flag as E-FOODCOST (payable via conversions); the per-person clay is an ordinary resource cost needing no code. A real mechanic applies, so NONE is wrong.
 - ✅ **B37 Grange** · prereq: 6 Field Tiles and All Animal Types
   - _When you play this card, you immediately get 1 food._
   - `ONPLAY E-GOODS NONE` — On play +1 food; prereqs are HAVE-checks only, trivial.
 - ⬜ **B38 Future Building Site** · prereq: Play in Round 4 or Before
   - _Up until all other farmyard spaces are used, you cannot use the unused spaces that are orthogonally adjacent to your house.  [CLARIFICATION: 《You may use the adjacent spaces if you are using all the remaining other spaces in the same action.》]_
-  - `PASSIVE L-GEOMFARM` — Kept L-GEOMFARM: depends on orthogonal adjacency of unused spaces to your house.
+  - `PASSIVE L-GEOMFARM EXOTIC` — Always-on rule (PASSIVE) forbidding use of farm spaces orthogonally adjacent to the house until all others are used (L-GEOMFARM). A legality RESTRICTION has no code (L-EXT only extends), so EXOTIC is warranted and also stands in for the effect slot — the card does nothing except restrict.
 - ✅ **B39 Loom** · cost: 2 Wood · prereq: 2 Occupations
   - _In the field phase of each harvest, if you have at least 1/4/7 sheep, you get 1/2/3 food. During scoring, you get 1 bonus point for every 3 sheep._
   - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS E-SCORE` — Field phase of each harvest: sheep-threshold food; plus end-game 1 pt per 3 sheep (E-SCORE).
 - ✅ **B40 Brewery Pond** · prereq: 2 Occupations
   - _Each time you use the "Fishing" or "Reed Bank" accumulation space, you also get 1 grain and 1 wood._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Fishing or Reed Bank, also get 1 grain and 1 wood; named-space hook.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — "Each time you use [space]" fires BEFORE the space's action per the explicit ruling; labelB's T-BEFORE is correct, all other tags agree.
 - ⬜ **B41 Hauberg** · cost: 3 Food · prereq: 3 Occupations
   - _Alternate placing 2 wood and 1 wild boar on the next 4 round spaces. You decide what to start with. At the start of these rounds, you get the goods._
   - `ONPLAY E-SCHED E-SCHEDANIMAL E-ANIMALS` — On play, alternate 2 wood / 1 wild boar on next 4 round spaces (player chooses start); collected at round start; animals must be accommodated.
 - ⬜ **B42 Forest Inn** · cost: 1 Clay,1 Reed · prereq: Play in Round 6 or Before
   - _This is an action space for all. A player who uses it can exchange 5/7/9 wood for 8 wood and 2/4/7 food. When another player uses it, they must first pay you 1 food._
-  - `ONPLAY L-CARDSPACE E-CONVERT E-GOODS E-OPPTRANSFER L-OCCUPY` — Card becomes a shared action space: exchange wood for wood+food (tiered); other players pay owner 1 food toll to use it.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP L-CARDSPACE E-CONVERT E-OPPTRANSFER` — The card is an action space (L-CARDSPACE) whose action is a wood-for-wood+food exchange (E-CONVERT); the opponent toll is a mandatory hook on another player using the space, paid FIRST (HOOK/S-SPACE/A-OPP/F-AUTO/T-BEFORE, E-OPPTRANSFER). Nothing fires on play, so no ONPLAY; L-OCCUPY (using an occupied space) does not apply.
 - ✅ **B43 Chophouse** · cost: 2 Wood/2 Clay
   - _Each time you use the "Grain/Vegetable Seed" action space, place 1 food on each of the next 3/2 round spaces. At the start of these rounds, you get the food.  [CLARIFICATION: Note the errata for Swagman A129.]_
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-SCHED` — Each time you use Grain/Vegetable Seed space, schedule 1 food on next 3/2 round spaces; collected at round start.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCHED E-PLAYVARIANT ST-STORE` — "Each time you use" = T-BEFORE per ruling (labelB right on timing). The 2 Wood/2 Clay cost forks with the 3/2 reward (pay wood -> 3 round spaces, clay -> 2), so it is E-PLAYVARIANT, and the chosen variant must persist to parameterize every later firing (ST-STORE) — both labelers missed this.
 - ✅ **B44 Chick Stable** · cost: 1 Wood/1 Clay
   - _Add 3 and 4 to the current round and place 2 food on each corresponding round space. At the start of these rounds, you get the food._
-  - `ONPLAY E-SCHED E-GOODS` — Adds rounds 3&4, schedules 2 food each on those round spaces, collected at round start.
+  - `ONPLAY E-SCHED E-ALTCOST` — One-shot on play; all food goes onto future round spaces (E-SCHED only — no immediate goods, so labelA's E-GOODS is wrong); 1 Wood/1 Clay is a choice of play cost for the same effect (E-ALTCOST).
 - ✅ **B45 Strawberry Patch** · cost: 1 Wood · prereq: 2 Vegetable Fields
   - _Place 1 food on each of the next 3 round spaces. At the start of these rounds, you get the food._
   - `ONPLAY E-SCHED` — Place food on next 3 round spaces, collected at start of those rounds.
 - ✅ **B46 Club House** · cost: 3 Wood/2 Clay
   - _Place 1 food on each of the next 4 round spaces and 1 stone on the round space after that. At the start of these rounds, you get the respective good._
-  - `ONPLAY E-SCHED` — Places food/stone on next round spaces, collected at start of those rounds.
+  - `ONPLAY E-SCHED E-ALTCOST` — One-shot scheduling of food+stone onto future round spaces; 3 Wood/2 Clay is an alternative play cost for the same effect (E-ALTCOST, missed by labelA).
 - ✅ **B47 Herring Pot** · cost: 1 Clay
   - _Each time you use the "Fishing" accumulation space, place 1 food on each of the next 3 round spaces. At the start of these rounds, you get the food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCHED` — Each use of named Fishing space places food on next 3 round spaces (scheduled).
 - ⬜ **B48 Forest Stone** · cost: 2 Wood/1 Stone · prereq: 1 Occupation
   - _Place 2 food on this card. Each time you use a wood accumulation space, move 1 of these food to your supply. Each time you use a stone accumulation space, add 2 food to this card._
-  - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-STACK` — Food-stack on card; wood-space use moves food to supply, stone-space use adds food to card.
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-STACK E-ALTCOST` — On play seeds 2 food onto the card (ST-STACK); mandatory hooks on using wood/stone accumulation spaces move food off/onto the card (T-BEFORE per "each time you use"); 2 Wood/1 Stone is an alternative play cost (E-ALTCOST) — labelB's full set is correct.
 - ⬜ **B49 Scales** · cost: 1 Wood · prereq: No Occupation
   - _Each time after you place an improvement or occupation in front of you, if you then have the same number of improvements and occupations in play, you get 2 food.  [CLARIFICATION: Passing cards will not trigger this effect, as they are never in front of you.  Occupations which let the player immediately build/play an improvement (or vice-versa, e.g. Task Artisan A096) only triggers Scales after both cards are played, thereby giving 0 or 4 food.]_
-  - `HOOK T-AFTER S-PLAY F-AUTO A-OWN E-GOODS ST-COUNTER` — After playing an improvement/occupation, if counts equal you get 2 food; needs comparing improvement vs occupation counts.
+  - `HOOK T-AFTER S-PLAY F-AUTO A-OWN E-GOODS` — Fires after each card you place in front of you; the equal-count condition is read directly from cards already in play — plain state, so no card-kept ST-COUNTER (labelB correct).
 - ✅ **B50 Butter Churn** · cost: 1 Wood · prereq: At Most 3 Occupations
   - _In the field phase of each harvest, you get 1 food for every 3 sheep and 1 food for every 2 cattle you have._
   - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS` — Field phase of each harvest: food per 3 sheep and per 2 cattle.
@@ -435,37 +440,37 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS NONE` — Play restriction computable from state; on play get food equal to current round — plain goods.
 - ⬜ **B53 Sculpture Course** · cost: 1 Grain
   - _At the end of each round that does not end with a harvest, you can use this card to exchange your choice of 1 wood for 2 food, or 1 stone for 4 food._
-  - `ATWILL CAP-ROUND E-CONVERT E-GOODS` — "At the end of each round... you can" is a deferrable player-chosen conversion capped at once per (non-harvest) round -> ATWILL + CAP-ROUND, not a HOOK; converts wood/stone to food (E-CONVERT + E-GOODS).
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CONVERT` — The use is locked to a specific event window — the end of each non-harvest round — which is exactly the S-ROUNDEND hook seam, not a freely-deferrable ATWILL; optional ("you can") -> F-TRIG; the exchange is E-CONVERT (conversion output is not separately E-GOODS).
 - ✅ **B54 Tumbrel** · cost: 1 Wood
   - _When you play this card, you immediately get 2 food. Each time after you take an unconditional "Sow" action, you get 1 food for each stable you have._
   - `ONPLAY HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — On play +2 food; after unconditional Sow, food per stable.
 - ✅ **B55 Maintenance Premium** · prereq: 2 Occupations
   - _Place 3 food on this card. Each time you use a wood accumulation space, you get 1 food from this card. Each time you renovate restock this card to 3 food._
-  - `ONPLAY HOOK T-BEFORE S-SPACE A-OWN F-AUTO E-GOODS ST-STACK` — ONPLAY places 3 food; "each time you use a wood accumulation space" is a T-BEFORE S-SPACE own-turn auto hook paying food off the card's stack (ST-STACK). Renovate-restock is refilling the same stack, not a new sub-action seam.
+  - `ONPLAY HOOK T-BEFORE S-SPACE S-SUB F-AUTO A-OWN E-GOODS ST-STACK` — Two hooks: wood accumulation space use (S-SPACE) AND 'each time you renovate' restock — renovate is a primitive sub-action, so S-SUB is required; B is correct to include it.
 - ⬜ **B56 Brook** · cost: 1 of Your People on "Fishing"
   - _Each time you use one of the four action spaces above the "Fishing" accumulation space, you get 1 additional food._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — Kept L-GEOMBOARD: 'the four action spaces above the Fishing space' is board position/adjacency, not merely a named space.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — 'Each time you use' one of the four spaces above Fishing -> T-BEFORE, S-SPACE, mandatory +1 food (F-AUTO); board adjacency to Fishing = L-GEOMBOARD. The person-on-Fishing play condition is a board-state read at play time and the trigger is the space being used, so the card keeps no placement state (no ST-PLACELOG).
 - ✅ **B57 Scullery** · cost: 1 Wood,1 Clay
   - _At the start of each round, if you live in a wooden house, you get 1 food._
-  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — Start of each round, if wooden house, get 1 food; plain state read.
+  - `HOOK S-SOR T-BEFORE F-AUTO A-OWN E-GOODS` — Plain 'at the start of each round' hook fires before the round's work — matches the adjudicated convention for identical wording (B97/E100/E102 all T-BEFORE); wooden-house check is a plain state read, mandatory gain = F-AUTO + E-GOODS.
 - ✅ **B58 Crack Weeder** · cost: 1 Wood
   - _When you play this card, you immediately get 1 food. For each vegetable you take from a field in the field phase of a harvest, you also get 1 food._
   - `ONPLAY HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS` — On play +1 food; +1 food per vegetable taken from a field in the field phase.
 - ✅ **B59 Food Chest** · cost: 1 Wood
   - _If you play this card on the "Major Improvement" action space, you immediately get 4 food. Otherwise, you get only 2 food._
-  - `ONPLAY E-GOODS` — Removed L-GEOMBOARD: 'played on the Major Improvement action space' reads which named space the card was played on, not board position/order/adjacency.
+  - `ONPLAY E-GOODS` — One-shot on-play goods whose amount depends on the play entry point — readable from the current play context at resolution time; the card keeps no state afterward, so ST-PROV is not warranted.
 - ✅ **B60 Brewing Water**
   - _Each time you use the "Fishing" accumulation space, you can pay 1 grain to place 1 food on each of the next 6 round spaces. At the start of these rounds, you get the food._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SCHED E-FOODCOST` — On Fishing use, may pay 1 grain to schedule 1 food on next 6 round spaces.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SCHED` — Cost is 1 GRAIN, an ordinary resource cost — E-FOODCOST is only for costs paid in food; the effect schedules food on round spaces (E-SCHED). B is correct.
 - ✅ **B61 Three-Field Rotation** · prereq: 3 Occupations
   - _At the start of the field phase of each harvest, if you have at least 1 grain field, 1 vegetable field, and 1 empty field, you get 3 food._
-  - `ONPLAY HOOK S-HFIELD T-BEFORE F-AUTO A-OWN E-GOODS` — 'At the start of the field phase of each harvest' fires before the field phase resolves -> S-HFIELD + T-BEFORE; mandatory food gain if field conditions met (F-AUTO, A-OWN, E-GOODS).
+  - `HOOK S-HFIELD T-BEFORE F-AUTO A-OWN E-GOODS` — Recurring harvest-field-phase hook ('at the start of the field phase' = T-BEFORE); the card has no once-when-played effect, so ONPLAY is wrong — HOOK is the sole activation; field-composition condition is a plain state read.
 - ✅ **B62 Pitchfork** · cost: 1 Wood
   - _Each time you use the "Grain Seeds" action space, if the "Farmland" action space is occupied you also get 3 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Grain Seeds, if Farmland occupied, get 3 food; conditional on a named space's occupancy.
 - ✅ **B63 Tasting** · cost: 2 Wood
   - _Each time you use a "Lessons" action space, before paying the occupation cost, you can exchange 1 grain for 4 food._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS` — On Lessons use, before paying occupation cost, may exchange 1 grain for 4 food.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT` — Optional grain→food exchange on using Lessons; the food is proceeds of the conversion, so E-CONVERT alone — adding E-GOODS double-counts the same effect.
 - ✅ **B64 Mill Wheel** · cost: 2 Wood
   - _Each time you use the "Grain Utilization" action space while the "Fishing" accumulation space is occupied, you get an additional 2 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Grain Utilization use while Fishing occupied grants +2 food; needs board occupancy read.
@@ -477,10 +482,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-SCHED` — Places grain on rounds 5/8/11/14, collected at start of those rounds.
 - ✅ **B67 Hand Truck** · cost: 1 Wood
   - _Each time before you take a "Bake Bread" action, you also get 1 grain for each of your people occupying an accumulation space.  [CLARIFICATION: You must bake if you receive the grain.]_
-  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS` — Before each Bake Bread sub-action you get grain per person on an accumulation space; clarification makes baking mandatory once grain received = F-AUTO.
+  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS ST-PLACELOG` — Grain count = number of YOUR people on accumulation spaces, which requires knowing which spaces your workers occupy — exactly ST-PLACELOG's definition; otherwise both labels agree.
 - ⬜ **B68 Beanfield** · cost: 1 Food · prereq: 2 Occupations
   - _This card is a field that can only grow vegetables._
-  - `ONPLAY L-CARDFIELD` — Kept L-CARDFIELD: the card itself is a field you sow/harvest on (veg only).
+  - `PASSIVE L-CARDFIELD E-FOODCOST` — The card IS a field (L-CARDFIELD) as an always-on rule with no once-at-play effect — PASSIVE, not ONPLAY (same ruling as adjudicated D75); its printed 1-Food play cost is a food cost payable by conversion, which the rulings say to flag as E-FOODCOST.
 - ⬜ **B69 Potters Market** · cost: 2 Wood
   - _At any time, you can pay 4 clay and 2 food. If you do, place 1 vegetable on each of the next 2 round spaces. At the start of these rounds, you get the vegetable._
   - `ATWILL E-FOODCOST E-SCHED` — "At any time you can pay 4 clay and 2 food" to schedule vegetables on future round spaces = ATWILL + E-SCHED; the food part of the cost may need conversion = E-FOODCOST. No good is converted into another (the clay/food are a cost, not a rate exchange), so no E-CONVERT.
@@ -492,7 +497,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS NONE` — On play, gain plain goods if harvests-completed equals occupations-played (a plain state read) -- immediate goods only.
 - ⬜ **B72 Love for Agriculture**
   - _You can sow crops in pastures covering 1 or 2 farmyard spaces. If you do, these pastures are also considered fields and hold 1 and 2 animals less, respectively._
-  - `PASSIVE E-CROPMANIP E-CAPGROW` — Removed L-CARDFIELD: pastures (existing farm tiles) become fields; the card itself is not a field. Kept crop/capacity manip codes.
+  - `PASSIVE L-EXT E-CAPNEG` — Always-on rule extending sow legality to small pastures (L-EXT); the 'hold 1/2 animals LESS' is a capacity reduction/override (E-CAPNEG), not E-CAPGROW; sowing there is normal sowing, not E-CROPMANIP.
 - ✅ **B73 Gift Basket** · cost: 1 Reed · prereq: 3 Occupations
   - _When you play this card, if you have exactly 2/3/4/5 rooms, you immediately get 1 vegetable/food/grain/vegetable._
   - `ONPLAY E-GOODS NONE` — On play, gain plain goods based on exact room count (plain state read).
@@ -501,10 +506,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-SCHED` — Places wood on each remaining even round space, collected at round start.
 - ✅ **B75 Wood Workshop** · cost: 1 Clay · prereq: 1 Occupation
   - _Each time before you play or build an improvement, you get 1 wood.  [CLARIFICATION: You are able to pay for the improvement with just the wood given by this card.]_
-  - `HOOK T-BEFORE S-MAJMIN A-OWN F-AUTO E-GOODS E-COSTMOD` — "Each time before you play or build an improvement, you get 1 wood" = T-BEFORE S-MAJMIN own auto hook granting a good; clarification that the wood can pay for that improvement makes it a cost-affecting effect = E-COSTMOD.
+  - `HOOK T-BEFORE S-PLAY S-MAJMIN F-AUTO A-OWN E-GOODS` — You simply receive 1 wood before playing/building any improvement — the improvement's cost is unchanged (the clarification only confirms the wood arrives in time to pay), so E-COSTMOD is wrong; the trigger covers both minor plays (S-PLAY) and major builds (S-MAJMIN).
 - ⬜ **B76 Ceilings** · cost: 1 Clay · prereq: 1 Occupation
   - _Place 1 wood on the next 5 round spaces. At the start of these rounds, you get the wood. Remove the wood promised by this card from future round spaces the next time you renovate._
-  - `ONPLAY E-SCHED E-TAKEBACK HOOK T-AFTER S-SUB A-OWN F-AUTO ST-PROV` — ONPLAY schedules wood on 5 round spaces (E-SCHED); the next renovate removes the still-promised wood = E-TAKEBACK via a T-AFTER own auto hook on the renovate sub-action, needing the payload of what this card promised = ST-PROV.
+  - `ONPLAY E-SCHED HOOK T-AFTER S-SUB F-AUTO A-OWN E-TAKEBACK CAP-GAME ST-PROV` — Union is correct: 'the NEXT time you renovate' is a one-time action trigger → HOOK on the renovate sub-action + CAP-GAME (per the LATCH ruling), and removing 'the wood promised by THIS card' requires tracking which scheduled wood is the card's → ST-PROV.
 - ✅ **B77 Loam Pit** · cost: 1 Food · prereq: 3 Occupations
   - _Each time you use the "Day Laborer" action space, you also get 3 clay.  [CLARIFICATION: These clay may be spent to pay for the effect of the Cottager B087.]_
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Day Laborer, also get 3 clay (spendable for Cottager).
@@ -513,7 +518,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-SCHED` — On play, place reed on the remaining round-5/8/10/12 spaces.
 - ✅ **B79 Corf** · cost: 1 Reed
   - _Each time any player (including you) takes at least 3 stone from an accumulation space, you get 1 stone from the general supply._
-  - `HOOK T-AFTER S-OBTAIN F-AUTO A-OWN A-OPP E-GOODS ST-PROV` — Fires after any player takes >=3 stone from an accumulation space (obtain event, own+opp); mandatory +1 stone; needs the provenance/amount of the triggering take, so ST-PROV.
+  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN A-OPP E-GOODS ST-PROV` — Trigger is source-specific — taking stone FROM an accumulation space (an action-space use), not obtaining stone from any source — so S-SPACE, not S-OBTAIN; the ≥3-stone check needs the take's payload (ST-PROV), fires after the take on any player's action (A-OWN+A-OPP), mandatory gain (F-AUTO, E-GOODS).
 - ⬜ **B80 Hard Porcelain** · cost: 1 Clay
   - _At any time, you can exchange 2/3/4 clay for 1/2/3 stone._
   - `ATWILL E-CONVERT` — At any time exchange clay for stone at 2/3/4->1/2/3 rate.
@@ -522,10 +527,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GOODS` — Removed L-GEOMBOARD: it reads good-counts on named accumulation spaces (wood/clay/reed/stone), not board position/order/adjacency.
 - ⬜ **B82 Value Assets**
   - _After each harvest, you can buy exactly one of the following goods: 1 Food → 1 Wood; 1 Food → 1 Clay; 2 Food → 1 Reed; 2 Food → 1 Stone_
-  - `HOOK T-AFTER S-AFTERFEED F-TRIG A-OWN E-CONVERT E-FOODCOST` — After each harvest you may buy exactly one good with food; optional conversion at a rate, fires after harvest.
+  - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-CONVERT E-FOODCOST` — "After each harvest" = after the whole harvest ends, i.e. after the breeding phase (T-AFTER + S-HBREED), not merely after feeding (S-AFTERFEED is between feed and breed); optional buy (F-TRIG) paying food (E-FOODCOST) at a fixed rate (E-CONVERT) — the resource received is the conversion output, so no separate E-GOODS.
 - ⬜ **B83 Muddy Puddles** · cost: 2 Clay
   - _Pile (from bottom to top) 1 wild boar, 1 food, 1 cattle, 1 food, and 1 sheep on this card. At any time, you can pay 1 clay to take the top good._
-  - `ONPLAY ATWILL E-ANIMALS E-CONVERT ST-STACK` — On play, stack boar/food/cattle/food/sheep on the card; at any time pay 1 clay to take the top good = per-card goods stack, animals must be accommodated when taken.
+  - `ONPLAY ATWILL E-CONVERT E-ANIMALS ST-STACK` — On play a pile is stacked on the card (ONPLAY + ST-STACK); "at any time, pay 1 clay for the top good" is a deferrable exchange (ATWILL + E-CONVERT); the pile contains animals needing accommodation (E-ANIMALS); the food picked up is the conversion's output, not a separate E-GOODS gain.
 - ✅ **B84 Acorns Basket** · cost: 1 Reed · prereq: 3 Occupations
   - _Place 1 wild boar on each of the 2 round spaces. At the start of these rounds, you get the wild boar._
   - `ONPLAY E-SCHEDANIMAL E-ANIMALS` — Places wild boar on 2 round spaces, collected at round start; animals must be accommodated.
@@ -534,10 +539,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 - ⬜ **C1 Overhaul** · cost: 1 Wood · prereq: 2 Occupations · passing
   - _Immediately raze all of your fences, add up to 3 fences from your supply, and rebuild them. (You do not lose any animals during this.)  [CLARIFICATION: For purposes of combos, you are building fences.]_
-  - `ONPLAY E-RETURNCOMP E-GRANTACT E-FREEFENCE` — On play, raze all fences (E-RETURNCOMP) and rebuild plus up to 3 free from supply — the clarification says you are building fences, i.e. a whole Build Fences action granted for free (E-GRANTACT + E-FREEFENCE). Not a passing minor; no E-PASSING.
+  - `ONPLAY E-GRANTACT E-FREEFENCE E-RETURNCOMP` — ONPLAY: raze all placed fences (E-RETURNCOMP) then rebuild the whole layout plus up to 3 supply fences with no wood charged (E-FREEFENCE); the clarification confirms it counts as fence-building. A whole-farm fence re-layout is a full Build-Fences-style action, so E-GRANTACT over label B's E-GRANTSUB. Label B's E-PASSING is false (verified: not a passing card) and E-PIECECOST is false (the printed cost is 1 wood; supply fences used are the effect, not a payment).
 - ✅ **C2 Stable** · cost: 1 Wood · passing
   - _Immediately build 1 stable. (The stable costs you nothing, but you must pay the cost shown on this card.)_
-  - `ONPLAY E-GRANTSUB E-PIECECOST E-PASSING` — On play builds 1 stable (granted sub-action) using a stable piece from supply (E-PIECECOST); the printed card cost (1 wood) is normal, but the free build consumes a game piece. Stable is a passing minor.
+  - `ONPLAY E-GRANTSUB E-PASSING` — On play grants a build-one-stable sub-action (free — E-GRANTSUB) and passes on; the play cost is 1 Wood, an ordinary resource, and the stable piece placed is the EFFECT not a cost, so E-PIECECOST is wrong.
 - ⬜ **C3 Carriage Trip** · prereq: 1 Person yet to Place · passing
   - _If you play this card in the work phase, you can immediately place another person._
   - `ONPLAY E-EXTRAPLACE E-PASSING` — On play in work phase lets you place an additional person; passing minor.
@@ -549,7 +554,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS E-PASSING` — Gain 1 clay per clay room + major improvement; passing minor. Plain count-based goods.
 - ⬜ **C6 Stone Clearing** · cost: 1 Food · passing
   - _Immediately place 1 stone on each of your empty fields. Harvest them during the next field phase. These fields are considered planted until then.  [ERRATA: ERRATA: harvest the fields with stone normally, and the fields are considered planted until the stone is gone.]_
-  - `ONPLAY E-CROPMANIP E-PASSING ST-STORE` — On play places stone on empty fields treated as planted until harvested (manipulates field crop state); needs to track the stone-as-crop on each field until gone, so ST-STORE; passing minor.
+  - `ONPLAY E-CROPMANIP E-FOODCOST E-PASSING` — One-time placement of stone onto empty fields, harvested normally per the errata, is field-content manipulation (E-CROPMANIP) — the state lives on the fields, so no per-card ST-STORE; the 1-Food play cost is flagged E-FOODCOST per the cost rulings; traveling card (E-PASSING).
 - ✅ **C7 Blade Shears** · cost: 1 Wood · prereq: 1 Pasture · passing
   - _You immediately get your choice of 3 food or 1 food for each sheep you have. (Keep the sheep.)  [CLARIFICATION: Choose exactly 3 food, or food equal to your sheep.]_
   - `ONPLAY E-GOODS E-PASSING` — Choose 3 food or 1 food per sheep (keep sheep); passing minor. Immediate goods with a choice.
@@ -558,19 +563,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-CROPMANIP E-PASSING` — Add 1 good to each field holding exactly 1 good; passing minor. Manipulates crops on fields.
 - ⬜ **C9 Automatic Water Trough** · cost: 1 Wood · passing
   - _If you can accommodate the animal, you can immediately buy 1 sheep/wild boar/cattle for 0/1/2 food._
-  - `ONPLAY E-ANIMALS E-CONVERT E-PASSING` — On play optionally buy 1 sheep/boar/cattle for 0/1/2 food if accommodatable; passing minor.
+  - `ONPLAY E-ANIMALS E-FOODCOST E-PASSING` — Passing minor (JSON passing_left=X); one-time on-play optional buy of an animal at a FOOD price -> E-FOODCOST per the ruling (food cost payable by conversion), not E-CONVERT (that is a good-for-good exchange rate, not a priced purchase).
 - ⬜ **C10 Bunk Beds** · cost: 1 Wood · prereq: 2 Major Improvements
   - _Once you have 4 rooms, your house can hold 5 people._
-  - `LATCH ST-LATCH E-PEOPLE CAP-GAME` — Fires once the standing count condition (4 rooms) first becomes true, raising house person-capacity to 5 (LATCH + ST-LATCH + E-PEOPLE); a one-time latch is once-ever, so CAP-GAME is appropriate.
+  - `PASSIVE E-PEOPLE` — 'Your house can hold 5 people' is a continuous capacity rule gated on a plain state read (4 rooms), not a one-shot fired effect -- LATCH/ST-LATCH is for effects that fire once and are done; this is a conditional PASSIVE person-capacity change (E-PEOPLE).
 - ⬜ **C11 Wildlife Reserve** · cost: 2 Wood · prereq: 2 Occupations
   - _This card can hold up to 1 sheep, 1 wild boar, and 1 cattle.  [CLARIFICATION: This card does not count as a pasture.]_
-  - `ONPLAY E-CAPNEW E-ANIMALS` — The card itself holds up to 1 of each animal type (new holder slot); it can accommodate animals so E-ANIMALS. It is a static capacity from play — ONPLAY establishes the holder (not a continuous rule change to existing slots).
+  - `PASSIVE E-CAPNEW` — A pure always-on holder — the card is a new animal slot (E-CAPNEW) with no on-play event and it provides no animals (E-ANIMALS is for cards that GIVE animals, not ones that merely hold them); continuous rule → PASSIVE.
 - ⬜ **C12 Cattle Farm** · cost: 1 Wood
   - _For each pasture you have, you can keep 1 cattle on this card._
-  - `PASSIVE E-CAPNEW L-CARDSPACE` — Always-on rule that the card itself holds cattle (E-CAPNEW), a new holder on the card (L-CARDSPACE); capacity scales with pasture count continuously, so PASSIVE not ONPLAY.
+  - `PASSIVE E-CAPNEW` — The card itself holds cattle (a new holder -> E-CAPNEW) as an always-on rule; it is not an action space, so L-CARDSPACE is wrong, and counting pastures is explicitly not L-GEOMFARM.
 - ⬜ **C13 Wood Slide Hammer** · cost: 1 Wood
   - _On your first renovation, if you have at least 5 wood rooms, you can renovate to stone directly and you get a discount of 2 stone on the renovation cost._
-  - `HOOK S-SUB T-BEFORE F-TRIG A-OWN E-COSTMOD E-SUBSTITUTE L-EXT CAP-GAME ST-STORE` — "On your first renovation" is an ACTION trigger (HOOK on the renovate sub-action, once ever = CAP-GAME), NOT a LATCH; grants direct wood->stone renovation (E-SUBSTITUTE, L-EXT new target) with a 2-stone discount (E-COSTMOD), optional; needs to track first-renovation used (ST-STORE).
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN CAP-GAME E-COSTMOD L-EXT` — 'On your first renovation' = action trigger on the renovate sub-action (HOOK+S-SUB+CAP-GAME, per ruling never LATCH), optional (F-TRIG); wood-to-stone directly is a new renovation target (L-EXT), the 2-stone discount E-COSTMOD. Not E-SUBSTITUTE (no action replaced) and no ST-STORE (first-renovation is readable from house material; CAP-GAME covers the once-ever).
 - ✅ **C14 Straw-Thatched Roof** · prereq: 3 Grain Fields
   - _You no longer need reed to renovate or build a room._
   - `PASSIVE E-COSTMOD` — Continuously removes reed requirement from renovate/build-room costs.
@@ -579,7 +584,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTACT` — Each time before using Pig Market space, may take a full Build Fences action (pay wood as usual) -> T-BEFORE, grants a whole action.
 - ✅ **C16 Field Fences** · cost: 2 Food
   - _You can immediately take a "Build Fences" action, during which you do not have to pay wood for fences that you build next to field tiles._
-  - `ONPLAY E-GRANTACT E-FREEFENCE` — On play grants a full Build Fences action with free fences next to field tiles.
+  - `ONPLAY E-GRANTACT E-FREEFENCE E-FOODCOST L-GEOMFARM` — On play grants a full optional Build Fences action (E-GRANTACT) with a positional discount — fences adjacent to field tiles are free (E-FREEFENCE + L-GEOMFARM, tile adjacency); the 2-Food play cost gets E-FOODCOST per the cost rulings.
 - ⬜ **C17 Newly-Plowed Field** · prereq: Exactly 3 Field Tiles
   - _When you play this card, you can immediately plow 1 field, which needs not be adjacent to another field._
   - `ONPLAY E-GRANTSUB L-EXT` — On play, may plow 1 field that need not be adjacent (grants plow sub-action + relaxes adjacency legality).
@@ -588,7 +593,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ATWILL E-CROPMANIP E-GRANTSUB` — Discard one field's crops (>=3 planted) to plow 1 field.
 - ✅ **C19 Swing Plow** · cost: 3 Wood · prereq: 3 Occupations
   - _Place 4 field tiles on this card. Each time you use the "Farmland" action space, you can also plow up to 2 fields from this card._
-  - `ONPLAY HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB ST-STACK L-CARDFIELD` — Kept L-CARDFIELD: field tiles are placed on and plowed from the card itself.
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB ST-STACK` — On play 4 field tiles are piled on the card (ONPLAY + ST-STACK — the taxonomy explicitly says a pool of field tiles plowed ONTO the farm is ST-STACK, NOT L-CARDFIELD); "each time you use Farmland" is an own-action space hook (T-BEFORE default) granting optional extra plows (F-TRIG + E-GRANTSUB).
 - ✅ **C20 Mole Plow** · cost: 3 Wood,1 Food · prereq: Play in Round 9 or Later
   - _Each time you use the "Farmland" or "Cultivation" action space, you can plow 1 additional field._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — Each time using Farmland/Cultivation space, may plow 1 additional field -> T-BEFORE grant of plow sub-action.
@@ -606,40 +611,40 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK S-HSTART T-BEFORE F-TRIG A-OWN E-GROWTH CAP-GAME ST-STORE` — One-time deferred Family Growth at the start of the next harvest (HOOK S-HSTART, CAP-GAME); must remember it is pending for that one harvest (ST-STORE). E-PEOPLE redundant with E-GROWTH.
 - ✅ **C25 Steam Machine** · cost: 2 Wood
   - _Each work phase, if the last action space you use is an accumulation space, you can immediately afterward take a "Bake Bread" action._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT ST-PLACELOG` — Removed L-GEOMBOARD: 'last action space you use is an accumulation space' is a category/order-of-use check, not board position/adjacency; kept ST-PLACELOG for tracking last-used space.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB` — Bake Bread is a primitive sub-action per the taxonomy (E-GRANTSUB explicitly lists bake bread), so E-GRANTSUB not E-GRANTACT; 'immediately afterward' = T-AFTER on the space use. ST-PLACELOG is unneeded: the hook fires at the space use itself, and 'last' is computable from workers remaining — no persistent per-worker log.
 - ✅ **C26 Flail** · cost: 1 Wood
   - _When you play this card, you immediately get 2 food. Each time you use the "Farmland" or "Cultivation" action space, you can also take a "Bake Bread" action._
-  - `ONPLAY E-GOODS HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTACT` — On play +2 food; each time you use Farmland/Cultivation you may also take a Bake Bread action (whole action granted, optional, before). It grants the standard Bake Bread action, not a new baking rate, so E-GRANTACT not E-BAKESPEC.
+  - `ONPLAY E-GOODS HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — 'Take a Bake Bread action' grants the bake-bread primitive sub-action → E-GRANTSUB (same call as C25); 'each time you use' = T-BEFORE default; on-play 2 food = ONPLAY+E-GOODS. Otherwise the labels agree.
 - ⬜ **C27 Blueprint** · cost: 1 Food
   - _You can build the major improvements "Joinery", "Pottery", and "Basketmaker's Workshop" even when taking a "Minor Improvement" action. They each cost you 1 stone less._
   - `PASSIVE L-EXT E-COSTMOD` — Lets three named majors be built via Minor Improvement action (extended legality) and reduces their stone cost.
 - ✅ **C28 Teacher's Desk** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time you use the "Major Improvement" or "House Redevelopment" action space, you can also play 1 occupation at an occupation cost of 1 food._
-  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-GRANTACT E-FOODCOST L-EXT` — "Each time you use" Major/House-Redev space fires before (T-BEFORE, S-SPACE) and grants an extra play-occupation action (E-GRANTACT) at a reduced occupation cost of 1 food (E-FOODCOST); extends where an occupation may be played (L-EXT).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — 'Each time you use [space]' = HOOK T-BEFORE S-SPACE, optional grant (F-TRIG); playing a card is listed as a primitive sub-action (S-SUB seam), so granting 'play 1 occupation' is E-GRANTSUB, not a whole-space E-GRANTACT; the 1-food occupation cost is E-FOODCOST. No L-EXT needed -- the grant itself is the legality.
 - ⬜ **C29 Beer Table** · cost: 2 Wood · prereq: No Grain in Your Supply
   - _At the end of the field phase of each harvest, you can pay 1 grain from your supply to get 2 bonus points. If you do, all other players get 1 food each._
-  - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-FOODCOST E-OPPTRANSFER E-SCORE` — Fires at end of field phase (S-HFIELD, T-AFTER), optionally paying 1 grain (E-FOODCOST) for 2 bonus points earned through an action (HOOK+E-SCORE valid) and giving opponents 1 food each (E-OPPTRANSFER); seam is field phase end, not after-feed.
+  - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-SCORE E-OPPTRANSFER ST-COUNTER` — 'At the end of the field phase of each harvest, you can pay...' = optional T-AFTER hook on S-HFIELD; bonus points earned through an action legitimately combine HOOK+E-SCORE and accumulate over the game (ST-COUNTER); food to all other players = E-OPPTRANSFER. The cost is GRAIN, an ordinary resource -- E-FOODCOST is wrong.
 - ✅ **C30 Half-Timbered House** · cost: 1 Wood,1 Clay,2 Stone,1 Reed
   - _During scoring, you get 1 bonus point for each stone room you have. You can only use one card to get bonus points for your stone house._
-  - `E-SCORE E-SCOREGRP` — Bonus point per stone room; mutually-exclusive stone-house scoring card.
+  - `PASSIVE E-SCORE E-SCOREGRP` — Pure scoring rule (E-SCORE) with the mutually-exclusive stone-house clause (E-SCOREGRP). The taxonomy requires >=1 ACTIVATION and forbids HOOK/S-BEFORESCORE for scoring rules, so PASSIVE (a standing rule, computed at scoring) is the correct activation — labelA supplied none.
 - ⬜ **C31 Writing Chamber** · cost: 2 Wood
   - _During scoring, you get a number of bonus points equal to the total of negative points you have, to a maximum of 7 bonus points.  [CLARIFICATION: Negative point examples: printed card values, beggars, negative categories, negative bonuses.]_
-  - `E-SCORE ST-STORE` — Computed scoring: bonus points = total negative points, capped at 7 -> pure end-game score rule (no HOOK/F-AUTO).
+  - `PASSIVE E-SCORE` — Pure end-game scoring rule (bonus = negative points, capped 7) -- E-SCORE, computed at scoring from the score breakdown, so no ST-STORE; PASSIVE supplies the required >=1 ACTIVATION for a standing scoring rule.
 - ✅ **C32 Abort Oriel** · cost: 2 Clay · prereq: see below
   - _You can no longer play this card when any player (including you) has 5 or more cards in front of them.  [CLARIFICATION: This card may be played as one’s fifth card.]_
   - `ONPLAY NONE` — Plain 3 VP; play-restricted once any player has 5+ cards (computable condition).
 - ✅ **C33 Greening Plan** · cost: 3 Food
   - _During scoring, if you then have at least 2/4/5/6 unplanted fields, you get 1/2/3/5 bonus points.  [CLARIFICATION: Garden Designer C099 allows planting of food (see errata) so such fields do not count.  Boar held on unplanted field tiles (from Mud Patch A011) do not affect scoring of this card.  Fields checked after the final harvest is completed.]_
-  - `E-SCORE` — Tiered end-game bonus points for unplanted fields -> plain threshold/count scoring rule, computed at game end.
+  - `PASSIVE E-SCORE` — Plain threshold scoring rule over unplanted-field count (checked at scoring per clarification) -- ordinary E-SCORE, no optimization, no state; PASSIVE as the activation for a standing scoring rule.
 - ✅ **C34 Elephantgrass Plant** · cost: 2 Clay,1 Stone · prereq: 2 Occupations
   - _Immediately after each harvest, you can use this card to exchange exactly 1 reed for 1 bonus point._
-  - `HOOK T-AFTER S-AFTERFEED F-TRIG A-OWN E-CONVERT E-SCORE` — Immediately after each harvest = after the whole harvest ends (S-AFTERFEED, T-AFTER); optionally exchange 1 reed for 1 bonus point through the action (E-CONVERT + HOOK+E-SCORE); per-harvest firing needs no CAP.
+  - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-SCORE ST-COUNTER` — 'Immediately after each harvest' = after the whole harvest, i.e. after the breeding phase (T-AFTER+S-HBREED), not S-AFTERFEED which is the distinct mid-harvest moment between feed and breed. Optional (F-TRIG). Reed->bonus-point is not good-for-good, so no E-CONVERT (reed is an ordinary cost); earned bonus points need a running tally (ST-COUNTER).
 - ✅ **C35 Lantern House** · cost: 1 Wood · prereq: No Occupations
   - _During scoring, you get 1 negative point for each card left in your hand. You cannot discard cards from your hand unplayed. If you already have, you cannot play this card._
-  - `E-SCORE` — Negative bonus point per hand card; the no-discard rule is a play restriction, not a mechanic.
+  - `PASSIVE E-SCORE` — Negative point per hand card is a plain scoring rule (E-SCORE); 'you cannot discard cards unplayed' is a continuous rule change and, with the >=1 ACTIVATION requirement, PASSIVE is the right activation. The no-occupations prereq / play restriction is state-computable — no mechanic.
 - ✅ **C36 Clay Deposit** · cost: 2 Food · prereq: 1 Occupation
   - _Immediately after each time you use a clay accumulation space, you can exchange 1 clay for 1 bonus point. If you do, place the clay on the accumulation space._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-SCHED E-SCORE` — After using a clay accumulation space (S-SPACE, T-AFTER), optionally convert 1 clay to 1 bonus point and place the clay on the space (E-SCHED — future collection), not board geometry; per-use firing needs no CAP.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-SCORE ST-COUNTER EXOTIC` — Optional after-hook on using a clay accumulation space. Clay->bonus point is not E-CONVERT (bonus point isn't a good); the clay is placed on the ACCUMULATION space, not a future round space, so E-SCHED is wrong — placing a good back onto an action space fits no code, hence EXOTIC. Earned bonus points need ST-COUNTER.
 - ⬜ **C37 Dwelling Mound** · cost: 1 Food · prereq: Play in Round 3 or Before
   - _From now on, you must pay 1 food for each new field tile that you place in your farmyard.  [CLARIFICATION: 《You must be able to pay the food cost before placing the field tile.》]_
   - `PASSIVE E-FOODCOST E-COSTMOD` — Continuous rule adding a 1-food cost (convertible) to placing any new field tile.
@@ -648,7 +653,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-OPPTRANSFER` — On play, each other player gains 1 food (gift to opponents).
 - ⬜ **C39 Studio Boat** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time you use the "Traveling Players" accumulation space, you also get 1 bonus point. In games with 1-3 players, this card is considered "Traveling Players" (same effect as "Fishing").  [CLARIFICATION: In 1-3 player games, the card becomes another accumulation space (+1 food) for all.]_
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCORE L-CARDSPACE` — Each time you use the space you also get 1 bonus point (F-AUTO, HOOK+E-SCORE valid); 'each time you use' = T-BEFORE; in 1-3p the card itself becomes an accumulation space (L-CARDSPACE).
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCORE L-CARDSPACE ST-COUNTER` — Both labels agree on the core: mandatory bonus point each use of Traveling Players ('each time you use' -> T-BEFORE), and in 1-3p (incl. this 2p engine) the card IS an accumulation space (L-CARDSPACE). Added ST-COUNTER: bonus points earned through play must be tallied.
 - ⬜ **C40 Canvas Sack** · cost: 1 Grain/1 Reed · prereq: No Occupations
   - _When you play this card paying grain/reed for it, you immediately get 1 vegetable/4 wood._
   - `ONPLAY E-GOODS E-PLAYVARIANT` — Play cost forks grain->1 veg or reed->4 wood; cost and reward linked = play-variant.
@@ -663,19 +668,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-SCHED` — Each time you build a major improvement, place 1 food on each of next 3 round spaces (mandatory schedule).
 - ⬜ **C44 Chicken Coop** · cost: 2 Wood/2 Clay,1 Reed
   - _Place 1 food on each of the next 8 round spaces. At the start of these rounds, you get the food._
-  - `ONPLAY E-SCHED` — Places food on next 8 round spaces, collected at start of those rounds.
+  - `ONPLAY E-SCHED E-ALTCOST` — Places food on the next 8 round spaces = ONPLAY+E-SCHED; the printed cost '2 Wood/2 Clay, 1 Reed' is a pay-A-or-B choice for the same effect → E-ALTCOST, which labelA missed.
 - ✅ **C45 Stew** · cost: 1 Clay
   - _Each time you use the "Day Laborer" action space, also place 1 food on each of the next 4 round spaces. At the start of these rounds, you get the food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCHED` — Each use of Day Laborer also places 1 food on each of next 4 round spaces.
 - ⬜ **C46 Mandoline** · cost: 1 Wood
   - _Once per round, you can pay 1 vegetable to get 1 bonus point. If you do, place 1 food on each of the next 2 round spaces. At the start of these rounds, you get the food._
-  - `ATWILL CAP-ROUND E-CONVERT E-SCORE E-SCHED` — Once per round, pay 1 veg for 1 VP and schedule 1 food onto next 2 round spaces.
+  - `ATWILL CAP-ROUND E-SCHED E-SCORE ST-COUNTER` — 'Once per round, you can' = ATWILL+CAP-ROUND. Vegetable is an ordinary play-time cost (no code) and the food goes onto future round spaces (E-SCHED), so E-CONVERT is not warranted; bonus points earned in play need ST-COUNTER.
 - ✅ **C47 Garden Claw** · cost: 1 Wood
   - _Place 1 food on each remaining round space, up to three times the number of planted fields you have. At the start of these rounds, you get the food._
   - `ONPLAY E-SCHED` — Removed L-GEOMBOARD: placing food on future round spaces is E-SCHED, not board position/order/adjacency geometry.
 - ⬜ **C48 Farmstead** · prereq: 1 Occupation
   - _After each turn in which you make at least one unused farmyard space used, you get 1 food._
-  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-PLACELOG` — After a turn that made an unused farmyard space used, get 1 food (S-TURNEND, T-AFTER, F-AUTO); knowing whether a space became used requires tracking farmyard occupancy change (ST-PLACELOG).
+  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-STORE` — End-of-turn auto hook granting food if the turn made an unused farmyard space used. The condition needs a per-turn flag/snapshot of farmyard used-cells (ST-STORE), not which SPACE a worker was placed on (ST-PLACELOG is about worker placement, irrelevant here).
 - ⬜ **C49 Beer Stall** · cost: 1 Wood
   - _In the feeding phase of each harvest, for each empty unfenced stable you have, you can exchange 1 grain for 5 food._
   - `HOOK T-AFTER S-HFEED F-TRIG A-OWN E-CONVERT CAP-HARVEST` — During feeding: per empty unfenced stable, grain->5 food.
@@ -684,79 +689,79 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS ATWILL E-CONVERT E-ANIMALS` — On play get 1 food per remaining round; at any time exchange 1 sheep+1 boar for 1 cattle (provides an animal needing accommodation).
 - ⬜ **C51 Fishing Net** · cost: 1 Reed
   - _Each time another player uses the "Fishing" accumulation space, they must first pay you 1 food. Then, in the returning home phase of that round, place 2 food on "Fishing".  [CLARIFICATION: Others must have 1 food before using “Fishing”.  Food from the “Fishing” action space may not be used to pay the card owner.  The 2 food is only placed for rounds in which another player used “Fishing”.]_
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-OPPTRANSFER E-SCHED ST-STORE` — Opponent using Fishing pays owner 1 food first, then 2 food placed on Fishing for that round; must track which rounds used.
+  - `HOOK A-OPP F-AUTO S-SPACE T-BEFORE E-OPPTRANSFER S-ROUNDEND T-AFTER E-SCHED ST-STORE` — Two hooks: opponent's Fishing use → they 'must first pay' 1 food (T-BEFORE, S-SPACE, F-AUTO, A-OPP, E-OPPTRANSFER), then at returning-home of that round 2 food is placed on Fishing (S-ROUNDEND, T-AFTER; E-SCHED is the nearest code for placing goods for future collection, though the target is the accumulation space, not a round space). ST-STORE covers the 'was Fishing used by another this round' flag; ST-PROV adds nothing beyond that flag, so dropped.
 - ⬜ **C52 Huntsman's Hat** · cost: 1 Reed · prereq: Cooking Improvement
   - _For each new wild boar you get from the effect of an action space, you also get 1 food._
   - `HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS ST-PROV` — Each new wild boar obtained from an action-space effect also grants 1 food; keyed on obtaining a specific good.
 - ⬜ **C53 Gypsy's Crock** · cost: 2 Clay
   - _Each time you use a cooking improvement to turn 2 goods into food at the same time, you get 1 additional food._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-BAKESPEC E-GOODS ST-PROV` — Using a cooking improvement to turn 2 goods into food at once yields +1 food (E-BAKESPEC, E-GOODS); firing depends on the provenance of the conversion (2 goods at once) → ST-PROV.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-PROV` — Auto +1 food after a cooking-improvement conversion of 2 goods at once; needs the event payload (how many goods converted together) -> ST-PROV. A cooking conversion has no exact seam code — S-SUB is the nearest (labelB's seamless HOOK is invalid; all 4 dimensions required). E-BAKESPEC dropped: the card neither adds a baking improvement nor changes a bake-bread rate — it rides existing cooking conversions.
 - ⬜ **C54 Market Stall** · cost: 1 Stable from Your Supply
   - _After the field phase of each harvest, you can exchange 1 grain plus 1 fence (both from your supply) for 5 food._
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT E-GOODS E-PIECECOST` — After field phase each harvest, optional exchange 1 grain + 1 fence piece for 5 food; fence is a supply piece cost.
 - ✅ **C55 Studio** · cost: 1 Clay,1 Reed
   - _In the feeding phase of each harvest, you can use this card to turn exactly 1 wood/clay/stone into 2/2/3 food._
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS` — Feeding phase each harvest: optional turn wood/clay/stone into food; card acts as a cooking-style converter.
+  - `HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS` — Optional conversion available during the feeding phase (S-HFEED), usable before the feeding payment resolves -> T-BEFORE (labelA omitted the required timing dimension). Wood/clay/stone -> food at a rate = E-CONVERT + E-GOODS.
 - ⬜ **C56 Feed Fence** · cost: 1 Wood
   - _For each new stable you build, you get 1 food—for your last one, get 3 food. Each time you build stables, you can build exactly 1 stable for 1 clay instead of wood.  [CLARIFICATION: This card does not grant the ability to build additional stables, only to change any wood cost into 1 clay.]_
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-COSTMOD ST-STORE` — After building a new stable you get food (3 for the last), which requires knowing which stable is the last one built = ST-STORE; also a cost-mod letting 1 stable be paid in clay. Both hook on the build-stable sub-action.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS PASSIVE E-COSTMOD` — Per-stable food is a mandatory hook on the build-stable sub-action (HOOK/S-SUB/T-AFTER/F-AUTO/A-OWN/E-GOODS); the clay-for-wood substitution is a standing cost modifier → PASSIVE+E-COSTMOD (clarification confirms it only changes the cost). ST-STORE is unneeded: 'your last one' = stable supply exhausted, computable from state, and the exactly-1-per-action cap is transient within-action state.
 - ⬜ **C57 Crudité**
   - _When you play this card, you can immediately buy exactly 1 vegetable for 3 food. At any time, you can discard 1 vegetable on top of another vegetable in a field to get 4 food._
   - `ONPLAY E-GOODS E-CONVERT ATWILL E-CROPMANIP E-FOODCOST` — On play buy 1 veg for 3 food; at-will discard veg onto a field veg for 4 food (manipulates crop on field).
 - ✅ **C58 Woodcraft** · prereq: 1 Occupation
   - _Each time you use a wood accumulation space, if immediately afterward you have at most 5 wood in your supply, you get 1 food.  [CLARIFICATION: This effect is checked before cards that trigger “after”, e.g. Tree Guard C102.]_
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — After using a wood accumulation space, if wood ≤5 get 1 food (S-SPACE, T-AFTER, F-AUTO); clarification pins ordering before after-triggers (event provenance/timing) → ST-PROV; A-OWN required.
+  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS` — Auto after-hook on wood accumulation spaces; the <=5-wood condition is a plain read of current supply at fire time, so no ST-PROV needed (the Tree Guard clarification is firing ORDER, not stored state).
 - ✅ **C59 Schnapps Distillery** · cost: 2 Stone,1 Vegetable
   - _In each feeding phase, you can use this card to turn exactly 1 vegetable into 5 food. During scoring, you get 1 bonus point each for your 5th and 6th vegetable._
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT E-SCORE` — In each feeding phase optionally turn 1 veg into 5 food; bonus points for 5th/6th veg.
+  - `HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT E-SCORE` — Optional per-feeding-phase conversion (HOOK/S-HFEED/F-TRIG/A-OWN/E-CONVERT) — all four HOOK dimensions are mandatory, so a timing tag is required and T-BEFORE fits (the conversion is available before the feeding payment resolves; labelA omitted timing). The 5th/6th-vegetable bonus is a plain E-SCORE rule.
 - ⬜ **C60 Small Potter's Oven** · cost: 2 Clay · prereq: Return the Clay/Stone Oven
   - _When you play this card, you immediately get 5 food. Each time before you get a "Bake Bread" action, you can build the "Clay Oven" or "stone Oven" major improvement.  [CLARIFICATION: Is an oven, is not an upgrade, and cannot bake.]_
   - `ONPLAY E-GOODS E-RETURNCOMP HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GRANTACT` — On play get 5 food (ONPLAY, E-GOODS) after returning the Clay/Stone Oven (E-RETURNCOMP); before each Bake Bread action may build the Clay/Stone Oven major (T-BEFORE, S-SUB, F-TRIG, E-GRANTACT); no L-EXT needed.
 - ✅ **C61 Beer Stein** · cost: 1 Clay
   - _Each time you take a "Bake Bread" action, you can use this card once to turn 1 grain into 2 food and 1 bonus point.  [CLARIFICATION: You must bake normally to make this exchange.]_
-  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE CAP-TURN ST-STORE` — "Each time you take a Bake Bread action, you can use this once" = HOOK on bake sub-action, before, optional; A-OWN default. Converts 1 grain->2food+1pt (E-CONVERT/E-GOODS + action-earned E-SCORE ok with HOOK). Once-per-action = CAP-TURN + a per-action uses flag = ST-STORE.
+  - `HOOK S-SUB T-BEFORE F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE ST-COUNTER` — Optional exchange on each Bake Bread sub-action (T-BEFORE default); 'once' per action is the hook's inherent per-occurrence limit, so no CAP-TURN (CAP-* caps ATWILL only) and no ST-STORE; accrued bonus points are a running game count -> ST-COUNTER.
 - ⬜ **C62 Cooking Hearth Extension** · cost: 2 Clay
   - _Each harvest, you can use each of your cooking improvements once to get double the amount of food for 1 animal or vegetable._
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS E-BAKESPEC` — Each harvest use each cooking improvement once for double food from 1 animal/veg; modifies cooking conversion.
+  - `HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT E-GOODS ST-STORE` — Optional doubled cooking conversion during each harvest's feeding; needs a per-harvest used-flag per cooking improvement (ST-STORE). It changes cooking (animal/veg->food) rates, not baking/bake-bread, so E-BAKESPEC is wrong; all 4 hook dimensions required, T-BEFORE default.
 - ⬜ **C63 Craft Brewery** · cost: 2 Wood,1 Clay
   - _In the feeding phase of each harvest, you can use this card to exchange 1 grain from your supply plus 1 grain from a field for 2 bonus points and 4 food._
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE E-CROPMANIP` — Feeding phase each harvest: exchange 1 supply grain + 1 field grain for 2 bonus points and 4 food.
+  - `HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT E-CROPMANIP E-GOODS E-SCORE ST-COUNTER` — Optional feeding-phase exchange (supply grain + a field grain -> food + bonus points): field grain removal = E-CROPMANIP; repeatedly-earned bonus points accumulate over the game -> ST-COUNTER; hook needs a timing tag (T-BEFORE default); once-per-harvest is inherent, no CAP.
 - ⬜ **C64 Corn Schnapps Distillery** · cost: 1 Wood,2 Clay
   - _Once per round, you can pay 1 grain to place 1 food on each of the next 4 round spaces. At the start of these rounds, you get the food._
-  - `ATWILL CAP-ROUND E-SCHED E-CONVERT` — Once per round, pay 1 grain to place 1 food on each of next 4 round spaces, collected at start of rounds.
+  - `ATWILL CAP-ROUND E-SCHED` — 'Once per round, you can pay 1 grain' = ATWILL + CAP-ROUND; the grain is an ordinary resource cost (no code per rulings), and the food lands on future round spaces = E-SCHED, not an immediate good-for-good exchange, so E-CONVERT is not warranted.
 - ⬜ **C65 Granary** · cost: 3 Wood/3 Clay
   - _Place 1 grain each on the remaining spaces for rounds 8, 10, and 12. At the start of these rounds, you get the grain._
-  - `ONPLAY E-SCHED` — Places grain on rounds 8/10/12 spaces, collected at start.
+  - `ONPLAY E-SCHED E-ALTCOST` — One-time on-play scheduling of grain onto future round spaces; the printed cost '3 Wood/3 Clay' is an either-or play cost, which is exactly E-ALTCOST — labelA missed it.
 - ⬜ **C66 Eternal Rye Cultivation** · prereq: 1 Grain Field
   - _After each harvest in which you have 2 or 3+ grain in your supply, you get 1 food and 1 additional grain, respectively.  [ERRATA: ERRATA: last “and” should be “or”]_
-  - `HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-GOODS` — After each harvest, mandatory gain of loose food/grain based on grain count. Plain goods only; no sub-action granted, so E-GRANTSUB is wrong. A-OWN default on own hook.
+  - `HOOK S-HBREED T-AFTER F-AUTO A-OWN E-GOODS` — 'After each harvest' means after the whole harvest completes, i.e. after the breeding phase (S-HBREED + T-AFTER), not merely after feeding (S-AFTERFEED is the feed/breed seam); the 2-vs-3+ grain read is deterministic, so F-AUTO, plain goods gain.
 - ⬜ **C67 Mineral Feeder** · cost: 1 Reed
   - _At the start of each round that does not end with a harvest, if you have at least 1 sheep in a pasture, you get 1 grain._
-  - `HOOK S-SOR F-AUTO A-OWN E-GOODS` — Start of each non-harvest round, if >=1 sheep in a pasture, get 1 grain.
+  - `HOOK S-SOR T-BEFORE F-AUTO A-OWN E-GOODS` — Automatic start-of-round grain gated on a plain state read (sheep in a pasture; non-harvest rounds are fixed round numbers, no geometry); HOOK requires all 4 dimensions, so the default T-BEFORE is included.
 - ✅ **C68 Bookcase** · cost: 2 Wood · prereq: 1 Occupation
   - _Each time after you play an occupation, you get 1 vegetable._
   - `HOOK T-AFTER S-PLAY F-AUTO A-OWN E-GOODS` — After playing an occupation, get 1 vegetable.
 - ⬜ **C69 Land Consolidation**
   - _At any time, you can exchange 3 grain in a field for 1 vegetable in that field._
-  - `ATWILL E-CONVERT E-CROPMANIP` — At any time, exchange 3 grain in a field for 1 vegetable in that field; manipulates crops on field.
+  - `ATWILL E-CONVERT E-CROPMANIP` — 'At any time' exchange = ATWILL; 'exchange 3 grain for 1 vegetable' is literally a good-for-good conversion at a rate (E-CONVERT), and both operands live ON a field, so it also manipulates planted crops (E-CROPMANIP) — both tags apply.
 - ⬜ **C70 Lettuce Patch** · prereq: 3 Occupations
   - _This card is a field that can only grow vegetables. You can immediately turn each vegetable you harvested from this card into 4 food._
-  - `ONPLAY L-CARDFIELD E-CONVERT` — Kept L-CARDFIELD: the card itself IS a field you sow/harvest vegetables on.
+  - `PASSIVE L-CARDFIELD HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT ST-PROV` — Card-is-a-veg-only-field is a standing rule (PASSIVE + L-CARDFIELD, nothing fires on play — labelA's ONPLAY is wrong); the 'immediately turn each vegetable you harvested from this card into 4 food' is an optional conversion fired right after the harvest field phase (T-AFTER/S-HFIELD/F-TRIG/A-OWN) and needs provenance of which veg came off this card (ST-PROV).
 - ⬜ **C71 Slurry Spreader**
   - _In the breeding phase of each harvest, if you get newborn animals of at least two types, you also get a "Sow" action.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.]_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-GRANTSUB` — Breeding phase: if newborns of >=2 types, also get a Sow action (optional granted sub-action).
 - ⬜ **C72 Harvest Festival Planning** · cost: 1 Food · prereq: 2 Occupations
   - _When you play this card, immediately carry out the field phase of the harvest. Afterwards, you get a "Major or Minor Improvement" action.  [CLARIFICATION: This is not a harvest and is for you only.]_
-  - `ONPLAY E-CROPMANIP E-GRANTACT` — On play, carry out just the field phase (not a real harvest, own only), then get a Major-or-Minor Improvement action.
+  - `ONPLAY E-FOODCOST E-CROPMANIP E-GOODS E-GRANTACT` — One-shot on play: invokes the field-harvest rule out of schedule (E-CROPMANIP) which delivers crops to the supply (E-GOODS), then grants a full Major-or-Minor Improvement action (E-GRANTACT); the 1-Food play cost is explicitly flaggable per the rulings -> E-FOODCOST.
 - ⬜ **C73 Seaweed Fertilizer** · cost: 2 Food
   - _Each time after you take an unconditional "Sow" action, you get 1 grain from the general supply. From round 11 on, you can get 1 vegetable instead._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — "Each time after you take an unconditional Sow action, you get 1 grain" is mandatory automatic gain (F-AUTO); the round-11 grain-or-veg option is a from-round-11 alternative, not a decline/mandatory-either-or fork, so F-MANDCHOICE/F-TRIG overstate it. Plain E-GOODS.
+  - `HOOK T-AFTER S-SUB F-AUTO F-MANDCHOICE A-OWN E-GOODS E-FOODCOST` — Mandatory post-sow gain (F-AUTO); from round 11 it is 'grain OR vegetable' with no decline = the F-MANDCHOICE exemplar; 2-Food play cost flagged E-FOODCOST per the cost ruling.
 - ✅ **C74 Private Forest** · cost: 2 Food · prereq: 1 Occupation
   - _Place 1 wood on each remaining even-numbered round space. At the start of these rounds, you get the wood._
   - `ONPLAY E-SCHED` — Wood on remaining even round spaces, collected at start.
 - ⬜ **C75 Firewood** · cost: 2 Food
   - _In the returning home phase of each round, place 1 wood on this card. Each time before you build a Fireplace, Cooking Hearth, or oven, move up to 4 wood from this card to your supply._
-  - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN ST-STACK T-BEFORE S-SUB F-TRIG E-COSTMOD` — Two hooks: returning-home phase places 1 wood on card (F-AUTO, stack); before building Fireplace/Hearth/oven you may pull up to 4 wood to spend on that build = a cost defrayal via on-card pool = E-COSTMOD on the build sub-action, optional. ST-STACK for the on-card wood pile. Not a plain E-CONVERT.
+  - `HOOK T-BEFORE T-AFTER S-ROUNDEND S-MAJMIN F-AUTO F-TRIG A-OWN E-GOODS ST-STACK E-FOODCOST` — Two hooks: auto wood-to-card each returning-home (S-ROUNDEND/F-AUTO) and optional 'up to 4' wood-to-supply before building an improvement (T-BEFORE/F-TRIG). Moving wood to supply is a goods gain, not a cost change (E-GOODS, not E-COSTMOD); improvement-building is not in the S-SUB primitive list, so S-MAJMIN. 2-Food play cost = E-FOODCOST.
 - ✅ **C76 Wood Cart** · cost: 3 Wood · prereq: 3 Occupations
   - _Each time you use a wood accumulation space, you get 2 additional wood._
   - `HOOK T-BEFORE S-SPACE A-OWN F-AUTO E-GOODS` — Each time using a wood accumulation space, +2 wood. Space-seam hook, own, automatic.
@@ -771,16 +776,16 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-SCHED` — Stone on remaining even round spaces, collected at start.
 - ✅ **C80 Rocky Terrain** · cost: 1 Food
   - _Each time you plow a field (tile or card), you can also buy 1 stone for 1 food.  [CLARIFICATION: Playing field cards counts as plowing a field.]_
-  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-CONVERT E-FOODCOST` — Removed L-CARDFIELD: hooks the plow sub-action (incl. playing field cards); it does not make this card itself a field to sow/harvest on.
+  - `HOOK T-AFTER S-SUB S-PLAY F-TRIG A-OWN E-CONVERT E-FOODCOST E-GOODS` — Optional buy alongside each plow: food-for-stone exchange (E-CONVERT + E-FOODCOST + gained stone E-GOODS, matching the agreed C82 shape). Clarification makes field-card plays trigger it too, so S-PLAY joins the plow S-SUB seam.
 - ⬜ **C81 Material Hub** · cost: 1 Wood,1 Clay · prereq: 1 Reed and 1 Stone in Your Supply
   - _Immediately place 2 of each building resource on this card. Each time any player (including you) takes at least 5 wood, 4 clay, 3 reed, or 3 stone, you get 1 of that building resource from this card._
-  - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN A-OPP E-GOODS ST-STACK` — On play, seed 2 of each resource onto card (ONPLAY). Each time ANY player obtains >=threshold of a resource, you take 1 from the card = S-OBTAIN hook, mandatory, fires on own and opponent actions (A-OWN+A-OPP), consuming an on-card pile = ST-STACK. ST-STORE redundant given ST-STACK.
+  - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN A-OPP E-GOODS ST-STACK ST-PROV` — On-play stocks the card (ST-STACK); auto hook on ANY player obtaining resources (A-OWN + A-OPP, S-OBTAIN) that must read the event payload — which resource and how many — to test the 5/4/3/3 thresholds, hence ST-PROV.
 - ✅ **C82 Hardware Store** · cost: 1 Wood,1 Clay
   - _Each time after you use the "Day Laborer" action space, you can pay 2 food total to buy 1 wood, 1 clay, 1 reed, and 1 stone._
-  - `HOOK T-AFTER S-SPACE A-OWN F-TRIG E-GOODS E-FOODCOST` — After using the named Day Laborer space, may pay 2 food to buy 1 of each resource. Optional post-space purchase, food cost.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-FOODCOST E-GOODS` — Optional after-Day-Laborer purchase: 2 food exchanged for four resources — a food-cost conversion yielding goods (E-CONVERT + E-FOODCOST + E-GOODS), same shape as C80's buy.
 - ⬜ **C83 Early Cattle** · prereq: 1 Pasture
   - _When you play this card, you immediately get 2 cattle._
-  - `ONPLAY E-GOODS E-ANIMALS` — On play immediately get 2 cattle — animals must be accommodated.
+  - `ONPLAY E-ANIMALS` — One-time on-play gain of 2 cattle; animals are flagged E-ANIMALS (accommodation required), not E-GOODS (goods/food/crops only). Printed -3 VP circle needs no code.
 - ⬜ **C84 Perennial Rye** · cost: 1 Food · prereq: 2 Occupations
   - _Each round that does not end with a harvest, you can pay 1 grain to breed exactly 1 type of animal. (This is not considered a breeding phase.)_
   - `HOOK S-ROUNDEND F-TRIG A-OWN E-BREEDMOD E-ANIMALS CAP-ROUND` — Non-harvest round: pay 1 grain to breed 1 type off-phase.
@@ -792,7 +797,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GRANTSUB E-PASSING L-GEOMFARM` — Kept L-GEOMFARM: the plowed field must complete a 'zigzag' pattern — a shape constraint on farm tiles.
 - ✅ **D2 Dwelling Plan** · cost: 1 Food · passing
   - _You can immediately take a "Renovation" action._
-  - `ONPLAY E-GRANTACT E-PASSING` — On play grants an immediate Renovation action; passing minor.
+  - `ONPLAY E-GRANTSUB E-PASSING E-FOODCOST` — Grants the renovate primitive — explicitly listed under E-GRANTSUB (no standalone 'Renovation' action space exists), not a whole-action grant; passing minor; 1-Food play cost = E-FOODCOST per the cost ruling.
 - ⬜ **D3 Furrows** · passing
   - _You can immediately sow in exactly 1 field._
   - `ONPLAY E-GRANTSUB E-PASSING` — On play grants an immediate sow in exactly 1 field; passing minor.
@@ -801,10 +806,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS E-PASSING` — On play get wood equal to stone in supply (plain conditional goods read); passing minor.
 - ✅ **D5 Field Clay** · cost: 1 Food · prereq: 1 Planted Field · passing
   - _You immediately get 1 clay for each planted field you have._
-  - `ONPLAY E-GOODS E-PASSING` — On play, gain 1 clay per planted field (plain state-read count); passing minor.
+  - `ONPLAY E-GOODS E-PASSING E-FOODCOST` — Immediate clay per planted field (plain state read, E-GOODS) on a passing minor; the 1-Food play cost is flagged E-FOODCOST because food costs may need crop/animal conversion (the explicit exception in the cost ruling).
 - ✅ **D6 Petrified Wood** · prereq: 2 Occupations · passing
   - _Immediately exchange up to 3 wood for 1 stone each._
-  - `ONPLAY E-CONVERT E-PASSING` — On play, exchange up to 3 wood for 1 stone each; passing minor.
+  - `ONPLAY E-CONVERT E-PASSING` — Pure on-play exchange (wood->stone) is E-CONVERT; the gained stone comes only via the conversion, so E-GOODS is redundant over-tagging. passing_left='X' in the data confirms E-PASSING.
 - ✅ **D7 Trident** · cost: 1 Wood · prereq: Play in Round 3, 6, 9, or 12 · passing
   - _If you play this card in round 3/6/9/12, you immediately get 3/4/5/6 food._
   - `ONPLAY E-GOODS E-PASSING` — On play gain food scaled by round (plain goods, round-conditional read is just a prerequisite/state read); passing minor. NONE is wrong since it is not the sole tag when E-GOODS/E-PASSING apply.
@@ -813,88 +818,88 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS E-GRANTSUB E-PASSING` — Gain 2 food + 1 grain that must be sown immediately (mandatory grant of sow sub-action); passing.
 - ✅ **D9 Game Trade** · cost: 2 Sheep · passing
   - _You immediately get 1 wild boar and 1 cattle. (effectively, you are exchanging 2 sheep for 1 wild boar and 1 cattle.)_
-  - `ONPLAY E-GOODS E-ANIMALS E-PASSING` — On play gain 1 boar + 1 cattle (must accommodate); passing minor.
+  - `ONPLAY E-ANIMALS E-PASSING` — Passing minor (catalog passing_left='X') that grants animals on play; animals are E-ANIMALS not E-GOODS (labelA's E-GOODS is wrong), and the 2-sheep play cost is an ordinary animal cost needing no code.
 - ⬜ **D10 Stork's Nest** · cost: 1 Reed · prereq: 5 Occupations
   - _In the returning home phase of each round, if you have more rooms than people, you can pay 1 food to take a "Family Growth" action.  [CLARIFICATION: To clarify, this can only be used once per round.]_
-  - `HOOK S-ROUNDEND F-TRIG A-OWN E-FOODCOST E-GRANTSUB E-GROWTH` — In returning-home phase each round, if more rooms than people, pay 1 food to take Family Growth; once per round by nature of hook.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-FOODCOST E-GRANTSUB E-GROWTH` — Optional pay-1-food family growth firing in the returning-home phase; a HOOK must carry all four dimensions and returning home is an end-of-round seam, so T-AFTER (labelA omitted the timing). Once-per-round is inherent to a per-round hook, no CAP tag.
 - ⬜ **D11 Lawn Fertilizer**
   - _Your pastures of size 1 can hold up to 3 animals of the same type. (With a stable, they can hold up to 6 animals of the same type.)_
   - `PASSIVE E-CAPGROW` — Continuous capacity increase for size-1 pastures.
 - ⬜ **D12 Milking Place** · cost: 1 Grain
   - _In the feeding phase of each harvest, you get 1 food. You can no longer hold animals in your house (not even via another card)._
-  - `HOOK S-HFEED F-AUTO A-OWN E-GOODS E-CAPNEG` — Each feeding phase get 1 food; can no longer hold animals in house.
+  - `HOOK T-BEFORE S-HFEED F-AUTO A-OWN E-GOODS PASSIVE E-CAPNEG` — Mandatory 1 food each feeding phase (arrives during feeding, usable to pay it → T-BEFORE; labelA omitted the required timing dimension), plus a separate always-on capacity removal — 'can no longer hold animals in your house' is PASSIVE + E-CAPNEG.
 - ⬜ **D13 Trowel** · cost: 1 Wood
   - _At any time, you can renovate your house to stone. From a wooden house, this costs 1 stone, 1 reed, and 1 food per room. From a clay house, this costs 1 stone per room._
-  - `ATWILL E-GRANTACT E-COSTMOD E-FOODCOST L-EXT` — "At any time you can renovate to stone" = ATWILL grant of the Renovate action with a custom cost formula (E-COSTMOD) that includes food (E-FOODCOST); renovating directly wood->stone is a new renovation target/path = L-EXT.
+  - `ATWILL E-GRANTSUB E-COSTMOD E-FOODCOST L-EXT` — Renovate is a listed primitive sub-action, so the at-will grant is E-GRANTSUB (not E-GRANTACT); replacement cost formula = E-COSTMOD; '1 food per room' = E-FOODCOST; wood->stone directly is a new renovation target = L-EXT.
 - ⬜ **D14 Hammer Crusher** · cost: 1 Wood
   - _Immediately before you renovate to stone, you get 2 clay and 1 reed and you can take a "Build Rooms" action._
-  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS E-GRANTACT` — Before renovating to stone: auto get 2 clay+1 reed and may take a Build Rooms action (goods auto, action optional).
+  - `HOOK T-BEFORE S-SUB F-AUTO F-TRIG A-OWN E-GOODS E-GRANTACT` — Fires before the renovate sub-action; the goods grant ('you get') is mandatory F-AUTO while the granted Build Rooms action is optional per the ruling -> F-TRIG; both firing kinds apply. Build Rooms is a whole action -> E-GRANTACT.
 - ✅ **D15 Clay Supports** · cost: 2 Wood
   - _Each time you build a clay room, you can pay 2 clay, 1 wood, and 1 reed instead of 5 clay and 2 reed._
-  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-COSTMOD` — Each time you build a clay room, may pay an alternative cost formula -> cost-modifier hook on the build-room sub-action, optional.
+  - `PASSIVE E-COSTMOD` — An alternative build-cost formula for clay rooms is a continuous cost-rule change resolved inside payment enumeration, not a fired event — the taxonomy's PASSIVE definition explicitly covers cost changes; the 'you can... instead' choice is just picking among payment options.
 - ✅ **D16 Wooden Whey Bucket** · cost: 1 Wood,1 Food
   - _Each time before you use the "Sheep Market"/"Cattle Market" accumulation space, you can build exactly 1 stable for 1 wood/at no cost._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-PIECECOST E-COSTMOD` — "Each time before you use Sheep/Cattle Market you can build exactly 1 stable for 1 wood/at no cost" = before-space HOOK granting a build-stable sub-action (E-GRANTSUB, uses a stable piece = E-PIECECOST). The reduced/zero wood cost vs normal stable = E-COSTMOD. Optional.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-COSTMOD E-FOODCOST` — Before-space hook granting an optional stable build; the grant carries its own discounted cost (1 wood / free vs normal 2 wood) -> E-COSTMOD. E-PIECECOST is wrong (the stable is built, not paid with). Play cost includes 1 Food -> E-FOODCOST per the ruling.
 - ✅ **D17 Drill Harrow** · cost: 1 Wood
   - _Each time before you take an unconditional "Sow" action, you can pay 3 food to plow 1 field._
   - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Before an unconditional Sow, optionally pay 3 food to plow 1 field.
 - ⬜ **D18 Steam Plow** · cost: 1 Wood,1 Food
   - _Immediately after each returning home phase, you can pay 2 wood and 1 food to use the "Farmland" action space without placing a person._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GRANTACT E-NOPLACE` — After each returning-home phase, optionally pay 2 wood+1 food to use Farmland without placing a person.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GRANTACT E-NOPLACE E-FOODCOST` — After returning home, optionally pay 2 wood + 1 food (an effect that costs food -> E-FOODCOST; play cost also includes food) to use Farmland without placing a person (E-GRANTACT + E-NOPLACE).
 - ✅ **D19 Pulverizer Plow** · cost: 2 Wood · prereq: 1 Occupation
   - _Immediately after each time you use a clay accumulation space, you can pay 1 clay to plow 1 field. If you do, place that 1 clay on the accumulation space._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB ST-PROV` — After using a clay accumulation space, optionally pay 1 clay to plow 1 field, placing that clay back on the space; the plow is a granted sub-action (F-TRIG), and returning the specific clay to the space it came from needs event provenance (ST-PROV). Not E-CONVERT — no good is exchanged for another; the clay is spent and re-placed.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB ST-PROV` — After-space hook granting an optional plow; placing 'that 1 clay' back on THE triggering accumulation space needs the event's payload (which space fired) -> ST-PROV.
 - ✅ **D20 Turnwrest Plow** · cost: 3 Wood · prereq: 2 Occupations
   - _Place 2 field tiles on this card. Each time you use the "Farmland" or "Cultivation" action space, you can also plow up to 2 fields from this card._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB ST-STACK` — Card holds a POOL of 2 field tiles you plow onto your farm (ST-STACK); the card is not itself a sown/harvested field -> L-CARDFIELD removed.
 - ⬜ **D21 Recruitment** · cost: 1 Food · prereq: No People Left in the House
   - _Provided you have room in your house, each time you get a "Minor Improvement" action, you can take a "Family Growth" action instead.  [ERRATA: ERRATA: From Round 5 onwards (this is already the case in other language printings.)]_
-  - `HOOK T-BEFORE S-MAJMIN F-TRIG A-OWN E-SUBSTITUTE E-GROWTH E-GRANTSUB` — Each time you get a Minor Improvement action, you may take Family Growth instead — replaces the action (E-SUBSTITUTE), grants family growth (E-GROWTH is a granted sub-action, E-GRANTSUB), fires before the substituted action (T-BEFORE), optional (F-TRIG).
+  - `HOOK T-BEFORE S-MAJMIN F-TRIG A-OWN E-SUBSTITUTE E-GROWTH E-GRANTSUB E-FOODCOST` — Union of both labels: replaces a granted Minor Improvement action with Family Growth (E-SUBSTITUTE + E-GROWTH; family growth is a listed grantable sub-action -> E-GRANTSUB), and the 1-Food play cost is E-FOODCOST per the ruling.
 - ⬜ **D22 Work Permit** · cost: 1 Food · prereq: At Least 1 Building Resource in Your Supply
   - _Add 1 to the current round for each building resource you have and place 1 person from your supply on the corresponding round space. In that round, you can use the person._
   - `ONPLAY E-SCHED E-EXTRAPLACE` — Schedules an extra person onto a count-derived round space -- scheduling + extra placement, not board geometry -> L-GEOMBOARD removed.
 - ⬜ **D23 Pioneering Spirit**
   - _This card is an action space for you only. In rounds 3-5, it provides a "renovation" action. In rounds 6-8, it provides your choice of 1 vegetable, wild boar, or cattle._
-  - `L-CARDSPACE E-GRANTACT E-GOODS E-ANIMALS F-MANDCHOICE` — Kept L-GEOMBOARD: the card's effect depends on specific round-number bands (rounds 3-5 vs 6-8) — round-space numbers.
+  - `PASSIVE L-CARDSPACE E-GRANTSUB E-GOODS E-ANIMALS` — A personal action space is an always-on structural change -> PASSIVE + L-CARDSPACE (label A had no ACTIVATION and F-MANDCHOICE without HOOK, which is invalid); 'renovation' is a primitive sub-action -> E-GRANTSUB; later rounds give a vegetable (E-GOODS) or boar/cattle (E-ANIMALS). Round bands 3-5/6-8 are fixed, not geometry.
 - ⬜ **D24 Brotherly Love** · cost: 1 Food
   - _As long as you have exactly 4 people, in the work phase of each round, you can place your third and fourth person immediately after one another, even on the same action space._
-  - `PASSIVE E-EXTRAPLACE` — With exactly 4 people, place 3rd and 4th person back-to-back (extra consecutive placement); always-on rule change.
+  - `PASSIVE E-EXTRAPLACE E-FOODCOST L-OCCUPY` — Always-on rule change (PASSIVE) letting the 3rd+4th persons be placed back-to-back (E-EXTRAPLACE) 'even on the same action space' — that is using a space already occupied by your own worker (L-OCCUPY); the ruling flags food play-costs, so the 1-Food cost is E-FOODCOST.
 - ⬜ **D25 Witches' Dance Floor** · prereq: see below
   - _This card is a field that you can sow in, an occupation, and the "Fireplace" major improvement with all of its effects. You can play it only via a "Minor Improvement" action.  [ERRATA: ERRATA: The card grants no actual Fireplace goods-to-food conversions.]  [CLARIFICATION: This card counts as either 1 field, 1 occupation, 1 minor improvement, or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as multiple entities at once.]_
   - `ONPLAY EXOTIC L-CARDFIELD E-BAKESPEC` — Multi-entity: counts as field / occupation / minor / Fireplace major.
 - ⬜ **D26 Carpenter's Yard** · cost: 1 Wood,1 Reed
   - _You can build the "Joinery" and "Well" major improvement even when taking a "Minor Improvement" action, or you can build both with a single "Major Improvement" action._
-  - `PASSIVE L-EXT E-GRANTACT` — Extends where Joinery/Well can be built (Minor Improvement action) and lets both be built with one Major Improvement action — a legality extension (L-EXT) granting an action variant (E-GRANTACT), always-on (PASSIVE). No cost change — the improvements' own costs are unchanged, so not E-COSTMOD.
+  - `PASSIVE E-SUBSTITUTE L-EXT` — No standalone action is granted — the card modifies existing actions: a Minor-Improvement action may build Joinery/Well INSTEAD of a minor (E-SUBSTITUTE) and one Major action may build both, both legality/eligibility extensions of those actions (L-EXT), always on (PASSIVE). E-GRANTACT is wrong: nothing grants a whole new action.
 - ⬜ **D27 Retraining** · cost: 1 Food · prereq: 1 Occupation
   - _At the end of each turn in which you renovate, you can exchange your Joinery for the Pottery or your Pottery for the Basketmaker's Workshop._
-  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-RETURNCOMP E-CONVERT` — At end of each turn in which you renovate (sub-action), optionally exchange one built major for another along a fixed chain.
+  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-RETURNCOMP E-FOODCOST` — Optional ('you can') hook after your own renovate sub-action; swapping a built major for another is returning a placed component for a benefit (E-RETURNCOMP), not a goods exchange — E-CONVERT is for goods, so drop it; the 1-Food play cost gets E-FOODCOST per the cost ruling.
 - ✅ **D28 Writing Desk** · cost: 1 Wood · prereq: 2 Occupations
   - _Each time you use a "Lessons" action space, you can play 1 additional occupation for an occupation cost of 2 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Each time you use a Lessons space you may play 1 additional occupation for 2 food. Playing a card is a primitive sub-action = E-GRANTSUB; the 2-food occupation cost is E-FOODCOST.
 - ⬜ **D29 Muck Rake** · cost: 1 Wood
   - _During scoring, you get 1 bonus point for exactly 1 unfenced stable holding exactly 1 sheep. The same applies to wild boar and cattle, if held in different unfenced stables._
-  - `E-SCORE` — Bonus point per unfenced stable holding exactly 1 of each animal type -> end-game scoring rule (threshold/coverage, not an optimization).
+  - `PASSIVE E-SCORE E-SCOREOPT` — Pure end-game bonus rule (E-SCORE, no HOOK per ruling) whose value depends on how animals are assigned to unfenced stables (exactly-1-sheep alone, boar/cattle in different stables) — a genuine arrangement optimization, not a plain count → E-SCOREOPT; PASSIVE supplies the required activation tag for a scoring-only rule.
 - ✅ **D30 Artisan District** · cost: 1 Stone · prereq: 3 Occupations
   - _During scoring, you get 2/5/8 bonus points for having 3/4/5 major improvements from the bottom row of the supply board._
-  - `E-SCORE` — Plain end-game bonus-point rule (2/5/8 for 3/4/5 bottom-row majors) — a threshold count, E-SCORE only; scoring rules never carry PASSIVE.
+  - `PASSIVE E-SCORE` — Pure end-game bonus rule (E-SCORE, computed — no HOOK) over a plain count of majors; the >=1-ACTIVATION requirement makes the always-on scoring rule PASSIVE. Bottom-row-of-supply-board is fixed, not L-GEOMBOARD.
 - ✅ **D31 Storeroom** · cost: 1 Wood,2 Stone
   - _During scoring, you get 1/2 bonus point for each pair of grain plus vegetable you have (considering all crops in your supply and fields), rounded up._
-  - `E-SCORE` — End-game bonus points per grain+veg pair across supply and fields — a plain count-based scoring rule, E-SCORE only.
+  - `PASSIVE E-SCORE` — Plain pair-count scoring rule over supply+field crops — ordinary E-SCORE (no optimization, no hook); PASSIVE supplies the required activation for an always-on scoring rule.
 - ✅ **D32 Wood Rake** · cost: 1 Wood
   - _During scoring, if you had at least 7 goods in your fields before the final harvest, you get 2 bonus points._
-  - `E-SCORE ST-STORE` — Bonus points conditioned on goods-in-fields BEFORE the final harvest — that pre-harvest quantity must be snapshotted (ST-STORE); the score itself is E-SCORE (not PASSIVE).
+  - `PASSIVE E-SCORE ST-STORE` — Scoring rule (E-SCORE, PASSIVE activation) that depends on the field-goods count BEFORE the final harvest — the engine must snapshot that value, hence ST-STORE.
 - ✅ **D33 Summer House** · cost: 3 Wood,1 Stone · prereq: Still in Wooden House
   - _During scoring, if you live in a stone house, you get 2 bonus points for each unused farmyard space orthogonally adjacent to your house. (You still lose the points for these unused spaces.)_
-  - `E-SCORE L-GEOMFARM` — Kept L-GEOMFARM: scores unused farmyard spaces orthogonally adjacent to the house — an adjacency/shape relation between farm tiles.
+  - `PASSIVE E-SCORE L-GEOMFARM` — Scoring rule (E-SCORE, PASSIVE activation) keyed on unused spaces ORTHOGONALLY ADJACENT to the house — genuine farm-tile adjacency, so L-GEOMFARM.
 - ✅ **D34 Luxurious Hostel** · cost: 1 Wood,2 Clay
   - _During scoring, if you then have more stone rooms than people, you get 4 bonus points. You can only use one card to get bonus points for your stone house._
-  - `E-SCORE E-SCOREGRP` — End-game bonus-point rule (stone rooms > people) is E-SCORE; the mutual-exclusion clause is E-SCOREGRP. Scoring is computed, not a fired PASSIVE rule-change; pass2 correct.
+  - `PASSIVE E-SCORE E-SCOREGRP` — Threshold scoring rule (stone rooms > people → 4 pts; E-SCORE, PASSIVE activation) with the explicit mutual-exclusion clause 'only one card for stone-house bonus points' → E-SCOREGRP.
 - ✅ **D35 Fodder Chamber** · cost: 3 Stone,3 Grain
   - _During scoring in a game with 1/2/3/4+ players, you get 1 bonus point for every 7th/5th/4th/3rd animal on your farm._
-  - `E-SCORE` — Plain threshold count of animals for bonus points at scoring — ordinary E-SCORE, not a passive rule change; pass2 correct.
+  - `E-SCORE` — Plain threshold-count scoring rule; corpus convention is pure E-SCORE with no activation code (matches A98/A133/D30/D31) — PASSIVE is not used for scoring rules.
 - ⬜ **D36 Breed Registry** · prereq: No Sheep
   - _During scoring, if you gained at most 2 sheep from sources other than breeding during the game and have not turned any sheep into food, you get 3 bonus points._
-  - `E-SCORE ST-COUNTER` — Bonus points at scoring conditioned on tracked history (sheep gained non-breeding + none turned to food) needs a running count — E-SCORE + ST-COUNTER; PASSIVE is not a scoring code.
+  - `E-SCORE ST-COUNTER` — Scoring conditioned on game-long tracked history (non-breeding sheep gains + no sheep cooked) = E-SCORE + ST-COUNTER; no PASSIVE for scoring rules, and per B99 a source-filtered running count is ST-COUNTER alone, not ST-PROV.
 - ✅ **D37 Sculpture** · cost: 1 Stone · prereq: see below
   - _You can only play this card if there are more complete rounds left to play than you have unused farmyard spaces._
   - `ONPLAY NONE` — Plain 2 VP; play-restricted by rounds-left vs unused-spaces (computable condition).
@@ -903,7 +908,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS E-SCORE` — Field phase of each harvest: get food by cattle threshold; plus end-game bonus per 2 cattle.
 - ✅ **D39 Truffle Slicer** · cost: 1 Wood · prereq: Play in Round 8 or Later
   - _Each time you use a wood accumulation space, if you have at least 1 wild boar, you can pay 1 food for 1 bonus point._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-FOODCOST EXOTIC` — Each time you use a wood accumulation space, if you have a boar, may pay 1 food for 1 bonus point -> buying VP mid-game with food; keyed on named space type.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-FOODCOST E-SCORE ST-COUNTER` — Optional pay-1-food-for-1-bonus-point on each wood-accumulation-space use — the key ruling explicitly sanctions HOOK + E-SCORE for bonus points earned through an action, so labelA's EXOTIC is wrong; earned bonus points accumulate over the game (ST-COUNTER); 'each time you use' → T-BEFORE.
 - ✅ **D40 Cesspit** · prereq: 2 Fields and 1 Occupation
   - _Alternate placing 1 clay and 1 wild boar on each remaining round space, starting with clay. At the start of these rounds, you get the respective good._
   - `ONPLAY E-SCHED E-SCHEDANIMAL E-ANIMALS` — Removed L-GEOMBOARD: placing goods/animals on future round spaces is E-SCHED/E-SCHEDANIMAL, not board position/order/adjacency.
@@ -912,7 +917,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-SCHED E-SCHEDANIMAL E-ANIMALS` — On play, alternate placing 1 food and 1 sheep on each remaining round space, collected at start of those rounds.
 - ✅ **D42 Education Bonus** · cost: 1 Food · prereq: 2 Improvements
   - _After you play your 1st/2nd/3rd/4th/5th/6th occupation this game, you immediately get 1 grain/clay/reed/stone/vegetable/field (not retroactively)._
-  - `HOOK T-AFTER S-PLAY F-AUTO A-OWN E-GOODS ST-COUNTER` — After playing your Nth occupation, get a good/field depending on the running count of occupations played.
+  - `HOOK T-AFTER S-PLAY F-AUTO F-TRIG A-OWN E-GOODS E-GRANTSUB` — Fires after each own occupation play (S-PLAY/T-AFTER/A-OWN); rewards 1-5 are mandatory goods (F-AUTO), the 6th is a field tile = a plow-like granted sub-action (E-GRANTSUB, optional per the granted-sub-action ruling, hence also F-TRIG). No ST needed: the Nth-occupation index is computable from the played-occupations list in state ('not retroactively' just means count from state, not a card counter) — both labelers' ST-COUNTER/ST-STORE are unnecessary.
 - ✅ **D43 Hutch** · cost: 1 Wood,1 Reed
   - _Place 0, 1, 2, and 3 food in this order on the next 4 round spaces. At the start of these rounds, you get the food._
   - `ONPLAY E-SCHED` — On play, place 0/1/2/3 food on next 4 round spaces, collected at start of those rounds.
@@ -936,37 +941,37 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-PLAY F-AUTO A-OWN E-GOODS` — Immediately before each time you play an occupation (before paying cost), get 3 food.
 - ⬜ **D50 Foreign Aid** · prereq: Play in Round 11 or Before
   - _When you play this card, you immediately get 6 food. You may no longer use the action spaces of rounds 12 to 14._
-  - `ONPLAY E-GOODS E-TAKEBACK EXOTIC` — On play get 6 food; may no longer use round 12-14 action spaces -> permanent self-imposed board restriction on future spaces.
+  - `ONPLAY E-GOODS PASSIVE EXOTIC` — ONPLAY +6 food (E-GOODS), plus a permanent always-on rule change (PASSIVE) forbidding the player's use of rounds-12-14 spaces — a self-restricting legality rule no L-/E-code captures, so EXOTIC. E-TAKEBACK (label A) is wrong: nothing previously granted/promised is reclaimed; access to normal board spaces is removed.
 - ⬜ **D51 Archway** · cost: 2 Clay · prereq: No Occupations
   - _This card is an action space for all. A player who uses it immediately gets 1 food. Immediately before the returning home phase, they can use an unoccupied action space with the person from this card._
-  - `L-CARDSPACE L-OCCUPY E-GOODS E-WORKERMANIP HOOK S-SPACE T-AFTER F-AUTO A-OWN` — Card is an action space (L-CARDSPACE); using it gives 1 food (E-GOODS) after use (T-AFTER, F-AUTO). Then before returning home the placed person reuses an unoccupied space (E-WORKERMANIP, L-OCCUPY covers using an occupied space is NOT it — it uses UNoccupied, so L-OCCUPY drop). Reworking: the reuse is optional, needs ST-PLACELOG.
+  - `HOOK L-CARDSPACE S-SPACE S-ROUNDEND T-BEFORE F-AUTO F-TRIG A-OWN A-OPP E-GOODS E-GRANTACT E-WORKERMANIP ST-PLACELOG` — Action space for all (both actors): use gives 1 food (F-AUTO); immediately before returning home (S-ROUNDEND, T-BEFORE) the placed person may (F-TRIG) use an UNoccupied space — worker reuse (E-WORKERMANIP+E-GRANTACT+ST-PLACELOG per B150), so labelA's L-OCCUPY is wrong.
 - ⬜ **D52 Rolling Pin** · cost: 1 Wood · prereq: 1 Occupation
   - _In the returning home phase of each round, if you have more clay than wood in your supply, you get 1 food._
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS` — In returning-home phase each round, if clay>wood in supply get 1 food.
 - ⬜ **D53 Tea House** · cost: 1 Wood,1 Stone · prereq: Play in Round 6 or Later
   - _Once per round, you can skip placing your second person and get 1 food instead. (You can place the person later that round.)_
-  - `ATWILL CAP-ROUND E-GOODS E-NOPLACE E-WORKERMANIP` — Once/round you may skip placing your second person for 1 food and place it later — deferrable (ATWILL+CAP-ROUND), gains food (E-GOODS), takes benefit without placing (E-NOPLACE), and defers/manipulates the placement of an already-available worker (E-WORKERMANIP).
+  - `ATWILL CAP-ROUND E-GOODS E-SUBSTITUTE` — 'Skip placing... get 1 food instead' is a substitution of the placement turn for food (E-SUBSTITUTE); E-WORKERMANIP is definitionally about an ALREADY-PLACED worker and the person here is unplaced (placing later just happens on a subsequent turn), so labelA's E-WORKERMANIP/E-NOPLACE are dropped.
 - ✅ **D54 Trout Pool** · cost: 2 Clay
   - _At the start of each work phase, if there are at least 3 food on the "Fishing" accumulation space, you get 1 food from the general supply._
   - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — At start of each work phase, if >=3 food on Fishing space, get 1 food; reads a specific named accumulation space (not L-GEOMBOARD).
 - ✅ **D55 New Market** · cost: 1 Wood,1 Clay
   - _Each time you use an action space card on round spaces 8 to 11, you get 1 additional food._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS` — Kept L-GEOMBOARD: 'round spaces 8 to 11' references specific round-space numbers/band.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — 'Each time you use [a space]' fires T-BEFORE by explicit ruling; round spaces 8-11 is a fixed band, not board geometry — labelB correct.
 - ⬜ **D56 Fatstock Stretcher** · cost: 1 Wood
   - _Each time you turn a sheep or wild boar into food using a cooking improvement, you get 1 additional food._
-  - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-GOODS` — Fires after cooking a sheep/boar into food (a bake/cook sub-action, T-AFTER, mandatory) for +1 food — HOOK+S-SUB+E-GOODS. Not E-BAKESPEC (doesn't change a baking improvement/rate, just adds food on a cook event).
+  - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-GOODS ST-PROV` — Cooking-improvement conversion hook needs a seam (labelB omitted one) — S-SUB per the near-identical C53, which also establishes ST-PROV for the conversion payload (which animal, via a cooking improvement); mandatory +1 food after.
 - ✅ **D57 Wholesale Market** · cost: 2 Wood,2 Vegetable
   - _Place 1 food on each remaining round space. At the start of these rounds, you get the food._
   - `ONPLAY E-SCHED` — Place 1 food on each remaining round space, collected at start of those rounds.
 - ✅ **D58 Gritter** · cost: 1 Wood · prereq: Play in Round 5 or Later
   - _At the end of each action in which you sow vegetables in a field, you get 1 food for each vegetable field you have (including the new ones)._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — At end of each action in which you sow vegetables, get 1 food per vegetable field.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-PROV` — Fires at the end of any action containing a vegetable sow (S-SUB, T-AFTER, mandatory); needs the sow event's payload — that vegetables were sown this action — so ST-PROV (per E108/D161 convention); amount read from current veg-field count.
 - ⬜ **D59 Earth Oven** · prereq: Return a Fireplace
   - _At any time: Vegetable → 3 Food; Sheep → 2 Food; Wild boar → 3 Food; Cattle → 3 Food "Bake Bread" action: Grain → 2 Food  [CLARIFICATION: This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once.  《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》]_
-  - `ATWILL E-CONVERT E-FOODCOST E-BAKESPEC E-RETURNCOMP` — Return-a-Fireplace play (E-RETURNCOMP); at-will conversions of veg/animals/grain to food (ATWILL+E-CONVERT), including a Bake-Bread grain rate (E-BAKESPEC). Animal-to-food is E-CONVERT/E-FOODCOST, not E-ANIMALS (card provides no animals).
+  - `ATWILL E-CONVERT E-BAKESPEC E-RETURNCOMP` — At-will good→food conversions (E-CONVERT) plus a Bake Bread grain rate (E-BAKESPEC); returning the Fireplace is the play cost = E-RETURNCOMP, not ONPLAY; conversions PRODUCE food so E-FOODCOST is excluded by explicit ruling — matches the A60 precedent exactly.
 - ⬜ **D60 Large Pottery** · cost: 1 Clay,1 Stone · prereq: Return the Pottery
   - _At any time: Clay → 2 Food Scoring: 3/5/6/7 Clay → 1/2/3/4 bonus points_
-  - `ATWILL E-CONVERT E-SCORE E-RETURNCOMP` — Return the Pottery to play; at-any-time clay->2 food; end-game bonus points by clay held (threshold-based E-SCORE).
+  - `ONPLAY ATWILL E-CONVERT E-RETURNCOMP E-SCORE` — Returning the Pottery resolves once at play (ONPLAY anchors E-RETURNCOMP); Clay→2 Food is a deferrable ATWILL conversion; the bonus-point table is a plain E-SCORE rule.
 - ✅ **D61 Bale of Straw**
   - _At the start of each harvest, if you have at least 3 grain fields (including field cards with planted grain), you get 2 food._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-GOODS` — At start of each harvest, if >=3 grain fields get 2 food.
@@ -975,13 +980,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT` — On play get 2 food; during feeding phase of each harvest optionally convert grain->food at a scaling rate.
 - ✅ **D63 Lynchet**
   - _In the field phase of each harvest, you get 1 food for each harvested field tile that is orthogonally adjacent to your house._
-  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-GEOMFARM` — Kept L-GEOMFARM: 'orthogonally adjacent to your house' is farm-tile adjacency.
+  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-GEOMFARM ST-PROV` — Which field tiles were harvested is not recoverable from post-phase state (an emptied field looks never-sown), so the field-phase event payload is needed → ST-PROV; adjacency-to-house is L-GEOMFARM.
 - ⬜ **D64 Baking Course** · prereq: 1 Occupation
   - _At the end of each round that does not end with a harvest, you can take a "Bake Bread" action. "Bake Bread" action: Grain → 2 Food_
-  - `HOOK S-ROUNDEND T-AFTER F-TRIG A-OWN E-GRANTACT E-BAKESPEC E-CONVERT` — Fires at the end of each non-harvest round (S-ROUNDEND, T-AFTER) granting an optional full Bake Bread action (F-TRIG, E-GRANTACT) with a grain->2food rate (E-BAKESPEC/E-CONVERT). It is event-driven end-of-round, not player-chosen ATWILL, and a per-round HOOK needs no CAP.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GRANTSUB E-BAKESPEC` — Bake Bread is a primitive sub-action → E-GRANTSUB (not E-GRANTACT); the card's own Grain→2 Food bake rate is E-BAKESPEC, and E-CONVERT would double-count that rate.
 - ✅ **D65 Grain Sieve** · cost: 1 Wood
   - _In the field phase of each harvest, if you harvest at least 2 grain, you get 1 additional grain from the general supply._
-  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS` — Field phase, if harvest >=2 grain, auto get +1 grain; fires each harvest.
+  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS ST-PROV` — "Harvest at least 2 grain" reads the amount yielded this field phase, which merges into supply and is not reconstructible afterward — needs the harvest event payload → ST-PROV.
 - ✅ **D66 Potter Ceramics**
   - _Each time before you take a "Bake Bread" action, you can exchange 1 clay for 1 grain.  [CLARIFICATION: You must bake if you make this exchange.]_
   - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-CONVERT` — Before each Bake Bread action, may exchange 1 clay for 1 grain (must bake if exchanged) -> convert on the bake sub-action, optional.
@@ -993,25 +998,25 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT` — Each use of Reed Bank you may pay 1 reed for 1 veg; 4p reed-placement branch irrelevant to 2p.
 - ✅ **D69 Small Greenhouse** · cost: 2 Wood · prereq: 1 Occupation
   - _Add 4 and 7 to the current round and place 1 vegetable on each corresponding round space. At the start of these rounds, you can buy the vegetable for 1 food._
-  - `ONPLAY ATWILL CAP-ROUND E-SCHED E-CONVERT` — Removed L-GEOMBOARD: placing veg on future round spaces is E-SCHED, no board position/number/adjacency.
+  - `ONPLAY E-SCHED HOOK S-SOR T-BEFORE F-TRIG A-OWN E-CONVERT E-FOODCOST` — ONPLAY schedules vegetables onto two future round spaces (E-SCHED). Collection is NOT automatic — it is an optional buy at the start of those specific rounds, a fixed-timing event, so HOOK S-SOR/F-TRIG/A-OWN (not label A's ATWILL+CAP-ROUND: the player doesn't choose the moment). The buy exchanges 1 food for the veg (E-CONVERT) and costs food (E-FOODCOST).
 - ⬜ **D70 Straw Manure** · prereq: 2 Fields
   - _Before the field phase of each harvest, you can pay 1 grain from your supply to add 1 vegetable to each of up to 2 vegetable fields._
-  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-FOODCOST E-CROPMANIP` — Before field phase, optionally pay 1 grain to add veg to up to 2 veg fields; manipulates crops on fields, costs grain.
+  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-CROPMANIP` — Optional pre-field-phase hook adding veg to fields (E-CROPMANIP); the cost is 1 grain from supply — an ordinary resource cost, so E-FOODCOST is wrong.
 - ⬜ **D71 Changeover**
   - _At any time, if a field contains exactly 1 good as a result of a harvest, you can discard that good and immediately take a "Sow" action limited to that field._
-  - `ATWILL E-CROPMANIP E-GRANTSUB ST-PROV` — At-any-time: discard a field's single harvested good (crop manip) then take a Sow limited to that field (granted sub-action); needs the field's harvest-provenance/state. Sow is a normal field, not a card field, so no L-CARDFIELD.
+  - `ATWILL E-CROPMANIP E-GRANTSUB ST-STORE` — "As a result of a harvest" must persist as a per-field flag until the ATWILL use arbitrarily later — stored state (ST-STORE), not a fire-time event payload (ST-PROV); discard-then-sow is crop manipulation + a granted Sow sub-action.
 - ✅ **D72 Stable Manure** · prereq: At Most 1 Occupation
   - _In the field phase of each harvest, you can harvest 1 additional good from a number of fields equal to the number of unfenced stables you have._
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CROPMANIP` — Field phase: may harvest 1 extra good from fields equal to unfenced stables; changes field yield rule.
 - ✅ **D73 Supply Boat** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time after you use the "Fishing" accumulation space, you can choose to buy 1 grain for 1 food, or 1 vegetable for 3 food._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT` — After using Fishing space, optional buy grain/veg for food = conversion; 'after you use' -> T-AFTER.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-FOODCOST` — Optional buy each time after using Fishing (S-SPACE/T-AFTER/F-TRIG/A-OWN). The buy is a food-for-crop exchange at a rate (E-CONVERT) whose price is food, payable by converting (E-FOODCOST — label A missed it). E-GOODS (label B) is redundant: the gained crop is the conversion's output, not an independent grant.
 - ⬜ **D74 Royal Wood** · cost: 1 Food
   - _At the end of each turn in which you use the "Farm Expansion" action space or build an improvement, you get 1 wood back for every 2 wood paid during those actions (rounded down)._
-  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-PROV` — End of turn using Farm Expansion or building improvement, get 1 wood back per 2 wood paid; needs provenance of wood spent.
+  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS E-FOODCOST ST-COUNTER ST-PROV` — 1-Food play cost → E-FOODCOST per the cost ruling; the rebate accumulates wood paid across the turn's qualifying actions (ST-COUNTER) from payment provenance (ST-PROV), paid out automatically at turn end.
 - ⬜ **D75 Wood Field** · cost: 1 Food · prereq: 1 Occupation
   - _You can plant wood on this card as though it were 2 fields, but it is considered 1 field. Sow and harvest wood on this card as you would grain.  [ERRATA: ERRATA: add “You can plant only wood on this card.”]  [CLARIFICATION: You may plant 2 wood at once with 1 trigger of the Chief Forester A115.  Planted wood may not be spent during scoring for the Joinery 8 / 18.]_
-  - `PASSIVE L-CARDFIELD E-CROPMANIP ST-STACK` — Kept L-CARDFIELD: the card itself is a field you sow/harvest (wood) on.
+  - `PASSIVE L-CARDFIELD L-EXT E-CROPMANIP ST-STACK` — Always-on (PASSIVE) card-as-field you sow/harvest on (L-CARDFIELD), holding a pile of planted wood consumed over harvests (ST-STACK). It changes the sow rule (plant 2-at-once as though 2 fields, counts as 1 field; wood as a crop) — E-CROPMANIP — and extends sow eligibility to a good (wood) not otherwise sowable, which is an eligibility extension (L-EXT, label B is right to add it).
 - ⬜ **D76 Social Benefits** · cost: 1 Reed · prereq: At Most 1 Occupation
   - _Immediately after the feeding phase of each harvest, if you have no food left, you get 1 wood and 1 clay._
   - `HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-GOODS` — After feeding phase, if no food left, auto get 1 wood + 1 clay; fires each harvest.
@@ -1020,34 +1025,34 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN A-OPP E-GOODS` — Each time any player renovates to stone, get 1 clay per newly renovated room; fires on own and opponent renovate sub-action.
 - ✅ **D78 Reed Pond** · prereq: 3 Occupations
   - _Place 1 reed on each of the next 3 round spaces. At the start of these rounds, you get the reed._
-  - `ONPLAY E-SCHED` — Places reed on next 3 round spaces, auto-collected at round start (scheduled goods).
+  - `ONPLAY E-SCHED` — Pure scheduling card: place reed on the next 3 round spaces, collected automatically at the start of those rounds — exactly E-SCHED's definition. E-GOODS (label B) is wrong: nothing is gained immediately; the future collection is inherent to E-SCHED.
 - ⬜ **D79 Carrot Museum** · cost: 1 Wood,2 Clay · prereq: Play in Round 8 or Before
   - _At the end of rounds 8, 10, and 12, you get 1 stone for each vegetable field you have and a number of wood equal to the number of vegetables in your supply._
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS` — At end of rounds 8/10/12 auto-gain stone per veg field + wood per veg in supply; end-of-round hook per state count.
 - ⬜ **D80 Brick Hammer** · cost: 1 Wood/1 Food
   - _Each time after you build an improvement costing at least 2 clay, you get 1 stone._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-ALTCOST ST-PROV` — After building an improvement costing >=2 clay you get 1 stone: after-hook on a build sub-action, own-turn, auto goods; alt play-cost (1 Wood/1 Food); needs provenance of what the build cost.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-ALTCOST E-FOODCOST ST-PROV` — Alt play cost 1 Wood / 1 Food → E-ALTCOST plus E-FOODCOST for the food branch (may need conversion); fires after the build-improvement sub-action and needs the improvement's clay cost paid → ST-PROV.
 - ✅ **D81 Roof Ladder** · cost: 1 Wood
   - _Each time you renovate, you pay 1 fewer reed and, at the end of the action, you get 1 stone._
-  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-COSTMOD E-GOODS` — Each renovate: pay 1 fewer reed (cost mod) and at end of action get 1 stone.
+  - `HOOK S-SUB T-BEFORE T-AFTER F-AUTO A-OWN E-COSTMOD E-GOODS` — Renovate hook with two parts: the reed discount applies when paying (T-BEFORE, E-COSTMOD) and the stone comes explicitly 'at the end of the action' (T-AFTER, E-GOODS) — both timings are real, so labelB is right to tag both.
 - ✅ **D82 Hunting Trophy** · cost: Return or Cook 1 Wild Boar
   - _Improvements built on "House Redevelopment" cost you 1 building resource of your choice less. Fences built on "Farm Redevelopment" cost you a total of 3 wood less.  [CLARIFICATION: Alone, “built” can refer to either improvement type.  《lmprovements played by Merchant C096 do not get discounted.》]_
-  - `PASSIVE E-COSTMOD E-FREEFENCE E-ANIMALS` — Passive cost reductions on House/Farm Redevelopment builds (COSTMOD) and 3-wood-less fences (FREEFENCE); the Cook/Return-Boar play-cost involves an animal so E-ANIMALS applies to the piece paid, though borderline.
+  - `ONPLAY PASSIVE E-COSTMOD E-FREEFENCE E-GOODS E-PLAYVARIANT` — Passive discounts: −1 building resource on House-Redev improvements (E-COSTMOD) and −3 wood on Farm-Redev fences (E-FREEFENCE). The 'Return or Cook 1 Wild Boar' cost forks the play into cook-for-food (ONPLAY E-GOODS) vs plain return — a cost/reward fork = E-PLAYVARIANT. The card consumes a boar, never provides one, so labelA's E-ANIMALS is wrong.
 - ⬜ **D83 Pigswill** · cost: 2 Food/1 Grain
   - _Each time you use the "Fencing" action space, you also get 1 wild boar._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-ANIMALS E-PLAYVARIANT` — 'Each time you use Fencing' = T-BEFORE by ruling; auto gain 1 wild boar (E-ANIMALS, not loose goods); the 2 Food/1 Grain printed cost is a play-variant/alt-cost — E-PLAYVARIANT covers the forked cost.
+  - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-ANIMALS E-ALTCOST E-FOODCOST` — 'Each time you use Fencing, you also get 1 wild boar' = own-action space hook, T-BEFORE default, mandatory, providing an animal. The '2 Food/1 Grain' printed cost is a pay-one-or-the-other choice for the same effect = E-ALTCOST (not E-PLAYVARIANT — the reward doesn't fork), and the food branch flags E-FOODCOST per the rulings.
 - ⬜ **D84 Feed Pellets**
   - _When you play this card, you immediately get 1 sheep. In the feeding phase of each harvest, you can exchange exactly 1 vegetable for 1 animal of a type you already have._
-  - `ONPLAY HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-ANIMALS E-GOODS E-CONVERT E-BREEDMOD` — On play gain 1 sheep; each harvest feeding phase optionally exchange 1 veg for 1 animal of a type you have (feeding-phase animal gain).
+  - `ONPLAY E-ANIMALS HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT` — ONPLAY sheep + per-feeding-phase optional veg-for-animal exchange (S-HFEED/F-TRIG/A-OWN); both provide animals needing accommodation (E-ANIMALS) via a conversion (E-CONVERT). E-BREEDMOD (label A) is wrong — acquiring an animal by exchange is not breeding and changes no breeding rule; E-GOODS is wrong — a sheep is an animal, not goods.
 
 ### Deck E
 
 - ⬜ **E1 Pole Barns** · cost: 2 Wood · prereq: 15 Fences Built · passing
   - _You can immediately build up to 3 stables at no cost. (You must pay the cost of this card though.)_
-  - `ONPLAY E-GRANTSUB E-COSTMOD E-PIECECOST E-PASSING` — On play, grant building up to 3 stables at no cost (stable pieces from supply); passing minor.
+  - `ONPLAY E-GRANTSUB E-PASSING` — On-play grant of up to 3 stable builds; 'at no cost' is the grant's own (zero) push-time cost, not a modification of a standing cost rule, so no E-COSTMOD. The play cost is 2 Wood (ordinary resources) and '15 Fences Built' is a prereq, so labelA's E-PIECECOST is wrong. Passing minor (passing_left=X).
 - ⬜ **E2 Renovation Materials** · cost: 3 Clay,1 Reed · prereq: Wooden House · passing
   - _Immediately renovate to clay at no cost. (You must pay the cost of this card though.)_
-  - `ONPLAY E-GRANTSUB E-COSTMOD E-PASSING` — On play, renovate wood->clay at no cost; passing.
+  - `ONPLAY E-GRANTSUB E-PASSING` — On-play granted renovate-to-clay; the free-ness is the grant's zero cost parameter, not a cost-modifier mechanic (no E-COSTMOD). Ordinary resource play cost; Wooden House is a prereq. Passing minor.
 - ⬜ **E3 Tea Time** · cost: 1 Food · prereq: Own Person on "Grain Utilization" · passing
   - _Immediately return your person on the "Grain Utilization" action space home; you can place it again later this round._
   - `ONPLAY E-WORKERMANIP E-PASSING ST-PLACELOG` — Return your worker on Grain Utilization to reuse it this round.
@@ -1059,16 +1064,16 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY EXOTIC E-GOODS E-PASSING` — Strip 2 different building resources off board accumulation spaces.
 - ⬜ **E6 Recount** · passing
   - _You immediately get 1 building resource of each type of which you have 4 or more resources in your supply already._
-  - `ONPLAY E-GOODS NONE E-PASSING` — Gain building resource of each type you have >=4 of — plain conditional goods from state read; passing.
+  - `ONPLAY E-GOODS E-PASSING` — Immediate goods conditional on a plain state read (counts of 4+ per resource type) — but it IS a passing minor, and passing is a real mechanic, so NONE does not apply alongside E-PASSING.
 - ⬜ **E7 Pumpernickel** · cost: 1 Grain · passing
   - _You immediately get 4 food. (Effectively, you are turning 1 grain into 4 food.)_
-  - `ONPLAY E-CONVERT E-GOODS E-PASSING` — Spend 1 grain (cost) get 4 food — the errata frames it as a grain->food conversion, so E-CONVERT + E-GOODS; passing minor.
+  - `ONPLAY E-GOODS E-PASSING` — One-shot on-play gain of 4 food with an ordinary 1-grain play cost; the parenthetical 'effectively turning grain into food' is flavor, not an ongoing conversion ability, so no E-CONVERT (labelA is also inconsistent — it didn't tag E-CONVERT on the structurally identical E8).
 - ⬜ **E8 Farmers Market** · cost: 2 Food · passing
   - _You immediately get 1 vegetable. (Effectively, you are buying 1 vegetable for 2 food.)_
-  - `ONPLAY E-GOODS E-PASSING` — Buy 1 vegetable for 2 food (ordinary resource play-cost, needs no cost code); immediate plain good; passing minor. Not E-CONVERT (2 food is the printed play-cost, not an exchange effect).
+  - `ONPLAY E-GOODS E-PASSING E-FOODCOST` — On-play gain of 1 vegetable; the 2-Food play cost is flagged E-FOODCOST per the ruling that food costs (payable via conversion) get flagged. Passing minor.
 - ⬜ **E9 Bartering Hut** · passing
   - _Up to two times: Immediately spend any 2/3/4 building resources for 1 sheep/wild boar/cattle from the general supply._
-  - `ONPLAY E-CONVERT E-ANIMALS` — On play, up to twice exchange building resources for an animal — resolved once when played (ONPLAY), convert + provides animals. No E-PASSING (nothing says pass it); 'up to two times' at play is not a deferrable ATWILL/CAP-GAME loop.
+  - `ONPLAY E-CONVERT E-ANIMALS` — 'Immediately spend... up to two times' is an on-play resource-for-animal exchange (convert + animals to accommodate); the card data has no passing flag, so E-PASSING is an invention.
 - ⬜ **E10 Straw Hat** · cost: 1 Reed
   - _At the end of the work phases of rounds 3 and 6, you can move your person from the "Farmland" action space to an unoccupied action space and take that action, or get 1 food._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-WORKERMANIP E-GRANTACT E-GOODS ST-PLACELOG` — At end of work phase rounds 3&6, move person from Farmland to unoccupied space and take that action, or 1 food; needs placement log.
@@ -1080,13 +1085,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE E-CAPGROW` — Raises capacity of existing unfenced stables and pastures-with-stable.
 - ⬜ **E13 Stone House Reconstruction** · cost: 1 Stone
   - _At any time, you can renovate your clay house to a stone house without placing a person. (You must pay the normal renovation cost.)_
-  - `ATWILL E-GRANTACT E-NOPLACE` — Renovating clay-to-stone is a full Renovate ACTION (like the House Redevelopment action space), not a sub-action grant, taken at will without placing a person; normal cost is ordinary resources so no cost code.
+  - `ATWILL E-GRANTSUB E-NOPLACE` — Renovate is a primitive sub-action explicitly in the E-GRANTSUB list (not a whole action-space action); 'at any time... without placing a person' = ATWILL + E-NOPLACE, normal cost paid so no E-COSTMOD.
 - ⬜ **E14 Wood Saw** · cost: 1 Wood
   - _Each time all other players have more people than you, you can take a "Build Rooms" action without placing a person._
   - `ATWILL E-GRANTACT E-NOPLACE` — When all others have more people: Build Rooms without placing (computable condition).
 - ⬜ **E15 Nail Basket** · cost: 1 Reed
   - _Each time after you use a wood accumulation space, you can place 1 stone from your supply on that space (for the next visitor) to take a “Build Fences” action._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT E-PIECECOST ST-PROV` — After using a wood accumulation space, may pay 1 stone piece to that space to get a Build Fences action; needs the provenance of which space was just used, hence ST-PROV.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT ST-PROV` — 'Each time after you use a wood accumulation space, you can...' = optional own-action after-space hook granting a full Build Fences action; the stone is a resource not a game piece (no E-PIECECOST), but the effect needs the fired space's identity to place the stone on it (ST-PROV).
 - ✅ **E16 Briar Hedge** · prereq: 1 Animal of Each Type
   - _You do not need to pay wood for fences that you build on the edge of your farmyard board.  [CLARIFICATION: You must still use your fence pieces.]_
   - `PASSIVE E-FREEFENCE L-GEOMFARM` — Free fences on the farmyard-board EDGE = farmyard geometry (L-GEOMFARM), confirmed.
@@ -1107,7 +1112,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE L-OCCUPY` — May use any Wish for Children space even if occupied.
 - ⬜ **E22 Guest Room** · cost: 4 Wood,1 Reed
   - _Immediately place any amount of food from your supply on this card. Once per round, you can discard 1 food from this card to place a person from your supply in that round._
-  - `ONPLAY ATWILL CAP-ROUND ST-STACK E-EXTRAPLACE` — On play, bank food on the card (ST-STACK); once per round discard 1 food to place an ADDITIONAL person that round (extra placement). Not E-GOODS (food comes from own supply, no gain) and not E-NOPLACE (it IS placing a person).
+  - `ONPLAY ATWILL CAP-ROUND E-EXTRAPLACE E-PEOPLE ST-STACK` — On-play food banked on the card (ST-STACK), once-per-round at-will discard; the placed person comes from SUPPLY (not the family in play) for that round only — a temporary worker (E-PEOPLE) yielding an extra placement (E-EXTRAPLACE).
 - ⬜ **E23 Apiary** · prereq: 4 Occupations
   - _At the end of each work phase, you can sow exactly 1 crop on 1 field._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB` — End of each work phase may sow exactly 1 crop on 1 field (granted sow sub-action).
@@ -1116,52 +1121,52 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-MAJMIN F-TRIG A-OWN E-SUBSTITUTE` — When getting a Minor Improvement action, may build a major instead — substitutes the granted action.
 - ⬜ **E25 Bumper Crop** · prereq: 2 Grain Fields
   - _When you play this card, immediately play the field phase of the harvest on your farmyard only._
-  - `ONPLAY E-CROPMANIP` — On play, immediately run the harvest field phase on own farmyard only (harvests planted fields early).
+  - `ONPLAY E-CROPMANIP` — Running an extra field phase on your farm is a field-harvest-rule manipulation moving crops off fields; the taxonomy explicitly separates E-CROPMANIP from gaining loose crops, so no E-GOODS.
 - ⬜ **E26 Sundial** · cost: 1 Wood
   - _At the end of the work phases in rounds 7 and 9, you can take a "Sow" action without placing a person._
-  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTACT E-NOPLACE` — Removed L-GEOMBOARD: 'rounds 7 and 9' is a timing condition (which round we're in), not action-board position/adjacency/order geometry.
+  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB E-NOPLACE` — End-of-work-phase hook in fixed rounds 7/9 (S-TURNEND, optional, own); a bare 'Sow' action is the sow primitive sub-action, so E-GRANTSUB not E-GRANTACT.
 - ⬜ **E27 Piggy Bank**
   - _At the end of each work phase, you can place 1 food on this card, irretrievably. At any time, you can discard 6 food from this card to build a major improvement at no cost._
-  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN ATWILL E-COSTMOD ST-STACK` — End of work phase may irretrievably add 1 food to card; at any time discard 6 food from card to build a major at no cost; food stack on card.
+  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN ATWILL E-COSTMOD E-GRANTACT ST-STACK` — Optional end-of-work-phase food deposit (hook + ST-STACK) plus an at-will discard that both GRANTS a build-major-improvement action outside any space (E-GRANTACT) and makes it free (E-COSTMOD) — labelB's added grant is correct.
 - ⬜ **E28 Bookmark** · cost: 1 Wood
   - _Add 3 to the current round and mark the corresponding round space. At the start of that round, you can play 1 occupation without paying an occupation cost._
-  - `ONPLAY HOOK T-AFTER S-SOR F-TRIG A-OWN E-COSTMOD ST-STORE` — Removed L-GEOMBOARD: marking a future round space (current+3) is scheduling/timing, not action-board position/adjacency geometry.
+  - `ONPLAY HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB E-COSTMOD ST-STORE` — On-play marks a round (ST-STORE); at that round's start (S-SOR fires once the round begins → T-AFTER) an optional grant of the play-a-card primitive (play 1 occupation = E-GRANTSUB, per the S-SUB primitive list) at zero occupation cost (E-COSTMOD).
 - ⬜ **E29 Heirloom** · prereq: Your Person on Day Laborer
   - _(This card has no additional effect.)_
   - `ONPLAY NONE` — No effect; plain card played from a prerequisite.
 - ⬜ **E30 Child's Toy** · cost: 1 Wood/1 Clay · prereq: Exactly 2 Adults
   - _During the feeding phase of each harvest, your newborns require 2 food (instead of 1)._
-  - `PASSIVE E-FOODCOST` — Always-on rule that newborns need 2 food instead of 1 during feeding; it increases a food cost, so E-FOODCOST captures the food-payment impact alongside PASSIVE.
+  - `PASSIVE E-ALTCOST E-PEOPLE` — Continuous rule change (PASSIVE) reclassifying newborns to need 2 food at feeding — that is newborn classification (E-PEOPLE), handled by the existing feeding machinery, not a card effect that costs food (drop E-FOODCOST); the 1 Wood/1 Clay play cost is a choice (E-ALTCOST).
 - ⬜ **E31 Upholstery**
   - _Each time you build or play an improvement after this one, you can place 1 reed on this card, irretrievably, to get 1 bonus point, up to the number of rooms in your house._
-  - `HOOK T-AFTER S-PLAY F-TRIG A-OWN E-SCORE ST-STACK ST-COUNTER` — After building/playing each subsequent improvement, may place 1 reed irretrievably on the card for a bonus point capped at room count; this is a bonus point earned THROUGH an action (HOOK+E-SCORE legitimate), reed pile on card = ST-STACK, and the running bonus/cap tally = ST-COUNTER. A-OWN default.
+  - `HOOK T-AFTER S-PLAY F-TRIG A-OWN E-SCORE ST-COUNTER` — Optional hook after each subsequent improvement build/play (S-PLAY, F-TRIG, A-OWN) earning bonus points (E-SCORE); the reed placed irretrievably is never consumed, so it is a running count (ST-COUNTER), not a consumed pile — drop ST-STACK. Paying 1 reed is an ordinary resource cost.
 - ⬜ **E32 Nave** · cost: 2 Stone,1 Reed
   - _During scoring, you get 1 bonus point for each of the 5 columns of your farmyard board containing at least one room._
-  - `E-SCORE L-GEOMFARM` — Kept L-GEOMFARM: scoring depends on the farmyard's 5 columns each containing a room — a spatial/shape read of the farm grid, not a mere count.
+  - `PASSIVE E-SCORE L-GEOMFARM` — Pure end-game bonus rule (E-SCORE, computed — no HOOK) depending on the spatial column positions of rooms (L-GEOMFARM); PASSIVE is the required activation for a standing scoring rule.
 - ⬜ **E33 Beaver Colony** · prereq: 1 Fenced Stable
   - _From now on, one of your pastures with stable cannot hold animals. Each time you get reed from an action space, you get 1 bonus point._
-  - `ONPLAY PASSIVE E-CAPNEG HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-SCORE` — Play-time/continuous capacity removal (one stable-pasture can't hold animals = PASSIVE/E-CAPNEG); plus a HOOK on obtaining reed from a space (S-OBTAIN, after=T-AFTER, mandatory bonus point) earning E-SCORE. ST-COUNTER dropped: bonus points accrue per-event and are summed at scoring, no card-kept counter needed.
+  - `PASSIVE E-CAPNEG HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-SCORE ST-COUNTER ST-STORE` — "From now on" is a standing capacity removal (PASSIVE + E-CAPNEG, remembering WHICH stabled pasture is disabled → ST-STORE), not a one-shot gain — drop ONPLAY; the reed hook is mandatory on obtaining reed from a space (S-OBTAIN, F-AUTO, A-OWN, T-AFTER) accruing bonus points that must be counted (E-SCORE + ST-COUNTER).
 - ⬜ **E34 Land Register** · cost: 1 Wood
   - _During scoring, if your farm has no unused spaces, you get 2 bonus points._
-  - `E-SCORE` — 2 bonus points if no unused farm spaces at scoring.
+  - `PASSIVE E-SCORE` — Pure end-game bonus rule from a plain state read (no unused spaces) — E-SCORE, computed not fired; PASSIVE supplies the required ≥1 ACTIVATION for a standing scoring rule.
 - ⬜ **E35 Misanthropy** · cost: 1 Wood
   - _During scoring, if you have exactly 4/3/2 people, you get 2/3/5 bonus points._
-  - `E-SCORE` — Bonus points scaling with having exactly 4/3/2 people.
+  - `PASSIVE E-SCORE` — Pure end-game bonus rule keyed on people count (E-SCORE, plain count/threshold, no optimization); PASSIVE as the activation for a standing scoring rule.
 - ⬜ **E36 Herbal Garden** · cost: 1 Wood · prereq: 1 Pasture
   - _From now on, at least one of your pastures must contain no animals._
   - `PASSIVE E-CAPNEG` — Continuous restriction: at least one pasture must hold no animals.
 - ⬜ **E37 Ox Skull** · prereq: 1 Cattle
   - _When you play this card, you immediately get 1 food. During scoring, if you have no cattle, you get 3 bonus points._
-  - `ONPLAY E-GOODS E-SCORE` — On play +1 food; 3 bonus points at scoring if no cattle.
+  - `ONPLAY E-GOODS E-SCORE PASSIVE` — Immediate 1 food on play (ONPLAY + E-GOODS) plus a standing end-game bonus rule (no cattle → 3 pts): E-SCORE with PASSIVE tagged for the scoring rule, consistent with pure-scoring cards.
 - ⬜ **E38 Rod Collection** · prereq: 3 Occupations
   - _Each time you use "Fishing", you can place up to 2 wood on this card, irretrievably. During scoring, each such wood is worth 1 bonus point, except the 1st, 4th, 7th, and 10th._
-  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-SCORE ST-STACK ST-COUNTER` — Each use of Fishing lets you optionally place wood on the card (ST-STACK, irretrievable goods pile). The nonlinear scoring (skip 1st/4th/7th/10th) requires counting the stack size = ST-COUNTER. Own-space hook, optional, before the action.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SCORE ST-COUNTER` — "Each time you use Fishing" is an optional own-action space hook firing before the action (T-BEFORE per ruling); the irretrievable wood is never consumed, only counted for the skip-1st/4th/7th/10th bonus formula → ST-COUNTER, not ST-STACK.
 - ⬜ **E39 Paintbrush** · cost: 1 Wood · prereq: 1 Wild Boar
   - _Each harvest, you can exchange exactly 1 clay for your choice of 2 food or 1 bonus point._
-  - `ATWILL CAP-HARVEST E-CONVERT E-SCORE` — Each harvest may exchange 1 clay for 2 food or 1 bonus point (once per harvest, optional).
+  - `ATWILL CAP-HARVEST E-CONVERT E-SCORE ST-COUNTER` — Optional once-per-harvest exchange (ATWILL+CAP-HARVEST); clay->2-food is E-CONVERT (food is the conversion output, not separate E-GOODS); clay->bonus-point is action-earned E-SCORE whose accumulated points need a per-card running count (ST-COUNTER).
 - ⬜ **E40 Bee Statue** · cost: 2 Clay
   - _Pile (from bottom to top) 1 vegetable, 1 stone, 1 grain, 1 stone, 1 grain on this card. Each time you use the "Day Laborer" action space, you get the top good._
-  - `ONPLAY HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS ST-STACK` — Pile goods on card at play; each use of Day Laborer take the top good from the on-card stack.
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-STACK` — On-play piles goods on the card (ONPLAY+ST-STACK); 'each time you use Day Laborer' fires T-BEFORE on S-SPACE, and 'you get the top good' is mandatory -> F-AUTO (B right, A's F-TRIG wrong).
 - ⬜ **E41 Muddy Waters** · prereq: 5 Cards in Play
   - _Alternate placing 1 food and 1 clay on each remaining even-numbered round space, starting with food. At the start of these rounds, you get the respective good._
   - `ONPLAY E-SCHED` — Places food/clay on remaining even round spaces, collected at start of those rounds.
@@ -1191,22 +1196,22 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN A-OPP E-GOODS` — After any player builds a wood room, gain 1 food; fires on own or opponent build-room.
 - ⬜ **E50 Wild Greens**
   - _Each time you sow, you get 1 food for every different type of good that you sow._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — Each time you sow, gain 1 food per different good type sown.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-PROV` — Mandatory food on each sow sub-action; the amount depends on which good types were sown in the triggering event, so the hook needs the event payload -> ST-PROV (B right).
 - ⬜ **E51 Whale Oil** · cost: 1 Wood
   - _Each time you use "Fishing", place 1 food from the general supply on this card. Each time before you play an occupation, you get food equal to the amount on this card._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-STACK` — Fishing use stacks food on card; before playing an occupation gain that food. Two hooks; card holds a food stack.
+  - `HOOK T-BEFORE S-SPACE S-SUB F-AUTO A-OWN E-GOODS ST-STACK` — Two mandatory hooks: 'each time you use Fishing' (S-SPACE, T-BEFORE per ruling) stacks food on the card (ST-STACK), and 'each time BEFORE you play an occupation' (S-SUB play-a-card, explicit T-BEFORE) pays out food (E-GOODS). B right; A's T-AFTER and missing occupation-play seam wrong.
 - ⬜ **E52 Cubbyhole** · cost: 1 Reed,1 Wood/1 Clay
   - _For each room that you add to your house, place 1 food from the general supply on this card. At the start of each feeding phase, you get food equal to the amount on this card._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-STACK` — Adding a room stacks food on card; at each feeding phase start gain that amount. Card-held food stack.
+  - `HOOK T-AFTER T-BEFORE S-SUB S-HFEED F-AUTO A-OWN E-GOODS E-ALTCOST ST-STACK` — Two mandatory hooks: after each build-room sub-action stack 1 food (S-SUB, T-AFTER, ST-STACK); at the start of each feeding phase pay out (S-HFEED, T-BEFORE, E-GOODS). Printed cost '1 Wood/1 Clay' is a pay-one-or-the-other choice -> E-ALTCOST (A missed both).
 - ⬜ **E53 Boar Spear** · cost: 1 Wood,1 Stone
   - _Each time you get at least 1 wild boar outside of the breeding phase of a harvest, you can immediately turn them into 4 food each._
   - `HOOK T-AFTER S-OBTAIN F-TRIG A-OWN E-CONVERT` — Each time you get wild boar outside breeding, optionally convert them to 4 food each.
 - ⬜ **E54 Contraband** · cost: 1 Food
   - _Each time you play or build an improvement after this, you can pay 1 additional building resource of a type in the printed cost to get 3 food._
-  - `HOOK S-MAJMIN S-PLAY T-AFTER F-TRIG A-OWN E-FOODCOST E-GOODS` — After playing/building an improvement, optionally pay 1 extra building resource to get 3 food. Paying an extra resource for a reward is not a cost reduction (not E-COSTMOD); it is a resource-for-food exchange. Covers both play (S-PLAY) and build (S-MAJMIN). E-FOODCOST is wrong—no food is spent; the resource is the cost, food is the gain, so E-GOODS.
+  - `HOOK T-AFTER S-PLAY F-TRIG A-OWN E-CONVERT ST-PROV` — Optional ('you can') rider on each improvement entering play via any entry point -> S-PLAY (not S-MAJMIN, too narrow; build-major isn't an S-SUB primitive); pay 1 building resource for 3 food is a resource->food exchange (E-CONVERT, not E-FOODCOST -- the cost is a resource); needs the played improvement's printed cost -> ST-PROV.
 - ⬜ **E55 Stone Weir** · cost: 1 Stone · prereq: 2 Occupations
   - _Each time you use the "Fishing" accumulation space, if there are 0/1/2/3 food on the space, you get an additional 4/3/2/1 food from the general supply._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — Using Fishing, gain extra food scaled by current food on the space; needs the space's food count.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Mandatory bonus food each time you use Fishing; fires T-BEFORE so the space's food count is still live state -- no snapshot/provenance needed, so no ST-PROV (B right).
 - ⬜ **E56 Roman Pot** · cost: 1 Clay
   - _Place 4 food from the general supply on this card. At the start of each work phase, if you are the last player in turn order, move 1 food from this card to your supply._
   - `ONPLAY HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS ST-STACK` — Removed L-GEOMBOARD: 'last player in turn order' is a turn-order check, not action-board position/adjacency geometry.
@@ -1221,25 +1226,25 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Day Laborer, gain food per sheep on the Sheep Market space (capped 4); reads another space's goods.
 - ⬜ **E60 Working Gloves**
   - _When you play this card, you get 1 food. Each time you pay an occupation cost, you can pay 1 building resource of your choice in place of (up to) 2 food._
-  - `ONPLAY HOOK T-BEFORE S-PLAY F-TRIG A-OWN E-GOODS E-COSTMOD` — On play gain 1 food; each time you pay an occupation cost you may substitute 1 building resource for up to 2 food — changes what occupation play costs.
+  - `ONPLAY E-GOODS PASSIVE E-COSTMOD L-EXT` — On-play 1 food (ONPLAY+E-GOODS); the standing option to pay 1 building resource in place of up to 2 food of any occupation cost is an always-on payment-substitution rule -> PASSIVE cost modifier (E-COSTMOD) + L-EXT ('changing what currency a cost is paid in'), not a fired HOOK (B right).
 - ⬜ **E61 Raised Bed** · cost: 2 Clay,2 Stone · prereq: 2 Grain Fields
   - _At the start of each harvest, you get 4 food._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-GOODS` — At start of each harvest, get 4 food; recurring harvest-start gain.
 - ⬜ **E62 Sour Dough** · prereq: 3 Occupations and 1 Baking Improvement
   - _Once per round, if all players have at least 1 person left to place, you can skip placing a person and take a "Bake Bread" action instead._
-  - `ATWILL CAP-ROUND E-NOPLACE E-GRANTACT` — Once per round, if all players have a person left, skip placing a person and take a Bake Bread action instead.
+  - `ATWILL CAP-ROUND E-GRANTSUB E-NOPLACE E-SUBSTITUTE` — "Once per round, you can" = ATWILL+CAP-ROUND; Bake Bread is a primitive sub-action (E-GRANTSUB, not E-GRANTACT); taken without placing a person (E-NOPLACE) but it replaces your placement turn ("skip placing... instead") = E-SUBSTITUTE.
 - ⬜ **E63 Iron Oven** · cost: 3 Stone
   - _For any “Bake Bread” action, you can convert exactly 1 grain into 6 food. When you build this improvement, you can immediately take a “Bake Bread” action._
-  - `PASSIVE E-BAKESPEC E-CONVERT ONPLAY E-GRANTACT F-TRIG` — Continuous new bake-bread conversion rate (1 grain->6 food) = PASSIVE + E-BAKESPEC + E-CONVERT. On build, optionally take an immediate Bake Bread action = ONPLAY + E-GRANTACT (F-TRIG, granted action is optional).
+  - `ONPLAY PASSIVE E-BAKESPEC E-GRANTSUB` — Standard oven pattern (Clay/Stone Oven): the grain→6-food rate is the baking-improvement spec (E-BAKESPEC covers the conversion — E-CONVERT redundant, PASSIVE), and the on-build immediate Bake Bread is an ONPLAY granted sub-action (E-GRANTSUB, not E-GRANTACT); F-TRIG is invalid without HOOK.
 - ⬜ **E64 Simple Oven** · cost: 2 Clay
   - _For any “Bake Bread” action, you can convert exactly 1 grain into 3 food. When you build this improvement, you can immediately take a “Bake Bread” action._
-  - `PASSIVE E-BAKESPEC E-CONVERT ONPLAY E-GRANTACT F-TRIG` — Identical shape to E63: continuous bake conversion (1 grain->3 food) = PASSIVE/E-BAKESPEC/E-CONVERT; on-build granted optional Bake Bread action = ONPLAY/E-GRANTACT/F-TRIG.
+  - `ONPLAY PASSIVE E-BAKESPEC E-GRANTSUB` — Identical shape to E63: baking rate = PASSIVE+E-BAKESPEC (no separate E-CONVERT), on-build Bake Bread = ONPLAY+E-GRANTSUB; drop A's HOOK-less F-TRIG and E-GRANTACT.
 - ⬜ **E65 Almsbag** · prereq: No Occupations
   - _When you play this card, you immediately get 1 grain for every 2 completed rounds._
-  - `ONPLAY E-GOODS` — On play, gain 1 grain per 2 completed rounds; plain state-read immediate goods.
+  - `ONPLAY E-GOODS NONE` — Immediate plain grain scaled by a plain state read (completed rounds) — exactly the NONE ruling's trivially-implementable case; tag NONE alongside ONPLAY+E-GOODS.
 - ⬜ **E66 Barn Shed** · cost: 2 Wood · prereq: 3 Occupations
   - _Each time another player (or, in a solo game, you) uses the "Forest" accumulation space, you get 1 grain._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OPP E-GOODS` — Each time another player uses the Forest space, you get 1 grain; opponent-action hook.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-GOODS` — "Each time another player uses [space]" takes the T-BEFORE default per the ruling (only "immediately after"/"at the end of" gets T-AFTER); mandatory grain gain on an opponent's space use.
 - ⬜ **E67 Grain Bag** · cost: 1 Reed
   - _Each time you use the "Grain Seeds" action space, you get 1 additional grain for each baking improvement you have._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Grain Seeds, gain extra grain per baking improvement owned.
@@ -1248,22 +1253,22 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `L-CARDFIELD E-GOODS` — Card-field that grows WOOD; +1 veg when its last wood is harvested.
 - ⬜ **E69 Melon Patch** · prereq: 2 Occupations
   - _This card is a field that can only grow vegetables. Each time you harvest the last vegetable from this card, you can plow 1 field._
-  - `L-CARDFIELD HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB` — Kept L-CARDFIELD: the card itself is a field. Removed E-CROPMANIP: harvesting the field then plowing a new field is a granted plow sub-action, not manipulation of crops on fields.
+  - `PASSIVE HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-GRANTSUB L-CARDFIELD` — Card-is-a-field is a continuous rule (PASSIVE+L-CARDFIELD); harvesting from the card happens in the harvest field phase (S-HFIELD — harvest is not a listed S-SUB primitive), and the optional plow after the last veg is T-AFTER+F-TRIG+E-GRANTSUB.
 - ⬜ **E70 Crop Rotation Field** · prereq: 1 Occupation
   - _This card is a field. Each time you remove the last grain or vegetable from this card, you can immediately sow vegetable or grain on this card, respectively._
   - `L-CARDFIELD HOOK T-AFTER S-SUB F-TRIG A-OWN E-CROPMANIP` — 'This card is a field' -> L-CARDFIELD (a card-STRUCTURE tag, not geometry); crop-swap on it is E-CROPMANIP.
 - ⬜ **E71 Cow Patty** · prereq: 1 Cattle
   - _Each time you sow in a field that is orthogonally adjacent to a pasture, you can place 1 additional good of the planted type in it._
-  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS L-GEOMFARM` — Kept L-GEOMFARM: fires only when sowing in a field orthogonally adjacent to a pasture — a genuine farm-tile adjacency test.
+  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-CROPMANIP L-GEOMFARM` — Hook on the sow sub-action with orthogonal-adjacency geometry; the extra good is placed ON the field as a planted crop (changes field yield → E-CROPMANIP, not loose E-GOODS) and depends on the completed sow's planted type, so T-AFTER.
 - ⬜ **E72 Artichoke Field** · cost: 1 Wood · prereq: 2 Occupations
   - _This card is a field. During the field phase of each harvest, if you harvest at least 1 good from this card, you also get 1 food._
-  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-CARDFIELD` — Kept L-CARDFIELD: the card itself is a field you harvest from in the field phase.
+  - `PASSIVE HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-CARDFIELD` — Card-is-a-field is a continuous rule (PASSIVE+L-CARDFIELD, consistent with E69); the mandatory 1 food after harvesting from it is a HOOK on the harvest field phase (S-HFIELD, T-AFTER, F-AUTO) giving E-GOODS.
 - ⬜ **E73 Scythe** · cost: 1 Wood
   - _During the field phase of each harvest, you can select exactly one of your fields and harvest all the crops planted in it._
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CROPMANIP` — Field phase: harvest ALL crops from one chosen field at once.
 - ✅ **E74 Ash Trees** · prereq: 2 planted fields
   - _When you play this card, immediately place (up to) 5 fences from your supply on it. When you build fences, fences taken from this card cost you nothing._
-  - `ONPLAY PASSIVE E-FREEFENCE E-PIECECOST ST-STACK` — On play place up to 5 fences (pieces) on card as a pool; fences from card are free when building.
+  - `ONPLAY PASSIVE E-FREEFENCE ST-STACK` — The 5 fences are staged onto the card as a persistent pool and later built for free — they are not spent as a payment, so E-PIECECOST (a cost paid with a piece) does not apply; on-play stocking (ONPLAY+ST-STACK) plus an always-on free-when-taken-from-card rule (PASSIVE+E-FREEFENCE).
 - ⬜ **E75 Stone Axe** · cost: 1 Wood,1 Clay · prereq: 2 Occupations
   - _Each time you use a wood accumulation space, you can return 1 stone to the general supply to get an additional 3 wood._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS` — Each time you use a wood accumulation space, optionally return 1 stone for +3 wood -- a conversion tied to that space.
@@ -1272,7 +1277,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-RETURNCOMP E-GOODS` — On play, optionally return up to 3 stables to supply for 3 wood each = E-RETURNCOMP + E-GOODS. E-PIECECOST dropped: the stable is being returned FOR benefit (return-component), not spent as a piece-cost to pay for something.
 - ⬜ **E77 Mattock** · cost: 1 Wood
   - _Each time you get reed and/or stone from an action space, you get 1 additional clay._
-  - `HOOK S-OBTAIN T-AFTER F-AUTO A-OWN E-GOODS ST-PROV` — Each time you obtain reed and/or stone from a space, get +1 clay (mandatory, gain goods). Needs the provenance of what good was obtained to fire = ST-PROV. Own hook, after the gain.
+  - `HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS ST-PROV` — Obtain-keyed auto gain of clay; S-OBTAIN fires on gains from ANY source, so the 'from an action space' restriction requires the event's provenance (where the reed/stone came from) — exactly ST-PROV's payload case.
 - ⬜ **E78 Sleight of Hand** · prereq: 3 Occupations
   - _When you play this card, you can immediately exchange up to 4 building resources for an equal number of other building resources.  [CLARIFICATION: It is a single exchange.  You can’t trade wood-for-wood, for example.]_
   - `ONPLAY E-CONVERT` — On play single exchange up to 4 building resources for equal number of different building resources.
@@ -1284,128 +1289,138 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `L-CARDFIELD` — Card-field that grows STONE (plant-as-3, counts as 1).
 - ⬜ **E81 Alchemists Lab** · prereq: 3 Occupations
   - _This card is an action space for all. A player who uses it gets 1 building resource of each type they already have. If another player uses it, they must first pay you 1 food._
-  - `ONPLAY L-CARDSPACE E-GOODS L-OCCUPY E-OPPTRANSFER HOOK S-SPACE A-OPP F-AUTO` — Card is a shared action space (L-CARDSPACE), usable by both players including when occupied (L-OCCUPY, 'for all'); user gets 1 of each building resource they own (E-GOODS). Opponent using it must first pay owner 1 food = a hook on the opponent's use (HOOK/S-SPACE/A-OPP/F-AUTO/E-OPPTRANSFER). Established at play (ONPLAY).
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP L-CARDSPACE E-GOODS E-OPPTRANSFER` — Card-as-action-space usable by either player (A-OWN + A-OPP); the resource grant is automatic on use and the opponent toll is 'must FIRST pay 1 food' → T-BEFORE; nothing lets anyone use an occupied space (drop L-OCCUPY) and nothing resolves once at play time (drop ONPLAY — L-CARDSPACE covers the structural setup).
 - ⬜ **E82 Profiteering**
   - _When you play this card, you immediately get 1 food. Each time after you use the "Day Laborer" action space, you can exchange 1 building resource for another building resource._
   - `ONPLAY E-GOODS HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT` — On play +1 food; then after using Day Laborer space, optionally exchange 1 building resource for another.
 - ⬜ **E83 Shepherd's Whistle** · cost: 1 Wood
   - _At the start of the breeding phase of each harvest, if you have at least 1 unfenced stable without an animal, you get 1 sheep._
-  - `HOOK S-HBREED F-AUTO A-OWN E-ANIMALS` — At start of breeding phase, if you have an empty unfenced stable, auto get 1 sheep (must be accommodated).
+  - `HOOK T-BEFORE S-HBREED F-AUTO A-OWN E-ANIMALS` — 'At the START of the breeding phase' fires before breeding resolves → the missing timing dimension is T-BEFORE; mandatory conditional sheep gain (F-AUTO, E-ANIMALS) on the harvest-breed seam.
 - ⬜ **E84 Dolly's Mother** · prereq: 1 Sheep
   - _You only require 1 sheep to breed sheep during the breeding phase of a harvest. This card can hold 1 sheep._
   - `PASSIVE E-BREEDMOD E-CAPNEW` — Breed sheep with only 1; the card holds 1 sheep.
 
 ### Index — cards per code
 
-- `A-OPP` (10): A25, A50, A77, B79, C51, C81, D77, E49, E66, E81
-- `A-OWN` (201): A14, A15, A17, A18, A19, A21, A24, A25, A40, A41, A42, A43, A46, A48, A49, A50, A51, A52, A53, A54, A55, A56, A58, A59, A63, A64, A67, A68, A70, A76, A78, A79, A80, A81, A82, A83, A84, B11, B14, B15, B16, B17, B18, B19, B20, B21, B25, B26, B27, B28, B29, B34, B39, B40, B43, B47, B48, B49, B50, B51, B54, B55, B56, B57, B58, B60, B61, B62, B63, B64, B67, B70, B75, B76, B77, B79, B81, B82, C13, C15, C19, C20, C21, C24, C25, C26, C28, C29, C34, C36, C39, C41, C42, C43, C45, C48, C49, C52, C53, C54, C55, C56, C58, C59, C60, C61, C62, C63, C66, C67, C68, C71, C73, C75, C76, C80, C81, C82, C84, D10, D12, D14, D15, D16, D17, D18, D19, D20, D21, D27, D28, D38, D39, D42, D48, D49, D51, D52, D54, D55, D56, D58, D61, D62, D63, D64, D65, D66, D68, D70, D72, D73, D74, D76, D77, D79, D80, D81, D83, D84, E10, E15, E17, E18, E19, E20, E23, E24, E26, E27, E28, E31, E33, E38, E40, E47, E48, E49, E50, E51, E52, E53, E54, E55, E56, E57, E58, E59, E60, E61, E67, E69, E70, E71, E72, E73, E75, E77, E79, E82, E83
-- `ATWILL` (27): A60, A71, B30, B32, B53, B69, B80, B83, C18, C46, C50, C57, C64, C69, D13, D46, D53, D59, D60, D69, D71, E13, E14, E22, E27, E39, E62
-- `CAP-GAME` (10): A13, A17, A18, A45, B19, B34, B35, C10, C13, C24
+- `A-OPP` (12): A39, A50, A77, B42, B79, C51, C81, D51, D77, E49, E66, E81
+- `A-OWN` (217): A15, A17, A18, A19, A21, A23, A24, A29, A30, A34, A35, A37, A39, A40, A41, A42, A43, A46, A48, A49, A50, A51, A52, A53, A54, A55, A56, A58, A59, A61, A62, A63, A64, A65, A66, A67, A68, A70, A72, A73, A74, A76, A77, A78, A79, A80, A81, A82, A83, A84, B11, B14, B15, B16, B17, B18, B19, B20, B21, B22, B25, B26, B27, B28, B29, B34, B39, B40, B43, B47, B48, B49, B50, B51, B53, B54, B55, B56, B57, B58, B60, B61, B62, B63, B64, B67, B70, B75, B76, B77, B79, B81, B82, C13, C15, C19, C20, C21, C24, C25, C26, C28, C29, C34, C36, C39, C41, C42, C43, C45, C48, C49, C52, C53, C54, C55, C56, C58, C59, C60, C61, C62, C63, C66, C67, C68, C70, C71, C73, C75, C76, C80, C81, C82, C84, D10, D12, D14, D16, D17, D18, D19, D20, D21, D27, D28, D38, D39, D42, D48, D49, D51, D52, D54, D55, D56, D58, D61, D62, D63, D64, D65, D66, D68, D69, D70, D72, D73, D74, D76, D77, D79, D80, D81, D83, D84, E10, E15, E17, E18, E19, E20, E23, E24, E26, E27, E28, E31, E33, E38, E40, E47, E48, E49, E50, E51, E52, E53, E54, E55, E56, E57, E58, E59, E61, E67, E69, E70, E71, E72, E73, E75, E77, E79, E81, E82, E83
+- `ATWILL` (25): A25, A60, A71, B32, B69, B80, B83, C18, C46, C50, C57, C64, C69, D13, D46, D53, D59, D60, D71, E13, E14, E22, E27, E39, E62
+- `CAP-GAME` (9): A17, A18, A45, B19, B34, B35, B76, C13, C24
 - `CAP-HARVEST` (2): C49, E39
-- `CAP-ROUND` (9): B53, C46, C64, C84, D46, D53, D69, E22, E62
-- `CAP-TURN` (1): C61
-- `E-ALTCOST` (2): A64, D80
-- `E-ANIMALS` (23): A9, A11, A83, A84, B9, B41, B83, B84, C9, C11, C50, C83, C84, D9, D23, D40, D41, D82, D83, D84, E9, E42, E83
-- `E-BAKESPEC` (10): A60, A61, B25, C53, C62, D25, D59, D64, E63, E64
-- `E-BREEDMOD` (4): A84, C84, D84, E84
-- `E-CAPGROW` (4): A12, B72, D11, E12
-- `E-CAPNEG` (4): A10, D12, E33, E36
+- `CAP-ROUND` (8): A25, C46, C64, C84, D46, D53, E22, E62
+- `CAP-TURN` (1): A43
+- `E-ALTCOST` (11): A4, A64, B44, B46, B48, C44, C65, D80, D83, E30, E52
+- `E-ANIMALS` (21): A9, A11, A83, A84, B9, B41, B83, B84, C9, C50, C83, C84, D9, D23, D40, D41, D83, D84, E9, E42, E83
+- `E-BAKESPEC` (6): A60, D25, D59, D64, E63, E64
+- `E-BREEDMOD` (3): A84, C84, E84
+- `E-CAPGROW` (3): A12, D11, E12
+- `E-CAPNEG` (4): B72, D12, E33, E36
 - `E-CAPNEW` (9): A10, A11, B10, B11, B12, C11, C12, E11, E84
-- `E-CONVERT` (61): A30, A34, A36, A40, A48, A56, A58, A59, A60, A61, A62, A76, B8, B9, B28, B32, B42, B53, B63, B70, B80, B82, B83, C9, C34, C36, C41, C46, C49, C50, C54, C55, C57, C59, C61, C62, C63, C64, C69, C70, C80, D6, D27, D59, D60, D62, D64, D66, D68, D69, D73, D84, E7, E9, E39, E53, E63, E64, E75, E78, E82
-- `E-COSTMOD` (28): A1, A13, A14, A16, A27, A28, A75, B13, B14, B17, B28, B75, C13, C14, C27, C37, C56, C75, D13, D15, D16, D81, D82, E1, E2, E27, E28, E60
-- `E-CROPMANIP` (22): A58, A70, A71, A72, A84, B72, C6, C8, C18, C57, C63, C69, C72, D70, D71, D72, D75, E4, E17, E25, E70, E73
+- `E-CONVERT` (50): A30, A34, A40, A48, A56, A58, A59, A60, A61, A62, A76, B9, B32, B42, B53, B63, B70, B80, B82, B83, C41, C49, C50, C54, C55, C57, C59, C61, C62, C63, C69, C70, C80, C82, D6, D59, D60, D62, D66, D68, D69, D73, D84, E9, E39, E53, E54, E75, E78, E82
+- `E-COSTMOD` (21): A14, A16, A27, A28, A75, B13, B28, B30, C13, C14, C27, C37, C56, D13, D15, D16, D81, D82, E27, E28, E60
+- `E-CROPMANIP` (22): A58, A70, A71, A72, A84, C6, C8, C18, C57, C63, C69, C72, D70, D71, D72, D75, E4, E17, E25, E70, E71, E73
 - `E-EXTRAPLACE` (10): A22, A25, B22, B24, C3, C22, C42, D22, D24, E22
-- `E-FOODCOST` (28): A20, A23, A29, A54, A84, B3, B60, B69, B70, B82, C28, C29, C37, C41, C57, C80, C82, D10, D13, D17, D28, D39, D59, D70, E18, E19, E30, E54
-- `E-FREEFENCE` (9): B2, B15, B16, B30, C1, C16, D82, E16, E74
-- `E-GOODS` (175): A4, A5, A6, A7, A8, A9, A11, A13, A16, A21, A27, A33, A37, A40, A41, A42, A49, A50, A51, A52, A53, A54, A55, A56, A57, A58, A59, A62, A63, A64, A65, A66, A67, A68, A70, A76, A77, A78, A79, A80, A82, B1, B4, B5, B6, B7, B8, B9, B11, B16, B21, B22, B25, B32, B37, B39, B40, B42, B44, B48, B49, B50, B51, B52, B53, B54, B55, B56, B57, B58, B59, B61, B62, B63, B64, B67, B70, B71, B73, B75, B77, B79, B81, C4, C5, C7, C26, C40, C41, C42, C48, C50, C52, C53, C54, C55, C56, C57, C58, C60, C61, C62, C63, C66, C67, C68, C73, C76, C81, C82, C83, D4, D5, D7, D8, D9, D12, D14, D23, D38, D42, D48, D49, D50, D51, D52, D53, D54, D55, D56, D58, D61, D62, D63, D65, D74, D76, D77, D79, D80, D81, D84, E4, E5, E6, E7, E8, E10, E37, E40, E48, E49, E50, E51, E52, E54, E55, E56, E57, E58, E59, E60, E61, E65, E66, E67, E68, E71, E72, E75, E76, E77, E79, E81, E82
-- `E-GRANTACT` (31): A3, A23, A27, B1, B15, B26, B27, B28, C1, C15, C16, C25, C26, C28, C60, C72, D2, D13, D14, D18, D23, D26, D64, E10, E13, E14, E15, E26, E62, E63, E64
-- `E-GRANTSUB` (43): A1, A2, A13, A15, A17, A18, A19, A20, A21, A24, A73, B2, B16, B17, B18, B19, B20, B25, C2, C17, C18, C19, C20, C71, D1, D3, D8, D10, D16, D17, D19, D20, D21, D28, D71, E1, E2, E17, E18, E19, E20, E23, E69
+- `E-FOODCOST` (45): A4, A20, A22, A31, A36, A54, B3, B6, B36, B68, B69, B70, B82, C6, C9, C16, C28, C37, C41, C57, C72, C73, C75, C80, C82, D2, D5, D10, D13, D16, D17, D18, D21, D24, D27, D28, D39, D69, D73, D74, D80, D83, E8, E18, E19
+- `E-FREEFENCE` (7): B2, B15, C1, C16, D82, E16, E74
+- `E-GOODS` (163): A4, A5, A6, A7, A8, A13, A16, A21, A27, A33, A37, A40, A41, A42, A49, A50, A51, A52, A53, A54, A55, A57, A58, A62, A63, A64, A65, A66, A67, A68, A77, A78, A79, A80, A82, B1, B4, B5, B6, B7, B8, B9, B11, B16, B21, B22, B25, B37, B39, B40, B48, B49, B50, B51, B52, B54, B55, B56, B57, B58, B59, B61, B62, B64, B67, B70, B71, B73, B75, B77, B79, B81, C4, C5, C7, C26, C40, C41, C42, C48, C50, C52, C53, C54, C55, C56, C57, C58, C60, C61, C62, C63, C66, C67, C68, C72, C73, C75, C76, C80, C81, C82, D4, D5, D7, D8, D12, D14, D23, D38, D42, D48, D49, D50, D51, D52, D53, D54, D55, D56, D58, D61, D62, D63, D65, D74, D76, D77, D79, D80, D81, D82, E4, E5, E6, E7, E8, E10, E37, E40, E48, E49, E50, E51, E52, E55, E56, E57, E58, E59, E60, E61, E65, E66, E67, E68, E72, E75, E76, E77, E79, E81, E82
+- `E-GRANTACT` (16): A23, A27, B26, B27, C1, C15, C16, C60, C72, D14, D18, D51, E10, E14, E15, E27
+- `E-GRANTSUB` (63): A1, A2, A3, A13, A15, A17, A18, A19, A20, A21, A24, A73, B1, B2, B14, B15, B16, B17, B18, B19, B20, B21, B25, B28, C2, C17, C18, C19, C20, C25, C26, C28, C71, D1, D2, D3, D8, D10, D13, D16, D17, D19, D20, D21, D23, D28, D42, D64, D71, E1, E2, E13, E17, E18, E19, E20, E23, E26, E28, E62, E63, E64, E69
 - `E-GROWTH` (6): A21, B21, C21, C24, D10, D21
-- `E-NOPLACE` (7): C21, D18, D53, E13, E14, E26, E62
+- `E-NOPLACE` (6): C21, D18, E13, E14, E26, E62
 - `E-OPPTRANSFER` (8): A29, A39, A50, B42, C29, C38, C51, E81
-- `E-PASSING` (41): A1, A2, A3, A4, A5, A6, A7, A8, A9, B1, B3, B5, B6, B7, B8, B9, C2, C3, C4, C5, C6, C7, C8, C9, D1, D2, D3, D4, D5, D6, D7, D8, D9, E1, E2, E3, E4, E5, E6, E7, E8
-- `E-PEOPLE` (2): B22, C10
-- `E-PIECECOST` (10): A1, A15, A34, B16, C2, C54, D16, E1, E15, E74
-- `E-PLAYVARIANT` (4): B3, B65, C40, D83
+- `E-PASSING` (42): A1, A2, A3, A4, A5, A6, A7, A8, A9, B1, B3, B4, B5, B6, B7, B8, B9, C2, C3, C4, C5, C6, C7, C8, C9, D1, D2, D3, D4, D5, D6, D7, D8, D9, E1, E2, E3, E4, E5, E6, E7, E8
+- `E-PEOPLE` (7): A22, A35, B10, B22, C10, E22, E30
+- `E-PIECECOST` (2): A34, C54
+- `E-PLAYVARIANT` (5): B3, B43, B65, C40, D82
 - `E-RETURNCOMP` (7): A60, C1, C60, D27, D59, D60, E76
-- `E-SCHED` (58): A19, A22, A43, A44, A45, A46, A47, A69, A74, A81, B14, B18, B20, B41, B43, B44, B45, B46, B47, B60, B65, B66, B69, B74, B76, B78, C36, C43, C44, C45, C46, C47, C51, C64, C65, C74, C77, C78, C79, D22, D40, D41, D43, D44, D45, D46, D47, D57, D67, D69, D78, E41, E42, E43, E44, E45, E46, E47
+- `E-SCHED` (56): A19, A43, A44, A45, A46, A47, A69, A74, A81, B14, B18, B20, B41, B43, B44, B45, B46, B47, B60, B65, B66, B69, B74, B76, B78, C43, C44, C45, C46, C47, C51, C64, C65, C74, C77, C78, C79, D22, D40, D41, D43, D44, D45, D46, D47, D57, D67, D69, D78, E41, E42, E43, E44, E45, E46, E47
 - `E-SCHEDANIMAL` (5): B41, B84, D40, D41, E42
-- `E-SCORE` (51): A29, A30, A31, A32, A33, A34, A35, A36, A37, A38, A39, A58, A62, B29, B30, B31, B32, B33, B34, B35, B39, C29, C30, C31, C33, C34, C35, C36, C39, C46, C59, C61, C63, D29, D30, D31, D32, D33, D34, D35, D36, D38, D60, E31, E32, E33, E34, E35, E37, E38, E39
-- `E-SCOREGRP` (3): A38, C30, D34
-- `E-SUBSTITUTE` (5): B26, B30, C13, D21, E24
-- `E-TAKEBACK` (2): B76, D50
-- `E-WORKERMANIP` (6): C22, C23, D51, D53, E3, E10
-- `EXOTIC` (7): B23, B30, D25, D39, D50, E5, E58
-- `F-AUTO` (106): A14, A41, A42, A43, A46, A49, A50, A51, A52, A53, A55, A63, A64, A65, A66, A67, A68, A72, A74, A77, A78, A80, A81, A83, B11, B21, B29, B34, B39, B40, B43, B47, B48, B49, B50, B51, B54, B55, B56, B57, B58, B61, B62, B64, B67, B75, B76, B77, B79, C39, C43, C45, C48, C51, C52, C53, C56, C58, C66, C67, C68, C73, C75, C76, C81, D12, D14, D38, D42, D48, D49, D51, D52, D54, D55, D56, D58, D61, D63, D65, D74, D76, D77, D79, D80, D81, D83, E33, E47, E48, E49, E50, E51, E52, E55, E56, E57, E59, E61, E66, E67, E72, E77, E79, E81, E83
-- `F-MANDCHOICE` (3): A54, A59, D23
-- `F-TRIG` (113): A15, A17, A18, A19, A21, A23, A24, A25, A29, A30, A34, A35, A37, A40, A48, A56, A58, A61, A62, A70, A73, A76, A79, A82, A84, B14, B15, B16, B17, B18, B19, B20, B25, B26, B27, B28, B60, B63, B70, B81, B82, C13, C15, C19, C20, C21, C24, C25, C26, C28, C29, C34, C36, C41, C42, C49, C54, C55, C59, C60, C61, C62, C63, C71, C75, C80, C82, C84, D10, D15, D16, D17, D18, D19, D20, D21, D27, D28, D39, D62, D64, D66, D68, D70, D72, D73, D84, E10, E15, E17, E18, E19, E20, E23, E24, E26, E27, E28, E31, E38, E40, E53, E54, E58, E60, E63, E64, E69, E70, E71, E73, E75, E82
-- `HOOK` (218): A14, A15, A17, A18, A19, A21, A23, A24, A25, A29, A30, A34, A35, A37, A40, A41, A42, A43, A46, A48, A49, A50, A51, A52, A53, A54, A55, A56, A58, A59, A61, A62, A63, A64, A65, A66, A67, A68, A70, A72, A73, A74, A76, A77, A78, A79, A80, A81, A82, A83, A84, B11, B14, B15, B16, B17, B18, B19, B20, B21, B25, B26, B27, B28, B29, B34, B39, B40, B43, B47, B48, B49, B50, B51, B54, B55, B56, B57, B58, B60, B61, B62, B63, B64, B67, B70, B75, B76, B77, B79, B81, B82, C13, C15, C19, C20, C21, C24, C25, C26, C28, C29, C34, C36, C39, C41, C42, C43, C45, C48, C49, C51, C52, C53, C54, C55, C56, C58, C59, C60, C61, C62, C63, C66, C67, C68, C71, C73, C75, C76, C80, C81, C82, C84, D10, D12, D14, D15, D16, D17, D18, D19, D20, D21, D27, D28, D38, D39, D42, D48, D49, D51, D52, D54, D55, D56, D58, D61, D62, D63, D64, D65, D66, D68, D70, D72, D73, D74, D76, D77, D79, D80, D81, D83, D84, E10, E15, E17, E18, E19, E20, E23, E24, E26, E27, E28, E31, E33, E38, E40, E47, E48, E49, E50, E51, E52, E53, E54, E55, E56, E57, E58, E59, E60, E61, E66, E67, E69, E70, E71, E72, E73, E75, E77, E79, E81, E82, E83
-- `L-CARDFIELD` (10): B68, C19, C70, D25, D75, E68, E69, E70, E72, E80
-- `L-CARDSPACE` (8): A39, B23, B42, C12, C39, D23, D51, E81
-- `L-EXT` (9): A10, A28, B33, C13, C17, C27, C28, D13, D26
+- `E-SCORE` (52): A29, A30, A31, A32, A33, A34, A35, A36, A37, A38, A39, A58, A62, B29, B30, B31, B32, B33, B34, B35, B39, C29, C30, C31, C33, C34, C35, C36, C39, C46, C59, C61, C63, D29, D30, D31, D32, D33, D34, D35, D36, D38, D39, D60, E31, E32, E33, E34, E35, E37, E38, E39
+- `E-SCOREGRP` (2): C30, D34
+- `E-SCOREOPT` (1): D29
+- `E-SUBSTITUTE` (6): B26, D21, D26, D53, E24, E62
+- `E-TAKEBACK` (1): B76
+- `E-WORKERMANIP` (5): C22, C23, D51, E3, E10
+- `EXOTIC` (8): B17, B23, B38, C36, D25, D50, E5, E58
+- `F-AUTO` (112): A35, A39, A40, A41, A42, A43, A46, A49, A50, A51, A52, A53, A55, A59, A63, A64, A65, A66, A67, A68, A72, A74, A77, A78, A79, A80, A81, A83, B11, B21, B22, B29, B39, B40, B42, B43, B47, B48, B49, B50, B51, B54, B55, B56, B57, B58, B61, B62, B64, B67, B75, B76, B77, B79, C39, C43, C45, C48, C51, C52, C53, C56, C58, C66, C67, C68, C73, C75, C76, C81, D12, D14, D38, D42, D48, D49, D51, D52, D54, D55, D56, D58, D61, D63, D65, D74, D76, D77, D79, D80, D81, D83, E33, E40, E47, E48, E49, E50, E51, E52, E55, E56, E57, E59, E61, E66, E67, E72, E77, E79, E81, E83
+- `F-MANDCHOICE` (2): A54, C73
+- `F-TRIG` (112): A15, A17, A18, A19, A21, A23, A24, A29, A30, A34, A37, A48, A56, A58, A59, A61, A62, A70, A73, A76, A82, A84, B14, B15, B16, B17, B18, B19, B20, B25, B26, B27, B28, B34, B53, B60, B63, B70, B81, B82, C13, C15, C19, C20, C21, C24, C25, C26, C28, C29, C34, C36, C41, C42, C49, C54, C55, C59, C60, C61, C62, C63, C70, C71, C75, C80, C82, C84, D10, D14, D16, D17, D18, D19, D20, D21, D27, D28, D39, D42, D51, D62, D64, D66, D68, D69, D70, D72, D73, D84, E10, E15, E17, E18, E19, E20, E23, E24, E26, E27, E28, E31, E38, E53, E54, E58, E69, E70, E71, E73, E75, E82
+- `HOOK` (220): A15, A17, A18, A19, A21, A23, A24, A29, A30, A34, A35, A37, A39, A40, A41, A42, A43, A46, A48, A49, A50, A51, A52, A53, A54, A55, A56, A58, A59, A61, A62, A63, A64, A65, A66, A67, A68, A70, A72, A73, A74, A76, A77, A78, A79, A80, A81, A82, A83, A84, B11, B14, B15, B16, B17, B18, B19, B20, B21, B22, B25, B26, B27, B28, B29, B34, B39, B40, B42, B43, B47, B48, B49, B50, B51, B53, B54, B55, B56, B57, B58, B60, B61, B62, B63, B64, B67, B70, B75, B76, B77, B79, B81, B82, C13, C15, C19, C20, C21, C24, C25, C26, C28, C29, C34, C36, C39, C41, C42, C43, C45, C48, C49, C51, C52, C53, C54, C55, C56, C58, C59, C60, C61, C62, C63, C66, C67, C68, C70, C71, C73, C75, C76, C80, C81, C82, C84, D10, D12, D14, D16, D17, D18, D19, D20, D21, D27, D28, D38, D39, D42, D48, D49, D51, D52, D54, D55, D56, D58, D61, D62, D63, D64, D65, D66, D68, D69, D70, D72, D73, D74, D76, D77, D79, D80, D81, D83, D84, E10, E15, E17, E18, E19, E20, E23, E24, E26, E27, E28, E31, E33, E38, E40, E47, E48, E49, E50, E51, E52, E53, E54, E55, E56, E57, E58, E59, E61, E66, E67, E69, E70, E71, E72, E73, E75, E77, E79, E81, E82, E83
+- `L-CARDFIELD` (9): B68, C70, D25, D75, E68, E69, E70, E72, E80
+- `L-CARDSPACE` (7): A39, B23, B42, C39, D23, D51, E81
+- `L-EXT` (12): A10, A28, A60, B30, B72, C13, C17, C27, D13, D26, D75, E60
 - `L-GEOMBOARD` (2): B56, C23
-- `L-GEOMFARM` (12): A1, A83, B2, B31, B38, D1, D33, D63, E11, E16, E32, E71
+- `L-GEOMFARM` (12): B2, B30, B31, B38, C16, D1, D33, D63, E11, E16, E32, E71
 - `L-HIDDEN` (1): B23
-- `L-OCCUPY` (7): A25, A26, A28, B42, D51, E21, E81
+- `L-OCCUPY` (5): A25, A26, A28, D24, E21
 - `L-RANDOM` (2): A3, B3
-- `LATCH` (3): A45, B35, C10
-- `NONE` (10): A8, B36, B37, B52, B71, B73, C32, D37, E6, E29
-- `ONPLAY` (163): A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A13, A16, A19, A20, A22, A27, A33, A36, A39, A40, A44, A47, A54, A57, A69, A77, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B14, B16, B18, B19, B20, B21, B22, B23, B24, B25, B33, B36, B37, B41, B42, B44, B45, B46, B48, B52, B54, B55, B58, B59, B61, B65, B66, B68, B71, B73, B74, B76, B78, B83, B84, C1, C2, C3, C4, C5, C6, C7, C8, C9, C11, C16, C17, C19, C22, C26, C32, C38, C40, C44, C47, C50, C57, C60, C65, C70, C72, C74, C77, C78, C79, C81, C83, D1, D2, D3, D4, D5, D6, D7, D8, D9, D22, D25, D37, D40, D41, D43, D44, D45, D47, D50, D57, D62, D67, D69, D78, D84, E1, E2, E3, E4, E5, E6, E7, E8, E9, E22, E25, E28, E29, E33, E37, E40, E41, E42, E43, E44, E45, E46, E56, E60, E63, E64, E65, E74, E76, E78, E81, E82
-- `PASSIVE` (32): A12, A16, A26, A28, A38, A75, B13, B24, B38, B72, C12, C14, C23, C27, C37, D11, D24, D26, D75, D82, E11, E12, E16, E17, E21, E30, E33, E36, E63, E64, E74, E84
-- `S-AFTERFEED` (6): B11, B82, C34, C41, C66, D76
-- `S-HBREED` (2): C71, E83
-- `S-HFEED` (10): A62, C49, C55, C59, C62, C63, D12, D62, D84, E48
-- `S-HFIELD` (15): A61, A64, B39, B50, B58, B61, C29, C54, D38, D63, D65, D72, E58, E72, E73
+- `LATCH` (2): A45, B35
+- `NONE` (9): A57, B37, B52, B71, B73, C32, D37, E29, E65
+- `ONPLAY` (154): A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A13, A16, A19, A20, A22, A27, A33, A36, A40, A44, A47, A54, A57, A69, A77, B1, B2, B3, B4, B5, B6, B7, B8, B9, B14, B16, B18, B19, B20, B21, B22, B23, B24, B25, B33, B36, B37, B41, B44, B45, B46, B48, B52, B54, B55, B58, B59, B65, B66, B71, B73, B74, B76, B78, B83, B84, C1, C2, C3, C4, C5, C6, C7, C8, C9, C16, C17, C19, C22, C26, C32, C38, C40, C44, C47, C50, C57, C60, C65, C72, C74, C77, C78, C79, C81, C83, D1, D2, D3, D4, D5, D6, D7, D8, D9, D22, D25, D37, D40, D41, D43, D44, D45, D47, D50, D57, D60, D62, D67, D69, D78, D82, D84, E1, E2, E3, E4, E5, E6, E7, E8, E9, E22, E25, E28, E29, E37, E40, E41, E42, E43, E44, E45, E46, E56, E60, E63, E64, E65, E74, E76, E78, E82
+- `PASSIVE` (69): A10, A11, A12, A14, A16, A26, A28, A31, A32, A38, A75, B10, B11, B12, B13, B24, B30, B31, B33, B38, B68, B72, C10, C11, C12, C14, C23, C27, C30, C31, C33, C35, C37, C56, C70, D11, D12, D15, D23, D24, D26, D29, D30, D31, D32, D33, D34, D50, D75, D82, E11, E12, E16, E17, E21, E30, E32, E33, E34, E35, E36, E37, E60, E63, E64, E69, E72, E74, E84
+- `S-AFTERFEED` (2): C41, D76
+- `S-HBREED` (6): B11, B82, C34, C66, C71, E83
+- `S-HFEED` (11): A62, C49, C55, C59, C62, C63, D12, D62, D84, E48, E52
+- `S-HFIELD` (18): A59, A61, A64, B39, B50, B58, B61, C29, C54, C70, D38, D63, D65, D72, E58, E69, E72, E73
 - `S-HSTART` (4): C24, D61, D70, E61
-- `S-MAJMIN` (4): B75, D21, E24, E54
-- `S-OBTAIN` (11): A17, A48, B21, B34, B79, C52, C81, E33, E47, E53, E77
-- `S-PLAY` (9): B25, B49, C68, D42, D49, E18, E31, E54, E60
-- `S-REVEAL` (2): A49, C21
-- `S-ROUNDEND` (14): A29, A35, A53, A54, A58, A70, A84, C75, C84, D10, D18, D52, D64, D79
-- `S-SOR` (13): A19, A76, B14, B18, B20, B57, B70, B81, C67, D48, D54, E28, E56
-- `S-SPACE` (75): A15, A18, A23, A24, A25, A40, A42, A46, A50, A51, A52, A56, A66, A67, A72, A77, A78, A80, A81, A82, B15, B17, B19, B26, B28, B29, B40, B43, B47, B48, B51, B55, B56, B60, B62, B63, B64, B77, C15, C19, C20, C25, C26, C28, C36, C39, C42, C45, C51, C58, C76, C82, D16, D19, D20, D28, D39, D51, D55, D68, D73, D83, E15, E17, E19, E38, E40, E51, E55, E59, E66, E67, E75, E81, E82
-- `S-SUB` (48): A14, A21, A30, A34, A37, A41, A43, A55, A59, A63, A65, A68, A73, A74, A79, A83, B16, B27, B54, B67, B76, C13, C43, C53, C56, C60, C61, C73, C75, C80, D14, D15, D17, D27, D56, D58, D66, D77, D80, D81, E49, E50, E52, E57, E69, E70, E71, E79
-- `S-TURNEND` (7): C48, D74, E10, E20, E23, E26, E27
-- `ST-COUNTER` (6): A53, B49, D36, D42, E31, E38
-- `ST-LATCH` (3): A45, B35, C10
-- `ST-PLACELOG` (11): A18, A25, A35, B4, B22, C22, C25, C48, E3, E10, E20
-- `ST-PROV` (17): A15, A53, B15, B17, B29, B76, B79, C52, C53, C58, D19, D71, D74, D80, E15, E55, E77
-- `ST-STACK` (21): A40, A81, B19, B21, B48, B55, B83, C19, C75, C81, D20, D75, E22, E27, E31, E38, E40, E51, E52, E56, E74
-- `ST-STORE` (16): A17, A18, A22, A59, B14, B19, B34, C6, C13, C24, C31, C51, C56, C61, D32, E28
-- `ST-THRESHOLD` (1): B35
-- `T-AFTER` (129): A15, A17, A19, A21, A23, A24, A25, A29, A30, A34, A35, A37, A41, A43, A48, A49, A53, A54, A55, A56, A58, A59, A61, A62, A63, A64, A68, A70, A72, A73, A74, A76, A77, A82, A83, A84, B11, B15, B16, B18, B19, B20, B21, B25, B27, B28, B29, B34, B39, B40, B43, B49, B50, B54, B57, B58, B76, B79, B82, C21, C25, C29, C34, C36, C41, C42, C43, C48, C49, C52, C53, C54, C56, C58, C66, C68, C71, C73, C75, C80, C81, C82, D18, D19, D27, D38, D42, D51, D52, D55, D56, D58, D63, D64, D65, D72, D73, D74, D76, D77, D79, D80, E10, E15, E18, E19, E20, E23, E26, E27, E28, E31, E33, E47, E49, E50, E51, E52, E53, E54, E57, E66, E69, E70, E72, E73, E77, E79, E82
-- `T-BEFORE` (79): A14, A18, A40, A42, A46, A50, A51, A52, A65, A66, A67, A78, A79, A80, A81, B14, B17, B26, B47, B48, B51, B55, B56, B60, B61, B62, B63, B64, B67, B75, B77, B81, C13, C15, C19, C20, C24, C26, C28, C39, C45, C51, C60, C61, C75, C76, D14, D15, D16, D17, D20, D21, D28, D39, D48, D49, D54, D61, D62, D66, D68, D70, D81, D83, D84, E17, E24, E38, E40, E48, E55, E56, E58, E59, E60, E61, E67, E71, E75
+- `S-MAJMIN` (5): A41, B75, C75, D21, E24
+- `S-OBTAIN` (8): A48, B21, C52, C81, E33, E47, E53, E77
+- `S-PLAY` (10): B25, B49, B75, C68, C80, D42, D49, E18, E31, E54
+- `S-REVEAL` (1): C21
+- `S-ROUNDEND` (18): A29, A35, A53, A54, A58, A70, A84, B22, B53, C51, C75, C84, D10, D18, D51, D52, D64, D79
+- `S-SOR` (15): A19, A49, A76, B14, B18, B20, B57, B70, B81, C67, D48, D54, D69, E28, E56
+- `S-SPACE` (77): A15, A17, A18, A23, A24, A39, A42, A46, A50, A51, A52, A56, A66, A67, A72, A77, A78, A80, A81, A82, B15, B17, B19, B26, B28, B34, B40, B42, B43, B47, B48, B51, B55, B56, B60, B62, B63, B64, B77, B79, C15, C19, C20, C25, C26, C28, C36, C39, C42, C45, C51, C58, C76, C82, D16, D19, D20, D28, D39, D51, D55, D68, D73, D83, E15, E17, E19, E38, E40, E51, E55, E59, E66, E67, E75, E81, E82
+- `S-SUB` (44): A21, A30, A34, A37, A40, A43, A55, A63, A65, A68, A73, A74, A79, A83, B16, B54, B55, B67, B76, C13, C43, C53, C56, C60, C61, C73, C80, D14, D17, D27, D56, D58, D66, D77, D80, D81, E49, E50, E51, E52, E57, E70, E71, E79
+- `S-TURNEND` (9): B27, B29, C48, D74, E10, E20, E23, E26, E27
+- `ST-COUNTER` (24): A29, A30, A34, A35, A37, A39, A53, A58, A73, B27, C29, C34, C36, C39, C46, C61, C63, D36, D39, D74, E31, E33, E38, E39
+- `ST-LATCH` (1): A45
+- `ST-PLACELOG` (9): A25, A35, B4, B67, C22, D51, E3, E10, E20
+- `ST-PROV` (23): A17, A41, A79, A83, B15, B34, B76, B79, C52, C53, C70, C81, D19, D56, D58, D63, D65, D74, D80, E15, E50, E54, E77
+- `ST-STACK` (19): A40, A81, B19, B21, B48, B55, B83, C19, C75, C81, D20, D75, E22, E27, E40, E51, E52, E56, E74
+- `ST-STORE` (18): A22, A25, A36, A43, B22, B29, B30, B33, B34, B43, C24, C48, C51, C62, D32, D71, E28, E33
+- `ST-THRESHOLD` (2): B21, B35
+- `T-AFTER` (121): A15, A17, A19, A23, A29, A35, A40, A41, A43, A48, A49, A53, A54, A55, A56, A58, A59, A61, A63, A64, A68, A70, A73, A74, A79, A82, A83, A84, B11, B14, B15, B16, B18, B20, B21, B22, B25, B27, B28, B29, B34, B39, B49, B50, B53, B54, B58, B76, B79, B82, C21, C25, C29, C34, C36, C41, C42, C43, C48, C49, C51, C52, C53, C54, C56, C58, C66, C68, C70, C71, C73, C75, C80, C81, C82, D10, D18, D19, D27, D38, D42, D52, D56, D58, D63, D64, D65, D72, D73, D74, D76, D77, D79, D80, D81, E10, E15, E18, E19, E20, E23, E26, E27, E28, E31, E33, E47, E49, E50, E52, E53, E54, E57, E69, E70, E71, E72, E73, E77, E79, E82
+- `T-BEFORE` (101): A18, A21, A24, A30, A34, A37, A39, A42, A46, A50, A51, A52, A62, A65, A66, A67, A72, A76, A77, A78, A80, A81, B17, B19, B26, B40, B42, B43, B47, B48, B51, B55, B56, B57, B60, B61, B62, B63, B64, B67, B75, B77, B81, C13, C15, C19, C20, C24, C26, C28, C39, C45, C51, C55, C59, C60, C61, C62, C63, C67, C75, C76, D12, D14, D16, D17, D20, D21, D28, D39, D48, D49, D51, D54, D55, D61, D62, D66, D68, D69, D70, D81, D83, D84, E17, E24, E38, E40, E48, E51, E52, E55, E56, E58, E59, E61, E66, E67, E75, E81, E83
 
 # Part — Occupations
 
-**420 occupations** — ✅ 86 implemented · 🚫 1 won't-fix/banned · ⬜ 333 not yet · ⚖ 193 high-effort adjudicated · 🔶 0 residual (low-confidence).
+**420 occupations** — ✅ 86 implemented · 🚫 1 won't-fix/banned · ⬜ 333 not yet · ⚖ 319 high-effort adjudicated · 🔶 6 residual (low-confidence).
+
+### Residual — low-confidence, worth a human look
+
+- **A102 Grocer** — _Pile the following goods on this card (wood, grain, reed, stone, vegetable, clay, reed, vegetable). At any time, you can buy the top good for 1 food.  [CLARIFICATION: You may buy any amount of goods at once.]_ — `ONPLAY ATWILL E-CONVERT E-FOODCOST ST-STACK E-GOODS` — ONPLAY sets up the pile on the card (ST-STACK); 'at any time' buy the top good for 1 food = ATWILL + E-FOODCOST + E-CONVERT (food-for-good exchange at a rate). E-GOODS included because buying delivers the good into your supply — the card is a goods source, unlike a pure rate rule; this is the one genuinely marginal tag (the conversion already implies the gain).
+- **A130 Mummy's Boy** — _Once per round, when placing a person after your first two, you can place it on the action space with your 2nd person and use that space again. (Mark the action space)._ — `ATWILL CAP-ROUND E-GRANTACT L-OCCUPY ST-PLACELOG` — 'Once per round, you can...' is the explicit ATWILL+CAP-ROUND ruling — the option lives inside the player's own placement choice, not a response event (HOOK on your own placement is circular). The effect is using an occupied space's action again (E-GRANTACT + L-OCCUPY); neither E-EXTRAPLACE (it IS the normal placement of the 3rd+ person) nor E-WORKERMANIP (no placed worker is moved) fits; ST-PLACELOG tracks where the 2nd person sits.
+- **C130 Outskirts Director** — _Each time you use the "Grove" or "Hollow" accumulation space, you can place 2 reed from the general supply on the other space. If you do, you can immediately place another person.  [CLARIFICATION: You may use the ability multiple times in a row.]_ — `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-EXTRAPLACE` — "Each time you use" -> T-BEFORE per ruling; optional (F-TRIG) extra placement; the 2 reed go from general supply onto the OTHER action space, not to the player, so E-GOODS is wrong (space-seeding is an uncaptured mechanic, closest set is this one).
+- **C150 Parrot Breeder** — _On your turn, if you pay 1 grain to the general supply, you can use the same action space that the player to your right has just used on their turn.  [CLARIFICATION: You may not use this ability to use an empty accumulation space.]_ — `ATWILL E-GRANTACT L-OCCUPY ST-PLACELOG` — Not a HOOK: nothing fires when the neighbor acts — the option is exercised on YOUR turn at your discretion (ATWILL, the standalone-option ruling). It lets you use another (occupied) space's action (E-GRANTACT + L-OCCUPY) and requires knowing which space the right-hand player last used (ST-PLACELOG); the 1-grain payment is an ordinary resource cost, so labelA's E-CONVERT and labelB's E-GOODS are both wrong.
+- **D91 Plowman** — _Add 4, 7, and 10 to the current round and place a field tile on each corresponding round space. At the start of these rounds, you can plow the field for 1 food._ — `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — On play, tiles scheduled onto future round spaces (E-SCHED); at start of those rounds an optional plow (E-GRANTSUB, F-TRIG) costing 1 food (E-FOODCOST). Timing is degenerate at the S-SOR seam (no triggering action); T-AFTER = resolves once the round has started, but T-BEFORE is equally defensible.
+- **E91 Plow Builder** — _You can build the Joinery when taking a "Minor Improvement" action. If you use the Joinery (or an upgrade thereof) during the harvest, you can pay 1 food to plow 1 field._ — `PASSIVE L-EXT HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Two mechanics: an always-on legality extension (Joinery buildable via the Minor Improvement action → PASSIVE + L-EXT) and a hook on using the Joinery during harvest — Joinery use is a harvest feeding-phase conversion, not an action space, so S-HFEED not S-SPACE; "if you use X" defaults to T-BEFORE per the each-time-you-use ruling. Effect is pay-1-food (E-FOODCOST) to plow (E-GRANTSUB), optional (F-TRIG).
 
 ### Deck A
 
 - ⬜ **A85 Homekeeper** · [1+]
   - _Exactly one clay or stone room in your house can hold an additional person if the room is adjacent to both a field and a pasture.  [CLARIFICATION: Field cards may not count as adjacent.  If the room later loses adjacency to the field and/or pasture, the capacity for an additional person is lost (e.g. after playing Overhaul C001)]_
-  - `PASSIVE E-CAPGROW L-GEOMFARM` — Kept L-GEOMFARM: room must be orthogonally adjacent to both a field and a pasture (true tile adjacency/shape).
+  - `PASSIVE E-CAPNEW E-PEOPLE L-GEOMFARM` — A clay/stone room adjacent to both a field and a pasture holds an extra person -> new person-holder (E-CAPNEW, its taxonomy exemplar) + person-capacity change (E-PEOPLE); farm-tile adjacency = L-GEOMFARM (user ruling; E-CAPGROW is animal-slot-only).
 - ✅ **A86 Animal Tamer** · [1+]
   - _When you play this card, you immediately get your choice of 1 wood or 1 grain. Instead of just 1 animal total, you can keep any 1 animal in each room of your house.  [CLARIFICATION: This effect is negated by the Milking Place D012.]_
-  - `ONPLAY PASSIVE E-GOODS E-CAPGROW F-MANDCHOICE` — On play get 1 wood OR 1 grain (mandatory choice); passive: keep any 1 animal per room of house (raises house-pet capacity per room). E-MANDCHOICE is not a code; correcting to F-MANDCHOICE not applicable (no hook).
+  - `ONPLAY PASSIVE E-GOODS E-CAPGROW` — On-play wood-or-grain gain (ONPLAY + E-GOODS) plus a continuous per-room pet-capacity rule (PASSIVE + E-CAPGROW, which explicitly covers house-pet/per-room). F-MANDCHOICE is a HOOK dimension and may only accompany HOOK, so it is dropped; the on-play choice carries no code.
 - ✅ **A87 Conservator** · [1+]
   - _You can renovate your wooden house directly to stone without renovating it to clay first.  [CLARIFICATION: You may decline this ability.]_
-  - `PASSIVE L-EXT E-COSTMOD` — May renovate wood->stone directly (skip clay), declinable; extends renovation target eligibility, changing what/how renovation is done.
+  - `PASSIVE L-EXT` — A continuous rule adding wood→stone as a renovation target — exactly L-EXT's 'a new renovation target'. It doesn't change what any renovation costs (you still pay stone + reed for the renovation you take), so no E-COSTMOD.
 - ✅ **A88 Hedge Keeper** · [1+]
   - _Each time you take a "Build Fences" action, you do not have to pay wood for 3 of the fences you build.  [CLARIFICATION: You may spend 0 wood to build 1-3 fences.  Mini Pasture B002, Overhaul C001, and other fencing effects that are not the literal “Build Fences” action, do not trigger this card.]_
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-FREEFENCE` — Each Build Fences action, 3 fences free of wood; only the literal Build Fences action per errata.
+  - `PASSIVE E-FREEFENCE` — A standing cost discount applied automatically whenever the literal Build Fences action is taken — the same shape as the PASSIVE exemplar 'every improvement costs 1 wood less'; nothing fires and no separate choice is offered (the free budget just applies to fences you build), so no HOOK/F-TRIG. E-FREEFENCE for the 3 free fences.
 - ✅ **A89 Stable Planner** · [1+]
   - _Add 3, 6, and 9 to the current round. You can place 1 stable on each corresponding round space. A the start of these rounds (not earlier), you can build the stable at no cost.  [CLARIFICATION: Stables built this way are not built on your turn and do not trigger Stable Tree A074 or Farmyard Manure A043.]_
-  - `ONPLAY E-SCHED E-PIECECOST E-GRANTSUB HOOK S-SOR T-AFTER F-TRIG A-OWN ST-STORE` — On play, schedules stables (pieces) onto future round spaces (E-SCHED, not L-GEOMBOARD per convention 2); at the start of each such round an optional build-stable sub-action fires (HOOK/S-SOR/T-AFTER/F-TRIG/A-OWN); needs to track which round-spaces hold a stable (ST-STORE).
+  - `ONPLAY HOOK T-BEFORE S-SOR F-TRIG A-OWN E-SCHED E-GRANTSUB` — On play, stables are scheduled onto future round spaces (E-SCHED — the round spaces, not the card, hold them, so no ST-STORE) and each grants an optional free stable build at the start of that round (S-SOR + F-TRIG + E-GRANTSUB, T-BEFORE by analogy with other start-of-phase hooks); the stables are reserved to be built free, not paid away, so no E-PIECECOST.
 - ✅ **A90 Plow Driver** · [1+]
   - _Once you live in a stone house, at the start of each round, you can pay 1 food to plow 1 field.  [CLARIFICATION: If played by the Scholar B097, the effect can be used immediately.]_
-  - `LATCH ST-LATCH HOOK S-SOR T-AFTER F-TRIG A-OWN E-FOODCOST E-GRANTSUB CAP-ROUND` — LATCH+ST-LATCH gate: only after living in a stone house. Then each round start you MAY pay 1 food to plow — a start-of-round HOOK (S-SOR) granting a plow sub-action (E-GRANTSUB), optional (F-TRIG), costing food (E-FOODCOST). 'at the start of each round' is a per-round HOOK; the once-per-round limit is inherent to the SOR firing, so CAP-ROUND is arguably redundant but the grant is a per-round cap on an offered use—include it. Not ATWILL: it is keyed to start-of-round, not player-chosen timing.
+  - `HOOK S-SOR T-AFTER F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Recurring optional start-of-round plow-for-food, gated on a standing stone-house state read. Not LATCH/ST-LATCH (LATCH is a ONE-time fire; this repeats every round once true), and no CAP-ROUND (an 'each round' hook implies once-per-occurrence by nature). T-AFTER: the effect fires at/within the start-of-round seam, matching the phase-seam convention (cf. field-phase hooks); no 'before' wording.
 - ✅ **A91 Shifting Cultivator** · [1+]
   - _Each time you use a wood accumulation space, you can also play 3 food to plow 1 field.  [CLARIFICATION: Food obtained via the Basket A056, or any other effect “after” using the space may not be used to pay for this effect.]_
-  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-GRANTSUB E-FOODCOST ST-PROV` — 'Each time you use a wood accumulation space' = T-BEFORE space hook, optional (F-TRIG), grants a plow sub-action (E-GRANTSUB) paid in food (E-FOODCOST); clarification restricting which food may pay requires event/food provenance (ST-PROV).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-FOODCOST E-GRANTSUB` — 'Each time you use' fires T-BEFORE, and the clarification (after-effect food can't pay) is just a consequence of that ordering — payment is checked against current supply at fire time, no snapshot/payload needed, so drop ST-PROV; optional 3-food plow grant (F-TRIG, E-FOODCOST, E-GRANTSUB).
 - ⬜ **A92 Adoptive Parents** · [1+]
   - _For 1 food, you can take an action with offspring in the same round you get it. If you do, the offspring does not count as "newborn".  [CLARIFICATION: This card may be played and triggered any time after growth in the same round’s work phase.  If this effect is used in a Harvest round, the person must be fed 2 food in the Harvest (3 for solo game.)]_
-  - `ATWILL CAP-ROUND E-FOODCOST E-PEOPLE ST-PROV` — For 1 food you may immediately use the just-gained offspring as a worker and strip its newborn status. Clarification: playable/triggerable any time in the same round's work phase after growth = player-chosen timing on a same-round offspring = ATWILL + CAP-ROUND, not a fixed HOOK on growth. Changes newborn classification and lets the new person act (E-PEOPLE), costs food (E-FOODCOST), needs the offspring's provenance/same-round flag (ST-PROV). E-WORKERMANIP does not apply—no already-placed worker is manipulated.
+  - `ATWILL E-EXTRAPLACE E-FOODCOST E-PEOPLE` — Clarification says it can be 'triggered any time after growth in the same round' — deferrable at the player's chosen moment, so ATWILL, not an at-the-growth-event HOOK. Effects: pay food (E-FOODCOST), place the offspring this round (an additional placement, E-EXTRAPLACE), and strip 'newborn' classification (E-PEOPLE). No CAP-ROUND (limit is intrinsic per-offspring, not a stated once-per-round cap); no ST-PROV — the engine already tracks which person is this round's unplaceable newborn.
 - ⬜ **A93 Bed Maker** · [1+]
   - _Each time you add rooms to your house, you can also pay 1 wood and 1 grain to immediately get a "Family Growth with Room Only" action.  [CLARIFICATION: This card allows exactly 1 growth action regardless of how many rooms are built.]_
   - `HOOK S-SUB T-AFTER F-TRIG A-OWN E-GRANTSUB E-GROWTH` — After adding rooms (S-SUB build-room, T-AFTER) an optional pay-1-wood-1-grain grants a family growth (E-GRANTSUB/E-GROWTH); the 'exactly 1 regardless of rooms' clarification is inherent to one firing per build-rooms action, so no CAP tag and not CAP-GAME.
@@ -1414,34 +1429,34 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK S-SUB T-AFTER F-TRIG A-OWN E-EXTRAPLACE L-OCCUPY` — After declining a Sow sub-action (S-SUB, T-AFTER) you may place an ADDITIONAL new person (E-EXTRAPLACE, not E-WORKERMANIP) even on an occupied space (L-OCCUPY); optional so F-TRIG.
 - ⬜ **A95 Angler** · [1+]
   - _Each time after you use the "Fishing" Accumulation space while there are at most 2 food on that space, you get a "Major or Minor Improvement" action._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT` — Removed L-GEOMBOARD: hooks the NAMED 'Fishing' space and its good-count, not board position/order/adjacency.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT ST-PROV` — Fires after using Fishing, but the '≤2 food on that space' condition refers to the count DURING use — using the accumulation space zeroes it, so the pre-use value must be snapshotted, which is ST-PROV's canonical case; granted Major/Minor action is optional (F-TRIG, E-GRANTACT).
 - ⬜ **A96 Task Artisan** · [1+]
   - _When you play this card and each time a stone accumulation space appears on a round space in the preparation phase, you get 1 wood and a "Minor Improvement" action._
-  - `ONPLAY HOOK T-AFTER S-REVEAL F-AUTO A-OWN E-GOODS E-GRANTACT` — Removed L-GEOMBOARD: triggers on a stone accumulation space being revealed (card identity), not on board numbers/position/adjacency.
+  - `ONPLAY HOOK T-AFTER S-REVEAL F-AUTO F-TRIG A-OWN E-GOODS E-GRANTACT` — On-play once plus a reveal hook; the 1 wood is mandatory (F-AUTO) but the granted Minor Improvement action is optional per the granted-actions ruling (F-TRIG) — both firing tags apply.
 - 🚫 **A97 Freshman** · [1+]
   - _Each time you get a "Bake Bread" action, instead of taking the action, you can play an occupation without paying an occupation cost.  [ERRATA: ERRATA: The effect is limited to once per turn.]  [CLARIFICATION: You may use the “Grain Utilization” space while being unable to Sow or Bake Bread, as this card substitutes the “Bake Bread” action.]_
-  - `HOOK S-SUB T-BEFORE F-TRIG A-OWN CAP-TURN E-SUBSTITUTE E-COSTMOD` — When you get a Bake Bread sub-action you may instead (T-BEFORE, E-SUBSTITUTE) play an occupation waiving its play cost (E-COSTMOD); optional, errata caps to once per turn (CAP-TURN).
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN CAP-TURN E-SUBSTITUTE E-GRANTSUB` — Substitutes the Bake Bread sub-action with a granted play-an-occupation (play-a-card is an S-SUB primitive, so the grant is E-GRANTSUB); E-COSTMOD is scoped to build/renovation/improvement costs, not the occupation play-cost, whose waiver is part of the grant. Errata adds the once-per-turn cap.
 - ✅ **A98 Stable Architect** · [1+]
   - _During scoring, you get 1 bonus point for each unfenced stable in your farmyard._
-  - `E-SCORE` — Plain end-game bonus-point rule (1 pt per unfenced stable). Pure count/coverage score, no adjacency/shape needed, so not L-GEOMFARM; E-SCORE never carries PASSIVE/HOOK.
+  - `PASSIVE E-SCORE` — Pure text-written end-game bonus rule (1 pt per unfenced stable) = E-SCORE, computed not fired (no HOOK). The taxonomy requires >=1 ACTIVATION, and an always-on scoring rule change is PASSIVE.
 - ✅ **A99 Fellow Grazer** · [1+]
   - _During scoring, you get 2 bonus points of reach pasture you have covering at least 3 farmyard spaces._
-  - `E-SCORE` — Scoring: +2 bonus points per pasture covering >=3 farmyard spaces (plain per-pasture threshold count).
+  - `PASSIVE E-SCORE` — Pure text scoring rule (per-pasture size threshold = plain E-SCORE, not E-SCOREOPT, and size-counting is not L-GEOMFARM); the required ACTIVATION for an always-on scoring rule is PASSIVE.
 - ⬜ **A100 Curator** · [1+]
   - _In the returning home phase of each round, if you return at least 3 people from accumulation spaces, you can buy 1 bonus point for 1 food._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GOODS E-FOODCOST` — In returning-home phase, if you return >=3 people from accumulation spaces, buy 1 bonus point for 1 food; needs to count returned-from-accumulation workers.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-FOODCOST E-SCORE ST-PLACELOG ST-COUNTER` — Optional food-paid bonus point at returning home: a bonus point bought through an action is E-SCORE (bonus points are not goods, so not E-GOODS); needs which spaces the returning workers occupied (ST-PLACELOG) and a running bank of bought points (ST-COUNTER).
 - ✅ **A101 Cookery Outfitter** · [1+]
   - _During scoring, you get 1 bonus point for each cooking improvement you have.  [CLARIFICATION: Ovens do not count towards this card.]_
-  - `E-SCORE` — Scoring: +1 bonus point per cooking improvement (ovens excluded); plain count.
-- ⬜ **A102 Grocer** · [1+]
+  - `PASSIVE E-SCORE` — Plain count-based end-game bonus rule (cooking improvements, ovens excluded per clarification); PASSIVE supplies the required ACTIVATION for an always-on scoring rule.
+- ⬜ **A102 Grocer** · [1+] 🔶
   - _Pile the following goods on this card (wood, grain, reed, stone, vegetable, clay, reed, vegetable). At any time, you can buy the top good for 1 food.  [CLARIFICATION: You may buy any amount of goods at once.]_
-  - `ONPLAY ATWILL E-CONVERT E-FOODCOST ST-STACK` — On play pile goods on card; at any time buy top good for 1 food (LIFO stack consumed over time).
+  - `ONPLAY ATWILL E-CONVERT E-FOODCOST ST-STACK E-GOODS` — ONPLAY sets up the pile on the card (ST-STACK); 'at any time' buy the top good for 1 food = ATWILL + E-FOODCOST + E-CONVERT (food-for-good exchange at a rate). E-GOODS included because buying delivers the good into your supply — the card is a goods source, unlike a pure rate rule; this is the one genuinely marginal tag (the conversion already implies the gain).
 - ✅ **A103 Portmonger** · [1+]
   - _Each time you take 1/2/3+ food from a food accumulation space, you also get 1 vegetable/grain/reed._
   - `HOOK S-SPACE T-AFTER F-AUTO A-OWN E-GOODS ST-PROV` — After taking food from a food accumulation space you also gain a good (E-GOODS, F-AUTO, T-AFTER); the reward depends on the amount of food taken, needing event payload provenance (ST-PROV).
 - ✅ **A104 Wood Harvester** · [1+]
   - _In the field phase of each harvest, you get 1 wood/1 food for each wood accumulation space with exactly 2 wood/at least 3 wood._
-  - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS` — Removed L-GEOMBOARD: reads named wood accumulation spaces and their good-counts, not board position.
+  - `HOOK T-BEFORE S-HFIELD F-AUTO A-OWN E-GOODS` — Mandatory goods in each harvest field phase; T-AFTER is reserved for explicit 'immediately after / at the end of' language, which is absent, so the default T-BEFORE applies (timing is mechanically immaterial here anyway).
 - ✅ **A105 Barrow Pusher** · [1+]
   - _For each new field tile you get, you also get 1 clay and 1 food._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — For each new field tile you get (plow), also get 1 clay + 1 food.
@@ -1450,13 +1465,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS ST-PROV` — Fires in field phase when the last crop is taken from a field, giving food; keyed on field-harvest depletion event.
 - ✅ **A107 Catcher** · [1+]
   - _Each time you place your 1st/2nd/3rd person in a round on a building resource accumulation space with exactly 5/4/3 building resources, you get 1 food._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-PLACELOG ST-COUNTER` — On placing your Nth person of the round on a resource space with exact count, get food; needs count of placements this round and space contents.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Fires on placing on a space and must read the resource count before the space's action collects it → T-BEFORE; the 1st/2nd/3rd-placement ordinal is derivable from the board (your placed workers this round), so no ST-COUNTER/ST-PLACELOG is required.
 - ✅ **A108 Mushroom Collector** · [1+]
   - _Immediately after each time you use a wood accumulation space, you can exchange 1 wood for 2 food. If you do, place the wood on the accumulation space.  [CLARIFICATION: You may take less than 1 wood from a wood accumulation space and still use this effect.  Food obtained from this effect may not be used to pay for Shifting Cultivator A091.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT ST-PROV` — After using a wood accumulation space, may exchange 1 wood for 2 food (wood returned to space).
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT ST-PROV` — 'Immediately after each time you use a wood accumulation space' = HOOK/T-AFTER/S-SPACE, optional ('you can') = F-TRIG, own action. The 1-wood-for-2-food swap is E-CONVERT (the food it yields is the conversion output, not a separate E-GOODS). ST-PROV kept: the effect must place the wood back on THE specific accumulation space just used — it consumes the trigger event's payload (which space fired).
 - ✅ **A109 Small Trader** · [1+]
   - _Each time you take a "Major or Minor Improvement" action to play an improvement from your hand, you also get 3 food.  [CLARIFICATION: Does not work unless you literally get that action.]_
-  - `HOOK T-AFTER S-MAJMIN F-AUTO A-OWN E-GOODS` — Each time you take Major-or-Minor action to play an improvement, also get 3 food.
+  - `HOOK T-AFTER S-MAJMIN F-AUTO A-OWN E-GOODS ST-PROV` — Mandatory 3 food after a Major/Minor Improvement action, conditional on an improvement actually played from hand — that condition needs the event payload of what was played (ST-PROV explicitly covers 'which card was just played').
 - ✅ **A110 Roughcaster** · [1+]
   - _Each time you build at least 1 clay room or renovate your house from clay to stone, you also get 3 food._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — Building >=1 clay room or renovating clay->stone also grants 3 food; mandatory; fires on build/renovate sub-action.
@@ -1465,13 +1480,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-SCHED` — Each time you build >=1 room, may place 1 food on each of next 4 round spaces, collected at those rounds' start.
 - ✅ **A112 Scythe Worker** · [1+]
   - _When you play this card, you immediately get 1 grain. In the field phase of each harvest, you can harvest 1 additional grain from each of your grain fields._
-  - `ONPLAY E-GOODS HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-CROPMANIP` — On-play +1 grain; changes field-phase yield per grain field (extra grain from each) = E-CROPMANIP, fires in harvest field phase automatically.
+  - `ONPLAY E-GOODS HOOK S-HFIELD T-AFTER F-TRIG A-OWN E-CROPMANIP` — On play +1 grain (ONPLAY+E-GOODS). The field-phase extra grain per grain field says 'you can' — optional, so F-TRIG, not F-AUTO (labelA's error). Changing how much a field yields in the field phase is E-CROPMANIP; own-harvest hook at the field-phase seam (S-HFIELD/T-AFTER).
 - ✅ **A113 Heresy Teacher** · [1+]
   - _Each time you use a "Lessons" action space, you get 1 vegetable in each of your fields with at least 3 grain and no vegetable. Place the vegetable below the grain.  [CLARIFICATION: Fields with both crops can count as a grain field or a vegetable field, but not both simultaneously.]_
   - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-CROPMANIP` — 'Each time you use Lessons' (T-BEFORE space hook, F-AUTO) places a vegetable onto qualifying existing fields (crops-on-fields = E-CROPMANIP, not loose E-GOODS); uses regular fields so not L-CARDFIELD.
 - ✅ **A114 Seasonal Worker** · [1+]
   - _Each time you use the "Day Laborer" action space, you get 1 additional grain. From round 6 on, you can choose to get 1 vegetable instead._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each use of Day Laborer -> +1 grain (auto), with a from-round-6 grain-or-veg choice; net a gain hook on a named space.
+  - `HOOK S-SPACE T-BEFORE F-AUTO F-MANDCHOICE A-OWN E-GOODS` — 'Each time you use Day Laborer' = HOOK/S-SPACE/T-BEFORE (default), own action, mandatory gain (E-GOODS). Before round 6 it is choice-free F-AUTO; from round 6 on it is mandatory-with-a-choice (grain OR vegetable, no decline) = F-MANDCHOICE — both firing regimes exist over the game, so both tags apply (labelB).
 - ⬜ **A115 Chief Forester** · [1+]
   - _Each time you use a wood accumulation space, you also get a "Sow" action for exactly 1 field.  [CLARIFICATION: You may sow 2 wood onto the Wood Field D075.]_
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — Each time you use a wood accumulation space, get an optional Sow sub-action for one field.
@@ -1480,10 +1495,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each use of a wood accumulation space -> +1 wood, mandatory.
 - ✅ **A117 Wood Carrier** · [1+]
   - _When you play this card, you immediately get 1 wood fore each improvement in front of you._
-  - `ONPLAY E-GOODS ST-COUNTER` — On play, get 1 wood per improvement in front of you; plain count-scaled goods.
+  - `ONPLAY E-GOODS NONE` — One-shot on-play wood gain sized by a plain state read (improvement count) — nothing is accumulated over time, so ST-COUNTER is wrong and NONE applies.
 - ⬜ **A118 Treegardener** · [1+]
   - _In the field phase of each harvest, you get 1 wood and you can buy up to 2 additional wood for 1 food each.  [CLARIFICATION: 《You may use this card to activate the Shaving Horse A048 twice if and only if you have another decision during the field phase to separate this card’s effect into two distinct parts, e.g. paying wood and food with Cube Cutter C098.》]_
-  - `HOOK S-HFIELD T-AFTER F-AUTO A-OWN E-GOODS E-CONVERT E-FOODCOST` — Fires in each harvest's field phase (HOOK/S-HFIELD, per-harvest so no CAP and not ATWILL): mandatory 1 wood (F-AUTO/E-GOODS) plus an optional buy of up to 2 wood for food (E-CONVERT/E-FOODCOST).
+  - `HOOK T-BEFORE S-HFIELD F-AUTO F-TRIG A-OWN E-GOODS E-CONVERT E-FOODCOST` — Field-phase hook with a mandatory 1-wood (F-AUTO) plus an optional buy of up to 2 wood at 1 food each (F-TRIG, E-CONVERT, E-FOODCOST); 'in the field phase' has no after-wording, so the T-BEFORE default stands.
 - ⬜ **A119 Firewood Collector** · [1+]
   - _Each time you use the "Farmland", "Grain Seeds", Grain Utilization", or "Cultivation" action space, at the end of that turn, you get 1 wood.  [CLARIFICATION: Common misread: the effect is triggered every turn.]_
   - `A-OWN E-GOODS F-AUTO HOOK S-SPACE T-AFTER` — Fires each time you USE one of four named action spaces (the seam is the space, S-SPACE); clarification stresses it is not every turn. Payout is at end of that turn -> T-AFTER; mandatory -> F-AUTO.
@@ -1504,43 +1519,43 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Kept L-GEOMBOARD: 'round spaces 5 to 7' are specific round-space numbers/bands.
 - ✅ **A125 Priest** · [1+]
   - _When you play this card, if you live in a clay house with exactly 2 rooms, you immediately get 3 clay, 2 reed, and 2 stone.  [CLARIFICATION: If played prior to having exactly 2 clay rooms, there is no effect.]_
-  - `ONPLAY E-GOODS` — On play, conditional plain goods (clay house exactly 2 rooms) -> gain clay/reed/stone; plain state read.
+  - `ONPLAY E-GOODS NONE` — One-shot on-play goods gain conditional on a plain state read (clay house with exactly 2 rooms) — exactly the NONE ruling ('immediate plain goods, even conditional on a plain state read'), so ONPLAY+E-GOODS+NONE.
 - ⬜ **A126 Master Workman** · [1+]
   - _Each time before you use an action space card on round spaces 1/2/3/4, you get 1 wood/clay/reed/stone._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Kept L-GEOMBOARD: 'round spaces 1/2/3/4' are specific round-space numbers.
 - ⬜ **A127 Lodger** · [3+]
   - _This card provides room for one person, but only until the returning home phase of round 9. If, by then, there is no room elsewhere for that person, remove it from play.  [CLARIFICATION: If you remove it from play, it can never grow back.  This card does not count as a room.]_
-  - `PASSIVE E-CAPNEW E-PEOPLE ST-STORE` — An always-on room-for-one-person that a played card provides (no firing on play) = PASSIVE; it holds a person (E-CAPNEW/E-PEOPLE) and needs a stored expiry flag (ST-STORE). The temporary-until-round-9 nature is a continuous rule, not an ONPLAY event.
+  - `PASSIVE E-CAPNEW E-PEOPLE HOOK S-ROUNDEND T-AFTER F-AUTO A-OWN` — Continuous person-capacity on the card (PASSIVE, E-CAPNEW, E-PEOPLE) plus a mandatory fired check at round 9's returning-home phase to relocate-or-remove the person (HOOK S-ROUNDEND F-AUTO); no ST-STORE needed — the round is fixed and room availability is computable from state.
 - ⬜ **A128 Riparian Builder** · [3+]
   - _Each time another player uses the "Reed Bank" accumulation space, you can build a room: if you build a clay/stone room, you get a discount of 1 clay/2 stone._
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OPP E-GRANTSUB E-COSTMOD` — Fires on ANOTHER player using Reed Bank (A-OPP, T-AFTER default post-use); grants an optional Build a Room sub-action (E-GRANTSUB, not a full Build Rooms action) with a clay/stone discount (E-COSTMOD). E-CAPNEW is wrong (a room already holds a person, no new-holder mechanic here).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GRANTSUB E-COSTMOD` — 'Each time another player uses [space]' takes the settled T-BEFORE default (no 'after' wording); optional granted build-room sub-action (E-GRANTSUB) with a material discount (E-COSTMOD) on an opponent's action (A-OPP).
 - ⬜ **A129 Swagman** · [3+]
   - _Immediately after each time you use the "Farm Expansion" or "Grain Seeds" action space, you can use the respective other space with the same person (even if it is occupied).  [ERRATA: ERRATA: The “jump” to a second action space may only be done once per turn.]  [CLARIFICATION: The person ends on the second action space used.]_
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OWN CAP-TURN E-NOPLACE E-WORKERMANIP L-OCCUPY ST-PLACELOG` — Immediately after you use one space, use the paired space with the SAME person even if occupied: own-turn HOOK (A-OWN), T-AFTER, optional, once/turn, on occupied space (L-OCCUPY), reusing an already-placed worker (E-WORKERMANIP) without a new placement (E-NOPLACE); needs to know which space the worker sat on (ST-PLACELOG). E-GRANTACT overlaps but E-WORKERMANIP is the precise mechanic.
-- ⬜ **A130 Mummy's Boy** · [3+]
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-TURN E-GRANTACT E-WORKERMANIP L-OCCUPY ST-PLACELOG` — 'Immediately after' own-space hook granting the paired space's whole action (E-GRANTACT) by moving the same person there — the canonical 'use two spaces with one person' E-WORKERMANIP, not E-NOPLACE (the action is taken by the placed person); errata caps it per turn; needs which space the person is on (ST-PLACELOG) and occupied-space legality (L-OCCUPY).
+- ⬜ **A130 Mummy's Boy** · [3+] 🔶
   - _Once per round, when placing a person after your first two, you can place it on the action space with your 2nd person and use that space again. (Mark the action space)._
-  - `ATWILL CAP-ROUND E-WORKERMANIP E-EXTRAPLACE L-OCCUPY ST-PLACELOG` — Once per round you may place a later person on the space holding your 2nd person and reuse it — uses an occupied space, needs to know which space the 2nd person is on.
+  - `ATWILL CAP-ROUND E-GRANTACT L-OCCUPY ST-PLACELOG` — 'Once per round, you can...' is the explicit ATWILL+CAP-ROUND ruling — the option lives inside the player's own placement choice, not a response event (HOOK on your own placement is circular). The effect is using an occupied space's action again (E-GRANTACT + L-OCCUPY); neither E-EXTRAPLACE (it IS the normal placement of the 3rd+ person) nor E-WORKERMANIP (no placed worker is moved) fits; ST-PLACELOG tracks where the 2nd person sits.
 - ⬜ **A131 Craft Teacher** · [3+]
   - _Each time after you build the major improvement "Joinery", "Pottery", and "Basketmaker's Workshop", you can play up to 2 occupations without paying an occupation cost.  [CLARIFICATION: This card triggers every time you build one of the mentioned major improvements in any way.]_
-  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTACT` — After building Joinery/Pottery/Basketmaker via any means, may play up to 2 occupations free — hooks the build-major sub-action, grants a play-occupation action.
+  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB E-COSTMOD ST-PROV` — Fires after the build-improvement primitive 'in any way' (S-SUB per the clarification), granting the optional play-a-card sub-action for up to 2 occupations (E-GRANTSUB) with the occupation cost waived (E-COSTMOD); the generic build event must carry WHICH major was built to gate on the three named ones (ST-PROV).
 - ⬜ **A132 Publican** · [3+]
   - _Each time before another player takes an unconditional "Sow" action, you can give them 1 grain from your supply to get 1 bonus point._
-  - `HOOK S-SUB T-BEFORE F-TRIG A-OPP E-OPPTRANSFER E-SCORE` — Fires before another player's Sow SUB-action (S-SUB, T-BEFORE, A-OPP); optionally give them grain (E-OPPTRANSFER) for a bonus point earned through the action (HOOK + E-SCORE is legitimate per convention 3).
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OPP E-OPPTRANSFER E-SCORE ST-COUNTER` — Optional before-hook on an opponent's Sow sub-action: give them a grain (E-OPPTRANSFER) for a bonus point earned through an action (legitimate HOOK+E-SCORE combo); the repeatedly-earned bonus points accumulate on the card over the game, so ST-COUNTER belongs.
 - ⬜ **A133 Braggart** · [3+]
   - _During the scoring, you get 2/3/4/5/7/9 bonus points for having at least 5/6/7/8/9/10 improvements in front of you._
-  - `E-SCORE` — Passive end-game bonus-point rule (threshold count of improvements). E-SCORE never carries HOOK/S-BEFORESCORE/F-AUTO.
+  - `PASSIVE E-SCORE` — Pure text-written scoring rule (threshold count of improvements) = E-SCORE, never HOOK per the scoring ruling; the taxonomy mandates >=1 ACTIVATION and the only fit for an always-on scoring rule is PASSIVE. Thresholds are a plain count, no optimization.
 - ⬜ **A134 Full Farmer** · [3+]
   - _When you play this card, you immediately get 1 wood and 1 clay. During scoring, you get 1 bonus point for each pasture you have holding the maximum number of animals._
-  - `ONPLAY E-GOODS E-SCORE` — On play +1 wood +1 clay; scoring bonus per pasture holding max animals (a per-pasture threshold count, not an optimization).
+  - `ONPLAY E-GOODS E-SCORE E-SCOREOPT` — "Each pasture holding the maximum number of animals" is the canonical arrangement-optimization score — animals can be redistributed across pastures, so maximizing full pastures requires optimizing the assignment, not a plain count/threshold. E-SCOREOPT (labelB) is correct alongside ONPLAY goods.
 - ⬜ **A135 Animal Reeve** · [3+]
   - _If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with 2+/3+/4+ animals of each type gets 1/3/5 bonus points._
-  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — On-play wood scaled by rounds left; scoring bonus for each player meeting animal thresholds — comparative (all players).
+  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — The bonus is a per-player threshold (not a comparison), but the card scores EVERY player — the owner's card must be evaluated against the opponent's state too, which is exactly the multi-player-scoring mechanic E-SCORECMP's "each player with..." pattern flags; plain E-SCORE alone would hide that the opponent scores off this card. The rounds-left condition on the wood is a plain state read (no code).
 - ⬜ **A136 Drudgery Reeve** · [3+]
   - _If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with 1+/2+/3+ building resources of each type gets 1/3/5 bonus points.  [CLARIFICATION: The resources worth bonus points for the craft majors are spent and DO NOT count towards this card’s bonus effect.  These resources DO count towards the tiebreaker.]_
-  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — On-play wood scaled by rounds left; scoring bonus for each player meeting building-resource thresholds — comparative.
+  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — Same shape as A135: each-player threshold bonus means scoring consults both players' states (E-SCORECMP per the "each player with..." pattern); the clarification about craft-major resources is a scoring-computation detail, not a mechanic. Rounds-left wood condition is a plain state read.
 - ⬜ **A137 Riverine Shepherd** · [3+]
   - _Each time you use the "Sheep Market" or "Reed Bank" accumulation space, you can also take 1 good from the respective other accumulation space, if possible._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS` — Removed L-GEOMBOARD: uses the NAMED 'Sheep Market'/'Reed Bank' spaces, not board position/adjacency.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS E-ANIMALS` — "Each time you use" = T-BEFORE space hook, optional ("you can") = F-TRIG. The good taken from Sheep Market is a sheep, which must be accommodated — E-ANIMALS (labelB) applies in addition to E-GOODS (reed).
 - ⬜ **A138 Harpooner** · [3+]
   - _Each time you use the "Fishing" accumulation space you can also pay 1 wood to get 1 food for each person you have, and 1 reed_
   - `A-OWN E-GOODS F-TRIG HOOK S-SPACE T-BEFORE` — Each time YOU use Fishing (own use only, per text): pay 1 wood -> food per person + reed. No food is spent, so E-FOODCOST dropped.
@@ -1549,22 +1564,22 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-GRANTACT E-GOODS` — On play grants a Major Improvement action to build Fireplace (ONPLAY + E-GRANTACT); plus each time you use Hollow you also get 1 food — mandatory own-turn HOOK (F-AUTO, A-OWN). 'Each time you use [space]' = T-BEFORE by ruling. No cost is modified, so E-COSTMOD is wrong.
 - ⬜ **A140 Shovel Bearer** · [3+]
   - _Each time you use the "Clay Pit" or "Hollow" accumulation space, you also get a number of food equal to the amount of clay on the respective other accumulation space._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — Each use of Clay Pit/Hollow gives food equal to clay currently on the other space — must read the amount on the other space.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — The food count reads the clay currently on the OTHER accumulation space, which the triggering action never touches — plain board-state read at fire time, no snapshot/payload needed, so labelA's ST-PROV is wrong. Which space was used is the trigger event itself, not stored state.
 - ⬜ **A141 Turnip Farmer** · [3+]
   - _At the start of the returning home phase of each round, if both the "Day Laborer" and "Grain Seeds" action spaces are occupied, you get 1 vegetable._
   - `HOOK T-BEFORE S-ROUNDEND F-AUTO A-OWN E-GOODS` — Removed L-GEOMBOARD: reads occupancy of the NAMED 'Day Laborer'/'Grain Seeds' spaces, not board position/order/adjacency.
 - ⬜ **A142 Cordmaker** · [3+]
   - _Each time any player (including you) takes at least 2 reed from the "Reed Bank" accumulation space, you can choose to take 1 grain or buy 1 vegetable for 2 food._
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OWN A-OPP E-GOODS E-CONVERT` — Fires when any player takes >=2 reed from Reed Bank (A-OWN + A-OPP); 'you can choose' = optional (F-TRIG). Take 1 grain (E-GOODS) OR buy 1 veg for 2 food (E-CONVERT). Not L-GEOMBOARD (named space, not board position). No mandatory decline path so not F-MANDCHOICE.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN A-OPP E-GOODS E-CONVERT E-FOODCOST` — No "after" keyword, so the default T-BEFORE ruling applies; at before-time the ≥2-reed condition is the space's current stock (accumulation takes all), readable from state — no ST-PROV. Fires on any player (A-OWN+A-OPP), optional (F-TRIG). "Buy 1 veg for 2 food" is both a rate exchange (E-CONVERT) and a food-costed effect (E-FOODCOST); the grain option is E-GOODS.
 - ⬜ **A143 Stonecutter** · [3+]
   - _Every improvement, room, and renovation costs you 1 stone less._
   - `PASSIVE E-COSTMOD` — Every improvement/room/renovation costs 1 stone less = always-on cost reduction.
 - ⬜ **A144 Sequestrator** · [3+]
   - _Place 3 reed and 4 clay on this card. The next player to have 3 pastures/5 field tiles get the 3 reed/4 clay (not retroactively)._
-  - `ONPLAY LATCH ST-LATCH ST-STACK E-GOODS` — Goods placed on card on play (ST-STACK); given to the next player to first reach 3 pastures/5 fields — a one-time fire when a standing count condition first becomes true (LATCH + ST-LATCH). The recipient gains them (E-GOODS). Not E-OPPTRANSFER: no goods move between players; the card just awards its own stack to whoever first qualifies.
+  - `ONPLAY LATCH E-GOODS E-OPPTRANSFER ST-LATCH ST-THRESHOLD ST-STACK` — Goods stacked on the card (ST-STACK) are claimed by the FIRST player — any player, so the card can hand its goods to an opponent (E-OPPTRANSFER, labelB) — whose pasture/field count reaches a standing threshold: two one-shot count latches (LATCH+ST-LATCH, with ST-THRESHOLD as the count-threshold flavor), never retroactive.
 - ⬜ **A145 Ropemaker** · [3+]
   - _At the end of each harvest, you get 1 reed from the general supply._
-  - `HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-GOODS` — At end of each harvest, get 1 reed — harvest-end hook (implicitly once per harvest).
+  - `HOOK T-AFTER S-HBREED F-AUTO A-OWN E-GOODS` — "At the end of each harvest" is after the breeding phase, the harvest's last phase — S-HBREED + T-AFTER (labelB), not S-AFTERFEED, which fires before breeding (feeding is followed by breeding, so "after feeding" ≠ end of harvest). Mandatory gain (F-AUTO), own harvest (A-OWN).
 - ⬜ **A146 Storehouse Steward** · [3+]
   - _Each time you take exactly 2/3/4/5 food from a food accumulation space, you also get 1 stone/reed/clay/wood. (If you take 6 or more food, you do not get a bonus good)._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — Taking exactly 2/3/4/5 food from a food accumulation space also grants stone/reed/clay/wood — needs the amount taken.
@@ -1573,7 +1588,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `A-OWN E-ANIMALS E-FOODCOST F-TRIG HOOK S-SPACE T-BEFORE` — 'Each time you use [animal market]' -> HOOK/S-SPACE/T-BEFORE, optional buy -> F-TRIG. Provides an animal -> E-ANIMALS. Cost is 1 food that may be paid via conversion -> E-FOODCOST; it is a purchase not a rate exchange so E-CONVERT is not preferred.
 - ⬜ **A148 Woolgrower** · [4+]
   - _This card can hold a number of sheep equal to the number of completed feeding phases._
-  - `PASSIVE E-CAPNEW ST-COUNTER` — The card is a holder for sheep (E-CAPNEW) whose capacity grows with completed feeding phases — an always-on continuous rule (PASSIVE) tracking a running count (ST-COUNTER). It provides no animals itself (no E-ANIMALS), nothing happens on play (no ONPLAY), and it holds animals not workers so it is not an L-CARDSPACE action space.
+  - `PASSIVE E-CAPNEW` — The card is a new animal holder (E-CAPNEW) whose capacity is a continuous rule (PASSIVE); 'completed feeding phases' is derivable from the fixed harvest schedule / round number — a plain state read, not per-card ST-COUNTER state.
 - ⬜ **A149 House Artist** · [4+]
   - _Each time you use the "Traveling Players" accumulation space, you also get a "Build Rooms" action. Each room you build during the action costs you 1 reed less._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTACT E-COSTMOD` — Each use of Traveling Players grants an optional Build Rooms action with rooms costing 1 reed less.
@@ -1582,13 +1597,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GRANTACT` — When another player uses Traveling Players, you may take a Build Fences/Stables/Rooms action of your choice.
 - ⬜ **A151 Minstrel** · [4+]
   - _At the start of each returning home phase, if only one action space card on round space 1 to 4 is unoccupied, you can use that action space.  [ERRATA: ERRATA: “...use the effect of that action space.”]  [CLARIFICATION: The space is not considered used, e.g. for Master Workman A126.  Unrevealed action spaces are effectively occupied during rounds 1-3.]_
-  - `HOOK S-ROUNDEND T-BEFORE F-TRIG A-OWN E-NOPLACE L-OCCUPY L-HIDDEN` — Fires at start of returning-home phase (S-ROUNDEND, T-BEFORE), optional (F-TRIG), lets you use an action-space effect without placing a person (E-NOPLACE); the one unoccupied space may be occupied normally so L-OCCUPY does not really apply—but it uses a space's effect and clarification treats unrevealed spaces as occupied, so L-HIDDEN. Not SOR (returning-home) and not L-GEOMBOARD (round-space bands are just a range condition, not positional adjacency).
+  - `HOOK T-BEFORE S-ROUNDEND F-TRIG A-OWN E-GRANTACT E-NOPLACE` — Start-of-returning-home optional hook granting a whole action space's effect without placing a person (E-GRANTACT + E-NOPLACE). No L-OCCUPY — the space used is UNoccupied and the clarification says it isn't considered used; no L-HIDDEN — 'unrevealed = effectively occupied' is computable from the public revealed flag, not hidden identity; round spaces 1-4 are fixed positions, not geometry.
 - ⬜ **A152 Night-School Student** · [4+]
   - _Each returning home phase in which no player returns a person from a "Lessons" action space, you can play an occupation for an occupation cost of 1 food._
-  - `HOOK S-ROUNDEND T-AFTER F-TRIG A-OWN E-GRANTACT ST-PLACELOG` — Each returning-home phase where no player returned a person from Lessons (needs to know worker placement history = ST-PLACELOG), you may play an occupation for 1 food = grants a whole play-occupation action (E-GRANTACT). L-OCCUPY does not apply; it does not use an occupied space.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GRANTSUB E-FOODCOST ST-PLACELOG` — Optional per-returning-home grant of a play-occupation (play-a-card is a primitive sub-action → E-GRANTSUB, not E-GRANTACT) costing 1 food (E-FOODCOST); condition needs which spaces workers occupied (ST-PLACELOG). The 1-food price is the grant's own printed cost, not a modification of an existing cost → no E-COSTMOD. Condition is about the phase's returns → T-AFTER (mechanically equivalent to a phase-start occupancy check).
 - ⬜ **A153 Pig Owner** · [4+]
   - _The first time after you play this card that you have 5 wild boars on your farm, you immediately get 3 bonus points._
-  - `LATCH ST-LATCH ST-THRESHOLD CAP-GAME E-SCORE` — First time you have 5 boars: one-shot on a standing count threshold (LATCH + ST-LATCH + ST-THRESHOLD), once ever (CAP-GAME), grants bonus points (E-SCORE, immediate but a bonus-point rule).
+  - `LATCH CAP-GAME E-SCORE ST-THRESHOLD` — One-shot fire the first moment an animal COUNT reaches 5 → LATCH + ST-THRESHOLD (the count case is ST-THRESHOLD specifically; ST-LATCH is the house-material-style sibling, tagging both is double-counting the same state) + CAP-GAME; bonus points → E-SCORE.
 - ⬜ **A154 Paymaster** · [4+]
   - _Each time another player uses a food accumulation space, you can give them 1 grain from your supply to get 1 bonus point._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-OPPTRANSFER E-SCORE` — When another uses a food accumulation space, you may give them 1 grain to gain 1 bonus point; scoring via a fired transfer, tag E-SCORE for the bonus point mechanic.
@@ -1597,61 +1612,61 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each Traveling Players use -> +1 wood +1 grain, mandatory.
 - ⬜ **A156 Buyer** · [4+]
   - _Each time another player uses a reed, stone, sheep, or wild boar accumulation space, you can pay them 1 food to get 1 good of the respective type from the general supply._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-OPPTRANSFER E-GOODS E-FOODCOST` — When another uses reed/stone/sheep/boar accumulation space, pay them 1 food to get 1 matching good from supply.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GOODS E-ANIMALS E-FOODCOST E-OPPTRANSFER` — Opponent-use hook (T-BEFORE default), optional purchase: 1 food paid TO the opponent (E-FOODCOST + E-OPPTRANSFER) for a good from supply (E-GOODS); the good can be a sheep/boar so E-ANIMALS is required (accommodation). Not E-CONVERT — it's a toll-style purchase already captured by FOODCOST+OPPTRANSFER+GOODS, not a supply-side exchange rate.
 - ⬜ **A157 Bohemian** · [4+]
   - _At the start of each returning home phase, if at least one "Lessons" action space is unoccupied, you get 1 food._
-  - `HOOK S-ROUNDEND T-BEFORE F-AUTO A-OWN E-GOODS L-OCCUPY` — At start of returning-home phase, if a Lessons space is unoccupied, get 1 food: mandatory (F-AUTO), gains goods (E-GOODS), reads occupancy of a space (L-OCCUPY). Returning-home = S-ROUNDEND, not S-SOR.
+  - `HOOK T-BEFORE S-ROUNDEND F-AUTO A-OWN E-GOODS` — Automatic ('you get') start-of-returning-home hook gaining 1 food on a plain occupancy read. L-OCCUPY is wrong — that code is for USING an occupied space; merely checking whether Lessons is unoccupied is a state read, no legality extension.
 - ⬜ **A158 Culinary Artist** · [4+]
   - _Each time another player uses the "Traveling Players" accumulation space, you can exchange your choice of 1 grain/sheep/vegetable for 4/5/7 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-CONVERT` — When another uses Traveling Players, you may convert your choice of grain/sheep/veg to 4/5/7 food.
 - ⬜ **A159 Joiner of the Sea** · [4+]
   - _Each time another player uses the "Fishing"/"Reed Bank" accumulation space, you can give them 1 wood to get 2 food/3 food from the general supply._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-OPPTRANSFER E-GOODS` — When another uses Fishing/Reed Bank, give them 1 wood to get 2/3 food from general supply.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GOODS E-OPPTRANSFER` — Opponent-use hook: optionally give the opponent 1 wood (E-OPPTRANSFER) to gain 2/3 food from supply (E-GOODS); the 2-vs-3 fork follows deterministically from which space triggered. Like A156, this is a purchase transaction, not an E-CONVERT rate exchange; wood is a normal resource cost (no E-FOODCOST).
 - ⬜ **A160 Lutenist** · [4+]
   - _Each time another player uses the "Traveling Players" accumulation space, you get 1 food and 1 wood. Immediately after, you can buy exactly 1 vegetable for 2 food._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-GOODS E-CONVERT` — When ANOTHER player uses Traveling Players: +1 food +1 wood (auto), then optional buy 1 veg for 2 food (convert). Opp-action hook.
+  - `HOOK T-BEFORE T-AFTER S-SPACE F-AUTO F-TRIG A-OPP E-GOODS E-CONVERT E-FOODCOST` — Two-part space hook on ANOTHER player's use (A-OPP only): mandatory goods gain fires per the 'each time you use' default (T-BEFORE, F-AUTO, E-GOODS); 'immediately after, you can buy 1 veg for 2 food' is a second optional part (T-AFTER, F-TRIG) that is both a food-for-veg exchange (E-CONVERT) and an effect costing food (E-FOODCOST).
 - ⬜ **A161 Patch Caretaker** · [4+]
   - _Each time you use an accumulation space while already having used another accumulation space for the same type of good that work phase, you also get 1 vegetable._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-COUNTER` — Using a second accumulation space of the same good-type in a work phase gives +1 veg; needs to track which good-types already collected this phase.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PLACELOG` — 'Each time you use [a space]' → T-BEFORE by the explicit ruling (the condition depends only on PRIOR uses, so before-firing is safe); mandatory '+1 vegetable' → F-AUTO + E-GOODS. The this-work-phase 'already used another accumulation space of the same good type' check reads which spaces your workers were placed on → ST-PLACELOG (not a running ST-COUNTER).
 - ⬜ **A162 Forest Tallyman** · [4+]
   - _Each time both the "Forest" and "Clay Pit" accumulation spaces are occupied, you can use the gap between them as an action space to get 2 clay and 3 wood._
   - `EXOTIC L-GEOMBOARD E-GOODS` — Conditional 'gap' action space between Forest & Clay Pit when both occupied.
 - ⬜ **A163 Building Expert** · [4+]
   - _Each time you use the "Resource Market" action space with the 1st/2nd/3rd/4th/5th person you place, you also get 1 wood/clay/reed/stone/stone._
-  - `HOOK S-SPACE T-AFTER F-AUTO A-OWN E-GOODS ST-PLACELOG ST-COUNTER` — Each Resource Market use, gain a resource depending on WHICH numbered person placed it — needs both the space of the placement (ST-PLACELOG) and a running count of how many people placed so far this game (ST-COUNTER). 'also get' = mandatory, after = T-AFTER.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-COUNTER` — 'Each time you use [space]' fires T-BEFORE per the default ruling; the 1st/2nd/.../5th-person ordinal is a running per-round placement count (ST-COUNTER), not a which-space-was-a-worker-on question, so ST-PLACELOG is unwarranted.
 - ⬜ **A164 Wood Worker** · [4+]
   - _Each time you take wood from an accumulation space, you can exchange 1 wood for 1 sheep. Place the wood on the accumulation space.  [CLARIFICATION: If you take less than 1 wood from a wood accumulation space, you may still use this card.  You may immediately convert the sheep to food in order to use the Shifting Cultivator A091.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-ANIMALS ST-PROV` — Each time you take wood from a wood accumulation space, may exchange 1 wood for 1 sheep (wood returned to space); animal must be accommodated.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-ANIMALS` — The exchange resolves after the take (the paid wood goes onto the now-emptied space, and the clarification lets the sheep be cooked immediately for A091), so T-AFTER despite the 'each time you take' wording; the trigger condition is just 'used a wood accumulation space' (clarification: fires even taking <1 wood), so no event-payload ST-PROV is needed. Wood-for-sheep is a good-for-good exchange: E-CONVERT + E-ANIMALS.
 - ⬜ **A165 Pig Breeder** · [4+]
   - _When you play this card, you immediately get 1 wild boar. Your wild boar breed at the end of round 12 (if there is room for the new wild boar)._
-  - `ONPLAY E-GOODS E-ANIMALS E-BREEDMOD A-OWN F-AUTO HOOK S-HBREED T-AFTER` — On play grants 1 boar (ONPLAY/E-GOODS/E-ANIMALS). Boars breed at end of round 12 outside normal harvest breeding -> E-BREEDMOD via a HOOK at S-HBREED/T-AFTER, A-OWN, F-AUTO. No per-card snapshot needed (round 12 is fixed, boar count read from state) so ST-STORE omitted.
+  - `ONPLAY HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-ANIMALS E-BREEDMOD` — On-play boar is an animal, so E-ANIMALS (not E-GOODS, which is goods/food/crops). The round-12 breeding is an automatic hook at the END OF ROUND 12 — a round-end event, not a harvest breeding phase (round 12 isn't a harvest) — so S-ROUNDEND not S-HBREED; breeding outside the harvest breed phase = E-BREEDMOD.
 - ⬜ **A166 Haydryer** · [4+]
   - _Immediately before each harvest, you can buy 1 cattle for 4 food minus 1 food for each pasture you have. (The minimum cost is 0)._
-  - `HOOK S-HSTART T-BEFORE F-TRIG A-OWN E-ANIMALS E-CONVERT E-FOODCOST` — Immediately before each harvest = S-HSTART/T-BEFORE (not field phase). Optional buy of 1 cattle for food (E-ANIMALS, E-FOODCOST, E-CONVERT). Cost scales by pasture count, but a plain count reference is not L-GEOMFARM. 'each harvest' implies once per harvest, no CAP tag needed.
+  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-ANIMALS E-FOODCOST` — Optional pre-harvest purchase: HOOK T-BEFORE S-HSTART F-TRIG. A food-priced buy is E-FOODCOST + E-ANIMALS; E-CONVERT is reserved for good-for-good exchange rates, and the variable price is a plain state read (pasture count), no extra state.
 - ⬜ **A167 Breeder Buyer** · [4+]
   - _Each time you build at least 1 wood/clay/stone room and at least 1 stable on the same turn, you also get 1 sheep/wild boar/cattle._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-ANIMALS` — Building >=1 room AND >=1 stable same turn also grants an animal; fires on the build sub-actions; mandatory gain; needs accommodation.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS ST-COUNTER` — Fires after room+stable builds on the same turn (S-SUB, T-AFTER, F-AUTO); needs per-turn tracking that both a room and a stable were built (ST-COUNTER). The reward is an animal, so E-ANIMALS — not E-GOODS (animals are never E-GOODS).
 - ⬜ **A168 Animal Teacher** · [4+]
   - _Immediately after each time you use a "Lessons" action space, you can also buy 1 sheep/wild boar/cattle for 0/1/2 food.  [CLARIFICATION: This effect may not be immediately triggered.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-ANIMALS E-FOODCOST` — After using a Lessons space, optionally buy an animal for food; food may need conversion; animal accommodated.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-ANIMALS E-FOODCOST` — 'Immediately after each time you use Lessons' → HOOK T-AFTER S-SPACE, optional buy → F-TRIG. Food-priced animal purchase = E-FOODCOST + E-ANIMALS; E-CONVERT is for good-for-good exchanges, and food cost already has its dedicated code.
 
 ### Deck B
 
 - ⬜ **B85 Farm Hand** · [1+]
   - _Once you have 4 field tiles arranged in a 2x2, you can use a "Build Stables" action to build a stable in the center of the 2x2. This stable provides room for a person but no animal.  [CLARIFICATION: You may only build one such stable.  《You may build additional stables as normal with the same “Build Stables” action.》]_
-  - `PASSIVE L-GEOMFARM E-GRANTSUB E-CAPNEW CAP-GAME` — Kept L-GEOMFARM: '4 field tiles arranged in a 2x2' with a stable in the center is a true orthogonal shape/adjacency requirement.
+  - `PASSIVE L-EXT L-GEOMFARM E-CAPNEW E-CAPNEG ST-STORE` — Passive legality extension of the normal Build Stables action (no sub-action granted, so no E-GRANTSUB) gated on 2x2 field geometry; the special stable holds a person (E-CAPNEW) but overrides normal stable animal capacity (E-CAPNEG); 'only one such stable' needs a built-flag (ST-STORE; CAP-GAME is ATWILL-only).
 - ⬜ **B86 Truffle Searcher** · [1+]
   - _This card can hold a number of wild boar equal to the number of completed feeding phases._
-  - `PASSIVE E-CAPNEW ST-COUNTER` — The card itself holds boar (E-CAPNEW) with capacity = completed feeding phases, an always-on rule requiring a running count (ST-COUNTER). It provides no animals itself, so E-ANIMALS does not apply — it only holds animals gained elsewhere.
+  - `PASSIVE E-CAPNEW` — Always-on card-held boar capacity; the completed-feeding-phase count is derivable from the round number (fixed harvest schedule), a plain state read needing no ST-COUNTER.
 - ✅ **B87 Cottager** · [1+]
   - _Each time you use the "Day Laborer" action space, you can also either build exactly 1 room or renovate your house. Either way, you have to pay the cost._
-  - `A-OWN E-GRANTSUB F-TRIG HOOK S-SPACE T-BEFORE L-OCCUPY` — 'Each time you use Day Laborer' -> HOOK/S-SPACE/T-BEFORE/A-OWN; grants build-room-or-renovate sub-action, optional -> F-TRIG/E-GRANTSUB. 'You have to pay the cost' = normal cost, not a modification, so no E-COSTMOD. Day Laborer is often occupied by opponent, and it grants building at a non-build space -> L-OCCUPY (letting you build via an occupied/normally-non-building space).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — Standard optional space rider: 'each time you use Day Laborer' (T-BEFORE default), 'you can also' (F-TRIG), granting build-1-room or renovate at normal cost (E-GRANTSUB). Nothing in the text touches occupied-space legality, so labelA's L-OCCUPY is spurious.
 - ⬜ **B88 Established Person** · [1+]
   - _If your house has exactly 2 rooms, immediately renovate it without paying any building resources. If you do, you can immediately afterward take a "Build Fences" action.  [CLARIFICATION: You may not play this card if you cannot renovate.]_
-  - `ONPLAY E-COSTMOD E-GRANTSUB E-GRANTACT` — On play, a free renovation (E-COSTMOD/E-GRANTSUB renovate) then a granted Build Fences action (E-GRANTACT). No new renovation target is added, so L-EXT does not apply.
+  - `ONPLAY E-GRANTSUB E-GRANTACT` — On play: a granted free renovation (the zero cost is a parameter of the grant, not a general cost modification, so no E-COSTMOD) followed by an optional full Build Fences action.
 - ✅ **B89 Groom** · [1+]
   - _When you play this card, you immediately get 1 wood. Once you live in a stone house, at the start of each round, you can build exactly 1 stable for 1 wood.  [CLARIFICATION: If played by the Scholar B097, the effect can be used immediately.]_
-  - `ONPLAY E-GOODS LATCH HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GRANTSUB E-PIECECOST ST-LATCH` — On play +1 wood; once in stone house (latch), each round start optional build 1 stable for 1 wood (stable = piece).
+  - `ONPLAY E-GOODS HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GRANTSUB` — On-play +1 wood (ONPLAY/E-GOODS). The stable grant is a RECURRING start-of-each-round hook gated on a standing state check (stone house) — recurring means it is NOT a one-shot LATCH/ST-LATCH, just a conditional S-SOR hook. Cost is 1 wood (an ordinary resource), so no E-PIECECOST; the built stable is the effect, not a piece paid.
 - ✅ **B90 Cooperative Plower** · [1+]
   - _Each time you use the "Farmland" action space while the "Grain Seeds" action space is occupied, you can plow 1 additional field._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — Removed L-GEOMBOARD: only reads occupancy of the named 'Grain Seeds' space, not board position/order/adjacency.
@@ -1663,82 +1678,82 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-GROWTH` — Each time you use sheep Market (from R5), optional Family Growth with room only sub-action -> hook on space, T-BEFORE default, granted growth (optional). Round-5 gate is a computable condition.
 - ⬜ **B93 Confidant** · [1+]
   - _Place 1 food from your supply on each of the next 2, 3, or 4 round spaces. At the start of these rounds, you get the food back and your choice of a "sow" or "Build Fences" action.  [CLARIFICATION: For example, if played in Round 9, you must place 1 food on each of Rounds 10-11, 10-12, or 10-13.]_
-  - `ONPLAY E-SCHED HOOK A-OWN T-AFTER S-SOR F-MANDCHOICE E-GRANTACT` — On-play schedules food on future round spaces (E-SCHED); at start of those rounds (HOOK/S-SOR/T-AFTER/A-OWN) you get food back and must choose a sow OR Build Fences action (F-MANDCHOICE). Build Fences is a full action (E-GRANTACT).
+  - `ONPLAY E-SCHED E-FOODCOST HOOK S-SOR T-AFTER F-TRIG A-OWN E-GRANTSUB E-GRANTACT` — On play you front 2-4 food from supply onto future round spaces (E-FOODCOST + E-SCHED, whose collection semantics cover the food-back so no separate E-GOODS); at start of those rounds a start-of-round hook grants your choice of a sow sub-action (E-GRANTSUB) or full Build Fences action (E-GRANTACT) - granted actions are optional, so F-TRIG not F-MANDCHOICE.
 - ⬜ **B94 Stock Protector** · [1+]
   - _Each time before you use the "Fencing" action space, you get 2 wood. Immediately after that "Fencing" action, you can place another person._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS E-EXTRAPLACE` — Before Fencing space: +2 wood (auto). After that action: optionally place another person -> extra placement.
+  - `HOOK S-SPACE T-BEFORE T-AFTER F-AUTO F-TRIG A-OWN E-GOODS E-EXTRAPLACE` — Two hooks on the Fencing space: mandatory 2 wood before (T-BEFORE/F-AUTO/E-GOODS) and an optional extra worker placement immediately after (T-AFTER/F-TRIG/E-EXTRAPLACE).
 - ✅ **B95 Master Bricklayer** · [1+]
   - _Each time you build a major improvement, reduce the stone cost by the number of rooms you have built onto you initial house.  [CLARIFICATION: If you have 3 rooms total, the discount is 1 stone.]_
-  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-COSTMOD ST-STORE` — Each major improvement build: reduce stone cost by rooms built onto initial house (a computed count snapshot).
+  - `PASSIVE E-COSTMOD` — An always-on cost-reduction rule computed from current state (rooms built beyond the initial 2) — exactly the taxonomy's PASSIVE example ('every improvement costs 1 wood less') + E-COSTMOD. No firing event and nothing to store (the room count is live state), so labelA's HOOK/S-SUB/ST-STORE are wrong.
 - ✅ **B96 Tree Farm Joiner** · [1+]
   - _Place 1 wood on each of the next 2 odd-numbered round spaces. At the start of these rounds, you get the wood and, immediately afterward, a "Minor Improvement" action._
   - `ONPLAY E-SCHED HOOK A-OWN S-SOR T-AFTER F-TRIG E-GOODS E-GRANTACT` — On-play schedules wood on future odd round spaces (E-SCHED, not L-GEOMBOARD — scheduling onto future rounds is E-SCHED); at start you gain the wood (E-GOODS) then a Minor Improvement action, which is optional (F-TRIG). Odd-numbered is a scheduling selection, not board adjacency.
 - ✅ **B97 Scholar** · [1+]
   - _Once you live in a stone house, at the start of each round, you can play an occupation for an occupation cost of 1 food, or a minor improvement (by paying its cost).  [ERRATA: The version found at Play-Agricola has wrong text!]  [CLARIFICATION: Cards with text such as “remaining rounds” (e.g. Manservant B107) will NOT trigger in time for the current round.]_
-  - `A-OWN E-GRANTACT E-FOODCOST F-TRIG HOOK LATCH S-SOR ST-LATCH T-BEFORE` — LATCH on stone-house condition then recurring start-of-round play-a-card action at 1-food occupation cost (E-FOODCOST); S-SOR fires before the round (T-BEFORE).
+  - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Recurring start-of-EACH-round option once the stone-house condition holds — recurring, so a conditional S-SOR hook, not LATCH/ST-LATCH. Play-a-card is listed as a primitive sub-action in the S-SUB seam, so the grant is E-GRANTSUB; the 1-food occupation cost is the grant's own price (E-FOODCOST), not a modification of a standard build/improvement cost, so no E-COSTMOD.
 - ⬜ **B98 Organic Farmer** · [1+]
   - _During the scoring, you get 1 bonus point for each pasture containing at least 1 animal while having unused capacity for at least three more animals.  [CLARIFICATION: The Wildlife Reserve C011 is not a pasture.]_
-  - `E-SCOREOPT` — End-game bonus needs assigning animals across pastures to satisfy the has-animal/3+-spare condition — a real optimization over arrangements, not a plain count; E-SCORE never carries PASSIVE.
+  - `PASSIVE E-SCOREOPT` — Per-pasture bonus requiring >=1 animal AND >=3 unused capacity depends on how animals are distributed across pastures — a real arrangement optimization, so E-SCOREOPT (which per the taxonomy replaces, not accompanies, ordinary E-SCORE). PASSIVE supplies the mandatory ACTIVATION for a scoring-rule card (scoring never gets HOOK).
 - ✅ **B99 Tutor** · [1+]
   - _During scoring, you get 1 bonus point for each occupation played after this one.  [CLARIFICATION: This card only refers to cards played by the owner.]_
-  - `E-SCORE ST-COUNTER` — Plain end-game rule: 1 pt per occupation played after this one; needs play-order count. E-SCORE never carries PASSIVE.
+  - `E-SCORE ST-COUNTER` — Pure end-game scoring rule: per the ruling E-SCORE is computed at scoring and never carries HOOK/S-PLAY/F-AUTO; the play-order bookkeeping is just per-card state (ST-COUNTER), not a fired mechanic.
 - ⬜ **B100 Clutterer** · [1+]
   - _During scoring, you get 1 bonus point for each card played after this on that has "accumulation space(s)" in its text.  [CLARIFICATION: This card only refers to cards played by the owner.]_
   - `PASSIVE E-SCORE ST-COUNTER` — End-game bonus: 1 pt per later-played own card with 'accumulation space(s)' text -> scoring rule, count of qualifying cards.
 - ✅ **B101 Furniture Carpenter** · [1+]
   - _Each harvest, if any player (including you) owns the Joinery or an upgrade thereof, you can buy exactly 1 bonus point for 2 food._
-  - `HOOK A-OWN S-HSTART F-TRIG E-FOODCOST E-SCORE` — Each harvest you MAY buy a bonus point for 2 food — a food-cost action that yields a bonus point (E-SCORE via action + E-FOODCOST). 'Each harvest' with no phase qualifier keys to the harvest start (S-HSTART); no CAP needed (per-harvest firing implies once). Optional so F-TRIG.
+  - `ATWILL CAP-HARVEST E-FOODCOST E-SCORE ST-COUNTER` — 'Each harvest, you can buy' parallels the 'Once per round, you can' pattern - an at-will option capped per harvest (no firing seam; the buy floats within the harvest), costing 2 food for a bonus point; bought points accumulate over the game (ST-COUNTER). The Joinery condition is a plain state read.
 - ✅ **B102 Consultant** · [1+]
   - _When you play this card in a 1-/2-/3-/4- player game, you immediately get 2 grain/3 clay/2 reed/2 sheep.  [CLARIFICATION: In a 5- or 6-player game, you receive 2 sheep.]_
   - `ONPLAY E-GOODS E-ANIMALS` — On-play gain of goods (grain/clay/reed) or sheep depending on player count; animals must be accommodated. Not NONE since animals require accommodation.
 - ⬜ **B103 Field Merchant** · [1+]
   - _When you play this card, you immediately get 1 wood and 1 reed. Each time you decline a "Minor/Major Improvement" action, you get 1 food/vegetable instead.  [CLARIFICATION: Merchant C096 does not double a decline.  Stone Company A023 improvements are conditional on spending stone and can’t be declined.  《You can place onto the “Major Improvement” or “Improvement” (6p) action space just to decline it.》]_
-  - `ONPLAY E-GOODS HOOK T-AFTER S-MAJMIN F-AUTO A-OWN` — On play +1 wood +1 reed. Each time you decline a Minor/Major Improvement action, get 1 food/veg instead -> hook on the improvement action's decline.
+  - `ONPLAY E-GOODS HOOK S-MAJMIN T-AFTER F-MANDCHOICE A-OWN` — On play +1 wood/+1 reed; the decline hook on the Major/Minor Improvement action mandatorily grants '1 food/vegetable' - a forced pick-one ('you get X OR Y, no decline'), so F-MANDCHOICE not F-AUTO.
 - ⬜ **B104 Sheep Walker** · [1+]
   - _At any time, you can exchange 1 sheep for either 1 wild boar, 1 vegetable, or 1 stone.  [ERRATA: ERRATA: The sheep must be on your farmyard.]  [CLARIFICATION: You can exchange immediately after breeding (and before scoring or the next round.)]_
   - `ATWILL E-CONVERT E-ANIMALS` — At any time exchange 1 farmyard sheep for 1 wild boar / 1 veg / 1 stone; boar option provides an animal.
 - ✅ **B105 Case Builder** · [1+]
   - _When you play this card, you immediately get 1 good of each of the following types, If you have at least 2 of that good in your supply already, food, grain, vegetable, reed, wood._
-  - `ONPLAY E-GOODS` — On play, gain 1 of each good type where you already have >=2 of it. Conditional plain-state read of immediate goods -> NONE-like.
+  - `ONPLAY E-GOODS NONE` — One-time on-play goods gated only on a plain supply-count read — exactly the NONE ruling ('even conditional on a plain state read'), tagged alongside ONPLAY+E-GOODS.
 - ⬜ **B106 Moral Crusader** · [1+]
   - _Immediately before the start of each round, if there are goods on the remaining round space that are promised to you, you get 1 food._
   - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — Immediately before start of each round, if goods promised to you remain on a round space, +1 food. Reads scheduled/promised goods.
 - ✅ **B107 Manservant** · [1+]
   - _Once you live in a stone house, place 3 food on each remaining round space. At the start of these rounds, you get the food.  [CLARIFICATION: If played by the Scholar B097 at the start of Round X, food is placed on Rounds (X+1) to 14.]_
-  - `LATCH E-SCHED ST-LATCH` — Once in stone house (first-becomes-true), place 3 food on each remaining round space, collected at those round starts.
+  - `LATCH ST-LATCH E-SCHED CAP-GAME` — One-shot standing-condition latch (first live in stone house) that schedules food on remaining round spaces; LATCH pairs with ST-LATCH and CAP-GAME (fires once ever), matching the sibling leave-wooden-house schedule cards.
 - ✅ **B108 Oven Firing Boy** · [1+]
   - _Each time you use a wood accumulation space, you get an additional "Bake Bread" action._
   - `A-OWN E-GRANTSUB F-TRIG HOOK S-SPACE T-BEFORE` — 'Each time you use a wood accumulation space' = own-turn hook, T-BEFORE by ruling; grants optional Bake Bread sub-action. It grants the standard bake sub-action, not a new baking rate, so no E-BAKESPEC.
 - ✅ **B109 Paper Maker** · [1+]
   - _Immediately before playing each occupation after this one, you can pay 1 wood total to get 1 food for each occupation you have in front of you._
-  - `HOOK T-BEFORE S-PLAY F-TRIG A-OWN E-GOODS ST-COUNTER` — Before playing each later occupation, may pay 1 wood to get 1 food per occupation in front of you; counts occupations.
+  - `HOOK T-BEFORE S-PLAY F-TRIG A-OWN E-GOODS` — Optional hook immediately before each own occupation play (T-BEFORE, F-TRIG) paying wood for food; 'occupations in front of you' is a plain read of already-played cards, so no ST-COUNTER is needed.
 - ✅ **B110 Pavior** · [1+]
   - _At the end of each preparation phase, if you have at least 1 stone in your supply, you get 1 food. In round 14, you get 1 vegetable instead._
-  - `HOOK A-OWN S-ROUNDEND T-AFTER F-AUTO E-GOODS` — 'At the end of each preparation phase' fires after the round setup completes each round (S-ROUNDEND/end-of-round style, T-AFTER), granting food/veg automatically (F-AUTO, E-GOODS) if you hold stone. Keyed to the end of the phase, not the reveal itself.
+  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — The preparation phase IS the start-of-round phase, so 'at the end of each preparation phase' is S-SOR (+T-AFTER for the 'end of' wording), not S-ROUNDEND (returning home / end of round); mandatory goods on a plain state read.
 - ✅ **B111 Rustic** · [1+]
   - _For each clay room you build, you get 2 food and 1 bonus point. (this does not apply to stone rooms and renovated wood rooms.)_
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-SCORE` — For each clay room you build: +2 food +1 bonus point. Hook on build-room sub-action (clay only); also a per-clay-room end score.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-SCORE ST-COUNTER` — Fires on each build-room sub-action (clay only); bonus points earned through actions must be accumulated — the count of clay rooms BUILT is not recoverable from final state (later renovation changes room material), so ST-COUNTER is required.
 - ⬜ **B112 Silokeeper** · [1+]
   - _Each time you use the action space card that has been revealed right before the most recent harvest, you also get 1 grain.  [CLARIFICATION: The action space card is Round 4, 7, 9, 11, or 13.]_
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — Kept L-GEOMBOARD: 'card revealed right before the most recent harvest' depends on round-space number/reveal order, a board-position dependency.
 - ⬜ **B113 Patch Caregiver** · [1+]
   - _When you play this card, you can choose to buy 1 grain for 1 food, or 1 vegetable for 3 food. This card is a field._
-  - `ONPLAY E-CONVERT E-FOODCOST F-MANDCHOICE L-CARDFIELD` — Kept L-CARDFIELD: 'This card is a field' — the card itself is a field you sow/harvest on. Note: choice is grain-OR-veg but also declinable ('can choose to buy'); F-MANDCHOICE arguable but left as-is.
+  - `ONPLAY E-FOODCOST E-GOODS L-CARDFIELD` — Optional one-time on-play buy ('you can choose'), so no F-MANDCHOICE (F-codes are HOOK-only and the choice is declinable); the buy costs food (E-FOODCOST) and gains a crop (E-GOODS) — a one-off purchase, not a standing E-CONVERT rate; the card is itself a field (L-CARDFIELD).
 - ✅ **B114 Childless** · [1+]
   - _At the start of each round, if you have at least 3 rooms but only 2 people, you get 1 food and 1 crop of your choice (grain or vegetable)  [CLARIFICATION: Cards that provide room for a person do not count for this effect unless they self-identify as a room.]_
-  - `HOOK T-AFTER S-SOR F-MANDCHOICE A-OWN E-GOODS` — Each round start, if >=3 rooms & only 2 people, get 1 food and 1 crop of choice (grain/veg = mandatory choice).
+  - `HOOK T-AFTER S-SOR F-MANDCHOICE A-OWN E-GOODS` — 'At the start of each round' resolves at the SOR seam = T-AFTER by convention (T-BEFORE is reserved for 'before the start of each round'); mandatory gain with a grain-or-vegetable choice = F-MANDCHOICE.
 - ⬜ **B115 Tinsmith Master** · [1+]
   - _You can hold 1 additional animal in each pasture without a stable. Each time you sow in a field, you can place 1 additional crop of the respective type in that field.  [CLARIFICATION: This effect places one extra crop on top of the usual stack, not a second stack in each field.  You may not add anything except grain or vegetable.  This does not add a condition to sowing.]_
-  - `PASSIVE E-CAPGROW HOOK T-AFTER S-SUB F-TRIG A-OWN E-CROPMANIP` — Passive +1 animal per stable-less pasture (capacity growth). Each time you sow, optionally add 1 extra crop of the sown type in that field -> crop manipulation on the field.
+  - `PASSIVE E-CAPGROW HOOK T-BEFORE S-SUB F-TRIG A-OWN E-CROPMANIP` — Two effects: an always-on pasture-capacity raise (PASSIVE+E-CAPGROW), and a per-sow optional extra crop — 'each time you sow' with no 'after' wording takes the T-BEFORE default per the each-time-you-use ruling; extra crop on the field stack is E-CROPMANIP.
 - ⬜ **B116 Shoreforester** · [1+]
   - _When you play this card and each time 1 reed is placed on an empty "Reed Bank" accumulation space in the preparation phase, you get 1 wood._
-  - `ONPLAY HOOK T-AFTER S-REVEAL F-AUTO A-OWN E-GOODS` — Reed placed on an empty Reed Bank during the preparation phase is a reveal/refill event (start-of-round refill), so S-REVEAL fits better than S-SPACE (no action-space use); plus the on-play goods.
+  - `ONPLAY HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — The trigger is the accumulation-space refill during the preparation phase — a start-of-round event (S-SOR), not a card/space reveal (Reed Bank is a permanent space, nothing is revealed); plus the on-play instance of the same gain.
 - ⬜ **B117 Informant** · [1+]
   - _When you play this card, you immediately get 1 wood. After each work phase, if you have more stone than clay in your supply, you get 1 wood._
   - `ONPLAY HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS` — After each work phase, a plain state read (more stone than clay) grants 1 wood — no per-card stored state needed, just reads live supply. Drop ST-STORE.
 - ✅ **B118 Small-scale Farmer** · [1+]
   - _As long as you live in a house with exactly 2 rooms, at the start of each round, you get 1 wood.  [CLARIFICATION: Cards that provide room for a person do not count for this effect unless they self-identify as a room.]_
-  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — While house has exactly 2 rooms, each round start get 1 wood; condition re-checked each round so a hook, not a latch.
+  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — Recurring start-of-round auto gain while a plain house-size condition holds (re-checked each round, so a hook, not a latch); 'at the start of each round' = T-AFTER per the SOR convention.
 - ✅ **B119 Lumberjack** · [1+]
   - _You immediately get 1 wood. Additionally, place 1 wood on each of the next round spaces, up to the number of fences you built. At the start of these rounds, you get the wood._
   - `ONPLAY E-GOODS E-SCHED` — Immediate +1 wood; places wood on next round spaces up to fences built, collected at round start.
@@ -1750,10 +1765,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Forest/Reed Bank space, also get 1 clay (before, auto).
 - ✅ **B122 Mineralogist** · [1+]
   - _Each time you use a clay/stone accumulation space, you also get 1 of the other good, stone/clay._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use a clay/stone accumulation space, also get the other good.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — 'Each time you use [space]' takes the T-BEFORE default per the explicit ruling — only 'immediately after'/'at the end of' wording earns T-AFTER; mandatory extra good on using a clay/stone accumulation space.
 - ✅ **B123 Roof Ballaster** · [1+]
   - _When you play this card, you can immediately pay 1 food to get 1 stone for each room you have.  [CLARIFICATION: The 1 food (total, not per room) is in addition to the occupation cost.]_
-  - `ONPLAY E-FOODCOST E-GOODS E-CONVERT` — Removed L-GEOMFARM: 'for each room you have' is a plain count of rooms, not orthogonal adjacency/shape.
+  - `ONPLAY E-FOODCOST E-GOODS` — One-shot optional on-play purchase: pay 1 food (E-FOODCOST) for stone per room (plain count read, E-GOODS); not E-CONVERT — that is for a standing rate-exchange ability, and the parallel pay-food-for-animals on-play cards carry no E-CONVERT.
 - ✅ **B124 Trimmer** · [1+]
   - _In each work phase, after you enclose at least one farmyard space, you get 2 stone. (Subdividing an existing pasture does not count.)_
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — After enclosing >=1 new farmyard space (fencing sub-action, not subdivision) -> +2 stone.
@@ -1765,7 +1780,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE E-COSTMOD` — Rooms cost 3 building resource + 2 reed — passive cost change.
 - ⬜ **B127 Seducer** · [3+]
   - _When you play this card in round 5 or later, you can immediately pay 1 stone, 1 grain, 1 vegetable, and 1 sheep to take a "Family Growth Even without Room" action._
-  - `ONPLAY E-GROWTH F-TRIG E-FOODCOST CAP-GAME` — On play, optionally pay stone/grain/veg/sheep for Family Growth even without room; grain/veg/sheep are convertible-to-food-ish costs (E-FOODCOST for the convertible goods). Once-ever on-play so CAP-GAME. Growth even without room noted.
+  - `ONPLAY E-GRANTSUB E-GROWTH` — One-time optional on-play grant of a family-growth sub-action ('even without room' — noted): family growth is a listed E-GRANTSUB primitive. The stone/grain/veg/sheep price is an ordinary-goods cost (no food → no E-FOODCOST); ONPLAY is inherently once so no CAP-GAME, and F-TRIG is HOOK-only.
 - ⬜ **B128 Plumber** · [3+]
   - _Each time after you use the "Major Improvement" action space, you can take a "renovation" action, paying 2 clay or 2 stone less for the renovation._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — After using Major Improvement space, optionally take a renovation action paying 2 clay/stone less.
@@ -1774,37 +1789,37 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE L-OCCUPY` — Kept L-GEOMBOARD: 'the action space on round space 13' references a specific round-space number, a board-position dependency.
 - ⬜ **B130 Full Peasant** · [3+]
   - _Each time after you use the "Grain Utilization" or "Fencing" action space while the other is unoccupied, you can pay 1 food to use the other space with the same person.  [ERRATA: ERRATA: The “jump” to a second action space may only be done once per turn.]  [CLARIFICATION: The person ends on the second action space used.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-TURN E-FOODCOST E-NOPLACE E-WORKERMANIP ST-PLACELOG` — After using Grain Utilization/Fencing while the other is unoccupied, pay 1 food to use the other with the SAME person — the person moves to the second space, so E-WORKERMANIP + ST-PLACELOG; E-NOPLACE (no new person); capped once per turn.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-TURN E-FOODCOST E-GRANTACT E-NOPLACE E-WORKERMANIP ST-PLACELOG` — Using the other space IS taking another action space's whole action, so E-GRANTACT applies alongside E-WORKERMANIP (the 'use two spaces with one person' exemplar); errata caps it once per turn; the food payment is E-FOODCOST; needs to know where the worker was placed (ST-PLACELOG).
 - ⬜ **B131 Equipper** · [3+]
   - _Immediately after each time you use a wood accumulation space, you can play a minor improvement.  [CLARIFICATION: 《This effect is not a “Minor Improvement” action.》]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB` — Immediately after using a wood accumulation space, optionally play a minor improvement — clarification says it is NOT the Minor Improvement action, so it grants the play-a-card primitive sub-action (E-GRANTSUB), not a whole action.
 - ⬜ **B132 Estate Master** · [3+]
   - _Once you have no unused farmyard spaces left, you get 1 bonus point for each vegetable that you harvest.  [CLARIFICATION: If you have no unused spaces after playing this card and then later change your farmyard arrangement (e.g. with Overhaul C001,) you still receive bonus points for all future harvested vegetables.]_
-  - `LATCH ST-LATCH HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-SCORE` — Latches ON the first moment you have no unused farmyard spaces (LATCH+ST-LATCH), then each harvest-field vegetable earns a bonus point that accumulates to a computed end-game score — the accrual is a real hook on the field phase, E-SCORE for the point rule. No standing ST-COUNTER needed beyond scoring computation.
+  - `LATCH HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-SCORE ST-LATCH` — Standing condition (farmyard full) latches once and stays latched per the clarification (ST-LATCH); thereafter a recurring auto hook on harvested vegetables awards bonus points. The points go into the generic bonus-point tally every such card shares — no per-card running count, so no ST-COUNTER.
 - ⬜ **B133 Village Peasant** · [3+]
   - _At the start of scoring, you get a number of vegetables equal to the smallest of the numbers of major improvements, minor improvements, and occupations you have._
-  - `HOOK T-AFTER S-BEFORESCORE F-AUTO A-OWN E-GOODS` — At start of scoring, gain vegetables = min(majors, minors, occupations). Gains goods at the pre-scoring seam, not a bonus-point rule.
+  - `HOOK T-BEFORE S-BEFORESCORE F-AUTO A-OWN E-GOODS` — 'At the start of scoring' mirrors the 'at the end of' -> T-AFTER rule: start -> T-BEFORE, and the vegetables must arrive before scoring computes so they count as vegetables. Otherwise consensus.
 - ⬜ **B134 Housebook Master** · [3+]
   - _After playing this card, if you renovate to stone in round 13/12/11 or before, you immediately get 1/2/3 food and 1/2/3 bonus points._
-  - `ONPLAY HOOK T-AFTER S-SUB F-AUTO A-OWN CAP-GAME E-GOODS E-SCORE ST-STORE` — Fires after a renovate-to-stone if done by a given round; grants food + bonus points once. Round threshold snapshot needs store; scoring rule is a text bonus.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN CAP-GAME E-GOODS E-SCORE` — A one-time action trigger on the renovate-to-stone sub-action (the 'first time you take action X' ruling: HOOK + CAP-GAME, not LATCH). No ONPLAY effect ('after playing this card' just activates the hook) and no ST-STORE — the 1/2/3 reward reads the current round number at fire time.
 - ⬜ **B135 Nutrition Expert** · [3+]
   - _At the start of each round, you can exchange a set comprised of 1 animal of any type, 1 grain, and 1 vegetable for 5 food and 2 bonus points._
-  - `HOOK T-AFTER S-SOR F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE` — Start-of-round optional exchange of animal+grain+veg for 5 food and 2 bonus points.
+  - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE` — Optional start-of-round exchange: 'at the start of' is the mirror of 'at the end of' (T-AFTER), so T-BEFORE. Exchange = E-CONVERT, producing food (E-GOODS) + bonus points (E-SCORE); producing food is not E-FOODCOST.
 - ⬜ **B136 House Steward** · [3+]
   - _If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with the most rooms gets 3 bonus points._
   - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — On play gain wood by rounds-left; scoring: most-rooms comparative bonus.
 - ⬜ **B137 Wholesaler** · [3+]
   - _Place 1 vegetable, 1 wild boar, 1 stone, and 1 cattle on this card. Each time you use an action space card on round spaces 8 to 11, you get the corresponding good from this card._
-  - `ONPLAY HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS E-ANIMALS ST-STACK` — Kept L-GEOMBOARD: 'action space card on round spaces 8 to 11' is a specific round-space number band, a board-position dependency.
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS E-ANIMALS ST-STACK` — Seeding the four goods onto the card happens once at play (ONPLAY) into a consumed pile (ST-STACK); 'each time you use [space]' fires T-BEFORE per the explicit ruling; boar/cattle from the card must be accommodated (E-ANIMALS). Round spaces 8-11 are a fixed band, not L-GEOMBOARD.
 - ⬜ **B138 Forest Guardian** · [3+]
   - _When you play this card, you immediately get 2 wood. Each time before another player takes at least 5 wood from an accumulation space, they must first pay you 1 food._
-  - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-GOODS E-OPPTRANSFER ST-PROV` — On play +2 wood; each time another player takes >=5 wood they pay you 1 food. Needs the amount taken (provenance).
+  - `ONPLAY E-GOODS HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-OPPTRANSFER ST-PROV` — On-play 2 wood; mandatory pre-take toll on another player's action (A-OPP, T-BEFORE, E-OPPTRANSFER). The >=5-wood condition keys on the take-event's magnitude — exactly ST-PROV's 'value snapshotted before a space was zeroed' shape.
 - ⬜ **B139 Forest Scientist** · [3+]
   - _In the returning home phase of each round, if there is no wood left on the game board, you get 1 food—from round 5 on, even 2 food._
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS` — In returning-home phase, if no wood left on board, gain 1 food (2 from round 5). Condition is a plain board read.
 - ⬜ **B140 Farmyard Worker** · [3+]
   - _At the end of each work phase in which you placed at least 1 good on 1 of your farmyard spaces, you get 2 food.  [CLARIFICATION: 《You may not trigger this card by only moving an existing good.》]_
-  - `HOOK S-TURNEND T-AFTER F-AUTO A-OWN E-GOODS ST-PROV` — End-of-work-phase hook (T-AFTER) firing on own turn; needs provenance that a good was PLACED (not moved) on a farmyard space this phase — ST-PROV, not ST-COUNTER.
+  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-COUNTER` — End-of-work-phase auto payout gated on whether any good was placed on a farmyard space during the phase — a flag accumulated across the whole phase (ST-COUNTER), not a single event's payload at fire time (not ST-PROV).
 - ⬜ **B141 Field Caretaker** · [3+]
   - _When you play this card, you can immediately exchange 0/1/3 clay for 1/2/3 grain. This card is a field._
   - `ONPLAY E-CONVERT E-GOODS L-CARDFIELD` — Kept L-CARDFIELD: text explicitly states 'This card is a field' — the card itself is a sow/harvest field.
@@ -1813,19 +1828,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each use of Grain Seeds also get 1 vegetable.
 - ⬜ **B143 Clay Warden** · [3+]
   - _Each time another player uses the "Hollow" accumulation space, you get 1 clay. In a 3-/4-player game, you also get 1 additional clay/food._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OPP E-GOODS` — Each time another player uses Hollow, you get 1 clay (extra in 3/4p). Named space, opponent action.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-GOODS` — Opponent-use space hook; per the explicit ruling 'each time ... uses [space]' fires T-BEFORE (only 'immediately after/at the end of' is T-AFTER); mandatory clay gain.
 - ⬜ **B144 Collier** · [3+]
   - _Each time after you use the "Clay Pit" or "Hollow" accumulation space, you get 1 wood. On "Clay Pit" you also get 1 additional reed.  [CLARIFICATION: Note that this card is a 3+ player card.]_
   - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS` — After you use Clay Pit or Hollow, get 1 wood (+1 reed on Clay Pit). Named spaces, own action, after.
 - ⬜ **B145 Brushwood Collector** · [3+]
   - _Each time you renovate or build a room, you can replace the required 1 or 2 reed with a total of 1 wood._
-  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-COSTMOD` — On renovate/build-room, may replace reed with 1 wood — optional cost substitution.
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-COSTMOD` — 'Each time you renovate or build a room, you can replace...' is an optional per-event cost substitution = hook on the sub-action (T-BEFORE) with E-COSTMOD, exactly matching the settled tag for the analogous replace-2-clay/stone-with-1-wood card; PASSIVE is for standing rules without the 'each time' firing phrasing.
 - ⬜ **B146 Illusionist** · [3+]
   - _Each time you use a building resource accumulation space, you can discard exactly 1 card from your hand to get 1 additional building resource of the accumulating type._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS EXOTIC` — Discard 1 hand card for +1 building resource (E-HANDCOST candidate, not adopted).
 - ⬜ **B147 Huntsman** · [3+]
   - _Each time after you use a wood accumulation space, you can pay 1 grain to get 1 wild boar._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-ANIMALS` — After using a wood accumulation space, optionally pay 1 grain for 1 wild boar (animal must be accommodated).
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-ANIMALS` — 'Each time after' = T-AFTER own-space hook, optional; the 1-grain payment is an ordinary resource cost (needs no code per ruling), so no E-CONVERT — the effect is gaining an animal.
 - ⬜ **B148 Pet Broker** · [4+]
   - _When you play this card, you immediately get 1 sheep. You can keep 1 sheep on each occupation in front of you._
   - `ONPLAY PASSIVE E-ANIMALS E-CAPNEW` — On play +1 sheep; each occupation in front of you can hold 1 sheep (new holders).
@@ -1840,22 +1855,22 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS PASSIVE L-OCCUPY` — On-play +1 stone; while in wood house with exactly 2 rooms, spaces (except Meeting Place) treated as unoccupied — continuous L-OCCUPY.
 - ⬜ **B152 Junior Artist** · [4+]
   - _Each time after you use the "Day Laborer" action space, you can pay 1 food to use an unoccupied "Traveling Players" or "Lessons" action space with the same person._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT L-OCCUPY E-FOODCOST` — After using Day Laborer, may pay 1 food to use unoccupied Traveling Players/Lessons with same person; granting another space's action.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-FOODCOST E-GRANTACT E-WORKERMANIP` — After Day Laborer, pay food to use a second space with the SAME already-placed person — grants a whole action (E-GRANTACT) via worker reuse (E-WORKERMANIP); target must be UNOCCUPIED, so L-OCCUPY is wrong.
 - ⬜ **B153 Housemaster** · [4+]
   - _During scoring, total the point values of your major improvements. The smallest value counts double. If the total is at least 5/7/9/11, you get 1/2/3/4 bonus points._
-  - `E-SCORE` — Pure end-game bonus-point rule computed at scoring; not a fired event, so no HOOK/PASSIVE.
+  - `PASSIVE E-SCORE` — Pure end-game bonus-point rule (threshold computation, no arrangement optimization) — E-SCORE, no HOOK; PASSIVE supplies the required always-on activation.
 - ⬜ **B154 Sheep Keeper** · [4+]
   - _You can only play this card if you have less than 7 sheep. Once this game, when you have 7 sheep on your farm, you immediately get 3 bonus points and 2 food._
-  - `LATCH ST-LATCH ST-THRESHOLD E-GOODS CAP-GAME` — Once this game, first time you have 7 sheep: +3 VP + 2 food — one-shot count-threshold latch.
+  - `LATCH CAP-GAME ST-THRESHOLD E-GOODS E-SCORE` — One-shot when the sheep COUNT reaches 7: LATCH + the count-specific ST-THRESHOLD (ST-LATCH is the house-material variant, redundant here) + CAP-GAME; grants food (E-GOODS) and textual bonus points (E-SCORE, earned mid-game, not the VP circle).
 - ⬜ **B155 Art Teacher** · [4+]
   - _When you play this card, you immediately get 1 wood and 1 reed. Each time you pay an occupation cost, you can use food from the "traveling Players" accumulation space._
-  - `ONPLAY E-GOODS HOOK S-PLAY T-BEFORE F-TRIG A-OWN L-EXT` — On-play goods, plus each occupation play lets you pay its cost from the Traveling Players space — a payment-source extension (L-EXT) firing before paying (T-BEFORE) on the play-a-card seam (S-PLAY).
+  - `ONPLAY E-GOODS HOOK T-BEFORE S-PLAY F-TRIG A-OWN L-EXT` — On-play goods, plus an optional hook on paying an occupation cost (a card-being-played event → S-PLAY, before the play resolves); the cost amount/currency is unchanged — only the payment SOURCE (board food) is extended, which is L-EXT, not E-COSTMOD.
 - ⬜ **B156 Storehouse Keeper** · [4+]
   - _Each time you use the "resource Market" action space, you also get your choice of 1 clay or 1 grain._
   - `HOOK T-BEFORE S-SPACE F-MANDCHOICE A-OWN E-GOODS` — Each use of Resource Market: get 1 clay or 1 grain (choice, no decline).
 - ⬜ **B157 Salter** · [4+]
   - _At any time, you can pay 1 sheep/wild boar/cattle from you farm. If you do, place 1 food on each of the next 3/5/7 round spaces. At the start of these rounds, you get the food.  [CLARIFICATION: You may not “split” acquisitions of multiple animals (or generally any groupings of goods.)]_
-  - `ATWILL E-SCHED E-CONVERT` — At any time, pay 1 animal to place food on next N round spaces collected at start; ATWILL, schedules food onto future rounds.
+  - `ATWILL E-SCHED` — 'At any time' deferrable option; the animal paid is an ordinary cost (no code per ruling, same treatment as Huntsman's grain), and the output is food placed on future round spaces — E-SCHED, not a direct E-CONVERT exchange.
 - ⬜ **B158 District Manager** · [4+]
   - _At the end of each work phase, if you used both the "Forest" and "Grove" accumulation spaces, you get 5 food._
   - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-PLACELOG` — End of each work phase, if you used both Forest and Grove, get 5 food; needs to know which spaces you placed on.
@@ -1864,16 +1879,16 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-AUTO A-OPP E-GOODS L-GEOMFARM` — Kept L-GEOMFARM: fires on a field tile placed orthogonally adjacent to an existing field tile — genuine inter-tile adjacency.
 - ⬜ **B160 Pub Owner** · [4+]
   - _Immediately, when you play this card, and at the end of each work phase, in which the "Forest", "Clay Pit", and "Reed Bank" accumulation spaces are all occupied, you get 1 grain._
-  - `ONPLAY E-GOODS HOOK T-AFTER S-TURNEND F-AUTO A-OWN` — On play + end of each work phase where Forest/Clay Pit/Reed Bank all occupied, get 1 grain; reads board occupancy at phase end.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-TURNEND F-AUTO A-OWN` — Immediate grain on play plus a mandatory end-of-work-phase hook (phase-boundary trigger, not another player's action, so A-OWN default only — opponent placements merely feed the occupancy condition); 'at the end of' = T-AFTER.
 - ⬜ **B161 Weakling** · [4+]
   - _Each time it is your turn in the work phase, if there are one or more accumulation spaces with 5+ goods on them and you do not use any of them, you get 1 vegetable._
-  - `HOOK S-TURNEND T-AFTER F-AUTO A-OWN E-GOODS` — Fires at end of your work-phase turn if a rich accumulation space existed and you used none; a state read at turn end, no per-worker log needed.
+  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-PLACELOG` — Fires at the end of your work-phase turn only if none of the 5+-good accumulation spaces was the space you used — evaluating 'you do not use any of them' requires knowing which space your worker was placed on this turn (ST-PLACELOG), so labelB is right to add it.
 - ⬜ **B162 Forest Clearer** · [4+]
   - _Each time you obtain exactly 2/3/4 wood from a wood accumulation space, you get 1 additional wood and 1/0/1 food.  [CLARIFICATION: This card’s effect triggers before deciding to leave wood on the action space (e.g. with Basket A056)]_
   - `HOOK S-OBTAIN T-BEFORE F-AUTO A-OWN E-GOODS ST-PROV` — Obtaining exactly N wood from a wood accumulation space triggers bonus goods before the leave-on-space decision (T-BEFORE per clarification); needs the obtain amount/source — ST-PROV.
 - ⬜ **B163 Pastor** · [4+]
   - _Once you are the only player to live in a house with only 2 rooms, you immediately get 3 wood, 2 clay, 1 reed, and 1 stone (only once)._
-  - `CAP-GAME E-GOODS LATCH ST-LATCH` — One-time gain (only once) the first moment you are the SOLE 2-room player — a standing comparative condition latch; CAP-GAME for 'only once'. Not E-SCORECMP (no scoring).
+  - `LATCH ST-LATCH E-GOODS CAP-GAME` — One-shot latch on a standing comparative condition (sole 2-room player) granting goods; the explicit '(only once)' plus the LATCH-pairs-with-CAP-GAME convention keeps CAP-GAME.
 - ⬜ **B164 Sheep Whisperer** · [4+]
   - _Add 2, 5, 8, and 10 to the current round and place 1 sheep on each corresponding round space. At the start of these rounds, you get the sheep._
   - `ONPLAY E-SCHEDANIMAL E-ANIMALS` — On play, schedule sheep onto future round spaces (E-SCHEDANIMAL) collected at those rounds; animals must be accommodated (E-ANIMALS). E-SCHED is for goods/food, not animals, so it is redundant/wrong here.
@@ -1882,25 +1897,25 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK S-HSTART T-BEFORE F-TRIG A-OWN E-ANIMALS E-CROPMANIP` — Optional hook immediately before each harvest (S-HSTART/T-BEFORE); discard grain from distinct fields (E-CROPMANIP) to gain boars (E-ANIMALS); 'each harvest' implies once-per so no CAP tag; keyed to an event so not ATWILL.
 - ⬜ **B166 Cattle Feeder** · [4+]
   - _Each time you use the "Grain Seeds" action space, you can also buy 1 cattle for 1 food._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-ANIMALS E-CONVERT` — Each use of Grain Seeds, may buy 1 cattle for 1 food — optional buy.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-ANIMALS E-FOODCOST` — Optional buy hooked before the Grain Seeds space; paying 1 food for a cattle is a food-cost effect (E-FOODCOST per ruling), not a rate conversion, and the cattle must be accommodated (E-ANIMALS).
 - ⬜ **B167 Stable Sergeant** · [4+]
   - _When you play this card, you can pay 2 food to get 1 sheep, 1 wild boar, and 1 cattle, but only if you can accommodate all three animals on your farm._
-  - `ONPLAY F-TRIG E-ANIMALS E-FOODCOST` — On play, may pay 2 food to get 1 of each animal, only if all accommodatable; optional on-play animals with food cost.
+  - `ONPLAY E-ANIMALS E-FOODCOST` — Pure on-play optional purchase: ONPLAY + food cost + animals needing accommodation. F-TRIG is a HOOK sub-code and no HOOK is tagged, so labelA's F-TRIG is invalid; on-play optionality has no code.
 - ⬜ **B168 Pasture Master** · [4+]
   - _Each time you renovate, you get 2 food and 1 additional animal of the respective type in each of your pastures with stable._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-ANIMALS` — Each time you renovate, +2 food and +1 animal of respective type in each pasture with a stable; renovate sub-action hook granting goods+animals.
+  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS E-ANIMALS` — 'Each time you renovate' is an own-action sub-action hook; per the ruling only 'immediately after'/'at the end of' gets T-AFTER, and the payout (2 food + 1 animal per stabled pasture) doesn't depend on the renovation's result, so the T-BEFORE default stands.
 
 ### Deck C
 
 - ⬜ **C85 Den Builder** · [1+]
   - _When you live in a clay or stone house, you can pay 1 grain and 2 food. If you do, for the rest of the game, this card provides room for exactly one person._
-  - `LATCH ST-LATCH E-FOODCOST E-CAPNEW CAP-GAME` — When you first live in clay/stone house, may pay 1 grain+2 food (food cost) to make card a room holding one person; one-time on standing condition.
+  - `ATWILL CAP-GAME E-FOODCOST E-CAPNEW ST-STORE` — 'You can pay' while the house condition holds is a player-timed, deferrable option (once ever), not a LATCH — LATCH is an effect that fires automatically the first moment a condition turns true, with no decline. The paid state persists as a flag (ST-STORE); the card then houses one person (E-CAPNEW); 2 food = E-FOODCOST (grain is an ordinary cost).
 - ⬜ **C86 Livestock Feeder** · [1+]
   - _When you play this card, you immediately get 1 grain. Each grain in your supply can hold 1 animal of any type. (these animals count as accommodated on your farm.)_
   - `ONPLAY PASSIVE E-GOODS E-CAPNEW` — On play gain 1 grain; each grain becomes a continuous new holder for 1 animal of any type.
 - ⬜ **C87 Mason** · [1+]
   - _Place a stone room on this card. Once you have a stone house with at least 4 rooms, at any time, you can add that room without paying any building resources._
-  - `ATWILL E-COSTMOD E-GRANTSUB L-CARDSPACE ST-STORE` — A stone room piece sits ON the card (holder = L-CARDSPACE + ST-STORE); once a 4-room stone house latch, at-will you add that room free (ATWILL + E-GRANTSUB build-room + E-COSTMOD zero cost).
+  - `ATWILL CAP-GAME E-GRANTSUB ST-STORE` — 'At any time, you can' once the stone-house-4-rooms condition holds = ATWILL grant of a build-room sub-action, usable once (one room on the card) → CAP-GAME + ST-STORE. The card holds a room piece, not an action space (no L-CARDSPACE), and a free granted build is a grant, not a cost modification (no E-COSTMOD).
 - ⬜ **C88 Carpenter's Apprentice** · [1+]
   - _Wood rooms cost you 2 woods less. Your 3rd and 4th stable each cost you 1 wood less. Your 13th to 15th fence each cost you nothing._
   - `PASSIVE E-COSTMOD E-FREEFENCE` — Continuous cost reductions: wood rooms -2 wood, 3rd/4th stable -1 wood, 13th-15th fences free.
@@ -1912,13 +1927,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — Each time you use Grain Seeds space, optionally also plow 1 field (before, granted sub-action).
 - ✅ **C91 Plow Hero** · [1+]
   - _Each time you use the "Farmland" or "Cultivation" action space with the first person you place in a round, you can plow 1 additional field for 1 food._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST ST-PLACELOG` — Using Farmland/Cultivation with first person placed in a round, may plow 1 extra field for 1 food; needs to know it's the first placement of the round.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Use-space hook (T-BEFORE default), optional granted plow (F-TRIG + E-GRANTSUB) for food (E-FOODCOST). No ST-PLACELOG: 'first person you place in a round' is checkable at fire time from your placed-worker count (==1), and ST-PLACELOG is for knowing which SPACE a worker sits on — here the space is the trigger itself.
 - ⬜ **C92 Autumn Mother** · [1+]
   - _Immediately before each harvest, if you have room in your house, you can take a "Family Growth" action for 3 food._
   - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-GRANTSUB E-GROWTH E-FOODCOST` — Fires immediately before each harvest (start of harvest, before field phase) = S-HSTART, T-BEFORE; optional granted family-growth sub-action costing food; once-per-harvest is implicit in the hook so no CAP. Pass1's S-AFTERFEED/CAP-HARVEST are wrong.
 - ⬜ **C93 Inner Districts Director** · [1+]
   - _Each time you use the "Forest" or "Clay Pit" accumulation space, you can place 1 stone from the general supply on the other space. If you do, you can immediately place another person.  [CLARIFICATION: You may use this ability twice on the same turn.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS E-EXTRAPLACE` — Each time you use Forest/Clay Pit you may place stone on the other space (gain goods) and then immediately place another person = extra placement, resolving after the space action (T-AFTER). Not opp transfer (stone from general supply).
+  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-EXTRAPLACE EXOTIC` — "Each time you use [space]" defaults to T-BEFORE (no 'after' wording). The stone goes onto the OTHER accumulation space (not your supply, not a future round space), so E-GOODS/E-SCHED both miss — EXOTIC for goods-placed-on-an-action-space; the payoff is E-EXTRAPLACE.
 - ⬜ **C94 Stable Cleaner** · [1+]
   - _At any time, you can take the "Build Stables" action without placing a person. If you do, each stable costs you 1 wood and 1 food._
   - `ATWILL E-GRANTACT E-NOPLACE E-COSTMOD E-FOODCOST` — At-any-time Build Stables action without placing a person; the stated 1 wood + 1 food per stable is a modified build cost (E-COSTMOD) that includes food (E-FOODCOST).
@@ -1930,76 +1945,76 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-MAJMIN F-TRIG A-OWN E-GRANTACT E-FOODCOST` — After a Major/Minor or Minor Improvement action, pay 1 food to take it a second time — after-timing hook granting a repeat action; food cost.
 - ⬜ **C97 Seed Researcher** · [1+]
   - _Each time any people return from both the "Grain Seeds" and "Vegetable Seeds" action spaces, you get 2 food and you can play 1 occupation, without paying an occupation cost._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GOODS E-NOPLACE` — When people return from both seed spaces (return-home/end of round, T-AFTER) you get 2 food and may play an occupation without its cost. Playing a card without placing = E-NOPLACE; A-OWN is the default actor.
+  - `HOOK S-ROUNDEND T-AFTER F-AUTO F-TRIG A-OWN A-OPP E-GOODS E-GRANTSUB E-COSTMOD` — "Any people return" fires on either player's workers returning → A-OWN + A-OPP at return-home (T-AFTER). The 2 food is mandatory (F-AUTO); the occupation play is optional (F-TRIG) and is a granted play-a-card sub-action (E-GRANTSUB) with its occupation cost waived (E-COSTMOD). E-NOPLACE is wrong — grants are inherently placement-free.
 - ✅ **C98 Cube Cutter** · [1+]
   - _When you play this card, you immediately get 1 wood. In the field phase of each harvest, you can use this card to exchange exactly 1 wood and 1 food for 1 bonus point._
-  - `ONPLAY E-GOODS HOOK T-BEFORE S-HFIELD F-TRIG A-OWN E-CONVERT E-SCORE` — On play +1 wood; each harvest field phase may exchange 1 wood+1 food for a bonus point (repeatable conversion into VP during harvest).
+  - `ONPLAY E-GOODS HOOK S-HFIELD T-BEFORE F-TRIG A-OWN E-CONVERT E-FOODCOST E-SCORE` — On-play wood = ONPLAY+E-GOODS. Optional field-phase exchange = HOOK/S-HFIELD/F-TRIG/A-OWN; no 'after'/'end of' wording so T-BEFORE. The exchange costs 1 food → E-FOODCOST, and earns a bonus point through an action → E-SCORE (legit with HOOK). Accrued bonus points fold into scoring; a per-card counter is a plausible implementation but the card mandates no stored state beyond ordinary bookkeeping — I keep ST-COUNTER since points earned mid-game must be tallied across harvests.
 - ⬜ **C99 Garden Designer** · [1+]
   - _At the start of scoring, you can place food in empty fields. You get 1/2/3 bonus points for each field in which you place 1/4/7 food.  [ERRATA: ERRATA: This food is considered planted.]_
-  - `HOOK T-BEFORE S-BEFORESCORE F-TRIG A-OWN E-SCORE E-CROPMANIP` — At start of scoring, place food in empty fields (treated as planted) for bonus points per threshold. Places crops on fields as part of a scoring rule.
+  - `HOOK S-BEFORESCORE T-BEFORE F-TRIG A-OWN E-CROPMANIP E-FOODCOST E-SCORE E-SCOREOPT` — An optional action at the start of scoring (not a passive rule) → HOOK/S-BEFORESCORE/F-TRIG/A-OWN/T-BEFORE. It spends food (E-FOODCOST), plants it into fields per the errata (E-CROPMANIP), and scores tiered bonus points (E-SCORE) requiring an allocation optimization of food across fields at the 1/4/7 breakpoints (E-SCOREOPT).
 - ✅ **C100 Butler** · [1+]
   - _If you play this card in round 11 or before, during scoring, you get 4 bonus points if you then have more rooms than people._
-  - `E-SCORE E-SCORECMP` — A passive end-game bonus-point rule (4 pts if more rooms than people) depending on the player's own board; the round-11 play restriction is just a prerequisite. Scoring rules never carry HOOK/S-BEFORESCORE/F-AUTO. Comparative between two of the player's own stats, not both players — but E-SCORECMP overreads; it's a self-comparison. Keeping E-SCORE only.
+  - `PASSIVE E-SCORE ST-STORE` — Rooms-vs-people is a self-comparison, not a both-players comparison — E-SCORECMP is wrong. The played-by-round-11 condition must be snapshotted at play time (ST-STORE); the scoring rule itself is a passive computed bonus (PASSIVE + E-SCORE, no HOOK).
 - ⬜ **C101 Stall Holder** · [1+]
   - _Once per round, if you have 0/1/2/3/4 unfenced stables on your farm, you can exchange 2 grain for 1 bonus point and 1/2/3/4/5 food._
-  - `ATWILL CAP-ROUND E-CONVERT E-SCORE` — Once per round, exchange 2 grain for a bonus point + food scaled by unfenced-stable count. Deferrable capped conversion yielding VP.
+  - `ATWILL CAP-ROUND E-CONVERT E-SCORE ST-COUNTER` — "Once per round, you can" = ATWILL + CAP-ROUND. The 2-grain-for-food-and-point exchange is E-CONVERT (the food output is part of the exchange, not separate E-GOODS, matching how exchanges are tagged elsewhere); bonus points earned through the action = E-SCORE, tallied over the game → ST-COUNTER. Unfenced-stable count is a plain state read.
 - ✅ **C102 Tree Guard** · [1+]
   - _Each time after you use a wood accumulation space, you can place 4 wood from your supply on that space to get 2 stone, 1 clay, 1 reed, and 1 grain._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS E-CONVERT` — After using a wood accumulation space, pay 4 wood onto it to get 2 stone/1 clay/1 reed/1 grain. After-timing on named-space use; pays wood for goods.
 - ⬜ **C103 Green Grocer** · [1+]
   - _At the start of each round, you can make exactly one of the following exchanges: 1 Cattle → 1 Vegetable; 1 Vegetable → 1 Cattle; 2 Sheep → 1 Vegetable; 1 Vegetable → 2 Sheep; 2 Food → 1 Grain; 1 Grain → 2 Food_
-  - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-CONVERT E-ANIMALS` — At start of each round, make exactly one listed exchange (some yield animals needing accommodation). Start-of-round optional single-exchange.
+  - `HOOK S-SOR T-BEFORE F-TRIG A-OWN E-CONVERT E-ANIMALS` — Optional start-of-round exchange menu → HOOK/S-SOR/F-TRIG/A-OWN/T-BEFORE. All outputs ride on E-CONVERT (no separate E-GOODS, consistent with exchange tagging); cattle/sheep outputs need accommodation → E-ANIMALS.
 - ⬜ **C104 Collector** · [1+]
   - _This card is an action space for you only. When you use it for the 1st/2nd/3rd/4th time, you get 1 begging marker and 6/7/8/9 different good of your choice._
-  - `A-OWN CAP-GAME E-GOODS F-MANDCHOICE HOOK L-CARDSPACE S-SPACE ST-COUNTER T-AFTER` — Card is a personal action space (L-CARDSPACE) usable a limited number of times (ST-COUNTER); each use gives goods you choose but must take (F-MANDCHOICE, not F-AUTO); begging+goods are the effect. CAP-GAME limits total uses (4th time max).
+  - `HOOK T-AFTER S-SPACE F-MANDCHOICE A-OWN E-GOODS E-ANIMALS L-CARDSPACE ST-COUNTER` — A personal action space whose use pays out (goods of your choice + a begging marker) — a mandatory-with-choice payout on using the space, not PASSIVE. 8/9 different goods is only reachable if animals count among the choices, so keep E-ANIMALS. The 1st–4th use scaling and exhaustion is the ST-COUNTER; dropped labelA's CAP-GAME since it means once-ever, not four uses.
 - ⬜ **C105 Basket Carrier** · [1+]
   - _Once each harvest, you can buy 1 wood, 1 reed, and 1 grain for 2 food total._
   - `ATWILL CAP-HARVEST E-CONVERT E-FOODCOST E-GOODS` — 'Once each harvest, you can buy...' = deferrable at-will conversion of food to goods, capped per harvest (CAP-HARVEST). Not a forced hook.
 - ✅ **C106 Potato Harvester** · [1+]
   - _When you play this card, you immediately get 3 food. For each vegetable you get from your fields during the field phase of the harvest, you get 1 additional food._
-  - `ONPLAY HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS` — On play +3 food; +1 food per vegetable harvested from fields during the field phase.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-HFIELD F-AUTO A-OWN ST-PROV` — On-play 3 food plus a per-harvest field-phase hook scaling with vegetables just yielded; after the field phase the yield count is no longer derivable from state (a field that held 1 veg is now indistinguishable from an empty one), so the event payload is needed → ST-PROV.
 - ⬜ **C107 Baker** · [1+]
   - _When you play this card and at the start of each feeding phase, you can take a "Bake Bread" action._
-  - `A-OWN E-GRANTACT F-TRIG HOOK ONPLAY S-HFEED T-BEFORE` — Grants an optional full Bake Bread action on play and at the start of each feeding phase (S-HFEED, T-BEFORE = 'at the start of'). E-BAKESPEC is wrong — it grants the standard action, not a new baking rate.
+  - `ONPLAY HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-GRANTSUB` — Bake Bread is on the taxonomy's explicit primitive sub-action list, so the grant is E-GRANTSUB, not E-GRANTACT; on-play plus an optional grant at the start of each feeding phase (T-BEFORE, F-TRIG).
 - ⬜ **C108 Layabout** · [1+]
   - _When you play this card, you must skip the next harvest. (You also do not have to feed your family that harvest.)_
   - `ONPLAY EXOTIC` — Mandatory: skip the next entire harvest, including feeding (phase-skip).
 - ✅ **C109 Schnapps Distiller** · [1+]
   - _In the feeding phase of each harvest, you can use this card to turn exactly 1 vegetable into 5 food._
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT L-CARDSPACE` — During each feeding phase, optionally convert exactly 1 vegetable into 5 food.
+  - `HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT` — 'Use this card' is activation flavor, not a worker-placement action space, so no L-CARDSPACE; an optional feeding-phase conversion needs its HOOK timing dimension, and it is available before the feed payment resolves → T-BEFORE.
 - ✅ **C110 Home Brewer** · [1+]
   - _After the field phase of each harvest, you can use this card to turn exactly 1 grain into your choice of 3 food or 1 bonus point._
-  - `A-OWN E-CONVERT E-SCORE F-TRIG HOOK S-HFIELD T-AFTER` — Optional ('you can') after the field phase each harvest: convert 1 grain to 3 food OR 1 bonus point. Optional=F-TRIG not F-MANDCHOICE; hook fires each harvest so no CAP tag; earned bonus point through an action = HOOK+E-SCORE.
+  - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT E-SCORE` — Optional after-field-phase hook converting 1 grain to 3 food or 1 bonus point (E-CONVERT + E-SCORE); repeated bonus points are a global VP tally, not per-card state — precedent (end-of-harvest stone-house bonus point) carries no ST-COUNTER.
 - ✅ **C111 Small Animal Breeder** · [1+]
   - _Before the start of each round, if you have food equal to or higher than the current round number (e.g., 8+ food in round 8), you get 1 food._
   - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — Before start of each round, if food >= round number, get 1 food. Start-of-round auto gain conditional on a plain count read.
 - ✅ **C112 Thresher** · [1+]
   - _Immediately before each time you use the "Grain Utilization", "Farmland", or "Cultivation" action space, you can buy 1 grain for 1 food.  [CLARIFICATION: This effect happens before using the space, and must happen before effects such as Flail C026.]_
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT` — Before using Grain Utilization/Farmland/Cultivation, optionally buy 1 grain for 1 food; must fire before other before-effects.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT E-FOODCOST` — Before-use space hook (clarification confirms T-BEFORE), optional buy of 1 grain for 1 food = E-CONVERT plus E-FOODCOST (effect costs food, payable via liquidation — matches buy-for-food precedents).
 - ✅ **C113 Winter Caretaker** · [1+]
   - _When you play this card, you immediately get 1 grain. At the end of each harvest, you can buy exactly 1 vegetable for 2 food._
-  - `A-OWN E-CONVERT E-GOODS F-TRIG HOOK ONPLAY S-AFTERFEED T-AFTER` — On-play +1 grain (E-GOODS); then optional buy 1 veg for 2 food at end of each harvest. 'End of each harvest' = after feeding completes = S-AFTERFEED. Fires each harvest so no CAP tag.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-AFTERFEED F-TRIG A-OWN E-CONVERT E-FOODCOST` — On-play +1 grain; 'end of each harvest' consistently maps to S-AFTERFEED (not S-HBREED) per three precedents including this card's prior row; the 2-food veg buy is E-CONVERT + E-FOODCOST.
 - ✅ **C114 Soil Scientist** · [1+]
   - _Each time after you use a clay/stone accumulation space, you can place 1 stone/2 clay from your supply on the space to get 2 grain/1 vegetable, respectively._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS E-CONVERT` — After using a clay/stone accumulation space, pay stone/clay onto the space to get grain/veg. After-timing named-space hook; resource conversion.
 - ⬜ **C115 Sower** · [1+]
   - _Each time you build a major improvement, place 1 reed from the general supply on that card. At any time, you can move the reed to your supply or exchange it for a "Sow" action._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN ATWILL E-GRANTSUB ST-STACK` — Each time you build a major, place 1 reed on the card (kept pile); at any time move it to supply or exchange for a Sow action. Goods stack on card + deferrable grant-sub/gain.
+  - `HOOK S-SUB T-AFTER F-AUTO A-OWN ATWILL E-GOODS E-GRANTSUB ST-STACK` — Mandatory reed placed on the card after each major-improvement build (HOOK/S-SUB/T-AFTER/F-AUTO/A-OWN, stack on card = ST-STACK). At any time the reed converts to either a supply reed — goods entering your supply → E-GOODS — or a granted Sow sub-action (E-GRANTSUB), both ATWILL.
 - ⬜ **C116 Furniture Maker** · [1+]
   - _When you play this card, you immediately get 1 wood. Each time you play an occupation after this one, you get 1 wood for each food paid as occupation cost._
   - `ONPLAY E-GOODS HOOK T-AFTER S-PLAY F-AUTO A-OWN ST-PROV` — On play +1 wood; each subsequent occupation played, +1 wood per food paid as its cost. Fires on card-play, keyed to the food-cost provenance of that play.
 - ⬜ **C117 Legworker** · [1+]
   - _Each time you use an action space that is orthogonally adjacent to another action space occupied by one of your people, you get 1 wood._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS L-GEOMBOARD ST-PLACELOG` — Kept L-GEOMBOARD: depends on orthogonal adjacency between action spaces on the board.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — "You get 1 wood" is mandatory -> F-AUTO; space-to-space adjacency is L-GEOMBOARD; "occupied by one of your people" is ordinary board-occupancy state, not per-card worker tracking, so no ST-PLACELOG.
 - ✅ **C118 Wood Collector** · [1+]
   - _Place 1 wood on each of the next 5 round spaces. At the start of these rounds, you get the wood._
   - `ONPLAY E-SCHED` — Place 1 wood on each of next 5 round spaces, collected at start of those rounds.
 - ✅ **C119 Skillful Renovator** · [1+]
   - _When you play this card, you immediately get 1 wood and 1 clay. Each time after you renovate, you get a number of wood equal to the number of people you placed that round.  [CLARIFICATION: If you renovate with your 3rd placed person of a round, this card triggers a payout of 3 wood.  Newborns are not placed.]_
-  - `A-OWN E-GOODS F-AUTO HOOK ONPLAY S-SUB ST-PLACELOG T-AFTER` — On-play goods; after each renovate (S-SUB, T-AFTER) get wood = people placed that round. Needs to know how many workers placed this round (which/how-many placed) = ST-PLACELOG; newborns excluded. Mandatory payout = F-AUTO.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-AUTO A-OWN ST-COUNTER` — On-play goods; mandatory after-renovate payout scaled by the COUNT of people placed this round — a per-round running count (ST-COUNTER), not which-space knowledge (ST-PLACELOG), especially since newborns must be excluded from the count.
 - ⬜ **C120 Agricultural Labourer** · [1+]
   - _Place 8 clay on this card. For each grain you obtain, you also get 1 clay from this card._
-  - `ONPLAY HOOK T-AFTER S-OBTAIN F-TRIG A-OWN E-GOODS ST-STACK` — On play place 8 clay on card; each time you obtain grain, take 1 clay from the card's stack.
+  - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS ST-STACK` — "You also get 1 clay" is mandatory -> F-AUTO (not F-TRIG); ONPLAY seeds the 8-clay pile (ST-STACK) consumed by an S-OBTAIN hook on grain.
 - ✅ **C121 Clay Kneader** · [1+]
   - _When you play this card, you immediately get 1 wood and 2 clay. Each time after you use a "Grain Seeds" or "Vegetable Seeds" action space, you get 1 clay._
   - `ONPLAY HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS` — On play +1 wood +2 clay; after using Grain Seeds or Vegetable Seeds space, +1 clay.
@@ -2008,52 +2023,52 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE E-COSTMOD` — Always-on cost reduction on improvements/renovations/rooms.
 - ✅ **C123 Freemason** · [1+]
   - _As long as you live in a clay/stone house with exactly 2 rooms, at the start of each work phase, you get 2 clay/stone.  [CLARIFICATION: Cards that provide room for a person do not count for this effect unless they self-identify as a room.]_
-  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — At start of each work phase gain clay/stone while standing house/room condition holds; recurring conditional gain, not a one-time latch.
+  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-GOODS` — 'At the start of each work phase' resolves AT the round-start seam — exact-phrase precedent tags T-AFTER (T-BEFORE is reserved for 'before the start of...'); mandatory conditional goods gated on a plain house-state read.
 - ⬜ **C124 Stone Importer** · [1+]
   - _In the breeding phase of the 1st/2nd/3rd/4th/5th/6th harvest, you can use this card to buy exactly 2 stone for 2/2/3/3/4/1 food._
-  - `HOOK T-BEFORE S-HBREED F-TRIG A-OWN E-CONVERT E-FOODCOST E-GOODS ST-STORE` — Tied to a specific game window (breeding phase of each harvest) with a per-harvest price schedule requiring a uses-tracking snapshot (ST-STORE); optional buy of stone for food = convert/foodcost/goods. Window-bound firing = HOOK on S-HBREED, not free ATWILL.
+  - `HOOK T-BEFORE S-HBREED F-TRIG A-OWN E-FOODCOST E-GOODS` — Optional buy during each breeding phase; the per-harvest price is fixed by the round number (computable from state), so no ST-STORE; pay-food/gain-stone is E-FOODCOST + E-GOODS without also double-tagging E-CONVERT.
 - ⬜ **C125 Nightworker** · [1+]
   - _Before the start of each work phase, you can place a person on an accumulation space of a building resource not in your supply. (Then proceed with the start player.)  [CLARIFICATION: A resource you already have can be taken, but only if placed on a qualifying accumulation space by another effect, e.g. Outskirts Director C130.]_
   - `HOOK S-SOR F-TRIG A-OWN E-EXTRAPLACE` — Before each work phase, place an extra person on a not-owned-resource accumulation space.
 - ✅ **C126 Excavator** · [1+]
   - _Each time after you use the "Day Laborer" action space, you get 1 additional wood and clay, and you can buy 1 stone for 1 food.  [CLARIFICATION: These resources may not be used to pay for the effect of the Cottager B087.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS E-CONVERT` — After using Day Laborer: +wood/clay and optional buy stone for food (conversion).
+  - `HOOK T-AFTER S-SPACE F-AUTO F-TRIG A-OWN E-GOODS E-CONVERT E-FOODCOST` — After-Day-Laborer hook with two parts: mandatory +1 wood +1 clay (F-AUTO, E-GOODS) and an optional buy of 1 stone for 1 food (F-TRIG, E-CONVERT, E-FOODCOST) — both firing kinds genuinely apply.
 - ⬜ **C127 Lover** · [3+]
   - _When you play this card, immediately pay an amount of food equal to the number of complete rounds left to play to take a "Family Growth Even without Room" action.  [CLARIFICATION: If you are forced to play this card (e.g. with Paper Knife A003) and can’t afford the extra cost, then it may not be played and is removed from the game.]_
-  - `ONPLAY E-FOODCOST E-GROWTH` — On-play: pay food (may need conversion) for a Family Growth even without room; E-GROWTH is the dedicated family-growth code, no separate E-GRANTSUB needed.
+  - `ONPLAY E-FOODCOST E-GROWTH` — Mandatory on-play: pay food (rounds-left, computable) and take Family Growth even without room (noted via E-GROWTH); the clarification confirms it is not an optional granted sub-action, so no E-GRANTSUB.
 - ✅ **C128 Wooden Hut Extender** · [3+]
   - _Wood rooms now cost you 1 reed, and additionally 5 wood through round 5, 4 wood in rounds 6 and 7, and 3 wood in round 8 and later._
   - `E-COSTMOD PASSIVE` — Passive continuous cost-formula change for wood rooms; round-dependent cost is computable from round_number, no per-card stored state.
 - ✅ **C129 Second Spouse** · [3+]
   - _You can use the "Urgent Wish for Children" action space (from round 12-13) even if it is occupied by the first person another player placed.  [CLARIFICATION: But not if any second, third, etc. people occupy it.]_
   - `PASSIVE L-OCCUPY` — Use the Urgent Wish for Children space even if occupied by another player's first person only.
-- ⬜ **C130 Outskirts Director** · [3+]
+- ⬜ **C130 Outskirts Director** · [3+] 🔶
   - _Each time you use the "Grove" or "Hollow" accumulation space, you can place 2 reed from the general supply on the other space. If you do, you can immediately place another person.  [CLARIFICATION: You may use the ability multiple times in a row.]_
-  - `A-OWN E-GOODS E-EXTRAPLACE F-TRIG HOOK S-SPACE T-AFTER` — After using Grove/Hollow, optionally place reed on the other space (goods) and place an additional person (extra placement); repeatable so no CAP-TURN, and a person IS placed so not E-NOPLACE.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-EXTRAPLACE` — "Each time you use" -> T-BEFORE per ruling; optional (F-TRIG) extra placement; the 2 reed go from general supply onto the OTHER action space, not to the player, so E-GOODS is wrong (space-seeding is an uncaptured mechanic, closest set is this one).
 - ✅ **C131 Private Teacher** · [3+]
   - _Each time you use the "Grain Seeds" action space when any "Lessons" action space is occupied, you can also play an occupation for an occupation cost of 1 food.  [CLARIFICATION: If the played occupation has an effect when using “Grain Seeds”, it also triggers immediately.]_
-  - `A-OWN E-GRANTACT F-TRIG HOOK S-SPACE T-BEFORE` — Using Grain Seeds ('each time you use'=T-BEFORE) grants playing an occupation for 1 food; the Lessons-occupied condition is a plain state read, not L-GEOMBOARD/L-CARDSPACE.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Optional grant of the play-an-occupation primitive (play-a-card is listed as a primitive sub-action -> E-GRANTSUB over E-GRANTACT) at a 1-food occupation cost (E-FOODCOST); Lessons occupancy is a plain named-space state read, no geometry code.
 - ⬜ **C132 Timber Shingle Maker** · [3+]
   - _When you renovate to stone, you can place up to 1 wood from your supply in each of your rooms. During scoring, each such wood is worth 1 bonus point._
   - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-SCORE ST-STORE` — On renovating to stone, place up to 1 wood in each room; each such wood scores 1 bonus point (must remember which wood is placed).
 - ✅ **C133 Soldier** · [3+]
   - _During scoring, you get 1 bonus point for each stone-wood pair in your supply. You cannot score additional points for the resources scored with this card._
-  - `E-SCORE E-SCOREGRP` — 1 bonus pt per stone-wood pair in supply; those resources cannot also score elsewhere (mutual exclusion).
+  - `PASSIVE E-SCORE E-SCOREGRP` — Pure end-game scoring rule (>=1 ACTIVATION required -> PASSIVE, never HOOK); the cannot-double-score-these-resources clause is the mutual-exclusion E-SCOREGRP.
 - ⬜ **C134 Cow Prince** · [3+]
   - _During scoring, you get 1 bonus point for each space in your farmyard (including rooms) holding at least 1 cattle._
-  - `E-SCORE` — 1 bonus pt per farmyard space (incl. rooms) holding at least 1 cattle — a coverage/count score.
+  - `PASSIVE E-SCORE E-SCOREOPT` — Scoring rule (PASSIVE activation); 1 pt per farmyard space holding >=1 cattle requires optimizing the distribution of cattle across cells/holders under capacity -- the canonical E-SCOREOPT arrangement case, not a plain count.
 - ⬜ **C135 Constable** · [3+]
   - _If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with no negative points gets 3 bonus points.  [CLARIFICATION: Negative point examples: printed card values, beggars, negative categories, negative bonuses.]_
-  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — Immediate wood by rounds-left (plain state read); bonus points depend on each player's negative-point status (comparative).
+  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — On-play wood scaled by rounds left (plain state read); the scoring rule grants bonus points to EACH qualifying player, so it needs cross-player scoring — the whole 'each player with X' family (incl. this card's prior row) carries E-SCORECMP.
 - ⬜ **C136 Ranch Provost** · [3+]
   - _If there are still 3/6/9 complete rounds left to play, you immediately get 2/3/4 wood. During scoring, each player with a pasture of highest capacity gets 3 bonus points._
-  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — On play, wood based on rounds left; at scoring, each player with a highest-capacity pasture gets 3 pts (comparative across players).
+  - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — Conditional wood is a plain state-read ONPLAY gain; the bonus rule is computed at scoring and per the rulings a scoring rule carries no activation of its own, so PASSIVE is unwarranted. 'Highest capacity' is comparative across players (E-SCORECMP) but needs no arrangement optimization.
 - ⬜ **C137 Charcoal Burner** · [3+]
   - _Each time any player (including you) plays or builds a cooking improvement, you get 1 wood and 1 food._
-  - `HOOK T-AFTER S-PLAY F-AUTO A-OWN A-OPP E-GOODS` — Each time any player plays or builds a cooking improvement, you get 1 wood + 1 food (fires on own and opponent actions).
+  - `HOOK T-AFTER S-PLAY S-MAJMIN F-AUTO A-OWN A-OPP E-GOODS ST-PROV` — Fires on any player's completed play (minor cooking improvements -> S-PLAY) or build (major cooking improvements -> S-MAJMIN, the nearest build-major seam); the reward follows the event completing (T-AFTER), and checking 'cooking improvement' needs the played/built card's identity -> ST-PROV.
 - ⬜ **C138 Animal Feeder** · [3+]
   - _On the "Day Laborer" action space, you also get your choice of 1 sheep or 1 grain. Instead of that good, you can buy 1 wild boar for 1 food or 1 cattle for 2 food._
-  - `HOOK T-AFTER S-SPACE F-MANDCHOICE A-OWN E-GOODS E-ANIMALS E-CONVERT E-FOODCOST` — On Day Laborer, get choice of 1 sheep or 1 grain; may instead buy 1 boar for 1 food or 1 cattle for 2 food (animals need accommodation).
+  - `HOOK T-BEFORE S-SPACE F-MANDCHOICE A-OWN E-GOODS E-ANIMALS E-FOODCOST E-CONVERT` — 'On the Day Laborer action space' is the each-time-you-use-a-space shape -> T-BEFORE by explicit ruling (labelA's T-AFTER is wrong); mandatory sheep-or-grain choice = F-MANDCHOICE; the optional boar/cattle buys are food-priced exchanges, so both E-FOODCOST and E-CONVERT apply (matching C143's buy tagging).
 - ⬜ **C139 Basketmaker's Wife** · [3+]
   - _When you play this card, you immediately get 1 reed and 1 food. At any time, you can turn 1 reed into 2 food._
   - `ONPLAY E-GOODS ATWILL E-CONVERT` — On play +1 reed +1 food; at-any-time convert 1 reed -> 2 food.
@@ -2065,10 +2080,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP E-GOODS` — Any player uses Sheep Market -> you get 1 grain (fires on own and opponent use).
 - ✅ **C142 Market Crier** · [3+]
   - _Each time you use the "Grain Seeds" action space, you can get an additional 1 grain and 1 vegetable. If you do, each other player gets 1 grain from the general supply._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS E-OPPTRANSFER` — On using Grain Seeds: optional extra grain+veg; if taken, each opponent gets grain from supply.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS E-OPPTRANSFER` — 'Each time you use [space]' fires T-BEFORE per the categorical ruling (no 'after' wording); optional extra grain+veg (F-TRIG, E-GOODS) with a linked grain gift to each other player (E-OPPTRANSFER).
 - ⬜ **C143 Stone Buyer** · [3+]
   - _When you play this card, you can immediately buy exactly 2 stone for 1 food. From the next round on, one per round, you can buy 1 stone for 2 food._
-  - `ONPLAY ATWILL CAP-ROUND E-CONVERT E-GOODS` — On-play buy stone for food, then a once-per-round at-will food->stone conversion; nothing is placed on future round spaces so not E-SCHED.
+  - `ONPLAY ATWILL CAP-ROUND E-CONVERT E-FOODCOST` — On-play optional buy plus a once-per-round standing buy = ONPLAY + ATWILL + CAP-ROUND. Both buys are food-for-stone conversions (E-CONVERT) whose cost is food (E-FOODCOST); nothing is gained free so no E-GOODS, and CAP-ROUND itself implies the used-this-round flag, so no separate ST-STORE.
 - ⬜ **C144 Reed Roof Renovator** · [3+]
   - _Each time another player renovates, you immediately get 1 reed from the general supply. When you play this card in a 3-player game, you immediately get 1 reed._
   - `HOOK T-AFTER S-SUB F-AUTO A-OPP E-GOODS ONPLAY` — Reed each time another player renovates; plus one-time reed on play in 3p.
@@ -2077,37 +2092,37 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SPACE F-AUTO A-OWN A-OPP E-GOODS` — Removed L-GEOMBOARD: uses/hooks the NAMED 'Grove'/'Forest' spaces and their occupancy — a named-space reference, not board position/adjacency.
 - ⬜ **C146 Workshop Assistant** · [3+]
   - _Place a unique pair of different building resources on each of your improvements. Each time another player renovates, you may move one such pair to your supply._
-  - `A-OPP E-GOODS F-TRIG HOOK ONPLAY S-SUB ST-STACK T-AFTER` — On-play stack resource pairs on improvements; each time another player renovates, optionally reclaim a pair as goods; the pairs on cards are the ST-STACK.
+  - `ONPLAY HOOK T-BEFORE S-SUB F-TRIG A-OPP E-GOODS ST-STACK` — On play, goods are stacked on your improvements (ST-STACK) and reclaimed optionally (F-TRIG, E-GOODS) each time another player renovates (S-SUB, A-OPP). 'Each time [someone does X]' with no after-language defaults to firing before the action's effect -> T-BEFORE per the each-time ruling.
 - ✅ **C147 Cowherd** · [3+]
   - _Each time you use the "Cattle Market" accumulation space (introduced in round 10 or 11), you get 1 additional cattle._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS E-ANIMALS` — Using Cattle Market accumulation space: +1 cattle (must be accommodated).
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-ANIMALS` — "Each time you use [space]" fires T-BEFORE per the explicit ruling; "you get" = F-AUTO; the extra cattle is E-ANIMALS (an animal, not a good, so no E-GOODS).
 - ⬜ **C148 Mud Wallower** · [4+]
   - _Each time you use an accumulation space, place 1 clay from the general supply on this card. You must immediately exchange 4 clay on this card for 1 wild boar, held by this card.  [CLARIFICATION: This card only holds boar received via this effect.  The boars may participate in breeding (but the newborn boar must find space elsewhere.)]_
   - `A-OWN E-ANIMALS E-CAPNEW E-CONVERT F-AUTO HOOK S-SPACE ST-STACK T-BEFORE` — Using any accumulation space ('each time'=T-BEFORE) mandatorily stacks clay then converts 4 clay->1 boar held on the card (new holder); breeding is normal, not E-BREEDMOD.
 - ⬜ **C149 Resource Recycler** · [4+]
   - _Each time another player renovates to stone, if you live in a clay house, you can pay 2 food to build a clay room at no additional cost.  [CLARIFICATION: If another player renovates from wood to stone, this card’s effect is still triggered.]_
-  - `HOOK T-AFTER S-SUB F-TRIG A-OPP E-GRANTSUB E-FOODCOST E-COSTMOD` — Each time another player renovates to stone, if you live in clay house, pay 2 food to build a clay room at no additional cost (granted sub-action with food cost + cost override).
-- ⬜ **C150 Parrot Breeder** · [4+]
+  - `HOOK T-BEFORE S-SUB F-TRIG A-OPP E-FOODCOST E-GRANTSUB E-COSTMOD ST-PROV` — Optional grant of a build-room sub-action (E-GRANTSUB) at a replaced 2-food cost (E-COSTMOD + E-FOODCOST) each time another player renovates. 'Each time ... renovates' defaults to T-BEFORE (target is declared before the effect); the 'to stone' condition needs the renovation's target = event payload -> ST-PROV.
+- ⬜ **C150 Parrot Breeder** · [4+] 🔶
   - _On your turn, if you pay 1 grain to the general supply, you can use the same action space that the player to your right has just used on their turn.  [CLARIFICATION: You may not use this ability to use an empty accumulation space.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OPP E-CONVERT L-OCCUPY ST-PLACELOG` — Fires in response to the right-hand player's just-completed placement (A-OPP, T-AFTER after they used it), optional (F-TRIG), pay 1 grain (E-CONVERT/cost), reuses their occupied space (L-OCCUPY), needs to know which space they placed on (ST-PLACELOG).
+  - `ATWILL E-GRANTACT L-OCCUPY ST-PLACELOG` — Not a HOOK: nothing fires when the neighbor acts — the option is exercised on YOUR turn at your discretion (ATWILL, the standalone-option ruling). It lets you use another (occupied) space's action (E-GRANTACT + L-OCCUPY) and requires knowing which space the right-hand player last used (ST-PLACELOG); the 1-grain payment is an ordinary resource cost, so labelA's E-CONVERT and labelB's E-GOODS are both wrong.
 - ⬜ **C151 Sowing Director** · [4+]
   - _Each time after another player uses the "Grain Utilization" action space, you get a "Sow" action._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OPP E-GRANTSUB` — After another player uses Grain Utilization -> you get a Sow action (granted sub-action, optional).
 - ⬜ **C152 Puppeteer** · [4+]
   - _Each time another player uses the "Traveling Players" accumulation space, you can pay them 1 food to immediately play an occupation without paying an occupation cost._
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OPP E-OPPTRANSFER E-GRANTACT E-NOPLACE` — Triggers on another player using Traveling Players (A-OPP, S-SPACE, T-AFTER), optional (F-TRIG), pay them 1 food (E-OPPTRANSFER), and play an occupation for free without placing a person (grants the play action, no placement).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GRANTSUB E-COSTMOD E-FOODCOST E-OPPTRANSFER` — 'Each time another player uses [space]' -> T-BEFORE by explicit ruling. Play-a-card is an enumerated primitive sub-action, so the grant is E-GRANTSUB (not E-GRANTACT), with the occupation cost waived (E-COSTMOD); the 1 food is a food cost paid TO the triggering player (E-FOODCOST + E-OPPTRANSFER). E-NOPLACE is redundant — granted sub-actions inherently need no placement.
 - ⬜ **C153 Pattern Maker** · [4+]
   - _Each time another player renovates, you can exchange exactly 2 wood for 1 grain, 1 food, and 1 bonus point._
-  - `HOOK T-AFTER S-SUB F-TRIG A-OPP E-CONVERT E-GOODS E-SCORE` — Each time another renovates, optional exchange 2 wood -> grain+food+bonus point.
+  - `HOOK T-AFTER S-SUB F-TRIG A-OPP E-CONVERT E-GOODS E-SCORE` — Optional exchange hooked on another player's renovate sub-action (not 'use [space]' phrasing, so T-AFTER stands); 2 wood -> grain+food+bp is E-CONVERT+E-GOODS+E-SCORE; earned bonus points are a fungible player-level tally, not per-card state, so no ST-COUNTER.
 - ⬜ **C154 Twin Researcher** · [4+]
   - _Each time you use one of the two accumulation spaces for the same type of good containing exactly the same number of goods, you can also buy 1 bonus point for 1 food._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-FOODCOST E-SCORE` — Removed L-GEOMBOARD: keys on two accumulation spaces having equal good-COUNTS, not on board position/order/adjacency.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-FOODCOST E-SCORE ST-COUNTER` — Own-action hook on using a twin accumulation space (each-time-you-use = T-BEFORE), optional buy (F-TRIG) of a bonus point (E-SCORE) for 1 food (E-FOODCOST); bought bonus points accumulate over the game and must be tallied -> ST-COUNTER.
 - ⬜ **C155 Food Distributor** · [4+]
   - _When you play this card, you immediately get 1 grain and, at the start of this returning home phase, an amount of food equal to the number of occupied action space cards.  [CLARIFICATION: Action space cards = Round 1-14 action spaces.]_
-  - `ONPLAY HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS ST-COUNTER` — On play immediately +1 grain (ONPLAY/E-GOODS); the food part is scheduled to the start of this returning-home phase (HOOK S-ROUNDEND, F-AUTO, A-OWN, T-AFTER) equal to occupied round-space count (a count read, ST-COUNTER). It is NOT board position/adjacency, so not L-GEOMBOARD.
+  - `ONPLAY E-GOODS HOOK T-BEFORE S-ROUNDEND F-AUTO A-OWN` — 1 grain immediately on play; then an automatic one-shot at the START of this returning-home phase (workers still occupy spaces, so it must fire before they return -> T-BEFORE, not T-AFTER). The occupied-space count is a direct state read at fire time, not an accumulated tally -> no ST-COUNTER.
 - ⬜ **C156 Hoof Caregiver** · [4+]
   - _Immediately add 1 cattle from the general supply to the "Cattle Market" accumulation space. Afterward, you get 1 grain plus 1 food for each cattle on "Cattle Market".  [CLARIFICATION: X cattle ⇒ X grain + X food.]_
-  - `ONPLAY E-GOODS E-ANIMALS E-SCHEDANIMAL` — On play adds 1 cattle to the Cattle Market accumulation space (animals placed on a board space to be collected later = E-SCHEDANIMAL/E-ANIMALS), then you get grain+food based on cattle there (E-GOODS). The cattle goes to the board, not your farm, but E-ANIMALS flags any card providing animals to the board space.
+  - `ONPLAY E-GOODS EXOTIC` — On play: seed 1 cattle from supply onto the Cattle Market accumulation space (the cattle never enters your farm -> not E-ANIMALS; not a FUTURE round space -> not E-SCHEDANIMAL; the board-space seeding is the EXOTIC bit), then gain grain+food from a plain read of that space's count (E-GOODS).
 - ⬜ **C157 Resource Analyzer** · [4+]
   - _Before the start of each round, if you have more building resources than all other players of at least two types, you get 1 food._
   - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — Before start of each round, conditional food gain based on out-resourcing opponents in >=2 types; round-start hook, auto.
@@ -2116,7 +2131,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Before each person placement, if >=8 wood on accumulation spaces, get 1 food; reads board accumulation state.
 - ⬜ **C159 Fisherman's Friend** · [4+]
   - _At the start of each round, if there is more food on the "Traveling Players" than on the "Fishing" accumulation space, you get the difference from the general supply._
-  - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — Start of each round, gain difference of food between two named accumulation spaces; auto, references named spaces.
+  - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — Automatic start-of-round hook granting food from a comparison of two named spaces' counts (a state read, explicitly not L-GEOMBOARD). No 'after/at the end of' wording -> default T-BEFORE (and both spaces refill +1 each round, so the difference is refill-invariant anyway).
 - ⬜ **C160 Outrider** · [4+]
   - _Each time before you use the action space on the most recently revealed action space card (after it has been placed on the round space), you get 1 grain._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — Kept L-GEOMBOARD: 'the most recently revealed action space card' is an explicit board-order/position case.
@@ -2125,61 +2140,61 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS NONE` — On play, gain veg conditional on a plain state read (unplanted field count) — trivially implementable plain goods, so NONE alongside ONPLAY+E-GOODS.
 - ⬜ **C162 Forest Owner** · [4+]
   - _This card is an action space for all. If another player uses it, they get 3 wood and must give you 1 wood from the general supply. If you use it, you get 4 wood._
-  - `ONPLAY L-CARDSPACE HOOK T-AFTER S-SPACE F-TRIG A-OWN A-OPP E-GOODS E-OPPTRANSFER` — The card is a shared action space (L-CARDSPACE, established ONPLAY). Using it is a hook on that space (S-SPACE, T-AFTER get wood, F-TRIG); own use gives 4 wood (A-OWN), another player's use gives them 3 wood and forces 1 wood to you (A-OPP, E-OPPTRANSFER). E-GOODS for the wood gains.
+  - `PASSIVE L-CARDSPACE HOOK T-AFTER S-SPACE F-AUTO A-OWN A-OPP E-GOODS` — The card is a standing action space (PASSIVE + L-CARDSPACE; nothing is gained at play time, so no ONPLAY). Use effects fire on any player's use (A-OWN + A-OPP) and are mandatory once the space is used (F-AUTO, not F-TRIG). The owner's 1 wood on opponent use comes from the GENERAL SUPPLY, not the opponent's stock -> E-GOODS, not E-OPPTRANSFER.
 - ⬜ **C163 Material Deliveryman** · [4+]
   - _Each time any player (including you) takes 5/6/7/8+ goods from an accumulation space, you get 1 wood/clay/reed/stone from the general supply._
   - `HOOK T-AFTER S-SPACE F-AUTO A-OWN A-OPP E-GOODS ST-PROV` — Each time any player takes 5/6/7/8+ goods from accumulation space, tiered resource gain; needs the amount taken (provenance).
 - ⬜ **C164 German Heath Keeper** · [4+]
   - _Each time any player (including you) uses the "Pig Market" accumulation space, you get 1 sheep from the general supply._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN A-OPP E-GOODS E-ANIMALS` — Each time any player uses Pig Market, you get 1 sheep; animals must be accommodated.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP E-ANIMALS` — Fires on ANY player's use of Pig Market (A-OWN + A-OPP), mandatory (F-AUTO); 'each time you use [space]' defaults to T-BEFORE per the rulings. A sheep is an animal needing accommodation -> E-ANIMALS only, not E-GOODS.
 - ⬜ **C165 Game Catcher** · [4+]
   - _When you play this card, pay 1 food for each remaining harvest to immediately get 1 cattle and 1 wild boar.  [CLARIFICATION: If you are forced to play this card (e.g. with Paper Knife A003) and can’t afford the extra cost, then it may not be played and is removed from the game.  If played during a harvest (e.g. with Begging Student D097) the current harvest does not add to the cost.]_
-  - `ONPLAY E-ANIMALS E-GOODS E-FOODCOST` — On play pay 1 food per remaining harvest (E-FOODCOST, computed from state) to get 1 cattle + 1 wild boar (E-ANIMALS/E-GOODS). Remaining-harvest count is a state read at play time, not a stored per-card counter, so no ST-STORE.
+  - `ONPLAY E-FOODCOST E-ANIMALS` — One-shot on play: pay food scaled by remaining harvests (E-FOODCOST, convertible) to gain 1 cattle + 1 boar, which are animals needing accommodation (E-ANIMALS), not goods -> no E-GOODS.
 - ✅ **C166 Cattle Whisperer** · [4+]
   - _Add 5 and 8 to the current round and place 1 cattle on each corresponding round space. At the start of these rounds, you get the cattle._
   - `ONPLAY E-SCHEDANIMAL E-ANIMALS` — Place cattle on round spaces +5/+8, collected at start of those rounds.
 - ⬜ **C167 Cattle Buyer** · [4+]
   - _Each time another player uses the "Fencing" action space, you can buy exactly 1 sheep/wild boar/cattle from the general supply for 1/2/2 food._
-  - `A-OPP E-ANIMALS E-FOODCOST F-TRIG HOOK S-SPACE T-AFTER` — Each time ANOTHER player uses Fencing (A-OPP, S-SPACE, T-AFTER), optionally buy an animal for food. Buying animals for food = E-ANIMALS + E-FOODCOST; not E-CONVERT (food isn't converted into the animal, it's a purchase price) and not plain E-GOODS.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-ANIMALS E-FOODCOST` — "uses the Fencing action space" is the 'use [space]' phrasing -> T-BEFORE; optional buy = F-TRIG on an opponent trigger; food payment for an animal = E-FOODCOST + E-ANIMALS (E-CONVERT would double-count the same payment).
 - ⬜ **C168 Animal Catcher** · [4+]
   - _Each time you use the "Day Laborer" action space, instead of 2 food, you can get 3 different animals from the general supply. If you do, you must pay 1 food each harvest left to play._
-  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-SUBSTITUTE E-ANIMALS E-FOODCOST E-SCHED ST-STORE` — Each time you use Day Laborer, optional substitution of 3 animals for 2 food (T-BEFORE alters the space's yield); the ongoing 1-food-per-remaining-harvest debt is a scheduled future cost per harvest, needing a stored uses/count flag; animals must be accommodated.
+  - `HOOK T-BEFORE S-SPACE S-HFEED F-TRIG A-OWN E-SUBSTITUTE E-ANIMALS E-FOODCOST ST-COUNTER` — Optional substitution on each Day Laborer use (HOOK/S-SPACE/T-BEFORE/F-TRIG): 3 different animals instead of 2 food (E-SUBSTITUTE + E-ANIMALS). Each use adds a mandatory 1-food debt at every remaining harvest -> fires at feeding (S-HFEED) with a running uses-count (ST-COUNTER); it is a payment, not goods placed on round spaces -> E-FOODCOST, not E-SCHED.
 
 ### Deck D
 
 - ⬜ **D85 Reader** · [1+]
   - _As soon as you have 6 occupations in front of you (including this one), this cards provides room for one person. In the draft variant, you need 7 occupations to play this.  [CLARIFICATION: IMPLEMENTATION NOTE (this project): assume the draft variant is always in play — hardcode the play prerequisite as 7 occupations. The 'room for one person' benefit still activates once you have 6 occupations in front of you (always satisfied once the card is played).]_
-  - `LATCH ST-LATCH E-CAPNEW CAP-GAME` — Card provides room for one person once you have 6 occupations — a one-time latch on a standing count threshold, always satisfied once played; CAP-GAME since it fires once ever. ST-THRESHOLD is subsumed by ST-LATCH here (latch on a count).
+  - `PASSIVE E-CAPNEW` — The clarification overrides: with the 7-occupation play prereq hardcoded, the 6-occupation condition is always satisfied once played, so no latch fires — the card is simply an always-on person slot (E-CAPNEW) from play; prereqs get no tags.
 - ⬜ **D86 Sheep Agent** · [1+]
   - _You can keep 1 sheep on each occupation card in front of you (including this one), unless it is already able to hold animals._
-  - `PASSIVE E-CAPNEW E-ANIMALS` — Keep 1 sheep on each occupation card in front of you; each card becomes an animal holder.
+  - `PASSIVE E-CAPNEW` — A continuous rule creating new animal slots (1 sheep per occupation card). The card never PROVIDES sheep — it only lets you keep them — so E-ANIMALS (labelA) is wrong.
 - ⬜ **D87 Master Builder** · [1+]
   - _Once your house has at least 5 rooms, at any time, but only once this game, you can add another room at no cost._
-  - `ATWILL CAP-GAME E-COSTMOD E-GRANTSUB LATCH ST-LATCH` — Once house reaches 5 rooms, a standing-condition latch enables a one-time at-will free room add (LATCH+ST-LATCH, CAP-GAME, ATWILL, E-GRANTSUB build-room, E-COSTMOD free). Not L-GEOMFARM — 'at least 5 rooms' is a count, not adjacency/shape.
+  - `ATWILL CAP-GAME E-GRANTSUB ST-STORE` — The 5-room condition merely gates an at-will, once-per-game option (nothing fires when it first becomes true), so ATWILL+CAP-GAME with a used-flag (ST-STORE), not LATCH/ST-LATCH; 'at no cost' is the grant's own price, not a cost-system modification, so no E-COSTMOD.
 - ✅ **D88 Millwright** · [1+]
   - _You immediately get 1 grain. Each time you build fences, stables, and rooms, or renovate your house, you can replace up to 2 building resources of any type with 1 grain each.  [CLARIFICATION: Allows 1 or 2 substitutions per type of thing built.  Common misread is to forget the last “each”.]_
-  - `ONPLAY E-GOODS PASSIVE E-COSTMOD E-CONVERT` — Immediate 1 grain (ONPLAY+E-GOODS); the substitute-resource-with-grain when building/renovating is a continuous cost-payment rule (PASSIVE cost modifier via conversion), applied at any qualifying build — not an event-firing hook.
+  - `ONPLAY E-GOODS PASSIVE E-COSTMOD` — On-play +1 grain, plus a passive pay-time substitution (grain in place of building resources when building/renovating) — that is E-COSTMOD's 'substituting one resource for another when paying', not a standalone at-will exchange, so E-CONVERT (labelA) is wrong.
 - ✅ **D89 Stablehand** · [1+]
   - _Each time you build at least 1 fence, you can also build a stable without paying wood for the stable._
-  - `HOOK S-SUB T-AFTER F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — After you build at least 1 fence, may also build a stable free of wood — a granted build-stable sub-action (T-AFTER) with a wood-cost waiver. E-FREEFENCE is wrong: it makes a STABLE free, not fences.
+  - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — Fires on your fence-build sub-action ('also' = after), granting an optional stable build whose printed 1-wood cost is waived — a cheaper build, so E-COSTMOD applies (consistent with D95 tagging the granted build's cost change).
 - ✅ **D90 Plow Maker** · [1+]
   - _Each time you use the "Farmland" or "Cultivation" action space, you can pay 1 food to plow 1 additional field._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — On Farmland/Cultivation, pay 1 food to plow an additional field.
-- ✅ **D91 Plowman** · [1+]
+- ✅ **D91 Plowman** · [1+] 🔶
   - _Add 4, 7, and 10 to the current round and place a field tile on each corresponding round space. At the start of these rounds, you can plow the field for 1 food._
-  - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Place field tiles on rounds +4/+7/+10; at start of those rounds optionally plow the field for 1 food.
+  - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — On play, tiles scheduled onto future round spaces (E-SCHED); at start of those rounds an optional plow (E-GRANTSUB, F-TRIG) costing 1 food (E-FOODCOST). Timing is degenerate at the S-SOR seam (no triggering action); T-AFTER = resolves once the round has started, but T-BEFORE is equally defensible.
 - ⬜ **D92 Child Ombudsman** · [1+]
   - _From round 5 on, if you have room in your house, at the end of each person action, you can take a "Family Growth" action with that person. If you do, you get 2 negative points._
-  - `HOOK S-TURNEND T-AFTER F-TRIG A-OWN E-GRANTSUB E-GROWTH E-SCORE` — At the end of each person action, optionally take a Family Growth with that person (grants family-growth sub-action, T-AFTER, own turn); the '2 negative points' if taken is a text scoring rule (E-SCORE). End-of-action = S-TURNEND.
+  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB E-GROWTH E-SCORE ST-COUNTER` — Optional Family Growth at the end of each person action ('from round 5' is a plain state read); each use accrues 2 negative points, so the card must keep a running use count over the game — ST-COUNTER (labelB) is needed.
 - ⬜ **D93 Sheep Inspector** · [1+]
   - _Once per work phase, after you complete a person action, you can pay 1 sheep and 2 food to return another person you placed home._
   - `HOOK S-TURNEND T-AFTER F-TRIG A-OWN CAP-ROUND E-FOODCOST E-WORKERMANIP ST-PLACELOG` — After completing a person action, once per work phase, pay 1 sheep + 2 food to return another placed worker home to reuse it — worker manipulation needing to know which space that worker was on; food cost payable via conversion. Once-per-work-phase = CAP-ROUND.
 - ⬜ **D94 Henpecked Husband** · [1+]
   - _Each time you take a "Build Rooms" action with the second person you place, return the first person you placed home, unless it is on the "Meeting Place" action space._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-WORKERMANIP ST-PLACELOG` — On Build Rooms with 2nd placed person, mandatorily return the first placed person home (unless on Meeting Place); needs to know which space that worker is on.
+  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-WORKERMANIP ST-PLACELOG` — 'Each time you take a Build Rooms action' is the 'each time you use' pattern, which defaults to T-BEFORE (only 'immediately after'/'at the end of' gets T-AFTER); mandatory return-home of the first-placed worker needs ST-PLACELOG.
 - ⬜ **D95 Site Manager** · [1+]
   - _When you play this card, immediately build a major improvement. When paying its cost, you can replace up to 1 building resource of each type with 1 food each._
-  - `ONPLAY E-GRANTACT E-COSTMOD` — On play, immediately build a major improvement; may replace up to 1 building resource of each type with 1 food each (cost substitution).
+  - `ONPLAY E-GRANTACT E-COSTMOD E-FOODCOST` — One-time on-play grant of a major-improvement build with a food-for-resource substitution: the substitution is E-COSTMOD, and since the payment may be made in food (potentially via crop/animal conversion) E-FOODCOST also applies (labelB).
 - ⬜ **D96 Furnisher** · [1+]
   - _When you play this card, you immediately get 2 wood. After each new room you build, you can build or play 1 improvement for 1 wood less.  [CLARIFICATION: The improvement does not need to cost any wood.]_
   - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-TRIG A-OWN E-COSTMOD E-GRANTACT` — On-play +2 wood (ONPLAY/E-GOODS); after each room built (HOOK/S-SUB/T-AFTER/A-OWN, optional F-TRIG) you may build-or-play an improvement (grants the build/play action E-GRANTACT) at 1 wood less (E-COSTMOD). Include A-OWN per convention; keep E-GRANTACT (pass2 dropped it).
@@ -2188,19 +2203,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY HOOK S-HSTART F-TRIG A-OWN E-GRANTACT EXOTIC` — On play take 1 begging marker; start of each harvest, play 1 occupation free.
 - ⬜ **D98 Transactor** · [1+]
   - _Immediately before the final harvest at the end of round 14, you can take all the building resources that are left on the entire game board._
-  - `HOOK S-HSTART T-BEFORE F-TRIG A-OWN E-GOODS ST-PROV` — Fires immediately before the final harvest (HOOK/S-HSTART/T-BEFORE, optional F-TRIG, A-OWN) granting all leftover board resources (E-GOODS). It reads what is left on the board (a value/state snapshot, ST-PROV) but is not action-board position/order, so not L-GEOMBOARD. Once-per-nature timing does not need CAP-GAME.
+  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-GOODS` — Optional one-time hook immediately before the final harvest (S-HSTART, T-BEFORE); it reads the live public board state at fire time — nothing is zeroed beforehand — so no snapshot/provenance (drop ST-PROV).
 - ⬜ **D99 Earthenware Potter** · [1+]
   - _If you play this card in round 4 or before, after the final harvest, you get 1 bonus point for each person for which you then pay 1 clay._
-  - `HOOK S-AFTERFEED T-AFTER F-TRIG A-OWN E-FOODCOST E-SCORE ST-STORE` — After the final harvest, optionally pay 1 clay per person for a bonus point each — a fired end-of-game action (not a passive scoring rule), so HOOK+S-AFTERFEED+E-SCORE is legitimate; clay is a build-resource cost (E-FOODCOST tags convertible-good payment, borderline but retained per passes). Play-in-round-4-or-before must be stored (ST-STORE).
+  - `HOOK T-AFTER S-BEFORESCORE F-TRIG A-OWN E-SCORE ST-STORE` — 'After the final harvest' is a one-time end-of-game seam just before scoring (S-BEFORESCORE, not the every-harvest S-AFTERFEED); the optional pay-clay-per-person bonus is HOOK+E-SCORE; the clay cost is ordinary (not E-FOODCOST); the card must remember it was played by round 4, so ST-STORE (labelA) stays.
 - ✅ **D100 Lord of the Manor** · [1+]
   - _During scoring, you get 1 bonus point for each scoring category in which you score the maximum 4 points. (The bonus point is also awarded for 4 fenced stables.)_
-  - `E-SCORE` — Passive end-game rule: 1 bonus point per scoring category maxed at 4 — a plain per-category count, not comparative between players (E-SCORECMP wrong) and not adjacency/shape (L-GEOMFARM wrong).
+  - `PASSIVE E-SCORE` — Pure end-game bonus-point rule (threshold/count per category, no arrangement optimization) = E-SCORE; per the rulings it never carries HOOK/S-BEFORESCORE/F-AUTO, but the taxonomy requires >=1 ACTIVATION, and an always-on scoring rule change is PASSIVE.
 - ⬜ **D101 Sugar Baker** · [1+]
   - _Each time after you use the "Grain Utilization" action space, you can buy 1 bonus point for 1 food. Place the food on the action space (for the next visitor).  [CLARIFICATION: If this card is played by using the “Grain Utilization” space (e.g. with Freshman A097,) you may not immediately use this card.]_
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OWN E-FOODCOST E-SCORE E-SCHED` — After using Grain Utilization (HOOK/S-SPACE/T-AFTER/A-OWN, optional F-TRIG) buy a bonus point (E-SCORE via an action, legit HOOK+E-SCORE) for 1 food (E-FOODCOST) placed on the space for the next visitor (E-SCHED). Keep E-SCHED (pass2 dropped it).
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-FOODCOST E-SCORE EXOTIC` — "Each time after you use" = T-AFTER own-space hook, optional bp purchase for 1 food (E-FOODCOST + E-SCORE). The paid food is deposited on the ACTION space for the next visitor — E-SCHED is defined only for future round spaces, and no code covers goods placed on an action space -> EXOTIC. Bonus points need no per-card counter.
 - ⬜ **D102 Sample Stable Maker** · [1+]
   - _At the start of each returning home phase, you can return a built stable to your supply to get 1 wood, 1 grain, 1 food, and a "Minor Improvement" action._
-  - `HOOK T-BEFORE S-ROUNDEND F-TRIG A-OWN E-RETURNCOMP E-GOODS E-GRANTACT E-PIECECOST` — At start of each returning-home phase, optionally return a built stable to supply for wood+grain+food and a Minor Improvement action.
+  - `HOOK T-BEFORE S-ROUNDEND F-TRIG A-OWN E-RETURNCOMP E-GOODS E-GRANTACT` — Optional hook at the start of each returning-home phase; the cost is returning a BUILT stable (a placed component -> E-RETURNCOMP), not a piece from supply, so E-PIECECOST is wrong; yields goods plus a granted Minor Improvement action (E-GRANTACT).
 - ⬜ **D103 Canal Boatman** · [1+]
   - _Each time you use "Fishing" or "Reed Bank", you can pay 1 food to immediately place another person on this card. If you do, you get your choice of 3 stone or 1 grain plus 1 vegetable.  [CLARIFICATION: The choices are (3 stone) or (grain+vegetable).]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-EXTRAPLACE E-FOODCOST E-GOODS` — Fishing/Reed Bank: pay 1 food -> extra placement + choose 3 stone or grain+veg.
@@ -2212,16 +2227,16 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use a clay accumulation space +1 food; a stone accumulation space +1 grain. Automatic goods gain keyed on named space types.
 - ⬜ **D106 Whisky Distiller** · [1+]
   - _At any time, you can pay 1 grain. If you do, add 2 to the current round and place 4 food on the corresponding round space. At the start of that round, you get the food._
-  - `ATWILL E-SCHED E-CONVERT` — At any time, pay 1 grain to place 4 food on the round-space 2 rounds ahead, collected at that round's start. Scheduling onto a future round space.
+  - `ATWILL E-SCHED` — "At any time, you can pay 1 grain" = ATWILL; the grain is an ordinary resource cost (no code per the rulings) and the food is not gained immediately or exchanged now — it is placed on a future round space, which is exactly E-SCHED, so E-CONVERT double-counts.
 - ⬜ **D107 Bellfounder** · [1+]
   - _In the returning home phase of each round, if you have at least 1 clay, you can use this card to discard all of your clay and get your choice of 3 food or 1 bonus point._
-  - `HOOK T-AFTER S-ROUNDEND F-MANDCHOICE A-OWN E-GOODS E-SCORE E-CONVERT EXOTIC` — In returning-home phase, optional use but if used must choose 3 food OR 1 bonus point, discarding all clay. Optional-to-use so arguably F-TRIG but the pick between food/point is a mandatory choice once invoked. | candidate mechanic: BUY-VP: discard goods to gain a bonus point.
+  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GOODS E-SCORE` — Per-round returning-home hook; "you can use this card" makes firing optional -> F-TRIG (the 3-food-vs-1-bp fork is inside the opted-in effect, not F-MANDCHOICE); discard-all-clay is an ordinary resource cost (no code, not a rate conversion, not EXOTIC); rewards are E-GOODS / E-SCORE.
 - ⬜ **D108 Stone Carver** · [1+]
   - _Each harvest, you can use this card to turn exactly 1 stone into 3 food._
-  - `ATWILL CAP-HARVEST E-CONVERT` — 'Each harvest, you can use this card to turn 1 stone into 3 food' — a deferrable at-will conversion during a harvest, capped once per harvest. No specific sub-phase hook is required; it is a player-chosen conversion (ATWILL+CAP-HARVEST+E-CONVERT), matching pass2.
+  - `ATWILL CAP-HARVEST E-CONVERT` — 'Each harvest, you can use' = player-timed option capped per harvest; a pure exchange (1 stone -> 3 food) is E-CONVERT alone — E-GOODS would double-tag every conversion's output.
 - ⬜ **D109 Sowing Master** · [1+]
   - _When you play this card, you immediately get 1 wood. Each time after you use an action space with the "Sow" action, you get 2 food._
-  - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-AUTO A-OWN` — On play +1 wood; each time after using an action space with a Sow action, +2 food (automatic, after-sow).
+  - `ONPLAY E-GOODS HOOK T-AFTER S-SPACE F-AUTO A-OWN` — On-play 1 wood (ONPLAY+E-GOODS); the trigger is "after you USE an action space with the Sow action" — keyed on using the space (filtered by which spaces carry Sow), not on performing the sow primitive, so S-SPACE not S-SUB; "after" = T-AFTER, mandatory food = F-AUTO.
 - ⬜ **D110 Fish Farmer** · [1+]
   - _Each time there is 1/2/3+ food on the "Fishing" accumulation space, you get an additional 2 food on the "Reed Bank"/ "Clay Pit"/ "Grove" accumulation spaces.  [ERRATA: ERRATA: “Grove” should be “Forest”.]_
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — +2 food on Reed Bank/Clay Pit/Grove, which one gated by Fishing's food (1/2/3+).
@@ -2230,19 +2245,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-SCHED` — Each time you renovate, place 1 food on each of next 6 round spaces, collected at round starts.
 - ⬜ **D112 Young Farmer** · [1+]
   - _Each time you use the "Major Improvement" action space, you also get 1 grain and, afterward, you can take a "Sow" action._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS E-GRANTSUB` — Each use of Major Improvement space also +1 grain (auto) and afterward may take a Sow sub-action (optional grant).
+  - `HOOK T-BEFORE T-AFTER S-SPACE F-AUTO F-TRIG A-OWN E-GOODS E-GRANTSUB` — Two effects off one space-hook: the grain is mandatory on "each time you use" (default T-BEFORE, F-AUTO), while the Sow is "afterward, you can" — a granted sub-action, hence T-AFTER + F-TRIG + E-GRANTSUB; tag every dimension that applies.
 - ⬜ **D113 Food Merchant** · [1+]
   - _For each grain you harvest from a field, you can buy 1 vegetable for 3 food. If you harvest the last grain from a field, the vegetable costs you only 2 food._
-  - `A-OWN E-CONVERT E-FOODCOST E-GOODS F-TRIG HOOK S-HFIELD ST-PROV T-AFTER` — Optional buy-veg-for-food fires per grain harvested from a field (S-HFIELD, T-AFTER, own action A-OWN); need to track whether it was the LAST grain to set the 2-vs-3 food price -> ST-PROV. Convert food->veg, food cost.
+  - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT E-FOODCOST ST-PROV` — Optional per-grain-harvested buy during the field phase (S-HFIELD, T-AFTER, F-TRIG); a food-priced exchange = E-CONVERT + E-FOODCOST — the bought vegetable is the conversion's output, not a separate free gain, so E-GOODS is double-counting; the last-grain-from-a-field discount needs the harvest event's payload (ST-PROV).
 - ⬜ **D114 Seed Trader** · [1+]
   - _Place 2 grain and 2 vegetables on this card. You can buy them at any time. Each grain costs 2 food; each vegetable costs 3 food._
-  - `ONPLAY ATWILL E-CONVERT ST-STACK E-FOODCOST` — On play place 2 grain + 2 veg on card (a per-card goods stack); buy them at any time paying food, consumed over the game.
+  - `ONPLAY ST-STACK ATWILL E-CONVERT E-FOODCOST` — On play stocks the card (ST-STACK); buying 'at any time' is ATWILL; paying food for crops is a food-costed conversion (E-CONVERT + E-FOODCOST) — the crops gained are the conversion output, not a separate E-GOODS, and the on-play goods go onto the card, not supply.
 - ⬜ **D115 Fodder Planter** · [1+]
   - _In the breeding phase of each harvest, for each newborn animal you get, you can sow crops in exactly 1 field.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.  You may not plant onto Wood Field D075 this way.]_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-GRANTSUB` — During breeding, per newborn gained may sow crops in exactly 1 field — grants a sow sub-action per newborn.
 - ⬜ **D116 Tree Inspector** · [1+]
   - _This card is a "1 Wood" accumulation space for you only. Each time the newly revealed action space card is a "Quarry" accumulation space, you must discard all wood from this card._
-  - `A-OWN E-GOODS E-TAKEBACK F-AUTO HOOK L-CARDSPACE L-HIDDEN PASSIVE S-REVEAL ST-STACK T-AFTER` — Card is a personal 1-wood accumulation space (L-CARDSPACE, ST-STACK, E-GOODS as it accumulates/collectible); mandatory discard-all-wood when the newly REVEALED card is a Quarry -> HOOK S-REVEAL T-AFTER F-AUTO A-OWN E-TAKEBACK. Depends on hidden reveal order -> L-HIDDEN (identity of the revealed card), not board position/order (not L-GEOMBOARD).
+  - `PASSIVE L-CARDSPACE ST-STACK E-GOODS HOOK T-AFTER S-REVEAL F-AUTO A-OWN E-TAKEBACK` — Personal 1-wood accumulation space = PASSIVE accumulation + L-CARDSPACE + ST-STACK, wood gained when used (E-GOODS); the mandatory discard fires on the reveal event filtered by the revealed card being a Quarry (S-REVEAL/T-AFTER/F-AUTO) — the identity is public at fire time, so L-HIDDEN is unwarranted, and the seam is the reveal itself, not start-of-round, so S-SOR is wrong.
 - ✅ **D117 Wood Expert** · [1+]
   - _When you play this card, you immediately get 2 wood. Each improvement costs you up to 2 wood less, if you pay 1 food instead._
   - `E-COSTMOD E-FOODCOST E-GOODS ONPLAY PASSIVE` — ONPLAY +2 wood (E-GOODS); passive cost-modifier substituting up to 2 food for 2 wood on each improvement (E-COSTMOD); the substitution is paid in food -> E-FOODCOST.
@@ -2260,25 +2275,25 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE E-COSTMOD` — Continuous cost replacement: renovate-to-clay costs 1 clay+1 reed; each clay room costs 3 clay+2 reed.
 - ⬜ **D122 Clay Carrier** · [1+]
   - _Wne you play this card, you immediately get 2 clay. At any time, but only once per round, you can buy 2 clay for 2 food.  [CLARIFICATION: Name was Clay Seller in the Wizkids printing.]_
-  - `ONPLAY E-GOODS ATWILL CAP-ROUND E-CONVERT` — On play +2 clay; once per round can buy 2 clay for 2 food (deferrable conversion).
+  - `ONPLAY E-GOODS ATWILL CAP-ROUND E-CONVERT E-FOODCOST` — On-play 2 clay (ONPLAY+E-GOODS); "at any time, once per round, buy 2 clay for 2 food" = ATWILL + CAP-ROUND + E-CONVERT, and the price is paid in FOOD (payable via conversions) so E-FOODCOST applies — consistent with D113's food-priced buy.
 - ⬜ **D123 Renovation Preparer** · [1+]
   - _For each new wood/clay room you build, you get 2 clay/2 stone._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — After building each wood/clay room, get 2 clay/2 stone; hook on build-room sub-action.
 - ⬜ **D124 Emissary** · [1+]
   - _At any time, you can place a good from your supply on this card to get 1 stone. You must place different goods on this card. (Food is also considered a good.)_
-  - `ATWILL E-CONVERT E-GOODS L-CARDSPACE ST-STACK ST-PROV` — At-will place a good on the card to get 1 stone (ATWILL, E-CONVERT good->stone, E-GOODS, card holds goods -> L-CARDSPACE/ST-STACK). Goods placed must all be DIFFERENT, so it must track which goods are already on the card -> ST-PROV. Not exotic; codes cover it.
+  - `ATWILL E-CONVERT E-GOODS ST-STACK` — At-will good-for-stone exchange; the goods stay on the card (ST-STACK), whose contents enforce the must-be-different rule. Not an action space (no L-CARDSPACE) and no event payload (no ST-PROV).
 - ⬜ **D125 Forest Trader** · [1+]
   - _Each time you use a wood or clay accumulation space, you can also buy exactly 1 building resource. Wood, clay, and reed cost 1 food each; stone costs 2 food._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS` — Each time you use a wood/clay accumulation space, may buy exactly 1 building resource for food; hook on using a specific named space, optional.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS E-CONVERT E-FOODCOST` — Optional buy hooked on using a wood/clay accumulation space (each-time-you-use = T-BEFORE); the buy is paid in food, so E-FOODCOST applies alongside the food-to-resource conversion.
 - ⬜ **D126 Field Cultivator** · [1+]
   - _Pile 1 wood, 1 clay, 1 reed, 1 stone, 1 reed, 1 clay, and 1 wood on this card. Each time you harvest a field tile, you can also take the top good from the pile._
   - `ONPLAY HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-GOODS ST-STACK` — Pile of goods on card (ST-STACK, set up on play); each time you harvest a field tile, may take top good. Hook is per-field-tile in the field phase.
 - ⬜ **D127 Hardworking Man** · [3+]
   - _This card is an action space for you only. If each other player has more rooms than you, it provides the "Day Laborer", "Building Rooms", and "Major Improvement" actions (all three)._
-  - `E-GRANTACT E-NOPLACE E-SCORECMP L-CARDSPACE PASSIVE` — Personal action space (L-CARDSPACE) that provides three whole actions without placing a person (E-GRANTACT, E-NOPLACE) conditioned on a both-players room comparison (E-SCORECMP as the comparative-state predicate); always-on rule -> PASSIVE.
+  - `PASSIVE L-CARDSPACE E-GRANTACT` — A standing personal action space granting three whole actions; the more-rooms comparison is a legality condition read from state, not scoring (no E-SCORECMP), and a person is placed on it (no E-NOPLACE).
 - ⬜ **D128 Building Tycoon** · [3+]
   - _Each time after another player builds 1 or more rooms, you can give them 1 food to build exactly 1 room yourself. (You must pay the building cost of the room.)_
-  - `A-OPP E-GRANTSUB E-OPPTRANSFER F-TRIG HOOK S-SUB T-AFTER` — After ANOTHER player builds rooms (A-OPP, S-SUB build-room, T-AFTER), optionally pay them 1 food (E-OPPTRANSFER) to build exactly 1 room yourself. Granting a single build-room primitive is E-GRANTSUB, not the whole Build Rooms action (E-GRANTACT).
+  - `HOOK T-AFTER S-SUB F-TRIG A-OPP E-GRANTSUB E-OPPTRANSFER E-FOODCOST` — Optional after-hook on an opponent's build-rooms sub-action; grants a build-one-room sub-action whose activation costs 1 food (E-FOODCOST) paid to the opponent (E-OPPTRANSFER).
 - ⬜ **D129 Lumber Virtuoso** · [3+]
   - _Each harvest in which you have at least 5 wood in your supply, you can discard down to 5 wood to take a "Build Stables" or "Build Wood Rooms" action by paying the usual costs.  [CLARIFICATION: "Build Wooden Rooms" action is actually a "Build Rooms" action limited to wood.]_
   - `HOOK S-HSTART F-TRIG A-OWN E-GRANTACT E-NOPLACE CAP-HARVEST` — Each harvest w/ >=5 wood: discard down to 5 wood to Build Stables/Wood Rooms.
@@ -2290,10 +2305,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS PASSIVE L-EXT` — On play +1 stone; passively lets you build bottom-row major improvements when taking a Minor Improvement action (extends what that action can build).
 - ⬜ **D132 Hide Farmer** · [3+]
   - _During scoring, you can pay 1 food each for any number of unused farmyard spaces. If you do, you do not lose points for these spaces._
-  - `HOOK S-BEFORESCORE T-BEFORE F-TRIG A-OWN E-FOODCOST E-SCORE` — Optional pay-1-food-per-unused-space to avoid the penalty — a real action at scoring time (pay food -> score effect), so HOOK/S-BEFORESCORE/T-BEFORE/A-OWN/F-TRIG + E-FOODCOST + E-SCORE. This is score-earned-through-an-action (paying food), not a passive scoring rule, so HOOK is correct here.
+  - `HOOK T-BEFORE S-BEFORESCORE F-TRIG A-OWN E-FOODCOST E-SCORE` — Not a passive computed rule — it requires an optional food payment decision at scoring time, which is exactly the S-BEFORESCORE seam (F-TRIG 'you can', A-OWN); the point effect is E-SCORE, the payment E-FOODCOST. PASSIVE ('no firing') cannot host a pay decision.
 - ⬜ **D133 Beer Tent Operator** · [3+]
   - _In the feeding phase of each harvest, you can use this card to turn 1 wood plus 1 grain into 1 bonus point and 2 food._
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS` — In the feeding phase of each harvest, may turn 1 wood + 1 grain into 1 bonus point and 2 food; conversion yielding a bonus point plus food.
+  - `HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT E-GOODS E-SCORE ST-COUNTER` — Optional feeding-phase conversion (wood+grain -> 2 food + 1 bonus point); a bonus point earned through a fired effect legitimately combines HOOK + E-SCORE and needs a running point counter; fires before feeding resolves.
 - ⬜ **D134 Oyster Eater** · [3+]
   - _Each time the "Fishing" accumulation space is used, you get 1 bonus point and must skip placing your next person that round. (You can place the person on a later turn.)_
   - `A-OWN A-OPP E-SCORE E-WORKERMANIP F-AUTO HOOK S-SPACE T-AFTER` — Fires on ANY player's Fishing use (user ruling): owner gets 1 bonus point and must skip their next placement.
@@ -2305,13 +2320,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY E-GOODS E-SCORE E-SCORECMP` — On-play wood; end-game bonus for most fenced stables, comparative across players.
 - ⬜ **D137 Trade Teacher** · [3+]
   - _Each time after you use a "Lesson" action space, you can buy up to 2 different goods: grain, stone, sheep, and wild boar for 1 food each; cattle and vegetable for 2 food each.  [CLARIFICATION: This effect may not be immediately triggered.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT` — After using a Lessons space, may buy up to 2 different goods with food (a food-rate conversion/purchase); clarification confirms it's deferrable but keyed to the after-space event.
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS E-FOODCOST E-ANIMALS` — Explicit after-hook on using a Lessons space; food-paid buys (E-FOODCOST, E-CONVERT) yielding goods (E-GOODS) including sheep/boar/cattle, which must be accommodated (E-ANIMALS).
 - ⬜ **D138 Pet Lover** · [3+]
   - _Each time you use an accumulation space providing exactly 1 animal, you can leave it on the space and get one from the general supply instead, as well as 3 food and 1 grain.  [CLARIFICATION: You may use the Animal Dealer A147 to acquire a second animal of the taken type.]_
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS E-ANIMALS` — Each time you use a 1-animal accumulation space, may take from general supply instead (leaving space), plus 3 food + 1 grain; provides an animal to accommodate.
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SUBSTITUTE E-ANIMALS E-GOODS` — Each-time-you-use hook (T-BEFORE) replacing the space's normal yield — leave the accumulated animal and take a supply animal plus 3 food/1 grain 'instead' (E-SUBSTITUTE); the animal needs accommodation.
 - ⬜ **D139 Chairman** · [3+]
   - _Each time another player uses the "Meeting Place" action space, both they and you get 1 food (before taking the actions). If you use it, you get 1 food._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP A-OWN E-GOODS E-OPPTRANSFER` — When another player uses Meeting Place, both they and you get 1 food (before the action); when you use it, you get 1 food. Fires on opp and own action; grants goods to opponent too.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP E-GOODS E-OPPTRANSFER` — Mandatory before-hook on any player's Meeting Place use (both actors); on an opponent's use the opponent also gains 1 food — goods moving to another player is E-OPPTRANSFER even from the general supply.
 - ⬜ **D140 Loudmouth** · [3+]
   - _Each time you take at least 4 building resources or 4 animals from an accumulation space, you also get 1 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — Each time you take >=4 building resources or animals from an accumulation space, +1 food. Hook only (spurious ONPLAY dropped).
@@ -2320,28 +2335,28 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — On-play +1 grain; each time you use Grain Seeds space, +1 grain (before-action, auto).
 - ⬜ **D142 Potato Planter** · [3+]
   - _At the end of each work phase in which you occupy the "Clay Pit" or "Reed Bank" accumulation space while the respective other is unoccupied, you get 1 vegetable._
-  - `ONPLAY HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-PLACELOG` — Removed L-GEOMBOARD: keys on occupying the NAMED 'Clay Pit'/'Reed Bank' spaces — named-space reference, not board geometry.
+  - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-PLACELOG` — Pure end-of-work-phase hook conditioned on own occupancy of Clay Pit/Reed Bank; there is no on-play effect, so labelA's ONPLAY is wrong. ST-PLACELOG needed to check which spaces your workers occupy.
 - ⬜ **D143 Tree Cutter** · [3+]
   - _Each time you use an accumulation space providing at least 3 goods of the same type except wood, you get an additional 1 wood. (Food is also considered a good.)_
-  - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — Own-turn HOOK on using an accumulation space that provides >=3 of one type; 'each time you use' -> T-BEFORE, mandatory F-AUTO, +1 wood E-GOODS. Needs the space's good-type/amount payload -> ST-PROV.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — 'Each time you use [an accumulation space]' = T-BEFORE hook; needs the space's provided-goods count (ST-PROV, read before zeroing). No on-play effect, so drop labelA's ONPLAY.
 - ⬜ **D144 Water Worker** · [3+]
   - _Each time after you use the "Fishing" accumulation space or one of the three orthogonally adjacent action spaces, you get 1 additional reed._
   - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — Fishing + its 3 orthogonally ADJACENT action spaces = board adjacency = geometry (user ruling) -> L-GEOMBOARD restored.
 - ⬜ **D145 Roof Examiner** · [3+]
   - _When you play this card, if you have 1/2/3/4 major improvements, you immediately get 2/3/4/5 reed._
-  - `ONPLAY E-GOODS` — On play, reed scaling with number of major improvements (plain state read).
+  - `ONPLAY E-GOODS NONE` — One-time on-play goods gain conditioned on a plain state read (major-improvement count) — per the rulings this is trivially implementable, so NONE is tagged alongside ONPLAY+E-GOODS.
 - ⬜ **D146 Porter** · [3+]
   - _Each time you take at least 4 of the same building resource from an accumulation space, you get 1additional building resource of the accumulating type and 1 food.  [CLARIFICATION: 4 of the same building resource must already be on the accumulation space.]_
-  - `HOOK S-SPACE T-AFTER F-AUTO A-OWN E-GOODS ST-PROV` — Taking >=4 of a resource from an accumulation space gives +1 of that resource +1 food (E-GOODS, mandatory F-AUTO, A-OWN). It reacts to the take (after taking, T-AFTER) and must know the accumulating type/amount taken (ST-PROV). Timing is after-the-take, not before.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV` — 'Each time you take [from an accumulation space]' is a use-space trigger — default T-BEFORE per the rulings (only 'immediately after' gets T-AFTER), and the clarification (4 must already be ON the space) confirms the condition is evaluated before the take. Needs the event payload (accumulating type / amount) = ST-PROV; mandatory goods gain = F-AUTO + E-GOODS.
 - ⬜ **D147 Trap Builder** · [3+]
   - _Each time you use the "Day Laborer" action space, place 1 food, 1 food, and 1 wild boar on the next 3 round spaces, respectively. At the start of these rounds, you get the good._
-  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCHED E-SCHEDANIMAL` — Each time you use Day Laborer, place food/food/boar on next 3 round spaces, collected at start of those rounds; schedules a good and an animal.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCHED E-SCHEDANIMAL E-ANIMALS` — Day Laborer use-hook scheduling food and a wild boar on future round spaces; the boar eventually enters the player's supply and must be accommodated, so E-ANIMALS applies (any amount, any timing) — labelB is right to add it.
 - ⬜ **D148 Domestician Expert** · [4+]
   - _You can keep 2 sheep on the border between each pair of orthogonally adjacent rooms.  [CLARIFICATION: Milking Place D012 negates this card’s effect.]_
   - `PASSIVE E-CAPNEW L-GEOMFARM` — Kept L-GEOMFARM: 'border between each pair of orthogonally adjacent rooms' is genuine orthogonal adjacency/shape between farm tiles (rooms).
 - ⬜ **D149 Casual Worker** · [4+]
   - _Each time another player uses a "Quarry" accumulation space, you can choose to get 1 food or build a stable without paying wood._
-  - `HOOK T-BEFORE S-SPACE F-MANDCHOICE A-OPP E-GOODS E-GRANTSUB E-COSTMOD E-PIECECOST` — Fires on ANOTHER player using Quarry -> A-OPP, S-SPACE. Must choose food OR build a free stable, no decline stated -> F-MANDCHOICE. Options: gain food (E-GOODS) or granted build-stable sub-action (E-GRANTSUB) with wood waived (E-COSTMOD) that still costs a stable piece (E-PIECECOST). No ONPLAY (passive-install hook, but hook carrier is fine without ONPLAY here since effect is purely reactive).
+  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GOODS E-GRANTSUB` — 'You can choose' = declinable, so F-TRIG not F-MANDCHOICE. The free stable is a granted sub-action whose zero cost is a push-time parameter of the grant (like Side Job's 1-wood stable), not a general cost modifier — drop E-COSTMOD; and placing your own stable piece is not a piece COST, so drop E-PIECECOST.
 - ⬜ **D150 Godly Spouse** · [4+]
   - _Each time you take a "Family Growth" action with the second person you place in a round, return the first person you placed home._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-WORKERMANIP ST-PLACELOG` — Taking Family Growth with your second person placed in a round returns your first-placed person home (to reuse); manipulates an already-placed worker, needs placement order log.
@@ -2353,10 +2368,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-PLAY F-AUTO A-OWN E-GOODS` — Before each later occupation play, +2 food (explicitly before paying cost).
 - ⬜ **D153 Wealthy Man** · [4+]
   - _At the start of each of the 1st/2nd/3rd/4th/5th/6th harvest, if you have at least 1/2/3/4/5/6 grain fields, you get 1 bonus point._
-  - `ONPLAY HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-SCORE` — 'At the start of each harvest' before the field phase -> S-HSTART, T-BEFORE. Earns a bonus point through a fired timing event (not passive end-game) -> HOOK + E-SCORE combine legitimately (convention 3); mandatory F-AUTO, own A-OWN.
+  - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-SCORE` — Bonus points earned through a fired harvest-start hook (legitimately HOOK+E-SCORE); the harvest index is fixed by the round schedule so no extra state. No on-play effect — drop labelA's ONPLAY.
 - ⬜ **D154 Chimney Sweep** · [4+]
   - _Renovating to stone costs you 2 stone less. During scoring, you get 1 bonus point for each other player living in a stone house._
-  - `PASSIVE E-COSTMOD E-SCORECMP` — Renovate-to-stone costs 2 stone less (cost mod); bonus points per OTHER player in stone house (comparative).
+  - `PASSIVE E-COSTMOD E-SCORE E-SCORECMP` — Passive renovation discount (E-COSTMOD) plus a textual end-game bonus-point rule — that is E-SCORE by definition, and it reads the other players' house state so E-SCORECMP also applies; labelB correctly adds E-SCORE.
 - ⬜ **D155 Ebonist** · [4+]
   - _Each harvest, you can use this card to turn exactly 1 wood into 1 food and 1 grain._
   - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT CAP-HARVEST` — Each harvest: 1 wood -> 1 food + 1 grain (craft conversion).
@@ -2368,136 +2383,136 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK A-OPP F-AUTO ST-THRESHOLD E-GOODS CAP-GAME E-SCORE E-SCORECMP` — Opponent hits 5 people -> +8 food once; +3 VP if only you have 5.
 - ⬜ **D158 Bean Counter** · [4+]
   - _Each time you use an action space on round spaces 1 to 8, place 1 food on this card. Each time this cards has 3 food on it, move the food to your supply._
-  - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-GOODS ST-STACK ST-COUNTER` — Kept L-GEOMBOARD: 'action space on round spaces 1 to 8' references specific round-space NUMBERS/band, which is genuine board position.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-STACK` — Auto-fires on each own use of a round-space (rounds 1-8 is a fixed band, not geometry); food accumulates ON the card and is consumed at 3 — that pile IS the state (ST-STACK); a separate ST-COUNTER is redundant since the count is the stack size.
 - ⬜ **D159 Reed Seller** · [4+]
   - _At any time, you can turn 1 reed into 3 food. Any other player can prevent this by buying the reed for 2 food from you. If multiple players are interested, choose one._
   - `ATWILL E-CONVERT E-GOODS E-OPPTRANSFER` — Anytime turn 1 reed -> 3 food, but any opponent may buy the reed for 2 food to prevent it -> opponent-interaction transfer.
 - ⬜ **D160 Midwife** · [4+]
   - _Each time another player uses the first person they place in a round to take a "Family Growth" action, you get 1 grain from the general supply._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OPP E-GOODS ST-PLACELOG` — When another player uses their FIRST placed person for Family Growth, you get 1 grain; needs to know it was their first placement.
+  - `HOOK T-BEFORE S-SUB F-AUTO A-OPP E-GOODS ST-PLACELOG` — 'Each time another player uses...' has no 'after' wording, so the default T-BEFORE applies (labelA's T-AFTER wrong). ST-PLACELOG covers identifying the placement; a separate ST-COUNTER is unneeded since 'first person placed this round' is derivable from the opponent's placed-worker count.
 - ⬜ **D161 Cabbage Buyer** · [4+]
   - _Each time any player (including you) renovates and the builds no/ 1 minor/ 1 major improvement, you can buy 1 vegetable for 3/2/1 food._
-  - `ONPLAY HOOK T-AFTER S-SUB F-TRIG A-OWN A-OPP E-CONVERT E-FOODCOST E-GOODS ST-PROV` — Fires after any player's renovate sub-action (both A-OWN and A-OPP), keyed on how many improvements built alongside -> S-SUB, T-AFTER, ST-PROV. Optional buy of 1 veg for food -> F-TRIG, E-CONVERT with food payment (E-FOODCOST) yielding a good (E-GOODS).
+  - `HOOK T-AFTER S-SUB F-TRIG A-OWN A-OPP E-CONVERT E-FOODCOST E-GOODS ST-PROV` — Pure hook card — no on-play effect exists in the text, so labelA's ONPLAY is wrong; fires after any player's renovation, needs the event payload (how many/which improvements were built with it) to set the price, and buying veg for food is an optional food-costed conversion.
 - ⬜ **D162 Clay Firer** · [4+]
   - _When you play this card, you immediately get 2 clay. At any time, you can turn clay into stone: you get 1 stone for 2 clay, and 2 stone for 3 clay._
   - `ONPLAY ATWILL E-GOODS E-CONVERT` — On-play +2 clay; at-any-time clay->stone conversion (2clay->1stone, 3clay->2stone).
 - ⬜ **D163 Journeyman Bricklayer** · [4+]
   - _When you play this card, you immediately get 2 stone. Each time another player renovates to stone or builds a stone room, you get 1 stone._
-  - `ONPLAY HOOK T-AFTER S-SUB F-AUTO A-OPP E-GOODS` — On play +2 stone; each time another player renovates to stone or builds a stone room, you get 1 stone.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-AUTO A-OPP` — On-play 2 stone plus an opponent-action hook; 'renovated to stone' / 'built a stone room' is readable from the actor's house material at fire time, so no event payload is needed — labelB's ST-PROV is unnecessary.
 - ⬜ **D164 Pet Grower** · [4+]
   - _Each time you use an animal accumulation space, if afterward you have no animal in your house, you also get 1 sheep._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS E-ANIMALS` — After using an animal accumulation space, if no animal in house, also get 1 sheep; must accommodate.
+  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-ANIMALS` — Space-use hook with a plain after-state condition (no animal in house); the sheep is an animal needing accommodation (E-ANIMALS), not goods — labelA's E-GOODS is wrong.
 - ⬜ **D165 Pig Stalker** · [4+]
   - _Each time you use an animal accumulation space, if you occupy either the action space immediately above or below that accumulation space, you also get 1 wild boar._
   - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-ANIMALS L-GEOMBOARD ST-PLACELOG` — Kept L-GEOMBOARD: 'action space immediately above or below that accumulation space' is board position/adjacency. Removed E-GOODS as redundant (wild boar is an animal -> E-ANIMALS).
 - ⬜ **D166 Stable Milker** · [4+]
   - _Each time you build at least 2 stables on the same turn, you also get 1 cattle._
-  - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-ANIMALS E-GOODS ST-COUNTER` — Fires after building >=2 stables in one turn; needs to count stables built this turn = ST-COUNTER; mandatory cattle = F-AUTO/E-ANIMALS.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS ST-COUNTER` — Fires on the build-stable sub-action once 2+ stables are built in one turn (per-turn running count → ST-COUNTER); cattle is an animal (E-ANIMALS), not goods — drop labelA's E-GOODS.
 - ⬜ **D167 Pure Breeder** · [4+]
   - _You immediately get 1 wood. After each round that does not end with a harvest, you can breed exactly one type of animal. (This is not considered a breeding phase.)_
-  - `ONPLAY HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GOODS E-BREEDMOD` — On play +1 wood; after each non-harvest round, may breed exactly one animal type outside a breeding phase -> off-harvest breeding.
+  - `ONPLAY E-GOODS HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-BREEDMOD E-ANIMALS` — On-play 1 wood, plus an optional end-of-round breeding hook on non-harvest rounds — breeding outside the breeding phase is E-BREEDMOD, and the newborns it yields must be accommodated, so E-ANIMALS applies (labelB is right to include it).
 - ⬜ **D168 Stockman** · [4+]
   - _When you build your 2nd/3rd/4th stable, you immediately get 1 cattle/wild boar/sheep, even if built on the same turn (but not retroactively)._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS E-GOODS ST-COUNTER` — Building 2nd/3rd/4th stable grants a cattle/boar/sheep; needs running stable count; animals must be accommodated.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS` — Fires immediately after the build-stable sub-action ('you immediately get'); animals are E-ANIMALS, not E-GOODS (goods/food/crops only). No ST-COUNTER: which stable is the 2nd/3rd/4th is read directly off the farm's stable count at fire time ('not retroactively' just means no back-pay for pre-existing stables).
 
 ### Deck E
 
 - ⬜ **E85 Master Tanner** · [1+]
   - _For each wild boar or cattle that you turn into food, you can place 1 of that food on this card. While its food equals your number of rooms, this card provides room for 1 person._
-  - `HOOK S-SUB T-AFTER F-TRIG A-OWN E-CONVERT E-CAPNEW ST-STACK` — Optional 'you can place food on this card' after turning boar/cattle into food = HOOK/F-TRIG/E-CONVERT/ST-STACK; card holds a person = E-CAPNEW (new holder), not E-PEOPLE; ST-STACK covers the stored food (no separate ST-STORE).
+  - `HOOK T-AFTER S-OBTAIN F-TRIG A-OWN ST-STACK ST-PROV PASSIVE E-CAPNEW` — The card reacts to food you obtain (keyed on its source being a boar/cattle conversion → S-OBTAIN + ST-PROV, not S-SUB; the card itself converts nothing, so no E-CONVERT), stacks that food on itself, and passively provides a person-room while the stack equals your room count (PASSIVE + E-CAPNEW).
 - ⬜ **E86 Pen Builder** · [1+]
   - _At any time, you can place wood from your supply on this card, irretrievably. You can keep twice as many animals of any type on this card as there is wood on it._
-  - `ATWILL E-CAPNEW ST-STACK` — At-will place wood on card irretrievably; card holds 2x animals per wood on it (new animal holder scaling with stored stack).
+  - `ATWILL ST-STACK PASSIVE E-CAPNEW` — At-will irretrievable wood placement builds an on-card stack, and the card is a new animal holder whose capacity (2× wood) is an always-on continuous rule — the capacity half warrants PASSIVE alongside the ATWILL placement.
 - ⬜ **E87 Master Renovator** · [1+]
   - _At the end of the work phases of rounds 7 and 9, you can take a "Renovation" action without placing a person and pay 1 building resource of your choice less._
-  - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GRANTACT E-NOPLACE E-COSTMOD` — End of work phase rounds 7&9: optional Renovation without placing, 1 building resource cheaper.
+  - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB E-NOPLACE E-COSTMOD` — Fires at the end of the work phase (S-TURNEND explicitly covers work-phase end; S-ROUNDEND is return-home) of fixed rounds 7/9; renovate is a listed primitive sub-action, so the optional discounted no-placement renovation is E-GRANTSUB (not E-GRANTACT) + E-NOPLACE + E-COSTMOD.
 - ⬜ **E88 Master Fencer** · [1+]
   - _Once you live in a stone house, at the start of each round, you can pay 2 or 3 wood to build up to 3 or 4 fences, respectively._
-  - `LATCH ST-LATCH HOOK S-SOR T-AFTER F-TRIG A-OWN E-GRANTACT E-PLAYVARIANT` — 'Once you live in a stone house' = LATCH gate + ST-LATCH; then a per-round optional Build Fences action = HOOK/S-SOR/F-TRIG; the 2 wood->3 fences OR 3 wood->4 fences couples cost AND reward = E-PLAYVARIANT (not E-ALTCOST).
+  - `HOOK S-SOR T-BEFORE F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — Recurring start-of-round optional fence grant at a special package price (2w/3 fences, 3w/4). The stone-house clause is a standing-condition gate on a recurring hook, not a one-shot fire, so LATCH/ST-LATCH is wrong; the grant is a capped fence build (E-GRANTSUB) with a modified cost formula (E-COSTMOD), not a full Build Fences action, and E-PLAYVARIANT applies only to a card's own play cost. S-SOR fires at round start, before anything, so T-BEFORE.
 - ⬜ **E89 Stallwright** · [1+]
   - _After you play your 2nd, 3rd, 5th, and 7th occupation (including this one), you can build 1 stable at no cost._
-  - `HOOK S-PLAY T-AFTER F-TRIG A-OWN E-GRANTSUB E-COSTMOD ST-COUNTER` — Fires after playing the 2nd/3rd/5th/7th occupation = HOOK/S-PLAY/ST-COUNTER; grants an optional stable build 'at no cost' = E-GRANTSUB + E-COSTMOD (free); specific-event firing needs no CAP tag.
+  - `HOOK S-PLAY T-AFTER F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — "After you play your Nth occupation" is an explicit after-play hook granting an optional free stable build. The 2nd/3rd/5th/7th check reads the player's already-tracked occupation count from game state, so no card-local ST-COUNTER is needed — labelB is right.
 - ⬜ **E90 Dung Collector** · [1+]
   - _Each time you get 2 or more newborn animals, you can pay 1 food to plow 1 field.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.]_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Each time you get 2+ newborns, optionally pay 1 food to plow a field.
-- ⬜ **E91 Plow Builder** · [1+]
+- ⬜ **E91 Plow Builder** · [1+] 🔶
   - _You can build the Joinery when taking a "Minor Improvement" action. If you use the Joinery (or an upgrade thereof) during the harvest, you can pay 1 food to plow 1 field._
-  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-GRANTSUB E-FOODCOST L-EXT` — 'You can build the Joinery at Minor Improvement' extends buildability = L-EXT; using the Joinery (a card action space) during harvest to pay 1 food to plow = HOOK/S-SPACE/T-BEFORE/E-GRANTSUB/E-FOODCOST.
+  - `PASSIVE L-EXT HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Two mechanics: an always-on legality extension (Joinery buildable via the Minor Improvement action → PASSIVE + L-EXT) and a hook on using the Joinery during harvest — Joinery use is a harvest feeding-phase conversion, not an action space, so S-HFEED not S-SPACE; "if you use X" defaults to T-BEFORE per the each-time-you-use ruling. Effect is pay-1-food (E-FOODCOST) to plow (E-GRANTSUB), optional (F-TRIG).
 - ⬜ **E92 Field Doctor** · [1+]
   - _Once this game, if you live in a house with exactly 2 rooms surrounded by 4 field tiles, you can use any "Family Growth" action space even without room.  [CLARIFICATION: Should be “Wish for Children” action space.]_
-  - `LATCH ST-LATCH E-GROWTH L-EXT CAP-GAME L-GEOMFARM` — Kept L-GEOMFARM: 'house with exactly 2 rooms surrounded by 4 field tiles' is genuine orthogonal adjacency/shape between rooms and field tiles.
+  - `PASSIVE CAP-GAME E-GROWTH L-EXT L-GEOMFARM ST-STORE` — Nothing fires when the 2-rooms-surrounded-by-4-fields condition becomes true — the card is a once-per-game legality extension (use Wish for Children even without room) exercised at the player's placement, so LATCH/ST-LATCH is wrong; it's a passive rule change gated on farm geometry (L-GEOMFARM), needing only a used-flag (ST-STORE). E-GROWTH noted: growth even without room.
 - ⬜ **E93 Motivator** · [1+]
   - _On your first turn each round, if you have no unused farmyard spaces, you can place a person from your supply._
-  - `HOOK S-SOR T-BEFORE F-TRIG A-OWN E-EXTRAPLACE E-PEOPLE` — First turn of each round (S-SOR) you may place an extra person from supply = E-EXTRAPLACE + E-PEOPLE; you DO place a worker, so not E-NOPLACE.
+  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-EXTRAPLACE E-PEOPLE` — Fires on YOUR first turn each round — a turn/placement event, not the start of the round (other players may act first), so S-SPACE with a first-turn-of-round condition, not S-SOR. Optional extra placement (E-EXTRAPLACE) of a person from supply acting as a worker (E-PEOPLE); the first-turn and no-unused-spaces conditions are plain state reads.
 - ⬜ **E94 Prophet** · [1+]
   - _When you play this card, immediately take a "Renovation" action. Afterward, you can take a "Build Fences" action. (Both actions require their usual cost.)_
-  - `ONPLAY E-GRANTACT` — On play, immediately take a Renovation action then optionally a Build Fences action = ONPLAY + E-GRANTACT; ONPLAY is once by nature so no CAP-GAME.
+  - `ONPLAY E-GRANTACT E-GRANTSUB` — On-play grants both a Renovation — renovate is a listed sub-action primitive (E-GRANTSUB) — and an optional full Build Fences action (E-GRANTACT per that code's own definition), so both grant codes apply; labelB is right.
 - ⬜ **E95 Miller** · [1+]
   - _You can immediately build a baking improvement by paying its cost. Each time another player uses the "Grain Seeds" action space, you can take a “Bake Bread” action._
-  - `ONPLAY E-GRANTACT HOOK T-AFTER S-SPACE F-TRIG A-OPP E-BAKESPEC` — On play may build a baking improvement at cost; each time another player uses Grain Seeds space, optionally take a Bake Bread action.
+  - `ONPLAY HOOK S-SPACE T-BEFORE F-TRIG A-OPP E-GRANTACT E-GRANTSUB` — On play: build a baking improvement at its normal cost = a granted (restricted) Major-Improvement-style action → E-GRANTACT, not E-BAKESPEC (the card adds/changes no baking improvement or rate). Hook: each time ANOTHER player uses Grain Seeds (S-SPACE, A-OPP) you may take a Bake Bread action — bake bread is a primitive → E-GRANTSUB; "each time ... uses" defaults to T-BEFORE per the ruling.
 - ⬜ **E96 Elder** · [1+]
   - _You can play this card at the start of the work phase of round 1 without placing a person. (This card has no effect other than counting as a played occupation.)_
-  - `ONPLAY E-NOPLACE NONE` — Plays at start of round 1 work phase without placing a person; no other effect (just counts as an occupation). E-NOPLACE for the no-person play; NONE since no further mechanic. Not L-CARDSPACE — playing without a person is not the card being an action space.
+  - `ONPLAY E-NOPLACE` — The card's only mechanic is being playable at a fixed special moment (start of round 1 work phase) without placing a person — E-NOPLACE at a fixed time (not ATWILL), with no further effect. NONE contradicts the needed E-NOPLACE machinery, so labelB is right.
 - ⬜ **E97 Beneficiary** · [1+]
   - _If this is your 3rd occupation, you can immediately play another occupation for an occupation cost of 1 food and/or play 1 minor improvement by paying its cost._
-  - `ONPLAY E-GRANTACT CAP-GAME` — On-play: if this is your 3rd occupation, immediately grants playing another occupation and/or a minor. One-shot on-play so CAP-GAME; the 3rd-occupation condition is a plain state read, not a counter the card must persist.
+  - `ONPLAY E-GRANTSUB E-FOODCOST` — One-time on-play grant of optional card-plays (play-a-card is a primitive sub-action per the S-SUB taxonomy, so E-GRANTSUB not E-GRANTACT); the occupation play costs 1 food (E-FOODCOST). The 1-food cost is the grant's own parameter, not a modification of an existing cost, so no E-COSTMOD; CAP-GAME is wrong since CAP-* only caps ATWILL frequency and this is a plain ONPLAY.
 - ⬜ **E98 Prodigy** · [1+]
   - _If this is your 1st occupation, you immediately get 1 bonus point for each improvement you have. (This will not apply to improvements played after this card.)_
-  - `ONPLAY E-GOODS` — If 1st occupation, immediately gain 1 bonus point per current improvement (one-time immediate VP gain on play, not an end-game scoring rule).
+  - `ONPLAY E-SCORE ST-STORE` — Bonus points (not goods, so E-GOODS is wrong) earned through the play action — E-SCORE legitimately combines with a non-scoring activation per the rulings; the improvement count must be snapshotted at play time since later improvements don't count (ST-STORE).
 - ⬜ **E99 Uncaring Parents** · [1+]
   - _At the end of each harvest, if you live in a stone house, you get 1 bonus point._
-  - `HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-SCORE` — At end of each harvest (after feeding), if stone house, gain a bonus point — fires per-harvest conditional on standing house state; accrues bonus VP.
+  - `HOOK T-AFTER S-HBREED F-AUTO A-OWN E-SCORE ST-COUNTER` — 'End of each harvest' is after the breeding phase, not after feeding — S-HBREED + T-AFTER, not S-AFTERFEED (which precedes breeding). Mandatory bonus point on a stone-house state read; the points accrue across harvests, needing a running tally (ST-COUNTER).
 - ⬜ **E100 Museum Caretaker** · [1+]
   - _At the start of each work phase, if you have at least 1 wood, 1 clay, 1 reed, 1 stone, 1 grain, and 1 vegetable in your supply, you get 1 bonus point._
-  - `HOOK S-SOR T-BEFORE F-AUTO A-OWN E-SCORE` — At start of each work phase, if you hold all six goods, get a bonus point. Fires at start-of-round (S-SOR, before the phase = T-BEFORE), mandatory own-action. The point is a bonus-point rule (E-SCORE) but accrued via the hook, so HOOK+E-SCORE is legitimate; no separate counter needed beyond the score total.
+  - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-SCORE ST-COUNTER` — Start-of-each-work-phase hook (S-SOR), mandatory state-read bonus point. Points accumulate over many rounds, so a running count is kept (ST-COUNTER) — consistent with E99.
 - ⬜ **E101 Blighter** · [1+]
   - _When you play this card, you get 1 bonus point for each complete stage left to play. You may not play any more occupations._
-  - `ONPLAY E-SCORE` — Removed L-GEOMBOARD: 'each complete stage left to play' counts remaining stages, not a board position/order/adjacency; it's a plain count read at play time.
+  - `ONPLAY E-SCORE ST-STORE PASSIVE` — On-play bonus points scaled by stages remaining (value fixed at play time — ST-STORE snapshot, consistent with E98), plus a permanent always-on rule change forbidding further occupation plays (PASSIVE); labelA missed the standing restriction.
 - ⬜ **E102 Acquirer** · [1+]
   - _At the start of each round, you may pay food equal to the number of people you have to buy 1 good of your choice from the general supply._
-  - `HOOK S-SOR T-BEFORE F-TRIG A-OWN E-FOODCOST E-GOODS E-CONVERT` — At start of each round, may pay food equal to people count to buy 1 good of choice. Optional own start-of-round hook; costs food (E-FOODCOST), gains a good (E-GOODS), and it is a food-for-good exchange (E-CONVERT).
+  - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-FOODCOST E-GOODS` — Optional start-of-round buy: pay food (E-FOODCOST, convertible) to gain 1 good (E-GOODS). E-CONVERT would double-count the same pay-food-get-good exchange already fully captured by those two codes, and the price is a people-count state read, not a standing exchange rate.
 - ⬜ **E103 Wolf** · [1+]
   - _Pile (from bottom to top) 1 clay, 1 wood, and 1 grain on this card. Each time you get a good matching the top item, you can move that item to your supply and get 1 wild boar._
-  - `ONPLAY HOOK S-OBTAIN T-AFTER F-TRIG A-OWN E-ANIMALS E-CONVERT ST-STACK ST-PROV` — On play, pile clay/wood/grain on card (ONPLAY + ST-STACK). Each time you obtain the top item you may move it to supply and get a boar (S-OBTAIN hook, optional, T-AFTER obtaining). ST-PROV needed to know which good was just obtained matches the top item. E-ANIMALS + E-CONVERT.
+  - `ONPLAY HOOK T-AFTER S-OBTAIN F-TRIG A-OWN E-GOODS E-ANIMALS ST-STACK ST-PROV` — On-play sets up the pile (ST-STACK); optional obtain-hook needing the obtained good's identity (ST-PROV). Firing GAINS the top item plus a boar — nothing is given up, so it's E-GOODS + E-ANIMALS, not E-CONVERT.
 - ⬜ **E104 Spice Trader** · [1+]
   - _If you play this card in round 4 or before, place 3 vegetables on the space for round 11. At the start of that round, you get the vegetables._
   - `ONPLAY E-SCHED` — If played by round 4, schedule 3 veg on round-11 space, collected at that round's start.
 - ⬜ **E105 Pioneer** · [1+]
   - _When you play this card and each time before you use the most recent action space card, you get 1 building resource of your choice and 1 food._
-  - `ONPLAY HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-GOODS L-GEOMBOARD ST-STORE` — Kept L-GEOMBOARD: 'the most recent action space card' depends on reveal ORDER on the board, which the strict test explicitly counts (most recently revealed card).
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-MANDCHOICE A-OWN L-GEOMBOARD E-GOODS` — 'You get 1 building resource of your choice' is mandatory-with-choice → F-MANDCHOICE, not F-AUTO. 'Most recent action space card' depends on reveal order → L-GEOMBOARD, and it's derivable from public board state, so no per-card ST-STORE is needed.
 - ⬜ **E106 Emergency Seller** · [1+]
   - _When you play this card, you can immediately turn as many building resources into food as you have people: Each wood or clay is worth 2 food; each reed or stone is worth 3 food._
   - `ONPLAY E-CONVERT E-GOODS` — On play, optionally convert up to #people building resources to food at fixed rates.
 - ⬜ **E107 Land Surveyor** · [1+]
   - _In the field phase of each harvest, if you have at least 2/4/6/7 fields, you get 1/2/3/4 food._
-  - `HOOK T-BEFORE S-HFIELD F-AUTO A-OWN E-GOODS` — In each harvest field phase, gain food scaled by field-count thresholds; plain count read.
+  - `HOOK T-BEFORE S-HFIELD F-AUTO A-OWN E-GOODS` — "In the field phase" has no 'after/at the end of' language, so the default T-BEFORE applies; the food is a plain conditional gain independent of field yields.
 - ⬜ **E108 Blackberry Farmer** · [1+]
   - _Each time you build fences, place 1 food on each remaining round space, up to the number of fences just built. At the start of these rounds, you get the food._
   - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-SCHED ST-PROV` — Each time you build fences, place 1 food on each remaining round space up to the number just built. Build-fences sub-action hook, resolved after (T-AFTER), mandatory; schedules food on future rounds (E-SCHED). ST-PROV needed for the count of fences just built.
 - ⬜ **E109 Braid Maker** · [1+]
   - _Each harvest, you can use this card to exchange 1 reed for 2 food. You can build the Basketmaker's Workshop for 1 reed and 1 stone even when taking a "Minor Impr." action._
-  - `ATWILL CAP-HARVEST E-CONVERT E-FOODCOST E-COSTMOD L-EXT` — Each harvest may exchange 1 reed for 2 food (ATWILL once per harvest = CAP-HARVEST, E-CONVERT; reed is the cost so E-FOODCOST does not strictly apply—but the reed-to-food exchange is the conversion). Also lets you build Basketmaker's Workshop for altered cost on a Minor Impr. action (E-COSTMOD + L-EXT). Keeping E-FOODCOST is debatable but the exchange produces food, not pays it; the printed exchange spends reed, so E-CONVERT covers it.
+  - `ATWILL CAP-HARVEST E-CONVERT PASSIVE E-COSTMOD L-EXT` — Reed→food exchange is ATWILL+CAP-HARVEST+E-CONVERT (it PRODUCES food, so E-FOODCOST is wrong); the Basketmaker's-Workshop clause is an always-on rule change — PASSIVE activation with a replacement cost (E-COSTMOD) plus building a major via the Minor-Impr. action (L-EXT).
 - ⬜ **E110 Dentist** · [1+]
   - _At the start of each harvest, you can place 1 wood from your supply on this card, irretrievably. In each feeding phase, you get 1 food for each wood on this card._
-  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN ATWILL E-GOODS ST-STACK` — Two distinct effects: at harvest start you MAY place wood on the card (optional -> F-TRIG at S-HSTART), then in each feeding phase you AUTO-get food per wood (E-GOODS). The wood pile is ST-STACK (goods kept on card, but irretrievable = accumulating, not consumed). ATWILL fits the deferrable place-wood option. Not ST-COUNTER since actual goods sit on the card.
+  - `HOOK T-BEFORE S-HSTART S-HFEED F-TRIG F-AUTO A-OWN E-GOODS ST-STACK` — Two hooks: optional wood placement at harvest start (S-HSTART, F-TRIG — not ATWILL, the timing is fixed) and an automatic per-wood food payout in the feeding phase (S-HFEED, F-AUTO), payable before feeding resolves → T-BEFORE only; wood accumulates on the card → ST-STACK.
 - ⬜ **E111 Recluse** · [1+]
   - _As long as you have no minor improvements in front of you, you get 1 food at the start of each round and 1 wood at the start of each harvest._
-  - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-GOODS` — While you have no minor improvements played, gain 1 food each round start and 1 wood each harvest start; conditional per-round/per-harvest income (two hooks, both auto).
+  - `HOOK T-BEFORE S-SOR S-HSTART F-AUTO A-OWN E-GOODS` — Two automatic hooks: 1 food at start of each round (S-SOR) AND 1 wood at start of each harvest (S-HSTART — labelA missed this seam); the no-minors condition is a plain state read.
 - ⬜ **E112 Grain Thief** · [1+]
   - _Each time you would harvest a grain field, you can leave the grain on the field and take 1 grain from the general supply instead._
   - `HOOK T-BEFORE S-HFIELD F-TRIG A-OWN E-GOODS E-CROPMANIP` — When harvesting a grain field, may leave the grain on the field and take 1 grain from general supply instead; alters the field-harvest yield/behavior.
 - ⬜ **E113 Godmother** · [1+]
   - _Each time you take a "Family Growth" action, you also get 1 vegetable._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — Each Family Growth action -> +1 veg; keyed on the growth sub-action, mandatory gain.
+  - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS` — "Each time you take a Family Growth action" is the 'each time you use' pattern → fires T-BEFORE per the standing ruling (no 'after' language); mandatory vegetable gain on the family-growth sub-action.
 - ⬜ **E114 Shed Builder** · [1+]
   - _When you build your 1st and 2nd stable, you get 1 grain. When you build your 3rd and 4th stable, you get 1 vegetable. (This does not apply to stables you have already built.)_
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-COUNTER` — Building nth stable gives grain/veg; needs running count of stables built.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-COUNTER` — Reward on completing each stable build (T-AFTER, build-stable sub-action); the 1st–4th ordinal is a lifetime running count of stables built (pre-play stables consume ordinals without paying) → ST-COUNTER, not a one-shot snapshot (ST-STORE).
 - ⬜ **E115 Seed Servant** · [1+]
   - _Each time after you use the "Grain Seeds" or "Vegetable Seeds" action space, you can take a "Bake bread" or "Sow" action, respectively._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB` — After using Grain/Veg Seeds space, may take a Bake/Sow sub-action (optional grant).
 - ⬜ **E116 Fir Cutter** · [1+]
   - _When you play this card, you immediately get 1 food. Each time after you use an animal accumulation space with your 1st/2nd/3rd/4th/5th person, you get 1/1/2/2/3 wood._
-  - `ONPLAY HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-COUNTER` — On play +1 food; after using an animal accumulation space, wood scaled by which person number placed (needs count of persons).
+  - `ONPLAY HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-COUNTER` — On-play food plus an explicit 'each time after you use' hook on animal accumulation spaces; the 1st–5th-person payout scale keys on which ordinal placement of the round this is, which needs a per-round placement counter → keep ST-COUNTER.
 - ⬜ **E117 Pipe Smoker** · [1+]
   - _At the start of each harvest, if you have at least 1 grain field, you get 2 wood._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-GOODS` — Fires at the start of each harvest (S-HSTART, before field phase), mandatory (F-AUTO) gain of 2 wood conditional on a plain grain-field state read. Pass2 correct; pass1's S-HFIELD/T-AFTER is wrong.
@@ -2515,43 +2530,43 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Grain/Veg Seeds space, also +2/+3 clay.
 - ⬜ **E122 Cottar** · [1+]
   - _Each time you play or build an improvement, you get your choice of 1 wood or 1 clay immediately after paying its cost._
-  - `HOOK T-AFTER S-MAJMIN S-SUB F-MANDCHOICE A-OWN E-GOODS ST-PROV` — Fires immediately AFTER paying an improvement's cost (T-AFTER), on both playing (minor, S-MAJMIN) and building (major). 'Build an improvement' is the play-a-card sub-action seam too -> S-SUB. Mandatory wood-or-clay choice -> F-MANDCHOICE. Needs to know the cost was just paid -> ST-PROV.
+  - `HOOK T-AFTER S-SUB F-MANDCHOICE A-OWN E-GOODS` — Fires 'immediately after paying its cost' (T-AFTER) on the play/build-an-improvement sub-action regardless of which space hosted it (S-SUB, not S-MAJMIN); the fixed wood-or-clay reward needs no event payload, so drop ST-PROV; mandatory-with-choice gain.
 - ⬜ **E123 Resource Hoarder** · [1+]
   - _Pile resources as depicted on this card. You can use the top item(s) when building a room, playing/building an improvement, or renovating. (From bottom to top: Stone, Clay, Stone, Reed, Wood, Clay)_
-  - `ONPLAY PASSIVE E-COSTMOD ST-STACK` — On play, sets up an ordered resource pile on the card (ONPLAY, ST-STACK); the top item(s) are usable as payment for room/improvement/renovate builds -> a standing cost-modification currency (PASSIVE + E-COSTMOD). PASSIVE captures the always-available payment option.
+  - `ONPLAY PASSIVE E-COSTMOD ST-STACK` — Piling the resources is the on-play setup; spending the top items is a payment option available whenever you pay a build/improvement/renovation cost — a continuous cost-payment rule (PASSIVE E-COSTMOD), not a fired event, so no HOOK/S-SUB. The consumed pile on the card is ST-STACK.
 - ⬜ **E124 Mayor Candidate** · [1+]
   - _You immediately get 2 wood and 2 stone. During scoring, you get 1 negative point for each wood and each stone in your supply. You can no longer discard wood or stone._
   - `ONPLAY E-GOODS E-SCORE PASSIVE` — Immediate +2 wood +2 stone (ONPLAY/E-GOODS); negative-point end-game scoring rule (E-SCORE); 'can no longer discard wood/stone' is a continuous rule change (PASSIVE). Not L-EXT — that is for extending legality/currency, not a discard prohibition.
 - ⬜ **E125 Delayed Wayfarer** · [1+]
   - _When you play this card, you immediately get 1 building resource of your choice and, once all people have been placed this round, you can place a person from your supply._
-  - `ONPLAY E-GOODS HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-EXTRAPLACE E-NOPLACE` — On play: immediate building resource (ONPLAY/E-GOODS). Then once all people placed this round (T-AFTER, S-ROUNDEND), you MAY place a person from supply -> an additional placement beyond the normal turn (E-EXTRAPLACE) taken outside normal placement, and it's a person from supply not a normal worker cycle so E-NOPLACE captures the no-standard-placement framing. F-TRIG (optional 'you can').
+  - `ONPLAY E-GOODS HOOK T-AFTER S-TURNEND F-TRIG A-OWN CAP-GAME E-EXTRAPLACE` — On-play resource gain, plus a one-time delayed placement: 'once all people have been placed this round' is the end of the work phase (S-TURNEND, not returning-home S-ROUNDEND), 'this round' ties it to the play round so it fires once (CAP-GAME). You ARE placing a person, so E-NOPLACE is wrong.
 - ⬜ **E126 Tax Collector** · [1+]
   - _Once you live in a stone house, at the start of each round, you get your choice of 2 wood, 2 clay, 1 reed, or 1 stone._
-  - `LATCH HOOK T-BEFORE S-SOR F-MANDCHOICE A-OWN E-GOODS ST-LATCH` — Latches on when living in a stone house; thereafter each round-start gives a mandatory choice of 2 wood/2 clay/1 reed/1 stone.
+  - `HOOK T-BEFORE S-SOR F-MANDCHOICE A-OWN E-GOODS` — A recurring start-of-round gain gated on a standing condition (stone house). LATCH/ST-LATCH is only for effects that fire ONCE when the condition first becomes true — this fires every round, so it is just a state-gated recurring hook with a mandatory choice of goods.
 - ⬜ **E127 Diligent Farmer** · [3+]
   - _When you play this card, if you would score the maximum 4 points in 3 scoring categories (including fenced stables), you can extend your house by 1 room at no cost._
-  - `ONPLAY E-GRANTSUB E-COSTMOD E-SCORE` — On play, IF you'd score max 4 points in 3 categories (a scoring-condition read -> E-SCORE reference to the scoring rule), you MAY extend your house by 1 room at no cost -> grants a build-room sub-action (E-GRANTSUB) at zero cost (E-COSTMOD). Not L-EXT (no legality extension). E-SCORE included because the condition reads the scoring computation, though it's a one-shot ONPLAY check.
+  - `ONPLAY E-GRANTSUB E-COSTMOD` — On play, a state-read condition (would-score check — a prerequisite computation, no mechanic and no E-SCORE since no bonus-point rule is added) grants an optional build-room sub-action; 'at no cost' overrides the room's build cost, which is E-COSTMOD.
 - ⬜ **E128 Saddler** · [3+]
   - _Each time after you build a major improvement, you can pay 1 food to plow 1 field._
   - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — After building a major improvement, optionally pay 1 food to plow 1 field.
 - ⬜ **E129 Imitator** · [3+]
   - _If you have a person on the "Day Laborer" action space, you can use non-accumulating round 1-9 action spaces even if they are occupied._
-  - `PASSIVE L-OCCUPY` — While a person is on Day Laborer, may use occupied non-accumulating round 1-9 spaces.
+  - `PASSIVE L-OCCUPY ST-PLACELOG` — Always-on rule letting occupied round-1-9 non-accumulating spaces be used (PASSIVE + L-OCCUPY); the gate 'if you have a person on Day Laborer' needs the worker-to-space mapping at an arbitrary later time, i.e. ST-PLACELOG.
 - ⬜ **E130 Overachiever** · [3+]
   - _Each time you use a "Wish for Children" action space, you can play 1 additional improvement by paying its cost less 1 resource of your choice._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTACT E-COSTMOD` — Each time you use a Wish for Children space (before), you may play 1 additional improvement (a whole play-improvement action = E-GRANTACT) at cost less 1 resource (E-COSTMOD); playing a card is a full action, not a primitive sub-action.
 - ⬜ **E131 Market Master** · [3+]
   - _Immediately after each time you place your last person in a round on the "Traveling Players" accumulation space, you can play 1 occupation for an occupation cost of 1 food.  [ERRATA: ERRATA: in 3-player games this applies to “Resource Market” instead.]_
-  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT E-FOODCOST ST-PLACELOG` — After placing your last person on the named space, you may play 1 occupation (a whole card-play action = E-GRANTACT) for a food cost (E-FOODCOST); needs to know the worker's space (ST-PLACELOG).
+  - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT E-FOODCOST` — 'Immediately after each time you place ... on Traveling Players' = T-AFTER S-SPACE hook granting an optional play-occupation action for 1 food (E-FOODCOST). The 1-food price is the grant's own cost parameter, not a build/renovation/improvement cost change, so no E-COSTMOD; 'last person' is a supply-count read at the triggering event itself, so no ST-PLACELOG.
 - ⬜ **E132 Veggie Lover** · [3+]
   - _In each harvest, you can use this card to exchange a pair of 1 grain and 1 vegetable into 6 food. During scoring, you can exchange 1/2/3 pairs of 1 grain and 1 vegetable for 2/4/6 bonus points.  [CLARIFICATION: If crops are exchanged for bonus points, they do not count in the normal scoring.]_
-  - `ATWILL CAP-HARVEST E-CONVERT E-SCORE` — Once per harvest, exchange grain+veg pair for 6 food; scoring option to trade pairs for bonus points.
+  - `ATWILL CAP-HARVEST E-CONVERT E-SCORE E-SCOREOPT` — Per-harvest at-will pair-to-6-food exchange (ATWILL + CAP-HARVEST + E-CONVERT; the food is the conversion output, not a separate E-GOODS). The scoring exchange removes crops from normal grain/veg scoring (clarification), so choosing how many pairs to exchange is a real optimization against the crop scoring brackets — E-SCORE + E-SCOREOPT.
 - ⬜ **E133 Champion Breeder** · [3+]
   - _Each time you place 2 or 3+ newborn animals on your farm during the breeding phase of the harvest, you get 1 or 2 bonus points, respectively.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.]_
   - `HOOK T-AFTER S-HBREED F-AUTO A-OWN E-SCORE` — Placing 2/3+ newborns during breeding gives 1/2 bonus points; scored per breeding event but counted as end-game bonus points.
 - ⬜ **E134 Omnifarmer** · [3+]
   - _Each harvest, you can place 1 harvested crop or 1 newborn animal on this card, irretrievably. Once this game, exchange 2/3/4/5 different goods on this for 3/5/7/9 bonus points.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.  Once goods are on this card, they are effectively unusable except for the points exchange.]_
-  - `HOOK T-AFTER S-HFIELD S-HBREED F-TRIG A-OWN ST-STACK E-SCORE` — Each harvest you may bank a crop or newborn on the card (per-harvest hook, no CAP needed; stack = ST-STACK); the once-game exchange yields bonus points (E-SCORE). Goods are irretrievable, not manipulated on fields, so not E-CROPMANIP; CAP-GAME belongs to the score exchange but scoring is computed, so E-SCORE alone.
+  - `HOOK T-AFTER S-HFIELD S-HBREED F-TRIG A-OWN ST-STACK ATWILL CAP-GAME E-SCORE` — Optional per-harvest hooks divert one harvested crop (S-HFIELD) or newborn (S-HBREED) onto the card's irretrievable pile (ST-STACK). 'Once this game, exchange ... for bonus points' is a player-timed one-shot exchange (ATWILL + CAP-GAME) earning bonus points (E-SCORE, legitimately action-earned). Animals go onto the card, not the farm, so no E-ANIMALS.
 - ⬜ **E135 Pickler** · [3+]
   - _If there are still 1/3/6/9 complete rounds left to play, you immediately get 1/2/3/4 wood. During scoring, each player with the most total vegetables gets 3 bonus points.  [CLARIFICATION: Includes vegetables in fields and in supply.]_
   - `ONPLAY E-GOODS E-SCORECMP` — On play, immediate wood by rounds-left; comparative scoring (most vegetables between players).
@@ -2563,64 +2578,64 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each use of Reed Bank also get grain; each use of Grain Seeds also get reed.
 - ⬜ **E138 Livestock Expert** · [3+]
   - _If you play this card in round 11 or before, choose an animal type: you immediately get a number of animals of that type equal to the number you already have on your farm._
-  - `ONPLAY E-ANIMALS E-GOODS` — On play, gain animals equal to what you already have of a chosen type. Choosing an animal type is a normal parameter of the gain (like Livestock Expert's target), not a mandatory-either-or reward fork; F-MANDCHOICE is a HOOK-firing code and there is no hook here.
+  - `ONPLAY E-ANIMALS` — One-time on-play gain of animals (must be accommodated) -> E-ANIMALS, not E-GOODS (animals are not goods/crops); the animal-type choice has no code and F-MANDCHOICE is a HOOK-only dimension; round-11 restriction is a plain state-computable play condition.
 - ⬜ **E139 Bunny Breeder** · [3+]
   - _Select a future round space, subtract the number of the current round from it, and place this many food on that space. At the start of that round, you get the food._
   - `ONPLAY E-SCHED` — On play, place food on a chosen future round space (distance-based), collected at start of that round.
 - ⬜ **E140 Carter** · [3+]
   - _Next round, each time you use a building resource accumulation space, you also get 1 food for each building resource that you take from the space._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS CAP-ROUND ST-STORE` — Only next round: each use of a building-resource accumulation space also yields 1 food per resource taken; needs a flag/window for 'next round'.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-PROV ST-STORE` — "Each time you use [space]" -> T-BEFORE by ruling; payout scales with resources taken -> ST-PROV (the space's value before it is zeroed); "next round" needs a stored round snapshot -> ST-STORE, not CAP-ROUND (CAP-* caps ATWILL frequency, and the hook already fires once per use).
 - ⬜ **E141 Vegetable Vendor** · [3+]
   - _Each time you use the "Major Improvement" or "Vegetable Seeds" action space, you also get 1 vegetable or a "Major or Minor Improvement" action, respectively._
-  - `HOOK T-AFTER S-SPACE F-MANDCHOICE A-OWN E-GOODS E-GRANTACT` — Each time you use Major Improvement or Vegetable Seeds space, also get 1 veg or a Major/Minor Improvement action respectively — after-space hook, mandatory-choice per space (the granted action is a whole Maj/Min Improvement action).
+  - `HOOK T-BEFORE S-SPACE F-AUTO F-TRIG A-OWN E-GOODS E-GRANTACT` — "Respectively" means no choice: Major Improvement space -> 1 veg automatically (F-AUTO, E-GOODS); Vegetable Seeds -> a granted Maj/Min Improvement action, which as a granted action is optional (F-TRIG, E-GRANTACT). Not F-MANDCHOICE. "Each time you use" -> T-BEFORE.
 - ⬜ **E142 Smuggler** · [3+]
   - _In the feeding phase of each harvest, you can exchange up to 2 goods as follows: 1 wood to 1 grain and/or 1 grain to 1 stone.  [CLARIFICATION: You can use the 2 exchanges for 1 wood to 1 stone.]_
-  - `HOOK S-HFEED F-TRIG A-OWN E-CONVERT` — In each harvest's feeding phase, optionally exchange up to 2 goods wood->grain and/or grain->stone (chainable to wood->stone).
+  - `HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-CONVERT` — Optional exchange during each feeding phase: HOOK on S-HFEED, F-TRIG, E-CONVERT. All 4 HOOK dimensions are required, so a timing tag is needed; the exchange happens before feeding resolves -> T-BEFORE. "Up to 2 goods" is per-firing quantity, not a CAP.
 - ⬜ **E143 Hewer** · [3+]
   - _From round 3 on, at the end of each work phase in which all clay accumulation spaces are unoccupied, you get 1 stone and 1 food._
   - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS` — From round 3, at end of each work phase where all clay accumulation spaces unoccupied, get 1 stone+1 food; needs to read occupancy of clay spaces at work-phase end.
 - ⬜ **E144 Wares Salesman** · [3+]
   - _Each time any player (including you) plays or builds a card that lets them turn building resources into food, you get exactly 1 corresponding building resource and 1 reed._
-  - `HOOK S-PLAY F-AUTO A-OWN A-OPP E-GOODS ST-PROV` — Each time any player plays/builds a card enabling resource->food, you get 1 corresponding building resource + 1 reed; needs which resource that card converts (provenance).
+  - `HOOK T-AFTER S-PLAY F-AUTO A-OWN A-OPP E-GOODS ST-PROV` — Fires on ANY player (including you) playing/building a qualifying card -> both actors; payout depends on which card was played -> ST-PROV; mandatory "you get" -> F-AUTO. Timing dimension is mandatory and the gain follows the card being played -> T-AFTER (A omitted it).
 - ⬜ **E145 Parvenu** · [3+]
   - _If you play this card in round 7 or before, choose clay or reed: you immediately get a number of that building resource equal to the number you already have in your supply._
-  - `ONPLAY F-MANDCHOICE E-GOODS` — If played round 7 or before, choose clay or reed and double your current supply of it; play-timing restriction is a computable condition.
+  - `ONPLAY E-GOODS` — One-time on-play doubling of clay or reed -> ONPLAY + E-GOODS; F-MANDCHOICE is a HOOK firing dimension and may not be tagged on an ONPLAY card (the choose-clay-or-reed choice has no code); round-7 restriction is a plain play condition.
 - ⬜ **E146 Reseller** · [3+]
   - _Once this game, immediately after playing or building an improvement, you can choose to get its printed cost from the general supply._
-  - `HOOK T-AFTER S-MAJMIN F-TRIG A-OWN CAP-GAME E-GOODS ST-PROV ST-STORE` — Immediately after playing OR building an improvement (Major-or-Minor action seam), once per game you may get its printed cost (E-GOODS, ST-PROV for the payload; ST-STORE for the used-once flag). It is an event-triggered after-hook, not a deferrable ATWILL.
+  - `HOOK T-AFTER S-PLAY F-TRIG A-OWN CAP-GAME E-GOODS ST-PROV ST-STORE` — Trigger is keyed on the improvement CARD being played/built (any entry point), not on taking the Maj/Min action space -> S-PLAY, not S-MAJMIN; "immediately after" -> T-AFTER; optional ("you can choose") -> F-TRIG; needs the just-played card's printed cost -> ST-PROV; once ever -> CAP-GAME + ST-STORE.
 - ⬜ **E147 Animal Driver** · [3+]
   - _At the start of each harvest, if you have 1/2/3+ fenced stables, you get 1 sheep/wild boar/cattle._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-ANIMALS` — At the start of each harvest (before the harvest = S-HSTART), automatically gain animals scaled by fenced-stable count. Animals must be accommodated (E-ANIMALS); not S-SOR which is start of a round.
 - ⬜ **E148 Lazybones** · [4+]
   - _Place (up to) 1 stable each on "Grain Seeds", "Farmland", "Day Laborer", and "Farm Expansion". Build the stable at no cost when another player uses that action space._
-  - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GRANTSUB E-PIECECOST ST-PLACELOG` — Pre-assigns stables to four named spaces; when ANOTHER player uses that space (A-OPP), you build the stable free (E-GRANTSUB, stable piece = E-PIECECOST; free build). Optional grant = F-TRIG. Named spaces are not board-position geometry (not L-GEOMBOARD); stables aren't fences (not E-FREEFENCE). ST-PLACELOG for the pre-placed stable markers.
+  - `ONPLAY HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-GRANTSUB ST-STORE` — On play the stables are placed on 4 named spaces (ONPLAY + per-card flags of which spaces still hold one -> ST-STORE, not ST-PLACELOG which tracks workers); when ANOTHER player uses such a space you build it free -> HOOK/S-SPACE/A-OPP/T-BEFORE, and a granted build-stable sub-action is optional -> F-TRIG + E-GRANTSUB. The stables are built onto your farm, not spent, so no E-PIECECOST.
 - ⬜ **E149 Midnight Fencer** · [4+]
   - _At the start of the last harvest, you can take up to 2 of each other player's unbuilt fences and build them on your farm at no cost. (Your farm can then have over 15 fences.)_
-  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-FREEFENCE E-GRANTSUB E-OPPTRANSFER L-EXT` — At the start of the last harvest (S-HSTART) you may take up to 2 unbuilt fences from each other player (E-OPPTRANSFER) and build them free (E-GRANTSUB + E-FREEFENCE), overriding the 15-fence cap (L-EXT). Fires once by nature (last harvest), so no CAP-GAME tag.
+  - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-FREEFENCE E-GRANTSUB E-OPPTRANSFER L-EXT` — Optional grant at the start of the last harvest (one-time by nature, no CAP): take opponents' unbuilt fence pieces (E-OPPTRANSFER) and build them free (E-GRANTSUB + E-FREEFENCE). The parenthetical explicitly overrides the 15-fence supply limit — a legality extension, so L-EXT stays (labelA right on the sole disagreement).
 - ⬜ **E150 Rock Beater** · [4+]
   - _You can use an action space providing both stone and a different building resource even if it is occupied by another player. Stone rooms cost you 2 stone less each._
   - `PASSIVE L-OCCUPY E-COSTMOD` — May use an occupied space that provides stone + another building resource; stone rooms cost 2 stone less each — continuous legality + cost change.
 - ⬜ **E151 Delivery Nurse** · [4+]
   - _Once this game, if you have all types of animals, use any "Family Growth" action space even without room.  [CLARIFICATION: Should be “Wish for Children” action space.]_
-  - `ATWILL CAP-GAME E-GRANTACT E-GROWTH E-NOPLACE ST-STORE` — Once-per-game usable at will to take the Wish for Children action without placing a person (E-NOPLACE) and even without room; the once-ever + all-animals gate needs a used flag (ST-STORE). Grants a full action + family growth.
+  - `PASSIVE CAP-GAME L-EXT E-GROWTH ST-STORE` — Not a granted action and not E-NOPLACE — you still place a person on Wish for Children normally; the card only broadens that space's legality (family growth even without room, gated on having all animal types) once per game. That is a rule-change/legality extension (PASSIVE + L-EXT) with a used-flag (ST-STORE) and a once-ever cap; E-GROWTH for the room-less growth. LabelA's ATWILL/E-GRANTACT/E-NOPLACE misread the mechanism.
 - ⬜ **E152 Bargain Hunter** · [4+]
   - _At the start of each round, you can place 1 food from your supply on the "Traveling Players" accumulation space to play a minor improvement by paying its cost._
-  - `A-OWN E-FOODCOST E-GRANTACT E-NOPLACE F-TRIG HOOK S-SOR CAP-ROUND` — Start-of-round optional hook (own): pay 1 food to play a minor without placing a person; once-per-round is implied by S-SOR but the food-placement is a per-round option, CAP-ROUND caps the play action. A-OWN required on the HOOK.
+  - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-FOODCOST E-GRANTSUB` — Start-of-each-round optional hook (S-SOR, F-TRIG, A-OWN; per-round by nature so no CAP-ROUND). Play-a-card is a listed primitive sub-action, so granting a minor-improvement play is E-GRANTSUB, not E-GRANTACT/E-NOPLACE. The 1 food paid (onto Traveling Players) is E-FOODCOST. All four hook dimensions required, so T-BEFORE is kept.
 - ⬜ **E153 Stone Sculptor** · [4+]
   - _Each harvest, you can use this card to exchange exactly 1 stone for 1 bonus point and 1 food._
-  - `A-OWN CAP-HARVEST E-CONVERT E-GOODS E-SCORE F-TRIG HOOK L-CARDSPACE S-HSTART` — Each-harvest optional own-hook exchanging exactly 1 stone for 1 food (E-CONVERT/E-GOODS) plus a bonus point earned through the action (HOOK+E-SCORE legit); the card is used as a space (L-CARDSPACE). Harvest timing is the harvest start, not the feeding phase.
+  - `ATWILL CAP-HARVEST E-CONVERT E-GOODS E-SCORE ST-COUNTER` — "Each harvest, you can..." is a deferrable player-chosen option within each harvest = ATWILL + CAP-HARVEST (per the 'Once per round, you can' pattern), not a fired S-HSTART hook, and 'use this card' is not an action space (no L-CARDSPACE). Stone → 1 food (E-GOODS) + 1 bonus point (E-SCORE) is a conversion (E-CONVERT); accrued bonus points need a running count (ST-COUNTER). LabelB correct.
 - ⬜ **E154 Margrave** · [4+]
   - _Once you live in a stone house, you get 2 food each time any player renovates and, during scoring, 1 bonus point for each wood house and clay house._
-  - `A-OPP A-OWN E-GOODS E-SCORE F-AUTO HOOK LATCH S-SUB ST-LATCH T-AFTER` — Latches once you live in a stone house (LATCH+ST-LATCH), then auto +2 food after any player renovates (HOOK on renovate sub-action, A-OWN+A-OPP, T-AFTER). Scoring bonus per wood/clay house is E-SCORE; it counts house types across all players but is not a most/fewest comparison, so not E-SCORECMP.
+  - `HOOK T-AFTER S-SUB F-AUTO A-OWN A-OPP E-GOODS E-SCORE E-SCORECMP` — "Once you live in a stone house" gates a PERSISTENT effect, not a one-shot — so no LATCH/ST-LATCH (LATCH is for effects that fire once then never again); it's a plain state-read condition on the hook. The hook: 2 food after ANY player renovates (S-SUB renovate, A-OWN + A-OPP, F-AUTO). Scoring bonus counts wood/clay houses across players, so it reads both players' states: E-SCORE + E-SCORECMP.
 - ⬜ **E155 Visionary** · [4+]
   - _If you play this card in round 4 or before, you get 1 stone, 1 vegetable, and 2 wild boar. You cannot grow your family until round 11, unless all other players already have._
   - `ONPLAY E-GOODS E-ANIMALS EXOTIC` — On-play goods + 2 boar; locks your family growth until R11 unless all others grew.
 - ⬜ **E156 Claypit Owner** · [4+]
   - _Each time another player plays or builds an improvement with a printed clay cost, you get 1 food and 1 clay._
-  - `A-OPP E-GOODS F-AUTO HOOK S-PLAY S-MAJMIN T-AFTER` — Fires when another player PLAYS or BUILDS an improvement with a printed clay cost; covers both card-play (S-PLAY) and the major/minor improvement action (S-MAJMIN). Auto goods, after the play, opponent actor.
+  - `HOOK T-AFTER S-PLAY S-MAJMIN F-AUTO A-OPP E-GOODS ST-PROV` — Union of the two labels is correct: the trigger covers both a minor being played (S-PLAY) and a major being built (S-MAJMIN, the improvement-building seam), fires automatically on another player's action (A-OPP, F-AUTO, T-AFTER), and the hook must inspect the triggering improvement's printed cost for clay — event payload, so ST-PROV. Yields E-GOODS.
 - ⬜ **E157 Usufructuary** · [4+]
   - _When you play this card as your first occupation, you immediately get 1 food for every other occupation in play (by any player), up to a maximum of 7 food._
-  - `E-GOODS ONPLAY ST-COUNTER` — On play (only as first occupation, a plain prereq — no CAP-GAME mechanic), gain food per other occupation in play up to 7. Counting occupations in play is a running count read at play time (ST-COUNTER).
+  - `ONPLAY E-GOODS NONE` — One-shot on-play food gain sized by a plain state read (occupations in play, capped at 7) with a computable play restriction (first occupation) — per the rulings that's no extra mechanic and no persistent state, so ST-COUNTER (labelA) is wrong; NONE + ONPLAY + E-GOODS (labelB) is right.
 - ⬜ **E158 Stone Custodian** · [4+]
   - _At the end of each work phase, you get 1 food for each stone accumulation space with stone on it._
   - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS` — At end of each work phase, food per stone accumulation space with stone; counts board stone spaces.
@@ -2629,109 +2644,107 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - `PASSIVE E-SCORE` — Continuous feeding reduction (1 less food per person) + rewritten people scoring rule (2 pts not 3).
 - ⬜ **E160 Kelp Gatherer** · [4+]
   - _Each time another player uses the "Fishing" accumulation space, they get 1 additional food and you get 1 vegetable._
-  - `HOOK T-AFTER S-SPACE F-AUTO A-OPP E-GOODS E-OPPTRANSFER` — When another player uses Fishing: they get +1 food, you get 1 veg; named space hook, affects opponent's gain too.
+  - `HOOK T-BEFORE S-SPACE F-AUTO A-OPP E-GOODS E-OPPTRANSFER` — "Each time another player uses [space]" takes the T-BEFORE default per the explicit ruling (T-AFTER only for 'immediately after'/'at the end of'), so labelB's timing is correct; otherwise the labels agree: opponent-action space hook (S-SPACE, A-OPP, F-AUTO), you gain a vegetable (E-GOODS) and the card gives the other player 1 extra food (E-OPPTRANSFER).
 - ⬜ **E161 Elder Baker** · [4+]
   - _This card is an action space for you only. When you use it, you get 3 grain. You can build the "Stone Oven" major improvement even when taking a "Minor Improvement" action._
-  - `ATWILL E-GOODS E-NOPLACE L-CARDSPACE L-EXT` — The card is a personal action space usable at will without a person (L-CARDSPACE/E-NOPLACE) giving 3 grain; also extends legality so Stone Oven can be built on a Minor Improvement action (L-EXT). This is a legality extension, not a cost change, so not E-COSTMOD.
+  - `HOOK S-SPACE T-AFTER F-AUTO A-OWN E-GOODS L-CARDSPACE PASSIVE L-EXT` — Personal action space (L-CARDSPACE) whose use yields 3 grain — a person IS placed, so not ATWILL/E-NOPLACE (no 'without placing a person' text); modeled as HOOK on using the space (F-AUTO, yield resolves with the use = T-AFTER per D51/C162 card-space precedent). The Stone-Oven-via-Minor-action rule is an always-on legality extension: PASSIVE + L-EXT.
 - ⬜ **E162 Entrepreneur** · [4+]
   - _At the start of each round, you can move 1 food to this card or discard 1 food from it. If you do either, you get 1 building resource of a type you currently do not have._
-  - `A-OWN E-CONVERT E-GOODS F-TRIG HOOK S-SOR ST-STACK T-AFTER` — Start-of-round optional own-hook: move 1 food onto the card or discard 1 from it (a food stack kept on card, ST-STACK) to gain a building resource you lack. Once-per-round is inherent to S-SOR, so no CAP-ROUND.
+  - `HOOK S-SOR T-AFTER F-TRIG A-OWN E-FOODCOST E-CONVERT E-GOODS ST-STACK` — Optional start-of-round hook: pay 1 food (onto the card, or discarded from its stack — ST-STACK) to gain 1 building resource you lack. The effect both costs food (E-FOODCOST) and is a food-for-good exchange (E-CONVERT), plus the gain (E-GOODS) — E102 precedent tags all three. T-AFTER at the SOR seam (timing nominal; matches prior adjudication). No CAP-ROUND: per-round firing is inherent to S-SOR.
 - ⬜ **E163 Patroness** · [4+]
   - _Each time after you play an occupation after this one, you get 1 building resource of your choice._
-  - `HOOK T-AFTER S-PLAY F-AUTO A-OWN E-GOODS` — Each time after you play a later occupation, get 1 building resource of choice.
+  - `HOOK S-PLAY T-AFTER F-MANDCHOICE A-OWN E-GOODS` — After each subsequent occupation you play (S-PLAY, T-AFTER, own action) you get 1 building resource — mandatory but 'of your choice' means a required selection, so F-MANDCHOICE, not F-AUTO.
 - ⬜ **E164 Mountain Plowman** · [4+]
   - _Each time you plow at least 1 field tile, you get 1 sheep for each field tile that you just plowed._
-  - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS` — Each time you plow >=1 field, get 1 sheep per tile plowed; needs count of tiles just plowed (provenance).
+  - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-ANIMALS ST-PROV` — Auto after-hook on the plow sub-action giving 1 sheep per tile just plowed (E-ANIMALS). 'For each field tile you just plowed' needs the triggering event's payload (tile count, e.g. under multi-plow cards) — ST-PROV, per the A103/E108 precedent.
 - ⬜ **E165 Master Huntsman** · [4+]
   - _When you play this card and each time you build a major improvement, you get 1 wild boar._
-  - `ONPLAY HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS` — On play +1 boar, and each time you build a major improvement +1 boar.
+  - `ONPLAY HOOK S-SUB T-AFTER F-AUTO A-OWN E-ANIMALS` — 1 boar on play (ONPLAY) and after each build of a major improvement. Building an improvement is the build-improvement sub-action seam (S-SUB, per D80/E122 precedent), not S-PLAY (which is playing a hand card). Mandatory, own action, animals must be accommodated (E-ANIMALS).
 - ⬜ **E166 Roastmaster** · [4+]
   - _Each time you use the "Traveling Players" or "Fishing" accumulation spaces, you can move exactly 1 food from that space to the other to get 1 cattle._
-  - `HOOK S-SPACE T-AFTER F-TRIG A-OWN E-ANIMALS E-CONVERT` — 'Each time you use [space]... you can' = optional own-turn HOOK on S-SPACE; acts on food already accumulated (move it) to get cattle, so T-AFTER; cattle must be accommodated so E-ANIMALS (not E-GOODS); food-position-for-cattle is E-CONVERT.
+  - `HOOK S-SPACE T-BEFORE F-TRIG A-OWN E-ANIMALS E-CONVERT ST-PROV` — 'Each time you use [space]' fires before the space's action per the explicit ruling — and mechanically must, since 1 food is moved off the space being used before collection. Optional (F-TRIG) exchange of 1 board food for 1 cattle: E-CONVERT (D124/E103 exchange precedent) + E-ANIMALS. Needs which space was just used ('that space' vs 'the other') — ST-PROV per E15/D19 precedent.
 - ⬜ **E167 Dairy Crier** · [4+]
   - _When you play this card, each player (including you) can choose to get 2 sheep or 2 food; you also get 1 cattle._
   - `ONPLAY E-ANIMALS E-GOODS E-OPPTRANSFER` — On-play effect: each player may take 2 sheep or 2 food (E-OPPTRANSFER + E-ANIMALS + E-GOODS) and you get 1 cattle (E-ANIMALS); F-MANDCHOICE is a HOOK-firing dimension and does not apply to an ONPLAY effect, so drop it.
 - ⬜ **E168 Animal Tamer's Apprentice** · [4+]
   - _At the start of each round, you get 1 sheep/wild boar/cattle for each unoccupied wood/clay/stone room in your house._
-  - `HOOK T-AFTER S-SOR F-AUTO A-OWN E-ANIMALS` — Start of each round, animal per unoccupied room by material (wood->sheep/clay->boar/stone->cattle); depends on rooms holding people (E-CAPNEW-ish) but core is scheduled animals per round.
+  - `HOOK S-SOR T-AFTER F-AUTO A-OWN E-ANIMALS` — Mandatory start-of-each-round hook granting animals keyed to unoccupied rooms by house material — a plain state read, no choice (types are determined by material, so F-AUTO). T-AFTER at the SOR seam, consistent with E162 in this batch (before/after is nominal at that seam). E-ANIMALS since the animals must be accommodated.
 
 ### Index — cards per code
 
-- `A-OPP` (40): A128, A132, A142, A150, A154, A156, A158, A159, A160, B138, B143, B159, C137, C141, C144, C145, C146, C149, C150, C151, C152, C153, C162, C163, C164, C167, D128, D134, D139, D149, D157, D160, D161, D163, E95, E144, E148, E154, E156, E160
-- `A-OWN` (264): A88, A89, A90, A91, A93, A94, A95, A96, A97, A100, A103, A104, A105, A106, A107, A108, A109, A110, A111, A112, A113, A114, A115, A116, A118, A119, A121, A122, A123, A124, A126, A129, A131, A137, A138, A139, A140, A141, A142, A145, A146, A147, A149, A151, A152, A155, A157, A161, A163, A164, A165, A166, A167, A168, B87, B89, B90, B91, B92, B93, B94, B95, B96, B97, B101, B103, B106, B108, B109, B110, B111, B112, B114, B115, B116, B117, B118, B120, B121, B122, B124, B128, B130, B131, B132, B133, B134, B135, B137, B139, B140, B142, B144, B145, B146, B147, B150, B152, B155, B156, B158, B160, B161, B162, B165, B166, B168, C90, C91, C92, C93, C96, C97, C98, C99, C102, C103, C104, C106, C107, C109, C110, C111, C112, C113, C114, C115, C116, C117, C119, C120, C121, C123, C124, C125, C126, C130, C131, C132, C137, C138, C140, C141, C142, C145, C147, C148, C154, C155, C157, C158, C159, C160, C162, C163, C164, C168, D89, D90, D91, D92, D93, D94, D96, D97, D98, D99, D101, D102, D103, D104, D105, D107, D109, D110, D111, D112, D113, D115, D116, D118, D119, D123, D125, D126, D129, D130, D132, D133, D134, D137, D138, D139, D140, D141, D142, D143, D144, D146, D147, D150, D151, D152, D153, D155, D156, D158, D161, D164, D165, D166, D167, D168, E85, E87, E88, E89, E90, E91, E93, E99, E100, E102, E103, E105, E107, E108, E110, E111, E112, E113, E114, E115, E116, E117, E118, E121, E122, E125, E126, E128, E130, E131, E133, E134, E137, E140, E141, E142, E143, E144, E146, E147, E149, E152, E153, E154, E158, E162, E163, E164, E165, E166, E168
-- `ATWILL` (26): A92, A102, A130, B104, B157, C87, C94, C101, C105, C115, C139, C143, D87, D106, D108, D114, D122, D124, D159, D162, E86, E109, E110, E132, E151, E161
-- `CAP-GAME` (16): A120, A153, B85, B127, B134, B154, B163, C85, C104, D85, D87, D157, E92, E97, E146, E151
-- `CAP-HARVEST` (7): C105, D108, D129, D155, E109, E132, E153
-- `CAP-ROUND` (9): A90, A92, A130, C101, C143, D93, D122, E140, E152
+- `A-OPP` (40): A128, A132, A142, A150, A154, A156, A158, A159, A160, B138, B143, B159, C97, C137, C141, C144, C145, C146, C149, C151, C152, C153, C162, C163, C164, C167, D128, D134, D139, D149, D157, D160, D161, D163, E95, E144, E148, E154, E156, E160
+- `A-OWN` (262): A89, A90, A91, A93, A94, A95, A96, A97, A100, A103, A104, A105, A106, A107, A108, A109, A110, A111, A112, A113, A114, A115, A116, A118, A119, A121, A122, A123, A124, A126, A127, A129, A131, A137, A138, A139, A140, A141, A142, A145, A146, A147, A149, A151, A152, A155, A157, A161, A163, A164, A165, A166, A167, A168, B87, B89, B90, B91, B92, B93, B94, B96, B97, B103, B106, B108, B109, B110, B111, B112, B114, B115, B116, B117, B118, B120, B121, B122, B124, B128, B130, B131, B132, B133, B134, B135, B137, B139, B140, B142, B144, B145, B146, B147, B150, B152, B155, B156, B158, B160, B161, B162, B165, B166, B168, C90, C91, C92, C93, C96, C97, C98, C99, C102, C103, C104, C106, C107, C109, C110, C111, C112, C113, C114, C115, C116, C117, C119, C120, C121, C123, C124, C125, C126, C130, C131, C132, C137, C138, C140, C141, C142, C145, C147, C148, C154, C155, C157, C158, C159, C160, C162, C163, C164, C168, D89, D90, D91, D92, D93, D94, D96, D97, D98, D99, D101, D102, D103, D104, D105, D107, D109, D110, D111, D112, D113, D115, D116, D118, D119, D123, D125, D126, D129, D130, D132, D133, D134, D137, D138, D139, D140, D141, D142, D143, D144, D146, D147, D150, D151, D152, D153, D155, D156, D158, D161, D164, D165, D166, D167, D168, E85, E87, E88, E89, E90, E91, E93, E99, E100, E102, E103, E105, E107, E108, E110, E111, E112, E113, E114, E115, E116, E117, E118, E121, E122, E125, E126, E128, E130, E131, E133, E134, E137, E140, E141, E142, E143, E144, E146, E147, E149, E152, E154, E158, E161, E162, E163, E164, E165, E166, E168
+- `ATWILL` (28): A92, A102, A130, B101, B104, B157, C85, C87, C94, C101, C105, C115, C139, C143, C150, D87, D106, D108, D114, D122, D124, D159, D162, E86, E109, E132, E134, E153
+- `CAP-GAME` (15): A120, A153, B107, B134, B154, B163, C85, C87, D87, D157, E92, E125, E134, E146, E151
+- `CAP-HARVEST` (8): B101, C105, D108, D129, D155, E109, E132, E153
+- `CAP-ROUND` (5): A130, C101, C143, D93, D122
 - `CAP-TURN` (4): A97, A129, B130, B150
-- `E-ANIMALS` (41): A147, A164, A165, A166, A167, A168, B102, B104, B137, B147, B148, B164, B165, B166, B167, B168, C103, C138, C147, C148, C156, C164, C165, C166, C167, C168, D86, D138, D164, D165, D166, D168, E103, E138, E147, E155, E164, E165, E166, E167, E168
-- `E-BAKESPEC` (1): E95
+- `E-ANIMALS` (45): A137, A147, A156, A164, A165, A166, A167, A168, B102, B104, B137, B147, B148, B164, B165, B166, B167, B168, C103, C104, C138, C147, C148, C164, C165, C166, C167, C168, D137, D138, D147, D164, D165, D166, D167, D168, E103, E138, E147, E155, E164, E165, E166, E167, E168
 - `E-BREEDMOD` (2): A165, D167
-- `E-CAPGROW` (4): A85, A86, B115, C89
-- `E-CAPNEW` (13): A127, A148, B85, B86, B148, C85, C86, C148, D85, D86, D148, E85, E86
-- `E-CONVERT` (61): A102, A108, A118, A142, A158, A160, A164, A166, A168, B104, B113, B123, B135, B141, B147, B157, B166, C98, C101, C102, C103, C105, C109, C110, C112, C113, C114, C124, C126, C138, C139, C143, C148, C150, C153, D88, D106, D107, D108, D113, D114, D119, D122, D124, D125, D133, D137, D155, D159, D161, D162, E85, E102, E103, E106, E109, E132, E142, E153, E162, E166
-- `E-COSTMOD` (35): A87, A97, A123, A128, A143, A149, B88, B95, B126, B128, B145, B149, C87, C88, C94, C95, C122, C128, C149, D87, D88, D89, D95, D96, D117, D121, D149, D154, E87, E89, E109, E123, E127, E130, E150
+- `E-CAPGROW` (3): A86, B115, C89
+- `E-CAPNEG` (1): B85
+- `E-CAPNEW` (14): A85, A127, A148, B85, B86, B148, C85, C86, C148, D85, D86, D148, E85, E86
+- `E-CONVERT` (46): A102, A108, A118, A142, A158, A160, A164, B104, B135, B141, C98, C101, C102, C103, C105, C109, C110, C112, C113, C114, C126, C138, C139, C143, C148, C153, D108, D113, D114, D119, D122, D124, D125, D133, D137, D155, D159, D161, D162, E106, E109, E132, E142, E153, E162, E166
+- `E-COSTMOD` (33): A123, A128, A131, A143, A149, B95, B126, B128, B145, B149, C88, C94, C95, C97, C122, C128, C149, C152, D88, D89, D95, D96, D117, D121, D154, E87, E88, E89, E109, E123, E127, E130, E150
 - `E-CROPMANIP` (6): A112, A113, B115, B165, C99, E112
-- `E-EXTRAPLACE` (10): A94, A130, B94, C93, C125, C130, D103, D151, E93, E125
-- `E-FOODCOST` (51): A90, A91, A92, A100, A102, A118, A147, A156, A166, A168, B97, B101, B113, B123, B127, B130, B150, B152, B167, C85, C91, C92, C94, C96, C105, C124, C127, C138, C149, C154, C165, C167, C168, D90, D91, D93, D99, D101, D103, D113, D114, D117, D132, D161, E90, E91, E102, E109, E128, E131, E152
+- `E-EXTRAPLACE` (10): A92, A94, B94, C93, C125, C130, D103, D151, E93, E125
+- `E-FOODCOST` (68): A90, A91, A92, A100, A102, A118, A142, A147, A152, A156, A160, A166, A168, B93, B97, B101, B113, B123, B130, B150, B152, B166, B167, C85, C91, C92, C94, C96, C98, C99, C105, C112, C113, C124, C126, C127, C131, C138, C143, C149, C152, C154, C165, C167, C168, D90, D91, D93, D95, D101, D103, D113, D114, D117, D122, D125, D128, D132, D137, D161, E90, E91, E97, E102, E128, E131, E152, E162
 - `E-FREEFENCE` (4): A88, B149, C88, E149
-- `E-GOODS` (220): A86, A96, A100, A103, A104, A105, A106, A107, A109, A110, A112, A114, A116, A117, A118, A119, A121, A122, A124, A125, A126, A134, A135, A136, A137, A138, A139, A140, A141, A142, A144, A145, A146, A155, A156, A157, A159, A160, A161, A162, A163, A165, A167, B89, B94, B96, B102, B103, B105, B106, B109, B110, B111, B112, B114, B116, B117, B118, B119, B120, B121, B122, B123, B124, B133, B134, B135, B136, B137, B138, B139, B140, B141, B142, B143, B144, B146, B151, B154, B155, B156, B158, B159, B160, B161, B162, B163, B168, C86, C93, C97, C98, C102, C104, C105, C106, C111, C113, C114, C116, C117, C119, C120, C121, C123, C124, C126, C130, C135, C136, C137, C138, C139, C140, C141, C142, C143, C144, C145, C146, C147, C153, C155, C156, C157, C158, C159, C160, C161, C162, C163, C164, C165, D88, D96, D98, D102, D103, D104, D105, D107, D109, D110, D112, D113, D116, D117, D118, D119, D122, D123, D124, D125, D126, D131, D133, D135, D136, D138, D139, D140, D141, D142, D143, D144, D145, D146, D149, D152, D156, D157, D158, D159, D160, D161, D162, D163, D164, D166, D167, D168, E98, E102, E105, E106, E107, E110, E111, E112, E113, E114, E116, E117, E118, E121, E122, E124, E125, E126, E135, E136, E137, E138, E140, E141, E143, E144, E145, E146, E153, E154, E155, E156, E157, E158, E160, E161, E162, E163, E167
-- `E-GRANTACT` (37): A95, A96, A131, A139, A149, A150, A152, B88, B93, B96, B97, B150, B152, C94, C95, C96, C107, C131, C152, D95, D96, D97, D102, D127, D129, D130, E87, E88, E94, E95, E97, E130, E131, E136, E141, E151, E152
-- `E-GRANTSUB` (43): A89, A90, A91, A93, A115, A128, B85, B87, B88, B89, B90, B91, B92, B108, B128, B131, B149, C87, C89, C90, C91, C92, C115, C140, C149, C151, D87, D89, D90, D91, D92, D112, D115, D128, D149, E89, E90, E91, E115, E127, E128, E148, E149
+- `E-GOODS` (210): A86, A96, A102, A103, A104, A105, A106, A107, A109, A110, A112, A114, A116, A117, A118, A119, A121, A122, A124, A125, A126, A134, A135, A136, A137, A138, A139, A140, A141, A142, A144, A145, A146, A155, A156, A157, A159, A160, A161, A162, A163, B89, B94, B96, B102, B103, B105, B106, B109, B110, B111, B112, B113, B114, B116, B117, B118, B119, B120, B121, B122, B123, B124, B133, B134, B135, B136, B137, B138, B139, B140, B141, B142, B143, B144, B146, B151, B154, B155, B156, B158, B159, B160, B161, B162, B163, B168, C86, C97, C98, C102, C104, C105, C106, C111, C113, C114, C115, C116, C117, C119, C120, C121, C123, C124, C126, C135, C136, C137, C138, C139, C140, C141, C142, C144, C145, C146, C153, C155, C156, C157, C158, C159, C160, C161, C162, C163, D88, D96, D98, D102, D103, D104, D105, D107, D109, D110, D112, D116, D117, D118, D119, D122, D123, D124, D125, D126, D131, D133, D135, D136, D137, D138, D139, D140, D141, D142, D143, D144, D145, D146, D149, D152, D156, D157, D158, D159, D160, D161, D162, D163, D167, E102, E103, E105, E106, E107, E110, E111, E112, E113, E114, E116, E117, E118, E121, E122, E124, E125, E126, E135, E136, E137, E140, E141, E143, E144, E145, E146, E153, E154, E155, E156, E157, E158, E160, E161, E162, E163, E167
+- `E-GRANTACT` (31): A95, A96, A129, A130, A139, A149, A150, A151, B88, B93, B96, B130, B150, B152, C94, C95, C96, C150, D95, D96, D97, D102, D127, D129, D130, E94, E95, E130, E131, E136, E141
+- `E-GRANTSUB` (58): A89, A90, A91, A93, A97, A115, A128, A131, A152, B87, B88, B89, B90, B91, B92, B93, B97, B108, B127, B128, B131, B149, C87, C89, C90, C91, C92, C97, C107, C115, C131, C140, C149, C151, C152, D87, D89, D90, D91, D92, D112, D115, D128, D149, E87, E88, E89, E90, E91, E94, E95, E97, E115, E127, E128, E148, E149, E152
 - `E-GROWTH` (8): A93, B92, B127, C92, C127, D92, E92, E151
-- `E-NOPLACE` (15): A129, A151, B130, C94, C97, C152, D127, D129, D130, E87, E96, E125, E151, E152, E161
-- `E-OPPTRANSFER` (14): A132, A154, A156, A159, B138, C142, C152, C162, D128, D139, D159, E149, E160, E167
-- `E-PEOPLE` (3): A92, A127, E93
-- `E-PIECECOST` (6): A89, B89, B149, D102, D149, E148
-- `E-PLAYVARIANT` (1): E88
+- `E-NOPLACE` (7): A151, B130, C94, D129, D130, E87, E96
+- `E-OPPTRANSFER` (14): A132, A144, A154, A156, A159, B138, C142, C152, D128, D139, D159, E149, E160, E167
+- `E-PEOPLE` (4): A85, A92, A127, E93
+- `E-PIECECOST` (1): B149
 - `E-RETURNCOMP` (2): B149, D102
-- `E-SCHED` (22): A89, A111, A120, B93, B96, B107, B119, B125, B157, C118, C168, D91, D101, D106, D111, D120, D147, E104, E108, E119, E120, E139
-- `E-SCHEDANIMAL` (4): B164, C156, C166, D147
-- `E-SCORE` (53): A98, A99, A101, A132, A133, A134, A135, A136, A153, A154, B99, B100, B101, B111, B132, B134, B135, B136, B153, C98, C99, C100, C101, C110, C132, C133, C134, C135, C136, C153, C154, D92, D99, D100, D101, D107, D132, D134, D135, D136, D153, D157, E99, E100, E101, E124, E127, E132, E133, E134, E153, E154, E159
-- `E-SCORECMP` (13): A135, A136, B136, C100, C135, C136, D127, D135, D136, D154, D157, E135, E136
+- `E-SCHED` (20): A89, A111, A120, B93, B96, B107, B119, B125, B157, C118, D91, D106, D111, D120, D147, E104, E108, E119, E120, E139
+- `E-SCHEDANIMAL` (3): B164, C166, D147
+- `E-SCORE` (57): A98, A99, A100, A101, A132, A133, A134, A135, A136, A153, A154, B99, B100, B101, B111, B132, B134, B135, B136, B153, B154, C98, C99, C100, C101, C110, C132, C133, C134, C135, C136, C153, C154, D92, D99, D100, D101, D107, D132, D133, D134, D135, D136, D153, D154, D157, E98, E99, E100, E101, E124, E132, E133, E134, E153, E154, E159
+- `E-SCORECMP` (12): A135, A136, B136, C135, C136, D135, D136, D154, D157, E135, E136, E154
 - `E-SCOREGRP` (1): C133
-- `E-SCOREOPT` (1): B98
-- `E-SUBSTITUTE` (3): A97, C140, C168
+- `E-SCOREOPT` (5): A134, B98, C99, C134, E132
+- `E-SUBSTITUTE` (4): A97, C140, C168, D138
 - `E-TAKEBACK` (1): D116
-- `E-WORKERMANIP` (8): A129, A130, B130, B150, D93, D94, D134, D150
-- `EXOTIC` (6): A162, B146, C108, D97, D107, E155
-- `F-AUTO` (137): A96, A103, A104, A105, A106, A107, A109, A110, A112, A113, A114, A116, A118, A119, A121, A122, A124, A126, A139, A140, A141, A145, A146, A155, A157, A160, A161, A163, A165, A167, B94, B95, B103, B106, B110, B111, B112, B116, B117, B118, B120, B121, B122, B124, B132, B133, B134, B137, B138, B139, B140, B142, B143, B144, B158, B159, B160, B161, B162, B168, C106, C111, C115, C116, C119, C121, C123, C137, C141, C144, C145, C147, C148, C155, C157, C158, C159, C160, C163, C164, D94, D104, D105, D109, D110, D111, D112, D116, D118, D123, D134, D139, D140, D141, D142, D143, D144, D146, D147, D150, D152, D153, D156, D157, D158, D160, D163, D164, D165, D166, D168, E99, E100, E105, E107, E108, E111, E113, E114, E116, E117, E118, E121, E133, E137, E140, E143, E144, E147, E154, E156, E158, E160, E163, E164, E165, E168
-- `F-MANDCHOICE` (13): A86, B93, B113, B114, B156, C104, C138, D107, D149, E122, E126, E141, E145
-- `F-TRIG` (147): A88, A89, A90, A91, A93, A94, A95, A97, A100, A108, A111, A115, A123, A128, A129, A131, A132, A137, A138, A142, A147, A149, A150, A151, A152, A154, A156, A158, A159, A164, A166, A168, B87, B89, B90, B91, B92, B96, B97, B101, B108, B109, B115, B127, B128, B130, B131, B135, B145, B146, B147, B150, B152, B155, B165, B166, B167, C90, C91, C92, C93, C96, C97, C98, C99, C102, C103, C107, C109, C110, C112, C113, C114, C117, C120, C124, C125, C126, C130, C131, C132, C140, C142, C146, C149, C150, C151, C152, C153, C154, C162, C167, C168, D89, D90, D91, D92, D93, D96, D97, D98, D99, D101, D102, D103, D113, D115, D119, D125, D126, D128, D129, D130, D132, D133, D137, D138, D151, D155, D161, D167, E85, E87, E88, E89, E90, E91, E93, E95, E102, E103, E110, E112, E115, E125, E128, E130, E131, E134, E142, E146, E148, E149, E152, E153, E162, E166
-- `HOOK` (292): A88, A89, A90, A91, A93, A94, A95, A96, A97, A100, A103, A104, A105, A106, A107, A108, A109, A110, A111, A112, A113, A114, A115, A116, A118, A119, A121, A122, A123, A124, A126, A128, A129, A131, A132, A137, A138, A139, A140, A141, A142, A145, A146, A147, A149, A150, A151, A152, A154, A155, A156, A157, A158, A159, A160, A161, A163, A164, A165, A166, A167, A168, B87, B89, B90, B91, B92, B93, B94, B95, B96, B97, B101, B103, B106, B108, B109, B110, B111, B112, B114, B115, B116, B117, B118, B120, B121, B122, B124, B128, B130, B131, B132, B133, B134, B135, B137, B138, B139, B140, B142, B143, B144, B145, B146, B147, B150, B152, B155, B156, B158, B159, B160, B161, B162, B165, B166, B168, C90, C91, C92, C93, C96, C97, C98, C99, C102, C103, C104, C106, C107, C109, C110, C111, C112, C113, C114, C115, C116, C117, C119, C120, C121, C123, C124, C125, C126, C130, C131, C132, C137, C138, C140, C141, C142, C144, C145, C146, C147, C148, C149, C150, C151, C152, C153, C154, C155, C157, C158, C159, C160, C162, C163, C164, C167, C168, D89, D90, D91, D92, D93, D94, D96, D97, D98, D99, D101, D102, D103, D104, D105, D107, D109, D110, D111, D112, D113, D115, D116, D118, D119, D123, D125, D126, D128, D129, D130, D132, D133, D134, D137, D138, D139, D140, D141, D142, D143, D144, D146, D147, D149, D150, D151, D152, D153, D155, D156, D157, D158, D160, D161, D163, D164, D165, D166, D167, D168, E85, E87, E88, E89, E90, E91, E93, E95, E99, E100, E102, E103, E105, E107, E108, E110, E111, E112, E113, E114, E115, E116, E117, E118, E121, E122, E125, E126, E128, E130, E131, E133, E134, E137, E140, E141, E142, E143, E144, E146, E147, E148, E149, E152, E153, E154, E156, E158, E160, E162, E163, E164, E165, E166, E168
+- `E-WORKERMANIP` (8): A129, B130, B150, B152, D93, D94, D134, D150
+- `EXOTIC` (8): A162, B146, C93, C108, C156, D97, D101, E155
+- `F-AUTO` (141): A96, A103, A104, A105, A106, A107, A109, A110, A113, A114, A116, A118, A119, A121, A122, A124, A126, A127, A139, A140, A141, A145, A146, A155, A157, A160, A161, A163, A165, A167, B94, B106, B110, B111, B112, B116, B117, B118, B120, B121, B122, B124, B132, B133, B134, B137, B138, B139, B140, B142, B143, B144, B158, B159, B160, B161, B162, B168, C97, C106, C111, C115, C116, C117, C119, C120, C121, C123, C126, C137, C141, C144, C145, C147, C148, C155, C157, C158, C159, C160, C162, C163, C164, D94, D104, D105, D109, D110, D111, D112, D116, D118, D123, D134, D139, D140, D141, D142, D143, D144, D146, D147, D150, D152, D153, D156, D157, D158, D160, D163, D164, D165, D166, D168, E99, E100, E107, E108, E110, E111, E113, E114, E116, E117, E118, E121, E133, E137, E140, E141, E143, E144, E147, E154, E156, E158, E160, E161, E164, E165, E168
+- `F-MANDCHOICE` (10): A114, B103, B114, B156, C104, C138, E105, E122, E126, E163
+- `F-TRIG` (148): A89, A90, A91, A93, A94, A95, A96, A97, A100, A108, A111, A112, A115, A118, A123, A128, A129, A131, A132, A137, A138, A142, A147, A149, A150, A151, A152, A154, A156, A158, A159, A160, A164, A166, A168, B87, B89, B90, B91, B92, B93, B94, B96, B97, B108, B109, B115, B128, B130, B131, B135, B145, B146, B147, B150, B152, B155, B165, B166, C90, C91, C92, C93, C96, C97, C98, C99, C102, C103, C107, C109, C110, C112, C113, C114, C124, C125, C126, C130, C131, C132, C140, C142, C146, C149, C151, C152, C153, C154, C167, C168, D89, D90, D91, D92, D93, D96, D97, D98, D99, D101, D102, D103, D107, D112, D113, D115, D119, D125, D126, D128, D129, D130, D132, D133, D137, D138, D149, D151, D155, D161, D167, E85, E87, E88, E89, E90, E91, E93, E95, E102, E103, E110, E112, E115, E125, E128, E130, E131, E134, E141, E142, E146, E148, E149, E152, E162, E166
+- `HOOK` (289): A89, A90, A91, A93, A94, A95, A96, A97, A100, A103, A104, A105, A106, A107, A108, A109, A110, A111, A112, A113, A114, A115, A116, A118, A119, A121, A122, A123, A124, A126, A127, A128, A129, A131, A132, A137, A138, A139, A140, A141, A142, A145, A146, A147, A149, A150, A151, A152, A154, A155, A156, A157, A158, A159, A160, A161, A163, A164, A165, A166, A167, A168, B87, B89, B90, B91, B92, B93, B94, B96, B97, B103, B106, B108, B109, B110, B111, B112, B114, B115, B116, B117, B118, B120, B121, B122, B124, B128, B130, B131, B132, B133, B134, B135, B137, B138, B139, B140, B142, B143, B144, B145, B146, B147, B150, B152, B155, B156, B158, B159, B160, B161, B162, B165, B166, B168, C90, C91, C92, C93, C96, C97, C98, C99, C102, C103, C104, C106, C107, C109, C110, C111, C112, C113, C114, C115, C116, C117, C119, C120, C121, C123, C124, C125, C126, C130, C131, C132, C137, C138, C140, C141, C142, C144, C145, C146, C147, C148, C149, C151, C152, C153, C154, C155, C157, C158, C159, C160, C162, C163, C164, C167, C168, D89, D90, D91, D92, D93, D94, D96, D97, D98, D99, D101, D102, D103, D104, D105, D107, D109, D110, D111, D112, D113, D115, D116, D118, D119, D123, D125, D126, D128, D129, D130, D132, D133, D134, D137, D138, D139, D140, D141, D142, D143, D144, D146, D147, D149, D150, D151, D152, D153, D155, D156, D157, D158, D160, D161, D163, D164, D165, D166, D167, D168, E85, E87, E88, E89, E90, E91, E93, E95, E99, E100, E102, E103, E105, E107, E108, E110, E111, E112, E113, E114, E115, E116, E117, E118, E121, E122, E125, E126, E128, E130, E131, E133, E134, E137, E140, E141, E142, E143, E144, E146, E147, E148, E149, E152, E154, E156, E158, E160, E161, E162, E163, E164, E165, E166, E168
 - `L-CARDFIELD` (2): B113, B141
-- `L-CARDSPACE` (9): C87, C104, C109, C162, D116, D124, D127, E153, E161
-- `L-EXT` (8): A87, B155, D131, E91, E92, E109, E149, E161
+- `L-CARDSPACE` (5): C104, C162, D116, D127, E161
+- `L-EXT` (10): A87, B85, B155, D131, E91, E92, E109, E149, E151, E161
 - `L-GEOMBOARD` (8): A162, B112, B120, C117, C160, D144, D165, E105
 - `L-GEOMFARM` (5): A85, B85, B159, D148, E92
-- `L-HIDDEN` (2): A151, D116
-- `L-OCCUPY` (14): A94, A129, A130, A151, A157, B87, B129, B151, B152, C129, C150, D151, E129, E150
-- `LATCH` (17): A90, A120, A144, A153, B89, B97, B107, B132, B154, B163, C85, D85, D87, E88, E92, E126, E154
-- `NONE` (2): C161, E96
-- `ONPLAY` (118): A86, A89, A96, A102, A112, A117, A121, A125, A134, A135, A136, A139, A144, A165, B88, B89, B93, B96, B102, B103, B105, B113, B116, B117, B119, B123, B125, B127, B134, B136, B137, B138, B141, B148, B149, B151, B155, B160, B164, B167, C86, C89, C95, C98, C106, C107, C108, C113, C116, C118, C119, C120, C121, C127, C135, C136, C139, C140, C143, C144, C146, C155, C156, C161, C162, C165, C166, D88, D91, D95, D96, D97, D109, D114, D117, D118, D120, D122, D126, D131, D135, D136, D141, D142, D143, D145, D153, D156, D161, D162, D163, D167, E94, E95, E96, E97, E98, E101, E103, E104, E105, E106, E116, E119, E120, E123, E124, E125, E127, E135, E136, E138, E139, E145, E155, E157, E165, E167
-- `PASSIVE` (34): A85, A86, A87, A127, A143, A148, B85, B86, B100, B115, B126, B129, B148, B151, C86, C88, C89, C122, C128, C129, D86, D88, D116, D117, D121, D127, D131, D148, D154, E123, E124, E129, E150, E159
-- `S-AFTERFEED` (4): A145, C113, D99, E99
-- `S-BEFORESCORE` (3): B133, C99, D132
-- `S-HBREED` (6): A165, C124, D115, E90, E133, E134
-- `S-HFEED` (5): C107, C109, D133, D155, E142
+- `L-OCCUPY` (10): A94, A129, A130, B129, B151, C129, C150, D151, E129, E150
+- `LATCH` (7): A120, A144, A153, B107, B132, B154, B163
+- `NONE` (6): A117, A125, B105, C161, D145, E157
+- `ONPLAY` (113): A86, A89, A96, A102, A112, A117, A121, A125, A134, A135, A136, A139, A144, A165, B88, B89, B93, B96, B102, B103, B105, B113, B116, B117, B119, B123, B125, B127, B136, B137, B138, B141, B148, B149, B151, B155, B160, B164, B167, C86, C89, C95, C98, C106, C107, C108, C113, C116, C118, C119, C120, C121, C127, C135, C136, C139, C140, C143, C144, C146, C155, C156, C161, C165, C166, D88, D91, D95, D96, D97, D109, D114, D117, D118, D120, D122, D126, D131, D135, D136, D141, D145, D156, D162, D163, D167, E94, E95, E96, E97, E98, E101, E103, E104, E105, E106, E116, E119, E120, E123, E124, E125, E127, E135, E136, E138, E139, E145, E148, E155, E157, E165, E167
+- `PASSIVE` (56): A85, A86, A87, A88, A98, A99, A101, A127, A133, A143, A148, B85, B86, B95, B98, B100, B115, B126, B129, B148, B151, B153, C86, C88, C89, C100, C122, C128, C129, C133, C134, C162, D85, D86, D88, D100, D116, D117, D121, D127, D131, D148, D154, E85, E86, E91, E92, E101, E109, E123, E124, E129, E150, E151, E159, E161
+- `S-AFTERFEED` (1): C113
+- `S-BEFORESCORE` (4): B133, C99, D99, D132
+- `S-HBREED` (7): A145, C124, D115, E90, E99, E133, E134
+- `S-HFEED` (8): C107, C109, C168, D133, D155, E91, E110, E142
 - `S-HFIELD` (13): A104, A106, A112, A118, B132, C98, C106, C110, D113, D126, E107, E112, E134
-- `S-HSTART` (13): A166, B101, B165, C92, D97, D98, D129, D153, E110, E117, E147, E149, E153
-- `S-MAJMIN` (7): A109, B103, C96, C140, E122, E146, E156
-- `S-OBTAIN` (4): B162, C120, E103, E118
-- `S-PLAY` (10): B109, B155, C116, C137, D118, D152, E89, E144, E156, E163
-- `S-REVEAL` (3): A96, B116, D116
-- `S-ROUNDEND` (14): A100, A141, A151, A152, A157, B110, B139, C97, C155, D102, D107, D167, E87, E125
-- `S-SOR` (26): A89, A90, B89, B93, B96, B97, B106, B114, B118, B135, C103, C111, C123, C125, C157, C159, D91, E88, E93, E100, E102, E111, E126, E152, E162, E168
-- `S-SPACE` (127): A88, A91, A95, A103, A107, A108, A113, A114, A115, A116, A119, A121, A122, A124, A126, A128, A129, A137, A138, A139, A140, A142, A146, A147, A149, A150, A154, A155, A156, A158, A159, A160, A161, A163, A164, A168, B87, B90, B91, B92, B94, B108, B112, B120, B121, B122, B128, B130, B131, B137, B138, B142, B143, B144, B146, B147, B150, B152, B156, B166, C90, C91, C93, C102, C104, C112, C114, C117, C121, C126, C130, C131, C138, C141, C142, C145, C147, C148, C150, C151, C152, C154, C158, C160, C162, C163, C164, C167, C168, D90, D101, D103, D105, D110, D112, D119, D125, D134, D137, D138, D139, D140, D141, D143, D144, D146, D147, D149, D151, D156, D158, D164, D165, E91, E95, E105, E115, E116, E121, E130, E131, E137, E140, E141, E148, E160, E166
-- `S-SUB` (48): A93, A94, A97, A105, A110, A111, A123, A131, A132, A167, B95, B111, B115, B124, B134, B145, B159, B168, C115, C119, C132, C144, C146, C149, C153, D89, D94, D96, D104, D109, D111, D123, D128, D150, D160, D161, D163, D166, D168, E85, E108, E113, E114, E122, E128, E154, E164, E165
-- `S-TURNEND` (11): B117, B140, B158, B160, B161, D92, D93, D130, D142, E143, E158
-- `ST-COUNTER` (18): A107, A117, A148, A161, A163, B86, B99, B100, B109, C104, C155, D158, D166, D168, E89, E114, E116, E157
-- `ST-LATCH` (17): A90, A120, A144, A153, B89, B97, B107, B132, B154, B163, C85, D85, D87, E88, E92, E126, E154
-- `ST-PLACELOG` (21): A107, A129, A130, A152, A163, B130, B150, B158, C91, C117, C119, C150, D93, D94, D130, D142, D150, D160, D165, E131, E148
-- `ST-PROV` (26): A91, A92, A103, A106, A108, A140, A146, A164, B138, B140, B162, C116, C163, D98, D113, D124, D140, D143, D146, D161, E103, E108, E118, E122, E144, E146
+- `S-HSTART` (12): A166, B165, C92, D97, D98, D129, D153, E110, E111, E117, E147, E149
+- `S-MAJMIN` (6): A109, B103, C96, C137, C140, E156
+- `S-OBTAIN` (5): B162, C120, E85, E103, E118
+- `S-PLAY` (11): B109, B155, C116, C137, D118, D152, E89, E144, E146, E156, E163
+- `S-REVEAL` (2): A96, D116
+- `S-ROUNDEND` (13): A100, A127, A141, A151, A152, A157, A165, B139, C97, C155, D102, D107, D167
+- `S-SOR` (27): A89, A90, B89, B93, B96, B97, B106, B110, B114, B116, B118, B135, C103, C111, C123, C125, C157, C159, D91, E88, E100, E102, E111, E126, E152, E162, E168
+- `S-SPACE` (127): A91, A95, A103, A107, A108, A113, A114, A115, A116, A119, A121, A122, A124, A126, A128, A129, A137, A138, A139, A140, A142, A146, A147, A149, A150, A154, A155, A156, A158, A159, A160, A161, A163, A164, A168, B87, B90, B91, B92, B94, B108, B112, B120, B121, B122, B128, B130, B131, B137, B138, B142, B143, B144, B146, B147, B150, B152, B156, B166, C90, C91, C93, C102, C104, C112, C114, C117, C121, C126, C130, C131, C138, C141, C142, C145, C147, C148, C151, C152, C154, C158, C160, C162, C163, C164, C167, C168, D90, D101, D103, D105, D109, D110, D112, D119, D125, D134, D137, D138, D139, D140, D141, D143, D144, D146, D147, D149, D151, D156, D158, D164, D165, E93, E95, E105, E115, E116, E121, E130, E131, E137, E140, E141, E148, E160, E161, E166
+- `S-SUB` (45): A93, A94, A97, A105, A110, A111, A123, A131, A132, A167, B111, B115, B124, B134, B145, B159, B168, C115, C119, C132, C144, C146, C149, C153, D89, D94, D96, D104, D111, D123, D128, D150, D160, D161, D163, D166, D168, E108, E113, E114, E122, E128, E154, E164, E165
+- `S-TURNEND` (13): B117, B140, B158, B160, B161, D92, D93, D130, D142, E87, E125, E143, E158
+- `ST-COUNTER` (22): A100, A132, A163, A167, B99, B100, B101, B111, B140, C101, C104, C119, C154, C168, D92, D133, D166, E99, E100, E114, E116, E153
+- `ST-LATCH` (5): A120, A144, B107, B132, B163
+- `ST-PLACELOG` (18): A100, A129, A130, A152, A161, B130, B150, B158, B161, C150, D93, D94, D130, D142, D150, D160, D165, E129
+- `ST-PROV` (29): A95, A103, A106, A108, A109, A131, A146, B138, B162, C106, C116, C137, C149, C163, D113, D140, D143, D146, D161, E85, E103, E108, E118, E140, E144, E146, E156, E164, E166
 - `ST-STACK` (21): A102, A144, B137, C115, C120, C146, C148, D114, D116, D118, D124, D126, D156, D158, E85, E86, E103, E110, E123, E134, E162
-- `ST-STORE` (13): A89, A127, B95, B134, C87, C124, C132, C168, D99, E105, E140, E146, E151
-- `ST-THRESHOLD` (3): A153, B154, D157
-- `T-AFTER` (168): A89, A90, A93, A94, A95, A96, A100, A103, A104, A105, A106, A107, A108, A109, A110, A111, A112, A118, A119, A121, A128, A129, A131, A142, A145, A152, A161, A163, A164, A165, A167, A168, B93, B96, B103, B110, B111, B114, B115, B116, B117, B118, B122, B124, B128, B130, B131, B132, B133, B134, B135, B137, B139, B140, B143, B144, B147, B150, B152, B158, B159, B160, B161, B168, C93, C96, C97, C102, C104, C106, C110, C113, C114, C115, C116, C119, C120, C121, C123, C126, C130, C132, C137, C138, C142, C144, C145, C146, C147, C149, C150, C151, C152, C153, C155, C162, C163, C164, C167, D89, D91, D92, D93, D94, D96, D99, D101, D103, D104, D107, D109, D111, D113, D115, D116, D118, D123, D126, D128, D130, D134, D137, D142, D144, D146, D150, D151, D160, D161, D163, D164, D166, D167, D168, E85, E87, E88, E89, E90, E95, E99, E103, E108, E113, E114, E115, E116, E118, E122, E125, E128, E131, E133, E134, E140, E141, E143, E146, E154, E156, E158, E160, E162, E163, E164, E165, E166, E168
-- `T-BEFORE` (112): A88, A91, A97, A113, A114, A115, A116, A122, A123, A124, A126, A132, A137, A138, A139, A140, A141, A146, A147, A149, A150, A151, A154, A155, A156, A157, A158, A159, A160, A166, B87, B89, B90, B91, B92, B94, B95, B97, B106, B108, B109, B112, B120, B121, B138, B142, B145, B146, B155, B156, B162, B165, B166, C90, C91, C92, C98, C99, C103, C107, C111, C112, C117, C124, C131, C140, C141, C148, C154, C157, C158, C159, C160, C168, D90, D98, D102, D105, D110, D112, D119, D125, D132, D138, D139, D140, D141, D143, D147, D149, D152, D153, D156, D158, D165, E91, E93, E100, E102, E105, E107, E110, E111, E112, E117, E121, E126, E130, E137, E147, E148, E149
+- `ST-STORE` (14): B85, C85, C87, C100, C132, D87, D99, E92, E98, E101, E140, E146, E148, E151
+- `ST-THRESHOLD` (4): A144, A153, B154, D157
+- `T-AFTER` (137): A90, A93, A94, A95, A96, A100, A103, A105, A106, A108, A109, A110, A111, A112, A119, A121, A127, A129, A131, A145, A152, A160, A164, A165, A167, A168, B93, B94, B96, B103, B110, B111, B114, B116, B117, B118, B124, B128, B130, B131, B132, B134, B139, B140, B144, B147, B150, B152, B158, B159, B160, B161, C96, C97, C102, C104, C106, C110, C113, C114, C115, C116, C119, C120, C121, C123, C126, C132, C137, C144, C145, C151, C153, C162, C163, D89, D91, D92, D93, D96, D99, D101, D103, D104, D107, D109, D111, D112, D113, D115, D116, D118, D123, D126, D128, D130, D134, D137, D142, D144, D150, D151, D161, D163, D164, D166, D167, D168, E85, E87, E89, E90, E99, E103, E108, E114, E115, E116, E118, E122, E125, E128, E131, E133, E134, E143, E144, E146, E154, E156, E158, E161, E162, E163, E164, E165, E168
+- `T-BEFORE` (150): A89, A91, A97, A104, A107, A113, A114, A115, A116, A118, A122, A123, A124, A126, A128, A132, A137, A138, A139, A140, A141, A142, A146, A147, A149, A150, A151, A154, A155, A156, A157, A158, A159, A160, A161, A163, A166, B87, B89, B90, B91, B92, B94, B97, B106, B108, B109, B112, B115, B120, B121, B122, B133, B135, B137, B138, B142, B143, B145, B146, B155, B156, B162, B165, B166, B168, C90, C91, C92, C93, C98, C99, C103, C107, C109, C111, C112, C117, C124, C130, C131, C138, C140, C141, C142, C146, C147, C148, C149, C152, C154, C155, C157, C158, C159, C160, C164, C167, C168, D90, D94, D98, D102, D105, D110, D112, D119, D125, D132, D133, D138, D139, D140, D141, D143, D146, D147, D149, D152, D153, D156, D158, D160, D165, E88, E91, E93, E95, E100, E102, E105, E107, E110, E111, E112, E113, E117, E121, E126, E130, E137, E140, E141, E142, E147, E148, E149, E152, E160, E166
 

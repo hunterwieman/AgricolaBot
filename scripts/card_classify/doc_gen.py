@@ -103,6 +103,8 @@ RESIDUAL_FIX = {
             "'This card is a field' -> L-CARDFIELD (a card-STRUCTURE tag, not geometry); crop-swap on it is E-CROPMANIP."),
     "B149": (["ONPLAY", "E-PIECECOST", "E-RETURNCOMP", "E-GRANTSUB", "E-FREEFENCE", "E-COSTMOD"],
              "Build a 2-space pasture from 3 returned stables -- ordinary fencing, no geometry code needed (confirmed)."),
+    "A85": (["PASSIVE", "E-CAPNEW", "E-PEOPLE", "L-GEOMFARM"],
+            "A clay/stone room adjacent to both a field and a pasture holds an extra person -> new person-holder (E-CAPNEW, its taxonomy exemplar) + person-capacity change (E-PEOPLE); farm-tile adjacency = L-GEOMFARM (user ruling; E-CAPGROW is animal-slot-only)."),
 }
 # Accepted as-is (their adjudicated tags stand; clear the low-confidence flag).
 RESIDUAL_OK = {"B87", "C100", "D51"}
