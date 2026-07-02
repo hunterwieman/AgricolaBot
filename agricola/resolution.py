@@ -492,11 +492,14 @@ def _initiate_lessons(state: GameState) -> GameState:
 
 def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     """Play one occupation from hand: debit the frame's (route-supplied) cost, move the card
-    hand->tableau, run its (variant-aware) on_play, fire one-shots, and pivot
-    PendingPlayOccupation to its after-phase (firing after_play_occupation autos; the trailing
-    Stop pops). A play-variant occupation (Roof Ballaster) folds its chosen variant's SURCHARGE
-    into the cost — re-derived from the same variants_fn the enumerator used; the variant's
-    BENEFIT (e.g. stone) is granted in its on_play, not debited there.
+    hand->tableau, pivot PendingPlayOccupation to its after-phase (firing after_play_occupation
+    autos), THEN run its (variant-aware) on_play and fire one-shots; the trailing Stop pops.
+    The flip happens BEFORE on_play — the same order as `_execute_play_minor`, load-bearing for
+    an on_play that PUSHES a frame (the host must be flipped while it is still on top; a
+    post-on_play flip would land on the pushed child). A play-variant occupation (Roof
+    Ballaster) folds its chosen variant's SURCHARGE into the cost — re-derived from the same
+    variants_fn the enumerator used; the variant's BENEFIT (e.g. stone) is granted in its
+    on_play, not debited there.
 
     Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §5): if the cost's food exceeds food on hand,
     push a PendingFoodPayment to RAISE the shortfall into supply (no debit) and re-run this exact
@@ -520,6 +523,11 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
         occupations=p.occupations | {cid},
     )
     state = _update_player(state, idx, p)
+    # Pivot to the after-phase (firing after_play_occupation autos) BEFORE on_play, while the
+    # host is still on top — mirrors _execute_play_minor. The tableau add above precedes the
+    # flip, so an occupation-counting auto (Education Bonus) sees the new card either way.
+    state = _enter_after_phase(state)
+    prev_depth = len(state.pending_stack)
     # Variant-aware on-play: a card that registered a play-variant (Roof Ballaster) has its
     # on_play called with the chosen variant; every other occupation keeps (state, idx).
     if cid in PLAY_OCCUPATION_VARIANTS:
@@ -530,7 +538,11 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     # house-material condition the instant it enters the tableau. No-op in the Family game.
     from agricola.engine import _fire_ready_one_shots
     state = _fire_ready_one_shots(state, idx)
-    return _enter_after_phase(state)
+    # If on_play pushed a sub-action leaf, fire its before-autos at the push — the same seam
+    # as _execute_play_minor / the granted-sub-action trigger path (depth-guarded: a
+    # goods-only on_play leaves the flipped host on top; nothing must re-fire).
+    from agricola.engine import _fire_subaction_before_auto
+    return _fire_subaction_before_auto(state, prev_depth)
 
 
 def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
@@ -581,6 +593,7 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     from agricola.cards.triggers import apply_auto_effects
     state = _enter_after_phase(state)
     state = apply_auto_effects(state, "after_build_improvement", idx)
+    prev_depth = len(state.pending_stack)
     # Run the immediate effect (whether kept or passed). A pushing on_play lands its primitive
     # on top of the already-"after" host.
     state = spec.on_play(state, idx)
@@ -588,9 +601,11 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     from agricola.engine import _fire_ready_one_shots
     state = _fire_ready_one_shots(state, idx)
     # If on_play pushed a sub-action leaf (Shifting Cultivation → PendingPlow), fire its
-    # before-autos at the push — the same seam as the granted-sub-action trigger path.
+    # before-autos at the push — the same seam as the granted-sub-action trigger path
+    # (depth-guarded: a goods-only on_play leaves the flipped host on top; nothing re-fires,
+    # which is what used to require Wood Workshop's per-card phase gate).
     from agricola.engine import _fire_subaction_before_auto
-    return _fire_subaction_before_auto(state)
+    return _fire_subaction_before_auto(state, prev_depth)
 
 
 def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
@@ -642,7 +657,8 @@ def _resume(state: GameState, idx: int, top: PendingFoodPayment) -> GameState:
     assert resume_fn is not None, (
         f"unknown PendingFoodPayment resume_kind: {top.resume_kind!r}"
     )
-    return _fire_subaction_before_auto(resume_fn(state, idx))
+    prev_depth = len(state.pending_stack)
+    return _fire_subaction_before_auto(resume_fn(state, idx), prev_depth)
 
 
 NONATOMIC_HANDLERS: dict[str, Callable[[GameState], GameState]] = {

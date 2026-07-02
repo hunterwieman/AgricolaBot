@@ -741,6 +741,13 @@ class PendingBasicWishForChildren:
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
 
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        any base sub-action has been chosen (the mandatory growth or the optional
+        minor); `before_action_space` triggers are offered only while this is False."""
+        return self.family_growth_done or self.minor_chosen
+
 
 @dataclass(frozen=True)
 class PendingMeetingPlace:
@@ -777,6 +784,14 @@ class PendingMeetingPlace:
     @property
     def space_id(self) -> str:
         return self.initiated_by_id.split(":", 1)[1]
+
+    @property
+    def subaction_started(self) -> bool:
+        """Proceed-host before-window signal (SPACE_HOST_REFACTOR.md §5.1): True once
+        the one optional base sub-action (the minor) has been chosen. Become-SP happens
+        at push (before this frame exists), so the minor is the only orderable work;
+        `before_action_space` triggers are offered only while this is False."""
+        return self.minor_chosen
 
 
 @dataclass(frozen=True)

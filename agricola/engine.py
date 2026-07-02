@@ -368,24 +368,36 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     )
 
 
-def _fire_subaction_before_auto(state: GameState) -> GameState:
-    """If the stack's top is a commit-terminated sub-action leaf in its before-phase,
-    fire its `before_<PENDING_ID>` automatic effects (SUBACTION_HOOK_REFACTOR.md §4d).
+def _fire_subaction_before_auto(state: GameState, prev_depth: int) -> GameState:
+    """If a commit-terminated sub-action leaf was JUST PUSHED — the stack grew past
+    `prev_depth` and the new top is a leaf — fire its `before_<PENDING_ID>` automatic
+    effects (SUBACTION_HOOK_REFACTOR.md §4d).
 
     The single central seam for sub-action before-autos — symmetric with
     `_apply_place_worker` firing `before_action_space` when it pushes a space host,
     and with `_enter_after_phase` firing the after-autos at the commit-flip. Called
-    at the two engine chokepoints where a sub-action leaf can be pushed: after a
-    `_choose_subaction_*` handler runs (`_apply_choose_sub_action`) and after a
+    at the engine chokepoints where a sub-action leaf can be pushed: after a
+    `_choose_subaction_*` handler runs (`_apply_choose_sub_action`), after a
     trigger's `apply_fn` runs (`_apply_fire_trigger`, the card-grant push path —
-    Assistant Tiller → PendingPlow, Threshing Board / Oven Firing Boy → PendingBakeBread).
+    Assistant Tiller → PendingPlow, Threshing Board / Oven Firing Boy →
+    PendingBakeBread), after a play-card `on_play` runs (which may push — Shifting
+    Cultivation → PendingPlow), and after a non-"rerun" food-payment resume.
+
+    `prev_depth` — the stack depth before the possibly-pushing call — is what makes
+    "just pushed" checkable. When the call did NOT push (a non-pushing trigger fired
+    at a leaf; a goods-only `on_play`), the top is the *same* host leaf whose
+    before-autos already fired at its real push, and re-firing would double-pay
+    (Bookshelf's +3 food per occupation play; Hand Truck's bake grant at a bake
+    Potter fires during). Cards used to defend per-card with a `phase == "before"`
+    eligibility read (Wood Workshop); this guard makes the seam itself fire exactly
+    once per pushed leaf.
 
     Gated on `SUBACTION_PENDING_IDS` so it fires only for the sub-action host leaves,
     never for a composite host (`PendingMajorMinorImprovement`, which fires its own
     `before_major_minor_improvement`). A no-op in the Family game (empty AUTO_EFFECTS)
     → byte-identical state.
     """
-    if not state.pending_stack:
+    if len(state.pending_stack) <= prev_depth:
         return state
     top = state.pending_stack[-1]
     if type(top).PENDING_ID not in SUBACTION_PENDING_IDS:
@@ -410,7 +422,8 @@ def _apply_choose_sub_action(
     # The handler pushes the chosen sub-action's frame (or, for the composite/
     # Proceed paths, a non-leaf frame). If that new top is a commit-terminated
     # sub-action leaf, fire its before-automatic effects at this push.
-    return _fire_subaction_before_auto(handler(state, action))
+    prev_depth = len(state.pending_stack)
+    return _fire_subaction_before_auto(handler(state, action), prev_depth)
 
 
 def _apply_commit_subaction(
@@ -465,11 +478,12 @@ def _apply_fire_trigger(
     # A play-variant trigger (Scholar) surfaces FireTriggers carrying a `variant`
     # and its apply_fn takes `(state, idx, variant)`; thread it through only when a
     # variant is present so every plain `(state, idx)` apply_fn is unaffected.
+    prev_depth = len(state.pending_stack)
     if action.variant is not None:
         applied = entry.apply_fn(state, new_top.player_idx, action.variant)
     else:
         applied = entry.apply_fn(state, new_top.player_idx)
-    return _fire_subaction_before_auto(applied)
+    return _fire_subaction_before_auto(applied, prev_depth)
 
 
 def _apply_commit_card_choice(

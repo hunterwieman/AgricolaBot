@@ -2458,7 +2458,8 @@ def _enumerate_pending_basic_wish_for_children(
     step and `play_minor` as the optional second.
 
     After-phase: after_action_space triggers + Stop.
-    Before-phase: any before_action_space triggers, then ChooseSubAction(
+    Before-phase: any before_action_space triggers (only while no base sub-action
+    has been chosen — the enforce-first before-window gate), then ChooseSubAction(
     "family_growth") while not yet done, then ChooseSubAction("play_minor") (if a
     minor is playable and not yet chosen) + Proceed once family_growth_done.
     """
@@ -2466,7 +2467,10 @@ def _enumerate_pending_basic_wish_for_children(
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): once a base sub-action has been
+    # chosen, using the space has closed the before-window — no before_action_space triggers.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     if not pending.family_growth_done:
         # Mandatory first sub-action — a singleton the agent auto-applies.
         actions.append(ChooseSubAction(name="family_growth"))
@@ -2500,14 +2504,18 @@ def _enumerate_pending_meeting_place(
 ) -> list[Action]:
     """Card Meeting Place — a single-optional Proceed-host (SPACE_HOST_REFACTOR.md
     §7). Become-SP already happened. after-phase: after_action_space triggers +
-    Stop. before-phase: any before_action_space triggers + the optional
+    Stop. before-phase: any before_action_space triggers (only while the minor is
+    unchosen — the enforce-first before-window gate) + the optional
     ChooseSubAction("play_minor") (while not yet played and a minor is playable) +
     Proceed — and Proceed is legal FROM THE START (it *is* the decline)."""
     if pending.phase == "after":
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
         return actions
-    actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
+    # before-window gate (SPACE_HOST_REFACTOR.md §5.1): choosing the minor closes
+    # the before-window — no before_action_space triggers after it.
+    actions = ([] if pending.subaction_started
+               else _eligible_fire_triggers(state, pending, trigger_event(pending)))
     if not pending.minor_chosen and playable_minors(state, pending.player_idx):
         actions.append(ChooseSubAction(name="play_minor"))
     actions.append(Proceed())

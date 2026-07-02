@@ -317,15 +317,12 @@ Two mechanisms enforce it:
   reverted mechanism's orphaned predicate `has_eligible_trigger` was later deleted.
   POST_COMPACTION_DETOUR.md §2 is the full story.)
 - **Proceed-hosts: the `subaction_started` gate.** A Proceed-host lingers across multiple
-  sub-actions, so it has no auto-advance to close the window. Each of the five *Family*
-  Proceed-host space parents carries a derived `subaction_started` property (the OR of its
+  sub-actions, so it has no auto-advance to close the window. Every Proceed-host space parent —
+  the five Family ones plus the card-only `PendingBasicWishForChildren` and
+  `PendingMeetingPlace` — carries a derived `subaction_started` property (the OR of its
   `*_chosen` flags), and their enumerators offer `before_action_space` triggers **only while it
-  is False**. The two *card-only* Proceed-hosts do **not** carry the gate: for
-  `PendingMeetingPlace` there is nothing to gate (the space's work — become-SP — happened at
-  push, before the frame exists), but `PendingBasicWishForChildren` keeps offering
-  before-triggers after its mandatory family growth — a **latent enforce-first gap**, currently
-  moot because no implemented card's before-trigger matches the wish spaces; add the gate when
-  one does.
+  is False**. (Meeting Place's become-SP happens at push, before the frame exists, so there its
+  gate covers the one orderable sub-action — the optional minor.)
 
 ### Record-before-apply
 
@@ -342,7 +339,7 @@ Where each firing actually happens in the engine — the complete set of call si
 | Seam | Fires | Where |
 |---|---|---|
 | Space-host push | `before_action_space` autos | `_apply_place_worker` (atomic host), every non-atomic `_initiate_*` resolver except Family-only Side Job, `_initiate_lessons`, `_initiate_meeting_place_cards`, `_resolve_basic_wish_for_children`'s cards branch |
-| Sub-action-leaf push | `before_<PENDING_ID>` autos | `_fire_subaction_before_auto` (engine.py) — the single seam, called after a `_choose_subaction_*` handler runs, after a trigger's `apply_fn` runs, after a minor's pushing `on_play`, and after a non-"rerun" food-payment resume; gated on `SUBACTION_PENDING_IDS` |
+| Sub-action-leaf push | `before_<PENDING_ID>` autos | `_fire_subaction_before_auto` (engine.py) — the single seam, called after a `_choose_subaction_*` handler runs, after a trigger's `apply_fn` runs, after a minor's or occupation's pushing `on_play`, and after a non-"rerun" food-payment resume; gated on `SUBACTION_PENDING_IDS` **and a depth guard** (fires only if the call actually pushed a new frame — a non-pushing trigger or goods-only `on_play` must not re-fire the leaf's before-autos) |
 | Work-complete flip | `after_<derived event>` autos | `_enter_after_phase` (resolution.py) — called by every commit-terminated effect at its commit, by the markets, by `_apply_proceed` for atomic/Proceed/multi-shot hosts, and by the Delegating auto-advance |
 | Composite host | `before_/after_major_minor_improvement` autos | its choose-handler push / the Delegating auto-advance |
 | Any improvement built | `after_build_improvement` autos | `_execute_play_minor` / the major-build path |
@@ -697,14 +694,12 @@ Major/Minor Improvement space, House Redevelopment's optional second step (both 
 `PendingMajorMinorImprovement`), Basic Wish for Children's optional second step, and Meeting
 Place.
 
-One executor **asymmetry to know**: `_execute_play_minor` flips its host to the after-phase
-*before* running the card's `on_play` — load-bearing, because several minor `on_play`s push a
-primitive frame (Shifting Cultivation → `PendingPlow`) and the host must be flipped while it is
-still on top. `_execute_play_occupation` flips *after* `on_play` — safe today only because no
-occupation's `on_play` pushes (verified across the registry). Until the occupation executor is
-aligned, an occupation granting an immediate sub-action must ride an `after_play_occupation`
-trigger/auto, **never a pushing `on_play`** (the flip would land on the pushed child).
-(`PendingPlayOccupation`'s docstring claims the minors' order — trust the code.)
+Both executors flip their host to the after-phase (firing the `after_play_*` autos) **before
+running the card's `on_play`** — load-bearing for an `on_play` that pushes a primitive frame
+(Shifting Cultivation → `PendingPlow`): the host must be flipped while it is still on top, so
+the pushed child lands on the already-"after" host. Because the hand→tableau move precedes the
+flip, an occupation-counting after-auto (Education Bonus) sees the new card; because after-
+*triggers* are surfaced later by the enumerator, they see the post-`on_play` state either way.
 
 **Space hosts.** `PendingActionSpace` (the generic atomic host, §2), `PendingSubActionSpace`
 (the generic Delegating host — replaced the deleted per-space `PendingFarmland` /
@@ -761,8 +756,8 @@ the Family-constant value and is canonical-skipped:
   the existence gate); `max_plows: int = 1` + `num_plowed: int = 0` — the bounded multi-shot
   granted plow ("plow up to 2 fields": commit per cell, `Proceed` to finish early), making
   `PendingPlow` the fourth multi-shot host.
-- The five Proceed-host space parents gained the derived `subaction_started` property (§2 —
-  not a field, so nothing to skip).
+- The seven Proceed-host space parents (five Family + Basic Wish + Meeting Place) carry the
+  derived `subaction_started` property (§2 — not a field, so nothing to skip).
 
 ### The canonical default-skip mechanism
 
