@@ -421,209 +421,103 @@ need:
 
 ## Phase 2 — Building an Agent
 
-The agent is the project's central thrust, built in three stages that feed one another: a fast
-hand-built **heuristic**, then **MCTS**, then a **neural network** with value and policy heads
-trained by AlphaZero-style self-play (the end goal). The order is deliberate — the heuristic
-exists mainly to *generate self-play game data* that bootstraps the NN, and MCTS is the search
-half of the eventual self-play loop. Everything here consumes the engine's pure `step` /
-`legal_actions` interface and nothing else; the agent code lives in `agricola/agents/`. The
-agents also auto-skip singleton decisions — when only one action is legal they apply it without
-consulting their evaluator (the engine still records the step, per its no-auto-resolve rule).
+The agent is the **AlphaZero-style self-play loop**: PUCT tree search (§2.2) driven by a joint
+value+policy network (§2.3), generating its own training data at C++ speed (§2.4), in a
+generate → train → evaluate cycle (§2.5), deployed as the web-UI bot (§2.6). Everything consumes
+the engine's pure `step` / `legal_actions` interface and nothing else; the agent code lives in
+`agricola/agents/`. Agents auto-skip singleton decisions — when only one action is legal they
+apply it without consulting their evaluator (the engine still records the step, per its
+no-auto-resolve rule).
 
 ### Action-space restriction
 
-Before any agent picks, the legal set is optionally narrowed by a wrapper over
-`legal_actions(state)` — `restricted_legal_actions` (`agricola/agents/restricted.py`). It does
-two things, both useful well beyond the heuristic:
+Before an agent picks, the legal set can be narrowed by a wrapper over `legal_actions(state)` —
+`restricted_legal_actions` (`agricola/agents/restricted.py`): it shrinks branching and drops
+strategically dominated actions (plow-before-sow ordering, cell-priority lists, a min-begging
+filter). It is an **agent-layer** tool, not part of the engine — `legal_actions` always
+enumerates every mechanically-legal action, because several of these priors look loss-less in
+the Family game but become lossy once cards are added. A `_safe_narrow` guard ensures the
+wrapper never empties a non-empty action set.
 
-1. **Shrinks the action space** — smaller branching for MCTS, a narrower policy head for the NN.
-2. **Pushes the agent toward better choices** — it drops strategically dominated actions
-   (plow-before-sow ordering, cell-priority lists, a min-begging filter, and similar priors).
+**The production search does not use it**: PUCT takes the full, unrestricted `legal_actions` and
+lets the policy prior do all pruning. The regular wrapper survives on the web UI's AI seats
+(`--restricted`) and in the recording pipeline; the stricter `strict_restricted_legal_actions`
+was the pre-policy (UCT-era) prune and now serves only heuristic test paths. Details:
+CHANGES.md Change 11, MCTS_IMPLEMENTATION.md §7.
 
-It is an **agent-layer** tool, not part of the engine: `legal_actions` always enumerates every
-mechanically-legal action, and the wrapper is opt-in. The priors live here rather than in the
-engine because several of them look loss-less in the Family game but become lossy once cards are
-added — keeping the engine an honest source of *all* legal actions preserves that. A
-`_safe_narrow` guard enforces an always-≥1 invariant, so the wrapper never empties a non-empty
-action set.
+### 2.1 — Heuristic agent (retired)
 
-A stricter sibling, `strict_restricted_legal_actions`, layers additional MCTS-specific collapses
-(Cultivation sow-max, hand-curated Fencing patterns, a harvest-feed cap). Who uses which:
-
-- **Heuristic agents now default to the *strict* wrapper** (`HeuristicAgent`'s class default; was
-  the engine's unrestricted set). The heuristics are **retired** (§2.1) — their data-generation and
-  eval-baseline jobs are done — so strict is simply the default for the few test-only paths where
-  they still run. Pass an explicit `legal_actions_fn` to override per-case. (`NNAgent` is not a `HeuristicAgent`,
-  so it keeps the unrestricted default.)
-- **MCTS tree search** is mode-aware (§2.2 / MCTS_IMPLEMENTATION.md §7): **UCT → strict**, **PUCT →
-  full unrestricted** (the policy prior is the sole prune).
-- **The web UI** still passes the *regular* wrapper to its AI seats via `--restricted` (an explicit
-  override of the heuristic default), so browser play matches that flag.
-
-Details: CHANGES.md Change 11, MCTS_DESIGN.md §7.
-
-### 2.1 — Heuristic agent
-
-> **Retired (2026-06-26).** The heuristic agents existed only to (1) generate the *initial* self-play
-> data that bootstrapped NN training and (2) serve as the strength baseline for the *first* NN models.
-> Both jobs are complete and the heuristics **will not be used again** — not as an MCTS leaf, a data
-> generator, or an eval baseline (evaluation is now NN-vs-NN MCTS head-to-head, and the joint model
-> dominates this ensemble ~100%, so it no longer discriminates). The code (`agricola/agents/heuristic.py`,
-> the tuned configs) is kept in place as the genuine record of a completed project phase, **not**
-> archived. The rest of this section describes that phase as it was.
-
-Kept short by design: this stage is largely settled and matters least for future decisions.
-
-**Why.** A fast agent, good enough to generate self-play data of low-to-reasonable quality to
-bootstrap NN training — not an end in itself.
-
-**What was built (chronological).** V1 was a hand-built objective function (~50 coefficients)
-that loosely scores a state by its expected endgame points, set from expert intuition — crude
-but quick. Refinements (V2 and assorted tweaks) were tried in head-to-head matches; most didn't
-beat V1. The architecture settled on **V3** (~250 coefficients, three combination styles). CMA-ES
-then tuned the coefficients, evaluated against *multiple* baseline configs at once (not a single
-opponent) so the result stays competitive against varied strategies rather than overfitting one.
-
-**Where it stands.** Tuning produced an 8-config **data-generation ensemble**, deliberately
-spread across the strength spectrum so self-play trajectories cover a diverse state distribution
-rather than collapsing onto one playstyle. The current champion is **`alphas_gen_7`**
-(= `tuned_configs/v3_best.json`). The roster (full descriptions in `DATA_GEN_ENSEMBLE.md`):
-
-| Config | Round-robin | Note |
-|---|---|---|
-| `alphas_gen_7` | 86.4% | champion; `= v3_best.json` |
-| `alphas_gen_1` | 81.1% | near-champion, slightly different style |
-| `panel_wood_r1` | 61.1% | wood-tuned V3 |
-| `panel_gen16` | 58.2% | former champion; reed-first opener |
-| `panel_gen47_wood020` | 40.0% | adversarial wood-hoarder probe |
-| `panel_gen_25` | 38.9% | alternate resources-tune style |
-| `panel_gen47` | 30.4% | earlier champion |
-| `t2` | ~5–15% vs V3 | V1 architecture — cross-style diversity |
-
-Design and pipeline details live in the docs: V1 → `HUBRIS_V1_NOTES.md`; V3 → `V3_DESIGN.md`;
-the tuning pipeline (CMA-ES, multi-baseline, regression detector, promotion gating) →
-`V3_TRAINING_PIPELINE.md`; the ensemble → `tuned_configs/DATA_GEN_ENSEMBLE.md`.
+A hand-built, CMA-ES-tuned evaluation function (V1 ~50 coefficients → V3 ~250) whose only jobs
+were to **bootstrap the first NN training data** (an 8-config ensemble spread across the
+strength spectrum, for state-distribution diversity) and to baseline the first NN models. Both
+jobs are done; **retired 2026-06-26** — never again an MCTS leaf, data generator, or eval
+baseline (evaluation is NN-vs-NN head-to-head; the joint model beats the ensemble ~100%, so it
+no longer discriminates). The code (`agricola/agents/heuristic.py`, `tuned_configs/`) stays in
+place as the record of a completed phase. Full detail: `V3_DESIGN.md`, `V3_TRAINING_PIPELINE.md`,
+`tuned_configs/DATA_GEN_ENSEMBLE.md`, `HUBRIS_V1_NOTES.md`.
 
 ### 2.2 — MCTS
 
-Stronger play through search, and ultimately the search half of the AlphaZero-style loop. The
-architecture decisions live here; the comprehensive code reference (UCT, PUCT, chance nodes,
-fencing) is **`MCTS_IMPLEMENTATION.md`** — read that to understand `agricola/agents/mcts.py`.
-(`MCTS_DESIGN.md` is the older design record, kept for rationale.)
+The search half of the self-play loop. The comprehensive code reference for
+`agricola/agents/mcts.py` is **`MCTS_IMPLEMENTATION.md`** — read that before touching the search.
 
-**The design.** Vanilla **UCT** with a first-play-urgency (FPU) term for unvisited nodes; a
-**DAG with a transposition table** keyed on `GameState`'s hash, so different action orders
-reaching the same state share statistics; **leaf evaluation** via the V3 heuristic's margin
-rather than random rollouts; and **macro-actions for Fencing** — a fence layout is a *path* of
-pasture-commits, so a `MacroFencingAction` collapses the whole layout to one node and keeps the
-tree from exploding in depth. Legality is **mode-aware**: UCT consumes the strict-restriction
-wrapper (no prior to soft-prune), while PUCT takes the full, unrestricted `legal_actions` and lets
-the policy prior do the pruning (MCTS_IMPLEMENTATION.md §7/§12). Self-play and head-to-head matches
-can share a tree or use separate ones.
+**The production design is PUCT** (AlphaZero selection: `Q + c·P·√ΣN/(1+n)`): a `policy_fn`
+prior from the joint network over the **full unrestricted** legal set (the prior is the sole
+prune), the NN value as the leaf evaluator (no rollouts), a **DAG with a transposition table**
+keyed on `GameState`'s hash (action orders reaching the same state share statistics),
+forced-move step-through (the leaf value is queried at real decisions, not mid-action
+singletons), and `FenceMode.FLATTEN` (per-pasture commits as ordinary nodes). `c_uct = 1.0` is
+the unified default. Vanilla **UCT** (no prior, strict-restriction legality, macro-actions for
+fencing) was the pre-policy mode and survives as a control path — MCTS_IMPLEMENTATION.md covers
+it.
 
 **Chance nodes for hidden reveals.** Because the round-card order is hidden (Foundations —
 "Determinism after setup"), a reveal state is an explicit **chance node**: search routes through
 it via a deterministic round-robin over the ≤3 candidate `RevealCard`s (reconstructed from public
 state — MCTS reads no `Environment`), never leaf-evaluates it, and takes the expectation over its
-children rather than maxing. A chance node carries a P0 frame label (`decider = 0`) so the
-backprop sign-flip and UCB reads stay unchanged; `is_chance` — not `decider` — flags the routing.
-The search therefore no longer conditions on the hidden future across a round boundary.
+children rather than maxing. The search therefore never conditions on the hidden future across a
+round boundary.
 
-**Where it stands (empirical).** At the current 200–500-simulation budgets, with vanilla UCT and
-the *heuristic* as leaf evaluator, MCTS **loses ~3–5 points to the same heuristic used
-standalone**. But that appears to be leaf-evaluator-specific: with the **value NN** as the leaf
-evaluator, MCTS beats the NN's plain 1-turn lookahead head-to-head (early result) — preliminary
-evidence that the loss was tied to the *weak heuristic leaf*, not to MCTS itself, and that MCTS
-pays off once the evaluator is strong enough. That is exactly the long-term thesis. **PUCT is now
-implemented (c0)** — a `policy_fn` prior injected into `MCTSSearch` (UCT remains the no-policy path),
-forced-move step-through, and a `FenceMode` toggle; design + change plan in POLICY_PUCT_DESIGN.md. A
-trained policy head and higher simulation counts are the active next steps.
+**`prior_uniform_mix`** blends the PUCT prior with a uniform distribution
+(`(1−w)·policy + w/k`) so zero-prior moves still get explored. A self-play A/B found `w = 0.05`
+*not stronger* than pure policy, so the bot plays `w = 0` and the mix is used only to broaden
+the web UI's analysis overlay (`w = 0.05`). C++-only; `MCTS_IMPLEMENTATION.md` §5.3.1.
 
-**Optional uniform-mix of the policy prior (`prior_uniform_mix`).** The PUCT prior can be blended with a
-uniform distribution before selection — `prior'(s,a) = (1−w)·policy(s,a) + w·(1/k)` over the k legal
-actions, `w ∈ [0,1]`, `w = 0` (pure policy) the default. The blend gives **every** legal action a non-zero
-prior so PUCT will eventually explore moves the policy scored ≈0 — the fix for a sharply-peaked policy
-dumping nearly all visits on the top 2–3 actions. It is implemented in the **C++ production search**
-(`MCTSSearch::set_prior_uniform_mix` / `ensure_priors`), not in the Python `mcts.py` reference, and exposed
-through the `selfplay` binary's `--prior-mix` / `--prior-mix-p0|-p1` flags. Two uses: the web UI's "Show
-analysis" overlay mixes at `w = 0.05` for move-coverage, and the opponent bot can optionally mix (a per-game
-New-Game input, default `0.0`). A 400-game self-play A/B (200 + 200 seat-flipped) found `w = 0.05` **not
-stronger** than pure policy (≈46%), so it stays off for the bot by default and is used mainly to broaden
-analysis coverage. Full detail: `MCTS_IMPLEMENTATION.md` §5.3.1.
-
-**Speeding up MCTS.** The production data-generation workload — an NN value leaf + multi-head policy
-PUCT — was profiled and optimized to a **~2× per-move speedup** (cached `GameState.__hash__`, an
-optimized inference encoder, a device-query cache, plus a policy-head eval-mode *correctness* fix).
-The full catalog is in **`SPEEDUPS.md`** (Part 1 *Implemented* / Part 2 *Potential* — including the
-recommended next lever, NN-forward **leaf-batching**); the current production profile + measurement
-caveats are in **`PROFILING.md`**; and `MCTS_IMPLEMENTATION.md` §14 maps each optimization onto the
-search code. Two standing knobs worth knowing:
-
-- **`agricola/opt_config.py`** — `PARETO_OPT_LEVEL` (0–3, cumulative) + `FENCE_SCAN_CACHE`, now
-  **default ON** (level 3 + cache). Behavior-transparent and cross-level-tested
-  (`tests/test_frontier_opt.py`): `FENCE_SCAN_CACHE` is result-identical; `PARETO_OPT_LEVEL ≥ 1` is
-  set-identical but reorders the RNG realization (reproducible, just a different trajectory than level
-  0). They speed legal-action enumeration; their ~9% win on the *old V3-leaf* workload was dominated by
-  the fence cache (the Pareto/feeding helpers are cold in NN-leaf PUCT). Full design + proofs:
-  **`FRONTIER_OPT_DESIGN.md`**.
-- **Ops levers** (not code): run data-gen under **`python -O`** (drops the per-`step` assertion +
-  `__debug__` work) and with **process parallelism** (one game per worker, `torch.set_num_threads(1)`)
-  — the throughput multipliers, orthogonal to and compounding with the per-sim wins above.
+**Performance.** The production per-move cost has been profiled and roughly halved; the catalog
+is `SPEEDUPS.md`, the current profile `PROFILING.md`. Standing knobs: `agricola/opt_config.py`
+(`PARETO_OPT_LEVEL` + `FENCE_SCAN_CACHE`, default ON, cross-level-tested — `FRONTIER_OPT_DESIGN.md`),
+and the ops levers — run data-gen under `python -O` and with process parallelism (one game per
+worker, `torch.set_num_threads(1)`).
 
 ### 2.3 — Neural network
 
-The end-goal agent: a network with a **value head and a policy head**, trained by AlphaZero-style
-self-play.
+**The agent's network is the `SharedTrunkModel`** — one trunk over the ~170-feature encoder
+feeding a margin value head, an outcome value head (below), and nine policy heads (seven
+fixed-vocab + two pointer heads that score variable-length Pareto frontiers), trained jointly on
+PUCT self-play data with **soft-π** policy (cross-entropy against the visit distribution) +
+margin-MSE value. MCTS consumes it through **`make_joint_fns`** — **one trunk forward per node**
+(an embedding memo shares it between value and policy, so `mcts.py` is unchanged); the policy
+covers every decision type over the full legal set, with tiny fallbacks (uniform /
+cell-priority) where no head has signal. Full design + eval: **`SHARED_TRUNK.md`**.
 
-**Two trained model families exist.** They share the ~170-feature encoder and are interchangeable
-at the MCTS leaf, but differ in how value and policy are packaged:
-
-1. **Separate nets — a value net + nine disjoint policy heads.** The original slice: one supervised
-   value network, plus nine independently-trained behavioral-cloning policy heads (seven fixed-vocab
-   + two pointer), stitched into one `policy_fn` by the `make_policy_fn` combiner. This is the
-   separate-nets paragraph below.
-2. **The joint shared-trunk model (Stage B).** All ten outputs unified onto one shared trunk —
-   trained jointly with soft-π policy + margin value, **the strongest agent to date**. This is the
-   "Stage B" paragraph below.
-
-The joint model is the current best and the basis for ongoing self-play; the separate nets are the
-provenance it grew out of and remain the fallback when a single head is trained or probed in
-isolation.
-
-**The separate-nets family (the original slice; superseded as the agent, still the training
-fallback).** A **supervised value network** — first trained on heuristic-ensemble self-play to
-predict the terminal score margin — plus a factored multi-head **behavioral-cloning policy**:
-nine trained heads (each `unweighted` + `awr`) — seven fixed-vocab `DecisionHead`s (`placement`
-25, `choose_subaction` 8, `commit_build_major` 14, `commit_sow` 104, `commit_bake` 6, `fencing`
-110, `build_stop` 2) and two `PointerHead`s (`animal_frontier`, `harvest_feed`) scoring
-variable-length Pareto frontiers. The **`make_policy_fn` combiner** assembles them into the one
-`policy_fn` MCTS consumes — over the full legal set, dispatching per decision type (fixed head /
-pointer head / `build_stop` learned-P(stop) for multi-shot rooms&stables /
-uniform-over-cell-priority for the no-signal spatial cells / uniform-over-full-legal), so the
-prune lives entirely in the policy; `scripts/nn/build_combined_policy.py` ships the two
-end-to-end functions. Known gap: the `fencing` head is spatially blind (top-1 ~28%) — the
-encoder has no per-cell features. Design records: **`FIRST_NN.md`** + **`POLICY_HEAD.md`**.
-
-**Stage B — the joint shared-trunk model (done; strongest agent to date).** The separate value net
-and nine policy heads have been unified into one **`SharedTrunkModel`**: a single `170→256→256→128`
-trunk feeding a value head + the 7 fixed + 2 pointer heads, trained jointly on the 41k PUCT self-play
-data (the first **DATA_VERSION 3** training) with two upgrades — **soft-π** policy (cross-entropy
-against the visit distribution, not one-hot behavioral cloning) and on-policy value. A value-capacity
-sweep first settled the trunk size at **256×2** (extra width/depth didn't help — the count encoder is
-the binding constraint — and *MAE was a backwards predictor of play strength*). The joint model
-**beats the previous-best setup** (champion value + the 9 separate unweighted heads) at 800-sim PUCT:
-Python (joint won) and a C++ replication of **99% (198-2, +12.95)**, with **value strength preserved**
-(no negative transfer). MCTS consumes it through `make_joint_fns` — **one trunk forward per node** (an
-embedding memo shares it between value and policy, so `mcts.py` is unchanged). The whole stack is also
-ported to C++ (§2.4) for fast self-play generation. The joint family is now the **`nn_models/best`
-pointer** — as of 2026-06-25 `best` is the joint `joint_a256_300k` (see below), resolved
-through a `model_kind`-aware loader. Full design + eval: **`SHARED_TRUNK.md`**.
+The joint model superseded the original **separate-nets slice** — one supervised value net plus
+nine independently-trained behavioral-cloning policy heads — which remains the fallback when a
+single head is trained or probed in isolation (`FIRST_NN.md` + `POLICY_HEAD.md` are its design
+records; one durable finding: the `fencing` head is spatially blind, the encoder has no per-cell
+features).
 
 **Strength vs humans.** The joint champion has beaten world-class human players at the 2-player
 Family game — including the project's author, a 2022 Agricola World Cup champion — and is
 believed stronger than any human at this variant.
 
-**The current champion — `joint_a256_300k` (clean-300k corpus; promoted 2026-06-25).** Same architecture as the prior champion — a `[256,256]→128` GELU joint shared-trunk value+policy model — **retrained on the cleaner 300k-game corpus** (`gen300k`: 300k @ 1600 sims / c_uct 2 / mixed temps, generated by the prior champion `joint_gelu_rand_240k` itself; snapshot-keep 0.5), random-init then warm-resumed to convergence on Spot at lr 3e-4 (converged val_mse 0.5452). It **beats the prior champion 63.9% head-to-head** (438 games, 800 sims, mix α=0.9) — *the corpus alone is the upgrade*, at no extra compute cost (identical arch). It was the `A_baseline` arm of a 6-architecture `300k_6arch_sweep`; the wider **`B_wide` (512×512→256) is stronger still** (beats `joint_a256_300k` 58% at equal sims, 55–57% at equal wall-clock) but costs ~1.76× per forward, so it is held as a **candidate, not promoted** (promotion deferred to the user). Deployed scales — **measured on a common 6k-state gen300k set** (value_scale is distribution-dependent, so measure both seats on a common set for fair matches): **value_scale 3.298, outcome_scale 0.549**; plays the **mix leaf at α=0.9**. Full sweep + eval: `SHARED_TRUNK.md` §2.2; rows in `nn_models/REGISTRY.md`.
+**The current champion — `joint_a256_300k` (promoted 2026-06-25).** A `[256,256]→128` GELU
+joint model retrained on the cleaner 300k-game self-play corpus generated by its predecessor —
+*the corpus alone was the upgrade* (identical architecture, beats the prior champion 63.9%
+head-to-head). One live decision is parked with the user: the wider **`B_wide` (512×512→256) is
+stronger still** (58% at equal sims, 55–57% at equal wall-clock) but ~1.76× per forward — held
+as a candidate, not promoted. Deployed: **value_scale 3.298, outcome_scale 0.549** (measured on
+a common state set — value_scale is distribution-dependent), **mix leaf at α=0.9**. Full sweep +
+eval: `SHARED_TRUNK.md` §2.2; rows in `nn_models/REGISTRY.md`.
 
 **Champion lineage (compact — the full per-model records live in `nn_models/REGISTRY.md` +
 `SHARED_TRUNK.md`).** `joint_taper128_thin` (117k corpus) → `joint_outcome_44k` (first
@@ -632,7 +526,13 @@ GCP-cloud-trained; introduced the *outcome* head below) → `joint_gelu_rand_240
 durable experimental findings from the lineage are **GELU > leaky_relu** and **warm-start ≈
 random-init** (a 2×2 experiment — the warm-start "edge" was training-seed noise).
 
-**The outcome head + three leaf modes.** The `SharedTrunkModel` now carries **two value heads off the same trunk embedding**: the original **margin** head (regresses the terminal score margin) and a new **outcome** head (an `E→1` linear layer regressing `sign(margin) ∈ {−1, 0, +1}` — who wins, ignoring by how much). The outcome head is co-trained inside the value-task batch off the *same* embedding, so it costs **no extra trunk forward**; L2-SP excludes the fresh head, and an old checkpoint without it still loads (backward-compatible). MCTS can then take its leaf value in one of **three modes**, all from that one trunk forward: **margin** (`margin / value_scale`), **outcome** (`outcome / outcome_scale`, already in `[−1, 1]`), or **mix** = `α·(margin/margin_scale) + (1−α)·(outcome/outcome_scale)` (normalize-then-average; `α=1` is pure margin, `α=0` pure outcome), with `α` tunable. A **mix-α self-sweep** (10k games, each seat's α ∼ U[0,1], kernel-regression analysis — `scripts/nn/analyze_alpha_sweep.py`) found the robust-best leaf is **margin-heavy (α≈0.9)**: pure outcome is the worst leaf and a 50/50 mix mediocre, and crucially this *flips* the vs-champion ranking above — so the mix/outcome edge in that head-to-head is partly champion-specific exploitation, while **margin is the robust leaf**. The **deployed bot therefore uses the mix leaf at α=0.9**. `train_shared.py --train-outcome` (default ON) trains the head; the C++ search exposes `set_leaf_mode` / `set_mix_alpha`; full detail in `SHARED_TRUNK.md` §10.
+**Two value heads, three leaf modes.** Beside the **margin** head (terminal score margin) sits
+an **outcome** head (regresses `sign(margin)` — who wins, ignoring by how much), co-trained off
+the same embedding at no extra forward cost. MCTS takes its leaf value in one of three modes —
+**margin**, **outcome**, or the normalized **mix** `α·margin + (1−α)·outcome` — via
+`set_leaf_mode` / `set_mix_alpha` (C++) and the matching script flags. A 10k-game mix-α
+self-sweep found **margin-heavy is robust** (pure outcome worst, α≈0.9 best); **the deployed
+bot plays the mix leaf at α=0.9**. Full detail: `SHARED_TRUNK.md` §10.
 
 > **c_uct default is 1.0** (unified 2026-06-18 across scripts, the C++ binary, `MCTSAgent`, and the web-UI bot/analyze seats — was a 0.5/1.4 mix). Validated combined@1.0 ≈ combined@0.5. `value_scale` for fair head-to-head MCTS must be measured on a **common state set** (not the condition-biased training `target_std`) — see `SHARED_TRUNK.md` §9.1.
 
@@ -672,23 +572,14 @@ any consumer that wants a pure `NormalizedValueModel`.
 > silently reintroducing a ~10 GB OOM at 57k games — which is how the bug shipped originally. Keep the
 > path-streaming + direct-to-split shape; §3 has the full rationale.
 
-**Encoder experiments — a forward-compatible encoder registry (mechanism landed; a candidate under
-evaluation, NOT promoted).** A model now declares *which input encoder* it was trained with via an
-`encoder_tag`, and both Python (`EncoderSpec` / `ENCODERS` in `encoder.py`) and C++ (`encoder_for_tag`
-in `encoder.cpp`, read from the manifest's `encoder_tag`) **dispatch through a registry** — no
-per-model branches; adding a future encoder is one registry row + one encode fn. The first use is a
-**candidate 178-feature encoder** (`cand_feat178_v1`): per player it adds a begging-free running score,
-turns-until-next-feeding, and can-renovate/can-grow capability bits, and it *removes* the begging count
-— begging is a pure end-of-game penalty, so it's stripped from the value target and added back
-deterministically at inference (`−3·(own−opp)`, margin-model only). The whole stack is encoder-aware:
-`train_shared.py --encoder {v2,candidate}`, the joint dataset/model/policy thread the `EncoderSpec`,
-and `export_weights.py` writes `encoder_tag` so C++ picks the right encoder; permanent C++ gates
-(`test_cpp_joint_candidate_matches_python`) validate the candidate path ≤1e-4. The **cheap-iteration
-recipe**: encoders re-encode the *same* raw self-play games (`DecisionSnapshot` stores the `GameState`,
-not an encoding), so trying one is a re-encode + retrain, not a data regen — and the C++ encoder is
-ported *eagerly* (it's incremental + differential-harness-safe) so eval/self-play run at C++ speed
-rather than waiting hours on Python. The candidate beats `joint_taper128` at 800-sim PUCT (temp-0 63%,
-temp-0.3 52%); promotion is held pending a 57k-game retrain. Catalog: `nn_models/REGISTRY.md`.
+**Encoders are registry-dispatched.** A model declares its input encoder via an `encoder_tag`;
+both Python (`EncoderSpec` / `ENCODERS` in `encoder.py`) and C++ (`encoder_for_tag`, read from
+the exported manifest) dispatch through the registry — adding an encoder is one registry row +
+one encode fn, no per-model branches. Trying a new encoder is cheap: `DecisionSnapshot` stores
+the raw `GameState`, so it's a re-encode + retrain, never a data regen — and the C++ encoder is
+ported eagerly so eval/self-play stay at C++ speed. A candidate 178-feature encoder
+(`cand_feat178_v1`, begging stripped from the value target) exists but is **not promoted**;
+status + details in `nn_models/REGISTRY.md`.
 
 **Trained-model catalog: `nn_models/REGISTRY.md`.** The authoritative index of every checkpoint
 on disk — `ENCODING_VERSION` it was trained against, training data source, hyperparameters,
@@ -796,31 +687,24 @@ Both modes run MCTS against MCTS, but for opposite purposes, and the scripts spl
   a `--leaf-ckpt` pointing at a joint `SharedTrunkModel` auto-wires that seat via `make_joint_fns`,
   so it drives both separate-net and joint models) and `scripts/nn/run_cpp_match.py` (the C++
   two-net `selfplay --match --model-dir-p0 A --model-dir-p1 B`, the OOM-safe way to run an 800-sim
-  match). `scripts/nn/eval_vs_ensemble.py` (drives a checkpoint against the fixed 8-config heuristic
-  ensemble) was the *uncontaminated* strength yardstick early on, but is **retired** (§2.1): the
-  joint model dominates the ensemble ~100%, so it no longer discriminates — evaluation is now
-  checkpoint-vs-checkpoint (`run_cpp_match.py`).
+  match). Evaluation is checkpoint-vs-checkpoint; the old heuristic-ensemble yardstick
+  (`eval_vs_ensemble.py`) is retired (§2.1).
 
 The "port in different agents, or two of the same" flexibility is exactly this distinction: **same
 agent both seats = self-play generation; different agents per seat = evaluation match.** The agent at
 each seat is a `(value_fn, policy_fn)` pair behind the engine's black-box leaf/prior contracts, so
-any evaluator (heuristic V3, separate value net, joint trunk) drops in at either seat without
-touching `mcts.py` — that interchangeability is what makes the same driver serve a head-to-head
-today and a card-game agent later.
+any evaluator drops in at either seat without touching `mcts.py` — that interchangeability is
+what makes the same driver serve a head-to-head today and a card-game agent later.
 
 **Defaults and why.** Production self-play uses the **joint shared-trunk model** as the agent —
-one trunk supplying *both* the value leaf and the policy prior (`make_joint_fns`, §2.3 Stage B). As of
-2026-06-15 **`nn_models/best` itself resolves to the joint model** (`joint_taper128_thin`), loaded
-through the `model_kind`-aware `load_value_evaluator` (value-only consumers) / `make_joint_fns`
-(MCTS-leaf consumers) — so passing `--leaf-ckpt nn_models/best` (the default for the generation /
-match scripts) now drives the joint value+policy agent directly. A different joint checkpoint can
-still be supplied explicitly via `--leaf-ckpt <joint-ckpt>` (Python) or its exported manifest (C++).
-The older *separate* value net (`M_82k_warmM62k`) + the nine-head combined behavioral-cloning policy
-remain available as the value-only fallback for any consumer that wants a pure `NormalizedValueModel`.
-Search runs PUCT with `FenceMode.FLATTEN` over the **full unrestricted** legal set (the policy prior
-is the sole prune — §2.2), `c_uct = 1.0` (the unified default as of 2026-06-18; calibrated to the value head's common-state `value_scale`), and a low
-played-move temperature so trajectories stay near-greedy while π still records the search's
-exploration. Generation is **chunked-streaming and resumable** (bounded
+one trunk supplying *both* the value leaf and the policy prior (`make_joint_fns`, §2.3).
+**`nn_models/best` resolves to the current joint champion**, so `--leaf-ckpt nn_models/best`
+(the default for the generation / match scripts) drives the joint agent directly; a different
+checkpoint can be supplied explicitly via `--leaf-ckpt` (Python) or its exported manifest (C++).
+Search runs PUCT with `FenceMode.FLATTEN` over the **full unrestricted** legal set (the policy
+prior is the sole prune — §2.2), `c_uct = 1.0`, and a low played-move temperature so trajectories
+stay near-greedy while π still records the search's exploration. Generation is
+**chunked-streaming and resumable** (bounded
 per-worker RAM, O(n) writes, skip-completed-game-idxs on restart) and runs **one game per worker
 process** with `torch.set_num_threads(1)` — the throughput multipliers that matter on an 8-core
 machine. The C++ generator's default **batch mode** loads the exported NN weights *once per worker*
@@ -832,17 +716,13 @@ All are thin CLIs over libraries in `agricola/agents/nn/`; each writes a self-co
 dir (`best.pt` + meta + config + metrics + curves) and **must update `nn_models/REGISTRY.md`** on
 completion (§2.3). Which trainer to use:
 
-- **`scripts/nn/train_first.py`** — the **value net** (separate-net family). Wraps `training.train`:
-  load → split → fit norm → AdamW + early-stop on val MSE → checkpoint. Supports warm-start
-  (`--init-from`) and the L2-SP trust-region anchor for self-play fine-tunes.
-- **`scripts/nn/train_policy.py` / `train_policy_pointer.py`** — one **disjoint policy head** at a
-  time (the seven fixed heads / the two pointer heads), behavioral-cloned from `chosen_action` data
-  with either the `unweighted` or advantage-weighted (`awr`) loss.
-  `scripts/nn/build_combined_policy.py` then assembles the nine head checkpoints into the end-to-end
-  `policy_fn`.
-- **`scripts/nn/train_shared.py`** — the **joint shared-trunk model** (current best). Wraps
-  `shared_training.train_shared`: interleaves per-head batches through the one trunk with **soft-π**
-  policy CE + margin-MSE value, per-head gradient balancing, early-stop on **value** val-MSE.
+- **`scripts/nn/train_shared.py`** — **the production trainer** (the joint shared-trunk model).
+  Wraps `shared_training.train_shared`: interleaves per-head batches through the one trunk with
+  **soft-π** policy CE + margin-MSE value, per-head gradient balancing, early-stop on **value**
+  val-MSE.
+- **`scripts/nn/train_first.py`** (a standalone value net) and **`train_policy.py` /
+  `train_policy_pointer.py`** (one disjoint policy head at a time) — the separate-nets trainers,
+  kept for probing a single head/net in isolation.
 
 **Training defaults and why.** Per CLAUDE.md memory, NN training here is **step-bound, not
 compute-bound** — the default `batch_size=256` wastes the machine — so use the `--fast-loader` with a
@@ -862,7 +742,7 @@ train (Python: train_shared / train_first+train_policy)
   → ln -sfn <name> nn_models/cpp_export_best   # update the canonical pointer
   → generate self-play (generate_selfplay_data_cpp.py, C++, batch mode)
   → train on the new GameRecords
-  → evaluate (run_cpp_match.py / eval_vs_ensemble.py) → promote in REGISTRY.md → repeat
+  → evaluate (run_cpp_match.py) → promote in REGISTRY.md → repeat
 ```
 
 The export step exists because the C++ generator runs its own hand-rolled MLP inference (no
@@ -1380,7 +1260,7 @@ AgricolaBot/
 
             train_first.py          # Thin CLI wrapper over `agricola.agents.nn.training.train(...)` — argparse for hyperparameters (run-dir, hidden_dims, lr, batch_size, max_epochs, early-stop patience, `--init-from` warm-start, `--l2sp <λ>` L2-SP anchor, `--save-all-epochs`, …) and dispatches into the library. Output: best-model checkpoint + training-curve plot + calibration plot + metadata JSON in the configured out-dir.
 
-            eval_vs_ensemble.py     # Parallel, single-seat evaluation of a trained NN checkpoint vs the 8-config data-gen ensemble. Subprocess-drives `scripts/nn/play_match.py` (multiprocessing `--jobs`) once per opponent, NN as P0, regular legality; prints a per-opponent win%/margin table + aggregate. Single-seat (P0/P1 symmetric, one seat averages SP), so aggregates are NOT comparable to older seat-swapped numbers. `--model <best.pt> --n 100 --jobs 8`. This fixed ensemble is the cleanest *uncontaminated* objective yardstick (see FIRST_NN C22): gate on it, not head-to-head-vs-parent.
+            eval_vs_ensemble.py     # RETIRED (§2.1 — the heuristic ensemble no longer discriminates; evaluation is checkpoint-vs-checkpoint via run_cpp_match.py). Was the early uncontaminated strength yardstick: parallel single-seat evaluation of a checkpoint vs the 8-config data-gen ensemble.
 
             retention_eval.py       # Post-hoc retention sweep (FIRST_NN C20): encode a fixed held-out slice of a BROAD-distribution run dir once (`--probe-dir`/`--probe-games`), then compute raw-margin MAE for any list of checkpoints (`--sweep` globs, e.g. every epoch of a fine-tune) with a `--baseline` model as the reference line. `predict_margin` denormalizes per-model so MAE-in-points is comparable across checkpoints with different NormStats. The instrument that exposes self-play forgetting that a fine-tune's own val split cannot — though MAE≠strength, so it diagnoses, it doesn't gate.
 
