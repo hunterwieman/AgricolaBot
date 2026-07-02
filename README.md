@@ -1,16 +1,16 @@
 # AgricolaBot
 
-A from-scratch Python implementation of the board game **Agricola** (2-player Family variant), built as the environment for training a strong AI agent via Monte Carlo Tree Search and reinforcement learning.
+A from-scratch Python implementation of the board game **Agricola**, built as the environment for training a strong AI agent via Monte Carlo Tree Search and self-play reinforcement learning.
 
-The long-term goal is an AlphaZero-style self-play agent. The current focus is the engine, heuristic baselines, and an MCTS scaffold that will eventually carry a learned value network.
+The AlphaZero-style self-play loop is running for the 2-player Family variant, and its champion — a joint value+policy network amplified by MCTS — **has beaten world-class human players, including the project's author (a 2022 Agricola World Cup champion), and is believed to be stronger than any human at this variant.** The current frontier is the full card game.
 
 ---
 
 ## Status
 
-The engine is complete and well-tested. The entirity of the Family game — the version without cards — is fully implemented. The pending-decision stack handles multi-step turns and card triggers, with one card (Potter Ceramics) wired in to validate the trigger machinery end-to-end.
+The engine is complete and well-tested. The Family game — the version without cards — is fully implemented, and the **card game** is well underway: the full card-firing system (hosts, triggers, automatic effects, cost modifiers, food payment) is built, with ~270 of the 840-card catalog implemented and playable in the browser's Cards mode (human-vs-human or human-vs-random; no trained card-game agent yet).
 
-On top of the engine sits a stack of AI agents you can play against in the browser:
+On top of the engine sits a stack of AI agents you can play against in the browser (Family mode):
 
 | Agent | What it is |
 |---|---|
@@ -19,9 +19,9 @@ On top of the engine sits a stack of AI agents you can play against in the brows
 | `hubris` | Round-2 CMA-ES-tuned V1 heuristic. |
 | `hubris_v3` | Larger ~250-parameter heuristic, iteratively tuned via block-coordinate descent. The strongest heuristic agents. |
 | `nn` | The trained network used as a 1-turn-lookahead evaluator. The default checkpoint (`nn_models/best`) is the **joint shared-trunk model** — one network producing both a value estimate and a policy — used here for value only. Stronger than every heuristic. |
-| `mcts` | **PUCT** (AlphaZero-style: value + policy prior + DAG with transpositions), using the joint network for both the leaf value and the search prior. Amplifies the network with tree search; stronger with more simulations, at the cost of speed. **The strongest agent to date**, and the default opponent online. Backed by a fast C++ search binary when available (≈4× the Python search). |
+| `mcts` | **PUCT** (AlphaZero-style: value + policy prior + DAG with transpositions), using the joint network for both the leaf value and the search prior. Amplifies the network with tree search; stronger with more simulations, at the cost of speed. **The strongest agent — unbeaten by world-class human players** — and the default opponent online. Backed by a fast C++ search binary when available (≈4× the Python search). |
 
-Cards, occupation/minor-improvement support, and the AlphaZero-style training loop are future work.
+Remaining work: the rest of the card catalog, then repeating the agent-training process for the card game.
 
 ---
 
