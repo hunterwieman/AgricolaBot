@@ -48,8 +48,10 @@ HISTORY_VP_CARDS: frozenset[str] = frozenset({
 # points-if-scored-now would leak a hidden fact. Butler is the sole case: it scores
 # 4 iff (played by round 11) AND (rooms > people now); a "+4/+0" emblem would reveal
 # the play-round gate to the OPPONENT in any state where rooms currently exceed
-# people. Instead the owner sees the round it was played (the actually-useful fact),
-# owner-only — see `_PRIVATE_STATE_FORMATTERS`.
+# people. Instead the owner alone sees whether the bonus is still available (the
+# play-round gate) — see `_PRIVATE_STATE_FORMATTERS`. Earthenware Potter (deck D,
+# "played by round 4 → bonus per person paid in clay"; not yet implemented) is the
+# same shape and will belong here when it lands.
 PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler"})
 
 # Scoring cards whose points ARE derivable from the current public board (animals,
@@ -129,9 +131,9 @@ def _butler(ps) -> str | None:
     n = ps.card_state.get("butler")
     if not n:  # not yet played
         return None
-    if n > 11:  # played too late — the 4-point bonus can never trigger
-        return f"Played round {n} — bonus forfeited"
-    return f"Played round {n}"
+    # The play-round gate: eligible iff played by round 11, else the 4-point bonus
+    # can never trigger. (The other condition — rooms > people — is on the board.)
+    return "Bonus available" if n <= 11 else "Bonus forfeited"
 
 
 _PRIVATE_STATE_FORMATTERS = {

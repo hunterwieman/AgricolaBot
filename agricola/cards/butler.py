@@ -9,9 +9,9 @@ play-time quantity — by the time scoring runs the round is 14 (terminal), so i
 cannot be reconstructed during `_score`. So `on_play` snapshots the PLAY ROUND into
 the per-card CardStore (II.7), and the scoring term reads it back and applies the
 ≤ 11 gate. (The stored value is the round itself, not just the gate bit, so the web
-UI can show the owner the round Butler was played — the meaningful hidden fact — see
-`agricola.cards.display`; the bonus-if-scored-now would instead leak that gate to the
-opponent whenever rooms currently exceed people.)
+UI can privately tell the owner whether the bonus is still available — the meaningful
+hidden fact — see `agricola.cards.display`; a bonus-if-scored-now emblem would
+instead leak that gate to the opponent whenever rooms currently exceed people.)
 
 The bonus itself ("more rooms than people") is a derived end-game read, evaluated at
 scoring time: strictly MORE rooms than people (a strict `>`), where "people" is the

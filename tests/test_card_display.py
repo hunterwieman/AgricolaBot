@@ -48,10 +48,10 @@ def test_butler_shows_play_round_privately_not_an_emblem():
     # Its badge is PRIVATE (owner-only), never public.
     p = fast_replace(p, card_state=p.card_state.set("butler", 9))
     assert d.state_text("butler", p) is None
-    assert d.private_state_text("butler", p) == "Played round 9"
-    # Played too late → the bonus can never trigger; say so.
+    assert d.private_state_text("butler", p) == "Bonus available"
+    # Played too late (> 11) → the bonus can never trigger.
     p = fast_replace(p, card_state=p.card_state.set("butler", 13))
-    assert d.private_state_text("butler", p) == "Played round 13 — bonus forfeited"
+    assert d.private_state_text("butler", p) == "Bonus forfeited"
 
 
 def test_bonus_vps_history_vs_public():
