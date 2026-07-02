@@ -106,7 +106,7 @@ All the frozen dataclasses that together represent a complete snapshot of a game
 
 ### `agricola/canonical.py`
 
-Canonical, deterministic serialization of `GameState` to/from a self-describing JSON form — `dumps(state)` / `loads(text)` (built on `to_canonical` / `from_canonical`). This is the **shared contract** the C++ engine must reproduce byte-for-byte; the differential-test harness (`tests/test_cpp_*.py`) compares C++-produced dumps against Python's, so equality of the dumps *is* the equivalence check (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). A **generic, tag-driven dataclass walker**: it auto-registers the state / action / pending dataclasses + enums by scanning their modules, so it adapts to field changes without per-field maintenance (drift-proof). Frozensets serialize as sorted lists (order-independent), enums by member name, and the lazy `_hash_cache` is excluded. Test/interop scaffolding only — no production-path code imports it, and the Python engine is untouched.
+Canonical, deterministic serialization of `GameState` to/from a self-describing JSON form — `dumps(state)` / `loads(text)` (built on `to_canonical` / `from_canonical`). This is the **shared contract** the C++ engine must reproduce byte-for-byte; the differential-test harness (`tests/test_cpp_*.py`) compares C++-produced dumps against Python's, so equality of the dumps *is* the equivalence check (CLAUDE.md → The C++ twin engine, CPP_ENGINE_PLAN.md §3.1). A **generic, tag-driven dataclass walker**: it auto-registers the state / action / pending dataclasses + enums by scanning their modules, so it adapts to field changes without per-field maintenance (drift-proof). Frozensets serialize as sorted lists (order-independent), enums by member name, and the lazy `_hash_cache` is excluded. Test/interop scaffolding only — no production-path code imports it, and the Python engine is untouched.
 
 ---
 
@@ -669,7 +669,7 @@ No PyTorch dependency at module level (the NN leaf rides in via the passed agent
 
 ### `agricola/agents/nn/trace_replay.py`
 
-The C++↔Python interop layer (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §2): turns the compact game traces the C++ self-play binary emits into the standard `GameRecord`s the training pipeline already consumes.
+The C++↔Python interop layer (CLAUDE.md → The C++ twin engine, CPP_ENGINE_PLAN.md §2): turns the compact game traces the C++ self-play binary emits into the standard `GameRecord`s the training pipeline already consumes.
 
 - **`replay_trace(trace) -> GameRecord`** — the adapter. Deserializes a trace's canonical `initial_state`, replays its ordered action list through the engine (reconstructing the full `GameState` at each step — replay is engine-`step` only, no search/NN, so milliseconds per game), and rebuilds a v3 `GameRecord` with `visit_distribution` (π) + `root_value` preserved on the searched decisions. Snapshot inclusion + `decider` are re-derived in Python (the oracle is authoritative for *which* snapshots exist; the trace for π).
 - **`game_to_trace(...)`** — the writer / §3.2 differential-test trace source (plays a game and records the `agricola-cpp-trace-v1` envelope).

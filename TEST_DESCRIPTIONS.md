@@ -238,7 +238,7 @@ Tests for the hidden-information refactor — round-card reveals as nature steps
 
 ### C++ engine differential tests (`tests/test_cpp_*.py`)
 
-The harness validating the C++ self-play engine (CLAUDE.md §2.4, `CPP_ENGINE_PLAN.md` §3) against the Python **oracle**. Each builds a corpus by random play (and trace replay), serializes via `agricola.canonical`, drives the C++ through the `agricola_cpp` pybind module, and asserts agreement. **All skip cleanly if `cpp/build/` (or `nn_models/cpp_export/`) is absent** — so the suite passes whether or not the C++ engine is built.
+The harness validating the C++ self-play engine (CLAUDE.md → The C++ twin engine, `CPP_ENGINE_PLAN.md` §3) against the Python **oracle**. Each builds a corpus by random play (and trace replay), serializes via `agricola.canonical`, drives the C++ through the `agricola_cpp` pybind module, and asserts agreement. **All skip cleanly if `cpp/build/` (or `nn_models/cpp_export/`) is absent** — so the suite passes whether or not the C++ engine is built.
 
 - **`test_cpp_canonical.py`** — the Python canonical serializer (`agricola.canonical`) round-trips byte-identically over a state corpus; pins the contract before C++ exists.
 - **`test_cpp_trace_replay.py`** — action↔`params` serde round-trips (incl. the `RevealCard.card` fix); `game_to_trace` + `replay_trace` reproduce `play_recording_game`'s `GameRecord` exactly.

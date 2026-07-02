@@ -100,7 +100,7 @@ flagged as such.
 
 ### Scope
 
-Not covered here: the web UI's Cards mode (CLAUDE.md §2.6; `play_web.py` serializes hands under
+Not covered here: the web UI's Cards mode (CLAUDE.md → Web UI & online deployment; `play_web.py` serializes hands under
 hidden-info rules and renders card-play buttons), per-card entries
 (`CARD_IMPLEMENTATION_PROGRESS.md` is the ledger; this document names specific cards only as
 exemplars of a mechanism or as genuinely unique cases), and the batch-workflow tooling
@@ -136,7 +136,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   (`CARD_DEFERRED_PLANS.md`) that would unblock whole defer clusters at once — those are
   user-decision-gated (§8).
 - **Web UI:** Cards mode is playable (human-vs-random / human-vs-human) at the deployed app
-  with all implemented cards in the deal pool (CLAUDE.md §2.6). **No trained card-game agent
+  with all implemented cards in the deal pool (CLAUDE.md → Web UI & online deployment). **No trained card-game agent
   exists yet** — the Phase-2 agent loop for the card game starts after the card content
   stabilizes.
 
@@ -645,7 +645,7 @@ Exactly two card-new fields (plus the frames below riding the existing `pending_
   (CARD_IMPLEMENTATION_PLAN.md I.5). There is **no `observe(state, env, i)` projection in the
   code** — CLAUDE.md / ENGINE_IMPLEMENTATION.md passages presenting one as built describe
   unimplemented design intent. The web UI applies its own reveal rules at serialization
-  (CLAUDE.md §2.6).
+  (CLAUDE.md → Web UI & online deployment).
 - **The scoped used-sets** — `used_this_turn`, `used_this_round`, `fired_once: frozenset[str]` —
   the "have I fired this already?" latches for card budgets spanning events (which never live on
   frames — invariant 10's complement). Each is cleared *at its scope boundary* by

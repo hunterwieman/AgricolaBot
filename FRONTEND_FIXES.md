@@ -299,7 +299,7 @@ flat buttons, it will be unusable for cell-set actions. Either:
 
 - **(a) Implement `cell` / `cell_set` properly** — let the player click
   farmyard cells; gather selection; submit the matching legal action.
-  This is the `ui_hint` affordance path (CLAUDE.md §2.6). Best UX.
+  This is the `ui_hint` affordance path (CLAUDE.md → Web UI & online deployment). Best UX.
 - **(b) Fallback: terminal-style class-and-prompt** — if there are >8
   options of one Commit type, collapse them under a "Pick a
   CommitBuildPasture (N options)" button that opens a sub-list /

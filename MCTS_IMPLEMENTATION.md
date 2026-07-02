@@ -871,7 +871,7 @@ at **α = 0.9**.
 
 **The differential gate.** `tests/test_cpp_nn.py::test_cpp_outcome_matches_python` validates the C++ outcome
 readout against the Python `predict_outcome` to **≤ 1e-4** — the same oracle discipline that keeps every other
-C++ NN output in lock-step with Python (§14, CLAUDE.md §2.4).
+C++ NN output in lock-step with Python (§14, CLAUDE.md → The C++ twin engine).
 
 ---
 

@@ -616,7 +616,7 @@ amount of outcome that the sweep shows is a marginal help without buying into th
 pure-outcome leaf's weakness. New tool: `scripts/nn/analyze_alpha_sweep.py`
 (pooled-seat kernel regression + plot).
 
-### 10.6 Deploy (see CLAUDE.md §2.6 / DEPLOY.md)
+### 10.6 Deploy (see CLAUDE.md → Web UI & online deployment / DEPLOY.md)
 
 `joint_outcome_44k` was promoted to `nn_models/best` + `cpp_export_best` and deployed
 live with the **mix leaf at α=0.9**. The web-UI analysis overlay shows a `mix` badge

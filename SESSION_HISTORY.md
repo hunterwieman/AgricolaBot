@@ -2862,7 +2862,7 @@ A product-and-infra session: made the browser game playable **online**, reworked
 
 - **Strength test of the prior-mix:** a 400-game C++ self-play A/B (200 + 200 seat-flipped), `w=0.05` vs pure policy, found the mix **not stronger** (≈46%). So it's left **off by default** for the opponent and used mainly to broaden analysis coverage — the analysis overlay needs coverage of more than the policy's top few moves.
 - **In-memory + one machine:** game state lives in the server process, so the deploy pins exactly one always-on machine; multi-machine + in-memory would desync sessions. Persistence is explicitly out of scope.
-- **Doc placement:** the web UI is a *consumer* of the engine/model, not on the training critical path, so it's documented in CLAUDE.md §2.6 (current code only) rather than a new top-level deep-doc. The pre-implementation `WEB_UI_PLAN.md` — mostly stale (SSE/single-lock/evaluator-picker all since replaced) — was **archived**; its two non-obvious-and-current bits (the `ui_hint` taxonomy, the wire-format note) folded into §2.6 and its open TODOs moved to `FRONTEND_FIXES.md` (items 11–13).
+- **Doc placement:** the web UI is a *consumer* of the engine/model, not on the training critical path, so it's documented in CLAUDE.md → Web UI & online deployment (current code only) rather than a new top-level deep-doc. The pre-implementation `WEB_UI_PLAN.md` — mostly stale (SSE/single-lock/evaluator-picker all since replaced) — was **archived**; its two non-obvious-and-current bits (the `ui_hint` taxonomy, the wire-format note) folded into §2.6 and its open TODOs moved to `FRONTEND_FIXES.md` (items 11–13).
 
 ### Status
 
@@ -3119,7 +3119,7 @@ needed for the `analyze_position` fix). Single always-on machine rolled, smoke +
 passed; production analyze verified live across all three leaf modes.
 
 ### Docs
-CLAUDE.md §2.6 (the "Show analysis" paragraph + the `play_web.py` Toggles directory entry) updated
+CLAUDE.md → Web UI & online deployment (the "Show analysis" paragraph + the `play_web.py` Toggles directory entry) updated
 to describe the decoupled control row and the leaf_mode-driven `value_target` reporting.
 
 ## Session — Clean-300k architecture sweep + new champion `joint_a256_300k` (2026-06-25)

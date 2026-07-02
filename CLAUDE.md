@@ -4,9 +4,10 @@ A from-scratch Python implementation of the board game Agricola, with the long-t
 training a strong AI agent via MCTS and self-play reinforcement learning.
 
 > **For new sessions:** this file is read automatically. It is organized as **Foundations**
-> (cross-cutting principles) followed by the project's phases (engine → agent → cards), then a
-> status-and-boundaries note, a documentation index, and an annotated directory tree. Deep engine
-> mechanics live in
+> (cross-cutting principles), the project's phases (engine → agent → cards), two cross-cutting
+> infrastructure sections (**the C++ twin engine**, **the web UI & deployment** — they serve
+> multiple phases, so they live outside the phase ladder), then a status-and-boundaries note, a
+> documentation index, and an annotated directory tree. Deep engine mechanics live in
 > **`ENGINE_IMPLEMENTATION.md`** (the reference companion to Phase 1). See also
 > **`FILE_DESCRIPTIONS.md`** (per-file descriptions), **`TEST_DESCRIPTIONS.md`** (per-test
 > coverage), **`design_docs/game_engine/ARCHITECTURE.md`** (original architecture spec, rules reference,
@@ -192,7 +193,8 @@ cached data") is a default with explicit guidance for when to deviate.
   pieces off-supply; `CARD_ENGINE_IMPLEMENTATION.md` §5.2) — are documented there.
 
 - **The Python engine is the source of truth; keep the C++ differential gates green.** A native C++
-  reimplementation of the self-play inner loop now exists (§2.4 / `CPP_ENGINE_PLAN.md`), validated
+  reimplementation of the self-play inner loop now exists (see "The C++ twin engine" /
+  `CPP_ENGINE_PLAN.md`), validated
   against *this* Python engine by the `tests/test_cpp_*.py` differential harness (it is the oracle).
   **Any change to the Python engine — rules, legality, scoring, the encoder, or the state/action
   shape — must keep those gates green:** re-port the change into `cpp/` and re-run
@@ -422,8 +424,9 @@ need:
 ## Phase 2 — Building an Agent
 
 The agent is the **AlphaZero-style self-play loop**: PUCT tree search (§2.2) driven by a joint
-value+policy network (§2.3), generating its own training data at C++ speed (§2.4), in a
-generate → train → evaluate cycle (§2.5), deployed as the web-UI bot (§2.6). Everything consumes
+value+policy network (§2.3), in a generate → train → evaluate cycle (§2.4) whose generation runs
+at native speed on the C++ twin engine and whose product is the web-UI bot (both are
+cross-cutting top-level sections after Phase 3). Everything consumes
 the engine's pure `step` / `legal_actions` interface and nothing else; the agent code lives in
 `agricola/agents/`. Agents auto-skip singleton decisions — when only one action is legal they
 apply it without consulting their evaluator (the engine still records the step, per its
@@ -597,72 +600,10 @@ than a separate hygiene task. Full template + bump policy at the bottom of `REGI
 
 ---
 
-### 2.4 — The C++ self-play engine (performance)
+### 2.4 — The self-play & training workflow
 
-Self-play data generation — the throughput bottleneck for NN training (2.3) — now has a **second,
-native implementation**: a faithful C++ reimplementation of the self-play *inner loop* — the engine
-(`step` / `legal_actions` / scoring), MCTS (PUCT / FLATTEN / chance nodes), and NN inference
-(hand-rolled MLPs, **no libtorch**) — that generates self-play games **~4× faster** than Python
-single-thread and parallelizes per-core exactly as before. It lives entirely under `cpp/`; the
-Python codebase is **untouched** and serves as the source-of-truth **oracle**.
-
-**The two engines and how they stay in sync.** The C++ twin is validated against Python by a
-**differential-test harness**: `tests/test_cpp_*.py` assert the C++ engine produces byte-identical
-`legal_actions` / `step` / scoring, float-identical encodings, and ≤1e-4 NN value/policy outputs over
-large random-state corpora (~118 gates). The shared contract is the canonical `GameState`↔JSON
-serialization in `agricola/canonical.py`. Full design, the staged build, the JSON-hot-path profiling
-story, and the benchmark are in **`CPP_ENGINE_PLAN.md`**.
-
-> **Maintenance invariant (load-bearing) — see Foundations.** Python is the oracle; any change to the
-> Python engine must keep the C++ differential gates green (`pytest tests/test_cpp_*.py`) or the two
-> silently diverge. The full rule lives in **Foundations → Engineering invariants** ("the Python
-> engine is the source of truth; keep the C++ differential gates green").
-
-**Generating data with it.** `scripts/nn/generate_selfplay_data_cpp.py` mirrors
-`generate_selfplay_data.py`'s CLI and produces the **identical** `GameRecord` run-dir format (so
-training consumes it unchanged) — it generates via the C++ binary across a worker pool, then replays
-the compact traces into `GameRecord`s (with π + root_value intact). Workflow: train in Python →
-export weights (`scripts/nn/export_weights.py` → `nn_models/cpp_export_<name>/`) → generate
-(`generate_selfplay_data_cpp.py`, default batch mode loads weights once per worker) → train on the
-output. Build the binary per `cpp/README.md`.
-
-**`cpp_export_best` — the canonical C++ export pointer.** `nn_models/cpp_export_best` is a symlink to
-the C++ export dir of the current `nn_models/best` champion. When promoting a new champion: export it
-(`export_weights.py`), then `ln -sfn <new_export_dir> nn_models/cpp_export_best`. The web UI's `mcts`
-seat reads this symlink at startup and falls back to Python MCTS if it is absent.
-
-**`selfplay --move` — single-move queries for the web UI.** `pick_move(state_json, model_dir, sims,
-c_uct, temperature)` in `cpp/src/selfplay.cpp` (and the `--move` CLI mode in `cpp/apps/selfplay.cpp`)
-reads a canonical `GameState` JSON from stdin, runs MCTS with the given NN + budget, and writes
-`{"action": {type, params}, "root_value": float}` to stdout. `play_web.py` uses this via
-`_CppMctsAgent` — a thin callable that shells out per AI turn — so the web UI `mcts` seat is backed
-by the fast C++ binary (~4× Python) whenever the binary and `cpp_export_best` are present. Full
-design: `CPP_ENGINE_PLAN.md`.
-
-**Joint shared-trunk inference + a two-net match mode (Stage B; SHARED_TRUNK.md).** `NNInference` now
-has a **mode toggle**: a `format: "shared_trunk_v1"` manifest (from `export_weights.py
---value-ckpt <joint-ckpt>`) loads the joint model — one trunk + standalone `embed_norm` + heads on the
-embedding — with an internal `state_hash`-keyed **embedding cache** so it's one trunk forward per node
-(the composite per-head path is untouched; `mcts.cpp` unchanged). Differential-validated ≤1e-4 vs the
-Python `make_joint_fns`. A new **`selfplay --match --model-dir-p0 A --model-dir-p1 B`** mode
-(`mcts_match_game`) plays one net vs another with separate trees + per-seat `value_scale`; driven in
-parallel by `scripts/nn/run_cpp_match.py`. This is the path for fast, torch-free self-play generation
-with the joint model.
-
-**Outcome head + the three leaf modes in C++ (§2.3).** The joint manifest now also carries the
-**outcome** head's weight blob + `outcome_scale` (written by `export_weights.py`), and the C++ search
-exposes the three leaf-value modes off the one trunk forward — `set_leaf_mode` (margin / outcome / mix)
-+ `set_mix_alpha`. The flags thread through every entry point: `selfplay --match / --move / --analyze`
-and the `--sweep` self-sweep take `--leaf-mode` / `--mix-alpha`; `run_cpp_match.py` takes
-`--leaf-mode-p0` / `--leaf-mode-p1`; and `run_cpp_sweep.py` gains a `--sweep-alpha` mode (each seat
-draws an `α` per game, for the mix-α sweep). A permanent differential gate
-(`test_cpp_outcome_matches_python`) validates the C++ outcome head ≤1e-4 vs Python.
-
----
-
-### 2.5 — The self-play & training workflow
-
-The pieces above (the engine, MCTS, the NN, the C++ twin) compose into one loop: **generate
+The pieces — Phase 1's engine, the MCTS (§2.2), the NN (§2.3), and the C++ twin engine (the
+cross-cutting section after Phase 3) — compose into one loop: **generate
 self-play games → train on them → evaluate → repeat**. This section is the orientation map for
 *which script to reach for and why*; the per-flag detail lives in each script's directory-tree entry
 and the linked design docs (`FIRST_NN.md`, `SHARED_TRUNK.md`, `CPP_ENGINE_PLAN.md`), which stay
@@ -763,9 +704,118 @@ were capped at a 12-vCPU on-demand instance. (Bigger picture in CLAUDE.md memory
 
 ---
 
-## 2.6 — Web UI & online deployment
+## Phase 3 — Cards (and maybe 4-player)
 
-The browser game (`play_web.py` + `static/` + `templates/`) is playable **online** at
+**The card engine is built and the catalog is being implemented at scale.** The **card game**
+(`GameMode.CARDS`; `setup_env(seed, card_pool=..., draft=...)`) is the full 2-player Agricola:
+each player gets a private 7-occupation + 7-minor hand (dealt, or via a competitive draft), the
+board reshapes (Side Job gone; Lessons usable; Meeting Place = become-SP + optional minor, no
+food; the improvement spaces gain a play-minor branch), and played cards modify the game through
+a general firing system — host frames with before/after windows on every action, optional
+triggers / automatic effects / mandatory-with-choice, ~30 `register_*` seams (scoring, cost
+modifiers, food payment, capacity, schedules, legality extensions), per-card state (`CardStore`),
+and phase hooks (start-of-round, harvest-field). **~270 of the 840-card catalog** (Revised base
++ Artifex/Bubulcus/Corbarius/Dulcinaria/Ephipparius, decks A–E) are implemented, tested, and
+dealt in the web UI's Cards mode.
+
+**The one doc to read before card work is `CARD_ENGINE_IMPLEMENTATION.md`** — the as-built
+machinery reference (hosts & firing, every registry, card state, the cost/food/capacity layers),
+the rulings & idioms, the implementation process, the deliberate boundaries, and the **live
+Status section** (updated per batch; per-card ledger in `CARD_IMPLEMENTATION_PROGRESS.md`).
+`CARD_AUTHORING_GUIDE.md` is the practical how-to; `CARD_DEFERRED_PLANS.md` holds the deferred
+clusters + open design decisions. The cardinal rule of card implementation: **a card that
+doesn't clearly fit the machinery is deferred and brought to the user, never approximated** —
+the user is the rules authority.
+
+**What remains in Phase 3:**
+- **The rest of the catalog** — the remaining ~570 cards (many blocked on the deferred-cluster
+  infrastructure decisions in `CARD_DEFERRED_PLANS.md`, which are user-gated).
+- **The card-game agent** — repeat the Phase 2 process (MCTS → NN → self-play) for the richer
+  game. Hidden hands are handled *above* the engine (ISMCTS determinization at the search
+  layer); no card-game agent exists yet, so the web UI's Cards mode is human-vs-random or
+  human-vs-human.
+- **The C++ card port** — the C++ engine is Family-only today; porting the card game (guarded
+  by new differential gates) is a prerequisite for card-game self-play at scale.
+
+**4-player** is a possible extension, but a real undertaking rather than a flag flip: the
+player-alternation logic already uses modular arithmetic that generalizes to N players, but
+`setup`, the action board, and the rest assume 2 players.
+
+*Future direction (speculative): card-level diagnostics / interpretability — e.g. surfacing
+which cards and interactions a trained agent values, as an aid to expert analysis. Waits on the
+card-game agent.*
+
+---
+
+## The C++ twin engine
+
+Cross-cutting infrastructure: built for Phase 2's self-play throughput, governed by Foundations'
+lockstep invariant, and the future home of Phase 3's card port. Self-play data generation — the
+throughput bottleneck for NN training (§2.3) — has a **second,
+native implementation**: a faithful C++ reimplementation of the self-play *inner loop* — the engine
+(`step` / `legal_actions` / scoring), MCTS (PUCT / FLATTEN / chance nodes), and NN inference
+(hand-rolled MLPs, **no libtorch**) — that generates self-play games **~4× faster** than Python
+single-thread and parallelizes per-core exactly as before. It lives entirely under `cpp/`; the
+Python codebase is **untouched** and serves as the source-of-truth **oracle**.
+
+**The two engines and how they stay in sync.** The C++ twin is validated against Python by a
+**differential-test harness**: `tests/test_cpp_*.py` assert the C++ engine produces byte-identical
+`legal_actions` / `step` / scoring, float-identical encodings, and ≤1e-4 NN value/policy outputs over
+large random-state corpora (~118 gates). The shared contract is the canonical `GameState`↔JSON
+serialization in `agricola/canonical.py`. Full design, the staged build, the JSON-hot-path profiling
+story, and the benchmark are in **`CPP_ENGINE_PLAN.md`**.
+
+> **Maintenance invariant (load-bearing) — see Foundations.** Python is the oracle; any change to the
+> Python engine must keep the C++ differential gates green (`pytest tests/test_cpp_*.py`) or the two
+> silently diverge. The full rule lives in **Foundations → Engineering invariants** ("the Python
+> engine is the source of truth; keep the C++ differential gates green").
+
+**Generating data with it.** `scripts/nn/generate_selfplay_data_cpp.py` mirrors
+`generate_selfplay_data.py`'s CLI and produces the **identical** `GameRecord` run-dir format (so
+training consumes it unchanged) — it generates via the C++ binary across a worker pool, then replays
+the compact traces into `GameRecord`s (with π + root_value intact). Workflow: train in Python →
+export weights (`scripts/nn/export_weights.py` → `nn_models/cpp_export_<name>/`) → generate
+(`generate_selfplay_data_cpp.py`, default batch mode loads weights once per worker) → train on the
+output. Build the binary per `cpp/README.md`.
+
+**`cpp_export_best` — the canonical C++ export pointer.** `nn_models/cpp_export_best` is a symlink to
+the C++ export dir of the current `nn_models/best` champion. When promoting a new champion: export it
+(`export_weights.py`), then `ln -sfn <new_export_dir> nn_models/cpp_export_best`. The web UI's `mcts`
+seat reads this symlink at startup and falls back to Python MCTS if it is absent.
+
+**`selfplay --move` — single-move queries for the web UI.** `pick_move(state_json, model_dir, sims,
+c_uct, temperature)` in `cpp/src/selfplay.cpp` (and the `--move` CLI mode in `cpp/apps/selfplay.cpp`)
+reads a canonical `GameState` JSON from stdin, runs MCTS with the given NN + budget, and writes
+`{"action": {type, params}, "root_value": float}` to stdout. `play_web.py` uses this via
+`_CppMctsAgent` — a thin callable that shells out per AI turn — so the web UI `mcts` seat is backed
+by the fast C++ binary (~4× Python) whenever the binary and `cpp_export_best` are present. Full
+design: `CPP_ENGINE_PLAN.md`.
+
+**Joint shared-trunk inference + a two-net match mode (Stage B; SHARED_TRUNK.md).** `NNInference` now
+has a **mode toggle**: a `format: "shared_trunk_v1"` manifest (from `export_weights.py
+--value-ckpt <joint-ckpt>`) loads the joint model — one trunk + standalone `embed_norm` + heads on the
+embedding — with an internal `state_hash`-keyed **embedding cache** so it's one trunk forward per node
+(the composite per-head path is untouched; `mcts.cpp` unchanged). Differential-validated ≤1e-4 vs the
+Python `make_joint_fns`. A new **`selfplay --match --model-dir-p0 A --model-dir-p1 B`** mode
+(`mcts_match_game`) plays one net vs another with separate trees + per-seat `value_scale`; driven in
+parallel by `scripts/nn/run_cpp_match.py`. This is the path for fast, torch-free self-play generation
+with the joint model.
+
+**Outcome head + the three leaf modes in C++ (§2.3).** The joint manifest now also carries the
+**outcome** head's weight blob + `outcome_scale` (written by `export_weights.py`), and the C++ search
+exposes the three leaf-value modes off the one trunk forward — `set_leaf_mode` (margin / outcome / mix)
++ `set_mix_alpha`. The flags thread through every entry point: `selfplay --match / --move / --analyze`
+and the `--sweep` self-sweep take `--leaf-mode` / `--mix-alpha`; `run_cpp_match.py` takes
+`--leaf-mode-p0` / `--leaf-mode-p1`; and `run_cpp_sweep.py` gains a `--sweep-alpha` mode (each seat
+draws an `α` per game, for the mix-α sweep). A permanent differential gate
+(`test_cpp_outcome_matches_python`) validates the C++ outcome head ≤1e-4 vs Python.
+
+---
+
+## Web UI & online deployment
+
+Cross-cutting product surface: it serves Phase 2 (the Family-mode bot) and Phase 3 (the Cards
+mode) from one server. The browser game (`play_web.py` + `static/` + `templates/`) is playable **online** at
 **https://agricolabot.fly.dev/**, deployed to **Fly.io** as a single always-on container. On entry (and on
 every "New game") the player first picks the **game mode** via a landing overlay: **Family** (the cardless
 2-player game) or **Cards (beta)**. The two modes share one server, registry, and wire format; a session
@@ -853,49 +903,6 @@ Dockerfile edit.
 
 ---
 
-## Phase 3 — Cards (and maybe 4-player)
-
-**The card engine is built and the catalog is being implemented at scale.** The **card game**
-(`GameMode.CARDS`; `setup_env(seed, card_pool=..., draft=...)`) is the full 2-player Agricola:
-each player gets a private 7-occupation + 7-minor hand (dealt, or via a competitive draft), the
-board reshapes (Side Job gone; Lessons usable; Meeting Place = become-SP + optional minor, no
-food; the improvement spaces gain a play-minor branch), and played cards modify the game through
-a general firing system — host frames with before/after windows on every action, optional
-triggers / automatic effects / mandatory-with-choice, ~30 `register_*` seams (scoring, cost
-modifiers, food payment, capacity, schedules, legality extensions), per-card state (`CardStore`),
-and phase hooks (start-of-round, harvest-field). **~270 of the 840-card catalog** (Revised base
-+ Artifex/Bubulcus/Corbarius/Dulcinaria/Ephipparius, decks A–E) are implemented, tested, and
-dealt in the web UI's Cards mode.
-
-**The one doc to read before card work is `CARD_ENGINE_IMPLEMENTATION.md`** — the as-built
-machinery reference (hosts & firing, every registry, card state, the cost/food/capacity layers),
-the rulings & idioms, the implementation process, the deliberate boundaries, and the **live
-Status section** (updated per batch; per-card ledger in `CARD_IMPLEMENTATION_PROGRESS.md`).
-`CARD_AUTHORING_GUIDE.md` is the practical how-to; `CARD_DEFERRED_PLANS.md` holds the deferred
-clusters + open design decisions. The cardinal rule of card implementation: **a card that
-doesn't clearly fit the machinery is deferred and brought to the user, never approximated** —
-the user is the rules authority.
-
-**What remains in Phase 3:**
-- **The rest of the catalog** — the remaining ~570 cards (many blocked on the deferred-cluster
-  infrastructure decisions in `CARD_DEFERRED_PLANS.md`, which are user-gated).
-- **The card-game agent** — repeat the Phase 2 process (MCTS → NN → self-play) for the richer
-  game. Hidden hands are handled *above* the engine (ISMCTS determinization at the search
-  layer); no card-game agent exists yet, so the web UI's Cards mode is human-vs-random or
-  human-vs-human.
-- **The C++ card port** — the C++ engine is Family-only today; porting the card game (guarded
-  by new differential gates) is a prerequisite for card-game self-play at scale.
-
-**4-player** is a possible extension, but a real undertaking rather than a flag flip: the
-player-alternation logic already uses modular arithmetic that generalizes to N players, but
-`setup`, the action board, and the rest assume 2 players.
-
-*Future direction (speculative): card-level diagnostics / interpretability — e.g. surfacing
-which cards and interactions a trained agent values, as an aid to expert analysis. Waits on the
-card-game agent.*
-
----
-
 ## Status & boundaries
 
 Phase-level status is in the **Roadmap** at the top (deep status: `nn_models/REGISTRY.md` for
@@ -938,7 +945,7 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `IMPLEMENTATION_CHOICES.md` | Fine-grained design decisions that worked well for the Family game but may need revisiting when cards are added. |
 | `POSSIBLE_NEXT_STEPS.md` | Living planning doc — directions the project could take next, organized by scope and effort. Updated as the project progresses. |
 | `SPEEDUPS.md` | Performance catalog in two parts: **Part 1 Implemented** (every optimization in the code, with what/why/where — `fast_replace`, cached `__hash__`, the `opt_config` frontier/fence caches, the NN inference encoder S10–S13, etc.) and **Part 2 Potential next steps** (sketched candidates + *measured no-gos* like jit.trace and the encoding-keyed cache). Stable `S1`–`Sn` identifiers; deep detail for the big ones lives in `FRONTIER_OPT_DESIGN.md` / `CHANGES.md`. (Renamed from `POSSIBLE_SPEEDUPS.md`.) Sibling to POSSIBLE_NEXT_STEPS.md, scoped to performance. |
-| `CPP_ENGINE_PLAN.md` | Design + staged-build + results record for the **C++ self-play engine** (CLAUDE.md §2.4): a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference) that runs ~4× faster than Python, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Covers the architecture (traces, the canonical-JSON contract, the differential-testing methodology), the 7 stages with their equivalence gates (§8.1 status ledger), the JSON-hot-path profiling finding + the two optimization passes, the data-gen pipeline (`generate_selfplay_data_cpp.py`), and the maintenance invariant (Python is the oracle; keep the C++ gates green). All C++ lives under `cpp/`. |
+| `CPP_ENGINE_PLAN.md` | Design + staged-build + results record for the **C++ self-play engine** (CLAUDE.md → The C++ twin engine): a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference) that runs ~4× faster than Python, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Covers the architecture (traces, the canonical-JSON contract, the differential-testing methodology), the 7 stages with their equivalence gates (§8.1 status ledger), the JSON-hot-path profiling finding + the two optimization passes, the data-gen pipeline (`generate_selfplay_data_cpp.py`), and the maintenance invariant (Python is the oracle; keep the C++ gates green). All C++ lives under `cpp/`. |
 | `INCREMENTAL_PASTURE_DESIGN.md` | Design sketch (NOT STARTED) for S9 option 2 — incrementally updating the cached `Farmyard.pastures` decomposition on fence/stable builds instead of re-running the full flood-fill BFS (`compute_pastures_from_arrays`), the #1 MCTS self-time function. Covers the new-pasture-vs-subdivision branch, the byte-identical-output constraint (the tuple feeds `Farmyard` hash/eq → the MCTS transposition table), the incidental-pocket / stable-repartition / combined-case concerns, and why it's gated on the S9 option-1 memoization landing first. A jumping-off point for a future session. |
 | `FRONTIER_OPT_DESIGN.md` | Design + implementation record for the frontier/accommodation optimizations that speed up the Pareto/accommodation helpers in MCTS. Toggleable via `agricola/opt_config.py` (`PARETO_OPT_LEVEL` 0–3 + `FENCE_SCAN_CACHE`), now default-on. Covers the algorithmic rewrites (rate-descending `food_payment`, max-corner), the projection-keyed caches (exact / Φ farm-shape / feeding clip), the correctness invariants + proofs (Appendix A), the cross-level equivalence testing strategy (§8.1) and benchmarking methodology (§8.2), and the landed-status/phasing. **Implemented** — see the Status note at the top. |
 | `HEURISTIC_TUNING_PLAN.md` | V1-era plan for self-play tuning. Thread A (tuning harness) has been implemented and run; Threads B and C are partially superseded by V3. See `V3_TRAINING_PIPELINE.md` for the current pipeline. |
@@ -954,14 +961,14 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `nn_models/REGISTRY.md` | Authoritative index of every trained NN checkpoint under `nn_models/`. Per-model row: id, `ENCODING_VERSION`, `DATA_VERSION`, training data source, architecture / regularization, train size, test MAE, current Status (active / superseded / incompatible). The checkpoint files themselves (`config.json`, `best.meta.json`, `test_metrics.json`) own the underlying numbers; this file is the catalog that ties them together and records which model is the current default. **Every training run must update this file** as part of its completion — see template at the bottom. |
 | `SHARED_TRUNK.md` | Design + implementation + results record for the **joint shared-trunk value+policy model** (Phase 2.3, Stage B): one `170→256→256→128` trunk feeding a value head + 7 fixed + 2 pointer policy heads, trained jointly on the 41k self-play data with **soft-π** (cross-entropy against the visit distribution) policy + margin value. Covers `SharedTrunkModel` (`shared_model.py`), the one-pass cached `shared_dataset.py` (+ §3 **"the two memory lessons"** — the per-pickle-chunking *encode* peak AND the streamed-path / direct-to-split *finalize* peak that OOM'd at 57k; **load-bearing, untested, read before refactoring the builder**), the joint trainer (`shared_training.py`: per-head balance, value-MSE early-stop), the `make_joint_fns` inference adapter (`shared_policy.py`: **one trunk forward per node** via an embedding memo, so `mcts.py` is unchanged), the **C++ joint inference** (`shared_trunk_v1` manifest, mode toggle in `NNInference`, embedding cache, two-net `--match` mode), the value-capacity sweep that set the trunk size (256×2; MAE was a backwards predictor), and the eval (joint beats previous-best at 800-sim PUCT — C++ 99%). Read before touching the joint model. |
 | `PROFILING.md` | Profiling findings. Foregrounds the **current production profile** — NN value-leaf + multi-head policy PUCT, i.e. where time goes in the code today (cost attribution, the ~2× session result, the diffuse-engine-remainder finding) — plus **measurement caveats** (laptop wall noise → min-of-N/pair-by-seed; cProfile over-attributes high-call tiny functions; the eval-mode requirement). Older random-play (Workloads A/B/C, R1–R6) and V3-leaf MCTS profiles are kept under **Archived profiles**. Re-run the current profile via `scripts/profile_mcts_nn.py`. |
-| `NN_TRAINING_SPEEDUP.md` | Diagnosis + benchmark record for the NN value-training speedup. The *prescriptive* half (changes A batched-indexing + B large-batch `--fast-loader`) is **landed and validated** (see `REGISTRY.md`: bs=8192 fast-loader holds champion-recipe quality) — the code in `training.py` is now the source of truth, and the operational guidance lives in CLAUDE.md §2.5. Kept for its **unique content**: (1) §1–§2 the empirical *why* — training is overhead/optimizer-step-bound not compute-bound, with the per-step cost breakdown and the batch-size sweep (CPU flat past ~4096, MPS best at ~8192); (2) §4–§6 the **MPS (`--device mps`) path**, which was never implemented/validated — the only record of its recommended invocation, 8 GB-RAM/`--data-on-device` risks, non-determinism caveats, and nightly-PyTorch op-gap warnings, should the M1 GPU ever be tried. |
+| `NN_TRAINING_SPEEDUP.md` | Diagnosis + benchmark record for the NN value-training speedup. The *prescriptive* half (changes A batched-indexing + B large-batch `--fast-loader`) is **landed and validated** (see `REGISTRY.md`: bs=8192 fast-loader holds champion-recipe quality) — the code in `training.py` is now the source of truth, and the operational guidance lives in CLAUDE.md → the self-play & training workflow (§2.4). Kept for its **unique content**: (1) §1–§2 the empirical *why* — training is overhead/optimizer-step-bound not compute-bound, with the per-step cost breakdown and the batch-size sweep (CPU flat past ~4096, MPS best at ~8192); (2) §4–§6 the **MPS (`--device mps`) path**, which was never implemented/validated — the only record of its recommended invocation, 8 GB-RAM/`--data-on-device` risks, non-determinism caveats, and nightly-PyTorch op-gap warnings, should the M1 GPU ever be tried. |
 | `FILE_DESCRIPTIONS.md` | Detailed per-file descriptions for every `agricola/*.py` and the test-infrastructure files (`tests/factories.py`, `tests/test_utils.py`). |
 | `TEST_DESCRIPTIONS.md` | Per-file coverage descriptions for each `tests/test_*.py`. |
 | `SESSION_INTRODUCTION.md` | Standard prompt to give a new coding agent at the start of a session. |
 | `README.md` | Human-facing project README (the GitHub landing page): project summary, status overview, the playable-agent table, and future work. Overlaps this file's intro but targets a general reader rather than a coding session. |
-| `DEPLOY.md` | Beginner-friendly step-by-step guide to deploying the web UI online on **Fly.io** as a single always-on container (CLAUDE.md §2.6): install `flyctl`, create + deploy the app, logs, regions, rough cost, and the in-memory-game-state caveat (a redeploy drops in-progress games). The deploy artifacts it drives are `Dockerfile` / `.dockerignore` / `fly.toml` / `deploy.sh` at the repo root. |
-| `deploy.sh` | One-command Fly.io deploy of the web UI with the *current* champion (CLAUDE.md §2.6): resolves the `nn_models/cpp_export_best` symlink (Docker `COPY` can't follow it) into the concrete export dir, passes it to the `Dockerfile` as the `EXPORT_DIR` build-arg, and runs `fly deploy` (extra args forwarded). Promoting a champion = re-point the symlink, then `./deploy.sh`. |
-| `CLOUD_RUNBOOK.md` | Operator guide for running the self-play / training / eval loop **off the M1 on Google Cloud (GCP)** (CLAUDE.md §2.5): project / $50-budget / bucket (`gs://agricola-selfplay-…`) setup, the ARM-native C++ binary build on a T2A instance, launching generation / joint-training / evaluation / the α-sweep, durable upload + VM self-teardown, and the two IAM gotchas (self-delete needs `--scopes=cloud-platform` *and* the SA's `compute.instanceAdmin.v1` role; bucket writes need `storage.objectAdmin`). The path that produced the 40k corpus behind `joint_outcome_44k`. |
+| `DEPLOY.md` | Beginner-friendly step-by-step guide to deploying the web UI online on **Fly.io** as a single always-on container (CLAUDE.md → Web UI & online deployment): install `flyctl`, create + deploy the app, logs, regions, rough cost, and the in-memory-game-state caveat (a redeploy drops in-progress games). The deploy artifacts it drives are `Dockerfile` / `.dockerignore` / `fly.toml` / `deploy.sh` at the repo root. |
+| `deploy.sh` | One-command Fly.io deploy of the web UI with the *current* champion (CLAUDE.md → Web UI & online deployment): resolves the `nn_models/cpp_export_best` symlink (Docker `COPY` can't follow it) into the concrete export dir, passes it to the `Dockerfile` as the `EXPORT_DIR` build-arg, and runs `fly deploy` (extra args forwarded). Promoting a champion = re-point the symlink, then `./deploy.sh`. |
+| `CLOUD_RUNBOOK.md` | Operator guide for running the self-play / training / eval loop **off the M1 on Google Cloud (GCP)** (CLAUDE.md → the self-play & training workflow (§2.4)): project / $50-budget / bucket (`gs://agricola-selfplay-…`) setup, the ARM-native C++ binary build on a T2A instance, launching generation / joint-training / evaluation / the α-sweep, durable upload + VM self-teardown, and the two IAM gotchas (self-delete needs `--scopes=cloud-platform` *and* the SA's `compute.instanceAdmin.v1` role; bucket writes need `storage.objectAdmin`). The path that produced the 40k corpus behind `joint_outcome_44k`. |
 | `FRONTEND_FIXES.md` | Punch-list of web-UI *frontend* gaps (`static/app.js`, `static/style.css`, `templates/index.html`), ordered by certainty the fix is needed; each item states the problem, the backend data already exposed, and the specific frontend change. |
 
 Historical task specs and design artifacts (in `design_docs/game_engine/`, frozen at the time of their task's landing):
@@ -986,27 +993,27 @@ Archived (in `archive/`, fully superseded by current docs):
 AgricolaBot/
     play.py                         # Top-level entry point — terminal-based human play UI. Wraps the engine in an interactive REPL with rendered farmyard / action-board / score-card output and action-selection prompts.
 
-    play_web.py                     # Top-level entry point — browser-based human play UI (CLAUDE.md §2.6). Dual-mode: a New-Game landing choice picks **Family** (human-vs-bot, cardless) or **Cards (beta)** (human-vs-random / human-vs-human, all implemented cards dealt as random non-overlapping 7+7 hands via `setup_env(seed, card_pool=...)`). The session carries `game_mode`; the payload carries it top-level. Card hands serialize under hidden-info rules (`state_to_json`'s `_reveal_hand`: face-up only for a human seat; in pass-and-play only the active player's hand, else face-down count). Card metadata (name/effect/structured minor cost) is built once into `_CARD_META` from `agricola/cards/data/*.json` (joined by slugified name); card-play actions get a `card` ui_hint + named-button display (`_web_action_display`). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The Family `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs (Family): seed, sims/move (default 800), opponent prior-mix (default 0); Cards: seed + opponent type. Analysis/MCTS UI is disabled in Cards mode (no trained card bot). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, async, cancel-on-move, prior-mix 0.05; decoupled from the bot — a control row sends per-request `leaf_mode`/`mix_alpha`/`sims`/`c_uct`, so the human can analyze with the margin/outcome/mix head, any α, any budget, any exploration, changeable mid-game; the overlay denormalizes the tree Q by the analysis leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
+    play_web.py                     # Top-level entry point — browser-based human play UI (CLAUDE.md → Web UI & online deployment). Dual-mode: a New-Game landing choice picks **Family** (human-vs-bot, cardless) or **Cards (beta)** (human-vs-random / human-vs-human, all implemented cards dealt as random non-overlapping 7+7 hands via `setup_env(seed, card_pool=...)`). The session carries `game_mode`; the payload carries it top-level. Card hands serialize under hidden-info rules (`state_to_json`'s `_reveal_hand`: face-up only for a human seat; in pass-and-play only the active player's hand, else face-down count). Card metadata (name/effect/structured minor cost) is built once into `_CARD_META` from `agricola/cards/data/*.json` (joined by slugified name); card-play actions get a `card` ui_hint + named-button display (`_web_action_display`). Stdlib `ThreadingHTTPServer`; every endpoint is a single request/response returning the full authoritative state (`session.snapshot()`); shares formatting helpers with `play.py`. Multi-tenant: a cookie-keyed `SessionRegistry` gives each browser its own game, with an `AGRICOLA_MAX_CONCURRENT_AI` semaphore capping concurrent MCTS searches. The Family `mcts` seat delegates to the C++ `selfplay --move` binary (`_CppMctsAgent`) with the joint model when `cpp/build/selfplay` + `nn_models/cpp_export_best` are present, else falls back to Python MCTS; it plays the **mix leaf** (`_CPP_LEAF_MODE="mix"` / `_CPP_MIX_ALPHA=0.9`, passed through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`; §2.3). Per-game New-Game inputs (Family): seed, sims/move (default 800), opponent prior-mix (default 0); Cards: seed + opponent type. Analysis/MCTS UI is disabled in Cards mode (no trained card bot). Toggles: Fast mode, Confirm turns (undo/confirm), Show analysis (`/api/analyze` → `selfplay --analyze`, async, cancel-on-move, prior-mix 0.05; decoupled from the bot — a control row sends per-request `leaf_mode`/`mix_alpha`/`sims`/`c_uct`, so the human can analyze with the margin/outcome/mix head, any α, any budget, any exploration, changeable mid-game; the overlay denormalizes the tree Q by the analysis leaf's `value_target` — margin points / outcome `[−1,1]` / raw `mix`). `--seats`, `--nn-model` (default `nn_models/best`), `--mcts-sims`, `--host`/`--port`/`--no-browser`. The Download-trace button writes the in-progress game's action log to `agricola-trace-seed<N>.json` for post-hoc debugging/replay.
 
     play_random_game.py             # Top-level entry point — random-vs-random driver. Plays one full game, prints the scoreboard with per-category breakdown and tiebreaker. `--trace` flag adds a per-round narrative (worker placements, sub-actions, harvest sub-phases).
 
     play_heuristic_game.py          # Top-level entry point — any-vs-any heuristic-agent driver. `--p0`/`--p1` pick from {random, simple, hubris, hubris_v1, hubris_v2}; `--temperature` for softmax sampling; `--lookahead` toggles the action/turn lookahead horizon. Same scoreboard output as `play_random_game.py`.
 
-    Dockerfile                      # Web-UI deploy image (CLAUDE.md §2.6 / DEPLOY.md). Multi-stage: compiles the C++ `selfplay` binary for Linux, then a slim Python layer (stdlib server + numpy) that copies the resolved `cpp_export_best` champion into `nn_models/cpp_export_best/`. Serves `play_web.py` on port 8000.
+    Dockerfile                      # Web-UI deploy image (CLAUDE.md → Web UI & online deployment / DEPLOY.md). Multi-stage: compiles the C++ `selfplay` binary for Linux, then a slim Python layer (stdlib server + numpy) that copies the resolved `cpp_export_best` champion into `nn_models/cpp_export_best/`. Serves `play_web.py` on port 8000.
 
     .dockerignore                   # Trims the Docker build context (skips tests/data/docs/cpp build artifacts) — but RE-INCLUDES `tests/__init__.py` + `tests/test_utils.py`, which `agricola/agents/base.py` imports at runtime.
 
     fly.toml                        # Fly.io app config (DEPLOY.md): single always-on machine (`min_machines_running=1`, `auto_stop_machines=false`) so the in-memory game state survives between requests; 2 shared vCPUs / 1 GB RAM; `AGRICOLA_MAX_CONCURRENT_AI=2`.
 
-    DEPLOY.md                       # Beginner-friendly Fly.io deploy walkthrough for the web UI (install flyctl → create → deploy → logs → regions → cost). See CLAUDE.md §2.6.
+    DEPLOY.md                       # Beginner-friendly Fly.io deploy walkthrough for the web UI (install flyctl → create → deploy → logs → regions → cost). See CLAUDE.md → Web UI & online deployment.
 
-    deploy.sh                       # One-command Fly.io deploy of the web UI with the current champion (CLAUDE.md §2.6): resolves the `nn_models/cpp_export_best` symlink into the concrete export dir and passes it to the Dockerfile as the `EXPORT_DIR` build-arg (Docker COPY can't follow the symlink), then runs `fly deploy` (extra args forwarded). Promote = re-point the symlink, then `./deploy.sh`.
+    deploy.sh                       # One-command Fly.io deploy of the web UI with the current champion (CLAUDE.md → Web UI & online deployment): resolves the `nn_models/cpp_export_best` symlink into the concrete export dir and passes it to the Dockerfile as the `EXPORT_DIR` build-arg (Docker COPY can't follow the symlink), then runs `fly deploy` (extra args forwarded). Promote = re-point the symlink, then `./deploy.sh`.
 
-    CLOUD_RUNBOOK.md                # Operator guide for running the self-play / training / eval loop off the M1 on GCP (CLAUDE.md §2.5): project / budget / bucket setup, the ARM-native C++ build on a T2A instance, launching each loop step, durable upload + VM self-teardown, and the IAM gotchas (self-delete needs `--scopes=cloud-platform` + `compute.instanceAdmin.v1`; bucket writes need `storage.objectAdmin`). Produced the 40k corpus behind `joint_outcome_44k`.
+    CLOUD_RUNBOOK.md                # Operator guide for running the self-play / training / eval loop off the M1 on GCP (CLAUDE.md → the self-play & training workflow (§2.4)): project / budget / bucket setup, the ARM-native C++ build on a T2A instance, launching each loop step, durable upload + VM self-teardown, and the IAM gotchas (self-delete needs `--scopes=cloud-platform` + `compute.instanceAdmin.v1`; bucket writes need `storage.objectAdmin`). Produced the 40k corpus behind `joint_outcome_44k`.
 
     templates/                      # Web UI assets served by `play_web.py` — the HTML shell.
 
-        index.html                  # Single-page shell `play_web.py` serves; loads `static/app.js` + `static/style.css` and hosts the board DOM the JS populates from the JSON wire format. See CLAUDE.md §2.6.
+        index.html                  # Single-page shell `play_web.py` serves; loads `static/app.js` + `static/style.css` and hosts the board DOM the JS populates from the JSON wire format. See CLAUDE.md → Web UI & online deployment.
 
     static/                         # Web UI assets served by `play_web.py` — frontend JS + CSS.
 
@@ -1032,7 +1039,7 @@ AgricolaBot/
 
         state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState (incl. `fences_in_supply: int = 15` — the stored fence-supply pile (location 4), distinct from "buildable"; maintained in BOTH modes (decremented per fence build, so it equals 15−built in Family) and NOT a skip-field, so it IS serialized in Family and the C++ PlayerState mirrors it — the one C++ touch of the fence cost slice; COST_MODIFIER_DESIGN.md §9.7), BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
 
-        canonical.py                # Canonical, deterministic GameState↔JSON (`dumps`/`loads`) — the shared serialization CONTRACT the C++ engine must reproduce byte-for-byte (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). Tag-driven generic dataclass walker (drift-proof); test/interop scaffolding only, not on any production path. Hosts _DEFAULT_SKIP_FIELDS — the card-only fields omitted at their defaults, which is what keeps the Family JSON byte-identical (CARD_ENGINE_IMPLEMENTATION.md §4).
+        canonical.py                # Canonical, deterministic GameState↔JSON (`dumps`/`loads`) — the shared serialization CONTRACT the C++ engine must reproduce byte-for-byte (CLAUDE.md → The C++ twin engine, CPP_ENGINE_PLAN.md §3.1). Tag-driven generic dataclass walker (drift-proof); test/interop scaffolding only, not on any production path. Hosts _DEFAULT_SKIP_FIELDS — the card-only fields omitted at their defaults, which is what keeps the Family JSON byte-identical (CARD_ENGINE_IMPLEMENTATION.md §4).
 
         cost.py                     # Cost-resolution data types + the Pareto-min over payments (COST_MODIFIER_DESIGN.md): PaymentOption = Resources | ReturnImprovement, CostCtx (action_kind + base + modifier discriminators incl. reserved_animals), pareto_min_over_goods. Dependency-light so actions/legality/resolution all import it without cycles; the chokepoint itself (effective_payments/can_pay) lives in legality.py. See CARD_ENGINE_IMPLEMENTATION.md §5.
 
@@ -1110,7 +1117,7 @@ AgricolaBot/
 
                 selfplay_recording.py # MCTS self-play recording driver (`DATA_VERSION` 3) — the self-play sibling of `recording.py`. `RootCapturingMCTSAgent` (an `MCTSAgent` subclass that stashes the searched root via `_select_action_with_temperature`, no edit to `mcts.py`) + `play_selfplay_recording_game(initial_state, agent, *, dealer, …)`: plays one SHARED-tree game (a single agent drives both seats), steps through forced (singleton) moves uninvoked, and records each non-singleton decision's state + chosen_action + root visit distribution π + P0-frame `root_value` into a v3 `GameRecord`. Torch-free at module level (the NN leaf rides in via the passed agent).
 
-                trace_replay.py     # C++↔Python interop (CLAUDE.md §2.4): the game-trace serde + the replay adapter. `game_to_trace` (writer) / `replay_trace(trace) -> GameRecord` (reads a C++-emitted `agricola-cpp-trace-v1` trace, replays it through the engine, rebuilds a v3 `GameRecord` with π + root_value) / action↔`params` serde for all 17 action types (closes the web-UI `RevealCard.card` drop). Lets C++-generated self-play feed the unchanged training pipeline. See CPP_ENGINE_PLAN.md §2.
+                trace_replay.py     # C++↔Python interop (CLAUDE.md → The C++ twin engine): the game-trace serde + the replay adapter. `game_to_trace` (writer) / `replay_trace(trace) -> GameRecord` (reads a C++-emitted `agricola-cpp-trace-v1` trace, replays it through the engine, rebuilds a v3 `GameRecord` with π + root_value) / action↔`params` serde for all 17 action types (closes the web-UI `RevealCard.card` drop). Lets C++-generated self-play feed the unchanged training pipeline. See CPP_ENGINE_PLAN.md §2.
 
                 encoder.py          # Input-vector encoder. `ENCODING_VERSION` + `ENCODED_DIM=170`. `encode_state(state, player_idx) -> np.ndarray` (float32) translates a `GameState` into the flat ~170-feature vector specified in FIRST_NN.md §4: own-player block (54) + opponent block (54) + shared/board (54) + mid-action singletons (8). Numpy-only — the training pipeline converts at the model boundary via `torch.from_numpy(arr)`. `feature_names()` returns the parallel string list for debugging / per-feature analysis. The MCTS-inference hot path goes through `encode_for_inference` (a swap-aware per-state memo) + `swap_perspective`, layered over an index-writer rewrite of `encode_state` (byte-identical to the original; the `(name,value)` `_assemble` is kept as the golden-test oracle + `feature_names` source). See SPEEDUPS.md S10–S13. ALSO hosts the **candidate encoder** (`encode_state_candidate`, 178 features, tag `cand_feat178_v1`: running-score + turns-to-feeding + renovate/grow bits, begging removed) + `begging_margin` + the **`EncoderSpec` registry** (`ENCODERS` / `ENCODER_V2` / `ENCODER_CANDIDATE`) — the forward-compatible encoder-by-tag dispatch the joint path threads (mirrored in C++ `encoder_for_tag`).
 
@@ -1195,7 +1202,7 @@ AgricolaBot/
         test_nn_policy.py
         test_generate_nn_training_data.py
         test_validate_nn_dataset.py
-        test_cpp_canonical.py           # C++-port differential gates (CLAUDE.md §2.4 / CPP_ENGINE_PLAN.md):
+        test_cpp_canonical.py           # C++-port differential gates (CLAUDE.md → The C++ twin engine / CPP_ENGINE_PLAN.md):
         test_cpp_trace_replay.py        #   canonical serde, trace replay, state model + flood-fill,
         test_cpp_state.py               #   legality, step/scoring, encoder, NN value+policy, MCTS,
         test_cpp_legality.py            #   and the C++ self-play data-gen pipeline — each asserting
@@ -1216,7 +1223,7 @@ AgricolaBot/
 
         card_text.py                # Card-text lookup CLI (CARD_AUTHORING_GUIDE.md §1 step 1). `python scripts/card_text.py "<name or slug>" [...]` searches `agricola/cards/data/revised_*.json` by name/slug and prints each card's VERBATIM text + cost/prereq/vps/passing + deck/number/category, and marks whether it is already IMPLEMENTED (slug registered in OCCUPATIONS/MINORS). Use it to honor the rule "read a card's exact text before reasoning about or implementing it" (never paraphrase). `--exact` for full-name match.
 
-        verify_web_sync.py          # Web-UI regression harness (CLAUDE.md §2.6). HTTP-drives a live `play_web.py` server and asserts the client-rendered state == the server's authoritative state across the move (farmland→plow), undo, confirm-turns, new-game, and opponent-mix flows. Prints "RESULT: ALL CHECKS PASSED". Guards the single-channel request/response invariant.
+        verify_web_sync.py          # Web-UI regression harness (CLAUDE.md → Web UI & online deployment). HTTP-drives a live `play_web.py` server and asserts the client-rendered state == the server's authoritative state across the move (farmland→plow), undo, confirm-turns, new-game, and opponent-mix flows. Prints "RESULT: ALL CHECKS PASSED". Guards the single-channel request/response invariant.
 
         profile_states.py           # 9 prefab `GameState` factories covering early/mid/late game; the round-14 state alone makes every non-`lessons` space legal (the coverage requirement for Workload C).
 
@@ -1252,9 +1259,9 @@ AgricolaBot/
 
             generate_selfplay_data.py # MCTS self-play training-data generator (`DATA_VERSION` 3) — the self-play sibling of `generate_training_data.py`. Plays N SHARED-tree MCTS-vs-MCTS games (NN value leaf `nn_models/best` + combined behavioral-cloning policy; PUCT / FLATTEN / full legality) via `play_selfplay_recording_game`, recording π + `root_value`. CHUNKED STREAMING writes (`worker_NN_cNNN.pkl` flushed every `--chunk-size` games then buffer dropped → bounded per-worker RAM + O(n) writes, vs the heuristic generator's O(n²) full-list rewrite); resumable (scans existing chunks for completed game_idxs); fresh tree per game (shared only between the two seats). Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id scaffold + a live progress monitor with ETA. CLI: `--n-games / --out-dir (resume if exists) / --n-workers / --base-seed / --sims / --c-uct / --temperature / --chunk-size / --leaf-ckpt / --policy {unweighted,awr}`.
 
-            generate_selfplay_data_cpp.py # C++ self-play data-gen driver (CLAUDE.md §2.4) — the C++-backed analog of `generate_selfplay_data.py`, producing the IDENTICAL `GameRecord` run-dir format so training consumes it unchanged. Runs the `cpp/build/selfplay --mcts` binary across a `multiprocessing` worker pool (default **batch** mode: one process per worker plays its whole slice via `--game-idxs`, loading NN weights once; `--per-game-process` is the one-process-per-game baseline), then `replay_trace`s each trace → `GameRecord` → chunked pickles. Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id; resume + error-logging + overwrite-guard + `generation_mode` in metadata. ~4× faster than the Python generator. See CPP_ENGINE_PLAN.md.
+            generate_selfplay_data_cpp.py # C++ self-play data-gen driver (CLAUDE.md → The C++ twin engine) — the C++-backed analog of `generate_selfplay_data.py`, producing the IDENTICAL `GameRecord` run-dir format so training consumes it unchanged. Runs the `cpp/build/selfplay --mcts` binary across a `multiprocessing` worker pool (default **batch** mode: one process per worker plays its whole slice via `--game-idxs`, loading NN weights once; `--per-game-process` is the one-process-per-game baseline), then `replay_trace`s each trace → `GameRecord` → chunked pickles. Reuses `generate_training_data.py`'s `partition_plan` / `_write_pickle_atomic` / run-id; resume + error-logging + overwrite-guard + `generation_mode` in metadata. ~4× faster than the Python generator. See CPP_ENGINE_PLAN.md.
             export_torchscript.py   # (Superseded by export_weights.py.) Exports the value net + 9 policy heads to TorchScript `.ts` for the original libtorch-based C++ inference. Kept for provenance; the C++ engine no longer uses libtorch.
-            export_weights.py       # Exports the trained value net + 9 policy heads to raw float32 blobs + `weights_manifest.json` under `nn_models/cpp_export/`, consumed by the C++ hand-rolled MLP inference (CLAUDE.md §2.4). For a joint model also writes the **outcome** head blob + `outcome_scale` (§2.3) and the leaf's `value_target` descriptor. Run after training, before C++ data-gen. See CPP_ENGINE_PLAN.md §6 / "Optimization pass #2".
+            export_weights.py       # Exports the trained value net + 9 policy heads to raw float32 blobs + `weights_manifest.json` under `nn_models/cpp_export/`, consumed by the C++ hand-rolled MLP inference (CLAUDE.md → The C++ twin engine). For a joint model also writes the **outcome** head blob + `outcome_scale` (§2.3) and the leaf's `value_target` descriptor. Run after training, before C++ data-gen. See CPP_ENGINE_PLAN.md §6 / "Optimization pass #2".
 
             validate_dataset.py     # Post-generation invariant checker per FIRST_NN.md §6.6. Loads all (or `--sample-size N` random subset of) records from a run dir's worker pickles; runs invariants: `data_version` matches, `chosen_action ∈ legal_actions(state)`, non-singleton snapshots, `state.phase != BEFORE_SCORING`, non-empty `decisions`, `decider_idx == decider_of(state)`, `terminal_state.phase == BEFORE_SCORING`, stored-vs-recomputed final scores. Continues past individual failures to report all issues. Failure summary groups by check type + locates offending game_idx + snapshot. Exit codes 0/1/2 (pass / fail / invalid run dir).
 
@@ -1287,7 +1294,7 @@ AgricolaBot/
 
     nn_models/                      # Trained NN checkpoints. Each completed `train_first.py` run produces one subdirectory (`<timestamp>-<suffix>/`) containing `best.pt` (state_dict + NormStats buffers), `best.meta.json` (architecture config + encoding_version), `config.json` (full run configuration for reproducibility), `norm_stats.json` (separate JSON copy of NormStats), `train_log.jsonl` (per-epoch metrics), `train_curves.png`, `calibration.png` (test-split predicted-vs-actual), and `test_metrics.json` (final test MSE/MAE). Top-level `REGISTRY.md` is the authoritative catalog of every checkpoint here — **must be updated as part of every training run** (see CLAUDE.md §2.3). `cpp_export/` (gitignored) holds the raw float32 weight blobs + `weights_manifest.json` exported by `scripts/nn/export_weights.py` for the C++ engine's hand-rolled inference.
 
-    cpp/                            # The C++ self-play engine (CLAUDE.md §2.4) — a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference), ~4× faster than Python single-thread, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Builds via CMake (`cpp/README.md`) into a pybind module (`agricola_cpp`, the differential-test surface) + a standalone `selfplay` binary (production data-gen). **No libtorch dependency.** The per-file layout, the staged build, and the §8.1 status ledger are in `CPP_ENGINE_PLAN.md` §9.1 (not duplicated here). `cpp/build/` is gitignored; `cpp/third_party/` vendors `nlohmann/json`.
+    cpp/                            # The C++ self-play engine (CLAUDE.md → The C++ twin engine) — a faithful native reimplementation of the self-play inner loop (engine + MCTS + hand-rolled NN inference), ~4× faster than Python single-thread, validated against the Python oracle by the `tests/test_cpp_*.py` differential harness. Builds via CMake (`cpp/README.md`) into a pybind module (`agricola_cpp`, the differential-test surface) + a standalone `selfplay` binary (production data-gen). **No libtorch dependency.** The per-file layout, the staged build, and the §8.1 status ledger are in `CPP_ENGINE_PLAN.md` §9.1 (not duplicated here). `cpp/build/` is gitignored; `cpp/third_party/` vendors `nlohmann/json`.
 
     design_docs/                    # Design + training docs grouped here to keep the top level tidy. The agent (Phase 2.2/2.3) design records live at the top of this folder; the heuristic-agent (Phase 2.1) design + tuning docs live under heuristic_models/; the original engine (Phase 1) task specs live under game_engine/.
 
