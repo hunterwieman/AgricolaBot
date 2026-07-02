@@ -14,25 +14,28 @@ training a strong AI agent via MCTS and self-play reinforcement learning.
 
 ## Project Goal & Roadmap
 
-Build a complete, deterministic game engine for the 2-player Family variant of Agricola, then
-use it as the environment for training a strong self-play AI agent.
+Build a complete, deterministic Agricola engine and train a strong self-play AI agent on it —
+first for the 2-player Family variant (done), now extending to the full card game.
 
 The project — and this document — is organized into three phases, preceded by a cross-cutting
 **Foundations** section (ways of thinking about Agricola + the engineering invariants; read it
-first):
+first). This file carries orientation and a one-line status per phase; **dated, deep status
+lives in each phase's reference doc** (that convention is what keeps this file from silently
+going stale):
 
 - **Phase 1 — The Game Engine.** Fast, correct, fully playable. **Done.**
-- **Phase 2 — Building an Agent.** A hand-built heuristic (2.1, *done, now retired* — it generated
-  the *initial* self-play training data), MCTS (2.2, *first pass done; PUCT search machinery now landed*), and a
-  value/policy neural network (2.3, *value slice is the strongest agent; policy head + PUCT
-  integration now underway, self-play loop still ahead*).
+  (Reference: `ENGINE_IMPLEMENTATION.md`.)
+- **Phase 2 — Building an Agent** (Family game). Heuristic → MCTS → value/policy NN trained by
+  self-play. **The AlphaZero-style loop is running; a joint shared-trunk value+policy model is
+  the champion and plays as the web-UI bot.** (Model lineage + current champion:
+  `nn_models/REGISTRY.md`; design: `SHARED_TRUNK.md`.)
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
-  Phase 2 agent process for the richer game. **Started — Milestone 1 (the play-card foundation:
-  mode, hands, occupation + minor play across all entry points, scoring, first 4 cards) done; the
-  trigger/hook firing system is next.**
+  Phase 2 agent process for the richer game. **The card engine is built; ~270 of the 840-card
+  catalog are implemented and playable in the web UI; no card-game agent exists yet.**
+  (Reference + live status: `CARD_ENGINE_IMPLEMENTATION.md`.)
 
-The 2-player Family variant (no hand cards) is built first to validate the whole
-engine → agent → NN pipeline before card complexity is added.
+The 2-player Family variant (no hand cards) was built first to validate the whole
+engine → agent → NN pipeline before card complexity was added.
 
 ---
 
@@ -408,12 +411,9 @@ need:
 - **§4 — Subsystems.** Deep dives on the three hardest areas: Fencing, animal accommodation, and
   the harvest.
 - **§5 — Coding conventions.** The rules for writing engine code.
-- **§6 — Card-trigger machinery.** The (currently minimal) card infrastructure and the open
-  design questions for the full card system.
-
-The trigger machinery is exercised end-to-end by exactly one card, **Potter Ceramics** — a
-forward-compatibility test only, **not part of any game, and not used in play until the full
-card suite is built** (see Phase 3).
+- **§6 — Card machinery (pointer) & the nature-policy seam.** A short summary of how the card
+  system resolved this section's original deferred questions, plus the `Environment` layer; the
+  card system itself is documented in **`CARD_ENGINE_IMPLEMENTATION.md`** (see Phase 3).
 
 ---
 
@@ -579,7 +579,7 @@ at the MCTS leaf, but differ in how value and policy are packaged:
 1. **Separate nets — a value net + nine disjoint policy heads.** The original slice: one supervised
    value network, plus nine independently-trained behavioral-cloning policy heads (seven fixed-vocab
    + two pointer), stitched into one `policy_fn` by the `make_policy_fn` combiner. This is the
-   "Where it stands" paragraph below.
+   separate-nets paragraph below.
 2. **The joint shared-trunk model (Stage B).** All ten outputs unified onto one shared trunk —
    trained jointly with soft-π policy + margin value, **the strongest agent to date**. This is the
    "Stage B" paragraph below.
@@ -588,28 +588,19 @@ The joint model is the current best and the basis for ongoing self-play; the sep
 provenance it grew out of and remain the fallback when a single head is trained or probed in
 isolation.
 
-**Where it stands.** The first slice is built and already paying off. A **supervised value
-network** — trained on self-play data from the heuristic ensemble to predict the terminal score
-margin — runs end-to-end: the data-generation pipeline, the ~170-feature encoder, the versioned
-on-disk schema, the model and training loop, and the `NNAgent` that wraps the trained model.
-**Early results make `NNAgent` the strongest agent to date** — apparently stronger than the
-heuristic ensemble it learned from — and MCTS using this NN as its leaf evaluator beats
-`NNAgent`'s plain 1-turn lookahead (see 2.2). The **policy head** (Phase c) is now partly built — a
-factored multi-head policy (one `DecisionHead` per decision type) bootstrapped by behavioral cloning
-of the existing `chosen_action` data, consumed by MCTS through the black-box `policy_fn`; the **PUCT
-search machinery (c0) has landed** (POLICY_PUCT_DESIGN.md). The policy now has **full decision-type
-coverage** — nine trained heads (each `unweighted` + `awr`): seven fixed-vocab `DecisionHead`s (`placement`
-25, `choose_subaction` 8, `commit_build_major` 14, `commit_sow` 104, `commit_bake` 6, `fencing` 110,
-`build_stop` 2) and two `PointerHead`s (`animal_frontier`, `harvest_feed`) that score variable-length
-Pareto frontiers (see `POLICY_HEAD.md` + `nn_models/REGISTRY.md`). The **`make_policy_fn` combiner**
-assembles them into the full `policy_fn` MCTS consumes — it works over the full legal set and
-dispatches per decision type (fixed head / pointer head / `build_stop` learned-P(stop) for multi-shot
-rooms&stables / uniform-over-cell-priority for the no-signal spatial cells / uniform-over-full-legal),
-so the prune lives entirely in the policy. `scripts/nn/build_combined_policy.py` ships the two
-end-to-end functions (`build("unweighted")` / `build("awr")`). One known gap: the `fencing` head is
-spatially blind (top-1 ~28%) because the encoder has no per-cell features. **Next:** PUCT
-consumption/eval of the priors (the real test — accuracy ≠ strength). The full design is in
-**`FIRST_NN.md`** and **`POLICY_HEAD.md`**.
+**The separate-nets family (the original slice; superseded as the agent, still the training
+fallback).** A **supervised value network** — first trained on heuristic-ensemble self-play to
+predict the terminal score margin — plus a factored multi-head **behavioral-cloning policy**:
+nine trained heads (each `unweighted` + `awr`) — seven fixed-vocab `DecisionHead`s (`placement`
+25, `choose_subaction` 8, `commit_build_major` 14, `commit_sow` 104, `commit_bake` 6, `fencing`
+110, `build_stop` 2) and two `PointerHead`s (`animal_frontier`, `harvest_feed`) scoring
+variable-length Pareto frontiers. The **`make_policy_fn` combiner** assembles them into the one
+`policy_fn` MCTS consumes — over the full legal set, dispatching per decision type (fixed head /
+pointer head / `build_stop` learned-P(stop) for multi-shot rooms&stables /
+uniform-over-cell-priority for the no-signal spatial cells / uniform-over-full-legal), so the
+prune lives entirely in the policy; `scripts/nn/build_combined_policy.py` ships the two
+end-to-end functions. Known gap: the `fencing` head is spatially blind (top-1 ~28%) — the
+encoder has no per-cell features. Design records: **`FIRST_NN.md`** + **`POLICY_HEAD.md`**.
 
 **Stage B — the joint shared-trunk model (done; strongest agent to date).** The separate value net
 and nine policy heads have been unified into one **`SharedTrunkModel`**: a single `170→256→256→128`
@@ -628,44 +619,42 @@ through a `model_kind`-aware loader. Full design + eval: **`SHARED_TRUNK.md`**.
 
 **The current champion — `joint_a256_300k` (clean-300k corpus; promoted 2026-06-25).** Same architecture as the prior champion — a `[256,256]→128` GELU joint shared-trunk value+policy model — **retrained on the cleaner 300k-game corpus** (`gen300k`: 300k @ 1600 sims / c_uct 2 / mixed temps, generated by the prior champion `joint_gelu_rand_240k` itself; snapshot-keep 0.5), random-init then warm-resumed to convergence on Spot at lr 3e-4 (converged val_mse 0.5452). It **beats the prior champion 63.9% head-to-head** (438 games, 800 sims, mix α=0.9) — *the corpus alone is the upgrade*, at no extra compute cost (identical arch). It was the `A_baseline` arm of a 6-architecture `300k_6arch_sweep`; the wider **`B_wide` (512×512→256) is stronger still** (beats `joint_a256_300k` 58% at equal sims, 55–57% at equal wall-clock) but costs ~1.76× per forward, so it is held as a **candidate, not promoted** (promotion deferred to the user). Deployed scales — **measured on a common 6k-state gen300k set** (value_scale is distribution-dependent, so measure both seats on a common set for fair matches): **value_scale 3.298, outcome_scale 0.549**; plays the **mix leaf at α=0.9**. Full sweep + eval: `SHARED_TRUNK.md` §2.2; rows in `nn_models/REGISTRY.md`.
 
-**The previous champion — `joint_gelu_rand_240k` (240k-game corpus; GELU, random-init; champion 2026-06-24 → 06-25, superseded by `joint_a256_300k`).** A joint shared-trunk value+policy model trained on a **240k-game corpus** — 200k from `run_300k_cuct15_s1200` (1200 sims, c_uct 1.5) + 40k diverse from `run_40k_diverse_s800_t2.5_cuct2` (800 sims, temp 2.5, c_uct 2) — with **snapshot-keep 0.25**, dropout 0.2, value-weight 9, bs 2048, v2 encoder, lr 1e-3. It uses **GELU** and was **random-init** (not warm-started). It won a 2×2 experiment over {GELU, leaky_relu} × {warm-start-from-`joint_outcome_44k`, random-init}: **GELU > leaky_relu**, and **warm-start ≈ random** (the difference was training-seed noise, not a real effect). It **beats the prior champion `joint_outcome_44k` ~62–65%** in C++ MCTS head-to-head (5k games each at 800 / 1600 sims, mix-leaf α=0.9, matched value_scale 2.967 + outcome_scale 0.5405). Deployed value_scale 2.967, outcome_scale 0.5405; plays the **mix leaf at α=0.9**. Full result: `SHARED_TRUNK.md`; row in `nn_models/REGISTRY.md`. The **previous champion `joint_outcome_44k`** (44.6k self-play; the first GCP cloud-trained model; was champion 2026-06-22→06-24; **superseded 2026-06-24**) remains its named-dir fallback — it was a joint shared-trunk model that **added a second value head — an *outcome* head** (see "The outcome head + three leaf modes" below) beside the margin value head, trained warm-started from `exp_visit_combined` (L2-SP λ=1e-3, the recipe matched exactly: 256×256→128, dropout 0.2, lr 3e-4, bs 2048, value-weight 9, v2 encoder; best epoch 12) on **44,608 games** (40k generated on GCP at 1600-sim, seed 100100000; §2.5 cloud workflow, + a 4.6k local replayed set), preserving value/policy strength while mainly adding the outcome head (terminal sign-accuracy 0.69).
+**Champion lineage (compact — the full per-model records live in `nn_models/REGISTRY.md` +
+`SHARED_TRUNK.md`).** `joint_taper128_thin` (117k corpus) → `joint_outcome_44k` (first
+GCP-cloud-trained; introduced the *outcome* head below) → `joint_gelu_rand_240k` (240k corpus)
+→ `joint_a256_300k` (current). Each beat its predecessor in C++ MCTS head-to-head; the two
+durable experimental findings from the lineage are **GELU > leaky_relu** and **warm-start ≈
+random-init** (a 2×2 experiment — the warm-start "edge" was training-seed noise).
 
 **The outcome head + three leaf modes.** The `SharedTrunkModel` now carries **two value heads off the same trunk embedding**: the original **margin** head (regresses the terminal score margin) and a new **outcome** head (an `E→1` linear layer regressing `sign(margin) ∈ {−1, 0, +1}` — who wins, ignoring by how much). The outcome head is co-trained inside the value-task batch off the *same* embedding, so it costs **no extra trunk forward**; L2-SP excludes the fresh head, and an old checkpoint without it still loads (backward-compatible). MCTS can then take its leaf value in one of **three modes**, all from that one trunk forward: **margin** (`margin / value_scale`), **outcome** (`outcome / outcome_scale`, already in `[−1, 1]`), or **mix** = `α·(margin/margin_scale) + (1−α)·(outcome/outcome_scale)` (normalize-then-average; `α=1` is pure margin, `α=0` pure outcome), with `α` tunable. A **mix-α self-sweep** (10k games, each seat's α ∼ U[0,1], kernel-regression analysis — `scripts/nn/analyze_alpha_sweep.py`) found the robust-best leaf is **margin-heavy (α≈0.9)**: pure outcome is the worst leaf and a 50/50 mix mediocre, and crucially this *flips* the vs-champion ranking above — so the mix/outcome edge in that head-to-head is partly champion-specific exploitation, while **margin is the robust leaf**. The **deployed bot therefore uses the mix leaf at α=0.9**. `train_shared.py --train-outcome` (default ON) trains the head; the C++ search exposes `set_leaf_mode` / `set_mix_alpha`; full detail in `SHARED_TRUNK.md` §10.
 
 > **c_uct default is 1.0** (unified 2026-06-18 across scripts, the C++ binary, `MCTSAgent`, and the web-UI bot/analyze seats — was a 0.5/1.4 mix). Validated combined@1.0 ≈ combined@0.5. `value_scale` for fair head-to-head MCTS must be measured on a **common state set** (not the condition-biased training `target_std`) — see `SHARED_TRUNK.md` §9.1.
 
-**`joint_taper128_thin` (117k snapshot-thinned; 2026-06-15) — the previous champion.** Scaling the
-corpus to 117k games (the 57k + a fresh 60k self-play run generated *by* the 57k model) and retraining
-the joint v2 model produced the strongest agent at the time. It **beats `joint_taper128_57k` 84-86% at
-800-sim PUCT** AND **dominates the 8-config heuristic ensemble (~100%, ~2.4× their points)** — the first
-joint model to clear the *objective* yardstick. The
-levers that made 117k tractable on the 8 GB M1 (full 117k thrashed at ~1100 s/epoch): **per-game
-snapshot-thinning** (`--snapshot-keep`, a per-run-dir keep-fraction — cuts rows + within-game
-autocorrelation), **int8 feature storage** (`--store-dtype int8`, lossless: every feature is an integer),
-and **all CPU cores** (don't set `OMP_NUM_THREADS=1` for a *single* trainer) → **~80 s/epoch**. This run
-also fixed **two load-bearing warm-start bugs** (`target_std`/norm-buffer transplant + a `value_scale`-
-measurement `NameError`) that had mis-calibrated every warm-started joint model, and surfaced that
-**`value_scale` is distribution-dependent** (measure both seats on a common state set for fair matches).
-Full detail in **`SHARED_TRUNK.md` §4.1** and `nn_models/REGISTRY.md`.
+**Training-at-scale levers (from the 117k-corpus run — `SHARED_TRUNK.md` §4.1).** What makes a
+100k+-game corpus tractable on the 8 GB M1: **per-game snapshot-thinning** (`--snapshot-keep` —
+cuts rows + within-game autocorrelation), **int8 feature storage** (`--store-dtype int8`,
+lossless — every feature is an integer), and **all CPU cores** for a single trainer (don't set
+`OMP_NUM_THREADS=1`). That run also fixed two load-bearing warm-start bugs
+(`target_std`/norm-buffer transplant; a `value_scale`-measurement `NameError`) that had
+mis-calibrated every earlier warm-started joint model — the reason pre-2026-06-15 warm-start
+comparisons are untrustworthy.
 
-**`joint_taper128_thin_sp30k_lr3e4` is now `nn_models/best` (promoted 2026-06-15).** The `best.{pt,meta.json}` pair
-is a copy of its checkpoint, so `best` resolves to a **joint `SharedTrunkModel`** (`model_kind:
-"shared_trunk"`), not a separate-net value model. Consumers split into two camps and stay working
-without per-call branching:
+**`nn_models/best` resolves to the current joint champion** (`best.{pt,meta.json}` is a copy of
+its checkpoint; `model_kind: "shared_trunk"`, not a separate-net value model). Consumers split
+into two camps and stay working without per-call branching:
 - **Value-only consumers** (the web UI `nn`/`mcts-leaf` seats; the `--value-ckpt` AWR baseline in
-  `train_policy.py`) load through the new **`model_kind`-aware `load_value_evaluator(stem)`**
+  `train_policy.py`) load through the **`model_kind`-aware `load_value_evaluator(stem)`**
   (`agricola/agents/nn/model.py`): `"value"` → `NormalizedValueModel.load`, `"shared_trunk"` →
-  `SharedTrunkModel.load`. Both expose `predict_margin`/`value_scale`, so the joint value head is a
-  drop-in 1-turn value leaf (its policy heads unused on this path).
-- **MCTS-leaf consumers** (`play_mcts_match.py`, `generate_selfplay_data.py`, `bench_shared_tree.py`)
-  detect the joint `best` and wire **value + policy off the one trunk** via `make_joint_fns`. (The two
-  UCT-MACRO-archetype search-sweep scripts that couldn't take a fused policy —
-  `run_search_tournament.py` / `eval_search_vs_ensemble.py` — have been retired to `archive/scripts/`,
-  along with the other separate-net/UCT-MACRO and V3-leaf instrumentation drivers; see the archive note
-  in the directory tree.)
-The promoted `best.meta.json` carries **`value_scale = 4.24`** (stored from the self-play distribution;
-`value_scale` is meta-only). The older separate-net champion `M_82k_warmM62k` remains the value-only
-fallback for any consumer that wants a pure `NormalizedValueModel`.
+  `SharedTrunkModel.load`. Both expose `predict_margin`/`value_scale`, so the joint value head is
+  a drop-in 1-turn value leaf (its policy heads unused on this path).
+- **MCTS-leaf consumers** (`play_mcts_match.py`, `generate_selfplay_data.py`,
+  `bench_shared_tree.py`) detect the joint `best` and wire **value + policy off the one trunk**
+  via `make_joint_fns`. (The separate-net/UCT-MACRO-era sweep scripts that couldn't take a fused
+  policy are retired to `archive/scripts/` — see the archive note in the directory tree.)
+
+`value_scale` lives in `best.meta.json` (meta-only) and is re-measured per promotion on a common
+state set. The older separate-net champion `M_82k_warmM62k` remains the value-only fallback for
+any consumer that wants a pure `NormalizedValueModel`.
 
 > **Before refactoring the joint dataset builder (`shared_dataset.py`), read
 > `SHARED_TRUNK.md` §3 — "the two memory lessons" — in full.** That builder's `build_shared_datasets`
@@ -904,7 +893,7 @@ through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`).
 
 In **Cards** mode the seats are **human-vs-random or human-vs-human** (no trained bot exists for the card
 game yet, so MCTS/NN seats and the analysis overlay are disabled), and `setup_env(seed, card_pool=...)` is
-called with a pool of **all implemented cards** (currently 22 occupations + 31 minors) so each player is
+called with a pool of **all implemented cards** (~270; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
 dealt a random non-overlapping 7-occupation + 7-minor hand. The snapshot serializes each player's hand
 under **hidden-information rules**: a hand is shown face-up only for a *human* seat, and among two human
 seats (pass-and-play) only the **active player's** hand is revealed (the inactive seat sees a face-down
@@ -980,94 +969,61 @@ Dockerfile edit.
 
 ## Phase 3 — Cards (and maybe 4-player)
 
-> ⚠️ **STALE STATUS — this section is well out of date.** The full card-firing system (host
-> before/after lifecycle, `before_/after_action_space` and sub-action triggers, automatic effects,
-> harvest/start-of-round/opponent hooks, CardStore, cost-modifiers, food payment, multi-shot
-> grants, …) is BUILT, and **~270 cards across decks A–E are implemented and registered** — not
-> "Milestone 1, four cards." **The current ground truth is `CARD_ENGINE_IMPLEMENTATION.md`** —
-> the as-built machinery reference + the live Status section (per-card ledger:
-> `CARD_IMPLEMENTATION_PROGRESS.md`). The text below describes the *original* plan and is kept
-> for design rationale only.
+**The card engine is built and the catalog is being implemented at scale.** The **card game**
+(`GameMode.CARDS`; `setup_env(seed, card_pool=..., draft=...)`) is the full 2-player Agricola:
+each player gets a private 7-occupation + 7-minor hand (dealt, or via a competitive draft), the
+board reshapes (Side Job gone; Lessons usable; Meeting Place = become-SP + optional minor, no
+food; the improvement spaces gain a play-minor branch), and played cards modify the game through
+a general firing system — host frames with before/after windows on every action, optional
+triggers / automatic effects / mandatory-with-choice, ~30 `register_*` seams (scoring, cost
+modifiers, food payment, capacity, schedules, legality extensions), per-card state (`CardStore`),
+and phase hooks (start-of-round, harvest-field). **~270 of the 840-card catalog** (Revised base
++ Artifex/Bubulcus/Corbarius/Dulcinaria/Ephipparius, decks A–E) are implemented, tested, and
+dealt in the web UI's Cards mode.
 
-**Started — Milestone 1 (the play-card foundation) is done; the trigger/hook system is next.** The
-full Agricola card system (the ~470 occupation and minor-improvement cards) is the largest remaining
-piece of game content. The plan: implement the cards, possibly add the 4-player variant, then *repeat
-the agent-building process* (Phase 2: heuristic → MCTS → NN) for the richer game. **(This Phase 3
-section predates the implementation and will be overhauled; the current ground truth for what's built
-is `CARD_IMPLEMENTATION_PLAN.md`'s build-order status + the `feat(cards)` git history.)**
+**The one doc to read before card work is `CARD_ENGINE_IMPLEMENTATION.md`** — the as-built
+machinery reference (hosts & firing, every registry, card state, the cost/food/capacity layers),
+the rulings & idioms, the implementation process, the deliberate boundaries, and the **live
+Status section** (updated per batch; per-card ledger in `CARD_IMPLEMENTATION_PROGRESS.md`).
+`CARD_AUTHORING_GUIDE.md` is the practical how-to; `CARD_DEFERRED_PLANS.md` holds the deferred
+clusters + open design decisions. The cardinal rule of card implementation: **a card that
+doesn't clearly fit the machinery is deferred and brought to the user, never approximated** —
+the user is the rules authority.
 
-**The design is scoped in `CARD_SYSTEM_DESIGN.md`** — target scope (Revised base + 5 named
-expansions, 2-player, occupations + minors), the engine changes (`PendingPlayOccupation`/
-`PendingPlayMinor`, the `PendingActionSpace` hook, the trigger/automatic-effect firing model, the
-scoped used-set reset model), the card catalog under `agricola/cards/data/`, the per-group
-implementation plan, and the open questions (asymmetric hidden info on the agent side; Grocer;
-the deferred legality/affordability machinery). Read it before starting card work.
-
-**The concrete build plan for the *tractable* subset is `CARD_IMPLEMENTATION_PLAN.md`** — the
-implementation design for the **~59 base-game cards** that need no cost-modification, affordability
-search, conversion closure, or per-card goods-stack (the buildable complement of
-`CARD_SYSTEM_DESIGN.md` §8/§15's hard set). It covers: the card-vs-Family engine deltas (an explicit
-`GameMode` field; board deltas — Side Job gone, Meeting Place = become-SP + *optional* minor + *no
-food*, Lessons usable, and Basic Wish for Children / Major-Minor Improvement / House Redevelopment
-gain a play-minor option; hands on `PlayerState` with ISMCTS determinization handled *above* the
-engine); the shared infrastructure (three firing kinds incl. **mandatory-with-choice**; a coarse
-`before_/after_action_space` event routed by a `PENDING_ID` bucket with per-space frames kept; scoped
-used-sets; the play-card pendings; `FutureReward`; `CardStore` for per-card state; grants-are-triggers);
-the 10 card categories with canonical examples; the **deferred** set (Mini Pasture, Organic Farmer,
-Shepherd's Crook, Acorns Basket); and a build order. **Milestone 1 (Part I + the play-card
-foundation) is implemented** (build-order steps 1–2); the firing/hook system (steps 3–4) is next.
-
-**What exists today.** Milestone 1 of the card game is built and tested (the Family game stays
-byte-identical; C++ differential gates green):
-- **Part I** — an explicit `GameMode` field; mode-branched placement; private hands on `PlayerState`;
-  `setup_env(seed, card_pool=...)`; the canonical `default-skip` for card-only fields.
-- **The play-card foundation** — occupations via **Lessons** (`PendingPlayOccupation`); minors via
-  **all four entry points** (Major/Minor Improvement, House Redevelopment, Basic Wish for Children —
-  reworked to mirror House Redev with a `PendingFamilyGrowth` primitive — and Meeting Place via
-  slot-reuse); `Cost` (Resources + Animals), `MinorSpec`/`MINORS` + `OccupationSpec`/`OCCUPATIONS`
-  registries, the `SCORING_TERMS` registry, passing-minor circulation.
-- **Four cards** — Consultant, Priest (on-play occupations), Stable Architect (scoring occupation),
-  Market Stall (passing minor).
-- **Still deferred within Milestone 1:** `CardStore` (per-card state) — lands when a card needs it
-  (Tutor / Moldboard Plow).
-
-**Potter Ceramics** (a minor improvement) also exists as the original forward-compatibility test of
-the trigger machinery — still **not part of any game** until the trigger/hook system (steps 3–4)
-lands. (`legality.py`'s `ALL_LEGALITY` is renamed `FAMILY_GAME_LEGALITY`; Caravan is `wontfix`.)
-
-**The engine is already built for cards.** Much of the engine's apparent over-engineering is
-deliberate forward-compatibility, so the card phase is additive rather than a rewrite: per-frame
-`player_idx` for out-of-turn triggers, arbitrary stack depth for triggers with sub-decisions,
-the `*_EXTENSIONS` registries for card-broadened legality, `triggers_resolved` budgets, the
-`TRIGGERS` / `CARDS` registries, and the reusable sub-action primitives that card effects should
-*compose* rather than re-implement. The mechanics and the known open design questions (compound
-card interactions, atomic-space trigger hosting, harvest trigger events) live in
-**`ENGINE_IMPLEMENTATION.md`** — §2 ("built with cards in mind") and §6 (card-trigger machinery).
+**What remains in Phase 3:**
+- **The rest of the catalog** — the remaining ~570 cards (many blocked on the deferred-cluster
+  infrastructure decisions in `CARD_DEFERRED_PLANS.md`, which are user-gated).
+- **The card-game agent** — repeat the Phase 2 process (MCTS → NN → self-play) for the richer
+  game. Hidden hands are handled *above* the engine (ISMCTS determinization at the search
+  layer); no card-game agent exists yet, so the web UI's Cards mode is human-vs-random or
+  human-vs-human.
+- **The C++ card port** — the C++ engine is Family-only today; porting the card game (guarded
+  by new differential gates) is a prerequisite for card-game self-play at scale.
 
 **4-player** is a possible extension, but a real undertaking rather than a flag flip: the
 player-alternation logic already uses modular arithmetic that generalizes to N players, but
-`setup`, the action board, and the rest assume the 2-player Family variant.
-
----
+`setup`, the action board, and the rest assume 2 players.
 
 *Future direction (speculative): card-level diagnostics / interpretability — e.g. surfacing
-which cards and interactions a trained agent values, as an aid to expert analysis. Out of scope
-until the card system exists.*
+which cards and interactions a trained agent values, as an aid to expert analysis. Waits on the
+card-game agent.*
 
 ---
 
 ## Status & boundaries
 
-Phase-level status is in the **Roadmap** at the top; the full pytest suite (`tests/`) passes. The
-concrete boundary — what is *deliberately not* implemented — is:
+Phase-level status is in the **Roadmap** at the top (deep status: `nn_models/REGISTRY.md` for
+models, `CARD_ENGINE_IMPLEMENTATION.md` §1 for cards); the full pytest suite (`tests/`) passes.
+The concrete boundary — what is *deliberately not* implemented — is:
 
-- **Cards beyond Potter Ceramics.** As a consequence, `lessons` is permanently illegal in the
-  Family game, and the optional minor / improvement paths at Basic Wish for Children, House
-  Redevelopment, and Major Improvement are inert until card support lands. (Farm Redevelopment is
-  *not* one of these — its optional second step is Build Fences, not an improvement, and it is
-  fully implemented.) Every other space surfaced by `legal_placements` has a working path; the
-  `NotImplementedError` branch in `_apply_place_worker` is a defensive guard for unknown space IDs
-  (e.g. `lessons`).
+- **~570 of the 840 catalog cards** — unimplemented or deferred (clusters + build proposals in
+  `CARD_DEFERRED_PLANS.md`; the deliberate machinery boundaries — end-of-turn, at-any-time
+  conversions, Grocer-style reachability, event payloads — in `CARD_ENGINE_IMPLEMENTATION.md`
+  §8). In the **Family** game `lessons` stays permanently illegal and the optional
+  minor/improvement paths at Basic Wish / House Redevelopment / Major Improvement are inert —
+  those are card-game features, live under `GameMode.CARDS`.
+- **A card-game agent** — MCTS/NN seats and the analysis overlay are Family-only.
+- **The C++ card port** — the C++ twin implements the Family game only.
 - **The 4-player variant** (see Phase 3).
 
 The full per-session build history — what was built each session, the design decisions made, and
@@ -1086,10 +1042,10 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | `CARD_ENGINE_IMPLEMENTATION.md` | **The reference-of-record for the card system as built** (Phase 3) — the deep-mechanics companion to `ENGINE_IMPLEMENTATION.md` for everything the card game adds, and the ONE doc a card-implementation session reads first. §0 the goal (a working card game) + the Family/C++ lockstep invariant and its two compliance routes (additive O(1)-skipped seams by default; Family-shape change + C++ re-port when the design warrants); §1 the live Status section (updated per batch — the maintenance contract); §2 hosts & firing (the four host kinds, event derivation, the three firing kinds, enforce-first, the firing-seam map); §3 every `register_*` registry; §4 card state & the card-only pending frames (the state-placement rule, CardStore, hands/ISMCTS, canonical default-skip); §5 the cost-modifier chokepoint + the build-fence deferred tally (the one mode branch) + food payment + capacity mods; §6 rulings & idioms; §7 the implementation process; §8 deliberate boundaries (end-of-turn, Grocer, C++-is-card-free); §9 the card-doc map. The design records (CARD_SYSTEM_DESIGN, COST_MODIFIER_DESIGN, FOOD_PAYMENT_DESIGN, the refactor docs) keep rationale; this describes the code. |
 | `SPACE_HOST_REFACTOR.md` | Design + implementation record for the **action-space host before/after lifecycle refactor** (Phase 3, cards infrastructure): gives every action-space parent frame a before/after host lifecycle so cards can hook the space as a whole, not just the leaf primitives. Covers the four host mechanisms (Atomic / Commit-terminated / Delegating-with-auto-advance / Proceed-host), the Major/Minor three-layer nesting, Meeting Place + Lessons, the firing migration (after-automatics at the work-complete boundary; `_apply_stop` becomes a pure pop), the Proceed-as-Stop NN alias (no retrain), existing-card consequences (Milk Jug → `before_action_space`; Firewood Collector deferred), C++ scope, and the B1/B2/B3 staging. |
 | `CARD_AUTHORING_GUIDE.md` | **The practical how-to for implementing more cards — read this first when adding cards.** A pitfall-focused framework: how to read a card (exact text from `agricola/cards/data/` → classify timing / firing kind / primitives → map to a template), the firing machinery (host before/after lifecycle, event names, the three firing kinds with their `register_*` signatures + the eligibility-signature difference), the special mechanisms (deferred goods/effects, conditional latch, CardStore, scoring, opponent hooks, play-variant choice), a template catalog (which existing card module to copy per shape), a worked example (Cottager), the hard set to defer-and-ask about, and a per-card discipline checklist. Heavily emphasizes the obscure rulings a coding agent misses ("each time you use" = *before*; "end of turn" ≠ end of the action's effects/triggers; granted sub-actions are optional; optionality lives at the parent host; atomic spaces must be explicitly hosted to be hookable) and the **cardinal rule: when a card doesn't clearly fit the machinery, DEFER it and ASK the user** (who understands the rules/interactions far better than a coding agent). Complements `CARD_IMPLEMENTATION_PLAN.md` (the build plan + status) and `CARD_SYSTEM_DESIGN.md` (the design record). |
-| `CARD_SYSTEM_DESIGN.md` | **The Phase 3 (Cards) design record** — living doc of the decisions for adding the full card system (Revised base + Artifex/Bubulcus/Corbarius/Dulcinaria/Consul Dirigens, 2-player, occupations + minors) plus the open questions. §0 terminology (hook vs trigger vs automatic effect); private hands of 7-each + configurable card pools; `PendingPlayOccupation`/`PendingPlayMinor`; the `PendingActionSpace` hook (before/after phases, `Proceed`, conditional push via the ownership index); the firing architecture (timing ruling, triggers vs automatic effects, Option-A event registration, opponent-action hooks); the scoped used-set reset model (`_enter_phase`/`_advance_current_player`); one-shot conditional latch + cumulative counters; deferred round-space goods, start-of-round phase, harvest-field hook; deferred legality/affordability machinery with the flagged-card list; the occupation + minor implementation groups; the one-engine/additive-hooks performance split; Python-first C++. Read before starting card work. |
-| `CARD_IMPLEMENTATION_PLAN.md` | **The concrete Phase 3 build plan for the *tractable* base-card subset** — the implementation design (with canonical per-card code) for the ~59 base-game cards that need no cost-modification / affordability search / conversion closure / per-card goods-stack (the buildable complement of `CARD_SYSTEM_DESIGN.md` §8/§15). Part I — engine changes for card-vs-Family play (explicit `GameMode` field; board deltas: Side Job gone, Meeting Place = SP + optional minor + no food, Lessons usable, three minor-play spaces; private hands on `PlayerState`, opponent-hand hiding + ISMCTS determinization handled *above* the engine). Part II — shared card infrastructure (three firing kinds incl. mandatory-with-choice + `PendingCardChoice`; coarse `before_/after_action_space` routed by a `PENDING_ID` bucket, per-space frames kept; scoped used-sets; `PendingPlayOccupation`/`PendingPlayMinor`; `FutureReward`; start-of-round / harvest-field / opponent hooks; `CardStore` per-card state). Part III — the 10 card categories with canonical examples; then the deferred-cards set (Mini Pasture, Organic Farmer, Shepherd's Crook, Acorns Basket), the build order, and the decisions log. Read alongside `CARD_SYSTEM_DESIGN.md` when implementing cards; design is settled, next is implementation. |
-| `COST_MODIFIER_DESIGN.md` | **Design + red-team + build record for the cost-modifier cards** (Phase 3, Cards — design settled; renovate / build-room / play-minor / build-major / build-stable implemented, build-fence planned in §9). The problem: cards that change what a build costs (Lumber Mill, Carpenter, Frame Builder, …) would otherwise need edits at scattered, inconsistent cost sites in *both* legality and mechanics. The solution is one chokepoint — **`effective_payments(state, idx, ctx) -> list[PaymentOption]`** — that produces every non-dominated way to pay: resource bases (printed + each owned **formula** card) + non-resource **routes** (`ReturnImprovement`, e.g. Cooking-Hearth-via-Fireplace-return) → **conversions** (apply-each-once, sink-last; chains length 2 with Millwright the unique sink) → signed **reductions** (floor 0) → keep affordable → **Pareto-min over goods spent only** (stacking rules emerge, not hand-coded). Legality uses the short-circuiting `can_pay` (never builds the frontier); enumeration goes **wide** (renovate/major/minor) or **two-step** via `PendingChooseCost` (rooms, where cell ⟂ payment); the chosen **`payment: PaymentOption` rides explicitly on the commit** (O4). Covers `CostCtx` + per-action adapters, the three registries (`register_formula/reduction/conversion`) + fold accessors, the renovate-target model (Conservator), worked frontier traces (§4), the assumptions/attacks A1–A7 (A1 = Pareto-min is correct because reward-for-payment effects are `after_*` triggers, not folded in) + resolved forks O1–O5, the three-pass A–D + E-deck catalog sweeps, Family byte-identity via mechanical C++ re-port, and the §8 build order + test plan (incl. the apply-each-once chaining guard). **Food/convertible-good costs are explicitly deferred here (X3) — see `FOOD_PAYMENT_DESIGN.md`.** |
-| `FOOD_PAYMENT_DESIGN.md` | **Design record for paying the card game's *food* costs, including at-any-time liquidation** (Phase 3, Cards — design settled, not yet implemented). The central decision: food liquidation is **produce-then-pay** (a `PendingFoodPayment` frame driven by the harvest `food_payment_frontier` — grain+veg+animals, banking overshoot), a layer *above* the `COST_MODIFIER_DESIGN.md` cost pipeline — NOT a conversion inside `effective_payments`, because that pipeline is subtract-only / resource-only and structurally cannot bank overshoot or spend animals. Three layers (liquidation-aware affordability `_liquidatable_to` → `PendingFoodPayment`/`CommitFoodPayment` production pushed at execution when food-short → pipeline treats food as a component it doesn't liquidate); the two load-bearing correctness points (gate↔frontier agreement across `can_pay` AND the `effective_payments` filter; `reserved_animals` so liquidation doesn't double-count a minor's animal cost); the charge/body executor split + mid-execution push + continuation-as-data resume; Roof Ballaster as cost-on-the-variant (the "paid option" cost-placement principle, distinct from Ox Goad's trigger shape); worked banking arithmetic; scope (occupations + minors + Roof Ballaster in now; Ox Goad-pattern triggers supported; build-cost food — Stable Cleaner / Trowel / Wood Expert — deferred); red-team, build order, test plan. Read alongside `COST_MODIFIER_DESIGN.md`. |
+| `CARD_SYSTEM_DESIGN.md` | **The Phase 3 (Cards) design record** — living doc of the decisions for adding the full card system (Revised base + Artifex/Bubulcus/Corbarius/Dulcinaria/Consul Dirigens, 2-player, occupations + minors) plus the open questions. §0 terminology (hook vs trigger vs automatic effect); private hands of 7-each + configurable card pools; `PendingPlayOccupation`/`PendingPlayMinor`; the `PendingActionSpace` hook (before/after phases, `Proceed`, conditional push via the ownership index); the firing architecture (timing ruling, triggers vs automatic effects, Option-A event registration, opponent-action hooks); the scoped used-set reset model (`_enter_phase`/`_advance_current_player`); one-shot conditional latch + cumulative counters; deferred round-space goods, start-of-round phase, harvest-field hook; deferred legality/affordability machinery with the flagged-card list; the occupation + minor implementation groups; the one-engine/additive-hooks performance split; Python-first C++. The design record behind the machinery (read `CARD_ENGINE_IMPLEMENTATION.md` first for the as-built system). |
+| `CARD_IMPLEMENTATION_PLAN.md` | **The concrete Phase 3 build plan for the *tractable* base-card subset** — the implementation design (with canonical per-card code) for the ~59 base-game cards that need no cost-modification / affordability search / conversion closure / per-card goods-stack (the buildable complement of `CARD_SYSTEM_DESIGN.md` §8/§15). Part I — engine changes for card-vs-Family play (explicit `GameMode` field; board deltas: Side Job gone, Meeting Place = SP + optional minor + no food, Lessons usable, three minor-play spaces; private hands on `PlayerState`, opponent-hand hiding + ISMCTS determinization handled *above* the engine). Part II — shared card infrastructure (three firing kinds incl. mandatory-with-choice + `PendingCardChoice`; coarse `before_/after_action_space` routed by a `PENDING_ID` bucket, per-space frames kept; scoped used-sets; `PendingPlayOccupation`/`PendingPlayMinor`; `FutureReward`; start-of-round / harvest-field / opponent hooks; `CardStore` per-card state). Part III — the 10 card categories with canonical examples; then the deferred-cards set, the build order, and the decisions log. **FROZEN** as a historical plan+ledger — the as-built reference and live status are `CARD_ENGINE_IMPLEMENTATION.md`. |
+| `COST_MODIFIER_DESIGN.md` | **Design + red-team record for the cost-modifier cards** (Phase 3, Cards — fully implemented, incl. the §9 build-fence deferred-tally; the as-built reference is `CARD_ENGINE_IMPLEMENTATION.md` §5). The problem: cards that change what a build costs (Lumber Mill, Carpenter, Frame Builder, …) would otherwise need edits at scattered, inconsistent cost sites in *both* legality and mechanics. The solution is one chokepoint — **`effective_payments(state, idx, ctx) -> list[PaymentOption]`** — that produces every non-dominated way to pay: resource bases (printed + each owned **formula** card) + non-resource **routes** (`ReturnImprovement`, e.g. Cooking-Hearth-via-Fireplace-return) → **conversions** (apply-each-once, sink-last; chains length 2 with Millwright the unique sink) → signed **reductions** (floor 0) → keep affordable → **Pareto-min over goods spent only** (stacking rules emerge, not hand-coded). Legality uses the short-circuiting `can_pay` (never builds the frontier); enumeration goes **wide** (renovate/major/minor) or **two-step** via `PendingChooseCost` (rooms, where cell ⟂ payment); the chosen **`payment: PaymentOption` rides explicitly on the commit** (O4). Covers `CostCtx` + per-action adapters, the three registries (`register_formula/reduction/conversion`) + fold accessors, the renovate-target model (Conservator), worked frontier traces (§4), the assumptions/attacks A1–A7 (A1 = Pareto-min is correct because reward-for-payment effects are `after_*` triggers, not folded in) + resolved forks O1–O5, the three-pass A–D + E-deck catalog sweeps, Family byte-identity via mechanical C++ re-port, and the §8 build order + test plan (incl. the apply-each-once chaining guard). **Food/convertible-good costs are explicitly deferred here (X3) — see `FOOD_PAYMENT_DESIGN.md`.** |
+| `FOOD_PAYMENT_DESIGN.md` | **Design record for paying the card game's *food* costs, including at-any-time liquidation** (Phase 3, Cards — implemented; the as-built reference is `CARD_ENGINE_IMPLEMENTATION.md` §5.3). The central decision: food liquidation is **produce-then-pay** (a `PendingFoodPayment` frame driven by the harvest `food_payment_frontier` — grain+veg+animals, banking overshoot), a layer *above* the `COST_MODIFIER_DESIGN.md` cost pipeline — NOT a conversion inside `effective_payments`, because that pipeline is subtract-only / resource-only and structurally cannot bank overshoot or spend animals. Three layers (liquidation-aware affordability `_liquidatable_to` → `PendingFoodPayment`/`CommitFoodPayment` production pushed at execution when food-short → pipeline treats food as a component it doesn't liquidate); the two load-bearing correctness points (gate↔frontier agreement across `can_pay` AND the `effective_payments` filter; `reserved_animals` so liquidation doesn't double-count a minor's animal cost); the charge/body executor split + mid-execution push + continuation-as-data resume; Roof Ballaster as cost-on-the-variant (the "paid option" cost-placement principle, distinct from Ox Goad's trigger shape); worked banking arithmetic; scope (occupations + minors + Roof Ballaster in now; Ox Goad-pattern triggers supported; build-cost food — Stable Cleaner / Trowel / Wood Expert — deferred); red-team, build order, test plan. Read alongside `COST_MODIFIER_DESIGN.md`. |
 | `CHANGES.md` | Significant cross-cutting refactors that touched many files at once (Resources extraction; two-track pasture cache model; dispatch refactor + pending provenance; harvest phases; `BoardState.action_spaces` canonical-tuple refactor; engine performance pass with `fast_replace` + `legal_actions_cache()`; HubrisHeuristicV3 architecture + iterative tuning pipeline). |
 | `CLEANUP.md` | Three small targeted field-level fixes (house material location, field rename, field removal). |
 | `SESSION_HISTORY.md` | Full record of what was built each session, including design decisions made and bugs caught. |
@@ -1176,7 +1132,7 @@ AgricolaBot/
 
         __init__.py                 # Empty package marker.
 
-        constants.py                # Named enums (Phase, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces. stage_of_round(round) / STAGE_OF_ROUND map each round to its stage (used by the reveal enumerator to pick the candidate stage cards).
+        constants.py                # Named enums (Phase — incl. the card game's DRAFT — GameMode, HouseMaterial, CellType) plus lookup tables: action-space accumulation rates, MAJOR_IMPROVEMENT_COSTS, ROOM_COSTS, BAKING_IMPROVEMENT_SPECS, FIREPLACE/COOKING_HEARTH_INDICES, BAKING_IMPROVEMENTS. SPACE_IDS / SPACE_INDEX (canonical 25-entry ordering of all action spaces) index BoardState.action_spaces. stage_of_round(round) / STAGE_OF_ROUND map each round to its stage (used by the reveal enumerator to pick the candidate stage cards).
 
         resources.py                # Resources (wood/clay/reed/stone/food/grain/veg) and Animals (sheep/boar/cattle) frozen dataclasses with __add__/__sub__/__bool__ operators. Extracted from state.py to avoid circular imports with constants.py.
 
@@ -1190,35 +1146,37 @@ AgricolaBot/
 
         state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState (incl. `fences_in_supply: int = 15` — the stored fence-supply pile (location 4), distinct from "buildable"; maintained in BOTH modes (decremented per fence build, so it equals 15−built in Family) and NOT a skip-field, so it IS serialized in Family and the C++ PlayerState mirrors it — the one C++ touch of the fence cost slice; COST_MODIFIER_DESIGN.md §9.7), BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
 
-        canonical.py                # Canonical, deterministic GameState↔JSON (`dumps`/`loads`) — the shared serialization CONTRACT the C++ engine must reproduce byte-for-byte (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). Tag-driven generic dataclass walker (drift-proof); test/interop scaffolding only, not on any production path. The Python engine is untouched.
+        canonical.py                # Canonical, deterministic GameState↔JSON (`dumps`/`loads`) — the shared serialization CONTRACT the C++ engine must reproduce byte-for-byte (CLAUDE.md §2.4, CPP_ENGINE_PLAN.md §3.1). Tag-driven generic dataclass walker (drift-proof); test/interop scaffolding only, not on any production path. Hosts _DEFAULT_SKIP_FIELDS — the card-only fields omitted at their defaults, which is what keeps the Family JSON byte-identical (CARD_ENGINE_IMPLEMENTATION.md §4).
 
-        setup.py                    # setup_env(seed) -> (GameState, Environment) — the full constructor for the initial 2-player Family game: builds the per-stage shuffled reveal order into the Environment, pre-deals round 1 (via env.reveal_action), and returns the round-1 WORK state. setup(seed) = setup_env(seed)[0] (drops the env). All randomness (starting player, per-stage card shuffle) is resolved here via a seeded NumPy RNG; the order is hidden in the Environment and the engine is fully deterministic afterward.
+        cost.py                     # Cost-resolution data types + the Pareto-min over payments (COST_MODIFIER_DESIGN.md): PaymentOption = Resources | ReturnImprovement, CostCtx (action_kind + base + modifier discriminators incl. reserved_animals), pareto_min_over_goods. Dependency-light so actions/legality/resolution all import it without cycles; the chokepoint itself (effective_payments/can_pay) lives in legality.py. See CARD_ENGINE_IMPLEMENTATION.md §5.
 
-        helpers.py                  # Pure derived-quantity functions (fences_built (board fence count) + buildable_fences (stored supply pile + on-card pools = pieces still placeable — replacing the old derived fences_in_supply), stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots, can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
+        setup.py                    # setup_env(seed, *, card_pool=None, draft=False) -> (GameState, Environment) — the full constructor. card_pool=None → the Family game (byte-identical RNG path); card_pool=CardPool(occupations, minors) → GameMode.CARDS with 7+7 hands dealt (draft=True instead deals four draft pools and returns a Phase.DRAFT state driven via CommitDraftPick). Builds the per-stage shuffled reveal order into the Environment, pre-deals round 1, returns the round-1 WORK state. setup(seed) = setup_env(seed)[0]. All randomness (starting player, hands/pools, card shuffle) resolves here via a seeded NumPy RNG; the engine is fully deterministic afterward.
 
-        actions.py                  # All Action dataclasses (PlaceWorker, ChooseSubAction, the full Commit* family, FireTrigger, Stop, RevealCard) plus the CommitSubAction marker base used by the generic commit dispatcher. RevealCard (nature's round-card reveal) is a top-level transition, not a CommitSubAction.
+        helpers.py                  # Pure derived-quantity functions (fences_built (board fence count) + buildable_fences (stored supply pile + on-card pools = pieces still placeable — replacing the old derived fences_in_supply), stables_in_supply, cooking_rates 4-tuple, enclosed_cells) and the Pareto frontier helpers (extract_slots — which folds in the card capacity modifiers, CARD_ENGINE_IMPLEMENTATION.md §5.4 — can_accommodate, pareto_frontier, breeding_frontier, food_payment_frontier, harvest_feed_frontier).
 
-        pending.py                  # All Pending* frozen dataclasses (sub-action + parent + wrapper variants, plus the PendingReveal nature/phase frame with player_idx=None), the PendingDecision union alias, and the three pure stack ops (push, pop, replace_top). Cards add FenceRestrictions (restricted-grant geometry: max_pastures / exact_size / forbid_subdivision) and PendingGrantedBuildFences (an optional choose-or-decline wrapper for a granted Build Fences action); PendingBuildFences gained the Cards-only skip-fields accrued_cost / free_fence_budget / restrictions / build_fences_action.
+        actions.py                  # All Action dataclasses (PlaceWorker, ChooseSubAction, the full Commit* family — incl. the card game's CommitPlayOccupation/CommitPlayMinor/CommitCardChoice/CommitChooseCost/CommitFoodPayment/CommitFamilyGrowth and the wide commits carrying an explicit PaymentOption — FireTrigger (+ variant), Stop, Proceed (the host work-complete flip), RevealCard, CommitDraftPick) plus the CommitSubAction marker base used by the generic commit dispatcher. RevealCard and CommitDraftPick are top-level transitions, not CommitSubActions.
 
-        legality.py                 # Top-level legal_actions (stack-state dispatch) + legal_placements + per-space placement predicates + shared helpers (_can_bake_bread, _can_build_stable, …) + per-pending sub-action enumerators (incl. _enumerate_pending_reveal, the ≤3 candidate RevealCards for the round being entered, derived purely from public state) + card extension registries.
+        pending.py                  # All Pending* frozen dataclasses (sub-action + parent + wrapper variants, plus the PendingReveal nature/phase frame with player_idx=None), the PendingDecision union alias, the ACTION_SPACE_/SUBACTION_PENDING_IDS event-routing buckets, and the three pure stack ops (push, pop, replace_top). Every host frame carries phase ("before"/"after") + triggers_resolved. The card game adds its own frames (play/choice/food-payment/draft/phase hosts + PendingGrantedBuildFences + FenceRestrictions) and default-skip fields on the Family frames (PendingBuildFences' deferred tally; PendingPlow's stranding/multi-shot grant fields) — the full census: CARD_ENGINE_IMPLEMENTATION.md §4.
 
-        resolution.py               # Atomic _resolve_<space> handlers, non-atomic _initiate_<space> + _choose_subaction_<space> handlers, sub-action _execute_<sub_action> effect functions, and the function-pointer dispatch tables (ATOMIC_HANDLERS, NONATOMIC_HANDLERS, CHOOSE_SUBACTION_HANDLERS).
+        legality.py                 # Top-level legal_actions (stack-state dispatch) + legal_placements (mode-dispatched: FAMILY_GAME_LEGALITY vs CARD_GAME_LEGALITY) + per-space placement predicates + shared helpers (_can_bake_bread, _can_build_stable, …) + per-pending sub-action enumerators (incl. _enumerate_pending_reveal, the ≤3 candidate RevealCards for the round being entered, derived purely from public state). Also home to the card seams: the cost-modifier chokepoint effective_payments/can_pay, the food-affordability gates (_payable/_liquidatable_to/_payable_occupation), trigger_event (event derivation) + _eligible_fire_triggers, and the *_EXTENSIONS registries (bake-bread, occupancy-override, renovate-target, baking-spec). See CARD_ENGINE_IMPLEMENTATION.md §2/§3/§5.
 
-        scoring.py                  # score(state, player_idx) -> (total, ScoreBreakdown) and tiebreaker — end-game evaluation across all categories (fields, pastures, animals, rooms, people, majors, craft bonuses, begging penalties).
+        resolution.py               # Atomic _resolve_<space> handlers, non-atomic _initiate_<space> + _choose_subaction_<space> handlers, sub-action _execute_<sub_action> effect functions (incl. the card-play executors _execute_play_occupation/_execute_play_minor and the food-payment _execute_food_payment/_resume), _enter_after_phase (the uniform "after-window opens" seam that fires after-automatic effects), and the function-pointer dispatch tables (ATOMIC_HANDLERS, NONATOMIC_HANDLERS, CHOOSE_SUBACTION_HANDLERS).
 
-        engine.py                   # The transition engine: step + _apply_action dispatch (incl. the RevealCard branch) + _advance_until_decision + phase resolvers (_resolve_return_home, the two-state PREPARATION reveal walk — push PendingReveal then _complete_preparation — _resolve_harvest_field, _initiate_harvest_feed, _initiate_harvest_breed) + the COMMIT_SUBACTION_HANDLERS metadata table for generic commit dispatch.
+        scoring.py                  # score(state, player_idx) -> (total, ScoreBreakdown) and tiebreaker — end-game evaluation across all categories (fields, pastures, animals, rooms, people, majors, craft bonuses, begging penalties) plus the card scoring seams: SCORING_TERMS/register_scoring (per-card bonus terms), SCORING_GROUPS/register_scoring_group (mutually-exclusive groups, best owned member only), and each kept minor's printed vps.
+
+        engine.py                   # The transition engine: step + _apply_action dispatch (incl. the RevealCard / Proceed / CommitDraftPick branches) + _advance_until_decision (incl. the Delegating-host auto-advance + the DRAFT walk) + phase resolvers (_resolve_return_home, the two-state PREPARATION reveal walk — push PendingReveal then _complete_preparation — _resolve_harvest_field, _initiate_harvest_feed, _initiate_harvest_breed) + the COMMIT_SUBACTION_HANDLERS metadata table for generic commit dispatch. Also the card firing seams: _apply_proceed, _fire_subaction_before_auto, _apply_fire_trigger (record-before-apply), _clear (scoped used-sets), _fire_ready_one_shots (the conditional-latch sweep), _collect_future_rewards + _fire_preparation_hook / _fire_harvest_field_hook (CARD_ENGINE_IMPLEMENTATION.md §2).
 
         fences.py                   # Four layered pasture-shape universes (FULL=1518 / FAMILY=762 / EXTENDED=193 / RESTRICTED=109) with PastureCandidate edge-metadata entries, fence-array pack/apply helpers, and the compute_new_fence_edges cost helper. Standalone module, no engine dependencies.
 
         fence_universe.py           # Experimental tooling for swapping the active fence universe: the active_universe(spec) context manager (named universes or explicit triples), restrict_to(predicate, base=...) builder for derived universes, NAMED_UNIVERSES registry, and current_universe() accessor.
 
-        cards/                      # Card framework + concrete card modules + harvest-conversion + cost-modifier registries. NOTE: this tree lists only the foundational + cost-modifier modules; the full ~84-module set is non-exhaustive here (all imported in cards/__init__.py).
+        cards/                      # Card framework (registries + shared helpers) + one module per implemented card (~270 modules, all imported in cards/__init__.py). NOTE: this tree lists only the framework modules + a few exemplar cards; the per-card set is deliberately non-exhaustive here (ledger: CARD_IMPLEMENTATION_PROGRESS.md; machinery: CARD_ENGINE_IMPLEMENTATION.md §3).
 
-            __init__.py             # Imports each card module + harvest_conversions + cost_mods so their register() calls fire at load time, populating TRIGGERS / CARDS / HARVEST_CONVERSIONS / the cost-modifier + free-fence registries and BAKE_BREAD_ELIGIBILITY_EXTENSIONS.
+            __init__.py             # Imports every card module (~270) + the framework modules so their register_*() calls fire at load time, populating all the registries of CARD_ENGINE_IMPLEMENTATION.md §3. Wire new cards here at integration, never mid-batch.
 
-            triggers.py             # Two parallel registries — TRIGGERS (event-keyed list, used by enumerators) and CARDS (card-id-keyed direct lookup, used by _apply_fire_trigger) — plus the register() function called by card modules at import time.
+            triggers.py             # The firing registries: TRIGGERS/CARDS (optional + mandatory-with-choice triggers, register()), AUTO_EFFECTS (register_auto + apply_auto_effects, any_player routing), the hosting indexes (OWN_/ANY_PLAYER_HOOK_CARDS + should_host_space; HARVEST_FIELD_CARDS; START_OF_ROUND_CARDS + should_host_preparation), CONDITIONAL_ONE_SHOTS (the level-triggered latch), CARD_CHOICE_RESOLVERS, PLAY_VARIANT_TRIGGERS. See CARD_ENGINE_IMPLEMENTATION.md §2–§3.
 
-            specs.py                # OccupationSpec / OCCUPATIONS + register_occupation (occupation on-play effects); MinorSpec / MINORS + register_minor + prereq_met (minor cost/prereq/passing/vps/on-play). The play-card registries the engine dispatches through (Milestone 1).
+            specs.py                # The play-card registries: OccupationSpec / OCCUPATIONS + register_occupation; MinorSpec / MINORS + register_minor + prereq_met (cost, "/"-alternative alt_costs, scaling cost_fn, occupation-count + custom prereqs, passing_left circulation, printed vps, on_play). Plus PLAY_OCCUPATION_VARIANTS (pay-on-play choices, Roof Ballaster), OCCUPATION_FOOD_SOURCES (Paper Maker's gate simulation), FOOD_PAYMENT_RESUMES (post-food-payment grant continuations).
 
             cost_mods.py            # Cost-modifier registries + fold accessors read by the effective_payments chokepoint in legality.py (COST_MODIFIER_DESIGN.md): register_formula / register_reduction / register_conversion / register_base_route (the three modifier kinds + non-resource routes) and, for fences, the three free-fence registries FREE_FENCE_SEEDS (per-action budget — free_fence_budget_for), FREE_FENCE_EDGES (per-edge positional — positional_free_edge_count), FREE_FENCE_POOLS (persistent on-card pool — free_fence_pool_remaining / spend_fence_pools). Ownership-gated; all registries empty (no-op) in the Family game.
 
@@ -1234,9 +1192,15 @@ AgricolaBot/
             hunting_trophy.py       # Minor (D82, 1 VP): 1-boar cost with an on-play cook-for-food bonus (cooking_rates), a +3 free-fence seed on Farm Redevelopment, and a "1 building resource of your choice less" conversion on improvements built via House Redevelopment (gated on a PendingHouseRedevelopment frame on the stack).
             mini_pasture.py         # Minor (B2): the first RESTRICTED grant — on play, MANDATORY-fence a free NEW 1×1 enclosure (FenceRestrictions exact_size=1 / forbid_subdivision / max_pastures=1; build_fences_action=False); unplayable unless such a 1×1 is buildable (its prereq); cost 2 food.
 
-            potter_ceramics.py      # Forward-compat trigger-machinery test (NOT in any game yet): "exchange 1 clay for 1 grain before each Bake Bread action, at most once per action."
+            potter_ceramics.py      # "Exchange 1 clay for 1 grain before each Bake Bread action, at most once per action." Historically the single forward-compat card that validated the trigger machinery; now an ordinary dealable minor among the ~270.
 
-            harvest_conversions.py  # HARVEST_CONVERSIONS registry + HarvestConversionSpec dataclass + register_harvest_conversion(). Three built-in entries: joinery (1 wood -> 2 food), pottery (1 clay -> 2 food), basketmaker (1 reed -> 3 food).
+            harvest_conversions.py  # HARVEST_CONVERSIONS registry + HarvestConversionSpec dataclass + register_harvest_conversion(). Three built-in entries: joinery (1 wood -> 2 food), pottery (1 clay -> 2 food), basketmaker (1 reed -> 3 food); card entries add side_effect_fn (VP banking) and multi-variant once-per-harvest via prefix-matched harvest_conversions_used.
+
+            capacity_mods.py        # Animal-capacity modifier registries read by helpers.extract_slots: HOUSE_CAPACITY_MODS (flexible house slots — max-fold, Family default 1 = the pet; Animal Tamer) and PASTURE_CAPACITY_MODS (flat per-pasture bonus — sum-fold, default 0; Drinking Trough). CARD_ENGINE_IMPLEMENTATION.md §5.4.
+
+            schedules.py            # Deferred-goods/effects helpers for "place on future round spaces" cards: schedule_resources (goods → future_resources), schedule_effect (round-start grant hooks → future_rewards; Handplow), schedule_animals (animals → future_rewards, auto-accommodated at round start; Acorns Basket).
+
+            display.py              # UI-only CardStore surfacing for the web UI (the engine never reads it): live banked-VP emblems for history-derived scoring cards + state badges (Interim Storage's held goods, Moldboard Plow's uses left).
 
         agents/                     # Agent implementations: random + heuristics. Built atop the engine's pure `step` / `legal_actions` interface.
 
