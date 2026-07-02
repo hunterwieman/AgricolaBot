@@ -1,9 +1,10 @@
 # Card-batch tooling (the reusable "automatic process")
 
 Durable copies of the generators that drive the at-scale card-implementation process
-(full context: `CARD_BATCH_HANDOFF.md` at the repo root, which is the source of truth for
-the process, machinery cheat-sheet, rulings, and current status). These were created in an
-ephemeral session scratchpad and committed here so they survive compaction / a new session.
+(full context: `design_docs/cards/CARD_BATCH_HANDOFF.md`, gitignored session notes; the
+machinery reference + live status is `CARD_ENGINE_IMPLEMENTATION.md` at the repo root). These
+were created in an ephemeral session scratchpad and committed here so they survive compaction /
+a new session.
 
 ## Files
 - **`gen_impl.py`** — the IMPLEMENT-workflow generator (the main reusable tool; used for deck

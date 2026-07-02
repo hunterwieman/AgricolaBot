@@ -2,7 +2,7 @@
 
 This document records implementation decisions that were made for the 2-player Family game and may need to be revised when occupation cards, minor improvement cards, or specific major improvements with unusual effects are introduced.
 
-> **Status (Phase 3 — cards).** Every item below has been revisited against the actual in-scope card set. The live resolution of each — decided / decide-as-we-build / deferred-to-expansion / not-card-gated / to-revisit — is recorded in **`CARD_SYSTEM_DESIGN.md` §14**, which folds this whole list. Treat §14 as the current status; this file remains the original problem statements.
+> **Status (Phase 3 — cards).** Every item below has been revisited against the actual in-scope card set. The live resolution of each — decided / decide-as-we-build / deferred-to-expansion / not-card-gated / to-revisit — is recorded in **`design_docs/cards/CARD_SYSTEM_DESIGN.md` §14**, which folds this whole list. Treat §14 as the current status; this file remains the original problem statements.
 
 ---
 

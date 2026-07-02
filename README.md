@@ -125,15 +125,18 @@ This project has unusually thorough documentation. If you want to dig in:
 
 | Doc | What it covers |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | Master architectural reference — design principles, engine internals, pending stack, conventions. The first thing to read. |
+| [`CLAUDE.md`](CLAUDE.md) | Master orientation — design principles, the three phases, conventions. The first thing to read. |
 | [`RULES.md`](RULES.md) | Complete rules reference for the 2-player game — the full card game as the default, with the cardless Family game and the 3–4 player game as variants. |
-| [`MCTS_DESIGN.md`](MCTS_DESIGN.md) | Comprehensive design spec for the MCTS phase. |
-| [`HUBRIS_V1_NOTES.md`](HUBRIS_V1_NOTES.md) | Per-term breakdown of the V1 heuristic, the first non-random AI player. |
-| [`V3_DESIGN.md`](V3_DESIGN.md) | Architecture of the V3 heuristic evaluator, the second non-random AI player. |
-| [`V3_TRAINING_PIPELINE.md`](V3_TRAINING_PIPELINE.md) | Operational guide to the CMA-ES tuning pipeline. |
+| [`DIRECTORY.md`](DIRECTORY.md) | The full annotated repo map — every doc and file with its role. |
+| [`ENGINE_IMPLEMENTATION.md`](ENGINE_IMPLEMENTATION.md) | Deep mechanics of the game engine (dispatch, the pending-decision stack, the hard subsystems). |
+| [`CARD_ENGINE_IMPLEMENTATION.md`](CARD_ENGINE_IMPLEMENTATION.md) | The card system as built — hosts & firing, registries, cost/food layers, live status. |
+| [`MCTS_IMPLEMENTATION.md`](MCTS_IMPLEMENTATION.md) | The search — PUCT, the transposition DAG, chance nodes, fencing. |
+| [`SHARED_TRUNK.md`](SHARED_TRUNK.md) | The joint value+policy network and its training/evaluation. |
+| [`CPP_ENGINE_PLAN.md`](CPP_ENGINE_PLAN.md) | The native C++ twin engine and the differential harness that keeps it in lockstep. |
 | [`SESSION_HISTORY.md`](SESSION_HISTORY.md) | Running log of what was built each session, including design decisions and bugs caught. |
-| [`FILE_DESCRIPTIONS.md`](FILE_DESCRIPTIONS.md) | Per-file descriptions for every module. |
+| [`FILE_DESCRIPTIONS.md`](FILE_DESCRIPTIONS.md) | Per-file descriptions for the engine package. |
 | [`TEST_DESCRIPTIONS.md`](TEST_DESCRIPTIONS.md) | Per-file coverage descriptions for the test suite. |
+| [`design_docs/`](design_docs/) | Frozen design records — the rationale behind the agent, engine, and card decisions. |
 
 ---
 
