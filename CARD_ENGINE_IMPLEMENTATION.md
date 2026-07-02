@@ -317,9 +317,15 @@ Two mechanisms enforce it:
   reverted mechanism's orphaned predicate `has_eligible_trigger` was later deleted.
   POST_COMPACTION_DETOUR.md §2 is the full story.)
 - **Proceed-hosts: the `subaction_started` gate.** A Proceed-host lingers across multiple
-  sub-actions, so it has no auto-advance to close the window. Each of the five Proceed-host space
-  parents carries a derived `subaction_started` property (the OR of its `*_chosen` flags), and
-  their enumerators offer `before_action_space` triggers **only while it is False**.
+  sub-actions, so it has no auto-advance to close the window. Each of the five *Family*
+  Proceed-host space parents carries a derived `subaction_started` property (the OR of its
+  `*_chosen` flags), and their enumerators offer `before_action_space` triggers **only while it
+  is False**. The two *card-only* Proceed-hosts do **not** carry the gate: for
+  `PendingMeetingPlace` there is nothing to gate (the space's work — become-SP — happened at
+  push, before the frame exists), but `PendingBasicWishForChildren` keeps offering
+  before-triggers after its mandatory family growth — a **latent enforce-first gap**, currently
+  moot because no implemented card's before-trigger matches the wish spaces; add the gate when
+  one does.
 
 ### Record-before-apply
 
@@ -335,7 +341,7 @@ Where each firing actually happens in the engine — the complete set of call si
 
 | Seam | Fires | Where |
 |---|---|---|
-| Space-host push | `before_action_space` autos | `_apply_place_worker` (atomic host), every non-atomic `_initiate_*` resolver, `_initiate_lessons`, `_initiate_meeting_place_cards` |
+| Space-host push | `before_action_space` autos | `_apply_place_worker` (atomic host), every non-atomic `_initiate_*` resolver except Family-only Side Job, `_initiate_lessons`, `_initiate_meeting_place_cards`, `_resolve_basic_wish_for_children`'s cards branch |
 | Sub-action-leaf push | `before_<PENDING_ID>` autos | `_fire_subaction_before_auto` (engine.py) — the single seam, called after a `_choose_subaction_*` handler runs, after a trigger's `apply_fn` runs, after a minor's pushing `on_play`, and after a non-"rerun" food-payment resume; gated on `SUBACTION_PENDING_IDS` |
 | Work-complete flip | `after_<derived event>` autos | `_enter_after_phase` (resolution.py) — called by every commit-terminated effect at its commit, by the markets, by `_apply_proceed` for atomic/Proceed/multi-shot hosts, and by the Delegating auto-advance |
 | Composite host | `before_/after_major_minor_improvement` autos | its choose-handler push / the Delegating auto-advance |
@@ -418,9 +424,16 @@ module-local `_owns(player_state, card_id)` helpers.
   use).
 - **`register_action_space_hook(card_id, spaces, *, any_player=False)`** →
   `OWN_ACTION_HOOK_CARDS` / `ANY_PLAYER_HOOK_CARDS` (space_id → card ids). **Required for a card
-  hooking an ATOMIC space** — it is what makes `should_host_space` push the host frame at all.
-  The non-atomic spaces are already hosts and need no hook entry. Forgetting this line is the
-  classic silent failure: the trigger registers, the host never pushes, the card never fires.
+  hooking a TRUE-ATOMIC space** — it is what makes `should_host_space` push the host frame at
+  all. The non-atomic spaces are already hosts and need no hook entry. Forgetting this line is
+  the classic silent failure: the trigger registers, the host never pushes, the card never
+  fires. **Never register a hook for `meeting_place` or `basic_wish_for_children`**: in card
+  mode both are *self-hosting* (their handlers push their own host frames, which fire
+  `before_/after_action_space` without any hook entry). Meeting Place is hard-protected (its
+  dispatch precedes the `should_host_space` check — §2), but Basic Wish is not: a registered
+  hook would wrap its pushing handler in a generic `PendingActionSpace`, whose `Proceed` would
+  then flip the *pushed child* instead of the host — a latent misfire guarded only by this
+  convention.
 - **`register_harvest_field_hook(card_id)`** → `HARVEST_FIELD_CARDS`, consulted by
   `should_host_harvest_field`. Pair with `register_auto("harvest_field", ...)`. The field-phase
   hook is **auto-only** today — the transient `PendingHarvestField` never surfaces a decision
@@ -668,8 +681,10 @@ Exactly two card-new fields (plus the frames below riding the existing `pending_
 
 ### The card-new pending frames
 
-Grouped by role (full field lists in `pending.py`; every one is a frozen dataclass with
-`player_idx` + `initiated_by_id` per the Phase-1 conventions):
+Grouped by role (full field lists in `pending.py`; all are frozen dataclasses carrying
+`player_idx` + `initiated_by_id` per the Phase-1 conventions, with two exceptions —
+`PendingFoodPayment` and `PendingDraftPick` carry no `initiated_by_id`: closed decision frames
+whose pusher identity is either irrelevant (a draft pick) or already encoded in `resume_kind`):
 
 **Playing cards.** `PendingPlayOccupation` (a commit-terminated host; `cost: Resources` is the
 route-supplied play cost, set at push — Lessons computes `occupation_cost`, a granting card sets
@@ -681,6 +696,15 @@ pushed only after choosing sow). Minors reach `PendingPlayMinor` from four entry
 Major/Minor Improvement space, House Redevelopment's optional second step (both via
 `PendingMajorMinorImprovement`), Basic Wish for Children's optional second step, and Meeting
 Place.
+
+One executor **asymmetry to know**: `_execute_play_minor` flips its host to the after-phase
+*before* running the card's `on_play` — load-bearing, because several minor `on_play`s push a
+primitive frame (Shifting Cultivation → `PendingPlow`) and the host must be flipped while it is
+still on top. `_execute_play_occupation` flips *after* `on_play` — safe today only because no
+occupation's `on_play` pushes (verified across the registry). Until the occupation executor is
+aligned, an occupation granting an immediate sub-action must ride an `after_play_occupation`
+trigger/auto, **never a pushing `on_play`** (the flip would land on the pushed child).
+(`PendingPlayOccupation`'s docstring claims the minors' order — trust the code.)
 
 **Space hosts.** `PendingActionSpace` (the generic atomic host, §2), `PendingSubActionSpace`
 (the generic Delegating host — replaced the deleted per-space `PendingFarmland` /
@@ -909,7 +933,7 @@ The card game has food costs (occupation plays, minors' food components, variant
 and Agricola lets a player convert goods/animals to food *at any time* — in practice, at the
 moment food is owed. The design decision (FOOD_PAYMENT_DESIGN.md): liquidation is **not** a
 conversion inside `effective_payments` — that pipeline is subtract-only and resource-only, so it
-structurally cannot bank overshoot (a cooked boar yields 2–4 food against a 1-food debt) or
+structurally cannot bank overshoot (a cooked boar yields 2–3 food against a 1-food debt) or
 spend animals. Instead, a produce-then-pay layer sits above it:
 
 **The affordability gate.** `_payable(state, idx, p, cost, reserved_animals)` = plain
@@ -1222,7 +1246,7 @@ reference-of-record for the as-built machinery**; the design records keep ration
 | `CARD_AUTHORING_GUIDE.md` | **LIVE how-to** — reading a card, pitfalls, worked example, discipline checklist | before implementing any card |
 | `CARD_IMPLEMENTATION_PROGRESS.md` | **LIVE per-card ledger** — two-pass mechanics classification, adjudicated | looking up a specific card's status/tags |
 | `CARD_DEFERRED_PLANS.md` | **LIVE decision surface** — defer clusters, infra proposals, open user questions | deferring a card; planning infra |
-| `CARD_SYSTEM_DESIGN.md` | design record — terminology (§0), firing architecture rationale, open questions (§13), **Grocer (§15)** | rationale questions; anything touching buy-conversions. Its §1 catalog counts predate deck E; its §2 Environment/observe sketches are superseded by hands-on-`PlayerState` |
+| `CARD_SYSTEM_DESIGN.md` | design record — terminology (§0), firing architecture rationale, open questions (§13), **Grocer (§15)** | rationale questions; anything touching buy-conversions. Its §2 Environment/observe sketches are superseded by hands-on-`PlayerState` |
 | `CARD_IMPLEMENTATION_PLAN.md` | **FROZEN** plan + ledger — the original build plan, per-category canonical code, decisions log | provenance; the Firewood/end-of-turn note. Its §II sketches are partly superseded by as-built deviations; "Acorns Basket deferred" is stale (implemented) |
 | `COST_MODIFIER_DESIGN.md` | design + red-team record for §5.1/5.2 — worked frontier traces (§4), attacks A1–A7, the fence slice (§9) | changing the cost pipeline; any new cost card shape |
 | `FOOD_PAYMENT_DESIGN.md` | design record for §5.3 — the raise-only decision, banking arithmetic, red-team | changing food payment; Ox-Goad-shaped cards |
