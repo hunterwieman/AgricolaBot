@@ -302,10 +302,9 @@ Two mechanisms enforce it:
   after-phase within the same `step` — the `(subaction_complete && phase=="before")` state is
   purely transient and `legal_actions` never sees it. (A "held flip" that suppressed the
   auto-advance while a before-trigger was still eligible — commit 20b6b83 — re-offered
-  before-triggers *after* the work; it was a regression and was reverted in c00812e.
-  POST_COMPACTION_DETOUR.md §2 is the full story. `triggers.has_eligible_trigger` is an orphan of
-  that reverted mechanism — currently caller-less, its docstring still describing the held-flip —
-  so don't take it as a live invariant.)
+  before-triggers *after* the work; it was a regression and was reverted in c00812e, and the
+  reverted mechanism's orphaned predicate `has_eligible_trigger` was later deleted.
+  POST_COMPACTION_DETOUR.md §2 is the full story.)
 - **Proceed-hosts: the `subaction_started` gate.** A Proceed-host lingers across multiple
   sub-actions, so it has no auto-advance to close the window. Each of the five Proceed-host space
   parents carries a derived `subaction_started` property (the OR of its `*_chosen` flags), and
@@ -1195,12 +1194,10 @@ defer (§7); building the missing piece is a design conversation with the user f
   registries, no card frames. Every *Family-shape* card refactor **is** ported and
   differential-gated (§0); there are **no card-mode differential gates yet** — porting the card
   game to C++ is a future project the harness makes safe.
-- **The typing unions lag the card frames.** `pending.PendingDecision` and `actions.Action` are
-  typing-only aliases and currently omit several card-era members (`PendingPlayOccupation`,
-  `PendingPlayMinor`, `PendingMeetingPlace`, `PendingBasicWishForChildren`,
-  `PendingFamilyGrowth`; `CommitPlayOccupation`, `CommitPlayMinor`, `CommitFamilyGrowth`). No
-  runtime effect (dispatch is by isinstance/table), but don't treat the unions as the frame
-  census — `PENDING_ENUMERATORS` / `COMMIT_SUBACTION_HANDLERS` are.
+- **The typing unions are documentation, not dispatch.** `pending.PendingDecision` and
+  `actions.Action` are typing-only aliases with no runtime role — dispatch is by
+  isinstance/table. Keep them in sync when adding a frame/action (they have lagged before), but
+  the authoritative census is `PENDING_ENUMERATORS` / `COMMIT_SUBACTION_HANDLERS`.
 
 ---
 

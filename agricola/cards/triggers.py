@@ -358,30 +358,6 @@ def has_unfired_mandatory_trigger(state, pending, event: str) -> bool:
     return False
 
 
-def has_eligible_trigger(state, pending, event: str) -> bool:
-    """True iff ANY owned, eligible, unfired trigger (mandatory or optional) is
-    registered on `event` for `pending`'s player. Mirrors `_eligible_fire_triggers`'
-    filters but only reports presence.
-
-    Used by the engine's delegating-host auto-advance: a `PendingSubActionSpace`
-    whose base sub-action just completed must NOT auto-flip to its after-phase while
-    a `before_action_space` trigger is still eligible — otherwise that trigger (e.g.
-    Moldboard Plow / Threshing Board on Farmland) would be silently dropped. With no
-    such trigger eligible this is False, so the host flips exactly as before (no lone
-    Proceed enumerated) — byte-identical in the Family game and for trigger-free
-    delegating spaces (Lessons / Fencing / Major)."""
-    p = state.players[pending.player_idx]
-    for entry in TRIGGERS.get(event, ()):
-        if not _owns(p, entry.card_id):
-            continue
-        if entry.card_id in pending.triggers_resolved:
-            continue
-        if not entry.eligibility_fn(state, pending.player_idx, pending.triggers_resolved):
-            continue
-        return True
-    return False
-
-
 # ---------------------------------------------------------------------------
 # PendingCardChoice resolvers (CARD_IMPLEMENTATION_PLAN.md II.6)
 # ---------------------------------------------------------------------------
