@@ -1,5 +1,12 @@
 # CARD_IMPLEMENTATION_PLAN.md
 
+> ❄️ **FROZEN (2026-07-02) — historical plan + ledger.** This was the concrete build plan for the
+> first tractable card subset; its status history accreted through the batches and its Part-II
+> sketches are partly superseded by as-built deviations it itself records. **The as-built
+> machinery reference and the live Status section are now `CARD_ENGINE_IMPLEMENTATION.md`** —
+> update status there, not here. Kept for provenance (per-category canonical code, the decisions
+> log, the Firewood/end-of-turn note).
+
 > **Implementing more cards? Read `CARD_AUTHORING_GUIDE.md` first.** It is the practical,
 > pitfall-focused framework for reading a card, classifying it against the machinery, and fitting it
 > in — including the obscure rulings a coding agent reliably misses ("each time you use" = before;

@@ -1,5 +1,9 @@
 # Food Payment & At-Any-Time Liquidation — Design
 
+> **The reference-of-record for the as-built food-payment machinery is
+> `CARD_ENGINE_IMPLEMENTATION.md` §5.3.** This file is the design record (the raise-only
+> decision, banking arithmetic, red-team).
+
 **Status: build-order steps 1–4 + the build-major slice of step 5 implemented (2026-06-29).** Landed and
 tested: liquidation-aware affordability; the **raise-only `PendingFoodPayment`** produce-then-pay frame
 with `reserved` goods (the unified store-the-commit / re-run design — §3.1/§5); Roof Ballaster's variant

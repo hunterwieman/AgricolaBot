@@ -1,5 +1,8 @@
 # SUBACTION_HOOK_REFACTOR.md
 
+> **The reference-of-record for the as-built host/firing machinery is
+> `CARD_ENGINE_IMPLEMENTATION.md` §2.** This file is the frozen design + staging record.
+
 **Status: LANDED.** Every commit-terminated sub-action frame named here now carries `phase`
 + `triggers_resolved`, flips to `phase="after"` on its commit (firing `after_<id>` autos via the
 shared `_enter_after_phase` helper), and is popped by a trailing `Stop`; `PendingBuildMajor`

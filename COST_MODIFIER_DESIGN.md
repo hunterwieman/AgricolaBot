@@ -1,5 +1,8 @@
 # Cost-Modifier Cards — Design & Red-Team
 
+> **The reference-of-record for the as-built cost machinery is `CARD_ENGINE_IMPLEMENTATION.md`
+> §5.** This file is the design + red-team record (worked traces, attacks A1–A7, resolved forks).
+
 **Status: design settled — the open forks O1–O5 are resolved by the user (see §6); the assumptions
 A1–A7 are resolved or scoped out (see §5).** This document specifies the cost-resolution mechanism
 for the card game's cost-modifier cards. It was written as a red-team: every load-bearing
@@ -659,12 +662,14 @@ deferred; the cost frontier must not assume current `p.resources` is final.**
 > Bricklayer (REDUCTION), Frame Builder (CONVERSION), Carpenter + Clay Plasterer (FORMULAs), Millwright
 > (the conversion SINK + on-play grain). Both the §4.2 worked example (Clay Plasterer + Bricklayer → a
 > renovate frontier of `[1 reed]`) and the §4.4/§4.7 chain (Frame Builder feeding Millwright → a clay
-> room payable as 3 clay + 2 reed + 1 grain) exist as real-card tests. **Still to do:** **majors**
-> (⚠ FLAGGED — wide breaks the trained `commit_build_major` policy head; see step 5 sub-status for the
-> recommended recompute-singleton path, deferred to the owner) and **build-stable** (owner-greenlit,
-> after the doc — Millwright's stable clause is already registered, so this is mostly the same two-step
-> wiring as build-room + a small Family C++ re-port for `PendingBuildStables.cost`). Build-fence is **now
-> designed** (§9 — the deferred-tally model); implementation pending.
+> room payable as 3 clay + 2 reed + 1 grain) exist as real-card tests.
+>
+> **Update (2026-07-02): the slice is complete.** All five build actions (renovate, build-room,
+> build-major, play-minor, build-stable) resolve through the chokepoint, and **build-fence is
+> implemented** per the §9 deferred-tally model (accrue → settle at Proceed, the one mode-branched
+> path). The as-built reference is `CARD_ENGINE_IMPLEMENTATION.md` §5. (An earlier revision of this
+> banner listed majors/build-stable as still-to-do while the sub-bullets below already marked them
+> ✅ — the sub-bullets were right.)
 
 1. **Chokepoint, no cards.** ✅ `PaymentOption`, `CostCtx`, `effective_payments`, `can_pay`,
    `pareto_min_over_goods`, `_route_affordable`; the registries + fold accessors (`formula_mods`,

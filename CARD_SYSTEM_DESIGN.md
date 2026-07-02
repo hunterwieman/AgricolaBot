@@ -1,5 +1,8 @@
 # CARD_SYSTEM_DESIGN.md
 
+> **The reference-of-record for the as-built card machinery is `CARD_ENGINE_IMPLEMENTATION.md`.**
+> This file is the design record — rationale, red-teams, and the open questions (§13; §15 Grocer).
+
 **Status: living design doc (Phase 3 — Cards). Decisions we've committed to + open questions, not a frozen spec.**
 
 This is the design record for adding the full card system (Phase 3 in CLAUDE.md) to the
@@ -62,8 +65,9 @@ mandatory + no choice → automatic effect; mandatory + choice → `mandatory`-t
   Dirigens** expansions. **2-player.** Occupations + minor improvements. The 10 major
   improvements are already implemented in the base engine; the 24 Consul Dirigens Parent cards
   are out of scope.
-- The catalog lives in `agricola/cards/data/revised_occupations.json` (336) and
-  `revised_minor_improvements.json` (336), each carrying a `status` field
+- The catalog lives in `agricola/cards/data/revised_occupations.json` (420) and
+  `revised_minor_improvements.json` (420 — the counts grew from 336 when the Ephipparius /
+  deck-E cards were added), each carrying a `status` field
   (`implemented` / `todo` / `wontfix`) browsable/filterable in `revised_cards.xlsx`.
 - **Build order:** occupations first, then minors (minors mostly reuse the occupation
   machinery — see §10).

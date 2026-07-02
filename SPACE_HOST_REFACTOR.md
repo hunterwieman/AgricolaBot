@@ -1,5 +1,8 @@
 # SPACE_HOST_REFACTOR.md
 
+> **The reference-of-record for the as-built host/firing machinery is
+> `CARD_ENGINE_IMPLEMENTATION.md` §2.** This file is the frozen design + staging record.
+
 **Status: LANDED (B1 + B2 + B3).** All three staged steps are implemented and all gates (the full
 Python suite + the C++ differential harness) are green: **B1** (Proceed-hosts + the firing migration
 + the §9 NN `Proceed`-as-`Stop` alias + the §11.1 card consequences), **B2** (the Delegating hosts —

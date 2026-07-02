@@ -4,8 +4,10 @@ Deep-mechanics companion to **CLAUDE.md → Phase 1 (The Game Engine)**. Phase 1
 orientation layer — the two-function API, the state model, the pending stack at a conceptual
 level, the decider rule. This document is the reference layer: dispatch tables, the full
 provenance scheme, the complete pending invariants, sub-action cost handling, the Fencing /
-animal-accommodation / Harvest subsystems, the coding conventions, and the card-trigger
-machinery.
+animal-accommodation / Harvest subsystems, and the coding conventions. The **card system**
+built on top of this engine has its own reference companion, **`CARD_ENGINE_IMPLEMENTATION.md`**
+(read it after this one when doing card work); §6 below keeps the seam summary and the
+nature-policy layer.
 
 It **assumes you have read Phase 1**, and it does not repeat the Foundational principles
 (frozen dataclasses, functional core, determinism, derived-not-cached, action-space shaping) —
@@ -19,7 +21,7 @@ Contents:
 3. Sub-action mechanics
 4. Subsystems — Fencing, Animal accommodation, Harvest
 5. Coding conventions (appendix)
-6. Card-trigger machinery & deferred design questions
+6. Card machinery (pointer) & the nature-policy seam
 
 ---
 
@@ -65,9 +67,12 @@ or `Stop`). `_apply_action` dispatches on the action's type:
 ```
 PlaceWorker      -> _apply_place_worker
 ChooseSubAction  -> _apply_choose_sub_action
-CommitSubAction  -> _apply_commit_subaction      (all Commit* subclasses)
+CommitCardChoice -> _apply_commit_card_choice    (card game — checked before the marker base)
+CommitSubAction  -> _apply_commit_subaction      (all other Commit* subclasses)
 FireTrigger      -> _apply_fire_trigger
 Stop             -> _apply_stop
+Proceed          -> _apply_proceed               (host work-complete flip — CARD_ENGINE_IMPLEMENTATION.md §2)
+CommitDraftPick  -> _apply_draft_pick            (card game, Phase.DRAFT — a top-level action like RevealCard)
 RevealCard       -> _apply_reveal_card
 ```
 
@@ -96,9 +101,14 @@ The rest of this section walks those tables in turn order.
 
 `_apply_place_worker` first does cross-cutting bookkeeping (`_apply_worker_placement` — workers,
 `people_home`), then dispatches by space id to `ATOMIC_HANDLERS` (apply the effect and return) or
-`NONATOMIC_HANDLERS` (push the space's parent pending and return). Unregistered IDs raise a
-defensive `NotImplementedError`; the only never-registered space is `lessons` (excluded by
-`legal_placements`).
+`NONATOMIC_HANDLERS` (push the space's parent pending and return). Every space in `SPACE_IDS` now
+has a handler in both game modes (`lessons` included — its card-game handler `_initiate_lessons`
+is registered; the Family game simply never surfaces it, via `legal_placements`' mode table), so
+the `NotImplementedError` branch is a defensive guard for a future space added without a handler.
+Two card-mode detours run before the table dispatch: card-mode Meeting Place routes directly to
+its self-hosting handler, and an atomic space a played card hooks is wrapped in a host frame
+instead of resolving immediately (`should_host_space` — both in CARD_ENGINE_IMPLEMENTATION.md §2;
+in the Family game neither branch can fire).
 
 Every placement action is `PlaceWorker(space=<space_id>)` — the bare id. (The prefixed
 `"space:<id>"` form is the pushed pending's `initiated_by_id`, not the action's `space` field;
@@ -108,8 +118,12 @@ see §2.)
 `ActionSpaceState` carries a `revealed: bool` — permanents are `revealed=True` from setup, stage
 cards start `revealed=False` and flip to `True` when their `RevealCard` fires. The hidden per-game
 reveal order does **not** live in `GameState` at all (it sits in the `Environment` — §6), so
-`GameState` holds only common knowledge and two info-equivalent states hash equal. 12 spaces are
-atomic, 12 are non-atomic, and `lessons` is registered in neither table.
+`GameState` holds only common knowledge and two info-equivalent states hash equal. In the
+**Family game** 12 spaces are atomic, 12 are non-atomic, and `lessons` is never legal. The
+**card game** reshapes the board (CARD_ENGINE_IMPLEMENTATION.md §0/§4): Side Job is gone,
+`lessons` becomes a non-atomic space (play an occupation), Meeting Place becomes a self-hosting
+non-atomic space (become SP + optional minor, no food), and `legal_placements` dispatches on
+`state.mode` between the two legality tables.
 
 **Atomic** (`ATOMIC_HANDLERS` → `_resolve_<space>`; apply effect, done — effects are in RULES.md):
 
@@ -128,37 +142,44 @@ minor-improvement path is unimplemented.)
 | Space | Parent pending | Initiates |
 |---|---|---|
 | `grain_utilization` | `PendingGrainUtilization` | Sow + Bake Bread |
-| `farmland` | `PendingFarmland` | Plow |
+| `farmland` | `PendingSubActionSpace` | Plow |
 | `cultivation` | `PendingCultivation` | Plow + Sow |
 | `side_job` | `PendingSideJob` | Build Stable + Bake Bread |
 | `sheep_market` | `PendingSheepMarket` | take sheep → accommodate |
 | `pig_market` | `PendingPigMarket` | take boar → accommodate |
 | `cattle_market` | `PendingCattleMarket` | take cattle → accommodate |
-| `major_improvement` | `PendingMajorMinorImprovement` | buy major (→ free Bake for Clay/Stone Oven) |
+| `major_improvement` | `PendingSubActionSpace` | buy major (→ free Bake for Clay/Stone Oven); in cards, also play a minor |
 | `house_redevelopment` | `PendingHouseRedevelopment` | Renovate |
 | `farm_expansion` | `PendingFarmExpansion` | Build Rooms + Build Stables |
-| `fencing` | `PendingFencing` | Build Fences |
+| `fencing` | `PendingSubActionSpace` | Build Fences |
 | `farm_redevelopment` | `PendingFarmRedevelopment` | Renovate + Build Fences |
+
+`PendingSubActionSpace` is the generic **Delegating** host for a space with exactly one mandatory
+sub-action — it replaced the old per-space `PendingFarmland` / `PendingFencing` classes, and also
+serves `major_improvement` (its choose pushes the composite `PendingMajorMinorImprovement`) and
+the card game's `lessons`. Host-lifecycle mechanics: CARD_ENGINE_IMPLEMENTATION.md §2.
 
 ### Sub-action choice (`ChooseSubAction`)
 
 `_apply_choose_sub_action` dispatches on the **type** of the top frame via
-`CHOOSE_SUBACTION_HANDLERS` (11 entries: the nine space parents that branch into categories,
-plus the Clay/Stone Oven sub-pendings — the three animal markets are absent, since they commit
-accommodation directly with no `ChooseSubAction` step).
+`CHOOSE_SUBACTION_HANDLERS` (13 entries: the space parents that branch into categories — incl.
+the generic `PendingSubActionSpace` and the card-only Basic Wish / Meeting Place / granted-fences
+parents — plus the Clay/Stone Oven sub-pendings; the three animal markets are absent, since they
+commit accommodation directly with no `ChooseSubAction` step).
 The handler sets the parent's `<cat>_chosen` flag **and** pushes the category's pending — both in
 the one handler. (Why choose-time, not commit-time: §2, invariant 7.)
 
 ### Sub-action commit (`Commit*`)
 
 `_apply_commit_subaction` is the generic commit dispatcher: look up
-`(expected_pending_type, effect_fn, auto_pop)`, assert the expected pending is on top, run
-`effect_fn(state, top.player_idx, action)`, then pop iff `auto_pop`. When `auto_pop=False` the
-effect function owns all stack manipulation (multi-shot `replace_top`, oven-pending pushes, etc.).
+`(expected_pending_type, effect_fn)`, assert the expected pending is on top, run
+`effect_fn(state, top.player_idx, action)`. The dispatcher **never pops** — the effect function
+owns all stack manipulation (flip to the after-phase, multi-shot `replace_top`, oven-pending
+pushes, etc.; the old per-row `auto_pop` flag was removed once every sub-action became a uniform
+before/after host — see §3).
 It does **not** touch parent `*_chosen` flags. `effect_fn` takes `player_idx` explicitly (the
 active player may differ from the commit's owner under out-of-turn trigger frames) and may read
-`state.pending_stack[-1]` for its own frame. The full `Commit* → (pending, auto_pop)` table is in
-§3, where the `auto_pop` distinction is explained.
+`state.pending_stack[-1]` for its own frame. The full `Commit* → pending` table is in §3.
 
 ### Triggers and Stop (`FireTrigger`, `Stop`)
 
@@ -172,7 +193,14 @@ Called at the end of every `step` (stage 3). A `while True` loop that returns as
 decision is pending, otherwise drives system transitions. **State-driven and idempotent** —
 re-running it on a returned state is a no-op. The cases, in order:
 
-1. **Pending stack non-empty** → return (agent decision awaiting).
+1. **Pending stack non-empty** → return (agent decision awaiting). *Card-mode exception:* a
+   **Delegating** space host whose single mandatory sub-action just completed is first
+   auto-flipped to its after-phase (`_enter_after_phase`) within the same step — the engine, not
+   a player decision, is the work-complete signal for that host kind
+   (CARD_ENGINE_IMPLEMENTATION.md §2).
+1.5. **DRAFT with empty stack** (card game, `draft=True` setups only) → push the next
+   `PendingDraftPick`, or transition to PREPARATION once all four pools are empty
+   (CARD_ENGINE_IMPLEMENTATION.md §4).
 2. **PREPARATION** → the round-card reveal lives here, as a two-state case discriminated by
    `_count_revealed_stage_cards(state) == round_number`. While the reveal is pending,
    `round_number` still names the round just *completed* (the increment is deferred to
@@ -183,7 +211,10 @@ re-running it on a returned state is a no-op. The cases, in order:
    - **Card up** (`count > round_number`, the reveal has fired): run `_complete_preparation` —
      increment `round_number`, refill every accumulation space where `sp.revealed` (the
      just-revealed card included), distribute the new round's `future_resources`, clear newborns,
-     and transition to WORK with `current_player = starting_player`.
+     and transition to WORK with `current_player = starting_player`. *Card mode adds*, in order:
+     clear the per-round/per-turn used-sets, collect the round's `future_rewards` (scheduled
+     animals, auto-accommodated), and push a `PendingPreparation` start-of-round host per owning
+     player — all no-ops in Family (CARD_ENGINE_IMPLEMENTATION.md §2–§4).
 
    Continue.
 3. **WORK** → if all players have `people_home == 0`, set phase `RETURN_HOME` and continue;
@@ -192,6 +223,9 @@ re-running it on a returned state is a no-op. The cases, in order:
    on harvest rounds, else PREPARATION); continue.
 5. **HARVEST_FIELD** → `_resolve_harvest_field` (mechanical FIELD work, resets
    `harvest_conversions_used`, pushes FEED pendings, transitions to HARVEST_FEED); continue.
+   *Card mode:* when a player owns a harvest-field card, a transient `PendingHarvestField` host
+   fires the `harvest_field` automatic effects *before* the crop take
+   (CARD_ENGINE_IMPLEMENTATION.md §2) — skipped entirely in Family.
 6. **HARVEST_FEED with empty stack** = exit signal (all FEED frames Stop'd) → push BREED
    pendings, transition to HARVEST_BREED; continue.
 7. **HARVEST_BREED with empty stack** = exit signal → BEFORE_SCORING if
@@ -216,7 +250,8 @@ phase == WORK            -> legal_placements(state)
 ```
 
 `_enumerate_pending` dispatches on the **type** of the top frame via the `PENDING_ENUMERATORS`
-table (25 entries; the three animal markets share `_enumerate_pending_animal_market`). A
+table (36 entries at last count — the Family frames plus the card-only ones; the three animal
+markets share `_enumerate_pending_animal_market`). A
 `PendingReveal` on top routes to `_enumerate_pending_reveal`, which returns one `RevealCard` per
 still-unrevealed card of `stage_of_round(round_number + 1)` (the candidate set derived purely from
 public state — a single trivial outcome on k=1 rounds). Each
@@ -226,8 +261,10 @@ testable without building a stack. Per-enumerator legality/ordering is documente
 function, and the interesting ones are covered in §4 next to their subsystems.
 
 `legal_placements(state)` returns `[]` if the active player has no workers, else
-`[PlaceWorker(space=s) for s, predicate in ALL_LEGALITY.items() if predicate(state)]` — one
-per-space placement predicate, evaluated for the active player.
+`[PlaceWorker(space=s) for s, predicate in table.items() if predicate(state)]`, where `table`
+is picked by `state.mode` — `FAMILY_GAME_LEGALITY` (the pre-card board) or `CARD_GAME_LEGALITY`
+(no Side Job; `lessons` + the major-or-minor predicate) — one per-space placement predicate,
+evaluated for the active player.
 
 **Memoization.** `legal_actions` is uncached by default. Inside a `with legal_actions_cache():`
 block it memoizes on `id(state)` (identity, not content hash — `hash(GameState)` is ~26 µs and
@@ -346,21 +383,28 @@ the PREPARATION phase walk (§1, case 2), hosts exactly one `RevealCard`, and po
 
 ### Built with cards in mind
 
-Several pieces accommodate future card patterns without retrofitting:
+Several pieces were designed for card patterns ahead of need — all of them are now **live**,
+exercised by the ~270 implemented cards:
 
 - Out-of-turn triggers via per-frame `player_idx`.
 - Triggers with sub-decisions via arbitrary stack depth.
 - Card-aware legality via `*_EXTENSIONS` registries on `_can_*` predicates (e.g.
-  `BAKE_BREAD_ELIGIBILITY_EXTENSIONS`).
+  `BAKE_BREAD_ELIGIBILITY_EXTENSIONS`; the full extension catalog is
+  CARD_ENGINE_IMPLEMENTATION.md §3).
 - Once-per-action trigger budgets via `triggers_resolved`.
-- Provenance via `initiated_by_id` + `PENDING_ID`, for debugging and for cards to choose which
-  parent to flag at push time.
-- Atomic spaces adopt the "push a parent pending" pattern when a card needs to fire on them — a
-  *conditional* push (via `_should_host_space`) of the generic `PendingActionSpace`. `ATOMIC_HANDLERS`
-  still runs the primary effect (on `Proceed`), so the handler split **persists** rather than collapsing.
-- A coarse `before_/after_action_space` event shared by **all** action spaces (atomic + non-atomic),
-  with cards filtering by `space_id`. *(This supersedes an earlier per-space `before_<space>` plan —
-  see `CARD_IMPLEMENTATION_PLAN.md` §II.2 for the `PENDING_ID`-bucket routing.)*
+- Provenance via `initiated_by_id` + `PENDING_ID` — now load-bearing for grant scoping (which
+  card's discounts apply to a pushed frame) as well as debugging.
+- Atomic spaces adopt the "push a parent pending" pattern when a played card hooks them — a
+  *conditional* push (via `should_host_space`) of the generic `PendingActionSpace`.
+  `ATOMIC_HANDLERS` still runs the primary effect (on `Proceed`), so the handler split
+  **persists** rather than collapsing.
+- A coarse `before_/after_action_space` event shared by **all** action spaces (atomic +
+  non-atomic), with cards filtering by `space_id`. *(This superseded an earlier per-space
+  `before_<space>` plan — the `PENDING_ID`-bucket routing, invariant 9.)*
+
+The card system built on these seams is documented in **`CARD_ENGINE_IMPLEMENTATION.md`** —
+hosts & firing (§2), the registries (§3), card state (§4), and the cost/food/capacity layers
+(§5).
 
 **Per-card budgets that span events** (once-per-round / -game / -harvest) live on `PlayerState`
 or `BoardState`, not on frames. The stack holds *active* decisions, not a per-game scoreboard.
@@ -424,40 +468,48 @@ The reusable pending stays generic; entry-point semantics live in the caller's p
 
 | Pending | Distinguishing fields | Callers |
 |---|---|---|
-| `PendingPlow` | — | Farmland, Cultivation |
-| `PendingSow` | — | Grain Utilization, Cultivation |
-| `PendingBakeBread` | — | Grain Utilization, Side Job, Clay Oven, Stone Oven |
-| `PendingRenovate` | `cost` | House Redev, Farm Redev |
-| `PendingBuildStables` | `cost`, `max_builds`, `num_built` | Side Job (cap 1), Farm Expansion (uncapped) |
-| `PendingBuildRooms` | `cost`, `max_builds`, `num_built` | Farm Expansion |
-| `PendingBuildFences` | `pastures_built`, `fences_built`, `subdivision_started` | Fencing, Farm Redev |
+| `PendingPlow` | — | Farmland, Cultivation, card grants |
+| `PendingSow` | — | Grain Utilization, Cultivation, card grants |
+| `PendingBakeBread` | — | Grain Utilization, Side Job, Clay Oven, Stone Oven, card grants |
+| `PendingRenovate` | — | House Redev, Farm Redev, card grants |
+| `PendingBuildStables` | `cost`, `max_builds`, `num_built` | Side Job (cap 1), Farm Expansion (uncapped), card grants |
+| `PendingBuildRooms` | `max_builds`, `num_built` | Farm Expansion, card grants |
+| `PendingBuildFences` | `pastures_built`, `fences_built`, `subdivision_started` | Fencing, Farm Redev, card grants |
+
+(`PendingRenovate` and `PendingBuildRooms` no longer store a `cost` — it is derived per commit
+through the cost-modifier chokepoint; see the buckets below. The card game adds default-skipped
+fields to `PendingPlow` / `PendingBuildFences` — multi-shot grants, the deferred fence tally,
+restrictions — inert in Family: CARD_ENGINE_IMPLEMENTATION.md §4.)
 
 **Exceptions:** if a future sub-action genuinely doesn't generalize across callers, document the
 reasoning when the specialization is introduced — but default to reusable until proven otherwise.
 
-### Sub-action cost handling — four buckets
+### Sub-action cost handling — where the BASE cost comes from
 
-Where the cost lives depends on how it varies. Pick bucket 2 by default; bucket 3 when cost is a
-function of a commit-time parameter from a small fixed table; bucket 4 when it's a function of
-state plus commit parameters together.
+The buckets below classify where an action's **base (printed) cost** originates. What happens to
+that base is now uniform: every cost-modifiable action resolves it through the cost-modifier
+chokepoint `effective_payments` / `can_pay` (CARD_ENGINE_IMPLEMENTATION.md §5), which in the
+Family game — no cost cards owned — degenerates to exactly the base cost, byte-identically.
 
 1. **No cost.** The sub-action doesn't debit (e.g. `PendingPlow`). No `cost` field.
-2. **Caller-parameterizable — field on the pending.** The push site computes `cost: Resources`;
-   the effect debits `p.resources - pending.cost`. Cards can modify it at push time or via a
-   trigger that `replace_top`s the pending. `PendingBuildStables` (1 vs 2 wood),
-   `PendingBuildRooms` (`ROOM_COSTS[material]`), `PendingRenovate`.
-3. **Commit-time-parameterizable — keyed lookup at execute time.** No `cost` field; the effect
-   looks up the cost from the commit's parameters against a const table.
-   `PendingBuildMajor` / `CommitBuildMajor.major_idx` → `MAJOR_IMPROVEMENT_COSTS`. Fits when the
-   commit-time parameter space is small and predefined.
-4. **Pure function of (state, commit) — shared helper at execute time.** No `cost` field, no
-   const table; a shared helper computes cost on demand, called by both the enumerator (for
-   affordability filtering) and the effect (for the debit). `PendingBuildFences` /
-   `CommitBuildPasture`: cost = 1 wood × popcount(new boundary edges), computed by
-   `compute_new_fence_edges(farmyard, cells)` in `fences.py`. Fits multi-shot actions where each
-   commit's cost depends on the farm state left by prior commits. The commit object stays the
-   minimal source of truth for action *identity*; the helper is the single source of truth for
-   the cost *formula* — so when cards modify cost later, only the helper changes.
+2. **Caller-supplied — field on the pending.** The push site's *intent* determines the base and
+   is not derivable from state: `PendingBuildStables.cost` (Side Job 1 wood, Farm Expansion
+   2 wood, card grants 0) — the **one** cost still stored on a frame.
+3. **Derived from player/commit state at resolve time.** The base is recomputed per commit by
+   the action's `CostCtx` adapter: rooms (`ROOM_COSTS[house_material]`), renovate (per-room
+   next-material + reed, priced per `CommitRenovate.to_material` target), majors
+   (`MAJOR_IMPROVEMENT_COSTS[commit.major_idx]`), minors (the `MinorSpec` cost or its
+   "/"-alternatives). The old stored `PendingRenovate.cost` / `PendingBuildRooms.cost` were
+   removed — a stored cost is a cache that goes stale once cost cards make it depend on owned
+   cards. The chosen payment rides explicitly on the *wide* commits
+   (`CommitRenovate.payment`, `CommitBuildMajor.payment`, `CommitPlayMinor.payment`).
+4. **Pure function of (state, commit) — geometry-derived.** `PendingBuildFences` /
+   `CommitBuildPasture`: base = 1 wood × popcount(new boundary edges), computed by
+   `compute_new_fence_edges(farmyard, cells)` in `fences.py` — each commit's cost depends on the
+   farm state left by prior commits. The commit stays the minimal source of truth for action
+   *identity*; the helper is the single source of truth for the base *formula*. (Fence payment
+   is additionally **mode-branched** — Family debits per commit, Cards accrues and settles at
+   `Proceed` — the one non-uniform cost path: CARD_ENGINE_IMPLEMENTATION.md §5.2.)
 
 ### Multi-shot sub-action pendings
 
@@ -558,8 +610,18 @@ Implementation: `fences.py` (universes, edge metadata, cost helper); `legality.p
 reaches Build Fences via `ChooseSubAction("build_fences")` at `PendingFarmRedevelopment` (after
 an optional Renovate).
 
-**The `Farmyard.pastures` caching exception.** This is the one accepted deviation from
-"derived data, not cached data." `Farmyard.pastures` (the pasture decomposition) is cached on
+**The `Farmyard.pastures` caching exception.** This is the first of **two** accepted on-object
+deviations from "derived data, not cached data" — the second is `PlayerState.fences_in_supply`
+(commit 77fe629): the fence-piece supply pile is *stored*, because a card (Ash Trees) moves
+pieces onto a card independently of building, so `15 − fences_built` stops being the supply the
+moment a card holds pieces. It equals `15 − fences_built` throughout any Family game, but its
+value varies, so it is serialized and mirrored in the C++ `PlayerState`
+(CARD_ENGINE_IMPLEMENTATION.md §5.2). Two further Cards-only notes on this subsystem: fence
+*payment* is mode-branched (Family per-commit debit; Cards accrue-then-settle at `Proceed`), and
+the fence-scan cache below serves **only** Family mode (its projection key can't see free-fence
+budgets/restrictions) — both in CARD_ENGINE_IMPLEMENTATION.md §5.2.
+
+`Farmyard.pastures` (the pasture decomposition) is cached on
 `Farmyard`; all higher-level pasture-derived quantities (`enclosed_cells`, capacities, pasture
 count, fenced-stable count) remain on-demand derivations from this one cached value. The cache
 is maintained by **caller discipline**, not structural enforcement: the two pasture-changing
@@ -585,6 +647,9 @@ hold, the player must release or convert the overflow. Rather than enumerate eve
 frontier over the upstream goods** (animals kept), computed by `pareto_frontier`. Helpers in
 `helpers.py`: `extract_slots` (the farm's animal-holding capacity decomposition),
 `can_accommodate` (does a configuration fit?), `pareto_frontier` (the frontier itself).
+Card capacity modifiers plug into `extract_slots` via two folds — the house's flexible-slot
+count (Family default 1, the pet) and a flat per-pasture bonus (default 0) — so every frontier
+consumer inherits them; CARD_ENGINE_IMPLEMENTATION.md §5.4.
 
 **Accommodation model.** Animals are **not** tracked per-pasture — only aggregate counts per
 species are stored, and capacity is a *derived* quantity (sum of pasture/stable/house
@@ -612,7 +677,10 @@ FEED → BREED.**
 
 **`HARVEST_FIELD`** (mechanical, no decisions). `_resolve_harvest_field` takes 1 crop from each
 planted field, resets `harvest_conversions_used` on both players (the once-per-harvest budget),
-pushes one `PendingHarvestFeed` per player, transitions to `HARVEST_FEED`.
+pushes one `PendingHarvestFeed` per player, transitions to `HARVEST_FEED`. In card mode, when a
+player owns a harvest-field card, the `harvest_field` automatic effects fire first — *before*
+the crop take (Scythe Worker reads unharvested fields) — via a transient host frame; skipped
+entirely in Family (CARD_ENGINE_IMPLEMENTATION.md §2).
 
 **`HARVEST_FEED`** (the strategic core). Each adult needs 2 food, each just-born newborn 1.
 **Food payment is deferred to the final `CommitConvert`** — the feed-start does not touch
@@ -751,49 +819,28 @@ Derive the index from `p` itself: `player_idx = 0 if p is state.players[0] else 
 
 ---
 
-## 6. Card-trigger machinery & deferred design questions
+## 6. Card machinery (pointer) & the nature-policy seam
 
-**The card system is not implemented.** One card — **Potter Ceramics** (minor improvement:
-"each time before a Bake Bread action, you may exchange exactly 1 clay for 1 grain") — exists
-**solely to exercise and validate the pending-stack trigger machinery end-to-end**. It is a
-forward-compatibility test, **not part of any game, and must not be used in play until the full
-card suite is built.** Without a concrete card the trigger architecture would be untested
-scaffolding.
+**The card system is built.** The trigger machinery this section originally introduced grew into
+the full card engine — hosts & firing, three firing kinds, ~30 registries, card-only state and
+frames, the cost-modifier / food-payment / capacity layers — implemented and exercised by ~270
+cards. **The reference for all of it is `CARD_ENGINE_IMPLEMENTATION.md`**; this document remains
+the reference for everything the Family game exercises (including the host/Proceed lifecycle,
+which runs in Family and is C++-ported). **Potter Ceramics** — the single card originally built
+to validate the trigger machinery end-to-end — is now just an ordinary dealable minor among the
+rest.
 
-**Infrastructure:**
+Status of the design questions this section used to defer:
 
-- `agricola/cards/` subpackage; `__init__.py` imports each card module + `harvest_conversions` so
-  `register()` calls fire at load time.
-- `cards/triggers.py`: two parallel registries — `TRIGGERS` (event-keyed, used by enumerators to
-  find eligible triggers at the current event) and `CARDS` (id-keyed, used by `_apply_fire_trigger`
-  for direct lookup) — populated via `register(event, card_id, eligibility_fn, apply_fn)`.
-- `cards/potter_ceramics.py`: registered against `"before_bake_bread"` and against
-  `BAKE_BREAD_ELIGIBILITY_EXTENSIONS` (so `_can_bake_bread` returns True for a Potter owner with
-  clay even at 0 grain).
-- `cards/harvest_conversions.py`: the `HARVEST_CONVERSIONS` registry (joinery / pottery /
-  basketmaker) + `register_harvest_conversion(spec)`; each entry is a `HarvestConversionSpec`
-  with a `side_effect_fn` hook for effects like a hypothetical Stone Sculptor's "+1 point."
-- `PlayerState.minor_improvements: frozenset[str]` / `occupations: frozenset[str]` record played
-  cards; `harvest_conversions_used: frozenset[str]` is the once-per-harvest decided-set.
-
-**Deferred design questions** (resolved when the full card system lands):
-
-- **Compound card interactions.** The extension-registry pattern handles single-card eligibility
-  broadening (Potter) but not one card *enabling* another's eligibility (Pan Baker's on-placement
-  clay grant enabling Potter's clay→grain, letting a 0-clay-0-grain player bake). Needs
-  speculative-legality machinery: apply on-placement effects to a hypothetical state, then check
-  sub-action predicates against it. The trigger registry already supports arbitrary events; the
-  missing piece is the legality-side speculative application. (task_files/TASK_5.md.)
-- **Atomic-space trigger hosting.** *(Design resolved in `CARD_IMPLEMENTATION_PLAN.md` §II.2; not yet
-  implemented.)* Atomic spaces push the generic `PendingActionSpace` host, which carries a
-  `phase: "before"|"after"` indicator flipped by an explicit `Proceed()` action — `Proceed` applies
-  the space's primary effect (`ATOMIC_HANDLERS[space_id]`) between the before- and after-trigger
-  phases, then `Stop` pops. (The two earlier-undecided forks — `primary_effect_applied: bool` vs
-  `phase`, and `Proceed` vs overloaded `Stop` vs a nested before-pending — are settled as `phase` +
-  `Proceed`.)
-- **Trigger events on harvest pendings.** `PendingHarvestFeed`/`Breed` omit
-  `triggers_resolved`/`TRIGGER_EVENT` today (added per-pending when the first card needs them).
-  Natural future events: `before_/after_harvest_feed`, `before_/after_harvest_breed`.
+- **Atomic-space trigger hosting** — **done** as designed: the conditional `PendingActionSpace`
+  host with `phase` + `Proceed` (§2 above; CARD_ENGINE_IMPLEMENTATION.md §2).
+- **Trigger events on harvest pendings** — **partial**: a `harvest_field` hook exists (auto-only,
+  fired before the crop take); `PendingHarvestFeed`/`Breed` still carry no trigger events — a
+  live boundary (CARD_ENGINE_IMPLEMENTATION.md §8).
+- **Compound interactions / speculative legality** — **partial**: liquidation-aware affordability
+  gates, the occupation-food-source simulation, and the fence-budget anticipation cover the
+  load-bearing cases; placement-time speculation on unfired grants and the Grocer
+  conversion-reachability problem remain open (CARD_ENGINE_IMPLEMENTATION.md §8).
 
 ### The `Environment` and the nature-policy seam
 
@@ -813,20 +860,25 @@ card). New nature events (a card draft, a deck draw) will add branches to `resol
 `Pending*` frames; nothing structural in the engine changes — the seam is already the single point
 where nature's choices enter.
 
-This is the symmetric special case of a general world-state / information-state split. Two layers
-are built now as forward-compat for the eventual card phase:
+This is the symmetric special case of a general world-state / information-state split. How the
+forward-compat sketch actually resolved when the card game landed:
 
-- **`GameState` holds only common knowledge; anything hidden from anyone lives in `Environment`.**
-  Today that is the reveal order; later it is each player's private hand and the draw deck. This
-  invariant is exactly why the order is externalized.
-- **`observe(state, env, i)`** is the projection of the full state down to what player *i* knows —
-  the identity (`== state`) today, since the only hidden info is symmetric and revealed to both.
-  New MCTS / NN-encoder code is written against `observe` rather than against `state` directly, so
-  when asymmetric private hands arrive only `observe` changes (splicing player *i*'s own slice back
-  in, masking the rest), not every consumer.
+- **The Environment still holds exactly the reveal order.** The original sketch put future
+  private hands and the draw deck here too; the card game **superseded that**: hands live
+  concretely on `PlayerState.hand_occupations` / `hand_minors` (CARD_IMPLEMENTATION_PLAN.md I.5;
+  CARD_ENGINE_IMPLEMENTATION.md §4). `legal_actions` / `step` only ever read the *decider's own*
+  hand, and hiding the opponent's hand from a search agent is handled **above the engine**
+  (ISMCTS determinization — dealing plausible replacement hands at the search layer). So
+  "GameState holds only common knowledge" survives in a weakened, per-decision form: the state
+  carries both hands, but no decision ever consults the non-decider's.
+- **`observe(state, env, i)` was never built.** The HIDDEN_INFO_DESIGN.md sketch proposed it as
+  the projection every consumer would be written against; in practice no code needed it (the
+  Family game's hidden info is symmetric, and the card game chose determinization above the
+  engine). It remains unimplemented design intent — do not look for it in the code.
 
-A future **pre-round-1 card draft** would be another pre-round-1 nature/decision phase, resolved
-the same way the round-1 reveal is — `setup_env` would simply stop being able to pre-resolve it and
-would hand back the draft node, moving the game's start point earlier. (Full design,
-forward-compat framing, and the asymmetric-info / determinization direction: `HIDDEN_INFO_DESIGN.md`
-§3.4, §3.6, §4.)
+The **pre-round-1 card draft** did arrive, but as an ordinary decision phase rather than a
+nature step: `setup_env(seed, card_pool=..., draft=True)` returns a `Phase.DRAFT` state and the
+players themselves pick (`PendingDraftPick` / `CommitDraftPick` —
+CARD_ENGINE_IMPLEMENTATION.md §4); the randomness is only in the seeded pool deal. (Original
+design and the asymmetric-info / determinization direction: `HIDDEN_INFO_DESIGN.md` §3.4, §3.6,
+§4.)

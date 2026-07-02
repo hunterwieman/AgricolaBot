@@ -122,8 +122,9 @@ cached data") is a default with explicit guidance for when to deviate.
   are split across three layers: **`GameState`** carries common knowledge (the public `revealed`
   bool per card, public resources/farmyard); the **`Environment`** (`agricola/environment.py`,
   built at `setup`) holds the hidden ground truth + nature policy — today the round-card reveal
-  order; **`observe(state, env, i)`** projects the partial state known to player `i` (the
-  identity today, since the only hidden info is symmetric). Each round's stage card is turned up
+  order. (An `observe(state, env, i)` per-player projection was sketched as the third layer but
+  **was never built** — the card game put private hands on `PlayerState` and handles hiding above
+  the engine via determinization; see `CARD_ENGINE_IMPLEMENTATION.md` §4.) Each round's stage card is turned up
   by an explicit nature step — a `RevealCard` that consumes the next entry of the hidden order —
   driven by the `Environment` in real games and by chance nodes in MCTS. "All randomness resolved
   in `setup`" still holds; the order is simply carried in the `Environment` rather than baked into
@@ -180,9 +181,10 @@ cached data") is a default with explicit guidance for when to deviate.
   the three factors; for a hot **pure computation**, reach for projection-keyed memoization by
   default.
 
-  The one current accepted exception *of the on-object kind* — `Farmyard.pastures` (the pasture
-  decomposition) — and its caller-discipline maintenance contract are documented in
-  `ENGINE_IMPLEMENTATION.md`.
+  The two current accepted exceptions *of the on-object kind* — `Farmyard.pastures` (the pasture
+  decomposition; caller-discipline maintenance contract in `ENGINE_IMPLEMENTATION.md`) and
+  `PlayerState.fences_in_supply` (the fence-piece supply pile, stored because a card can hold
+  pieces off-supply; `CARD_ENGINE_IMPLEMENTATION.md` §5.2) — are documented there.
 
 - **The Python engine is the source of truth; keep the C++ differential gates green.** A native C++
   reimplementation of the self-play inner loop now exists (§2.4 / `CPP_ENGINE_PLAN.md`), validated
@@ -980,11 +982,12 @@ Dockerfile edit.
 
 > ⚠️ **STALE STATUS — this section is well out of date.** The full card-firing system (host
 > before/after lifecycle, `before_/after_action_space` and sub-action triggers, automatic effects,
-> harvest/start-of-round/opponent hooks, CardStore, cost-modifiers, multi-shot grants, …) is BUILT,
-> and **~270 cards across decks A–E are implemented and registered** — not "Milestone 1, four cards."
-> For current ground truth see the `feat(cards)` git history, `CARD_BATCH_HANDOFF.md`,
-> `POST_COMPACTION_DETOUR.md`, and the `OCCUPATIONS` / `MINORS` registries. The text below describes
-> the *original* plan and is kept for design rationale only.
+> harvest/start-of-round/opponent hooks, CardStore, cost-modifiers, food payment, multi-shot
+> grants, …) is BUILT, and **~270 cards across decks A–E are implemented and registered** — not
+> "Milestone 1, four cards." **The current ground truth is `CARD_ENGINE_IMPLEMENTATION.md`** —
+> the as-built machinery reference + the live Status section (per-card ledger:
+> `CARD_IMPLEMENTATION_PROGRESS.md`). The text below describes the *original* plan and is kept
+> for design rationale only.
 
 **Started — Milestone 1 (the play-card foundation) is done; the trigger/hook system is next.** The
 full Agricola card system (the ~470 occupation and minor-improvement cards) is the largest remaining
@@ -1079,7 +1082,8 @@ Top-level docs (live alongside CLAUDE.md and are kept current as the project evo
 | File | Description |
 |---|---|
 | `RULES.md` | Complete rules reference for the 2-player game. Treats the full card game (occupations + minor improvements) as the default and documents the cardless **Family** game and the 3–4 player game as variants in their own sections. Covers setup/draft, primitive sub-actions, action spaces, major improvements, the card system, harvest, and scoring. (Pure game rules — no engine/project references.) |
-| `ENGINE_IMPLEMENTATION.md` | Deep-mechanics reference companion to Phase 1 (the game engine): dispatch tables, the full pending-stack provenance scheme and invariants, sub-action cost handling, the Fencing / animal-accommodation / Harvest subsystems, the coding conventions, and the card-trigger machinery. Read alongside Phase 1 when doing engine surgery. |
+| `ENGINE_IMPLEMENTATION.md` | Deep-mechanics reference companion to Phase 1 (the game engine): dispatch tables, the full pending-stack provenance scheme and invariants, sub-action cost handling, the Fencing / animal-accommodation / Harvest subsystems, and the coding conventions. Read alongside Phase 1 when doing engine surgery. |
+| `CARD_ENGINE_IMPLEMENTATION.md` | **The reference-of-record for the card system as built** (Phase 3) — the deep-mechanics companion to `ENGINE_IMPLEMENTATION.md` for everything the card game adds, and the ONE doc a card-implementation session reads first. §0 the Family-byte-identity invariant (the organizing principle); §1 the live Status section (updated per batch — the maintenance contract); §2 hosts & firing (the four host kinds, event derivation, the three firing kinds, enforce-first, the firing-seam map); §3 every `register_*` registry; §4 card state & the card-only pending frames (the state-placement rule, CardStore, hands/ISMCTS, canonical default-skip); §5 the cost-modifier chokepoint + the build-fence deferred tally (the one mode branch) + food payment + capacity mods; §6 rulings & idioms; §7 the implementation process; §8 deliberate boundaries (end-of-turn, Grocer, C++-is-card-free); §9 the card-doc map. The design records (CARD_SYSTEM_DESIGN, COST_MODIFIER_DESIGN, FOOD_PAYMENT_DESIGN, the refactor docs) keep rationale; this describes the code. |
 | `SPACE_HOST_REFACTOR.md` | Design + implementation record for the **action-space host before/after lifecycle refactor** (Phase 3, cards infrastructure): gives every action-space parent frame a before/after host lifecycle so cards can hook the space as a whole, not just the leaf primitives. Covers the four host mechanisms (Atomic / Commit-terminated / Delegating-with-auto-advance / Proceed-host), the Major/Minor three-layer nesting, Meeting Place + Lessons, the firing migration (after-automatics at the work-complete boundary; `_apply_stop` becomes a pure pop), the Proceed-as-Stop NN alias (no retrain), existing-card consequences (Milk Jug → `before_action_space`; Firewood Collector deferred), C++ scope, and the B1/B2/B3 staging. |
 | `CARD_AUTHORING_GUIDE.md` | **The practical how-to for implementing more cards — read this first when adding cards.** A pitfall-focused framework: how to read a card (exact text from `agricola/cards/data/` → classify timing / firing kind / primitives → map to a template), the firing machinery (host before/after lifecycle, event names, the three firing kinds with their `register_*` signatures + the eligibility-signature difference), the special mechanisms (deferred goods/effects, conditional latch, CardStore, scoring, opponent hooks, play-variant choice), a template catalog (which existing card module to copy per shape), a worked example (Cottager), the hard set to defer-and-ask about, and a per-card discipline checklist. Heavily emphasizes the obscure rulings a coding agent misses ("each time you use" = *before*; "end of turn" ≠ end of the action's effects/triggers; granted sub-actions are optional; optionality lives at the parent host; atomic spaces must be explicitly hosted to be hookable) and the **cardinal rule: when a card doesn't clearly fit the machinery, DEFER it and ASK the user** (who understands the rules/interactions far better than a coding agent). Complements `CARD_IMPLEMENTATION_PLAN.md` (the build plan + status) and `CARD_SYSTEM_DESIGN.md` (the design record). |
 | `CARD_SYSTEM_DESIGN.md` | **The Phase 3 (Cards) design record** — living doc of the decisions for adding the full card system (Revised base + Artifex/Bubulcus/Corbarius/Dulcinaria/Consul Dirigens, 2-player, occupations + minors) plus the open questions. §0 terminology (hook vs trigger vs automatic effect); private hands of 7-each + configurable card pools; `PendingPlayOccupation`/`PendingPlayMinor`; the `PendingActionSpace` hook (before/after phases, `Proceed`, conditional push via the ownership index); the firing architecture (timing ruling, triggers vs automatic effects, Option-A event registration, opponent-action hooks); the scoped used-set reset model (`_enter_phase`/`_advance_current_player`); one-shot conditional latch + cumulative counters; deferred round-space goods, start-of-round phase, harvest-field hook; deferred legality/affordability machinery with the flagged-card list; the occupation + minor implementation groups; the one-engine/additive-hooks performance split; Python-first C++. Read before starting card work. |
@@ -1182,7 +1186,7 @@ AgricolaBot/
 
         opt_config.py               # Runtime toggles for the frontier/accommodation optimizations: PARETO_OPT_LEVEL (0–3, cumulative) and FENCE_SCAN_CACHE (bool). Now default-ON (level 3 + cache); PARETO_OPT_LEVEL=0 + FENCE_SCAN_CACHE=False is the no-op baseline. helpers.py / legality.py read them to dispatch to optimized (caching / algorithmic) paths. See FRONTIER_OPT_DESIGN.md.
 
-        environment.py              # The Environment frozen dataclass — the hidden ground truth + nature policy for one game. Holds the per-game stage-card reveal order (NOT in GameState); exposes resolve(state) (the driver-facing nature seam) and reveal_action(state) -> RevealCard. The dealer in real games; agents and MCTS never see it. Forward-compat home for future private hands / draw deck + the observe(state, env, i) projection (identity today). See HIDDEN_INFO_DESIGN.md §3.4 / §3.6.
+        environment.py              # The Environment frozen dataclass — the hidden ground truth + nature policy for one game. Holds the per-game stage-card reveal order (NOT in GameState); exposes resolve(state) (the driver-facing nature seam) and reveal_action(state) -> RevealCard. The dealer in real games; agents and MCTS never see it. (The once-sketched observe(state, env, i) projection was never built, and private hands ended up on PlayerState, not here — CARD_ENGINE_IMPLEMENTATION.md §4.) See HIDDEN_INFO_DESIGN.md §3.4 / §3.6.
 
         state.py                    # All frozen state dataclasses: Cell, Farmyard (with cached pastures), ActionSpaceState (with revealed: bool common-knowledge flag), PlayerState (incl. `fences_in_supply: int = 15` — the stored fence-supply pile (location 4), distinct from "buildable"; maintained in BOTH modes (decremented per fence build, so it equals 15−built in Family) and NOT a skip-field, so it IS serialized in Family and the C++ PlayerState mirrors it — the one C++ touch of the fence cost slice; COST_MODIFIER_DESIGN.md §9.7), BoardState, GameState — plus get_space / with_space free-function helpers for keyed access to BoardState.action_spaces (a canonical-ordered tuple). The hidden reveal order is NOT on BoardState — it lives in the Environment. The top-level GameState snapshot — every transition produces a new one via fast_replace — is fully hashable, and each hot state dataclass caches its `__hash__` (lazily, pickle-stripped) for the MCTS transposition table (SPEEDUPS.md S5).
 
