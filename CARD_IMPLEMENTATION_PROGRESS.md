@@ -18,11 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 179 implemented · 🚫 2 won't-fix/banned · ⬜ 239 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 1 revisit (unsettled — think harder before implementing).
-
-### ⚠ Revisit — classification unsettled, re-derive the codes before implementing
-
-- **A25 Bassinet** — _Each work phase, you can place a(nother) person on the first non-accumulating action space used by any player (including you), as long as there is only 1 person on that space.  [CLARIFICATION: This refers to 1 specific space, not 1 space for every player’s first non-accumulating action space.  Note that Family Growth usually leaves 2 people on the space.  The relevant space can be provided by another card, such as the one from Forest Tallyman A162.  Meeting Place may never be used a second time, even if it is the relevant space.  《Mark this space with a suggestion/claim marker.》]_ — `PASSIVE CAP-ROUND L-OCCUPY E-EXTRAPLACE ST-STORE ST-PLACELOG REVISIT` — Bassinet: once per work phase, place a(nother) person on the marked first-non-accumulating space if only 1 person is there -- a standing relaxation of the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling), granting an extra placement onto an occupied space.
+**420 minors** — ✅ 179 implemented · 🚫 2 won't-fix/banned · ⬜ 239 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -98,9 +94,9 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A24 Threshing Board** · cost: 1 Wood · prereq: 2 Occupations
   - _Each time you use the "Farmland" or "Cultivation" action space, you get an additional "Bake Bread" action._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — "Each time you use [space]" fires T-BEFORE by explicit ruling (T-AFTER only for 'immediately after'/'at the end of'); the granted Bake Bread sub-action is optional (F-TRIG).
-- ⬜ **A25 Bassinet** ⚠ · cost: 1 Wood,1 Reed
+- ⬜ **A25 Bassinet** · cost: 1 Wood,1 Reed
   - _Each work phase, you can place a(nother) person on the first non-accumulating action space used by any player (including you), as long as there is only 1 person on that space.  [CLARIFICATION: This refers to 1 specific space, not 1 space for every player’s first non-accumulating action space.  Note that Family Growth usually leaves 2 people on the space.  The relevant space can be provided by another card, such as the one from Forest Tallyman A162.  Meeting Place may never be used a second time, even if it is the relevant space.  《Mark this space with a suggestion/claim marker.》]_
-  - `PASSIVE CAP-ROUND L-OCCUPY E-EXTRAPLACE ST-STORE ST-PLACELOG REVISIT` — Bassinet: once per work phase, place a(nother) person on the marked first-non-accumulating space if only 1 person is there -- a standing relaxation of the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling), granting an extra placement onto an occupied space.
+  - `PASSIVE CAP-ROUND L-OCCUPY E-EXTRAPLACE ST-STORE ST-PLACELOG` — Bassinet: once per work phase, place a(nother) person on the marked first-non-accumulating space if only 1 person is there -- a standing relaxation of the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling), granting an extra placement onto an occupied space.
 - ✅ **A26 Sleeping Corner** · cost: 1 Wood · prereq: 2 Grain Fields
   - _You can use any "Wish for Children" action space even if it is occupied by one other player's person.  [CLARIFICATION: But not if occupied by 2+ other player’s people.]_
   - `PASSIVE L-OCCUPY` — Always-on continuous rule change letting you use an occupied Wish for Children space (PASSIVE + L-OCCUPY). No firing event, no goods.
@@ -1357,7 +1353,6 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - `NONE` (9): A57, B37, B52, B71, B73, C32, D37, E29, E65
 - `ONPLAY` (154): A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A13, A16, A19, A20, A22, A27, A33, A36, A40, A44, A47, A54, A57, A69, A77, B1, B2, B3, B4, B5, B6, B7, B8, B9, B14, B16, B18, B19, B20, B21, B22, B23, B24, B25, B33, B36, B37, B41, B44, B45, B46, B48, B52, B54, B55, B58, B59, B65, B66, B71, B73, B74, B76, B78, B83, B84, C1, C2, C3, C4, C5, C6, C7, C8, C9, C16, C17, C19, C22, C26, C32, C38, C40, C44, C47, C50, C57, C60, C65, C72, C74, C77, C78, C79, C81, C83, D1, D2, D3, D4, D5, D6, D7, D8, D9, D22, D25, D37, D40, D41, D43, D44, D45, D47, D50, D57, D60, D62, D67, D69, D78, D82, D84, E1, E2, E3, E4, E5, E6, E7, E8, E9, E22, E25, E28, E29, E37, E40, E41, E42, E43, E44, E45, E46, E56, E60, E63, E64, E65, E74, E76, E78, E82
 - `PASSIVE` (70): A10, A11, A12, A14, A16, A25, A26, A28, A31, A32, A38, A75, B10, B11, B12, B13, B24, B30, B31, B33, B38, B68, B72, C10, C11, C12, C14, C23, C27, C30, C31, C33, C35, C37, C56, C70, D11, D12, D15, D23, D24, D26, D29, D30, D31, D32, D33, D34, D50, D75, D82, E11, E12, E16, E17, E21, E30, E32, E33, E34, E35, E36, E37, E60, E63, E64, E69, E72, E74, E84
-- `REVISIT` (1): A25
 - `S-AFTERFEED` (2): C41, D76
 - `S-HBREED` (6): B11, B82, C34, C66, C71, E83
 - `S-HFEED` (11): A62, C49, C55, C59, C62, C63, D12, D62, D84, E48, E52
@@ -1384,12 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 86 implemented · 🚫 1 won't-fix/banned · ⬜ 333 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 2 revisit (unsettled — think harder before implementing).
-
-### ⚠ Revisit — classification unsettled, re-derive the codes before implementing
-
-- **A130 Mummy's Boy** — _Once per round, when placing a person after your first two, you can place it on the action space with your 2nd person and use that space again. (Mark the action space)._ — `PASSIVE CAP-ROUND L-OCCUPY E-GRANTACT ST-PLACELOG REVISIT` — Mummy's Boy: once per round, place your 3rd+ person on your 2nd person's space and use it again -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); reusing that space's action = E-GRANTACT.
-- **C150 Parrot Breeder** — _On your turn, if you pay 1 grain to the general supply, you can use the same action space that the player to your right has just used on their turn.  [CLARIFICATION: You may not use this ability to use an empty accumulation space.]_ — `PASSIVE L-OCCUPY E-GRANTACT ST-PLACELOG REVISIT` — Parrot Breeder: pay 1 grain to use the space your right-hand neighbor just used -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); grain is an ordinary cost (no E-CONVERT/E-GOODS).
+**420 occupations** — ✅ 86 implemented · 🚫 1 won't-fix/banned · ⬜ 333 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1528,9 +1518,9 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A129 Swagman** · [3+]
   - _Immediately after each time you use the "Farm Expansion" or "Grain Seeds" action space, you can use the respective other space with the same person (even if it is occupied).  [ERRATA: ERRATA: The “jump” to a second action space may only be done once per turn.]  [CLARIFICATION: The person ends on the second action space used.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN CAP-TURN E-GRANTACT E-WORKERMANIP L-OCCUPY ST-PLACELOG` — 'Immediately after' own-space hook granting the paired space's whole action (E-GRANTACT) by moving the same person there — the canonical 'use two spaces with one person' E-WORKERMANIP, not E-NOPLACE (the action is taken by the placed person); errata caps it per turn; needs which space the person is on (ST-PLACELOG) and occupied-space legality (L-OCCUPY).
-- ⬜ **A130 Mummy's Boy** · [3+] ⚠
+- ⬜ **A130 Mummy's Boy** · [3+]
   - _Once per round, when placing a person after your first two, you can place it on the action space with your 2nd person and use that space again. (Mark the action space)._
-  - `PASSIVE CAP-ROUND L-OCCUPY E-GRANTACT ST-PLACELOG REVISIT` — Mummy's Boy: once per round, place your 3rd+ person on your 2nd person's space and use it again -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); reusing that space's action = E-GRANTACT.
+  - `PASSIVE CAP-ROUND L-OCCUPY E-GRANTACT ST-PLACELOG` — Mummy's Boy: once per round, place your 3rd+ person on your 2nd person's space and use it again -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); reusing that space's action = E-GRANTACT.
 - ⬜ **A131 Craft Teacher** · [3+]
   - _Each time after you build the major improvement "Joinery", "Pottery", and "Basketmaker's Workshop", you can play up to 2 occupations without paying an occupation cost.  [CLARIFICATION: This card triggers every time you build one of the mentioned major improvements in any way.]_
   - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB E-COSTMOD ST-PROV` — Fires after the build-improvement primitive 'in any way' (S-SUB per the clarification), granting the optional play-a-card sub-action for up to 2 occupations (E-GRANTSUB) with the occupation cost waived (E-COSTMOD); the generic build event must carry WHICH major was built to gate on the three named ones (ST-PROV).
@@ -2098,9 +2088,9 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C149 Resource Recycler** · [4+]
   - _Each time another player renovates to stone, if you live in a clay house, you can pay 2 food to build a clay room at no additional cost.  [CLARIFICATION: If another player renovates from wood to stone, this card’s effect is still triggered.]_
   - `HOOK T-BEFORE S-SUB F-TRIG A-OPP E-FOODCOST E-GRANTSUB E-COSTMOD ST-PROV` — Optional grant of a build-room sub-action (E-GRANTSUB) at a replaced 2-food cost (E-COSTMOD + E-FOODCOST) each time another player renovates. 'Each time ... renovates' defaults to T-BEFORE (target is declared before the effect); the 'to stone' condition needs the renovation's target = event payload -> ST-PROV.
-- ⬜ **C150 Parrot Breeder** · [4+] ⚠
+- ⬜ **C150 Parrot Breeder** · [4+]
   - _On your turn, if you pay 1 grain to the general supply, you can use the same action space that the player to your right has just used on their turn.  [CLARIFICATION: You may not use this ability to use an empty accumulation space.]_
-  - `PASSIVE L-OCCUPY E-GRANTACT ST-PLACELOG REVISIT` — Parrot Breeder: pay 1 grain to use the space your right-hand neighbor just used -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); grain is an ordinary cost (no E-CONVERT/E-GOODS).
+  - `PASSIVE L-OCCUPY E-GRANTACT ST-PLACELOG` — Parrot Breeder: pay 1 grain to use the space your right-hand neighbor just used -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); grain is an ordinary cost (no E-CONVERT/E-GOODS).
 - ⬜ **C151 Sowing Director** · [4+]
   - _Each time after another player uses the "Grain Utilization" action space, you get a "Sow" action._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OPP E-GRANTSUB` — After another player uses Grain Utilization -> you get a Sow action (granted sub-action, optional).
@@ -2720,7 +2710,6 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - `NONE` (6): A117, A125, B105, C161, D145, E157
 - `ONPLAY` (113): A86, A89, A96, A102, A112, A117, A121, A125, A134, A135, A136, A139, A144, A165, B88, B89, B93, B96, B102, B103, B105, B113, B116, B117, B119, B123, B125, B127, B136, B137, B138, B141, B148, B149, B151, B155, B160, B164, B167, C86, C89, C95, C98, C106, C107, C108, C113, C116, C118, C119, C120, C121, C127, C135, C136, C139, C140, C143, C144, C146, C155, C156, C161, C165, C166, D88, D91, D95, D96, D97, D109, D114, D117, D118, D120, D122, D126, D131, D135, D136, D141, D145, D156, D162, D163, D167, E94, E95, E96, E97, E98, E101, E103, E104, E105, E106, E116, E119, E120, E123, E124, E125, E127, E135, E136, E138, E139, E145, E148, E155, E157, E165, E167
 - `PASSIVE` (58): A85, A86, A87, A88, A98, A99, A101, A127, A130, A133, A143, A148, B85, B86, B95, B98, B100, B115, B126, B129, B148, B151, B153, C86, C88, C89, C100, C122, C128, C129, C133, C134, C150, C162, D85, D86, D88, D100, D116, D117, D121, D127, D131, D148, D154, E85, E86, E91, E92, E101, E109, E123, E124, E129, E150, E151, E159, E161
-- `REVISIT` (2): A130, C150
 - `S-AFTERFEED` (1): C113
 - `S-BEFORESCORE` (4): B133, C99, D99, D132
 - `S-HBREED` (7): A145, C124, D115, E90, E99, E133, E134

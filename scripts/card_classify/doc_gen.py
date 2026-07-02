@@ -105,15 +105,14 @@ RESIDUAL_FIX = {
              "Build a 2-space pasture from 3 returned stables -- ordinary fencing, no geometry code needed (confirmed)."),
     "A85": (["PASSIVE", "E-CAPNEW", "E-PEOPLE", "L-GEOMFARM"],
             "A clay/stone room adjacent to both a field and a pasture holds an extra person -> new person-holder (E-CAPNEW, its taxonomy exemplar) + person-capacity change (E-PEOPLE); farm-tile adjacency = L-GEOMFARM (user ruling; E-CAPGROW is animal-slot-only)."),
-    # Low-confidence residuals settled by the user (2026-07). The occupied-space-placement trio (A25/A130/C150)
-    # are relaxations of the "can't place on an occupied space" rule, exercised WHEN YOU PLACE A WORKER (a standing
-    # option, PASSIVE), NOT deferrable at-will actions -> ATWILL dropped. Kept REVISIT: the exact effect codes for
-    # "relaxed occupied-space placement" are still a judgment call worth re-deriving at implementation time.
-    "A25": (["PASSIVE", "CAP-ROUND", "L-OCCUPY", "E-EXTRAPLACE", "ST-STORE", "ST-PLACELOG", "REVISIT"],
+    # Occupied-space-placement trio (A25/A130/C150), settled by the user (2026-07): relaxations of the
+    # "can't place on an occupied space" rule, exercised WHEN YOU PLACE A WORKER (a standing option, PASSIVE),
+    # NOT deferrable at-will actions -> ATWILL dropped.
+    "A25": (["PASSIVE", "CAP-ROUND", "L-OCCUPY", "E-EXTRAPLACE", "ST-STORE", "ST-PLACELOG"],
             "Bassinet: once per work phase, place a(nother) person on the marked first-non-accumulating space if only 1 person is there -- a standing relaxation of the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling), granting an extra placement onto an occupied space."),
-    "A130": (["PASSIVE", "CAP-ROUND", "L-OCCUPY", "E-GRANTACT", "ST-PLACELOG", "REVISIT"],
+    "A130": (["PASSIVE", "CAP-ROUND", "L-OCCUPY", "E-GRANTACT", "ST-PLACELOG"],
              "Mummy's Boy: once per round, place your 3rd+ person on your 2nd person's space and use it again -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); reusing that space's action = E-GRANTACT."),
-    "C150": (["PASSIVE", "L-OCCUPY", "E-GRANTACT", "ST-PLACELOG", "REVISIT"],
+    "C150": (["PASSIVE", "L-OCCUPY", "E-GRANTACT", "ST-PLACELOG"],
              "Parrot Breeder: pay 1 grain to use the space your right-hand neighbor just used -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); grain is an ordinary cost (no E-CONVERT/E-GOODS)."),
     "A39": (["HOOK", "T-BEFORE", "S-SPACE", "F-AUTO", "A-OWN", "A-OPP", "L-CARDSPACE", "E-SCORE", "E-OPPTRANSFER", "ST-COUNTER"],
             "Chapel: card is an action space; user gets 3 VP (accrued -> ST-COUNTER), opponents pay you 1 grain first (E-OPPTRANSFER). Confirmed by user."),
