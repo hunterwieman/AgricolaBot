@@ -20,17 +20,38 @@ def _scoring_ids() -> set[str]:
 
 
 def test_scoring_cards_are_classified():
-    """Every registered scoring card is classified as exactly one of history-VP
-    (reads card_state → emblem) or public-VP (reads the board → no emblem). A new
-    scoring card that isn't added to one set fails here."""
-    hist, pub = d.HISTORY_VP_CARDS, d.PUBLIC_VP_CARDS
-    assert not (hist & pub), f"cards in BOTH sets: {sorted(hist & pub)}"
-    classified = hist | pub
+    """Every registered scoring card is classified as exactly one of: emblem
+    (history-VP, reads card_state → "+X vp"), public-VP (reads the board → nothing),
+    or private-history (history-VP shown as an owner-only badge instead of an emblem,
+    to avoid leaking — Butler). A new scoring card left unclassified fails here."""
+    hist, pub, priv = (
+        d.HISTORY_VP_CARDS, d.PUBLIC_VP_CARDS, d.PRIVATE_HISTORY_CARDS,
+    )
+    sets = {"HISTORY_VP_CARDS": hist, "PUBLIC_VP_CARDS": pub, "PRIVATE_HISTORY_CARDS": priv}
+    for a in sets:
+        for b in sets:
+            if a < b:
+                assert not (sets[a] & sets[b]), f"{a} & {b}: {sorted(sets[a] & sets[b])}"
+    classified = hist | pub | priv
     scoring = _scoring_ids()
     unclassified = scoring - classified
     stale = classified - scoring
     assert not unclassified, f"scoring cards missing a display classification: {sorted(unclassified)}"
     assert not stale, f"classified ids that are not registered scoring cards: {sorted(stale)}"
+
+
+def test_butler_shows_play_round_privately_not_an_emblem():
+    s = setup(0)
+    p = s.players[0]
+    # Butler gets NO emblem (would leak the gate to the opponent).
+    assert d.bonus_vps("butler", s, 0) is None
+    # Its badge is PRIVATE (owner-only), never public.
+    p = fast_replace(p, card_state=p.card_state.set("butler", 9))
+    assert d.state_text("butler", p) is None
+    assert d.private_state_text("butler", p) == "Played round 9"
+    # Played too late → the bonus can never trigger; say so.
+    p = fast_replace(p, card_state=p.card_state.set("butler", 13))
+    assert d.private_state_text("butler", p) == "Played round 13 — bonus forfeited"
 
 
 def test_bonus_vps_history_vs_public():

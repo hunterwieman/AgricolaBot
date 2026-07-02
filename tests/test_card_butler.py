@@ -77,14 +77,14 @@ def _play_butler_via_lessons(seed):
     return cs, cp
 
 
-def test_butler_snapshots_gate_in_when_played_round_1():
+def test_butler_snapshots_play_round_when_played_round_1():
     cs, cp = _play_butler_via_lessons(5)
     assert cs.round_number == 1
-    assert cs.players[cp].card_state.get(CARD_ID) == 1   # gated in (round ≤ 11)
+    assert cs.players[cp].card_state.get(CARD_ID) == 1   # the play round is stored
     assert "butler" in cs.players[cp].occupations
 
 
-def test_butler_snapshots_gate_in_at_round_11_boundary():
+def test_butler_snapshots_play_round_at_round_11_boundary():
     cs, _env = setup_env(5, card_pool=_POOL)
     cp = cs.current_player
     cs = _set_round(cs, 11)
@@ -93,10 +93,10 @@ def test_butler_snapshots_gate_in_at_round_11_boundary():
     cs = step(cs, PlaceWorker(space="lessons"))
     cs = step(cs, ChooseSubAction(name="play_occupation"))
     cs = step(cs, CommitPlayOccupation(card_id="butler"))
-    assert cs.players[cp].card_state.get(CARD_ID) == 1   # round 11 still gates in
+    assert cs.players[cp].card_state.get(CARD_ID) == 11  # round 11 stored; still gates in
 
 
-def test_butler_snapshots_gate_out_at_round_12():
+def test_butler_snapshots_play_round_at_round_12():
     cs, _env = setup_env(5, card_pool=_POOL)
     cp = cs.current_player
     cs = _set_round(cs, 12)
@@ -105,7 +105,7 @@ def test_butler_snapshots_gate_out_at_round_12():
     cs = step(cs, PlaceWorker(space="lessons"))
     cs = step(cs, ChooseSubAction(name="play_occupation"))
     cs = step(cs, CommitPlayOccupation(card_id="butler"))
-    assert cs.players[cp].card_state.get(CARD_ID) == 0   # round 12 → never eligible
+    assert cs.players[cp].card_state.get(CARD_ID) == 12  # round 12 stored → gated out in _score
 
 
 # ---------------------------------------------------------------------------
@@ -153,10 +153,10 @@ def test_butler_scores_0_when_more_people_than_rooms():
 
 
 def test_butler_scores_0_when_gated_out_even_with_more_rooms():
-    """Even with the rooms>people condition met, a round-12 play (gate 0) scores 0."""
+    """Even with the rooms>people condition met, a round-12 play (> 11) scores 0."""
     s = setup(0)
     s = _own_butler(s, 0)
-    s = _set_card_state(s, 0, CardStore().set(CARD_ID, 0))   # gated OUT
+    s = _set_card_state(s, 0, CardStore().set(CARD_ID, 12))  # played round 12 → gated OUT
     s = _set_people(s, 0, 2)
     s = _set_rooms(s, 0, [(0, 0), (0, 1), (0, 2)])           # 3 rooms > 2 people
     _t, bd = score(s, 0)

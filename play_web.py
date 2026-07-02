@@ -795,16 +795,21 @@ def _card_info(card_id: str) -> dict:
     return {"id": card_id, **_CARD_META.get(card_id, fallback)}
 
 
-def _played_card_info(state: GameState, idx: int, card_id: str) -> dict:
+def _played_card_info(state: GameState, idx: int, card_id: str,
+                      reveal: bool = False) -> dict:
     """`_card_info` plus this card's live per-player state for player `idx`:
     a `bonus_vps` (history-derived "+X vp" emblem) and/or a `state_text` (a
-    resource/counter badge). Both are public info; only attached when present.
-    See `agricola.cards.display`."""
+    resource/counter badge) — both PUBLIC, attached for either seat. When `reveal`
+    (this is the owner's own view, same rule as a hand), also attach an owner-only
+    `state_text` for cards whose live value would leak a hidden fact to the opponent
+    (Butler's play-round). See `agricola.cards.display`."""
     info = _card_info(card_id)
     bv = card_display.bonus_vps(card_id, state, idx)
     if bv is not None:
         info["bonus_vps"] = bv
     st = card_display.state_text(card_id, state.players[idx])
+    if reveal and st is None:
+        st = card_display.private_state_text(card_id, state.players[idx])
     if st:
         info["state_text"] = st
     return info
@@ -1101,8 +1106,8 @@ def _player_to_dict(state: GameState, idx: int, decider: int,
         # so each is sent as a card-info dict regardless of `reveal_hand`. Empty in
         # the Family game. `played_occupations` is new (occupations were previously
         # not surfaced at all, so they vanished once played).
-        "played_occupations": [_played_card_info(state, idx, cid) for cid in sorted(p.occupations)],
-        "played_minors": [_played_card_info(state, idx, cid) for cid in sorted(p.minor_improvements)],
+        "played_occupations": [_played_card_info(state, idx, cid, reveal_hand) for cid in sorted(p.occupations)],
+        "played_minors": [_played_card_info(state, idx, cid, reveal_hand) for cid in sorted(p.minor_improvements)],
         "farmyard": _farmyard_to_dict(p.farmyard),
         # Hand sizes are common knowledge (empty in Family mode); the hand
         # CONTENTS are private and only revealed for a human seat.

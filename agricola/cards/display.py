@@ -38,11 +38,19 @@ from agricola.scoring import SCORING_TERMS
 # sets partition every registered scoring term, so adding a new scoring card without
 # classifying it FAILS the suite rather than silently going emblem-less.
 HISTORY_VP_CARDS: frozenset[str] = frozenset({
-    "baking_sheet", "beer_keg", "beer_stein", "big_country", "bucksaw", "butler",
+    "baking_sheet", "beer_keg", "beer_stein", "big_country", "bucksaw",
     "clay_deposit", "cube_cutter", "elephantgrass_plant", "furniture_carpenter",
     "home_brewer", "loppers", "mantlepiece", "rustic", "truffle_slicer", "tutor",
     "wood_rake",
 })
+
+# History-derived scoring cards that DON'T take the emblem, because the live
+# points-if-scored-now would leak a hidden fact. Butler is the sole case: it scores
+# 4 iff (played by round 11) AND (rooms > people now); a "+4/+0" emblem would reveal
+# the play-round gate to the OPPONENT in any state where rooms currently exceed
+# people. Instead the owner sees the round it was played (the actually-useful fact),
+# owner-only — see `_PRIVATE_STATE_FORMATTERS`.
+PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler"})
 
 # Scoring cards whose points ARE derivable from the current public board (animals,
 # rooms, fields, resources, majors) — the player reads them straight off the board,
@@ -108,6 +116,32 @@ _STATE_FORMATTERS = {
 
 
 def state_text(card_id: str, player_state) -> str | None:
-    """A plain-text live-state badge for a resource/counter card, or None."""
+    """A PUBLIC live-state badge for a resource/counter card, or None. Shown to both
+    seats (goods on a card / field tiles on a card are visible to everyone)."""
     fn = _STATE_FORMATTERS.get(card_id)
+    return fn(player_state) if fn is not None else None
+
+
+# --- Owner-only badges (a hidden fact the owner may have forgotten) ---------------
+
+
+def _butler(ps) -> str | None:
+    n = ps.card_state.get("butler")
+    if not n:  # not yet played
+        return None
+    if n > 11:  # played too late — the 4-point bonus can never trigger
+        return f"Played round {n} — bonus forfeited"
+    return f"Played round {n}"
+
+
+_PRIVATE_STATE_FORMATTERS = {
+    "butler": _butler,
+}
+
+
+def private_state_text(card_id: str, player_state) -> str | None:
+    """A PRIVATE live-state badge shown ONLY on the owner's own view (same reveal
+    rule as a hand). Used where the live value is a hidden fact that a "+X vp" emblem
+    would leak to the opponent — Butler's play-round. Or None."""
+    fn = _PRIVATE_STATE_FORMATTERS.get(card_id)
     return fn(player_state) if fn is not None else None
