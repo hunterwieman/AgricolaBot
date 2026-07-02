@@ -24,7 +24,7 @@ pending frames, the decider rule, `_advance_until_decision`, enumerators, effect
 commit dispatch table — and describes only the delta.
 
 Contents:
-0. Orientation — what cards add, and the byte-identity invariant
+0. Orientation — what cards add; the Family/C++ lockstep invariant
 1. Status (updated per batch — the maintenance contract)
 2. Hosts & firing — how card effects attach to engine events
 3. The registries — every `register_*` seam
@@ -56,13 +56,18 @@ import of `agricola.cards` (one module per card under `agricola/cards/`). The en
 registries at fixed seams — the **hooks** (§2). No card has bespoke engine code; a card that
 doesn't fit the existing seams is *deferred*, not hacked in (§6, §8).
 
-### The organizing principle: Family byte-identity
+### The goal, and the invariant maintained alongside it
 
-Every card mechanism is additive behind a seam that the Family game skips at O(1) cost. This is
-the single invariant that shapes the whole design, because the Family game is the AI-training
-environment (CLAUDE.md Phase 2) and has a native C++ twin validated byte-for-byte against Python
-(`tests/test_cpp_*.py`). A Family game must produce **byte-identical states and traces** whether
-or not the card code exists. Four mechanisms enforce it:
+**The #1 goal of card work is a correct, working card game.** Running alongside it is an
+invariant to *maintain* — not a goal that outranks the card design: the Family game is the
+AI-training environment (CLAUDE.md Phase 2) with a native C++ twin validated against Python by
+the differential gates (`tests/test_cpp_*.py`), so **the Family game and the C++ engine must
+stay in lockstep** — Python is the oracle, and the gates stay green. Card work satisfies that
+in two sanctioned ways:
+
+**The default route: additive seams the Family game skips at O(1).** Most card machinery is
+built so a Family game is **byte-identical** with or without the card code existing — no C++
+change, no NN-encoder impact, nothing to re-validate. Four mechanisms deliver that:
 
 - **Empty registries.** A registry consulted with no entries is a no-op (`AUTO_EFFECTS.get(event)`
   on an empty dict, an empty fold over `REDUCTIONS`, …). The Family game plays no cards, so every
@@ -79,13 +84,19 @@ or not the card code exists. Four mechanisms enforce it:
   Meeting Place, the fence-payment model), the code branches on `state.mode` — never inferred
   from empty hands. Family is a configured variant, not a degenerate card game.
 
-The C++ engine implements the **Family game only** — it has no card content, and its `FireTrigger`
-path throws. But every *Family-shape* refactor the card work forced (the host/Proceed lifecycle,
-`CommitRenovate.to_material` + wide-commit `payment`, non-auto-popping markets, the fence
-before/after phase, stored `fences_in_supply`) **is ported and gated**, which is exactly what the
-differential harness verifies. Consequence for card work: a change that alters the Family JSON or
-a Family trace breaks the gates and is wrong by definition; a card-only change must keep
-`pytest tests/test_cpp_*.py` green *untouched*.
+**The other route: change the Family shape and re-port.** When the right card design wants a
+Family-visible change, the Family engine is changed on its merits and the change is re-ported to
+`cpp/` so the gates stay green. This has happened repeatedly and is normal — the host/Proceed
+lifecycle, `CommitRenovate.to_material` + the wide-commit `payment`, the non-auto-popping
+markets, the fence before/after phase, and the stored `fences_in_supply` are all Family-shape
+changes the card work made and ported. (Port cost never constrains the Python design; the
+invariant forbids *silent divergence*, not change.)
+
+The C++ engine implements the **Family game only** — it has no card content, and its
+`FireTrigger` path throws. Practical consequence per change: a **card-only** change must keep
+`pytest tests/test_cpp_*.py` green *untouched*; a **Family-shape** change must be re-ported to
+`cpp/` before those gates are green again — and until it is, the C++ path is stale and must be
+flagged as such.
 
 ### Scope
 
