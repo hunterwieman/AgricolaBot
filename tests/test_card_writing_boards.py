@@ -3,7 +3,8 @@ import agricola.cards.writing_boards  # noqa: F401
 """Tests for Writing Boards (minor improvement, C #4; Corbarius Expansion).
 
 Card text: "You immediately get 1 wood for each occupation you have in front of
-you." Cost 1 food, kept (not passing). The grant equals the player's current
+you." Cost 1 food, PASSING (traveling minor -- circulates to the opponent's hand
+after the on-play effect). The grant equals the player's current
 occupation count at play time — 0 wood with no occupations, no self-counting
 (playing a minor never touches `occupations`).
 
@@ -59,7 +60,7 @@ def test_writing_boards_registered():
     assert CARD_ID in MINORS
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost(resources=Resources(food=1))
-    assert spec.passing_left is False          # kept in tableau
+    assert spec.passing_left is True           # traveling minor (passing_left='X')
     assert spec.vps == 0
     assert spec.prereq is None                 # no prerequisite
     assert spec.min_occupations == 0 and spec.max_occupations is None
@@ -77,7 +78,7 @@ def test_play_grants_one_wood_per_occupation():
     p = cs.players[cp]
     assert p.resources.wood == wood0 + 3       # +1 wood per occupation
     assert p.resources.food == 0               # paid 1 food
-    assert CARD_ID in p.minor_improvements      # kept (not passing)
+    assert CARD_ID not in p.minor_improvements  # passing -> not kept
     assert CARD_ID not in p.hand_minors         # left hand
 
 
@@ -99,14 +100,14 @@ def test_play_one_occupation_grants_one_wood():
     assert cs.players[cp].resources.wood == wood0 + 1
 
 
-def test_kept_not_passed_to_opponent():
+def test_passes_to_opponent():
     cs, cp = _card_state(occ=frozenset({"a"}))
     opp = 1 - cp
     cs = _push_minor(cs, cp)
     cs = step(cs, sole_play_minor(cs, CARD_ID))
-    # Not passing: stays in own tableau, does NOT circulate to the opponent.
-    assert CARD_ID in cs.players[cp].minor_improvements
-    assert CARD_ID not in cs.players[opp].hand_minors
+    # Passing: never enters the tableau; circulates to the opponent's hand.
+    assert CARD_ID not in cs.players[cp].minor_improvements
+    assert CARD_ID in cs.players[opp].hand_minors
 
 
 # ---------------------------------------------------------------------------

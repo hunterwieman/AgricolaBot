@@ -1,7 +1,7 @@
 """Tests for Petrified Wood (minor improvement, D6; Dulcinaria Expansion).
 
 Card text: "Immediately exchange up to 3 wood for 1 stone each." Cost: none;
-prereq "2 Occupations"; not passing. On play it offers an amount choice (0..3,
+prereq "2 Occupations"; PASSING (traveling minor). On play it offers an amount choice (0..3,
 capped at wood on hand) and trades that many wood for the same number of stone
 (strict 1:1); 0 is a valid choice (the player may decline entirely).
 """
@@ -63,7 +63,7 @@ def test_registered():
     assert spec.max_occupations is None
     assert spec.cost.resources == Resources()        # no cost
     assert spec.cost.animals == Animals()             # no animal cost
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.vps == 0
     assert "petrified_wood" in CARD_CHOICE_RESOLVERS
 
@@ -134,7 +134,7 @@ def test_exchange_two_wood_for_two_stone():
     assert legal_actions(cs) == [Stop()]
 
 
-def test_kept_in_tableau_not_passed():
+def test_passes_to_opponent():
     cs, cp = _state(
         cp_minors=frozenset({"petrified_wood"}),
         cp_occ=frozenset({"a", "b"}),
@@ -144,9 +144,10 @@ def test_kept_in_tableau_not_passed():
     cs = _play(cs, cp)
     cs = step(cs, CommitCardChoice(index=1))
     p = cs.players[cp]
-    assert "petrified_wood" in p.minor_improvements     # kept (not passing)
-    assert "petrified_wood" not in p.hand_minors        # left the hand
-    assert "petrified_wood" not in cs.players[opp].hand_minors  # not circulated
+    assert "petrified_wood" not in p.minor_improvements  # passing -> not kept
+    assert "petrified_wood" not in p.hand_minors         # left the hand
+    assert "petrified_wood" in cs.players[opp].hand_minors  # circulated to opponent
+    # The choice frame resolved for the PLAYER (the hand-transfer precedes on_play).
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +202,7 @@ def test_choosing_zero_declines():
     p = cs.players[cp]
     assert p.resources.wood == wood0                    # unchanged
     assert p.resources.stone == stone0                  # unchanged
-    assert "petrified_wood" in p.minor_improvements     # still played/kept
+    assert "petrified_wood" not in p.minor_improvements  # passing -> not kept (still played)
 
 
 def test_exchange_full_three():

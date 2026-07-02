@@ -3,7 +3,9 @@
 Card text: "You immediately get 1 clay for each planted field you have."
 Prerequisite: 1 planted field. Cost: 1 Food. Printed 0 VP.
 
-Category: on-play one-shot (kept, not passing). When played, count the player's
+Category: on-play one-shot, PASSING (traveling minor — `passing_left='X'` in the
+catalog: after the on-play effect the card moves to the opponent's hand). When
+played, count the player's
 PLANTED fields — FIELD cells holding at least one crop (grain or veg) — and grant
 that many clay immediately. A freshly-plowed-but-unsown FIELD does NOT count (it is
 not planted), so counting all FIELD cells would over-grant; the predicate matches a
@@ -11,7 +13,7 @@ field with a crop on it (grain > 0 or veg > 0), the same "planted = sown" readin
 used by Ash Trees.
 
 The prerequisite (1 planted field) guarantees the count is >= 1, so the grant is
-always >= 1 clay. No CardStore, no triggers, no passing.
+always >= 1 clay. No CardStore, no triggers.
 """
 from __future__ import annotations
 
@@ -53,5 +55,6 @@ register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(food=1)),
     prereq=_prereq_one_planted_field,
+    passing_left=True,
     on_play=_on_play,
 )

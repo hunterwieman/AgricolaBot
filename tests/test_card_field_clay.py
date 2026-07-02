@@ -1,7 +1,7 @@
 """Tests for Field Clay (minor improvement, D5; Dulcinaria Expansion).
 
 Card text: "You immediately get 1 clay for each planted field you have."
-Cost: 1 Food. Prerequisite: 1 planted field. VPs: none. Not passing.
+Cost: 1 Food. Prerequisite: 1 planted field. VPs: none. PASSING (traveling minor).
 
 On-play one-shot resource provider: grants 1 clay per PLANTED field (a FIELD cell
 holding a crop — grain or veg). A freshly-plowed-but-unsown FIELD does not count.
@@ -47,7 +47,7 @@ def test_field_clay_registered():
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost(resources=Resources(food=1))
     assert spec.vps == 0
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.min_occupations == 0           # the prereq is the custom predicate only
     assert spec.prereq is not None
 
@@ -134,6 +134,7 @@ def test_field_clay_played_via_engine_grants_clay():
     cs = step(cs, ChooseSubAction(name="play_minor"))
     cs = step(cs, sole_play_minor(cs, CARD_ID))
 
-    assert CARD_ID in cs.players[cp].minor_improvements
+    assert CARD_ID not in cs.players[cp].minor_improvements  # passing -> not kept
+    assert CARD_ID in cs.players[1 - cp].hand_minors          # circulated to opponent
     assert _clay(cs, cp) == clay_before + 3    # 3 planted fields → +3 clay
     assert cs.players[cp].resources.food == food_before - 1   # 1-food cost paid

@@ -4,7 +4,9 @@ Card text: "You immediately get 1 clay for each clay room and for each major
 improvement you have."
 
 Category 2 (on-play one-shot). Cost 1 food, no prerequisite, no printed VPs,
-NOT passing. At play time, the player gains clay equal to:
+PASSING (traveling minor — `passing_left='X'` in the catalog: after the on-play
+effect the card moves to the opponent's hand). At play time, the player gains
+clay equal to:
   - the number of CLAY rooms they have (rooms count only if the house is
     currently a CLAY house — a stone house has zero clay rooms, mirroring the
     scoring idiom in scoring.py), PLUS
@@ -55,5 +57,6 @@ def _on_play(state: GameState, idx: int) -> GameState:
 register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(food=1)),
+    passing_left=True,
     on_play=_on_play,
 )

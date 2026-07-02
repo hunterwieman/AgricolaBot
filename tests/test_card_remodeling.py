@@ -3,7 +3,7 @@ import agricola.cards.remodeling  # noqa: F401
 """Tests for Remodeling (minor improvement, C5).
 
 Card text: "You immediately get 1 clay for each clay room and for each major
-improvement you have." Cost 1 food, no prereq, no VPs, NOT passing.
+improvement you have." Cost 1 food, no prereq, no VPs, PASSING (traveling minor).
 
 The on-play gain = (clay rooms) + (majors owned), where clay rooms are only
 counted when the house is currently CLAY (mirroring the scoring idiom). The
@@ -34,10 +34,10 @@ def _on_play(state, idx):
 # Registration / spec
 # ---------------------------------------------------------------------------
 
-def test_remodeling_registered_with_food_cost_not_passing():
+def test_remodeling_registered_with_food_cost_passing():
     spec = MINORS["remodeling"]
     assert spec.cost == Cost(resources=Resources(food=1))
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.vps == 0
     assert spec.prereq is None
     assert spec.on_play is not None
@@ -128,7 +128,7 @@ def _reveal_improvement_space(state):
     return fast_replace(state, board=with_space(state.board, "major_improvement", sp))
 
 
-def test_remodeling_played_via_major_improvement_kept_not_passed():
+def test_remodeling_played_via_major_improvement_passes_to_opponent():
     cs, _env = setup_env(5, card_pool=_POOL)
     cs = _reveal_improvement_space(cs)
     cp = cs.current_player
@@ -146,6 +146,6 @@ def test_remodeling_played_via_major_improvement_kept_not_passed():
     # CLAY house, 2 rooms, no majors -> +2 clay; food paid (1 -> 0).
     assert cs.players[cp].resources.clay == 2
     assert cs.players[cp].resources.food == 0
-    # NOT passing: stays in the player's tableau, not in the opponent's hand.
-    assert "remodeling" in cs.players[cp].minor_improvements
-    assert "remodeling" not in cs.players[1 - cp].hand_minors
+    # Passing: never enters the tableau; circulates to the opponent's hand.
+    assert "remodeling" not in cs.players[cp].minor_improvements
+    assert "remodeling" in cs.players[1 - cp].hand_minors

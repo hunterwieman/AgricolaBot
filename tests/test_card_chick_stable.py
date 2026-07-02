@@ -2,7 +2,8 @@
 
 Card text: "Add 3 and 4 to the current round and place 2 food on each corresponding
 round space. At the start of these rounds, you get the food."
-Cost: 1 Wood, 1 Clay. No prerequisite. VPs: 0. Not passing.
+Cost: "1 Wood/1 Clay" — an ALTERNATIVE cost: pay exactly ONE of 1 wood or 1 clay
+(the "/" is never a sum; alt_costs pattern). No prerequisite. VPs: 0. Not passing.
 
 Category-8 deferred-goods minor: on play it schedules 2 food onto the round spaces
 R+3 and R+4 of `future_resources`, collected at the start of those rounds. Mirrors
@@ -40,7 +41,9 @@ def _food(state, idx):
 def test_chick_stable_registered():
     assert "chick_stable" in MINORS
     spec = MINORS["chick_stable"]
-    assert spec.cost == Cost(resources=Resources(wood=1, clay=1))
+    # "1 Wood/1 Clay" = pay exactly ONE alternative, never both.
+    assert spec.cost == Cost(resources=Resources(wood=1))
+    assert spec.alt_costs == (Cost(resources=Resources(clay=1)),)
     assert spec.vps == 0
     assert spec.passing_left is False
     # No prerequisite: any state qualifies.
@@ -110,19 +113,35 @@ def _at_play_minor_frame():
     return cs, cp
 
 
-def test_chick_stable_is_only_legal_minor_play():
+def test_chick_stable_offers_one_play_per_affordable_alternative():
+    from agricola.actions import CommitPlayMinor
     cs, _cp = _at_play_minor_frame()
-    assert legal_actions(cs) == [sole_play_minor(cs, "chick_stable")]
+    # Holding 1 wood + 1 clay: both alternatives affordable -> two plays.
+    plays = [a for a in legal_actions(cs)
+             if isinstance(a, CommitPlayMinor) and a.card_id == "chick_stable"]
+    payments = {(a.payment.wood, a.payment.clay) for a in plays}
+    assert payments == {(1, 0), (0, 1)}        # pay wood OR pay clay, never both
+    assert legal_actions(cs) == plays          # nothing else legal at the frame
+
+
+def _play_paying(cs, wood, clay):
+    from agricola.actions import CommitPlayMinor
+    opts = [a for a in legal_actions(cs)
+            if isinstance(a, CommitPlayMinor) and a.card_id == "chick_stable"
+            and a.payment.wood == wood and a.payment.clay == clay]
+    assert len(opts) == 1
+    return opts[0]
 
 
 def test_chick_stable_real_play_and_collect():
     cs, cp = _at_play_minor_frame()
-    cs = step(cs, sole_play_minor(cs, "chick_stable"))
-    # Card left hand (non-passing → kept in tableau), cost paid: 1 wood + 1 clay.
+    cs = step(cs, _play_paying(cs, wood=1, clay=0))
+    # Card left hand (non-passing → kept in tableau); paid the WOOD alternative
+    # only — the clay stays (the "/" cost is one-of, never a sum).
     assert "chick_stable" not in cs.players[cp].hand_minors
     assert "chick_stable" in cs.players[cp].minor_improvements
     assert cs.players[cp].resources.wood == 0
-    assert cs.players[cp].resources.clay == 0
+    assert cs.players[cp].resources.clay == 1
     # Food scheduled on R+3 (round 4) and R+4 (round 5) — game is at round 1.
     assert cs.round_number == 1
     assert _food(cs, cp)[3] == 2 and _food(cs, cp)[4] == 2

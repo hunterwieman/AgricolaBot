@@ -1,6 +1,6 @@
 """Blade Shears (minor, C7): on play gain max(3, sheep) food; keep the sheep.
 
-Prereq: at least 1 enclosed pasture (have-check). Cost 1 wood. Not passing, no VPs.
+Prereq: at least 1 enclosed pasture (have-check). Cost 1 wood. PASSING (traveling minor), no VPs.
 
 Real-flow play is driven through PendingPlayMinor + sole_play_minor (the
 established minor-play test pattern), mirroring tests/test_cards_minors.py.
@@ -68,7 +68,7 @@ def test_blade_shears_registered():
     assert CARD in MINORS
     spec = MINORS[CARD]
     assert spec.cost == Cost(resources=Resources(wood=1))
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.vps == 0
     assert spec.prereq is not None
 
@@ -142,10 +142,10 @@ def test_grants_three_food_with_no_sheep():
 
 
 # ---------------------------------------------------------------------------
-# Kept (non-passing), scoped to the player
+# Passing: circulates to the opponent, own goods scoped to the player
 # ---------------------------------------------------------------------------
 
-def test_kept_in_tableau_and_does_not_touch_opponent():
+def test_passes_to_opponent_and_does_not_touch_their_goods():
     cs, cp = _card_state(cp_minors=frozenset({CARD}),
                          cp_res=Resources(wood=1), sheep=2)
     opp = 1 - cp
@@ -153,9 +153,9 @@ def test_kept_in_tableau_and_does_not_touch_opponent():
     cs = _push_minor(cs, cp)
     cs = step(cs, sole_play_minor(cs, CARD))
     p = cs.players[cp]
-    assert CARD in p.minor_improvements        # kept (non-passing)
+    assert CARD not in p.minor_improvements    # passing -> not kept
     assert CARD not in p.hand_minors           # left hand
-    assert CARD not in cs.players[opp].hand_minors
-    # Opponent untouched (no food gain, no card).
+    assert CARD in cs.players[opp].hand_minors  # circulated to opponent's hand
+    # Opponent's goods untouched (only their hand gains the card).
     assert cs.players[opp].resources == opp_before.resources
     assert cs.players[opp].animals == opp_before.animals

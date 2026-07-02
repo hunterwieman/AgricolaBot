@@ -2,7 +2,9 @@
 
 Card text: "Add 3 and 4 to the current round and place 2 food on each corresponding
 round space. At the start of these rounds, you get the food."
-Cost: 1 Wood, 1 Clay. No prerequisite. VPs: 0. Not passing.
+Cost: "1 Wood/1 Clay" — an ALTERNATIVE cost (pay exactly ONE of 1 wood or 1 clay,
+the Chophouse `alt_costs` pattern; the "/" is never a sum). No prerequisite.
+VPs: 0. Not passing.
 
 Category 8 (deferred goods). The whole effect runs at play (on_play): schedule
 2 food onto the round spaces R+3 and R+4 (where R is the current round) of
@@ -31,6 +33,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 register_minor(
     CARD_ID,
-    cost=Cost(resources=Resources(wood=1, clay=1)),
+    cost=Cost(resources=Resources(wood=1)),
+    alt_costs=(Cost(resources=Resources(clay=1)),),
     on_play=_on_play,
 )

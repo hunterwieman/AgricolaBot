@@ -2,7 +2,10 @@
 
 Card text: "Immediately exchange up to 3 wood for 1 stone each."
 
-Prerequisite: "2 Occupations". Cost: none. Not passing.
+Prerequisite: "2 Occupations". Cost: none. PASSING (traveling minor —
+`passing_left='X'` in the catalog: the card moves to the opponent's hand; the
+hand-transfer happens in `_execute_play_minor` BEFORE `on_play` runs, so the
+pushed choice frame below resolves for the player who played it).
 
 Category 2 (on-play one-shot) with an OPTIONAL amount choice. "up to 3 ... for 1
 stone each" is a strict 1:1 trade of wood for stone (1 wood -> 1 stone), where the
@@ -15,7 +18,7 @@ The on-play pushes a `PendingCardChoice` whose options are the integers
 `0..min(3, wood)`. Options are capped at the wood actually on hand so no illegal
 over-spend is ever offered: with 0 wood the sole option is `(0,)` (a no-op the agent
 auto-resolves via singleton-skip). The resolver applies `wood -= n; stone += n` for
-the chosen `n` and pops the frame. No event hooks, no scoring, not passing.
+the chosen `n` and pops the frame. No event hooks, no scoring.
 
 A minor on_play that PUSHes a frame is supported: resolution.py runs `on_play` AFTER
 the PendingPlayMinor after-phase pivot, and `_fire_subaction_before_auto` is a no-op
@@ -55,5 +58,5 @@ def _resolve(state: GameState, idx: int, n: int) -> GameState:
     return pop(state)   # resolver owns the PendingCardChoice frame
 
 
-register_minor(CARD_ID, min_occupations=2, on_play=_on_play)
+register_minor(CARD_ID, min_occupations=2, passing_left=True, on_play=_on_play)
 register_card_choice_resolver(CARD_ID, _resolve)

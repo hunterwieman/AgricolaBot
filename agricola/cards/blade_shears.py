@@ -5,8 +5,9 @@ you have. (Keep the sheep.)"
 Clarification: "Choose exactly 3 food, or food equal to your sheep."
 
 Cost 1 wood. Prerequisite: "1 Pasture" — at least one enclosed pasture in front
-of the player (a have-check at legality time, not a cost). No printed VPs, not a
-passing card.
+of the player (a have-check at legality time, not a cost). No printed VPs.
+PASSING (traveling minor — `passing_left='X'` in the catalog: after the on-play
+effect the card moves to the opponent's hand).
 
 Category 2 (on-play one-shot). The "3 food OR 1 food per sheep" choice is not a
 real decision frame: food is a pure free good with no downside, so the rational
@@ -49,5 +50,6 @@ register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(wood=1)),
     prereq=_prereq,
+    passing_left=True,
     on_play=_on_play,
 )
