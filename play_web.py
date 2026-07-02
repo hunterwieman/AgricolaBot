@@ -610,11 +610,35 @@ TEMPLATES_DIR = os.path.join(HERE, "templates")
 # occupations + 7 minors. _CARD_META holds display name / effect text / cost
 # for every implemented card, joined from the card-data JSON by slugged name.
 
+def _min_players_excluded_slugs() -> set:
+    """Slugs of cards printed for 3+/4+ players only — excluded from the 2-player
+    deal pool (per the official rules, these leave the deck below their player
+    count). The cards stay implemented and registered; only dealing is gated.
+    A slug is excluded only if EVERY catalog row bearing it is 3+/4+ (name
+    collisions between distinct printings share a slug, so a 2p-legal printing
+    keeps the slug dealable)."""
+    data_dir = os.path.join(HERE, "agricola", "cards", "data")
+    counts: dict[str, list] = {}
+    try:
+        for fname in ("revised_occupations.json", "revised_minor_improvements.json"):
+            with open(os.path.join(data_dir, fname)) as f:
+                for row in json.load(f):
+                    counts.setdefault(_card_slug(row["name"]), []).append(row.get("players"))
+    except Exception as exc:  # pragma: no cover — defensive at import time
+        print(f"[play_web] WARNING: players-filter load failed: {exc}", file=sys.stderr)
+        return set()
+    return {slug for slug, ps in counts.items()
+            if ps and all(p in ("3+", "4+", "5+", "6+") for p in ps)}
+
+
 def _card_pool() -> "CardPool":
-    """The card pool for a cards game: every implemented occupation + minor."""
+    """The card pool for a cards game: every implemented occupation + minor
+    printed for 2 players (3+/4+-only cards are registered but never dealt)."""
     import agricola.cards  # noqa: F401  (registers OCCUPATIONS / MINORS)
     from agricola.cards.specs import OCCUPATIONS, MINORS
-    return CardPool(occupations=tuple(OCCUPATIONS), minors=tuple(MINORS))
+    excluded = _min_players_excluded_slugs()
+    return CardPool(occupations=tuple(c for c in OCCUPATIONS if c not in excluded),
+                    minors=tuple(c for c in MINORS if c not in excluded))
 
 
 def _apply_custom_hand(
