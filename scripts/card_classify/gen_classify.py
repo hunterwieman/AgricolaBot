@@ -44,6 +44,7 @@ EFFECT — what it does (tag all that apply):
 - E-GOODS: gain goods/food/crops immediately.
 - E-SCHED: place goods/food on FUTURE round spaces (collected at the start of those rounds).
 - E-SCHEDANIMAL: place ANIMALS on future round spaces.
+- E-SEEDSPACE: place goods from the general supply ONTO ANOTHER ACTION SPACE (seeding an accumulation space for whoever uses it next) -- NOT into your own supply (E-GOODS) and NOT onto a future round space (E-SCHED). Cards: Outskirts Director (C130), Inner Districts Director (C93).
 - E-ANIMALS: the card provides animals to the player (ANY amount, ANY timing) -- flag it because the animals must be accommodated on the farm.
 - E-GRANTSUB: grants a primitive sub-action (plow, bake bread, build a room/stable/fence, renovate, family growth).
 - E-GRANTACT: grants a whole action (a full "Build Fences/Rooms/Stables" action, or another action space's action).
@@ -97,6 +98,8 @@ STATE the card must keep:
 EXOTIC: a genuine ONE-OFF mechanic that fits NO other code and is not worth its own category. Tag EXOTIC + the nearest applicable codes + describe it in `note`.
 
 NONE: the card needs NO mechanic beyond immediate plain goods/crops/food (even conditional on a plain state read) and/or a plain printed VP. Tag it alongside ONPLAY+E-GOODS for trivially-implementable cards.
+
+REVISIT: a META-FLAG (not a mechanic) added ALONGSIDE the best-effort codes to tell a future session "this classification is genuinely unsettled -- think harder before implementing." Use when the card's mechanism is understood but the exact code set is a judgment call the taxonomy doesn't cleanly resolve (e.g. a standing relaxation of the occupied-space placement rule that is capped per round -- PASSIVE vs ATWILL vs a bespoke activation). Renders a ⚠ marker in the doc.
 
 KEY RULINGS (apply exactly):
 - A-OWN is the DEFAULT actor on any own-turn HOOK -- ALWAYS include it (use A-OPP instead only when the trigger is ANOTHER player's action; use BOTH if it fires on any player's action).

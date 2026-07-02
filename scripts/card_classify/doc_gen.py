@@ -8,7 +8,7 @@ DATA = os.path.join(HERE, "data")
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 OUT = os.path.join(ROOT, "CARD_IMPLEMENTATION_PROGRESS.md")
 
-CANON = set("""ONPLAY HOOK ATWILL PASSIVE LATCH T-BEFORE T-AFTER S-SPACE S-SUB S-MAJMIN S-PLAY S-OBTAIN S-SOR S-HSTART S-HFIELD S-HFEED S-AFTERFEED S-HBREED S-ROUNDEND S-TURNEND S-BEFORESCORE S-REVEAL F-AUTO F-TRIG F-MANDCHOICE A-OWN A-OPP CAP-TURN CAP-ROUND CAP-HARVEST CAP-GAME E-GOODS E-SCHED E-SCHEDANIMAL E-ANIMALS E-GRANTSUB E-GRANTACT E-NOPLACE E-SUBSTITUTE E-COSTMOD E-FREEFENCE E-FOODCOST E-ALTCOST E-PLAYVARIANT E-PIECECOST E-PASSING E-CONVERT E-CAPGROW E-CAPNEW E-CAPNEG E-SCORE E-SCOREOPT E-SCORECMP E-SCOREGRP E-TAKEBACK E-RETURNCOMP E-OPPTRANSFER E-BAKESPEC E-GROWTH E-PEOPLE E-EXTRAPLACE E-WORKERMANIP E-CROPMANIP E-BREEDMOD L-OCCUPY L-EXT L-CARDSPACE L-CARDFIELD L-GEOMFARM L-GEOMBOARD L-HIDDEN L-RANDOM ST-STORE ST-LATCH ST-THRESHOLD ST-COUNTER ST-STACK ST-PLACELOG ST-PROV EXOTIC NONE""".split())
+CANON = set("""ONPLAY HOOK ATWILL PASSIVE LATCH T-BEFORE T-AFTER S-SPACE S-SUB S-MAJMIN S-PLAY S-OBTAIN S-SOR S-HSTART S-HFIELD S-HFEED S-AFTERFEED S-HBREED S-ROUNDEND S-TURNEND S-BEFORESCORE S-REVEAL F-AUTO F-TRIG F-MANDCHOICE A-OWN A-OPP CAP-TURN CAP-ROUND CAP-HARVEST CAP-GAME E-GOODS E-SCHED E-SCHEDANIMAL E-SEEDSPACE E-ANIMALS E-GRANTSUB E-GRANTACT E-NOPLACE E-SUBSTITUTE E-COSTMOD E-FREEFENCE E-FOODCOST E-ALTCOST E-PLAYVARIANT E-PIECECOST E-PASSING E-CONVERT E-CAPGROW E-CAPNEW E-CAPNEG E-SCORE E-SCOREOPT E-SCORECMP E-SCOREGRP E-TAKEBACK E-RETURNCOMP E-OPPTRANSFER E-BAKESPEC E-GROWTH E-PEOPLE E-EXTRAPLACE E-WORKERMANIP E-CROPMANIP E-BREEDMOD L-OCCUPY L-EXT L-CARDSPACE L-CARDFIELD L-GEOMFARM L-GEOMBOARD L-HIDDEN L-RANDOM ST-STORE ST-LATCH ST-THRESHOLD ST-COUNTER ST-STACK ST-PLACELOG ST-PROV EXOTIC NONE REVISIT""".split())
 
 NORMALIZE = {"COST-GAME": "CAP-GAME", "T-DURING": "S-HFEED",
              "L-OCCUP": "L-OCCUPY", "E-MANDCHOICE": "F-MANDCHOICE", "E-CARDSPACE-LIKE": "L-CARDSPACE",
@@ -105,6 +105,28 @@ RESIDUAL_FIX = {
              "Build a 2-space pasture from 3 returned stables -- ordinary fencing, no geometry code needed (confirmed)."),
     "A85": (["PASSIVE", "E-CAPNEW", "E-PEOPLE", "L-GEOMFARM"],
             "A clay/stone room adjacent to both a field and a pasture holds an extra person -> new person-holder (E-CAPNEW, its taxonomy exemplar) + person-capacity change (E-PEOPLE); farm-tile adjacency = L-GEOMFARM (user ruling; E-CAPGROW is animal-slot-only)."),
+    # Low-confidence residuals settled by the user (2026-07). The occupied-space-placement trio (A25/A130/C150)
+    # are relaxations of the "can't place on an occupied space" rule, exercised WHEN YOU PLACE A WORKER (a standing
+    # option, PASSIVE), NOT deferrable at-will actions -> ATWILL dropped. Kept REVISIT: the exact effect codes for
+    # "relaxed occupied-space placement" are still a judgment call worth re-deriving at implementation time.
+    "A25": (["PASSIVE", "CAP-ROUND", "L-OCCUPY", "E-EXTRAPLACE", "ST-STORE", "ST-PLACELOG", "REVISIT"],
+            "Bassinet: once per work phase, place a(nother) person on the marked first-non-accumulating space if only 1 person is there -- a standing relaxation of the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling), granting an extra placement onto an occupied space."),
+    "A130": (["PASSIVE", "CAP-ROUND", "L-OCCUPY", "E-GRANTACT", "ST-PLACELOG", "REVISIT"],
+             "Mummy's Boy: once per round, place your 3rd+ person on your 2nd person's space and use it again -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); reusing that space's action = E-GRANTACT."),
+    "C150": (["PASSIVE", "L-OCCUPY", "E-GRANTACT", "ST-PLACELOG", "REVISIT"],
+             "Parrot Breeder: pay 1 grain to use the space your right-hand neighbor just used -- relaxes the occupied-space rule at placement time (PASSIVE, not ATWILL, per user ruling); grain is an ordinary cost (no E-CONVERT/E-GOODS)."),
+    "A39": (["HOOK", "T-BEFORE", "S-SPACE", "F-AUTO", "A-OWN", "A-OPP", "L-CARDSPACE", "E-SCORE", "E-OPPTRANSFER", "ST-COUNTER"],
+            "Chapel: card is an action space; user gets 3 VP (accrued -> ST-COUNTER), opponents pay you 1 grain first (E-OPPTRANSFER). Confirmed by user."),
+    "A102": (["ONPLAY", "ATWILL", "ST-STACK", "E-CONVERT", "E-FOODCOST", "E-GOODS"],
+             "Grocer: on-play pile on the card (ST-STACK); at any time buy the top good for 1 food (ATWILL, food-for-good exchange). Confirmed by user. (On the deferred hard-set.)"),
+    "C130": (["HOOK", "T-BEFORE", "S-SPACE", "F-TRIG", "A-OWN", "E-SEEDSPACE", "E-EXTRAPLACE"],
+             "Outskirts Director: seed 2 reed onto the OTHER accumulation space (E-SEEDSPACE, a named mechanic per user) then place another person (E-EXTRAPLACE)."),
+    "C93": (["HOOK", "T-BEFORE", "S-SPACE", "F-TRIG", "A-OWN", "E-SEEDSPACE", "E-EXTRAPLACE"],
+            "Inner Districts Director: seed 1 stone onto the OTHER accumulation space (E-SEEDSPACE, same mechanic as C130) then place another person. EXOTIC replaced by the named code."),
+    "D91": (["ONPLAY", "E-SCHED", "HOOK", "T-BEFORE", "S-SOR", "F-TRIG", "A-OWN", "E-GRANTSUB", "E-FOODCOST"],
+            "Plowman: schedule field tiles onto rounds +4/+7/+10 (E-SCHED); at the START of those rounds optionally plow for 1 food -> T-BEFORE (user ruling)."),
+    "E91": (["PASSIVE", "L-EXT", "HOOK", "S-HFEED", "T-BEFORE", "F-TRIG", "A-OWN", "E-GRANTSUB", "E-FOODCOST"],
+            "Plow Builder: Joinery buildable via Minor Improvement (PASSIVE+L-EXT); using Joinery during harvest is a feeding-phase conversion -> S-HFEED (user ruling), pay 1 food to plow."),
 }
 # Accepted as-is (their adjudicated tags stand; clear the low-confidence flag).
 RESIDUAL_OK = {"B87", "C100", "D51"}
@@ -172,18 +194,28 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
         t = tag.get(i, {})
         return bool(t.get("low")) or (t.get("unclear") and not t.get("reviewed"))
 
+    def is_revisit(i):  # ⚠ — classification understood but genuinely unsettled; think harder before implementing
+        return "REVISIT" in tag.get(i, {}).get("codes", [])
+
     n_impl = sum(1 for i in meta if status_of(i) == "impl")
     n_ban = sum(1 for i in meta if status_of(i) == "wontfix")
     n_rev = sum(1 for i in meta if i in tag and tag[i].get("reviewed"))
     residual = [i for i in meta if is_residual(i)]
+    revisit = [i for i in meta if is_revisit(i)]
     L = []
     W = L.append
     W(f"# Part — {kind.title()}s\n")
     W(f"**{len(meta)} {kind}s** — ✅ {n_impl} implemented · 🚫 {n_ban} won't-fix/banned · "
-      f"⬜ {len(meta)-n_impl-n_ban} not yet · ⚖ {n_rev} high-effort adjudicated · 🔶 {len(residual)} residual (low-confidence).\n")
+      f"⬜ {len(meta)-n_impl-n_ban} not yet · ⚖ {n_rev} high-effort adjudicated · 🔶 {len(residual)} residual (low-confidence) · "
+      f"⚠ {len(revisit)} revisit (unsettled — think harder before implementing).\n")
     if residual:
         W("### Residual — low-confidence, worth a human look\n")
         for i in sorted(residual, key=lambda z: (meta[z]["deck"], meta[z]["number"])):
+            W(f"- **{i} {meta[i]['name']}** — _{meta[i]['text']}_ — `{' '.join(tag[i]['codes'])}` — {tag[i]['note']}")
+        W("")
+    if revisit:
+        W("### ⚠ Revisit — classification unsettled, re-derive the codes before implementing\n")
+        for i in sorted(revisit, key=lambda z: (meta[z]["deck"], meta[z]["number"])):
             W(f"- **{i} {meta[i]['name']}** — _{meta[i]['text']}_ — `{' '.join(tag[i]['codes'])}` — {tag[i]['note']}")
         W("")
     by_deck = defaultdict(list)
@@ -195,7 +227,7 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
             m = meta[i]
             t = tag.get(i, {"codes": ["(MISSING)"], "note": "", "unclear": False})
             box = {"impl": "✅", "wontfix": "🚫", "todo": "⬜"}[status_of(i)]
-            flag = " 🔶" if is_residual(i) else ""
+            flag = (" 🔶" if is_residual(i) else "") + (" ⚠" if is_revisit(i) else "")
             pcs = f" · [{m['players']}]" if m.get("players") else ""
             cost = f" · cost: {m['cost']}" if m.get("cost") else ""
             pre = f" · prereq: {m['prereq']}" if m.get("prereq") else ""
@@ -218,7 +250,7 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
 
 H = ["# Card Implementation Progress\n",
      "_Pipeline: each card was tagged by two independent classification passes against the mechanics taxonomy; the ~290 cards where the passes disagreed on a gating code were then settled by a high-effort adjudication review. A handful of cards are hand-verified. Each entry: player-count (occupations), cost/prereq, verbatim text, and the mechanic codes it uses._\n",
-     "_Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fix/banned · ⬜ not yet · ⚖ adjudicated (a high-effort reviewer settled a two-pass disagreement) · 🔶 residual (still low-confidence after review, or unresolved — worth a human look). Per-card tags are a strong map, not a formal spec._\n",
+     "_Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fix/banned · ⬜ not yet · ⚖ adjudicated (a high-effort reviewer settled a two-pass disagreement) · 🔶 residual (still low-confidence after review, or unresolved — worth a human look) · ⚠ revisit (classification understood but genuinely unsettled — re-derive the codes before implementing; carries a `REVISIT` tag). Per-card tags are a strong map, not a formal spec._\n",
      "## Legend\n"]
 for k, v in LEGEND:
     H.append(f"- **{k}:** {v}")
