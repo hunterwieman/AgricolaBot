@@ -357,7 +357,6 @@ from agricola.cards import soldier  # noqa: F401
 from agricola.cards import sheep_provider  # noqa: F401
 from agricola.cards import market_crier  # noqa: F401
 from agricola.cards import cowherd  # noqa: F401
-from agricola.cards import resource_analyzer  # noqa: F401
 from agricola.cards import half_timbered_house  # noqa: F401
 from agricola.cards import abort_oriel  # noqa: F401
 from agricola.cards import greening_plan  # noqa: F401

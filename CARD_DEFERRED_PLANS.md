@@ -333,3 +333,32 @@ the feeding calculation. This is harvest-subsystem surgery (the feed frontier + 
 payment are the engine's most delicate area — see CLAUDE.md Foundations / the harvest §), hence
 deferred. Any other "after the feeding phase" card joins Farm Store here. When built, un-archive
 Farm Store, move it off `register_harvest_conversion` onto the new after-feed hook, and re-test.
+
+---
+
+## "Before the start of each round" — a distinct hook (design; NOT implemented)
+
+**Deferred 2026-07-01 (user-directed).** Cards worded *"Before the start of each round, …"*
+need a dedicated hook that does not exist yet.
+
+**The card that needs it:** **resource_analyzer** (occupation) — "Before the start of each
+round, if you have more building resources than all other players of at least two types, you
+get 1 food." It was implemented as a `start_of_round` auto, which is WRONG on two counts:
+1. `start_of_round` fires at step 5 of `_complete_preparation` — *after* step 2 distributes the
+   new round's scheduled income (`future_resources`). So the building-resource comparison reads
+   *post-income* counts, whereas "before the start of the round" wants the pre-income snapshot.
+   The divergence is reachable: building-resource scheduling cards exist (club_house schedules
+   stone, cesspit clay, thick_forest wood), so at such a boundary the comparison can flip.
+2. More fundamentally, "before the start of round R+1" is its OWN instant — **not** the
+   end-of-round-R boundary (the `PendingRoundEnd` family). A **harvest** falls between the two
+   on harvest rounds (WORK → RETURN_HOME → *harvest* → PREPARATION), and end-of-round effects
+   must fire **before** before-start-of-round effects. So this is a separate, strictly-later
+   hook, ordered: end-of-round effects → (harvest, if any) → **before-start-of-round effects** →
+   the round's income/reveal.
+
+**What's needed:** a distinct "before the start of each round" hook that fires after the harvest
+(and after any `PendingRoundEnd` end-of-round effects) but **before** the round's income
+distribution — so a card reads the pre-income, post-harvest state. Module + test for
+resource_analyzer are archived in `archive/deferred_cards/`; un-archive and move it onto this
+hook when it exists. (Do NOT approximate with `start_of_round` — that is the post-income instant
+this hook exists to avoid.)
