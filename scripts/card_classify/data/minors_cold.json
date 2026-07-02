@@ -1,0 +1,6133 @@
+{
+  "summary": "Tag each Agricola card with the mechanics/features it uses",
+  "agentCount": 30,
+  "logs": [
+    "Classifying 30 batches",
+    "Collected 420 classified cards"
+  ],
+  "result": {
+    "cards": [
+      {
+        "id": "A1",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-FREEFENCE",
+          "E-PIECECOST",
+          "E-PASSING",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; grants building a free stable but only in a 1-space pasture (adjacency/shape restriction on placement); stable is a game piece."
+      },
+      {
+        "id": "A3",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTACT",
+          "L-RANDOM",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; randomly select and play an occupation for free (grants playing a card = an action); randomness during play."
+      },
+      {
+        "id": "A4",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; immediate wood based on plain state read (rooms, rooms>people); NONE-level effect otherwise."
+      },
+      {
+        "id": "A6",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; immediate resources conditional on owned majors — plain state read."
+      },
+      {
+        "id": "A7",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; immediate food/grain per field type — plain state read."
+      },
+      {
+        "id": "A8",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; immediate grain+veg, trivial goods."
+      },
+      {
+        "id": "A10",
+        "codes": [
+          "ONPLAY",
+          "E-CAPNEW",
+          "E-CAPNEG",
+          "E-SUBSTITUTE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Played only via Major Improvement; provides a room (new person holder); permanently removes ability to renovate. E-SUBSTITUTE for it being an improvement acting as a room-add; the renovate-ban is a legality removal. Note: acts as a room-providing improvement replacing a renovation path."
+      },
+      {
+        "id": "A11",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-ANIMALS",
+          "E-CAPNEW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gives 1 wild boar; unplanted field tiles become boar holders (new capacity slots on farm tiles)."
+      },
+      {
+        "id": "A13",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-GRANTSUB",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +3 clay then optional free renovation (granted sub-action with cost zeroed = cost modification)."
+      },
+      {
+        "id": "A14",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you build >=2 rooms at once, apply a resource discount — cost modification on build-room sub-action."
+      },
+      {
+        "id": "A15",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-PIECECOST",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a wood accumulation space, if >=7 wood, optionally build 1 stable for 1 wood; keyed on named wood space + supply-count check."
+      },
+      {
+        "id": "A17",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "CAP-GAME",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After the NEXT time you take+fully-accommodate animals from a space, optionally plow 1 field; one-shot (next time) needs a used/armed flag. Keyed on obtaining/accommodating animals."
+      },
+      {
+        "id": "A18",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "CAP-GAME",
+          "ST-STORE",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once this game, when using Farmland/Cultivation with the first person placed in a round, plow 2 extra fields; one-shot flag + first-person-of-round condition."
+      },
+      {
+        "id": "A20",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play optionally plow up to 2 fields; the play-cost's +1 food (round-4/5 clause) is a food cost. Round restriction is a plain prereq."
+      },
+      {
+        "id": "A21",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "E-GROWTH",
+          "E-GOODS",
+          "CAP-GAME",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On Build Rooms with more rooms than people, grants a family-growth action + 1 food; clarification caps at exactly 1 growth per build (ST-STORE to track)."
+      },
+      {
+        "id": "A22",
+        "codes": [
+          "ONPLAY",
+          "E-EXTRAPLACE",
+          "E-SCHED",
+          "L-GEOMBOARD",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Marks a future round space (round + fences-in-supply) where you may place an extra person from supply; returned in returning-home."
+      },
+      {
+        "id": "A23",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "E-GRANTACT",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a Quarry, grants a Major/Minor Improvement action that must spend >=1 stone; may not decline discounts to trigger."
+      },
+      {
+        "id": "A28",
+        "codes": [
+          "PASSIVE",
+          "L-OCCUPY",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Consider Lessons unoccupied (L-OCCUPY) and replace each food an occupation costs with wood (cost-currency substitution)."
+      },
+      {
+        "id": "A27",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-GRANTACT",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +2 wood and may immediately build Clay/Stone Oven major at reduced cost (1 clay + 1 stone)."
+      },
+      {
+        "id": "A29",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "E-FOODCOST",
+          "E-SCORE",
+          "E-OPPTRANSFER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Returning-home each round: optionally pay 1 grain for 1 bonus point; each opponent then gets 1 food."
+      },
+      {
+        "id": "A30",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "E-CONVERT",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On a Bake Bread action, may exchange 1 grain for 2 food + 1 bonus point (must bake normally)."
+      },
+      {
+        "id": "A31",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Scoring rule: 1 bonus pt per major improvement, capped at unused farmyard spaces; computed at end, no hook."
+      },
+      {
+        "id": "A34",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "E-CONVERT",
+          "E-PIECECOST",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On building fences, may exchange 1 wood + 1 fence piece from supply for 2 food + 1 bonus point."
+      },
+      {
+        "id": "A35",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "E-SCORE",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Returning-home: if returning a person from Fishing, 2 bonus pts per newborn returned home; needs to know worker was on Fishing."
+      },
+      {
+        "id": "A36",
+        "codes": [
+          "ONPLAY",
+          "E-CONVERT",
+          "E-SCORE",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, exchange any number of food for 1 bonus pt each, up to completed harvests count."
+      },
+      {
+        "id": "A37",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "E-SCORE",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On renovate, may pay 1 wood for 1 bonus point + 1 grain."
+      },
+      {
+        "id": "A39",
+        "codes": [
+          "ONPLAY",
+          "L-CARDSPACE",
+          "E-SCORE",
+          "E-OPPTRANSFER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is an action space for all; user gets 3 bonus pts, opponents must pay owner 1 grain to use it."
+      },
+      {
+        "id": "A25",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "E-EXTRAPLACE",
+          "A-OPP",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each work phase may place an extra person on the first non-accumulating space used by any player while it holds only 1 person; needs to track that specific space."
+      },
+      {
+        "id": "A40",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "E-GOODS",
+          "E-CONVERT",
+          "ST-STACK",
+          "L-CARDSPACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play seeds clay on unused farmyard spaces (stack on card); each time a space becomes used you get that clay and may exchange it for 2 food (optional convert). ST-STACK for per-space clay pile. Not L-CARDSPACE actually — remove."
+      },
+      {
+        "id": "A41",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "CAP-GAME"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Fires when you upgrade Fireplace to Cooking Hearth (a renovate/build-major sub-action); mandatory +2 wood +1 veg; 'not retroactively' = once."
+      },
+      {
+        "id": "A42",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Fishing/Forest space you also get 1 wood/food; automatic per-use."
+      },
+      {
+        "id": "A43",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Building 1+ stables in one turn places 1 food on next 3 round spaces; only on-turn builds trigger (clarification)."
+      },
+      {
+        "id": "A45",
+        "codes": [
+          "LATCH",
+          "ST-LATCH",
+          "E-SCHED",
+          "CAP-GAME"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Fires once when you first no longer live in a wooden house; schedules food on next 6 round spaces."
+      },
+      {
+        "id": "A46",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Sheep Market places 1 food on next 2 round spaces."
+      },
+      {
+        "id": "A47",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately schedule 1 food on next N round spaces = number of fences built; plain read of fence count."
+      },
+      {
+        "id": "A48",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-TRIG",
+          "F-MANDCHOICE",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After obtaining wood, with >=5 wood may exchange 1 wood->3 food (optional); with >=7 must (mandatory). Multi-fire per intervening event needs provenance tracking."
+      },
+      {
+        "id": "A49",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-REVEAL",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": true,
+        "new_category": "REEDBANK-REFILL: hook on 1 reed being placed on a non-empty Reed Bank accumulation space during the preparation-phase refill.",
+        "note": "Fires when reed is added to a non-empty Reed Bank during preparation refill; not a standard placement/obtain seam — a board-refill event. Timing/seam not cleanly covered."
+      },
+      {
+        "id": "A51",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Fishing space grants an additional 2 food."
+      },
+      {
+        "id": "A52",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of a wood accumulation space, if boar present on Pig Market, also get 2 food; conditional board-state read."
+      },
+      {
+        "id": "A54",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-MANDCHOICE",
+          "A-OWN",
+          "E-GOODS",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +5 food; at end of each non-harvest round must pay 1 food or take begging marker (recurring toll)."
+      },
+      {
+        "id": "A57",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, food based on sheep/cattle counts; plain state read + immediate goods."
+      },
+      {
+        "id": "A58",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-CROPMANIP",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In returning-home of rounds 8/10/12, optionally take 1 veg from a veg field, exchange for 3 food + 1 bonus point. Removing planted crop = E-CROPMANIP; bonus point = E-SCORE."
+      },
+      {
+        "id": "A59",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-MANDCHOICE",
+          "E-CONVERT",
+          "E-GOODS",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After harvesting veg (a sub-action/field phase), conditional convert 1 veg->6 food; optional at 3+, mandatory at 4+ (mand-with-choice). Needs to know harvest just happened."
+      },
+      {
+        "id": "A60",
+        "codes": [
+          "ATWILL",
+          "E-CONVERT",
+          "E-BAKESPEC",
+          "E-RETURNCOMP",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Return Fireplace/Hearth to play (E-RETURNCOMP); at-any-time good->food conversions plus a bake-bread grain->food rate."
+      },
+      {
+        "id": "A61",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-TRIG",
+          "E-CONVERT",
+          "E-BAKESPEC"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After the field phase of each harvest, optionally use a baking improvement to turn exactly 1 grain into food (not a Bake action)."
+      },
+      {
+        "id": "A62",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFEED",
+          "F-TRIG",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In feeding phase, optional exchange grain for bonus points + 3 food; scoring bonus tied to the choice."
+      },
+      {
+        "id": "A64",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "During field phase, 1 food per grain field harvested."
+      },
+      {
+        "id": "A65",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-AUTO",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before an unconditional Sow sub-action, get 1 grain."
+      },
+      {
+        "id": "A66",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use an animal accumulation space while already holding that animal type, get 1 grain."
+      },
+      {
+        "id": "A68",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Build fences >= current round number -> 1 veg; count vs current round references round number."
+      },
+      {
+        "id": "A70",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "E-CROPMANIP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of each non-harvest round, optionally move 1 veg from a field to supply (crop-on-field manipulation, not a field phase)."
+      },
+      {
+        "id": "A72",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Using a Quarry space adds 1 good to each single-crop planted field (changes crops on fields)."
+      },
+      {
+        "id": "A73",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After turning 2+ unused spaces to used in one action (plow/build/fence), granted an extra optional Sow sub-action."
+      },
+      {
+        "id": "A74",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Build 1+ stables on your turn -> place wood on next 3 round spaces; off-turn builds excluded."
+      },
+      {
+        "id": "A76",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Start of each work phase, optional exchange 1 grain -> 2 clay + 1 food if you have clay."
+      },
+      {
+        "id": "A77",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OPP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 clay; each time any player uses Pig Market space, get 2 clay (fires on opponent too)."
+      },
+      {
+        "id": "A79",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you sow veg, before the sub-action get clay+stone. Sub-action seam, owner, optional gain."
+      },
+      {
+        "id": "A81",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of a building-resource accumulation space places a good on the card (stack), released at scheduled rounds."
+      },
+      {
+        "id": "A82",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using an action space, optionally take a building resource from a space with >=4 on it."
+      },
+      {
+        "id": "A84",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-BREEDMOD",
+          "E-ANIMALS",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In returning-home phases with no harvest, may pay 1 grain (even from a field) to breed one type outside the breeding phase."
+      },
+      {
+        "id": "A2",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, immediately plow 1 field (granted plow), then pass."
+      },
+      {
+        "id": "A5",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gain clay based on current clay count (plain state read), then pass."
+      },
+      {
+        "id": "A9",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-ANIMALS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gain 1 cattle (must be accommodated); passing minor."
+      },
+      {
+        "id": "A12",
+        "codes": [
+          "PASSIVE",
+          "E-CAPGROW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous +2 capacity to each existing pasture."
+      },
+      {
+        "id": "A16",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "PASSIVE",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 clay; continuous rule allowing clay to substitute for wood on fences."
+      },
+      {
+        "id": "A19",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places a field tile on a future round space; at start of that round may plow it."
+      },
+      {
+        "id": "A24",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Farmland/Cultivation grants an additional Bake Bread action (optional)."
+      },
+      {
+        "id": "A26",
+        "codes": [
+          "PASSIVE",
+          "L-OCCUPY"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Lets you use a Wish for Children space occupied by one other player's person."
+      },
+      {
+        "id": "A32",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End-game bonus points by pasture farmyard-space coverage threshold (plain threshold)."
+      },
+      {
+        "id": "A33",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, immediate bonus points + food per remaining complete round (plain state read); one-shot on-play, not end-game scoring rule."
+      },
+      {
+        "id": "A38",
+        "codes": [
+          "PASSIVE",
+          "E-SCORE",
+          "E-SCOREGRP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus points at scoring based on house material; mutually-exclusive-style house-material scoring (SCOREGRP for stone-house grouping). Plain threshold read, no optimization."
+      },
+      {
+        "id": "A44",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place 1 food on each of next 3 round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "A50",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "A-OPP",
+          "E-GOODS",
+          "E-OPPTRANSFER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time any player uses Cattle Market: you get 3 food, each other player gets 1 food (transfer/gain to others)."
+      },
+      {
+        "id": "A53",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-COUNTER",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At returning-home phase, if >=7 building resources gained in the preceding work phase, get 2 food; needs running count of work-phase gains."
+      },
+      {
+        "id": "A55",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time after you build an improvement (a card being played/built), get 1 food."
+      },
+      {
+        "id": "A56",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately after using a wood accumulation space, optional exchange 2 wood for 3 food, returning the 2 wood to the space."
+      },
+      {
+        "id": "A63",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bake Bread action in the round immediately following a harvest gives 3 extra food; depends on round position relative to harvest rounds."
+      },
+      {
+        "id": "A67",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Grain Seeds space, get 1 additional grain."
+      },
+      {
+        "id": "A69",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place 1 vegetable on round spaces 4/7/9 ahead, collected at start of those rounds."
+      },
+      {
+        "id": "A71",
+        "codes": [
+          "ATWILL",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time, move 1 crop from a planted field (>=2 crops) to an empty field."
+      },
+      {
+        "id": "A75",
+        "codes": [
+          "PASSIVE",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Every improvement costs 1 wood less; always-on cost reduction."
+      },
+      {
+        "id": "A78",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Fishing space, get 1 additional food and 1 reed."
+      },
+      {
+        "id": "A80",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use a stone accumulation space, get 1 additional stone."
+      },
+      {
+        "id": "A83",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-ANIMALS",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you fence a new undivided pasture covering >=4 spaces, get 2 sheep on it; depends on pasture size/shape and animals must be accommodated."
+      },
+      {
+        "id": "B2",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-FREEFENCE",
+          "E-PASSING",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, mandatory-fence a new pasture free (no wood); adjacency-to-existing-pasture constraint = L-GEOMFARM; passing minor."
+      },
+      {
+        "id": "B8",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-CONVERT",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gain 1 veg (effectively converting the 1 grain cost); passing minor."
+      },
+      {
+        "id": "B10",
+        "codes": [
+          "ONPLAY",
+          "E-CAPNEW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card itself holds a person (room for 1 person), not a room."
+      },
+      {
+        "id": "B13",
+        "codes": [
+          "PASSIVE",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous cost change: wooden rooms cost 2 wood + 2 reed."
+      },
+      {
+        "id": "B16",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-FREEFENCE",
+          "E-PIECECOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 food; each renovation (a sub-action) grants an optional free stable build (piece from supply, no wood)."
+      },
+      {
+        "id": "B19",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "CAP-GAME",
+          "ST-STACK",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place 2 field tiles on card (stack); twice this game using Farmland grants an optional extra plow from the card; uses-left counter."
+      },
+      {
+        "id": "B24",
+        "codes": [
+          "PASSIVE",
+          "E-EXTRAPLACE",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place two people back-to-back if one uses a named animal-market space; extra placement conditioned on specific spaces."
+      },
+      {
+        "id": "B25",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "HOOK",
+          "T-AFTER",
+          "S-PLAY",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-BAKESPEC"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 food; each occupation played grants an additional optional Bake Bread action."
+      },
+      {
+        "id": "B33",
+        "codes": [
+          "ONPLAY",
+          "E-SCORE",
+          "L-EXT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play immediate bonus points per round left; then permanently disallows renovation (removes a legality). Score is granted immediately on play, not at game end."
+      },
+      {
+        "id": "B36",
+        "codes": [
+          "ONPLAY",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Only a per-person additional play cost (1 clay + 1 food each); no ongoing mechanic. Cost scaling by person count; card text states no further effect."
+      },
+      {
+        "id": "B39",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Field phase of each harvest: sheep-threshold food; plus end-game 1 pt per 3 sheep (E-SCORE)."
+      },
+      {
+        "id": "B45",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place food on next 3 round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "B47",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of named Fishing space places food on next 3 round spaces (scheduled)."
+      },
+      {
+        "id": "B50",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Field phase of each harvest: food per 3 sheep and per 2 cattle."
+      },
+      {
+        "id": "B56",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use one of four spaces above Fishing -> before-space auto food; the 'above Fishing' set is board-position dependent."
+      },
+      {
+        "id": "B57",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Start of each round, if wooden house, get 1 food; plain state read."
+      },
+      {
+        "id": "B61",
+        "codes": [
+          "HOOK",
+          "S-HSTART",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Start of field phase of each harvest, conditional on field composition, get 3 food."
+      },
+      {
+        "id": "B62",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Grain Seeds, if Farmland occupied, get 3 food; conditional on a named space's occupancy."
+      },
+      {
+        "id": "B66",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places grain on rounds 5/8/11/14, collected at start of those rounds."
+      },
+      {
+        "id": "B68",
+        "codes": [
+          "ONPLAY",
+          "L-CARDFIELD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a field that grows only vegetables."
+      },
+      {
+        "id": "B74",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places wood on each remaining even round space, collected at round start."
+      },
+      {
+        "id": "B77",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Day Laborer, also get 3 clay (spendable for Cottager)."
+      },
+      {
+        "id": "B80",
+        "codes": [
+          "ATWILL",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time exchange clay for stone at 2/3/4->1/2/3 rate."
+      },
+      {
+        "id": "B84",
+        "codes": [
+          "ONPLAY",
+          "E-SCHEDANIMAL",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places wild boar on 2 round spaces, collected at round start; animals must be accommodated."
+      },
+      {
+        "id": "B1",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-GRANTACT",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately +5 clay and a Renovation action (must pay cost if taken); passing minor."
+      },
+      {
+        "id": "B3",
+        "codes": [
+          "ONPLAY",
+          "L-RANDOM",
+          "E-PLAYVARIANT",
+          "E-PASSING",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Randomly select occupation from hand, either play it for 2 food or pass card left; random draw + fork play-or-pass; passing."
+      },
+      {
+        "id": "B4",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately get wood equal to people on accumulation spaces; needs to know where own workers are placed; passing."
+      },
+      {
+        "id": "B5",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately get 1 good keyed to count of occupations left in hand; plain conditional goods; passing."
+      },
+      {
+        "id": "B6",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; immediate stone = person count (plain state read). Passing so E-PASSING."
+      },
+      {
+        "id": "B7",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passing minor; immediate food scaled by major-improvement count (plain state read)."
+      },
+      {
+        "id": "B9",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-CONVERT",
+          "E-ANIMALS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Choose gain 1 reed OR convert 1 reed->1 cattle; convert + provides animal; passing."
+      },
+      {
+        "id": "B11",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-AUTO",
+          "A-OWN",
+          "E-CAPNEW",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card holds animals (new holder, capacity = pasture count); after each breeding/feeding phase get food per empty spot."
+      },
+      {
+        "id": "B12",
+        "codes": [
+          "ONPLAY",
+          "E-CAPNEW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a new holder for up to 3 same-type animals; not a pasture."
+      },
+      {
+        "id": "B14",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-COSTMOD",
+          "L-GEOMBOARD",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places a stone room on round space 12; at start of round build free if stone house else discard — scheduled conditional free build."
+      },
+      {
+        "id": "B15",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-FREEFENCE",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a wood accumulation space, may build exactly 1 pasture using taken wood, one fence free; needs provenance of taken wood."
+      },
+      {
+        "id": "B17",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-COSTMOD",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use a wood space, pay 2 wood to plow 1 field, paid wood back on space; granted plow sub-action with special cost/placement."
+      },
+      {
+        "id": "B18",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place a field on a future round space (offset by resource count); at start of that round may plow it."
+      },
+      {
+        "id": "B20",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place fields on round spaces 7,8,9; at start of each may plow."
+      },
+      {
+        "id": "B21",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-GROWTH",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place 4 food stack on card; each time you obtain grain get 1 food from card; once empty grant Family Growth even without room."
+      },
+      {
+        "id": "B22",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PEOPLE",
+          "E-EXTRAPLACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Get 2 food; place a temporary person removed next returning-home (post-errata mandatory). Temporary worker."
+      },
+      {
+        "id": "B23",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTACT",
+          "L-GEOMBOARD",
+          "L-CARDSPACE",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Take round-14 action space card, only you can use it until placed on board — private exclusive action space."
+      },
+      {
+        "id": "B26",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-SUBSTITUTE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Grain Utilization, may take a Build Fences action instead of one of its two actions — substitute granted action."
+      },
+      {
+        "id": "B27",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After a turn in which you build a room/stable/fence, may take the build-major-improvement action (Joinery/Pottery/Basketmaker) paying its cost; off-turn stables excluded."
+      },
+      {
+        "id": "B28",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-CONVERT",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using Forest, may return 2 wood to it to play an occupation for free (waives occupation cost); named-space hook."
+      },
+      {
+        "id": "B29",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus point each turn you use a Lesson space plus a cooking improvement — a fired bonus-point award, not end-game scoring; needs to detect the compound turn condition."
+      },
+      {
+        "id": "B30",
+        "codes": [
+          "ATWILL",
+          "E-SUBSTITUTE",
+          "E-FREEFENCE",
+          "E-SCORE",
+          "EXOTIC"
+        ],
+        "unclear": false,
+        "new_category": "PALISADE: place 2 wood on a perimeter fence space that functions as a fence and scores 1 VP, bypassing the 15-fence supply limit.",
+        "note": "Instead of a fence piece, place 2 wood on an edge fence space; functions as a fence, worth 1 bonus point each; overrides fence supply cap."
+      },
+      {
+        "id": "B31",
+        "codes": [
+          "E-SCORE",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End-game: 2 bonus points if >=2 orthogonally adjacent unused farm spaces exist (adjacency shape read); negatives still apply."
+      },
+      {
+        "id": "B32",
+        "codes": [
+          "ATWILL",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time exchange 1/3/5 grain for 3/4/5 food and 0/1/2 bonus points (tiered convert + fired bonus points)."
+      },
+      {
+        "id": "B34",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCORE",
+          "CAP-GAME",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Next time you take animals from an accumulation space AND fully accommodate them, +1 bonus point each; one-shot, needs armed/spent flag."
+      },
+      {
+        "id": "B35",
+        "codes": [
+          "LATCH",
+          "ST-LATCH",
+          "ST-THRESHOLD",
+          "E-SCORE",
+          "CAP-GAME"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once ever, first moment you reach the sheep threshold, +2 bonus points; count-threshold latch."
+      },
+      {
+        "id": "B37",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 food; prereqs are HAVE-checks only, trivial."
+      },
+      {
+        "id": "B38",
+        "codes": [
+          "PASSIVE",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous restriction: cannot use farm spaces orthogonally adjacent to house until all others used (unless used together in one action); adjacency shape."
+      },
+      {
+        "id": "B40",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Fishing or Reed Bank, also get 1 grain and 1 wood; named-space hook."
+      },
+      {
+        "id": "B41",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-SCHEDANIMAL",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, alternate 2 wood / 1 wild boar on next 4 round spaces (player chooses start); collected at round start; animals must be accommodated."
+      },
+      {
+        "id": "B42",
+        "codes": [
+          "ONPLAY",
+          "L-CARDSPACE",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-OPPTRANSFER",
+          "L-OCCUPY"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card becomes a shared action space: exchange wood for wood+food (tiered); other players pay owner 1 food toll to use it."
+      },
+      {
+        "id": "B43",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Grain/Vegetable Seed space, schedule 1 food on next 3/2 round spaces; collected at round start."
+      },
+      {
+        "id": "B44",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Adds rounds 3&4, schedules 2 food each on those round spaces, collected at round start."
+      },
+      {
+        "id": "B46",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places food/stone on next round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "B48",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Food-stack on card; wood-space use moves food to supply, stone-space use adds food to card."
+      },
+      {
+        "id": "B49",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-PLAY",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-COUNTER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After playing an improvement/occupation, if counts equal you get 2 food; needs comparing improvement vs occupation counts."
+      },
+      {
+        "id": "B51",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each clay-space use grants food equal to wild boar count."
+      },
+      {
+        "id": "B52",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Play restriction computable from state; on play get food equal to current round — plain goods."
+      },
+      {
+        "id": "B53",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of each non-harvest round, may exchange wood->2food or stone->4food; once per eligible round."
+      },
+      {
+        "id": "B54",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +2 food; after unconditional Sow, food per stable."
+      },
+      {
+        "id": "B55",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Food-stack; wood-space use draws 1 food; renovate restocks to 3."
+      },
+      {
+        "id": "B58",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 food; +1 food per vegetable taken from a field in the field phase."
+      },
+      {
+        "id": "B59",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On-play food depends on whether played on the Major Improvement action space vs elsewhere."
+      },
+      {
+        "id": "B60",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-SCHED",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On Fishing use, may pay 1 grain to schedule 1 food on next 6 round spaces."
+      },
+      {
+        "id": "B63",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On Lessons use, before paying occupation cost, may exchange 1 grain for 4 food."
+      },
+      {
+        "id": "B64",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Grain Utilization use while Fishing occupied grants +2 food; needs board occupancy read."
+      },
+      {
+        "id": "B65",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-PLAYVARIANT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, places grain on next 2/3/4 round spaces depending on which resource paid (wood/clay/stone) -- cost forks the reward = E-PLAYVARIANT; future round-space goods = E-SCHED."
+      },
+      {
+        "id": "B67",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before each Bake Bread sub-action you get grain per person on an accumulation space; clarification makes baking mandatory once grain received = F-AUTO."
+      },
+      {
+        "id": "B69",
+        "codes": [
+          "ATWILL",
+          "E-SCHED",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time pay 4 clay + 2 food to schedule veg on next 2 round spaces; food cost = E-FOODCOST."
+      },
+      {
+        "id": "B70",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before start of each harvest-round you may buy grain/veg with food; optional buy at a rate = E-CONVERT + E-FOODCOST, fires at start of round."
+      },
+      {
+        "id": "B71",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, gain plain goods if harvests-completed equals occupations-played (a plain state read) -- immediate goods only."
+      },
+      {
+        "id": "B72",
+        "codes": [
+          "PASSIVE",
+          "L-CARDFIELD",
+          "E-CROPMANIP",
+          "E-CAPGROW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Small pastures may also be sown as fields (dual-purpose field/pasture) reducing their animal capacity; sow-in-pasture and treating pasture as field = crop/field rule change."
+      },
+      {
+        "id": "B73",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, gain plain goods based on exact room count (plain state read)."
+      },
+      {
+        "id": "B75",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-MAJMIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before each play/build of an improvement you get 1 wood usable to pay for it; fires on the Major-or-Minor improvement action."
+      },
+      {
+        "id": "B76",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-TAKEBACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play schedules wood on next 5 round spaces; on next renovate the still-promised wood is reclaimed = E-TAKEBACK hooked on renovate sub-action."
+      },
+      {
+        "id": "B78",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place reed on the remaining round-5/8/10/12 spaces."
+      },
+      {
+        "id": "B79",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "A-OPP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time any player takes >=3 stone from an accumulation space you get 1 stone; keyed on obtaining stone, fires on own and opponent actions."
+      },
+      {
+        "id": "B81",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before each work phase you may take a resource from an accumulation space holding a threshold amount; depends on accumulation-space contents; optional."
+      },
+      {
+        "id": "B82",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each harvest you may buy exactly one good with food; optional conversion at a rate, fires after harvest."
+      },
+      {
+        "id": "B83",
+        "codes": [
+          "ONPLAY",
+          "ATWILL",
+          "E-ANIMALS",
+          "E-CONVERT",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, stack boar/food/cattle/food/sheep on the card; at any time pay 1 clay to take the top good = per-card goods stack, animals must be accommodated when taken."
+      },
+      {
+        "id": "C2",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play grants a build-stable sub-action (free stable, card cost paid separately); passing minor."
+      },
+      {
+        "id": "C3",
+        "codes": [
+          "ONPLAY",
+          "E-EXTRAPLACE",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play in work phase lets you place an additional person; passing minor."
+      },
+      {
+        "id": "C6",
+        "codes": [
+          "ONPLAY",
+          "E-CROPMANIP",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places stone on empty fields, harvested in next field phase; manipulates field crop contents; passing."
+      },
+      {
+        "id": "C11",
+        "codes": [
+          "ONPLAY",
+          "E-CAPNEW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card itself holds up to 1 of each animal type (new holder, not a pasture)."
+      },
+      {
+        "id": "C14",
+        "codes": [
+          "PASSIVE",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuously removes reed requirement from renovate/build-room costs."
+      },
+      {
+        "id": "C16",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTACT",
+          "E-FREEFENCE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play grants a full Build Fences action with free fences next to field tiles."
+      },
+      {
+        "id": "C19",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "ST-STACK",
+          "L-CARDFIELD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places 4 field tiles on card (stack); each use of Farmland grants plowing up to 2 fields from card."
+      },
+      {
+        "id": "C25",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "L-GEOMBOARD",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using an accumulation space as last action of the work phase, grants a Bake Bread action; needs to know last-placed space type. E-GRANTACT for the Bake Bread action."
+      },
+      {
+        "id": "C26",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "E-GRANTACT",
+          "E-BAKESPEC"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +2 food; each use of Farmland/Cultivation grants a Bake Bread action."
+      },
+      {
+        "id": "C27",
+        "codes": [
+          "PASSIVE",
+          "L-EXT",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Lets three named majors be built via Minor Improvement action (extended legality) and reduces their stone cost."
+      },
+      {
+        "id": "C30",
+        "codes": [
+          "E-SCORE",
+          "E-SCOREGRP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus point per stone room; mutually-exclusive stone-house scoring card."
+      },
+      {
+        "id": "C35",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Negative bonus point per hand card; the no-discard rule is a play restriction, not a mechanic."
+      },
+      {
+        "id": "C37",
+        "codes": [
+          "PASSIVE",
+          "E-FOODCOST",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous rule adding a 1-food cost (convertible) to placing any new field tile."
+      },
+      {
+        "id": "C41",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each harvest feeding phase, optionally exchange 1 food for 2 diff building resources or 1 veg."
+      },
+      {
+        "id": "C42",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-EXTRAPLACE",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately after using a specific space, optionally place another person on an accumulation space and gain a good."
+      },
+      {
+        "id": "C44",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places food on next 8 round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "C51",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OPP",
+          "E-OPPTRANSFER",
+          "E-SCHED",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Opponent using Fishing pays owner 1 food first, then 2 food placed on Fishing for that round; must track which rounds used."
+      },
+      {
+        "id": "C56",
+        "codes": [
+          "HOOK",
+          "S-SUB",
+          "T-AFTER",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After building each stable get food (3 for last); also change one stable's wood cost to clay each build."
+      },
+      {
+        "id": "C59",
+        "codes": [
+          "HOOK",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In each feeding phase optionally turn 1 veg into 5 food; bonus points for 5th/6th veg."
+      },
+      {
+        "id": "C65",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places grain on rounds 8/10/12 spaces, collected at start."
+      },
+      {
+        "id": "C68",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-PLAY",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After playing an occupation, get 1 vegetable."
+      },
+      {
+        "id": "C70",
+        "codes": [
+          "ONPLAY",
+          "L-CARDFIELD",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a veg-only field; harvested veg can immediately convert to 4 food each."
+      },
+      {
+        "id": "C74",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Wood on remaining even round spaces, collected at start."
+      },
+      {
+        "id": "C79",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Stone on remaining even round spaces, collected at start."
+      },
+      {
+        "id": "D7",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play (round 3/6/9/12 per prereq) gain plain food; passing minor."
+      },
+      {
+        "id": "D9",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-ANIMALS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gain 1 boar + 1 cattle (must accommodate); passing minor."
+      },
+      {
+        "id": "D10",
+        "codes": [
+          "HOOK",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-GRANTSUB",
+          "E-GROWTH"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In returning-home phase each round, if more rooms than people, pay 1 food to take Family Growth; once per round by nature of hook."
+      },
+      {
+        "id": "D12",
+        "codes": [
+          "HOOK",
+          "S-HFEED",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-CAPNEG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each feeding phase get 1 food; can no longer hold animals in house."
+      },
+      {
+        "id": "D15",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you build a clay room, may pay an alternative cost formula -> cost-modifier hook on the build-room sub-action, optional."
+      },
+      {
+        "id": "D20",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "L-CARDFIELD",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Farmland/Cultivation, may also plow up to 2 fields from field tiles held on the card -> grants plow sub-action; card holds field tiles."
+      },
+      {
+        "id": "D28",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Lessons, may play 1 additional occupation for a 2-food cost -> grants a play-occupation action, food cost."
+      },
+      {
+        "id": "D29",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus point per unfenced stable holding exactly 1 of each animal type -> end-game scoring rule (threshold/coverage, not an optimization)."
+      },
+      {
+        "id": "D37",
+        "codes": [
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Only a computable play restriction (more rounds left than unused spaces); otherwise just a plain VP -> no mechanic."
+      },
+      {
+        "id": "D38",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Field phase of each harvest: get food by cattle threshold; plus end-game bonus per 2 cattle."
+      },
+      {
+        "id": "D39",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "EXOTIC"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use a wood accumulation space, if you have a boar, may pay 1 food for 1 bonus point -> buying VP mid-game with food; keyed on named space type."
+      },
+      {
+        "id": "D41",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-SCHEDANIMAL",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, alternate placing 1 food and 1 sheep on each remaining round space, collected at start of those rounds."
+      },
+      {
+        "id": "D42",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-PLAY",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-COUNTER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After playing your Nth occupation, get a good/field depending on the running count of occupations played."
+      },
+      {
+        "id": "D43",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place 0/1/2/3 food on next 4 round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "D45",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place 1 food on each next round space up to sheep count, collected at start of those rounds."
+      },
+      {
+        "id": "D49",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-PLAY",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Immediately before each time you play an occupation (before paying cost), get 3 food."
+      },
+      {
+        "id": "D50",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-TAKEBACK",
+          "EXOTIC"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play get 6 food; may no longer use round 12-14 action spaces -> permanent self-imposed board restriction on future spaces."
+      },
+      {
+        "id": "D66",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before each Bake Bread action, may exchange 1 clay for 1 grain (must bake if exchanged) -> convert on the bake sub-action, optional."
+      },
+      {
+        "id": "D69",
+        "codes": [
+          "ONPLAY",
+          "ATWILL",
+          "CAP-ROUND",
+          "E-SCHED",
+          "E-CONVERT",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Schedules veg on rounds +4/+7; at start of those rounds may buy the veg for 1 food (deferrable per round)."
+      },
+      {
+        "id": "D73",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using Fishing space, optional buy grain/veg for food = conversion; 'after you use' -> T-AFTER."
+      },
+      {
+        "id": "D75",
+        "codes": [
+          "PASSIVE",
+          "L-CARDFIELD",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a field you sow/harvest wood on (counts as 2 fields for yield); wood-as-crop field-yield rule."
+      },
+      {
+        "id": "D78",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places reed on next 3 round spaces, auto-collected at round start (scheduled goods)."
+      },
+      {
+        "id": "D79",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At end of rounds 8/10/12 auto-gain stone per veg field + wood per veg in supply; end-of-round hook per state count."
+      },
+      {
+        "id": "D84",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-ANIMALS",
+          "E-GOODS",
+          "E-CONVERT",
+          "E-BREEDMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gain 1 sheep; each harvest feeding phase optionally exchange 1 veg for 1 animal of a type you have (feeding-phase animal gain)."
+      },
+      {
+        "id": "C1",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-FREEFENCE",
+          "E-PASSING",
+          "E-RETURNCOMP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Raze all fences then rebuild + add up to 3, counts as building fences; passing minor. Fences returned/replaced without losing animals."
+      },
+      {
+        "id": "C4",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Gain 1 wood per occupation immediately; passing minor. Plain count-based goods."
+      },
+      {
+        "id": "C5",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Gain 1 clay per clay room + major improvement; passing minor. Plain count-based goods."
+      },
+      {
+        "id": "C7",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Choose 3 food or 1 food per sheep (keep sheep); passing minor. Immediate goods with a choice."
+      },
+      {
+        "id": "C8",
+        "codes": [
+          "ONPLAY",
+          "E-CROPMANIP",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Add 1 good to each field holding exactly 1 good; passing minor. Manipulates crops on fields."
+      },
+      {
+        "id": "C9",
+        "codes": [
+          "ONPLAY",
+          "E-ANIMALS",
+          "E-CONVERT",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play optionally buy 1 sheep/boar/cattle for 0/1/2 food if accommodatable; passing minor."
+      },
+      {
+        "id": "C10",
+        "codes": [
+          "LATCH",
+          "ST-LATCH",
+          "E-PEOPLE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once you have 4 rooms, house holds 5 people; person-capacity change latched on room-count condition."
+      },
+      {
+        "id": "C12",
+        "codes": [
+          "PASSIVE",
+          "E-CAPNEW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card holds 1 cattle per pasture you have; new animal holder scaling with pasture count."
+      },
+      {
+        "id": "C13",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "CAP-GAME",
+          "E-COSTMOD",
+          "E-SUBSTITUTE",
+          "L-EXT",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On first renovation (action trigger + once ever -> HOOK on renovate sub-action + CAP-GAME), allows clay-skip renovate-to-stone directly (L-EXT new target, E-SUBSTITUTE) with a 2-stone discount (E-COSTMOD); needs first-flag (ST-STORE)."
+      },
+      {
+        "id": "C15",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time before using Pig Market space, may take a full Build Fences action (pay wood as usual) -> T-BEFORE, grants a whole action."
+      },
+      {
+        "id": "C17",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "L-EXT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, may plow 1 field that need not be adjacent (grants plow sub-action + relaxes adjacency legality)."
+      },
+      {
+        "id": "C18",
+        "codes": [
+          "ATWILL",
+          "E-GRANTSUB",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time, discard all goods from a planted field (crop manipulation as cost) to plow 1 field (granted plow sub-action)."
+      },
+      {
+        "id": "C20",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time using Farmland/Cultivation space, may plow 1 additional field -> T-BEFORE grant of plow sub-action."
+      },
+      {
+        "id": "C21",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-REVEAL",
+          "F-TRIG",
+          "A-OWN",
+          "E-GROWTH",
+          "E-NOPLACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time a Quarry space is revealed, if room, may take Family Growth without placing a person -> HOOK on reveal seam; E-GROWTH without placing."
+      },
+      {
+        "id": "C22",
+        "codes": [
+          "ONPLAY",
+          "E-WORKERMANIP",
+          "E-EXTRAPLACE",
+          "L-CARDSPACE",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, move the first person placed this phase to this card (worker manip + card holds person, needs placelog), then place another person (extra placement)."
+      },
+      {
+        "id": "C23",
+        "codes": [
+          "ONPLAY",
+          "E-WORKERMANIP",
+          "L-OCCUPY",
+          "L-GEOMBOARD",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Use Day Laborer and adjacent Lessons with one person in order (two spaces one worker -> E-WORKERMANIP); adjacency on board; both then occupied (own-occupancy). PASSIVE-like standing ability but classified as the ability it grants."
+      },
+      {
+        "id": "C24",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HSTART",
+          "F-TRIG",
+          "A-OWN",
+          "CAP-GAME",
+          "E-GROWTH",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At start of the NEXT harvest only, get a Family Growth if room -> fires at harvest start, one-time (CAP-GAME) needing a next-harvest flag."
+      },
+      {
+        "id": "C28",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time using Major/House-Redev space, may also play 1 occupation at cost of 1 food (grants the play-occupation action) -> T-BEFORE."
+      },
+      {
+        "id": "C29",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-SCORE",
+          "E-OPPTRANSFER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At end of field phase of each harvest, may pay 1 grain for 2 bonus points and give all others 1 food. Timing 'end of field phase' -> after field, before feed; using S-AFTERFEED as nearest field/feed-boundary seam. Note: this is a fired repeatable-reward, not a computed scoring rule, so E-SCORE tag is for the bonus-point granting."
+      },
+      {
+        "id": "C31",
+        "codes": [
+          "E-SCORE",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Computed scoring: bonus points = total negative points, capped at 7 -> pure end-game score rule (no HOOK/F-AUTO)."
+      },
+      {
+        "id": "C32",
+        "codes": [
+          "ONPLAY",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Text is only a play-restriction computable from state (no player has 5+ cards); card otherwise does nothing printed here beyond play -> NONE. (Any effect/VP not stated.)"
+      },
+      {
+        "id": "C33",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Tiered end-game bonus points for unplanted fields -> plain threshold/count scoring rule, computed at game end."
+      },
+      {
+        "id": "C34",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each harvest (immediately after feeding), optionally exchange 1 reed for 1 bonus point; fires per harvest, optional convert-to-VP."
+      },
+      {
+        "id": "C36",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-SCORE",
+          "E-SCHED",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a clay accumulation space, optionally exchange 1 clay for 1 VP and place that clay back on the accumulation space (targets specific named clay accumulation spaces)."
+      },
+      {
+        "id": "C38",
+        "codes": [
+          "ONPLAY",
+          "E-OPPTRANSFER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, each other player gains 1 food (gift to opponents)."
+      },
+      {
+        "id": "C39",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCORE",
+          "L-CARDSPACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Traveling Players also grants 1 bonus point; in 1-3 player games the card itself is an accumulation space (+1 food)."
+      },
+      {
+        "id": "C40",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PLAYVARIANT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Play cost forks grain->1 veg or reed->4 wood; cost and reward linked = play-variant."
+      },
+      {
+        "id": "C43",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you build a major improvement, place 1 food on each of next 3 round spaces (mandatory schedule)."
+      },
+      {
+        "id": "C45",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Day Laborer also places 1 food on each of next 4 round spaces."
+      },
+      {
+        "id": "C46",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-CONVERT",
+          "E-SCORE",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once per round, pay 1 veg for 1 VP and schedule 1 food onto next 2 round spaces."
+      },
+      {
+        "id": "C47",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place 1 food on each remaining round space up to 3x planted fields (count of remaining round spaces)."
+      },
+      {
+        "id": "C48",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each turn that made at least one unused farmyard space used, get 1 food; needs to track the turn's farmyard change."
+      },
+      {
+        "id": "C49",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In each feeding phase, per empty unfenced stable, optionally exchange 1 grain for 5 food."
+      },
+      {
+        "id": "C50",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "ATWILL",
+          "E-CONVERT",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play get 1 food per remaining round; at any time exchange 1 sheep+1 boar for 1 cattle (provides an animal needing accommodation)."
+      },
+      {
+        "id": "C52",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each new wild boar obtained from an action-space effect also grants 1 food; keyed on obtaining a specific good."
+      },
+      {
+        "id": "C53",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-BAKESPEC",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time a cooking improvement turns 2 goods into food at once, get 1 extra food; keyed on the cook/convert event and its payload."
+      },
+      {
+        "id": "C54",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-PIECECOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After field phase each harvest, optional exchange 1 grain + 1 fence piece for 5 food; fence is a supply piece cost."
+      },
+      {
+        "id": "C55",
+        "codes": [
+          "HOOK",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Feeding phase each harvest: optional turn wood/clay/stone into food; card acts as a cooking-style converter."
+      },
+      {
+        "id": "C57",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-CONVERT",
+          "ATWILL",
+          "E-CROPMANIP",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play buy 1 veg for 3 food; at-will discard veg onto a field veg for 4 food (manipulates crop on field)."
+      },
+      {
+        "id": "C58",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a wood accumulation space, if <=5 wood you get 1 food; specific named-space class, checked before after-triggers."
+      },
+      {
+        "id": "C60",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-RETURNCOMP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +5 food (return Clay/Stone Oven); before each Bake Bread action can build Clay/Stone Oven major."
+      },
+      {
+        "id": "C61",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On Bake Bread action, once, turn 1 grain into 2 food + 1 bonus point; must bake normally (after)."
+      },
+      {
+        "id": "C62",
+        "codes": [
+          "HOOK",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-BAKESPEC"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each harvest use each cooking improvement once for double food from 1 animal/veg; modifies cooking conversion."
+      },
+      {
+        "id": "C63",
+        "codes": [
+          "HOOK",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS",
+          "E-SCORE",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Feeding phase each harvest: exchange 1 supply grain + 1 field grain for 2 bonus points and 4 food."
+      },
+      {
+        "id": "C64",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-SCHED",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once per round, pay 1 grain to place 1 food on each of next 4 round spaces, collected at start of rounds."
+      },
+      {
+        "id": "C67",
+        "codes": [
+          "HOOK",
+          "S-SOR",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Start of each non-harvest round, if >=1 sheep in a pasture, get 1 grain."
+      },
+      {
+        "id": "C66",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each harvest, with 2 or 3+ supply grain: get 1 food or 1 additional grain respectively (errata: or)."
+      },
+      {
+        "id": "C69",
+        "codes": [
+          "ATWILL",
+          "E-CONVERT",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time, exchange 3 grain in a field for 1 vegetable in that field; manipulates crops on field."
+      },
+      {
+        "id": "C71",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HBREED",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Breeding phase: if newborns of >=2 types, also get a Sow action (optional granted sub-action)."
+      },
+      {
+        "id": "C72",
+        "codes": [
+          "ONPLAY",
+          "E-CROPMANIP",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, carry out just the field phase (not a real harvest, own only), then get a Major-or-Minor Improvement action."
+      },
+      {
+        "id": "C73",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "A-OWN",
+          "F-TRIG",
+          "E-GOODS",
+          "F-MANDCHOICE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each unconditional Sow, gain 1 grain (auto); from r11 you may choose veg instead. After-timing sub-action hook, own actor; gain is automatic (F-AUTO) with an optional grain/veg swap late-game."
+      },
+      {
+        "id": "C75",
+        "codes": [
+          "HOOK",
+          "S-ROUNDEND",
+          "A-OWN",
+          "F-AUTO",
+          "T-BEFORE",
+          "S-SUB",
+          "E-COSTMOD",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Accrues 1 wood on card each returning-home phase (auto stack); before building a fireplace/hearth/oven, move up to 4 wood off card to pay — a stored goods pile reducing build cost."
+      },
+      {
+        "id": "C76",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "A-OWN",
+          "F-AUTO",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time using a wood accumulation space, +2 wood. Space-seam hook, own, automatic."
+      },
+      {
+        "id": "C77",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places 1 clay on next 3 round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "C78",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places 1 reed on 5 future round spaces (current+5,7,9,11,13), collected at their start."
+      },
+      {
+        "id": "C80",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "A-OWN",
+          "F-TRIG",
+          "E-CONVERT",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you plow a field (incl. playing a field card), you may buy 1 stone for 1 food. Optional post-plow conversion paying food."
+      },
+      {
+        "id": "C81",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "S-OBTAIN",
+          "A-OWN",
+          "A-OPP",
+          "F-AUTO",
+          "E-GOODS",
+          "ST-STACK",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play stock 2 of each resource on card; when any player takes >=5 wood/4 clay/3 reed/3 stone, take 1 of that resource off the card. Obtain-triggered, both actors, from card stack (threshold on the obtain amount)."
+      },
+      {
+        "id": "C82",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "A-OWN",
+          "F-TRIG",
+          "E-GOODS",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using the named Day Laborer space, may pay 2 food to buy 1 of each resource. Optional post-space purchase, food cost."
+      },
+      {
+        "id": "C83",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play immediately get 2 cattle — animals must be accommodated."
+      },
+      {
+        "id": "C84",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-BREEDMOD",
+          "E-FOODCOST",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each non-harvest round, may pay 1 grain to breed exactly 1 animal type outside a breeding phase. Breeding-rule change, deferrable within the round, food-ish(grain) cost."
+      },
+      {
+        "id": "D1",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-PASSING",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play grants an immediate plow completing a zigzag adjacency pattern; passing minor. Shape-dependent plow."
+      },
+      {
+        "id": "D2",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTACT",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play grants an immediate Renovation action; passing minor."
+      },
+      {
+        "id": "D3",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play grants an immediate sow in exactly 1 field; passing minor."
+      },
+      {
+        "id": "D4",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play get wood equal to stone in supply (plain conditional goods read); passing minor."
+      },
+      {
+        "id": "D5",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, gain 1 clay per planted field (plain state-read count); passing minor."
+      },
+      {
+        "id": "D6",
+        "codes": [
+          "ONPLAY",
+          "E-CONVERT",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, exchange up to 3 wood for 1 stone each; passing minor."
+      },
+      {
+        "id": "D8",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-GRANTSUB",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Gain 2 food + 1 grain that must be sown immediately (mandatory grant of sow sub-action); passing."
+      },
+      {
+        "id": "D11",
+        "codes": [
+          "PASSIVE",
+          "E-CAPGROW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous capacity increase for size-1 pastures."
+      },
+      {
+        "id": "D13",
+        "codes": [
+          "ATWILL",
+          "E-GRANTACT",
+          "E-COSTMOD",
+          "E-FOODCOST",
+          "L-EXT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At-any-time renovate-to-stone action with a replacement cost formula incl. food; extends renovation-from-wood target."
+      },
+      {
+        "id": "D14",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before renovating to stone: auto get 2 clay+1 reed and may take a Build Rooms action (goods auto, action optional)."
+      },
+      {
+        "id": "D16",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-PIECECOST",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before using Sheep/Cattle Market space, optionally build exactly 1 stable at reduced/no cost."
+      },
+      {
+        "id": "D17",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before an unconditional Sow, optionally pay 3 food to plow 1 field."
+      },
+      {
+        "id": "D18",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-NOPLACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After each returning-home phase, optionally pay 2 wood+1 food to use Farmland without placing a person."
+      },
+      {
+        "id": "D19",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a clay accumulation space, optionally pay 1 clay to plow, placing that clay back on the space; needs to identify the space to return goods (ST-PROV-ish, but space-typed)."
+      },
+      {
+        "id": "D21",
+        "codes": [
+          "HOOK",
+          "S-MAJMIN",
+          "T-BEFORE",
+          "F-TRIG",
+          "A-OWN",
+          "E-SUBSTITUTE",
+          "E-GRANTSUB",
+          "E-GROWTH"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Errata: from round 5, each time you get a Minor Improvement action you may take Family Growth instead (needs room)."
+      },
+      {
+        "id": "D22",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-PEOPLE",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place a person on a future round space computed from building-resource count; the person is usable that round (schedules a worker onto a specific round-space)."
+      },
+      {
+        "id": "D23",
+        "codes": [
+          "ATWILL",
+          "L-CARDSPACE",
+          "E-GRANTACT",
+          "E-ANIMALS",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a private action space; rounds 3-5 renovation action, rounds 6-8 choose veg/boar/cattle; round-band dependent."
+      },
+      {
+        "id": "D24",
+        "codes": [
+          "PASSIVE",
+          "E-EXTRAPLACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "With exactly 4 people, place 3rd and 4th person back-to-back (extra consecutive placement); always-on rule change."
+      },
+      {
+        "id": "D25",
+        "codes": [
+          "ONPLAY",
+          "L-CARDFIELD",
+          "E-BAKESPEC",
+          "EXOTIC",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "MULTI_IDENTITY: a single card that simultaneously counts as a field + occupation + minor + major (Fireplace), flexibly whichever identity is most convenient for another effect, but never more than one at once.",
+        "note": "Errata strips Fireplace conversions; acts as a field plus a flexible-identity card counting variously as occupation/minor/major. Multi-identity is the standout mechanic."
+      },
+      {
+        "id": "D26",
+        "codes": [
+          "PASSIVE",
+          "E-COSTMOD",
+          "L-EXT",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Build Joinery/Well via a Minor Improvement action (extends legality), or build both in one Major Improvement action."
+      },
+      {
+        "id": "D27",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-RETURNCOMP",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At end of each turn in which you renovate (sub-action), optionally exchange one built major for another along a fixed chain."
+      },
+      {
+        "id": "D30",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End-game bonus for having 3/4/5 bottom-row major improvements; plain threshold/count score."
+      },
+      {
+        "id": "D31",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End-game bonus per grain+veg pair across supply and fields; plain count score."
+      },
+      {
+        "id": "D32",
+        "codes": [
+          "E-SCORE",
+          "ST-STORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus if you had >=7 goods in fields before the final harvest; needs snapshotting that pre-final-harvest field count."
+      },
+      {
+        "id": "D33",
+        "codes": [
+          "E-SCORE",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus per unused farmyard space orthogonally adjacent to your house (if stone house); adjacency-dependent scoring."
+      },
+      {
+        "id": "D34",
+        "codes": [
+          "E-SCORE",
+          "E-SCOREGRP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus if more stone rooms than people; explicitly mutually-exclusive with other stone-house scoring cards."
+      },
+      {
+        "id": "D35",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus per Nth animal on farm; plain count score with player-count-dependent divisor."
+      },
+      {
+        "id": "D36",
+        "codes": [
+          "E-SCORE",
+          "ST-COUNTER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus if <=2 sheep gained from non-breeding sources and no sheep turned to food; needs tracking those provenance counts over the game."
+      },
+      {
+        "id": "D40",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-SCHEDANIMAL",
+          "E-ANIMALS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Alternate clay and wild boar on each remaining round space, collected at round start; alternation depends on round-space ordering."
+      },
+      {
+        "id": "D44",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place 1 food on each remaining round space up to your wood count, collected at those round starts."
+      },
+      {
+        "id": "D46",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-SCHED",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once per round, pay 1 reed to place food on the next 4 round spaces; deferrable, capped per round, targeting specifically the next 4 spaces."
+      },
+      {
+        "id": "D47",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place 2 food on each remaining round space, collected at those round starts."
+      },
+      {
+        "id": "D48",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before start of each round, conditional on hand composition (occupations > improvements in hand) get 1 food."
+      },
+      {
+        "id": "D51",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "L-CARDSPACE",
+          "E-NOPLACE",
+          "HOOK",
+          "T-BEFORE",
+          "S-ROUNDEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-WORKERMANIP",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a shared action space granting 1 food on use; before returning-home the person may use another unoccupied space (reuse placed worker)."
+      },
+      {
+        "id": "D52",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-ROUNDEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In returning-home phase each round, if clay>wood in supply get 1 food."
+      },
+      {
+        "id": "D53",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-GOODS",
+          "E-WORKERMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once per round skip placing second person for 1 food, place later; manipulates worker placement timing."
+      },
+      {
+        "id": "D54",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At start of each work phase, if >=3 food on Fishing space, get 1 food; reads a specific named accumulation space (not L-GEOMBOARD)."
+      },
+      {
+        "id": "D55",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use an action space on round spaces 8-11 get 1 extra food; keyed on specific round-space number band."
+      },
+      {
+        "id": "D56",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you cook a sheep/boar into food get 1 additional food (bonus on cooking conversion)."
+      },
+      {
+        "id": "D57",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Place 1 food on each remaining round space, collected at start of those rounds."
+      },
+      {
+        "id": "D58",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At end of each action in which you sow vegetables, get 1 food per vegetable field."
+      },
+      {
+        "id": "D59",
+        "codes": [
+          "ATWILL",
+          "E-CONVERT",
+          "E-ANIMALS",
+          "E-BAKESPEC",
+          "E-RETURNCOMP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Return a Fireplace (component) to play; at-any-time convert crops/animals to food + bake-bread grain->food conversion. Convert consumes animals. Counts as min or maj improvement."
+      },
+      {
+        "id": "D60",
+        "codes": [
+          "ATWILL",
+          "E-CONVERT",
+          "E-SCORE",
+          "E-RETURNCOMP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Return the Pottery to play; at-any-time clay->2 food; end-game bonus points by clay held (threshold-based E-SCORE)."
+      },
+      {
+        "id": "D61",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HSTART",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At start of each harvest, if >=3 grain fields get 2 food."
+      },
+      {
+        "id": "D62",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "HOOK",
+          "T-BEFORE",
+          "S-HFEED",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play get 2 food; during feeding phase of each harvest optionally convert grain->food at a scaling rate."
+      },
+      {
+        "id": "D63",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In field phase get 1 food per harvested field orthogonally adjacent to house (adjacency dependency)."
+      },
+      {
+        "id": "D64",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-GRANTSUB",
+          "E-BAKESPEC",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At end of non-harvest rounds you MAY take a Bake Bread action (grain->2food); optional grant, once per qualifying round."
+      },
+      {
+        "id": "D65",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Field phase, if harvest >=2 grain, auto get +1 grain; fires each harvest."
+      },
+      {
+        "id": "D67",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places grain on next 3 harvest round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "D68",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Reed Bank you may pay 1 reed for 1 veg; 4p reed-placement branch irrelevant to 2p."
+      },
+      {
+        "id": "D70",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HSTART",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Before field phase, optionally pay 1 grain to add veg to up to 2 veg fields; manipulates crops on fields, costs grain."
+      },
+      {
+        "id": "D71",
+        "codes": [
+          "ATWILL",
+          "E-GRANTSUB",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time, discard a field's single post-harvest good and take a Sow limited to that field."
+      },
+      {
+        "id": "D72",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-TRIG",
+          "A-OWN",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Field phase: may harvest 1 extra good from fields equal to unfenced stables; changes field yield rule."
+      },
+      {
+        "id": "D74",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of turn using Farm Expansion or building improvement, get 1 wood back per 2 wood paid; needs provenance of wood spent."
+      },
+      {
+        "id": "D76",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-AFTERFEED",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After feeding phase, if no food left, auto get 1 wood + 1 clay; fires each harvest."
+      },
+      {
+        "id": "D77",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "A-OPP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time any player renovates to stone, get 1 clay per newly renovated room; fires on own and opponent renovate sub-action."
+      },
+      {
+        "id": "D80",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-ALTCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After building improvement costing >=2 clay, get 1 stone; play cost is 1 Wood/1 Food choice (E-ALTCOST)."
+      },
+      {
+        "id": "D81",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-COSTMOD",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each renovate: pay 1 fewer reed (cost mod) and at end of action get 1 stone."
+      },
+      {
+        "id": "D82",
+        "codes": [
+          "PASSIVE",
+          "E-COSTMOD",
+          "E-FREEFENCE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Improvements on House Redev cost 1 building resource less; fences on Farm Redev cost 3 wood less total. Cost is return/cook a boar."
+      },
+      {
+        "id": "D83",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-ANIMALS",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Fencing space, also get 1 wild boar; animal must be accommodated. Play cost 2 Food/1 Grain (E-ALTCOST)."
+      },
+      {
+        "id": "E1",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-COSTMOD",
+          "E-PIECECOST",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, grant building up to 3 stables at no cost (stable pieces from supply); passing minor."
+      },
+      {
+        "id": "E2",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-COSTMOD",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, renovate wood->clay at no cost; passing."
+      },
+      {
+        "id": "E3",
+        "codes": [
+          "ONPLAY",
+          "E-WORKERMANIP",
+          "E-PASSING",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Return placed person on Grain Utilization home to reuse this round; needs placement log; passing."
+      },
+      {
+        "id": "E4",
+        "codes": [
+          "ONPLAY",
+          "E-CROPMANIP",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Remove all grain from a field, gain 2 wood per grain; crop manipulation + goods; passing."
+      },
+      {
+        "id": "E5",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Take 2 different building resources from accumulation spaces into supply; passing."
+      },
+      {
+        "id": "E6",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "NONE",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Gain building resource of each type you have >=4 of — plain conditional goods from state read; passing."
+      },
+      {
+        "id": "E7",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-CONVERT",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Turn 1 grain (cost) into 4 food; passing."
+      },
+      {
+        "id": "E8",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Buy 1 vegetable for 2 food (cost); plain goods; passing."
+      },
+      {
+        "id": "E9",
+        "codes": [
+          "ATWILL",
+          "E-ANIMALS",
+          "E-CONVERT",
+          "CAP-GAME",
+          "E-PASSING"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Up to two times spend resources for an animal; must accommodate animals; passing. Immediate on-play; capped twice."
+      },
+      {
+        "id": "E10",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-WORKERMANIP",
+          "E-GRANTACT",
+          "E-GOODS",
+          "ST-PLACELOG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At end of work phase rounds 3&6, move person from Farmland to unoccupied space and take that action, or 1 food; needs placement log."
+      },
+      {
+        "id": "E11",
+        "codes": [
+          "PASSIVE",
+          "E-CAPNEW",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card holds animals up to room count, only while pasture orthogonally adjacent to house (adjacency)."
+      },
+      {
+        "id": "E12",
+        "codes": [
+          "PASSIVE",
+          "E-CAPGROW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Raises capacity of existing unfenced stables and pastures-with-stable."
+      },
+      {
+        "id": "E13",
+        "codes": [
+          "ATWILL",
+          "E-GRANTACT",
+          "E-NOPLACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At any time renovate clay->stone without placing a person, paying normal cost."
+      },
+      {
+        "id": "E14",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-NOPLACE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time all others have more people than you, take a Build Rooms action without placing a person; comparative-count trigger."
+      },
+      {
+        "id": "E15",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-PIECECOST",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using a wood accumulation space, optionally place 1 stone from supply on that space to take a Build Fences action; stone is a piece placed for next visitor, needs to know which space was used."
+      },
+      {
+        "id": "E16",
+        "codes": [
+          "PASSIVE",
+          "E-FREEFENCE",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Passive: fences on the board edge cost no wood (still use fence pieces); edge = board-shape adjacency."
+      },
+      {
+        "id": "E17",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "PASSIVE",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Farmland/Cultivation may plow 2 instead of 1 (granted extra plow); passive rule reducing goods placed when sowing (field yield change)."
+      },
+      {
+        "id": "E18",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-PLAY",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After playing a later minor improvement, may pay 1 food to plow 1 field."
+      },
+      {
+        "id": "E19",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After using Cattle Market, may pay 2 food to plow 1 field."
+      },
+      {
+        "id": "E20",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "ST-PLACELOG",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of work phase, if occupying both Grain Seeds and Vegetable Seeds spaces, may plow 1 field; needs to know worker placement on named spaces."
+      },
+      {
+        "id": "E21",
+        "codes": [
+          "PASSIVE",
+          "L-OCCUPY"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "May use any Wish for Children space even if occupied."
+      },
+      {
+        "id": "E22",
+        "codes": [
+          "ONPLAY",
+          "ATWILL",
+          "CAP-ROUND",
+          "E-NOPLACE",
+          "E-EXTRAPLACE",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play place any food on card; once per round discard 1 food to place a person that round (extra placement without normal action); food stack kept on card."
+      },
+      {
+        "id": "E23",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of each work phase may sow exactly 1 crop on 1 field (granted sow sub-action)."
+      },
+      {
+        "id": "E24",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-MAJMIN",
+          "F-TRIG",
+          "A-OWN",
+          "E-SUBSTITUTE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "When getting a Minor Improvement action, may build a major instead — substitutes the granted action."
+      },
+      {
+        "id": "E25",
+        "codes": [
+          "ONPLAY",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, immediately run the harvest field phase on own farmyard only (harvests planted fields early)."
+      },
+      {
+        "id": "E26",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-NOPLACE",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of work phase in rounds 7 and 9 only, may take a Sow action without placing a person; specific round numbers."
+      },
+      {
+        "id": "E27",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "ATWILL",
+          "E-COSTMOD",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "End of work phase may irretrievably add 1 food to card; at any time discard 6 food from card to build a major at no cost; food stack on card."
+      },
+      {
+        "id": "E28",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-SCHED",
+          "E-COSTMOD",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play mark round+3; at start of that round may play 1 occupation without paying its cost — a scheduled future benefit tied to a marked round space, waiving the occupation cost."
+      },
+      {
+        "id": "E29",
+        "codes": [
+          "ONPLAY",
+          "NONE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "No effect; plain card played from a prerequisite."
+      },
+      {
+        "id": "E30",
+        "codes": [
+          "PASSIVE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous rule change: newborns require 2 food during feeding instead of 1."
+      },
+      {
+        "id": "E31",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-PLAY",
+          "F-TRIG",
+          "A-OWN",
+          "E-SCORE",
+          "ST-COUNTER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After building/playing each later improvement, may place reed (irretrievably) for bonus points up to room count; accumulated on-card count."
+      },
+      {
+        "id": "E32",
+        "codes": [
+          "E-SCORE",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus point per farmyard column containing a room — depends on farm column geometry."
+      },
+      {
+        "id": "E33",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCORE",
+          "E-CAPNEG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "One pasture-with-stable can't hold animals (capacity override); +1 bonus pt each time you get reed from an action space."
+      },
+      {
+        "id": "E34",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "2 bonus points if no unused farm spaces at scoring."
+      },
+      {
+        "id": "E35",
+        "codes": [
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Bonus points scaling with having exactly 4/3/2 people."
+      },
+      {
+        "id": "E36",
+        "codes": [
+          "PASSIVE",
+          "E-CAPNEG"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Continuous restriction: at least one pasture must hold no animals."
+      },
+      {
+        "id": "E37",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 food; 3 bonus points at scoring if no cattle."
+      },
+      {
+        "id": "E38",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-SCORE",
+          "ST-COUNTER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each use of Fishing may place up to 2 wood on card; scoring counts wood except 1st/4th/7th/10th."
+      },
+      {
+        "id": "E39",
+        "codes": [
+          "ATWILL",
+          "CAP-HARVEST",
+          "E-CONVERT",
+          "E-SCORE"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each harvest may exchange 1 clay for 2 food or 1 bonus point (once per harvest, optional)."
+      },
+      {
+        "id": "E40",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Pile goods on card at play; each use of Day Laborer take the top good from the on-card stack."
+      },
+      {
+        "id": "E41",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places food/clay on remaining even round spaces, collected at start of those rounds."
+      },
+      {
+        "id": "E42",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-SCHEDANIMAL",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Places cattle/grain/cattle on next 3 round spaces; cattle are animals needing accommodation."
+      },
+      {
+        "id": "E43",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, place food on future round spaces based on stable count; collected at round start."
+      },
+      {
+        "id": "E44",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, schedule 1 food on each remaining odd round space."
+      },
+      {
+        "id": "E45",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, schedule 1 food on each remaining even round space."
+      },
+      {
+        "id": "E46",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, schedule 1 food on next 2 round spaces."
+      },
+      {
+        "id": "E47",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-SCHED"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you get wood from an action space, schedule 1 food onto the next round space. Keyed on obtaining wood."
+      },
+      {
+        "id": "E48",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HFEED",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "In each harvest feeding phase, gain 1/2 food per house material."
+      },
+      {
+        "id": "E49",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "A-OPP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After any player builds a wood room, gain 1 food; fires on own or opponent build-room."
+      },
+      {
+        "id": "E50",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you sow, gain 1 food per different good type sown."
+      },
+      {
+        "id": "E51",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Fishing use stacks food on card; before playing an occupation gain that food. Two hooks; card holds a food stack."
+      },
+      {
+        "id": "E52",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Adding a room stacks food on card; at each feeding phase start gain that amount. Card-held food stack."
+      },
+      {
+        "id": "E53",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you get wild boar outside breeding, optionally convert them to 4 food each."
+      },
+      {
+        "id": "E54",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-MAJMIN",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "E-FOODCOST"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After playing/building an improvement, may pay 1 extra printed building resource to get 3 food. Cost paid with a building resource of the printed type; note ST-PROV for printed cost type."
+      },
+      {
+        "id": "E55",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-PROV"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Using Fishing, gain extra food scaled by current food on the space; needs the space's food count."
+      },
+      {
+        "id": "E56",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK",
+          "L-GEOMBOARD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play place 4 food on card; at each work-phase start, if last in turn order, move 1 food to supply. Card-held depleting stack; turn-order dependent."
+      },
+      {
+        "id": "E57",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you bake grain into bread, gain food per owned animal types; fires on the bake sub-action, conditional on animal holdings."
+      },
+      {
+        "id": "E58",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HSTART",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At start of harvest, optionally skip field+breeding phases for 1 food; alters harvest resolution (skipping field phase)."
+      },
+      {
+        "id": "E59",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Day Laborer, gain food per sheep on the Sheep Market space (capped 4); reads another space's goods."
+      },
+      {
+        "id": "E60",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-PLAY",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "E-COSTMOD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play gain 1 food; each time you pay an occupation cost you may substitute 1 building resource for up to 2 food — changes what occupation play costs."
+      },
+      {
+        "id": "E61",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-HSTART",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At start of each harvest, get 4 food; recurring harvest-start gain."
+      },
+      {
+        "id": "E62",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-NOPLACE",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Once per round, if all players have a person left, skip placing a person and take a Bake Bread action instead."
+      },
+      {
+        "id": "E63",
+        "codes": [
+          "ONPLAY",
+          "PASSIVE",
+          "E-BAKESPEC",
+          "E-CONVERT",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Adds a 1 grain -> 6 food bake conversion rate; on build, immediately take a Bake Bread action."
+      },
+      {
+        "id": "E64",
+        "codes": [
+          "ONPLAY",
+          "PASSIVE",
+          "E-BAKESPEC",
+          "E-CONVERT",
+          "E-GRANTACT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Adds a 1 grain -> 3 food bake conversion rate; on build, immediately take a Bake Bread action."
+      },
+      {
+        "id": "E65",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, gain 1 grain per 2 completed rounds; plain state-read immediate goods."
+      },
+      {
+        "id": "E66",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OPP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time another player uses the Forest space, you get 1 grain; opponent-action hook."
+      },
+      {
+        "id": "E67",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use Grain Seeds, gain extra grain per baking improvement owned."
+      },
+      {
+        "id": "E68",
+        "codes": [
+          "L-CARDFIELD",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a field where wood is sown/harvested as grain; harvesting last wood also gives 1 veg. Nonstandard field crop (wood) — captured by L-CARDFIELD + E-CROPMANIP."
+      },
+      {
+        "id": "E69",
+        "codes": [
+          "L-CARDFIELD",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a veg-only field; harvesting last veg grants an optional plow-1-field sub-action."
+      },
+      {
+        "id": "E70",
+        "codes": [
+          "L-CARDFIELD",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a field; removing its last grain/veg lets you immediately sow the other crop on it (a granted sow sub-action on the card-field)."
+      },
+      {
+        "id": "E71",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMFARM"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Fires on sow sub-action, optional bonus good; requires field orthogonally adjacent to pasture -> L-GEOMFARM."
+      },
+      {
+        "id": "E72",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-CARDFIELD"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a field; during field phase if harvested >=1 good, auto get 1 food."
+      },
+      {
+        "id": "E73",
+        "codes": [
+          "HOOK",
+          "S-HFIELD",
+          "F-TRIG",
+          "A-OWN",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "During field phase, optionally fully harvest one selected field -- changes field-harvest yield rule."
+      },
+      {
+        "id": "E74",
+        "codes": [
+          "ONPLAY",
+          "PASSIVE",
+          "E-FREEFENCE",
+          "E-PIECECOST",
+          "ST-STACK"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play place up to 5 fences (pieces) on card as a pool; fences from card are free when building."
+      },
+      {
+        "id": "E75",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you use a wood accumulation space, optionally return 1 stone for +3 wood -- a conversion tied to that space."
+      },
+      {
+        "id": "E76",
+        "codes": [
+          "ONPLAY",
+          "E-RETURNCOMP",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play, optionally return up to 3 stables to supply for 3 wood each."
+      },
+      {
+        "id": "E77",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-OBTAIN",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Each time you get reed/stone from an action space (obtaining), auto +1 clay."
+      },
+      {
+        "id": "E78",
+        "codes": [
+          "ONPLAY",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play single exchange up to 4 building resources for equal number of different building resources."
+      },
+      {
+        "id": "E79",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "After you sow in >=1 field, auto get 1 stone."
+      },
+      {
+        "id": "E80",
+        "codes": [
+          "PASSIVE",
+          "L-CARDFIELD",
+          "E-CROPMANIP"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is a special field: only stone plantable, counts as 1 field but plants as 3, sow/harvest stone like vegetables -- nonstandard field-crop rules."
+      },
+      {
+        "id": "E81",
+        "codes": [
+          "PASSIVE",
+          "L-CARDSPACE",
+          "E-GOODS",
+          "E-OPPTRANSFER"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Card is an action space for all; user gets 1 of each building resource type already owned; opponents pay you 1 food (toll)."
+      },
+      {
+        "id": "E82",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "On play +1 food; then after using Day Laborer space, optionally exchange 1 building resource for another."
+      },
+      {
+        "id": "E83",
+        "codes": [
+          "HOOK",
+          "S-HBREED",
+          "F-AUTO",
+          "A-OWN",
+          "E-ANIMALS"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "At start of breeding phase, if you have an empty unfenced stable, auto get 1 sheep (must be accommodated)."
+      },
+      {
+        "id": "E84",
+        "codes": [
+          "PASSIVE",
+          "E-BREEDMOD",
+          "E-CAPNEW"
+        ],
+        "unclear": false,
+        "new_category": "",
+        "note": "Relaxes sheep-breeding requirement to only 1 sheep; card holds 1 sheep (new holder slot)."
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Classify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "cards-1",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "ab6804361387127f4",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961151165,
+      "queuedAt": 1782961151102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961173751,
+      "tokens": 98112,
+      "toolCalls": 1,
+      "durationMs": 22585,
+      "resultPreview": "{\"cards\":[{\"id\":\"A1\",\"codes\":[\"ONPLAY\",\"E-GRANTSUB\",\"E-FREEFENCE\",\"E-PIECECOST\",\"E-PASSING\",\"L-GEOMFARM\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Passing minor; grants building a free stable but only in a 1-space pasture (adjacency/shape restriction on placement); stable is a game piece.\"},{\"id\":\"A3\",\"codes\":[\"ONPLAY\",\"E-GRANTACT\",\"L-RANDOM\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "cards-2",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "aeadb107a5f2375ac",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961151177,
+      "queuedAt": 1782961151102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961170066,
+      "tokens": 98203,
+      "toolCalls": 1,
+      "durationMs": 18888,
+      "resultPreview": "{\"cards\":[{\"id\":\"A21\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SUB\",\"F-TRIG\",\"E-GROWTH\",\"E-GOODS\",\"CAP-GAME\",\"ST-STORE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On Build Rooms with more rooms than people, grants a family-growth action + 1 food; clarification caps at exactly 1 growth per build (ST-STORE to track).\"},{\"id\":\"A22\",\"codes\":[\"ONPLAY\",\"E-EXTRAPLACE\",\"E-SCHED\",\"L-GEOMBOARD\",\"ST-STORE\"],\"unclear\":fa…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "cards-3",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a694f1a501531d8b6",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961151184,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961173588,
+      "tokens": 98151,
+      "toolCalls": 1,
+      "durationMs": 22404,
+      "resultPreview": "{\"cards\":[{\"id\":\"A40\",\"codes\":[\"ONPLAY\",\"HOOK\",\"T-BEFORE\",\"S-SUB\",\"F-TRIG\",\"E-GOODS\",\"E-CONVERT\",\"ST-STACK\",\"L-CARDSPACE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play seeds clay on unused farmyard spaces (stack on card); each time a space becomes used you get that clay and may exchange it for 2 food (optional convert). ST-STACK for per-space clay pile. Not L-CARDSPACE actually — remove.\"},{\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "cards-4",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a7695ffcd6f30eb67",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961151189,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961169543,
+      "tokens": 98110,
+      "toolCalls": 1,
+      "durationMs": 18354,
+      "resultPreview": "{\"cards\":[{\"id\":\"A59\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SUB\",\"F-MANDCHOICE\",\"E-CONVERT\",\"E-GOODS\",\"ST-STORE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After harvesting veg (a sub-action/field phase), conditional convert 1 veg->6 food; optional at 3+, mandatory at 4+ (mand-with-choice). Needs to know harvest just happened.\"},{\"id\":\"A60\",\"codes\":[\"ATWILL\",\"E-CONVERT\",\"E-BAKESPEC\",\"E-RETURNCOMP\",\"E-FOODC…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "cards-5",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a4df8e51f64ea52e3",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961151196,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961187774,
+      "tokens": 101138,
+      "toolCalls": 2,
+      "durationMs": 36578,
+      "resultPreview": "{\"cards\":[{\"id\":\"A79\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SUB\",\"F-TRIG\",\"A-OWN\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Each time you sow veg, before the sub-action get clay+stone. Sub-action seam, owner, optional gain.\"},{\"id\":\"A81\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SPACE\",\"F-AUTO\",\"A-OWN\",\"E-SCHED\",\"ST-STACK\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Each use of a building-resource accumulat…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "cards-6",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "ab5301a5d884e0f0f",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961151205,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961171245,
+      "tokens": 97839,
+      "toolCalls": 1,
+      "durationMs": 20040,
+      "resultPreview": "{\"cards\":[{\"id\":\"A38\",\"codes\":[\"PASSIVE\",\"E-SCORE\",\"E-SCOREGRP\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Bonus points at scoring based on house material; mutually-exclusive-style house-material scoring (SCOREGRP for stone-house grouping). Plain threshold read, no optimization.\"},{\"id\":\"A44\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, place 1 food on each of ne…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "cards-7",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "ab9e4ee47b9b058fc",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961169547,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961189031,
+      "tokens": 97790,
+      "toolCalls": 1,
+      "durationMs": 19484,
+      "resultPreview": "{\"cards\":[{\"id\":\"B2\",\"codes\":[\"ONPLAY\",\"E-GRANTSUB\",\"E-FREEFENCE\",\"E-PASSING\",\"L-GEOMFARM\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, mandatory-fence a new pasture free (no wood); adjacency-to-existing-pasture constraint = L-GEOMFARM; passing minor.\"},{\"id\":\"B8\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"E-CONVERT\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play gain 1 veg (effectively c…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "cards-8",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a9e2457e3e5efe240",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961170070,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961185790,
+      "tokens": 97749,
+      "toolCalls": 1,
+      "durationMs": 15720,
+      "resultPreview": "{\"cards\":[{\"id\":\"B56\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SPACE\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\",\"L-GEOMBOARD\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Each time you use one of four spaces above Fishing -> before-space auto food; the 'above Fishing' set is board-position dependent.\"},{\"id\":\"B57\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SOR\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Start of…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "cards-9",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a79ed1ccda8ca07fd",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961171250,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961190881,
+      "tokens": 98035,
+      "toolCalls": 1,
+      "durationMs": 19631,
+      "resultPreview": "{\"cards\":[{\"id\":\"B6\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Passing minor; immediate stone = person count (plain state read). Passing so E-PASSING.\"},{\"id\":\"B7\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Passing minor; immediate food scaled by major-improvement count (plain state read).\"},{\"id\":\"B9\",\"codes\":[\"ONPLA…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "cards-10",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a3db347be8dd1e611",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961173592,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961195670,
+      "tokens": 98176,
+      "toolCalls": 1,
+      "durationMs": 22077,
+      "resultPreview": "{\"cards\":[{\"id\":\"B27\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SUB\",\"F-TRIG\",\"A-OWN\",\"E-GRANTACT\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After a turn in which you build a room/stable/fence, may take the build-major-improvement action (Joinery/Pottery/Basketmaker) paying its cost; off-turn stables excluded.\"},{\"id\":\"B28\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SPACE\",\"F-TRIG\",\"A-OWN\",\"E-GRANTACT\",\"E-CONVERT\",\"E-COSTM…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 11,
+      "label": "cards-11",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a3e1fa9ad3a1fd605",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961173755,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961189149,
+      "tokens": 97926,
+      "toolCalls": 1,
+      "durationMs": 15394,
+      "resultPreview": "{\"cards\":[{\"id\":\"B44\",\"codes\":[\"ONPLAY\",\"E-SCHED\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Adds rounds 3&4, schedules 2 food each on those round spaces, collected at round start.\"},{\"id\":\"B46\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Places food/stone on next round spaces, collected at start of those rounds.\"},{\"id\":\"B48\",\"codes\":[\"ONPLAY\",\"HOOK\",\"T-BEFORE…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 12,
+      "label": "cards-12",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a0dd3ed5158762b6b",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961185796,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961206615,
+      "tokens": 97927,
+      "toolCalls": 1,
+      "durationMs": 20818,
+      "resultPreview": "{\"cards\":[{\"id\":\"B65\",\"codes\":[\"ONPLAY\",\"E-SCHED\",\"E-PLAYVARIANT\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, places grain on next 2/3/4 round spaces depending on which resource paid (wood/clay/stone) -- cost forks the reward = E-PLAYVARIANT; future round-space goods = E-SCHED.\"},{\"id\":\"B67\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SUB\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"n…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 13,
+      "label": "cards-13",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "afa54df2d9fb7dfeb",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961187778,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961205382,
+      "tokens": 97846,
+      "toolCalls": 1,
+      "durationMs": 17604,
+      "resultPreview": "{\"cards\":[{\"id\":\"C2\",\"codes\":[\"ONPLAY\",\"E-GRANTSUB\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play grants a build-stable sub-action (free stable, card cost paid separately); passing minor.\"},{\"id\":\"C3\",\"codes\":[\"ONPLAY\",\"E-EXTRAPLACE\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play in work phase lets you place an additional person; passing minor.\"},{\"id\":\"C6\",\"codes\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 14,
+      "label": "cards-14",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "aa223ca514e5a9533",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961189037,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961205361,
+      "tokens": 97945,
+      "toolCalls": 1,
+      "durationMs": 16324,
+      "resultPreview": "{\"cards\":[{\"id\":\"C42\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SPACE\",\"F-TRIG\",\"A-OWN\",\"E-EXTRAPLACE\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Immediately after using a specific space, optionally place another person on an accumulation space and gain a good.\"},{\"id\":\"C44\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Places food on next 8 round spaces, collected at start o…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 15,
+      "label": "cards-15",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a475c46ece5adba48",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961189157,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961225486,
+      "tokens": 101257,
+      "toolCalls": 2,
+      "durationMs": 36329,
+      "resultPreview": "{\"cards\":[{\"id\":\"D15\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SUB\",\"F-TRIG\",\"A-OWN\",\"E-COSTMOD\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Each time you build a clay room, may pay an alternative cost formula -> cost-modifier hook on the build-room sub-action, optional.\"},{\"id\":\"D20\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SPACE\",\"F-TRIG\",\"A-OWN\",\"E-GRANTSUB\",\"L-CARDFIELD\",\"ST-STACK\"],\"unclear\":false,\"new_category\":\"\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 16,
+      "label": "cards-16",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a8fccad97a89c881b",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961190885,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961211848,
+      "tokens": 97955,
+      "toolCalls": 1,
+      "durationMs": 20963,
+      "resultPreview": "{\"cards\":[{\"id\":\"D69\",\"codes\":[\"ONPLAY\",\"ATWILL\",\"CAP-ROUND\",\"E-SCHED\",\"E-CONVERT\",\"L-GEOMBOARD\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Schedules veg on rounds +4/+7; at start of those rounds may buy the veg for 1 food (deferrable per round).\"},{\"id\":\"D73\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SPACE\",\"F-TRIG\",\"A-OWN\",\"E-CONVERT\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After using Fishing space, opti…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 17,
+      "label": "cards-17",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "aeb687597f810de80",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961195675,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961220007,
+      "tokens": 98081,
+      "toolCalls": 1,
+      "durationMs": 24331,
+      "resultPreview": "{\"cards\":[{\"id\":\"C13\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SUB\",\"F-TRIG\",\"A-OWN\",\"CAP-GAME\",\"E-COSTMOD\",\"E-SUBSTITUTE\",\"L-EXT\",\"ST-STORE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On first renovation (action trigger + once ever -> HOOK on renovate sub-action + CAP-GAME), allows clay-skip renovate-to-stone directly (L-EXT new target, E-SUBSTITUTE) with a 2-stone discount (E-COSTMOD); needs first-flag (ST…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 18,
+      "label": "cards-18",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "aab2d573cbde23479",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961205376,
+      "queuedAt": 1782961151103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961225034,
+      "tokens": 97814,
+      "toolCalls": 1,
+      "durationMs": 19657,
+      "resultPreview": "{\"cards\":[{\"id\":\"C34\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-AFTERFEED\",\"F-TRIG\",\"A-OWN\",\"E-CONVERT\",\"E-SCORE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After each harvest (immediately after feeding), optionally exchange 1 reed for 1 bonus point; fires per harvest, optional convert-to-VP.\"},{\"id\":\"C36\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SPACE\",\"F-TRIG\",\"A-OWN\",\"E-CONVERT\",\"E-SCORE\",\"E-SCHED\",\"L-GEOMBOARD\"],\"uncl…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 19,
+      "label": "cards-19",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a8748c62f4cacb5e2",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961205388,
+      "queuedAt": 1782961151104,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961225230,
+      "tokens": 97991,
+      "toolCalls": 1,
+      "durationMs": 19842,
+      "resultPreview": "{\"cards\":[{\"id\":\"C54\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-HFIELD\",\"F-TRIG\",\"A-OWN\",\"E-CONVERT\",\"E-GOODS\",\"E-PIECECOST\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After field phase each harvest, optional exchange 1 grain + 1 fence piece for 5 food; fence is a supply piece cost.\"},{\"id\":\"C55\",\"codes\":[\"HOOK\",\"S-HFEED\",\"F-TRIG\",\"A-OWN\",\"E-CONVERT\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Feeding…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 20,
+      "label": "cards-20",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a64237a787b5579c8",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961206631,
+      "queuedAt": 1782961151104,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961225190,
+      "tokens": 97773,
+      "toolCalls": 1,
+      "durationMs": 18558,
+      "resultPreview": "{\"cards\":[{\"id\":\"C73\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SUB\",\"A-OWN\",\"F-TRIG\",\"E-GOODS\",\"F-MANDCHOICE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After each unconditional Sow, gain 1 grain (auto); from r11 you may choose veg instead. After-timing sub-action hook, own actor; gain is automatic (F-AUTO) with an optional grain/veg swap late-game.\"},{\"id\":\"C75\",\"codes\":[\"HOOK\",\"S-ROUNDEND\",\"A-OWN\",\"F-AUTO\",…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 21,
+      "label": "cards-21",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "adaded4128829af08",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961211872,
+      "queuedAt": 1782961151104,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961230723,
+      "tokens": 97818,
+      "toolCalls": 1,
+      "durationMs": 18851,
+      "resultPreview": "{\"cards\":[{\"id\":\"D5\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, gain 1 clay per planted field (plain state-read count); passing minor.\"},{\"id\":\"D6\",\"codes\":[\"ONPLAY\",\"E-CONVERT\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, exchange up to 3 wood for 1 stone each; passing minor.\"},{\"id\":\"D8\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"E-GRANTSUB\",…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 22,
+      "label": "cards-22",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a8bc268580b4ac983",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961220035,
+      "queuedAt": 1782961151104,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961254210,
+      "tokens": 101413,
+      "toolCalls": 2,
+      "durationMs": 34175,
+      "resultPreview": "{\"cards\":[{\"id\":\"D25\",\"codes\":[\"ONPLAY\",\"L-CARDFIELD\",\"E-BAKESPEC\",\"EXOTIC\",\"ST-STORE\"],\"unclear\":false,\"new_category\":\"MULTI_IDENTITY: a single card that simultaneously counts as a field + occupation + minor + major (Fireplace), flexibly whichever identity is most convenient for another effect, but never more than one at once.\",\"note\":\"Errata strips Fireplace conversions; acts as a field plus a f…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 23,
+      "label": "cards-23",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a895bf1a1a3e7efe8",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961225042,
+      "queuedAt": 1782961151104,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961243219,
+      "tokens": 97858,
+      "toolCalls": 1,
+      "durationMs": 18175,
+      "resultPreview": "{\"cards\":[{\"id\":\"D48\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SOR\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Before start of each round, conditional on hand composition (occupations > improvements in hand) get 1 food.\"},{\"id\":\"D51\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"L-CARDSPACE\",\"E-NOPLACE\",\"HOOK\",\"T-BEFORE\",\"S-ROUNDEND\",\"F-TRIG\",\"A-OWN\",\"E-WORKERMANIP\",\"ST-PLACELOG\"],\"unclear\":false,\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 24,
+      "label": "cards-24",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a0921b7f2c008bb93",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961225197,
+      "queuedAt": 1782961151105,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961243256,
+      "tokens": 97846,
+      "toolCalls": 1,
+      "durationMs": 18059,
+      "resultPreview": "{\"cards\":[{\"id\":\"D64\",\"codes\":[\"ATWILL\",\"CAP-ROUND\",\"E-GRANTSUB\",\"E-BAKESPEC\",\"E-CONVERT\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"At end of non-harvest rounds you MAY take a Bake Bread action (grain->2food); optional grant, once per qualifying round.\"},{\"id\":\"D65\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-HFIELD\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Field phase, if harvest >…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 25,
+      "label": "cards-25",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "acf546845f85eb12f",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961225234,
+      "queuedAt": 1782961151105,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961259387,
+      "tokens": 100912,
+      "toolCalls": 2,
+      "durationMs": 34153,
+      "resultPreview": "{\"cards\":[{\"id\":\"E1\",\"codes\":[\"ONPLAY\",\"E-GRANTSUB\",\"E-COSTMOD\",\"E-PIECECOST\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, grant building up to 3 stables at no cost (stable pieces from supply); passing minor.\"},{\"id\":\"E2\",\"codes\":[\"ONPLAY\",\"E-GRANTSUB\",\"E-COSTMOD\",\"E-PASSING\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, renovate wood->clay at no cost; passing.\"},{\"id\":\"E3…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 26,
+      "label": "cards-26",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "aadf35d4bc7a59fbf",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961225494,
+      "queuedAt": 1782961151105,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961245817,
+      "tokens": 97746,
+      "toolCalls": 1,
+      "durationMs": 20322,
+      "resultPreview": "{\"cards\":[{\"id\":\"E15\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SPACE\",\"F-TRIG\",\"A-OWN\",\"E-GRANTACT\",\"E-PIECECOST\",\"ST-PROV\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"After using a wood accumulation space, optionally place 1 stone from supply on that space to take a Build Fences action; stone is a piece placed for next visitor, needs to know which space was used.\"},{\"id\":\"E16\",\"codes\":[\"PASSIVE\",\"E-FREEFENCE\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 27,
+      "label": "cards-27",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a2ca29a8ecae69111",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961230728,
+      "queuedAt": 1782961151105,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961245497,
+      "tokens": 97740,
+      "toolCalls": 1,
+      "durationMs": 14769,
+      "resultPreview": "{\"cards\":[{\"id\":\"E29\",\"codes\":[\"ONPLAY\",\"NONE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"No effect; plain card played from a prerequisite.\"},{\"id\":\"E30\",\"codes\":[\"PASSIVE\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Continuous rule change: newborns require 2 food during feeding instead of 1.\"},{\"id\":\"E31\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-PLAY\",\"F-TRIG\",\"A-OWN\",\"E-SCORE\",\"ST-COUNTER\"],\"unclear\":false,\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 28,
+      "label": "cards-28",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a878428f966635a63",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961243249,
+      "queuedAt": 1782961151105,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961259967,
+      "tokens": 97727,
+      "toolCalls": 1,
+      "durationMs": 16716,
+      "resultPreview": "{\"cards\":[{\"id\":\"E43\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, place food on future round spaces based on stable count; collected at round start.\"},{\"id\":\"E44\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"On play, schedule 1 food on each remaining odd round space.\"},{\"id\":\"E45\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"unclear\":false,\"new_catego…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 29,
+      "label": "cards-29",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a0c1a0a2ac0b503d3",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961243270,
+      "queuedAt": 1782961151106,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961263549,
+      "tokens": 97769,
+      "toolCalls": 1,
+      "durationMs": 20278,
+      "resultPreview": "{\"cards\":[{\"id\":\"E57\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SUB\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Each time you bake grain into bread, gain food per owned animal types; fires on the bake sub-action, conditional on animal holdings.\"},{\"id\":\"E58\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-HSTART\",\"F-TRIG\",\"A-OWN\",\"E-GOODS\",\"E-CROPMANIP\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"At st…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 30,
+      "label": "cards-30",
+      "phaseIndex": 1,
+      "phaseTitle": "Classify",
+      "agentId": "a627801995a669f7e",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782961245569,
+      "queuedAt": 1782961151106,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782961264037,
+      "tokens": 97730,
+      "toolCalls": 1,
+      "durationMs": 18467,
+      "resultPreview": "{\"cards\":[{\"id\":\"E71\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SUB\",\"F-TRIG\",\"A-OWN\",\"E-GOODS\",\"L-GEOMFARM\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Fires on sow sub-action, optional bonus good; requires field orthogonally adjacent to pasture -> L-GEOMFARM.\"},{\"id\":\"E72\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-HFIELD\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\",\"L-CARDFIELD\"],\"unclear\":false,\"new_category\":\"\",\"note\":\"Card is a field;…"
+    }
+  ],
+  "totalTokens": 2950377,
+  "totalToolCalls": 34
+}

@@ -1,0 +1,1206 @@
+{
+  "summary": "High-effort check of every card tagged with a geometry code",
+  "agentCount": 9,
+  "logs": [
+    "Verifying 9 geometry-code batches (high effort)",
+    "Verified 80 cards"
+  ],
+  "result": {
+    "cards": [
+      {
+        "id": "A1",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-COSTMOD",
+          "E-PIECECOST",
+          "E-PASSING",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: the stable must be placed in a pasture of a specific SHAPE/size (exactly 1 farmyard space) — a genuine shape constraint on farm tiles.",
+        "low_confidence": false
+      },
+      {
+        "id": "A11",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-ANIMALS",
+          "E-CAPNEW"
+        ],
+        "reason": "Removed L-CARDFIELD: the boars are held on your existing UNPLANTED FIELD TILES, not on the card itself; the card is not a field you sow/harvest on.",
+        "low_confidence": false
+      },
+      {
+        "id": "A63",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'a round immediately following a harvest' depends on the round-space position/band on the action board relative to harvest rounds.",
+        "low_confidence": true
+      },
+      {
+        "id": "A68",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'fences >= current round' is a count-vs-current-round-number threshold, not action-board position/order/adjacency; added A-OWN.",
+        "low_confidence": false
+      },
+      {
+        "id": "A83",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OWN",
+          "E-ANIMALS",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: the pasture must cover a SHAPE of at least 4 farmyard spaces and be undivided — a genuine shape constraint on farm tiles.",
+        "low_confidence": false
+      },
+      {
+        "id": "B2",
+        "codes": [
+          "ONPLAY",
+          "E-FREEFENCE",
+          "E-GRANTSUB",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: the new pasture must be orthogonally ADJACENT to an existing pasture — a real adjacency constraint between farm tiles.",
+        "low_confidence": false
+      },
+      {
+        "id": "B18",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "reason": "Removed L-GEOMBOARD: placing a field on a future round space is scheduling (E-SCHED), not action-board position/adjacency geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "B20",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "reason": "Removed L-GEOMBOARD: placing fields on specific future round spaces is scheduling (E-SCHED), not board position/adjacency geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "B31",
+        "codes": [
+          "E-SCORE",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: the bonus depends on orthogonally ADJACENT unused farmyard spaces — a genuine adjacency/shape test between farm cells.",
+        "low_confidence": false
+      },
+      {
+        "id": "B38",
+        "codes": [
+          "PASSIVE",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: depends on orthogonal adjacency of unused spaces to your house.",
+        "low_confidence": false
+      },
+      {
+        "id": "B56",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'the four action spaces above the Fishing space' is board position/adjacency, not merely a named space.",
+        "low_confidence": false
+      },
+      {
+        "id": "B59",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'played on the Major Improvement action space' reads which named space the card was played on, not board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "B68",
+        "codes": [
+          "ONPLAY",
+          "L-CARDFIELD"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field you sow/harvest on (veg only).",
+        "low_confidence": false
+      },
+      {
+        "id": "B72",
+        "codes": [
+          "PASSIVE",
+          "E-CROPMANIP",
+          "E-CAPGROW"
+        ],
+        "reason": "Removed L-CARDFIELD: pastures (existing farm tiles) become fields; the card itself is not a field. Kept crop/capacity manip codes.",
+        "low_confidence": false
+      },
+      {
+        "id": "B81",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: it reads good-counts on named accumulation spaces (wood/clay/reed/stone), not board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "C19",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "ST-STACK",
+          "L-CARDFIELD"
+        ],
+        "reason": "Kept L-CARDFIELD: field tiles are placed on and plowed from the card itself.",
+        "low_confidence": false
+      },
+      {
+        "id": "C23",
+        "codes": [
+          "PASSIVE",
+          "E-WORKERMANIP",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: relies on 'Day Laborer' and the ADJACENT 'Lessons' space being adjacent on the board.",
+        "low_confidence": false
+      },
+      {
+        "id": "C25",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "ST-PLACELOG"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'last action space you use is an accumulation space' is a category/order-of-use check, not board position/adjacency; kept ST-PLACELOG for tracking last-used space.",
+        "low_confidence": false
+      },
+      {
+        "id": "C47",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED"
+        ],
+        "reason": "Removed L-GEOMBOARD: placing food on future round spaces is E-SCHED, not board position/order/adjacency geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "C70",
+        "codes": [
+          "ONPLAY",
+          "L-CARDFIELD",
+          "E-CONVERT"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself IS a field you sow/harvest vegetables on.",
+        "low_confidence": false
+      },
+      {
+        "id": "C80",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-CONVERT",
+          "E-FOODCOST"
+        ],
+        "reason": "Removed L-CARDFIELD: hooks the plow sub-action (incl. playing field cards); it does not make this card itself a field to sow/harvest on.",
+        "low_confidence": false
+      },
+      {
+        "id": "D1",
+        "codes": [
+          "ONPLAY",
+          "E-GRANTSUB",
+          "E-PASSING",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: the plowed field must complete a 'zigzag' pattern — a shape constraint on farm tiles.",
+        "low_confidence": false
+      },
+      {
+        "id": "D20",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "L-CARDFIELD",
+          "ST-STACK"
+        ],
+        "reason": "Kept L-CARDFIELD: field tiles sit ON the card and are plowed from it; kept ST-STACK for the pile of field tiles on the card.",
+        "low_confidence": true
+      },
+      {
+        "id": "D22",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-PEOPLE",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'the corresponding round space' is a specific numbered round-space position derived from a count — board position dependency.",
+        "low_confidence": true
+      },
+      {
+        "id": "D23",
+        "codes": [
+          "L-CARDSPACE",
+          "L-GEOMBOARD",
+          "E-GRANTACT",
+          "E-GOODS",
+          "E-ANIMALS",
+          "F-MANDCHOICE"
+        ],
+        "reason": "Kept L-GEOMBOARD: the card's effect depends on specific round-number bands (rounds 3-5 vs 6-8) — round-space numbers.",
+        "low_confidence": false
+      },
+      {
+        "id": "D25",
+        "codes": [
+          "ONPLAY",
+          "EXOTIC",
+          "L-CARDFIELD",
+          "E-BAKESPEC"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field you can sow in.",
+        "low_confidence": false
+      },
+      {
+        "id": "D33",
+        "codes": [
+          "E-SCORE",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: scores unused farmyard spaces orthogonally adjacent to the house — an adjacency/shape relation between farm tiles.",
+        "low_confidence": false
+      },
+      {
+        "id": "D40",
+        "codes": [
+          "ONPLAY",
+          "E-SCHED",
+          "E-SCHEDANIMAL",
+          "E-ANIMALS"
+        ],
+        "reason": "Removed L-GEOMBOARD: placing goods/animals on future round spaces is E-SCHED/E-SCHEDANIMAL, not board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "D46",
+        "codes": [
+          "ATWILL",
+          "CAP-ROUND",
+          "E-SCHED"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'next 4 round spaces' is scheduling (E-SCHED), not board geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "D55",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'round spaces 8 to 11' references specific round-space numbers/band.",
+        "low_confidence": false
+      },
+      {
+        "id": "D63",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: 'orthogonally adjacent to your house' is farm-tile adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "D69",
+        "codes": [
+          "ONPLAY",
+          "ATWILL",
+          "CAP-ROUND",
+          "E-SCHED",
+          "E-CONVERT"
+        ],
+        "reason": "Removed L-GEOMBOARD: placing veg on future round spaces is E-SCHED, no board position/number/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "D75",
+        "codes": [
+          "PASSIVE",
+          "L-CARDFIELD",
+          "E-CROPMANIP",
+          "ST-STACK"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field you sow/harvest (wood) on.",
+        "low_confidence": false
+      },
+      {
+        "id": "E11",
+        "codes": [
+          "PASSIVE",
+          "E-CAPNEW",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: requires a pasture orthogonally adjacent to the house.",
+        "low_confidence": false
+      },
+      {
+        "id": "E16",
+        "codes": [
+          "PASSIVE",
+          "E-FREEFENCE",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: 'edge of your farmyard board' is a positional/shape condition on farm perimeter edges.",
+        "low_confidence": true
+      },
+      {
+        "id": "E20",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB",
+          "ST-PLACELOG"
+        ],
+        "reason": "Removed L-GEOMBOARD: occupying two specific NAMED spaces (Grain/Vegetable Seeds) is not board position/order/adjacency; occupancy tracked via ST-PLACELOG.",
+        "low_confidence": false
+      },
+      {
+        "id": "E26",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT",
+          "E-NOPLACE"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'rounds 7 and 9' is a timing condition (which round we're in), not action-board position/adjacency/order geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "E28",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-SOR",
+          "F-TRIG",
+          "A-OWN",
+          "E-COSTMOD",
+          "ST-STORE"
+        ],
+        "reason": "Removed L-GEOMBOARD: marking a future round space (current+3) is scheduling/timing, not action-board position/adjacency geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "E32",
+        "codes": [
+          "E-SCORE",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: scoring depends on the farmyard's 5 columns each containing a room — a spatial/shape read of the farm grid, not a mere count.",
+        "low_confidence": false
+      },
+      {
+        "id": "E56",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SOR",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'last player in turn order' is a turn-order check, not action-board position/adjacency geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "E68",
+        "codes": [
+          "L-CARDFIELD",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field you sow/harvest on. Added HOOK dims for the 'each time you harvest the last wood' bonus (was under-tagged, geometry-only check retained the card codes).",
+        "low_confidence": false
+      },
+      {
+        "id": "E69",
+        "codes": [
+          "L-CARDFIELD",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field. Removed E-CROPMANIP: harvesting the field then plowing a new field is a granted plow sub-action, not manipulation of crops on fields.",
+        "low_confidence": false
+      },
+      {
+        "id": "E70",
+        "codes": [
+          "L-CARDFIELD",
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-CROPMANIP"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field. Removed E-GRANTSUB: sowing onto this same card is a special crop-swap on the card field, not a normal granted sow sub-action; E-CROPMANIP captures it.",
+        "low_confidence": true
+      },
+      {
+        "id": "E71",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SUB",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: fires only when sowing in a field orthogonally adjacent to a pasture — a genuine farm-tile adjacency test.",
+        "low_confidence": false
+      },
+      {
+        "id": "E72",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-CARDFIELD"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field you harvest from in the field phase.",
+        "low_confidence": false
+      },
+      {
+        "id": "E80",
+        "codes": [
+          "L-CARDFIELD"
+        ],
+        "reason": "Kept L-CARDFIELD: the card itself is a field you sow/harvest stone on ('Sow and harvest stone on this card').",
+        "low_confidence": false
+      },
+      {
+        "id": "A85",
+        "codes": [
+          "PASSIVE",
+          "E-CAPGROW",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: room must be orthogonally adjacent to both a field and a pasture (true tile adjacency/shape).",
+        "low_confidence": false
+      },
+      {
+        "id": "A95",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTACT"
+        ],
+        "reason": "Removed L-GEOMBOARD: hooks the NAMED 'Fishing' space and its good-count, not board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "A96",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-REVEAL",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-GRANTACT"
+        ],
+        "reason": "Removed L-GEOMBOARD: triggers on a stone accumulation space being revealed (card identity), not on board numbers/position/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "A104",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-HFIELD",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: reads named wood accumulation spaces and their good-counts, not board position.",
+        "low_confidence": false
+      },
+      {
+        "id": "A124",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'round spaces 5 to 7' are specific round-space numbers/bands.",
+        "low_confidence": false
+      },
+      {
+        "id": "A126",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'round spaces 1/2/3/4' are specific round-space numbers.",
+        "low_confidence": false
+      },
+      {
+        "id": "A137",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: uses the NAMED 'Sheep Market'/'Reed Bank' spaces, not board position/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "A141",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-ROUNDEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: reads occupancy of the NAMED 'Day Laborer'/'Grain Seeds' spaces, not board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "A162",
+        "codes": [
+          "EXOTIC",
+          "L-GEOMBOARD",
+          "E-GOODS"
+        ],
+        "reason": "Kept L-GEOMBOARD: the gap between two specific adjacent accumulation spaces is a genuine board-position/adjacency dependency, not merely reading a named space's contents.",
+        "low_confidence": false
+      },
+      {
+        "id": "B85",
+        "codes": [
+          "PASSIVE",
+          "L-GEOMFARM",
+          "E-GRANTSUB",
+          "E-CAPNEW",
+          "CAP-GAME"
+        ],
+        "reason": "Kept L-GEOMFARM: '4 field tiles arranged in a 2x2' with a stable in the center is a true orthogonal shape/adjacency requirement.",
+        "low_confidence": false
+      },
+      {
+        "id": "B90",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GRANTSUB"
+        ],
+        "reason": "Removed L-GEOMBOARD: only reads occupancy of the named 'Grain Seeds' space, not board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "B112",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'card revealed right before the most recent harvest' depends on round-space number/reveal order, a board-position dependency.",
+        "low_confidence": false
+      },
+      {
+        "id": "B113",
+        "codes": [
+          "ONPLAY",
+          "E-CONVERT",
+          "E-FOODCOST",
+          "F-MANDCHOICE",
+          "L-CARDFIELD"
+        ],
+        "reason": "Kept L-CARDFIELD: 'This card is a field' — the card itself is a field you sow/harvest on. Note: choice is grain-OR-veg but also declinable ('can choose to buy'); F-MANDCHOICE arguable but left as-is.",
+        "low_confidence": false
+      },
+      {
+        "id": "B120",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'the card left of the most recently placed round-space card' is explicit board position/adjacency/order.",
+        "low_confidence": false
+      },
+      {
+        "id": "B123",
+        "codes": [
+          "ONPLAY",
+          "E-FOODCOST",
+          "E-GOODS",
+          "E-CONVERT"
+        ],
+        "reason": "Removed L-GEOMFARM: 'for each room you have' is a plain count of rooms, not orthogonal adjacency/shape.",
+        "low_confidence": false
+      },
+      {
+        "id": "B129",
+        "codes": [
+          "PASSIVE",
+          "L-OCCUPY",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'the action space on round space 13' references a specific round-space number, a board-position dependency.",
+        "low_confidence": false
+      },
+      {
+        "id": "B137",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "E-ANIMALS",
+          "ST-STACK",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'action space card on round spaces 8 to 11' is a specific round-space number band, a board-position dependency.",
+        "low_confidence": false
+      },
+      {
+        "id": "B141",
+        "codes": [
+          "ONPLAY",
+          "E-CONVERT",
+          "E-GOODS",
+          "L-CARDFIELD"
+        ],
+        "reason": "Kept L-CARDFIELD: text explicitly states 'This card is a field' — the card itself is a sow/harvest field.",
+        "low_confidence": false
+      },
+      {
+        "id": "B149",
+        "codes": [
+          "ONPLAY",
+          "E-PIECECOST",
+          "E-RETURNCOMP",
+          "E-GRANTSUB",
+          "E-FREEFENCE",
+          "E-COSTMOD"
+        ],
+        "reason": "Removed L-GEOMFARM: building a 2-space pasture is an ordinary size/shape requirement handled by the normal fencing subsystem, not a special inter-tile adjacency rule.",
+        "low_confidence": true
+      },
+      {
+        "id": "B159",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SUB",
+          "F-AUTO",
+          "A-OPP",
+          "E-GOODS",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: fires on a field tile placed orthogonally adjacent to an existing field tile — genuine inter-tile adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "C117",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD",
+          "ST-PLACELOG"
+        ],
+        "reason": "Kept L-GEOMBOARD: depends on orthogonal adjacency between action spaces on the board.",
+        "low_confidence": false
+      },
+      {
+        "id": "C145",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "A-OPP",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: uses/hooks the NAMED 'Grove'/'Forest' spaces and their occupancy — a named-space reference, not board position/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "C154",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-TRIG",
+          "A-OWN",
+          "E-FOODCOST",
+          "E-SCORE"
+        ],
+        "reason": "Removed L-GEOMBOARD: keys on two accumulation spaces having equal good-COUNTS, not on board position/order/adjacency.",
+        "low_confidence": false
+      },
+      {
+        "id": "C160",
+        "codes": [
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'the most recently revealed action space card' is an explicit board-order/position case.",
+        "low_confidence": false
+      },
+      {
+        "id": "D135",
+        "codes": [
+          "ONPLAY",
+          "E-GOODS",
+          "E-SCORE",
+          "E-SCORECMP"
+        ],
+        "reason": "Removed L-CARDFIELD: scores vegetables in your existing field TILES; the card is not itself a field.",
+        "low_confidence": false
+      },
+      {
+        "id": "D142",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-AFTER",
+          "S-TURNEND",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-PLACELOG"
+        ],
+        "reason": "Removed L-GEOMBOARD: keys on occupying the NAMED 'Clay Pit'/'Reed Bank' spaces — named-space reference, not board geometry.",
+        "low_confidence": false
+      },
+      {
+        "id": "D144",
+        "codes": [
+          "HOOK",
+          "T-AFTER",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'Fishing accumulation space or one of the three orthogonally adjacent action spaces' — the adjacency is to a NAMED space (Fishing), which the strict test excludes; it reads/hooks named spaces, not a board position/order.",
+        "low_confidence": true
+      },
+      {
+        "id": "D148",
+        "codes": [
+          "PASSIVE",
+          "E-CAPNEW",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: 'border between each pair of orthogonally adjacent rooms' is genuine orthogonal adjacency/shape between farm tiles (rooms).",
+        "low_confidence": false
+      },
+      {
+        "id": "D156",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "T-BEFORE",
+          "S-SPACE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "ST-STACK"
+        ],
+        "reason": "Removed L-GEOMBOARD: hooks the NAMED 'Resource Market' action space, which the strict test excludes; no board position/order/adjacency involved.",
+        "low_confidence": false
+      },
+      {
+        "id": "D158",
+        "codes": [
+          "HOOK",
+          "S-SPACE",
+          "T-BEFORE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD",
+          "ST-STACK",
+          "ST-COUNTER"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'action space on round spaces 1 to 8' references specific round-space NUMBERS/band, which is genuine board position.",
+        "low_confidence": false
+      },
+      {
+        "id": "D165",
+        "codes": [
+          "HOOK",
+          "S-SPACE",
+          "T-BEFORE",
+          "F-AUTO",
+          "A-OWN",
+          "E-ANIMALS",
+          "L-GEOMBOARD",
+          "ST-PLACELOG"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'action space immediately above or below that accumulation space' is board position/adjacency. Removed E-GOODS as redundant (wild boar is an animal -> E-ANIMALS).",
+        "low_confidence": false
+      },
+      {
+        "id": "E92",
+        "codes": [
+          "LATCH",
+          "ST-LATCH",
+          "E-GROWTH",
+          "L-EXT",
+          "CAP-GAME",
+          "L-GEOMFARM"
+        ],
+        "reason": "Kept L-GEOMFARM: 'house with exactly 2 rooms surrounded by 4 field tiles' is genuine orthogonal adjacency/shape between rooms and field tiles.",
+        "low_confidence": false
+      },
+      {
+        "id": "E101",
+        "codes": [
+          "ONPLAY",
+          "E-SCORE"
+        ],
+        "reason": "Removed L-GEOMBOARD: 'each complete stage left to play' counts remaining stages, not a board position/order/adjacency; it's a plain count read at play time.",
+        "low_confidence": false
+      },
+      {
+        "id": "E105",
+        "codes": [
+          "ONPLAY",
+          "HOOK",
+          "S-SPACE",
+          "T-BEFORE",
+          "F-AUTO",
+          "A-OWN",
+          "E-GOODS",
+          "L-GEOMBOARD",
+          "ST-STORE"
+        ],
+        "reason": "Kept L-GEOMBOARD: 'the most recent action space card' depends on reveal ORDER on the board, which the strict test explicitly counts (most recently revealed card).",
+        "low_confidence": false
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "geom-1",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a75dc8ee468dd637c",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963759256,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963775671,
+      "tokens": 98333,
+      "toolCalls": 1,
+      "durationMs": 16414,
+      "resultPreview": "{\"cards\":[{\"id\":\"A1\",\"codes\":[\"ONPLAY\",\"E-GRANTSUB\",\"E-COSTMOD\",\"E-PIECECOST\",\"E-PASSING\",\"L-GEOMFARM\"],\"reason\":\"Kept L-GEOMFARM: the stable must be placed in a pasture of a specific SHAPE/size (exactly 1 farmyard space) — a genuine shape constraint on farm tiles.\",\"low_confidence\":false},{\"id\":\"A11\",\"codes\":[\"ONPLAY\",\"E-GOODS\",\"E-ANIMALS\",\"E-CAPNEW\"],\"reason\":\"Removed L-CARDFIELD: the boars are …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "geom-2",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a6bc96afd986a8421",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963759262,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963775585,
+      "tokens": 98263,
+      "toolCalls": 1,
+      "durationMs": 16323,
+      "resultPreview": "{\"cards\":[{\"id\":\"B38\",\"codes\":[\"PASSIVE\",\"L-GEOMFARM\"],\"reason\":\"Kept L-GEOMFARM: depends on orthogonal adjacency of unused spaces to your house.\",\"low_confidence\":false},{\"id\":\"B56\",\"codes\":[\"HOOK\",\"T-BEFORE\",\"S-SPACE\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\",\"L-GEOMBOARD\"],\"reason\":\"Kept L-GEOMBOARD: 'the four action spaces above the Fishing space' is board position/adjacency, not merely a named space.\",\"low_…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "geom-3",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "ae05ecb5a45ca3752",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963759266,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963775239,
+      "tokens": 98338,
+      "toolCalls": 1,
+      "durationMs": 15973,
+      "resultPreview": "{\"cards\":[{\"id\":\"C47\",\"codes\":[\"ONPLAY\",\"E-SCHED\"],\"reason\":\"Removed L-GEOMBOARD: placing food on future round spaces is E-SCHED, not board position/order/adjacency geometry.\",\"low_confidence\":false},{\"id\":\"C70\",\"codes\":[\"ONPLAY\",\"L-CARDFIELD\",\"E-CONVERT\"],\"reason\":\"Kept L-CARDFIELD: the card itself IS a field you sow/harvest vegetables on.\",\"low_confidence\":false},{\"id\":\"C80\",\"codes\":[\"HOOK\",\"T-A…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "geom-4",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a1aefbfb5a23e800e",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963759269,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963782509,
+      "tokens": 98326,
+      "toolCalls": 1,
+      "durationMs": 23240,
+      "resultPreview": "{\"cards\":[{\"id\":\"D40\",\"codes\":[\"ONPLAY\",\"E-SCHED\",\"E-SCHEDANIMAL\",\"E-ANIMALS\"],\"reason\":\"Removed L-GEOMBOARD: placing goods/animals on future round spaces is E-SCHED/E-SCHEDANIMAL, not board position/order/adjacency.\",\"low_confidence\":false},{\"id\":\"D46\",\"codes\":[\"ATWILL\",\"CAP-ROUND\",\"E-SCHED\"],\"reason\":\"Removed L-GEOMBOARD: 'next 4 round spaces' is scheduling (E-SCHED), not board geometry.\",\"low_c…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "geom-5",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "abe7cd6df1a706c0a",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963759274,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963776532,
+      "tokens": 98300,
+      "toolCalls": 1,
+      "durationMs": 17258,
+      "resultPreview": "{\"cards\":[{\"id\":\"E26\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-TURNEND\",\"F-TRIG\",\"A-OWN\",\"E-GRANTACT\",\"E-NOPLACE\"],\"reason\":\"Removed L-GEOMBOARD: 'rounds 7 and 9' is a timing condition (which round we're in), not action-board position/adjacency/order geometry.\",\"low_confidence\":false},{\"id\":\"E28\",\"codes\":[\"ONPLAY\",\"HOOK\",\"T-AFTER\",\"S-SOR\",\"F-TRIG\",\"A-OWN\",\"E-COSTMOD\",\"ST-STORE\"],\"reason\":\"Removed L-GEOMBOARD:…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "geom-6",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "aea4b5fc426dbf822",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963759277,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963781103,
+      "tokens": 98369,
+      "toolCalls": 1,
+      "durationMs": 21826,
+      "resultPreview": "{\"cards\":[{\"id\":\"E80\",\"codes\":[\"L-CARDFIELD\"],\"reason\":\"Kept L-CARDFIELD: the card itself is a field you sow/harvest stone on ('Sow and harvest stone on this card').\",\"low_confidence\":false},{\"id\":\"A85\",\"codes\":[\"PASSIVE\",\"E-CAPGROW\",\"L-GEOMFARM\"],\"reason\":\"Kept L-GEOMFARM: room must be orthogonally adjacent to both a field and a pasture (true tile adjacency/shape).\",\"low_confidence\":false},{\"id\":…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "geom-7",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "acc0355e356e69c8b",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963775244,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963790621,
+      "tokens": 98423,
+      "toolCalls": 1,
+      "durationMs": 15377,
+      "resultPreview": "{\"cards\":[{\"id\":\"A162\",\"codes\":[\"EXOTIC\",\"L-GEOMBOARD\",\"E-GOODS\"],\"reason\":\"Kept L-GEOMBOARD: the gap between two specific adjacent accumulation spaces is a genuine board-position/adjacency dependency, not merely reading a named space's contents.\",\"low_confidence\":false},{\"id\":\"B85\",\"codes\":[\"PASSIVE\",\"L-GEOMFARM\",\"E-GRANTSUB\",\"E-CAPNEW\",\"CAP-GAME\"],\"reason\":\"Kept L-GEOMFARM: '4 field tiles arrang…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "geom-8",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a58237aaa1d5dc749",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963775589,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963802885,
+      "tokens": 98468,
+      "toolCalls": 1,
+      "durationMs": 27296,
+      "resultPreview": "{\"cards\":[{\"id\":\"B141\",\"codes\":[\"ONPLAY\",\"E-CONVERT\",\"E-GOODS\",\"L-CARDFIELD\"],\"reason\":\"Kept L-CARDFIELD: text explicitly states 'This card is a field' — the card itself is a sow/harvest field.\",\"low_confidence\":false},{\"id\":\"B149\",\"codes\":[\"ONPLAY\",\"E-PIECECOST\",\"E-RETURNCOMP\",\"E-GRANTSUB\",\"E-FREEFENCE\",\"E-COSTMOD\"],\"reason\":\"Removed L-GEOMFARM: building a 2-space pasture is an ordinary size/shap…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "geom-9",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a4733a97039818c92",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782963775675,
+      "queuedAt": 1782963759236,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You classify Agricola CARDS (occupations or minor improvements) by the game MECHANICS/FEATURES each one uses, so an engine team can track what still needs building. A card almost always uses SEVERAL mechanics at once — tag EVERY code that applies. Classify ONLY from the card's printed text plus its errata/clarifications (which OVERRIDE the text). Never invent effects the text does not state.\n\nFor …",
+      "lastProgressAt": 1782963791732,
+      "tokens": 98225,
+      "toolCalls": 1,
+      "durationMs": 16057,
+      "resultPreview": "{\"cards\":[{\"id\":\"D144\",\"codes\":[\"HOOK\",\"T-AFTER\",\"S-SPACE\",\"F-AUTO\",\"A-OWN\",\"E-GOODS\"],\"reason\":\"Removed L-GEOMBOARD: 'Fishing accumulation space or one of the three orthogonally adjacent action spaces' — the adjacency is to a NAMED space (Fishing), which the strict test excludes; it reads/hooks named spaces, not a board position/order.\",\"low_confidence\":true},{\"id\":\"D148\",\"codes\":[\"PASSIVE\",\"E-CA…"
+    }
+  ],
+  "totalTokens": 885045,
+  "totalToolCalls": 9
+}
