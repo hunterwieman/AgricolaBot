@@ -1234,7 +1234,8 @@ defer (§7); building the missing piece is a design conversation with the user f
 ## 9. Doc map
 
 Every card-system document, its role, and when to read it. **This file is the
-reference-of-record for the as-built machinery**; the design records keep rationale.
+reference-of-record for the as-built machinery**; the design records keep rationale. The live
+docs sit at the repo root; the design + batch records live under `design_docs/cards/`.
 
 | Doc | Role | Read when |
 |---|---|---|

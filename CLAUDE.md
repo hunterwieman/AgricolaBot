@@ -943,7 +943,7 @@ the project moves; everything else is a frozen design/historical record.
 - `CARD_AUTHORING_GUIDE.md` — LIVE how-to for implementing cards (pitfalls, templates, worked example).
 - `CARD_IMPLEMENTATION_PROGRESS.md` — LIVE per-card ledger (adjudicated mechanics classification).
 - `CARD_DEFERRED_PLANS.md` — LIVE defer clusters + infra proposals + open user questions.
-- `CARD_SYSTEM_DESIGN.md`, `CARD_IMPLEMENTATION_PLAN.md` (FROZEN), `COST_MODIFIER_DESIGN.md`, `FOOD_PAYMENT_DESIGN.md`, `SPACE_HOST_REFACTOR.md`, `SUBACTION_HOOK_REFACTOR.md` — the card design records (rationale + red-teams; the as-built truth is CARD_ENGINE_IMPLEMENTATION.md).
+- `design_docs/cards/`: `CARD_SYSTEM_DESIGN.md`, `CARD_IMPLEMENTATION_PLAN.md` (FROZEN), `COST_MODIFIER_DESIGN.md`, `FOOD_PAYMENT_DESIGN.md`, the host-refactor records, batch/triage records — the card design records (rationale + red-teams; the as-built truth is CARD_ENGINE_IMPLEMENTATION.md).
 
 **Agent (Phase 2)**
 - `MCTS_IMPLEMENTATION.md` — the comprehensive search code reference (PUCT, UCT, chance nodes, fencing).
@@ -955,7 +955,7 @@ the project moves; everything else is a frozen design/historical record.
 **Performance & infrastructure**
 - `CPP_ENGINE_PLAN.md` — the C++ twin engine: design, staged build, differential harness, results.
 - `SPEEDUPS.md` — the optimization catalog (implemented + candidates); `PROFILING.md` — current profiles + measurement caveats.
-- `FRONTIER_OPT_DESIGN.md` — the frontier/fence caches (default-on); `INCREMENTAL_PASTURE_DESIGN.md` — unstarted sketch.
+- `FRONTIER_OPT_DESIGN.md` — the frontier/fence caches (default-on): the live projection-key contract + cross-level test pattern.
 - `NN_TRAINING_SPEEDUP.md` — training-speed diagnosis (landed parts; the untried MPS path).
 
 **Deployment & ops**
@@ -1016,6 +1016,6 @@ AgricolaBot/
     data/nn_training/runs/      # self-play GameRecord datasets (gitignored)
     nn_models/                  # trained checkpoints + REGISTRY.md + the cpp_export_best symlink (C++ export)
     cpp/                        # the C++ twin engine (CPP_ENGINE_PLAN.md; build: cpp/README.md)
-    design_docs/                # frozen design records (agent docs; heuristic_models/; game_engine/ task specs)
+    design_docs/                # frozen design records (agent docs; cards/; game_engine/ task specs; heuristic_models/)
     archive/                    # superseded docs + retired scripts (not load-bearing)
 ```
