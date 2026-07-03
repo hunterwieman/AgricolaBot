@@ -12,6 +12,16 @@ text against the code. Expect a small percentage of the cards you audit to have 
 clean bill of health is a claim that requires evidence (a per-clause code location), not a
 default. This is a READ-ONLY audit: do not edit any file, do not propose patches — report.
 
+**Fidelity is absolute — a deviation is never "neutral."** ANY timing or mechanism delta
+between the printed text and the implementation is a finding, regardless of how the module
+justifies it: a docstring claiming an "accepted approximation," a "behaviorally neutral" shift,
+or another card as precedent is **not evidence** — it is *self-ratification*, itself a
+reportable deviation (the owner's 2026-07-02 audit found a concrete problem behind every such
+"harmless" shift). The ONLY thing that legitimizes a deviation is an explicit, dated user/owner
+ruling quoted in the module ("user ruling YYYY-MM-DD: …"); treat those as authoritative and do
+not re-litigate them. Do not accept a neutrality argument from the module, and do not construct
+one yourself to downgrade a finding.
+
 ## Ground-truth hierarchy
 
 1. **The card's verbatim `text`**, with **`errata` OVERRIDING the printed text** and
