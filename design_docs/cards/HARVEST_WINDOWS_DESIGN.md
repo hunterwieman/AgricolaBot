@@ -513,3 +513,108 @@ static outside window #5.
 **Two-window card state.** Dentist banks wood at #2 and pays food per banked wood at #9 —
 the CardStore-spanning pattern; the skeleton needs no feature, but tests should cover a
 card reading state written by an earlier window of the same harvest.
+
+## 12. Stage 2 implementation brief — START HERE (post-compaction handoff, 2026-07-03)
+
+*A self-contained "resume the build" brief for a fresh session. Read §1–§4 for the design;
+this section is the current code state + the precise next cut. All of §0–§11 is the
+authority; this only orients.*
+
+### Where the build stands (committed, working tree clean)
+
+- **`1bfdcb5`** — stage 1 skeleton (the ladder, `PendingHarvestWindow`, `harvest_cursor`,
+  `_advance_harvest`). **`44c584c`** — A1 `place_on_space=False`. **`2ffcce5`** — docs.
+- Full suite green (`~/miniconda3/bin/python -m pytest tests/ -n 4 --dist worksteal`, ~208s,
+  3645 passed); C++ differential gates untouched (Family byte-identical: cursor always None,
+  no window frames, canonical JSON unchanged).
+
+### The current code map (what exists NOW, grounded)
+
+- `agricola/cards/harvest_windows.py` — `HARVEST_WINDOWS` (18-tuple, ids are event strings),
+  `WINDOW_INDEX`, `SENTINEL_WINDOWS = {field_phase, feeding, breeding}`,
+  `HARVEST_WINDOW_CARDS` + `register_harvest_window_hook(card_id, window_id)`,
+  `owns_window_card`, and the skip seam `HARVEST_SKIP_CARDS` + `window_skipped` (raises if a
+  skip card registers before latch logic exists — intentional).
+- `agricola/engine.py`:
+  - `_advance_harvest(state)` — the walk. Resumes at `harvest_cursor` (set only mid-segment),
+    else derives from phase. Processes sentinels specially; simple windows via
+    `_process_simple_window`. Called from the merged harvest case in `_advance_until_decision`.
+  - `_process_simple_window(state, window_id)` → `(state, pushed)`: fires autos SP-first
+    (skip-guarded), pushes a `PendingHarvestWindow` per player with an eligible trigger
+    (non-SP first so SP decides first). **This is WINDOW-major** (see the interim-ordering
+    caveat in the header + §3 ruling 3).
+  - `_window_trigger_players(state, window_id)` — the SP-first eligible-trigger player list.
+  - `_resolve_field_take(state)` — window #5's LEGACY body: the two-stage
+    `field_triggers_offered` machinery (fire `harvest_field` autos via
+    `_fire_harvest_field_hook`; push per-player `PendingHarvestField` choice frames for
+    `harvest_field` TRIGGERS — Stable Manure; then the mechanical grain/veg take). **This is
+    what stage 2 replaces.** It no longer pushes FEED (the walk's `feeding` sentinel does).
+  - `_resolve_harvest_field(state)` — compat alias = assert HARVEST_FIELD + `_advance_harvest`;
+    ~15 legacy card tests drive it by this name (keep it working).
+  - `_initiate_harvest_feed` / `_initiate_harvest_breed` — unchanged; pushed by the sentinels.
+- `agricola/pending.py` — `PendingHarvestWindow(window_id, player_idx, initiated_by_id,
+  triggers_resolved)`; legacy `PendingHarvestField` (still used by window #5);
+  `PendingFamilyGrowth.place_on_space`.
+- `agricola/legality.py` — `_enumerate_pending_harvest_window` (event = `window_id`);
+  legacy `_enumerate_pending_harvest_field`.
+- `agricola/state.py` — `harvest_cursor: int|None`, `field_triggers_offered: bool` (both
+  hash-included, both in `canonical._DEFAULT_SKIP_FIELDS`).
+
+### Stage 2 — the cut (window #5 rebuilt on the take-occasion manifest)
+
+Goal: replace `_resolve_field_take`'s pre-take grid-snapshot idiom with the **occasion
+manifest** of §4, so per-crop/per-field consequence cards read *what the take harvested*
+rather than racing the grid. New machinery:
+
+1. **`HarvestOccasion` / `HarvestEntry`** (§4d) — a frozen manifest, one occasion per take /
+   per fired card-granted harvest; each entry is `(source, crop, amount, emptied)`. Home:
+   frame-scoped on the during-window frame (dies with it). Add to `_DEFAULT_SKIP_FIELDS` +
+   hash if it rides a Family-reachable frame; keep card-only.
+2. **The shared take function** — emits the manifest; iterate board FIELD cells (later
+   card-fields, §6). Called by (i) the walk at window #5 and (ii) Bumper Crop / Harvest
+   Festival Planning bare (ruling 4). Factor so "triggers the effect, not the phase" is
+   structural.
+3. **The take as a mandatory trigger** gating the during-window's exit (the existing
+   `has_unfired_mandatory_trigger` / Proceed-withhold pattern; variant-expanded when Grain
+   Thief is owned, parameter-free otherwise). Take-modifiers (Scythe Worker folds INTO the
+   take; Grain Thief is a take-commit variant) gate on take-not-yet-fired (the one-way gate,
+   §4b).
+4. **Occasion registries** — `register_harvest_occasion_auto(card_id, fn)` /
+   `register_harvest_occasion_trigger(card_id, elig, apply)` with `(state, idx, occasion)`
+   signatures. Per-occasion autos fire right after each occasion; **Grain Sieve / Barley Mill
+   fire ONCE off the take occasion** (ruling 9 — they read the take's specifics, incl. Scythe
+   Worker's fold-in, NOT card-granted extra harvests).
+5. **Realize ruling 3 (whole-phase-per-player, SP-first) for windows #3–#7** as part of this
+   cut — the FIELD segment must resolve SP's whole field phase, then the opponent's (the Beer
+   Table × Cube Cutter stakes). This changes `_process_simple_window`'s window-major shape for
+   the FIELD band specifically; think it through against the cursor/resume model.
+
+Keep `_resolve_harvest_field` working (the compat alias) and the ~15 legacy field-card tests
+green; they become the migration batch's regression net. Stage 2 is the risky surgery — do it
+inline (not delegated), test hard, keep C++ gates green (card-only → untouched).
+
+### After stage 2 — delegation (NOT before)
+
+- **Migration batch** (§7 table): re-home the implemented field cards onto windows; the three
+  mis-timed cards (Cube Cutter→#5, Winter Caretaker→#16, Elephantgrass→#17), Home Brewer→#7,
+  Bale of Straw→#2, Three-Field Rotation→#4; shrink `tests/test_card_fidelity_lint.py`
+  ALLOWLIST as each mis-timed card resolves. One Opus agent per card, §0.1 fidelity rule
+  VERBATIM in every prompt, a fidelity-verifier stage checking text-vs-code first.
+- **New-card wave, windows 1–7**: Haydryer, Transactor, Raised Bed, Pipe Smoker, Recluse,
+  Dentist, Lunchtime Beer (implements the skip seam — `HARVEST_SKIP_CARDS` + `window_skipped`
+  latch), Straw Manure, Beer Table, Winnowing Fan, Market Stall C54, Land Surveyor,
+  Treegardener, Barley Mill, plus Autumn Mother + Bed in the Grain Field (via A1). Hold Scythe
+  E73 / Grain Thief for a second wave (they stress the manifest).
+- I (the driver) review verifier reports + risky diffs only; run the integration gate.
+
+### Durable references
+
+- **Design of record:** this file (§1 ladder, §2 frames, §3 ordering/skips, §4 during-window,
+  §5 FEED/BREED, §6 card-fields, §7 migration, §8 open Qs, §10 anytime triggers, §11 stress).
+- **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
+  (10 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
+  `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
+- **Open questions still needing the user:** §8 #1 (Elephantgrass #17 vs Value Assets #18
+  ordering), #2 (Layabout + window 1), #4 (Lynchet reading @ migration), #6 (Dung Collector);
+  §10 (7) span end #16, (8) late-anchor ratification, (9) craft-major surfacing. None block
+  stage 2.
