@@ -7,7 +7,8 @@ Prerequisite: Pottery (or an Upgrade Thereof). Printed VPs: 1. No cost.
 
 Covers: registration (no cost, +1 vps, prereq predicate, scoring term);
 the prereq eligibility boundary (owns Pottery fires; doesn't own / opponent owns
-blocks); the +2 adjacency bonus (two orthogonally adjacent unused cells → +2;
+blocks; a played Large Pottery satisfies the upgrade clause — user ruling
+2026-07-02); the +2 adjacency bonus (two orthogonally adjacent unused cells → +2;
 no adjacent pair → 0; the ownership gate so the term applies only to the owner;
 enclosed cells don't count as unused); and a real play-minor engine flow
 (no cost, kept in tableau, +1 printed vps).
@@ -95,6 +96,29 @@ def test_prereq_blocked_without_pottery():
     assert _owns_pottery(cs, cp) is False
     assert prereq_met(MINORS["pottery_yard"], cs, cp) is False
     assert "pottery_yard" not in playable_minors(cs, cp)
+
+
+def test_prereq_met_via_large_pottery_upgrade():
+    # User ruling 2026-07-02: Large Pottery is an upgrade of Pottery, so having
+    # played it satisfies "Pottery (or an Upgrade Thereof)" even without the
+    # Pottery major (Large Pottery's own cost returns the Pottery). Large
+    # Pottery is not yet implemented — the check is exercised by injecting its
+    # slug into minor_improvements.
+    cs, cp = _state(owns_pottery=False)
+    cs = with_minors(cs, cp, frozenset({"large_pottery"}))
+    assert _owns_pottery(cs, cp) is True
+    assert prereq_met(MINORS["pottery_yard"], cs, cp) is True
+    assert "pottery_yard" in playable_minors(cs, cp)
+
+
+def test_bonus_applies_via_large_pottery_without_pottery_major():
+    # End-to-end scoring with the upgrade path: no Pottery major, but Large
+    # Pottery + Pottery Yard in the tableau → the +2 adjacency bonus and the
+    # +1 printed vps both score (fresh farm has adjacent unused pairs).
+    cs, cp = _state(owns_pottery=False)
+    cs = with_minors(cs, cp, frozenset({"large_pottery", "pottery_yard"}))
+    _total, bd = score(cs, cp)
+    assert bd.card_points == 3
 
 
 def test_prereq_blocked_when_opponent_owns_pottery():

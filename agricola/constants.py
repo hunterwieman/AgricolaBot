@@ -187,7 +187,8 @@ FOOD_ANIMAL_ACCUMULATION_RATES: dict[str, tuple] = {
 
 # The set of accumulation spaces that card effects count over (Wood Pile, Hand
 # Truck, Steam Machine). This is the CARD-game set, which deliberately EXCLUDES
-# meeting_place: in the card game Meeting Place gives no goods (it is become-SP +
+# meeting_place (user ruling 2026-07-02: the exclusion is the owner's edit and is
+# correct): in the card game Meeting Place gives no goods (it is become-SP +
 # an optional minor), so it is not an accumulation space there. meeting_place IS
 # a food-accumulation space in the FAMILY game (see FOOD_ANIMAL_ACCUMULATION_RATES);
 # the Family refill machinery iterates the rate dicts directly, never this set, so

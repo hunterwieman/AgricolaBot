@@ -37,7 +37,8 @@ This is exactly Potter Ceramics' situation, solved the same way: a
 Count = "each of YOUR people occupying an accumulation space": the OWNER's own
 workers (``ActionSpaceState.workers[idx]``) summed over the nine spaces in
 ``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces and 4 food/animal
-spaces — meeting_place is excluded, as it accumulates nothing in the card game). The bake host (Grain Utilization / Side Job / the ovens) is
+spaces — meeting_place is excluded, as it accumulates nothing in the card game;
+user ruling 2026-07-02). The bake host (Grain Utilization / Side Job / the ovens) is
 not an accumulation space, so the worker that initiated this bake is correctly
 not self-counted. Eligibility gates on count > 0 so an empty +0-grain grant is
 never applied. See CARD_AUTHORING_GUIDE.md and wood_pile.py (the same

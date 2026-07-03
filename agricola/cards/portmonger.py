@@ -3,7 +3,8 @@
 Card text: "Each time you take 1/2/3+ food from a food accumulation space, you
 also get 1 vegetable/grain/reed."
 
-A banded / single-tier reward (REVIEWER CORRECTION 2026-06-30): the take falls in
+A banded / single-tier reward (REVIEWER CORRECTION 2026-06-30; user ruling
+2026-07-02: banded is correct): the take falls in
 exactly ONE band and yields exactly ONE good —
     take 1 food  → 1 vegetable
     take 2 food  → 1 grain

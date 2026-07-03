@@ -18,7 +18,8 @@ harvests), and the scoring term reads the count back at end-game.
 "the Joinery or an upgrade thereof": in this engine the ten majors are distinct
 and there is no upgraded Joinery (Pottery and the Basketmaker's Workshop are
 separate crafts, not Joinery upgrades), so the condition is "any player owns the
-Joinery" — major improvement index 7. The conversion enumerator gates only on
+Joinery" — major improvement index 7. (User ruling 2026-07-02: no upgrade of
+Joinery currently exists, so the Joinery-only check is correct as printed.) The conversion enumerator gates only on
 is_owned_fn, so the eligibility check MUST also confirm this player actually owns
 the occupation (registrations are global) — otherwise the buy would be offered to
 the non-owner.

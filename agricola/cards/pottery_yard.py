@@ -13,11 +13,14 @@ orthogonally adjacent (sharing an edge, |dr|+|dc| == 1). The engine still
 applies its own −1-per-unused-space penalty (the parenthetical) — that is
 untouched here; this card only adds the +2 when the adjacency condition holds.
 
-Prerequisite note — "or an Upgrade Thereof": the implemented major-improvement
-set is the 10-major base set, in which Pottery (index 8) has no upgraded
-variant; the upgrade clause refers to expansion majors that are not part of this
-set. So the prerequisite reduces to "owns Pottery" (`major_improvement_owners[8]
-== idx`).
+Prerequisite note — "or an Upgrade Thereof" (user ruling 2026-07-02: Large
+Pottery is an upgrade of Pottery; no Joinery upgrade currently exists): the
+condition is satisfied by owning the Pottery major (`major_improvement_owners[8]
+== idx`) OR having played the Large Pottery minor (`large_pottery`, D60, in the
+player's `minor_improvements`). The second check is load-bearing, not redundant:
+Large Pottery's own cost is "Return the Pottery", so its owner no longer holds
+the Pottery major. Large Pottery is not yet implemented, so the membership check
+is inert today — but correct the day it lands.
 
 Category: end-game scoring (the +2 bonus via register_scoring) plus a printed VP
 (scored automatically from the spec's vps). No stored state — both the prereq
@@ -35,11 +38,20 @@ CARD_ID = "pottery_yard"
 
 # Index of Pottery in the major-improvement ownership tuple (constants.py).
 _POTTERY_MAJOR_IDX = 8
+# The only current upgrade of Pottery (user ruling 2026-07-02). Not yet an
+# implemented card, so this membership check is inert today.
+_LARGE_POTTERY_ID = "large_pottery"
 
 
 def _owns_pottery(state: GameState, idx: int) -> bool:
-    """Prerequisite: player `idx` owns Pottery."""
-    return state.board.major_improvement_owners[_POTTERY_MAJOR_IDX] == idx
+    """Prerequisite: player `idx` owns the Pottery or an upgrade thereof.
+
+    Satisfied by the Pottery major OR the played Large Pottery minor — whose
+    own cost returns the Pottery, so its owner does not hold the major.
+    """
+    if state.board.major_improvement_owners[_POTTERY_MAJOR_IDX] == idx:
+        return True
+    return _LARGE_POTTERY_ID in state.players[idx].minor_improvements
 
 
 def _bonus(state: GameState, idx: int) -> int:
