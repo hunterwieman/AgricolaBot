@@ -806,12 +806,23 @@ class PendingFamilyGrowth:
     `phase` flips "before"->"after" at CommitFamilyGrowth (no auto-pop), firing
     `after_family_growth` automatic effects; the after-phase offers
     `after_family_growth` triggers + Stop. Card-only frame: never reaches the
-    C++ (Family) engine. Event derived `<phase>_family_growth`."""
+    C++ (Family) engine. Event derived `<phase>_family_growth`.
+
+    `place_on_space=False` is the CARD-GRANTED growth (user ruling, recorded in
+    CARD_DEFERRED_PLANS.md Group A1): a growth granted by a card places the
+    newborn on NO action space — the commit increments people_total/newborns for
+    the frame's `player_idx` without touching the board (there is no valid space
+    id a "card:<id>" grant could name; a real one would falsely plant a meeple
+    visible to worker-scanning cards). The room gate (people_total < 5 and
+    < rooms) is the CALLER's eligibility check, not the primitive's — exactly as
+    for the space path. Default True (the wish-space behavior) — every existing
+    pusher is unchanged."""
     PENDING_ID: ClassVar[str] = "family_growth"
     player_idx: int
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    place_on_space: bool = True
 
 
 @dataclass(frozen=True)

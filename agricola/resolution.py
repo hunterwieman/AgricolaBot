@@ -258,13 +258,22 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
     state = _update_space(state, space_id, workers=new_workers)
 
     # Update player: people_total and newborns
-    p = state.players[ap]
+    return _grow_family(state, ap)
+
+
+def _grow_family(state: GameState, idx: int) -> GameState:
+    """The people-increment of a family growth, factored out of the wish resolver:
+    people_total += 1, newborns += 1, no board placement, no room gate (the
+    caller's concern). The whole effect of a card-granted growth
+    (PendingFamilyGrowth.place_on_space=False), and the second half of a wish-space
+    growth."""
+    p = state.players[idx]
     new_player = fast_replace(
         p,
         people_total=p.people_total + 1,
         newborns=p.newborns + 1,
     )
-    return _update_player(state, ap, new_player)
+    return _update_player(state, idx, new_player)
 
 
 def _resolve_basic_wish_for_children(state: GameState) -> GameState:
@@ -988,11 +997,20 @@ def _choose_subaction_meeting_place(
 
 
 def _execute_family_growth(state: GameState, idx: int, action) -> GameState:
-    """Run the family-growth primitive: add one newborn on the space named by the
-    PendingFamilyGrowth frame's initiated_by_id (the wish space). Reuses the shared
-    growth logic, then pivots PendingFamilyGrowth to its after-phase; Stop pops."""
-    space_id = state.pending_stack[-1].initiated_by_id
-    state = _resolve_wish_for_children(state, space_id)
+    """Run the family-growth primitive, then pivot PendingFamilyGrowth to its
+    after-phase (Stop pops).
+
+    Space path (place_on_space=True, the default): add one newborn on the space
+    named by the frame's initiated_by_id (the wish space), via the shared wish
+    resolver. Card-grant path (place_on_space=False; user ruling, Group A1): the
+    newborn occupies NO action space — increment the frame owner's
+    people_total/newborns only (`initiated_by_id` is a "card:<id>" provenance
+    string, not a space)."""
+    top = state.pending_stack[-1]
+    if top.place_on_space:
+        state = _resolve_wish_for_children(state, top.initiated_by_id)
+    else:
+        state = _grow_family(state, idx)
     return _enter_after_phase(state)   # pivot PendingFamilyGrowth -> after; Stop pops
 
 
