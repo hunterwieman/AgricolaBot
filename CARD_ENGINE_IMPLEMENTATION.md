@@ -192,7 +192,8 @@ What differs between host kinds is only *what the work is* and *what signals wor
 
 Two deliberate non-hosts: **`PendingSideJob`** (Family-only — the space doesn't exist in the card
 game, so it keeps the old Stop-terminated shape and its bespoke `before_side_job` ClassVar), and
-**`PendingChooseCost` / `PendingFoodPayment` / `PendingCardChoice` / `PendingDraftPick`** (closed
+**`PendingChooseCost` / `PendingFoodPayment` / `PendingCardChoice` / `PendingDraftPick` /
+`PendingAccommodate`** (closed
 decision frames: no card fires on "choosing a payment", so no phase, no triggers, no Stop — §4).
 
 **Atomic spaces are hosted conditionally.** An atomic space (Forest, Day Laborer, …) stays atomic
