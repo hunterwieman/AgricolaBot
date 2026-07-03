@@ -19,6 +19,63 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## PRIORITY: three mis-timed harvest cards awaiting the user's disposition (2026-07-02)
+
+**The problem.** A 2026-07-02 fidelity audit found three **implemented, live** harvest cards whose
+printed timing is *not* the feeding phase but which were implemented as feeding-phase conversions
+(entries in the `HARVEST_CONVERSIONS` registry, surfaced during HARVEST_FEED). The implementing
+sessions justified the shift with neutrality arguments written into their own docstrings ("the
+established, accepted approximation") — **never ratified by the user**, and the user has since
+ruled (CARD_AUTHORING_GUIDE.md §0.1; CARD_ENGINE_IMPLEMENTATION.md §6, first ruling) that such
+shifts are never acceptable: a card is implemented exactly as printed or it is deferred. The
+audit was systematic (a census of every non-builtin `HARVEST_CONVERSIONS` registrant and every
+`HARVEST_FIELD_CARDS` member against its printed text, plus a repo-wide self-ratification-language
+lint) — **these three are the complete set**; every other harvest card is faithful.
+
+**The three cards and their exact deltas:**
+
+1. **`cube_cutter`** (occupation, C98). Text: *"In the field phase of each harvest, you can use
+   this card to exchange exactly 1 wood and 1 food for 1 bonus point."* Implemented during FEED.
+   The shift is **permissive**: at FEED the player can first cook wood→food (Joinery / craft
+   conversions fire in FEED) and pay *that* food; at the printed field-phase timing the food must
+   already be on hand before any feeding conversions run.
+   **Remedy available TODAY**: the field phase now has an optional-choice host — commit 9c785e7
+   built `PendingHarvestField` trigger surfacing (with a Proceed decline) for Stable Manure, under
+   a user ruling. Re-time cube_cutter onto a `harvest_field` optional trigger (keep once-per-
+   harvest bookkeeping; the VP bank in CardStore + `register_scoring` stays as-is), drop its
+   `HARVEST_CONVERSIONS` entry, and rewrite the docstring with the faithful timing.
+
+2. **`winter_caretaker`** (occupation). Text: *"At the end of each harvest, you can buy exactly
+   1 vegetable for 2 food."* Implemented during FEED. The shift is **restrictive**: food gained in
+   the breed phase (`breeding_food_gained`) cannot be used, and the buy competes with feeding.
+   **No faithful hook exists yet** — "end of each harvest" is post-BREED, which is exactly the
+   territory of the user-gated round-end / after-feeding designs below (`PendingRoundEnd` /
+   the `PendingHarvestFeed` after-phase). Options: re-defer (Farm Store precedent), or hold until
+   that machinery is approved and built, then re-time.
+
+3. **`elephantgrass_plant`** (minor). Text: *"Immediately after each harvest, you can use this
+   card to exchange exactly 1 reed for 1 bonus point."* Implemented during FEED. No concrete
+   behavioral delta was found (reed does not move during FEED/BREED) — but per the fidelity
+   ruling that is a reason to ask, not to keep. Same options as winter_caretaker (its faithful
+   window is the same post-harvest instant), **or** the user may explicitly ratify the FEED seam
+   for this card with a dated ruling.
+
+**Per-card dispositions available to the user:** (a) **re-time** onto the correct hook
+(cube_cutter: possible now; the other two: after the round-end/after-feeding build);
+(b) **re-defer** — the Farm Store precedent: move module + test to `archive/deferred_cards/`,
+unwire from `agricola/cards/__init__.py`, record here; (c) **ratify as-is** with an explicit
+dated ruling added to the docstring.
+
+**Mechanics for whichever session executes** (all card-only — Family byte-identity and the C++
+gates are untouched): each card's entry in the `ALLOWLIST` of
+`tests/test_card_fidelity_lint.py` MUST be removed as part of its resolution (the lint then
+enforces the outcome); on a re-time, verify once-per-harvest scoping survives the registry move;
+on a re-defer, update `CARD_IMPLEMENTATION_PROGRESS.md` and CARD_ENGINE_IMPLEMENTATION.md §1's
+census; run the full suite. Read CARD_AUTHORING_GUIDE.md §0.1 before starting — the fidelity
+rule, including its subagent clause, governs this work.
+
+---
+
 ## Group A — small, well-scoped, high-yield (recommend building on approval)
 
 ### A1. Card-granted Family Growth with NO space placement
