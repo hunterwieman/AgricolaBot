@@ -128,6 +128,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # Stable Manure): Family-constant False, so omitting it keeps the Family JSON
     # byte-identical and needs no C++ change.
     "field_triggers_offered",
+    # Card-only harvest-window walk cursor (engine._advance_harvest): set only while
+    # a PendingHarvestWindow choice frame pauses the window walk mid-segment —
+    # Family-constant None (no window cards → no frames), so omitting it keeps the
+    # Family JSON byte-identical and needs no C++ change.
+    "harvest_cursor",
 })
 
 

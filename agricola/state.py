@@ -389,10 +389,19 @@ class GameState:
 
     # Card-only two-stage-walk discriminator for the harvest FIELD phase: True
     # while the per-player PendingHarvestField choice frames (field-phase
-    # triggers — Stable Manure) are out, so re-entering _resolve_harvest_field
+    # triggers — Stable Manure) are out, so re-entering the field take
     # after they pop runs the mechanical crop take instead of re-offering.
     # Family-constant False (default-skipped in canonical.py).
     field_triggers_offered: bool = False
+
+    # Card-only harvest-window walk cursor (engine._advance_harvest /
+    # agricola/cards/harvest_windows.py): the HARVEST_WINDOWS index the walk resumes
+    # at, set ONLY when a simple-window choice frame pauses the walk mid-segment.
+    # None everywhere else — the phase (+ field_triggers_offered) derives the resume
+    # point at each harvest phase boundary, so a Family game (no window cards, no
+    # frames) carries None on every returned state and stays byte-identical
+    # (default-skipped in canonical.py).
+    harvest_cursor: int | None = None
 
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
@@ -400,7 +409,7 @@ class GameState:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
                       self.pending_stack, self.mode, self.draft_pools,
-                      self.field_triggers_offered))
+                      self.field_triggers_offered, self.harvest_cursor))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

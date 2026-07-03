@@ -989,6 +989,36 @@ class PendingHarvestField:
 
 
 @dataclass(frozen=True)
+class PendingHarvestWindow:
+    """Per-player choice host for one simple harvest timing window (card game only).
+
+    The harvest is threaded with an ordered ladder of timing windows
+    (`agricola/cards/harvest_windows.py`; design: HARVEST_WINDOWS_DESIGN.md) —
+    "at the start of each harvest", "after the field phase", "at the end of each
+    harvest", …. When the walk (`engine._advance_harvest`) reaches a simple window,
+    its automatic effects fire mechanically (no frame); THIS frame is pushed only
+    for a player with an eligible registered TRIGGER in that window, one frame per
+    such player, starting player on top (the FEED/BREED push order).
+
+    `window_id` names the window and doubles as the trigger event string — the
+    enumerator surfaces the player's eligible, unfired triggers for that event
+    (variant-expanded) plus `Proceed`, the decline / work-complete boundary that
+    pops (a phase host with no before/after flip, like `PendingPreparation` /
+    the per-player `PendingHarvestField` choice host). Mandatory-with-choice
+    triggers gate Proceed off until fired, as everywhere else.
+
+    Default-inert: no card registered on a window → the frame is never
+    constructed; a Family (or windowless-card) harvest is byte-identical to the
+    pre-ladder engine.
+    """
+    PENDING_ID: ClassVar[str] = "harvest_window"
+    window_id: str
+    player_idx: int
+    initiated_by_id: str = "phase:harvest_window"
+    triggers_resolved: frozenset = frozenset()
+
+
+@dataclass(frozen=True)
 class PendingPreparation:
     """Phase host frame for the start-of-round (preparation) phase, one per OWNING
     player (card game only).
@@ -1155,6 +1185,7 @@ PendingDecision = Union[
     PendingAccommodate,
     PendingReveal,
     PendingHarvestField,
+    PendingHarvestWindow,
     PendingPreparation,
     PendingCardChoice,
     PendingActionSpace,

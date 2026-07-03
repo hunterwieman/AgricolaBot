@@ -69,6 +69,7 @@ from agricola.pending import (
     PendingHarvestBreed,
     PendingHarvestFeed,
     PendingHarvestField,
+    PendingHarvestWindow,
     PendingPigMarket,
     PendingPlayMinor,
     PendingPlayOccupation,
@@ -124,6 +125,14 @@ from agricola.cards.triggers import (
     apply_auto_effects,
     should_host_harvest_field,
     should_host_space,
+)
+# The harvest timing-window ladder (HARVEST_WINDOWS_DESIGN.md): the ordered window
+# table + the skip-guard seam consumed by _advance_harvest. Another leaf module —
+# safe to import here without a load-order cycle.
+from agricola.cards.harvest_windows import (
+    HARVEST_WINDOWS,
+    WINDOW_INDEX,
+    window_skipped,
 )
 
 
@@ -631,6 +640,12 @@ def _apply_proceed(state: GameState) -> GameState:
         assert top.player_idx is not None, (
             "Proceed reached the transient harvest-field auto host — it must never surface")
         return pop(state)
+    # A per-player harvest-window choice host (card-only, HARVEST_WINDOWS_DESIGN.md):
+    # a phase host with no before/after flip — its window's autos fired mechanically in
+    # the walk — so Proceed (the decline / work-complete boundary) simply pops; the
+    # walk resumes at GameState.harvest_cursor.
+    if isinstance(top, PendingHarvestWindow):
+        return pop(state)
     # Multi-shot granted plow (CARDS only — Swing/Turnwrest/Wheel Plow): the player has
     # plowed >=1 of up to max_plows fields and chooses to finish early. Like the build
     # hosts, the work already happened during the before-phase, so Proceed is purely the
@@ -908,28 +923,17 @@ def _advance_until_decision(state: GameState) -> GameState:
             state = _resolve_return_home(state)
             continue
 
-        # Case 5: HARVEST_FIELD phase. _resolve_harvest_field does the
-        # mechanical FIELD work, resets harvest_conversions_used, pushes FEED
-        # pendings, and transitions to HARVEST_FEED. After it returns the
-        # stack is non-empty and the outer guard exits on the next iteration.
-        if state.phase == Phase.HARVEST_FIELD:
-            state = _resolve_harvest_field(state)
-            continue
-
-        # Case 6: HARVEST_FEED with empty stack = exit signal. All FEED
-        # pendings have been Stop'd. Push BREED pendings and transition.
-        if state.phase == Phase.HARVEST_FEED:
-            state = _initiate_harvest_breed(state)
-            state = fast_replace(state, phase=Phase.HARVEST_BREED)
-            continue
-
-        # Case 7: HARVEST_BREED with empty stack = exit signal. Transition
-        # to PREPARATION (round < 14) or BEFORE_SCORING (round == 14).
-        if state.phase == Phase.HARVEST_BREED:
-            if state.round_number >= NUM_ROUNDS:
-                state = fast_replace(state, phase=Phase.BEFORE_SCORING)
-            else:
-                state = fast_replace(state, phase=Phase.PREPARATION)
+        # Cases 5-7: the harvest phases with an empty stack. One unified walk
+        # (_advance_harvest) threads the harvest-window ladder
+        # (agricola/cards/harvest_windows.py) through the FIELD take, the FEED
+        # pendings, and the BREED pendings; it either pushes frames (window choice
+        # hosts / FEED / BREED — the Case-1 guard returns them next iteration),
+        # transitions between harvest phases, or completes the harvest into
+        # PREPARATION / BEFORE_SCORING. Cardless: byte-identical to the old
+        # three-case walk (no window ever hosts; the sentinels do exactly the
+        # old cases' work).
+        if state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED):
+            state = _advance_harvest(state)
             continue
 
         # Case 8: terminal phase. No more steps possible.
@@ -1348,25 +1352,22 @@ def _field_trigger_order(state: GameState) -> list[int]:
                    for e in entries)]
 
 
-def _resolve_harvest_field(state: GameState) -> GameState:
-    """Mechanical FIELD work + reset once-per-harvest budget + push FEED
-    pendings + transition phase. Called by _advance_until_decision when
-    phase == HARVEST_FIELD.
+def _resolve_field_take(state: GameState) -> GameState:
+    """The FIELD take — window #5 ("field_phase") of the harvest-window walk
+    (`_advance_harvest`): mechanical crop take + reset of the once-per-harvest
+    conversion budget. The FEED push that used to live here moved to the walk —
+    the windows between the take and the feeding (end_of_field_phase,
+    after_field_phase, start_of_feeding) run in between.
 
-    Three concerns combined (mirrors _resolve_preparation's multi-concern
-    shape — justified in TASK_7 Part 2.1):
+    Two concerns combined:
 
     1. Mechanical: take 1 crop from each planted field. Grain takes
        precedence over veg per RULES.md (a field is sown with one or the
        other, never both — the elif fallback handles a veg-sown field).
     2. Reset harvest_conversions_used on both players so FEED starts with
        a fresh once-per-harvest budget.
-    3. Push FEED pendings via _initiate_harvest_feed and set
-       phase=HARVEST_FEED. After this returns, the stack is non-empty
-       (one frame per player) and the outer guard returns control to the
-       agent.
 
-    A fourth, card-only concern runs FIRST (before the crop take): the
+    A third, card-only concern runs FIRST (before the crop take): the
     field-phase card hook, a TWO-STAGE walk discriminated by the card-only
     `state.field_triggers_offered` flag (mirroring the PREPARATION two-state
     walk):
@@ -1432,12 +1433,121 @@ def _resolve_harvest_field(state: GameState) -> GameState:
             harvest_conversions_used=frozenset(),
         ))
 
-    state = fast_replace(state, players=tuple(new_players))
-
-    # Push FEED pendings (one per player, SP on top, food pre-debited) and
-    # transition phase (resetting the two-stage-walk flag — a no-op write in
-    # the common no-trigger path). The outer guard returns on the next
-    # iteration because the stack is now non-empty.
-    state = _initiate_harvest_feed(state)
-    return fast_replace(state, phase=Phase.HARVEST_FEED,
+    # The take is done: reset the two-stage-walk flag (a no-op write in the
+    # common no-trigger path). The walk continues to the post-field windows
+    # and the FEED push.
+    return fast_replace(state, players=tuple(new_players),
                         field_triggers_offered=False)
+
+
+def _window_trigger_players(state: GameState, window_id: str) -> list[int]:
+    """The players owed a PendingHarvestWindow choice frame for `window_id`, in
+    resolve order (starting player first): each non-skipped player owning an
+    eligible trigger registered on the window's event. Empty — the Family fast
+    path and the autos-only path — when no trigger would surface."""
+    from agricola.cards.triggers import TRIGGERS, _owns
+    entries = TRIGGERS.get(window_id, ())
+    if not entries:
+        return []
+    sp = state.starting_player
+    return [idx for idx in (sp, (sp + 1) % 2)
+            if not window_skipped(state, idx, window_id)
+            and any(_owns(state.players[idx], e.card_id)
+                    and e.eligibility_fn(state, idx, frozenset())
+                    for e in entries)]
+
+
+def _process_simple_window(state: GameState, window_id: str):
+    """Run one simple harvest window: fire its automatic effects per player
+    (starting player first, skip-guarded), then push a PendingHarvestWindow
+    choice frame per player with an eligible trigger (non-SP first, so the
+    starting player decides first). Returns (state, frames_pushed).
+
+    Family fast path: no card registered on the window → two empty registry
+    lookups and back."""
+    sp = state.starting_player
+    for idx in (sp, (sp + 1) % 2):
+        if not window_skipped(state, idx, window_id):
+            state = apply_auto_effects(state, window_id, idx)
+    frame_players = _window_trigger_players(state, window_id)
+    for idx in reversed(frame_players):
+        state = push(state, PendingHarvestWindow(window_id=window_id, player_idx=idx))
+    return state, bool(frame_players)
+
+
+def _advance_harvest(state: GameState) -> GameState:
+    """One step of the harvest-window walk (HARVEST_WINDOWS_DESIGN.md §1-§3).
+
+    Called by _advance_until_decision whenever the phase is a harvest phase and
+    the stack is empty. Walks the HARVEST_WINDOWS ladder from the resume point,
+    processing simple windows (autos + choice frames) and the three sentinels —
+    "field_phase" (the take, via _resolve_field_take's two-stage machinery),
+    "feeding" / "breeding" (push the existing FEED / BREED frames) — until
+    either frames are pushed (return; the outer Case-1 guard surfaces them),
+    a harvest phase transition happens, or the harvest completes into
+    PREPARATION / BEFORE_SCORING.
+
+    Resume point: `state.harvest_cursor` when set (a simple-window frame paused
+    the walk mid-segment — always the CARDS game); otherwise derived from the
+    phase — fresh FIELD entry starts at window 0, a FIELD re-entry with
+    `field_triggers_offered` resumes at the take, an empty-stack FEED/BREED
+    resumes just past its sentinel. A Family game never pushes window frames,
+    so its returned states always carry cursor None and stay byte-identical.
+    """
+    cur = state.harvest_cursor
+    if cur is None:
+        if state.phase == Phase.HARVEST_FIELD:
+            cur = (WINDOW_INDEX["field_phase"]
+                   if state.field_triggers_offered else 0)
+        elif state.phase == Phase.HARVEST_FEED:
+            cur = WINDOW_INDEX["feeding"] + 1
+        else:  # Phase.HARVEST_BREED
+            cur = WINDOW_INDEX["breeding"] + 1
+    else:
+        state = fast_replace(state, harvest_cursor=None)
+
+    while cur < len(HARVEST_WINDOWS):
+        window_id = HARVEST_WINDOWS[cur]
+
+        if window_id == "field_phase":
+            state = _resolve_field_take(state)
+            if state.pending_stack:
+                # Field-phase choice frames (Stable Manure) are out; the
+                # field_triggers_offered flag discriminates the re-entry, so the
+                # cursor pins the resume point at this same sentinel.
+                return fast_replace(state, harvest_cursor=cur)
+            cur += 1
+            continue
+
+        if window_id == "feeding":
+            state = _initiate_harvest_feed(state)
+            return fast_replace(state, phase=Phase.HARVEST_FEED,
+                                harvest_cursor=None)
+
+        if window_id == "breeding":
+            state = _initiate_harvest_breed(state)
+            return fast_replace(state, phase=Phase.HARVEST_BREED,
+                                harvest_cursor=None)
+
+        state, pushed = _process_simple_window(state, window_id)
+        cur += 1
+        if pushed:
+            return fast_replace(state, harvest_cursor=cur)
+
+    # The ladder is walked: the harvest is over.
+    if state.round_number >= NUM_ROUNDS:
+        return fast_replace(state, phase=Phase.BEFORE_SCORING, harvest_cursor=None)
+    return fast_replace(state, phase=Phase.PREPARATION, harvest_cursor=None)
+
+
+def _resolve_harvest_field(state: GameState) -> GameState:
+    """Compatibility alias: enter the harvest-window walk at the FIELD phase.
+
+    The pre-window engine resolved the whole FIELD phase (take + FEED push) in
+    this one call, and many card tests drive it by this name. The walk is
+    equivalent whenever no card is registered on the windows it threads between
+    those steps — true for every legacy caller. New code calls _advance_harvest
+    via _advance_until_decision instead.
+    """
+    assert state.phase == Phase.HARVEST_FIELD, state.phase
+    return _advance_harvest(state)

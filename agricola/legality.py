@@ -82,6 +82,7 @@ from agricola.pending import (
     PendingFoodPayment,
     PendingGrainUtilization,
     PendingHarvestField,
+    PendingHarvestWindow,
     PendingMeetingPlace,
     PendingCardChoice,
     PendingPlayMinor,
@@ -2686,6 +2687,28 @@ def _enumerate_pending_harvest_field(
     return actions
 
 
+def _enumerate_pending_harvest_window(
+    state: GameState, pending: "PendingHarvestWindow",
+) -> list[Action]:
+    """Legal actions at a per-player harvest-window choice host (card game only).
+
+    One frame per simple harvest timing window per player with an eligible
+    registered trigger (`agricola/cards/harvest_windows.py`; the walk is
+    `engine._advance_harvest`). The frame's `window_id` doubles as the event
+    string: surface the player's eligible, unfired triggers for it
+    (variant-expanded), then `Proceed` — the decline / work-complete boundary
+    that pops. Mandatory-with-choice triggers gate Proceed off until fired,
+    exactly like the preparation and harvest-field hosts this mirrors.
+    """
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
+
+    base = _eligible_fire_triggers(state, pending, pending.window_id)
+    actions = _expand_variant_triggers(state, pending, base)
+    if not has_unfired_mandatory_trigger(state, pending, pending.window_id):
+        actions.append(Proceed())
+    return actions
+
+
 def _enumerate_pending_card_choice(
     state: GameState, pending: PendingCardChoice,
 ) -> list[Action]:
@@ -2711,6 +2734,7 @@ def _enumerate_pending_draft_pick(
 PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPreparation:         _enumerate_pending_preparation,
     PendingHarvestField:        _enumerate_pending_harvest_field,
+    PendingHarvestWindow:       _enumerate_pending_harvest_window,
     PendingCardChoice:          _enumerate_pending_card_choice,
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingPlayMinor:           _enumerate_pending_play_minor,
