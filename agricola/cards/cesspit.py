@@ -19,10 +19,10 @@ the card is played).
   scheduled round by `engine._complete_preparation` (`schedule_resources` writes slot
   `r-1`, the engine's Well index convention, and silently drops rounds > 14).
 - The boar ride on `PlayerState.future_rewards` (the card-only animal slot) and are
-  collected + auto-accommodated (best `pareto_frontier` point, decision-free) at the start
-  of each scheduled round by `engine._collect_future_rewards` — the same machinery the
-  animal markets and Acorns Basket use, so 1 boar onto a default farm fits the house-pet
-  slot with no immediate-grant accommodation problem (preparation is decision-free).
+  collected at the start of each scheduled round by `engine._collect_future_rewards`,
+  which grants them via `helpers.grant_animals` — the same path Acorns Basket uses, so
+  1 boar onto a default farm fits the house-pet slot. On a full farm the accommodation
+  barrier surfaces a keep-which choice at the round's first worker placement.
 
 `vps=-1` is the printed penalty (scored when the card is kept; cf. Brewery Pond / Mantlepiece).
 The whole effect runs at play (`on_play`); no on-going trigger.

@@ -213,8 +213,9 @@ re-running it on a returned state is a no-op. The cases, in order:
      just-revealed card included), distribute the new round's `future_resources`, clear newborns,
      and transition to WORK with `current_player = starting_player`. *Card mode adds*, in order:
      clear the per-round/per-turn used-sets, collect the round's `future_rewards` (scheduled
-     animals, auto-accommodated), and push a `PendingPreparation` start-of-round host per owning
-     player — all no-ops in Family (CARD_ENGINE_IMPLEMENTATION.md §2–§4).
+     animals granted via `grant_animals`, reconciled by the accommodation barrier at the round's
+     first worker placement if they overflow — CARD_ENGINE_IMPLEMENTATION.md §4), and push a
+     `PendingPreparation` start-of-round host per owning player — all no-ops in Family.
 
    Continue.
 3. **WORK** → if all players have `people_home == 0`, set phase `RETURN_HOME` and continue;

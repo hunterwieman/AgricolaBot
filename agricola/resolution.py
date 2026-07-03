@@ -1619,33 +1619,39 @@ def _execute_build_pasture(
 def _execute_accommodate(
     state: GameState, player_idx: int, commit: CommitAccommodate,
 ) -> GameState:
-    """Finalize animal market: set player's (sheep, boar, cattle) to the
-    chosen frontier point, convert any excess to food at the player's
-    cooking rates.
+    """Set the player's (sheep, boar, cattle) to the chosen frontier point and cook any
+    excess to food at the player's cooking rates. Serves TWO landing frames:
 
-    Lands directly on PendingSheepMarket / PendingPigMarket /
-    PendingCattleMarket (no separate sub-action pending exists for animal
-    markets). Reads `pending.gained` to determine which animal type was
-    newly gained from the space.
+    - Animal markets (PendingSheepMarket / PendingPigMarket / PendingCattleMarket): the
+      newly-gained animals are STAGED on `pending.gained` (not yet on the player), so
+      "available" = existing + gained. This is the market's before->after PIVOT — it
+      applies the accommodation, flips the host to `phase="after"`, and fires
+      after_action_space autos at that work-complete boundary (SPACE_HOST_REFACTOR.md
+      §11); the trailing Stop pops.
 
-    (4b) Instead of popping, this is the market's before->after pivot — it applies
-    the accommodation, flips the host frame to
-    `phase="after"`, and fires after_action_space automatic effects at that flip
-    (the work-complete boundary, before the after-triggers — SPACE_HOST_REFACTOR.md
-    §11). The after-phase enumerator then offers any after-triggers + Stop, and Stop
-    pops (pure pop now — engine._apply_stop fires nothing).
+    - Reconciliation (PendingAccommodate): the animals are ALREADY on the player (a
+      decision-free grant put them over capacity via helpers.grant_animals), so
+      "available" = the player's current animals (nothing staged). This frame has no
+      action-space lifecycle, so it POPS instead of pivoting; the flag was already
+      cleared by engine._reconcile_accommodation when it pushed the frame.
     """
-    from agricola.pending import PendingSheepMarket, PendingPigMarket, PendingCattleMarket
+    from agricola.pending import (
+        PendingSheepMarket, PendingPigMarket, PendingCattleMarket, PendingAccommodate,
+    )
     pending = state.pending_stack[-1]
-    assert isinstance(pending, (PendingSheepMarket, PendingPigMarket, PendingCattleMarket))
     p = state.players[player_idx]
-    # Animal markets don't convert veg; slice to the (sheep, boar, cattle) triple.
+    # Animal markets / accommodation don't convert veg; slice to (sheep, boar, cattle).
     rates = cooking_rates(state, player_idx)[:3]
 
-    # Compute "available" per type (player's existing + gained for this market only).
-    s_avail = p.animals.sheep + (pending.gained if isinstance(pending, PendingSheepMarket) else 0)
-    b_avail = p.animals.boar  + (pending.gained if isinstance(pending, PendingPigMarket) else 0)
-    c_avail = p.animals.cattle + (pending.gained if isinstance(pending, PendingCattleMarket) else 0)
+    # "Available" per type. Reconciliation reads the player's current animals (the grant
+    # already landed there); each market adds only its own staged `gained`.
+    if isinstance(pending, PendingAccommodate):
+        s_avail, b_avail, c_avail = p.animals.sheep, p.animals.boar, p.animals.cattle
+    else:
+        assert isinstance(pending, (PendingSheepMarket, PendingPigMarket, PendingCattleMarket))
+        s_avail = p.animals.sheep + (pending.gained if isinstance(pending, PendingSheepMarket) else 0)
+        b_avail = p.animals.boar  + (pending.gained if isinstance(pending, PendingPigMarket) else 0)
+        c_avail = p.animals.cattle + (pending.gained if isinstance(pending, PendingCattleMarket) else 0)
 
     # Food = excess released at cooking rates.
     food = (
@@ -1658,9 +1664,11 @@ def _execute_accommodate(
     new_resources = p.resources + Resources(food=food)
     new_player = fast_replace(p, animals=new_animals, resources=new_resources)
     state = _update_player(state, player_idx, new_player)
-    # Pivot to the after-phase (do NOT pop) and fire after_action_space autos at
-    # this work-complete boundary (before the after-triggers). _enter_after_phase
-    # flips the frame + fires the derived `after_action_space` event.
+    if isinstance(pending, PendingAccommodate):
+        return pop(state)          # bare reconciliation: no host lifecycle, just pop
+    # Market: pivot to the after-phase (do NOT pop) and fire after_action_space autos at
+    # this work-complete boundary (before the after-triggers). _enter_after_phase flips
+    # the frame + fires the derived `after_action_space` event.
     return _enter_after_phase(state)
 
 

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_auto
+from agricola.helpers import grant_animals
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Cost, Resources
 from agricola.state import GameState
@@ -86,15 +87,18 @@ def _grant_after(state: GameState, idx: int) -> GameState:
         if len(pasture.cells) >= MIN_PASTURE_SIZE
         and frozenset(pasture.cells) <= newly_enclosed
     )
-    new_p = fast_replace(
-        p,
-        animals=p.animals + Animals(sheep=SHEEP_PER_PASTURE * qualifying),
-        card_state=p.card_state.set(CARD_ID, frozenset()),   # reset to canonical empty
+    # Reset the snapshot to canonical empty (so two commit orders converge).
+    p = fast_replace(p, card_state=p.card_state.set(CARD_ID, frozenset()))
+    state = fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2)),
     )
-    return fast_replace(
-        state,
-        players=tuple(new_p if i == idx else state.players[i] for i in range(2)),
-    )
+    # Grant the sheep via grant_animals (add + flag). The 2 sheep land on the fresh
+    # >= 4-space pasture (capacity >= 8, empty), so they always fit and the accommodation
+    # barrier just clears the flag — but routing every animal grant through grant_animals
+    # keeps the path uniform and robust to unusual capacity interactions.
+    if qualifying:
+        state = grant_animals(state, idx, Animals(sheep=SHEEP_PER_PASTURE * qualifying))
+    return state
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)))

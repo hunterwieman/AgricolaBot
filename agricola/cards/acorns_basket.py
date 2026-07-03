@@ -7,11 +7,13 @@ Cost: 1 Reed. Prerequisite: 3 Occupations. VPs: none. Not passing.
 The "2 round spaces" are the NEXT 2 round spaces — rounds R+1 and R+2 (confirmed with
 the maintainer, 2026-06-30). Category 8 (deferred goods), the ANIMAL variant: the boar
 ride on the card-only `future_rewards` tuple (a `FutureReward.animals` slot per round),
-and are collected + auto-accommodated at the start of each scheduled round by
-`engine._collect_future_rewards` — the SAME `pareto_frontier`/`can_accommodate`
-machinery the animal markets use (so 1 boar onto a default farm fits the house-pet
-slot; an over-capacity grant would be trimmed deterministically, decision-free, as
-preparation is decision-free). The whole effect runs at play (`on_play`).
+and are collected at the start of each scheduled round by
+`engine._collect_future_rewards`, which grants them via `helpers.grant_animals` (1 boar
+onto a default farm fits the house-pet slot). If the boar arrives to a full farm — e.g.
+an Animal Tamer house already holding animals — the accommodation barrier surfaces a
+PendingAccommodate at the round's first worker placement, so the PLAYER chooses which
+animals to keep (over-capacity round-start collection is NOT decision-free). The whole
+effect runs at play (`on_play`).
 
 The boar ride via the shared `schedule_animals` helper (the animal sibling of
 `schedule_resources`), additive into the round R+1 and R+2 slots. See FutureReward in

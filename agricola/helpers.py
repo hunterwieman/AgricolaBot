@@ -6,8 +6,42 @@ from itertools import product as iproduct
 
 from agricola import opt_config
 from agricola.constants import CellType
+from agricola.replace import fast_replace
 from agricola.resources import Animals
 from agricola.state import Farmyard, GameState, PlayerState
+
+
+# ---------------------------------------------------------------------------
+# Part 0: Decision-free animal grants
+# ---------------------------------------------------------------------------
+
+def grant_animals(state: GameState, idx: int, animals: Animals) -> GameState:
+    """Give player `idx` `animals` with NO immediate accommodation decision, and flag
+    the player for the accommodation barrier.
+
+    This is the single choke point for every decision-free animal gain — round-start
+    collection (engine._collect_future_rewards) and on-play card gains (Game Trade,
+    Young Animal Market, Shepherd's Crook). It adds the animals to `player.animals`
+    *even if that exceeds the farm's housing capacity* (a transient over-capacity state
+    — nothing asserts animals <= capacity; only scoring reads the totals, and the
+    barrier always reconciles before scoring) and sets `animals_need_accommodation`.
+
+    The engine's accommodation barrier (engine._reconcile_accommodation, run at every
+    decision boundary in _advance_until_decision) then checks — only for a flagged
+    player — whether the animals fit; if not, it surfaces a PendingAccommodate so the
+    player chooses which to keep (the rest cooked to food). If they DO fit, the barrier
+    just clears the flag (no frame). Batching is automatic: several grants at the same
+    game moment land here before any decision boundary, so the barrier sees the combined
+    total and asks once. The per-card contract is simply "grant your animals in one
+    synchronous shot" — do not interleave a player prompt between two same-moment grants.
+    """
+    p = state.players[idx]
+    p = fast_replace(
+        p, animals=p.animals + animals, animals_need_accommodation=True,
+    )
+    return fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2)),
+    )
 
 
 # ---------------------------------------------------------------------------

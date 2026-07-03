@@ -22,11 +22,11 @@ Mechanics:
     `schedule_resources`; it is added to the player's resources at the start of each
     scheduled round in `engine._complete_preparation`.
   - The sheep ride the card-only `PlayerState.future_rewards` (a `FutureReward.animals`
-    slot per round) via `schedule_animals`; they are collected AND auto-accommodated
-    (best `pareto_frontier` point, decision-free — the SAME machinery the animal markets
-    use) at the start of each scheduled round by `engine._collect_future_rewards`. So
-    the no-accommodation DEFER rule does not apply: 1 sheep onto a default farm fits the
-    house-pet slot, and any over-capacity grant is trimmed deterministically.
+    slot per round) via `schedule_animals`; they are collected at the start of each
+    scheduled round by `engine._collect_future_rewards`, which grants them via
+    `helpers.grant_animals` (1 sheep onto a default farm fits the house-pet slot). Onto a
+    full farm the accommodation barrier surfaces a keep-which choice at the round's first
+    worker placement — over-capacity round-start collection is the player's decision.
 
 The whole effect runs at play (`on_play`). See `schedules.py`, Acorns Basket (the
 animal half) and Sack Cart / Thick Forest (the "remaining round space" half).

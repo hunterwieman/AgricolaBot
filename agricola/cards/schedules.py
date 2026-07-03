@@ -74,10 +74,11 @@ def schedule_animals(
 ) -> GameState:
     """Add `animals` to player `idx`'s future_rewards for each 1-indexed round in
     `rounds` that is still in the game (slot r-1). Additive (repeated placers stack on
-    the same slot); rounds outside 1..14 are dropped. The animals are collected AND
-    auto-accommodated (best `pareto_frontier` point, decision-free) at the start of
-    each scheduled round by `engine._collect_future_rewards`. The animal sibling of
-    `schedule_resources` (Acorns Basket; the boar half of Hauberg)."""
+    the same slot); rounds outside 1..14 are dropped. The animals are collected at the
+    start of each scheduled round by `engine._collect_future_rewards` (granted via
+    `helpers.grant_animals`); if they overflow the farm, the accommodation barrier lets
+    the player choose which to keep. The animal sibling of `schedule_resources` (Acorns
+    Basket; the boar half of Hauberg)."""
     p = state.players[idx]
     slots = list(p.future_rewards)
     for rnd in rounds:

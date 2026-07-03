@@ -356,6 +356,9 @@ def _pending_detail(frame, state: GameState) -> str:
         return detail
     if cls in ("PendingSheepMarket", "PendingPigMarket", "PendingCattleMarket"):
         return f"gained={frame.gained}"
+    if cls == "PendingAccommodate":
+        p = state.players[frame.player_idx]
+        return f"over capacity ({p.animals}) — choose which to keep, excess cooked"
     if cls == "PendingRenovate":
         # Cost is resolved via `effective_payments` / `CommitRenovate.payment`
         # (cost-modifier system); it is not stored on the frame.

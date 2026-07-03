@@ -109,20 +109,35 @@ def test_collect_future_rewards_animals_accommodated():
     assert not out.players[0].future_rewards[slot]
 
 
-def test_collect_future_rewards_animals_overflow_trimmed():
-    # Promise more animals than the farm can hold → keep the best accommodatable
-    # configuration (no decision; preparation is decision-free). A default farm has
-    # only the house pet (1 flexible slot), so a flood of sheep is trimmed to fit.
+def test_collect_future_rewards_animals_overflow_flags_for_barrier():
+    # Promise more animals than the farm can hold. _collect_future_rewards no longer
+    # trims (the old buggy auto-pick that silently chose for the player); it grants ALL
+    # of them — over capacity — via grant_animals and flags the player. The accommodation
+    # barrier then reconciles at the next decision. A default farm has only the house pet
+    # (1 flexible slot).
+    from agricola.engine import _reconcile_accommodation
+    from agricola.legality import legal_actions
+    from agricola.pending import PendingAccommodate
+
     state = _prep_state(round_number=1)
     slot = 1
     rewards = list(state.players[0].future_rewards)
     rewards[slot] = FutureReward(animals=Animals(sheep=20))
     state = _set_future_rewards(state, 0, tuple(rewards))
+
     out = _collect_future_rewards(state, slot)
-    a = out.players[0].animals
-    total = a.sheep + a.boar + a.cattle
-    # At least one kept (house pet), and not the impossible 20.
-    assert 1 <= total < 20
+    # All 20 granted (over capacity), player flagged — NOT trimmed here.
+    assert out.players[0].animals == Animals(sheep=20)
+    assert out.players[0].animals_need_accommodation
+    assert not out.players[0].future_rewards[slot]        # consumed slot cleared
+
+    # The barrier trims to the housable config and surfaces it as a real decision
+    # (single-type overflow → exactly one housable config, but still the player's step).
+    out, pushed = _reconcile_accommodation(out)
+    assert pushed
+    assert isinstance(out.pending_stack[-1], PendingAccommodate)
+    kept = {(a.sheep, a.boar, a.cattle) for a in legal_actions(out)}
+    assert kept == {(1, 0, 0)}
 
 
 # ---------------------------------------------------------------------------

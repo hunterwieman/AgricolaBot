@@ -7,10 +7,11 @@ A Category-8 deferred-goods occupation, the ANIMAL variant (the cattle sibling o
 boar/resource schedulers). "Add 5 and 8 to the current round" is printed-board phrasing
 for the two future round spaces R+5 and R+8, where R is the round the card is played
 (`state.round_number`) — NOT the fixed rounds 5 and 8. One cattle is placed on each of
-those two round spaces; the cattle are collected AND auto-accommodated (best
-`pareto_frontier` point, decision-free) at the start of each scheduled round by
-`engine._collect_future_rewards` — the SAME machinery the animal markets and Acorns
-Basket use.
+those two round spaces; the cattle are collected at the start of each scheduled round by
+`engine._collect_future_rewards`, which grants them via `helpers.grant_animals` — the
+SAME path Acorns Basket uses. A cattle onto a farm with room fits silently; onto a full
+farm the accommodation barrier surfaces a keep-which choice at the round's first worker
+placement.
 
 The cattle ride on the card-only `future_rewards` tuple (a `FutureReward.animals` slot
 per round) via the shared `schedule_animals` helper, additive into the round R+5 and R+8

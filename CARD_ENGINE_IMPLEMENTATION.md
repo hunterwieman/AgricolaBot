@@ -829,8 +829,9 @@ field **when it equals its dataclass default**. A Family state never sets any of
 JSON is byte-identical to the pre-card engine — which is what the C++ differential gates
 consume. A Cards state that sets one simply emits it. Current set: `mode`, `hand_occupations`,
 `hand_minors`, `used_this_turn`, `used_this_round`, `fired_once`, `card_state`,
-`future_rewards`, `draft_pools`, the three `build_*_action` flags, `accrued_cost`,
-`free_fence_budget`, `restrictions`, `must_preserve_base`, `max_plows`, `num_plowed`.
+`future_rewards`, `draft_pools`, `animals_need_accommodation`, the three `build_*_action`
+flags, `accrued_cost`, `free_fence_budget`, `restrictions`, `must_preserve_base`, `max_plows`,
+`num_plowed`.
 **Adding a card-only field to a Family-reachable structure = default it to the Family-constant
 value + add it here** — that is the whole checklist for staying byte-identical (plus the C++
 port if the field can vary in Family, like `fences_in_supply`).
@@ -1100,12 +1101,14 @@ examples; this is the reference list.
   restriction removes only strictly-dominated options (the grant spends a limited resource where
   the free base plow could take the cell), a dominance argument verified against the full card
   base (POST_COMPACTION_DETOUR.md §7).
-- **Immediate animal grants have no accommodation path.** Only the markets, breeding, harvest
-  feed, and the scheduled round-start collection (`_collect_future_rewards`) accommodate. To
-  grant an animal at a market, bump the market pending's `gained` (routes through
-  accommodation — Cowherd); never `p.animals + Animals(...)`. An immediate, un-accommodated
-  grant is a defer. Scheduled animals (`schedule_animals`) are sound — same `pareto_frontier`
-  machinery, decision-free best-kept.
+- **Every decision-free animal grant routes through `helpers.grant_animals`** — never a raw
+  `p.animals + Animals(...)`. The grant may exceed capacity; the **accommodation barrier** (§4)
+  reconciles at the next decision boundary, surfacing the keep-which choice and cooking the
+  excess. At an animal *market*, still bump the pending's `gained` instead (the market's own
+  frame accommodates inline — Cowherd); breeding and harvest feed likewise reconcile via their
+  own frontiers. *(This supersedes the earlier ruling that an immediate un-accommodated grant
+  is an automatic defer — that convention hid a real player choice, e.g. Animal Tamer + a
+  scheduled boar arriving on a full house.)*
 - **Card-granted family growth: deferred on placement.** The user's ruling is that a
   card-granted newborn occupies *no action space*, but `_execute_family_growth` →
   `_resolve_wish_for_children` forces space placement — such cards wait for a
@@ -1183,10 +1186,11 @@ paraphrase; classify timing → firing kind → primitives → template; decide 
 to `CARD_DEFERRED_PLANS.md` (clustered by blocker, with a build proposal), not approximated. The
 user understands the rules and interactions far better than a coding session; a deferred card
 costs nothing, a plausible-but-wrong card costs trust. Defer indicators: ambiguous
-timing/optionality; needs new shared infrastructure (§8's list); an immediate un-accommodated
-animal grant; at-any-time effects; "/"-rewards; end-of-turn / return-home / after-harvest
-timing; geometry beyond the fence universe; new shared action spaces; randomness inside `step`;
-temporary workers; card-as-field / card-as-animal-holder.
+timing/optionality; needs new shared infrastructure (§8's list); at-any-time effects;
+"/"-rewards; end-of-turn / return-home / after-harvest timing; geometry beyond the fence
+universe; new shared action spaces; randomness inside `step`; temporary workers;
+card-as-field / card-as-animal-holder. (Immediate animal grants are no longer a defer —
+route them through `grant_animals`, §6.)
 
 **One module per card** (`agricola/cards/<id>.py`, registering at the bottom of its body) + one
 test file (`tests/test_card_<id>.py`, whose **first line imports the module** —
