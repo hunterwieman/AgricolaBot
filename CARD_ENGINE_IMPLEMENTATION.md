@@ -1080,6 +1080,15 @@ examples; this is the reference list.
 
 ### Rulings
 
+- **Rules fidelity is absolute — this ruling outranks every other.** A card is implemented
+  exactly as printed or it is deferred; an implementing session has **no authority** to shift a
+  timing, narrow a mechanism, or substitute a "behaviorally equivalent" reading — a neutrality
+  argument is a reason to ask the user, never to proceed (the 2026-07-02 audit found a
+  constructible problem behind every such "harmless" deviation). Docstrings may not
+  self-ratify a deviation: any deviation must cite an explicit, dated user ruling, and an
+  unattributed "accepted approximation" claim is a defer signal, not precedent. The rule
+  propagates **verbatim into every subagent prompt** (CARD_AUTHORING_GUIDE.md §0.1 — subagents
+  drift toward convenience; the verify stage checks text-vs-implementation fidelity first).
 - **"Each time you use [space]" = the before-window** (`before_action_space`), unless the text
   literally says "after"/"immediately after". Taking the space's mandatory work closes the
   window and implicitly declines unfired before-triggers — the enforce-first rule (§2). Never
@@ -1184,9 +1193,12 @@ paraphrase; classify timing → firing kind → primitives → template; decide 
 → review (scrutinize ordering-sensitive cards, errata, "/"-costs) → implement → integrate.
 
 **The cardinal rule: DEFER and ASK.** A card that doesn't clearly fit the machinery is deferred
-to `CARD_DEFERRED_PLANS.md` (clustered by blocker, with a build proposal), not approximated. The
+to `CARD_DEFERRED_PLANS.md` (clustered by blocker, with a build proposal), not approximated —
+and "it fits if I shift the timing slightly" **is** an approximation (§6's first ruling: rules
+fidelity is absolute; convincing yourself the shift is harmless does not make it authorized). The
 user understands the rules and interactions far better than a coding session; a deferred card
-costs nothing, a plausible-but-wrong card costs trust. Defer indicators: ambiguous
+costs nothing, a plausible-but-wrong card costs trust. When work is delegated, this rule goes
+into the subagent prompt verbatim. Defer indicators: ambiguous
 timing/optionality; needs new shared infrastructure (§8's list); at-any-time effects;
 "/"-rewards; end-of-turn / return-home / after-harvest timing; geometry beyond the fence
 universe; new shared action spaces; randomness inside `step`; temporary workers;

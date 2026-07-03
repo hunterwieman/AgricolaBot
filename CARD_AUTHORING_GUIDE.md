@@ -35,9 +35,46 @@ Concretely:
 - **Ask before inventing new engine machinery for one card.** New infrastructure is a
   design decision, not a coding task; surface it.
 - When you defer, record *why* (which mechanism is missing, or which ruling is unclear)
-  in `CARD_IMPLEMENTATION_PLAN.md`, so the next session and the user can pick it up.
+  in `CARD_DEFERRED_PLANS.md`, so the next session and the user can pick it up.
 - **When delegating card work to a subagent, inject the load-bearing rulings from §2 into
   the prompt — and impress on them that precise rule-adherence IS the task, not a nicety.**
+
+### 0.1 Rules fidelity is absolute — "I can't see a problem" is not authority
+
+The cardinal rule above covers *doubt*. This section covers the more dangerous case:
+**confidence**. A 2026-07-02 audit found that every rules deviation that reached the
+codebase was committed by an agent who was *sure* its deviation was harmless — an invented
+"the engine does not force accommodation on gains" convention that mis-scored games; a
+during-feed implementation of an after-feeding card that created a food-laundering exploit;
+a "field phase" card moved to the feed phase on a neutrality argument that was wrong (it
+let Joinery food pay a cost that per the printed timing must be paid before feeding). The
+project owner could construct a concrete problem for **every single one** of these
+"harmless" deviations. The lesson is general: you cannot see the interaction space of 840
+cards; the neutrality of a timing or mechanism shift is not something you are in a position
+to establish.
+
+Therefore:
+
+- **You do not have the authority to implement a card differently from its printed text.**
+  Not with a neutrality argument, not by citing another card as precedent, not
+  "temporarily." If the machinery cannot express the printed behavior exactly, the card is
+  a DEFER. A neutrality argument is a reason to *ask*, never a reason to *proceed*.
+- **Docstrings may not self-ratify.** Phrases like "the established, accepted
+  approximation," "behaviorally neutral," or "the same accepted home as X" are prohibited
+  unless the docstring cites an **explicit user ruling with a date** ("user ruling
+  2026-06-30: …"). An unattributed deviation claim in a docstring is itself a defer signal
+  — and future sessions must treat existing ones as unratified, not as precedent.
+- **This rule propagates to subagents verbatim.** Subagents drift toward convenience: they
+  are handed a card and an implement instruction, and when the machinery doesn't fit they
+  invent a bridge rather than fail their task. When you delegate implementation or triage,
+  the prompt must state this section's rule explicitly ("if the printed behavior doesn't
+  fit the machinery exactly, return the card as DEFERRED — do not approximate; an
+  approximation you can justify is still a defer"), and the verify stage must check
+  text-vs-implementation fidelity as its primary criterion, flagging *any* timing or
+  mechanism delta regardless of the implementing agent's justification. An instruction not
+  passed down is an instruction not given.
+- **If you discover a past deviation, surface it to the user immediately** — do not fix it
+  silently, extend it, or cite it as precedent.
   Subagents start cold and will guess at timing, optionality, eligibility, and cost — and
   guess wrong in the same ways documented here. Tell them explicitly: **a card that passes
   its own tests but reads the rules wrong is a FAILURE, not a success** (the agent's test

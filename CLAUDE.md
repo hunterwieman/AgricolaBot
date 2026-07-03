@@ -727,7 +727,8 @@ Status section** (updated per batch; per-card ledger in `CARD_IMPLEMENTATION_PRO
 `CARD_AUTHORING_GUIDE.md` is the practical how-to; `CARD_DEFERRED_PLANS.md` holds the deferred
 clusters + open design decisions. The cardinal rule of card implementation: **a card that
 doesn't clearly fit the machinery is deferred and brought to the user, never approximated** —
-the user is the rules authority.
+the user is the rules authority, a "harmless" timing/mechanism shift is still an approximation,
+and the rule goes verbatim into every subagent prompt (CARD_AUTHORING_GUIDE.md §0.1).
 
 **What remains in Phase 3:**
 - **The rest of the catalog** — the remaining ~570 cards (many blocked on the deferred-cluster
