@@ -740,9 +740,15 @@ and the rule goes verbatim into every subagent prompt (CARD_AUTHORING_GUIDE.md �
 - **The C++ card port** — the C++ engine is Family-only today; porting the card game (guarded
   by new differential gates) is a prerequisite for card-game self-play at scale.
 
-**4-player** is a possible extension, but a real undertaking rather than a flag flip: the
-player-alternation logic already uses modular arithmetic that generalizes to N players, but
-`setup`, the action board, and the rest assume 2 players.
+**4-player is an eventual goal** (user directive 2026-07-03), though a real undertaking rather
+than a flag flip: the player-alternation logic already uses modular arithmetic that generalizes
+to N players, but `setup`, the action board, and the rest assume 2 players. **Consequence for
+card work NOW: give real weight to the [3+] and [4] cards.** They are not dealt in the 2-player
+game, but they are *design inputs* — when designing shared machinery (hooks, events, registries,
+timing windows), survey their shapes too and prefer designs that accommodate them. Do not
+dismiss a card or a mechanism class as out-of-scope solely because its members are 3+/4+ —
+sessions have repeatedly given them literally zero weight, and that habit builds machinery that
+will need rework.
 
 *Future direction (speculative): card-level diagnostics / interpretability — e.g. surfacing
 which cards and interactions a trained agent values, as an aid to expert analysis. Waits on the

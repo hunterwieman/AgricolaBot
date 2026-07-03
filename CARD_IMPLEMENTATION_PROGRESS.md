@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 179 implemented · 🚫 2 won't-fix/banned · ⬜ 239 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 179 implemented · 🚫 3 won't-fix/banned · ⬜ 238 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -859,7 +859,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D24 Brotherly Love** · cost: 1 Food
   - _As long as you have exactly 4 people, in the work phase of each round, you can place your third and fourth person immediately after one another, even on the same action space._
   - `PASSIVE E-EXTRAPLACE E-FOODCOST L-OCCUPY` — Always-on rule change (PASSIVE) letting the 3rd+4th persons be placed back-to-back (E-EXTRAPLACE) 'even on the same action space' — that is using a space already occupied by your own worker (L-OCCUPY); the ruling flags food play-costs, so the 1-Food cost is E-FOODCOST.
-- ⬜ **D25 Witches' Dance Floor** · prereq: see below
+- 🚫 **D25 Witches' Dance Floor** · prereq: see below · **BANNED (user ruling 2026-07-03) — never implement**
   - _This card is a field that you can sow in, an occupation, and the "Fireplace" major improvement with all of its effects. You can play it only via a "Minor Improvement" action.  [ERRATA: ERRATA: The card grants no actual Fireplace goods-to-food conversions.]  [CLARIFICATION: This card counts as either 1 field, 1 occupation, 1 minor improvement, or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as multiple entities at once.]_
   - `ONPLAY EXOTIC L-CARDFIELD E-BAKESPEC` — Multi-entity: counts as field / occupation / minor / Fireplace major.
 - ⬜ **D26 Carpenter's Yard** · cost: 1 Wood,1 Reed
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 86 implemented · 🚫 1 won't-fix/banned · ⬜ 333 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 86 implemented · 🚫 2 won't-fix/banned · ⬜ 332 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -2184,7 +2184,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D96 Furnisher** · [1+]
   - _When you play this card, you immediately get 2 wood. After each new room you build, you can build or play 1 improvement for 1 wood less.  [CLARIFICATION: The improvement does not need to cost any wood.]_
   - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-TRIG A-OWN E-COSTMOD E-GRANTACT` — On-play +2 wood (ONPLAY/E-GOODS); after each room built (HOOK/S-SUB/T-AFTER/A-OWN, optional F-TRIG) you may build-or-play an improvement (grants the build/play action E-GRANTACT) at 1 wood less (E-COSTMOD). Include A-OWN per convention; keep E-GRANTACT (pass2 dropped it).
-- ⬜ **D97 Begging Student** · [1+]
+- 🚫 **D97 Begging Student** · [1+] · **BANNED (user ruling 2026-07-03) — never implement**
   - _When you play this card, you must immediately take 1 begging marker. At the start of each harvest, you can play 1 occupation without paying an occupation cost._
   - `ONPLAY HOOK S-HSTART F-TRIG A-OWN E-GRANTACT EXOTIC` — On play take 1 begging marker; start of each harvest, play 1 occupation free.
 - ⬜ **D98 Transactor** · [1+]

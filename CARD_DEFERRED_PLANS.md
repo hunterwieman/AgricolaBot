@@ -76,9 +76,96 @@ rule, including its subagent clause, governs this work.
 
 ---
 
+## Harvest-window redesign — user rulings settled so far (2026-07-03)
+
+> **The full proposed design now lives in `design_docs/cards/HARVEST_WINDOWS_DESIGN.md`**
+> (the 18-window ladder, the during-field-phase model with the take-occasion manifest, the
+> FEED/BREED seams, the one-batch migration list for implemented cards — including the three
+> mis-timed cards from the priority section above — and the open questions awaiting the
+> user). The rulings below are recorded in both places; this list is the quick reference.
+
+Context: a design-in-progress to split the harvest into explicit, ordered timing windows
+(immediately-before-harvest → start-of-harvest → before-field-phase → start-of-field-phase →
+during-field-phase → end-of-field-phase → after-field-phase → the feeding/breeding analogues).
+Within the during-field-phase window, optional card triggers and the mandatory crop take may
+resolve in any player-chosen order (the take behaves like a mandatory trigger gating the
+window's exit; take-*modifying* effects become ineligible once the take fires). Rulings the
+user made during this design — cite these, dated, in the docstrings of the cards they govern:
+
+1. **A skipped phase has no boundaries.** A player who skips the field phase (Lunchtime Beer
+   E58) fires NO before-/start-/during-/end-/after-field-phase effects that harvest. (Definite.)
+2. **Layabout's harvest skip does NOT suppress harvest-boundary effects** — "after each
+   harvest" cards (e.g. Value Assets B82) still fire for the skipping player. **CONTESTED:
+   the BoardGameArena implementation disagrees** (it suppresses them); the user rules they
+   fire. Note the controversy in the implementing docstring when built.
+3. **Player interleaving within a harvest window: whole-phase-per-player, starting player
+   first** (the BoardGameArena convention), adopted **provisionally**. The user dislikes it —
+   the printed rules imply no fixed order, and a fixed order advantages the later-deciding
+   player — but it is the simplest start and matches the existing per-player harvest frames.
+   Revisit if it proves distortive.
+4. **Bumper Crop (E25) / Harvest Festival Planning (C72) trigger the field-phase *effect*
+   (the crop take), not the field phase itself** — no field-phase-keyed card effects fire
+   during them (per the user; C72's clarification "this is not a harvest" is the same idea one
+   level up). They may be hard-coded through a shared take function; a Pending frame becomes
+   necessary only if optional crops-off-field triggers must surface inside them.
+
+5. **The field-phase take is a singular event.** Harvesting all crops from all fields is one
+   game event; effects that scale per-field or per-crop (Slurry Spreader's per-last-crop food,
+   Barley Mill's per-grain-field food) scale over that one event's contents and all arrive at
+   once — there is no per-field sequence of moments inside the take. Each *card-granted*
+   harvest firing (Scythe, Stable Manure, a card-field effect) is its own separate occasion.
+6. **"Each time you obtain at least 1 X" counts OCCASIONS; "for each X you obtain/harvest"
+   counts UNITS** — both read the same event. Hayloft Barn's clarification ("harvesting 2+
+   grain at once only counts as obtaining once") is occasion-counting for that card's "each
+   time" wording, NOT a general rule that batches away quantities: obtaining 2 grain at once
+   is one *time* but still 2 *grain* (Agricultural Labourer's per-grain clay scales by 2).
+   Beware over-generalizing any single card's clarification into event semantics — and beware
+   the converse too: some card wordings are just imprecise, so don't infer deep event
+   structure from one card's phrasing without checking siblings.
+7. **Witches' Dance Floor (D25) and Begging Student (D97) are BANNED — never implement**
+   (user rulings 2026-07-03; both marked 🚫 in `CARD_IMPLEMENTATION_PROGRESS.md`, like
+   Shaving Horse A48). Begging Student's ban also moots the registration-liveness question
+   (HARVEST_WINDOWS_DESIGN.md §11) unless another mid-harvest card-play member appears.
+8. **Anytime-in-harvest triggers** ("each harvest, you can…", incl. the Joinery / Pottery /
+   Basketmaker built-ins — full analysis in HARVEST_WINDOWS_DESIGN.md §10): good→food
+   converters surface ONLY inside the feed payment and in-harvest food raises (the user's
+   own optionality-constrained proposal); pure-VP food buys surface ONLY at a single late
+   anchor after breeding (**approved 2026-07-03**; Furniture Carpenter migrates off its
+   FEED-only seam accordingly); buys generating **goods** that can become food (Basket
+   Carrier, Ebonist) are offered **throughout the harvest, not selectively** (ruled
+   2026-07-03).
+9. **Grain Sieve / Barley Mill fire ONCE, off the take occasion** (ruled 2026-07-03): their
+   bonuses read "the specifics of what happened in" the main field-phase crop take — not a
+   window-wide aggregate over card-granted extra harvests. And **Home Brewer re-homes to
+   the after-field-phase window** (ruled 2026-07-03), off `HARVEST_CONVERSIONS`.
+10. **The post-breeding timeline** (ruled 2026-07-03): breeding phase → after-the-breeding-
+   phase (Feedyard — INSIDE the harvest; its food can fund the last-chance conversions, and
+   it dies with a skipped breeding) → the last chance for in-harvest conversions (the
+   anytime span's end; end-of-harvest cards live here) → after the harvest (Value Assets,
+   Elephantgrass Plant — outside). Details + the designated (Feedyard, Winter Caretaker)
+   regression pair: HARVEST_WINDOWS_DESIGN.md §10.
+
+Also settled in this design thread: C++ byte-identity is **not** a constraint on this
+redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
+Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
+favor of the best card-engine design). And per the CLAUDE.md Phase-3 directive added
+2026-07-03: **4-player is an eventual goal — [3+]/[4] cards are design inputs** for this
+machinery (e.g. Old Miser's per-person feeding discount, Game Provider's immediately-before
+field-crop discard, Champion Breeder's newborns-placed count), even though they aren't dealt
+at 2 players.
+
+---
+
 ## Group A — small, well-scoped, high-yield (recommend building on approval)
 
 ### A1. Card-granted Family Growth with NO space placement
+> **PRIMITIVE BUILT 2026-07-03** (commit "card-granted family growth — place_on_space=False"):
+> `PendingFamilyGrowth.place_on_space` landed exactly as proposed below, with tests
+> (`tests/test_family_growth_grant.py`). The member cards are NOT yet implemented — Autumn
+> Mother (C92) and Bed in the Grain Field (C24) ride the harvest-window card wave
+> (HARVEST_WINDOWS_DESIGN.md); A93 / B92 / A21 below still await their own batch, and the
+> A21 question (room-count timing + food coupling) is still open.
+
 **Cards unblocked:** A93 Bed Maker, B92 Little Stick Knitter, A21 Family Friend Home (rescued).
 
 **Blocker.** Per the rules (your ruling), a card-granted "Family Growth" places the newborn on **no
