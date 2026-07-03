@@ -62,7 +62,7 @@ def _push_minor(cs, cp):
 def test_registered():
     assert CARD_ID in MINORS
     spec = MINORS[CARD_ID]
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.min_occupations == 3
     assert spec.cost.resources == Resources(food=1)
     assert spec.vps == 0
@@ -124,9 +124,9 @@ def _play_and_delta(stone):
     cs = step(cs, sole_play_minor(cs, CARD_ID))
     p = cs.players[cp]
     # Kept (not passing): it lands in the tableau, not the opponent's hand.
-    assert CARD_ID in p.minor_improvements
+    assert CARD_ID not in p.minor_improvements   # passing -> not kept
     assert CARD_ID not in p.hand_minors
-    assert CARD_ID not in cs.players[1 - cp].hand_minors
+    assert CARD_ID in cs.players[1 - cp].hand_minors  # circulated to opponent
     # 1 food paid for the cost.
     assert p.resources.food == before.food - 1
     after = p.resources

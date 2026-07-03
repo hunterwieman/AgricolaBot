@@ -1,10 +1,11 @@
-"""Cross-Cut Wood (minor improvement, D4; Dulcinaria Expansion; kept).
+"""Cross-Cut Wood (minor improvement, D4; Dulcinaria Expansion; PASSING).
 
 Card text: "You immediately get a number of wood equal to the number of stone
 in your supply."
 
 Cost 1 food. Prerequisite: "3 Occupations" (a have-check, ``min_occupations=3``).
-No printed VPs. Not a passing card — it stays in front of the player.
+No printed VPs. PASSING (traveling minor — `passing_left='X'` in the catalog:
+after the on-play effect the card moves to the opponent's hand).
 
 Category 2 (on-play one-shot). The reward is read from the CURRENT supply at play
 time: wood gained = the owner's stone count at the moment the card is played. The
@@ -36,5 +37,6 @@ register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(food=1)),
     min_occupations=3,
+    passing_left=True,
     on_play=_on_play,
 )

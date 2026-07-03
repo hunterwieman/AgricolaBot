@@ -2,7 +2,9 @@
 
 Card text: "Immediately build 1 stable. (The stable costs you nothing, but you must pay
 the cost shown on this card.)"
-Cost: 1 Wood.
+Cost: 1 Wood. PASSING (traveling minor — `passing_left='X'` in the catalog: the card
+moves to the opponent's hand; the hand-transfer in `_execute_play_minor` precedes
+`on_play`, so the pushed build resolves for the player who played it).
 
 A free, MANDATORY granted Build-Stable on play (mirrors Mini Pasture's restricted granted
 build, with the build-stable push itself mirroring Groom's `PendingBuildStables(cost, cap=1)`):
@@ -52,4 +54,4 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)),
-               prereq=_can_build_free_stable, on_play=_on_play)
+               prereq=_can_build_free_stable, passing_left=True, on_play=_on_play)

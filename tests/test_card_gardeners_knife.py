@@ -44,7 +44,7 @@ def test_registered():
     assert "gardeners_knife" in MINORS
     spec = MINORS["gardeners_knife"]
     assert spec.cost == Cost(resources=Resources(wood=1))
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.vps == 0
 
 
@@ -61,8 +61,8 @@ def test_food_per_grain_field_and_grain_per_veg_field():
     assert cs.players[cp].resources.grain == grain0 + 3
     assert cs.players[cp].resources.wood == 0
     # Kept (not passing): lands in the owner's minor_improvements.
-    assert "gardeners_knife" in cs.players[cp].minor_improvements
-    assert "gardeners_knife" not in cs.players[1 - cp].hand_minors
+    assert "gardeners_knife" not in cs.players[cp].minor_improvements  # passing -> not kept
+    assert "gardeners_knife" in cs.players[1 - cp].hand_minors          # circulated
 
 
 def test_unsown_fields_count_as_neither():

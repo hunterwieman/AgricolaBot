@@ -3,7 +3,9 @@
 Card text: "You immediately get 1 food for each grain field you have and 1 grain
 for each vegetable field you have."
 
-Cost 1 wood, no prerequisite, no printed VPs, kept (not passing).
+Cost 1 wood, no prerequisite, no printed VPs. PASSING (traveling minor —
+`passing_left='X'` in the catalog: after the on-play effect the card moves to
+the opponent's hand).
 
 Category 2 (on-play one-shot). A "grain field" / "vegetable field" is a field
 tile that currently has grain / vegetables SOWN on it — counted by what sits on
@@ -46,5 +48,6 @@ def _on_play(state: GameState, idx: int) -> GameState:
 register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(wood=1)),
+    passing_left=True,
     on_play=_on_play,
 )

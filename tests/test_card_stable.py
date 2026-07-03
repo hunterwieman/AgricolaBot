@@ -66,7 +66,7 @@ def test_registration_cost():
     spec = MINORS[CARD_ID]
     assert spec.cost.resources == Resources(wood=1)
     assert spec.vps == 0
-    assert spec.passing_left is False
+    assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.min_occupations == 0 and spec.max_occupations is None
 
 
