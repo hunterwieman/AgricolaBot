@@ -914,6 +914,30 @@ class PendingHarvestBreed:
 
 
 @dataclass(frozen=True)
+class PendingAccommodate:
+    """Reconciliation frame: player `player_idx` holds more animals than their farm can
+    house, because a DECISION-FREE grant (round-start collection, an on-play card gain)
+    added animals past capacity via helpers.grant_animals.
+
+    Pushed by engine._reconcile_accommodation — the accommodation barrier run at every
+    decision boundary in _advance_until_decision — when a flagged player's animals do
+    NOT fit. Hosts exactly one CommitAccommodate: the player chooses which animals to
+    KEEP (one option per housable Pareto-frontier config over their current animals),
+    and the excess is cooked to food at their cooking rates. Unlike the animal-market
+    frames (PendingSheepMarket/…), this has NO before/after action-space lifecycle — it
+    is a bare reconciliation, so CommitAccommodate POPS it (resolution._execute_accommodate
+    branches on the frame type: markets pivot to their after-phase, this pops).
+
+    Card-only: the Family game never grants animals decision-free, so this frame is never
+    constructed and the Family trace / C++ engine never see it. No `triggers_resolved` /
+    `TRIGGER_EVENT` yet (harvest-frame precedent) — it hosts no card hooks today.
+    """
+    PENDING_ID: ClassVar[str] = "accommodate"
+    player_idx:      int
+    initiated_by_id: str = "reconcile:accommodate"
+
+
+@dataclass(frozen=True)
 class PendingReveal:
     """Nature's pending decision: which stage card is revealed for the round
     being entered. Pushed by the PREPARATION phase walk (the two-state Case 2
@@ -931,30 +955,37 @@ class PendingReveal:
 
 @dataclass(frozen=True)
 class PendingHarvestField:
-    """Transient phase frame hosting the field-phase card hook (card game only).
+    """Phase frame for the field-phase card hook (card game only) — dual-use.
 
-    Pushed at the TOP of `_resolve_harvest_field` — *before* the mechanical
-    "take 1 crop per planted field" runs — but ONLY when some player owns a
-    harvest-field card (the `should_host_harvest_field` ownership index, the
-    field-phase analog of the atomic host's `should_host_space`). It fires the
-    `harvest_field` automatic effects (Loom, Butter Churn, Three-Field Rotation,
-    Scythe Worker) for each player, then is popped within the same call so the
-    existing FIELD → FEED → BREED walk continues unchanged.
+    **Transient auto host (`player_idx=None`).** Pushed at the TOP of
+    `_resolve_harvest_field` — *before* the mechanical "take 1 crop per planted
+    field" runs — but ONLY when some player owns a harvest-field card (the
+    `should_host_harvest_field` ownership index, the field-phase analog of the
+    atomic host's `should_host_space`). It fires the `harvest_field` automatic
+    effects (Loom, Butter Churn, Three-Field Rotation, Scythe Worker) for each
+    player, then is popped within the same call. Like PendingReveal, no single
+    owning player; never surfaces an agent decision.
 
-    `player_idx` is None — like PendingReveal, no single owning player (the autos
-    fire per-player). All current harvest-field cards are automatic, so this
-    frame never surfaces an agent decision; it exists as the uniform host the
-    firing rides through and the place a future field-phase *choice* card would
-    attach to.
+    **Per-player choice host (`player_idx=int`).** The field-phase analog of
+    `PendingPreparation`: after the autos fire, `_resolve_harvest_field` pushes
+    one of these for each player with an eligible `harvest_field` TRIGGER
+    (Stable Manure) — starting player on top, mirroring the FEED/BREED push
+    order. Its enumerator surfaces the eligible triggers (variant-expanded) plus
+    `Proceed`, the decline/work-complete boundary that pops (no before/after
+    `phase` flip — the autos already fired at the transient host). The
+    additional harvests therefore resolve BEFORE the mechanical crop take
+    (a benefited field is depleted by 2 this harvest). The two-stage walk is
+    discriminated by `GameState.field_triggers_offered` (card-only flag).
 
     Default-inert: in the Family game (and any card game with no harvest-field
-    card owned) the push is skipped entirely, so this frame is never constructed,
-    the FIELD trace is byte-identical, and the C++ Family-only engine never sees
-    it. See CARD_IMPLEMENTATION_PLAN.md II.6 / Category 6.
+    card owned) neither form is ever constructed, the FIELD trace is
+    byte-identical, and the C++ Family-only engine never sees it.
+    See CARD_IMPLEMENTATION_PLAN.md II.6 / Category 6.
     """
     PENDING_ID: ClassVar[str] = "harvest_field"
-    player_idx: None = None               # no single owning player; autos fire per-player
+    player_idx: int | None = None         # None = transient auto host; int = choice host
     initiated_by_id: str = "phase:harvest_field"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -1121,6 +1152,7 @@ PendingDecision = Union[
     PendingFoodPayment,
     PendingHarvestFeed,
     PendingHarvestBreed,
+    PendingAccommodate,
     PendingReveal,
     PendingHarvestField,
     PendingPreparation,

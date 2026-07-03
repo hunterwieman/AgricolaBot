@@ -116,10 +116,18 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     "build_fences_action", "build_stables_action", "build_rooms_action",
     "accrued_cost", "free_fence_budget", "restrictions",
     "must_preserve_base",
+    # Card-only animal-overflow reconciliation flag (engine._reconcile_accommodation):
+    # Family-constant False (Family never grants animals decision-free), so omitting it
+    # keeps the Family JSON byte-identical and needs no C++ change.
+    "animals_need_accommodation",
     # PendingPlow multi-shot grant fields (Swing/Turnwrest/Wheel Plow): Family-constant
     # defaults (every Family plow is single-shot), so omitting them keeps the Family JSON
     # byte-identical and needs no C++ change.
     "max_plows", "num_plowed",
+    # Card-only harvest-FIELD two-stage-walk discriminator (field-phase triggers —
+    # Stable Manure): Family-constant False, so omitting it keeps the Family JSON
+    # byte-identical and needs no C++ change.
+    "field_triggers_offered",
 })
 
 

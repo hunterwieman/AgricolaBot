@@ -955,6 +955,25 @@ _TRIGGER_VARIANT_LABELS = {
     "minor": "play a minor",
 }
 
+_FIELD_GROUP_RE = re.compile(r"^(grain|veg)(\d+):(\d+)$")
+
+
+def _trigger_variant_label(variant: str) -> str:
+    """Human label for a FireTrigger variant: the static route labels, plus the
+    field-count-vector encoding of the harvest-field triggers (Stable Manure) —
+    "grain3:1|veg2:2" -> "+1 grain (from a 3-grain field), +2 veg (from 2-veg fields)"."""
+    if variant in _TRIGGER_VARIANT_LABELS:
+        return _TRIGGER_VARIANT_LABELS[variant]
+    parts = []
+    for part in variant.split("|"):
+        m = _FIELD_GROUP_RE.match(part)
+        if not m:
+            return variant                       # not a count vector — raw fallback
+        crop, remaining, count = m.group(1), m.group(2), int(m.group(3))
+        fields = f"a {remaining}-{crop} field" if count == 1 else f"{count} {remaining}-{crop} fields"
+        parts.append(f"+{count} {crop} (from {fields})")
+    return ", ".join(parts)
+
 
 def _web_action_display(action: Action) -> str:
     """Human-readable label for an action in the web UI.
@@ -977,7 +996,7 @@ def _web_action_display(action: Action) -> str:
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
         if variant:
-            return f"{name}: {_TRIGGER_VARIANT_LABELS.get(variant, variant)}"
+            return f"{name}: {_trigger_variant_label(variant)}"
         return name
     # Payment-bearing commits (cost-modifier cards): show the chosen payment so the
     # multiple options of a renovate / two-step build read distinctly.

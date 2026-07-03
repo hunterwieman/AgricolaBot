@@ -61,9 +61,10 @@ Concretely:
     shipped paying both) — a §0 today.
   - **"after the feeding phase" ≠ during feeding** — an exchange whose proceeds could pay the
     feeding must fire only after feeding resolves (Farm Store).
-  - granted sub-actions are optional even when worded as commands; immediate animal grants
-    bypass accommodation and are silently wrong; counts ("Nth person", "in hand") must exclude
-    same-turn artifacts.
+  - granted sub-actions are optional even when worded as commands; a decision-free animal
+    grant must go through **`helpers.grant_animals`** (never a raw `p.animals + …`) so the
+    accommodation barrier can surface the keep-which choice on overflow (§ below); counts
+    ("Nth person", "in hand") must exclude same-turn artifacts.
 
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
@@ -496,7 +497,10 @@ triggers take `(state, idx, triggers_resolved)`.
 - `register_start_of_round_hook(card_id)` — make this card's owner get a `PendingPreparation`
   host each round (so its `start_of_round` autos/triggers can fire). *Do not* use this for
   a one-time scheduled effect — gate hosting on the schedule instead (see Handplow, §7).
-- `register_harvest_field_hook(card_id)` — fire during the harvest field phase.
+- `register_harvest_field_hook(card_id)` — fire during the harvest field phase. Pair with
+  `register_auto` for a mandatory effect (Scythe Worker, Loom) or `register` for an optional
+  trigger — field-phase triggers surface at the per-player `PendingHarvestField` choice host,
+  pushed before the mechanical crop take (Stable Manure; variant expansion supported).
 - `register_conditional(card_id, condition_fn, apply_fn)` — a one-shot level-triggered
   effect (`condition_fn(state, idx) -> bool`; fires once, latched in `fired_once`).
 - `register_play_variant_trigger(card_id, variants_fn)` — for a trigger that offers a
@@ -525,7 +529,8 @@ multi-shot grant capped at one (a single granted room/stable), push with `max_bu
   automatically at each round's start. (Pond Hut, Strawberry Patch, Sack Cart, Thick
   Forest, Large Greenhouse, Wall Builder.)
 - **Deferred animals or a deferred EFFECT** — ride the card-only `future_rewards` tuple
-  (animals are auto-accommodated at round start; an effect-card id surfaces an optional
+  (animals are collected at round start via `grant_animals`, and the accommodation barrier
+  asks the player which to keep if they overflow; an effect-card id surfaces an optional
   `start_of_round` trigger gated on the schedule). Handplow is the worked example of the
   deferred-optional-effect pattern; `schedule_effect` is the helper.
 - **One-shot conditional latch** — "once you live in a stone house, …". `register_conditional`;

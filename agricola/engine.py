@@ -54,6 +54,7 @@ from agricola.constants import (
 from agricola.pending import (
     ACTION_SPACE_PENDING_IDS,
     SUBACTION_PENDING_IDS,
+    PendingAccommodate,
     PendingActionSpace,
     PendingBakeBread,
     PendingBuildFences,
@@ -287,11 +288,12 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
     # CommitChooseCost (card game two-step): lands on PendingChooseCost; the effect
     # debits the chosen payment and POPS the frame itself, returning to the build host.
     CommitChooseCost:   (PendingChooseCost,   _execute_choose_cost),
-    # CommitAccommodate lands on any of three market parent pendings.
-    # `isinstance` handles tuple-of-types natively in _apply_commit_subaction.
-    # The effect pivots the host to its after-phase; the trailing Stop pops.
+    # CommitAccommodate lands on any of three market parent pendings OR the bare
+    # reconciliation frame PendingAccommodate. `isinstance` handles tuple-of-types
+    # natively in _apply_commit_subaction. For a market the effect pivots the host to its
+    # after-phase (trailing Stop pops); for PendingAccommodate it pops directly.
     CommitAccommodate:  (
-        (PendingSheepMarket, PendingPigMarket, PendingCattleMarket),
+        (PendingSheepMarket, PendingPigMarket, PendingCattleMarket, PendingAccommodate),
         _execute_accommodate,
     ),
     # CommitBuildMajor: the effect function owns its own conditional stack
@@ -622,6 +624,13 @@ def _apply_proceed(state: GameState) -> GameState:
     top = state.pending_stack[-1]
     if isinstance(top, PendingPreparation):
         return pop(state)
+    # The per-player harvest-FIELD choice host (card-only, mirrors the preparation
+    # host): a phase host with no before/after flip — its autos fired at the
+    # transient host — so Proceed (the decline / work-complete boundary) simply pops.
+    if isinstance(top, PendingHarvestField):
+        assert top.player_idx is not None, (
+            "Proceed reached the transient harvest-field auto host — it must never surface")
+        return pop(state)
     # Multi-shot granted plow (CARDS only — Swing/Turnwrest/Wheel Plow): the player has
     # plowed >=1 of up to max_plows fields and chooses to finish early. Like the build
     # hosts, the work already happened during the before-phase, so Proceed is purely the
@@ -749,6 +758,68 @@ def _advance_current_player(state: GameState) -> GameState:
 # Phase auto-advance
 # ---------------------------------------------------------------------------
 
+def _reconcile_accommodation(state: GameState) -> tuple[GameState, bool]:
+    """The animal-accommodation barrier: if a player was granted animals decision-free
+    (helpers.grant_animals sets `animals_need_accommodation`) and they no longer fit the
+    farm, surface a PendingAccommodate so the player chooses which animals to keep (the
+    excess is cooked to food).
+
+    Called at every agent-decision boundary in _advance_until_decision (Case 1 pending
+    frame, Case 3 worker placement) — the single chokepoint every prompt flows through,
+    so a grant made anywhere is reconciled at the very next prompt, batched across all
+    grants at the same game moment. Flag-gated: the common no-grant path is a single bool
+    test over both players; the can_accommodate scan runs only for a flagged player.
+
+    Returns (state, pushed): `pushed` True iff at least one frame was pushed, so the
+    caller re-walks (the frame is now the awaiting decision). The flag is cleared for each
+    player as it is handled — whether or not a frame is pushed — so the barrier never
+    re-pushes for an already-reconciled grant, and a grant that turns out to fit (a fresh
+    pasture, say) just clears the flag with no frame. Push order mirrors the harvest
+    FEED/BREED hooks: non-starting player first (bottom), starting player last (top), so
+    the starting player accommodates first.
+    """
+    p0, p1 = state.players
+    if not (p0.animals_need_accommodation or p1.animals_need_accommodation):
+        return state, False   # hot path: no decision-free grant outstanding
+
+    from agricola.helpers import can_accommodate, extract_slots
+
+    pushed = False
+    for idx in (1 - state.starting_player, state.starting_player):
+        p = state.players[idx]
+        if not p.animals_need_accommodation:
+            continue
+        p = fast_replace(p, animals_need_accommodation=False)
+        state = _update_player(state, idx, p)
+        caps, num_flexible = extract_slots(p)
+        if not can_accommodate(
+            caps, num_flexible, p.animals.sheep, p.animals.boar, p.animals.cattle
+        ):
+            state = push(state, PendingAccommodate(player_idx=idx))
+            pushed = True
+    return state, pushed
+
+
+def _assert_animals_accommodated(state: GameState) -> None:
+    """Scoring-entry backstop: no player may reach BEFORE_SCORING holding animals their
+    farm can't house (scoring counts animal totals directly, so an unreconciled
+    over-capacity grant would over-count). Every decision-free grant routes through
+    helpers.grant_animals and is reconciled at a decision boundary before scoring, so this
+    never fires in correct code — it localizes a missing grant_animals call or barrier if
+    one is ever introduced. Stripped under `python -O`, like _assert_nonnegative_state.
+    """
+    from agricola.helpers import can_accommodate, extract_slots
+    for idx, p in enumerate(state.players):
+        caps, num_flexible = extract_slots(p)
+        assert can_accommodate(
+            caps, num_flexible, p.animals.sheep, p.animals.boar, p.animals.cattle
+        ), (
+            f"player {idx} reached scoring over animal capacity: {p.animals} — a "
+            f"decision-free grant was not reconciled (see grant_animals / "
+            f"_reconcile_accommodation)"
+        )
+
+
 def _advance_until_decision(state: GameState) -> GameState:
     """Walk system-driven phase transitions until the next agent decision
     or game-over. Pure function over state.
@@ -780,6 +851,13 @@ def _advance_until_decision(state: GameState) -> GameState:
                     and top.subaction_complete
                     and top.phase == "before"):
                 state = _enter_after_phase(state)
+                continue
+            # Accommodation barrier: a decision-free animal grant may have pushed a
+            # player over capacity mid-turn (an on-play gain). Reconcile before handing
+            # this frame's decision — the accommodate frame stacks on top and resolves
+            # first. Flag-gated no-op on the (usual) no-grant path.
+            state, pushed = _reconcile_accommodation(state)
+            if pushed:
                 continue
             return state
 
@@ -817,6 +895,12 @@ def _advance_until_decision(state: GameState) -> GameState:
             if all(p.people_home == 0 for p in state.players):
                 state = fast_replace(state, phase=Phase.RETURN_HOME)
                 continue
+            # Accommodation barrier: round-start collection (_collect_future_rewards)
+            # may have granted animals past capacity. Reconcile before handing the
+            # round's first worker placement. Flag-gated no-op on the no-grant path.
+            state, pushed = _reconcile_accommodation(state)
+            if pushed:
+                continue
             return state
 
         # Case 4: RETURN_HOME phase. End-of-round bookkeeping.
@@ -850,6 +934,8 @@ def _advance_until_decision(state: GameState) -> GameState:
 
         # Case 8: terminal phase. No more steps possible.
         if state.phase == Phase.BEFORE_SCORING:
+            if __debug__:
+                _assert_animals_accommodated(state)   # unconditional backstop
             return state
 
         raise AssertionError(f"Unexpected phase in advance loop: {state.phase}")
@@ -1094,11 +1180,16 @@ def _complete_preparation(state: GameState) -> GameState:
 
 
 def _collect_future_rewards(state: GameState, slot: int) -> GameState:
-    """Distribute every player's promised `future_rewards[slot]` ANIMALS for the
-    round being entered (CARD_IMPLEMENTATION_PLAN.md II.5): collected and trimmed to
-    the best physically-accommodatable configuration via `pareto_frontier` (no player
-    decision — preparation is decision-free; the best-kept frontier point is taken,
-    deterministically). The consumed animals are cleared from the slot.
+    """Distribute every player's promised `future_rewards[slot]` ANIMALS for the round
+    being entered (CARD_IMPLEMENTATION_PLAN.md II.5): grant them via `grant_animals` (add
+    to the player + flag for the accommodation barrier) and clear the consumed slot. If
+    the collected animals exceed the farm's housing capacity, the barrier
+    (_reconcile_accommodation, at the round's first worker placement) surfaces a
+    PendingAccommodate so the PLAYER chooses which to keep — round-start collection is NOT
+    decision-free when it overflows (e.g. Animal Tamer fills the house, then an Acorns
+    Basket boar arrives: keep 2 sheep, or trade one for the boar? — the player's call).
+    Multiple cards scheduling animals into the same round land here synchronously, so the
+    barrier sees the combined total and asks once.
 
     Effect-card round-start grants (`effect_card_ids`, e.g. Handplow's deferred plow)
     are deliberately NOT consumed here. They stay in the slot and are surfaced as
@@ -1108,13 +1199,11 @@ def _collect_future_rewards(state: GameState, slot: int) -> GameState:
     farmyard cell wanted for a pasture). Force-firing them here would remove that
     choice, so the schedule is left for the host's trigger to consume on FIRE.
 
-    A no-op in the Family game: every slot is the default `FutureReward()` (no
-    animals), so the guard skips and `state` is returned object-identical
-    (preparation stays byte-identical). The only in-scope card scheduling animals
-    (Acorns Basket) is deferred, so the animal path is exercised by tests today, not
-    by a live card — but it keeps the round-start path correct for when it lands.
+    A no-op in the Family game: every slot is the default `FutureReward()` (no animals),
+    so the guard skips and `state` is returned object-identical (preparation stays
+    byte-identical; `grant_animals` / the flag are never reached).
     """
-    from agricola.helpers import pareto_frontier
+    from agricola.helpers import grant_animals
 
     for idx, p in enumerate(state.players):
         reward = p.future_rewards[slot]
@@ -1126,12 +1215,9 @@ def _collect_future_rewards(state: GameState, slot: int) -> GameState:
         new_rewards = (
             p.future_rewards[:slot] + (new_reward,) + p.future_rewards[slot + 1:]
         )
-        p = fast_replace(p, future_rewards=new_rewards)
-        # Gain the animals, then keep the best accommodatable configuration.
-        frontier = pareto_frontier(p, reward.animals)
-        best = max(frontier, key=lambda fc: (fc[0].sheep + fc[0].boar + fc[0].cattle))
-        p = fast_replace(p, animals=best[0])
-        state = _update_player(state, idx, p)
+        state = _update_player(state, idx, fast_replace(p, future_rewards=new_rewards))
+        # Grant + flag; the barrier reconciles any overflow at the next worker placement.
+        state = grant_animals(state, idx, a)
     return state
 
 
@@ -1245,6 +1331,23 @@ def _fire_harvest_field_hook(state: GameState) -> GameState:
     return pop(state)
 
 
+def _field_trigger_order(state: GameState) -> list[int]:
+    """The players owed a harvest-FIELD choice frame this harvest, in resolve
+    order (starting player first, mirroring FEED/BREED): each player owning an
+    eligible, registered `harvest_field` TRIGGER (Stable Manure). Empty — the
+    Family fast path and the autos-only card path — when no such trigger fires.
+    """
+    from agricola.cards.triggers import TRIGGERS, _owns
+    entries = TRIGGERS.get("harvest_field", ())
+    if not entries:
+        return []
+    sp = state.starting_player
+    return [idx for idx in (sp, (sp + 1) % 2)
+            if any(_owns(state.players[idx], e.card_id)
+                   and e.eligibility_fn(state, idx, frozenset())
+                   for e in entries)]
+
+
 def _resolve_harvest_field(state: GameState) -> GameState:
     """Mechanical FIELD work + reset once-per-harvest budget + push FEED
     pendings + transition phase. Called by _advance_until_decision when
@@ -1264,16 +1367,36 @@ def _resolve_harvest_field(state: GameState) -> GameState:
        agent.
 
     A fourth, card-only concern runs FIRST (before the crop take): the
-    field-phase card hook. When some player owns a harvest-field card
-    (Loom, Butter Churn, Three-Field Rotation, Scythe Worker), a transient
-    PendingHarvestField host frame is pushed, its `harvest_field` automatic
-    effects fire for each player, and it is popped — all before the
-    mechanical take. Scythe Worker reads the unharvested grain fields here,
-    so the firing MUST precede the take. The push is card-dependent
-    (`should_host_harvest_field`), so the Family game skips it entirely and
-    this resolver stays byte-identical (see CARD_IMPLEMENTATION_PLAN.md II.6).
+    field-phase card hook, a TWO-STAGE walk discriminated by the card-only
+    `state.field_triggers_offered` flag (mirroring the PREPARATION two-state
+    walk):
+
+    - **Stage 1** (flag False): the `harvest_field` AUTOMATIC effects fire
+      through the transient host (Loom, Butter Churn, Three-Field Rotation,
+      Scythe Worker — Scythe Worker reads the unharvested grain fields here,
+      so the firing MUST precede the take). Then, for each player with an
+      eligible `harvest_field` TRIGGER (Stable Manure), a per-player
+      PendingHarvestField choice host is pushed — starting player on TOP,
+      mirroring the FEED/BREED order — the flag is set, and the resolver
+      returns so the agent decides. The additional harvests therefore also
+      resolve before the mechanical take. With no eligible trigger, fall
+      straight through to the take (flag untouched).
+    - **Stage 2** (flag True — all choice frames popped): skip the hook
+      (already fired), run the mechanical take, reset the flag.
+
+    Both pushes are card-dependent, so the Family game skips them entirely
+    and this resolver stays byte-identical (see CARD_IMPLEMENTATION_PLAN.md
+    II.6).
     """
-    state = _fire_harvest_field_hook(state)
+    if not state.field_triggers_offered:
+        state = _fire_harvest_field_hook(state)
+        frames = [PendingHarvestField(player_idx=idx)
+                  for idx in _field_trigger_order(state)]
+        if frames:
+            state = fast_replace(state, field_triggers_offered=True)
+            for f in reversed(frames):   # push non-SP first so SP resolves first
+                state = push(state, f)
+            return state                 # the walk returns on the non-empty stack
 
     new_players = []
     for p in state.players:
@@ -1312,7 +1435,9 @@ def _resolve_harvest_field(state: GameState) -> GameState:
     state = fast_replace(state, players=tuple(new_players))
 
     # Push FEED pendings (one per player, SP on top, food pre-debited) and
-    # transition phase. The outer guard returns on the next iteration because
-    # the stack is now non-empty.
+    # transition phase (resetting the two-stage-walk flag — a no-op write in
+    # the common no-trigger path). The outer guard returns on the next
+    # iteration because the stack is now non-empty.
     state = _initiate_harvest_feed(state)
-    return fast_replace(state, phase=Phase.HARVEST_FEED)
+    return fast_replace(state, phase=Phase.HARVEST_FEED,
+                        field_triggers_offered=False)

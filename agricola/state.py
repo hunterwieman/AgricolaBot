@@ -279,6 +279,19 @@ class PlayerState:
     # in Family and the C++ PlayerState mirrors it (decrement at the fence-build site).
     fences_in_supply: int = 15
 
+    # Card-only reconciliation flag: set True when a DECISION-FREE animal grant is
+    # applied (round-start collection, an on-play gain) via helpers.grant_animals. It
+    # leaves the animals in `animals` even if that exceeds the farm's housing capacity;
+    # the engine's accommodation barrier (engine._reconcile_accommodation, run at every
+    # decision boundary in _advance_until_decision) reads this flag, and — only when it
+    # is set — checks can_accommodate and, if the animals don't fit, surfaces a
+    # PendingAccommodate so the player chooses which to keep (excess cooked to food).
+    # The barrier clears the flag as it handles the player. Default False → the Family
+    # game never sets it and stays byte-identical (added to __hash__ below + canonical's
+    # _DEFAULT_SKIP_FIELDS → no C++ change). It gates the barrier's cost: without a grant
+    # the boundary check is a single bool, never a can_accommodate scan.
+    animals_need_accommodation: bool = False
+
     # TODO: Track animal locations explicitly if full-game cards require it.
     # Currently only totals are stored in Animals; location is derived from
     # pasture/stable/house capacity checks.
@@ -295,7 +308,8 @@ class PlayerState:
                       self.hand_occupations, self.hand_minors,
                       self.used_this_turn, self.used_this_round,
                       self.fired_once, self.card_state,
-                      self.fences_in_supply))
+                      self.fences_in_supply,
+                      self.animals_need_accommodation))
             object.__setattr__(self, "_hash_cache", h)
         return h
 
@@ -373,12 +387,20 @@ class GameState:
     # size > 0). Set to None when the draft completes (all pools empty).
     draft_pools: tuple | None = None
 
+    # Card-only two-stage-walk discriminator for the harvest FIELD phase: True
+    # while the per-player PendingHarvestField choice frames (field-phase
+    # triggers — Stable Manure) are out, so re-entering _resolve_harvest_field
+    # after they pop runs the mechanical crop take instead of re-offering.
+    # Family-constant False (default-skipped in canonical.py).
+    field_triggers_offered: bool = False
+
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
         if h is None:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
-                      self.pending_stack, self.mode, self.draft_pools))
+                      self.pending_stack, self.mode, self.draft_pools,
+                      self.field_triggers_offered))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

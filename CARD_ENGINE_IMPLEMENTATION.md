@@ -345,6 +345,7 @@ Where each firing actually happens in the engine — the complete set of call si
 | Any improvement built | `after_build_improvement` autos | `_execute_play_minor` / the major-build path |
 | Round start | `start_of_round` autos | `_fire_preparation_hook` (at each `PendingPreparation` push); its triggers via the host's enumerator |
 | Harvest field phase | `harvest_field` autos | `_fire_harvest_field_hook`, inside `_resolve_harvest_field` *before* the crop take (Scythe Worker reads unharvested fields), per player in starting-player-first order |
+| Harvest field phase (optional) | `harvest_field` triggers | the per-player `PendingHarvestField` choice host, pushed by `_resolve_harvest_field` after the autos and before the crop take (two-stage walk via `GameState.field_triggers_offered`); Stable Manure |
 | Renovate / card play | the one-shot conditional sweep | `_fire_ready_one_shots` (§3), called after a renovate applies and after any card is played |
 | Triggers (all events) | `FireTrigger` surfacing | each host enumerator via `_eligible_fire_triggers` + `_expand_variant_triggers` |
 
@@ -432,10 +433,13 @@ module-local `_owns(player_state, card_id)` helpers.
   then flip the *pushed child* instead of the host — a latent misfire guarded only by this
   convention.
 - **`register_harvest_field_hook(card_id)`** → `HARVEST_FIELD_CARDS`, consulted by
-  `should_host_harvest_field`. Pair with `register_auto("harvest_field", ...)`. The field-phase
-  hook is **auto-only** today — the transient `PendingHarvestField` never surfaces a decision
-  (§4), so an optional "you may…" harvest-field card is a defer (§8). Exemplars: `scythe_worker`,
-  `loom`.
+  `should_host_harvest_field`. Pair with `register_auto("harvest_field", ...)` for a mandatory
+  effect (exemplars: `scythe_worker`, `loom`) **or** `register("harvest_field", ...)` for an
+  optional TRIGGER: field-phase triggers are surfaced at the per-player `PendingHarvestField`
+  choice host that `_resolve_harvest_field` pushes after the autos fire and before the
+  mechanical crop take (§4) — declining is the host's `Proceed` (a pure pop), and variant
+  expansion works there like the other hosts. Exemplar: `stable_manure`, whose variants are
+  count vectors over (crop, crops-remaining) donor-field groups.
 - **`register_start_of_round_hook(card_id)`** → `START_OF_ROUND_CARDS`, consulted by
   `should_host_preparation` (together with `has_scheduled_round_start_effect` — a
   `future_rewards` slot carrying effect-card ids drives hosting on its own, so a deferred grant
@@ -564,10 +568,11 @@ repeated placers stack additively.
   (`has_scheduled_round_start_effect`); the grant is the player's to take or decline, never
   auto-fired. Exemplar: `handplow` (a deferred plow).
 - **`schedule_animals(state, idx, rounds, animals: Animals)`** — animals into
-  `future_rewards[slot].animals`; collected at round start by `engine._collect_future_rewards`
-  and **auto-accommodated** decision-free (the best `pareto_frontier` point by total kept — the
-  one place immediate accommodation exists outside the markets/harvest, §6). Exemplar:
-  `acorns_basket`.
+  `future_rewards[slot].animals`; collected at round start by `engine._collect_future_rewards`,
+  which grants them via **`helpers.grant_animals`** (add + flag). If they fit, nothing more
+  happens; if they overflow the farm the **accommodation barrier** (below) surfaces a keep-which
+  choice at the round's first worker placement — over-capacity round-start collection is the
+  player's decision, not auto-trimmed. Exemplar: `acorns_basket`.
 
 ### `agricola/legality.py` — legality extensions
 
@@ -614,7 +619,7 @@ card — the engine stays clean, and the choice is reversible.
 
 ### `GameState` additions
 
-Exactly two card-new fields (plus the frames below riding the existing `pending_stack`):
+Exactly three card-new fields (plus the frames below riding the existing `pending_stack`):
 
 - **`mode: GameMode = GameMode.FAMILY`** — which variant this state belongs to. Read wherever the
   rules genuinely diverge: `legal_placements` picks `FAMILY_GAME_LEGALITY` vs
@@ -633,6 +638,13 @@ Exactly two card-new fields (plus the frames below riding the existing `pending_
   pass-to-the-left round boundary). When all pools empty, `draft_pools` is set to `None` and the
   walk continues to PREPARATION → the round-1 reveal → WORK. Without `draft=True`, `setup_env`
   deals complete 7+7 hands directly (`_deal_hands`) and no DRAFT phase exists.
+- **`field_triggers_offered: bool = False`** — the harvest-FIELD two-stage-walk discriminator
+  (mirrors the PREPARATION two-state walk, whose discriminator is derivable; this one is not,
+  since both players may decline and leave no trace). True while the per-player
+  `PendingHarvestField` choice frames (field-phase triggers — Stable Manure) are out, so
+  re-entering `_resolve_harvest_field` after they pop runs the mechanical crop take instead of
+  re-offering; reset when the phase moves to FEED. Family-constant False (default-skipped in
+  `canonical.py`).
 
 `starting_player` is **not** card-new — it is a Phase-1 field.
 
@@ -669,12 +681,17 @@ Exactly two card-new fields (plus the frames below riding the existing `pending_
 - **`future_rewards: tuple[FutureReward, ...]`** (length 14) — the card-only sibling of
   `future_resources`, **not** a generalization of it (design (b)): goods schedules stay on the
   Family-reachable `future_resources`; this carries only what a `Resources` slot cannot —
-  **animals** (collected + auto-accommodated at round start, §3 schedules) and **effect-card
-  ids** (round-start grant hooks). `FutureReward` is additive (`+` stacks animals and unions
-  ids) and falsy when empty, which is what lets `_complete_preparation` skip the whole branch
-  object-identically in Family.
+  **animals** (collected via `grant_animals` at round start, reconciled by the accommodation
+  barrier below if they overflow — §3 schedules) and **effect-card ids** (round-start grant
+  hooks). `FutureReward` is additive (`+` stacks animals and unions ids) and falsy when empty,
+  which is what lets `_complete_preparation` skip the whole branch object-identically in Family.
 - **`fences_in_supply: int = 15`** — stored, not derived; the one card field that is **not**
   default-skip (its value varies in Family too, where it equals `15 − fences_built`). See §5.
+- **`animals_need_accommodation: bool = False`** — the accommodation barrier's flag. Set by
+  `helpers.grant_animals` whenever a **decision-free** animal grant lands (round-start collection,
+  an on-play gain), which adds the animals to `animals` *even past housing capacity* — a transient
+  over-capacity state nothing asserts against, since only scoring reads the totals and the barrier
+  always reconciles first. Default-skip (Family-constant False → byte-identical, no C++ change).
 
 ### The card-new pending frames
 
@@ -724,9 +741,13 @@ closed — `food_needed`, `resume_kind`, `reserved: Cost`, and the stored commit
 **Phase hosts.** `PendingPreparation` (start-of-round host, one per *owning* player,
 non-starting player pushed first so the starting player decides first; `start_of_round` autos
 fire at its push, triggers via its enumerator, `Proceed` pops — no after-phase),
-`PendingHarvestField` (transient field-phase host: pushed, autos fired per player, popped —
-all inside `_resolve_harvest_field`, so it never reaches a returned state and never surfaces a
-decision; `player_idx=None` like `PendingReveal`), `PendingDraftPick` (above), and
+`PendingHarvestField` (the field-phase host, DUAL-USE: as the *transient auto host* —
+`player_idx=None` like `PendingReveal` — it is pushed, autos fired per player, and popped all
+inside `_resolve_harvest_field`, never reaching a returned state; as the *per-player choice
+host* — `player_idx=int`, the field-phase analog of `PendingPreparation` — one is pushed per
+player with an eligible `harvest_field` TRIGGER, starting player on top, before the mechanical
+crop take, with `Proceed` the decline/pop; the two-stage walk is discriminated by
+`GameState.field_triggers_offered`), `PendingDraftPick` (above), and
 `PendingCardChoice` (the forced-pick frame of mandatory-with-choice, §2 — options only, no
 decline; a single-option frame auto-resolves via singleton-skip).
 
@@ -736,6 +757,48 @@ granted Build Fences (Field Fences): offers `ChooseSubAction("build_fences")` or
 its discounts scope correctly. This is the template for optional grants of a mandatory-shaped
 primitive: the inner frame keeps its "must do ≥1" shape; **declining lives at the parent's
 choose+Stop, never a per-frame flag** (ENGINE_IMPLEMENTATION.md §2 invariant 3's corollary).
+
+**Reconciliation.** `PendingAccommodate` — a bare per-player frame (no before/after lifecycle)
+hosting one `CommitAccommodate`: the player chooses which animals to KEEP (one option per
+housable `pareto_frontier` config over their current animals) when a decision-free grant put
+them over capacity; the excess is cooked to food. `CommitAccommodate` pops it (vs. the animal
+markets' after-phase pivot — `_execute_accommodate` branches on the frame type). Pushed by the
+**accommodation barrier** (below), not by any space or card handler.
+
+### The accommodation barrier
+
+A decision-free animal grant can hand a player more animals than their farm can house — Animal
+Tamer fills the house, then an Acorns Basket boar arrives; Game Trade swaps 2 sheep for a
+boar + cattle needing different homes. Scoring counts animal totals directly, so an unhoused pile
+would over-count, and *which* animals to keep is a genuine strategic choice — not one the engine
+may make silently. The barrier surfaces it:
+
+- **Grant** — every decision-free grant routes through **`helpers.grant_animals`** (the single
+  choke point): it adds the animals to `animals` (allowed over capacity) and sets
+  `animals_need_accommodation`. The three animal markets and harvest breeding are NOT grants —
+  they reconcile inline via their own frames/frontiers, so they don't use this path.
+- **Reconcile** — **`engine._reconcile_accommodation`** runs at *every* agent-decision boundary in
+  `_advance_until_decision` (Case 1 pending-frame return, Case 3 worker-placement return) — the
+  single chokepoint every prompt flows through. Flag-gated: the no-grant common case is one bool
+  test over both players; only a flagged player pays a `can_accommodate` scan. If a flagged
+  player's animals don't fit, it pushes a `PendingAccommodate` (starting player on top, per the
+  harvest push order); if they DO fit, it just clears the flag. The flag is cleared as each player
+  is handled, so a committed accommodation (which lands on a housable config) is never re-pushed.
+- **Batch** — because reconciliation is at the *next prompt*, several grants at the same game
+  moment (all synchronous — e.g. two cards scheduling animals into the same round) land before any
+  boundary, so the barrier sees the combined total and asks once. The per-card contract is simply
+  "grant your animals in one synchronous shot" — never interleave a prompt between two same-moment
+  grants (none do today).
+- **Backstop** — `_advance_until_decision`'s BEFORE_SCORING return runs
+  `_assert_animals_accommodated` under `__debug__`: no player may reach scoring over capacity. It
+  never fires in correct code (every grant is reconciled before scoring); it localizes a missing
+  `grant_animals` call or barrier if one is introduced. Stripped under `python -O`, like
+  `_assert_nonnegative_state`.
+
+This replaced an earlier bug where round-start collection auto-picked the "best" overflow config
+by total kept — silently choosing `(1 sheep, 1 boar)` over `(2 sheep)` on a tie. There is no
+"the engine does not force accommodation on a gain" rule; that was an incorrect convention on a
+few on-play cards (Game Trade, Young Animal Market), now corrected to route through the barrier.
 
 ### Card-only fields on Family frames
 
@@ -1059,8 +1122,11 @@ examples; this is the reference list.
 - **A conditional one-shot latch fires only at the two swept seams** (renovate, card play). A
   standing condition on anything else — a resource count (Hook Knife's "8 sheep") — never gets
   swept; defer rather than approximating with an action hook.
-- **The harvest field-phase hook is auto-only** — `PendingHarvestField` never surfaces a
-  decision, so a "you may…" field-phase card is a defer (§8).
+- **The harvest field-phase hook supports autos AND optional triggers** *(supersedes the
+  earlier auto-only rule)* — a "you may…" field-phase card registers
+  `register("harvest_field", ...)` and is surfaced at the per-player `PendingHarvestField`
+  choice host (§3/§4; Stable Manure is the exemplar, with variant-expanded count-vector
+  options). Mandatory flat effects stay `register_auto`.
 
 ### Idioms
 
@@ -1189,9 +1255,9 @@ defer (§7); building the missing piece is a design conversation with the user f
   no newborns-gained event (Dung Collector). Adding payloads is a firing-API change; defer until
   a cluster justifies it.
 - **No harvest feed/breed trigger events.** `PendingHarvestFeed`/`Breed` still carry no
-  `triggers_resolved` (the Phase-1 deferral stands); harvest cards ride the auto-only
-  `harvest_field` hook or the harvest-conversion registry. An optional feed/breed-window card is
-  a defer.
+  `triggers_resolved` (the Phase-1 deferral stands); harvest cards ride the `harvest_field`
+  hook (autos + optional triggers via the choice host, §3) or the harvest-conversion registry.
+  An optional feed/breed-window card is a defer.
 - **No round-end / after-feeding / before-round-start hooks.** Designed in sketch, gated on the
   user (`CARD_DEFERRED_PLANS.md`); `resource_analyzer` (deck E) is deferred on exactly
   "before the start of each round".
