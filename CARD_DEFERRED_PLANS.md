@@ -78,11 +78,15 @@ rule, including its subagent clause, governs this work.
 
 ## Harvest-window redesign — user rulings settled so far (2026-07-03)
 
-> **The full proposed design now lives in `design_docs/cards/HARVEST_WINDOWS_DESIGN.md`**
+> **The full design lives in `design_docs/cards/HARVEST_WINDOWS_DESIGN.md`**
 > (the 18-window ladder, the during-field-phase model with the take-occasion manifest, the
 > FEED/BREED seams, the one-batch migration list for implemented cards — including the three
 > mis-timed cards from the priority section above — and the open questions awaiting the
-> user). The rulings below are recorded in both places; this list is the quick reference.
+> user). **Build status (2026-07-04): stages 1–2 are IMPLEMENTED** — the ladder walk, the
+> per-player FIELD band (ruling 3), the take-occasion manifest (`PendingFieldPhase` +
+> `CommitFieldTake` + the occasion registries) are live; the design doc's §12 carries the
+> as-built map, and the delegated migration batch (§7 there) is the next step. The rulings
+> below are recorded in both places; this list is the quick reference.
 
 Context: a design-in-progress to split the harvest into explicit, ordered timing windows
 (immediately-before-harvest → start-of-harvest → before-field-phase → start-of-field-phase →
