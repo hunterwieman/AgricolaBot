@@ -4,31 +4,33 @@ Card text: "When you play this card, you immediately get 3 food. For each
 vegetable you get from your fields during the field phase of the harvest, you get
 1 additional food."
 
-Category 2 on-play (+3 food) + Category 6 (harvest-field hook). The harvest clause
-only COUNTS the mechanical veg take rather than modifying the fields — it awards 1
-food per vegetable harvested from the player's fields during the field phase.
+Category 2 on-play (+3 food) + a per-occasion harvest consequence.
 
-The mechanical take (`_resolve_harvest_field`) removes exactly 1 crop from each
-planted field, with grain taking precedence over veg: `if cell.grain > 0` takes a
-grain, `elif cell.veg > 0` takes a veg. So a field yields a vegetable this harvest
-exactly when it has no grain and has veg (`grain == 0 and veg > 0`), and yields at
-most 1 veg per field (one crop per field per harvest). "For each vegetable you get
-from your fields" therefore equals the count of such veg-bearing fields, and the
-food bonus is that count.
+Timing mapping (harvest-window machinery, HARVEST_WINDOWS_DESIGN.md §4d):
+- **Unit counting** (ruling 6, 2026-07-03): "For each vegetable you get…" counts
+  UNITS — one additional food per vegetable actually taken — so `_apply` sums the
+  `veg` entries' `amount` in the occasion manifest.
+- **Field-phase scoped** (`state.phase == Phase.HARVEST_FIELD`): "during the field
+  phase of the harvest" scopes the clause to the FIELD PHASE (the window), not to
+  the one crop-take action. Every vegetable gotten from a field during the field
+  phase counts — including one from a card-granted additional harvest placed "in
+  the field phase" (Stable Manure). So it fires on ANY occasion emitted while the
+  phase is HARVEST_FIELD, NOT only `source == "take"`. A future WORK-phase Bumper
+  Crop take (the field-phase EFFECT, not the phase — user ruling 4) earns nothing.
+  (Unlike Grain Sieve, which ruling 9 scopes to the take occasion alone.)
 
-Implemented as an automatic effect (register_auto on `harvest_field`), fired by
-`_resolve_harvest_field` BEFORE the mechanical crop take. Firing first is required
-for cards that DEPLETE fields (e.g. Scythe Worker); for Potato Harvester it is
-immaterial because `_apply` only READS the fields (it counts veg-fields and credits
-food, never mutating the grid), so the count is identical pre- and post-take. The
-firing happens while the fields are still fully sown, which is the natural place to
-count them.
+Implemented as a per-occasion AUTO (`register_harvest_occasion_auto`): it fires
+immediately after every emitted occasion, reading the manifest — the field-phase
+take removes exactly 1 crop per planted field (grain XOR veg), so a veg-sown
+field contributes one `veg` entry of `amount=1`. Reading WHAT was harvested (the
+manifest) replaces the old pre-take grid-snapshot idiom on the legacy
+`"harvest_field"` event.
 """
 from __future__ import annotations
 
+from agricola.cards.harvest_windows import register_harvest_occasion_auto
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register_auto, register_harvest_field_hook
-from agricola.constants import CellType
+from agricola.constants import Phase
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -44,30 +46,21 @@ def _on_play(state: GameState, idx: int) -> GameState:
     )
 
 
-def _veg_fields(state: GameState, idx: int) -> int:
-    """Number of fields that will yield a vegetable in this harvest's mechanical
-    take: a field with no grain (grain takes precedence in the take) and veg > 0.
-    Each such field yields exactly 1 veg, so this count equals the vegetables the
-    player gets from their fields — and hence the additional food awarded."""
-    return sum(
-        1
-        for row in state.players[idx].farmyard.grid
-        for cell in row
-        if cell.cell_type == CellType.FIELD and cell.grain == 0 and cell.veg > 0
-    )
+def _veg_taken(occasion) -> int:
+    """Vegetable UNITS this occasion took (ruling 6)."""
+    return sum(e.amount for e in occasion.entries if e.crop == "veg")
 
 
-def _eligible(state: GameState, idx: int) -> bool:
-    return _veg_fields(state, idx) > 0
+def _eligible(state: GameState, idx: int, occasion) -> bool:
+    # Any harvesting occasion during the FIELD PHASE ("during the field phase of
+    # the harvest" scopes the window, not the take), that got a vegetable — so a
+    # card-granted extra veg harvest counts, a WORK-phase Bumper Crop take does not.
+    return state.phase == Phase.HARVEST_FIELD and _veg_taken(occasion) > 0
 
 
-def _apply(state: GameState, idx: int) -> GameState:
-    """Award 1 food per vegetable the mechanical take will harvest from the player's
-    fields this harvest. Reads the grid only — no field mutation; the normal take
-    removes the veg afterward."""
-    food = _veg_fields(state, idx)
-    if food == 0:
-        return state
+def _apply(state: GameState, idx: int, occasion) -> GameState:
+    """+1 food per vegetable UNIT the field-phase take harvested this occasion."""
+    food = _veg_taken(occasion)
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources + Resources(food=food))
     return fast_replace(
@@ -76,5 +69,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, _on_play)
-register_auto("harvest_field", CARD_ID, _eligible, _apply)
-register_harvest_field_hook(CARD_ID)
+register_harvest_occasion_auto(CARD_ID, _eligible, _apply)

@@ -1,17 +1,22 @@
 """Tests for Winter Caretaker (occupation, C113).
 
-Card text: "When you play this card, you immediately get 1 grain. At the end of
-each harvest, you can buy exactly 1 vegetable for 2 food."
+Card text (verbatim): "When you play this card, you immediately get 1 grain. At
+the end of each harvest, you can buy exactly 1 vegetable for 2 food."
 
 Two effects:
 1. On play: immediately +1 grain.
-2. A recurring, optional, once-per-harvest buy surfaced as a
-   CommitHarvestConversion during HARVEST_FEED (input_cost = 2 food,
-   food_out=0); firing it grants 1 vegetable via the side_effect_fn. The
-   vegetable is a normal good, so there is NO scoring term.
+2. A recurring, optional, once-per-harvest buy surfaced as an optional TRIGGER on
+   harvest window #16 ``end_of_harvest`` (the last in-harvest moment, after
+   breeding; ruling 2026-07-03). Firing it spends 2 food and grants 1 vegetable;
+   declining is the window frame's ``Proceed``. The vegetable is a normal good, so
+   there is NO scoring term.
 
-These tests drive a REAL HARVEST_FEED resolution (via _initiate_harvest_feed +
-step), not a poked frame, and verify the on-play grain grant directly.
+Mis-timing history: the buy previously rode the ``HARVEST_CONVERSIONS`` seam,
+surfacing during the FEED sub-phase. It has been migrated to window #16 per the
+printed "at the end of each harvest" and the 2026-07-03 post-breeding-timeline
+ruling. These tests drive the REAL harvest walk (``_advance_harvest`` via
+``_advance_until_decision`` + step) and assert the buy surfaces at the
+``end_of_harvest`` window (after breeding), never during feeding.
 """
 from __future__ import annotations
 
@@ -19,17 +24,19 @@ import dataclasses
 
 import agricola.cards.winter_caretaker  # noqa: F401  (register the card)
 
-from agricola.actions import CommitConvert, CommitHarvestConversion, Stop
+from agricola.actions import FireTrigger, Proceed
 from agricola.constants import Phase
-from agricola.engine import _initiate_harvest_feed, step
+from agricola.engine import _advance_until_decision, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestFeed
+from agricola.pending import PendingHarvestFeed, PendingHarvestWindow
+from agricola.replace import fast_replace
 from agricola.scoring import SCORING_TERMS
-from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
+from agricola.cards.triggers import TRIGGERS
 from agricola.cards.specs import OCCUPATIONS
 from agricola.setup import setup
 
-from tests.factories import with_resources, with_phase
+from tests.factories import with_phase, with_resources
 
 CARD_ID = "winter_caretaker"
 
@@ -45,27 +52,12 @@ def _give_occupation(state, player_idx):
     )
 
 
-def _enter_feed(state):
-    """Put `state` into HARVEST_FEED and push the per-player feed frames."""
-    state = with_phase(state, Phase.HARVEST_FEED)
-    return _initiate_harvest_feed(state)
-
-
-def _buy_actions(state):
-    return [
-        a for a in legal_actions(state)
-        if isinstance(a, CommitHarvestConversion) and a.conversion_id == CARD_ID
-    ]
-
-
-def _owner_state(*, owner_food=10, give_occ=True):
-    """P0 owns Winter Caretaker (unless give_occ=False).
-
-    P1 is given ample food so its feed frame resolves trivially. P0's people
-    default (2 adults → need 4 food); owner_food governs whether the buy is
-    affordable on top of feeding.
-    """
-    state = setup(seed=0)
+def _harvest_state(*, owner_food=10, give_occ=True):
+    """A HARVEST_FIELD-phase state. P0 owns Winter Caretaker (unless give_occ is
+    False) and holds owner_food food; P1 is food-rich so its feeding is trivial.
+    P0 needs 4 food (2 adults) — owner_food governs whether the buy is affordable
+    on top of feeding."""
+    state = with_phase(setup(seed=0), Phase.HARVEST_FIELD)
     state = dataclasses.replace(state, starting_player=0)
     if give_occ:
         state = _give_occupation(state, 0)
@@ -74,17 +66,39 @@ def _owner_state(*, owner_food=10, give_occ=True):
     return state
 
 
+def _walk_to_end_of_harvest(state):
+    """Drive the harvest walk until P0's end_of_harvest window frame is on top,
+    stepping the first legal action at every other decision. Returns
+    (state, feeding_ever_offered_the_buy)."""
+    saw_buy_in_feeding = False
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if isinstance(top, PendingHarvestFeed):
+            if any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
+                   for a in legal_actions(state)):
+                saw_buy_in_feeding = True
+        if (isinstance(top, PendingHarvestWindow)
+                and top.window_id == "end_of_harvest"
+                and top.player_idx == 0):
+            return state, saw_buy_in_feeding
+        state = step(state, legal_actions(state)[0])
+    return state, saw_buy_in_feeding
+
+
 # --- Registration -----------------------------------------------------------
 
-def test_registered_as_occupation_and_conversion():
+def test_registered_as_occupation_and_window_trigger():
     assert CARD_ID in OCCUPATIONS
-    assert CARD_ID in HARVEST_CONVERSIONS
-    spec = HARVEST_CONVERSIONS[CARD_ID]
-    # The buy is a food-to-good: spend 2 food, produce none; the side effect
-    # grants the vegetable.
-    assert spec.input_cost.food == 2
-    assert spec.food_out == 0
-    assert spec.side_effect_fn is not None
+    # Migrated off HARVEST_CONVERSIONS onto the end_of_harvest window.
+    assert CARD_ID in HARVEST_WINDOW_CARDS.get("end_of_harvest", set())
+    assert any(e.card_id == CARD_ID for e in TRIGGERS.get("end_of_harvest", ()))
+
+
+def test_no_longer_on_harvest_conversions():
+    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+    assert CARD_ID not in HARVEST_CONVERSIONS
 
 
 def test_no_scoring_term():
@@ -110,106 +124,118 @@ def test_on_play_grants_one_grain():
     )
 
 
-# --- The buy fires and grants a vegetable -----------------------------------
+# --- The buy surfaces at end_of_harvest (not feeding) -----------------------
+
+def test_buy_surfaces_at_end_of_harvest_not_feeding():
+    """The buy is a FireTrigger at the end_of_harvest window (after breeding),
+    and never appears during feeding."""
+    state, saw_buy_in_feeding = _walk_to_end_of_harvest(_harvest_state(owner_food=10))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestWindow)
+    assert top.window_id == "end_of_harvest"
+    assert top.player_idx == 0
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+    assert Proceed() in legal_actions(state)
+    assert not saw_buy_in_feeding
+
 
 def test_buy_spends_two_food_and_grants_one_vegetable():
-    state = _enter_feed(_owner_state(owner_food=10))
-    assert _buy_actions(state) == [CommitHarvestConversion(conversion_id=CARD_ID)]
-
+    state, _ = _walk_to_end_of_harvest(_harvest_state(owner_food=10))
     food0 = state.players[0].resources.food
     veg0 = state.players[0].resources.veg
-    state = step(state, CommitHarvestConversion(conversion_id=CARD_ID))
+    state = step(state, FireTrigger(card_id=CARD_ID))
 
     # 2 food spent, no food produced; one vegetable gained.
     assert state.players[0].resources.food == food0 - 2
     assert state.players[0].resources.veg == veg0 + 1
-    assert CARD_ID in state.players[0].harvest_conversions_used
 
 
 def test_buy_is_once_per_harvest():
-    state = _enter_feed(_owner_state(owner_food=10))
+    """Once-per-window: after firing, only Proceed remains for this window."""
+    state, _ = _walk_to_end_of_harvest(_harvest_state(owner_food=10))
     veg0 = state.players[0].resources.veg
-    state = step(state, CommitHarvestConversion(conversion_id=CARD_ID))
-    # After one buy this harvest, it is no longer offered ("buy EXACTLY 1").
-    assert _buy_actions(state) == []
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    assert legal_actions(state) == [Proceed()]
     assert state.players[0].resources.veg == veg0 + 1
 
 
 def test_buy_is_optional_declinable():
-    """Declining is implicit: commit the feed without firing the buy."""
-    state = _enter_feed(_owner_state(owner_food=10))
+    """Declining is the window frame's Proceed; nothing is spent or gained."""
+    state, _ = _walk_to_end_of_harvest(_harvest_state(owner_food=10))
     veg0 = state.players[0].resources.veg
-    # P0 has 10 food, need 4 → food_owed 0. CommitConvert resolves the feed
-    # without ever firing the buy.
-    assert any(isinstance(a, CommitConvert) for a in legal_actions(state))
-    state = step(state, CommitConvert(0, 0, 0, 0, 0))
+    food0 = state.players[0].resources.food
+    assert Proceed() in legal_actions(state)
+    state = step(state, Proceed())
     assert state.players[0].resources.veg == veg0
+    assert state.players[0].resources.food == food0
 
 
 # --- Eligibility boundaries -------------------------------------------------
 
 def test_not_offered_to_non_owner_seat():
-    """The conversion is global; only the occupation owner is offered the buy.
+    """The trigger is global; only the occupation owner is offered the buy.
 
-    P0 owns the occupation; P1 does not. Drive the whole two-player feed and
-    assert P0's frame offers the buy while P1's never does (owner-gated by
-    is_owned_fn, not global).
-    """
-    state = _owner_state(owner_food=10)
+    Drive the whole harvest and assert P0's end_of_harvest frame offers the buy
+    while P1 never gets an end_of_harvest frame at all (owner-gated)."""
+    state = _harvest_state(owner_food=10)
     state = with_resources(state, 1, food=10)  # P1 food-rich too
-    state = _enter_feed(state)
 
     saw_p0_buy = False
-    saw_p1_buy = False
-    while state.pending_stack and isinstance(
-        state.pending_stack[-1], PendingHarvestFeed
-    ):
-        top = state.pending_stack[-1]
-        buys = [
-            a for a in legal_actions(state)
-            if isinstance(a, CommitHarvestConversion) and a.conversion_id == CARD_ID
-        ]
-        if top.player_idx == 0 and buys:
-            saw_p0_buy = True
-        if top.player_idx == 1 and buys:
-            saw_p1_buy = True
-        actions = legal_actions(state)
-        nxt = next(
-            (a for a in actions if isinstance(a, CommitConvert)),
-            next((a for a in actions if isinstance(a, Stop)), None),
-        )
-        assert nxt is not None
-        state = step(state, nxt)
+    saw_p1_window = False
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if isinstance(top, PendingHarvestWindow) and top.window_id == "end_of_harvest":
+            buys = [a for a in legal_actions(state)
+                    if isinstance(a, FireTrigger) and a.card_id == CARD_ID]
+            if top.player_idx == 0 and buys:
+                saw_p0_buy = True
+            if top.player_idx == 1:
+                saw_p1_window = True
+        state = step(state, legal_actions(state)[0])
 
-    assert saw_p0_buy       # the owner IS offered the buy
-    assert not saw_p1_buy   # the non-owner is NOT
+    assert saw_p0_buy         # the owner IS offered the buy
+    assert not saw_p1_window  # the non-owner gets no end_of_harvest frame
 
 
 def test_not_offered_when_unowned():
-    """No seat owns Winter Caretaker → the buy is never offered."""
-    state = _enter_feed(_owner_state(owner_food=10, give_occ=False))
-    assert _buy_actions(state) == []
+    """No seat owns Winter Caretaker → no end_of_harvest frame ever appears."""
+    state = _harvest_state(owner_food=10, give_occ=False)
+    saw_window = False
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if isinstance(top, PendingHarvestWindow) and top.window_id == "end_of_harvest":
+            saw_window = True
+        state = step(state, legal_actions(state)[0])
+    assert not saw_window
 
 
 def test_not_offered_when_food_short():
-    """Needs 2 food to buy; with 1 food (and feeding need 4) it's unaffordable."""
-    state = _enter_feed(_owner_state(owner_food=1))
-    assert _buy_actions(state) == []
+    """Needs 2 food to buy; with 1 food (and feeding need 4) it's unaffordable,
+    so eligibility fails and no end_of_harvest frame is pushed for P0."""
+    state = _harvest_state(owner_food=1)
+    saw_window = False
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if isinstance(top, PendingHarvestWindow) and top.window_id == "end_of_harvest":
+            saw_window = True
+        state = step(state, legal_actions(state)[0])
+    assert not saw_window
 
 
-# --- Scoping across harvests ------------------------------------------------
+# --- Eligibility unit check -------------------------------------------------
 
-def test_buy_available_again_next_harvest():
-    """harvest_conversions_used resets each harvest, so a fresh buy is offered."""
-    state = _enter_feed(_owner_state(owner_food=10))
-    state = step(state, CommitHarvestConversion(conversion_id=CARD_ID))
-    assert _buy_actions(state) == []
-
-    # Simulate the next harvest: harvest_conversions_used reset to empty.
-    p = state.players[0]
-    p = dataclasses.replace(p, harvest_conversions_used=frozenset())
-    state = dataclasses.replace(state, players=(p, state.players[1]))
-    # Re-enter a fresh feed (P0 still food-rich enough for the buy).
-    state = with_resources(state, 0, food=10)
-    state = _enter_feed(state)
-    assert _buy_actions(state) == [CommitHarvestConversion(conversion_id=CARD_ID)]
+def test_eligibility_gates_on_ownership_and_food():
+    from agricola.cards.winter_caretaker import _eligible
+    state = _harvest_state(owner_food=10)
+    assert _eligible(state, 0, frozenset()) is True
+    # Non-owner seat.
+    assert _eligible(state, 1, frozenset()) is False
+    # Owner with only 1 food cannot afford it.
+    state1 = with_resources(state, 0, food=1)
+    assert _eligible(state1, 0, frozenset()) is False

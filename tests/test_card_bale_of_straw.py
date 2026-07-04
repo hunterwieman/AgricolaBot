@@ -3,18 +3,20 @@
 Card text: "At the start of each harvest, if you have at least 3 grain fields
 (including field cards with planted grain), you get 2 food."
 
-A Category-6 harvest-field hook (no cost, no VPs, kept). The field-phase hook
-(`_resolve_harvest_field` / `_fire_harvest_field_hook`) fires for each owner
-BEFORE the mechanical "take 1 crop per field" runs, but only when some player
-owns a harvest-field card (`should_host_harvest_field`). At fire time the fields
-are still fully sown, so "you have at least 3 grain fields" is read on the
-still-sown grid (FIELD cells with grain > 0). When the count is >= 3 the player
-gets a flat 2 food (not per-field); below 3, nothing. The card never mutates the
-grid, so the mechanical take is unaffected.
+A harvest-window AUTO on window #2, `start_of_harvest` (the window opening the
+whole harvest, before the field phase). No cost, no VPs, kept. The auto fires
+mechanically inside the harvest walk (`_process_simple_window`, window-major,
+starting player first) per owner — no frame. At `start_of_harvest` the fields
+are still fully sown (the field-phase take is window #5, later on the ladder),
+so "you have at least 3 grain fields" is read on the still-sown grid (FIELD
+cells with grain > 0). When the count is >= 3 the player gets a flat 2 food (not
+per-field); below 3, nothing. The card never mutates the grid, so the mechanical
+take is unaffected.
 
-The harvest tests drive `_resolve_harvest_field` directly (like
-`tests/test_harvest_field.py` and `tests/test_card_crack_weeder.py`) so the
-firing-before-the-take ordering is exercised end-to-end.
+The harvest tests drive the real walk (`_advance_until_decision` + `step`, like
+`tests/test_harvest_windows.py`) so the fire-at-start-of-harvest timing is
+exercised end-to-end; players are given ample food so feeding is painless and
+the +2 bonus is isolated by comparison against a no-card baseline run.
 """
 from __future__ import annotations
 
@@ -22,13 +24,11 @@ import agricola.cards.bale_of_straw  # noqa: F401  (registers the card)
 
 import pytest
 
+from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.cards.specs import MINORS
-from agricola.cards.triggers import (
-    HARVEST_FIELD_CARDS,
-    should_host_harvest_field,
-)
 from agricola.constants import CellType, Phase
-from agricola.engine import _resolve_harvest_field
+from agricola.engine import _advance_until_decision, step
+from agricola.legality import legal_actions
 from agricola.replace import fast_replace
 from agricola.resources import Cost
 from agricola.setup import setup
@@ -51,14 +51,41 @@ def _own_minor(state, idx, card_id):
         p if i == idx else state.players[i] for i in range(2)))
 
 
-def _field_state(seed=0):
-    """A HARVEST_FIELD-phase state (no card owned yet)."""
-    return with_phase(setup(seed), Phase.HARVEST_FIELD)
+def _harvest_state(seed=0, food=10):
+    """A HARVEST_FIELD-phase state with enough food that feeding is painless."""
+    state = with_phase(setup(seed), Phase.HARVEST_FIELD)
+    for idx in (0, 1):
+        state = fast_replace(state, players=tuple(
+            fast_replace(state.players[i],
+                         resources=fast_replace(state.players[i].resources, food=food))
+            if i == idx else state.players[i] for i in range(2)))
+    return state
 
 
 def _grain_cells(*cells):
     """Override dict: each given (r, c) becomes a grain-sown FIELD cell."""
     return {(r, c): Cell(cell_type=CellType.FIELD, grain=3) for (r, c) in cells}
+
+
+def _run_harvest(state, pick=lambda acts: acts[0]):
+    """Drive the harvest to completion (into the next round's reveal)."""
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        state = step(state, pick(legal_actions(state)))
+    return state
+
+
+def _food_after_harvest(state, idx):
+    """Owner idx's food once the whole harvest has resolved."""
+    return _run_harvest(state).players[idx].resources.food
+
+
+def _baseline_food(state, idx):
+    """Owner idx's food after the same harvest WITHOUT owning the card — the
+    reference against which the +2 bonus is measured (feeding subtracts the same
+    in both runs)."""
+    return _run_harvest(state).players[idx].resources.food
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +94,7 @@ def _grain_cells(*cells):
 
 def test_registered():
     assert CARD_ID in MINORS
-    assert CARD_ID in HARVEST_FIELD_CARDS
+    assert CARD_ID in HARVEST_WINDOW_CARDS.get("start_of_harvest", set())
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost()            # free card
     assert spec.cost_fn is None
@@ -79,61 +106,40 @@ def test_registered():
 
 
 # ---------------------------------------------------------------------------
-# Host gate
-# ---------------------------------------------------------------------------
-
-def test_host_gate():
-    assert should_host_harvest_field(setup(0)) is False
-    assert should_host_harvest_field(_own_minor(setup(0), 0, CARD_ID)) is True
-
-
-def test_hand_card_does_not_host():
-    """Holding the card in hand (not played) must NOT host the harvest-field
-    frame — only a tableau (played) minor counts."""
-    state = setup(0)
-    p = fast_replace(state.players[0], hand_minors=frozenset({CARD_ID}))
-    state = fast_replace(state, players=tuple(
-        p if i == 0 else state.players[i] for i in range(2)))
-    assert should_host_harvest_field(state) is False
-
-
-# ---------------------------------------------------------------------------
-# Field-phase income (the core effect)
+# Start-of-harvest income (the core effect)
 # ---------------------------------------------------------------------------
 
 def test_three_grain_fields_gives_two_food():
-    """Exactly 3 grain-sown fields meets the threshold -> +2 food."""
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0, _grain_cells((0, 0), (0, 1), (0, 2)))
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0 + 2
+    """Exactly 3 grain-sown fields meets the threshold -> +2 food vs baseline."""
+    base = with_grid(_harvest_state(), 0, _grain_cells((0, 0), (0, 1), (0, 2)))
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline + 2
 
 
 def test_more_than_three_grain_fields_still_two_food():
     """The reward is a FLAT 2 food regardless of how many grain fields (not
     per-field): 5 grain fields still gives exactly +2 food."""
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0,
-                      _grain_cells((0, 0), (0, 1), (0, 2), (1, 0), (1, 1)))
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0 + 2
+    base = with_grid(_harvest_state(), 0,
+                     _grain_cells((0, 0), (0, 1), (0, 2), (1, 0), (1, 1)))
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline + 2
 
 
-def test_reads_still_sown_grid_before_take():
-    """The bonus is evaluated BEFORE the mechanical crop take depletes the
-    fields: with exactly 3 grain fields the bonus fires (it does not see the
-    post-take grid where one grain has been removed per field)."""
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0, _grain_cells((0, 0), (0, 1), (0, 2)))
-    g0 = state.players[0].resources.grain
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0 + 2       # +2 food bonus
-    assert after.players[0].resources.grain == g0 + 3      # mechanical take: 1/field
-    # Grid depleted by exactly 1 grain per field (bonus never mutates the grid).
-    assert after.players[0].farmyard.grid[0][0].grain == 2
+def test_fires_before_the_take_on_still_sown_grid():
+    """The bonus is evaluated at start_of_harvest, BEFORE the field-phase crop
+    take depletes the fields: with exactly 3 grain fields it fires (it does not
+    see the post-take grid where one grain has been removed per field). The
+    mechanical take is unaffected (1 grain/field -> +3 grain, cells depleted)."""
+    base = with_grid(_harvest_state(), 0, _grain_cells((0, 0), (0, 1), (0, 2)))
+    baseline = _run_harvest(base)
+    owned = _run_harvest(_own_minor(base, 0, CARD_ID))
+    # +2 food bonus over the no-card baseline.
+    assert owned.players[0].resources.food == baseline.players[0].resources.food + 2
+    # Same mechanical grain take in both runs (the bonus never mutates the grid).
+    assert owned.players[0].resources.grain == baseline.players[0].resources.grain
+    assert owned.players[0].farmyard.grid[0][0].grain == 2
 
 
 # ---------------------------------------------------------------------------
@@ -141,58 +147,57 @@ def test_reads_still_sown_grid_before_take():
 # ---------------------------------------------------------------------------
 
 def test_two_grain_fields_below_threshold_no_food():
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0, _grain_cells((0, 0), (0, 1)))
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0
+    base = with_grid(_harvest_state(), 0, _grain_cells((0, 0), (0, 1)))
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline
 
 
 def test_no_fields_at_all_no_food():
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0
+    base = _harvest_state()
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline
 
 
 def test_veg_fields_do_not_count():
     """Vegetable-sown fields are not 'grain fields' — three veg fields do NOT
     meet the threshold."""
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0, {
+    veg = {
         (0, 0): Cell(cell_type=CellType.FIELD, veg=2),
         (0, 1): Cell(cell_type=CellType.FIELD, veg=2),
         (0, 2): Cell(cell_type=CellType.FIELD, veg=2),
-    })
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0
+    }
+    base = with_grid(_harvest_state(), 0, veg)
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline
 
 
 def test_empty_fields_do_not_count():
     """Plowed-but-unsown fields are not grain fields."""
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0, {
+    empty = {
         (0, 0): Cell(cell_type=CellType.FIELD),
         (0, 1): Cell(cell_type=CellType.FIELD),
         (0, 2): Cell(cell_type=CellType.FIELD),
-    })
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0
+    }
+    base = with_grid(_harvest_state(), 0, empty)
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline
 
 
 def test_mixed_two_grain_one_veg_below_threshold():
     """Only grain fields count: 2 grain + 1 veg = 2 grain fields -> no food."""
-    state = _own_minor(_field_state(), 0, CARD_ID)
-    state = with_grid(state, 0, {
+    mixed = {
         (0, 0): Cell(cell_type=CellType.FIELD, grain=3),
         (0, 1): Cell(cell_type=CellType.FIELD, grain=3),
         (0, 2): Cell(cell_type=CellType.FIELD, veg=2),
-    })
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0
+    }
+    base = with_grid(_harvest_state(), 0, mixed)
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline
 
 
 # ---------------------------------------------------------------------------
@@ -200,17 +205,16 @@ def test_mixed_two_grain_one_veg_below_threshold():
 # ---------------------------------------------------------------------------
 
 def test_fires_only_for_owner():
-    state = _own_minor(_field_state(), 0, CARD_ID)   # P0 owns, P1 does not
-    state = with_grid(state, 0, _grain_cells((0, 0), (0, 1), (0, 2)))
-    state = with_grid(state, 1, _grain_cells((0, 0), (0, 1), (0, 2)))
-    f0, f1 = state.players[0].resources.food, state.players[1].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == f0 + 2   # owner gets the bonus
-    assert after.players[1].resources.food == f1       # non-owner unchanged
+    base = with_grid(_harvest_state(), 0, _grain_cells((0, 0), (0, 1), (0, 2)))
+    base = with_grid(base, 1, _grain_cells((0, 0), (0, 1), (0, 2)))
+    baseline = _run_harvest(base)
+    owned = _run_harvest(_own_minor(base, 0, CARD_ID))   # P0 owns, P1 does not
+    assert owned.players[0].resources.food == baseline.players[0].resources.food + 2
+    assert owned.players[1].resources.food == baseline.players[1].resources.food
 
 
 # ---------------------------------------------------------------------------
-# Direct effect-fn unit checks (optionality / eligibility in isolation)
+# Direct effect-fn unit checks (eligibility / apply in isolation)
 # ---------------------------------------------------------------------------
 
 def test_eligible_predicate():
@@ -231,18 +235,17 @@ def test_apply_adds_two_food():
 
 
 # ---------------------------------------------------------------------------
-# Family byte-identity — no frame, no income without the card
+# Family fast path — no window frame, no income without the card
 # ---------------------------------------------------------------------------
 
-def test_byte_identical_without_card():
-    state = _field_state(seed=3)
-    state = with_grid(state, 0, _grain_cells((0, 0), (0, 1), (0, 2)))
-    f0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    # Mechanical take only; no Bale of Straw food, no lingering frame.
-    assert after.players[0].resources.food == f0
-    assert after.phase == Phase.HARVEST_FEED
-    assert all(type(f).__name__ != "PendingHarvestField" for f in after.pending_stack)
+def test_family_no_frame_no_income_without_card():
+    state = with_grid(_harvest_state(seed=3), 0, _grain_cells((0, 0), (0, 1), (0, 2)))
+    final = _run_harvest(state)
+    # Harvest resolved to the next round's PREPARATION, no lingering window frame,
+    # and no Bale-of-Straw food (nobody owns it -> the auto never registered a fire).
+    assert final.phase == Phase.PREPARATION
+    assert all(type(f).__name__ != "PendingHarvestWindow"
+               for f in final.pending_stack)
 
 
 if __name__ == "__main__":

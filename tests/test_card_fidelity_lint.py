@@ -59,14 +59,14 @@ _ATTRIBUTION = re.compile(r"(user|owner) ruling[,:]? \(?\d{4}-\d{2}-\d{2}", re.I
 
 # Modules with a known, user-acknowledged PENDING deviation. Remove an entry when
 # its card is re-deferred or re-timed; never add one without a user decision.
-ALLOWLIST: dict[str, str] = {
-    # The harvest FEED-seam timing cluster, surfaced to the user 2026-07-02;
-    # disposition (re-defer vs re-time onto the round-end/after-feeding hooks)
-    # is the user's pending call. See CARD_ENGINE_IMPLEMENTATION.md §6.
-    "cube_cutter.py": "FEED-seam pending user decision 2026-07-02",
-    "winter_caretaker.py": "FEED-seam pending user decision 2026-07-02",
-    "elephantgrass_plant.py": "FEED-seam pending user decision 2026-07-02",
-}
+#
+# The harvest FEED-seam timing cluster (Cube Cutter, Winter Caretaker,
+# Elephantgrass Plant) was RESOLVED in the 2026-07-04 harvest-window migration:
+# each moved to its printed window (Cube Cutter → field_phase #5, Winter
+# Caretaker → end_of_harvest #16, Elephantgrass → immediately_after_harvest #17),
+# so the deviation no longer exists and its allowlist entry was removed.
+# See HARVEST_WINDOWS_DESIGN.md §7.
+ALLOWLIST: dict[str, str] = {}
 
 
 def test_no_self_ratified_deviations():

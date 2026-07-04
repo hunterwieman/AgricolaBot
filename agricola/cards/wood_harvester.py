@@ -3,7 +3,7 @@
 Card text: "In the field phase of each harvest, you get 1 wood/1 food for each wood
 accumulation space with exactly 2 wood/at least 3 wood."
 
-Category 6 (harvest-field hook). The text is the Agricola slash-template — TWO
+A during-window flat state-reader. The text is the Agricola slash-template — TWO
 parallel clauses, NOT one combined gain:
   - 1 WOOD for each wood accumulation space with EXACTLY 2 wood, and
   - 1 FOOD for each wood accumulation space with AT LEAST 3 wood.
@@ -17,15 +17,21 @@ nothing. The income is read from the Forest's `accumulated` Resources field (the
 wood pile sitting on the space) — NOT `accumulated_amount` (the scalar used by
 food/animal spaces, which is 0 here).
 
-Implemented as an automatic effect (`register_auto` on `harvest_field`), fired by
-`_resolve_harvest_field` in the field phase before the mechanical crop take. The
-effect is a pure goods grant with no downside, so it is mandatory/choice-free (no
-optional FireTrigger). Played via Lessons; on-play is a no-op.
+The income reads the board's wood accumulation space, not what the crop take
+harvested, so it is a plain "field_phase" window auto (HARVEST_WINDOWS_DESIGN.md
+§4d — flat state-readers are order-insensitive and anchored pre-take; the take
+never touches the Forest wood pile). Implemented as an automatic effect
+(`register_auto` on the "field_phase" window event), fired by
+`engine._field_phase_step` via `apply_auto_effects` before the mechanical crop
+take, once per player per harvest. The effect is a pure goods grant with no
+downside, so it is mandatory/choice-free (no optional FireTrigger). Played via
+Lessons; on-play is a no-op.
 """
 from __future__ import annotations
 
+from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register_auto, register_harvest_field_hook
+from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState, get_space
@@ -66,5 +72,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)  # no on-play effect
-register_auto("harvest_field", CARD_ID, _eligible, _apply)
-register_harvest_field_hook(CARD_ID)
+register_auto("field_phase", CARD_ID, _eligible, _apply)
+register_harvest_window_hook(CARD_ID, "field_phase")

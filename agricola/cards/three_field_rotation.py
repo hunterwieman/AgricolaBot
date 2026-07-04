@@ -4,18 +4,23 @@ Card text: "At the start of the field phase of each harvest, if you have at leas
 1 grain field, 1 vegetable field, and 1 empty field, you get 3 food." No cost, no
 printed VPs. Prerequisite: 3 occupations.
 
-Category 6 (harvest-field hook). A MANDATORY, choice-free income → an automatic
-effect (register_auto on the `harvest_field` event), fired by
-`_resolve_harvest_field` BEFORE the mechanical crop take — so the eligibility
-read sees the fields still sown (matching the card's "at the start of the field
-phase" timing). A FIELD cell counts as a grain field if it holds grain, a
-vegetable field if it holds veg, and an empty field if it holds neither. See
-CARD_IMPLEMENTATION_PLAN.md Category 6.
+Harvest-window auto. The printed timing is "At the start of the field phase of
+each harvest", which maps to harvest window #4, `start_of_field_phase` (the
+window opened just before the field phase's crop take, inside the per-player
+FIELD segment — ruling 3, 2026-07-03: each player resolves their whole FIELD
+segment before the other, starting player first). A MANDATORY, choice-free
+income → an automatic effect (register_auto on the `start_of_field_phase` window
+event), fired by the harvest walk (`_process_band_window`) for the player BEFORE
+the mechanical crop take of window #5 — so the eligibility read sees the fields
+still sown, matching the card's "at the start of the field phase" timing. A FIELD
+cell counts as a grain field if it holds grain, a vegetable field if it holds
+veg, and an empty field if it holds neither.
 """
 from __future__ import annotations
 
+from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_harvest_field_hook
+from agricola.cards.triggers import register_auto
 from agricola.constants import CellType
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -48,5 +53,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, min_occupations=3)
-register_auto("harvest_field", CARD_ID, _eligible, _apply)
-register_harvest_field_hook(CARD_ID)
+register_auto("start_of_field_phase", CARD_ID, _eligible, _apply)
+register_harvest_window_hook(CARD_ID, "start_of_field_phase")

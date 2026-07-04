@@ -6,12 +6,17 @@ Card text: "At the start of each harvest, if you have at least 3 grain fields
 Cost: none (free). Printed VPs: 0. No prerequisite, kept (not passing).
 Category: Food Provider.
 
-Category 6 (harvest-field hook). A MANDATORY, choice-free income at the start of
-each harvest → an automatic effect (`register_auto` on the `harvest_field`
-event), which `_resolve_harvest_field` fires (via `_fire_harvest_field_hook`)
-BEFORE the mechanical crop take. So `_eligible`/`_apply` read the STILL-SOWN
-grid — exactly when "you have at least 3 grain fields" should be evaluated, since
-the field phase has not yet removed any grain.
+Harvest-window auto. The printed timing is "At the start of each harvest", which
+maps to harvest window #2, `start_of_harvest` (the window that opens the whole
+harvest, before the field phase). A MANDATORY, choice-free income → an automatic
+effect (`register_auto` on the `start_of_harvest` window event), fired by the
+harvest walk (`_process_simple_window`) per owner, window-major, starting player
+first. This window is BEFORE the field phase's crop take, so `_eligible`/`_apply`
+read the STILL-SOWN grid — exactly when "you have at least 3 grain fields" should
+be evaluated, since the field phase has not yet removed any grain. (This matched
+the old pre-take `harvest_field`-event home too; the migration moves the read to
+the earlier printed instant with no change in what it sees, since no grain is
+taken before either position.)
 
 "Grain fields" = your own FIELD cells that currently have grain planted on them
 (`cell.grain > 0`). The parenthetical "(including field cards with planted
@@ -21,8 +26,9 @@ flat 2 food (not per-field). See CARD_IMPLEMENTATION_PLAN.md Category 6.
 """
 from __future__ import annotations
 
+from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_harvest_field_hook
+from agricola.cards.triggers import register_auto
 from agricola.constants import CellType
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -62,5 +68,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID)
-register_auto("harvest_field", CARD_ID, _eligible, _apply)
-register_harvest_field_hook(CARD_ID)
+register_auto("start_of_harvest", CARD_ID, _eligible, _apply)
+register_harvest_window_hook(CARD_ID, "start_of_harvest")

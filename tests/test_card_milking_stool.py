@@ -4,17 +4,17 @@ Card text: "In the field phase of each harvest, if you have at least 1/3/5 cattl
 you get 1/2/3 food. During scoring, you get 1 bonus point for every 2 cattle you
 have." Printed VPs: 0. Prerequisite: 2 occupations.
 
-Cattle analog of Loom (sheep) — a Category-6 harvest-field hook (MANDATORY,
-choice-free income fired by `_resolve_harvest_field` BEFORE the mechanical crop
-take) plus a Category-1 scoring term (`cattle // 2`). Mirrors
-tests/test_cards_category6.py.
+Cattle analog of Loom (sheep) — a during-window flat state-reader on the
+"field_phase" harvest window (MANDATORY, choice-free income fired pre-take by
+`engine._field_phase_step`) plus a Category-1 scoring term (`cattle // 2`).
+Mirrors tests/test_cards_category6.py.
 """
 from __future__ import annotations
 
 import agricola.cards.milking_stool  # noqa: F401
 
+from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS, owns_window_card
 from agricola.cards.specs import MINORS
-from agricola.cards.triggers import HARVEST_FIELD_CARDS, should_host_harvest_field
 from agricola.constants import Phase
 from agricola.engine import _resolve_harvest_field
 from agricola.replace import fast_replace
@@ -46,7 +46,7 @@ def _field_state(seed=0):
 
 def test_milking_stool_registered():
     assert "milking_stool" in MINORS
-    assert "milking_stool" in HARVEST_FIELD_CARDS
+    assert "milking_stool" in HARVEST_WINDOW_CARDS["field_phase"]
     spec = MINORS["milking_stool"]
     # Printed VPs = 0 (all VP comes from the cattle scoring term).
     assert spec.vps == 0
@@ -57,27 +57,27 @@ def test_milking_stool_registered():
 
 
 # ---------------------------------------------------------------------------
-# should_host_harvest_field — the card-dependent push gate
+# owns_window_card("field_phase") — the per-player ownership gate
 # ---------------------------------------------------------------------------
 
-def test_no_host_without_card():
-    assert should_host_harvest_field(setup(0)) is False
+def test_not_owned_without_card():
+    assert owns_window_card(setup(0).players[0], "field_phase") is False
 
 
-def test_host_when_owned():
+def test_owned_when_played():
     state = _own_minor(setup(0), 0, "milking_stool")
-    assert should_host_harvest_field(state) is True
-    # Owned by the OTHER player still hosts (autos fire per-owner).
+    assert owns_window_card(state.players[0], "field_phase") is True
+    # Owned by the OTHER player is that player's own field-phase auto.
     state2 = _own_minor(setup(0), 1, "milking_stool")
-    assert should_host_harvest_field(state2) is True
+    assert owns_window_card(state2.players[1], "field_phase") is True
 
 
-def test_no_host_when_card_only_in_hand():
+def test_not_owned_when_card_only_in_hand():
     state = setup(0)
     p = state.players[0]
     p = fast_replace(p, hand_minors=p.hand_minors | {"milking_stool"})
     state = fast_replace(state, players=(p, state.players[1]))
-    assert should_host_harvest_field(state) is False
+    assert owns_window_card(state.players[0], "field_phase") is False
 
 
 # ---------------------------------------------------------------------------

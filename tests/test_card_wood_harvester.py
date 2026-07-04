@@ -1,4 +1,4 @@
-"""Tests for Wood Harvester (occupation, A104; Artifex; harvest-field hook).
+"""Tests for Wood Harvester (occupation, A104; Artifex; field-phase window auto).
 
 Card text: "In the field phase of each harvest, you get 1 wood/1 food for each wood
 accumulation space with exactly 2 wood/at least 3 wood."
@@ -9,18 +9,18 @@ effect reduces to a single read of `forest.accumulated.wood`:
   at least 3 -> +1 food
   fewer than 2 -> nothing.
 
-The income rides the field-phase card hook (Category 6): `_resolve_harvest_field`
-fires the `harvest_field` automatic effects for each owner BEFORE the mechanical
-crop take, but ONLY when some player owns a harvest-field card
-(`should_host_harvest_field`). Most tests drive `_resolve_harvest_field` directly
-(mirroring `tests/test_cards_category6.py`).
+The income is a during-window flat state-reader on the "field_phase" harvest
+window (it reads the board's Forest pile, not what the take harvested):
+`engine._field_phase_step` fires the "field_phase" automatic effects for each
+owner BEFORE the mechanical crop take. Most tests drive `_resolve_harvest_field`
+(the compat alias into the harvest-window walk at HARVEST_FIELD) directly.
 """
 from __future__ import annotations
 
 import agricola.cards.wood_harvester  # noqa: F401  (registers the card)
 
+from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS, owns_window_card
 from agricola.cards.specs import OCCUPATIONS
-from agricola.cards.triggers import HARVEST_FIELD_CARDS, should_host_harvest_field
 from agricola.constants import Phase
 from agricola.engine import _resolve_harvest_field
 from agricola.replace import fast_replace
@@ -56,7 +56,7 @@ def _set_forest_wood(state, wood):
 
 def test_wood_harvester_registered():
     assert "wood_harvester" in OCCUPATIONS
-    assert "wood_harvester" in HARVEST_FIELD_CARDS
+    assert "wood_harvester" in HARVEST_WINDOW_CARDS["field_phase"]
     # Occupation: no cost/prereq/vps/passing overrides — it isn't a minor.
     assert "wood_harvester" not in __import__(
         "agricola.cards.specs", fromlist=["MINORS"]
@@ -73,24 +73,24 @@ def test_on_play_is_noop():
 
 
 # ---------------------------------------------------------------------------
-# should_host_harvest_field — the card-dependent push gate
+# owns_window_card("field_phase") — the per-player ownership gate
 # ---------------------------------------------------------------------------
 
-def test_no_host_without_card():
-    assert should_host_harvest_field(setup(0)) is False
+def test_not_owned_without_card():
+    assert owns_window_card(setup(0).players[0], "field_phase") is False
 
 
-def test_host_when_owned():
+def test_owned_when_played():
     state = _own_occ(setup(0), 0, "wood_harvester")
-    assert should_host_harvest_field(state) is True
+    assert owns_window_card(state.players[0], "field_phase") is True
 
 
-def test_no_host_when_only_in_hand():
+def test_not_owned_when_only_in_hand():
     state = setup(0)
     p = state.players[0]
     p = fast_replace(p, hand_occupations=p.hand_occupations | {"wood_harvester"})
     state = fast_replace(state, players=(p, state.players[1]))
-    assert should_host_harvest_field(state) is False
+    assert owns_window_card(state.players[0], "field_phase") is False
 
 
 # ---------------------------------------------------------------------------

@@ -10,16 +10,20 @@ conflated: the FIELD-phase food tiers step at >=1 / >=3 / >=5 cattle -> 1 / 2 / 
 food, while SCORING is a separate `cattle // 2` (so e.g. 6 cattle -> +3 food at a
 harvest, +3 VP at scoring).
 
-Category 6 (harvest-field hook) + a Category 1 scoring term. The field-phase
-clause is a MANDATORY, choice-free income -> an automatic effect (register_auto on
-the `harvest_field` event), fired by `_resolve_harvest_field` before the
-mechanical crop take. The scoring clause is a pure derived read of the owner's
-cattle. See CARD_IMPLEMENTATION_PLAN.md Category 6.
+A during-window flat state-reader + a Category 1 scoring term. The field-phase
+clause reads the owner's own cattle, not what the crop take harvested, so it is a
+plain "field_phase" window auto (HARVEST_WINDOWS_DESIGN.md §4d — flat
+state-readers are order-insensitive and anchored pre-take): a MANDATORY,
+choice-free income -> an automatic effect (register_auto on the "field_phase"
+window event), fired by `engine._field_phase_step` via `apply_auto_effects`
+before the mechanical crop take, once per player per harvest. The scoring clause
+is a pure derived read of the owner's cattle.
 """
 from __future__ import annotations
 
+from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_harvest_field_hook
+from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.scoring import register_scoring
@@ -49,6 +53,6 @@ def _score(state: GameState, idx: int) -> int:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), min_occupations=2, vps=0)
-register_auto("harvest_field", CARD_ID, _eligible, _apply)
-register_harvest_field_hook(CARD_ID)
+register_auto("field_phase", CARD_ID, _eligible, _apply)
+register_harvest_window_hook(CARD_ID, "field_phase")
 register_scoring(CARD_ID, _score)

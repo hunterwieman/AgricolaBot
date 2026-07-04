@@ -5,27 +5,31 @@ you get 1 additional grain from the general supply."
 
 Cost: 1 wood. On-play is a no-op.
 
-Category 6 (harvest-field hook). The effect fires in the field phase of every
-harvest, gated on harvesting "at least 2 grain". A pure goods grant with no
-downside, so it is modeled as a mandatory/choice-free automatic effect
-(`register_auto` on `harvest_field`) — no optional FireTrigger.
+Per-occasion consequence (`register_harvest_occasion_auto`). The card reads the
+specifics of the field-phase take: it fires once, with the take occasion, and
+its threshold is measured against the grain actually taken in that occasion.
 
-Counting "at least 2 grain" — the ordering subtlety. The `harvest_field` hook
-fires in `_resolve_harvest_field` BEFORE the mechanical crop take, while the grid
-is still fully sown. The mechanical take then removes EXACTLY ONE grain from each
-grain-bearing field this harvest (precedence: grain over veg). So the amount of
-grain you harvest this field phase equals the NUMBER of FIELD cells holding grain,
-NOT the total grain sitting on those fields: a single field sown to 3 grain
-harvests only 1 grain this phase (it stays at 2). The eligibility test is
-therefore "at least 2 FIELD cells with grain > 0", and we must NOT sum `cell.grain`
-(see `agricola/cards/scythe_worker.py` for the same firing-order constraint, and
-the spec's ordering note).
+Governing user ruling 9 (2026-07-03): a "take-once" card like Grain Sieve
+"fires once, with the take occasion: the crops are taken off of fields (the main
+field-phase effect) and their bonuses are based off of the specifics of what
+happened in that action." It reads the take occasion's manifest — which will
+include future take-fold-in extras (Scythe Worker's, when that card migrates)
+but NOT separate occasions (card-granted additional harvests like Stable
+Manure's). It is therefore NOT a window-exit aggregate over all occasions, and
+we gate on `occasion.source == "take"` so a card-granted additional harvest
+never triggers it.
+
+Counting "harvest at least 2 grain": the take occasion emits one
+`HarvestEntry(crop="grain", amount=1, …)` per grain-bearing field (grain over
+veg precedence; a field harvests exactly 1 crop per phase). The threshold sums
+those grain amounts — for the take occasion that equals the number of
+grain-bearing fields, so a single field sown to 3 grain harvests only 1 grain
+and does not reach the threshold, while two 1-grain fields harvest 2 and do.
 """
 from __future__ import annotations
 
+from agricola.cards.harvest_windows import register_harvest_occasion_auto
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_harvest_field_hook
-from agricola.constants import CellType
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -33,23 +37,16 @@ from agricola.state import GameState
 CARD_ID = "grain_sieve"
 
 
-def _grain_field_count(state: GameState, idx: int) -> int:
-    """Number of FIELD cells holding grain. Each such field gives exactly 1 grain
-    to the upcoming mechanical take, so this equals the grain this player harvests
-    in the field phase (the hook fires before the take, grid still fully sown)."""
-    return sum(
-        1
-        for row in state.players[idx].farmyard.grid
-        for cell in row
-        if cell.cell_type == CellType.FIELD and cell.grain > 0
-    )
+def _grain_taken(occasion) -> int:
+    """Total grain removed by this occasion (sum of its grain entry amounts)."""
+    return sum(e.amount for e in occasion.entries if e.crop == "grain")
 
 
-def _eligible(state: GameState, idx: int) -> bool:
-    return _grain_field_count(state, idx) >= 2
+def _eligible(state: GameState, idx: int, occasion) -> bool:
+    return occasion.source == "take" and _grain_taken(occasion) >= 2
 
 
-def _apply(state: GameState, idx: int) -> GameState:
+def _apply(state: GameState, idx: int, occasion) -> GameState:
     """Grant 1 additional grain from the general supply."""
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources + Resources(grain=1))
@@ -59,5 +56,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(Resources(wood=1)))  # no on-play effect
-register_auto("harvest_field", CARD_ID, _eligible, _apply)
-register_harvest_field_hook(CARD_ID)
+register_harvest_occasion_auto(CARD_ID, _eligible, _apply)

@@ -1,17 +1,28 @@
-"""Tests for the Category-6 cards (harvest-field hook):
+"""Tests for the field-phase harvest cards:
 Scythe Worker, Butter Churn, Three-Field Rotation, Loom.
 
-These ride the field-phase card hook (II.6): `_resolve_harvest_field` pushes a
-transient `PendingHarvestField` host frame and fires the `harvest_field`
-automatic effects for each player BEFORE the mechanical "take 1 crop per field"
-runs — but ONLY when some player owns a harvest-field card
-(`should_host_harvest_field`, the field-phase analog of `should_host_space`).
-With no such card owned the field resolution is byte-identical to the Family game
-and the C++ Family engine never sees the frame (a `test_harvest_field_byte_identical`
-guard below).
+All fire in the field phase before the mechanical "take 1 crop per field" runs,
+but through two different seams:
 
-Most tests drive `_resolve_harvest_field` directly (the same approach as
-`tests/test_harvest_field.py`) so the firing-before-the-take ordering is
+- **Scythe Worker** reads WHAT the take harvests (extra grain per grain field), so
+  it stays on the legacy `harvest_field` hook: `_resolve_harvest_field` pushes a
+  transient `PendingHarvestField` host frame and fires the `harvest_field`
+  automatic effects for each owner pre-take — but ONLY when some player owns a
+  harvest-field card (`should_host_harvest_field`, the field-phase analog of
+  `should_host_space`). With no such card owned the field resolution is
+  byte-identical to the Family game and the C++ Family engine never sees the frame
+  (a `test_harvest_field_byte_identical` guard below).
+- **Loom and Butter Churn** are flat state-readers (they read the owner's own
+  animals, not what the take harvested), so they have MIGRATED onto the
+  "field_phase" during-window auto (HARVEST_WINDOWS_DESIGN.md §4d): fired pre-take
+  by `engine._field_phase_step` via `apply_auto_effects("field_phase", …)`, once
+  per player per harvest.
+- **Three-Field Rotation** rides the start_of_field_phase window (its printed
+  timing).
+
+Most tests drive `_resolve_harvest_field` (the compat alias into the harvest-window
+walk at HARVEST_FIELD, which threads both the legacy `harvest_field` autos and the
+"field_phase" window autos pre-take) so the firing-before-the-take ordering is
 exercised end-to-end; Scythe Worker's on-play +1 grain is checked through its
 OccupationSpec, and Loom's scoring term through `score`.
 """
@@ -20,13 +31,14 @@ from __future__ import annotations
 import numpy as np
 
 from agricola.agents.base import decider_of
+from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.cards.specs import MINORS, OCCUPATIONS
 from agricola.cards.triggers import (
     HARVEST_FIELD_CARDS,
     should_host_harvest_field,
 )
 from agricola.constants import CellType, Phase
-from agricola.engine import _resolve_harvest_field, step
+from agricola.engine import _advance_until_decision, _resolve_harvest_field, step
 from agricola.legality import legal_actions
 from agricola.pending import PendingHarvestField
 from agricola.replace import fast_replace
@@ -76,13 +88,27 @@ def test_category6_cards_registered():
     assert "scythe_worker" in OCCUPATIONS
     for cid in ("loom", "butter_churn", "three_field_rotation"):
         assert cid in MINORS
-    # These four are the original Category-6 harvest-field cards; assert they are
-    # registered as a SUBSET (later batches add more harvest-field cards — e.g.
-    # wood_harvester / slurry_spreader / crack_weeder — so an exact-equality check
-    # would be brittle and is not the point of this registration test).
-    assert {
-        "scythe_worker", "loom", "butter_churn", "three_field_rotation",
-    } <= HARVEST_FIELD_CARDS
+    # scythe_worker still rides the legacy Category-6 harvest-field hook (it reads
+    # what the take harvests per grain field, folding into it — its migration to the
+    # take-occasion fold-in seam is held for a later wave). Asserted as a SUBSET:
+    # a few other cards (lynchet, wood_rake) also remain on the legacy hook pending
+    # their own migrations, so an exact-equality check would be brittle and is not
+    # the point of this test. (The 2026-07-04 wave migrated loom, butter_churn,
+    # milking_stool, wood_harvester, grain_sieve, crack_weeder, potato_harvester,
+    # slurry_spreader, stable_manure OFF this hook.)
+    assert {"scythe_worker"} <= HARVEST_FIELD_CARDS
+    # Loom and Butter Churn are flat state-readers (they read the owner's own
+    # animals, not what the take harvested), so they have MIGRATED off the legacy
+    # hook onto the "field_phase" during-window auto (their printed timing, "in the
+    # field phase of each harvest"); they are NOT in HARVEST_FIELD_CARDS.
+    assert "loom" not in HARVEST_FIELD_CARDS
+    assert "butter_churn" not in HARVEST_FIELD_CARDS
+    assert {"loom", "butter_churn"} <= HARVEST_WINDOW_CARDS.get("field_phase", set())
+    # Three-Field Rotation has MIGRATED onto the start_of_field_phase harvest
+    # window (its printed timing, "at the start of the field phase of each harvest").
+    assert "three_field_rotation" not in HARVEST_FIELD_CARDS
+    assert "three_field_rotation" in HARVEST_WINDOW_CARDS.get(
+        "start_of_field_phase", set())
     # Printed VPs (verbatim from JSON): Loom 1, Butter Churn 1, Three-Field 0.
     assert MINORS["loom"].vps == 1
     assert MINORS["butter_churn"].vps == 1
@@ -103,10 +129,12 @@ def test_no_host_without_a_harvest_field_card():
 
 
 def test_host_when_a_player_owns_a_harvest_field_card():
-    state = _own_minor(setup(0), 0, "loom")
+    # scythe_worker still rides the legacy harvest-field hook (Loom/Butter Churn
+    # migrated off it to the "field_phase" window auto).
+    state = _own_occ(setup(0), 0, "scythe_worker")
     assert should_host_harvest_field(state) is True
     # Owned by the OTHER player still hosts (autos fire per-owner).
-    state2 = _own_minor(setup(0), 1, "butter_churn")
+    state2 = _own_occ(setup(0), 1, "scythe_worker")
     assert should_host_harvest_field(state2) is True
 
 
@@ -114,7 +142,7 @@ def test_no_host_when_card_only_in_hand():
     # A hand card cannot fire — owning it in hand (not played) must NOT host.
     state = setup(0)
     p = state.players[0]
-    p = fast_replace(p, hand_minors=p.hand_minors | {"loom"})
+    p = fast_replace(p, hand_occupations=p.hand_occupations | {"scythe_worker"})
     state = fast_replace(state, players=(p, state.players[1]))
     assert should_host_harvest_field(state) is False
 
@@ -198,32 +226,62 @@ def test_butter_churn_food_from_sheep_and_cattle():
 # Three-Field Rotation — 3 food with a grain + veg + empty field
 # ---------------------------------------------------------------------------
 
+# Three-Field Rotation MIGRATED off the legacy harvest-field hook onto the
+# start_of_field_phase harvest window (#4 — its printed timing, "at the start of
+# the field phase of each harvest"). That window is inside the per-player FIELD
+# segment and fires BEFORE the field-phase crop take (window #5), so eligibility
+# still reads the fields while sown — same instant the old hook saw. These tests
+# drive the real harvest walk and measure the +3 food as a delta over a no-card
+# baseline run (feeding subtracts the same in both).
+
+def _tfr_harvest_state(seed=0, food=10):
+    """A HARVEST_FIELD-phase state with ample food so feeding is painless."""
+    state = with_phase(setup(seed), Phase.HARVEST_FIELD)
+    for idx in (0, 1):
+        state = fast_replace(state, players=tuple(
+            fast_replace(state.players[i],
+                         resources=fast_replace(state.players[i].resources, food=food))
+            if i == idx else state.players[i] for i in range(2)))
+    return state
+
+
+def _run_harvest(state):
+    """Drive the harvest to completion (into the next round's reveal)."""
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                          Phase.HARVEST_BREED):
+        state = step(state, legal_actions(state)[0])
+    return state
+
+
 def test_three_field_rotation_fires_with_all_three_field_kinds():
-    state = _own_minor(_field_state(), 0, "three_field_rotation")
     # A grain field, a veg field, and an empty field.
-    state = with_sown_fields(state, 0, grain_fields=[(0, 2)], veg_fields=[(0, 3)])
-    state = with_grid(state, 0, {(0, 4): Cell(cell_type=CellType.FIELD)})  # empty
-    food0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == food0 + 3
+    base = with_sown_fields(_tfr_harvest_state(), 0,
+                            grain_fields=[(0, 2)], veg_fields=[(0, 3)])
+    base = with_grid(base, 0, {(0, 4): Cell(cell_type=CellType.FIELD)})  # empty
+    baseline = _run_harvest(base).players[0].resources.food
+    owned = _run_harvest(
+        _own_minor(base, 0, "three_field_rotation")).players[0].resources.food
+    assert owned == baseline + 3
 
 
 def test_three_field_rotation_no_fire_missing_empty_field():
-    state = _own_minor(_field_state(), 0, "three_field_rotation")
     # Grain + veg field, but NO empty field.
-    state = with_sown_fields(state, 0, grain_fields=[(0, 2)], veg_fields=[(0, 3)])
-    food0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == food0   # condition unmet
+    base = with_sown_fields(_tfr_harvest_state(), 0,
+                            grain_fields=[(0, 2)], veg_fields=[(0, 3)])
+    baseline = _run_harvest(base).players[0].resources.food
+    owned = _run_harvest(
+        _own_minor(base, 0, "three_field_rotation")).players[0].resources.food
+    assert owned == baseline   # condition unmet
 
 
 def test_three_field_rotation_no_fire_missing_veg_field():
-    state = _own_minor(_field_state(), 0, "three_field_rotation")
-    state = with_sown_fields(state, 0, grain_fields=[(0, 2)])
-    state = with_grid(state, 0, {(0, 3): Cell(cell_type=CellType.FIELD)})  # empty
-    food0 = state.players[0].resources.food
-    after = _resolve_harvest_field(state)
-    assert after.players[0].resources.food == food0
+    base = with_sown_fields(_tfr_harvest_state(), 0, grain_fields=[(0, 2)])
+    base = with_grid(base, 0, {(0, 3): Cell(cell_type=CellType.FIELD)})  # empty
+    baseline = _run_harvest(base).players[0].resources.food
+    owned = _run_harvest(
+        _own_minor(base, 0, "three_field_rotation")).players[0].resources.food
+    assert owned == baseline
 
 
 # ---------------------------------------------------------------------------

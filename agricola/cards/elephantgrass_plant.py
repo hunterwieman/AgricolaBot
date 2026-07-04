@@ -1,55 +1,56 @@
 """Elephantgrass Plant (minor improvement, C34; Corbarius Expansion; Points Provider).
 
-Card text: "Immediately after each harvest, you can use this card to exchange
-exactly 1 reed for 1 bonus point."
+Card text (verbatim): "Immediately after each harvest, you can use this card to
+exchange exactly 1 reed for 1 bonus point."
 Cost: 2 Clay, 1 Stone. Prerequisite: 2 Occupations. VPs: 0 (printed). Not passing.
 
-A recurring, optional, once-per-harvest goods-to-no-food conversion — the exact
-shape the HarvestConversionSpec hook exists for, mirroring Furniture Carpenter
-("each harvest, buy 1 point for 2 food") and Beer Keg. The twist over the three
-built-in crafts (joinery/pottery/basketmaker, which take a good and PRODUCE food)
-is that this one spends 1 reed and produces NO food (food_out=0); its only effect
-is the banked bonus point.
+A recurring, optional, once-per-harvest goods-to-point swap: spend exactly 1 reed,
+bank 1 bonus point (no food produced).
 
-Timing — "immediately after each harvest": the only once-per-harvest seam in the
-engine is the FEED sub-phase's HARVEST_CONVERSIONS mechanism (each conversion is
-offered once per harvest because harvest_conversions_used is reset once at the
-start of every harvest's FEED phase). This is the same accepted home Furniture
-Carpenter and Beer Keg use; there is no separate post-BREED hook. Surfacing the
-reed->VP swap mid-FEED rather than strictly after BREED is behaviorally inert
-here because reed is never a feeding or cooking input, so the swap never interacts
-with the feed decision.
+Timing — "immediately after each harvest" → window #17 ``immediately_after_harvest``.
+On the harvest ladder (``agricola/cards/harvest_windows.py``) this window is OUTSIDE
+the harvest, strictly after window #16 ``end_of_harvest`` (the last in-harvest
+moment) and before window #18 ``after_harvest`` — the ordering resolved by the
+post-breeding-timeline ruling (2026-07-03, ``CARD_DEFERRED_PLANS.md`` → Harvest-
+window redesign rulings). The swap is registered as an OPTIONAL TRIGGER there
+(a ``PendingHarvestWindow`` ``FireTrigger``; declining is the frame's ``Proceed``).
 
-The single registry entry (conversion_id == CARD_ID) gives the once-per-harvest
-limit for free: once fired, conversion_id sits in harvest_conversions_used and the
-enumerator stops offering it for the rest of the harvest. The enumerator also
-gates on _can_afford(reed=1), so the swap is offered only when the player owns a
-reed to spend.
+"exchange EXACTLY 1 reed": the once-per-window frame gives this for free — its
+``triggers_resolved`` records the fire, so after swapping, the trigger is no longer
+offered for the rest of that window (and the window fires once per harvest). No
+quantity/target choice is needed (exactly 1 reed for 1 point), so this is a plain
+trigger, not a play-variant. The 1-reed cost is debited and the point banked by
+``_award`` itself — the window machinery carries no cost layer — and affordability
+(>= 1 reed) is checked in ``_eligible`` so the swap is offered only when the player
+holds a reed to spend.
+
+Mis-timing history: this card was previously registered on the
+``HARVEST_CONVERSIONS`` seam (surfaced during the FEED sub-phase), which the old
+docstring justified as "behaviorally inert." That home was a mis-timing — the FEED
+phase is not immediately-after the harvest — and it has been migrated to window #17
+per the printed text and the 2026-07-03 ruling. Because reed is never a feeding or
+cooking input, the observable outcome (spend 1 reed, bank +1 point, once per
+harvest) is unchanged by the move.
 
 The point cannot be granted immediately (there is no immediate-VP mechanism), so
-each fire's side_effect_fn increments a per-card CardStore counter (banked across
-all six harvests), and the scoring term reads the count back at end-game. Do NOT
-set vps= (that scores the printed keep VP, which is 0 here) — the point is earned,
-not printed.
+each fire increments a per-card ``CardStore`` counter (banked across all six
+harvests), and the scoring term reads the count back at end-game. Do NOT set vps=
+(that scores the printed keep VP, which is 0 here) — the point is earned, not
+printed.
 
-Unlike Furniture Carpenter (which gates on the Joinery being owned), this card has
-no extra ownership condition: the only gate is owning the minor itself. Since
-HarvestConversionSpec registrations are global and the enumerator gates only on
-is_owned_fn, the ownership check (CARD_ID in this player's minor_improvements) must
-live in is_owned_fn — otherwise the swap would be offered to the non-owner.
+Registrations are global and the window's trigger enumerator checks ownership via
+``_owns``, but the affordability/ownership shape still lives in ``_eligible`` (the
+eligibility gate); ownership additionally short-circuits there so the swap is never
+surfaced to a non-owner.
 
-Card-only state (the CardStore int + harvest_conversions_used entry) is empty in
-the Family game, so it stays byte-identical and the C++ gates are untouched.
-See CARD_AUTHORING_GUIDE.md and harvest_conversions.py / furniture_carpenter.py /
-beer_keg.py.
+Card-only state (the CardStore int) is empty in the Family game, so it stays
+byte-identical and the C++ gates are untouched.
 """
 from __future__ import annotations
 
-from agricola.cards.harvest_conversions import (
-    HarvestConversionSpec,
-    register_harvest_conversion,
-)
+from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_minor
+from agricola.cards.triggers import register
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.scoring import register_scoring
@@ -58,23 +59,31 @@ from agricola.state import GameState
 CARD_ID = "elephantgrass_plant"
 
 
-def _is_owned(state: GameState, idx: int) -> bool:
-    """True iff this player owns Elephantgrass Plant.
+def _eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
+    """Offer the swap iff this player owns Elephantgrass Plant AND holds >= 1 reed.
 
-    The conversion enumerator (legality.py) gates only on is_owned_fn, and
-    registrations are global, so the minor-ownership check must live here —
-    otherwise the reed->point swap would be offered to the non-owner. The
-    once-per-harvest limit is handled separately by the enumerator (it skips any
-    conversion_id already in harvest_conversions_used).
+    Ownership: registrations are global, so the minor-ownership check lives here
+    (the trigger enumerator also gates on ownership, but keeping it here is
+    explicit and matches the surrounding card idioms). Affordability: the window
+    machinery has no cost layer, so the 1-reed check that the old HARVEST_FEED
+    enumerator performed must live here. The once-per-window limit is handled by
+    the frame's ``triggers_resolved`` (checked by the enumerator, not here).
     """
-    return CARD_ID in state.players[idx].minor_improvements
+    p = state.players[idx]
+    return CARD_ID in p.minor_improvements and p.resources.reed >= 1
 
 
 def _award(state: GameState, idx: int) -> GameState:
-    """side_effect_fn: bank one bonus point (incremented per harvest, up to 6)."""
+    """Spend 1 reed, bank one bonus point (incremented per harvest, up to 6). The
+    window trigger carries no cost layer, so this debits the reed and banks the
+    point in one step."""
     p = state.players[idx]
     banked = p.card_state.get(CARD_ID, 0)
-    p = fast_replace(p, card_state=p.card_state.set(CARD_ID, banked + 1))
+    p = fast_replace(
+        p,
+        resources=p.resources + Resources(reed=-1),
+        card_state=p.card_state.set(CARD_ID, banked + 1),
+    )
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
@@ -93,13 +102,9 @@ register_minor(
     vps=0,
 )
 
-# The recurring reed->VP swap: spend 1 reed, produce no food, bank +1 point.
-register_harvest_conversion(HarvestConversionSpec(
-    conversion_id=CARD_ID,
-    input_cost=Resources(reed=1),
-    food_out=0,
-    is_owned_fn=_is_owned,
-    side_effect_fn=_award,
-))
+# The recurring reed->point swap immediately after the harvest (window #17): an
+# optional trigger — spend 1 reed, bank +1 point.
+register("immediately_after_harvest", CARD_ID, _eligible, _award)
+register_harvest_window_hook(CARD_ID, "immediately_after_harvest")
 
 register_scoring(CARD_ID, _score)
