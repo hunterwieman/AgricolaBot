@@ -314,7 +314,7 @@ ALLOWLIST as each mis-timed card is resolved (the priority section's contract). 
 | Lynchet | `harvest_field` auto | **verify at migration**: "each *harvested* field tile adjacent to your house" — confirm whether the current pre-take grid read matches the manifest-derived meaning (open question #4) |
 | Scythe Worker | `harvest_field` auto (pre-take mutation) | folds into the take occasion (§4b); keep its documented wide-trigger upgrade path |
 | Slurry Spreader A106 | `harvest_field` auto (registration-order grid read) | per-occasion auto on `emptied` entries — now correct under free order |
-| Grain Sieve | `harvest_field` auto (pre-take read) | phase-aggregate auto at window exit |
+| Grain Sieve | `harvest_field` auto (pre-take read) | **take-occasion auto (ruling 9)** — fires once, off the take occasion's manifest (`occasion.source == "take"`); NOT a window-exit aggregate (that earlier idea is superseded — §4d) |
 | Crack Weeder, Potato Harvester | `harvest_field` autos (pre-take reads) | per-occasion autos (per veg unit) |
 | Stable Manure | `PendingHarvestField` variant trigger | window #5 class-(a) trigger; its extra goods become their own occasion |
 | Beer Keg, Beer Tap, Studio, Schnapps Distiller, Schnapps Distillery | `HARVEST_CONVERSIONS` | **stay** — printed "in the feeding phase" is exactly that seam |

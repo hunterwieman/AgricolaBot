@@ -1755,6 +1755,29 @@ def field_take(
     return state, HarvestOccasion(source=source, entries=tuple(entries))
 
 
+def emit_harvest_occasion(
+    state: GameState, idx: int, occasion: HarvestOccasion,
+) -> GameState:
+    """Record a card-granted harvesting occasion and fire its consequences —
+    the seam a during-window additional-harvest trigger (Stable Manure, Scythe
+    E73) calls from its apply_fn AFTER applying its own goods movement
+    (HARVEST_WINDOWS_DESIGN.md §4d: each such fire is its OWN occasion, source
+    "card:<id>", separate from the take).
+
+    Appends the occasion to the top PendingFieldPhase's frame-scoped manifest
+    when one is up (the normal case — the trigger fired from that host), then
+    fires the per-occasion automatic effects. Also callable frameless: a bare
+    `field_take` caller (Bumper Crop, ruling 4) emits its occasion this way so
+    non-phase-keyed occasion consumers still attach."""
+    from agricola.cards.harvest_windows import apply_harvest_occasion_autos
+
+    top = state.pending_stack[-1] if state.pending_stack else None
+    if isinstance(top, PendingFieldPhase):
+        state = replace_top(state, fast_replace(
+            top, occasions=top.occasions + (occasion,)))
+    return apply_harvest_occasion_autos(state, idx, occasion)
+
+
 def _execute_field_take(
     state: GameState, player_idx: int, commit,
 ) -> GameState:
