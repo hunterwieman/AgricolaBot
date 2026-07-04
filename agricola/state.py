@@ -387,20 +387,24 @@ class GameState:
     # size > 0). Set to None when the draft completes (all pools empty).
     draft_pools: tuple | None = None
 
-    # Card-only two-stage-walk discriminator for the harvest FIELD phase: True
-    # while the per-player PendingHarvestField choice frames (field-phase
-    # triggers — Stable Manure) are out, so re-entering the field take
-    # after they pop runs the mechanical crop take instead of re-offering.
-    # Family-constant False (default-skipped in canonical.py).
+    # Card-only discriminator for the FIELD during-window's LEGACY stage: True
+    # while a player's PendingHarvestField choice frame (a legacy `harvest_field`
+    # trigger — Stable Manure, pre-migration) is out, so re-entering that
+    # player's field-phase step after it pops skips the pre-take autos and moves
+    # on to the take (engine._field_phase_step). One bool suffices because the
+    # FIELD band is per-player sequential. Family-constant False
+    # (default-skipped in canonical.py); retired with the legacy seam when the
+    # harvest_field cards migrate to the window events.
     field_triggers_offered: bool = False
 
-    # Card-only harvest-window walk cursor (engine._advance_harvest /
-    # agricola/cards/harvest_windows.py): the HARVEST_WINDOWS index the walk resumes
-    # at, set ONLY when a simple-window choice frame pauses the walk mid-segment.
-    # None everywhere else — the phase (+ field_triggers_offered) derives the resume
-    # point at each harvest phase boundary, so a Family game (no window cards, no
-    # frames) carries None on every returned state and stays byte-identical
-    # (default-skipped in canonical.py).
+    # Card-only harvest-window walk cursor (engine._advance_harvest): the
+    # VIRTUAL-walk index the walk resumes at — the HARVEST_WINDOWS ladder with
+    # the FIELD band repeated once per player (harvest_windows.walk_position
+    # decodes it) — set ONLY when a choice frame pauses the walk mid-segment.
+    # None everywhere else — the phase derives the resume point at each harvest
+    # phase boundary, so a Family game (no window cards, no frames) carries
+    # None on every returned state and stays byte-identical (default-skipped
+    # in canonical.py).
     harvest_cursor: int | None = None
 
     def __hash__(self):  # see "Lazily-cached __hash__" note above

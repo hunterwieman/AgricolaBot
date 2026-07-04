@@ -387,6 +387,10 @@ def test_fires_for_owner_in_seat_one():
 
 
 def test_both_owners_starting_player_resolves_first():
+    """The FIELD segment is per-player (user ruling 3, HARVEST_WINDOWS_DESIGN.md
+    §3): the starting player resolves their WHOLE field phase — trigger frame,
+    then take — before the other player's begins, so only one PendingHarvestField
+    frame is ever out at a time."""
     state = _field_state()
     sp = state.starting_player
     for i in (0, 1):
@@ -396,12 +400,15 @@ def test_both_owners_starting_player_resolves_first():
     after = _enter_field(state)
     frames = [f.player_idx for f in after.pending_stack
               if isinstance(f, PendingHarvestField)]
-    # One frame per player; SP on TOP (resolves first), mirroring FEED/BREED.
-    assert sorted(frames) == [0, 1]
-    assert after.pending_stack[-1].player_idx == sp
-    # Resolve both (SP fires, other declines) and reach FEED with the flag reset.
+    # Only the starting player's frame is out; the other player's field phase
+    # (frame AND take) has not started yet.
+    assert frames == [sp]
+    assert after.players[1 - sp].farmyard.grid[0][0].grain == 3  # untaken
+    # SP fires + proceeds; their take runs, then the other player's frame comes up.
     after = _fire(after, "grain3:1")                             # SP's frame
     assert after.pending_stack[-1].player_idx == 1 - sp
+    assert after.players[sp].farmyard.grid[0][0].grain == 1      # extra + take
     after = step(after, Proceed())                               # other declines
     assert after.phase == Phase.HARVEST_FEED
+    assert after.players[1 - sp].farmyard.grid[0][0].grain == 2  # take only
     assert after.field_triggers_offered is False

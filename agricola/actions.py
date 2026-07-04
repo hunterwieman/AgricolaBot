@@ -164,6 +164,23 @@ class CommitFamilyGrowth(CommitSubAction):
 
 
 @dataclass(frozen=True)
+class CommitFieldTake(CommitSubAction):
+    """Commit the field-phase crop take at a PendingFieldPhase host (card game
+    only; HARVEST_WINDOWS_DESIGN.md §4c).
+
+    The take is the FIELD during-window's own mandatory work — one singular
+    event harvesting 1 crop from every planted field simultaneously (user
+    ruling 5). It surfaces as an action only when the during-window is hosted
+    (a "field_phase" trigger is eligible), so the player can order their
+    free-order triggers around it; a frameless field phase takes inline in the
+    harvest walk and never enumerates this. Parameter-free today; Grain
+    Thief's per-grain-field replacement will expand it into variants.
+    `_execute_field_take` applies the take, records the take occasion on the
+    frame (`take_fired=True`), and fires the per-occasion autos; the frame
+    stays up (Proceed exits)."""
+
+
+@dataclass(frozen=True)
 class CommitPlayOccupation(CommitSubAction):
     """Play the named occupation from hand (card game).
 

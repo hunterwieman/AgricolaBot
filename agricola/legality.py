@@ -18,6 +18,7 @@ from agricola.actions import (
     CommitConvert,
     CommitDraftPick,
     CommitFamilyGrowth,
+    CommitFieldTake,
     CommitFoodPayment,
     CommitCardChoice,
     CommitHarvestConversion,
@@ -76,6 +77,7 @@ from agricola.pending import (
     PendingDraftPick,
     PendingFamilyGrowth,
     PendingFarmExpansion,
+    PendingFieldPhase,
     FenceRestrictions,
     PendingFarmRedevelopment,
     PendingGrantedBuildFences,
@@ -2709,6 +2711,31 @@ def _enumerate_pending_harvest_window(
     return actions
 
 
+def _enumerate_pending_field_phase(
+    state: GameState, pending: "PendingFieldPhase",
+) -> list[Action]:
+    """Legal actions at the FIELD during-window host (card game only;
+    HARVEST_WINDOWS_DESIGN.md §4). The window is free-order: its eligible
+    "field_phase" triggers (variant-expanded) surface in ANY order around the
+    mandatory take —
+
+    - `CommitFieldTake` while `take_fired` is False (the take is the window's
+      own mandatory work; take-MODIFIERS will surface as its variants and are
+      implicitly declined by firing it — the §4b one-way gate);
+    - `Proceed` (the exit) only once the take HAS fired, and never while a
+      mandatory-with-choice trigger is unfired, exactly like every other host.
+    """
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
+
+    base = _eligible_fire_triggers(state, pending, "field_phase")
+    actions = _expand_variant_triggers(state, pending, base)
+    if not pending.take_fired:
+        actions.append(CommitFieldTake())
+    elif not has_unfired_mandatory_trigger(state, pending, "field_phase"):
+        actions.append(Proceed())
+    return actions
+
+
 def _enumerate_pending_card_choice(
     state: GameState, pending: PendingCardChoice,
 ) -> list[Action]:
@@ -2735,6 +2762,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPreparation:         _enumerate_pending_preparation,
     PendingHarvestField:        _enumerate_pending_harvest_field,
     PendingHarvestWindow:       _enumerate_pending_harvest_window,
+    PendingFieldPhase:          _enumerate_pending_field_phase,
     PendingCardChoice:          _enumerate_pending_card_choice,
     PendingPlayOccupation:      _enumerate_pending_play_occupation,
     PendingPlayMinor:           _enumerate_pending_play_minor,

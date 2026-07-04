@@ -66,6 +66,7 @@ from agricola.actions import (
     CommitBuildStable,
     CommitConvert,
     CommitDraftPick,
+    CommitFieldTake,
     CommitFoodPayment,
     CommitHarvestConversion,
     CommitPlayMinor,
@@ -849,7 +850,7 @@ def _ui_hint_for(action: Action) -> str:
     if isinstance(action, Stop):
         return "stop"
     if isinstance(action, (ChooseSubAction, FireTrigger, CommitRenovate, Proceed,
-                           CommitCardChoice)):
+                           CommitCardChoice, CommitFieldTake)):
         return "button"
     if isinstance(action, CommitBuildMajor):
         return "major"
@@ -998,6 +999,10 @@ def _web_action_display(action: Action) -> str:
         if variant:
             return f"{name}: {_trigger_variant_label(variant)}"
         return name
+    # The mandatory field-phase take at a hosted during-window (Cards mode):
+    # a parameter-free commit whose dataclass repr would read as jargon.
+    if isinstance(action, CommitFieldTake):
+        return "Harvest your fields (take 1 crop from each)"
     # Payment-bearing commits (cost-modifier cards): show the chosen payment so the
     # multiple options of a renovate / two-step build read distinctly.
     if isinstance(action, CommitRenovate):

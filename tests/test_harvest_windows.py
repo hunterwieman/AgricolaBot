@@ -15,6 +15,7 @@ extra entries are harmless.
 from agricola.actions import FireTrigger, Proceed
 from agricola.canonical import to_canonical
 from agricola.cards.harvest_windows import (
+    FIELD_BAND_LEN,
     HARVEST_WINDOWS,
     WINDOW_INDEX,
     register_harvest_window_hook,
@@ -181,8 +182,10 @@ def test_trigger_frame_pushed_and_fireable():
     assert isinstance(top, PendingHarvestWindow)
     assert top.window_id == "end_of_harvest"
     assert top.player_idx == 0
-    # The cursor pins the resume point at the NEXT window.
-    assert state.harvest_cursor == WINDOW_INDEX["end_of_harvest"] + 1
+    # The cursor pins the resume point at the NEXT window — a VIRTUAL-walk
+    # index: past the FIELD band, raw ladder positions shift by one band length
+    # (walk_position decodes; HARVEST_WINDOWS_DESIGN.md §3 / user ruling 3).
+    assert state.harvest_cursor == WINDOW_INDEX["end_of_harvest"] + 1 + FIELD_BAND_LEN
 
     acts = legal_actions(state)
     assert FireTrigger(card_id=EOH_CARD) in acts and Proceed() in acts

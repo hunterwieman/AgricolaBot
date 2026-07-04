@@ -36,11 +36,14 @@ from agricola.fences import (
 from agricola.helpers import breeding_food_gained, cooking_rates
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
+    HarvestEntry,
+    HarvestOccasion,
     PendingBakeBread,
     PendingBuildFences,
     PendingBuildRooms,
     PendingChooseCost,
     PendingBuildStables,
+    PendingFieldPhase,
     PendingGrantedBuildFences,
     PendingBuildMajor,
     PendingClayOven,
@@ -1693,6 +1696,90 @@ def _execute_accommodate(
 # ---------------------------------------------------------------------------
 # Harvest sub-action effect functions (Task 7)
 # ---------------------------------------------------------------------------
+
+def field_take(
+    state: GameState, idx: int, *, source: str = "take",
+) -> tuple[GameState, HarvestOccasion]:
+    """The field-phase take, bare: harvest 1 crop from each of player `idx`'s
+    planted fields — one singular event (user ruling 5; all per-field
+    consequences arrive at once) — and emit its `HarvestOccasion` manifest.
+    Grain takes precedence over veg per RULES.md (a field is sown with one or
+    the other, never both — the elif handles a veg-sown field).
+
+    Deliberately bare — no conversion-budget reset, no occasion-auto firing,
+    no frame bookkeeping. Those are HARVEST machinery and live with the
+    callers that are the harvest: the walk's inline path and
+    `_execute_field_take` below. Bumper Crop / Harvest Festival Planning
+    trigger the field-phase EFFECT, not the phase (user ruling 4), so they
+    will call this directly with their own `source` — phase-keyed occasion
+    consumers (Grain Sieve gates on `source == "take"`) then stay silent
+    while source-agnostic ones still see the occasion.
+
+    Card-fields (crops living in CardStore) will be iterated here alongside
+    the board fields when they land — HARVEST_WINDOWS_DESIGN.md §6.
+    """
+    p = state.players[idx]
+    entries = []
+    grain_gain = 0
+    veg_gain = 0
+    new_grid_rows = []
+    for r in range(3):
+        new_row = []
+        for c in range(5):
+            cell = p.farmyard.grid[r][c]
+            if cell.cell_type == CellType.FIELD:
+                if cell.grain > 0:
+                    grain_gain += 1
+                    new_row.append(fast_replace(cell, grain=cell.grain - 1))
+                    entries.append(HarvestEntry(
+                        source=f"cell:{r},{c}", crop="grain", amount=1,
+                        emptied=cell.grain == 1))
+                elif cell.veg > 0:
+                    veg_gain += 1
+                    new_row.append(fast_replace(cell, veg=cell.veg - 1))
+                    entries.append(HarvestEntry(
+                        source=f"cell:{r},{c}", crop="veg", amount=1,
+                        emptied=cell.veg == 1))
+                else:
+                    new_row.append(cell)   # empty field (already harvested or never sown)
+            else:
+                new_row.append(cell)
+        new_grid_rows.append(tuple(new_row))
+
+    # Fields cannot lie inside pastures, so the pasture cache is preserved
+    # via fast_replace's natural ride-along.
+    new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
+    new_resources = p.resources + Resources(grain=grain_gain, veg=veg_gain)
+    new_player = fast_replace(p, farmyard=new_farmyard, resources=new_resources)
+    state = _update_player(state, idx, new_player)
+    return state, HarvestOccasion(source=source, entries=tuple(entries))
+
+
+def _execute_field_take(
+    state: GameState, player_idx: int, commit,
+) -> GameState:
+    """Run the mandatory take at a PendingFieldPhase host (card game only):
+    apply the shared take, record the take occasion on the frame
+    (`take_fired=True` — Proceed becomes legal, take-modifiers gate off), then
+    fire the per-occasion automatic effects. The frame is recorded BEFORE the
+    autos fire (the record-first rule of `_apply_fire_trigger`: an auto that
+    pushes a frame must land ON TOP of the already-updated host). No pop —
+    the window's free-order triggers remain available; Proceed exits.
+
+    The once-per-harvest conversion-budget reset is NOT here — it happens
+    unconditionally at harvest entry in the walk (engine._advance_harvest),
+    so a future phase-skipping player (Lunchtime Beer) still gets a fresh
+    budget and future anytime-in-harvest conversions (design doc §10) start
+    the harvest reset."""
+    from agricola.cards.harvest_windows import apply_harvest_occasion_autos
+
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFieldPhase) and not top.take_fired, top
+    state, occasion = field_take(state, player_idx)
+    state = replace_top(state, fast_replace(
+        top, take_fired=True, occasions=top.occasions + (occasion,)))
+    return apply_harvest_occasion_autos(state, player_idx, occasion)
+
 
 def _execute_harvest_conversion(
     state: GameState, player_idx: int, commit: CommitHarvestConversion,

@@ -966,27 +966,31 @@ class PendingReveal:
 
 @dataclass(frozen=True)
 class PendingHarvestField:
-    """Phase frame for the field-phase card hook (card game only) — dual-use.
+    """LEGACY phase frame for the pre-migration field-phase card hook (card game
+    only) — dual-use. Retired when the `harvest_field`-event cards migrate to
+    the window events / occasion registries (HARVEST_WINDOWS_DESIGN.md §7);
+    until then it runs as the legacy stage inside each player's FIELD
+    during-window step (`engine._field_phase_step`).
 
-    **Transient auto host (`player_idx=None`).** Pushed at the TOP of
-    `_resolve_harvest_field` — *before* the mechanical "take 1 crop per planted
-    field" runs — but ONLY when some player owns a harvest-field card (the
-    `should_host_harvest_field` ownership index, the field-phase analog of the
-    atomic host's `should_host_space`). It fires the `harvest_field` automatic
-    effects (Loom, Butter Churn, Three-Field Rotation, Scythe Worker) for each
-    player, then is popped within the same call. Like PendingReveal, no single
-    owning player; never surfaces an agent decision.
+    **Transient auto host (`player_idx=None`).** Pushed within one player's
+    field-phase step — *before* their mechanical "take 1 crop per planted
+    field" runs — but ONLY when that player owns a harvest-field card (the
+    `HARVEST_FIELD_CARDS` ownership index). It fires the player's
+    `harvest_field` automatic effects (Loom, Butter Churn, Three-Field
+    Rotation, Scythe Worker), then is popped within the same call. Like
+    PendingReveal, never surfaces an agent decision.
 
     **Per-player choice host (`player_idx=int`).** The field-phase analog of
-    `PendingPreparation`: after the autos fire, `_resolve_harvest_field` pushes
-    one of these for each player with an eligible `harvest_field` TRIGGER
-    (Stable Manure) — starting player on top, mirroring the FEED/BREED push
-    order. Its enumerator surfaces the eligible triggers (variant-expanded) plus
+    `PendingPreparation`: after the autos fire, the step pushes one of these
+    when the player has an eligible `harvest_field` TRIGGER (Stable Manure).
+    Its enumerator surfaces the eligible triggers (variant-expanded) plus
     `Proceed`, the decline/work-complete boundary that pops (no before/after
     `phase` flip — the autos already fired at the transient host). The
-    additional harvests therefore resolve BEFORE the mechanical crop take
-    (a benefited field is depleted by 2 this harvest). The two-stage walk is
-    discriminated by `GameState.field_triggers_offered` (card-only flag).
+    additional harvests therefore resolve BEFORE that player's mechanical crop
+    take (a benefited field is depleted by 2 this harvest). The FIELD band is
+    per-player (user ruling 3), so at most ONE of these is out at a time; the
+    pause/resume is discriminated by `GameState.field_triggers_offered`
+    (card-only flag).
 
     Default-inert: in the Family game (and any card game with no harvest-field
     card owned) neither form is ever constructed, the FIELD trace is
@@ -1026,6 +1030,75 @@ class PendingHarvestWindow:
     window_id: str
     player_idx: int
     initiated_by_id: str = "phase:harvest_window"
+    triggers_resolved: frozenset = frozenset()
+
+
+@dataclass(frozen=True)
+class HarvestEntry:
+    """One (source, crop) line of a harvest occasion's manifest: this harvesting
+    event removed `amount` of `crop` from `source`. `emptied` records that it took
+    the source's LAST crop — the fact per-emptied consequence cards (Slurry
+    Spreader, Food Merchant's discount) key on. Sources are board fields today
+    ("cell:r,c"); card-fields ("card:<id>") ride the same shape when they land
+    (HARVEST_WINDOWS_DESIGN.md §6)."""
+    source: str          # "cell:r,c" | "card:<id>"
+    crop: str            # "grain" | "veg" (card-fields add e.g. "wood")
+    amount: int
+    emptied: bool
+
+
+@dataclass(frozen=True)
+class HarvestOccasion:
+    """One harvesting OCCASION — the manifest of what a single harvesting event
+    took, and from where (HARVEST_WINDOWS_DESIGN.md §4d).
+
+    The field-phase take is one occasion (`source="take"` — it harvests every
+    planted field simultaneously, user ruling 5); each fired card-granted
+    additional harvest (Stable Manure, Scythe E73) is its own occasion
+    (`source="card:<id>"`). Consequence cards read the manifest at the
+    granularity their text names: "each time you harvest…" counts occasions,
+    "for each X…" counts units within one (rulings 5-6). The occasion registries
+    that consume this live in `agricola/cards/harvest_windows.py`."""
+    source: str                            # "take" | "card:<id>"
+    entries: tuple[HarvestEntry, ...]
+
+
+@dataclass(frozen=True)
+class PendingFieldPhase:
+    """Per-player choice host for the FIELD during-window — harvest window #5,
+    "field_phase" (card game only; HARVEST_WINDOWS_DESIGN.md §4).
+
+    Pushed by the harvest walk's per-player FIELD band for a player with an
+    eligible trigger registered on the "field_phase" event (Cube Cutter's
+    exchange, Treegardener's buy, the additional-harvest grants). Unlike the
+    simple-window host, this frame also OWNS the phase's mechanical work: the
+    crop take rides it as a mandatory commit —
+
+    - `CommitFieldTake` is legal while `take_fired` is False; it applies the
+      shared take (`resolution.field_take`), records the take occasion here,
+      and fires the per-occasion automatic effects. It does NOT pop — the
+      window's free-order triggers stay available after the take.
+    - `Proceed` (the exit) is withheld until `take_fired` — the take is
+      mandatory — and by unfired mandatory triggers as everywhere else.
+    - Triggers surface as ordinary FireTriggers in ANY order around the take
+      (the during-window's free-order rule); take-MODIFIERS (Grain Thief's
+      replacement, Scythe Worker's fold-in) gate on `take_fired` being False —
+      firing the take implicitly declines every unfired modifier (§4b's
+      one-way gate).
+
+    `occasions` is the frame-scoped manifest log: the take occasion plus one
+    per fired additional-harvest trigger, appended by `emit_harvest_occasion`.
+    Per-occasion OPTIONAL triggers (Potato Ridger) will read it when they land;
+    per-occasion autos consume each occasion at emit time and need no field.
+
+    Default-inert: pushed only when a "field_phase" trigger is eligible — a
+    Family game (or a card game with none owned) takes inline in the walk and
+    never constructs this frame."""
+    PENDING_ID: ClassVar[str] = "field_phase"
+    player_idx: int
+    take_fired: bool = False
+    occasions: tuple[HarvestOccasion, ...] = ()
+    initiated_by_id: str = "phase:field_phase"
     triggers_resolved: frozenset = frozenset()
 
 
@@ -1197,6 +1270,7 @@ PendingDecision = Union[
     PendingReveal,
     PendingHarvestField,
     PendingHarvestWindow,
+    PendingFieldPhase,
     PendingPreparation,
     PendingCardChoice,
     PendingActionSpace,
