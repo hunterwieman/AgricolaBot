@@ -217,13 +217,16 @@ each X" counts units; both read the same manifest):
   Potato Ridger (its "can… / must with 4+" tiering; per its official clarification these
   fire on *card* harvest occasions too), Food Merchant (per grain unit, `emptied` discount),
   Melon Patch's granted plow.
-- **Take-occasion autos (RULED 2026-07-03)** — Grain Sieve and Barley Mill **fire once,
-  with the take occasion**: "the crops are taken off of fields (the main field-phase
-  effect) and their bonuses are based off of the specifics of what happened in that action"
-  (user's words). They read the take occasion's manifest — which includes Scythe Worker's
-  folded-in extras (§4b: part of the take) but NOT separate occasions (Stable Manure's or
-  Scythe's additional harvests). They are NOT window-exit aggregates over all occasions —
-  that earlier proposal is superseded.
+- **Take-occasion autos (RULED 2026-07-03; amended by ruling 11, 2026-07-05)** — Grain
+  Sieve and Barley Mill **fire once, with the take occasion**: "the crops are taken off of
+  fields (the main field-phase effect) and their bonuses are based off of the specifics of
+  what happened in that action" (user's words). They read the take occasion's manifest —
+  which per ruling 11 (CARD_DEFERRED_PLANS.md) includes EVERY during-phase harvesting
+  card's contribution: Scythe Worker's extras, **Stable Manure's extras** (the original
+  ruling-9 contrast between those two is superseded — a 2026-07-05 full-catalog sweep
+  established that ALL field-phase harvesting is one simultaneous event; there is no
+  during-phase "separate occasion"), Scythe E73's widening, Grain Thief's replacements.
+  They are NOT window-exit aggregates — the window has only the one harvesting occasion.
 - **Flat state-readers** (Butter Churn, Loom, Milking Stool, Wood Harvester, Land Surveyor)
   don't read the manifest at all — they are plain window autos, order-insensitive.
 

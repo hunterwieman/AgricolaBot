@@ -148,6 +148,23 @@ user made during this design — cite these, dated, in the docstrings of the car
    anytime span's end; end-of-harvest cards live here) → after the harvest (Value Assets,
    Elephantgrass Plant — outside). Details + the designated (Feedyard, Winter Caretaker)
    regression pair: HARVEST_WINDOWS_DESIGN.md §10.
+11. **All field-phase harvesting is ONE simultaneous event — every during-phase harvesting
+   card folds into the take** (ruled 2026-07-05, supersedes ruling 9's Scythe-Worker-vs-
+   Stable-Manure contrast): the only event in a harvest in which a player harvests goods
+   from fields is the field phase's main event; card extras (Stable Manure, Scythe Worker,
+   Scythe E73's widening, Grain Thief's replacement) are taken AT THE SAME TIME as that
+   event, part of the same occasion — never a separate, sequenced harvesting event. A
+   two-agent full-catalog sweep (2026-07-05) found zero counterevidence: no in-harvest
+   field-harvesting outside the field phase, no sequential wording anywhere, and two
+   official clarifications in support (Potato Ridger A59: "'Harvest' is equivalent to the
+   field phase, or any literal effect of a card saying 'Harvest a [crop]'"; Hayloft Barn
+   B21: "Harvesting 2+ grain at once only counts as obtaining once"). Consequence, ruled
+   explicitly: **Grain Sieve treats Stable Manure's extras exactly as Scythe Worker's** —
+   both are in the take occasion and count toward "at least 2 grain." Implementation:
+   Stable Manure reworks from its wave-A free-order/own-occasion form onto the take
+   fold-in seam; a during-the-field-phase separate occasion no longer exists
+   (`emit_harvest_occasion` remains for genuinely separate events — a Bumper-Crop-played
+   field phase, future literal "Harvest a crop" effects).
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
