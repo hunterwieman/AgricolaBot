@@ -55,16 +55,19 @@ def _on_play(state: GameState, idx: int) -> GameState:
     )
 
 
-def _fold(state: GameState, idx: int, variant) -> dict:
+def _fold(state: GameState, idx: int, variant, claimed) -> dict:
     """+1 extra grain from each grain field that can spare one beyond the base
-    take (>= 2 grain) — the documented mandatory-max simplification of the
-    card's "you can"."""
+    take AND the extras other modifiers already claimed — the documented
+    mandatory-max simplification of the card's "you can". A field another
+    fold-in emptied has no "additional" grain to give, so it is skipped
+    (graceful degradation — an auto fold-in never fails)."""
     assert variant is None   # auto fold-in: no variants
     return {
         (r, c): 1
         for r, row in enumerate(state.players[idx].farmyard.grid)
         for c, cell in enumerate(row)
-        if cell.cell_type == CellType.FIELD and cell.grain >= 2
+        if cell.cell_type == CellType.FIELD
+        and cell.grain - 1 - claimed.get((r, c), 0) >= 1
     }
 
 

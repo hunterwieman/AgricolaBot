@@ -235,12 +235,26 @@ def window_skipped(state, player_idx: int, window_id: str) -> bool:
 class TakeModifierEntry:
     """One registered take-modifier.
 
-    fold_fn signature:     (state, owner_idx, variant | None) -> dict[(r, c), int]
+    fold_fn signature:
+        (state, owner_idx, variant | None, claimed) -> dict[(r, c), int] | None
         — extra units to harvest per farmyard cell, ON TOP of the take's base
-        1-per-planted-field. Must only name cells that can spare them.
+        1-per-planted-field. `claimed` maps cells to extras ALREADY allocated
+        by earlier modifiers in the same take (the base 1 is implicit on every
+        planted cell): a fold may only allocate within each cell's remaining
+        spare (count − 1 − claimed), redirecting to another cell of its target
+        group where one exists. Returns None when its printed demand cannot be
+        fully met given the claims — the enumerator then drops that modifier
+        COMBINATION as infeasible (never offered), so `step` can't be handed
+        an over-harvesting action. Allocation order: chosen modifiers in combo
+        order (= registration order — rigid fixed-demand cards like Stable
+        Manure register before flexible ones like Scythe, which is
+        load-bearing for feasibility), then the auto fold-ins last (Scythe
+        Worker degrades gracefully — a field with no spare simply has no
+        "additional" grain to give).
     variants_fn signature: (state, owner_idx) -> list[str]
         — the currently-legal variant strings (empty = no legal use now), or
-        None for an auto fold-in (no choice; fold_fn is called with None).
+        None for an auto fold-in (no choice; fold_fn is called with variant
+        None).
     """
     card_id: str
     fold_fn: Callable
@@ -260,15 +274,22 @@ def _owns(player_state, card_id: str) -> bool:
             or card_id in player_state.minor_improvements)
 
 
-def auto_take_fold_ins(state, idx: int) -> dict:
+def auto_take_fold_ins(state, idx: int, claimed: dict | None = None) -> dict:
     """The merged choice-free extra takes for player `idx`'s take (Scythe
-    Worker's mandatory-max grain). Empty dict — the Family fast path — when no
-    auto modifier is owned."""
+    Worker's mandatory-max grain), allocated AFTER any `claimed` extras (auto
+    fold-ins degrade gracefully — no spare, nothing additional to take, never
+    infeasible). Empty dict — the Family fast path — when no auto modifier is
+    owned."""
     extras: dict = {}
+    claimed = dict(claimed) if claimed else {}
     for e in TAKE_MODIFIERS:
         if e.variants_fn is None and _owns(state.players[idx], e.card_id):
-            for cell, n in e.fold_fn(state, idx, None).items():
+            got = e.fold_fn(state, idx, None, claimed)
+            assert got is not None, (
+                f"auto take fold-in {e.card_id} must degrade, not fail")
+            for cell, n in got.items():
                 extras[cell] = extras.get(cell, 0) + n
+                claimed[cell] = claimed.get(cell, 0) + n
     return extras
 
 
@@ -285,14 +306,23 @@ def choice_take_modifiers(state, idx: int) -> list:
     return out
 
 
-def fold_chosen_modifiers(state, idx: int, modifiers) -> dict:
-    """Merge the auto fold-ins with the take commit's chosen (card_id, variant)
-    pairs into one per-cell extra-take map."""
-    extras = auto_take_fold_ins(state, idx)
+def fold_chosen_modifiers(state, idx: int, modifiers) -> dict | None:
+    """Merge the take commit's chosen (card_id, variant) pairs — in combo
+    order, each allocating within the spare the earlier ones left — then the
+    auto fold-ins last, into one per-cell extra-take map. Returns None when
+    some chosen modifier's demand cannot be met given the claims: the
+    enumerator uses that to drop the combination as infeasible, so every
+    offered CommitFieldTake is executable."""
+    extras: dict = {}
     by_id = {e.card_id: e for e in TAKE_MODIFIERS}
     for card_id, variant in modifiers:
-        for cell, n in by_id[card_id].fold_fn(state, idx, variant).items():
+        got = by_id[card_id].fold_fn(state, idx, variant, extras)
+        if got is None:
+            return None
+        for cell, n in got.items():
             extras[cell] = extras.get(cell, 0) + n
+    for cell, n in auto_take_fold_ins(state, idx, extras).items():
+        extras[cell] = extras.get(cell, 0) + n
     return extras
 
 

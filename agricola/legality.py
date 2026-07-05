@@ -2705,7 +2705,10 @@ def _enumerate_pending_field_phase(
     - `Proceed` (the exit) only once the take HAS fired, and never while a
       mandatory-with-choice trigger is unfired, exactly like every other host.
     """
-    from agricola.cards.harvest_windows import choice_take_modifiers
+    from agricola.cards.harvest_windows import (
+        choice_take_modifiers,
+        fold_chosen_modifiers,
+    )
     from agricola.cards.triggers import has_unfired_mandatory_trigger
 
     base = _eligible_fire_triggers(state, pending, "field_phase")
@@ -2717,7 +2720,12 @@ def _enumerate_pending_field_phase(
                       for c in combos
                       for pair in ([()]                    # decline this card
                                    + [((card_id, v),) for v in variants])]
-        actions.extend(CommitFieldTake(modifiers=c) for c in combos)
+        # Feasibility filter: a combination whose merged demands can't all be
+        # met (two modifiers competing for the same fields' spare) is dropped —
+        # every offered CommitFieldTake must be executable.
+        actions.extend(
+            CommitFieldTake(modifiers=c) for c in combos
+            if fold_chosen_modifiers(state, pending.player_idx, c) is not None)
     elif not has_unfired_mandatory_trigger(state, pending, "field_phase"):
         actions.append(Proceed())
     return actions

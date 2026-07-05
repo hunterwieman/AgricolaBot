@@ -491,4 +491,18 @@ from agricola.cards import winnowing_fan  # noqa: F401
 # The harvest-skip cards (rulings 1 + 14; the skip registry in harvest_windows).
 from agricola.cards import lunchtime_beer  # noqa: F401
 from agricola.cards import layabout  # noqa: F401
+
+# The FEED/BREED-stage batch (2026-07-05, autonomous): feeding income + the
+# post-feeding windows + the second take-modifier + the bare-take card.
+# Deferred with build plans on record: baker (needs a DECLINABLE granted
+# bake), milking_place (needs the house-pet-capacity negation),
+# shepherds_whistle (needs a ruling on "unfenced stable without an animal" —
+# animals aren't location-tracked).
+from agricola.cards import bumper_crop  # noqa: F401
+from agricola.cards import cubbyhole  # noqa: F401
+from agricola.cards import dentist  # noqa: F401
+from agricola.cards import farm_store  # noqa: F401
+from agricola.cards import scythe  # noqa: F401
+from agricola.cards import social_benefits  # noqa: F401
+from agricola.cards import town_hall  # noqa: F401
 from agricola.cards import treegardener  # noqa: F401

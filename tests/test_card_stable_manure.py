@@ -368,7 +368,7 @@ def test_fold_maps_vector_to_cells():
     state = _own_minor(_field_state(), 0, CARD_ID)
     state = _with_stables(state, 0, [(0, 4)])
     state = with_sown_fields(state, 0, grain_fields=[(0, 0)])
-    assert _fold(state, 0, "grain3:1") == {(0, 0): 1}
+    assert _fold(state, 0, "grain3:1", {}) == {(0, 0): 1}
 
 
 # ---------------------------------------------------------------------------
@@ -431,3 +431,26 @@ def test_both_owners_starting_player_resolves_first():
     after = _advance_until_decision(after)
     assert after.phase == Phase.HARVEST_FEED
     assert after.players[1 - sp].farmyard.grid[0][0].grain == 2  # take only
+
+
+# ---------------------------------------------------------------------------
+# Claim-aware allocation (the over-harvest collision fix)
+# ---------------------------------------------------------------------------
+
+def test_scythe_worker_collision_on_a_two_count_field():
+    """Scythe Worker's auto (+1 per >=2-grain field) and Stable Manure's chosen
+    extra both want a lone 2-grain field's single spare unit. The rigid chosen
+    modifier allocates first; the auto degrades gracefully (nothing additional
+    remains) — the take is base 1 + 1 extra, never an over-harvest crash."""
+    state = _own_minor(_field_state(), 0, CARD_ID)
+    p = state.players[0]
+    state = fast_replace(state, players=tuple(
+        fast_replace(p, occupations=p.occupations | {"scythe_worker"})
+        if i == 0 else state.players[i] for i in range(2)))
+    state = _with_stables(state, 0, [(0, 4)])
+    state = with_grid(state, 0, {(0, 0): Cell(cell_type=CellType.FIELD, grain=2)})
+    state = _walk_to_field_frame(state)
+    g0 = state.players[0].resources.grain
+    state = step(state, _commit("grain2:1"))
+    assert state.players[0].resources.grain == g0 + 2      # base + SM's 1 (SW: none)
+    assert state.players[0].farmyard.grid[0][0].grain == 0

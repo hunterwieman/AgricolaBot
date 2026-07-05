@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 186 implemented · 🚫 3 won't-fix/banned · ⬜ 231 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 193 implemented · 🚫 3 won't-fix/banned · ⬜ 224 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -652,7 +652,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C40 Canvas Sack** · cost: 1 Grain/1 Reed · prereq: No Occupations
   - _When you play this card paying grain/reed for it, you immediately get 1 vegetable/4 wood._
   - `ONPLAY E-GOODS E-PLAYVARIANT` — Play cost forks grain->1 veg or reed->4 wood; cost and reward linked = play-variant.
-- ⬜ **C41 Farm Store** · cost: 2 Wood,2 Clay
+- ✅ **C41 Farm Store** · cost: 2 Wood,2 Clay
   - _After the feeding phase of each harvest, you can exchange exactly 1 food for 2 different building resources of your choice or 1 vegetable._
   - `HOOK T-AFTER S-AFTERFEED F-TRIG A-OWN E-FOODCOST E-CONVERT E-GOODS` — After each harvest feeding phase, optionally exchange 1 food for 2 diff building resources or 1 veg.
 - ⬜ **C42 Ravenous Hunger** · cost: 1 Grain
@@ -1012,7 +1012,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D75 Wood Field** · cost: 1 Food · prereq: 1 Occupation
   - _You can plant wood on this card as though it were 2 fields, but it is considered 1 field. Sow and harvest wood on this card as you would grain.  [ERRATA: ERRATA: add “You can plant only wood on this card.”]  [CLARIFICATION: You may plant 2 wood at once with 1 trigger of the Chief Forester A115.  Planted wood may not be spent during scoring for the Joinery 8 / 18.]_
   - `PASSIVE L-CARDFIELD L-EXT E-CROPMANIP ST-STACK` — Always-on (PASSIVE) card-as-field you sow/harvest on (L-CARDFIELD), holding a pile of planted wood consumed over harvests (ST-STACK). It changes the sow rule (plant 2-at-once as though 2 fields, counts as 1 field; wood as a crop) — E-CROPMANIP — and extends sow eligibility to a good (wood) not otherwise sowable, which is an eligibility extension (L-EXT, label B is right to add it).
-- ⬜ **D76 Social Benefits** · cost: 1 Reed · prereq: At Most 1 Occupation
+- ✅ **D76 Social Benefits** · cost: 1 Reed · prereq: At Most 1 Occupation
   - _Immediately after the feeding phase of each harvest, if you have no food left, you get 1 wood and 1 clay._
   - `HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-GOODS` — After feeding phase, if no food left, auto get 1 wood + 1 clay; fires each harvest.
 - ⬜ **D77 Recycled Brick** · cost: 1 Food · prereq: 3 Occupations
@@ -1114,7 +1114,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E24 Ambition** · prereq: 2 Occupations
   - _Each time you get a "Minor Improvement" action on an action space, you can build a major improvement instead of playing a minor one._
   - `HOOK T-BEFORE S-MAJMIN F-TRIG A-OWN E-SUBSTITUTE` — When getting a Minor Improvement action, may build a major instead — substitutes the granted action.
-- ⬜ **E25 Bumper Crop** · prereq: 2 Grain Fields
+- ✅ **E25 Bumper Crop** · prereq: 2 Grain Fields
   - _When you play this card, immediately play the field phase of the harvest on your farmyard only._
   - `ONPLAY E-CROPMANIP` — Running an extra field phase on your farm is a field-harvest-rule manipulation moving crops off fields; the taxonomy explicitly separates E-CROPMANIP from gaining loose crops, so no E-GOODS.
 - ⬜ **E26 Sundial** · cost: 1 Wood
@@ -1183,7 +1183,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E47 Syrup Tap** · cost: 1 Wood,1 Stone
   - _Each time you get at least 1 wood from an action space, place 1 food on the next round space. At the start of that round, you get the food._
   - `HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-SCHED` — Each time you get wood from an action space, schedule 1 food onto the next round space. Keyed on obtaining wood.
-- ⬜ **E48 Town Hall** · cost: 2 Wood,2 Clay
+- ✅ **E48 Town Hall** · cost: 2 Wood,2 Clay
   - _In the feeding phase of each harvest, if you live in a clay or stone house, you get 1 or 2 food, respectively._
   - `HOOK T-BEFORE S-HFEED F-AUTO A-OWN E-GOODS` — In each harvest feeding phase, gain 1/2 food per house material.
 - ⬜ **E49 Twibil** · cost: 1 Stone
@@ -1195,7 +1195,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E51 Whale Oil** · cost: 1 Wood
   - _Each time you use "Fishing", place 1 food from the general supply on this card. Each time before you play an occupation, you get food equal to the amount on this card._
   - `HOOK T-BEFORE S-SPACE S-SUB F-AUTO A-OWN E-GOODS ST-STACK` — Two mandatory hooks: 'each time you use Fishing' (S-SPACE, T-BEFORE per ruling) stacks food on the card (ST-STACK), and 'each time BEFORE you play an occupation' (S-SUB play-a-card, explicit T-BEFORE) pays out food (E-GOODS). B right; A's T-AFTER and missing occupation-play seam wrong.
-- ⬜ **E52 Cubbyhole** · cost: 1 Reed,1 Wood/1 Clay
+- ✅ **E52 Cubbyhole** · cost: 1 Reed,1 Wood/1 Clay
   - _For each room that you add to your house, place 1 food from the general supply on this card. At the start of each feeding phase, you get food equal to the amount on this card._
   - `HOOK T-AFTER T-BEFORE S-SUB S-HFEED F-AUTO A-OWN E-GOODS E-ALTCOST ST-STACK` — Two mandatory hooks: after each build-room sub-action stack 1 food (S-SUB, T-AFTER, ST-STACK); at the start of each feeding phase pay out (S-HFEED, T-BEFORE, E-GOODS). Printed cost '1 Wood/1 Clay' is a pay-one-or-the-other choice -> E-ALTCOST (A missed both).
 - ⬜ **E53 Boar Spear** · cost: 1 Wood,1 Stone
@@ -1213,7 +1213,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E57 Cheese Fondue** · cost: 1 Clay
   - _Each time you bake at least 1 grain into bread, you get 1 additional food if you have at least 1 sheep and (another) 1 additional food if you have at least 1 cattle._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — Each time you bake grain into bread, gain food per owned animal types; fires on the bake sub-action, conditional on animal holdings.
-- ⬜ **E58 Lunchtime Beer**
+- ✅ **E58 Lunchtime Beer**
   - _At the start of each harvest, you can choose to skip the field and breeding phase of that harvest and get exactly 1 food instead._
   - `HOOK T-BEFORE S-HFIELD F-TRIG A-OWN EXOTIC E-GOODS` — At harvest start: skip field+breeding phases for 1 food.
 - ⬜ **E59 Comb and Cutter** · cost: 1 Wood
@@ -1258,7 +1258,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E72 Artichoke Field** · cost: 1 Wood · prereq: 2 Occupations
   - _This card is a field. During the field phase of each harvest, if you harvest at least 1 good from this card, you also get 1 food._
   - `PASSIVE HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-CARDFIELD` — Card-is-a-field is a continuous rule (PASSIVE+L-CARDFIELD, consistent with E69); the mandatory 1 food after harvesting from it is a HOOK on the harvest field phase (S-HFIELD, T-AFTER, F-AUTO) giving E-GOODS.
-- ⬜ **E73 Scythe** · cost: 1 Wood
+- ✅ **E73 Scythe** · cost: 1 Wood
   - _During the field phase of each harvest, you can select exactly one of your fields and harvest all the crops planted in it._
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CROPMANIP` — Field phase: harvest ALL crops from one chosen field at once.
 - ✅ **E74 Ash Trees** · prereq: 2 planted fields
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 93 implemented · 🚫 2 won't-fix/banned · ⬜ 325 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 95 implemented · 🚫 2 won't-fix/banned · ⬜ 323 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1962,7 +1962,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C107 Baker** · [1+]
   - _When you play this card and at the start of each feeding phase, you can take a "Bake Bread" action._
   - `ONPLAY HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-GRANTSUB` — Bake Bread is on the taxonomy's explicit primitive sub-action list, so the grant is E-GRANTSUB, not E-GRANTACT; on-play plus an optional grant at the start of each feeding phase (T-BEFORE, F-TRIG).
-- ⬜ **C108 Layabout** · [1+]
+- ✅ **C108 Layabout** · [1+]
   - _When you play this card, you must skip the next harvest. (You also do not have to feed your family that harvest.)_
   - `ONPLAY EXOTIC` — Mandatory: skip the next entire harvest, including feeding (phase-skip).
 - ✅ **C109 Schnapps Distiller** · [1+]
@@ -2478,7 +2478,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E109 Braid Maker** · [1+]
   - _Each harvest, you can use this card to exchange 1 reed for 2 food. You can build the Basketmaker's Workshop for 1 reed and 1 stone even when taking a "Minor Impr." action._
   - `ATWILL CAP-HARVEST E-CONVERT PASSIVE E-COSTMOD L-EXT` — Reed→food exchange is ATWILL+CAP-HARVEST+E-CONVERT (it PRODUCES food, so E-FOODCOST is wrong); the Basketmaker's-Workshop clause is an always-on rule change — PASSIVE activation with a replacement cost (E-COSTMOD) plus building a major via the Minor-Impr. action (L-EXT).
-- ⬜ **E110 Dentist** · [1+]
+- ✅ **E110 Dentist** · [1+]
   - _At the start of each harvest, you can place 1 wood from your supply on this card, irretrievably. In each feeding phase, you get 1 food for each wood on this card._
   - `HOOK T-BEFORE S-HSTART S-HFEED F-TRIG F-AUTO A-OWN E-GOODS ST-STACK` — Two hooks: optional wood placement at harvest start (S-HSTART, F-TRIG — not ATWILL, the timing is fixed) and an automatic per-wood food payout in the feeding phase (S-HFEED, F-AUTO), payable before feeding resolves → T-BEFORE only; wood accumulates on the card → ST-STACK.
 - ✅ **E111 Recluse** · [1+]

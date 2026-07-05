@@ -1833,6 +1833,9 @@ def _execute_field_take(
     assert isinstance(top, PendingFieldPhase) and not top.take_fired, top
     extras = fold_chosen_modifiers(state, player_idx,
                                    getattr(commit, "modifiers", ()))
+    assert extras is not None, (
+        "infeasible modifier combination reached the executor — the "
+        "enumerator's feasibility filter must drop it")
     state, occasion = field_take(state, player_idx,
                                  extra_takes=extras or None)
     state = replace_top(state, fast_replace(

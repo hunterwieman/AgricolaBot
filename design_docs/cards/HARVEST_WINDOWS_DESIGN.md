@@ -664,11 +664,35 @@ of §0–§11 is the authority; this only orients.*
   trigger mid-window (Crack Weeder income affording Cube Cutter's exchange).
   Still held: Dentist (stage-3 feeding-income seam), Lunchtime Beer (the skip-seam
   engine surgery), Scythe E73 / Grain Thief (the second modifier wave).
-- Stale-premise note: §8 open question #2 (does window #1 fire for a Layabout skipper?)
-  said "both member cards are unimplemented" — Haydryer and Transactor now ARE
-  implemented; the question must be resolved before Layabout lands (nothing blocks
-  today). Also open, from the A1 consumers: is a window-#1/#2 newborn fed 1 food or 2 at
-  this harvest? The engine feeds 1 (the standard newborn rule) — ratify or overrule.
+- Stale-premise note: RESOLVED — question #2 was settled by ruling 14 (Layabout
+  cancels everything) and the newborn amount was ratified at 1 food (ruling 13),
+  both 2026-07-05.
+- **The FEED/BREED-stage batch LANDED 2026-07-05** (five delegated agents + driver
+  engine work): the feeding-income moment (`register_auto("feeding", …)` fires at the
+  FEED entry, before payment) with Dentist (two-part: wood bank at start_of_harvest,
+  per-wood food payout at feeding) and Town Hall; Farm Store un-archived onto
+  after_feeding (7 output variants); Social Benefits at immediately_after_feeding
+  (post-payment food==0 is exact); Cubbyhole (room-add banking via the build-rooms
+  host hooks + a start_of_feeding payout, modeled NON-consuming per the literal text —
+  flagged for the owner); Bumper Crop (the bare source-tagged take, rulings 4/12, with
+  non-vacuous phase/source-gate negatives); Scythe E73 (the second choice-bearing
+  take-modifier); the SKIP machinery went live (`register_harvest_skip`, per-card
+  round-keyed predicates; the FEED/BREED sentinels honor it) with Lunchtime Beer
+  (ruling 1) and Layabout (ruling 14). **A latent fold-in bug was found by Scythe's
+  build and fixed by the driver**: two modifiers could claim the same field's spare
+  and over-harvest (Scythe Worker + Stable Manure on a 2-grain field already crashed);
+  fold fns are now CLAIM-AWARE — `(state, idx, variant, claimed) -> extras | None` —
+  allocated rigid-first (registration order) with autos last, and the enumerator drops
+  infeasible combinations, so every offered CommitFieldTake is executable (regression
+  tests pin the collision cases and the distinct-field routing).
+- **Three new DEFERS with build plans on record**: Baker (its on-play "you can take a
+  Bake Bread action" needs a DECLINABLE granted bake — the primitive's before-phase
+  cannot decline, and the after-play trigger can't scope to the just-played card);
+  Milking Place (its "you can no longer hold animals in your house, not even via
+  another card" needs a house-pet-capacity NEGATION the max-fold can't express —
+  pre-flagged in capacity_mods.py); Shepherd's Whistle (its "at least 1 unfenced
+  stable WITHOUT AN ANIMAL" has no fact of the matter — animals aren't
+  location-tracked; needs the owner's ruling on what the condition means).
 
 ### Durable references
 

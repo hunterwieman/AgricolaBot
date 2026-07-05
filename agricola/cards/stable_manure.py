@@ -103,10 +103,14 @@ def _variants(state: GameState, idx: int) -> list[str]:
     return out
 
 
-def _fold(state: GameState, idx: int, variant: str) -> dict:
+def _fold(state: GameState, idx: int, variant: str, claimed) -> dict | None:
     """Map the chosen count vector to per-cell extra takes: for each
     `key:count` part, the first `count` fields of that (crop, remaining) group
-    in scan order each contribute +1 extra unit to the one take event."""
+    in scan order WITH REMAINING SPARE (count − 1 base − extras other
+    modifiers already claimed >= 1) each contribute +1 extra unit to the one
+    take event. Returns None when the claims leave fewer spare-having fields
+    than the vector demands — the enumerator then drops that modifier
+    combination as infeasible (a rigid demand is met exactly or not at all)."""
     want = {}
     for part in variant.split("|"):
         key, _, count = part.partition(":")
@@ -117,16 +121,17 @@ def _fold(state: GameState, idx: int, variant: str) -> dict:
             if cell.cell_type != CellType.FIELD:
                 continue
             if cell.grain >= 2:
-                key = f"grain{cell.grain}"
+                key, n = f"grain{cell.grain}", cell.grain
             elif cell.veg >= 2:
-                key = f"veg{cell.veg}"
+                key, n = f"veg{cell.veg}", cell.veg
             else:
                 continue
-            if want.get(key, 0) > 0:
+            if (want.get(key, 0) > 0
+                    and n - 1 - claimed.get((r, c), 0) >= 1):
                 want[key] -= 1
                 extras[(r, c)] = 1
-    assert not any(want.values()), (
-        f"stable_manure variant {variant!r} names more fields than exist: {want}")
+    if any(want.values()):
+        return None   # demand unmeetable under the claims -> combo infeasible
     return extras
 
 
