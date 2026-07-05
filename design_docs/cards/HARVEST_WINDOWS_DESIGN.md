@@ -631,9 +631,12 @@ of §0–§11 is the authority; this only orients.*
   field-phase-scoped occasion autos, Stable Manure→#5; ALLOWLIST emptied. **The fold-in
   rework LANDED 2026-07-05** (ruling 11): Stable Manure and Scythe Worker are
   take-modifiers.
-- **Still on the legacy `harvest_field` seam**: lynchet (migration blocked on the user's
-  reading — §8 #4; the 2026-07-05 analysis recommends a take-occasion tile count) and
-  wood_rake. When the last migrates, retire the seam (`PendingHarvestField`,
+- **Still on the legacy `harvest_field` seam**: wood_rake ONLY (lynchet migrated
+  2026-07-05 to a take-occasion per-TILE auto — the §8 #4 recommendation, made moot-safe
+  by rulings 11/12: extras can't create a tile edge case and a played field phase stays
+  silent via the source gate; robust under Grain Thief's future replacement). Wood Rake's
+  own migration deserves text-vs-seam scrutiny ("before the final harvest" on a pre-take
+  seam). When it migrates, retire the seam (`PendingHarvestField`,
   `field_triggers_offered`, `_fire_harvest_field_autos`, `register_harvest_field_hook` /
   `HARVEST_FIELD_CARDS` / `should_host_harvest_field`, the `harvest_field` event
   registrations, `_enumerate_pending_harvest_field`). Also held: Farm Store (un-archive

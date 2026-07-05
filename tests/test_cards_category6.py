@@ -19,11 +19,11 @@ All fire in the field phase, through three different seams:
   timing).
 
 The legacy `harvest_field` hook (`should_host_harvest_field` + the transient
-`PendingHarvestField` host) still carries lynchet and wood_rake pending their
-migrations; its gate tests below exercise it through lynchet. With no such card
-owned the field resolution is byte-identical to the Family game and the C++
-Family engine never sees the frame (a `test_harvest_field_byte_identical`
-guard below).
+`PendingHarvestField` host) still carries wood_rake — its LAST card — pending
+that migration; its gate tests below exercise it through wood_rake and retire
+with it. With no such card owned the field resolution is byte-identical to the
+Family game and the C++ Family engine never sees the frame (a
+`test_harvest_field_byte_identical` guard below).
 
 Most tests drive `_resolve_harvest_field` (the compat alias into the harvest-window
 walk at HARVEST_FIELD, which threads both the legacy `harvest_field` autos and the
@@ -96,14 +96,17 @@ def test_category6_cards_registered():
     # scythe_worker has MIGRATED off the legacy harvest-field hook onto the
     # take-modifier fold-in seam (user ruling 11, 2026-07-05: all field-phase
     # harvesting is one simultaneous event — its extra grain folds INTO the
-    # take, as an AUTO modifier with no variants). Only lynchet and wood_rake
-    # remain on the legacy hook, pending their own migrations; asserted as a
-    # SUBSET so this test isn't brittle to their departures.
+    # take, as an AUTO modifier with no variants); lynchet followed onto the
+    # take-occasion autos (2026-07-05). Only wood_rake remains on the legacy
+    # hook, pending its own migration ("before the final harvest" — its timing
+    # deserves text-vs-seam scrutiny); asserted as a SUBSET so this test isn't
+    # brittle to its departure, at which point the legacy seam retires.
     assert "scythe_worker" not in HARVEST_FIELD_CARDS
+    assert "lynchet" not in HARVEST_FIELD_CARDS
     from agricola.cards.harvest_windows import TAKE_MODIFIERS
     sw = next(e for e in TAKE_MODIFIERS if e.card_id == "scythe_worker")
     assert sw.variants_fn is None            # an auto fold-in, no choice
-    assert {"lynchet", "wood_rake"} <= HARVEST_FIELD_CARDS
+    assert {"wood_rake"} <= HARVEST_FIELD_CARDS
     # Loom and Butter Churn are flat state-readers (they read the owner's own
     # animals, not what the take harvested), so they have MIGRATED off the legacy
     # hook onto the "field_phase" during-window auto (their printed timing, "in the
@@ -136,12 +139,13 @@ def test_no_host_without_a_harvest_field_card():
 
 
 def test_host_when_a_player_owns_a_harvest_field_card():
-    # lynchet remains on the legacy harvest-field hook (scythe_worker migrated
-    # to the take-modifier fold-in; loom/butter_churn to the window auto).
-    state = _own_minor(setup(0), 0, "lynchet")
+    # wood_rake is the LAST card on the legacy harvest-field hook (scythe_worker
+    # → the take-modifier fold-in; lynchet → the take-occasion autos;
+    # loom/butter_churn → the window auto). These gate tests retire with it.
+    state = _own_minor(setup(0), 0, "wood_rake")
     assert should_host_harvest_field(state) is True
     # Owned by the OTHER player still hosts (autos fire per-owner).
-    state2 = _own_minor(setup(0), 1, "lynchet")
+    state2 = _own_minor(setup(0), 1, "wood_rake")
     assert should_host_harvest_field(state2) is True
 
 
@@ -149,7 +153,7 @@ def test_no_host_when_card_only_in_hand():
     # A hand card cannot fire — owning it in hand (not played) must NOT host.
     state = setup(0)
     p = state.players[0]
-    p = fast_replace(p, hand_minors=p.hand_minors | {"lynchet"})
+    p = fast_replace(p, hand_minors=p.hand_minors | {"wood_rake"})
     state = fast_replace(state, players=(p, state.players[1]))
     assert should_host_harvest_field(state) is False
 
