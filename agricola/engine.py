@@ -1436,11 +1436,16 @@ def _field_phase_step(state: GameState, idx: int):
        PendingHarvestField choice frame is pushed and the flag set → "here".
        A flag-True entry is that pause's resume: clear the flag, skip ahead.
     2. **The during-window host or the inline take**: with an eligible
-       "field_phase" trigger the PendingFieldPhase host is pushed → "next" —
-       the take then rides it as the mandatory CommitFieldTake, orderable
-       around the free-order triggers. Otherwise (the common path, and always
-       the Family game) the take runs inline: the singular take event
-       (ruling 5) + its per-occasion automatic effects.
+       "field_phase" trigger — or a choice-bearing take-modifier use — the
+       PendingFieldPhase host is pushed → "next"; the take then rides it as
+       the mandatory CommitFieldTake, orderable around the free-order
+       triggers. Otherwise (the common path, and always the Family game) the
+       take runs inline: the singular take event (ruling 5) + its
+       per-occasion automatic effects — after which the trigger check runs
+       ONCE MORE, because a per-occasion consequence can enable a trigger
+       mid-window (Crack Weeder's take income affording Cube Cutter's
+       exchange); if one is now eligible the host is pushed post-take
+       (take_fired=True — exit-gated form) → "next".
 
     A field-phase-skipping player (Lunchtime Beer, when it lands) skips the
     whole window — no autos, no frames, NO take (ruling 1: a skipped phase
@@ -1473,6 +1478,14 @@ def _field_phase_step(state: GameState, idx: int):
     extras = auto_take_fold_ins(state, idx)
     state, occasion = field_take(state, idx, extra_takes=extras or None)
     state = apply_harvest_occasion_autos(state, idx, occasion)
+    # A per-occasion consequence may have just ENABLED a during-window trigger
+    # (Crack Weeder's take income making Cube Cutter's exchange affordable):
+    # the window isn't over, so re-check and host the frame POST-take — it
+    # opens with the take already fired (exit-gated form: triggers + Proceed).
+    # Family fast path: an empty registry lookup.
+    if _has_window_trigger(state, idx, "field_phase"):
+        return push(state, PendingFieldPhase(
+            player_idx=idx, take_fired=True, occasions=(occasion,))), "next"
     return state, None
 
 

@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 179 implemented · 🚫 3 won't-fix/banned · ⬜ 238 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 184 implemented · 🚫 3 won't-fix/banned · ⬜ 233 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -211,7 +211,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A63 Dutch Windmill** · cost: 2 Wood,2 Stone
   - _Each time you take a "Bake Bread" action in a round immediately following a harvest, you get 3 additional food._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — 'Round immediately following a harvest' is round TIMING (fixed every game), not board layout -> L-GEOMBOARD removed.
-- ⬜ **A64 Barley Mill** · cost: 1 Wood,4 Clay/2 Stone
+- ✅ **A64 Barley Mill** · cost: 1 Wood,4 Clay/2 Stone
   - _In the field phase of each harvest, you get 1 food for each grain field that you harvest._
   - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS E-ALTCOST` — Automatic food gain tied to harvesting grain fields in the field phase; the printed play-cost '1 Wood, 4 Clay/2 Stone' is a clay-OR-stone choice, so E-ALTCOST applies (labelB dropped it).
 - ✅ **A65 Seed Pellets** · prereq: 3 Fields
@@ -601,7 +601,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C23 Job Contract** · prereq: No Occupations
   - _If both are unoccupied, you can use the "Day Laborer" and the adjacent "Lessons" action space with a single person (in that order). Afterward, both spaces are considered occupied.  [CLARIFICATION: Recommendation: occupy Day Laborer with a suggestion marker and Lessons with your person.]_
   - `PASSIVE E-WORKERMANIP L-GEOMBOARD` — Use Day Laborer + adjacent Lessons with one person, in order.
-- ⬜ **C24 Bed in the Grain Field** · prereq: 1 Grain Field
+- ✅ **C24 Bed in the Grain Field** · prereq: 1 Grain Field
   - _At the start of the next harvest, you get a "Family Growth" action if you have room for the newborn.  [CLARIFICATION: Only works in the next harvest after it is played.  The newborn must be fed.]_
   - `HOOK S-HSTART T-BEFORE F-TRIG A-OWN E-GROWTH CAP-GAME ST-STORE` — One-time deferred Family Growth at the start of the next harvest (HOOK S-HSTART, CAP-GAME); must remember it is pending for that one harvest (ST-STORE). E-PEOPLE redundant with E-GROWTH.
 - ✅ **C25 Steam Machine** · cost: 2 Wood
@@ -616,7 +616,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C28 Teacher's Desk** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time you use the "Major Improvement" or "House Redevelopment" action space, you can also play 1 occupation at an occupation cost of 1 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — 'Each time you use [space]' = HOOK T-BEFORE S-SPACE, optional grant (F-TRIG); playing a card is listed as a primitive sub-action (S-SUB seam), so granting 'play 1 occupation' is E-GRANTSUB, not a whole-space E-GRANTACT; the 1-food occupation cost is E-FOODCOST. No L-EXT needed -- the grant itself is the legality.
-- ⬜ **C29 Beer Table** · cost: 2 Wood · prereq: No Grain in Your Supply
+- ✅ **C29 Beer Table** · cost: 2 Wood · prereq: No Grain in Your Supply
   - _At the end of the field phase of each harvest, you can pay 1 grain from your supply to get 2 bonus points. If you do, all other players get 1 food each._
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-SCORE E-OPPTRANSFER ST-COUNTER` — 'At the end of the field phase of each harvest, you can pay...' = optional T-AFTER hook on S-HFIELD; bonus points earned through an action legitimately combine HOOK+E-SCORE and accumulate over the game (ST-COUNTER); food to all other players = E-OPPTRANSFER. The cost is GRAIN, an ordinary resource -- E-FOODCOST is wrong.
 - ✅ **C30 Half-Timbered House** · cost: 1 Wood,1 Clay,2 Stone,1 Reed
@@ -994,7 +994,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D69 Small Greenhouse** · cost: 2 Wood · prereq: 1 Occupation
   - _Add 4 and 7 to the current round and place 1 vegetable on each corresponding round space. At the start of these rounds, you can buy the vegetable for 1 food._
   - `ONPLAY E-SCHED HOOK S-SOR T-BEFORE F-TRIG A-OWN E-CONVERT E-FOODCOST` — ONPLAY schedules vegetables onto two future round spaces (E-SCHED). Collection is NOT automatic — it is an optional buy at the start of those specific rounds, a fixed-timing event, so HOOK S-SOR/F-TRIG/A-OWN (not label A's ATWILL+CAP-ROUND: the player doesn't choose the moment). The buy exchanges 1 food for the veg (E-CONVERT) and costs food (E-FOODCOST).
-- ⬜ **D70 Straw Manure** · prereq: 2 Fields
+- ✅ **D70 Straw Manure** · prereq: 2 Fields
   - _Before the field phase of each harvest, you can pay 1 grain from your supply to add 1 vegetable to each of up to 2 vegetable fields._
   - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-CROPMANIP` — Optional pre-field-phase hook adding veg to fields (E-CROPMANIP); the cost is 1 grain from supply — an ordinary resource cost, so E-FOODCOST is wrong.
 - ⬜ **D71 Changeover**
@@ -1222,7 +1222,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E60 Working Gloves**
   - _When you play this card, you get 1 food. Each time you pay an occupation cost, you can pay 1 building resource of your choice in place of (up to) 2 food._
   - `ONPLAY E-GOODS PASSIVE E-COSTMOD L-EXT` — On-play 1 food (ONPLAY+E-GOODS); the standing option to pay 1 building resource in place of up to 2 food of any occupation cost is an always-on payment-substitution rule -> PASSIVE cost modifier (E-COSTMOD) + L-EXT ('changing what currency a cost is paid in'), not a fired HOOK (B right).
-- ⬜ **E61 Raised Bed** · cost: 2 Clay,2 Stone · prereq: 2 Grain Fields
+- ✅ **E61 Raised Bed** · cost: 2 Clay,2 Stone · prereq: 2 Grain Fields
   - _At the start of each harvest, you get 4 food._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-GOODS` — At start of each harvest, get 4 food; recurring harvest-start gain.
 - ⬜ **E62 Sour Dough** · prereq: 3 Occupations and 1 Baking Improvement
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 86 implemented · 🚫 2 won't-fix/banned · ⬜ 332 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 93 implemented · 🚫 2 won't-fix/banned · ⬜ 325 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1482,7 +1482,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A117 Wood Carrier** · [1+]
   - _When you play this card, you immediately get 1 wood fore each improvement in front of you._
   - `ONPLAY E-GOODS NONE` — One-shot on-play wood gain sized by a plain state read (improvement count) — nothing is accumulated over time, so ST-COUNTER is wrong and NONE applies.
-- ⬜ **A118 Treegardener** · [1+]
+- ✅ **A118 Treegardener** · [1+]
   - _In the field phase of each harvest, you get 1 wood and you can buy up to 2 additional wood for 1 food each.  [CLARIFICATION: 《You may use this card to activate the Shaving Horse A048 twice if and only if you have another decision during the field phase to separate this card’s effect into two distinct parts, e.g. paying wood and food with Cube Cutter C098.》]_
   - `HOOK T-BEFORE S-HFIELD F-AUTO F-TRIG A-OWN E-GOODS E-CONVERT E-FOODCOST` — Field-phase hook with a mandatory 1-wood (F-AUTO) plus an optional buy of up to 2 wood at 1 food each (F-TRIG, E-CONVERT, E-FOODCOST); 'in the field phase' has no after-wording, so the T-BEFORE default stands.
 - ⬜ **A119 Firewood Collector** · [1+]
@@ -1626,7 +1626,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A165 Pig Breeder** · [4+]
   - _When you play this card, you immediately get 1 wild boar. Your wild boar breed at the end of round 12 (if there is room for the new wild boar)._
   - `ONPLAY HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-ANIMALS E-BREEDMOD` — On-play boar is an animal, so E-ANIMALS (not E-GOODS, which is goods/food/crops). The round-12 breeding is an automatic hook at the END OF ROUND 12 — a round-end event, not a harvest breeding phase (round 12 isn't a harvest) — so S-ROUNDEND not S-HBREED; breeding outside the harvest breed phase = E-BREEDMOD.
-- ⬜ **A166 Haydryer** · [4+]
+- ✅ **A166 Haydryer** · [4+]
   - _Immediately before each harvest, you can buy 1 cattle for 4 food minus 1 food for each pasture you have. (The minimum cost is 0)._
   - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-ANIMALS E-FOODCOST` — Optional pre-harvest purchase: HOOK T-BEFORE S-HSTART F-TRIG. A food-priced buy is E-FOODCOST + E-ANIMALS; E-CONVERT is reserved for good-for-good exchange rates, and the variable price is a plain state read (pasture count), no extra state.
 - ⬜ **A167 Breeder Buyer** · [4+]
@@ -1914,7 +1914,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C91 Plow Hero** · [1+]
   - _Each time you use the "Farmland" or "Cultivation" action space with the first person you place in a round, you can plow 1 additional field for 1 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Use-space hook (T-BEFORE default), optional granted plow (F-TRIG + E-GRANTSUB) for food (E-FOODCOST). No ST-PLACELOG: 'first person you place in a round' is checkable at fire time from your placed-worker count (==1), and ST-PLACELOG is for knowing which SPACE a worker sits on — here the space is the trigger itself.
-- ⬜ **C92 Autumn Mother** · [1+]
+- ✅ **C92 Autumn Mother** · [1+]
   - _Immediately before each harvest, if you have room in your house, you can take a "Family Growth" action for 3 food._
   - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-GRANTSUB E-GROWTH E-FOODCOST` — Fires immediately before each harvest (start of harvest, before field phase) = S-HSTART, T-BEFORE; optional granted family-growth sub-action costing food; once-per-harvest is implicit in the hook so no CAP. Pass1's S-AFTERFEED/CAP-HARVEST are wrong.
 - ⬜ **C93 Inner Districts Director** · [1+]
@@ -2187,7 +2187,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - 🚫 **D97 Begging Student** · [1+] · **BANNED (user ruling 2026-07-03) — never implement**
   - _When you play this card, you must immediately take 1 begging marker. At the start of each harvest, you can play 1 occupation without paying an occupation cost._
   - `ONPLAY HOOK S-HSTART F-TRIG A-OWN E-GRANTACT EXOTIC` — On play take 1 begging marker; start of each harvest, play 1 occupation free.
-- ⬜ **D98 Transactor** · [1+]
+- ✅ **D98 Transactor** · [1+]
   - _Immediately before the final harvest at the end of round 14, you can take all the building resources that are left on the entire game board._
   - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-GOODS` — Optional one-time hook immediately before the final harvest (S-HSTART, T-BEFORE); it reads the live public board state at fire time — nothing is zeroed beforehand — so no snapshot/provenance (drop ST-PROV).
 - ⬜ **D99 Earthenware Potter** · [1+]
@@ -2469,7 +2469,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E106 Emergency Seller** · [1+]
   - _When you play this card, you can immediately turn as many building resources into food as you have people: Each wood or clay is worth 2 food; each reed or stone is worth 3 food._
   - `ONPLAY E-CONVERT E-GOODS` — On play, optionally convert up to #people building resources to food at fixed rates.
-- ⬜ **E107 Land Surveyor** · [1+]
+- ✅ **E107 Land Surveyor** · [1+]
   - _In the field phase of each harvest, if you have at least 2/4/6/7 fields, you get 1/2/3/4 food._
   - `HOOK T-BEFORE S-HFIELD F-AUTO A-OWN E-GOODS` — "In the field phase" has no 'after/at the end of' language, so the default T-BEFORE applies; the food is a plain conditional gain independent of field yields.
 - ⬜ **E108 Blackberry Farmer** · [1+]
@@ -2481,7 +2481,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E110 Dentist** · [1+]
   - _At the start of each harvest, you can place 1 wood from your supply on this card, irretrievably. In each feeding phase, you get 1 food for each wood on this card._
   - `HOOK T-BEFORE S-HSTART S-HFEED F-TRIG F-AUTO A-OWN E-GOODS ST-STACK` — Two hooks: optional wood placement at harvest start (S-HSTART, F-TRIG — not ATWILL, the timing is fixed) and an automatic per-wood food payout in the feeding phase (S-HFEED, F-AUTO), payable before feeding resolves → T-BEFORE only; wood accumulates on the card → ST-STACK.
-- ⬜ **E111 Recluse** · [1+]
+- ✅ **E111 Recluse** · [1+]
   - _As long as you have no minor improvements in front of you, you get 1 food at the start of each round and 1 wood at the start of each harvest._
   - `HOOK T-BEFORE S-SOR S-HSTART F-AUTO A-OWN E-GOODS` — Two automatic hooks: 1 food at start of each round (S-SOR) AND 1 wood at start of each harvest (S-HSTART — labelA missed this seam); the no-minors condition is a plain state read.
 - ⬜ **E112 Grain Thief** · [1+]
@@ -2499,7 +2499,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E116 Fir Cutter** · [1+]
   - _When you play this card, you immediately get 1 food. Each time after you use an animal accumulation space with your 1st/2nd/3rd/4th/5th person, you get 1/1/2/2/3 wood._
   - `ONPLAY HOOK T-AFTER S-SPACE F-AUTO A-OWN E-GOODS ST-COUNTER` — On-play food plus an explicit 'each time after you use' hook on animal accumulation spaces; the 1st–5th-person payout scale keys on which ordinal placement of the round this is, which needs a per-round placement counter → keep ST-COUNTER.
-- ⬜ **E117 Pipe Smoker** · [1+]
+- ✅ **E117 Pipe Smoker** · [1+]
   - _At the start of each harvest, if you have at least 1 grain field, you get 2 wood._
   - `HOOK T-BEFORE S-HSTART F-AUTO A-OWN E-GOODS` — Fires at the start of each harvest (S-HSTART, before field phase), mandatory (F-AUTO) gain of 2 wood conditional on a plain grain-field state read. Pass2 correct; pass1's S-HFIELD/T-AFTER is wrong.
 - ⬜ **E118 Kindling Gatherer** · [1+]

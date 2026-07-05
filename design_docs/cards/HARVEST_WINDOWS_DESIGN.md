@@ -75,7 +75,7 @@ resolution order is player-chosen (§3).
 | # | window id | printed wordings served | members found by the census (2p pool unless marked) |
 |---|---|---|---|
 | — | *(round end / returning home)* | "in the returning home phase", "at the end of each round" | the `PendingRoundEnd` family — separate design, `CARD_DEFERRED_PLANS.md`; fires **before** everything below |
-| 1 | `immediately_before_harvest` | "immediately before each harvest" | Autumn Mother, Haydryer, Transactor (round-14-gated); Game Provider [4] |
+| 1 | `immediately_before_harvest` | "immediately before each harvest" | Autumn Mother, Haydryer (each harvest — the earlier "round-14-gated" annotation was wrong for it, per its printed text), Transactor (round-14-gated); Game Provider [4] |
 | 2 | `start_of_harvest` | "at the start of each harvest" | Raised Bed, Pipe Smoker, Animal Driver, Dentist (bank wood), Recluse, Bed in the Grain Field, **Lunchtime Beer's skip choice**, Bale of Straw (migrates here); Midnight Fencer [4], Wealthy Man [4]. *(Begging Student is BANNED — user ruling 2026-07-03.)* |
 | 3 | `before_field_phase` | "before the field phase" | Straw Manure |
 | 4 | `start_of_field_phase` | "at the start of the field phase" | Three-Field Rotation (migrates here) |
@@ -641,12 +641,27 @@ of §0–§11 is the authority; this only orients.*
   `HARVEST_FIELD_CARDS` / `should_host_harvest_field`, the `harvest_field` event
   registrations, `_enumerate_pending_harvest_field`). Also held: Farm Store (un-archive
   →#11), Furniture Carpenter (→#16 anchor).
-- **New-card wave, windows 1–7**: Haydryer, Transactor, Raised Bed, Pipe Smoker, Recluse,
-  Dentist, Lunchtime Beer (implements the skip seam — `HARVEST_SKIP_CARDS` + `window_skipped`
-  latch), Straw Manure, Beer Table, Winnowing Fan, Market Stall C54, Land Surveyor,
-  Treegardener, Barley Mill, plus Autumn Mother + Bed in the Grain Field (via A1). Hold Scythe
-  E73 / Grain Thief for a second wave (they stress the manifest).
-- The driver reviews verifier reports + risky diffs only; runs the integration gate.
+- **New-card wave B LANDED 2026-07-05** (eight delegated agents): Haydryer, Transactor,
+  Raised Bed, Pipe Smoker, Recluse (start_of_round + start_of_harvest, per its two printed
+  clauses), Straw Manure, Beer Table, Land Surveyor, Treegardener, Barley Mill, Autumn
+  Mother + Bed in the Grain Field (the first A1 growth-grant consumers; Autumn Mother's
+  3-food cost rides the food-payment resume seam). Two CORRECT DEFERS with build plans on
+  record: **Winnowing Fan** (needs the "silent bake" seam — a consumed
+  `bake_bread_action: bool` on PendingBakeBread + an exact-quantity grant cap; live
+  wrong-firing consumers exist: Dutch Windmill/Hand Truck mandatory autos) and **Market
+  Stall C54** (its "1 Stable from Your Supply" play cost needs a STORED
+  `stables_in_supply` — the COST_MODIFIER_DESIGN boundary that kept it derived is now
+  broken by an in-scope card; also a slug collision with the implemented B8 Market
+  Stall). A wave-surfaced engine fix landed with it: the during-window frame is now
+  RE-HOSTED post-take on the inline path when a per-occasion consequence enables a
+  trigger mid-window (Crack Weeder income affording Cube Cutter's exchange).
+  Still held: Dentist (stage-3 feeding-income seam), Lunchtime Beer (the skip-seam
+  engine surgery), Scythe E73 / Grain Thief (the second modifier wave).
+- Stale-premise note: §8 open question #2 (does window #1 fire for a Layabout skipper?)
+  said "both member cards are unimplemented" — Haydryer and Transactor now ARE
+  implemented; the question must be resolved before Layabout lands (nothing blocks
+  today). Also open, from the A1 consumers: is a window-#1/#2 newborn fed 1 food or 2 at
+  this harvest? The engine feeds 1 (the standard newborn rule) — ratify or overrule.
 
 ### Durable references
 

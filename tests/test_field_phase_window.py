@@ -95,6 +95,24 @@ register_auto("field_phase", FP_AUTO_CARD, lambda s, i: True,
                                    _grid_grain_total(s, i)))
 register_harvest_window_hook(FP_AUTO_CARD, "field_phase")
 
+# The post-take re-host pair: a trigger GATED on food >= 1 (+1 stone when
+# fired) and an occasion AUTO paying +1 food per occasion — so a 0-food owner's
+# trigger becomes eligible only FROM the take's own income, exercising the
+# inline path's post-take trigger re-check.
+FP_GATED_CARD = "_test_fp_gated_trigger"
+register("field_phase", FP_GATED_CARD,
+         lambda s, i, resolved: s.players[i].resources.food >= 1,
+         lambda s, i: _edit_player(
+             s, i, resources=s.players[i].resources + Resources(stone=1)))
+register_harvest_window_hook(FP_GATED_CARD, "field_phase")
+
+FP_FEEDER_CARD = "_test_fp_feeder"
+register_harvest_occasion_auto(
+    FP_FEEDER_CARD,
+    lambda s, i, occ: True,
+    lambda s, i, occ: _edit_player(
+        s, i, resources=s.players[i].resources + Resources(food=1)))
+
 
 # ---------------------------------------------------------------------------
 # Drivers
@@ -301,6 +319,42 @@ def test_sp_whole_field_phase_resolves_before_the_other_players():
     state = _advance_until_decision(state)
     assert state.phase == Phase.HARVEST_FEED
     assert _grid_grain_total(state, 1 - sp) == 2
+
+
+def test_take_income_enables_a_trigger_post_take():
+    """The inline path re-checks triggers AFTER the take: an owner with 0 food
+    whose per-occasion income (the feeder) pays 1 food gets the during-frame
+    hosted POST-take (take_fired=True), so the food-gated trigger is offered —
+    the window isn't over just because the take ran inline."""
+    state = _own_occ(_own_occ(_harvest_state(), 0, FP_GATED_CARD), 0, FP_FEEDER_CARD)
+    state = _edit_player(state, 0, resources=fast_replace(
+        state.players[0].resources, food=0))              # gated OFF at entry
+    state = with_sown_fields(state, 0, grain_fields=[(0, 0)])
+    state = _advance_until_decision(state)
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFieldPhase) and top.player_idx == 0
+    assert top.take_fired                                  # hosted post-take
+    assert [o.source for o in top.occasions] == ["take"]   # manifest carried over
+    assert state.players[0].resources.food == 1            # the feeder's income
+    acts = legal_actions(state)
+    assert FireTrigger(card_id=FP_GATED_CARD) in acts and Proceed() in acts
+    assert not any(isinstance(a, CommitFieldTake) for a in acts)  # take done
+    state = step(state, FireTrigger(card_id=FP_GATED_CARD))
+    assert state.players[0].resources.stone == 1
+    state = step(state, Proceed())
+    assert _advance_until_decision(state).phase == Phase.HARVEST_FEED
+
+
+def test_no_rehost_when_trigger_stays_ineligible():
+    """The post-take re-check is a no-op when nothing became eligible: a 0-food
+    gated-trigger owner WITHOUT the feeder walks straight through to FEED."""
+    state = _own_occ(_harvest_state(), 0, FP_GATED_CARD)
+    state = _edit_player(state, 0, resources=fast_replace(
+        state.players[0].resources, food=0))
+    state = with_sown_fields(state, 0, grain_fields=[(0, 0)])
+    state = _advance_until_decision(state)
+    assert state.phase == Phase.HARVEST_FEED
+    assert not any(isinstance(f, PendingFieldPhase) for f in state.pending_stack)
 
 
 # ---------------------------------------------------------------------------
