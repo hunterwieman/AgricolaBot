@@ -487,4 +487,8 @@ from agricola.cards import recluse  # noqa: F401
 from agricola.cards import straw_manure  # noqa: F401
 from agricola.cards import transactor  # noqa: F401
 from agricola.cards import winnowing_fan  # noqa: F401
+
+# The harvest-skip cards (rulings 1 + 14; the skip registry in harvest_windows).
+from agricola.cards import lunchtime_beer  # noqa: F401
+from agricola.cards import layabout  # noqa: F401
 from agricola.cards import treegardener  # noqa: F401

@@ -129,14 +129,17 @@ def register_harvest_window_hook(card_id: str, window_id: str) -> None:
     A card may register in more than one window (Dentist: bank at start_of_harvest,
     payout during feeding).
 
-    "field_phase" — a sentinel — is nonetheless registrable: the FIELD
-    during-window hosts free-order triggers and pre-take flat autos on that
-    event (design doc §4a/§4d; a "field_phase" trigger is what makes the walk
-    push the PendingFieldPhase host). The FEED and BREED sentinels are not —
-    in-feeding effects ride the HARVEST_CONVERSIONS seam and the FEED/BREED
-    frames' own machinery, never a window event.
+    Two sentinels are also registrable: "field_phase" (the FIELD during-window
+    hosts free-order triggers and pre-take flat autos on that event — design
+    doc §4a/§4d; a "field_phase" trigger is what makes the walk push the
+    PendingFieldPhase host) and "feeding" (choice-free INCOME autos only —
+    "in the feeding phase, you get X food" cards fire at the FEED entry,
+    before the payment decision, so their food is payable; design doc §5).
+    In-feeding CONVERSIONS ride the HARVEST_CONVERSIONS seam, and "breeding"
+    is not registrable — in-breeding effects ride the BREED frames' own
+    machinery.
     """
-    assert window_id in WINDOW_INDEX and window_id not in ("feeding", "breeding"), (
+    assert window_id in WINDOW_INDEX and window_id != "breeding", (
         f"not a registrable harvest window: {window_id!r}")
     HARVEST_WINDOW_CARDS.setdefault(window_id, set()).add(card_id)
 
@@ -165,22 +168,32 @@ def owns_window_card(player_state, window_id: str) -> bool:
 #   boundaries included, plus their feeding and breeding frames (the sentinels need
 #   skip guards when Layabout lands).
 #
-# Neither card is implemented, so `window_skipped` is a structural seam with a hard
-# fast path: HARVEST_SKIP_CARDS is empty until a skip-capable card registers into it,
-# and the walk pays one truthiness test per call. When the cards land, their latches
-# live in CardStore (the state-placement rule) and this predicate reads them.
-HARVEST_SKIP_CARDS: set[str] = set()
+# Each skip card registers a PREDICATE `fn(state, idx, window_id) -> bool`
+# answering "is this window suppressed for this player right now?" — the latch
+# it reads lives in the card's own card_state (the state-placement rule), keyed
+# by the harvest ROUND it applies to (harvest rounds are unique, so a stale
+# latch from a past harvest is inert with no clearing step). The walk asks this
+# for every simple window; the FEED/BREED entry points ask it with the sentinel
+# ids "feeding" / "breeding" (also valid window ids) to suppress a skipper's
+# payment/breeding frames. Family fast path: the registry is empty and the
+# whole check is one truthiness test.
+HARVEST_SKIP_CARDS: dict[str, Callable] = {}
+
+
+def register_harvest_skip(card_id: str, skip_fn: Callable) -> None:
+    """Register a skip card's suppression predicate (card-module import time).
+    skip_fn signature: (state, player_idx, window_id) -> bool."""
+    HARVEST_SKIP_CARDS[card_id] = skip_fn
 
 
 def window_skipped(state, player_idx: int, window_id: str) -> bool:
-    """Is `window_id` suppressed for this player this harvest (a phase/harvest skip)?
-    Always False until a skip-capable card (Lunchtime Beer, Layabout) is implemented
-    and registers into HARVEST_SKIP_CARDS."""
+    """Is `window_id` suppressed for this player this harvest (a phase/harvest
+    skip)? True iff some OWNED skip card's predicate says so."""
     if not HARVEST_SKIP_CARDS:
         return False
-    raise NotImplementedError(
-        "a skip-capable card registered into HARVEST_SKIP_CARDS but window_skipped "
-        "has no latch logic yet — implement it with the card (design doc §3)")
+    p = state.players[player_idx]
+    return any(_owns(p, cid) and fn(state, player_idx, window_id)
+               for cid, fn in HARVEST_SKIP_CARDS.items())
 
 
 # ---------------------------------------------------------------------------

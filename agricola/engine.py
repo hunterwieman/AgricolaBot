@@ -1289,6 +1289,15 @@ def _initiate_harvest_feed(state: GameState) -> GameState:
     food tokens" rule is enforced there by paying `min(need, available)`
     unconditionally — the player has no knob to keep food while begging.
 
+    Feeding-INCOME card autos fire FIRST (the "feeding" event, per player,
+    starting player first): a card printed "in the feeding phase, you get X
+    food" (Town Hall, Milking Place, Dentist's payout) must deliver its food
+    before the payment decision so the food is payable
+    (HARVEST_WINDOWS_DESIGN.md §5). Choice-free income only — in-feeding
+    CONVERSIONS ride the HARVEST_CONVERSIONS seam on the frames themselves.
+    A whole-harvest skipper (Layabout, ruling 14) gets neither the income nor
+    a feeding frame — they do not feed at all.
+
     Push order: non-starting player pushed first (bottom of stack), starting
     player pushed second (top). When the starting player Stops, the
     non-starting player's pending becomes top automatically.
@@ -1297,9 +1306,14 @@ def _initiate_harvest_feed(state: GameState) -> GameState:
     running FIELD mechanics.
     """
     sp = state.starting_player
-    push_order = [(sp + 1) % 2, sp]
+    for idx in (sp, (sp + 1) % 2):
+        if not window_skipped(state, idx, "feeding"):
+            state = apply_auto_effects(state, "feeding", idx)
 
+    push_order = [(sp + 1) % 2, sp]
     for idx in push_order:
+        if window_skipped(state, idx, "feeding"):
+            continue
         state = push(state, PendingHarvestFeed(
             player_idx=idx,
             initiated_by_id="phase:harvest_feed",
@@ -1312,12 +1326,16 @@ def _initiate_harvest_breed(state: GameState) -> GameState:
     """Push a PendingHarvestBreed for each player, starting player's frame on top.
 
     No pre-debit (breeding doesn't consume food upfront). Push order
-    mirrors _initiate_harvest_feed.
+    mirrors _initiate_harvest_feed. A breeding-phase skipper gets no frame —
+    Lunchtime Beer skips its owner's field + breeding phases (ruling 1), a
+    Layabout skipper the whole harvest (ruling 14); no frame = no newborns.
     """
     sp = state.starting_player
     push_order = [(sp + 1) % 2, sp]
 
     for idx in push_order:
+        if window_skipped(state, idx, "breeding"):
+            continue
         state = push(state, PendingHarvestBreed(
             player_idx=idx,
             initiated_by_id="phase:harvest_breed",
