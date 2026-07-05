@@ -11,9 +11,9 @@ skip-guard seam. The walk that consumes it is ``engine._advance_harvest``.
 Three entries are SENTINELS, not simple windows — they name the engine's own harvest
 machinery threaded between the windows:
 
-- ``"field_phase"``  — the FIELD during-window (the crop take + the field-phase card
-  hook; today the two-stage ``field_triggers_offered`` machinery, to be rebuilt on the
-  take-occasion manifest per the design doc §4).
+- ``"field_phase"``  — the FIELD during-window (the crop take — with the
+  take-modifier fold-ins — hosted by ``PendingFieldPhase`` when the player has a
+  during-window decision, inline otherwise; design doc §4, as built).
 - ``"feeding"``      — the FEED payment frames (``PendingHarvestFeed`` + the
   ``HARVEST_CONVERSIONS`` seam), untouched by the window work.
 - ``"breeding"``     — the BREED frames (``PendingHarvestBreed``), untouched.
@@ -114,7 +114,7 @@ def walk_position(cursor: int, starting_player: int) -> tuple[int, int | None]:
 
 
 # ---------------------------------------------------------------------------
-# Hosting index (the should_host_space / HARVEST_FIELD_CARDS pattern)
+# Hosting index (the should_host_space pattern)
 # ---------------------------------------------------------------------------
 # window_id -> the card ids registered to fire there. Consulted per player when the
 # walk reaches the window; empty (the Family game) → O(1) skip, no frame ever built.

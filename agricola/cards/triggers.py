@@ -202,41 +202,6 @@ def should_host_space(state, space_id: str, acting_player: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Harvest-field phase-hook index (CARD_IMPLEMENTATION_PLAN.md II.6)
-# ---------------------------------------------------------------------------
-# The field phase of each harvest stays purely mechanical (today's fast path)
-# UNTIL a card could fire on it. `should_host_harvest_field` answers "should
-# _resolve_harvest_field push a PendingHarvestField host frame before the crop
-# take?" by consulting this registration-time set of harvest-field card ids — the
-# field-phase analog of `should_host_space`.
-#
-# Family game → no card registered → the set is empty → should_host_harvest_field
-# is always False → the mechanical field resolution runs unhosted → byte-identical,
-# no host frame ever pushed (and the C++ Family-only engine never sees it).
-HARVEST_FIELD_CARDS: set[str] = set()
-
-
-def register_harvest_field_hook(card_id: str) -> None:
-    """Index `card_id` as firing on the harvest-field phase hook.
-
-    Called at card-module import alongside the card's `register_auto("harvest_field", …)`.
-    """
-    HARVEST_FIELD_CARDS.add(card_id)
-
-
-def should_host_harvest_field(state) -> bool:
-    """Should the field phase be hosted by a PendingHarvestField frame (vs. run
-    mechanically)? True iff EITHER player owns a harvest-field card. Reads PLAYED
-    cards only. O(1) on the Family fast path (the index is empty)."""
-    if not HARVEST_FIELD_CARDS:
-        return False
-    return any(
-        HARVEST_FIELD_CARDS & (p.occupations | p.minor_improvements)
-        for p in state.players
-    )
-
-
-# ---------------------------------------------------------------------------
 # Start-of-round phase-hook index (CARD_IMPLEMENTATION_PLAN.md II.6)
 # ---------------------------------------------------------------------------
 # The start-of-round (preparation) phase stays purely mechanical (today's fast
@@ -244,7 +209,7 @@ def should_host_harvest_field(state) -> bool:
 # card could fire on it. `should_host_preparation` answers "should
 # _complete_preparation push a PendingPreparation host frame before the → WORK
 # transition?" by consulting this registration-time set of start-of-round card ids
-# — the preparation-phase analog of `should_host_space` / `should_host_harvest_field`.
+# — the preparation-phase analog of `should_host_space`.
 #
 # Family game → no card registered → the set is empty → should_host_preparation is
 # always False → preparation runs unhosted → byte-identical, no host frame ever

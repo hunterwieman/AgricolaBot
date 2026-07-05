@@ -83,7 +83,6 @@ from agricola.pending import (
     PendingGrantedBuildFences,
     PendingFoodPayment,
     PendingGrainUtilization,
-    PendingHarvestField,
     PendingHarvestWindow,
     PendingMeetingPlace,
     PendingCardChoice,
@@ -2665,30 +2664,6 @@ def _enumerate_pending_preparation(
     return actions
 
 
-def _enumerate_pending_harvest_field(
-    state: GameState, pending: PendingHarvestField,
-) -> list[Action]:
-    """Legal actions at a per-player harvest-FIELD choice host (card game only).
-
-    The field-phase analog of the preparation host: surfaces the player's
-    eligible, unfired `harvest_field` triggers (Stable Manure — expanded per
-    variant, one FireTrigger per legal field-selection), then `Proceed`, the
-    decline / work-complete boundary that pops. The `harvest_field` AUTOMATIC
-    effects are NOT re-fired here — they fired at the transient auto host in
-    stage 1 of `_resolve_harvest_field`. After the trigger fires (recorded in
-    `triggers_resolved`) this is a singleton [Proceed] the agent auto-skips.
-    """
-    from agricola.cards.triggers import has_unfired_mandatory_trigger
-
-    assert pending.player_idx is not None, (
-        "the transient harvest-field auto host must never surface to legal_actions")
-    base = _eligible_fire_triggers(state, pending, "harvest_field")
-    actions = _expand_variant_triggers(state, pending, base)
-    if not has_unfired_mandatory_trigger(state, pending, "harvest_field"):
-        actions.append(Proceed())
-    return actions
-
-
 def _enumerate_pending_harvest_window(
     state: GameState, pending: "PendingHarvestWindow",
 ) -> list[Action]:
@@ -2772,7 +2747,6 @@ def _enumerate_pending_draft_pick(
 
 PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPreparation:         _enumerate_pending_preparation,
-    PendingHarvestField:        _enumerate_pending_harvest_field,
     PendingHarvestWindow:       _enumerate_pending_harvest_window,
     PendingFieldPhase:          _enumerate_pending_field_phase,
     PendingCardChoice:          _enumerate_pending_card_choice,

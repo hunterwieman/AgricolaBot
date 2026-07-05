@@ -387,16 +387,6 @@ class GameState:
     # size > 0). Set to None when the draft completes (all pools empty).
     draft_pools: tuple | None = None
 
-    # Card-only discriminator for the FIELD during-window's LEGACY stage: True
-    # while a player's PendingHarvestField choice frame (a legacy `harvest_field`
-    # trigger — Stable Manure, pre-migration) is out, so re-entering that
-    # player's field-phase step after it pops skips the pre-take autos and moves
-    # on to the take (engine._field_phase_step). One bool suffices because the
-    # FIELD band is per-player sequential. Family-constant False
-    # (default-skipped in canonical.py); retired with the legacy seam when the
-    # harvest_field cards migrate to the window events.
-    field_triggers_offered: bool = False
-
     # Card-only harvest-window walk cursor (engine._advance_harvest): the
     # VIRTUAL-walk index the walk resumes at — the HARVEST_WINDOWS ladder with
     # the FIELD band repeated once per player (harvest_windows.walk_position
@@ -413,7 +403,7 @@ class GameState:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
                       self.pending_stack, self.mode, self.draft_pools,
-                      self.field_triggers_offered, self.harvest_cursor))
+                      self.harvest_cursor))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

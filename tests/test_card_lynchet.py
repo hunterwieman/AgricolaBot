@@ -15,7 +15,6 @@ while a field at e.g. (0,3) does not.
 """
 from agricola.cards.harvest_windows import HARVEST_OCCASION_AUTOS
 from agricola.cards.specs import MINORS
-from agricola.cards.triggers import HARVEST_FIELD_CARDS
 from agricola.constants import CellType, Phase
 from agricola.engine import _resolve_harvest_field
 from agricola.replace import fast_replace
@@ -50,8 +49,8 @@ def _field_state(seed=0):
 
 def test_registered_as_minor_and_take_occasion_auto():
     assert CARD_ID in MINORS
-    # A take-occasion auto — OFF the legacy harvest-field hook (2026-07-05).
-    assert CARD_ID not in HARVEST_FIELD_CARDS
+    # A take-occasion auto (migrated 2026-07-05; the legacy harvest-field hook
+    # it left was retired the same day).
     assert any(e.card_id == CARD_ID for e in HARVEST_OCCASION_AUTOS)
     spec = MINORS[CARD_ID]
     # No printed VPs, no cost, no prereq, not a passing card.

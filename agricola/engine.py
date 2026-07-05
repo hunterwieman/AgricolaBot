@@ -70,7 +70,6 @@ from agricola.pending import (
     PendingFoodPayment,
     PendingHarvestBreed,
     PendingHarvestFeed,
-    PendingHarvestField,
     PendingHarvestWindow,
     PendingPigMarket,
     PendingPlayMinor,
@@ -126,7 +125,6 @@ import agricola.cards  # noqa: F401
 # Family fast path (empty registries). cards.triggers is a leaf module — safe
 # to import here without a load-order cycle.
 from agricola.cards.triggers import (
-    HARVEST_FIELD_CARDS,
     apply_auto_effects,
     should_host_space,
 )
@@ -648,13 +646,6 @@ def _apply_proceed(state: GameState) -> GameState:
     """
     top = state.pending_stack[-1]
     if isinstance(top, PendingPreparation):
-        return pop(state)
-    # The per-player harvest-FIELD choice host (card-only, mirrors the preparation
-    # host): a phase host with no before/after flip — its autos fired at the
-    # transient host — so Proceed (the decline / work-complete boundary) simply pops.
-    if isinstance(top, PendingHarvestField):
-        assert top.player_idx is not None, (
-            "Proceed reached the transient harvest-field auto host — it must never surface")
         return pop(state)
     # A per-player harvest-window choice host (card-only, HARVEST_WINDOWS_DESIGN.md):
     # a phase host with no before/after flip — its window's autos fired mechanically in
@@ -1335,27 +1326,6 @@ def _initiate_harvest_breed(state: GameState) -> GameState:
     return state
 
 
-def _fire_harvest_field_autos(state: GameState, idx: int) -> GameState:
-    """Fire player `idx`'s LEGACY field-phase card autos (the `harvest_field`
-    event: Loom, Butter Churn, Scythe Worker, …), card-dependent and transient.
-    A no-op when this player owns no harvest-field card — the Family fast path.
-
-    When they own one, a transient PendingHarvestField host frame is pushed (the
-    uniform host the firing rides through), `apply_auto_effects` runs the
-    player's `harvest_field` autos, and the frame is popped before returning —
-    it never reaches a returned state, so the canonical serializer / C++ never
-    see it. Legacy seam: these cards migrate to the "field_phase" window event /
-    the occasion registries (HARVEST_WINDOWS_DESIGN.md §7), after which this
-    hook and its registries are retired.
-    """
-    p = state.players[idx]
-    if not (HARVEST_FIELD_CARDS & (p.occupations | p.minor_improvements)):
-        return state
-    state = push(state, PendingHarvestField())
-    state = apply_auto_effects(state, "harvest_field", idx)
-    return pop(state)
-
-
 def _has_window_trigger(state: GameState, idx: int, event: str) -> bool:
     """Does player `idx` own an eligible optional trigger registered on this
     window event? False at one empty dict lookup when nothing is registered —
@@ -1416,52 +1386,36 @@ def _process_band_window(state: GameState, window_id: str, idx: int):
 
 def _field_phase_step(state: GameState, idx: int):
     """One player's FIELD during-window — harvest window #5, "field_phase"
-    (HARVEST_WINDOWS_DESIGN.md §4). Returns (state, pause):
-
-    - pause None    — the window is complete for this player; walk on.
-    - pause "here"  — a LEGACY `harvest_field` choice frame is out (Stable
-                      Manure); resume at this same virtual position — the
-                      `field_triggers_offered` flag discriminates the re-entry.
-    - pause "next"  — the during-window host (PendingFieldPhase) is out; it
-                      owns the rest of the window (the mandatory take gates its
-                      own exit), so resume PAST this position.
+    (HARVEST_WINDOWS_DESIGN.md §4). Returns (state, hosted): hosted True means
+    the during-window host (PendingFieldPhase) is out and OWNS the rest of the
+    window (the mandatory take gates its own exit), so the walk resumes PAST
+    this position; False means the window is complete for this player.
 
     The step runs, in order:
 
-    1. **Pre-take autos, exactly once** (flag False): the legacy
-       `harvest_field` autos (pre-migration cards, through the transient
-       host), then the "field_phase" window autos (during-window flat
-       state-readers, order-insensitive so anchored pre-take). Then, if the
-       player has an eligible LEGACY `harvest_field` trigger, their
-       PendingHarvestField choice frame is pushed and the flag set → "here".
-       A flag-True entry is that pause's resume: clear the flag, skip ahead.
+    1. **Pre-take window autos, exactly once**: the "field_phase" autos
+       (during-window flat state-readers, order-insensitive so anchored
+       pre-take — Loom, Butter Churn, Treegardener's wood).
     2. **The during-window host or the inline take**: with an eligible
        "field_phase" trigger — or a choice-bearing take-modifier use — the
-       PendingFieldPhase host is pushed → "next"; the take then rides it as
-       the mandatory CommitFieldTake, orderable around the free-order
-       triggers. Otherwise (the common path, and always the Family game) the
-       take runs inline: the singular take event (ruling 5) + its
-       per-occasion automatic effects — after which the trigger check runs
-       ONCE MORE, because a per-occasion consequence can enable a trigger
-       mid-window (Crack Weeder's take income affording Cube Cutter's
-       exchange); if one is now eligible the host is pushed post-take
-       (take_fired=True — exit-gated form) → "next".
+       PendingFieldPhase host is pushed; the take then rides it as the
+       mandatory CommitFieldTake, orderable around the free-order triggers.
+       Otherwise (the common path, and always the Family game) the take runs
+       inline: the singular take event (ruling 5) + its per-occasion automatic
+       effects — after which the trigger check runs ONCE MORE, because a
+       per-occasion consequence can enable a trigger mid-window (Crack
+       Weeder's take income affording Cube Cutter's exchange); if one is now
+       eligible the host is pushed post-take (take_fired=True — exit-gated
+       form).
 
     A field-phase-skipping player (Lunchtime Beer, when it lands) skips the
     whole window — no autos, no frames, NO take (ruling 1: a skipped phase
     has no boundaries, and no effect either).
     """
     if window_skipped(state, idx, "field_phase"):
-        return state, None
+        return state, False
 
-    if not state.field_triggers_offered:
-        state = _fire_harvest_field_autos(state, idx)          # legacy event
-        state = apply_auto_effects(state, "field_phase", idx)  # window autos
-        if _has_window_trigger(state, idx, "harvest_field"):
-            state = fast_replace(state, field_triggers_offered=True)
-            return push(state, PendingHarvestField(player_idx=idx)), "here"
-    else:
-        state = fast_replace(state, field_triggers_offered=False)
+    state = apply_auto_effects(state, "field_phase", idx)      # window autos
 
     # Host the during-window frame when the player has a decision there: an
     # eligible optional trigger, or a choice-bearing take-MODIFIER whose use is
@@ -1470,7 +1424,7 @@ def _field_phase_step(state: GameState, idx: int):
     # variants at the frame).
     if (_has_window_trigger(state, idx, "field_phase")
             or choice_take_modifiers(state, idx)):
-        return push(state, PendingFieldPhase(player_idx=idx)), "next"
+        return push(state, PendingFieldPhase(player_idx=idx)), True
 
     # Inline take (no decision): fold in the auto take-modifiers (Scythe
     # Worker's mandatory-max — empty on the Family fast path) and run the one
@@ -1485,8 +1439,8 @@ def _field_phase_step(state: GameState, idx: int):
     # Family fast path: an empty registry lookup.
     if _has_window_trigger(state, idx, "field_phase"):
         return push(state, PendingFieldPhase(
-            player_idx=idx, take_fired=True, occasions=(occasion,))), "next"
-    return state, None
+            player_idx=idx, take_fired=True, occasions=(occasion,))), True
+    return state, False
 
 
 def _advance_harvest(state: GameState) -> GameState:
@@ -1515,9 +1469,6 @@ def _advance_harvest(state: GameState) -> GameState:
     cur = state.harvest_cursor
     if cur is None:
         if state.phase == Phase.HARVEST_FIELD:
-            assert not state.field_triggers_offered, (
-                "legacy field frames out but no harvest_cursor — every legacy "
-                "pause pins the cursor")
             cur = 0
             if any(p.harvest_conversions_used for p in state.players):
                 state = fast_replace(state, players=tuple(
@@ -1535,10 +1486,10 @@ def _advance_harvest(state: GameState) -> GameState:
         window_id = HARVEST_WINDOWS[w_idx]
 
         if window_id == "field_phase":
-            state, pause = _field_phase_step(state, band_player)
-            if pause == "here":
-                return fast_replace(state, harvest_cursor=cur)
-            if pause == "next":
+            state, hosted = _field_phase_step(state, band_player)
+            if hosted:
+                # The during-window host owns the rest of the window (its
+                # mandatory take gates its own exit) — resume PAST it.
                 return fast_replace(state, harvest_cursor=cur + 1)
             cur += 1
             continue

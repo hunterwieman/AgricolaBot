@@ -965,45 +965,6 @@ class PendingReveal:
 
 
 @dataclass(frozen=True)
-class PendingHarvestField:
-    """LEGACY phase frame for the pre-migration field-phase card hook (card game
-    only) — dual-use. Retired when the `harvest_field`-event cards migrate to
-    the window events / occasion registries (HARVEST_WINDOWS_DESIGN.md §7);
-    until then it runs as the legacy stage inside each player's FIELD
-    during-window step (`engine._field_phase_step`).
-
-    **Transient auto host (`player_idx=None`).** Pushed within one player's
-    field-phase step — *before* their mechanical "take 1 crop per planted
-    field" runs — but ONLY when that player owns a harvest-field card (the
-    `HARVEST_FIELD_CARDS` ownership index). It fires the player's
-    `harvest_field` automatic effects (Loom, Butter Churn, Three-Field
-    Rotation, Scythe Worker), then is popped within the same call. Like
-    PendingReveal, never surfaces an agent decision.
-
-    **Per-player choice host (`player_idx=int`).** The field-phase analog of
-    `PendingPreparation`: after the autos fire, the step pushes one of these
-    when the player has an eligible `harvest_field` TRIGGER (Stable Manure).
-    Its enumerator surfaces the eligible triggers (variant-expanded) plus
-    `Proceed`, the decline/work-complete boundary that pops (no before/after
-    `phase` flip — the autos already fired at the transient host). The
-    additional harvests therefore resolve BEFORE that player's mechanical crop
-    take (a benefited field is depleted by 2 this harvest). The FIELD band is
-    per-player (user ruling 3), so at most ONE of these is out at a time; the
-    pause/resume is discriminated by `GameState.field_triggers_offered`
-    (card-only flag).
-
-    Default-inert: in the Family game (and any card game with no harvest-field
-    card owned) neither form is ever constructed, the FIELD trace is
-    byte-identical, and the C++ Family-only engine never sees it.
-    See CARD_IMPLEMENTATION_PLAN.md II.6 / Category 6.
-    """
-    PENDING_ID: ClassVar[str] = "harvest_field"
-    player_idx: int | None = None         # None = transient auto host; int = choice host
-    initiated_by_id: str = "phase:harvest_field"
-    triggers_resolved: frozenset = frozenset()
-
-
-@dataclass(frozen=True)
 class PendingHarvestWindow:
     """Per-player choice host for one simple harvest timing window (card game only).
 
@@ -1018,8 +979,8 @@ class PendingHarvestWindow:
     `window_id` names the window and doubles as the trigger event string — the
     enumerator surfaces the player's eligible, unfired triggers for that event
     (variant-expanded) plus `Proceed`, the decline / work-complete boundary that
-    pops (a phase host with no before/after flip, like `PendingPreparation` /
-    the per-player `PendingHarvestField` choice host). Mandatory-with-choice
+    pops (a phase host with no before/after flip, like `PendingPreparation`).
+    Mandatory-with-choice
     triggers gate Proceed off until fired, as everywhere else.
 
     Default-inert: no card registered on a window → the frame is never
@@ -1268,7 +1229,6 @@ PendingDecision = Union[
     PendingHarvestBreed,
     PendingAccommodate,
     PendingReveal,
-    PendingHarvestField,
     PendingHarvestWindow,
     PendingFieldPhase,
     PendingPreparation,

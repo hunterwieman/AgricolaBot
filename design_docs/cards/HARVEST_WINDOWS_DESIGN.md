@@ -631,16 +631,19 @@ of §0–§11 is the authority; this only orients.*
   field-phase-scoped occasion autos, Stable Manure→#5; ALLOWLIST emptied. **The fold-in
   rework LANDED 2026-07-05** (ruling 11): Stable Manure and Scythe Worker are
   take-modifiers.
-- **Still on the legacy `harvest_field` seam**: wood_rake ONLY (lynchet migrated
-  2026-07-05 to a take-occasion per-TILE auto — the §8 #4 recommendation, made moot-safe
-  by rulings 11/12: extras can't create a tile edge case and a played field phase stays
-  silent via the source gate; robust under Grain Thief's future replacement). Wood Rake's
-  own migration deserves text-vs-seam scrutiny ("before the final harvest" on a pre-take
-  seam). When it migrates, retire the seam (`PendingHarvestField`,
-  `field_triggers_offered`, `_fire_harvest_field_autos`, `register_harvest_field_hook` /
-  `HARVEST_FIELD_CARDS` / `should_host_harvest_field`, the `harvest_field` event
-  registrations, `_enumerate_pending_harvest_field`). Also held: Farm Store (un-archive
-  →#11), Furniture Carpenter (→#16 anchor).
+- **The legacy `harvest_field` seam is RETIRED (2026-07-05)**. Lynchet migrated to a
+  take-occasion per-TILE auto (the §8 #4 recommendation, made moot-safe by rulings
+  11/12: extras can't create a tile edge case and a played field phase stays silent via
+  the source gate; robust under Grain Thief's future replacement). Wood Rake — whose
+  "before the final harvest" turned out to be another shoehorned timing, made LIVE by
+  Straw Manure's #3 vegetable adds — migrated to window #1, round-14-gated. With the
+  seam empty, its machinery was deleted: `PendingHarvestField`,
+  `GameState.field_triggers_offered` (state shape unchanged on the canonical contract —
+  the field was default-skipped), `_fire_harvest_field_autos`, the walk's legacy
+  "resume-here" pause, `register_harvest_field_hook` / `HARVEST_FIELD_CARDS` /
+  `should_host_harvest_field`, `_enumerate_pending_harvest_field`. `_resolve_harvest_field`
+  survives as the compat alias (tests drive the walk by that name). Still held: Farm
+  Store (un-archive →#11), Furniture Carpenter (→#16 anchor).
 - **New-card wave B LANDED 2026-07-05** (eight delegated agents): Haydryer, Transactor,
   Raised Bed, Pipe Smoker, Recluse (start_of_round + start_of_harvest, per its two printed
   clauses), Straw Manure, Beer Table, Land Surveyor, Treegardener, Barley Mill, Autumn

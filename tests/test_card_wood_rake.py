@@ -3,22 +3,24 @@
 Card text: "During scoring, if you had at least 7 goods in your fields before the
 final harvest, you get 2 bonus points."
 
-A Category-6 harvest-field hook feeding a banked Category-1 scoring term. The
-`harvest_field` automatic effect fires (via `_resolve_harvest_field`) BEFORE the
-mechanical crop take, so the fields are still sown when the field-goods count is
-read. The 2 points are BANKED in the CardStore at the round-14 harvest (the
-qualifying field state is gone by scoring time) and read back by the scoring term.
+A window-#1 (`immediately_before_harvest`, round-14-gated) automatic snapshot
+feeding a banked Category-1 scoring term — MIGRATED 2026-07-05 off the legacy
+pre-take `harvest_field` seam: "before the final harvest" precedes every
+in-harvest effect (Straw Manure's #3 vegetable adds no longer count toward the
+threshold, per the print). The 2 points are BANKED in the CardStore at the
+round-14 window (the qualifying field state is gone by scoring time) and read
+back by the scoring term.
 
-These tests drive `_resolve_harvest_field` directly (like
-`tests/test_card_slurry_spreader.py` / `tests/test_harvest_field.py`) so the
-fire-before-the-take ordering and the round-14-only gate are exercised end-to-end.
+These tests drive `_resolve_harvest_field` (the compat alias into the harvest
+walk, which opens at window #1) so the fire-before-the-harvest ordering and the
+round-14-only gate are exercised end-to-end.
 """
 from __future__ import annotations
 
 import agricola.cards.wood_rake  # noqa: F401  (registers the card)
 
 from agricola.cards.specs import MINORS
-from agricola.cards.triggers import HARVEST_FIELD_CARDS, should_host_harvest_field
+from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.constants import CellType, Phase
 from agricola.engine import _resolve_harvest_field
 from agricola.replace import fast_replace
@@ -74,18 +76,8 @@ def test_wood_rake_registered():
     assert spec.passing_left is False
     # The 2 points are conditional and banked, NOT a printed vps.
     assert spec.vps == 0
-    assert CARD_ID in HARVEST_FIELD_CARDS
-
-
-# ---------------------------------------------------------------------------
-# Host gate
-# ---------------------------------------------------------------------------
-
-def test_host_gate():
-    # No card owned -> no host frame.
-    assert should_host_harvest_field(setup(0)) is False
-    # Owned (played) -> host.
-    assert should_host_harvest_field(_own_minor(setup(0), 0, CARD_ID)) is True
+    # Window #1 membership — OFF the legacy harvest-field hook (2026-07-05).
+    assert CARD_ID in HARVEST_WINDOW_CARDS.get("immediately_before_harvest", set())
 
 
 # ---------------------------------------------------------------------------
@@ -224,4 +216,4 @@ def test_byte_identical_without_card():
     # Mechanical take only; nothing banked, no lingering host frame.
     assert _banked(after, 0) == 0
     assert after.phase == Phase.HARVEST_FEED
-    assert all(type(f).__name__ != "PendingHarvestField" for f in after.pending_stack)
+    assert all(type(f).__name__ == "PendingHarvestFeed" for f in after.pending_stack)

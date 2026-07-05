@@ -18,17 +18,14 @@ All fire in the field phase, through three different seams:
 - **Three-Field Rotation** rides the start_of_field_phase window (its printed
   timing).
 
-The legacy `harvest_field` hook (`should_host_harvest_field` + the transient
-`PendingHarvestField` host) still carries wood_rake — its LAST card — pending
-that migration; its gate tests below exercise it through wood_rake and retire
-with it. With no such card owned the field resolution is byte-identical to the
-Family game and the C++ Family engine never sees the frame (a
+The legacy `harvest_field` hook was RETIRED 2026-07-05 (its last cards — lynchet,
+wood_rake — migrated to the window machinery). With no harvest card owned the
+field resolution is byte-identical to the Family game (a
 `test_harvest_field_byte_identical` guard below).
 
 Most tests drive `_resolve_harvest_field` (the compat alias into the harvest-window
-walk at HARVEST_FIELD, which threads both the legacy `harvest_field` autos and the
-"field_phase" window autos pre-take) so the firing-before-the-take ordering is
-exercised end-to-end; Scythe Worker's on-play +1 grain is checked through its
+walk at HARVEST_FIELD, which fires the "field_phase" window autos pre-take) so the
+firing-before-the-take ordering is exercised end-to-end; Scythe Worker's on-play +1 grain is checked through its
 OccupationSpec, and Loom's scoring term through `score`.
 """
 from __future__ import annotations
@@ -38,14 +35,9 @@ import numpy as np
 from agricola.agents.base import decider_of
 from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.cards.specs import MINORS, OCCUPATIONS
-from agricola.cards.triggers import (
-    HARVEST_FIELD_CARDS,
-    should_host_harvest_field,
-)
 from agricola.constants import CellType, Phase
 from agricola.engine import _advance_until_decision, _resolve_harvest_field, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestField
 from agricola.replace import fast_replace
 from agricola.scoring import score
 from agricola.setup import setup, setup_env
@@ -93,30 +85,20 @@ def test_category6_cards_registered():
     assert "scythe_worker" in OCCUPATIONS
     for cid in ("loom", "butter_churn", "three_field_rotation"):
         assert cid in MINORS
-    # scythe_worker has MIGRATED off the legacy harvest-field hook onto the
-    # take-modifier fold-in seam (user ruling 11, 2026-07-05: all field-phase
-    # harvesting is one simultaneous event — its extra grain folds INTO the
-    # take, as an AUTO modifier with no variants); lynchet followed onto the
-    # take-occasion autos (2026-07-05). Only wood_rake remains on the legacy
-    # hook, pending its own migration ("before the final harvest" — its timing
-    # deserves text-vs-seam scrutiny); asserted as a SUBSET so this test isn't
-    # brittle to its departure, at which point the legacy seam retires.
-    assert "scythe_worker" not in HARVEST_FIELD_CARDS
-    assert "lynchet" not in HARVEST_FIELD_CARDS
+    # scythe_worker rides the take-modifier fold-in seam (user ruling 11,
+    # 2026-07-05: all field-phase harvesting is one simultaneous event — its
+    # extra grain folds INTO the take, as an AUTO modifier with no variants).
+    # The legacy harvest-field hook is fully RETIRED (2026-07-05): lynchet went
+    # to the take-occasion autos and wood_rake to window #1.
     from agricola.cards.harvest_windows import TAKE_MODIFIERS
     sw = next(e for e in TAKE_MODIFIERS if e.card_id == "scythe_worker")
     assert sw.variants_fn is None            # an auto fold-in, no choice
-    assert {"wood_rake"} <= HARVEST_FIELD_CARDS
     # Loom and Butter Churn are flat state-readers (they read the owner's own
-    # animals, not what the take harvested), so they have MIGRATED off the legacy
-    # hook onto the "field_phase" during-window auto (their printed timing, "in the
-    # field phase of each harvest"); they are NOT in HARVEST_FIELD_CARDS.
-    assert "loom" not in HARVEST_FIELD_CARDS
-    assert "butter_churn" not in HARVEST_FIELD_CARDS
+    # animals, not what the take harvested) on the "field_phase" during-window
+    # auto (their printed timing, "in the field phase of each harvest").
     assert {"loom", "butter_churn"} <= HARVEST_WINDOW_CARDS.get("field_phase", set())
-    # Three-Field Rotation has MIGRATED onto the start_of_field_phase harvest
-    # window (its printed timing, "at the start of the field phase of each harvest").
-    assert "three_field_rotation" not in HARVEST_FIELD_CARDS
+    # Three-Field Rotation rides the start_of_field_phase harvest window (its
+    # printed timing, "at the start of the field phase of each harvest").
     assert "three_field_rotation" in HARVEST_WINDOW_CARDS.get(
         "start_of_field_phase", set())
     # Printed VPs (verbatim from JSON): Loom 1, Butter Churn 1, Three-Field 0.
@@ -127,35 +109,6 @@ def test_category6_cards_registered():
     assert MINORS["loom"].min_occupations == 2
     assert MINORS["butter_churn"].max_occupations == 3
     assert MINORS["three_field_rotation"].min_occupations == 3
-
-
-# ---------------------------------------------------------------------------
-# should_host_harvest_field — the card-dependent push gate
-# ---------------------------------------------------------------------------
-
-def test_no_host_without_a_harvest_field_card():
-    state = setup(0)
-    assert should_host_harvest_field(state) is False
-
-
-def test_host_when_a_player_owns_a_harvest_field_card():
-    # wood_rake is the LAST card on the legacy harvest-field hook (scythe_worker
-    # → the take-modifier fold-in; lynchet → the take-occasion autos;
-    # loom/butter_churn → the window auto). These gate tests retire with it.
-    state = _own_minor(setup(0), 0, "wood_rake")
-    assert should_host_harvest_field(state) is True
-    # Owned by the OTHER player still hosts (autos fire per-owner).
-    state2 = _own_minor(setup(0), 1, "wood_rake")
-    assert should_host_harvest_field(state2) is True
-
-
-def test_no_host_when_card_only_in_hand():
-    # A hand card cannot fire — owning it in hand (not played) must NOT host.
-    state = setup(0)
-    p = state.players[0]
-    p = fast_replace(p, hand_minors=p.hand_minors | {"wood_rake"})
-    state = fast_replace(state, players=(p, state.players[1]))
-    assert should_host_harvest_field(state) is False
 
 
 # ---------------------------------------------------------------------------
@@ -176,10 +129,8 @@ def test_harvest_field_byte_identical_without_card():
     assert after.players[1].resources.grain == before.players[1].resources.grain + 1
     assert after.players[0].resources.food == before.players[0].resources.food
     assert after.phase == Phase.HARVEST_FEED
-    # No PendingHarvestField frame ever lingers on the returned stack.
-    assert all(
-        type(f).__name__ != "PendingHarvestField" for f in after.pending_stack
-    )
+    # Only the FEED frames are on the returned stack — no field-phase frame.
+    assert all(type(f).__name__ == "PendingHarvestFeed" for f in after.pending_stack)
 
 
 # ---------------------------------------------------------------------------
@@ -357,16 +308,19 @@ def test_scythe_worker_no_extra_without_grain_fields():
 # Two harvest-field cards on opposite players fire independently
 # ---------------------------------------------------------------------------
 
-def test_full_family_game_never_pushes_harvest_field_frame():
+def test_full_family_game_never_pushes_field_phase_frame():
     """A complete Family game (no card owned) drives all six harvests without ever
-    constructing a PendingHarvestField frame — the card-dependent push keeps the
-    Family field phase byte-identical (the C++ Family gate's invariant)."""
+    constructing a card-only field-phase frame (PendingFieldPhase /
+    PendingHarvestWindow) — the card-dependent push keeps the Family field phase
+    byte-identical (the C++ Family gate's invariant)."""
+    from agricola.pending import PendingFieldPhase, PendingHarvestWindow
     state, env = setup_env(seed=7)
     rng = np.random.default_rng(7)
     saw_field_phase = 0
     while state.phase != Phase.BEFORE_SCORING:
-        # No harvest-field frame may ever appear on a Family game's stack.
-        assert all(not isinstance(f, PendingHarvestField) for f in state.pending_stack)
+        # No card-only harvest frame may ever appear on a Family game's stack.
+        assert all(not isinstance(f, (PendingFieldPhase, PendingHarvestWindow))
+                   for f in state.pending_stack)
         if state.phase == Phase.HARVEST_FEED:
             saw_field_phase += 1   # FEED follows a resolved FIELD phase
         d = decider_of(state)
