@@ -158,11 +158,12 @@ def owns_window_card(player_state, window_id: str) -> bool:
 # - Lunchtime Beer (E58): at start_of_harvest the player may skip the FIELD and
 #   BREEDING phases of that harvest. A skipped phase has no boundaries (ruling 1,
 #   definite): windows 3-7 and 12-15 are suppressed for that player.
-# - Layabout (C108): the player skips their next WHOLE harvest, feeding included.
-#   The harvest's OUTER boundaries survive (ruling 2 — CONTESTED, BGA disagrees):
-#   windows 17-18 still fire; windows 2-16 are suppressed. Whether window 1
-#   (immediately_before_harvest) fires for a Layabout player is OPEN (design doc §8
-#   question 2) — resolve before Layabout is implemented.
+# - Layabout (C108): the player skips their next WHOLE harvest, feeding included —
+#   and per ruling 14 (2026-07-05, following the official online implementation,
+#   superseding the earlier contested ruling 2) the cancellation is TOTAL: every
+#   window #1-#18 is suppressed for the skipping player, before- and after-harvest
+#   boundaries included, plus their feeding and breeding frames (the sentinels need
+#   skip guards when Layabout lands).
 #
 # Neither card is implemented, so `window_skipped` is a structural seam with a hard
 # fast path: HARVEST_SKIP_CARDS is empty until a skip-capable card registers into it,

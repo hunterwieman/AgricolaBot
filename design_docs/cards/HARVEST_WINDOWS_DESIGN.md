@@ -147,13 +147,14 @@ One generic frame serves every simple window:
 - **A skipped phase has no boundaries** *(user ruling 1, definite)*: a player who skips the
   field phase (Lunchtime Beer, chosen in window #2) fires **none** of windows #3–#7 that
   harvest; a Lunchtime Beer player also skips breeding, so none of #12–#15.
-- **A skipped harvest keeps its outer boundaries** *(user ruling 2 — CONTESTED: the
-  BoardGameArena implementation disagrees; cite the controversy in the implementing
-  docstrings)*: Layabout's whole-harvest skip (latched in CardStore at play, consumed at that
-  harvest; skips feeding too) does **not** suppress "after each harvest" effects — Value
-  Assets still fires for the skipping player. *Open question #2:* whether
-  `immediately_before_harvest` (#1) fires for a Layabout player — unruled; both member cards
-  are unimplemented, so nothing blocks on it.
+- **A skipped harvest is cancelled WHOLE, outer boundaries included** *(ruling 14,
+  2026-07-05 — supersedes the earlier contested ruling 2, and follows the official online
+  implementation, which the user dislikes but rules to match)*: Layabout's whole-harvest
+  skip (latched in CardStore at play, consumed at that harvest) suppresses EVERY
+  harvest-relative effect for the skipping player — windows #1 through #18, the feeding
+  frames, and the breeding frames. "After each harvest" cards (Value Assets) do NOT fire
+  for the skipper; neither does `immediately_before_harvest` (#1) — the former open
+  question #2, now resolved.
 - Implementation: each per-player window push is guarded on that player's skip state for the
   current harvest. Lunchtime Beer's skip is a frame-scoped fact of this harvest — proposed
   home: a card-only per-harvest skip descriptor derived at window #2 and carried on the walk
@@ -676,7 +677,10 @@ of §0–§11 is the authority; this only orients.*
 - **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
   (12 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
-- **Open questions still needing the user:** §8 #1 (Elephantgrass #17 vs Value Assets #18
-  ordering), #2 (Layabout + window 1), #4 (Lynchet reading @ migration), #6 (Dung Collector);
-  §10 (7) span end #16, (8) late-anchor ratification, (9) craft-major surfacing. None block
-  the migration batch except #4 (read Lynchet's module at its migration).
+- **Open questions still needing the user:** §8 #1 (confirm the #17-before-#18 ordering
+  derivation — both members are now implemented, and the ladder already encodes
+  Elephantgrass #17 → Value Assets #18) and #6 (Dung Collector's any-source newborn
+  event — defer, don't stretch #14); §10 (7) span end #16, (8) late-anchor ratification,
+  (9) craft-major surfacing. RESOLVED: #2 (Layabout — ruling 14, whole-harvest
+  cancellation incl. windows #1/#17/#18), #4 (Lynchet — migrated 2026-07-05). Newborn
+  feeding for window-#1/#2 growths RATIFIED at 1 food (ruling 13).

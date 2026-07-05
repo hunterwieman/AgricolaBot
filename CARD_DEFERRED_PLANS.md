@@ -98,10 +98,12 @@ user made during this design — cite these, dated, in the docstrings of the car
 
 1. **A skipped phase has no boundaries.** A player who skips the field phase (Lunchtime Beer
    E58) fires NO before-/start-/during-/end-/after-field-phase effects that harvest. (Definite.)
-2. **Layabout's harvest skip does NOT suppress harvest-boundary effects** — "after each
-   harvest" cards (e.g. Value Assets B82) still fire for the skipping player. **CONTESTED:
-   the BoardGameArena implementation disagrees** (it suppresses them); the user rules they
-   fire. Note the controversy in the implementing docstring when built.
+2. ~~Layabout's harvest skip does NOT suppress harvest-boundary effects~~ **SUPERSEDED
+   2026-07-05 by ruling 14**: Layabout cancels before- AND after-harvest trigger effects —
+   the whole ladder, outer boundaries included — following the official online
+   implementation. (The user dislikes this reading but rules to follow the official
+   game; the original ruling here had gone the other way and was itself marked
+   contested.)
 3. **Player interleaving within a harvest window: whole-phase-per-player, starting player
    first** (the BoardGameArena convention), adopted **provisionally**. The user dislikes it —
    the printed rules imply no fixed order, and a fixed order advantages the later-deciding
@@ -183,6 +185,18 @@ user made during this design — cite these, dated, in the docstrings of the car
    reactors (Food Merchant, Field Cultivator, Melon Patch, Cherry Orchard) fire on any
    verb-sense harvest, a played field phase included; E70's "remove" fires on any crop
    departure from that card.
+13. **A card-granted newborn is fed 1 food** (ratified 2026-07-05): a Family Growth
+   granted at the immediately-before-harvest / start-of-harvest windows (Autumn Mother,
+   Bed in the Grain Field) produces a standard newborn — 1 food at that harvest's
+   feeding, exactly like a same-round Wish-space newborn. The engine's uniform newborn
+   rule stands as-is.
+14. **Layabout cancels ALL harvest-relative effects for the skipping player** (ruled
+   2026-07-05, supersedes ruling 2): before-harvest and after-harvest triggers included —
+   windows #1 through #18 are all suppressed, plus the feeding and breeding frames.
+   This follows the official online implementation; the user dislikes the reading but
+   rules to match it. Also resolves the design doc's open question #2 (window #1 does
+   NOT fire for a Layabout player). Cite this ruling, dated, in Layabout's docstring
+   when built.
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
