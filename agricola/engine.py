@@ -140,6 +140,8 @@ from agricola.cards.harvest_windows import (
     WALK_LENGTH,
     WINDOW_INDEX,
     apply_harvest_occasion_autos,
+    auto_take_fold_ins,
+    choice_take_modifiers,
     walk_position,
     window_skipped,
 )
@@ -1456,10 +1458,20 @@ def _field_phase_step(state: GameState, idx: int):
     else:
         state = fast_replace(state, field_triggers_offered=False)
 
-    if _has_window_trigger(state, idx, "field_phase"):
+    # Host the during-window frame when the player has a decision there: an
+    # eligible optional trigger, or a choice-bearing take-MODIFIER whose use is
+    # picked on the take commit itself (Stable Manure — ruling 11: its extras
+    # fold into the one take event, so the choice surfaces as CommitFieldTake
+    # variants at the frame).
+    if (_has_window_trigger(state, idx, "field_phase")
+            or choice_take_modifiers(state, idx)):
         return push(state, PendingFieldPhase(player_idx=idx)), "next"
 
-    state, occasion = field_take(state, idx)
+    # Inline take (no decision): fold in the auto take-modifiers (Scythe
+    # Worker's mandatory-max — empty on the Family fast path) and run the one
+    # simultaneous event.
+    extras = auto_take_fold_ins(state, idx)
+    state, occasion = field_take(state, idx, extra_takes=extras or None)
     state = apply_harvest_occasion_autos(state, idx, occasion)
     return state, None
 

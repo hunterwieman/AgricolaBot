@@ -1,24 +1,29 @@
 """Tests for the field-phase harvest cards:
 Scythe Worker, Butter Churn, Three-Field Rotation, Loom.
 
-All fire in the field phase before the mechanical "take 1 crop per field" runs,
-but through two different seams:
+All fire in the field phase, through three different seams:
 
-- **Scythe Worker** reads WHAT the take harvests (extra grain per grain field), so
-  it stays on the legacy `harvest_field` hook: `_resolve_harvest_field` pushes a
-  transient `PendingHarvestField` host frame and fires the `harvest_field`
-  automatic effects for each owner pre-take — but ONLY when some player owns a
-  harvest-field card (`should_host_harvest_field`, the field-phase analog of
-  `should_host_space`). With no such card owned the field resolution is
-  byte-identical to the Family game and the C++ Family engine never sees the frame
-  (a `test_harvest_field_byte_identical` guard below).
+- **Scythe Worker** harvests extra grain FROM its owner's grain fields as part
+  of the one take event (user ruling 11, 2026-07-05: all field-phase harvesting
+  is simultaneous), so it is an AUTO take-modifier fold-in
+  (`register_take_modifier`, no variants): `resolution.field_take` applies its
+  +1-per-≥2-grain-field extras with the base take, and the take occasion's
+  manifest carries the combined amounts. Outcomes are identical to its earlier
+  pre-take-auto form (the effect tests below survived the migration unchanged).
 - **Loom and Butter Churn** are flat state-readers (they read the owner's own
-  animals, not what the take harvested), so they have MIGRATED onto the
-  "field_phase" during-window auto (HARVEST_WINDOWS_DESIGN.md §4d): fired pre-take
-  by `engine._field_phase_step` via `apply_auto_effects("field_phase", …)`, once
+  animals, not what the take harvested), so they ride the "field_phase"
+  during-window auto (HARVEST_WINDOWS_DESIGN.md §4d): fired pre-take by
+  `engine._field_phase_step` via `apply_auto_effects("field_phase", …)`, once
   per player per harvest.
 - **Three-Field Rotation** rides the start_of_field_phase window (its printed
   timing).
+
+The legacy `harvest_field` hook (`should_host_harvest_field` + the transient
+`PendingHarvestField` host) still carries lynchet and wood_rake pending their
+migrations; its gate tests below exercise it through lynchet. With no such card
+owned the field resolution is byte-identical to the Family game and the C++
+Family engine never sees the frame (a `test_harvest_field_byte_identical`
+guard below).
 
 Most tests drive `_resolve_harvest_field` (the compat alias into the harvest-window
 walk at HARVEST_FIELD, which threads both the legacy `harvest_field` autos and the
@@ -88,15 +93,17 @@ def test_category6_cards_registered():
     assert "scythe_worker" in OCCUPATIONS
     for cid in ("loom", "butter_churn", "three_field_rotation"):
         assert cid in MINORS
-    # scythe_worker still rides the legacy Category-6 harvest-field hook (it reads
-    # what the take harvests per grain field, folding into it — its migration to the
-    # take-occasion fold-in seam is held for a later wave). Asserted as a SUBSET:
-    # a few other cards (lynchet, wood_rake) also remain on the legacy hook pending
-    # their own migrations, so an exact-equality check would be brittle and is not
-    # the point of this test. (The 2026-07-04 wave migrated loom, butter_churn,
-    # milking_stool, wood_harvester, grain_sieve, crack_weeder, potato_harvester,
-    # slurry_spreader, stable_manure OFF this hook.)
-    assert {"scythe_worker"} <= HARVEST_FIELD_CARDS
+    # scythe_worker has MIGRATED off the legacy harvest-field hook onto the
+    # take-modifier fold-in seam (user ruling 11, 2026-07-05: all field-phase
+    # harvesting is one simultaneous event — its extra grain folds INTO the
+    # take, as an AUTO modifier with no variants). Only lynchet and wood_rake
+    # remain on the legacy hook, pending their own migrations; asserted as a
+    # SUBSET so this test isn't brittle to their departures.
+    assert "scythe_worker" not in HARVEST_FIELD_CARDS
+    from agricola.cards.harvest_windows import TAKE_MODIFIERS
+    sw = next(e for e in TAKE_MODIFIERS if e.card_id == "scythe_worker")
+    assert sw.variants_fn is None            # an auto fold-in, no choice
+    assert {"lynchet", "wood_rake"} <= HARVEST_FIELD_CARDS
     # Loom and Butter Churn are flat state-readers (they read the owner's own
     # animals, not what the take harvested), so they have MIGRATED off the legacy
     # hook onto the "field_phase" during-window auto (their printed timing, "in the
@@ -129,12 +136,12 @@ def test_no_host_without_a_harvest_field_card():
 
 
 def test_host_when_a_player_owns_a_harvest_field_card():
-    # scythe_worker still rides the legacy harvest-field hook (Loom/Butter Churn
-    # migrated off it to the "field_phase" window auto).
-    state = _own_occ(setup(0), 0, "scythe_worker")
+    # lynchet remains on the legacy harvest-field hook (scythe_worker migrated
+    # to the take-modifier fold-in; loom/butter_churn to the window auto).
+    state = _own_minor(setup(0), 0, "lynchet")
     assert should_host_harvest_field(state) is True
     # Owned by the OTHER player still hosts (autos fire per-owner).
-    state2 = _own_occ(setup(0), 1, "scythe_worker")
+    state2 = _own_minor(setup(0), 1, "lynchet")
     assert should_host_harvest_field(state2) is True
 
 
@@ -142,7 +149,7 @@ def test_no_host_when_card_only_in_hand():
     # A hand card cannot fire — owning it in hand (not played) must NOT host.
     state = setup(0)
     p = state.players[0]
-    p = fast_replace(p, hand_occupations=p.hand_occupations | {"scythe_worker"})
+    p = fast_replace(p, hand_minors=p.hand_minors | {"lynchet"})
     state = fast_replace(state, players=(p, state.players[1]))
     assert should_host_harvest_field(state) is False
 

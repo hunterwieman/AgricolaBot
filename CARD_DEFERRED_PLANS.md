@@ -165,6 +165,24 @@ user made during this design — cite these, dated, in the docstrings of the car
    fold-in seam; a during-the-field-phase separate occasion no longer exists
    (`emit_harvest_occasion` remains for genuinely separate events — a Bumper-Crop-played
    field phase, future literal "Harvest a crop" effects).
+12. **The harvest-verb lexicon** (ruled 2026-07-05): "harvest" as an EVENT is a real
+   harvest's field phase (Harvest Festival Planning's "this is not a harvest" scopes the
+   event sense). "Harvest" as a VERB means taking crops off fields into the player's
+   supply via the FIELD-PHASE EFFECT — wherever that effect runs, so crops taken by a
+   card-played field phase (Bumper Crop) ARE harvested in the verb sense — or via a card
+   effect literally worded "Harvest a [crop]" (Potato Ridger's clarification, the
+   definition). Crop-off-field movements worded otherwise are not harvests: "remove"
+   (Crop Rotation Field E70) is the wider any-departure verb — the E68/E69 ("harvest the
+   last") vs E70 ("remove the last") same-family contrast is the key evidence — and
+   Changeover's "discard" removes the crop FROM PLAY, not to the supply, so it is a
+   different movement entirely (not evidence about the harvest verb either way).
+   Reactor scoping follows each card's own printed frame: "…in the field phase OF A/EACH
+   HARVEST" (Crack Weeder, Potato Harvester, Slurry Spreader — confirmed field-phase-
+   restricted, correcting a sweep-agent mis-filing — Grain Sieve, Barley Mill, Lynchet,
+   Artichoke Field) fires only in real harvests' field phases; unscoped harvest-verb
+   reactors (Food Merchant, Field Cultivator, Melon Patch, Cherry Orchard) fire on any
+   verb-sense harvest, a played field phase included; E70's "remove" fires on any crop
+   departure from that card.
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a

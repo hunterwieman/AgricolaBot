@@ -41,15 +41,19 @@ CARD_ID = "slurry_spreader"
 
 def _reward(occasion) -> int:
     """Food earned this occasion: +2 per emptied grain entry, +1 per emptied veg
-    entry (each such entry is a field whose LAST crop was taken)."""
+    entry. Each entry is one FIELD, and "each time you take the last grain from a
+    field" pays per field-emptying — NOT per unit — so the payment ignores the
+    entry's `amount` (which exceeds 1 when a take-modifier folded extras into the
+    same event, e.g. Stable Manure emptying a 2-grain field in one combined
+    take: that is ONE last-grain-taking, +2 food)."""
     food = 0
     for e in occasion.entries:
         if not e.emptied:
             continue
         if e.crop == "grain":
-            food += 2 * e.amount
+            food += 2
         elif e.crop == "veg":
-            food += 1 * e.amount
+            food += 1
     return food
 
 

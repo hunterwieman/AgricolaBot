@@ -166,18 +166,27 @@ class CommitFamilyGrowth(CommitSubAction):
 @dataclass(frozen=True)
 class CommitFieldTake(CommitSubAction):
     """Commit the field-phase crop take at a PendingFieldPhase host (card game
-    only; HARVEST_WINDOWS_DESIGN.md §4c).
+    only; HARVEST_WINDOWS_DESIGN.md §4b/§4c).
 
     The take is the FIELD during-window's own mandatory work — one singular
     event harvesting 1 crop from every planted field simultaneously (user
-    ruling 5). It surfaces as an action only when the during-window is hosted
-    (a "field_phase" trigger is eligible), so the player can order their
-    free-order triggers around it; a frameless field phase takes inline in the
-    harvest walk and never enumerates this. Parameter-free today; Grain
-    Thief's per-grain-field replacement will expand it into variants.
-    `_execute_field_take` applies the take, records the take occasion on the
-    frame (`take_fired=True`), and fires the per-occasion autos; the frame
-    stays up (Proceed exits)."""
+    ruling 5), WITH every take-modifier's contribution folded into that same
+    event (user ruling 11: all field-phase harvesting is simultaneous — there
+    is no separate during-phase harvesting occasion). It surfaces as an action
+    only when the during-window is hosted (an eligible "field_phase" trigger,
+    or a choice-bearing take-modifier); a frameless field phase takes inline
+    in the harvest walk and never enumerates this.
+
+    `modifiers` carries the player's chosen uses of their choice-bearing
+    take-modifiers as (card_id, variant) pairs (Stable Manure's which-fields
+    count vector; Grain Thief's replacement joins later) — the enumerator
+    expands one CommitFieldTake per legal combination, the bare `()` being
+    "use none of them" (each modifier is a "you can"). Auto fold-ins (Scythe
+    Worker) need no pair — they apply to every real-harvest take.
+    `_execute_field_take` applies the combined take, records the one take
+    occasion on the frame (`take_fired=True`), and fires the per-occasion
+    autos; the frame stays up (Proceed exits)."""
+    modifiers: tuple = ()   # tuple[(card_id, variant), ...], enumeration-ordered
 
 
 @dataclass(frozen=True)

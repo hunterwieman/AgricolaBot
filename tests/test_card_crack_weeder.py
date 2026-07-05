@@ -222,16 +222,17 @@ def test_occasion_outside_field_phase_earns_nothing():
 # ---------------------------------------------------------------------------
 
 def test_stable_manure_extra_veg_counts_end_to_end():
-    """Owning Crack Weeder AND Stable Manure, a veg field harvested TWICE in the
-    field phase (once by Stable Manure's extra, once by the take) pays Crack Weeder
-    for BOTH veg — proving the phase-scoped gate fires on the card-granted occasion
-    through the real walk, not just a hand-built one. (The old source=="take" gate
-    paid only for the take's veg — the fidelity bug this test guards.)"""
-    from agricola.actions import CommitFieldTake, FireTrigger, Proceed
+    """Owning Crack Weeder AND Stable Manure, a 2-veg field yielding BOTH veg in
+    the one take event (base + Stable Manure's folded-in extra — user ruling 11)
+    pays Crack Weeder for both, through the real walk: the manifest's veg amount
+    is 2 and the unit counter reads it. (The original source=="take" gate paired
+    with the separate-occasion model paid only the base veg — the fidelity bug
+    this test guards.)"""
+    from agricola.actions import CommitFieldTake, Proceed
     from agricola.legality import legal_actions
     from agricola.pending import PendingFieldPhase
     state = _own_minor(_own_minor(_harvest_state(), 0, CARD_ID), 0, "stable_manure")
-    # A 2-veg field + one unfenced stable → Stable Manure may take 1 extra veg.
+    # A 2-veg field + one unfenced stable → Stable Manure may fold in 1 extra veg.
     state = with_grid(state, 0, {
         (0, 0): Cell(cell_type=CellType.FIELD, veg=2),
         (0, 4): Cell(cell_type=CellType.STABLE),
@@ -241,15 +242,15 @@ def test_stable_manure_extra_veg_counts_end_to_end():
     state = _advance_until_decision(state)
     top = state.pending_stack[-1]
     assert isinstance(top, PendingFieldPhase) and top.player_idx == 0
-    # Fire Stable Manure's extra harvest (the sole legal veg variant), then the take.
-    sm = next(a for a in legal_actions(state)
-              if isinstance(a, FireTrigger) and a.card_id == "stable_manure")
-    state = step(state, sm)
-    state = step(state, CommitFieldTake())
+    # Commit the take WITH Stable Manure's extra folded in (the sole veg variant).
+    take = next(a for a in legal_actions(state)
+                if isinstance(a, CommitFieldTake) and a.modifiers)
+    assert take.modifiers == (("stable_manure", "veg2:1"),)
+    state = step(state, take)
     state = step(state, Proceed())
     state = _advance_until_decision(state)
 
-    # Both veg reached the supply (extra + take), and Crack Weeder paid for each.
+    # Both veg reached the supply in the one event, and Crack Weeder paid for each.
     assert state.players[0].resources.veg == v0 + 2
     assert state.players[0].resources.food == f0 + 2
 

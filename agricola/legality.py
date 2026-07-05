@@ -2720,17 +2720,29 @@ def _enumerate_pending_field_phase(
     mandatory take —
 
     - `CommitFieldTake` while `take_fired` is False (the take is the window's
-      own mandatory work; take-MODIFIERS will surface as its variants and are
-      implicitly declined by firing it — the §4b one-way gate);
+      own mandatory work). Choice-bearing take-MODIFIERS (Stable Manure —
+      ruling 11: their extras are part of the one take event) expand it into
+      variants: one commit per combination of modifier uses, the bare
+      `modifiers=()` being "use none" (each is a "you can"). Committing any
+      of them IS the one-way gate of §4b — every unchosen modifier use is
+      implicitly declined, because the event it would have modified has
+      happened.
     - `Proceed` (the exit) only once the take HAS fired, and never while a
       mandatory-with-choice trigger is unfired, exactly like every other host.
     """
+    from agricola.cards.harvest_windows import choice_take_modifiers
     from agricola.cards.triggers import has_unfired_mandatory_trigger
 
     base = _eligible_fire_triggers(state, pending, "field_phase")
     actions = _expand_variant_triggers(state, pending, base)
     if not pending.take_fired:
-        actions.append(CommitFieldTake())
+        combos: list[tuple] = [()]
+        for card_id, variants in choice_take_modifiers(state, pending.player_idx):
+            combos = [c + pair
+                      for c in combos
+                      for pair in ([()]                    # decline this card
+                                   + [((card_id, v),) for v in variants])]
+        actions.extend(CommitFieldTake(modifiers=c) for c in combos)
     elif not has_unfired_mandatory_trigger(state, pending, "field_phase"):
         actions.append(Proceed())
     return actions

@@ -183,6 +183,106 @@ def window_skipped(state, player_idx: int, window_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Take-modifier fold-ins (design doc §4b; user ruling 11, 2026-07-05)
+# ---------------------------------------------------------------------------
+# ALL field-phase harvesting is ONE simultaneous event: a card that harvests
+# extra goods from fields during the field phase ("1 additional grain from each
+# of your grain fields" — Scythe Worker; "1 additional good from a number of
+# fields" — Stable Manure; Scythe E73's one-field widening) does not create a
+# second harvesting occasion — it FOLDS INTO the take. A full-catalog sweep
+# (2026-07-05) found no sequential wording anywhere; every such card is a
+# modifier of the singular event. Mechanically: the fold-ins contribute
+# per-cell EXTRA units to `resolution.field_take`, whose manifest entries then
+# carry the combined amounts (so occasion consumers — Grain Sieve per ruling
+# 11, Slurry Spreader's emptied flags — see one event with everything in it).
+#
+# Two modifier kinds:
+# - **Auto fold-ins** (`variants_fn=None`): choice-free (or modeled choice-free,
+#   like Scythe Worker's documented mandatory-max simplification). Applied on
+#   every REAL-harvest take for their owner — the hosted CommitFieldTake and
+#   the inline walk take alike. `fold_fn(state, idx, None)` returns the extra
+#   units per cell ({} when nothing qualifies).
+# - **Choice-bearing modifiers** (`variants_fn` given): the player picks HOW to
+#   use the card (Stable Manure's which-fields count vectors). Because the
+#   choice is part of the one event, it surfaces as VARIANTS OF THE TAKE
+#   COMMIT — `CommitFieldTake(modifiers=((card_id, variant), ...))` — never as
+#   a separate trigger (the §4b class; Grain Thief's replacement joins this
+#   shape later). Owning one with a non-empty variant set is itself a reason
+#   to host the during-window frame. `fold_fn(state, idx, variant)` maps the
+#   chosen variant to its extra units.
+#
+# Scope: both implemented members are printed "in the field phase of EACH
+# HARVEST" — harvest-event-scoped (ruling 12) — so fold-ins apply only to a
+# real harvest's take. A card-played field phase (Bumper Crop, ruling 4) calls
+# the bare `field_take` with no fold-ins.
+
+
+@dataclass(frozen=True)
+class TakeModifierEntry:
+    """One registered take-modifier.
+
+    fold_fn signature:     (state, owner_idx, variant | None) -> dict[(r, c), int]
+        — extra units to harvest per farmyard cell, ON TOP of the take's base
+        1-per-planted-field. Must only name cells that can spare them.
+    variants_fn signature: (state, owner_idx) -> list[str]
+        — the currently-legal variant strings (empty = no legal use now), or
+        None for an auto fold-in (no choice; fold_fn is called with None).
+    """
+    card_id: str
+    fold_fn: Callable
+    variants_fn: Callable | None = None
+
+
+TAKE_MODIFIERS: list[TakeModifierEntry] = []
+
+
+def register_take_modifier(card_id, fold_fn, *, variants_fn=None) -> None:
+    """Register a field-phase take-modifier (card-module import time)."""
+    TAKE_MODIFIERS.append(TakeModifierEntry(card_id, fold_fn, variants_fn))
+
+
+def _owns(player_state, card_id: str) -> bool:
+    return (card_id in player_state.occupations
+            or card_id in player_state.minor_improvements)
+
+
+def auto_take_fold_ins(state, idx: int) -> dict:
+    """The merged choice-free extra takes for player `idx`'s take (Scythe
+    Worker's mandatory-max grain). Empty dict — the Family fast path — when no
+    auto modifier is owned."""
+    extras: dict = {}
+    for e in TAKE_MODIFIERS:
+        if e.variants_fn is None and _owns(state.players[idx], e.card_id):
+            for cell, n in e.fold_fn(state, idx, None).items():
+                extras[cell] = extras.get(cell, 0) + n
+    return extras
+
+
+def choice_take_modifiers(state, idx: int) -> list:
+    """The owned choice-bearing modifiers with their currently-legal variants:
+    [(card_id, [variant, ...]), ...]. Non-empty forces the during-window frame
+    (the choice must be surfaced); empty — the Family fast path."""
+    out = []
+    for e in TAKE_MODIFIERS:
+        if e.variants_fn is not None and _owns(state.players[idx], e.card_id):
+            vs = e.variants_fn(state, idx)
+            if vs:
+                out.append((e.card_id, vs))
+    return out
+
+
+def fold_chosen_modifiers(state, idx: int, modifiers) -> dict:
+    """Merge the auto fold-ins with the take commit's chosen (card_id, variant)
+    pairs into one per-cell extra-take map."""
+    extras = auto_take_fold_ins(state, idx)
+    by_id = {e.card_id: e for e in TAKE_MODIFIERS}
+    for card_id, variant in modifiers:
+        for cell, n in by_id[card_id].fold_fn(state, idx, variant).items():
+            extras[cell] = extras.get(cell, 0) + n
+    return extras
+
+
+# ---------------------------------------------------------------------------
 # Harvest-occasion registries (the payload-bearing seam — design doc §4d)
 # ---------------------------------------------------------------------------
 # The global firing system deliberately carries no event payload

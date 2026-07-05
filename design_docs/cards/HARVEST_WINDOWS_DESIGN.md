@@ -19,7 +19,15 @@
 > green including the untouched C++ differential gates; coverage:
 > `tests/test_field_phase_window.py` + `tests/test_harvest_windows.py`. Remaining ordering
 > note: the FEED/BREED segments are still WINDOW-major (whole-segment-per-player there is
-> deferred until a member card's ordering depends on it). Drafted with the user across the 2026-07-02/03
+> deferred until a member card's ordering depends on it). **The §7 migration wave A landed
+> 2026-07-04** (the three mis-timed cards re-timed, ~14 cards re-homed; fidelity-lint
+> ALLOWLIST emptied). **The take-fold-in seam landed 2026-07-05 (ruling 11)**:
+> `TAKE_MODIFIERS` / `register_take_modifier` in `harvest_windows.py`, per-cell
+> `extra_takes` on `field_take`, choice-bearing modifiers as `CommitFieldTake(modifiers=…)`
+> variants — Stable Manure reworked onto it (its wave-A free-order/own-occasion form
+> superseded) and Scythe Worker migrated off the legacy hook as an auto fold-in; §4b is
+> as-built. Legacy `harvest_field` seam still carries lynchet (user ruling pending) and
+> wood_rake. Drafted with the user across the 2026-07-02/03
 > sessions; the dated **user rulings** are recorded both here and in `CARD_DEFERRED_PLANS.md`
 > ("Harvest-window redesign — user rulings"). Everything not marked as a ruling or as landed
 > is a **proposal**. The user is the rules authority (CARD_AUTHORING_GUIDE.md §0.1 governs
@@ -161,41 +169,59 @@ One generic frame serves every simple window:
 The core novelty. Per the census + rulings, "during the field phase" content is **four
 distinct classes**, not one:
 
-**(a) Free-ordered independent triggers.** Cube Cutter's exchange, Treegardener's optional
-buy, and the *additional harvest* triggers (Scythe E73, Stable Manure) — legal at any point
-in the window, before or after the take, in any player-chosen order. Surfaced as ordinary
-`FireTrigger`s on the during-frame; `triggers_resolved` gives once-per-phase.
+**(a) Free-ordered independent triggers.** Cube Cutter's exchange and Treegardener's
+optional buy — NON-harvesting during-phase effects, legal at any point in the window, before
+or after the take, in any player-chosen order. Surfaced as ordinary `FireTrigger`s on the
+during-frame; `triggers_resolved` gives once-per-phase. *(The additional-harvest cards —
+Scythe E73, Stable Manure — were originally drafted into this class; ruling 11 (2026-07-05)
+moved them to class (b): a full-catalog sweep found ALL during-phase harvesting is written
+as a modifier of the one take event, never a separate sequenced harvest.)*
 
-**(b) Take-modifiers.** Effects that alter the mechanical take itself and are meaningless
-after it:
-- *Scythe Worker* — per the standing mandatory-max simplification (see its module docstring:
-  optional by text, modeled as take-the-maximum because partial use is strictly dominated
-  under the current card set), its extra grain folds **into the take occasion** (it is part
-  of what the take harvests, not a separate occasion). The docstring's planned wide-trigger
-  design remains the upgrade path if a card ever makes partial use meaningful.
-- *Grain Thief* — "each time you **would** harvest a grain field" is a per-grain-field
-  replacement **parameter of the take commit** (there is no timing between per-field takes —
-  the take is singular, ruling 5), surfaced as take-commit variants, not a separate trigger.
-- Class rule (generalizing the user's Scythe Worker observation): **firing the take
-  implicitly declines every unfired take-modifier** — modifier eligibility gates on
-  take-not-yet-fired. A one-way gate, the enforce-first idea transposed into a free-order
-  window.
+**(b) Take-modifiers — every during-phase harvesting card (ruling 11; AS BUILT
+2026-07-05).** All field-phase harvesting is ONE simultaneous event: these cards' extras
+are taken at the same time as the base take, inside the same occasion. The seam is the
+`TAKE_MODIFIERS` registry (`register_take_modifier` in `harvest_windows.py`), whose
+fold-fns contribute per-cell EXTRA units to `field_take`'s `extra_takes`; the manifest
+entry for a benefited cell carries the combined `amount` and the NET `emptied` flag, so
+every occasion consumer sees the extras as part of the take (Grain Sieve counts them —
+the ruled Scythe-Worker/Stable-Manure equivalence). Two kinds:
+- **Auto fold-ins** (`variants_fn=None`) — choice-free, applied to every real-harvest take
+  for their owner, inline and hosted alike. *Scythe Worker* (its mandatory-max
+  simplification stands: optional by text, modeled as take-the-maximum; if partial use
+  ever matters it becomes a choice-bearing modifier — the old wide-trigger upgrade path is
+  obsolete). *Scythe E73* joins here or as choice-bearing (it selects one field).
+- **Choice-bearing modifiers** (`variants_fn` given) — the use is picked ON the take
+  commit: `CommitFieldTake(modifiers=((card_id, variant), ...))`, one commit per legal
+  combination, the bare `()` declining all (each is a "you can"). Owning one with a legal
+  use is itself what hosts the during-frame. *Stable Manure* (which-fields count vectors);
+  *Grain Thief*'s per-grain-field replacement joins this shape (a replacement rather than
+  an extra — the seam grows a per-cell skip/replace map when it lands).
+- The §4b one-way gate is now STRUCTURAL: the modifiers are parameters of the take commit
+  itself, so committing any take implicitly declines every unchosen use — the event they
+  would have modified has happened.
+- Both implemented members are printed "of each harvest" → fold-ins apply only to a real
+  harvest's take (ruling 12); a card-played field phase (Bumper Crop) runs `field_take`
+  bare.
 
-**(c) The take.** Modeled as a **mandatory trigger gating the window's exit** — the existing
-mandatory-with-choice machinery (`has_unfired_mandatory_trigger` withholding Proceed), with
-variant expansion when Grain Thief is owned and parameter-free otherwise. When the player has
-no during-window registrations at all, no frame exists and the take runs mechanically inline
-(today's path, unchanged). **The take is one event** *(user ruling 5)*: it harvests 1 crop
-from every planted field **and card-field** (§6) simultaneously, plus Scythe Worker's fold-in;
-all its per-field/per-crop consequences arrive at once.
+**(c) The take.** The window's own mandatory work: `CommitFieldTake` is the only path to
+`Proceed` (the enumerator withholds the exit until `take_fired`), variant-expanded by the
+choice-bearing modifiers above and bare otherwise. When the player has no during-window
+decision at all (no eligible trigger, no choice-bearing modifier use), no frame exists and
+the take runs mechanically inline — with the auto fold-ins applied — in the walk. **The
+take is one event** *(user ruling 5)*: it harvests 1 crop from every planted field **and
+card-field** (§6) simultaneously, plus every fold-in's extras; all its per-field/per-crop
+consequences arrive at once.
 
-**(d) Consequences, off the occasion manifest.** Every harvesting **occasion** — the take,
-and each fired class-(a) harvest trigger — appends one record to a frame-scoped log on the
-during-frame:
+**(d) Consequences, off the occasion manifest.** Every harvesting **occasion** appends one
+record to a frame-scoped log on the during-frame. Under ruling 11 a real harvest's field
+phase has exactly ONE occasion — the take, fold-ins included; separate occasions arise only
+from out-of-phase harvesting events (a Bumper-Crop-played field phase via the bare
+`field_take`, future literal "Harvest a crop" effects via `emit_harvest_occasion`):
 
 ```python
 @dataclass(frozen=True)
-class HarvestOccasion:          # one per take / fired harvest trigger
+class HarvestOccasion:          # one per harvesting event
+    source: str                 # "take" | "card:<id>"
     entries: tuple[HarvestEntry, ...]
 
 @dataclass(frozen=True)
@@ -315,11 +341,11 @@ ALLOWLIST as each mis-timed card is resolved (the priority section's contract). 
 | Three-Field Rotation | `harvest_field` auto | window #4 auto |
 | Butter Churn, Loom, Milking Stool, Wood Harvester | `harvest_field` autos | window #5 flat autos (unchanged semantics) |
 | Lynchet | `harvest_field` auto | **verify at migration**: "each *harvested* field tile adjacent to your house" — confirm whether the current pre-take grid read matches the manifest-derived meaning (open question #4) |
-| Scythe Worker | `harvest_field` auto (pre-take mutation) | folds into the take occasion (§4b); keep its documented wide-trigger upgrade path |
+| Scythe Worker | ~~`harvest_field` auto (pre-take mutation)~~ | **DONE 2026-07-05**: AUTO take fold-in (`register_take_modifier`, §4b / ruling 11) — its extras ride the take occasion's amounts; mandatory-max simplification stands (partial use would become a choice-bearing modifier) |
 | Slurry Spreader A106 | `harvest_field` auto (registration-order grid read) | per-occasion auto on `emptied` entries — now correct under free order |
 | Grain Sieve | `harvest_field` auto (pre-take read) | **take-occasion auto (ruling 9)** — fires once, off the take occasion's manifest (`occasion.source == "take"`); NOT a window-exit aggregate (that earlier idea is superseded — §4d) |
 | Crack Weeder, Potato Harvester | `harvest_field` autos (pre-take reads) | per-occasion autos (per veg unit) |
-| Stable Manure | `PendingHarvestField` variant trigger | window #5 class-(a) trigger; its extra goods become their own occasion |
+| Stable Manure | ~~`PendingHarvestField` variant trigger~~ | **DONE 2026-07-05**: CHOICE-BEARING take-modifier (ruling 11 — the wave-A class-(a)/own-occasion form was superseded): its count-vector choice surfaces as `CommitFieldTake(modifiers=...)` variants; extras fold into the one take occasion (Grain Sieve counts them) |
 | Beer Keg, Beer Tap, Studio, Schnapps Distiller, Schnapps Distillery | `HARVEST_CONVERSIONS` | **stay** — printed "in the feeding phase" is exactly that seam |
 | Furniture Carpenter | `HARVEST_CONVERSIONS` (FEED-only) | the **#16 late anchor** (§10 — anchoring approved 2026-07-03; its "each harvest" is unanchored, and FEED-only strands breed-step food) |
 | Home Brewer | `HARVEST_CONVERSIONS` (the audited equivalence reading) | **window #7 `after_field_phase` (RULED 2026-07-03)** |
@@ -554,16 +580,25 @@ of §0–§11 is the authority; this only orients.*
   the skip seam (`HARVEST_SKIP_CARDS` + `window_skipped`, loud-guarded); the **occasion
   registries** (`register_harvest_occasion_auto` / `register_harvest_occasion_trigger`,
   `(state, owner_idx, occasion)` signatures, `apply_harvest_occasion_autos` — occasion
-  TRIGGERS are a loud-guard seam until the first member builds the surfacing).
+  TRIGGERS are a loud-guard seam until the first member builds the surfacing); the
+  **take-fold-in seam (ruling 11, 2026-07-05)**: `TAKE_MODIFIERS` /
+  `register_take_modifier(card_id, fold_fn, variants_fn=None)` — auto fold-ins
+  (`auto_take_fold_ins`; Scythe Worker) apply to every real-harvest take, choice-bearing
+  modifiers (`choice_take_modifiers` / `fold_chosen_modifiers`; Stable Manure) surface as
+  take-commit variants and force the during-frame.
 - `agricola/pending.py` — `HarvestEntry(source, crop, amount, emptied)` /
   `HarvestOccasion(source, entries)` (source `"take"` or `"card:<id>"`);
   **`PendingFieldPhase`**(player_idx, take_fired, occasions, triggers_resolved) — the
   during-window host; `PendingHarvestWindow` (simple windows); legacy `PendingHarvestField`
   (the pre-migration `harvest_field` stage, per-player, at most one out at a time).
-- `agricola/resolution.py` — **`field_take(state, idx, *, source="take")`** — the shared bare
-  take (grain precedence, one singular occasion; NO budget reset / autos / frames — ruling 4's
-  Bumper-Crop entry point); `_execute_field_take` — the CommitFieldTake executor (take →
-  record-first on the frame → occasion autos; no pop).
+- `agricola/resolution.py` — **`field_take(state, idx, *, source="take",
+  extra_takes=None)`** — the shared bare take (grain precedence, one singular occasion
+  whose entries carry base+fold-in amounts and NET emptied flags; NO budget reset / autos /
+  frames — ruling 4's Bumper-Crop entry point, which passes no fold-ins per ruling 12);
+  `_execute_field_take` — the CommitFieldTake executor (fold the commit's chosen modifiers
+  + the autos → take → record-first on the frame → occasion autos; no pop);
+  `emit_harvest_occasion` — the seam for genuinely SEPARATE occasions (out-of-phase
+  events only, post-ruling-11).
 - `agricola/engine.py`:
   - `_advance_harvest` — walks the VIRTUAL ladder from `harvest_cursor` (or phase-derived);
     resets both players' `harvest_conversions_used` at the harvest's FRESH ENTRY (moved from
@@ -578,25 +613,31 @@ of §0–§11 is the authority; this only orients.*
   - `_resolve_harvest_field` — compat alias (assert HARVEST_FIELD + `_advance_harvest`);
     the legacy card tests drive it by this name.
 - `agricola/legality.py` — `_enumerate_pending_field_phase`: free-order "field_phase"
-  FireTriggers + `CommitFieldTake` while unfired; `Proceed` only after the take (and no
-  unfired mandatory trigger). Take-modifier variants (Grain Thief) attach here later.
-- `agricola/actions.py` — `CommitFieldTake` (parameter-free; variants when Grain Thief lands).
+  FireTriggers + the take-commit while unfired, VARIANT-EXPANDED over the choice-bearing
+  modifiers (one `CommitFieldTake(modifiers=…)` per combination, bare `()` = decline all);
+  `Proceed` only after the take (and no unfired mandatory trigger).
+- `agricola/actions.py` — `CommitFieldTake(modifiers=())` — (card_id, variant) pairs;
+  Grain Thief's replacement joins as another modifier kind when it lands.
 - Coverage: `tests/test_field_phase_window.py` (manifest, free order, mandatory gate, band
   ordering, bare take) + `tests/test_harvest_windows.py` (stage 1) +
   `tests/test_card_stable_manure.py` (the legacy stage under the band).
 
-### Next step — delegation (the §7 migration batch + the new-card wave)
+### Next step — the remaining migrations + the new-card wave
 
-- **Migration batch** (§7 table): re-home the implemented field cards onto the window events /
-  occasion registries; the three mis-timed cards (Cube Cutter→#5, Winter Caretaker→#16,
-  Elephantgrass→#17), Home Brewer→#7, Bale of Straw→#2, Three-Field Rotation→#4; Grain
-  Sieve / Barley Mill become take-occasion autos (ruling 9, gate `occasion.source == "take"`);
-  shrink `tests/test_card_fidelity_lint.py` ALLOWLIST as each mis-timed card resolves. One
-  Opus agent per card, §0.1 fidelity rule VERBATIM in every prompt, a fidelity-verifier stage
-  checking text-vs-code first. When the last `harvest_field` card migrates, retire the legacy
-  seam (`PendingHarvestField`, `field_triggers_offered`, `_fire_harvest_field_autos`,
-  `register_harvest_field_hook` / `HARVEST_FIELD_CARDS` / `should_host_harvest_field`, the
-  `harvest_field` event registrations, `_enumerate_pending_harvest_field`).
+- **Migration wave A LANDED 2026-07-04** (nine delegated agents + a driver fidelity fix):
+  the three mis-timed cards (Cube Cutter→#5, Winter Caretaker→#16, Elephantgrass→#17),
+  Home Brewer→#7, Bale of Straw→#2, Three-Field Rotation→#4, the four flat autos→#5,
+  Grain Sieve→take-occasion auto, Crack Weeder / Potato Harvester / Slurry Spreader→
+  field-phase-scoped occasion autos, Stable Manure→#5; ALLOWLIST emptied. **The fold-in
+  rework LANDED 2026-07-05** (ruling 11): Stable Manure and Scythe Worker are
+  take-modifiers.
+- **Still on the legacy `harvest_field` seam**: lynchet (migration blocked on the user's
+  reading — §8 #4; the 2026-07-05 analysis recommends a take-occasion tile count) and
+  wood_rake. When the last migrates, retire the seam (`PendingHarvestField`,
+  `field_triggers_offered`, `_fire_harvest_field_autos`, `register_harvest_field_hook` /
+  `HARVEST_FIELD_CARDS` / `should_host_harvest_field`, the `harvest_field` event
+  registrations, `_enumerate_pending_harvest_field`). Also held: Farm Store (un-archive
+  →#11), Furniture Carpenter (→#16 anchor).
 - **New-card wave, windows 1–7**: Haydryer, Transactor, Raised Bed, Pipe Smoker, Recluse,
   Dentist, Lunchtime Beer (implements the skip seam — `HARVEST_SKIP_CARDS` + `window_skipped`
   latch), Straw Manure, Beer Table, Winnowing Fan, Market Stall C54, Land Surveyor,
@@ -609,7 +650,7 @@ of §0–§11 is the authority; this only orients.*
 - **Design of record:** this file (§1 ladder, §2 frames, §3 ordering/skips, §4 during-window,
   §5 FEED/BREED, §6 card-fields, §7 migration, §8 open Qs, §10 anytime triggers, §11 stress).
 - **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
-  (10 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
+  (12 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
 - **Open questions still needing the user:** §8 #1 (Elephantgrass #17 vs Value Assets #18
   ordering), #2 (Layabout + window 1), #4 (Lynchet reading @ migration), #6 (Dung Collector);

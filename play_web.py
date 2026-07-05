@@ -999,10 +999,16 @@ def _web_action_display(action: Action) -> str:
         if variant:
             return f"{name}: {_trigger_variant_label(variant)}"
         return name
-    # The mandatory field-phase take at a hosted during-window (Cards mode):
-    # a parameter-free commit whose dataclass repr would read as jargon.
+    # The mandatory field-phase take at a hosted during-window (Cards mode).
+    # A modifier-carrying variant names the take-modifier card(s) whose extras
+    # fold into the event (e.g. Stable Manure's which-fields count vector).
     if isinstance(action, CommitFieldTake):
-        return "Harvest your fields (take 1 crop from each)"
+        base = "Harvest your fields (take 1 crop from each)"
+        if not action.modifiers:
+            return base
+        mods = ", ".join(f"{_card_info(cid)['name']}: {variant}"
+                         for cid, variant in action.modifiers)
+        return f"{base} + {mods}"
     # Payment-bearing commits (cost-modifier cards): show the chosen payment so the
     # multiple options of a renovate / two-step build read distinctly.
     if isinstance(action, CommitRenovate):

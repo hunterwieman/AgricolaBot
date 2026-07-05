@@ -224,6 +224,37 @@ def test_occasion_outside_field_phase_earns_nothing():
 # Owner-gating — fires only for the player who owns it
 # ---------------------------------------------------------------------------
 
+def test_take_modifier_extra_that_empties_a_field_pays():
+    """Ruling 11: a take-modifier's folded-in extra is part of the one take
+    event — a 2-grain field emptied by base + Stable Manure's extra IS "taking
+    the last grain from a field" and pays +2, end-to-end through the walk."""
+    from agricola.actions import CommitFieldTake, Proceed
+    from agricola.engine import step
+    from agricola.legality import legal_actions
+    from agricola.pending import PendingFieldPhase
+    state = _own_occ(_harvest_state(), 0, CARD_ID)
+    p = state.players[0]
+    state = fast_replace(state, players=tuple(
+        fast_replace(p, minor_improvements=p.minor_improvements | {"stable_manure"})
+        if i == 0 else state.players[i] for i in range(2)))
+    state = with_grid(state, 0, {
+        (0, 0): Cell(cell_type=CellType.FIELD, grain=2),
+        (0, 4): Cell(cell_type=CellType.STABLE),
+    })
+    f0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    assert isinstance(state.pending_stack[-1], PendingFieldPhase)
+    take = next(a for a in legal_actions(state)
+                if isinstance(a, CommitFieldTake) and a.modifiers)
+    state = step(state, take)
+    # The one event emptied the field (base 1 + extra 1) -> +2 Slurry food.
+    # WITHOUT the modifier the take leaves 1 grain and pays nothing this harvest.
+    assert state.players[0].farmyard.grid[0][0].grain == 0
+    assert state.players[0].resources.food == f0 + 2
+    state = step(state, Proceed())
+    assert _advance_until_decision(state).phase == Phase.HARVEST_FEED
+
+
 def test_fires_only_for_owner():
     state = _own_occ(_harvest_state(), 0, CARD_ID)   # P0 owns, P1 does not
     state = with_grid(state, 0, {(0, 0): Cell(cell_type=CellType.FIELD, grain=1)})
