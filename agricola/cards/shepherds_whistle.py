@@ -21,12 +21,16 @@ Three cases:
   play-variant trigger: each option is a Pareto-optimal keep-set of the
   current animals under the reduced capacity (released animals cook at the
   player's cooking rates, exactly the acquisition-overflow model), plus the
-  granted sheep. Options whose animal vector is identical to or dominated by
-  the current holding are pruned (the ruling's letter — dominance is over
-  ANIMALS only, food excluded, the standing frontier convention), and
-  declining via Proceed keeps the current animals with NO sheep: an
-  unobtained sheep is never cooked (unlike a plain animal grant, where the
-  overflow frontier would let the new animal convert to food).
+  granted sheep. **The frontier is over animal counts plus a
+  received-vs-declined dimension** (ruling 16 as amended 2026-07-05):
+  received dominates declined iff the player has a sheep-conversion
+  opportunity — so a cook-a-sheep-and-replace-it option (animal-identical to
+  declining, food in hand) SURVIVES and strategically supersedes declining
+  when cooking pays, and is pruned only at zero rates (where it IS declining).
+  Food is computed per option, never a frontier dimension (among received
+  options animals-only dominance is exact — food differences equal the
+  deferred cook-value of the animal difference). Declining via Proceed keeps
+  the current animals with NO sheep: an unobtained sheep is never cooked.
 
 The reduced capacity is computed by handing the standard helpers a DOCTORED
 player with one standalone-stable cell blanked — standalone stables are
@@ -103,20 +107,27 @@ def _auto_apply(state: GameState, idx: int) -> GameState:
 # --- Case B: make a stable free (Pareto options) or decline ---------------
 
 def _options(state: GameState, idx: int) -> list:
-    """The surviving (kept_animals, cook_food) options: reduced-capacity
-    Pareto keep-sets + the granted sheep, pruned of anything identical to or
-    dominated by the current holding (animals-only dominance)."""
+    """The surviving (ending_animals, cook_food) options: reduced-capacity
+    Pareto keep-sets + the granted sheep. Survival vs declining rides the
+    received-vs-declined frontier dimension (ruling 16 as amended): declining
+    prunes an option only when the option's animals never exceed the current
+    holding AND no sheep-conversion opportunity orders received above
+    declined — i.e. a sheep-cooking option survives exactly when cooking
+    pays (the card replaces the cooked sheep, so its food is non-deferrable).
+    Among the options themselves the keep-sets are already mutually
+    Pareto-optimal (animals-only, exact)."""
     reduced = _without_one_standalone_stable(state, idx)
     if reduced is None:
         return []
     cur = state.players[idx].animals
     rates = cooking_rates(state, idx)[:3]
+    sheep_convertible = rates[0] > 0
     out = []
     for kept, food in pareto_frontier(reduced, Animals(), rates):
         opt = kept + Animals(sheep=1)
-        dominated = (opt.sheep <= cur.sheep and opt.boar <= cur.boar
-                     and opt.cattle <= cur.cattle)
-        if not dominated:
+        adds_animals = (opt.sheep > cur.sheep or opt.boar > cur.boar
+                        or opt.cattle > cur.cattle)
+        if adds_animals or sheep_convertible:
             out.append((opt, food))
     return out
 

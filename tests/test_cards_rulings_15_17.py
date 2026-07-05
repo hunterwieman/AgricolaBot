@@ -9,9 +9,12 @@
   card)." Feeding income + the house-pet-capacity NEGATION (beats Animal Tamer).
 - Shepherd's Whistle (E83, minor): "At the start of the breeding phase of each
   harvest, if you have at least 1 unfenced stable without an animal, you get 1
-  sheep." Ruling 16: a stable is free iff the animals fit with one unfenced
-  stable removed; free -> automatic sheep; else a Pareto make-room choice with
-  animals-only dominance pruning; declining forfeits the sheep entirely.
+  sheep." Ruling 16 (as amended): a stable is free iff the animals fit with one
+  unfenced stable removed; free -> automatic sheep; else a Pareto make-room
+  choice over animals PLUS the received-vs-declined dimension (received
+  dominates declined iff a sheep-conversion opportunity exists — so
+  cook-a-sheep-and-replace-it survives with a Fireplace, dies without one);
+  declining forfeits the sheep entirely.
 """
 from __future__ import annotations
 
@@ -277,11 +280,28 @@ def test_sw_decline_forfeits_the_sheep_entirely():
     assert state.players[0].resources.food == f0       # no phantom-sheep food
 
 
-def test_sw_dominated_options_are_pruned():
-    """Holding 2 sheep (pet + the stable): making room means cooking a sheep to
-    gain a sheep — animal-identical to declining, so no option survives and
-    nothing is offered (the ruling's identical/dominated pruning)."""
+def test_sw_cook_and_replace_survives_when_cooking_pays():
+    """Holding 2 sheep (pet + the stable) WITH a Fireplace: cooking a sheep and
+    letting the Whistle replace it ends animal-identical to declining but +2
+    food — the received-vs-declined dimension (ruling 16 as amended) keeps it,
+    because the replaced sheep makes the food non-deferrable."""
     state = _sw_state(animals=Animals(sheep=2), fireplace=True)
+    assert not _stable_is_free(state, 0)
+    opts = {((a.sheep, a.boar, a.cattle), f) for a, f in _options(state, 0)}
+    assert ((2, 0, 0), 2) in opts
+    state = _walk_to_window(state, "start_of_breeding")
+    f0 = state.players[0].resources.food
+    state = step(state, FireTrigger(card_id=SW, variant="s2b0c0"))
+    a = state.players[0].animals
+    assert (a.sheep, a.boar, a.cattle) == (2, 0, 0)     # sheep replaced
+    assert state.players[0].resources.food == f0 + 2    # the cooked sheep
+
+
+def test_sw_cook_and_replace_pruned_without_cooking():
+    """The same holding WITHOUT any cooking improvement: the replace option is
+    genuinely identical to declining (zero food), so nothing is offered and
+    the window passes silently."""
+    state = _sw_state(animals=Animals(sheep=2), fireplace=False)
     assert not _stable_is_free(state, 0)
     assert _options(state, 0) == []
     state = _advance_until_decision(state)

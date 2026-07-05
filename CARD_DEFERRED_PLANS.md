@@ -200,15 +200,25 @@ user made during this design — cite these, dated, in the docstrings of the car
 15. **Cubbyhole's payout is NON-consuming** (ratified 2026-07-05): the on-card food
    bank pays out at every feeding phase and is never depleted — the literal reading
    of "you get food equal to the amount on this card" (no removal clause).
-16. **Shepherd's Whistle's condition is capacity-theoretic** (ruled 2026-07-05):
-   "at least 1 unfenced stable without an animal" — since animals are not
-   location-tracked, a stable is free iff the player's animals can be accommodated
-   with one unfenced stable removed from capacity. If the player owns no unfenced
-   stable: ineligible. If a stable is free by that test: the sheep is granted
-   automatically. Otherwise the player may CHOOSE to free one: present the Pareto
-   frontier over kept animals computed with the stable removed, add the sheep to
-   each element, include the original animal set (= decline, NO sheep — the sheep
-   is never obtained, so it can't be cooked), and prune identical/dominated options.
+16. **Shepherd's Whistle's condition is capacity-theoretic** (ruled 2026-07-05;
+   dominance rule AMENDED same day): "at least 1 unfenced stable without an
+   animal" — since animals are not location-tracked, a stable is free iff the
+   player's animals can be accommodated with one unfenced stable removed from
+   capacity. No unfenced stable: ineligible. A stable free by that test: the
+   sheep is granted automatically. Otherwise the player may CHOOSE to free one:
+   the options are the Pareto keep-sets under the reduced capacity, each plus
+   the granted sheep (reachability is TESTED this way, never inferred from the
+   ending — a 3-type holding can fit full capacity while its sheep-decremented
+   form fails the reduced capacity). **The frontier is over animal counts PLUS
+   a received-vs-declined dimension, where received dominates declined iff the
+   player has a sheep-conversion opportunity** (a cook-a-sheep-and-replace-it
+   option then beats declining — the food is non-deferrable because the card
+   replaces the cooked animal, so the usual food-exclusion premise fails; with
+   no conversion the same option is identical to declining and is pruned).
+   Food generated is computed per option but is never a frontier dimension
+   (the standing convention — among received options, animals-only dominance
+   is exact: food differences equal the deferred cook-value of the animal
+   difference).
 17. **Baker's on-play decline is WIDE** (ruled 2026-07-05): a "when you play this
    card, you CAN take a [sub-action]" grant is offered as PLAY-VARIANTS of the
    play action itself — "play Baker and bake" vs "play Baker and decline the
