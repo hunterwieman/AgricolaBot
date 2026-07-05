@@ -698,6 +698,10 @@ of §0–§11 is the authority; this only orients.*
 
 - **Design of record:** this file (§1 ladder, §2 frames, §3 ordering/skips, §4 during-window,
   §5 FEED/BREED, §6 card-fields, §7 migration, §8 open Qs, §10 anytime triggers, §11 stress).
+- **Session-reasoning handoff:** `HARVEST_HANDOFF.md` (repo root) — every ruling's
+  derivation, the bugs and why, per-item cautions for the remaining work. **Doc
+  integration pending:** `design_docs/cards/CARD_ENGINE_DOC_CAPTURE.md` lists what a
+  fresh session must fold into CARD_ENGINE_IMPLEMENTATION.md.
 - **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
   (12 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
