@@ -96,7 +96,7 @@ def test_prereq_unplayable_with_no_stable_in_supply():
     # elsewhere, so the ONLY thing missing is a stable in supply -> unplayable.
     s = _set_grid(_cards(), 0, [(0, 4), (1, 4), (2, 4), (0, 3)], CellType.STABLE)
     from agricola.helpers import stables_in_supply
-    assert stables_in_supply(s.players[0].farmyard) == 0
+    assert stables_in_supply(s.players[0]) == 0
     assert not prereq_met(MINORS[CARD_ID], s, 0)
 
 

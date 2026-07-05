@@ -764,17 +764,27 @@ def _load_card_meta() -> dict[str, dict]:
         # "implemented", so prefer that row over any same-named non-implemented one
         # (otherwise a later, unimplemented printing would shadow the real card's
         # name/text/cost in the UI). Self-correcting as more cards are implemented.
+        # A card_id that DIFFERS from slug(json_name) — needed when two distinct
+        # printings share a name and BOTH are implemented (the Base-Revised B8
+        # "Market Stall" owns the plain slug; the Corbarius C54 one carries a
+        # deck-suffixed id). Maps the id to its exact (slug, deck) row.
+        slug_deck_aliases = {"market_stall_c54": ("market_stall", "C")}
         by_slug: dict[str, dict] = {}
+        by_slug_deck: dict[tuple, dict] = {}
         for fname in ("revised_occupations.json", "revised_minor_improvements.json"):
             with open(os.path.join(data_dir, fname)) as f:
                 for row in json.load(f):
                     slug = _card_slug(row["name"])
+                    by_slug_deck[(slug, row.get("deck", ""))] = row
                     prev = by_slug.get(slug)
                     if (prev is not None
                             and prev.get("status") == "implemented"
                             and row.get("status") != "implemented"):
                         continue   # keep the implemented printing; skip the shadow
                     by_slug[slug] = row
+        for alias_id, key in slug_deck_aliases.items():
+            if key in by_slug_deck:
+                by_slug[alias_id] = by_slug_deck[key]
         for cid in OCCUPATIONS:
             row = by_slug.get(cid)
             meta[cid] = {

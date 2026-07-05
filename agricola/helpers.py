@@ -68,13 +68,30 @@ def buildable_fences(player: PlayerState) -> int:
     return player.fences_in_supply + free_fence_pool_remaining(player)
 
 
-def stables_in_supply(farmyard: Farmyard) -> int:
-    """Count stables not yet built. Derived from grid."""
-    built = sum(
+def stables_built(farmyard: Farmyard) -> int:
+    """Count stables ON the board (built). Derived from the grid — the read the
+    built-count consumers (capacity, Tumbrel, the heuristic) want."""
+    return sum(
         1 for r in range(3) for c in range(5)
         if farmyard.grid[r][c].cell_type == CellType.STABLE
     )
-    return 4 - built
+
+
+def stables_in_supply(player_state) -> int:
+    """Stable PIECES still in the player's supply pile: 4 − built − card-removed.
+
+    Derived, per the derived-not-stored default: a card cost that spends a
+    stable piece without building it (Market Stall C54's "1 Stable from Your
+    Supply") records the removal in its own card_state, summed through the
+    cost-mod registry — so `4 − built` alone is NOT the supply once such a card
+    is played, and build legality must gate on THIS. Family game: the registry
+    is empty and this is exactly `4 − built`. Consumers wanting the BUILT count
+    use `stables_built`, never `4 − stables_in_supply` (which double-counts
+    card removals as buildings). The local import avoids a load-time cycle
+    (helpers -> cards package)."""
+    from agricola.cards.cost_mods import stables_removed_from_supply
+    return (4 - stables_built(player_state.farmyard)
+            - stables_removed_from_supply(player_state))
 
 
 def cooking_rates(state: GameState, player_idx: int) -> tuple[int, int, int, int]:
@@ -139,7 +156,7 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     pastures = player_state.farmyard.pastures
     pasture_capacities = [p.capacity for p in pastures]
 
-    total_stables_built = 4 - stables_in_supply(player_state.farmyard)
+    total_stables_built = stables_built(player_state.farmyard)
     stables_in_pastures = sum(p.num_stables for p in pastures)
     standalone_stables = total_stables_built - stables_in_pastures
 

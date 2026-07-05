@@ -50,7 +50,7 @@ from agricola.helpers import (
     cooking_rates,
     extract_slots,
     harvest_feed_frontier,
-    stables_in_supply,
+    stables_built,
 )
 from agricola.scoring import (
     _score_boar,
@@ -402,7 +402,7 @@ def _empty_unenclosed_cells(p: PlayerState) -> int:
 
 def _count_unfenced_stables(p: PlayerState) -> int:
     """Stables built but not inside any pasture (still hold 1 animal each)."""
-    total_built = 4 - stables_in_supply(p.farmyard)
+    total_built = stables_built(p.farmyard)
     in_pastures = sum(past.num_stables for past in p.farmyard.pastures)
     return total_built - in_pastures
 

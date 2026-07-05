@@ -470,17 +470,21 @@ from agricola.cards import turnwrest_plow  # noqa: F401
 from agricola.cards import wheel_plow  # noqa: F401
 
 # The harvest-window new-card wave (windows 1-7; HARVEST_WINDOWS_DESIGN.md §12,
-# 2026-07-05). Deferred from the wave, not imported: winnowing_fan (needs the
-# silent-bake seam), market_stall C54 (needs a stored stables_in_supply).
+# 2026-07-05). The wave's two defers landed the next day on user rulings:
+# winnowing_fan (best-rate direct conversion in lieu of a hook-suppressed
+# bake) and market_stall_c54 (its stable play cost via the derived-supply
+# removal seam in cost_mods; deck-suffixed id — B8 owns the name slug).
 from agricola.cards import autumn_mother  # noqa: F401
 from agricola.cards import barley_mill  # noqa: F401
 from agricola.cards import bed_in_the_grain_field  # noqa: F401
 from agricola.cards import beer_table  # noqa: F401
 from agricola.cards import haydryer  # noqa: F401
 from agricola.cards import land_surveyor  # noqa: F401
+from agricola.cards import market_stall_c54  # noqa: F401
 from agricola.cards import pipe_smoker  # noqa: F401
 from agricola.cards import raised_bed  # noqa: F401
 from agricola.cards import recluse  # noqa: F401
 from agricola.cards import straw_manure  # noqa: F401
 from agricola.cards import transactor  # noqa: F401
+from agricola.cards import winnowing_fan  # noqa: F401
 from agricola.cards import treegardener  # noqa: F401

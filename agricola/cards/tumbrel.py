@@ -14,8 +14,7 @@ Two effects:
     (via _enter_after_phase -> apply_auto_effects("after_sow", ...)), for both
     Grain Utilization and Cultivation sows.
 
-"Stables you have" = BUILT stables. `helpers.stables_in_supply(farmyard)` returns
-the UNBUILT count, so the built count is `4 - stables_in_supply(farmyard)`. When
+"Stables you have" = BUILT stables (`helpers.stables_built(farmyard)`). When
 the player has no stables the after-sow grant is a harmless +0 food.
 
 "Unconditional Sow" distinguishes the standard Sow sub-action (Grain Utilization /
@@ -33,7 +32,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_auto
-from agricola.helpers import stables_in_supply
+from agricola.helpers import stables_built
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -58,7 +57,7 @@ def _eligible(state: GameState, idx: int) -> bool:
 def _apply(state: GameState, idx: int) -> GameState:
     """after_sow: gain 1 food per BUILT stable (= 4 - unbuilt-in-supply)."""
     p = state.players[idx]
-    built_stables = 4 - stables_in_supply(p.farmyard)
+    built_stables = stables_built(p.farmyard)
     p = fast_replace(p, resources=p.resources + Resources(food=built_stables))
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))

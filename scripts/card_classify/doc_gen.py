@@ -13,7 +13,10 @@ CANON = set("""ONPLAY HOOK ATWILL PASSIVE LATCH T-BEFORE T-AFTER S-SPACE S-SUB S
 NORMALIZE = {"COST-GAME": "CAP-GAME", "T-DURING": "S-HFEED",
              "L-OCCUP": "L-OCCUPY", "E-MANDCHOICE": "F-MANDCHOICE", "E-CARDSPACE-LIKE": "L-CARDSPACE",
              "ALTCOST-NONE": "E-ALTCOST", "CAP-NEW": "E-CAPNEW"}
-IMPL_FIX = {"C54": False}
+# C54 "Market Stall" shares B8's name-slug; it is implemented under the
+# distinct card_id `market_stall_c54` (2026-07-05), which the slug-based
+# implemented-check can't see — force True.
+IMPL_FIX = {"C54": True}
 # Codes too noisy/low-stakes to flag a review on (actor, timing, minor-goods, on-play, firing).
 REVIEW_IGNORE = {"A-OWN", "A-OPP", "T-BEFORE", "T-AFTER", "E-GOODS", "ONPLAY", "F-AUTO", "F-TRIG",
                  "S-OBTAIN", "LATCH", "E-WORKERMANIP", "E-CROPMANIP", "E-BREEDMOD", "EXOTIC",

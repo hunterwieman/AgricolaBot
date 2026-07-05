@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 184 implemented · 🚫 3 won't-fix/banned · ⬜ 233 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 186 implemented · 🚫 3 won't-fix/banned · ⬜ 231 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -202,7 +202,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A60 Oriental Fireplace** · cost: Return Fireplace/Cooking Hearth
   - _At any time: Vegetable → 4 Food; Sheep → 3 Food; Cattle → 5 Food "Bake Bread" action: Grain → 2 Food  [CLARIFICATION: This card counts as either 1 minor improvement or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as 2 improvements at once.  If returned to pay for a Cooking Hearth 3 / 4, remove this card from the game.  《You may bake bread and convert other goods to food at the same time, in order to activate the Gypsy’s Crock C053.》]_
   - `ATWILL E-CONVERT E-BAKESPEC E-RETURNCOMP L-EXT` — At-will good-to-food conversions plus a bake-bread rate (E-BAKESPEC); play cost returns a placed Fireplace/Cooking Hearth (E-RETURNCOMP); the clarification that it counts as either a minor OR major improvement (and can be returned to pay for Cooking Hearth 3/4) extends eligibility for other effects — L-EXT.
-- ⬜ **A61 Winnowing Fan** · cost: 1 Reed · prereq: Baking Improvement
+- ✅ **A61 Winnowing Fan** · cost: 1 Reed · prereq: Baking Improvement
   - _After the field phase of each harvest, you can use a baking improvement but only to turn exactly 1 grain into food. (This is not considered a "Bake Bread" action.)_
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT` — Optional harvest hook after the field phase (A-OWN is mandatory on own-turn hooks, which labelA missed); the effect converts 1 grain to food at the owned baking improvement's rate — it USES an improvement, it does not add/change one, so E-BAKESPEC does not apply.
 - ✅ **A62 Beer Keg** · cost: 1 Wood · prereq: 2 Grain in Your Supply
@@ -691,7 +691,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C53 Gypsy's Crock** · cost: 2 Clay
   - _Each time you use a cooking improvement to turn 2 goods into food at the same time, you get 1 additional food._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS ST-PROV` — Auto +1 food after a cooking-improvement conversion of 2 goods at once; needs the event payload (how many goods converted together) -> ST-PROV. A cooking conversion has no exact seam code — S-SUB is the nearest (labelB's seamless HOOK is invalid; all 4 dimensions required). E-BAKESPEC dropped: the card neither adds a baking improvement nor changes a bake-bread rate — it rides existing cooking conversions.
-- ⬜ **C54 Market Stall** · cost: 1 Stable from Your Supply
+- ✅ **C54 Market Stall** · cost: 1 Stable from Your Supply
   - _After the field phase of each harvest, you can exchange 1 grain plus 1 fence (both from your supply) for 5 food._
   - `HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT E-GOODS E-PIECECOST` — After field phase each harvest, optional exchange 1 grain + 1 fence piece for 5 food; fence is a supply piece cost.
 - ✅ **C55 Studio** · cost: 1 Clay,1 Reed

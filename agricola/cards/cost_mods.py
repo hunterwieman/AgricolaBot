@@ -223,6 +223,35 @@ def spend_fence_pools(player, n: int):
     return spent, card_state
 
 
+# ---------------------------------------------------------------------------
+# Stable-supply removals (Market Stall C54's play cost)
+# ---------------------------------------------------------------------------
+# The stable supply stays DERIVED (the CLAUDE.md derived-not-stored default):
+# `helpers.stables_in_supply(player) = 4 - built - removals`, where removals are
+# recorded in the removing card's own card_state and summed through this
+# registry — the same shape as the free-fence pools above, in the opposite
+# direction. This expresses a card cost like "1 Stable from Your Supply"
+# (Market Stall C54: the piece is permanently spent, never built) without a
+# stored PlayerState field, so the Family state shape, the canonical JSON, and
+# the C++ contract are untouched (removals live in the card-only, default-
+# skipped card_state). card_id -> card_state key holding that card's removed
+# count. Ownership-gated; empty in the Family game.
+STABLE_SUPPLY_REMOVALS: dict[str, str] = {}
+
+
+def register_stable_supply_removal(card_id: str, store_key: str) -> None:
+    """Register a card that removes stable pieces from its owner's supply
+    without building them (card-module import time)."""
+    STABLE_SUPPLY_REMOVALS[card_id] = store_key
+
+
+def stables_removed_from_supply(player) -> int:
+    """Total stable pieces card-removed from this player's supply. 0 in the
+    Family game (empty registry)."""
+    return sum(player.card_state.get(key, 0)
+               for cid, key in STABLE_SUPPLY_REMOVALS.items() if _owns(player, cid))
+
+
 def register_free_fence_edges(card_id: str, edge_fn: Callable) -> None:
     """Register a card's POSITIONAL per-edge free-fence contribution (COST_MODIFIER_DESIGN.md
     §9.4 source 1). `edge_fn(farmyard, h_new, v_new, *, state, idx, initiated_by_id,

@@ -346,7 +346,7 @@ def _can_build_stable(state: GameState, p: PlayerState, cost: Resources) -> bool
     """
     idx = 0 if p is state.players[0] else 1
     return (
-        stables_in_supply(p.farmyard) >= 1
+        stables_in_supply(p) >= 1
         and bool(_legal_stable_cells(p))
         and can_pay(state, idx, _build_stable_ctx(p, cost))
     )

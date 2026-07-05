@@ -126,7 +126,7 @@ def test_mining_hammer_offered_in_before_phase():
 def test_mining_hammer_fires_free_stable():
     cs = _renovate_setup(HouseMaterial.WOOD, clay=2, reed=1, wood=0)
     cs = _own_minor(cs, 0, "mining_hammer")
-    supply0 = stables_in_supply(cs.players[0].farmyard)
+    supply0 = stables_in_supply(cs.players[0])
     wood0 = cs.players[0].resources.wood
     cs = _at_before_phase(cs)
     assert FireTrigger(card_id="mining_hammer") in legal_actions(cs)
@@ -141,7 +141,7 @@ def test_mining_hammer_fires_free_stable():
     # No wood was paid for the stable (the whole point of the card).
     assert cs.players[0].resources.wood == wood0
     # One stable left the supply (i.e. one was built).
-    assert stables_in_supply(cs.players[0].farmyard) == supply0 - 1
+    assert stables_in_supply(cs.players[0]) == supply0 - 1
     # The granted stable build is a multi-shot host (capped at 1): Proceed flips it to
     # its after-phase, Stop pops it back to the renovate before-phase.
     cs = run_actions(cs, [Proceed(), Stop()])
@@ -162,7 +162,7 @@ def test_mining_hammer_fires_free_stable():
 def test_mining_hammer_decline():
     cs = _renovate_setup(HouseMaterial.WOOD, clay=2, reed=1)
     cs = _own_minor(cs, 0, "mining_hammer")
-    supply0 = stables_in_supply(cs.players[0].farmyard)
+    supply0 = stables_in_supply(cs.players[0])
     cs = run_actions(cs, [
         PlaceWorker(space="house_redevelopment"),
         ChooseSubAction(name="renovate"),
@@ -172,7 +172,7 @@ def test_mining_hammer_decline():
         Stop(),      # pop the host
     ])
     assert cs.pending_stack == ()
-    assert stables_in_supply(cs.players[0].farmyard) == supply0   # no free stable built
+    assert stables_in_supply(cs.players[0]) == supply0   # no free stable built
     assert cs.players[0].house_material == HouseMaterial.CLAY
 
 

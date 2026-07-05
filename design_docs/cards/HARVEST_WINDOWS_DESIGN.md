@@ -648,14 +648,17 @@ of §0–§11 is the authority; this only orients.*
   Raised Bed, Pipe Smoker, Recluse (start_of_round + start_of_harvest, per its two printed
   clauses), Straw Manure, Beer Table, Land Surveyor, Treegardener, Barley Mill, Autumn
   Mother + Bed in the Grain Field (the first A1 growth-grant consumers; Autumn Mother's
-  3-food cost rides the food-payment resume seam). Two CORRECT DEFERS with build plans on
-  record: **Winnowing Fan** (needs the "silent bake" seam — a consumed
-  `bake_bread_action: bool` on PendingBakeBread + an exact-quantity grant cap; live
-  wrong-firing consumers exist: Dutch Windmill/Hand Truck mandatory autos) and **Market
-  Stall C54** (its "1 Stable from Your Supply" play cost needs a STORED
-  `stables_in_supply` — the COST_MODIFIER_DESIGN boundary that kept it derived is now
-  broken by an in-scope card; also a slug collision with the implemented B8 Market
-  Stall). A wave-surfaced engine fix landed with it: the during-window frame is now
+  3-food cost rides the food-payment resume seam). The wave's two defers LANDED
+  2026-07-05 on user rulings: **Winnowing Fan** as a direct best-rate 1-grain
+  conversion at #7 (in lieu of a hook-suppressed bake — outcome-identical, since the
+  bake allocator is greedy-by-rate, and "not a Bake Bread action" holds structurally;
+  a probe test proves no bake hook fires) and **Market Stall C54** (card_id
+  `market_stall_c54`; B8 owns the name slug — web-meta alias + doc_gen IMPL_FIX
+  updated) with its stable play cost expressed through a DERIVED supply:
+  `stables_in_supply(player) = 4 − built − card-recorded removals`
+  (`register_stable_supply_removal` in cost_mods; `helpers.stables_built` split out
+  for built-count consumers) — no stored field, Family shape + C++ contract
+  untouched. A wave-surfaced engine fix landed with it: the during-window frame is now
   RE-HOSTED post-take on the inline path when a per-occasion consequence enables a
   trigger mid-window (Crack Weeder income affording Cube Cutter's exchange).
   Still held: Dentist (stage-3 feeding-income seam), Lunchtime Beer (the skip-seam
