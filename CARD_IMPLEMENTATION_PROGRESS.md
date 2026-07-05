@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 193 implemented · 🚫 3 won't-fix/banned · ⬜ 224 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 195 implemented · 🚫 3 won't-fix/banned · ⬜ 222 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -820,7 +820,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D11 Lawn Fertilizer**
   - _Your pastures of size 1 can hold up to 3 animals of the same type. (With a stable, they can hold up to 6 animals of the same type.)_
   - `PASSIVE E-CAPGROW` — Continuous capacity increase for size-1 pastures.
-- ⬜ **D12 Milking Place** · cost: 1 Grain
+- ✅ **D12 Milking Place** · cost: 1 Grain
   - _In the feeding phase of each harvest, you get 1 food. You can no longer hold animals in your house (not even via another card)._
   - `HOOK T-BEFORE S-HFEED F-AUTO A-OWN E-GOODS PASSIVE E-CAPNEG` — Mandatory 1 food each feeding phase (arrives during feeding, usable to pay it → T-BEFORE; labelA omitted the required timing dimension), plus a separate always-on capacity removal — 'can no longer hold animals in your house' is PASSIVE + E-CAPNEG.
 - ⬜ **D13 Trowel** · cost: 1 Wood
@@ -1288,7 +1288,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E82 Profiteering**
   - _When you play this card, you immediately get 1 food. Each time after you use the "Day Laborer" action space, you can exchange 1 building resource for another building resource._
   - `ONPLAY E-GOODS HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT` — On play +1 food; then after using Day Laborer space, optionally exchange 1 building resource for another.
-- ⬜ **E83 Shepherd's Whistle** · cost: 1 Wood
+- ✅ **E83 Shepherd's Whistle** · cost: 1 Wood
   - _At the start of the breeding phase of each harvest, if you have at least 1 unfenced stable without an animal, you get 1 sheep._
   - `HOOK T-BEFORE S-HBREED F-AUTO A-OWN E-ANIMALS` — 'At the START of the breeding phase' fires before breeding resolves → the missing timing dimension is T-BEFORE; mandatory conditional sheep gain (F-AUTO, E-ANIMALS) on the harvest-breed seam.
 - ⬜ **E84 Dolly's Mother** · prereq: 1 Sheep
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 95 implemented · 🚫 2 won't-fix/banned · ⬜ 323 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 96 implemented · 🚫 2 won't-fix/banned · ⬜ 322 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1959,7 +1959,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C106 Potato Harvester** · [1+]
   - _When you play this card, you immediately get 3 food. For each vegetable you get from your fields during the field phase of the harvest, you get 1 additional food._
   - `ONPLAY E-GOODS HOOK T-AFTER S-HFIELD F-AUTO A-OWN ST-PROV` — On-play 3 food plus a per-harvest field-phase hook scaling with vegetables just yielded; after the field phase the yield count is no longer derivable from state (a field that held 1 veg is now indistinguishable from an empty one), so the event payload is needed → ST-PROV.
-- ⬜ **C107 Baker** · [1+]
+- ✅ **C107 Baker** · [1+]
   - _When you play this card and at the start of each feeding phase, you can take a "Bake Bread" action._
   - `ONPLAY HOOK T-BEFORE S-HFEED F-TRIG A-OWN E-GRANTSUB` — Bake Bread is on the taxonomy's explicit primitive sub-action list, so the grant is E-GRANTSUB, not E-GRANTACT; on-play plus an optional grant at the start of each feeding phase (T-BEFORE, F-TRIG).
 - ✅ **C108 Layabout** · [1+]

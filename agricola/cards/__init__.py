@@ -505,4 +505,11 @@ from agricola.cards import farm_store  # noqa: F401
 from agricola.cards import scythe  # noqa: F401
 from agricola.cards import social_benefits  # noqa: F401
 from agricola.cards import town_hall  # noqa: F401
+
+# The three former defers, landed on user rulings 15-17 (2026-07-05): Baker
+# (wide-play decline variants), Milking Place (the house-pet negation),
+# Shepherd's Whistle (the capacity-theoretic free-stable test).
+from agricola.cards import baker  # noqa: F401
+from agricola.cards import milking_place  # noqa: F401
+from agricola.cards import shepherds_whistle  # noqa: F401
 from agricola.cards import treegardener  # noqa: F401

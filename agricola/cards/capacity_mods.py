@@ -54,9 +54,28 @@ def _owns(player_state, card_id: str) -> bool:
     return card_id in player_state.occupations or card_id in player_state.minor_improvements
 
 
+# Cards that FORBID holding animals in the house — Milking Place D12's "You can
+# no longer hold animals in your house (not even via another card)". A negation
+# beats every raise (the printed "not even via another card" overrides Animal
+# Tamer), so it is applied before the max-fold, driving the count to 0. Empty in
+# the Family game.
+HOUSE_PET_NEGATIONS: set[str] = set()
+
+
+def register_house_pet_negation(card_id: str) -> None:
+    """Register a card that forbids house animals outright (card-module import
+    time). Overrides every capacity raise."""
+    HOUSE_PET_NEGATIONS.add(card_id)
+
+
 def house_pet_capacity(player_state) -> int:
     """Flexible animal slots provided by the house: 1 (the default pet) unless an owned
-    capacity card raises it. Empty registry / no owned modifier -> 1 (Family byte-identity)."""
+    capacity card raises it — or 0 when an owned card FORBIDS house animals
+    (Milking Place; the negation beats every raise, per its printed "not even
+    via another card"). Empty registries -> 1 (Family byte-identity)."""
+    if HOUSE_PET_NEGATIONS and any(_owns(player_state, cid)
+                                   for cid in HOUSE_PET_NEGATIONS):
+        return 0
     cap = 1
     for card_id, capacity_fn in HOUSE_CAPACITY_MODS:
         if _owns(player_state, card_id):

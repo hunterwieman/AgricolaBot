@@ -197,6 +197,29 @@ user made during this design — cite these, dated, in the docstrings of the car
    rules to match it. Also resolves the design doc's open question #2 (window #1 does
    NOT fire for a Layabout player). Cite this ruling, dated, in Layabout's docstring
    when built.
+15. **Cubbyhole's payout is NON-consuming** (ratified 2026-07-05): the on-card food
+   bank pays out at every feeding phase and is never depleted — the literal reading
+   of "you get food equal to the amount on this card" (no removal clause).
+16. **Shepherd's Whistle's condition is capacity-theoretic** (ruled 2026-07-05):
+   "at least 1 unfenced stable without an animal" — since animals are not
+   location-tracked, a stable is free iff the player's animals can be accommodated
+   with one unfenced stable removed from capacity. If the player owns no unfenced
+   stable: ineligible. If a stable is free by that test: the sheep is granted
+   automatically. Otherwise the player may CHOOSE to free one: present the Pareto
+   frontier over kept animals computed with the stable removed, add the sheep to
+   each element, include the original animal set (= decline, NO sheep — the sheep
+   is never obtained, so it can't be cooked), and prune identical/dominated options.
+17. **Baker's on-play decline is WIDE** (ruled 2026-07-05): a "when you play this
+   card, you CAN take a [sub-action]" grant is offered as PLAY-VARIANTS of the
+   play action itself — "play Baker and bake" vs "play Baker and decline the
+   bake" are two distinct CommitPlayOccupation choices (the existing
+   PLAY_OCCUPATION_VARIANTS mechanism, Roof Ballaster's pay-or-not shape). The
+   user rejected the alternative (an after-play trigger with Stop to decline)
+   because it would let the granted bake interleave with OTHER after-play
+   triggers in player-chosen order, which "when you play this card" does not
+   license. Once the bake variant is chosen, the pushed PendingBakeBread is
+   committed (the variant choice was the decline moment). When no bake is
+   usable at play time, the plain variant-less play is offered alone.
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
