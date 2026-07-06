@@ -1147,7 +1147,7 @@ def _player_to_dict(state: GameState, idx: int, decider: int,
     # Per-player supply totals are fixed by the rules (15 fences, 4 stables).
     # "Built" = total - in_supply.
     fences_left  = buildable_fences(p)
-    stables_left = stables_in_supply(p.farmyard)
+    stables_left = stables_in_supply(p)
     out = {
         "idx": idx,
         "is_sp": state.starting_player == idx,
