@@ -440,11 +440,15 @@ after all: food_owed is a memo-key argument, so no cache hazard). Dung Collector
 stays deferred (any-source newborns — never stretch the outcome event to it).
 
 **Delicate — engine cores, extra care:**
-- **Dolly's Mother** (sheep breed with 1 instead of a pair): the breeding-eligibility
-  fold touches `breeding_frontier`, which is MEMOIZED with projection keys
-  (FRONTIER_OPT_DESIGN.md). A card-dependent input MUST join the cache key or the
-  cache must flush on ownership change — the classic hidden-global-input footgun the
-  opt design warns about. Do not bolt the fold on without re-reading that doc.
+- **Dolly's Mother — LANDED 2026-07-06** (the user's greedy-strip plan): the
+  sheep-only card slot = the standard accommodation problem with a parked sheep
+  removed and added back (exact by dominance; `helpers._sheep_slot_strip` /
+  `accommodates`); single-parent breeding threads `sheep_min` as an ARGUMENT
+  through `breeding_frontier`/`breeding_food_gained` (memo-key-joined — the
+  feared cache hazard never arises). The two audit-found traps are pinned by
+  tests: the breeding-outcome newborn report uses the card-aware threshold,
+  and the strip reaches every accommodation decision point (barrier, markets
+  via pareto_frontier, Shepherd's Whistle's doctored tests).
 - **Old Miser [4]** (per-person feeding discount): rides the same
   `register_feeding_requirement` fold Child's Toy proved out; 4-player-only, so it
   waits for the 4p work, not for machinery.
