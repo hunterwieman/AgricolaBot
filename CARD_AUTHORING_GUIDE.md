@@ -230,6 +230,21 @@ the observable outcome would coincide either way, still classify by the ruling. 
 same ruling that puts Milk Jug, Wood Cutter, Corn Scoop, Herring Pot, and Cottager on
 `before_action_space`.
 
+### Arrangement-conditioned benefits at the SAME instant must share ONE arrangement
+
+Animals are not location-tracked; cards whose benefit is conditioned on an animal
+ARRANGEMENT ("at least 1 unfenced stable without an animal" — Shepherd's Whistle,
+ruling 16; "at least 1 sheep in a pasture" — Mineral Feeder, ruling 29) are
+implemented as exists-an-arrangement tests. **Those tests may NOT be evaluated
+independently for two cards reading the same instant**: the player holds one
+arrangement at a time, so simultaneous benefits must be certified by a SINGLE
+arrangement that satisfies all of them (user, 2026-07-06). Across *different*
+instants independent tests are correct — real Agricola permits rearranging at any
+time within capacity — so this bites only when a second arrangement-conditioned
+card lands on an instant that already has one. No such pair exists today; if your
+card creates one, STOP — the joint-satisfiability test is a design task for the
+driver/user, not something to copy from the existing single-card implementations.
+
 ### "Immediately" in card text ALWAYS needs a user ruling
 
 Whenever a card's text contains the word **"immediately"** in a timing phrase, stop and ask

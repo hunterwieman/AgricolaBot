@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 204 implemented · 🚫 3 won't-fix/banned · ⬜ 213 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 205 implemented · 🚫 3 won't-fix/banned · ⬜ 212 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -730,7 +730,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C66 Eternal Rye Cultivation** · prereq: 1 Grain Field
   - _After each harvest in which you have 2 or 3+ grain in your supply, you get 1 food and 1 additional grain, respectively.  [ERRATA: ERRATA: last “and” should be “or”]_
   - `HOOK S-HBREED T-AFTER F-AUTO A-OWN E-GOODS` — 'After each harvest' means after the whole harvest completes, i.e. after the breeding phase (S-HBREED + T-AFTER), not merely after feeding (S-AFTERFEED is the feed/breed seam); the 2-vs-3+ grain read is deterministic, so F-AUTO, plain goods gain.
-- ⬜ **C67 Mineral Feeder** · cost: 1 Reed
+- ✅ **C67 Mineral Feeder** · cost: 1 Reed
   - _At the start of each round that does not end with a harvest, if you have at least 1 sheep in a pasture, you get 1 grain._
   - `HOOK S-SOR T-BEFORE F-AUTO A-OWN E-GOODS` — Automatic start-of-round grain gated on a plain state read (sheep in a pasture; non-harvest rounds are fixed round numbers, no geometry); HOOK requires all 4 dimensions, so the default T-BEFORE is included.
 - ✅ **C68 Bookcase** · cost: 2 Wood · prereq: 1 Occupation

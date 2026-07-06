@@ -541,3 +541,6 @@ from agricola.cards import feed_pellets  # noqa: F401
 # Dolly's Mother (2026-07-06, user-planned): single-parent sheep breeding +
 # the sheep-only card slot via the greedy strip.
 from agricola.cards import dollys_mother  # noqa: F401
+# Mineral Feeder (2026-07-06, ruling 29): the pastured-sheep arrangement test
+# + the cook-to-qualify frontier at the start-of-round host.
+from agricola.cards import mineral_feeder  # noqa: F401

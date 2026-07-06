@@ -311,22 +311,34 @@ user made during this design — cite these, dated, in the docstrings of the car
    the canonical pick is scan-order — via the new
    `HarvestConversionSpec.variants_fn` seam. The field grain's removal is NOT
    a harvest (no occasion; ruling 12's lexicon).
-29. **Mineral Feeder — DEFERRED with its ruling** (2026-07-06): "at least 1
+29. **Mineral Feeder — LANDED 2026-07-06** (ruled the same day): "at least 1
    sheep in a pasture" means at least one sheep actually housed in a pasture
-   (not all sheep), and the player must be offered the option to COOK animals
-   to make an arrangement with a pastured sheep possible when rearrangement
-   alone cannot — the Shepherd's Whistle case-B analog (a keep-set frontier
-   under the pastured-sheep constraint), not a bare exists-arrangement test.
-   Build it with the ruling-16 frontier machinery when picked up.
-30. **Beer Stall — DEFERRED with its ruling** (2026-07-06): "each empty
-   unfenced stable" is counted AFTER the player freely rearranges AND may
-   first cook/release animals to empty stables — the count is a chosen
-   outcome, not a static read. Today's feeding flow cannot express
-   cook-first-then-exchange (cooking is bundled into the final payment step,
-   which closes the conversion window), so a thin rearrange-only version
-   would be an approximation — deferred instead. Build shape when picked up:
-   a frontier over (kept animals, stables freed) at the exchange decision,
-   the ruling-16 machinery again.
+   (not all sheep) under SOME legal arrangement — tested by the user's
+   per-pasture construction (dedicate pasture j to sheep, MAX-FILL it, test
+   the remainder against the rest of the farm; exact, not a heuristic) — and
+   the player may COOK animals to make such an arrangement possible (the
+   Shepherd's Whistle case-B analog). The case-B frontier is over
+   **(animals, grain)** — the user's framing: declining sits at (current, 0),
+   each option at (kept, 1) — so options and the decline never dominate each
+   other and animals-only Pareto among options is exact. Cooking a SHEEP can
+   itself enable the arrangement (the user's Stockyard counterexample) and
+   the enumeration handles it with no special-casing. Same-instant caution
+   recorded in CARD_AUTHORING_GUIDE.md §2: two arrangement-conditioned cards
+   on ONE instant need a joint-satisfiability test, never independent ones.
+30. **Beer Stall — build plan RULED 2026-07-06 (supersedes the same-day
+   defer)**: the user's design — a Pareto frontier over **animal counts PER
+   grain-conversions-TAKEN k** (taken, not offered: different k values never
+   dominate each other — more food, less grain, both excluded dimensions),
+   with the k exchanges BUNDLED INTO each option alongside the
+   cooking/rearrangement (which dissolves the cook-first sequencing problem
+   that forced the original defer — nothing is sequenced through the feeding
+   flow). An option = (kept animals, k) where the kept animals fit with k
+   unfenced stables left empty (the k-stable generalization of Shepherd's
+   Whistle's doctored blank) and k <= grain supply; firing cooks the
+   released animals, pays k grain, grants 5k food. Proceed = (current
+   animals, 0 conversions). Surfaces as a variant-bearing feeding conversion
+   (the Craft Brewery seam); once per feeding via harvest_conversions_used.
+   Not yet built — ready on the user's go.
 
 31. **Uncaring Parents does not interact with the stone-house-bonus
    exclusivity clause** (ruled 2026-07-06): Half-Timbered House / Luxurious
