@@ -716,8 +716,9 @@ of §0–§11 is the authority; this only orients.*
   §5 FEED/BREED, §6 card-fields, §7 migration, §8 open Qs, §10 anytime triggers, §11 stress).
 - **Session-reasoning handoff:** `HARVEST_HANDOFF.md` (repo root) — every ruling's
   derivation, the bugs and why, per-item cautions for the remaining work. **Doc
-  integration pending:** `design_docs/cards/CARD_ENGINE_DOC_CAPTURE.md` lists what a
-  fresh session must fold into CARD_ENGINE_IMPLEMENTATION.md.
+  integration DONE (2026-07-05):** `design_docs/cards/CARD_ENGINE_DOC_CAPTURE.md` was
+  folded into CARD_ENGINE_IMPLEMENTATION.md (its new §5b + section updates, stamped at
+  HEAD `ff874ba`); the capture file is marked folded.
 - **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
   (19 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).

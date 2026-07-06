@@ -14,7 +14,7 @@ It serves two purposes:
    `FOOD_PAYMENT_DESIGN.md`, `SPACE_HOST_REFACTOR.md`, `SUBACTION_HOOK_REFACTOR.md`) keep the
    rationale, red-teams, and superseded alternatives; this document describes the code that
    actually exists, verified against the working tree.
-2. **The one document a card-implementation session reads first.** Machinery (§2–§5), rulings and
+2. **The one document a card-implementation session reads first.** Machinery (§2–§5b), rulings and
    idioms (§6), process (§7), and status (§1) in one place — instead of ten overlapping design
    docs of mixed freshness. Per-card practice (how to read a card, the pitfall checklist) stays in
    **`CARD_AUTHORING_GUIDE.md`**; per-card records stay in **`CARD_IMPLEMENTATION_PROGRESS.md`**.
@@ -111,7 +111,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-05, HEAD `457afdb`.** A card batch is not integrated until this
+> **Last updated: 2026-07-05, HEAD `ff874ba`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -134,12 +134,15 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   is the design of record (its §12 is the as-built code map), `HARVEST_HANDOFF.md` (repo root)
   preserves the session reasoning behind every ruling, and the 19 dated rulings live in
   `CARD_DEFERRED_PLANS.md`. The legacy `harvest_field` seam is deleted (§5b, last subsection).
-- **In flight (uncommitted working tree at this stamp)**: a follow-on batch is mid-build on top
-  of this HEAD — BREED-frame trigger events + a breeding-outcome payload (Stone Importer,
-  Fodder Planter), the per-occasion trigger surfacing (Potato Ridger / Food Merchant),
-  feeding-requirement folds (Child's Toy), and a capped partial sow. `HARVEST_HANDOFF.md` §12
-  is its worklist with per-item cautions; this document describes HEAD and must be re-stamped
-  when that batch lands.
+- **The four follow-on seams landed (`ff874ba`)**, all Family-inert: BREED-frame triggers
+  (ruling 20 — events `"breeding"` / `"breeding_outcome"`) + the breeding-outcome payload
+  event, the per-occasion trigger host `PendingHarvestOccasion` (the loud guard is gone),
+  replace-kind take-modifiers (`TakeFold` — Grain Thief's shape), and the
+  `feeding_requirement` chokepoint + `PendingSow.max_fields`. All are in §5b/§3/§4.
+- **In flight (uncommitted working tree at this stamp)**: the consumer-card wave for those
+  seams (Stone Importer, Fodder Planter, Grain Thief, Potato Ridger, Food Merchant, Child's
+  Toy, …) is actively building. `HARVEST_HANDOFF.md` §12 is its worklist with per-item
+  cautions; this document describes HEAD and must be re-stamped when that wave lands.
 - **Per-card status + mechanics classification:** `CARD_IMPLEMENTATION_PROGRESS.md` (the
   adjudicated two-pass taxonomy). **Deferred cards:** clustered with build proposals in
   `CARD_DEFERRED_PLANS.md` (+ the C/D/E triage's defers in `CARD_TRIAGE_CDE.md`); deferred
@@ -517,6 +520,15 @@ except the fence-specific three.
   `register_free_fence_pool(card_id, store_key)` → `FREE_FENCE_POOLS` — a *persistent pool* of
   fence pieces held ON the card in CardStore (Ash Trees moved them from the 15-supply at play):
   counts toward `buildable_fences` AND waives wood, spent greedily by `spend_fence_pools`.
+- **`register_stable_supply_removal(card_id, store_key)`** → `STABLE_SUPPLY_REMOVALS` — a card
+  that removes stable pieces from its owner's supply *without building them* (Market Stall
+  C54's play cost, "1 Stable from Your Supply"). The supply stays **derived**:
+  `helpers.stables_in_supply(player)` = `4 − stables_built(farmyard) −
+  stables_removed_from_supply(player)`, the removal count read from the card's own CardStore
+  via `store_key`; `helpers.stables_built` is split out for built-count consumers (capacity,
+  Tumbrel, the heuristic), since `4 − supply` would double-count removals as buildings. Chosen
+  over a stored `PlayerState` field to keep the Family shape / canonical JSON / C++ untouched —
+  the derived-not-stored default; the stored route stays available if reads get hot.
 
 ### `agricola/cards/capacity_mods.py` — animal capacity
 
@@ -525,7 +537,14 @@ Read by `helpers.extract_slots` (the accommodation decomposition every frontier 
 - **`register_house_capacity(card_id, capacity_fn)`** → `HOUSE_CAPACITY_MODS`. How many flexible
   (any-type, capacity-1) slots the *house* provides. Fold: **max over owned modifiers, starting
   from the default 1** (the house pet) — `house_pet_capacity`. Exemplar: `animal_tamer` (one per
-  room). The max-fold cannot express a *negation* (Milking Place would force 0) — §8.
+  room).
+- **`register_house_pet_negation(card_id)`** → `HOUSE_PET_NEGATIONS`. A card that *forbids*
+  house animals outright: `house_pet_capacity` returns 0 for an owner, beating every raise —
+  Milking Place's "you can no longer hold animals in your house, not even via another card"
+  explicitly overrides Animal Tamer, which is why the negation is a separate check the max-fold
+  is not asked to express. Playing a negation card also sets `animals_need_accommodation`, so a
+  currently-housed animal is evicted through the standard keep-or-cook frame (§4's
+  accommodation barrier).
 - **`register_pasture_capacity(card_id, bonus_fn)`** → `PASTURE_CAPACITY_MODS`. A flat additive
   bonus applied to **every pasture's** final capacity (after the stable doubling — the card adds
   to the finished pasture, not inside the `2·cells·2^stables` formula). Fold: **sum over owned
@@ -567,6 +586,50 @@ original shape:
   `not any(cid.startswith("<card_id>") for cid in used)` — firing any variant blocks the rest.
   An *output* choice ("3 food OR 1 point") is likewise just two entries — not an unsupported
   cost-side "/".
+
+Scope (re-drawn 2026-07-05 with the window system): the registry holds **only conversions the
+card prints in the feeding phase**. Three cards that had been shoehorned into it despite other
+printed timings — Cube Cutter, Winter Caretaker, Elephantgrass Plant — migrated to their printed
+windows (`field_phase`, `end_of_harvest`, `after_harvest`; §5b). Furniture Carpenter is still
+registered here pending its approved `end_of_harvest` anchor (the anytime-in-harvest converter
+cluster, HARVEST_WINDOWS_DESIGN.md §10). Choice-free feeding-phase *income* is not a conversion
+— it rides `register_auto("feeding", …)` (§5b).
+
+### `agricola/cards/harvest_windows.py` — the harvest timing windows
+
+The registration side of the window system; §5b has the mechanics and
+`HARVEST_WINDOWS_DESIGN.md` the design of record:
+
+- **`register_harvest_window_hook(card_id, window_id)`** → `HARVEST_WINDOW_CARDS` — the
+  hosting index (the `should_host_space` pattern: empty → no frame ever built). Pairs with
+  `register(<window_id>, …)` for an optional trigger or `register_auto(<window_id>, …)` for an
+  automatic effect — the window id IS the event string. Registrable: every simple window, plus
+  the sentinels `"field_phase"` (during-window triggers + pre-take flat autos) and `"feeding"`
+  (**choice-free income autos only** — fired at the FEED entry, before the payment decision);
+  `"breeding"` is not registrable. A card may register in more than one window (Dentist).
+- **`register_harvest_skip(card_id, skip_fn)`** → `HARVEST_SKIP_CARDS` — per-card window
+  suppression predicates `(state, idx, window_id) -> bool` (§5b). Exemplars: `lunchtime_beer`,
+  `layabout`.
+- **`register_take_modifier(card_id, fold_fn, *, variants_fn=None, order=1,
+  harvest_scoped=True)`** → `TAKE_MODIFIERS` — the field-phase take fold-ins (§5b): auto
+  (`scythe_worker`) vs choice-bearing (`stable_manure`, `scythe`) vs replace-kind (a
+  `TakeFold` with skipped cells — Grain Thief's shape). The list is kept sorted by `order`
+  (replace < rigid < flexible), which fixes fold precedence — load-bearing for feasibility.
+- **`register_harvest_occasion_auto(card_id, eligibility_fn, apply_fn)`** /
+  **`register_harvest_occasion_trigger(..., *, variants_fn=None)`** → `HARVEST_OCCASION_AUTOS`
+  / `_TRIGGERS` — the payload-bearing per-occasion registries, `(state, owner_idx, occasion)`
+  signatures (§5b). Autos fire mechanically wherever an occasion is emitted; triggers surface
+  at the **`PendingHarvestOccasion`** host (§4), which `maybe_host_occasion_triggers` pushes
+  right after the autos — registering a trigger also self-wires adapters into the generic
+  trigger system, so the host's enumerator and `FireTrigger` dispatch serve it like any other
+  trigger, reading the occasion off the frame.
+- **`register_breeding_outcome_auto(card_id, eligibility_fn, apply_fn)`** →
+  `BREEDING_OUTCOME_AUTOS` — `(state, owner_idx, outcome)` signatures over the
+  `BreedingOutcome` payload (which newborns were actually PLACED); fired by `_execute_breed`
+  with the breed frame still on top (§5b).
+- **`register_feeding_requirement(card_id, fold_fn)`** → `FEEDING_REQUIREMENT_FOLDS` — folds
+  `(state, owner_idx, need) -> need'` applied at the `helpers.feeding_requirement` chokepoint
+  (Child's Toy's "your newborns require 2 food"; §5b).
 
 ### `agricola/cards/schedules.py` — deferred goods & effects
 
@@ -635,7 +698,7 @@ card — the engine stays clean, and the choice is reversible.
 
 ### `GameState` additions
 
-Exactly three card-new fields (plus the frames below riding the existing `pending_stack`):
+Exactly four card-new fields (plus the frames below riding the existing `pending_stack`):
 
 - **`mode: GameMode = GameMode.FAMILY`** — which variant this state belongs to. Read wherever the
   rules genuinely diverge: `legal_placements` picks `FAMILY_GAME_LEGALITY` vs
@@ -654,13 +717,14 @@ Exactly three card-new fields (plus the frames below riding the existing `pendin
   pass-to-the-left round boundary). When all pools empty, `draft_pools` is set to `None` and the
   walk continues to PREPARATION → the round-1 reveal → WORK. Without `draft=True`, `setup_env`
   deals complete 7+7 hands directly (`_deal_hands`) and no DRAFT phase exists.
-- **`field_triggers_offered: bool = False`** — the harvest-FIELD two-stage-walk discriminator
-  (mirrors the PREPARATION two-state walk, whose discriminator is derivable; this one is not,
-  since both players may decline and leave no trace). True while the per-player
-  `PendingHarvestField` choice frames (field-phase triggers — Stable Manure) are out, so
-  re-entering `_resolve_harvest_field` after they pop runs the mechanical crop take instead of
-  re-offering; reset when the phase moves to FEED. Family-constant False (default-skipped in
-  `canonical.py`).
+- **`harvest_cursor: int | None = None`** — the harvest walk's resume index (§5b): set only
+  while a harvest-window / field-phase frame pauses `engine._advance_harvest` mid-segment,
+  `None` otherwise. It indexes the **virtual** ladder — the window ladder with the FIELD band
+  repeated once per player, starting player first (ruling 3) — decoded by
+  `harvest_windows.walk_position(cursor, starting_player)`. Hash-included like every state
+  field; Family-constant `None` (no window cards → no frames → never set), so default-skipped
+  in `canonical.py`. *(It replaced `field_triggers_offered`, the deleted two-stage-walk
+  discriminator of the legacy `harvest_field` seam.)*
 
 `starting_player` is **not** card-new — it is a Phase-1 field.
 
@@ -684,8 +748,10 @@ Exactly three card-new fields (plus the frames below riding the existing `pendin
     double-site).
   - `used_this_round` — cleared in `_complete_preparation`.
   - `fired_once` — per-game one-shots (the conditional-latch sweep, §3); never cleared.
-  - `harvest_conversions_used` (Phase-1) is the per-harvest scope, reset in
-    `_resolve_harvest_field`.
+  - `harvest_conversions_used` (Phase-1) is the per-harvest scope, reset for both players at
+    the harvest's fresh entry in `engine._advance_harvest` (moved 2026-07-05 from the field
+    take — so a phase-skipping player still gets a fresh budget, and future
+    anytime-in-harvest conversions start the harvest reset; §5b).
 - **`card_state: CardStore`** — the persistent per-card state side-map. `CardStore` is a frozen
   dataclass over a **sorted tuple of `(card_id, value)` pairs**, so two stores with equal
   contents are structurally identical (equal + same hash — the MCTS transposition table needs
@@ -745,8 +811,10 @@ resolver and never pushes it — urgent_wish stays atomic in both modes today).
 
 **Primitives.** `PendingFamilyGrowth` — the family-growth sub-action extracted as a reusable
 commit-terminated host (parameter-free `CommitFamilyGrowth`; the newborn's space comes from
-`initiated_by_id`). Pushed by Basic Wish today; the card-granted-growth gap (§6) is about the
-*placement*, not this frame.
+`initiated_by_id`). Pushed by Basic Wish (placement on the space) and — with
+`place_on_space=False`, the card-granted form the user ruled occupies *no* action space — by
+the harvest-window growth grants (Autumn Mother, Bed in the Grain Field; §5b). The room gate
+(`people_total < 5` and `< rooms`) stays the caller's check, not the primitive's.
 
 **Cost & food.** `PendingChooseCost` (the two-step payment menu for builds where geometry ⟂
 payment, §5; a closed frame — frozen `payments` tuple + the underlying `action_kind`, no
@@ -756,16 +824,21 @@ closed — `food_needed`, `resume_kind`, `reserved: Cost`, and the stored commit
 
 **Phase hosts.** `PendingPreparation` (start-of-round host, one per *owning* player,
 non-starting player pushed first so the starting player decides first; `start_of_round` autos
-fire at its push, triggers via its enumerator, `Proceed` pops — no after-phase),
-`PendingHarvestField` (the field-phase host, DUAL-USE: as the *transient auto host* —
-`player_idx=None` like `PendingReveal` — it is pushed, autos fired per player, and popped all
-inside `_resolve_harvest_field`, never reaching a returned state; as the *per-player choice
-host* — `player_idx=int`, the field-phase analog of `PendingPreparation` — one is pushed per
-player with an eligible `harvest_field` TRIGGER, starting player on top, before the mechanical
-crop take, with `Proceed` the decline/pop; the two-stage walk is discriminated by
-`GameState.field_triggers_offered`), `PendingDraftPick` (above), and
+fire at its push, triggers via its enumerator, `Proceed` pops — no after-phase), the two
+harvest-window frames (§5b) — `PendingHarvestWindow` (the per-player simple-window choice
+host: pushed only for a player with an eligible trigger on that window id, once-per-window via
+`triggers_resolved`, `Proceed` declines and pops) and `PendingFieldPhase` (the FIELD
+during-window host: free-order `field_phase` triggers around the mandatory `CommitFieldTake`,
+which is the only path to `Proceed`; carries `take_fired` and the frame-scoped `occasions`
+manifest) and `PendingHarvestOccasion` (the per-occasion reaction host: carries its
+just-emitted `occasion` payload so the registered per-occasion triggers read exactly the event
+they react to; `Proceed` declines and pops; pushed by `maybe_host_occasion_triggers` wherever
+an occasion is emitted, stacking above whatever frame emitted it) — `PendingDraftPick`
+(above), and
 `PendingCardChoice` (the forced-pick frame of mandatory-with-choice, §2 — options only, no
-decline; a single-option frame auto-resolves via singleton-skip).
+decline; a single-option frame auto-resolves via singleton-skip). *(The legacy dual-use
+`PendingHarvestField` is deleted — §5b.)* Beside the frames live the payload dataclasses they
+log or hand to consumers: `HarvestOccasion` / `HarvestEntry` and `BreedingOutcome` (§5b).
 
 **Grant wrappers.** `PendingGrantedBuildFences` — the choose-or-decline parent for an *optional*
 granted Build Fences (Field Fences): offers `ChooseSubAction("build_fences")` or `Stop`
@@ -835,6 +908,12 @@ the Family-constant value and is canonical-skipped:
   the existence gate); `max_plows: int = 1` + `num_plowed: int = 0` — the bounded multi-shot
   granted plow ("plow up to 2 fields": commit per cell, `Proceed` to finish early), making
   `PendingPlow` the fourth multi-shot host.
+- **`PendingSow`**: `max_fields: int = 0` — a card-granted PARTIAL sow caps the commit at
+  `grain + veg <= max_fields` ("for each newborn, sow crops in exactly 1 field"); `0` =
+  uncapped, every Family sow and the full granted Sow action.
+- **`PendingHarvestBreed`**: `triggers_resolved: frozenset` — the breed frame hosts card
+  triggers in both of its stretches (§5b), but the frame itself is pushed in every Family
+  harvest, so the field is skipped via a **qualified** canonical entry (below).
 - The seven Proceed-host space parents (five Family + Basic Wish + Meeting Place) carry the
   derived `subaction_started` property (§2 — not a field, so nothing to skip).
 
@@ -847,10 +926,15 @@ consume. A Cards state that sets one simply emits it. Current set: `mode`, `hand
 `hand_minors`, `used_this_turn`, `used_this_round`, `fired_once`, `card_state`,
 `future_rewards`, `draft_pools`, `animals_need_accommodation`, the three `build_*_action`
 flags, `accrued_cost`, `free_fence_budget`, `restrictions`, `must_preserve_base`, `max_plows`,
-`num_plowed`.
+`num_plowed`, `max_fields`, `harvest_cursor`, and the qualified
+`PendingHarvestBreed.triggers_resolved`. A **qualified entry** (`"<Type>.<field>"`) skips a
+field on ONE dataclass only — for a field whose *name* is emitted on other, Family-live frames
+(the sow/bake/plow frames keep emitting their `triggers_resolved`) but whose value is
+Family-constant-default on this one.
 **Adding a card-only field to a Family-reachable structure = default it to the Family-constant
-value + add it here** — that is the whole checklist for staying byte-identical (plus the C++
-port if the field can vary in Family, like `fences_in_supply`).
+value + add it here** (qualified if the name is shared) — that is the whole checklist for
+staying byte-identical (plus the C++ port if the field can vary in Family, like
+`fences_in_supply`).
 
 ### UI-only card state: `agricola/cards/display.py`
 
@@ -1086,6 +1170,221 @@ values, or gate the cache off where the new input can vary — and extend
 
 ---
 
+## 5b. The harvest timing windows
+
+Printed card text names many distinct instants around a harvest — "immediately before each
+harvest", "at the start of the field phase", "after the feeding phase", "at the end of each
+harvest". The engine's answer is an ordered **ladder of window ids** threaded through the
+harvest's FIELD → FEED → BREED walk, where each simple window id doubles as a trigger/auto
+event string and three entries are sentinels for the engine's own machinery. This section is
+the machinery reference; **`design_docs/cards/HARVEST_WINDOWS_DESIGN.md` is the design of
+record** (its §12 is the as-built code map) and **`HARVEST_HANDOFF.md`** preserves the
+reasoning behind every ruling (19 dated rulings, recorded in `CARD_DEFERRED_PLANS.md`).
+Everything here is Family-invisible in the standard way: empty registries, no frames,
+`harvest_cursor` always `None`, canonical JSON byte-identical — the whole arc needed **no C++
+re-port**.
+
+### The ladder and the virtual walk
+
+`harvest_windows.HARVEST_WINDOWS` — 15 ids in resolve order: `immediately_before_harvest`,
+`start_of_harvest`, `before_field_phase`, `start_of_field_phase`, **`field_phase`**
+(sentinel — the take), `end_of_field_phase`, `after_field_phase`, `start_of_feeding`,
+**`feeding`** (sentinel — the payment frames), `after_feeding`, `start_of_breeding`,
+**`breeding`** (sentinel — the breed frames), `after_breeding`, `end_of_harvest`,
+`after_harvest`. The ordering is rules-derived (design doc §1); two former pairs merged on
+2026-07-05: "immediately after each harvest" = `after_harvest` (ruling 18) and "immediately
+after the feeding phase" = `after_feeding` (ruling 19) — the same instants. `end_of_harvest`
+is the last chance for in-harvest conversions; `after_harvest` is outside the harvest. A card
+registers on the instant its text names (§3's `harvest_windows.py` block has the registration
+API); it never approximates a neighbor.
+
+**The walk** is `engine._advance_harvest`, resuming at `GameState.harvest_cursor` (§4) — an
+index into a **virtual** ladder in which the FIELD band (`before_field_phase` …
+`after_field_phase`, the take included) appears once **per player**, starting player first:
+within the FIELD segment the SP resolves their *entire* segment before the other player
+begins (ruling 3, PROVISIONAL — it matches the official implementation; the user dislikes the
+later-player advantage and may revisit). Everywhere else the walk is window-major: per
+window, autos fire for both players SP-first, then a per-player **`PendingHarvestWindow`**
+choice frame is pushed for each player with an eligible registered trigger (non-SP pushed
+first, so the SP decides first). Within one window **autos resolve before optional
+triggers** — the standing ordering ruling 19 leans on: Social Benefits' "no food left" auto
+runs before Farm Store's optional exchange, so a player ending feeding with exactly 1 food
+cannot spend it at Farm Store and still collect the grant. `walk_position(cursor,
+starting_player)` decodes the virtual index; N players would repeat the band N times (the
+shape 4-player needs). At the harvest's fresh entry the walk also resets both players'
+`harvest_conversions_used` (§4 — moved from the field take, skip- and
+anytime-conversion-proof). FEED and BREED are *not* banded per-player (their frames already
+resolve SP-first per window; banding is deferred until a member card's ordering depends on
+it).
+
+`PendingHarvestWindow` is once-per-window via `triggers_resolved`; `Proceed` declines
+whatever is unfired and pops. Growth grants prove the frames compose: **Autumn Mother**
+(`immediately_before_harvest`; its 3-food cost rides `register_food_payment_resume`, §5.3)
+and **Bed in the Grain Field** (`start_of_harvest`; a one-shot latched to its play round by
+round arithmetic — declining consumes it) both push `PendingFamilyGrowth(place_on_space=
+False)` mid-harvest, and the walk hosts the pushed primitive unchanged.
+
+### The field phase: one event, the take, and the occasion manifest
+
+**The one-event model (rulings 5 and 11 — the load-bearing insight).** The field-phase take
+is ONE simultaneous event: 1 crop from every planted field at once — and ALL during-phase
+extra harvesting **folds into it**. A full-catalog sweep (2026-07-05) found no sequential
+wording anywhere; every "harvest 1 additional …" card is a *modifier* of the singular event,
+never a second harvesting occasion.
+
+**The take.** `resolution.field_take(state, idx, *, source="take", extra_takes=None)` is the
+shared bare take: 1 crop per planted field (grain vs veg by what the field holds), plus the
+`extra_takes` per-cell fold-in map; returns `(state, HarvestOccasion)`. Manifest entries
+carry the **combined** base+fold-in amounts and **net** emptied flags — so every consumer
+sees one event with everything in it — and assertions guarantee fold-ins never over-harvest.
+It is deliberately bare (no budget reset, no autos, no frames — the callers own those). A
+card that *plays* a field phase — Bumper Crop; ruling 4: "immediately carry out the field
+phase" fires the EFFECT, not the phase and not a harvest — calls it bare with its own source
+(`"card:bumper_crop"`; harvest-scoped modifiers don't apply to it, and an *unscoped* one is
+surfaced as a `PendingCardChoice` — the take-modifier subsection) and then
+`resolution.emit_harvest_occasion`, which appends the occasion to a live during-frame's
+manifest if one is on top and fires the per-occasion autos.
+
+**The manifest** (`pending.py`): `HarvestOccasion(source, entries)` with one
+`HarvestEntry(source="cell:r,c", crop, amount, emptied)` per harvested FIELD; a real field
+phase emits exactly ONE occasion (ruling 11). This is the payload the harvest-consequence
+registries read — the deliberate exception to §8's "events carry no payload" boundary. Autos
+(`register_harvest_occasion_auto`) fire wherever an occasion is emitted; optional per-occasion
+TRIGGERS then surface at the **`PendingHarvestOccasion`** host, which
+`maybe_host_occasion_triggers` pushes right after the autos iff the owner has an eligible
+registered trigger — the frame carries the occasion, stacks above whatever emitted it (the
+innermost, just-emitted event resolves first), and `Proceed` declines (§3, §4).
+
+**The counting/scoping doctrine — a real bug shipped from getting this wrong.** What a
+consequence card counts comes from its printed wording:
+
+- "each grain FIELD you harvest" / "each harvested field TILE" / "take the last X from a
+  field" → count **entries** (per field), IGNORE `amount`. Slurry Spreader was first written
+  `2 × amount` per emptied grain entry — invisible while every amount was 1, wrong the moment
+  a fold-in emptied a 2-grain field in one event (paid 4 on a text that pays per FIELD).
+- "for each GRAIN / VEGETABLE you harvest" → count **units** (sum `amount`) — Crack Weeder,
+  Potato Harvester.
+- "if you harvest at least N X" → sum units once per occasion — Grain Sieve.
+
+And the scope gate comes from the printed frame (ruling 12's harvest-verb lexicon):
+
+- "…in the field phase OF A / EACH HARVEST" → phase-scoped: `state.phase ==
+  Phase.HARVEST_FIELD` (Crack Weeder, Potato Harvester, Slurry Spreader). Includes fold-in
+  extras (they are in the take), excludes a WORK-phase Bumper Crop.
+- Ruled take-only cards (ruling 9: Grain Sieve, Barley Mill — "bonuses are based off the
+  specifics of what happened in that action"; Lynchet's room-adjacent tile count) →
+  `occasion.source == "take"`.
+- UNSCOPED harvest-verb reactors fire on ANY verb-sense harvest, a played field phase
+  included. The verb (ruling 12): crops moving to the player's supply via the field-phase
+  effect *wherever it runs*, or a literal card "Harvest" wording. "Remove" is wider (any crop
+  departure from a card-field); "obtain" wider still.
+
+### Take-modifiers: the during-window and the claim-aware fold
+
+Because the extras are part of the one event, a *choice-bearing* extra surfaces as **variants
+of the take commit** — `CommitFieldTake(modifiers=((card_id, variant), …))` — never as a
+separate trigger. `register_take_modifier(card_id, fold_fn, *, variants_fn=None, order=1,
+harvest_scoped=True)`:
+
+- **Auto fold-ins** (`variants_fn=None`; Scythe Worker's mandatory-max extra grain):
+  choice-free, applied to every real-harvest take, hosted or inline.
+- **Choice-bearing** (`variants_fn` given; Stable Manure's donor-count vectors, Scythe E73's
+  harvest-one-field-fully): the enumerator offers one `CommitFieldTake` per modifier
+  combination (bare `()` = decline all), and owning one with a currently-legal variant is
+  itself a reason to host the during-frame.
+- **Replace-kind** (`ff874ba` — Grain Thief's shape): a fold may return a rich
+  **`TakeFold(extras, skipped, bonus)`** instead of a bare extras dict — a `skipped` cell is
+  REPLACED out of the take entirely (the base 1 is not taken, the manifest gets **no entry**
+  for it — the field was not harvested — and it is pre-claimed at full count so no later fold
+  can touch it), and `bonus` is goods granted from the general supply (never in the manifest —
+  not harvested). `field_take` gains `skip_cells`/`bonus` accordingly. A modifier printed
+  without harvest scoping registers `harvest_scoped=False` and also applies to card-played
+  takes — Bumper Crop surfaces the unscoped-modifier choice via a `PendingCardChoice`.
+
+`engine._field_phase_step` runs one player's during-window: `field_phase` autos fire, then
+**`PendingFieldPhase`** is hosted iff the player has a live decision there — an eligible
+`field_phase` trigger OR a usable choice-bearing modifier; otherwise the take runs inline
+(auto fold-ins + occasion autos). After an inline take the trigger check runs **once more**:
+take income can enable a trigger mid-window (Crack Weeder's food affording Cube Cutter's
+exchange — previously a silently-denied legal play), and the frame is then hosted with
+`take_fired=True`. At the frame, triggers are free-order around the mandatory take,
+`CommitFieldTake` is the only path to `Proceed`, and the frame's `occasions` tuple logs what
+fired.
+
+**Claim-aware allocation (the collision fix).** The fold signature is
+`fold_fn(state, idx, variant, claimed) -> extras-per-cell | TakeFold | None`. Independently-computed
+folds once double-claimed the same field's spare crops and over-harvested on an action the
+enumerator had offered as legal (Scythe Worker + Stable Manure on a lone 2-grain field). Now
+chosen modifiers allocate **in combo order = the `order`-sorted registry** — replace-kind
+before rigid fixed-demand (Stable Manure) before flexible (Scythe), which is load-bearing for
+feasibility — with the auto fold-ins last (they degrade gracefully: an emptied field simply
+has no "additional" grain to give). A `None` fold marks the whole COMBINATION infeasible and
+`fold_chosen_modifiers` returning `None` makes the enumerator drop it — **every offered
+commit is executable**. The two extras members are printed "of each harvest", so their
+fold-ins apply only to a real harvest's take (ruling 12; `harvest_scoped=True`). A replaced
+field emits **no manifest entry** (the flagged reading, 2026-07-05) — which is what keeps
+Lynchet's per-tile count correct under a replacement.
+
+### Skips, feeding income, and the FEED/BREED sentinels
+
+**Harvest skips.** `register_harvest_skip(card_id, fn)` — per-card predicates
+`(state, idx, window_id) -> bool` over ROUND-KEYED latches in the card's own CardStore
+(harvest rounds are unique, so a stale latch from a past harvest is inert; nothing clears).
+Consulted per simple window, per FIELD-band step, and by the FEED/BREED entry points with the
+sentinel ids `"feeding"` / `"breeding"` — a skipping player gets no feeding/breeding frames,
+and no feeding income. Members: **Lunchtime Beer** (ruling 1, definite: a skipped phase has
+no boundaries — every field-segment and breeding-segment window is suppressed, take included;
+feeding still happens; the +1 food and the latch ride its optional `start_of_harvest`
+trigger) and **Layabout** (ruling 14, superseding the contested ruling 2: the cancellation is
+TOTAL — every window on the ladder, feeding, and breeding, before/after boundaries included;
+the user dislikes this reading but ruled to follow the official implementation; latched
+automatically at play, targeting the next harvest round at-or-after the play round).
+
+**Feeding income and the requirement chokepoint.** `register_auto("feeding", …)` fires in
+`_initiate_harvest_feed` per player SP-first, **before** the payment frames are pushed — "in
+the feeding phase, you get X food" must be payable. Consumers: Dentist (a two-window card —
+wood banked at its `start_of_harvest` trigger, per-wood food paid out here), Town Hall,
+Milking Place. Choice-free income only; in-feeding *conversions* stay on
+`HARVEST_CONVERSIONS` (§3). Cards that change **what feeding costs** (Child's Toy's "your
+newborns require 2 food") fold at the single computation chokepoint,
+`helpers.feeding_requirement` (base `2·people_total − newborns`, owned
+`register_feeding_requirement` folds applied in order, floored at 0). Cache safety: the
+folded requirement flows into the memoized feed frontier as its `food_owed` **argument** —
+part of the projection key — so a card-dependent requirement can never serve a stale frontier
+(§5.4's contract, satisfied by construction).
+
+**The BREED frame hosts triggers in both of its stretches** (`ff874ba`, ruling 20;
+`breed_chosen` is the phase discriminator):
+
+- **Before `CommitBreed` — event `"breeding"`**: in-breeding-phase effects that do not depend
+  on the breeding outcome (Stone Importer's priced stone buy) are offered BEFORE the breed
+  decision, never after. Firing one leaves the frame up.
+- **After `CommitBreed`, before `Stop` — event `"breeding_outcome"`**: reactions to WHICH
+  newborns were just placed. `_execute_breed` computes the **`BreedingOutcome`** payload
+  (0/1 per type, from the engine's own kept-newborn indicator — an unaccommodated newborn is
+  never placed, so "you must be able to accommodate each newborn to get it" is inherent) and
+  fires the `register_breeding_outcome_auto` consumers with the frame still on top; an
+  outcome-reactive *trigger* reads its own round-keyed CardStore latch written there (the
+  frame carries no payload field). `Stop` declines whatever is unfired.
+
+This is deliberately NOT an any-source newborns event — Dung Collector's "each time you get
+2+ newborn animals" counts market gains too and stays out of scope (§8). The FEED frames
+still carry no trigger events (§8).
+
+### What was deleted (2026-07-05)
+
+The legacy `harvest_field` seam is **gone**: the `harvest_field` event,
+`PendingHarvestField`, `GameState.field_triggers_offered`, `_fire_harvest_field_autos`,
+`should_host_harvest_field` / `HARVEST_FIELD_CARDS` / `register_harvest_field_hook`, and its
+enumerator. Every member migrated onto the window / occasion / take-modifier seams above
+(Lynchet's move mattered: its old pre-take sown-adjacent snapshot was extensionally equal in
+every reachable state but breaks under Grain Thief's replacement). `_resolve_harvest_field`
+survives as a compat alias (assert HARVEST_FIELD + `_advance_harvest`) because many tests
+drive the walk by that name. Any reference to the "harvest-field hook" as live machinery —
+in older docs or docstrings — is history now.
+
+---
+
 ## 6. Rulings & idioms
 
 The rulings are *correctness decisions* — settled by the game's rules (the user is the
@@ -1134,11 +1433,11 @@ examples; this is the reference list.
   own frontiers. *(This supersedes the earlier ruling that an immediate un-accommodated grant
   is an automatic defer — that convention hid a real player choice, e.g. Animal Tamer + a
   scheduled boar arriving on a full house.)*
-- **Card-granted family growth: deferred on placement.** The user's ruling is that a
-  card-granted newborn occupies *no action space*, but `_execute_family_growth` →
-  `_resolve_wish_for_children` forces space placement — such cards wait for a
-  `place_on_space=False` field. The room gate (`people_total < 5` and `< rooms`) is the
-  caller's check, not the primitive's.
+- **Card-granted family growth occupies no action space** (the user's ruling, now built):
+  `PendingFamilyGrowth(place_on_space=False)` skips the space placement; the room gate
+  (`people_total < 5` and `< rooms`) is the caller's check, not the primitive's. Live
+  consumers: Autumn Mother, Bed in the Grain Field (§5b). A window-granted newborn is fed the
+  standard 1 food (ruling 13).
 - **"X in supply" is a prerequisite, not a cost** — a HAVE-check (`MinorSpec.prereq` /
   `min_occupations`), never debited.
 - **"/" in a cost: now supported for minors; "/" in a *reward* is not.** A printed
@@ -1150,11 +1449,46 @@ examples; this is the reference list.
 - **A conditional one-shot latch fires only at the two swept seams** (renovate, card play). A
   standing condition on anything else — a resource count (Hook Knife's "8 sheep") — never gets
   swept; defer rather than approximating with an action hook.
-- **The harvest field-phase hook supports autos AND optional triggers** *(supersedes the
-  earlier auto-only rule)* — a "you may…" field-phase card registers
-  `register("harvest_field", ...)` and is surfaced at the per-player `PendingHarvestField`
-  choice host (§3/§4; Stable Manure is the exemplar, with variant-expanded count-vector
-  options). Mandatory flat effects stay `register_auto`.
+- **Harvest timing is the window ladder** — a harvest card registers on the window id its
+  printed text names (§5b), never an approximated neighbor. The field phase is ONE
+  simultaneous event (rulings 5/11): all during-phase extra harvesting folds into the take as
+  a take-modifier, never a second occasion. *(Supersedes the `harvest_field` hook and its
+  auto-only → autos+triggers evolution — that seam is deleted.)*
+- **Every "immediately" in card text gets its own user ruling.** Rulings 18/19 merged the two
+  after-harvest and after-feeding pairs ("immediately after X" = "after X" — the same
+  instant), but the equivalence does **not** generalize: each future occurrence is a
+  per-instance rules question, never a unilateral call (the standing instruction, also in
+  CARD_AUTHORING_GUIDE.md §2).
+- **An in-breeding-phase effect fires BEFORE the breed decision, never after** (ruling 20) —
+  unless it reacts to the outcome itself, in which case it lives on the post-commit
+  `"breeding_outcome"` event (§5b). The breed frame's `breed_chosen` flag is the phase
+  discriminator.
+- **Count what the text counts; scope by the printed frame.** "Each grain field" counts
+  occasion ENTRIES (ignore amounts); "for each grain you harvest" counts UNITS (sum amounts);
+  thresholds sum units once per occasion. "In the field phase of a/each harvest" → phase-gate;
+  ruled take-only cards → `occasion.source == "take"`; unscoped harvest-verb wording fires on
+  any verb-sense harvest. The doctrine + the Slurry Spreader bug that motivated it: §5b.
+- **An on-play optional grant declines WIDE** (ruling 17 — Baker): "when you play this card,
+  you can take a Bake Bread action" is offered as PLAY-VARIANTS
+  (`register_play_occupation_variant`, the Roof Ballaster mechanism) — "play and bake" vs
+  "play, decline the bake" are two `CommitPlayOccupation` variants. Never an after-play
+  trigger: that would let the granted action interleave with other after-play triggers in
+  player-chosen order, which "when you play this card" does not license. The pushed primitive
+  is committed once the variant is chosen (the variant WAS the decline moment — no per-frame
+  skip flag, per the standing optionality-at-the-parent invariant).
+- **A card that REPLACES a convertible good it induced you to spend breaks the
+  food-exclusion premise** (ruling 16 as amended — Shepherd's Whistle). The usual
+  "food is never a frontier dimension" convention is a theorem whose premise is that
+  conversion proceeds are obtainable later from unchanged holdings; a replacement card
+  refunds the spent good, so its proceeds are non-deferrable and a cook-and-be-refunded
+  option strictly beats declining. The built shape: the option frontier is over animals PLUS
+  a received-vs-declined dimension (received dominates declined iff a sheep-conversion
+  opportunity exists), food computed per option but never a dominance term; the "free
+  unfenced stable" condition is capacity-theoretic, computed by handing the standard helpers
+  a DOCTORED player with one standalone stable cell blanked. Among same-rate subset options,
+  goods-only dominance stays exact (the food difference equals the deferred cook-value of the
+  goods difference) — re-derive that identity before trusting any new frontier design. Full
+  derivation with the counterexamples: HARVEST_HANDOFF.md §8.
 
 ### Idioms
 
@@ -1238,12 +1572,18 @@ exact-set (§6).
 | any-player auto | `milk_jug` |
 | granted sub-action trigger | `assistant_tiller`; with route variants `cottager` |
 | start-of-round | `scullery` (auto), `plow_driver` (trigger) |
-| harvest-field auto | `scythe_worker`, `loom` |
+| harvest-window trigger / auto | `haydryer`, `farm_store` / `social_benefits`, `home_brewer` |
+| field-phase (during-window) trigger | `cube_cutter`, `beer_table` (end-of-field-phase) |
+| take-modifier | `scythe_worker` (auto), `stable_manure`, `scythe` (choice-bearing) |
+| occasion auto | `grain_sieve` (take-only), `crack_weeder` (phase-scoped), `lynchet` (per tile) |
+| harvest skip | `lunchtime_beer` (phases), `layabout` (total) |
+| feeding income | `town_hall`, `dentist` (two-window) |
+| window growth grant | `autumn_mother`, `bed_in_the_grain_field` |
 | conditional one-shot latch | `manservant` |
 | deferred goods / effect | `pond_hut` / `handplow` |
 | CardStore state | `big_country`, `tutor`, `shepherds_crook` |
 | mandatory-with-choice | `childless`, `seasonal_worker` |
-| play-variant occupation | `roof_ballaster` |
+| play-variant occupation | `roof_ballaster` (surcharge), `baker` (wide-declined grant) |
 | cost modifier | `bricklayer`, `frame_builder`, `millwright` |
 | free fences | `briar_hedge` (positional), `hedge_keeper`-shape seed, `ash_trees` (pool) |
 | restricted / optional fence grant | `mini_pasture` / `field_fences` |
@@ -1282,17 +1622,24 @@ defer (§7); building the missing piece is a design conversation with the user f
 - **No `PendingBeforeScoring`** (CARD_SYSTEM_DESIGN.md §7): end-game conversions whose proceeds
   are points (Sheep Walker) need a decision window between round 14 and scoring, coupled to
   arrangement-scoring questions (Organic Farmer). Flagged, unbuilt.
-- **Events carry no payload.** `after_play_minor` etc. name an event, not the card played — so a
-  card cannot distinguish *its own* play from a later one (Seed Almanac's deferral), and there is
-  no newborns-gained event (Dung Collector). Adding payloads is a firing-API change; defer until
-  a cluster justifies it.
-- **No harvest feed/breed trigger events.** `PendingHarvestFeed`/`Breed` still carry no
-  `triggers_resolved` (the Phase-1 deferral stands); harvest cards ride the `harvest_field`
-  hook (autos + optional triggers via the choice host, §3) or the harvest-conversion registry.
-  An optional feed/breed-window card is a defer.
-- **No round-end / after-feeding / before-round-start hooks.** Designed in sketch, gated on the
+- **The general firing system carries no event payload.** `after_play_minor` etc. name an
+  event, not the card played — so a card cannot distinguish *its own* play from a later one
+  (Seed Almanac's deferral), and there is no any-source newborns-gained event (Dung Collector —
+  markets included, deliberately out of scope). Adding payloads to the general system is a
+  firing-API change; defer until a cluster justifies it. **The two deliberate exceptions**,
+  both harvest-scoped registries rather than general events: the harvest OCCASION registries
+  (the `HarvestOccasion` manifest) and the breeding-outcome registry (the `BreedingOutcome`
+  payload) — §5b.
+- **No harvest FEED trigger events.** `PendingHarvestFeed` still carries no
+  `triggers_resolved`; feeding-phase cards ride the feeding-income auto, the
+  requirement folds, the harvest-conversion registry, or the
+  `start_of_feeding`/`after_feeding` windows (§5b). *(The BREED half of the old deferral
+  retired at `ff874ba`: the breed frame hosts `"breeding"` / `"breeding_outcome"` triggers —
+  §5b.)*
+- **No round-end / before-round-start hooks.** Designed in sketch, gated on the
   user (`CARD_DEFERRED_PLANS.md`); `resource_analyzer` (deck E) is deferred on exactly
-  "before the start of each round".
+  "before the start of each round". (After-feeding is no longer in this list — it exists as
+  the `after_feeding` window, §5b.)
 - **Cost-model gaps** (each flagged so the model isn't mistaken for complete): a
   payment-*source* restriction (Carpenter's Bench "use only the taken wood") — `effective_
   payments` has no concept of where goods came from; a *minimum-spend* filter (Stone Company);
@@ -1308,10 +1655,6 @@ defer (§7); building the missing piece is a design conversation with the user f
   under fungibility. The *storage* half now exists (`interim_storage` holds goods on a card in
   CardStore); the **legality half — card-held goods participating in affordability — is the open
   part**, and it will shape how all buy-conversion cards land.
-- **Capacity negation.** `Milking Place` (D012) — "you can no longer hold animals in your house,
-  not even via another card" — must force the house fold to 0, which the max-fold cannot
-  express; it explicitly negates Animal Tamer, so wire the negation as a separate check when it
-  lands (capacity_mods' docstring flags this).
 - **No speculative placement-time legality** (COST_MODIFIER_DESIGN.md A7). A grant that fires
   *after placing* is handled at the build; *deciding to place* based on a not-yet-fired grant's
   proceeds is the deferred gap (the Pan-Baker-enables-Potter compound case in
@@ -1344,6 +1687,9 @@ docs sit at the repo root; the design + batch records live under `design_docs/ca
 | `CARD_IMPLEMENTATION_PLAN.md` | **FROZEN** plan + ledger — the original build plan, per-category canonical code, decisions log | provenance; the Firewood/end-of-turn note. Its §II sketches are partly superseded by as-built deviations; "Acorns Basket deferred" is stale (implemented) |
 | `COST_MODIFIER_DESIGN.md` | design + red-team record for §5.1/5.2 — worked frontier traces (§4), attacks A1–A7, the fence slice (§9) | changing the cost pipeline; any new cost card shape |
 | `FOOD_PAYMENT_DESIGN.md` | design record for §5.3 — the raise-only decision, banking arithmetic, red-team | changing food payment; Ox-Goad-shaped cards |
+| `HARVEST_WINDOWS_DESIGN.md` | design of record for §5b — ladder rationale, during-window classes, FEED/BREED, card-fields, anytime converters; **§12 = the as-built code map** | any harvest-window card or engine change |
+| `HARVEST_HANDOFF.md` (repo root) | the 2026-07-03→05 session-reasoning record — every ruling's derivation, the bug stories, per-item cautions for the remaining work (§12 = the worklist) | resuming the harvest arc; before building any of its §12 items |
+| `HARVEST_CARDS_REVIEW.md` | the 130-card verbatim census, grouped by window (2026-07-03 snapshot — impl markers dated) | triaging a harvest-timed card |
 | `SPACE_HOST_REFACTOR.md` / `SUBACTION_HOOK_REFACTOR.md` | **frozen refactor records (LANDED)** — the host lifecycle's design + staging | archaeology of §2's mechanisms |
 | `POST_COMPACTION_DETOUR.md`, `CARD_BATCH_AB_SUMMARY.md`, `CARD_BATCH_TRIAGE.md`, `CARD_TRIAGE_CDE.md`, `PAY_FOOD_PLOW_CARDS.md` | historical batch records | provenance of a specific batch/fix (enforce-first: POST_COMPACTION_DETOUR §2) |
 | `ROOM_CARDS.md` / `STABLE_CARDS.md` | catalog analyses (cards touching rooms/stables) | planning those clusters |

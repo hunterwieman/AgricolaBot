@@ -1,6 +1,17 @@
 # CARD_ENGINE_IMPLEMENTATION.md integration capture (2026-07-05)
 
-> **Purpose.** The harvest-window arc (2026-07-03 → 05) added several permanent
+> **FOLDED 2026-07-05.** Every item below was integrated into
+> `CARD_ENGINE_IMPLEMENTATION.md` (verified against the code at HEAD `ff874ba`): the
+> new §5b (the harvest timing windows), the §3 `harvest_windows.py` registry block +
+> the capacity/cost-mod additions, the §4 state/frame/canonical updates, the §6
+> rulings, the §7 template rows, the §8 boundary amendments, and the §9 doc-map rows.
+> The fold also covered the `ff874ba` seams that landed after this capture was
+> written (breed-frame triggers, the breeding-outcome payload, the
+> `PendingHarvestOccasion` host — the loud guard is gone — replace-kind
+> take-modifiers, the feeding-requirement chokepoint). Kept as the checklist record;
+> no longer actionable.
+
+> **Purpose (original).** The harvest-window arc (2026-07-03 → 05) added several permanent
 > mechanics to the card engine that belong in `CARD_ENGINE_IMPLEMENTATION.md` (the
 > as-built reference-of-record). The building session's context was too deep to edit
 > that large doc directly, so this file captures WHAT to fold in and WHERE; a fresh
