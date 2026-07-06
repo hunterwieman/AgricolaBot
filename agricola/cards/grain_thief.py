@@ -27,9 +27,9 @@ take AND a card-played field phase (Bumper Crop, ruling 4). Hence
 ``harvest_scoped=False``: at Bumper Crop the choice surfaces automatically as a
 ``PendingCardChoice`` over the feasible modifier combinations.
 
-**A replaced field is NOT harvested — flagged implementer reading (2026-07-05,
-derived from "leave the grain on the field ... instead", awaiting user
-confirmation; NOT a settled ruling).** Under this reading a replaced field emits
+**A replaced field is NOT harvested — user ruling 2026-07-06** (proposed
+2026-07-05, derived from "leave the grain on the field ... instead"; the user
+ratified the reading). Under this ruling a replaced field emits
 NO manifest entry: it is invisible to Grain Sieve's "at least 2 grain", to
 Lynchet's harvested-tile count, and to Food Merchant's per-grain buys; it cannot
 donate an "additional" good to Stable Manure, and Scythe Worker takes no

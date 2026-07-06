@@ -272,6 +272,15 @@ user made during this design — cite these, dated, in the docstrings of the car
    occasion (Potato Ridger harvesting into 4 veg: the auto exchange drops
    supply to 3, and the optional at-3 offer must not then appear — "exactly
    1 vegetable" is once per occasion).
+22. **A Grain-Thief-replaced field is NOT harvested** (ruled 2026-07-06,
+   ratifying the 2026-07-05 implementer reading of "leave the grain on the
+   field and take 1 grain from the general supply INSTEAD"): the field is
+   untouched by the take and emits NO manifest entry — invisible to Grain
+   Sieve's "at least 2 grain", Lynchet's harvested-tile count, and Food
+   Merchant's per-grain buys; it cannot donate an "additional" good to Stable
+   Manure, and Scythe Worker takes no additional grain from it. The
+   replacement's supply grain is likewise not harvested (never in the
+   manifest).
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a

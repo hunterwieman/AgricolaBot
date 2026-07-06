@@ -431,7 +431,7 @@ seams, rulings 20-21 + the flagged Grain Thief reading):** Stone Importer (the b
 frame's pre-commit "breeding" triggers — ruling 20), Fodder Planter + Slurry Spreader
 C71 (the breeding-outcome payload + capped/uncapped granted sows off the frame's
 post-commit "breeding_outcome" stretch), Grain Thief (the replace-kind order-0
-unscoped take-modifier; a replaced field emits NO manifest entry — flagged reading,
+unscoped take-modifier; a replaced field emits NO manifest entry — RATIFIED as user ruling 2026-07-06,
 and it surfaces at Bumper Crop via PendingCardChoice), Potato Ridger + Food Merchant
 (the PendingHarvestOccasion optional-reaction host; Potato Ridger's 4+ tier is an
 AUTO per ruling 21, with the host's autos_fired excluding its optional tier on the

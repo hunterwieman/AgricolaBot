@@ -309,7 +309,7 @@ class TakeFold:
     skipped — cells REPLACED out of the take entirely (Grain Thief's "leave
               the grain on the field … instead"): the base 1 is not taken, no
               extras may target them, and the manifest gets NO entry for them
-              (the field was not harvested — flagged reading, 2026-07-05).
+              (the field was not harvested — user ruling 2026-07-06).
     bonus   — goods from the GENERAL SUPPLY granted by the replacement
               (Grain Thief's 1 grain per replaced field). Not harvested, so
               never in the manifest.

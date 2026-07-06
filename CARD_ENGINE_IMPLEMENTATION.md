@@ -1331,7 +1331,7 @@ has no "additional" grain to give). A `None` fold marks the whole COMBINATION in
 `fold_chosen_modifiers` returning `None` makes the enumerator drop it — **every offered
 commit is executable**. The two extras members are printed "of each harvest", so their
 fold-ins apply only to a real harvest's take (ruling 12; `harvest_scoped=True`). A replaced
-field emits **no manifest entry** (the flagged reading, 2026-07-05) — which is what keeps
+field emits **no manifest entry** (user ruling 2026-07-06) — which is what keeps
 Lynchet's per-tile count correct under a replacement.
 
 ### Skips, feeding income, and the FEED/BREED sentinels

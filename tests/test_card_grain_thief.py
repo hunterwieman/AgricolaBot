@@ -13,7 +13,7 @@ choice surfaces as ``CommitFieldTake(modifiers=(("grain_thief", "<count
 vector>"),))`` variants at the ``PendingFieldPhase`` host, and at Bumper Crop as
 a ``PendingCardChoice`` over the feasible combinations.
 
-Under the flagged implementer reading (2026-07-05, awaiting user confirmation)
+Per the user ruling of 2026-07-06 (proposed 2026-07-05)
 a replaced field is NOT harvested: it emits no manifest entry (invisible to
 Grain Sieve), can donate nothing to Scythe Worker, and the replacement's 1
 supply grain is likewise never in the manifest.
@@ -250,7 +250,7 @@ def test_frame_hosts_when_usable():
 def test_replace_one_of_two_grain_fields():
     """The replaced field keeps ALL its grain, the other is harvested normally,
     the supply gains 1 (bonus) + 1 (harvest), and the manifest has exactly one
-    entry (the replaced field was not harvested — flagged reading 2026-07-05)."""
+    entry (the replaced field was not harvested — user ruling 2026-07-06)."""
     state = _own_occ(_field_state(), 0, CARD_ID)
     state = with_sown_fields(state, 0, grain_fields=[(0, 0), (0, 1)])
     state = _walk_to_field_frame(state)
@@ -344,7 +344,7 @@ def test_grain_sieve_trips_on_the_normal_take():
 
 def test_grain_sieve_not_tripped_when_one_field_replaced():
     """Replacing one of the two fields harvests only 1 grain (the replaced
-    field is not in the manifest — flagged reading 2026-07-05), so Grain Sieve
+    field is not in the manifest — user ruling 2026-07-06), so Grain Sieve
     stays silent: +2 total (1 harvest + 1 supply), not +3."""
     state = _own_occ(_field_state(), 0, CARD_ID)
     state = _own_minor(state, 0, "grain_sieve")

@@ -1735,7 +1735,7 @@ def field_take(
     the grain on the field and take 1 grain from the general supply instead"):
     a skipped planted field is untouched by the take — no base 1, no extras
     (asserted), and NO manifest entry, because the field was not harvested
-    (the "instead" replacement; flagged reading 2026-07-05 — a replaced field
+    (the "instead" replacement; RATIFIED reading (user ruling 2026-07-06) — a replaced field
     is invisible to every harvested-from-a-field consumer: Grain Sieve,
     Lynchet, Food Merchant, and it can donate nothing to Stable Manure /
     Scythe Worker). `bonus` is the replacement's general-supply goods, added
