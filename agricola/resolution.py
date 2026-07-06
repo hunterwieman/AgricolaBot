@@ -2025,9 +2025,12 @@ def _execute_breed(
     assert isinstance(top, PendingHarvestBreed)
     p = state.players[player_idx]
 
+    from agricola.cards.capacity_mods import sheep_min_parents
+
     rates_3 = cooking_rates(state, player_idx)[:3]
+    sheep_min = sheep_min_parents(p)
     chosen  = Animals(sheep=commit.sheep, boar=commit.boar, cattle=commit.cattle)
-    food_gained = breeding_food_gained(p.animals, chosen, rates_3)
+    food_gained = breeding_food_gained(p.animals, chosen, rates_3, sheep_min)
 
     new_player = fast_replace(
         p,
@@ -2051,8 +2054,11 @@ def _execute_breed(
     )
     if BREEDING_OUTCOME_AUTOS:
         pre = p.animals
+        # The fired-and-kept indicator, sheep threshold card-aware (a
+        # single-parent card — Dolly's Mother — breeds from 1, so its newborn
+        # must be reported too; the m=2 hardcoding here was the trap).
         outcome = BreedingOutcome(
-            sheep=int(pre.sheep >= 2 and chosen.sheep >= 3),
+            sheep=int(pre.sheep >= sheep_min and chosen.sheep >= sheep_min + 1),
             boar=int(pre.boar >= 2 and chosen.boar >= 3),
             cattle=int(pre.cattle >= 2 and chosen.cattle >= 3),
         )

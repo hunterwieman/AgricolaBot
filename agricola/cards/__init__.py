@@ -538,3 +538,6 @@ from agricola.cards import earthenware_potter  # noqa: F401
 from agricola.cards import facades_carving  # noqa: F401
 from agricola.cards import craft_brewery  # noqa: F401
 from agricola.cards import feed_pellets  # noqa: F401
+# Dolly's Mother (2026-07-06, user-planned): single-parent sheep breeding +
+# the sheep-only card slot via the greedy strip.
+from agricola.cards import dollys_mother  # noqa: F401

@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 203 implemented · 🚫 3 won't-fix/banned · ⬜ 214 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 204 implemented · 🚫 3 won't-fix/banned · ⬜ 213 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1291,7 +1291,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E83 Shepherd's Whistle** · cost: 1 Wood
   - _At the start of the breeding phase of each harvest, if you have at least 1 unfenced stable without an animal, you get 1 sheep._
   - `HOOK T-BEFORE S-HBREED F-AUTO A-OWN E-ANIMALS` — 'At the START of the breeding phase' fires before breeding resolves → the missing timing dimension is T-BEFORE; mandatory conditional sheep gain (F-AUTO, E-ANIMALS) on the harvest-breed seam.
-- ⬜ **E84 Dolly's Mother** · prereq: 1 Sheep
+- ✅ **E84 Dolly's Mother** · prereq: 1 Sheep
   - _You only require 1 sheep to breed sheep during the breeding phase of a harvest. This card can hold 1 sheep._
   - `PASSIVE E-BREEDMOD E-CAPNEW` — Breed sheep with only 1; the card holds 1 sheep.
 

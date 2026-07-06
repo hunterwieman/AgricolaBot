@@ -83,6 +83,54 @@ def house_pet_capacity(player_state) -> int:
     return cap
 
 
+# Cards that HOLD animals of one specific type — Dolly's Mother E84's "This
+# card can hold 1 sheep." Unlike a flexible slot (any type), a typed slot
+# cannot ride `num_flexible`; instead the accommodation entry points apply the
+# GREEDY STRIP (user-proposed, 2026-07-06, exact by dominance: parking a sheep
+# on a sheep-only slot never hurts the other animals, so an owner's frontier
+# equals the standard frontier computed with `sheep_slot_count` fewer sheep,
+# the parked sheep added back). Consumers: `helpers.accommodates`,
+# `helpers.pareto_frontier`, `helpers.breeding_frontier`. Empty in the Family
+# game.
+SHEEP_SLOT_CARDS: dict[str, int] = {}
+
+
+def register_sheep_slot(card_id: str, slots: int) -> None:
+    """Register a card that holds `slots` sheep (card-module import time)."""
+    SHEEP_SLOT_CARDS[card_id] = slots
+
+
+def sheep_slot_count(player_state) -> int:
+    """Sheep-only card slots this player owns (Dolly's Mother: 1). Empty
+    registry / nothing owned -> 0 (Family byte-identity)."""
+    if not SHEEP_SLOT_CARDS:
+        return 0
+    return sum(n for cid, n in SHEEP_SLOT_CARDS.items()
+               if _owns(player_state, cid))
+
+
+# Cards that let SHEEP breed from a single parent — Dolly's Mother E84's "You
+# only require 1 sheep to breed sheep during the breeding phase of a harvest."
+# Read by `helpers.breeding_frontier` / `breeding_food_gained` (the
+# sheep_min_parents argument joins their memo keys) and by the breeding-outcome
+# computation in `resolution._execute_breed`. Empty in the Family game.
+SINGLE_PARENT_SHEEP_CARDS: set[str] = set()
+
+
+def register_single_parent_sheep(card_id: str) -> None:
+    """Register a card that lets sheep breed from 1 parent (import time)."""
+    SINGLE_PARENT_SHEEP_CARDS.add(card_id)
+
+
+def sheep_min_parents(player_state) -> int:
+    """How many sheep this player needs for sheep to breed: 2 (the rule) or 1
+    with an owned single-parent card. Empty registry -> 2 (Family)."""
+    if SINGLE_PARENT_SHEEP_CARDS and any(_owns(player_state, cid)
+                                         for cid in SINGLE_PARENT_SHEEP_CARDS):
+        return 1
+    return 2
+
+
 def pasture_capacity_bonus(player_state) -> int:
     """Flat per-pasture capacity bonus from owned cards (Drinking Trough: +2 each), summed.
     Empty registry / no owned modifier -> 0 (Family byte-identity). Applied AFTER the stable

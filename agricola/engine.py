@@ -820,7 +820,7 @@ def _reconcile_accommodation(state: GameState) -> tuple[GameState, bool]:
     if not (p0.animals_need_accommodation or p1.animals_need_accommodation):
         return state, False   # hot path: no decision-free grant outstanding
 
-    from agricola.helpers import can_accommodate, extract_slots
+    from agricola.helpers import accommodates
 
     pushed = False
     for idx in (1 - state.starting_player, state.starting_player):
@@ -829,9 +829,8 @@ def _reconcile_accommodation(state: GameState) -> tuple[GameState, bool]:
             continue
         p = fast_replace(p, animals_need_accommodation=False)
         state = _update_player(state, idx, p)
-        caps, num_flexible = extract_slots(p)
-        if not can_accommodate(
-            caps, num_flexible, p.animals.sheep, p.animals.boar, p.animals.cattle
+        if not accommodates(
+            p, p.animals.sheep, p.animals.boar, p.animals.cattle
         ):
             state = push(state, PendingAccommodate(player_idx=idx))
             pushed = True
@@ -846,11 +845,10 @@ def _assert_animals_accommodated(state: GameState) -> None:
     never fires in correct code — it localizes a missing grant_animals call or barrier if
     one is ever introduced. Stripped under `python -O`, like _assert_nonnegative_state.
     """
-    from agricola.helpers import can_accommodate, extract_slots
+    from agricola.helpers import accommodates
     for idx, p in enumerate(state.players):
-        caps, num_flexible = extract_slots(p)
-        assert can_accommodate(
-            caps, num_flexible, p.animals.sheep, p.animals.boar, p.animals.cattle
+        assert accommodates(
+            p, p.animals.sheep, p.animals.boar, p.animals.cattle
         ), (
             f"player {idx} reached scoring over animal capacity: {p.animals} — a "
             f"decision-free grant was not reconciled (see grant_animals / "

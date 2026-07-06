@@ -6714,7 +6714,7 @@
   "vps": 1,
   "text": "You only require 1 sheep to breed sheep during the breeding phase of a harvest. This card can hold 1 sheep.",
   "slug": "dollys_mother",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false

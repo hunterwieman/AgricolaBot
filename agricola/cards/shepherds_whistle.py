@@ -45,9 +45,8 @@ from agricola.cards.stable_architect import count_unfenced_stables
 from agricola.cards.triggers import register, register_auto, register_play_variant_trigger
 from agricola.constants import CellType
 from agricola.helpers import (
-    can_accommodate,
+    accommodates,
     cooking_rates,
-    extract_slots,
     pareto_frontier,
 )
 from agricola.replace import fast_replace
@@ -79,13 +78,15 @@ def _without_one_standalone_stable(state: GameState, idx: int):
 
 
 def _stable_is_free(state: GameState, idx: int) -> bool:
-    """The ruled test: current animals fit with one unfenced stable removed."""
+    """The ruled test: current animals fit with one unfenced stable removed.
+    Via the ownership-aware `accommodates` (the reduced player still carries
+    the player's cards, so a sheep-only card slot — Dolly's Mother — composes:
+    its parked sheep frees farm capacity here too)."""
     reduced = _without_one_standalone_stable(state, idx)
     if reduced is None:
         return False
-    caps, flex = extract_slots(reduced)
     a = state.players[idx].animals
-    return can_accommodate(caps, flex, a.sheep, a.boar, a.cattle)
+    return accommodates(reduced, a.sheep, a.boar, a.cattle)
 
 
 # --- Case A: a stable is free -> automatic sheep --------------------------
