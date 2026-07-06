@@ -74,9 +74,10 @@ change, no NN-encoder impact, nothing to re-validate. Four mechanisms deliver th
   on an empty dict, an empty fold over `REDUCTIONS`, …). The Family game plays no cards, so every
   ownership-gated entry is dead even when registered.
 - **Ownership indexes with O(1) guards.** Where a card would change *control flow* (push a host
-  frame on an atomic space, host the harvest field phase, host round start), a
-  `should_host_*` predicate consults a registration-time index of card ids and short-circuits on
-  the empty set — the Family game never constructs the frame at all (§2, §3).
+  frame on an atomic space, host a harvest window, host round start), a hosting predicate
+  (`should_host_space`, `should_host_preparation`, `owns_window_card`) consults a
+  registration-time index of card ids and short-circuits on the empty set — the Family game
+  never constructs the frame at all (§2, §3, §5b).
 - **Default-skip canonical fields.** Every card-only field on `GameState` / `PlayerState` / the
   pending frames defaults to an inert value and is listed in `canonical._DEFAULT_SKIP_FIELDS`, so
   a Family state serializes without it — the canonical JSON (the C++ contract) is unchanged
