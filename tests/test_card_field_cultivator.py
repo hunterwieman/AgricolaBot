@@ -386,3 +386,24 @@ def test_fires_off_bumper_crop_card_driven_occasion():
     assert legal_actions(cs) == [Proceed()]          # once per occasion
     cs = step(cs, Proceed())
     assert cs.phase == Phase.WORK
+
+
+# --- Ruling 32 (2026-07-06): a card-field is NOT a "field tile" ---------------
+
+def test_card_field_entries_are_not_tiles():
+    """A future card-field's manifest entry (source="card:<id>") contributes no
+    tile: an occasion of one board field + one card-field caps j at 1, and an
+    occasion of card-field entries alone is ineligible (user ruling 32)."""
+    from agricola.cards.field_cultivator import _eligible, _variants
+    from agricola.pending import HarvestEntry, HarvestOccasion
+
+    state = _own_occ(setup(0), 0, CARD_ID)
+    mixed = HarvestOccasion(source="take", entries=(
+        HarvestEntry(source="cell:0,1", crop="grain", amount=1, emptied=False),
+        HarvestEntry(source="card:beanfield", crop="grain", amount=1, emptied=True),
+    ))
+    assert _variants(state, 0, mixed) == ["1"]
+    card_only = HarvestOccasion(source="take", entries=(
+        HarvestEntry(source="card:beanfield", crop="grain", amount=1, emptied=True),
+    ))
+    assert not _eligible(state, 0, card_only)

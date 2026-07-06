@@ -35,7 +35,10 @@ to 6 across the game's six harvests — and the scoring term reads the count
 back at end-game (the Elephantgrass Plant / Big Country banked-bonus-point
 idiom). The points are earned during play, not printed keep-VPs, and the card
 carries no "you can only use one card ..." exclusivity clause, so it is a
-plain ``register_scoring`` term, not a scoring-group member.
+plain ``register_scoring`` term, not a scoring-group member — **user ruling 31
+(2026-07-06)**: Half-Timbered House / Luxurious Hostel's stone-house-bonus
+exclusivity does NOT reach this card (the house provides a condition, not the
+points), so it stacks with them.
 
 A harvest-skipping player (Layabout, when it lands) never reaches the window:
 skip guards suppress simple windows generically (``window_skipped`` runs

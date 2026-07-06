@@ -328,6 +328,33 @@ user made during this design — cite these, dated, in the docstrings of the car
    a frontier over (kept animals, stables freed) at the exchange decision,
    the ruling-16 machinery again.
 
+31. **Uncaring Parents does not interact with the stone-house-bonus
+   exclusivity clause** (ruled 2026-07-06): Half-Timbered House / Luxurious
+   Hostel's "you can only use one card to get bonus points for your stone
+   house" does NOT reach it — the user's reasoning (offered with a hedge):
+   the house is not providing the points, it only provides a condition that
+   lets the card give its per-harvest points. Uncaring Parents scores as a
+   plain unrestricted term, stacking with those cards.
+32. **A card-field is NOT a "field tile"** (ruled 2026-07-06 — the user:
+   "very important to keep in mind"): when card-fields (Beanfield et al.)
+   land, their harvest-manifest entries (source "card:<id>") do not count
+   for any per-TILE reader. Field Cultivator already encodes this (its tile
+   count filters to "cell:" entries, with a pinned test); Lynchet excludes
+   them structurally (board adjacency). Every future per-tile card must
+   filter the same way.
+33. **The Lynchet interchangeability gap is KNOWN and deliberately deferred**
+   (user decision 2026-07-06): same-height fields are treated as
+   interchangeable by the group-encoded choices (Stable Manure / Scythe /
+   Grain Thief / Craft Brewery) and by sowing's canonical cell fill, even
+   though Lynchet's house-adjacency reading can distinguish them (a Lynchet
+   owner is occasionally denied the better of two "identical" picks — e.g.
+   which field Grain Thief replaces). The agreed eventual shape is a
+   CONDITIONAL adjacency-aware group key (split groups by house-adjacency
+   only when the acting player owns an adjacency-reading card), but the user
+   chose to ignore the problem for now rather than widen the decision space.
+   Nothing mis-scores; this is a knowingly-accepted approximation, on record
+   so future sessions treat it as a decision, not an oversight.
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in

@@ -331,6 +331,9 @@ BANNED — user ruling 2026-07-03 — never implement**). None is implemented; w
   occasion),
 - their `HarvestEntry.source = "card:<id>"` lets their self-triggers filter, and Cherry
   Orchard's wood rides the same `crop` field.
+- **RULING 32 (2026-07-06): a card-field is NOT a "field tile"** — its entries never count
+  for per-TILE readers (Field Cultivator filters to `"cell:"` entries, pinned by test;
+  every future per-tile card must do the same).
 Card-field implementation is **not** part of this build — the design only fixes the manifest
 shape so they slot in without reshaping it.
 

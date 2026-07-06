@@ -278,6 +278,14 @@ def register_feeding_requirement(card_id: str, fold_fn: Callable) -> None:
 # carry the combined amounts (so occasion consumers — Grain Sieve per ruling
 # 11, Slurry Spreader's emptied flags — see one event with everything in it).
 #
+# KNOWN, DELIBERATELY-DEFERRED limitation (user decision 2026-07-06 — ruling
+# 33 in CARD_DEFERRED_PLANS.md): group encodings treat same-count fields as
+# interchangeable, but Lynchet's house-adjacency reading can distinguish them
+# (which field Grain Thief replaces, which cell a sow fills). The agreed
+# eventual fix is a CONDITIONAL adjacency-aware group key; the user chose to
+# ignore the gap for now rather than widen the decision space. A decision,
+# not an oversight.
+#
 # Two modifier kinds:
 # - **Auto fold-ins** (`variants_fn=None`): choice-free (or modeled choice-free,
 #   like Scythe Worker's documented mandatory-max simplification). Applied on

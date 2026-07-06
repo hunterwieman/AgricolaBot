@@ -455,6 +455,10 @@ stays deferred (any-source newborns — never stretch the outcome event to it).
   crops living in CardStore, iterated by `field_take` alongside board fields (the
   manifest's `source="card:<id>"` entry shape was designed for this). Note their
   self-triggers' verb scoping from §5 above (E70's "remove" is any-departure).
+  **RULING 32 (2026-07-06, the user: "very important"): a card-field is NOT a
+  "field tile"** — its manifest entries never count for per-TILE readers (Field
+  Cultivator already filters to "cell:" entries with a pinned test; every future
+  per-tile card must do the same).
 - **The anytime-in-harvest converters** (§10 of the design doc): Braid Maker, Basket
   Carrier, Ebonist, Stone Sculptor, Lumber Virtuoso + Furniture Carpenter's approved
   #16 anchor. Sub-questions (7)(8)(9) there are still the user's.

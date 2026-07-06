@@ -79,11 +79,17 @@ def _taken(state: GameState, idx: int) -> int:
     return state.players[idx].card_state.get(CARD_ID, 0)
 
 
+def _tiles(occasion) -> int:
+    """The occasion's field-TILE count: one BOARD-field entry ("cell:r,c") = one
+    tile, whatever the amount; grain and veg alike. A card-field entry
+    ("card:<id>" — Beanfield et al., when they land) is NOT a field tile (user
+    ruling 32, 2026-07-06) and never counts here."""
+    return sum(1 for e in occasion.entries if e.source.startswith("cell:"))
+
+
 def _variants(state: GameState, idx: int, occasion) -> list[str]:
-    """One variant per take count j in 1..min(tiles harvested, pile remaining).
-    Tiles = occasion ENTRIES (one entry = one field tile, whatever the amount;
-    grain and veg alike)."""
-    cap = min(len(occasion.entries), len(PILE) - _taken(state, idx))
+    """One variant per take count j in 1..min(tiles harvested, pile remaining)."""
+    cap = min(_tiles(occasion), len(PILE) - _taken(state, idx))
     return [str(j) for j in range(1, cap + 1)]
 
 
