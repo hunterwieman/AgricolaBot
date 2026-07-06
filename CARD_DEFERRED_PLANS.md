@@ -367,6 +367,30 @@ user made during this design — cite these, dated, in the docstrings of the car
    Nothing mis-scores; this is a knowingly-accepted approximation, on record
    so future sessions treat it as a decision, not an oversight.
 
+31. *(31-33 recorded above with the wave that landed them.)*
+34. **The anytime-converter class-1 build direction** (decided 2026-07-06):
+   the user's generalized conversion frontier — the mid-harvest food-raise
+   frame (`PendingFoodPayment`) extends its Pareto space from crops + animals
+   to crops + animals + CAPPED building-resource conversions (Joinery up to
+   1 wood, Stone Carver 1 stone, …), each source live only within its span
+   (instant-scoped, derived from phase/cursor) and budgeted once per harvest
+   via `harvest_conversions_used`, shared with the feeding crafts. **The
+   FEEDING phase is NOT folded into this frontier** — its surface stays as
+   is (individual craft fires before the payment commit), because (a) at
+   that frame the two shapes are outcome-equivalent, (b) folding changes the
+   Family feed action shape and so breaks the no-card AI + requires the C++
+   re-port — the user's judgment: hard to reverse once done, easy to add
+   later if minds change — and (c) folding would silently prejudge whether
+   feeding conversions are distinct orderable events (see the Gypsy's Crock
+   note below). REVISITABLE by design.
+35. **Gypsy's Crock (C53) is PARKED pending dedicated design** (user,
+   2026-07-06): its activation reads how conversion/bake instants are
+   grouped ("at the same time" — the Oriental Fireplace clarification), i.e.
+   the event-granularity of feeding conversions, a rules-and-machinery
+   question the user wants thought through carefully before any
+   implementation. Do not implement casually; do not let its needs leak into
+   the converter build.
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in

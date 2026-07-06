@@ -731,9 +731,13 @@ of §0–§11 is the authority; this only orients.*
   owner profits from buying BEFORE the post-feeding "no food left" check (2 spare food →
   the buy → food==0 → +1 wood +1 clay), which a #16-only anchor forecloses; the choice is
   free-span for the VP buys, anchor-with-exception, or ruling the interaction away; §10
-  (9) the class-1 constrained surfacing (good→food converters, the three craft majors
-  included, inside the feed frontier + in-harvest food raises with instant-scoped
-  liveness) — the user's own proposal, awaiting confirmation as the build direction; and
+  (9) is DECIDED (2026-07-06, ruling 34): the generalized conversion frontier lands on
+  the mid-harvest food-raise frame ONLY (crops + animals + capped building-resource
+  conversions, instant-scoped); the FEEDING surface stays as-is (not folded — it is
+  outcome-equivalent there, folding breaks the no-card AI, and it would prejudge the
+  conversion-event-granularity question parked with Gypsy's Crock, ruling 35). Still
+  open in §10: the pure-converters-only boundary (mixed/rider-output cards as
+  standalone free-span triggers) is PROPOSED, not yet confirmed; and
   Lumber Virtuoso's ask-at-build timing ([3+]). §10 (7) is RESOLVED (span ends at #16,
   ruled 2026-07-03 — this footer had gone stale on it). RESOLVED: #1 ("immediately after each harvest" = "after
   each harvest", ruling 18 — windows merged into `after_harvest`; Value Assets itself is
