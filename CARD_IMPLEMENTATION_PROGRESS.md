@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 205 implemented · 🚫 3 won't-fix/banned · ⬜ 212 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 206 implemented · 🚫 3 won't-fix/banned · ⬜ 211 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -676,7 +676,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C48 Farmstead** · prereq: 1 Occupation
   - _After each turn in which you make at least one unused farmyard space used, you get 1 food._
   - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS ST-STORE` — End-of-turn auto hook granting food if the turn made an unused farmyard space used. The condition needs a per-turn flag/snapshot of farmyard used-cells (ST-STORE), not which SPACE a worker was placed on (ST-PLACELOG is about worker placement, irrelevant here).
-- ⬜ **C49 Beer Stall** · cost: 1 Wood
+- ✅ **C49 Beer Stall** · cost: 1 Wood
   - _In the feeding phase of each harvest, for each empty unfenced stable you have, you can exchange 1 grain for 5 food._
   - `HOOK T-AFTER S-HFEED F-TRIG A-OWN E-CONVERT CAP-HARVEST` — During feeding: per empty unfenced stable, grain->5 food.
 - ⬜ **C50 Stable Yard** · prereq: 3 Stables and 3 Pastures

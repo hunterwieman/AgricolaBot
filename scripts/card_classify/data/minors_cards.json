@@ -3978,7 +3978,7 @@
   "vps": null,
   "text": "In the feeding phase of each harvest, for each empty unfenced stable you have, you can exchange 1 grain for 5 food.",
   "slug": "beer_stall",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false

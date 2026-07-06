@@ -544,3 +544,6 @@ from agricola.cards import dollys_mother  # noqa: F401
 # Mineral Feeder (2026-07-06, ruling 29): the pastured-sheep arrangement test
 # + the cook-to-qualify frontier at the start-of-round host.
 from agricola.cards import mineral_feeder  # noqa: F401
+# Beer Stall (2026-07-06, ruling 30): the per-conversions-taken frontier with
+# the exchanges bundled into the options, on the conversion-variants seam.
+from agricola.cards import beer_stall  # noqa: F401
