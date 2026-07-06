@@ -191,7 +191,7 @@ def test_reads_emptied_flag_not_grain_count():
         HarvestEntry(source="cell:1,0", crop="veg", amount=1, emptied=True),
     ))
     f0 = state.players[0].resources.food
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert after.players[0].resources.food == f0 + 2 + 1   # only the two emptied
 
 
@@ -204,7 +204,7 @@ def test_card_granted_field_phase_occasion_earns_food():
         HarvestEntry(source="cell:0,0", crop="grain", amount=1, emptied=True),
     ))
     f0 = state.players[0].resources.food
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert after.players[0].resources.food == f0 + 2
 
 
@@ -216,7 +216,7 @@ def test_occasion_outside_field_phase_earns_nothing():
         HarvestEntry(source="cell:0,0", crop="grain", amount=1, emptied=True),
     ))
     f0 = state.players[0].resources.food
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert after.players[0].resources.food == f0
 
 

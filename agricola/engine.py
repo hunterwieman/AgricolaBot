@@ -1457,7 +1457,7 @@ def _field_phase_step(state: GameState, idx: int):
     # simultaneous event.
     extras = auto_take_fold_ins(state, idx)
     state, occasion = field_take(state, idx, extra_takes=extras or None)
-    state = apply_harvest_occasion_autos(state, idx, occasion)
+    state, occ_autos = apply_harvest_occasion_autos(state, idx, occasion)
     # A per-occasion consequence may have just ENABLED a during-window trigger
     # (Crack Weeder's take income making Cube Cutter's exchange affordable):
     # the window isn't over, so re-check and host the frame POST-take — it
@@ -1471,7 +1471,8 @@ def _field_phase_step(state: GameState, idx: int):
     # The occasion's OPTIONAL reactions (Potato Ridger, Food Merchant) host
     # last, on top — the innermost, just-emitted event resolves first, then
     # any during-window triggers beneath. Family fast path: empty registry.
-    state, occ_hosted = maybe_host_occasion_triggers(state, idx, occasion)
+    state, occ_hosted = maybe_host_occasion_triggers(
+        state, idx, occasion, autos_fired=occ_autos)
     return state, hosted or occ_hosted
 
 

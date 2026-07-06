@@ -260,6 +260,18 @@ user made during this design — cite these, dated, in the docstrings of the car
    Fodder Planter / Slurry Spreader C71's sows, which need to know the
    newborns) and Stop, all still inside the breeding phase. No separate
    window — the frame's own two stretches carry both.
+21. **A mandatory, choice-free card effect fires automatically, never as a
+   forced offer** (ruled 2026-07-05, for Potato Ridger's "with 4+ vegetables,
+   you must do so"): the player gives no input — the effect is an automatic
+   consequence, not a singleton FireTrigger the player must click. This
+   aligns the harvest-occasion seam with the engine's standing firing
+   classification (mandatory + choiceless = automatic effect). Consequence
+   for two-tier cards: the occasion host records which per-occasion autos
+   fired (`PendingHarvestOccasion.autos_fired`), and a card whose automatic
+   tier reacted is excluded from offering its optional tier on the SAME
+   occasion (Potato Ridger harvesting into 4 veg: the auto exchange drops
+   supply to 3, and the optional at-3 offer must not then appear — "exactly
+   1 vegetable" is once per occasion).
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a

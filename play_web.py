@@ -768,7 +768,12 @@ def _load_card_meta() -> dict[str, dict]:
         # printings share a name and BOTH are implemented (the Base-Revised B8
         # "Market Stall" owns the plain slug; the Corbarius C54 one carries a
         # deck-suffixed id). Maps the id to its exact (slug, deck) row.
-        slug_deck_aliases = {"market_stall_c54": ("market_stall", "C")}
+        slug_deck_aliases = {
+            "market_stall_c54": ("market_stall", "C"),
+            # The Corbarius C71 "Slurry Spreader" minor; the A-deck occupation
+            # of the same name owns the plain slug.
+            "slurry_spreader_c71": ("slurry_spreader", "C"),
+        }
         by_slug: dict[str, dict] = {}
         by_slug_deck: dict[tuple, dict] = {}
         for fname in ("revised_occupations.json", "revised_minor_improvements.json"):

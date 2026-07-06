@@ -1827,8 +1827,9 @@ def emit_harvest_occasion(
     if isinstance(top, PendingFieldPhase):
         state = replace_top(state, fast_replace(
             top, occasions=top.occasions + (occasion,)))
-    state = apply_harvest_occasion_autos(state, idx, occasion)
-    state, _hosted = maybe_host_occasion_triggers(state, idx, occasion)
+    state, occ_autos = apply_harvest_occasion_autos(state, idx, occasion)
+    state, _hosted = maybe_host_occasion_triggers(
+        state, idx, occasion, autos_fired=occ_autos)
     return state
 
 
@@ -1870,8 +1871,9 @@ def _execute_field_take(
                                  bonus=plan.bonus)
     state = replace_top(state, fast_replace(
         top, take_fired=True, occasions=top.occasions + (occasion,)))
-    state = apply_harvest_occasion_autos(state, player_idx, occasion)
-    state, _hosted = maybe_host_occasion_triggers(state, player_idx, occasion)
+    state, occ_autos = apply_harvest_occasion_autos(state, player_idx, occasion)
+    state, _hosted = maybe_host_occasion_triggers(
+        state, player_idx, occasion, autos_fired=occ_autos)
     return state
 
 

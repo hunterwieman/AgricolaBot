@@ -2752,19 +2752,20 @@ def _enumerate_pending_harvest_occasion(
     state: GameState, pending,
 ) -> list[Action]:
     """Legal actions at a PendingHarvestOccasion host (card game only): the
-    player's eligible optional reactions to the frame's just-emitted harvest
-    occasion (event "harvest_occasion" — Potato Ridger's 3-veg exchange, Food
+    player's eligible OPTIONAL reactions to the frame's just-emitted harvest
+    occasion (event "harvest_occasion" — Potato Ridger's at-3 exchange, Food
     Merchant's per-grain buys), variant-expanded, plus Proceed to decline and
     pop. The occasion payload rides the frame; the registered elig/variants/
     apply adapters read it from the stack top (harvest_windows.
-    register_harvest_occasion_trigger)."""
-    from agricola.cards.triggers import has_unfired_mandatory_trigger
-
+    register_harvest_occasion_trigger). Mandatory choice-free tiers (Potato
+    Ridger's "with 4+ vegetables, you MUST do so") never surface here — they
+    are occasion AUTOS, fired with no player input before this host is pushed
+    (user ruling 2026-07-05), and the frame's `autos_fired` keeps the same
+    card's optional tier from double-reacting."""
     actions = _expand_variant_triggers(
         state, pending,
         _eligible_fire_triggers(state, pending, "harvest_occasion"))
-    if not has_unfired_mandatory_trigger(state, pending, "harvest_occasion"):
-        actions.append(Proceed())
+    actions.append(Proceed())
     return actions
 
 

@@ -540,6 +540,12 @@ class OccasionEntry:
                         or, with variants_fn (triggers only):
                                (state, owner_idx, occasion, variant) -> GameState
     variants_fn signature:     (state, owner_idx, occasion) -> list[str]
+
+    A mandatory-and-choice-free tier of a two-tier card (Potato Ridger's
+    "with 4+ vegetables, you MUST do so") is NOT a trigger — it is an
+    occasion AUTO (fires with no player input; user ruling 2026-07-05). The
+    optional tier's eligibility can exclude the auto-already-reacted case via
+    the host frame's `autos_fired`.
     """
     card_id: str
     eligibility_fn: Callable
@@ -581,7 +587,15 @@ def register_harvest_occasion_trigger(
         OccasionEntry(card_id, eligibility_fn, apply_fn, variants_fn))
 
     def adapted_elig(state, idx, triggers_resolved):
-        return eligibility_fn(state, idx, _top_occasion(state))
+        top = state.pending_stack[-1]
+        # Two-tier exclusivity: a card whose per-occasion AUTO fired for this
+        # same occasion does not also get its optional trigger (Potato
+        # Ridger's mandatory 4+ exchange precludes the optional at-3 offer —
+        # "exactly 1 vegetable" per occasion; user ruling 2026-07-05: the
+        # must-tier is automatic, never surfaced).
+        if card_id in top.autos_fired:
+            return False
+        return eligibility_fn(state, idx, top.occasion)
 
     if variants_fn is None:
         def adapted_apply(state, idx):
@@ -597,31 +611,42 @@ def register_harvest_occasion_trigger(
 
 def apply_harvest_occasion_autos(state, owner_idx: int, occasion):
     """Fire every owned, eligible per-occasion AUTO for one harvest occasion,
-    in registration order. Called wherever an occasion is emitted, always
-    paired with `maybe_host_occasion_triggers` below (autos first, host push
-    second — split so a caller can slot its own frame between them, as the
-    walk's inline take does with the exit-gated during-frame). A no-op at one
-    list check when nothing is registered — the Family fast path."""
+    in registration order. Returns ``(state, fired)`` — the card ids that
+    fired, which the paired `maybe_host_occasion_triggers` call below stamps
+    on the host frame (two-tier cards use it to keep their optional tier from
+    double-reacting to the same occasion). Called wherever an occasion is
+    emitted, always paired with the host push (autos first, host second —
+    split so a caller can slot its own frame between them, as the walk's
+    inline take does with the exit-gated during-frame). A no-op at one list
+    check when nothing is registered — the Family fast path."""
+    fired: set = set()
     for e in HARVEST_OCCASION_AUTOS:
         p = state.players[owner_idx]
         if (e.card_id in p.occupations or e.card_id in p.minor_improvements) \
                 and e.eligibility_fn(state, owner_idx, occasion):
             state = e.apply_fn(state, owner_idx, occasion)
-    return state
+            fired.add(e.card_id)
+    return state, frozenset(fired)
 
 
-def maybe_host_occasion_triggers(state, owner_idx: int, occasion):
+def maybe_host_occasion_triggers(state, owner_idx: int, occasion,
+                                 autos_fired: frozenset = frozenset()):
     """Push the `PendingHarvestOccasion` choice host for this occasion iff the
-    owner has an eligible registered per-occasion TRIGGER (Potato Ridger, Food
-    Merchant). Returns (state, hosted). Pure push — the host lands on top of
-    whatever frame emitted the occasion and resolves first. Family fast path:
+    owner has an eligible registered per-occasion TRIGGER (Potato Ridger's
+    optional tier, Food Merchant). Returns (state, hosted). Pure push — the
+    host lands on top of whatever frame emitted the occasion and resolves
+    first. `autos_fired` (from the paired apply_harvest_occasion_autos call)
+    rides the frame; a card in it is excluded here and by the enumerator —
+    its automatic tier already reacted to this occasion. Family fast path:
     empty registry, one truthiness test."""
     if HARVEST_OCCASION_TRIGGERS:
         p = state.players[owner_idx]
         if any(_owns(p, e.card_id)
+               and e.card_id not in autos_fired
                and e.eligibility_fn(state, owner_idx, occasion)
                for e in HARVEST_OCCASION_TRIGGERS):
             from agricola.pending import PendingHarvestOccasion, push
             return push(state, PendingHarvestOccasion(
-                player_idx=owner_idx, occasion=occasion)), True
+                player_idx=owner_idx, occasion=occasion,
+                autos_fired=autos_fired)), True
     return state, False

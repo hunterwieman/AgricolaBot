@@ -1092,6 +1092,15 @@ class PendingHarvestOccasion:
     eligibility/variants/apply read exactly the event they react to; Proceed
     declines whatever is unfired and pops.
 
+    `autos_fired` records which per-occasion AUTOMATIC effects fired for this
+    same occasion, so a two-tier card can keep its optional tier from
+    double-reacting (user ruling 2026-07-05, Potato Ridger: at 4+ vegetables
+    the exchange is AUTOMATIC — no player input — and having fired, the
+    optional at-3 offer must not appear for the same occasion; "exactly 1
+    vegetable" is once per occasion). A fact about this occasion's
+    resolution, carried on the host — no card_state latch, nothing to go
+    stale.
+
     Default-inert: no occasion trigger registered (the Family game, and every
     card game before the first member) → never constructed."""
     PENDING_ID: ClassVar[str] = "harvest_occasion"
@@ -1099,6 +1108,7 @@ class PendingHarvestOccasion:
     occasion: HarvestOccasion
     initiated_by_id: str = "phase:harvest_occasion"
     triggers_resolved: frozenset = frozenset()
+    autos_fired: frozenset = frozenset()
 
 
 @dataclass(frozen=True)

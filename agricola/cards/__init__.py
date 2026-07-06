@@ -513,3 +513,15 @@ from agricola.cards import baker  # noqa: F401
 from agricola.cards import milking_place  # noqa: F401
 from agricola.cards import shepherds_whistle  # noqa: F401
 from agricola.cards import treegardener  # noqa: F401
+
+# The breeding/occasion/replace/feeding wave (2026-07-05, rulings 20-21 + the
+# flagged Grain Thief reading): the breed-frame triggers' first consumers,
+# the breeding-outcome sow grants, the per-occasion optional reactions, the
+# replace-kind take-modifier, and the feeding-requirement fold.
+from agricola.cards import stone_importer  # noqa: F401
+from agricola.cards import fodder_planter  # noqa: F401
+from agricola.cards import slurry_spreader_c71  # noqa: F401
+from agricola.cards import grain_thief  # noqa: F401
+from agricola.cards import potato_ridger  # noqa: F401
+from agricola.cards import food_merchant  # noqa: F401
+from agricola.cards import childs_toy  # noqa: F401

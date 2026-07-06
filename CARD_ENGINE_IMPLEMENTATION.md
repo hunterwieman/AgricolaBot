@@ -619,11 +619,15 @@ The registration side of the window system; §5b has the mechanics and
 - **`register_harvest_occasion_auto(card_id, eligibility_fn, apply_fn)`** /
   **`register_harvest_occasion_trigger(..., *, variants_fn=None)`** → `HARVEST_OCCASION_AUTOS`
   / `_TRIGGERS` — the payload-bearing per-occasion registries, `(state, owner_idx, occasion)`
-  signatures (§5b). Autos fire mechanically wherever an occasion is emitted; triggers surface
-  at the **`PendingHarvestOccasion`** host (§4), which `maybe_host_occasion_triggers` pushes
+  signatures (§5b). Autos fire mechanically wherever an occasion is emitted
+  (`apply_harvest_occasion_autos` returns `(state, fired_ids)`); triggers surface at the
+  **`PendingHarvestOccasion`** host (§4), which `maybe_host_occasion_triggers` pushes
   right after the autos — registering a trigger also self-wires adapters into the generic
   trigger system, so the host's enumerator and `FireTrigger` dispatch serve it like any other
-  trigger, reading the occasion off the frame.
+  trigger, reading the occasion off the frame. **A mandatory choice-free tier is an AUTO,
+  never a forced offer** (ruling 21, 2026-07-05 — Potato Ridger's "with 4+ vegetables, you
+  must do so" fires with no player input), and the host's `autos_fired` excludes a card whose
+  automatic tier already reacted from also offering its optional tier on the same occasion.
 - **`register_breeding_outcome_auto(card_id, eligibility_fn, apply_fn)`** →
   `BREEDING_OUTCOME_AUTOS` — `(state, owner_idx, outcome)` signatures over the
   `BreedingOutcome` payload (which newborns were actually PLACED); fired by `_execute_breed`
@@ -1254,7 +1258,11 @@ registries read — the deliberate exception to §8's "events carry no payload" 
 TRIGGERS then surface at the **`PendingHarvestOccasion`** host, which
 `maybe_host_occasion_triggers` pushes right after the autos iff the owner has an eligible
 registered trigger — the frame carries the occasion, stacks above whatever emitted it (the
-innermost, just-emitted event resolves first), and `Proceed` declines (§3, §4).
+innermost, just-emitted event resolves first), and `Proceed` declines (§3, §4). A mandatory
+choice-free tier never surfaces here — it is an occasion AUTO, fired with no player input
+(ruling 21, 2026-07-05), and the frame's `autos_fired` keeps the same card's optional tier
+from double-reacting to one occasion ("exactly 1 vegetable" — Potato Ridger harvesting into
+4 veg auto-exchanges down to 3 without then being offered the at-3 exchange).
 
 **The counting/scoping doctrine — a real bug shipped from getting this wrong.** What a
 consequence card counts comes from its printed wording:

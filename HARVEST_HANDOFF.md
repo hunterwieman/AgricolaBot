@@ -426,29 +426,18 @@ Whistle (rulings 15-17) · `7d692d5` the received-vs-declined frontier amendment
 
 ## 12. Remaining work, with per-item cautions
 
-**Buildable next (design agreed or text-clear):**
-- **Stone Importer** (during the breeding phase; a priced stone buy — legal because it
-  buys with food, not animals). Needs the BREED frames to host card triggers: add
-  `triggers_resolved` to `PendingHarvestBreed` + enumerator FireTrigger support (the
-  frame currently offers only CommitBreed). YAGNI is satisfied (this card is the
-  consumer). Read its printed text first — "Nth-harvest-priced" from the census needs
-  verifying.
-- **Fodder Planter + the deck-C Slurry Spreader (C71)** — need the breeding-OUTCOME
-  payload event (which newborns were actually placed, known at the breed commit;
-  design doc §5 prescribes the harvest-occasion registry shape,
-  `(state, idx, outcome)`). Both cards then grant SOWS (granted sub-action pushes from
-  the breed frame — the walk hosts pushed primitives fine, Autumn Mother proved the
-  pattern). Do NOT stretch this event to Dung Collector ("each time you get 2+ newborn
-  animals" is ANY-source, markets included — open question #6, defer it).
-- **Grain Thief** — the replace-kind take-modifier extension (per-cell skip/replace
-  map + supply grain). Decide its manifest shape together with how Lynchet counts a
-  replaced field (a replaced field should emit NO harvested entry, or a
-  distinguishable one — Lynchet's correctness depends on it).
-- **Potato Ridger + Food Merchant** — the per-occasion OPTIONAL-trigger surfacing (the
-  registry exists behind a loud guard in `apply_harvest_occasion_autos`). Design
-  needed: where the choice surfaces (the during-frame post-take / the post-take
-  re-host generalizes). Potato Ridger has a can/must tier (mandatory-with-choice at
-  4+ veg) and its clarification makes it fire on card-literal harvests too.
+**LANDED 2026-07-05 (the breeding/occasion/replace/feeding wave — seven cards + four
+seams, rulings 20-21 + the flagged Grain Thief reading):** Stone Importer (the breed
+frame's pre-commit "breeding" triggers — ruling 20), Fodder Planter + Slurry Spreader
+C71 (the breeding-outcome payload + capped/uncapped granted sows off the frame's
+post-commit "breeding_outcome" stretch), Grain Thief (the replace-kind order-0
+unscoped take-modifier; a replaced field emits NO manifest entry — flagged reading,
+and it surfaces at Bumper Crop via PendingCardChoice), Potato Ridger + Food Merchant
+(the PendingHarvestOccasion optional-reaction host; Potato Ridger's 4+ tier is an
+AUTO per ruling 21, with the host's autos_fired excluding its optional tier on the
+same occasion), Child's Toy (the feeding_requirement chokepoint + fold — NOT delicate
+after all: food_owed is a memo-key argument, so no cache hazard). Dung Collector
+stays deferred (any-source newborns — never stretch the outcome event to it).
 
 **Delicate — engine cores, extra care:**
 - **Dolly's Mother** (sheep breed with 1 instead of a pair): the breeding-eligibility
@@ -456,9 +445,9 @@ Whistle (rulings 15-17) · `7d692d5` the received-vs-declined frontier amendment
   (FRONTIER_OPT_DESIGN.md). A card-dependent input MUST join the cache key or the
   cache must flush on ownership change — the classic hidden-global-input footgun the
   opt design warns about. Do not bolt the fold on without re-reading that doc.
-- **Child's Toy** (newborns cost 2 food) / Old Miser [4]: the feeding-requirement fold
-  (`register_feeding_requirement`, design doc §5) — touches the feed frontier, the
-  engine's most delicate subsystem. Chokepoint the requirement computation first.
+- **Old Miser [4]** (per-person feeding discount): rides the same
+  `register_feeding_requirement` fold Child's Toy proved out; 4-player-only, so it
+  waits for the 4p work, not for machinery.
 
 **Bigger chunks:**
 - **Card-fields** (§6): Beanfield, Lettuce Patch, Melon Patch, Cherry Orchard,

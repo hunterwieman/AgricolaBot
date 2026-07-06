@@ -15,8 +15,10 @@ NORMALIZE = {"COST-GAME": "CAP-GAME", "T-DURING": "S-HFEED",
              "ALTCOST-NONE": "E-ALTCOST", "CAP-NEW": "E-CAPNEW"}
 # C54 "Market Stall" shares B8's name-slug; it is implemented under the
 # distinct card_id `market_stall_c54` (2026-07-05), which the slug-based
-# implemented-check can't see — force True.
-IMPL_FIX = {"C54": True}
+# implemented-check can't see — force True. Same for the C71 "Slurry
+# Spreader" minor (card_id `slurry_spreader_c71`; the A-deck occupation of
+# the same name owns the plain slug).
+IMPL_FIX = {"C54": True, "C71": True}
 # Codes too noisy/low-stakes to flag a review on (actor, timing, minor-goods, on-play, firing).
 REVIEW_IGNORE = {"A-OWN", "A-OPP", "T-BEFORE", "T-AFTER", "E-GOODS", "ONPLAY", "F-AUTO", "F-TRIG",
                  "S-OBTAIN", "LATCH", "E-WORKERMANIP", "E-CROPMANIP", "E-BREEDMOD", "EXOTIC",
@@ -35,7 +37,7 @@ PATCH_MIN = {
     "C32": (["ONPLAY", "NONE"], "Plain 3 VP; play-restricted once any player has 5+ cards (computable condition)."),
     "C49": (["HOOK", "T-AFTER", "S-HFEED", "F-TRIG", "A-OWN", "E-CONVERT", "CAP-HARVEST"], "During feeding: per empty unfenced stable, grain->5 food."),
     "C84": (["HOOK", "S-ROUNDEND", "F-TRIG", "A-OWN", "E-BREEDMOD", "E-ANIMALS", "CAP-ROUND"], "Non-harvest round: pay 1 grain to breed 1 type off-phase."),
-    "D25": (["ONPLAY", "EXOTIC", "L-CARDFIELD", "E-BAKESPEC"], "Multi-entity: counts as field / occupation / minor / Fireplace major."),
+    "D25": (["ONPLAY", "EXOTIC", "L-CARDFIELD", "E-BAKESPEC"], "BANNED (user ruling 2026-07-03) — never implement. Multi-entity: counts as field / occupation / minor / Fireplace major."),
     "D37": (["ONPLAY", "NONE"], "Plain 2 VP; play-restricted by rounds-left vs unused-spaces (computable condition)."),
     "E3": (["ONPLAY", "E-WORKERMANIP", "E-PASSING", "ST-PLACELOG"], "Return your worker on Grain Utilization to reuse it this round."),
     "E4": (["ONPLAY", "E-CROPMANIP", "E-GOODS", "E-PASSING"], "Remove all grain from one field; +2 wood per grain removed."),
@@ -52,7 +54,7 @@ PATCH_OCC = {
     "B146": (["HOOK", "T-BEFORE", "S-SPACE", "F-TRIG", "A-OWN", "E-GOODS", "EXOTIC"], "Discard 1 hand card for +1 building resource (E-HANDCOST candidate, not adopted)."),
     "C108": (["ONPLAY", "EXOTIC"], "Mandatory: skip the next entire harvest, including feeding (phase-skip)."),
     "C125": (["HOOK", "S-SOR", "F-TRIG", "A-OWN", "E-EXTRAPLACE"], "Before each work phase, place an extra person on a not-owned-resource accumulation space."),
-    "D97": (["ONPLAY", "HOOK", "S-HSTART", "F-TRIG", "A-OWN", "E-GRANTACT", "EXOTIC"], "On play take 1 begging marker; start of each harvest, play 1 occupation free."),
+    "D97": (["ONPLAY", "HOOK", "S-HSTART", "F-TRIG", "A-OWN", "E-GRANTACT", "EXOTIC"], "BANNED (user ruling 2026-07-03) — never implement. On play take 1 begging marker; start of each harvest, play 1 occupation free."),
     "D103": (["HOOK", "T-AFTER", "S-SPACE", "F-TRIG", "A-OWN", "E-EXTRAPLACE", "E-FOODCOST", "E-GOODS"], "Fishing/Reed Bank: pay 1 food -> extra placement + choose 3 stone or grain+veg."),
     "D110": (["HOOK", "T-BEFORE", "S-SPACE", "F-AUTO", "A-OWN", "E-GOODS"], "+2 food on Reed Bank/Clay Pit/Grove, which one gated by Fishing's food (1/2/3+)."),
     "D129": (["HOOK", "S-HSTART", "F-TRIG", "A-OWN", "E-GRANTACT", "E-NOPLACE", "CAP-HARVEST"], "Each harvest w/ >=5 wood: discard down to 5 wood to Build Stables/Wood Rooms."),

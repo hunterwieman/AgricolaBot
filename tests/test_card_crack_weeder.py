@@ -188,7 +188,7 @@ def test_unit_counts_multiple_veg_entries_in_one_occasion():
         HarvestEntry(source="cell:1,1", crop="grain", amount=1, emptied=False),
     ))
     f0 = state.players[0].resources.food
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert after.players[0].resources.food == f0 + 3
 
 
@@ -201,7 +201,7 @@ def test_card_granted_field_phase_occasion_earns_food():
         HarvestEntry(source="cell:0,0", crop="veg", amount=2, emptied=False),
     ))
     f0 = state.players[0].resources.food
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert after.players[0].resources.food == f0 + 2
 
 
@@ -213,7 +213,7 @@ def test_occasion_outside_field_phase_earns_nothing():
         HarvestEntry(source="cell:0,0", crop="veg", amount=1, emptied=True),
     ))
     f0 = state.players[0].resources.food
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert after.players[0].resources.food == f0     # not the field phase -> nothing
 
 

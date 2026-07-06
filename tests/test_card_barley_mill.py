@@ -262,7 +262,7 @@ def test_does_not_fire_on_non_take_occasion():
             HarvestEntry(source="cell:0,2", crop="grain", amount=1, emptied=False),
         ),
     )
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     assert isinstance(after, GameState)
     assert after.players[0].resources.food == f0   # no food off a non-take occasion
 
@@ -280,7 +280,7 @@ def test_fires_on_a_hand_built_take_occasion():
             HarvestEntry(source="cell:0,2", crop="veg", amount=2, emptied=True),
         ),
     )
-    after = apply_harvest_occasion_autos(state, 0, occ)
+    after, _fired = apply_harvest_occasion_autos(state, 0, occ)
     # 2 grain entries (amounts 1 and 3 both counted as ONE field each), veg
     # ignored -> +2 food.
     assert after.players[0].resources.food == f0 + 2

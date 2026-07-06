@@ -330,7 +330,7 @@
   "vps": 0,
   "text": "In the field phase of each harvest, you get 1 wood and you can buy up to 2 additional wood for 1 food each.  [CLARIFICATION: \u300aYou may use this card to activate the Shaving Horse A048 twice if and only if you have another decision during the field phase to separate this card\u2019s effect into two distinct parts, e.g. paying wood and food with Cube Cutter C098.\u300b]",
   "slug": "treegardener",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -922,7 +922,7 @@
   "vps": 0,
   "text": "Immediately before each harvest, you can buy 1 cattle for 4 food minus 1 food for each pasture you have. (The minimum cost is 0).",
   "slug": "haydryer",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "4+",
   "name_dup": false
@@ -2778,7 +2778,7 @@
   "vps": 0,
   "text": "When you play this card and at the start of each feeding phase, you can take a \"Bake Bread\" action.",
   "slug": "baker",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -2794,7 +2794,7 @@
   "vps": 0,
   "text": "When you play this card, you must skip the next harvest. (You also do not have to feed your family that harvest.)",
   "slug": "layabout",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -3147,7 +3147,7 @@
   "text": "When you play this card, you must immediately take 1 begging marker. At the start of each harvest, you can play 1 occupation without paying an occupation cost.",
   "slug": "begging_student",
   "implemented": false,
-  "status": "todo",
+  "status": "wontfix",
   "players": "1+",
   "name_dup": false
  },
@@ -3162,7 +3162,7 @@
   "vps": 0,
   "text": "Immediately before the final harvest at the end of round 14, you can take all the building resources that are left on the entire game board.",
   "slug": "transactor",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -3274,7 +3274,7 @@
   "vps": 0,
   "text": "In the breeding phase of each harvest, for each newborn animal you get, you can sow crops in exactly 1 field.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.  You may not plant onto Wood Field D075 this way.]",
   "slug": "fodder_planter",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -3530,7 +3530,7 @@
   "vps": 0,
   "text": "Immediately before each harvest, if you have room in your house, you can take a \"Family Growth\" action for 3 food.",
   "slug": "autumn_mother",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -3834,7 +3834,7 @@
   "vps": 0,
   "text": "In the breeding phase of the 1st/2nd/3rd/4th/5th/6th harvest, you can use this card to buy exactly 2 stone for 2/2/3/3/4/1 food.",
   "slug": "stone_importer",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -4698,7 +4698,7 @@
   "vps": 0,
   "text": "For each grain you harvest from a field, you can buy 1 vegetable for 3 food. If you harvest the last grain from a field, the vegetable costs you only 2 food.",
   "slug": "food_merchant",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5738,7 +5738,7 @@
   "vps": 0,
   "text": "In the field phase of each harvest, if you have at least 2/4/6/7 fields, you get 1/2/3/4 food.",
   "slug": "land_surveyor",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5786,7 +5786,7 @@
   "vps": 0,
   "text": "At the start of each harvest, you can place 1 wood from your supply on this card, irretrievably. In each feeding phase, you get 1 food for each wood on this card.",
   "slug": "dentist",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5802,7 +5802,7 @@
   "vps": 0,
   "text": "As long as you have no minor improvements in front of you, you get 1 food at the start of each round and 1 wood at the start of each harvest.",
   "slug": "recluse",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5818,7 +5818,7 @@
   "vps": 0,
   "text": "Each time you would harvest a grain field, you can leave the grain on the field and take 1 grain from the general supply instead.",
   "slug": "grain_thief",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5898,7 +5898,7 @@
   "vps": 0,
   "text": "At the start of each harvest, if you have at least 1 grain field, you get 2 wood.",
   "slug": "pipe_smoker",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false

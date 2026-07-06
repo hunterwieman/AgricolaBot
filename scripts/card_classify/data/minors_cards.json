@@ -682,7 +682,7 @@
   "vps": null,
   "text": "Each time after you harvest 1+ vegetables, if you then have 3+ vegetables in your supply, you can turn exactly 1 vegetable into 6 food. With 4+ vegetables, you must do so.  [CLARIFICATION: \u300a\u201dHarvest\u201d is equivalent to the field phase, or any literal effect of a card saying \u201cHarvest a [crop/vegetable].\u300b]",
   "slug": "potato_ridger",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -714,7 +714,7 @@
   "vps": null,
   "text": "After the field phase of each harvest, you can use a baking improvement but only to turn exactly 1 grain into food. (This is not considered a \"Bake Bread\" action.)",
   "slug": "winnowing_fan",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -746,7 +746,7 @@
   "vps": 1,
   "text": "In the field phase of each harvest, you get 1 food for each grain field that you harvest.",
   "slug": "barley_mill",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -2906,7 +2906,7 @@
   "vps": null,
   "text": "After the feeding phase of each harvest, you can exchange exactly 1 food for 2 different building resources of your choice or 1 vegetable.",
   "slug": "farm_store",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -3130,7 +3130,7 @@
   "vps": 1,
   "text": "In the feeding phase of each harvest, you get 1 food. You can no longer hold animals in your house (not even via another card).",
   "slug": "milking_place",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -3722,7 +3722,7 @@
   "vps": null,
   "text": "At the start of the next harvest, you get a \"Family Growth\" action if you have room for the newborn.  [CLARIFICATION: Only works in the next harvest after it is played.  The newborn must be fed.]",
   "slug": "bed_in_the_grain_field",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -3754,7 +3754,7 @@
   "vps": null,
   "text": "At the end of the field phase of each harvest, you can pay 1 grain from your supply to get 2 bonus points. If you do, all other players get 1 food each.",
   "slug": "beer_table",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -4715,7 +4715,7 @@
   "text": "This card is a field that you can sow in, an occupation, and the \"Fireplace\" major improvement with all of its effects. You can play it only via a \"Minor Improvement\" action.  [ERRATA: ERRATA: The card grants no actual Fireplace goods-to-food conversions.]  [CLARIFICATION: This card counts as either 1 field, 1 occupation, 1 minor improvement, or 1 major improvement, whichever is most convenient when considering another effect. But it never counts as multiple entities at once.]",
   "slug": "witches_dance_floor",
   "implemented": false,
-  "status": "todo",
+  "status": "wontfix",
   "players": null,
   "name_dup": false
  },
@@ -5226,7 +5226,7 @@
   "vps": null,
   "text": "Before the field phase of each harvest, you can pay 1 grain from your supply to add 1 vegetable to each of up to 2 vegetable fields.",
   "slug": "straw_manure",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -5290,7 +5290,7 @@
   "vps": null,
   "text": "Immediately after the feeding phase of each harvest, if you have no food left, you get 1 wood and 1 clay.",
   "slug": "social_benefits",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -5770,7 +5770,7 @@
   "vps": 1,
   "text": "When you play this card, immediately play the field phase of the harvest on your farmyard only.",
   "slug": "bumper_crop",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -5850,7 +5850,7 @@
   "vps": 2,
   "text": "During the feeding phase of each harvest, your newborns require 2 food (instead of 1).",
   "slug": "childs_toy",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -6138,7 +6138,7 @@
   "vps": 2,
   "text": "In the feeding phase of each harvest, if you live in a clay or stone house, you get 1 or 2 food, respectively.",
   "slug": "town_hall",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -6202,7 +6202,7 @@
   "vps": 1,
   "text": "For each room that you add to your house, place 1 food from the general supply on this card. At the start of each feeding phase, you get food equal to the amount on this card.",
   "slug": "cubbyhole",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -6298,7 +6298,7 @@
   "vps": null,
   "text": "At the start of each harvest, you can choose to skip the field and breeding phase of that harvest and get exactly 1 food instead.",
   "slug": "lunchtime_beer",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -6346,7 +6346,7 @@
   "vps": 1,
   "text": "At the start of each harvest, you get 4 food.",
   "slug": "raised_bed",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -6538,7 +6538,7 @@
   "vps": null,
   "text": "During the field phase of each harvest, you can select exactly one of your fields and harvest all the crops planted in it.",
   "slug": "scythe",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -6698,7 +6698,7 @@
   "vps": null,
   "text": "At the start of the breeding phase of each harvest, if you have at least 1 unfenced stable without an animal, you get 1 sheep.",
   "slug": "shepherds_whistle",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
