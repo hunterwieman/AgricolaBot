@@ -726,8 +726,16 @@ of §0–§11 is the authority; this only orients.*
   (19 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
 - **Open questions still needing the user:** §8 #6 (Dung Collector's any-source newborn
-  event — defer, don't stretch #14); §10 (7) span end #16, (8) late-anchor ratification,
-  (9) craft-major surfacing. RESOLVED: #1 ("immediately after each harvest" = "after
+  event — defer, don't stretch #14); §10 (8) the late-anchor dominance ratification for
+  the food→VP buys — NOW WITH A KNOWN COUNTEREXAMPLE (2026-07-06): a Social Benefits
+  owner profits from buying BEFORE the post-feeding "no food left" check (2 spare food →
+  the buy → food==0 → +1 wood +1 clay), which a #16-only anchor forecloses; the choice is
+  free-span for the VP buys, anchor-with-exception, or ruling the interaction away; §10
+  (9) the class-1 constrained surfacing (good→food converters, the three craft majors
+  included, inside the feed frontier + in-harvest food raises with instant-scoped
+  liveness) — the user's own proposal, awaiting confirmation as the build direction; and
+  Lumber Virtuoso's ask-at-build timing ([3+]). §10 (7) is RESOLVED (span ends at #16,
+  ruled 2026-07-03 — this footer had gone stale on it). RESOLVED: #1 ("immediately after each harvest" = "after
   each harvest", ruling 18 — windows merged into `after_harvest`; Value Assets itself is
   still UNIMPLEMENTED), #2 (Layabout — ruling 14, whole-harvest cancellation, every
   window included), #4 (Lynchet — migrated 2026-07-05), #7 (the FEED pair collapses too,
