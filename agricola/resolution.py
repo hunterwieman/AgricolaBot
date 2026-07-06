@@ -608,8 +608,14 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     state = apply_auto_effects(state, "after_build_improvement", idx)
     prev_depth = len(state.pending_stack)
     # Run the immediate effect (whether kept or passed). A pushing on_play lands its primitive
-    # on top of the already-"after" host.
-    state = spec.on_play(state, idx)
+    # on top of the already-"after" host. A play-variant minor (PLAY_MINOR_VARIANTS —
+    # Facades Carving) gets the chosen route as a 3rd arg; its surcharge was already
+    # debited (folded into `payment` at enumeration), so on_play grants only the benefit.
+    from agricola.cards.specs import PLAY_MINOR_VARIANTS
+    if cid in PLAY_MINOR_VARIANTS:
+        state = spec.on_play(state, idx, action.variant)
+    else:
+        state = spec.on_play(state, idx)
     # One-shot conditional latch (II.3 / §6); a no-op in the Family game.
     from agricola.engine import _fire_ready_one_shots
     state = _fire_ready_one_shots(state, idx)
@@ -1891,7 +1897,8 @@ def _execute_harvest_conversion(
     CommitConvert without firing it), so this handler only ever fires.
 
     The pending stays on top to host further craft decisions plus the final
-    CommitConvert.
+    CommitConvert. A variant-bearing conversion (spec.variants_fn set — Craft
+    Brewery) has the chosen variant threaded into its side_effect_fn.
     """
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 
@@ -1912,9 +1919,14 @@ def _execute_harvest_conversion(
     )
     state = _update_player(state, player_idx, new_player)
 
-    # Optional non-food effect (e.g. future Stone Sculptor's +1 point).
+    # Optional non-food effect (e.g. Beer Keg's point). A variant-bearing
+    # conversion (spec.variants_fn set — Craft Brewery) receives the chosen
+    # variant as a 3rd arg.
     if spec.side_effect_fn is not None:
-        state = spec.side_effect_fn(state, player_idx)
+        if spec.variants_fn is not None:
+            state = spec.side_effect_fn(state, player_idx, commit.variant)
+        else:
+            state = spec.side_effect_fn(state, player_idx)
 
     return state
 

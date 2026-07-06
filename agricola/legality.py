@@ -2269,8 +2269,18 @@ def _enumerate_pending_harvest_feed(
             continue
         # Offer the conversion only if affordable; declining is implicit
         # (commit CommitConvert without firing it).
-        if _can_afford(p, spec.input_cost):
+        if not _can_afford(p, spec.input_cost):
+            continue
+        if spec.variants_fn is None:
             actions.append(CommitHarvestConversion(conversion_id=conversion_id))
+        else:
+            # A variant-bearing conversion (Craft Brewery's which-grain-field
+            # choice) is offered WIDE: one commit per currently-legal variant;
+            # an empty variant list withholds it. Still once per harvest total
+            # (harvest_conversions_used records the id, variant included).
+            actions.extend(
+                CommitHarvestConversion(conversion_id=conversion_id, variant=v)
+                for v in spec.variants_fn(state, pending.player_idx))
 
     # 2. All Pareto-frontier CommitConvert points. Invert REMAINING tuples
     #    to CONSUMED amounts (consumed = player_max - remaining).
@@ -2596,10 +2606,12 @@ def _enumerate_pending_play_minor(
     # debits exactly that payment. A card with no alternatives + no cost card yields the
     # single printed cost, unchanged. The animal cost (if any) rides on the spec, checked
     # per-alternative inside `effective_payments` via the ctx's reserved_animals.
-    from agricola.cards.specs import MINORS  # local import: load-order safe
+    from agricola.cards.specs import MINORS, PLAY_MINOR_VARIANTS  # load-order safe
+    p = state.players[top.player_idx]
     for cid in playable_minors(state, top.player_idx):
         spec = MINORS[cid]
         alternatives = _minor_cost_alternatives(spec, state, top.player_idx)
+        variants_fn = PLAY_MINOR_VARIANTS.get(cid)
         for i, cost in enumerate(alternatives):
             ctx = _play_minor_ctx(cid, cost, state, top.player_idx)
             # `cost` rides on the commit ONLY when it is a genuine alternative (not the
@@ -2609,9 +2621,24 @@ def _enumerate_pending_play_minor(
             # alternative's animal portion from it; the resource debit is `payment`.
             commit_cost = None if i == 0 else cost
             for payment in effective_payments(state, top.player_idx, ctx):
-                actions.append(
-                    CommitPlayMinor(card_id=cid, payment=payment, cost=commit_cost)
-                )
+                if variants_fn is None:
+                    actions.append(
+                        CommitPlayMinor(card_id=cid, payment=payment, cost=commit_cost)
+                    )
+                    continue
+                # Play-variant minor (PLAY_MINOR_VARIANTS — Facades Carving): one
+                # commit per variant whose surcharge, ON TOP of this payment, is
+                # payable (liquidation-aware, like the occupation path's gate) —
+                # the surcharge folds into `payment` so the executor's debit and
+                # food-shortfall guard need no special handling. Cost modifiers
+                # never see the surcharge (payments were enumerated from the
+                # card's own cost above).
+                for v, surcharge in variants_fn(state, top.player_idx):
+                    total = payment + surcharge
+                    if _payable(state, top.player_idx, p, total):
+                        actions.append(CommitPlayMinor(
+                            card_id=cid, payment=total,
+                            cost=commit_cost, variant=v))
     return actions
 
 

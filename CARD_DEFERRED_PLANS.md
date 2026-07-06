@@ -282,6 +282,52 @@ user made during this design — cite these, dated, in the docstrings of the car
    replacement's supply grain is likewise not harvested (never in the
    manifest).
 
+23. **Eternal Rye Cultivation's tiers are exclusive** (ruled 2026-07-06, with
+   the printed errata's "or"): after each harvest, exactly 2 grain in supply →
+   1 food; 3+ grain → 1 grain INSTEAD; never both.
+24. **On-play optional choices on MINORS surface wide** (ruled 2026-07-06, for
+   Facades Carving's food-for-points exchange — extending ruling 17's
+   occupation pattern): one play option per route, via the new
+   `PLAY_MINOR_VARIANTS`/`register_play_minor_variant` seam; the surcharge
+   folds into the commit's payment (cost modifiers never see it), the benefit
+   rides a variant-aware on_play.
+25. **Field Cultivator counts field TILES and its takes arrive together**
+   (ruled 2026-07-06): "each time you harvest a field tile" counts occasion
+   entries (amounts ignored); harvesting k tiles in one take grants up to k
+   pile-takes at once, top-down, each optional; unscoped (fires on
+   card-played field phases too, per ruling 12).
+26. **Earthenware Potter's "after the final harvest" is the after_harvest
+   window at round 14** (ruled 2026-07-06 — the same instant Value Assets
+   uses, run by the walk immediately before scoring), **and the player freely
+   chooses how many people to pay 1 clay for.**
+27. **Feed Pellets** (ruled 2026-07-06): the mid-feeding animal gain rides the
+   standard decision-free-grant flow (accommodate or keep-or-cook via the
+   barrier, which composes mid-FEED); the gained animal is cookable toward
+   the same feeding; "exchange exactly 1 vegetable for 1 animal" is once per
+   feeding phase TOTAL.
+28. **Craft Brewery surfaces wide, encoded by field height** (ruled
+   2026-07-06): one conversion option per grain-count group present ("take
+   from a field holding X grain") — same-height fields are interchangeable,
+   the canonical pick is scan-order — via the new
+   `HarvestConversionSpec.variants_fn` seam. The field grain's removal is NOT
+   a harvest (no occasion; ruling 12's lexicon).
+29. **Mineral Feeder — DEFERRED with its ruling** (2026-07-06): "at least 1
+   sheep in a pasture" means at least one sheep actually housed in a pasture
+   (not all sheep), and the player must be offered the option to COOK animals
+   to make an arrangement with a pastured sheep possible when rearrangement
+   alone cannot — the Shepherd's Whistle case-B analog (a keep-set frontier
+   under the pastured-sheep constraint), not a bare exists-arrangement test.
+   Build it with the ruling-16 frontier machinery when picked up.
+30. **Beer Stall — DEFERRED with its ruling** (2026-07-06): "each empty
+   unfenced stable" is counted AFTER the player freely rearranges AND may
+   first cook/release animals to empty stables — the count is a chosen
+   outcome, not a static read. Today's feeding flow cannot express
+   cook-first-then-exchange (cooking is bundled into the final payment step,
+   which closes the conversion window), so a thin rearrange-only version
+   would be an approximation — deferred instead. Build shape when picked up:
+   a frontier over (kept animals, stables freed) at the exchange decision,
+   the ruling-16 machinery again.
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in

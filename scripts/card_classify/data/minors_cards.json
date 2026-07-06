@@ -410,7 +410,7 @@
   "vps": null,
   "text": "When you play this card, you can exchange any number of food for 1 bonus point each, up to the number of completed harvests.",
   "slug": "facades_carving",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -2666,7 +2666,7 @@
   "vps": null,
   "text": "After each harvest, you can buy exactly one of the following goods: 1 Food \u2192 1 Wood; 1 Food \u2192 1 Clay; 2 Food \u2192 1 Reed; 2 Food \u2192 1 Stone",
   "slug": "value_assets",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -3450,7 +3450,7 @@
   "vps": null,
   "text": "When you play this card, you immediately get 1 sheep. In the feeding phase of each harvest, you can exchange exactly 1 vegetable for 1 animal of a type you already have.",
   "slug": "feed_pellets",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -4154,7 +4154,7 @@
   "vps": null,
   "text": "In the feeding phase of each harvest, you can use this card to exchange 1 grain from your supply plus 1 grain from a field for 2 bonus points and 4 food.",
   "slug": "craft_brewery",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false
@@ -4186,7 +4186,7 @@
   "vps": null,
   "text": "After each harvest in which you have 2 or 3+ grain in your supply, you get 1 food and 1 additional grain, respectively.  [ERRATA: ERRATA: last \u201cand\u201d should be \u201cor\u201d]",
   "slug": "eternal_rye_cultivation",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": null,
   "name_dup": false

@@ -43,15 +43,24 @@ class HarvestConversionSpec:
     - food_out: food produced when fired.
     - is_owned_fn: (state, player_idx) -> bool. True iff the player owns the
       source granting this conversion (major improvement, card, etc.).
-    - side_effect_fn: optional non-food effect (e.g. Stone Sculptor's +1 point).
+    - side_effect_fn: optional non-food effect (e.g. Beer Keg's point).
       Called by _execute_harvest_conversion AFTER the food/resource accounting.
-      None for the three built-in crafts.
+      None for the three built-in crafts. With variants_fn set, its signature
+      gains the chosen variant: (state, player_idx, variant) -> GameState.
+    - variants_fn: optional (state, player_idx) -> list[str] — a conversion
+      whose use needs a CHOICE beyond firing it (Craft Brewery's which-grain-
+      field, encoded by field height per the user's 2026-07-06 ruling) is
+      offered WIDE: one CommitHarvestConversion(conversion_id, variant) per
+      currently-legal variant, still once per harvest total. An empty list =
+      no legal use right now (the conversion is withheld). None (the default,
+      all pre-existing entries) = the ordinary single-commit conversion.
     """
     conversion_id: str
     input_cost:    Resources
     food_out:      int
     is_owned_fn:   Callable[["GameState", int], bool]
-    side_effect_fn: Optional[Callable[["GameState", int], "GameState"]] = None
+    side_effect_fn: Optional[Callable] = None
+    variants_fn:   Optional[Callable[["GameState", int], list]] = None
 
 
 # Conversion-id-keyed registry. Mutable at import time only; treated as

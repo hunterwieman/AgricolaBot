@@ -75,6 +75,25 @@ def register_play_occupation_variant(card_id: str, variants_fn: Callable) -> Non
     PLAY_OCCUPATION_VARIANTS[card_id] = variants_fn
 
 
+# The minor analog (built 2026-07-06 for Facades Carving's on-play
+# food-for-points choice; user ruling: on-play optional choices surface WIDE —
+# ruling 17's rationale extended to minors). Each variant's SURCHARGE (a
+# Resources vector, paid ON TOP of the card's cost-modifier-resolved play cost)
+# is folded into the commit's `payment` at enumeration — cost MODIFIERS never
+# see it (a discount card reduces the card's cost, not the effect's price) —
+# and the variant is threaded to a 3-arg on_play, which grants the BENEFIT.
+# The variant list must be non-empty (include a zero-surcharge route so the
+# card is always playable when its base cost is).
+#
+# variants_fn signature: (state, player_idx) -> list[tuple[str, Resources]].
+PLAY_MINOR_VARIANTS: dict[str, Callable] = {}
+
+
+def register_play_minor_variant(card_id: str, variants_fn: Callable) -> None:
+    """Register a minor's legal-play-variant enumerator (called at import)."""
+    PLAY_MINOR_VARIANTS[card_id] = variants_fn
+
+
 # ---------------------------------------------------------------------------
 # Post-food-payment continuations (FOOD_PAYMENT_DESIGN.md §6)
 # ---------------------------------------------------------------------------

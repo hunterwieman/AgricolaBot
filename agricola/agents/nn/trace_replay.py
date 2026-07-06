@@ -94,6 +94,15 @@ def action_to_params(action: Action) -> dict[str, Any]:
     params: dict[str, Any] = {}
     for f in dataclasses.fields(action):
         v = getattr(action, f.name)
+        # Card-only `variant` fields are DEFAULT-SKIPPED when None (the
+        # action-side analog of canonical's default-skip): a Family action
+        # never sets one, so omitting it keeps the Family wire encoding — and
+        # the C++ legality gates, which compare these params byte-for-byte —
+        # unchanged when a variant field is added to an action Family also
+        # uses (CommitHarvestConversion, 2026-07-06). `action_from_params`
+        # restores the dataclass default for the missing key.
+        if f.name == "variant" and v is None:
+            continue
         if isinstance(v, frozenset):
             params[f.name] = [list(t) for t in sorted(v)]
         elif isinstance(v, (Resources, ReturnImprovement)):

@@ -4554,7 +4554,7 @@
   "vps": 0,
   "text": "If you play this card in round 4 or before, after the final harvest, you get 1 bonus point for each person for which you then pay 1 clay.",
   "slug": "earthenware_potter",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -4810,7 +4810,7 @@
   "vps": 0,
   "text": "Pile 1 wood, 1 clay, 1 reed, 1 stone, 1 reed, 1 clay, and 1 wood on this card. Each time you harvest a field tile, you can also take the top good from the pile.",
   "slug": "field_cultivator",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5610,7 +5610,7 @@
   "vps": 0,
   "text": "At the end of each harvest, if you live in a stone house, you get 1 bonus point.",
   "slug": "uncaring_parents",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false

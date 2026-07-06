@@ -525,3 +525,16 @@ from agricola.cards import grain_thief  # noqa: F401
 from agricola.cards import potato_ridger  # noqa: F401
 from agricola.cards import food_merchant  # noqa: F401
 from agricola.cards import childs_toy  # noqa: F401
+
+# The after-harvest/occasion wave, flight 1 (2026-07-06, rulings 18/22-26):
+# the merged after-harvest window's buy/income cards, the pile-take occasion
+# reactor, and the final-harvest clay buy.
+from agricola.cards import value_assets  # noqa: F401
+from agricola.cards import uncaring_parents  # noqa: F401
+from agricola.cards import eternal_rye_cultivation  # noqa: F401
+from agricola.cards import field_cultivator  # noqa: F401
+from agricola.cards import earthenware_potter  # noqa: F401
+# Flight 2 (2026-07-06): the minor wide-play seam's first consumer.
+from agricola.cards import facades_carving  # noqa: F401
+from agricola.cards import craft_brewery  # noqa: F401
+from agricola.cards import feed_pellets  # noqa: F401

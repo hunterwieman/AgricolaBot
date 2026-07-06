@@ -231,10 +231,20 @@ class CommitPlayMinor(CommitSubAction):
     `_execute_play_minor` debits `payment` (resources) + the chosen alternative's animal
     cost, moves the card hand->tableau (or, for a traveling minor, passes it to the
     opponent), and runs its on-play effect; the dispatcher then auto-pops the frame.
+
+    `variant` names the chosen route of a play-variant minor (specs.
+    PLAY_MINOR_VARIANTS — the minor analog of Roof Ballaster/Baker's occupation
+    mechanism, built for Facades Carving's on-play food-for-points choice, user
+    ruling 2026-07-06): the variant's SURCHARGE is already folded into `payment`
+    (so the debit and the food-shortfall guard need no special handling), and its
+    BENEFIT is granted by the card's variant-aware on_play. None (the default) =
+    an ordinary minor; minors are card-mode only, so a Family state never carries
+    this action at all.
     """
     card_id: str
     payment: PaymentOption
     cost: object | None = None  # chosen alternative Cost (animal portion); None -> spec.cost
+    variant: str | None = None  # chosen play-variant route (PLAY_MINOR_VARIANTS)
 
 
 @dataclass(frozen=True)
@@ -289,8 +299,18 @@ class CommitHarvestConversion(CommitSubAction):
     forfeits every still-undecided craft. The dispatcher never pops — the
     pending stays on top to host further craft decisions and the final
     CommitConvert.
+
+    `variant` names the chosen route of a VARIANT-bearing conversion
+    (HarvestConversionSpec.variants_fn — built 2026-07-06 for Craft Brewery's
+    "which grain field" choice, encoded by field height per the user's ruling):
+    one commit per currently-legal variant; the spec's side_effect_fn receives
+    it. None (the default) = an ordinary conversion. The three Family builtin
+    crafts never set it, and the action wire encoding (trace_replay.
+    action_to_params) skips a None variant, so the Family action contract and
+    the C++ gates are untouched.
     """
     conversion_id: str
+    variant: str | None = None
 
 
 @dataclass(frozen=True)

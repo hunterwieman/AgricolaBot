@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 198 implemented · 🚫 3 won't-fix/banned · ⬜ 219 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 203 implemented · 🚫 3 won't-fix/banned · ⬜ 214 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -127,7 +127,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A35 Swimming Class** · cost: 1 Food · prereq: 2 Occupations
   - _In the returning home phase of each round, if you return a person from the "Fishing" accumulation space, you get 2 bonus points for each newborn that you return home.  [CLARIFICATION: If you used Adoptive Parents A092, there is no longer a newborn to return home.]_
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-SCORE E-PEOPLE ST-PLACELOG ST-COUNTER` — "You get" = mandatory, so F-AUTO (A's F-TRIG wrong); needs which worker sat on Fishing (ST-PLACELOG) and per-person newborn classification (explicitly within E-PEOPLE's definition — the Adoptive Parents clarification confirms it keys on newborn status); points earned across rounds = ST-COUNTER.
-- ⬜ **A36 Facades Carving** · cost: 2 Clay,1 Reed · prereq: Wood in Your Supply >= Current Round
+- ✅ **A36 Facades Carving** · cost: 2 Clay,1 Reed · prereq: Wood in Your Supply >= Current Round
   - _When you play this card, you can exchange any number of food for 1 bonus point each, up to the number of completed harvests._
   - `ONPLAY E-FOODCOST E-SCORE ST-STORE` — One-shot at play. Paying food for the effect = E-FOODCOST (B right, A missed it). Food→points is NOT E-CONVERT (points aren't a good; the key-ruling example 'pay 1 grain for 1 bonus point' tags E-SCORE without E-CONVERT — both labelers over-tagged). The chosen point total must be remembered until scoring (ST-STORE); 'completed harvests' is computable from the round, no extra state.
 - ✅ **A37 Bucksaw** · cost: 1 Wood
@@ -520,7 +520,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B81 Handcart** · cost: 1 Wood
   - _Before each work phase, you can take 1 building resource from at most one wood/clay/reed/stone accumulation space containing at least 6/5/4/4 building resources of the same type._
   - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GOODS` — Removed L-GEOMBOARD: it reads good-counts on named accumulation spaces (wood/clay/reed/stone), not board position/order/adjacency.
-- ⬜ **B82 Value Assets**
+- ✅ **B82 Value Assets**
   - _After each harvest, you can buy exactly one of the following goods: 1 Food → 1 Wood; 1 Food → 1 Clay; 2 Food → 1 Reed; 2 Food → 1 Stone_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-CONVERT E-FOODCOST` — "After each harvest" = after the whole harvest ends, i.e. after the breeding phase (T-AFTER + S-HBREED), not merely after feeding (S-AFTERFEED is between feed and breed); optional buy (F-TRIG) paying food (E-FOODCOST) at a fixed rate (E-CONVERT) — the resource received is the conversion output, so no separate E-GOODS.
 - ⬜ **B83 Muddy Puddles** · cost: 2 Clay
@@ -718,7 +718,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C62 Cooking Hearth Extension** · cost: 2 Clay
   - _Each harvest, you can use each of your cooking improvements once to get double the amount of food for 1 animal or vegetable._
   - `HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT E-GOODS ST-STORE` — Optional doubled cooking conversion during each harvest's feeding; needs a per-harvest used-flag per cooking improvement (ST-STORE). It changes cooking (animal/veg->food) rates, not baking/bake-bread, so E-BAKESPEC is wrong; all 4 hook dimensions required, T-BEFORE default.
-- ⬜ **C63 Craft Brewery** · cost: 2 Wood,1 Clay
+- ✅ **C63 Craft Brewery** · cost: 2 Wood,1 Clay
   - _In the feeding phase of each harvest, you can use this card to exchange 1 grain from your supply plus 1 grain from a field for 2 bonus points and 4 food._
   - `HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT E-CROPMANIP E-GOODS E-SCORE ST-COUNTER` — Optional feeding-phase exchange (supply grain + a field grain -> food + bonus points): field grain removal = E-CROPMANIP; repeatedly-earned bonus points accumulate over the game -> ST-COUNTER; hook needs a timing tag (T-BEFORE default); once-per-harvest is inherent, no CAP.
 - ⬜ **C64 Corn Schnapps Distillery** · cost: 1 Wood,2 Clay
@@ -727,7 +727,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C65 Granary** · cost: 3 Wood/3 Clay
   - _Place 1 grain each on the remaining spaces for rounds 8, 10, and 12. At the start of these rounds, you get the grain._
   - `ONPLAY E-SCHED E-ALTCOST` — One-time on-play scheduling of grain onto future round spaces; the printed cost '3 Wood/3 Clay' is an either-or play cost, which is exactly E-ALTCOST — labelA missed it.
-- ⬜ **C66 Eternal Rye Cultivation** · prereq: 1 Grain Field
+- ✅ **C66 Eternal Rye Cultivation** · prereq: 1 Grain Field
   - _After each harvest in which you have 2 or 3+ grain in your supply, you get 1 food and 1 additional grain, respectively.  [ERRATA: ERRATA: last “and” should be “or”]_
   - `HOOK S-HBREED T-AFTER F-AUTO A-OWN E-GOODS` — 'After each harvest' means after the whole harvest completes, i.e. after the breeding phase (S-HBREED + T-AFTER), not merely after feeding (S-AFTERFEED is the feed/breed seam); the 2-vs-3+ grain read is deterministic, so F-AUTO, plain goods gain.
 - ⬜ **C67 Mineral Feeder** · cost: 1 Reed
@@ -1036,7 +1036,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D83 Pigswill** · cost: 2 Food/1 Grain
   - _Each time you use the "Fencing" action space, you also get 1 wild boar._
   - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-ANIMALS E-ALTCOST E-FOODCOST` — 'Each time you use Fencing, you also get 1 wild boar' = own-action space hook, T-BEFORE default, mandatory, providing an animal. The '2 Food/1 Grain' printed cost is a pay-one-or-the-other choice for the same effect = E-ALTCOST (not E-PLAYVARIANT — the reward doesn't fork), and the food branch flags E-FOODCOST per the rulings.
-- ⬜ **D84 Feed Pellets**
+- ✅ **D84 Feed Pellets**
   - _When you play this card, you immediately get 1 sheep. In the feeding phase of each harvest, you can exchange exactly 1 vegetable for 1 animal of a type you already have._
   - `ONPLAY E-ANIMALS HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-CONVERT` — ONPLAY sheep + per-feeding-phase optional veg-for-animal exchange (S-HFEED/F-TRIG/A-OWN); both provide animals needing accommodation (E-ANIMALS) via a conversion (E-CONVERT). E-BREEDMOD (label A) is wrong — acquiring an animal by exchange is not breeding and changes no breeding rule; E-GOODS is wrong — a sheep is an animal, not goods.
 
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 100 implemented · 🚫 2 won't-fix/banned · ⬜ 318 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 103 implemented · 🚫 2 won't-fix/banned · ⬜ 315 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -2190,7 +2190,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D98 Transactor** · [1+]
   - _Immediately before the final harvest at the end of round 14, you can take all the building resources that are left on the entire game board._
   - `HOOK T-BEFORE S-HSTART F-TRIG A-OWN E-GOODS` — Optional one-time hook immediately before the final harvest (S-HSTART, T-BEFORE); it reads the live public board state at fire time — nothing is zeroed beforehand — so no snapshot/provenance (drop ST-PROV).
-- ⬜ **D99 Earthenware Potter** · [1+]
+- ✅ **D99 Earthenware Potter** · [1+]
   - _If you play this card in round 4 or before, after the final harvest, you get 1 bonus point for each person for which you then pay 1 clay._
   - `HOOK T-AFTER S-BEFORESCORE F-TRIG A-OWN E-SCORE ST-STORE` — 'After the final harvest' is a one-time end-of-game seam just before scoring (S-BEFORESCORE, not the every-harvest S-AFTERFEED); the optional pay-clay-per-person bonus is HOOK+E-SCORE; the clay cost is ordinary (not E-FOODCOST); the card must remember it was played by round 4, so ST-STORE (labelA) stays.
 - ✅ **D100 Lord of the Manor** · [1+]
@@ -2271,7 +2271,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D125 Forest Trader** · [1+]
   - _Each time you use a wood or clay accumulation space, you can also buy exactly 1 building resource. Wood, clay, and reed cost 1 food each; stone costs 2 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GOODS E-CONVERT E-FOODCOST` — Optional buy hooked on using a wood/clay accumulation space (each-time-you-use = T-BEFORE); the buy is paid in food, so E-FOODCOST applies alongside the food-to-resource conversion.
-- ⬜ **D126 Field Cultivator** · [1+]
+- ✅ **D126 Field Cultivator** · [1+]
   - _Pile 1 wood, 1 clay, 1 reed, 1 stone, 1 reed, 1 clay, and 1 wood on this card. Each time you harvest a field tile, you can also take the top good from the pile._
   - `ONPLAY HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-GOODS ST-STACK` — Pile of goods on card (ST-STACK, set up on play); each time you harvest a field tile, may take top good. Hook is per-field-tile in the field phase.
 - ⬜ **D127 Hardworking Man** · [3+]
@@ -2445,7 +2445,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E98 Prodigy** · [1+]
   - _If this is your 1st occupation, you immediately get 1 bonus point for each improvement you have. (This will not apply to improvements played after this card.)_
   - `ONPLAY E-SCORE ST-STORE` — Bonus points (not goods, so E-GOODS is wrong) earned through the play action — E-SCORE legitimately combines with a non-scoring activation per the rulings; the improvement count must be snapshotted at play time since later improvements don't count (ST-STORE).
-- ⬜ **E99 Uncaring Parents** · [1+]
+- ✅ **E99 Uncaring Parents** · [1+]
   - _At the end of each harvest, if you live in a stone house, you get 1 bonus point._
   - `HOOK T-AFTER S-HBREED F-AUTO A-OWN E-SCORE ST-COUNTER` — 'End of each harvest' is after the breeding phase, not after feeding — S-HBREED + T-AFTER, not S-AFTERFEED (which precedes breeding). Mandatory bonus point on a stone-house state read; the points accrue across harvests, needing a running tally (ST-COUNTER).
 - ⬜ **E100 Museum Caretaker** · [1+]

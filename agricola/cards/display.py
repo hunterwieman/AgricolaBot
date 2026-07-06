@@ -39,9 +39,10 @@ from agricola.scoring import SCORING_TERMS
 # classifying it FAILS the suite rather than silently going emblem-less.
 HISTORY_VP_CARDS: frozenset[str] = frozenset({
     "baking_sheet", "beer_keg", "beer_stein", "beer_table", "big_country",
-    "bucksaw", "clay_deposit", "cube_cutter", "elephantgrass_plant",
+    "bucksaw", "clay_deposit", "craft_brewery", "cube_cutter", "elephantgrass_plant",
+    "facades_carving",
     "furniture_carpenter", "home_brewer", "loppers", "mantlepiece", "rustic",
-    "truffle_slicer", "tutor", "wood_rake",
+    "truffle_slicer", "tutor", "uncaring_parents", "wood_rake",
 })
 
 # History-derived scoring cards that DON'T take the emblem, because the live
@@ -49,10 +50,10 @@ HISTORY_VP_CARDS: frozenset[str] = frozenset({
 # 4 iff (played by round 11) AND (rooms > people now); a "+4/+0" emblem would reveal
 # the play-round gate to the OPPONENT in any state where rooms currently exceed
 # people. Instead the owner alone sees whether the bonus is still available (the
-# play-round gate) — see `_PRIVATE_STATE_FORMATTERS`. Earthenware Potter (deck D,
-# "played by round 4 → bonus per person paid in clay"; not yet implemented) is the
-# same shape and will belong here when it lands.
-PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler"})
+# play-round gate) — see `_PRIVATE_STATE_FORMATTERS`. Earthenware Potter (D99,
+# implemented 2026-07-06) is the same shape: its bonus is gated on having been
+# played by round 4, a hidden fact only the owner should see.
+PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler", "earthenware_potter"})
 
 # Scoring cards whose points ARE derivable from the current public board (animals,
 # rooms, fields, resources, majors) — the player reads them straight off the board,
@@ -136,8 +137,20 @@ def _butler(ps) -> str | None:
     return "Bonus available" if n <= 11 else "Bonus forfeited"
 
 
+def _earthenware_potter(ps) -> str | None:
+    n = ps.card_state.get("earthenware_potter")
+    if not n:  # not yet played
+        return None
+    # The play-round gate: the after-the-final-harvest clay-for-points buy is
+    # eligible iff the card was played in round 4 or before (ruling 26,
+    # 2026-07-06). The banked points live under a separate key and score
+    # normally either way.
+    return "Bonus available" if n <= 4 else "Bonus forfeited"
+
+
 _PRIVATE_STATE_FORMATTERS = {
     "butler": _butler,
+    "earthenware_potter": _earthenware_potter,
 }
 
 
