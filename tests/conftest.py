@@ -37,6 +37,7 @@ _SLOW_FIRST = (
     "test_cpp_candidate_encode_matches_python",    # ~10s
     "test_cpp_encode_matches_python",              # ~9s
     "test_cpp_value_matches_python",               # ~8s
+    "test_web_sync",                               # ~8s — spins up a play_web server
 )
 
 
