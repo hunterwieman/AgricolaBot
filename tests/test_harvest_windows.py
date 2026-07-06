@@ -259,6 +259,8 @@ def test_ladder_shape():
             < WINDOW_INDEX["breeding"]
             < WINDOW_INDEX["after_breeding"]
             < WINDOW_INDEX["end_of_harvest"]
-            < WINDOW_INDEX["immediately_after_harvest"]
             < WINDOW_INDEX["after_harvest"])
+    # Ruling 2026-07-05: "immediately after each harvest" = "after each harvest"
+    # — ONE window, no separate immediately_after_harvest entry.
+    assert "immediately_after_harvest" not in WINDOW_INDEX
     assert HARVEST_WINDOWS[-1] == "after_harvest"

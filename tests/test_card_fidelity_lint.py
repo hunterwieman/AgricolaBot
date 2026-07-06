@@ -62,8 +62,8 @@ _ATTRIBUTION = re.compile(r"(user|owner) ruling[,:]? \(?\d{4}-\d{2}-\d{2}", re.I
 #
 # The harvest FEED-seam timing cluster (Cube Cutter, Winter Caretaker,
 # Elephantgrass Plant) was RESOLVED in the 2026-07-04 harvest-window migration:
-# each moved to its printed window (Cube Cutter → field_phase #5, Winter
-# Caretaker → end_of_harvest #16, Elephantgrass → immediately_after_harvest #17),
+# each moved to its printed window (Cube Cutter → field_phase, Winter
+# Caretaker → end_of_harvest, Elephantgrass → after_harvest),
 # so the deviation no longer exists and its allowlist entry was removed.
 # See HARVEST_WINDOWS_DESIGN.md §7.
 ALLOWLIST: dict[str, str] = {}

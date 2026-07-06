@@ -91,16 +91,21 @@ resolution order is player-chosen (§3).
 | 14 | `breeding_outcome` (payload event) | "for each newborn…", "if you get newborns of ≥2 types" | Fodder Planter, Slurry Spreader C71; Champion Breeder [3+]; Dung Collector is **broader** (any newborn-animal gain — flag, §8) |
 | 15 | `after_breeding` | "after the breeding phase" | Feedyard (also blocked on card-as-animal-holder) |
 | 16 | `end_of_harvest` | "at the end of each harvest" | Ropemaker, Uncaring Parents, **Winter Caretaker (re-time target)** |
-| 17 | `immediately_after_harvest` | "immediately after each harvest" | **Elephantgrass Plant (re-time target)** |
-| 18 | `after_harvest` | "after each harvest" | Value Assets, Eternal Rye Cultivation |
-| — | *(before the start of the next round)* | "before the start of each round" | the separate hook already designed in `CARD_DEFERRED_PLANS.md` (resource_analyzer); fires **after** #18, before income/reveal |
+| 17 | `after_harvest` | "immediately after each harvest" = "after each harvest" (RULED 2026-07-05: the same instant — one window, was two) | **Elephantgrass Plant (re-time target)**, Value Assets, Eternal Rye Cultivation |
+| — | *(before the start of the next round)* | "before the start of each round" | the separate hook already designed in `CARD_DEFERRED_PLANS.md` (resource_analyzer); fires **after** the after-harvest window, before income/reveal |
 
-**Ordering derivation to confirm (open question #1).** Windows 16–18 order as end-of-harvest
-(last moment *inside* the harvest) → immediately-after (slot 3) → after (slot 4), by the
-four-slot model. A concrete pair shows the FEED analog is real: if Farm Store (`after_feeding`)
-could spend your last food *before* Social Benefits (`immediately_after_feeding`) checked "if
-you have no food left," the check flips — the slot model puts Social Benefits first. The
-16→17→18 ordering has no constructible 2p pair yet; it is proposed on the model alone.
+**Ordering derivation (former open question #1 — RESOLVED 2026-07-05).** The original ladder
+carried separate `immediately_after_harvest` → `after_harvest` windows on the four-slot
+model. The user ruled the two phrasings name the SAME instant ("confusing and unnecessary"
+wording, not a timing distinction) and the windows were merged; end-of-harvest before
+after-harvest stands on the post-breeding-timeline ruling (2026-07-03 — inside vs outside
+the harvest). **Standing instruction (same ruling): the equivalence does NOT generalize —
+every occurrence of "immediately" in a card text gets its own user ruling.** The first open
+instance is the FEED analog this section used as its motivating pair: Social Benefits
+(`immediately_after_feeding`) vs Farm Store (`after_feeding`) — if Farm Store could spend
+your last food *before* Social Benefits checked "if you have no food left," the check flips.
+Whether that pair also collapses (giving the owner the order choice) is awaiting the user
+(§8 #7).
 
 **Windows are data, not code.** The ladder is one ordered table (`HARVEST_WINDOWS` in
 `agricola/cards/…`); adding a window a future card names is a table row, not a subsystem.
@@ -151,8 +156,8 @@ One generic frame serves every simple window:
   2026-07-05 — supersedes the earlier contested ruling 2, and follows the official online
   implementation, which the user dislikes but rules to match)*: Layabout's whole-harvest
   skip (latched in CardStore at play, consumed at that harvest) suppresses EVERY
-  harvest-relative effect for the skipping player — windows #1 through #18, the feeding
-  frames, and the breeding frames. "After each harvest" cards (Value Assets) do NOT fire
+  harvest-relative effect for the skipping player — the whole ladder, `after_harvest`
+  included, plus the feeding frames and the breeding frames. "After each harvest" cards (Value Assets) do NOT fire
   for the skipper; neither does `immediately_before_harvest` (#1) — the former open
   question #2, now resolved.
 - Implementation: each per-player window push is guarded on that player's skip state for the
@@ -357,16 +362,21 @@ retired in the same batch (superseded by windows #3–#5 and the cursor).
 
 ## 8. Open questions for the user
 
-1. Confirm the post-harvest ordering **#16 end-of-harvest → #17 immediately-after → #18
-   after** (derived from the four-slot model; no constructible 2p pair yet).
-2. Does `immediately_before_harvest` (#1) fire for a player skipping the harvest via
-   Layabout? (Unruled; nothing blocks on it.)
+1. RESOLVED 2026-07-05 — the question dissolved: "immediately after each harvest" =
+   "after each harvest" (one instant; the two windows merged into `after_harvest`).
+   End-of-harvest before after-harvest stands on the 2026-07-03 inside/outside ruling.
+2. RESOLVED 2026-07-05 (ruling 14) — Layabout's skip is TOTAL, every window included.
 3. RESOLVED 2026-07-03 — Grain Sieve / Barley Mill fire ONCE, off the take occasion's
    specifics (§4d).
-4. Lynchet's "harvested field tile" reading, at migration time (§7).
+4. RESOLVED 2026-07-05 — Lynchet counts take-occasion entries (per tile, amount ignored).
 5. RESOLVED 2026-07-03 — Home Brewer re-homes to window #7 (§7).
 6. Dung Collector's any-source newborn event (§5) — defer, or widen when the breed windows
    are built?
+7. Does the FEED-band pair also collapse — Social Benefits ("IMMEDIATELY after the feeding
+   phase") vs Farm Store ("after the feeding phase")? Per the 2026-07-05 standing
+   instruction, every "immediately" gets its own user ruling; this one is mechanically
+   live (Farm Store spending the last food flips Social Benefits' "no food left" check,
+   and a merge would hand the owner the order choice).
 
 ## 9. Build stages
 
@@ -490,15 +500,18 @@ preference** (their original framing of option (b)) and is treated as the adopte
 after-the-breeding-phase (#15, INSIDE the harvest — Feedyard's food is within the anytime
 span and reachable by #16 buys; it dies with a skipped breeding per ruling 1) → the last
 chance for in-harvest conversions (#16 — the anytime span ENDS here, resolving former open
-question 7) → after the harvest (#17–#18, outside).** The stakes that decided it (funding /
-skips / ordering) are preserved in the git history of this section; the (Feedyard, Winter
-Caretaker) pair is the designated regression test of this boundary when the stages land.
+question 7) → after the harvest (the `after_harvest` window, outside).** The stakes that
+decided it (funding / skips / ordering) are preserved in the git history of this section;
+the (Feedyard, Winter Caretaker) pair is the designated regression test of this boundary
+when the stages land.
 
-One sharpening of §8's open question #1 discovered after it was written: the #17 → #18
-ordering now HAS a constructible 2p pair — **Elephantgrass Plant (#17: 1 reed → 1 VP) vs
-Value Assets (#18: buys incl. 2 food → 1 reed)**. Slot order (#17 first) means a reedless
-player cannot buy a reed at #18 and feed it back to Elephantgrass; the reverse order would
-allow it. Confirm the slot-model order is the intended rules reading.
+The constructible pair that once sharpened §8's open question #1 — **Elephantgrass Plant
+("immediately after": 1 reed → 1 VP) vs Value Assets ("after": buys incl. 2 food → 1
+reed)** — resolved the other way (RULED 2026-07-05): the two phrasings are the same
+instant, the windows merged, and both cards live on `after_harvest`. Consequence: the two
+effects are simultaneous, so a player owning both orders them freely within the window
+frame — a reedless player CAN buy a reed via Value Assets and feed it to Elephantgrass
+(the forced-order reading that would have denied this died with the merge).
 
 ## 11. Skeleton stress-cases — specific member effects that constrain skeleton choices
 
@@ -703,12 +716,14 @@ of §0–§11 is the authority; this only orients.*
   integration pending:** `design_docs/cards/CARD_ENGINE_DOC_CAPTURE.md` lists what a
   fresh session must fold into CARD_ENGINE_IMPLEMENTATION.md.
 - **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
-  (12 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
+  (18 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
-- **Open questions still needing the user:** §8 #1 (confirm the #17-before-#18 ordering
-  derivation — both members are now implemented, and the ladder already encodes
-  Elephantgrass #17 → Value Assets #18) and #6 (Dung Collector's any-source newborn
-  event — defer, don't stretch #14); §10 (7) span end #16, (8) late-anchor ratification,
-  (9) craft-major surfacing. RESOLVED: #2 (Layabout — ruling 14, whole-harvest
-  cancellation incl. windows #1/#17/#18), #4 (Lynchet — migrated 2026-07-05). Newborn
-  feeding for window-#1/#2 growths RATIFIED at 1 food (ruling 13).
+- **Open questions still needing the user:** §8 #6 (Dung Collector's any-source newborn
+  event — defer, don't stretch #14); §8 #7 (does the FEED "immediately" pair — Social
+  Benefits vs Farm Store — also collapse? every "immediately" needs its own ruling per
+  ruling 18); §10 (7) span end #16, (8) late-anchor ratification, (9) craft-major
+  surfacing. RESOLVED: #1 ("immediately after each harvest" = "after each harvest",
+  ruling 18 — windows merged into `after_harvest`; Value Assets itself is still
+  UNIMPLEMENTED), #2 (Layabout — ruling 14, whole-harvest cancellation, every window
+  included), #4 (Lynchet — migrated 2026-07-05). Newborn feeding for window-#1/#2
+  growths RATIFIED at 1 food (ruling 13).

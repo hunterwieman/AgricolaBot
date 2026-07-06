@@ -80,8 +80,9 @@ window-major (both players per window, SP first). FEED/BREED are NOT banded yet 
 deferred until a member card's ordering depends on it.
 
 Implementation: `harvest_cursor` indexes a VIRTUAL walk — the raw ladder with the
-FIELD band repeated once per player (`walk_position(cursor, sp)` decodes; 22 positions
-at 2 players; N players = N band repeats, the shape 4p needs). The stakes the user
+FIELD band repeated once per player (`walk_position(cursor, sp)` decodes; 21 positions
+at 2 players since the 2026-07-05 after-harvest window merge; N players = N band
+repeats, the shape 4p needs). The stakes the user
 named when demanding this: Beer Table (end-of-field-phase: pay grain → 2 VP, opponent
 gets 1 food) resolves in the SP's segment BEFORE the opponent's segment starts, so the
 opponent's Cube Cutter can spend that food — the segment ordering deliberately creates
@@ -184,7 +185,7 @@ but NOT harvested).
   breeding-segment instant; feeding and the harvest's outer instants still run.
 - **Ruling 14 (2026-07-05, supersedes the recorded ruling 2)**: Layabout's
   whole-harvest skip is TOTAL — before- and after-harvest boundaries INCLUDED
-  (windows #1–#18), plus feeding (no cost, no begging) and breeding. The user dislikes
+  (every window on the ladder), plus feeding (no cost, no begging) and breeding. The user dislikes
   this reading but rules to follow the official online implementation. (The original
   ruling 2 said outer boundaries survive; it was itself marked contested. History
   preserved in the record.)
@@ -210,9 +211,18 @@ always precedes its own round's harvest; same convention as Bed in the Grain Fie
   silent through the card).
 - **Ruling 10**: the post-breeding timeline — after-the-breeding-phase is INSIDE the
   harvest, end_of_harvest (#16) is the last chance for in-harvest conversions,
-  immediately-after (#17) and after (#18) are outside. Winter Caretaker lives at #16,
-  Elephantgrass at #17, Value Assets at #18. OPEN: the user has not yet nodded at the
-  #17-before-#18 derivation (both cards are live; the ladder encodes it).
+  after-the-harvest is outside. Winter Caretaker lives at end_of_harvest;
+  Elephantgrass at after_harvest. (Correction to an earlier version of this doc:
+  Value Assets is UNIMPLEMENTED — its catalog status is still "todo".)
+- **Ruling 18 (2026-07-05)**: "immediately after each harvest" = "after each harvest"
+  — the same instant; the ladder's two after-harvest windows merged into one
+  (`after_harvest`). This resolved ruling 10's formerly-open ordering question by
+  dissolving it. **Standing instruction: the equivalence does NOT generalize — every
+  "immediately" in a card text gets its own user ruling, never a unilateral call.**
+  First open instance: Social Benefits ("immediately after the feeding phase") vs
+  Farm Store ("after the feeding phase") — mechanically live (Farm Store spending the
+  last food flips Social Benefits' "no food left" check; a merge hands the owner the
+  order choice), awaiting the user.
 - **Ruling 13**: a newborn from a card-granted growth at windows #1/#2 (Autumn Mother,
   Bed in the Grain Field) is fed 1 food — the standard newborn rule, ratified.
 - **Ruling 15**: Cubbyhole's on-card food bank is NON-consuming (pays out every
@@ -455,8 +465,10 @@ Whistle (rulings 15-17) · `7d692d5` the received-vs-declined frontier amendment
   Carrier, Ebonist, Stone Sculptor, Lumber Virtuoso + Furniture Carpenter's approved
   #16 anchor. Sub-questions (7)(8)(9) there are still the user's.
 
-**Awaiting a user nod only:** the #17-before-#18 ordering derivation (Elephantgrass vs
-Value Assets — both live; the ladder already encodes it).
+**Awaiting a user ruling only:** does the FEED-band "immediately" pair also collapse —
+Social Benefits ("immediately after the feeding phase") vs Farm Store ("after the
+feeding phase")? (The after-HARVEST pair was ruled identical 2026-07-05 — ruling 18 —
+and merged; per the same ruling every "immediately" needs its own user ruling.)
 
 **Banned, never implement:** Witches' Dance Floor D25, Begging Student D97, Shaving
 Horse A48 (Treegardener's clarification interaction with it is moot).

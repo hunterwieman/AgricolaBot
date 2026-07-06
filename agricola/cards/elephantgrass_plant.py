@@ -7,13 +7,14 @@ Cost: 2 Clay, 1 Stone. Prerequisite: 2 Occupations. VPs: 0 (printed). Not passin
 A recurring, optional, once-per-harvest goods-to-point swap: spend exactly 1 reed,
 bank 1 bonus point (no food produced).
 
-Timing — "immediately after each harvest" → window #17 ``immediately_after_harvest``.
-On the harvest ladder (``agricola/cards/harvest_windows.py``) this window is OUTSIDE
-the harvest, strictly after window #16 ``end_of_harvest`` (the last in-harvest
-moment) and before window #18 ``after_harvest`` — the ordering resolved by the
-post-breeding-timeline ruling (2026-07-03, ``CARD_DEFERRED_PLANS.md`` → Harvest-
-window redesign rulings). The swap is registered as an OPTIONAL TRIGGER there
-(a ``PendingHarvestWindow`` ``FireTrigger``; declining is the frame's ``Proceed``).
+Timing — "immediately after each harvest" → the ``after_harvest`` window. Per the
+user ruling of 2026-07-05, "immediately after each harvest" and "after each harvest"
+name the SAME instant — the ladder (``agricola/cards/harvest_windows.py``) carries
+one window for it, OUTSIDE the harvest, strictly after ``end_of_harvest`` (the last
+in-harvest moment; post-breeding-timeline ruling 2026-07-03, ``CARD_DEFERRED_PLANS.md``
+→ Harvest-window redesign rulings). The swap is registered as an OPTIONAL TRIGGER
+there (a ``PendingHarvestWindow`` ``FireTrigger``; declining is the frame's
+``Proceed``).
 
 "exchange EXACTLY 1 reed": the once-per-window frame gives this for free — its
 ``triggers_resolved`` records the fire, so after swapping, the trigger is no longer
@@ -27,8 +28,8 @@ holds a reed to spend.
 Mis-timing history: this card was previously registered on the
 ``HARVEST_CONVERSIONS`` seam (surfaced during the FEED sub-phase), which the old
 docstring justified as "behaviorally inert." That home was a mis-timing — the FEED
-phase is not immediately-after the harvest — and it has been migrated to window #17
-per the printed text and the 2026-07-03 ruling. Because reed is never a feeding or
+phase is not after the harvest — and it has been migrated to the after-harvest
+window per the printed text and the 2026-07-03 ruling. Because reed is never a feeding or
 cooking input, the observable outcome (spend 1 reed, bank +1 point, once per
 harvest) is unchanged by the move.
 
@@ -102,9 +103,10 @@ register_minor(
     vps=0,
 )
 
-# The recurring reed->point swap immediately after the harvest (window #17): an
-# optional trigger — spend 1 reed, bank +1 point.
-register("immediately_after_harvest", CARD_ID, _eligible, _award)
-register_harvest_window_hook(CARD_ID, "immediately_after_harvest")
+# The recurring reed->point swap after the harvest (the after_harvest window —
+# "immediately after" = "after", ruling 2026-07-05): an optional trigger — spend
+# 1 reed, bank +1 point.
+register("after_harvest", CARD_ID, _eligible, _award)
+register_harvest_window_hook(CARD_ID, "after_harvest")
 
 register_scoring(CARD_ID, _score)

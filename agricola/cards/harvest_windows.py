@@ -29,7 +29,9 @@ window and is byte-identical to the pre-ladder engine (the Family fast path).
 Window ordering is load-bearing and rules-derived (the four-slot timing model; see the
 design doc §1, including the resolved post-breeding-timeline ruling of 2026-07-03:
 after-the-breeding-phase is INSIDE the harvest, end-of-harvest is the last chance for
-in-harvest conversions, immediately-after / after are outside).
+in-harvest conversions, after-the-harvest is outside — and per the 2026-07-05 ruling
+"immediately after each harvest" is the SAME instant as "after each harvest", one
+window, not two).
 """
 from __future__ import annotations
 
@@ -54,8 +56,13 @@ HARVEST_WINDOWS: tuple[str, ...] = (
     "breeding",                      # 13/14 (sentinel — the BREED frames)
     "after_breeding",                # 15
     "end_of_harvest",                # 16 — the last chance for in-harvest conversions
-    "immediately_after_harvest",     # 17 — outside the harvest
-    "after_harvest",                 # 18 — outside the harvest
+    "after_harvest",                 # 17 — outside the harvest. User ruling 2026-07-05:
+    #                                       "immediately after each harvest" and "after
+    #                                       each harvest" name the SAME instant (there is
+    #                                       no separate immediately_after_harvest window).
+    #                                       Any OTHER "immediately …" phrasing in card
+    #                                       text needs its own user ruling — the
+    #                                       equivalence does not generalize automatically.
 )
 
 WINDOW_INDEX: dict[str, int] = {w: i for i, w in enumerate(HARVEST_WINDOWS)}

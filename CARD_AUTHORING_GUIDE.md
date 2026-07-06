@@ -230,6 +230,19 @@ the observable outcome would coincide either way, still classify by the ruling. 
 same ruling that puts Milk Jug, Wood Cutter, Corn Scoop, Herring Pot, and Cottager on
 `before_action_space`.
 
+### "Immediately" in card text ALWAYS needs a user ruling
+
+Whenever a card's text contains the word **"immediately"** in a timing phrase, stop and ask
+the user what it means — never decide unilaterally. Sometimes it adds nothing: the user
+ruled (2026-07-05, harvest-window ruling 18) that "IMMEDIATELY after each harvest" and
+"after each harvest" name the SAME instant ("confusing and unnecessary" wording), and the
+ladder's two after-harvest windows were merged. But the user was explicit that this does
+**not** generalize — each occurrence gets its own ruling (the open instance: "immediately
+after the feeding phase" vs "after the feeding phase", Social Benefits vs Farm Store).
+This is a different question from the before/after-phase classification above: there,
+"immediately after…" is evidence the effect fires in the AFTER phase (unchanged); here, the
+question is whether "immediately X" is a *separate, earlier instant* than plain "X".
+
 **Flat reward → before; outcome-dependent reward → after.** The one legitimate reason to use
 `after_<X>` without an explicit "after" in the text is that the effect must read *what X
 produced* or *X's chosen target* — e.g. a reward scaled by how many rooms a build produced, or

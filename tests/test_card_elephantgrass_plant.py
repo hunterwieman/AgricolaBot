@@ -4,17 +4,18 @@ Card text (verbatim): "Immediately after each harvest, you can use this card to
 exchange exactly 1 reed for 1 bonus point."
 Cost 2 clay, 1 stone. Prereq: 2 occupations. VPs: 0 (printed).
 
-The reed->point swap is an optional TRIGGER on harvest window #17
-``immediately_after_harvest`` (outside the harvest, strictly after #16
-``end_of_harvest``; ruling 2026-07-03). Firing it spends exactly 1 reed and banks
-1 bonus point (no food); declining is the window frame's ``Proceed``. Bonus points
-are banked in the CardStore and read by the scoring term at end-game.
+The reed->point swap is an optional TRIGGER on the ``after_harvest`` window
+(outside the harvest, strictly after ``end_of_harvest``; ruling 2026-07-03 —
+and per the 2026-07-05 ruling "immediately after each harvest" is the SAME
+instant as "after each harvest", one window). Firing it spends exactly 1 reed
+and banks 1 bonus point (no food); declining is the window frame's ``Proceed``.
+Bonus points are banked in the CardStore and read by the scoring term at end-game.
 
 Mis-timing history: the swap previously rode the ``HARVEST_CONVERSIONS`` seam,
-surfacing during the FEED sub-phase. It has been migrated to window #17 per the
-printed "immediately after each harvest" and the 2026-07-03 ruling. These tests
-drive the REAL harvest walk and assert the swap surfaces at the
-``immediately_after_harvest`` window, never during feeding.
+surfacing during the FEED sub-phase. It has been migrated to the after-harvest
+window per the printed "immediately after each harvest" and the 2026-07-03
+ruling. These tests drive the REAL harvest walk and assert the swap surfaces at
+the ``after_harvest`` window, never during feeding.
 """
 from __future__ import annotations
 
@@ -64,8 +65,8 @@ def _harvest_state(*, reed=0, food=10, owned=True) -> GameState:
     return state
 
 
-def _walk_to_immediately_after_harvest(state):
-    """Drive the harvest walk until P0's immediately_after_harvest window frame is
+def _walk_to_after_harvest(state):
+    """Drive the harvest walk until P0's after_harvest window frame is
     on top. Returns (state, swap_ever_offered_in_feeding)."""
     saw_swap_in_feeding = False
     state = _advance_until_decision(state)
@@ -77,7 +78,7 @@ def _walk_to_immediately_after_harvest(state):
                    for a in legal_actions(state)):
                 saw_swap_in_feeding = True
         if (isinstance(top, PendingHarvestWindow)
-                and top.window_id == "immediately_after_harvest"
+                and top.window_id == "after_harvest"
                 and top.player_idx == 0):
             return state, saw_swap_in_feeding
         state = step(state, legal_actions(state)[0])
@@ -96,10 +97,10 @@ def test_registration():
     assert spec.min_occupations == 2
     assert spec.vps == 0
     assert any(cid == CARD_ID for cid, _ in SCORING_TERMS)
-    # Migrated off HARVEST_CONVERSIONS onto the immediately_after_harvest window.
-    assert CARD_ID in HARVEST_WINDOW_CARDS.get("immediately_after_harvest", set())
+    # Migrated off HARVEST_CONVERSIONS onto the after_harvest window.
+    assert CARD_ID in HARVEST_WINDOW_CARDS.get("after_harvest", set())
     assert any(e.card_id == CARD_ID
-               for e in TRIGGERS.get("immediately_after_harvest", ()))
+               for e in TRIGGERS.get("after_harvest", ()))
 
 
 def test_no_longer_on_harvest_conversions():
@@ -122,14 +123,14 @@ def test_prereq_requires_two_occupations():
     assert prereq_met(spec, state, 0) is True
 
 
-# --- The swap surfaces at immediately_after_harvest (not feeding) ------------
+# --- The swap surfaces at after_harvest (not feeding) ------------
 
-def test_swap_surfaces_at_immediately_after_harvest_not_feeding():
-    state, saw_swap_in_feeding = _walk_to_immediately_after_harvest(
+def test_swap_surfaces_at_after_harvest_not_feeding():
+    state, saw_swap_in_feeding = _walk_to_after_harvest(
         _harvest_state(reed=1))
     top = state.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow)
-    assert top.window_id == "immediately_after_harvest"
+    assert top.window_id == "after_harvest"
     assert top.player_idx == 0
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     assert Proceed() in legal_actions(state)
@@ -138,7 +139,7 @@ def test_swap_surfaces_at_immediately_after_harvest_not_feeding():
 
 def test_fire_spends_one_reed_banks_one_point_no_food():
     """Fire the swap: spend 1 reed, gain NO food, bank 1 bonus point."""
-    state, _ = _walk_to_immediately_after_harvest(_harvest_state(reed=2, food=10))
+    state, _ = _walk_to_after_harvest(_harvest_state(reed=2, food=10))
     food0 = state.players[0].resources.food
     state = step(state, FireTrigger(card_id=CARD_ID))
     p = state.players[0]
@@ -149,7 +150,7 @@ def test_fire_spends_one_reed_banks_one_point_no_food():
 
 def test_once_per_harvest():
     """After firing, only Proceed remains this window (even with reed left)."""
-    state, _ = _walk_to_immediately_after_harvest(_harvest_state(reed=3, food=10))
+    state, _ = _walk_to_after_harvest(_harvest_state(reed=3, food=10))
     assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
     state = step(state, FireTrigger(card_id=CARD_ID))
     assert legal_actions(state) == [Proceed()]
@@ -157,7 +158,7 @@ def test_once_per_harvest():
 
 def test_optional_decline_via_proceed():
     """The swap is optional — Proceed leaves reed/points untouched."""
-    state, _ = _walk_to_immediately_after_harvest(_harvest_state(reed=2, food=10))
+    state, _ = _walk_to_after_harvest(_harvest_state(reed=2, food=10))
     state = step(state, Proceed())
     p = state.players[0]
     assert p.resources.reed == 2
@@ -175,7 +176,7 @@ def test_offered_only_when_owned():
                           Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if (isinstance(top, PendingHarvestWindow)
-                and top.window_id == "immediately_after_harvest"):
+                and top.window_id == "after_harvest"):
             saw_window = True
         state = step(state, legal_actions(state)[0])
     assert not saw_window
@@ -190,7 +191,7 @@ def test_offered_only_when_reed_affordable():
                           Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if (isinstance(top, PendingHarvestWindow)
-                and top.window_id == "immediately_after_harvest"
+                and top.window_id == "after_harvest"
                 and top.player_idx == 0):
             saw_window = True
         state = step(state, legal_actions(state)[0])
@@ -221,7 +222,7 @@ def test_not_offered_to_non_owner():
                           Phase.HARVEST_BREED):
         top = state.pending_stack[-1] if state.pending_stack else None
         if (isinstance(top, PendingHarvestWindow)
-                and top.window_id == "immediately_after_harvest"
+                and top.window_id == "after_harvest"
                 and top.player_idx == 0):
             saw_p0_window = True
         state = step(state, legal_actions(state)[0])

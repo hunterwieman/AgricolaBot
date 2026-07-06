@@ -230,6 +230,19 @@ user made during this design — cite these, dated, in the docstrings of the car
    license. Once the bake variant is chosen, the pushed PendingBakeBread is
    committed (the variant choice was the decline moment). When no bake is
    usable at play time, the plain variant-less play is offered alone.
+18. **"Immediately after each harvest" = "after each harvest"** (ruled
+   2026-07-05): the two phrasings name the SAME instant — the user called the
+   wording distinction "confusing and unnecessary". The ladder's two separate
+   after-harvest windows were merged into one (`after_harvest`); Elephantgrass
+   Plant (printed "immediately after") and Value Assets (printed "after",
+   unimplemented) both live there. **This does NOT generalize automatically:**
+   the user's standing instruction is that EVERY occurrence of "immediately" in
+   a card text gets its own user ruling — sometimes it means the same as the
+   phrase without it, sometimes not. Never encode an "immediately" timing
+   distinction (or collapse one) unilaterally. Open instance flagged the same
+   day: Social Benefits ("immediately after the feeding phase") vs Farm Store
+   ("after the feeding phase") sit on two separate ladder windows — awaiting
+   the user's ruling on whether that pair also collapses.
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
