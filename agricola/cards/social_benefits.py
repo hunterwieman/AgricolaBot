@@ -9,25 +9,26 @@ Deck D, number 76. Cost "1 Reed" = `Cost(reed=1)`. Prerequisite: "At Most 1
 Occupation" → `max_occupations=1` (the occupation-count prereq shape). Printed
 VPs: none (0). Not passing.
 
-TIMING — harvest window #10 `immediately_after_feeding`: the printed "immediately
-after the feeding phase of each harvest" is that window's defining phrase
-(HARVEST_WINDOWS_DESIGN.md §1/§5, the anti-food-laundering window sitting between
-the FEED payment and after_feeding). A MANDATORY, choiceless income (a wood + clay
-gain always fits — no accommodation, no threshold) → an automatic effect
-(`register_auto` on the `immediately_after_feeding` window event), fired by the
-harvest walk (`_process_simple_window`, window-major, starting player first) per
-owner — no frame.
+TIMING — the `after_feeding` window. Per the user ruling of 2026-07-05,
+"IMMEDIATELY after the feeding phase" and "after the feeding phase" name the SAME
+instant — the ladder carries one window for it. The ruled ordering against Farm
+Store ("after the feeding phase…", an optional exchange that SPENDS food) is
+Social Benefits FIRST, and it needs no machinery of its own: this card is a
+MANDATORY, choiceless income (a wood + clay gain always fits — no accommodation,
+no threshold) → an automatic effect (`register_auto` on the `after_feeding`
+window event), and within a window every automatic effect fires before any
+optional trigger is offered. A 1-food player therefore cannot spend their last
+food at Farm Store and then collect this card's "no food left" grant.
 
-WHAT IT READS — window #10 resolves AFTER the FEED payment has fully committed
+WHAT IT READS — the window resolves AFTER the FEED payment has fully committed
 (the walk re-enters `_advance_harvest` past the "feeding" sentinel once every
 PendingHarvestFeed frame has resolved), so "if you have no food left" reads the
 POST-PAYMENT food: the engine pays `min(need, available)` at feeding and cannot
 withhold tokens ("Cannot withhold food tokens"), so a player who could not fully
 cover feeding ends with exactly 0 food (begging markers already taken for any
 shortfall). Eligibility is therefore `resources.food == 0` at this instant — the
-literal "no food left". Breeding (window #13) has NOT happened yet, so this reads
-the state after feeding but before breeding, exactly as printed. This is BEFORE
-window #11 `after_feeding`, matching the ladder order.
+literal "no food left". Breeding has NOT happened yet, so this reads the state
+after feeding but before breeding, exactly as printed.
 
 Played via a play-minor flow; no on-play effect (the effect is purely the
 recurring window income). Card-only registries default empty, so the Family game
@@ -44,7 +45,7 @@ from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "social_benefits"
-WINDOW_ID = "immediately_after_feeding"
+WINDOW_ID = "after_feeding"
 
 _GRANT = Resources(wood=1, clay=1)
 

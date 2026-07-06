@@ -13,11 +13,14 @@
 ## New permanent machinery to document (by CARD_ENGINE_IMPLEMENTATION section family)
 
 ### 1. The harvest timing-window system (new major section; pointer to HARVEST_WINDOWS_DESIGN.md)
-- The 16-id ladder in `agricola/cards/harvest_windows.py` (was 17 — ruling 18,
-  2026-07-05, merged "immediately after each harvest" into `after_harvest`: the same
-  instant. Same ruling's standing instruction, worth surfacing in the authoring guide
-  too: EVERY "immediately" in a card text gets its own user ruling — the equivalence
-  does not generalize automatically); simple-window ids double as
+- The 15-id ladder in `agricola/cards/harvest_windows.py` (was 17 — rulings 18/19,
+  2026-07-05, merged "immediately after each harvest" into `after_harvest` and
+  "immediately after the feeding phase" into `after_feeding`: the same instants;
+  ruling 19's ordering — Social Benefits before Farm Store — rides the standing
+  autos-before-optional-triggers within-window convention, no extra machinery. The
+  standing instruction, already added to CARD_AUTHORING_GUIDE.md §2: EVERY
+  "immediately" in a card text gets its own user ruling — the equivalence does not
+  generalize automatically); simple-window ids double as
   trigger/auto EVENT strings (`register(<window_id>, …)` / `register_auto`), plus
   `register_harvest_window_hook(card_id, window_id)` for the membership index.
   Registrable: every simple window, `"field_phase"` (during-window triggers + pre-take

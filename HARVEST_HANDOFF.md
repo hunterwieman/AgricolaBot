@@ -219,10 +219,15 @@ always precedes its own round's harvest; same convention as Bed in the Grain Fie
   (`after_harvest`). This resolved ruling 10's formerly-open ordering question by
   dissolving it. **Standing instruction: the equivalence does NOT generalize — every
   "immediately" in a card text gets its own user ruling, never a unilateral call.**
-  First open instance: Social Benefits ("immediately after the feeding phase") vs
-  Farm Store ("after the feeding phase") — mechanically live (Farm Store spending the
-  last food flips Social Benefits' "no food left" check; a merge hands the owner the
-  order choice), awaiting the user.
+- **Ruling 19 (2026-07-05)**: the FEED pair collapses too — "immediately after the
+  feeding phase" (Social Benefits) = "after the feeding phase" (Farm Store), one
+  `after_feeding` window, **Social Benefits first**. The user's key insight: no new
+  machinery is needed, because Social Benefits is an automatic effect and Farm Store
+  an optional trigger, and the standing within-window ordering (autos before optional
+  triggers) already delivers exactly that order. So a player ending feeding with
+  exactly 1 food cannot spend it at Farm Store and then collect the "no food left"
+  grant — behaviorally identical to the old two-window encoding, one rung shorter
+  (pinned by test_social_benefits_resolves_before_farm_store).
 - **Ruling 13**: a newborn from a card-granted growth at windows #1/#2 (Autumn Mother,
   Bed in the Grain Field) is fed 1 food — the standard newborn rule, ratified.
 - **Ruling 15**: Cubbyhole's on-card food bank is NON-consuming (pays out every
@@ -465,10 +470,10 @@ Whistle (rulings 15-17) · `7d692d5` the received-vs-declined frontier amendment
   Carrier, Ebonist, Stone Sculptor, Lumber Virtuoso + Furniture Carpenter's approved
   #16 anchor. Sub-questions (7)(8)(9) there are still the user's.
 
-**Awaiting a user ruling only:** does the FEED-band "immediately" pair also collapse —
-Social Benefits ("immediately after the feeding phase") vs Farm Store ("after the
-feeding phase")? (The after-HARVEST pair was ruled identical 2026-07-05 — ruling 18 —
-and merged; per the same ruling every "immediately" needs its own user ruling.)
+**Awaiting a user ruling:** nothing — both "immediately" pairs were ruled 2026-07-05
+(rulings 18/19, both merged; ruling 19 put Social Benefits before Farm Store via
+autos-before-triggers). The standing instruction stands: every FUTURE "immediately"
+in a card text gets its own user ruling before encoding.
 
 **Banned, never implement:** Witches' Dance Floor D25, Begging Student D97, Shaving
 Horse A48 (Treegardener's clarification interaction with it is moot).

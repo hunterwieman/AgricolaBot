@@ -71,13 +71,15 @@ register_auto("after_harvest", SNAP_CARD, lambda s, i: True,
 register_harvest_window_hook(SNAP_CARD, "start_of_harvest")
 register_harvest_window_hook(SNAP_CARD, "after_harvest")
 
-# Two AUTOs on the post-feed boundary pair, recording firing order.
+# Two AUTOs straddling the FEED payment frames, recording firing order.
+# (This pair replaced immediately_after_feeding/after_feeding when those two
+# windows merged — ruling 2026-07-05: the same instant.)
 ORDER_CARD = "_test_hw_orderer"
-register_auto("immediately_after_feeding", ORDER_CARD, lambda s, i: True,
-              lambda s, i: _append_seq(s, i, "iaf"))
+register_auto("start_of_feeding", ORDER_CARD, lambda s, i: True,
+              lambda s, i: _append_seq(s, i, "sof"))
 register_auto("after_feeding", ORDER_CARD, lambda s, i: True,
               lambda s, i: _append_seq(s, i, "af"))
-register_harvest_window_hook(ORDER_CARD, "immediately_after_feeding")
+register_harvest_window_hook(ORDER_CARD, "start_of_feeding")
 register_harvest_window_hook(ORDER_CARD, "after_feeding")
 
 # An optional TRIGGER at end_of_harvest: +1 stone, declinable, once per window.
@@ -153,10 +155,10 @@ def test_window_autos_straddle_the_take():
     assert seq == (("soh", 3), ("ah", 2))
 
 
-def test_immediately_after_feeding_precedes_after_feeding():
+def test_start_of_feeding_precedes_after_feeding():
     state = _own_occ(_harvest_state(), 1, ORDER_CARD)
     state = _run_harvest(state)
-    assert state.players[1].card_state.get("_test_hw_seq", ()) == ("iaf", "af")
+    assert state.players[1].card_state.get("_test_hw_seq", ()) == ("sof", "af")
 
 
 def test_unowned_window_cards_never_fire():
@@ -253,14 +255,15 @@ def test_ladder_shape():
             < WINDOW_INDEX["after_field_phase"]
             < WINDOW_INDEX["start_of_feeding"]
             < WINDOW_INDEX["feeding"]
-            < WINDOW_INDEX["immediately_after_feeding"]
             < WINDOW_INDEX["after_feeding"]
             < WINDOW_INDEX["start_of_breeding"]
             < WINDOW_INDEX["breeding"]
             < WINDOW_INDEX["after_breeding"]
             < WINDOW_INDEX["end_of_harvest"]
             < WINDOW_INDEX["after_harvest"])
-    # Ruling 2026-07-05: "immediately after each harvest" = "after each harvest"
-    # — ONE window, no separate immediately_after_harvest entry.
+    # Rulings 2026-07-05: "immediately after each harvest" = "after each harvest"
+    # and "immediately after the feeding phase" = "after the feeding phase" —
+    # ONE window each, no separate immediately_* entries.
     assert "immediately_after_harvest" not in WINDOW_INDEX
+    assert "immediately_after_feeding" not in WINDOW_INDEX
     assert HARVEST_WINDOWS[-1] == "after_harvest"

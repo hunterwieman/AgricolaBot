@@ -3,12 +3,16 @@
 Card text: "Immediately after the feeding phase of each harvest, if you have no
 food left, you get 1 wood and 1 clay."
 
-A harvest-window AUTO on window #10, `immediately_after_feeding` — fired
-mechanically inside the harvest walk (`_process_simple_window`, window-major, SP
-first) per owner, AFTER the FEED payment has resolved. Eligibility reads the
-post-payment food (`resources.food == 0`, the "no food left" instant), and the
-reward is a flat +1 wood +1 clay. Tests drive the real walk so the fire-point
-(after feeding, before breeding) is exercised end-to-end.
+A harvest-window AUTO on the `after_feeding` window (ruling 2026-07-05:
+"immediately after the feeding phase" = "after the feeding phase", one window)
+— fired mechanically inside the harvest walk (`_process_simple_window`,
+window-major, SP first) per owner, AFTER the FEED payment has resolved.
+Eligibility reads the post-payment food (`resources.food == 0`, the "no food
+left" instant), and the reward is a flat +1 wood +1 clay. Tests drive the real
+walk so the fire-point (after feeding, before breeding) is exercised
+end-to-end. The ruled ordering against Farm Store (the same window's optional
+food-spending trigger) — Social Benefits FIRST, via autos-before-triggers — is
+pinned by the interaction test at the bottom.
 """
 import agricola.cards.social_benefits  # noqa: F401  -- registers the card
 
@@ -104,8 +108,8 @@ def test_registered_spec():
     assert spec.min_occupations == 0
     assert spec.vps == 0
     assert spec.passing_left is False
-    assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("immediately_after_feeding", ())}
-    assert CARD_ID in HARVEST_WINDOW_CARDS.get("immediately_after_feeding", set())
+    assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("after_feeding", ())}
+    assert CARD_ID in HARVEST_WINDOW_CARDS.get("after_feeding", set())
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +161,7 @@ def test_grants_when_food_exactly_zero_no_begging():
 
 def test_not_granted_before_feeding_resolves():
     """At the FEED frame (payment not yet committed) the reward has not arrived —
-    the food==0 read is the POST-payment food, granted only at window #10."""
+    the food==0 read is the POST-payment food, granted only at after_feeding."""
     state = _starving_state()
     state = _own_minor(state, 0, CARD_ID)
     wood0 = state.players[0].resources.wood
@@ -169,12 +173,12 @@ def test_not_granted_before_feeding_resolves():
             break
         state = step(state, legal_actions(state)[0])
     assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
-    # No reward yet — the immediately_after_feeding auto has not fired.
+    # No reward yet — the after_feeding auto has not fired.
     assert state.players[0].resources.wood == wood0
 
 
 def test_fires_before_breeding():
-    """The grant lands before the breeding frames (window #10 precedes #13)."""
+    """The grant lands before the breeding frames (after_feeding precedes breeding)."""
     state = _starving_state()
     state = _own_minor(state, 0, CARD_ID)
     wood0 = state.players[0].resources.wood
@@ -263,3 +267,57 @@ def test_prereq_blocks_play_with_two_occupations():
     state, cp = _at_play_minor_frame(occupations=frozenset({"o0", "o1"}))
     assert not any(isinstance(a, CommitPlayMinor) and a.card_id == CARD_ID
                    for a in legal_actions(state))
+
+
+# ---------------------------------------------------------------------------
+# The ruled ordering vs Farm Store (ruling 2026-07-05: same window, this first)
+# ---------------------------------------------------------------------------
+
+def test_social_benefits_resolves_before_farm_store():
+    """Both cards share the after_feeding window; the ruling puts Social
+    Benefits (an automatic effect) BEFORE Farm Store (an optional trigger) via
+    the standing autos-before-triggers ordering. A player ending feeding with
+    exactly 1 food therefore CANNOT spend it at Farm Store first and then
+    collect the "no food left" grant: the check has already seen 1 food."""
+    import agricola.cards.farm_store  # noqa: F401  -- registers Farm Store
+    from agricola.actions import FireTrigger
+    from agricola.cards.farm_store import CARD_ID as FARM_STORE
+    from agricola.pending import PendingHarvestWindow
+
+    # 2 people need 4 food; 5 food -> ends feeding with exactly 1.
+    state = _harvest_state(food=0)
+    state = _set(state, 0, people_total=2, food=5)
+    state = _set(state, 1, people_total=2, food=10)
+    state = _own_minor(state, 0, CARD_ID)
+    state = _own_minor(state, 0, FARM_STORE)
+    wood0 = state.players[0].resources.wood
+    clay0 = state.players[0].resources.clay
+
+    # Drive the walk to P0's after_feeding window frame.
+    state = _advance_until_decision(state)
+    while state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED, Phase.HARVEST_BREED):
+        top = state.pending_stack[-1] if state.pending_stack else None
+        if (isinstance(top, PendingHarvestWindow)
+                and top.window_id == "after_feeding" and top.player_idx == 0):
+            break
+        state = step(state, legal_actions(state)[0])
+    assert isinstance(state.pending_stack[-1], PendingHarvestWindow)
+
+    # The auto already ran (autos fire before the trigger frame is hosted):
+    # 1 food remained, so NO grant — and Farm Store's exchange is now offered.
+    assert state.players[0].resources.food == 1
+    assert state.players[0].resources.wood == wood0
+    assert state.players[0].resources.clay == clay0
+    veg_swap = [a for a in legal_actions(state)
+                if isinstance(a, FireTrigger) and a.card_id == FARM_STORE
+                and getattr(a, "variant", None) == "veg"]
+    assert veg_swap
+
+    # Spend the last food at Farm Store; the "no food left" check must NOT
+    # re-fire — the wood/clay grant never arrives this harvest.
+    state = step(state, veg_swap[0])
+    assert state.players[0].resources.food == 0
+    state = _run_harvest(state)
+    assert state.players[0].resources.wood == wood0
+    assert state.players[0].resources.clay == clay0
+    assert state.players[0].resources.veg >= 1

@@ -237,8 +237,11 @@ the user what it means — never decide unilaterally. Sometimes it adds nothing:
 ruled (2026-07-05, harvest-window ruling 18) that "IMMEDIATELY after each harvest" and
 "after each harvest" name the SAME instant ("confusing and unnecessary" wording), and the
 ladder's two after-harvest windows were merged. But the user was explicit that this does
-**not** generalize — each occurrence gets its own ruling (the open instance: "immediately
-after the feeding phase" vs "after the feeding phase", Social Benefits vs Farm Store).
+**not** generalize — each occurrence gets its own ruling. The second instance proves the
+point about asking: "immediately after the feeding phase" vs "after the feeding phase"
+(Social Benefits vs Farm Store) ALSO collapsed (ruling 19, same day), but the user's
+ruling carried an ordering (Social Benefits first, riding the autos-before-triggers
+convention) that a silent merge would have had to guess at.
 This is a different question from the before/after-phase classification above: there,
 "immediately after…" is evidence the effect fires in the AFTER phase (unchanged); here, the
 question is whether "immediately X" is a *separate, earlier instant* than plain "X".

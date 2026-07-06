@@ -50,8 +50,12 @@ HARVEST_WINDOWS: tuple[str, ...] = (
     "after_field_phase",             # 7
     "start_of_feeding",              # 8
     "feeding",                       # 9  (sentinel — the FEED payment frames)
-    "immediately_after_feeding",     # 10
-    "after_feeding",                 # 11
+    "after_feeding",                 # 10 — user ruling 2026-07-05: "immediately after
+    #                                       the feeding phase" and "after the feeding
+    #                                       phase" are the SAME instant (one window, was
+    #                                       two); Social Benefits resolves before Farm
+    #                                       Store via the standing autos-before-triggers
+    #                                       ordering, no separate window needed.
     "start_of_breeding",             # 12
     "breeding",                      # 13/14 (sentinel — the BREED frames)
     "after_breeding",                # 15

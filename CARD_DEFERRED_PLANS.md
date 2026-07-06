@@ -239,10 +239,19 @@ user made during this design — cite these, dated, in the docstrings of the car
    the user's standing instruction is that EVERY occurrence of "immediately" in
    a card text gets its own user ruling — sometimes it means the same as the
    phrase without it, sometimes not. Never encode an "immediately" timing
-   distinction (or collapse one) unilaterally. Open instance flagged the same
-   day: Social Benefits ("immediately after the feeding phase") vs Farm Store
-   ("after the feeding phase") sit on two separate ladder windows — awaiting
-   the user's ruling on whether that pair also collapses.
+   distinction (or collapse one) unilaterally. The first flagged instance —
+   Social Benefits vs Farm Store — was ruled the same day (ruling 19).
+19. **"Immediately after the feeding phase" = "after the feeding phase", Social
+   Benefits first** (ruled 2026-07-05): the feeding pair also collapses into
+   one window (`after_feeding`), with Social Benefits ("if you have no food
+   left, you get 1 wood and 1 clay") resolving BEFORE Farm Store's optional
+   1-food exchange. No new machinery: Social Benefits is an automatic effect
+   and Farm Store an optional trigger, and the standing within-window ordering
+   (automatic effects before optional triggers) already delivers exactly that
+   order — the user ruled the ordering should ride that convention rather than
+   a separate window. Consequence: a player ending feeding with exactly 1 food
+   cannot spend it at Farm Store and then collect the "no food left" grant
+   (pinned by test_social_benefits_resolves_before_farm_store).
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a

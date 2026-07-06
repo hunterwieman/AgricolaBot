@@ -84,14 +84,13 @@ resolution order is player-chosen (§3).
 | 7 | `after_field_phase` | "after the field phase" | Winnowing Fan, Market Stall C54, Home Brewer (re-home RULED 2026-07-03 — §7) |
 | 8 | `start_of_feeding` | "at the start of each feeding phase" | Baker (a granted bake), Cubbyhole |
 | 9 | *(during feeding)* | "in the feeding phase" | the existing `HARVEST_CONVERSIONS` seam (unchanged) + feeding-income autos (Town Hall, Milking Place, Dentist's payout) + the feeding-cost fold (§5); Old Miser [4] |
-| 10 | `immediately_after_feeding` | "immediately after the feeding phase" | Social Benefits |
-| 11 | `after_feeding` | "after the feeding phase" | Farm Store (un-archive; the previously-designed `PendingHarvestFeed` after-phase collapses into this window) |
+| 10–11 | `after_feeding` | "immediately after the feeding phase" = "after the feeding phase" (RULED 2026-07-05, ruling 19: the same instant — one window, was two; Social Benefits first via autos-before-triggers) | Social Benefits (auto, resolves first), Farm Store (optional trigger; un-archive — the previously-designed `PendingHarvestFeed` after-phase collapses into this window) |
 | 12 | `start_of_breeding` | "at the start of the breeding phase" | Shepherd's Whistle |
 | 13 | *(during breeding)* | "in the breeding phase" | breeding-eligibility fold (Dolly's Mother) + in-phase triggers (Stone Importer, Nth-harvest-priced) |
 | 14 | `breeding_outcome` (payload event) | "for each newborn…", "if you get newborns of ≥2 types" | Fodder Planter, Slurry Spreader C71; Champion Breeder [3+]; Dung Collector is **broader** (any newborn-animal gain — flag, §8) |
 | 15 | `after_breeding` | "after the breeding phase" | Feedyard (also blocked on card-as-animal-holder) |
 | 16 | `end_of_harvest` | "at the end of each harvest" | Ropemaker, Uncaring Parents, **Winter Caretaker (re-time target)** |
-| 17 | `after_harvest` | "immediately after each harvest" = "after each harvest" (RULED 2026-07-05: the same instant — one window, was two) | **Elephantgrass Plant (re-time target)**, Value Assets, Eternal Rye Cultivation |
+| 17–18 | `after_harvest` | "immediately after each harvest" = "after each harvest" (RULED 2026-07-05, ruling 18: the same instant — one window, was two) | **Elephantgrass Plant (re-time target)**, Value Assets, Eternal Rye Cultivation |
 | — | *(before the start of the next round)* | "before the start of each round" | the separate hook already designed in `CARD_DEFERRED_PLANS.md` (resource_analyzer); fires **after** the after-harvest window, before income/reveal |
 
 **Ordering derivation (former open question #1 — RESOLVED 2026-07-05).** The original ladder
@@ -100,12 +99,13 @@ model. The user ruled the two phrasings name the SAME instant ("confusing and un
 wording, not a timing distinction) and the windows were merged; end-of-harvest before
 after-harvest stands on the post-breeding-timeline ruling (2026-07-03 — inside vs outside
 the harvest). **Standing instruction (same ruling): the equivalence does NOT generalize —
-every occurrence of "immediately" in a card text gets its own user ruling.** The first open
-instance is the FEED analog this section used as its motivating pair: Social Benefits
-(`immediately_after_feeding`) vs Farm Store (`after_feeding`) — if Farm Store could spend
-your last food *before* Social Benefits checked "if you have no food left," the check flips.
-Whether that pair also collapses (giving the owner the order choice) is awaiting the user
-(§8 #7).
+every occurrence of "immediately" in a card text gets its own user ruling.** The first
+instance — the FEED analog this section used as its motivating pair, Social Benefits vs
+Farm Store — was ruled the same day (ruling 19): that pair also collapses (one
+`after_feeding` window), and the ordering the two-window design existed to protect (Social
+Benefits' "if you have no food left" check before Farm Store can spend the last food) is
+carried by the standing autos-before-triggers within-window convention instead, at the
+user's direction. Behaviorally identical to the two-window encoding for these two cards.
 
 **Windows are data, not code.** The ladder is one ordered table (`HARVEST_WINDOWS` in
 `agricola/cards/…`); adding a window a future card names is a table row, not a subsystem.
@@ -297,10 +297,13 @@ attach later without reshaping the harvest.
   card_id, fn)`, folded when computing each player's food requirement (2/adult + 1/newborn
   base): Child's Toy (newborns cost 2), Old Miser [4] (−1 per person). Two members, one 2p —
   built when either lands, but the requirement computation should be chokepointed now.
-- `immediately_after_feeding` (#10) then `after_feeding` (#11): the anti-food-laundering
-  windows — proceeds cannot pay the feeding that already resolved. Window #11 **is** the
-  previously-sketched "PendingHarvestFeed after-phase" (`CARD_DEFERRED_PLANS.md`), realized
-  as a ladder window instead of a frame phase; un-archive Farm Store onto it.
+- `after_feeding` (one window — ruling 19, 2026-07-05, merged the original
+  `immediately_after_feeding`/`after_feeding` pair: the same instant): the
+  anti-food-laundering window — proceeds cannot pay the feeding that already resolved, and
+  Social Benefits (auto) resolves before Farm Store (optional trigger) via the standing
+  autos-before-triggers ordering. This window **is** the previously-sketched
+  "PendingHarvestFeed after-phase" (`CARD_DEFERRED_PLANS.md`), realized as a ladder window
+  instead of a frame phase; un-archive Farm Store onto it.
 
 **BREED.** The breeding frontier is untouched. Around it:
 - `start_of_breeding` (#12): Shepherd's Whistle (its granted sheep routes through
@@ -372,11 +375,10 @@ retired in the same batch (superseded by windows #3–#5 and the cursor).
 5. RESOLVED 2026-07-03 — Home Brewer re-homes to window #7 (§7).
 6. Dung Collector's any-source newborn event (§5) — defer, or widen when the breed windows
    are built?
-7. Does the FEED-band pair also collapse — Social Benefits ("IMMEDIATELY after the feeding
-   phase") vs Farm Store ("after the feeding phase")? Per the 2026-07-05 standing
-   instruction, every "immediately" gets its own user ruling; this one is mechanically
-   live (Farm Store spending the last food flips Social Benefits' "no food left" check,
-   and a merge would hand the owner the order choice).
+7. RESOLVED 2026-07-05 (ruling 19) — the FEED pair collapses too (one `after_feeding`
+   window), Social Benefits FIRST: the ordering rides the standing autos-before-triggers
+   convention (Social Benefits is an auto, Farm Store an optional trigger), so a player
+   cannot spend their last food at Farm Store and then collect the "no food left" grant.
 
 ## 9. Build stages
 
@@ -684,8 +686,9 @@ of §0–§11 is the authority; this only orients.*
   engine work): the feeding-income moment (`register_auto("feeding", …)` fires at the
   FEED entry, before payment) with Dentist (two-part: wood bank at start_of_harvest,
   per-wood food payout at feeding) and Town Hall; Farm Store un-archived onto
-  after_feeding (7 output variants); Social Benefits at immediately_after_feeding
-  (post-payment food==0 is exact); Cubbyhole (room-add banking via the build-rooms
+  after_feeding (7 output variants); Social Benefits also at after_feeding — auto,
+  so it resolves first (originally at a separate immediately_after_feeding window;
+  merged 2026-07-05 by ruling 19; post-payment food==0 is exact); Cubbyhole (room-add banking via the build-rooms
   host hooks + a start_of_feeding payout, modeled NON-consuming per the literal text —
   flagged for the owner); Bumper Crop (the bare source-tagged take, rulings 4/12, with
   non-vacuous phase/source-gate negatives); Scythe E73 (the second choice-bearing
@@ -716,14 +719,14 @@ of §0–§11 is the authority; this only orients.*
   integration pending:** `design_docs/cards/CARD_ENGINE_DOC_CAPTURE.md` lists what a
   fresh session must fold into CARD_ENGINE_IMPLEMENTATION.md.
 - **Rulings quick list:** `CARD_DEFERRED_PLANS.md` "Harvest-window redesign — user rulings"
-  (18 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
+  (19 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
 - **Open questions still needing the user:** §8 #6 (Dung Collector's any-source newborn
-  event — defer, don't stretch #14); §8 #7 (does the FEED "immediately" pair — Social
-  Benefits vs Farm Store — also collapse? every "immediately" needs its own ruling per
-  ruling 18); §10 (7) span end #16, (8) late-anchor ratification, (9) craft-major
-  surfacing. RESOLVED: #1 ("immediately after each harvest" = "after each harvest",
-  ruling 18 — windows merged into `after_harvest`; Value Assets itself is still
-  UNIMPLEMENTED), #2 (Layabout — ruling 14, whole-harvest cancellation, every window
-  included), #4 (Lynchet — migrated 2026-07-05). Newborn feeding for window-#1/#2
-  growths RATIFIED at 1 food (ruling 13).
+  event — defer, don't stretch #14); §10 (7) span end #16, (8) late-anchor ratification,
+  (9) craft-major surfacing. RESOLVED: #1 ("immediately after each harvest" = "after
+  each harvest", ruling 18 — windows merged into `after_harvest`; Value Assets itself is
+  still UNIMPLEMENTED), #2 (Layabout — ruling 14, whole-harvest cancellation, every
+  window included), #4 (Lynchet — migrated 2026-07-05), #7 (the FEED pair collapses too,
+  ruling 19 — Social Benefits first via autos-before-triggers). Newborn feeding for
+  window-#1/#2 growths RATIFIED at 1 food (ruling 13). Standing instruction (ruling 18):
+  every "immediately" in card text gets its own user ruling.

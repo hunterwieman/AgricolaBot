@@ -4,19 +4,20 @@ Card text (verbatim): "After the feeding phase of each harvest, you can exchange
 exactly 1 food for 2 different building resources of your choice or 1 vegetable."
 Cost: 2 Wood, 2 Clay. VPs: 0 (printed blank). No prerequisite. Not passing.
 
-TIMING — window #11 ``after_feeding``. The printed "after the feeding phase of
+TIMING — the ``after_feeding`` window. The printed "after the feeding phase of
 each harvest" maps to the harvest ladder's ``after_feeding`` window
 (``agricola/cards/harvest_windows.py``; design of record
-``design_docs/cards/HARVEST_WINDOWS_DESIGN.md`` §1 row 11, which names this card
-as the ``after_feeding`` member). ``after_feeding`` resolves AFTER the FEED
-payment frames (the feeding phase) and after the ``immediately_after_feeding``
-window (#10, Social Benefits) — the anti-food-laundering ordering (§1 open-
-question #1, design doc §5): because the effect fires post-payment, the food it
-spends can never pay a feeding cost that has already resolved, and it runs after
-any "if you have no food left" check on the neighbouring window. This is the
-timing home the card was originally shelved for lacking; the previously-sketched
-"``PendingHarvestFeed`` after-phase" is realized as this ladder window
-(design doc §5, 2026-07-05 un-archival).
+``design_docs/cards/HARVEST_WINDOWS_DESIGN.md`` §1). Per the user ruling of
+2026-07-05, "immediately after the feeding phase" (Social Benefits) is the SAME
+instant — one window — and the ruled ordering is Social Benefits FIRST, carried
+by the standing autos-before-triggers convention (Social Benefits is an
+automatic effect; this card is an optional trigger). The anti-food-laundering
+property holds: the effect fires post-payment, so the food it spends can never
+pay a feeding cost that has already resolved, and Social Benefits' "if you have
+no food left" check runs before this exchange can spend the last food. This is
+the timing home the card was originally shelved for lacking; the
+previously-sketched "``PendingHarvestFeed`` after-phase" is realized as this
+ladder window (design doc §5, 2026-07-05 un-archival).
 
 THE EFFECT — "you CAN exchange" is optional, so this is a declinable TRIGGER
 (``register`` on the ``after_feeding`` window event), not an automatic effect.
