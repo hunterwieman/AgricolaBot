@@ -83,6 +83,7 @@ from agricola.pending import (
     PendingGrantedBuildFences,
     PendingFoodPayment,
     PendingGrainUtilization,
+    PendingHarvestOccasion,
     PendingHarvestWindow,
     PendingMeetingPlace,
     PendingCardChoice,
@@ -1508,6 +1509,8 @@ def _enumerate_pending_sow(
       - grain <= p.resources.grain
       - veg <= p.resources.veg
       - grain + veg <= number of empty field cells
+      - grain + veg <= pending.max_fields when set (a card-granted partial
+        sow — Fodder Planter's per-newborn cap; 0 = uncapped)
 
     Order: sorted by (grain, veg) ascending.
 
@@ -1527,11 +1530,14 @@ def _enumerate_pending_sow(
         and p.farmyard.grid[r][c].grain == 0
         and p.farmyard.grid[r][c].veg == 0
     )
+    cap = empty_fields
+    if pending.max_fields:
+        cap = min(cap, pending.max_fields)
     for g in range(p.resources.grain + 1):
         for v in range(p.resources.veg + 1):
             if g + v == 0:
                 continue
-            if g + v > empty_fields:
+            if g + v > cap:
                 continue
             actions.append(CommitSow(grain=g, veg=v))
     return actions
@@ -2229,7 +2235,8 @@ def _enumerate_pending_harvest_feed(
     skip is indistinguishable from forfeiting it at commit).
 
     `food_owed` is derived on each call from the live player state:
-        need      = 2*people_total - newborns
+        need      = helpers.feeding_requirement (2*people_total - newborns
+                    + any owned card folds — Child's Toy)
         food_owed = max(0, need - p.resources.food)
     Not cached on the pending — see CLAUDE.md Foundations (Derived data,
     not cached data). Recomputing here means any food the player
@@ -2241,7 +2248,11 @@ def _enumerate_pending_harvest_feed(
     consume-nothing + beg-everything entry).
     """
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
-    from agricola.helpers import cooking_rates, harvest_feed_frontier
+    from agricola.helpers import (
+        cooking_rates,
+        feeding_requirement,
+        harvest_feed_frontier,
+    )
 
     actions: list[Action] = []
     p = state.players[pending.player_idx]
@@ -2264,7 +2275,7 @@ def _enumerate_pending_harvest_feed(
     # 2. All Pareto-frontier CommitConvert points. Invert REMAINING tuples
     #    to CONSUMED amounts (consumed = player_max - remaining).
     rates = cooking_rates(state, pending.player_idx)  # 4-tuple
-    need       = 2 * p.people_total - p.newborns
+    need       = feeding_requirement(state, pending.player_idx)
     food_owed  = max(0, need - p.resources.food)
     grain_pre  = p.resources.grain
     veg_pre    = p.resources.veg
@@ -2290,19 +2301,32 @@ def _enumerate_pending_harvest_breed(
 ) -> list[Action]:
     """Enumerate legal actions at PendingHarvestBreed.
 
-    Before `breed_chosen`: one CommitBreed per Pareto-frontier point from
+    Before `breed_chosen`: the frame's pre-commit card triggers (event
+    "breeding" — Stone Importer's stone buy; user ruling 20, 2026-07-05: an
+    in-breeding-phase effect fires BEFORE the CommitBreed decision, never
+    after) plus one CommitBreed per Pareto-frontier point from
     breeding_frontier (frontier always non-empty — includes at minimum the
-    do-nothing config). After `breed_chosen`: only Stop.
+    do-nothing config). After `breed_chosen`: the outcome-reactive triggers
+    (event "breeding_outcome" — the Fodder Planter / Slurry Spreader C71 sow
+    grants, still inside the breeding phase) plus Stop, which declines
+    whatever is unfired. Both trigger lookups are empty-dict no-ops in the
+    Family game.
     """
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
     from agricola.helpers import breeding_frontier, cooking_rates
 
-    actions: list[Action] = []
     p = state.players[pending.player_idx]
 
     if pending.breed_chosen:
-        actions.append(Stop())
+        actions = _expand_variant_triggers(
+            state, pending,
+            _eligible_fire_triggers(state, pending, "breeding_outcome"))
+        if not has_unfired_mandatory_trigger(state, pending, "breeding_outcome"):
+            actions.append(Stop())
         return actions
 
+    actions = _expand_variant_triggers(
+        state, pending, _eligible_fire_triggers(state, pending, "breeding"))
     rates_3 = cooking_rates(state, pending.player_idx)[:3]
     for (cfg, _food) in breeding_frontier(p, rates_3):
         actions.append(CommitBreed(sheep=cfg.sheep, boar=cfg.boar, cattle=cfg.cattle))
@@ -2705,28 +2729,41 @@ def _enumerate_pending_field_phase(
     - `Proceed` (the exit) only once the take HAS fired, and never while a
       mandatory-with-choice trigger is unfired, exactly like every other host.
     """
-    from agricola.cards.harvest_windows import (
-        choice_take_modifiers,
-        fold_chosen_modifiers,
-    )
+    from agricola.cards.harvest_windows import take_modifier_combos
     from agricola.cards.triggers import has_unfired_mandatory_trigger
 
     base = _eligible_fire_triggers(state, pending, "field_phase")
     actions = _expand_variant_triggers(state, pending, base)
     if not pending.take_fired:
-        combos: list[tuple] = [()]
-        for card_id, variants in choice_take_modifiers(state, pending.player_idx):
-            combos = [c + pair
-                      for c in combos
-                      for pair in ([()]                    # decline this card
-                                   + [((card_id, v),) for v in variants])]
-        # Feasibility filter: a combination whose merged demands can't all be
-        # met (two modifiers competing for the same fields' spare) is dropped —
-        # every offered CommitFieldTake must be executable.
+        # take_modifier_combos is the cross-product of each owned modifier's
+        # variants-or-decline, feasibility-filtered (a combination whose
+        # merged demands can't all be met — two modifiers competing for the
+        # same fields' spare — is dropped), so every offered CommitFieldTake
+        # is executable.
         actions.extend(
-            CommitFieldTake(modifiers=c) for c in combos
-            if fold_chosen_modifiers(state, pending.player_idx, c) is not None)
+            CommitFieldTake(modifiers=c)
+            for c in take_modifier_combos(state, pending.player_idx))
     elif not has_unfired_mandatory_trigger(state, pending, "field_phase"):
+        actions.append(Proceed())
+    return actions
+
+
+def _enumerate_pending_harvest_occasion(
+    state: GameState, pending,
+) -> list[Action]:
+    """Legal actions at a PendingHarvestOccasion host (card game only): the
+    player's eligible optional reactions to the frame's just-emitted harvest
+    occasion (event "harvest_occasion" — Potato Ridger's 3-veg exchange, Food
+    Merchant's per-grain buys), variant-expanded, plus Proceed to decline and
+    pop. The occasion payload rides the frame; the registered elig/variants/
+    apply adapters read it from the stack top (harvest_windows.
+    register_harvest_occasion_trigger)."""
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
+
+    actions = _expand_variant_triggers(
+        state, pending,
+        _eligible_fire_triggers(state, pending, "harvest_occasion"))
+    if not has_unfired_mandatory_trigger(state, pending, "harvest_occasion"):
         actions.append(Proceed())
     return actions
 
@@ -2756,6 +2793,7 @@ def _enumerate_pending_draft_pick(
 PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingPreparation:         _enumerate_pending_preparation,
     PendingHarvestWindow:       _enumerate_pending_harvest_window,
+    PendingHarvestOccasion:     _enumerate_pending_harvest_occasion,
     PendingFieldPhase:          _enumerate_pending_field_phase,
     PendingCardChoice:          _enumerate_pending_card_choice,
     PendingPlayOccupation:      _enumerate_pending_play_occupation,

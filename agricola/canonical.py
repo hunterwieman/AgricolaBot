@@ -124,11 +124,23 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # defaults (every Family plow is single-shot), so omitting them keeps the Family JSON
     # byte-identical and needs no C++ change.
     "max_plows", "num_plowed",
+    # PendingSow cap for card-granted partial sows (Fodder Planter's per-newborn
+    # one-field sows): Family-constant 0 (= uncapped, every Family sow), so omitting
+    # it keeps the Family JSON byte-identical and needs no C++ change.
+    "max_fields",
     # Card-only harvest-window walk cursor (engine._advance_harvest): set only while
     # a PendingHarvestWindow choice frame pauses the window walk mid-segment —
     # Family-constant None (no window cards → no frames), so omitting it keeps the
     # Family JSON byte-identical and needs no C++ change.
     "harvest_cursor",
+    # QUALIFIED entries ("<Type>.<field>") skip a field on ONE dataclass only —
+    # for a field whose NAME is emitted on other (Family) frames but whose value
+    # is Family-constant-default on this one. PendingHarvestBreed exists in every
+    # Family harvest, but only cards ever stamp its triggers_resolved (the
+    # in-breeding-phase card triggers, Stone Importer et al.), so omitting it at
+    # default keeps the Family JSON byte-identical with no C++ change — while the
+    # sow/bake/plow frames keep emitting theirs as before.
+    "PendingHarvestBreed.triggers_resolved",
 })
 
 
@@ -171,7 +183,9 @@ def to_canonical(obj: Any) -> Any:
             if not f.init:
                 continue
             value = getattr(obj, f.name)
-            if f.name in _DEFAULT_SKIP_FIELDS and _is_field_default(f, value):
+            if ((f.name in _DEFAULT_SKIP_FIELDS
+                 or f"{type(obj).__name__}.{f.name}" in _DEFAULT_SKIP_FIELDS)
+                    and _is_field_default(f, value)):
                 continue  # default card field → omit (keeps Family JSON byte-identical)
             out[f.name] = to_canonical(value)
         return out

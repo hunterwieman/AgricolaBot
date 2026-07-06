@@ -30,6 +30,7 @@ Contents:
 3. The registries — every `register_*` seam
 4. Card state & pending frames
 5. Costs, food & capacity — the three resolution layers
+5b. The harvest timing windows — the ladder, the take & its manifest, take-modifiers, skips
 6. Rulings & idioms
 7. Implementing a card (process pointer)
 8. Boundaries — what deliberately does not exist
@@ -110,7 +111,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-02, HEAD `ed20a52`.** A card batch is not integrated until this
+> **Last updated: 2026-07-05, HEAD `457afdb`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -122,11 +123,23 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 265 cards — 86 occupations + 179 minors**, spanning decks A–E
+- **Implemented & registered: 291 cards — 96 occupations + 195 minors**, spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
-  §2–§5 is live and exercised; the full pytest suite and the C++ Family differential gates are
+  §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
   green as of the last integrated batch.
+- **The harvest timing-window system landed (the 2026-07-03 → 05 arc)**: the window ladder +
+  virtual walk, the take-occasion manifest, the take-modifier fold-ins, harvest skips, and
+  feeding income. **§5b is the machinery reference**; `design_docs/cards/HARVEST_WINDOWS_DESIGN.md`
+  is the design of record (its §12 is the as-built code map), `HARVEST_HANDOFF.md` (repo root)
+  preserves the session reasoning behind every ruling, and the 19 dated rulings live in
+  `CARD_DEFERRED_PLANS.md`. The legacy `harvest_field` seam is deleted (§5b, last subsection).
+- **In flight (uncommitted working tree at this stamp)**: a follow-on batch is mid-build on top
+  of this HEAD — BREED-frame trigger events + a breeding-outcome payload (Stone Importer,
+  Fodder Planter), the per-occasion trigger surfacing (Potato Ridger / Food Merchant),
+  feeding-requirement folds (Child's Toy), and a capped partial sow. `HARVEST_HANDOFF.md` §12
+  is its worklist with per-item cautions; this document describes HEAD and must be re-stamped
+  when that batch lands.
 - **Per-card status + mechanics classification:** `CARD_IMPLEMENTATION_PROGRESS.md` (the
   adjudicated two-pass taxonomy). **Deferred cards:** clustered with build proposals in
   `CARD_DEFERRED_PLANS.md` (+ the C/D/E triage's defers in `CARD_TRIAGE_CDE.md`); deferred
@@ -261,8 +274,11 @@ triggers fire on `before_/after_action_space`, `before_bake_bread`, `before_plow
 `after_play_minor`, `start_of_round`; autos additionally on `after_plow`, `after_sow`,
 `after_renovate`, `after_build_major`, `after_build_rooms`, `after_build_stables`,
 `after_major_minor_improvement`, `before_play_minor`, `before_build_major`, `before_build_rooms`,
-`harvest_field`, and the coarse `after_build_improvement` ("any improvement built" — fired by
-`_execute_play_minor` and the major-build path for cards like Junk Room).
+and the coarse `after_build_improvement` ("any improvement built" — fired by
+`_execute_play_minor` and the major-build path for cards like Junk Room). The harvest adds its
+own event family: every simple harvest-window id is a literal event string (`start_of_harvest`,
+`after_feeding`, `end_of_harvest`, …), plus the during-window `field_phase` and the
+feeding-income `feeding` — §5b. (The old `harvest_field` event is deleted.)
 
 ### The three firing kinds
 
@@ -345,8 +361,10 @@ Where each firing actually happens in the engine — the complete set of call si
 | Composite host | `before_/after_major_minor_improvement` autos | its choose-handler push / the Delegating auto-advance |
 | Any improvement built | `after_build_improvement` autos | `_execute_play_minor` / the major-build path |
 | Round start | `start_of_round` autos | `_fire_preparation_hook` (at each `PendingPreparation` push); its triggers via the host's enumerator |
-| Harvest field phase | `harvest_field` autos | `_fire_harvest_field_hook`, inside `_resolve_harvest_field` *before* the crop take (Scythe Worker reads unharvested fields), per player in starting-player-first order |
-| Harvest field phase (optional) | `harvest_field` triggers | the per-player `PendingHarvestField` choice host, pushed by `_resolve_harvest_field` after the autos and before the crop take (two-stage walk via `GameState.field_triggers_offered`); Stable Manure |
+| Harvest windows | the window-id autos + triggers | `engine._advance_harvest` — the virtual walk (§5b): per window, autos fire for both players SP-first, then a per-player `PendingHarvestWindow` choice host is pushed for each player with an eligible trigger (SP decides first) |
+| Harvest field phase | `field_phase` autos + triggers; the take | `engine._field_phase_step` (§5b): autos, then `PendingFieldPhase` when the player has a during-window decision (an eligible trigger or a usable choice-bearing take-modifier), else the inline take — with a post-take re-check that hosts the frame when take income enabled a trigger |
+| Harvest occasions | the per-occasion autos | `apply_harvest_occasion_autos`, wherever a `HarvestOccasion` is emitted — the walk's inline take, `_execute_field_take`, or a bare card-driven `field_take` (§5b) |
+| Feeding income | `feeding` autos | `_initiate_harvest_feed`, per player SP-first, before the payment frames are pushed (§5b) |
 | Renovate / card play | the one-shot conditional sweep | `_fire_ready_one_shots` (§3), called after a renovate applies and after any card is played |
 | Triggers (all events) | `FireTrigger` surfacing | each host enumerator via `_eligible_fire_triggers` + `_expand_variant_triggers` |
 
@@ -433,14 +451,11 @@ module-local `_owns(player_state, card_id)` helpers.
   hook would wrap its pushing handler in a generic `PendingActionSpace`, whose `Proceed` would
   then flip the *pushed child* instead of the host — a latent misfire guarded only by this
   convention.
-- **`register_harvest_field_hook(card_id)`** → `HARVEST_FIELD_CARDS`, consulted by
-  `should_host_harvest_field`. Pair with `register_auto("harvest_field", ...)` for a mandatory
-  effect (exemplars: `scythe_worker`, `loom`) **or** `register("harvest_field", ...)` for an
-  optional TRIGGER: field-phase triggers are surfaced at the per-player `PendingHarvestField`
-  choice host that `_resolve_harvest_field` pushes after the autos fire and before the
-  mechanical crop take (§4) — declining is the host's `Proceed` (a pure pop), and variant
-  expansion works there like the other hosts. Exemplar: `stable_manure`, whose variants are
-  count vectors over (crop, crops-remaining) donor-field groups.
+- **`register_harvest_field_hook` is GONE** (2026-07-05, with the whole legacy `harvest_field`
+  seam — `HARVEST_FIELD_CARDS`, `should_host_harvest_field`, `PendingHarvestField`). Harvest
+  cards now register on the timing-window ladder: the printed instant's window id is the event
+  (`register`/`register_auto` as usual) plus a `register_harvest_window_hook` index entry —
+  see the `harvest_windows.py` block below and §5b.
 - **`register_start_of_round_hook(card_id)`** → `START_OF_ROUND_CARDS`, consulted by
   `should_host_preparation` (together with `has_scheduled_round_start_effect` — a
   `future_rewards` slot carrying effect-card ids drives hosting on its own, so a deferred grant

@@ -48,6 +48,7 @@ and the C++ gates are untouched.
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
+from agricola.cards.triggers import register_card_choice_resolver
 from agricola.constants import CellType
 from agricola.state import GameState
 
@@ -66,17 +67,55 @@ def _prereq(state: GameState, idx: int) -> bool:
     return grain_fields >= 2
 
 
-def _on_play(state: GameState, idx: int) -> GameState:
-    """Immediately play the field phase EFFECT on the owner's farmyard only
-    (ruling 4): the bare take (1 crop per planted field), then emit its occasion.
+def _take(state: GameState, idx: int, modifiers=()) -> GameState:
+    """The bare take with the chosen UNSCOPED-modifier uses folded in, then
+    emit its occasion. Harvest-scoped modifiers (Stable Manure, Scythe
+    Worker, Scythe) never fold here (ruling 12 — this is not a harvest);
+    unscoped ones (Grain Thief's per-field replacement) do, because "each
+    time you would harvest a grain field" reads on the field-phase effect
+    wherever it runs.
 
     Imported here (not at module top) to avoid an import cycle — the cards
-    package is imported by the engine, so a top-level ``import resolution`` would
-    cycle. The load-order-safe pattern the rest of the cards package uses.
+    package is imported by the engine, so a top-level ``import resolution``
+    would cycle. The load-order-safe pattern the rest of the cards package
+    uses.
     """
     from agricola import resolution
-    state, occasion = resolution.field_take(state, idx, source="card:bumper_crop")
+    from agricola.cards.harvest_windows import fold_chosen_modifiers
+
+    plan = fold_chosen_modifiers(state, idx, modifiers, harvest=False)
+    assert plan is not None, "infeasible modifier combo offered at Bumper Crop"
+    state, occasion = resolution.field_take(
+        state, idx, source="card:bumper_crop",
+        extra_takes=plan.extras or None,
+        skip_cells=plan.skipped, bonus=plan.bonus)
     return resolution.emit_harvest_occasion(state, idx, occasion)
 
 
+def _on_play(state: GameState, idx: int) -> GameState:
+    """Immediately play the field phase EFFECT on the owner's farmyard only
+    (ruling 4). When the owner also owns a usable UNSCOPED choice-bearing
+    take-modifier (Grain Thief), the use is the player's choice — surface it
+    as a PendingCardChoice over the feasible modifier combinations (the bare
+    `()` = use none) and resolve the take on the pick; otherwise take
+    directly."""
+    from agricola.cards.harvest_windows import take_modifier_combos
+    from agricola.pending import PendingCardChoice, push
+
+    combos = take_modifier_combos(state, idx, harvest=False)
+    if len(combos) > 1:
+        return push(state, PendingCardChoice(
+            player_idx=idx, initiated_by_id=f"card:{CARD_ID}",
+            options=tuple(combos)))
+    return _take(state, idx)
+
+
+def _resolve_choice(state: GameState, idx: int, chosen) -> GameState:
+    """Apply the picked modifier combination (the PendingCardChoice contract:
+    pop the frame, then run the take with the chosen uses folded in)."""
+    from agricola.pending import pop
+    return _take(pop(state), idx, modifiers=chosen)
+
+
 register_minor(CARD_ID, prereq=_prereq, vps=1, on_play=_on_play)
+register_card_choice_resolver(CARD_ID, _resolve_choice)

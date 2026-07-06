@@ -208,6 +208,63 @@ def window_skipped(state, player_idx: int, window_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Breeding-outcome autos (design doc §5 — the which-newborns payload event)
+# ---------------------------------------------------------------------------
+# Cards that react to WHICH newborns a player's breeding actually placed
+# ("for each newborn animal you get…" — Fodder Planter; "if you get newborn
+# animals of at least two types" — Slurry Spreader C71; Champion Breeder [3+])
+# register here with (state, owner_idx, outcome) signatures, where `outcome`
+# is the `BreedingOutcome` payload computed at `resolution._execute_breed`
+# from the engine's own kept-newborn indicator. These are AUTOS — typically
+# they write a round-keyed CardStore latch; the OPTIONAL follow-up choice
+# (the sow grants) then surfaces as a "breeding_outcome" trigger on the still-
+# open breed frame, whose eligibility reads the latch. NOT for any-source
+# newborn gains (Dung Collector — deliberately out of scope, §12 handoff).
+# Family fast path: empty list, one truthiness test.
+
+
+BREEDING_OUTCOME_AUTOS: list = []
+
+
+def register_breeding_outcome_auto(card_id, eligibility_fn, apply_fn) -> None:
+    """Register a breeding-outcome consequence (card-module import time).
+    eligibility_fn/apply_fn signatures: (state, owner_idx, outcome)."""
+    BREEDING_OUTCOME_AUTOS.append(OccasionEntry(card_id, eligibility_fn, apply_fn))
+
+
+def apply_breeding_outcome_autos(state, owner_idx: int, outcome):
+    """Fire every owned, eligible breeding-outcome AUTO for one player's just-
+    resolved breeding, in registration order. Called by `_execute_breed` with
+    the frame still on top. A no-op when nothing is registered."""
+    for e in BREEDING_OUTCOME_AUTOS:
+        p = state.players[owner_idx]
+        if _owns(p, e.card_id) and e.eligibility_fn(state, owner_idx, outcome):
+            state = e.apply_fn(state, owner_idx, outcome)
+    return state
+
+
+# ---------------------------------------------------------------------------
+# Feeding-requirement folds (design doc §5 — the feeding-cost fold)
+# ---------------------------------------------------------------------------
+# Cards that change WHAT FEEDING COSTS ("your newborns require 2 food" —
+# Child's Toy; Old Miser [4]'s per-person discount) fold into the requirement
+# at its single computation chokepoint, `helpers.feeding_requirement` (the
+# base is 2 per adult + 1 per newborn, expressed as 2*people_total − newborns).
+# Each fold is `fn(state, owner_idx, need) -> need'`, applied for its owner in
+# registration order. The FOLDED requirement flows into the memoized feed
+# frontier as the `food_owed` ARGUMENT (part of the cache key), so no
+# card-dependent input hides from the cache — the FRONTIER_OPT footgun does
+# not arise here. Family fast path: empty dict, one truthiness test.
+FEEDING_REQUIREMENT_FOLDS: dict[str, Callable] = {}
+
+
+def register_feeding_requirement(card_id: str, fold_fn: Callable) -> None:
+    """Register a feeding-requirement fold (card-module import time).
+    fold_fn signature: (state, owner_idx, need) -> int."""
+    FEEDING_REQUIREMENT_FOLDS[card_id] = fold_fn
+
+
+# ---------------------------------------------------------------------------
 # Take-modifier fold-ins (design doc §4b; user ruling 11, 2026-07-05)
 # ---------------------------------------------------------------------------
 # ALL field-phase harvesting is ONE simultaneous event: a card that harvests
@@ -243,41 +300,82 @@ def window_skipped(state, player_idx: int, window_id: str) -> bool:
 
 
 @dataclass(frozen=True)
+class TakeFold:
+    """What one modifier's fold contributes to the take — the richer return
+    shape (a bare dict of extras is accepted as shorthand for
+    ``TakeFold(extras=d)``).
+
+    extras  — extra units to harvest per cell, ON TOP of the base 1.
+    skipped — cells REPLACED out of the take entirely (Grain Thief's "leave
+              the grain on the field … instead"): the base 1 is not taken, no
+              extras may target them, and the manifest gets NO entry for them
+              (the field was not harvested — flagged reading, 2026-07-05).
+    bonus   — goods from the GENERAL SUPPLY granted by the replacement
+              (Grain Thief's 1 grain per replaced field). Not harvested, so
+              never in the manifest.
+    """
+    extras: dict = None            # type: ignore[assignment]
+    skipped: frozenset = frozenset()
+    bonus: "Resources | None" = None
+
+    def __post_init__(self):
+        if self.extras is None:
+            object.__setattr__(self, "extras", {})
+
+
+@dataclass(frozen=True)
 class TakeModifierEntry:
     """One registered take-modifier.
 
     fold_fn signature:
-        (state, owner_idx, variant | None, claimed) -> dict[(r, c), int] | None
-        — extra units to harvest per farmyard cell, ON TOP of the take's base
-        1-per-planted-field. `claimed` maps cells to extras ALREADY allocated
-        by earlier modifiers in the same take (the base 1 is implicit on every
-        planted cell): a fold may only allocate within each cell's remaining
-        spare (count − 1 − claimed), redirecting to another cell of its target
-        group where one exists. Returns None when its printed demand cannot be
-        fully met given the claims — the enumerator then drops that modifier
-        COMBINATION as infeasible (never offered), so `step` can't be handed
-        an over-harvesting action. Allocation order: chosen modifiers in combo
-        order (= registration order — rigid fixed-demand cards like Stable
-        Manure register before flexible ones like Scythe, which is
-        load-bearing for feasibility), then the auto fold-ins last (Scythe
-        Worker degrades gracefully — a field with no spare simply has no
-        "additional" grain to give).
+        (state, owner_idx, variant | None, claimed)
+            -> dict[(r, c), int] | TakeFold | None
+        — the modifier's contribution to the one take event (a bare dict is
+        extras-only shorthand). `claimed` maps cells to units ALREADY spoken
+        for by earlier modifiers in the same take (the base 1 is implicit on
+        every planted cell; a REPLACED cell is entered at its full crop count,
+        so later folds see zero spare there): a fold may only allocate within
+        each cell's remaining spare (count − 1 − claimed), redirecting to
+        another cell of its target group where one exists. Returns None when
+        its printed demand cannot be fully met given the claims — the
+        enumerator then drops that modifier COMBINATION as infeasible (never
+        offered), so `step` can't be handed an over-harvesting action.
+        Allocation order: chosen modifiers in `order` (below), then the auto
+        fold-ins last (Scythe Worker degrades gracefully — a field with no
+        spare simply has no "additional" grain to give).
     variants_fn signature: (state, owner_idx) -> list[str]
         — the currently-legal variant strings (empty = no legal use now), or
         None for an auto fold-in (no choice; fold_fn is called with variant
         None).
+    order — allocation precedence within a combo, load-bearing for
+        feasibility: 0 = REPLACE-kind (Grain Thief — removes cells from the
+        take, so everyone downstream must see the skips), 1 = RIGID fixed-
+        demand (Stable Manure), 2 = FLEXIBLE (Scythe). Ties keep registration
+        order.
+    harvest_scoped — True (default) for cards printed "of each harvest"
+        (ruling 12): the fold applies only to a REAL harvest's take. False
+        for unscoped wording ("each time you would harvest a grain field" —
+        Grain Thief): the fold also applies to a card-driven bare field take
+        (Bumper Crop's played field phase).
     """
     card_id: str
     fold_fn: Callable
     variants_fn: Callable | None = None
+    order: int = 1
+    harvest_scoped: bool = True
 
 
 TAKE_MODIFIERS: list[TakeModifierEntry] = []
 
 
-def register_take_modifier(card_id, fold_fn, *, variants_fn=None) -> None:
-    """Register a field-phase take-modifier (card-module import time)."""
-    TAKE_MODIFIERS.append(TakeModifierEntry(card_id, fold_fn, variants_fn))
+def register_take_modifier(card_id, fold_fn, *, variants_fn=None,
+                           order: int = 1, harvest_scoped: bool = True) -> None:
+    """Register a field-phase take-modifier (card-module import time). The
+    list is kept sorted by `order` (stable — ties keep registration order),
+    which fixes both combo-fold precedence and enumeration order."""
+    TAKE_MODIFIERS.append(TakeModifierEntry(
+        card_id, fold_fn, variants_fn, order, harvest_scoped))
+    TAKE_MODIFIERS.sort(key=lambda e: e.order)
 
 
 def _owns(player_state, card_id: str) -> bool:
@@ -285,12 +383,33 @@ def _owns(player_state, card_id: str) -> bool:
             or card_id in player_state.minor_improvements)
 
 
+@dataclass(frozen=True)
+class TakePlan:
+    """The merged result of every fold applied to one take: the per-cell
+    extras, the replaced-out cells, and the combined supply bonus. What
+    `fold_chosen_modifiers` hands to `field_take`."""
+    extras: dict
+    skipped: frozenset
+    bonus: "Resources | None"
+
+
+def _as_fold(got):
+    """Normalize a fold return (bare extras dict shorthand) to TakeFold."""
+    return got if isinstance(got, TakeFold) else TakeFold(extras=got)
+
+
+def _crop_count(state, idx, cell):
+    c = state.players[idx].farmyard.grid[cell[0]][cell[1]]
+    return c.grain if c.grain > 0 else c.veg
+
+
 def auto_take_fold_ins(state, idx: int, claimed: dict | None = None) -> dict:
     """The merged choice-free extra takes for player `idx`'s take (Scythe
-    Worker's mandatory-max grain), allocated AFTER any `claimed` extras (auto
+    Worker's mandatory-max grain), allocated AFTER any `claimed` units (auto
     fold-ins degrade gracefully — no spare, nothing additional to take, never
-    infeasible). Empty dict — the Family fast path — when no auto modifier is
-    owned."""
+    infeasible; a REPLACED cell arrives pre-claimed at its full count, so
+    nothing is ever taken from it). Empty dict — the Family fast path — when
+    no auto modifier is owned."""
     extras: dict = {}
     claimed = dict(claimed) if claimed else {}
     for e in TAKE_MODIFIERS:
@@ -298,43 +417,87 @@ def auto_take_fold_ins(state, idx: int, claimed: dict | None = None) -> dict:
             got = e.fold_fn(state, idx, None, claimed)
             assert got is not None, (
                 f"auto take fold-in {e.card_id} must degrade, not fail")
-            for cell, n in got.items():
+            fold = _as_fold(got)
+            assert not fold.skipped and fold.bonus is None, (
+                f"auto take fold-in {e.card_id} may only contribute extras")
+            for cell, n in fold.extras.items():
                 extras[cell] = extras.get(cell, 0) + n
                 claimed[cell] = claimed.get(cell, 0) + n
     return extras
 
 
-def choice_take_modifiers(state, idx: int) -> list:
+def choice_take_modifiers(state, idx: int, *, harvest: bool = True) -> list:
     """The owned choice-bearing modifiers with their currently-legal variants:
-    [(card_id, [variant, ...]), ...]. Non-empty forces the during-window frame
-    (the choice must be surfaced); empty — the Family fast path."""
+    [(card_id, [variant, ...]), ...], in fold (`order`) order. Non-empty
+    forces the during-window frame (the choice must be surfaced); empty — the
+    Family fast path. `harvest=False` — the card-driven bare-take path
+    (Bumper Crop) — keeps only the UNSCOPED modifiers (ruling 12: an
+    "of each harvest" fold never applies outside a real harvest)."""
     out = []
     for e in TAKE_MODIFIERS:
-        if e.variants_fn is not None and _owns(state.players[idx], e.card_id):
-            vs = e.variants_fn(state, idx)
-            if vs:
-                out.append((e.card_id, vs))
+        if e.variants_fn is None or not _owns(state.players[idx], e.card_id):
+            continue
+        if not harvest and e.harvest_scoped:
+            continue
+        vs = e.variants_fn(state, idx)
+        if vs:
+            out.append((e.card_id, vs))
     return out
 
 
-def fold_chosen_modifiers(state, idx: int, modifiers) -> dict | None:
-    """Merge the take commit's chosen (card_id, variant) pairs — in combo
-    order, each allocating within the spare the earlier ones left — then the
-    auto fold-ins last, into one per-cell extra-take map. Returns None when
-    some chosen modifier's demand cannot be met given the claims: the
-    enumerator uses that to drop the combination as infeasible, so every
-    offered CommitFieldTake is executable."""
+def take_modifier_combos(state, idx: int, *, harvest: bool = True) -> list:
+    """Every FEASIBLE combination of choice-bearing modifier uses for one
+    take, the bare `()` (use none) included — the cross-product of each owned
+    modifier's variants-or-decline, feasibility-filtered through
+    `fold_chosen_modifiers`. Shared by the FIELD during-frame's
+    CommitFieldTake enumeration and by card-driven takes that must surface
+    the unscoped modifiers' choice (Bumper Crop × Grain Thief,
+    `harvest=False`)."""
+    combos: list[tuple] = [()]
+    for card_id, variants in choice_take_modifiers(state, idx, harvest=harvest):
+        combos = [c + pair
+                  for c in combos
+                  for pair in ([()]                    # decline this card
+                               + [((card_id, v),) for v in variants])]
+    return [c for c in combos
+            if fold_chosen_modifiers(state, idx, c, harvest=harvest) is not None]
+
+
+def fold_chosen_modifiers(state, idx: int, modifiers, *,
+                          harvest: bool = True) -> "TakePlan | None":
+    """Merge the take commit's chosen (card_id, variant) pairs — in fold
+    order, each allocating within what the earlier ones left — then the auto
+    fold-ins last (skipped on the non-harvest path: every auto member is
+    harvest-scoped), into one TakePlan. A REPLACE-kind fold's skipped cells
+    are entered into the claim map at their full crop count, so no later fold
+    can take anything from them. Returns None when some chosen modifier's
+    demand cannot be met given the claims: the enumerator uses that to drop
+    the combination as infeasible, so every offered commit is executable."""
+    from agricola.resources import Resources
+
     extras: dict = {}
+    claimed: dict = {}
+    skipped: set = set()
+    bonus = Resources()
     by_id = {e.card_id: e for e in TAKE_MODIFIERS}
     for card_id, variant in modifiers:
-        got = by_id[card_id].fold_fn(state, idx, variant, extras)
+        got = by_id[card_id].fold_fn(state, idx, variant, claimed)
         if got is None:
             return None
-        for cell, n in got.items():
+        fold = _as_fold(got)
+        for cell in fold.skipped:
+            skipped.add(cell)
+            claimed[cell] = _crop_count(state, idx, cell)
+        if fold.bonus is not None:
+            bonus = bonus + fold.bonus
+        for cell, n in fold.extras.items():
             extras[cell] = extras.get(cell, 0) + n
-    for cell, n in auto_take_fold_ins(state, idx, extras).items():
-        extras[cell] = extras.get(cell, 0) + n
-    return extras
+            claimed[cell] = claimed.get(cell, 0) + n
+    if harvest:
+        for cell, n in auto_take_fold_ins(state, idx, claimed).items():
+            extras[cell] = extras.get(cell, 0) + n
+    return TakePlan(extras=extras, skipped=frozenset(skipped),
+                    bonus=bonus if bonus != Resources() else None)
 
 
 # ---------------------------------------------------------------------------
@@ -357,11 +520,15 @@ def fold_chosen_modifiers(state, idx: int, modifiers) -> dict | None:
 #   Barley Mill (ruling 9: gate on `occasion.source == "take"` — they read the
 #   take's specifics, never a card-granted extra harvest). All migrate here
 #   from the legacy pre-take `harvest_field` snapshot idiom.
-# - TRIGGERS are optional per-occasion offers (Potato Ridger, Food Merchant,
-#   Melon Patch's granted plow). No member is implemented; the registry fixes
-#   the shape now, and the SURFACING machinery (offering them at the
-#   during-frame per logged occasion) lands with the first member — the same
-#   loud-guard pattern as the skip seam above.
+# - TRIGGERS are optional per-occasion offers (Potato Ridger's 3-veg
+#   exchange, Food Merchant's per-grain buys). Right after an occasion's
+#   autos fire, `apply_harvest_occasion_autos` pushes a per-player
+#   `PendingHarvestOccasion` host (the occasion rides the frame) whenever the
+#   owner has an eligible registered trigger — wherever the occasion was
+#   emitted (the walk's inline take, a CommitFieldTake, a card-driven bare
+#   take). The card's (state, idx, occasion)-shaped fns are adapted into the
+#   global trigger registry (event "harvest_occasion") so the standard
+#   FireTrigger dispatch / variant expansion serve them unchanged.
 
 
 @dataclass(frozen=True)
@@ -370,10 +537,14 @@ class OccasionEntry:
 
     eligibility_fn signature: (state, owner_idx, occasion) -> bool
     apply_fn signature:        (state, owner_idx, occasion) -> GameState
+                        or, with variants_fn (triggers only):
+                               (state, owner_idx, occasion, variant) -> GameState
+    variants_fn signature:     (state, owner_idx, occasion) -> list[str]
     """
     card_id: str
     eligibility_fn: Callable
     apply_fn: Callable
+    variants_fn: Callable | None = None
 
 
 HARVEST_OCCASION_AUTOS: list[OccasionEntry] = []
@@ -385,26 +556,72 @@ def register_harvest_occasion_auto(card_id, eligibility_fn, apply_fn) -> None:
     HARVEST_OCCASION_AUTOS.append(OccasionEntry(card_id, eligibility_fn, apply_fn))
 
 
-def register_harvest_occasion_trigger(card_id, eligibility_fn, apply_fn) -> None:
+def _top_occasion(state):
+    """The occasion payload of the PendingHarvestOccasion host on top of the
+    stack — where the adapted trigger fns run, the host is always the top
+    (the enumerator/dispatch operate on the top frame)."""
+    top = state.pending_stack[-1]
+    return top.occasion
+
+
+def register_harvest_occasion_trigger(
+    card_id, eligibility_fn, apply_fn, *, variants_fn=None,
+) -> None:
     """Register an optional per-occasion trigger (card-module import time).
-    Registry-only seam today: the during-frame surfacing lands with the first
-    member card, and `apply_harvest_occasion_autos`'s guard below keeps the
-    gap loud rather than silent."""
-    HARVEST_OCCASION_TRIGGERS.append(OccasionEntry(card_id, eligibility_fn, apply_fn))
+
+    The card supplies (state, idx, occasion)-shaped fns; this seam adapts them
+    into the GLOBAL trigger registry under the "harvest_occasion" event — the
+    `PendingHarvestOccasion` host's enumerator and the generic FireTrigger
+    dispatch then serve them like any other trigger, reading the occasion off
+    the host frame. A variants_fn makes it a play-variant trigger (one
+    FireTrigger per variant; apply_fn then takes the variant as a 4th arg)."""
+    from agricola.cards.triggers import register, register_play_variant_trigger
+
+    HARVEST_OCCASION_TRIGGERS.append(
+        OccasionEntry(card_id, eligibility_fn, apply_fn, variants_fn))
+
+    def adapted_elig(state, idx, triggers_resolved):
+        return eligibility_fn(state, idx, _top_occasion(state))
+
+    if variants_fn is None:
+        def adapted_apply(state, idx):
+            return apply_fn(state, idx, _top_occasion(state))
+    else:
+        def adapted_apply(state, idx, variant):
+            return apply_fn(state, idx, _top_occasion(state), variant)
+        register_play_variant_trigger(
+            card_id, lambda state, idx: variants_fn(state, idx, _top_occasion(state)))
+
+    register("harvest_occasion", card_id, adapted_elig, adapted_apply)
 
 
 def apply_harvest_occasion_autos(state, owner_idx: int, occasion):
-    """Fire every owned, eligible per-occasion AUTO for one harvest occasion, in
-    registration order. Called wherever an occasion is emitted. A no-op at two
-    list checks when nothing is registered — the Family fast path."""
-    if HARVEST_OCCASION_TRIGGERS:
-        raise NotImplementedError(
-            "a card registered a per-occasion TRIGGER but the during-frame "
-            "surfacing for occasion triggers is not built yet — build it with "
-            "that card (HARVEST_WINDOWS_DESIGN.md §4d)")
+    """Fire every owned, eligible per-occasion AUTO for one harvest occasion,
+    in registration order. Called wherever an occasion is emitted, always
+    paired with `maybe_host_occasion_triggers` below (autos first, host push
+    second — split so a caller can slot its own frame between them, as the
+    walk's inline take does with the exit-gated during-frame). A no-op at one
+    list check when nothing is registered — the Family fast path."""
     for e in HARVEST_OCCASION_AUTOS:
         p = state.players[owner_idx]
         if (e.card_id in p.occupations or e.card_id in p.minor_improvements) \
                 and e.eligibility_fn(state, owner_idx, occasion):
             state = e.apply_fn(state, owner_idx, occasion)
     return state
+
+
+def maybe_host_occasion_triggers(state, owner_idx: int, occasion):
+    """Push the `PendingHarvestOccasion` choice host for this occasion iff the
+    owner has an eligible registered per-occasion TRIGGER (Potato Ridger, Food
+    Merchant). Returns (state, hosted). Pure push — the host lands on top of
+    whatever frame emitted the occasion and resolves first. Family fast path:
+    empty registry, one truthiness test."""
+    if HARVEST_OCCASION_TRIGGERS:
+        p = state.players[owner_idx]
+        if any(_owns(p, e.card_id)
+               and e.eligibility_fn(state, owner_idx, occasion)
+               for e in HARVEST_OCCASION_TRIGGERS):
+            from agricola.pending import PendingHarvestOccasion, push
+            return push(state, PendingHarvestOccasion(
+                player_idx=owner_idx, occasion=occasion)), True
+    return state, False

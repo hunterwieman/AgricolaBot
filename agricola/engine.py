@@ -70,6 +70,7 @@ from agricola.pending import (
     PendingFoodPayment,
     PendingHarvestBreed,
     PendingHarvestFeed,
+    PendingHarvestOccasion,
     PendingHarvestWindow,
     PendingPigMarket,
     PendingPlayMinor,
@@ -138,6 +139,7 @@ from agricola.cards.harvest_windows import (
     WALK_LENGTH,
     WINDOW_INDEX,
     apply_harvest_occasion_autos,
+    maybe_host_occasion_triggers,
     auto_take_fold_ins,
     choice_take_modifiers,
     walk_position,
@@ -652,6 +654,12 @@ def _apply_proceed(state: GameState) -> GameState:
     # the walk — so Proceed (the decline / work-complete boundary) simply pops; the
     # walk resumes at GameState.harvest_cursor.
     if isinstance(top, PendingHarvestWindow):
+        return pop(state)
+    # A per-occasion choice host (card-only, HARVEST_WINDOWS_DESIGN.md §4d): the
+    # occasion's autos fired before the push, so Proceed declines whatever
+    # optional reactions are unfired and pops — back to whatever emitted the
+    # occasion (the walk, the FIELD during-frame, or a card's firing frame).
+    if isinstance(top, PendingHarvestOccasion):
         return pop(state)
     # The FIELD during-window host (card-only, HARVEST_WINDOWS_DESIGN.md §4): its
     # mandatory take fired via CommitFieldTake (the enumerator withholds Proceed
@@ -1455,10 +1463,16 @@ def _field_phase_step(state: GameState, idx: int):
     # the window isn't over, so re-check and host the frame POST-take — it
     # opens with the take already fired (exit-gated form: triggers + Proceed).
     # Family fast path: an empty registry lookup.
+    hosted = False
     if _has_window_trigger(state, idx, "field_phase"):
-        return push(state, PendingFieldPhase(
-            player_idx=idx, take_fired=True, occasions=(occasion,))), True
-    return state, False
+        state = push(state, PendingFieldPhase(
+            player_idx=idx, take_fired=True, occasions=(occasion,)))
+        hosted = True
+    # The occasion's OPTIONAL reactions (Potato Ridger, Food Merchant) host
+    # last, on top — the innermost, just-emitted event resolves first, then
+    # any during-window triggers beneath. Family fast path: empty registry.
+    state, occ_hosted = maybe_host_occasion_triggers(state, idx, occasion)
+    return state, hosted or occ_hosted
 
 
 def _advance_harvest(state: GameState) -> GameState:

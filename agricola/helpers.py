@@ -263,6 +263,34 @@ def pareto_frontier(
     return frontier
 
 
+def feeding_requirement(state, idx: int) -> int:
+    """The food player `idx` owes at this harvest's feeding — THE chokepoint.
+
+    Base rule (RULES.md Feeding Phase): 2 food per adult, 1 per newborn,
+    expressed as ``2*people_total − newborns``. Cards that change what feeding
+    costs (Child's Toy's "your newborns require 2 food"; Old Miser [4]) fold
+    in here via ``register_feeding_requirement`` (agricola/cards/
+    harvest_windows.py) — owned folds apply in registration order, and the
+    result is floored at 0.
+
+    Cache safety: the folded requirement flows into the memoized
+    ``harvest_feed_frontier`` as its ``food_owed`` ARGUMENT — part of the
+    projection key — so a card-dependent requirement can never serve a stale
+    frontier (the FRONTIER_OPT_DESIGN hidden-input footgun does not arise).
+    Family fast path: the fold registry is empty; this is the bare formula.
+    """
+    from agricola.cards.harvest_windows import FEEDING_REQUIREMENT_FOLDS
+
+    p = state.players[idx]
+    need = 2 * p.people_total - p.newborns
+    if FEEDING_REQUIREMENT_FOLDS:
+        for card_id, fold in FEEDING_REQUIREMENT_FOLDS.items():
+            if (card_id in p.occupations
+                    or card_id in p.minor_improvements):
+                need = fold(state, idx, need)
+    return max(0, need)
+
+
 def breeding_food_gained(
     pre: Animals,
     post: Animals,

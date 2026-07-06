@@ -81,6 +81,12 @@ class PendingSow:
     initiated_by_id: str   # mandatory
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # Card-only: a granted PARTIAL sow ("for each newborn, you can sow crops in
+    # exactly 1 field" — Fodder Planter pushes max_fields = newborn count) caps
+    # the commit at grain+veg <= max_fields. 0 = uncapped — every Family sow and
+    # the full granted "Sow" action (Slurry Spreader C71) — so it is a
+    # Family-constant default → canonical-skip field, no C++ change.
+    max_fields: int = 0
 
 
 @dataclass(frozen=True)
@@ -915,13 +921,32 @@ class PendingHarvestBreed:
     CommitBreed (chosen from `breeding_frontier`) followed by Stop. No
     food pre-debit; CommitBreed adds the frontier's food_gained to supply.
 
-    No `triggers_resolved` / `TRIGGER_EVENT` yet (Task 5D precedent).
-    Natural future events: `before_harvest_breed`, `after_harvest_breed`.
+    The frame hosts card triggers in BOTH of its stretches (card game only;
+    `breed_chosen` is the phase discriminator):
+
+    - **Before CommitBreed — event `"breeding"`** (user ruling 20,
+      2026-07-05): in-breeding-phase card effects that do not depend on the
+      breeding outcome (Stone Importer's priced stone buy) are offered
+      BEFORE the breed decision, never after. Firing one leaves the frame up
+      (CommitBreed still to come).
+    - **After CommitBreed, before Stop — event `"breeding_outcome"`**:
+      effects that react to WHICH newborns were just placed (Fodder Planter
+      / Slurry Spreader C71's sow grants). The outcome payload travels as a
+      round-keyed CardStore latch written by the card's own
+      `register_breeding_outcome_auto` handler at the commit — the frame
+      carries no payload field. Stop declines whatever is unfired.
+
+    `triggers_resolved` is stamped by the generic FireTrigger dispatch and is
+    shared across both events (card ids are unique). Family games push this
+    frame every harvest but no card ever stamps it, so the field is
+    Family-constant-default — canonical-skipped via the qualified entry
+    "PendingHarvestBreed.triggers_resolved" (no C++ change).
     """
     PENDING_ID: ClassVar[str] = "harvest_breed"
     player_idx:      int
     initiated_by_id: str            # always "phase:harvest_breed"
     breed_chosen:    bool = False
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -1009,6 +1034,32 @@ class HarvestEntry:
 
 
 @dataclass(frozen=True)
+class BreedingOutcome:
+    """The payload of one player's breeding resolution: which newborns were
+    actually PLACED (0/1 per type — a type breeds at most once). Computed at
+    `resolution._execute_breed` with the engine's own kept-newborn indicator
+    (pre >= 2 and post >= 3, the `breeding_food_gained` test) and handed to
+    the `register_breeding_outcome_auto` consumers (Fodder Planter, Slurry
+    Spreader C71, Champion Breeder [3+]). The clarification both consumer
+    cards print — "You must be able to accommodate each newborn in order to
+    get it" — is inherent here: an unaccommodated newborn is never placed, so
+    it never appears in the outcome. NOT for Dung Collector ("each time you
+    get 2+ newborn animals" counts ANY-source gains, markets included — the
+    deliberately-out-of-scope wider event, HARVEST_HANDOFF.md §12)."""
+    sheep: int
+    boar: int
+    cattle: int
+
+    @property
+    def total(self) -> int:
+        return self.sheep + self.boar + self.cattle
+
+    @property
+    def types(self) -> int:
+        return (self.sheep > 0) + (self.boar > 0) + (self.cattle > 0)
+
+
+@dataclass(frozen=True)
 class HarvestOccasion:
     """One harvesting OCCASION — the manifest of what a single harvesting event
     took, and from where (HARVEST_WINDOWS_DESIGN.md §4d).
@@ -1022,6 +1073,32 @@ class HarvestOccasion:
     that consume this live in `agricola/cards/harvest_windows.py`."""
     source: str                            # "take" | "card:<id>"
     entries: tuple[HarvestEntry, ...]
+
+
+@dataclass(frozen=True)
+class PendingHarvestOccasion:
+    """Per-occasion choice host (card game only): the player owns a card with
+    an eligible OPTIONAL reaction to one just-emitted harvesting occasion
+    (Potato Ridger's 3-veg exchange, Food Merchant's per-grain vegetable buys
+    — HARVEST_WINDOWS_DESIGN.md §4d, the trigger half of the occasion
+    registries).
+
+    Pushed by `apply_harvest_occasion_autos` right after the occasion's
+    automatic consequences fire — wherever the occasion was emitted: the
+    walk's inline take, a `CommitFieldTake` at the FIELD during-frame (this
+    frame then sits on top of that host), or a bare card-driven `field_take`
+    (Bumper Crop, mid-WORK — the frame stacks above the firing frame like any
+    card sub-decision). The `occasion` payload rides the frame so trigger
+    eligibility/variants/apply read exactly the event they react to; Proceed
+    declines whatever is unfired and pops.
+
+    Default-inert: no occasion trigger registered (the Family game, and every
+    card game before the first member) → never constructed."""
+    PENDING_ID: ClassVar[str] = "harvest_occasion"
+    player_idx: int
+    occasion: HarvestOccasion
+    initiated_by_id: str = "phase:harvest_occasion"
+    triggers_resolved: frozenset = frozenset()
 
 
 @dataclass(frozen=True)

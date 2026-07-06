@@ -33,9 +33,10 @@ from agricola.fences import (
     apply_fence_edges_v,
     compute_new_fence_edges,
 )
-from agricola.helpers import breeding_food_gained, cooking_rates
+from agricola.helpers import breeding_food_gained, cooking_rates, feeding_requirement
 from agricola.pasture import compute_pastures_from_arrays
 from agricola.pending import (
+    BreedingOutcome,
     HarvestEntry,
     HarvestOccasion,
     PendingBakeBread,
@@ -1700,6 +1701,8 @@ def _execute_accommodate(
 def field_take(
     state: GameState, idx: int, *, source: str = "take",
     extra_takes: dict | None = None,
+    skip_cells: frozenset = frozenset(),
+    bonus: Resources | None = None,
 ) -> tuple[GameState, HarvestOccasion]:
     """The field-phase take, bare: harvest 1 crop from each of player `idx`'s
     planted fields — one singular event (user ruling 5; all per-field
@@ -1728,11 +1731,23 @@ def field_take(
     occasion consumers then stay silent while unscoped ones still see the
     occasion.
 
+    `skip_cells` + `bonus` carry a REPLACE-kind modifier (Grain Thief: "leave
+    the grain on the field and take 1 grain from the general supply instead"):
+    a skipped planted field is untouched by the take — no base 1, no extras
+    (asserted), and NO manifest entry, because the field was not harvested
+    (the "instead" replacement; flagged reading 2026-07-05 — a replaced field
+    is invisible to every harvested-from-a-field consumer: Grain Sieve,
+    Lynchet, Food Merchant, and it can donate nothing to Stable Manure /
+    Scythe Worker). `bonus` is the replacement's general-supply goods, added
+    to the player's gains but NOT to the manifest (not harvested).
+
     Card-fields (crops living in CardStore) will be iterated here alongside
     the board fields when they land — HARVEST_WINDOWS_DESIGN.md §6.
     """
     p = state.players[idx]
     extras = extra_takes or {}
+    assert not (set(extras) & skip_cells), (
+        f"take fold-in targets replaced cells: {set(extras) & skip_cells}")
     entries = []
     grain_gain = 0
     veg_gain = 0
@@ -1742,6 +1757,11 @@ def field_take(
         for c in range(5):
             cell = p.farmyard.grid[r][c]
             if cell.cell_type == CellType.FIELD:
+                if (r, c) in skip_cells:
+                    assert cell.grain > 0 or cell.veg > 0, (
+                        f"replace-kind skip names unplanted field ({r},{c})")
+                    new_row.append(cell)   # replaced: untouched, no entry
+                    continue
                 extra = extras.get((r, c), 0)
                 if cell.grain > 0:
                     n = 1 + extra
@@ -1777,6 +1797,8 @@ def field_take(
     # via fast_replace's natural ride-along.
     new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
     new_resources = p.resources + Resources(grain=grain_gain, veg=veg_gain)
+    if bonus is not None:
+        new_resources = new_resources + bonus
     new_player = fast_replace(p, farmyard=new_farmyard, resources=new_resources)
     state = _update_player(state, idx, new_player)
     return state, HarvestOccasion(source=source, entries=tuple(entries))
@@ -1796,13 +1818,18 @@ def emit_harvest_occasion(
     fires the per-occasion automatic effects. Also callable frameless: a bare
     `field_take` caller (Bumper Crop, ruling 4) emits its occasion this way so
     non-phase-keyed occasion consumers still attach."""
-    from agricola.cards.harvest_windows import apply_harvest_occasion_autos
+    from agricola.cards.harvest_windows import (
+        apply_harvest_occasion_autos,
+        maybe_host_occasion_triggers,
+    )
 
     top = state.pending_stack[-1] if state.pending_stack else None
     if isinstance(top, PendingFieldPhase):
         state = replace_top(state, fast_replace(
             top, occasions=top.occasions + (occasion,)))
-    return apply_harvest_occasion_autos(state, idx, occasion)
+    state = apply_harvest_occasion_autos(state, idx, occasion)
+    state, _hosted = maybe_host_occasion_triggers(state, idx, occasion)
+    return state
 
 
 def _execute_field_take(
@@ -1827,20 +1854,25 @@ def _execute_field_take(
     from agricola.cards.harvest_windows import (
         apply_harvest_occasion_autos,
         fold_chosen_modifiers,
+        maybe_host_occasion_triggers,
     )
 
     top = state.pending_stack[-1]
     assert isinstance(top, PendingFieldPhase) and not top.take_fired, top
-    extras = fold_chosen_modifiers(state, player_idx,
-                                   getattr(commit, "modifiers", ()))
-    assert extras is not None, (
+    plan = fold_chosen_modifiers(state, player_idx,
+                                 getattr(commit, "modifiers", ()))
+    assert plan is not None, (
         "infeasible modifier combination reached the executor — the "
         "enumerator's feasibility filter must drop it")
     state, occasion = field_take(state, player_idx,
-                                 extra_takes=extras or None)
+                                 extra_takes=plan.extras or None,
+                                 skip_cells=plan.skipped,
+                                 bonus=plan.bonus)
     state = replace_top(state, fast_replace(
         top, take_fired=True, occasions=top.occasions + (occasion,)))
-    return apply_harvest_occasion_autos(state, player_idx, occasion)
+    state = apply_harvest_occasion_autos(state, player_idx, occasion)
+    state, _hosted = maybe_host_occasion_triggers(state, player_idx, occasion)
+    return state
 
 
 def _execute_harvest_conversion(
@@ -1897,7 +1929,8 @@ def _execute_convert(
     player was already holding. The full feeding cost is then paid from the
     combined pool in a single step:
 
-        need            = 2*people_total - newborns
+        need            = helpers.feeding_requirement (2*people_total −
+                          newborns + any owned card folds — Child's Toy)
         total_available = p.resources.food + food_produced
         food_paid       = min(need, total_available)
         food_remaining  = total_available - food_paid   # surplus stays in supply
@@ -1928,7 +1961,7 @@ def _execute_convert(
         + commit.cattle * cR
     )
 
-    need            = 2 * p.people_total - p.newborns
+    need            = feeding_requirement(state, player_idx)
     total_available = p.resources.food + food_produced
     food_paid       = min(need, total_available)
     food_remaining  = total_available - food_paid
@@ -1988,4 +2021,26 @@ def _execute_breed(
         resources=p.resources + Resources(food=food_gained),
     )
     state = _update_player(state, player_idx, new_player)
-    return replace_top(state, fast_replace(top, breed_chosen=True))
+    state = replace_top(state, fast_replace(top, breed_chosen=True))
+
+    # The breeding-OUTCOME event (card game only; empty registry = Family
+    # no-op): which newborns were actually placed, by the same kept-newborn
+    # indicator `breeding_food_gained` uses (pre >= 2 and post >= 3 — an
+    # unaccommodated newborn is never placed, so "you must be able to
+    # accommodate each newborn in order to get it" is inherent). Fired with
+    # the frame already stamped breed_chosen (record-first) — its consumers
+    # write CardStore latches that the frame's "breeding_outcome" triggers
+    # (the sow grants) read before Stop.
+    from agricola.cards.harvest_windows import (
+        BREEDING_OUTCOME_AUTOS,
+        apply_breeding_outcome_autos,
+    )
+    if BREEDING_OUTCOME_AUTOS:
+        pre = p.animals
+        outcome = BreedingOutcome(
+            sheep=int(pre.sheep >= 2 and chosen.sheep >= 3),
+            boar=int(pre.boar >= 2 and chosen.boar >= 3),
+            cattle=int(pre.cattle >= 2 and chosen.cattle >= 3),
+        )
+        state = apply_breeding_outcome_autos(state, player_idx, outcome)
+    return state

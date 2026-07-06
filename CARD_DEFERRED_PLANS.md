@@ -252,6 +252,14 @@ user made during this design — cite these, dated, in the docstrings of the car
    a separate window. Consequence: a player ending feeding with exactly 1 food
    cannot spend it at Farm Store and then collect the "no food left" grant
    (pinned by test_social_benefits_resolves_before_farm_store).
+20. **In-breeding-phase card effects fire BEFORE the CommitBreed decision,
+   not after** (ruled 2026-07-05, for Stone Importer's priced stone buy):
+   the breed frame hosts pre-commit triggers (event "breeding") only while
+   the breeding choice is still open; once CommitBreed resolves, the frame
+   offers only the outcome-reactive grants (event "breeding_outcome" —
+   Fodder Planter / Slurry Spreader C71's sows, which need to know the
+   newborns) and Stop, all still inside the breeding phase. No separate
+   window — the frame's own two stretches carry both.
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
