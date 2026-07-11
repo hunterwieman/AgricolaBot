@@ -2186,6 +2186,25 @@ class Session:
             return False, [], "margin"
         if not isinstance(children, list):
             return False, [], "margin"
+        # The C++ `--analyze` serializes CommitBuildMajor's params as the
+        # canonical {major_idx, payment} (matching agricola.canonical), but the
+        # web wire format (`_action_params`) adds a derived `return_fireplace_idx`
+        # so the frontend can render the Cooking-Hearth return variants. The
+        # frontend keys analysis results to buttons by the exact params dict, so
+        # without this field every CommitBuildMajor lookup misses and the majors
+        # show no badge. Re-derive it here (None for a resource payment, the
+        # returned improvement's idx for a return_improvement route) so the
+        # analyze children match the legal-action params field-for-field.
+        for child in children:
+            if isinstance(child, dict) and child.get("type") == "CommitBuildMajor":
+                params = child.get("params")
+                if isinstance(params, dict) and "return_fireplace_idx" not in params:
+                    payment = params.get("payment") or {}
+                    params["return_fireplace_idx"] = (
+                        payment.get("improvement_idx")
+                        if payment.get("route") == "return_improvement"
+                        else None
+                    )
         return True, children, value_target
 
     def step_ai(self) -> tuple[bool, str]:
