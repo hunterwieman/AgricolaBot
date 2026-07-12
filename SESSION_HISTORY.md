@@ -3176,3 +3176,24 @@ loops demand deliberate verification — measure before theorizing.*
 `nn_models/REGISTRY.md` (new `joint_a256_300k` champion row + `300k_6arch_sweep` row + flipped 240k to
 superseded), `SHARED_TRUNK.md` §2.2 (the sweep + converged results), CLAUDE.md (champion → A_base),
 `CLOUD_RUNBOOK.md` (best-practice lessons), `FILE_DESCRIPTIONS.md` (siamese + new scripts).
+
+## Sessions — The harvest-window card arc, complete (2026-07-02 → 2026-07-06)
+
+A multi-session Phase-3 arc (design → build → waves), recorded in full elsewhere — this
+entry is the pointer, not the record:
+
+- **What:** the 17→15-window harvest timing ladder + virtual per-player walk, the
+  take-occasion manifest and its counting/scoping doctrine, take-modifiers (extras +
+  replace-kind), harvest skips, feeding income, the breeding-outcome event, the
+  per-occasion reaction host, the feeding-requirement fold, minor play-variants,
+  conversion variants, the ownership-aware capacity layer (Dolly's Mother's greedy
+  strip), and ~50 cards landed across delegated waves + driver builds — the catalog at
+  **206 minors + 103 occupations**. Forty-one dated user rulings.
+- **Where the record lives:** `HARVEST_HANDOFF.md` (repo root; Parts I + II — the
+  reasoning, the user's meta-instructions, and the next build queue),
+  `CARD_DEFERRED_PLANS.md` (the 41 numbered rulings), `CARD_ENGINE_IMPLEMENTATION.md`
+  (the as-built reference, folded current 2026-07-05/06),
+  `design_docs/cards/HARVEST_WINDOWS_DESIGN.md` (the design of record).
+- **Next:** the queued builds in HARVEST_HANDOFF.md §16 — FEED/BREED banding (ruling 40;
+  the arc's first change requiring a C++ re-port), Field Cultivator auto-max (ruling 41),
+  the converter cluster (rulings 34–39), the web-UI label pass, the card-fields wave.

@@ -35,7 +35,7 @@ going stale):
   the web-UI bot. (Model lineage + current champion: `nn_models/REGISTRY.md`; design:
   `SHARED_TRUNK.md`.)
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
-  Phase 2 agent process for the richer game. **The card engine is built; ~290 of the 840-card
+  Phase 2 agent process for the richer game. **The card engine is built; ~310 of the 840-card
   catalog are implemented and playable in the web UI; no card-game agent exists yet.**
   (Reference + live status: `CARD_ENGINE_IMPLEMENTATION.md`.)
 
@@ -716,7 +716,7 @@ food; the improvement spaces gain a play-minor branch), and played cards modify 
 a general firing system — host frames with before/after windows on every action, optional
 triggers / automatic effects / mandatory-with-choice, ~35 `register_*` seams (scoring, cost
 modifiers, food payment, capacity, schedules, legality extensions), per-card state (`CardStore`),
-and phase hooks (start-of-round, the harvest timing-window ladder). **~290 of the 840-card catalog** (Revised base
+and phase hooks (start-of-round, the harvest timing-window ladder). **~310 of the 840-card catalog** (Revised base
 + Artifex/Bubulcus/Corbarius/Dulcinaria/Ephipparius, decks A–E) are implemented, tested, and
 dealt in the web UI's Cards mode.
 
@@ -731,7 +731,7 @@ the user is the rules authority, a "harmless" timing/mechanism shift is still an
 and the rule goes verbatim into every subagent prompt (CARD_AUTHORING_GUIDE.md §0.1).
 
 **What remains in Phase 3:**
-- **The rest of the catalog** — the remaining ~550 cards (many blocked on the deferred-cluster
+- **The rest of the catalog** — the remaining ~530 cards (many blocked on the deferred-cluster
   infrastructure decisions in `CARD_DEFERRED_PLANS.md`, which are user-gated).
 - **The card-game agent** — repeat the Phase 2 process (MCTS → NN → self-play) for the richer
   game. Hidden hands are handled *above* the engine (ISMCTS determinization at the search
@@ -838,7 +838,7 @@ through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`).
 
 In **Cards** mode the seats are **human-vs-random or human-vs-human** (no trained bot exists for the card
 game yet, so MCTS/NN seats and the analysis overlay are disabled), and `setup_env(seed, card_pool=...)` is
-called with a pool of **all implemented cards** (~290; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
+called with a pool of **all implemented cards** (~310; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
 dealt a random non-overlapping 7-occupation + 7-minor hand. The snapshot serializes each player's hand
 under **hidden-information rules**: a hand is shown face-up only for a *human* seat, and among two human
 seats (pass-and-play) only the **active player's** hand is revealed (the inactive seat sees a face-down
@@ -918,7 +918,7 @@ Phase-level status is in the **Roadmap** at the top (deep status: `nn_models/REG
 models, `CARD_ENGINE_IMPLEMENTATION.md` §1 for cards); the full pytest suite (`tests/`) passes.
 The concrete boundary — what is *deliberately not* implemented — is:
 
-- **~550 of the 840 catalog cards** — unimplemented or deferred (clusters + build proposals in
+- **~530 of the 840 catalog cards** — unimplemented or deferred (clusters + build proposals in
   `CARD_DEFERRED_PLANS.md`; the deliberate machinery boundaries — end-of-turn, at-any-time
   conversions, Grocer-style reachability, event payloads — in `CARD_ENGINE_IMPLEMENTATION.md`
   §8). In the **Family** game `lessons` stays permanently illegal and the optional
@@ -1013,7 +1013,7 @@ AgricolaBot/
         fences.py               # fence universes + edge math
         fence_universe.py       # universe-swapping tools
         engine.py               # step + dispatch + the phase walk + the card firing seams
-        cards/                  # card framework (specs, triggers, cost_mods, capacity_mods, schedules, harvest_conversions, harvest_windows, display) + ~290 card modules
+        cards/                  # card framework (specs, triggers, cost_mods, capacity_mods, schedules, harvest_conversions, harvest_windows, display) + ~310 card modules
         agents/                 # base/play_game, random, heuristic (retired), the restricted wrappers, mcts.py (PUCT/UCT)
             nn/                 # the NN stack: schema/recording/encoder (torch-free) + datasets/models/training/policy + the joint shared-trunk model
     tests/                      # pytest suite; test_cpp_*.py = the C++ differential gates (coverage: TEST_DESCRIPTIONS.md)
