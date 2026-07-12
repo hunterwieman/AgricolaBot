@@ -421,15 +421,14 @@ user made during this design — cite these, dated, in the docstrings of the car
    after breeding — the feed payment precedes breeding and the breed
    commit's own bundled cooking happens AT the commit); the generalized
    raise frame and any post-breed cooking surface must apply the floor.
-   OPEN EDGE (flagged to the user, unanswered): does the floor apply to a
-   type that held >= min_parents but did NOT breed (no capacity for the
-   newborn)? No offspring exist, so the parents-and-offspring reading
-   suggests no protection — but the user's stated ">= 3 may not drop below
-   3" shorthand would protect them. Also an implementation note: "which
-   types bred this harvest" is not derivable post-commit (pre-breed counts
-   are gone), so the floor needs a small card-game-only record written at
-   CommitBreed (default-skipped, Family-invisible — Family has no
-   post-breed cooking moments).
+   EDGE RESOLVED (2026-07-06): the user KEPT the shorthand — the floor
+   reads CURRENT counts at cook time (a type at >= 3 may not be cooked
+   below 3; >= 2 not below 2 for sheep with Dolly's Mother), which slightly
+   over-protects the capacity-blocked corner (parents whose newborn never
+   fit) and, crucially, is STATELESS: no breed-record is needed at all —
+   the user's own observation ("how would a player end at 3+ without
+   breeding?") exposed that the record was only required under the stricter
+   parents-and-offspring reading.
 
 40. **Whole-phase-per-player banding extends to FEED and BREED; the outer
    harvest moments stay shared** (ruled 2026-07-06, extending ruling 3): the
@@ -443,6 +442,13 @@ user made during this design — cite these, dated, in the docstrings of the car
    three phase bands and keep their own windows, resolving
    both-players-per-moment as today. No frame or card changes; a walk-order
    engine change (full suite + C++ gates on landing).
+41. **Field Cultivator becomes AUTOMATIC-take-the-maximum** (ruled
+   2026-07-06): the per-occasion pile take is no longer a choice — the owner
+   takes min(tiles harvested, pile remaining) goods automatically, the
+   Scythe Worker mandatory-max precedent (document the simplification in
+   the module; if a card ever makes holding building resources a liability
+   or partial takes meaningful, restore the choice — the trigger form is in
+   git history).
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a

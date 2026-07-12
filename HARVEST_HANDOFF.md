@@ -1,4 +1,4 @@
-# Harvest-Window Arc — Session Handoff (2026-07-03 → 2026-07-05)
+# Harvest-Window Arc — Session Handoff (2026-07-03 → 2026-07-06; Part II appended 2026-07-06)
 
 > **Who this is for.** A fresh session (or a post-compaction continuation) picking up the
 > card-engine work. The previous compaction preserved outcomes but lost the *reasoning*,
@@ -474,3 +474,205 @@ in a card text gets its own user ruling before encoding.
 
 **Banned, never implement:** Witches' Dance Floor D25, Begging Student D97, Shaving
 Horse A48 (Treegardener's clarification interaction with it is moot).
+
+---
+
+# PART II — the 2026-07-05 → 06 continuation (appended at session end, context ~800k)
+
+> Part I above covers the arc through the FEED/BREED batch and rulings 1–17. This part
+> covers everything after: rulings 18–41, three card waves + the arrangement trio (the
+> catalog now at **206 minors + 103 occupations**, suite ~4,240 green, C++ gates green
+> throughout — no re-port was ever needed), and the fully-specified build queue the next
+> session executes. The ruling RECORD is `CARD_DEFERRED_PLANS.md` (41 numbered, dated);
+> this part explains the reasoning and — per the user's explicit instruction for this
+> handoff — **collects the general/meta-level instructions the user gave**, which bind
+> future sessions as much as any ruling.
+
+## 13. Meta-instructions from the user (2026-07-05/06) — READ THESE FIRST
+
+1. **Every "immediately" in card text gets its own per-instance ruling** (ruling 18's
+   standing instruction; auto-memory `feedback_ask_on_immediately`; CARD_AUTHORING_GUIDE
+   §2). Ruling 18 collapsed "immediately after each harvest" = "after each harvest" and
+   ruling 19 collapsed the feeding pair — but the user was explicit the equivalence does
+   NOT generalize: surface each occurrence with its mechanical stakes and wait.
+2. **Mandatory + choice-free = automatic, never a forced singleton button** (ruling 21).
+   The user, on Potato Ridger's "you must do so": prefer the effect firing with no
+   player input over a forced offer. Generalizes: align with the engine's standing
+   automatic-effects classification whenever a "must" has no real choice.
+3. **Full test suite per GROUP of cards, not per card** (auto-memory
+   `feedback_full_suite_per_group`): targeted tests per card-only change; the
+   multi-minute sweep at group boundaries and ALWAYS with engine-file edits.
+4. **Web-UI label style: mechanical and terse, card name included** — the user:
+   "in general i prefer more mechanical and less verbose, the player can interpret
+   meaning from the card description." E.g. "Shepherd's Whistle: activate, keep
+   sheep=2, boar=1"; "Beer Stall: convert 2, keep boar=1". Zero-count entries omitted.
+5. **Same-instant arrangement-conditioned benefits need ONE shared arrangement**
+   (the user's own caution, recorded in CARD_AUTHORING_GUIDE §2): two cards reading
+   the same instant may not pass independent exists-an-arrangement tests — a joint
+   test is a stop-and-design moment. Across different instants, independent tests are
+   correct (real Agricola allows rearranging between moments). No same-instant pair
+   exists yet.
+6. **Reversibility calculus governs design pacing.** The user repeatedly attached
+   "we can change this later" to rulings (free-span buys r36, the frontier boundary
+   r37, the feeding-unfolded call under r34) and reasoned explicitly about direction:
+   the feeding fold was rejected because it is "difficult to reverse (because it
+   breaks the no card AI) and fairly easy to implement later." Prefer the
+   cheap-to-reverse default; treat hard-to-reverse changes as defer-worthy; RECORD
+   revisitability on the ruling.
+7. **Some machinery questions need dedicated design sessions, not in-chat improvisation.**
+   The user on Gypsy's Crock: "We need to think more carefully about it than you are
+   doing right here." (Ruling 35 parks it: the event-granularity of feeding
+   conversions.) When a question of that class appears, park it loudly — do not
+   half-design it while discussing something else.
+8. **The user supplies algorithms; the assistant's job is to formalize and hunt traps —
+   in BOTH directions.** This session the user designed the greedy strip (Dolly's
+   Mother), the per-pasture max-fill test (Mineral Feeder), the per-conversions-taken
+   frontier (Beer Stall), and the height-group encoding (Craft Brewery) — each adopted
+   after formal verification. The assistant's value-add was the traps (the newborn
+   report the greedy plan would have missed; the capacity call-site sweep; the Social
+   Benefits counterexample that killed the late anchor) and exactness proofs (max-fill,
+   the strip-shift). Symmetrically, the user falsified two assistant claims ("exactly
+   one candidate identical to Proceed"; "cooking a sheep can never help") — expect
+   claims to be stress-tested, concede cleanly, and never present an unverified
+   dominance argument as settled (§0.1's "I can't find a counterexample" warning keeps
+   being vindicated).
+9. **Keep the user's architecture model synced.** The user was unaware
+   `PendingHarvestWindow`/`PendingFieldPhase` existed and thought `PendingHarvestField`
+   still did ("i am really confused"). When explaining machinery, correct the frame
+   inventory explicitly and explain top-down (the resolution that worked: the walk
+   cursor is the "which moment" indicator promoted to GameState; per-moment frames are
+   standard hosts; `PendingHarvestFeed.conversion_done` and `PendingFieldPhase.take_fired`
+   ARE the familiar phase flags). See §17 below for the settled inventory.
+10. **Doc regeneration must not erase hand-recorded rulings.** Regenerating the ledger
+    from stale generator inputs ERASED the D25/D97 ban markers once; the fix was making
+    the bans durable in the generator's own source (doc_gen PATCH text + snapshot
+    status) — the standing procedure is now: refresh the snapshots' implemented-flags
+    from the live registries, then run doc_gen (see §16.7).
+
+## 14. Rulings 18–41 quick map (full text in CARD_DEFERRED_PLANS.md)
+
+- **18/19** "immediately after" merges (harvest + feeding pairs; ladder now 15 ids;
+  Social Benefits before Farm Store via autos-before-triggers) + the standing
+  per-"immediately" instruction.
+- **20** breed-frame triggers fire BEFORE CommitBreed (Stone Importer); outcome grants
+  after it. **21** mandatory choice-free = auto (Potato Ridger 4+; autos_fired
+  two-tier exclusivity). **22** a Grain-Thief-replaced field is NOT harvested (no
+  manifest entry, invisible to all per-field/tile/unit readers).
+- **23** Eternal Rye tiers exclusive. **24** minor on-play choices surface WIDE
+  (PLAY_MINOR_VARIANTS; Facades Carving). **25** Field Cultivator counts TILES,
+  k-at-once. **26** Earthenware Potter = after_harvest@round-14, free k choice.
+  **27** Feed Pellets (mid-feed grant via the barrier; once per feeding total).
+  **28** Craft Brewery wide by field HEIGHT (conversion variants seam).
+- **29** Mineral Feeder (pastured-sheep = exists-arrangement via per-pasture MAX-FILL;
+  cook-to-qualify options; landed). **30** Beer Stall (frontier over animals PER
+  conversions-TAKEN k, exchanges bundled into the options — dissolved the cook-first
+  sequencing defer; landed).
+- **31** Uncaring Parents stacks with the stone-house-bonus cards. **32** a card-field
+  is NOT a "field tile" (the user: "very important"; Field Cultivator filters to
+  "cell:" entries). **33** the Lynchet same-height interchangeability gap is a KNOWN
+  deferred approximation (conditional adjacency-aware group keys are the agreed
+  eventual fix).
+- **34** the generalized conversion frontier lands on the mid-harvest food-raise frame
+  ONLY; feeding stays un-folded (reversibility + the r35 granularity question).
+  **35** Gypsy's Crock parked for dedicated design. **36** the food→resources/points
+  buys are FREE-SPAN (the late anchor is DEAD — its dominance argument fell to the
+  Social Benefits counterexample; Furniture Carpenter migrates). **37** frontier
+  integration = PURE goods→food converters only; rider outputs are standalone
+  free-span triggers. **38** Lumber Virtuoso free-span [3+]. **39** the post-breed
+  cooking floor, SHORTHAND form (stateless: a type at >= 3 current can't cook below 3;
+  >= 2 / below 2 for sheep + Dolly's Mother) — the user kept the shorthand knowing it
+  slightly over-protects the capacity-blocked corner; NO breed-record needed.
+  **40** FEED/BREED band whole-phase-per-player like FIELD; the four OUTER moments
+  (immediately-before/start-of-harvest, end-of-harvest, after-harvest) stay SHARED
+  both-players windows. **41** Field Cultivator flips to AUTOMATIC-take-the-maximum
+  (Scythe Worker precedent) — NOT yet implemented, queued.
+
+## 15. What Part II landed (state at handoff)
+
+Waves: the breeding/occasion wave (Stone Importer, Fodder Planter, Slurry Spreader
+C71, Grain Thief, Potato Ridger, Food Merchant, Child's Toy — 7 agents + 4 driver
+seams: breed-frame triggers, the BreedingOutcome payload, PendingHarvestOccasion, the
+replace-kind TakeFold); the after-harvest wave (Value Assets, Uncaring Parents,
+Eternal Rye Cultivation, Field Cultivator, Earthenware Potter, Facades Carving, Craft
+Brewery, Feed Pellets — 8 agents + 2 driver seams: PLAY_MINOR_VARIANTS,
+HarvestConversionSpec.variants_fn); the arrangement trio built BY THE DRIVER
+(Dolly's Mother — greedy strip + sheep_min threading; Mineral Feeder; Beer Stall).
+Every harvest-arc defer is now implemented or parked by explicit user decision.
+Infrastructure: the qualified canonical default-skip ("Type.field"), the action
+wire-encoding variant skip (Family byte-identity preserved for
+CommitHarvestConversion), helpers.accommodates (the ownership-aware capacity entry),
+feeding_requirement chokepoint, the ledger-regeneration procedure. Docs:
+CARD_ENGINE_IMPLEMENTATION.md received the full fold-in (a parallel session) + this
+session's amendments — it is CURRENT. HARVEST_CARDS_REVIEW.md's implemented-markers
+are ~20 cards STALE (regenerate before trusting).
+
+## 16. THE BUILD QUEUE (next session, in order, with per-item cautions)
+
+1. **FEED/BREED banding (ruling 40)** — engine change. Extend the virtual walk to
+   three bands (FIELD as-is; FEED = start_of_feeding → the payment → after_feeding;
+   BREED = start_of_breeding → the breeding → after_breeding), each visited once per
+   player, SP first; outer moments stay window-major. Push the payment/breeding frames
+   ONE PLAYER PER BAND PASS (today `_initiate_harvest_feed/_breed` push both, SP on
+   top). CAUTIONS: (a) **this is the arc's first change that is NOT Family-invisible
+   at the state level** — Family mid-feed stacks currently hold BOTH frames; banding
+   changes mid-turn stack shapes → the C++ walk needs a mirroring re-port and the
+   differential gates will be red until it lands (the standing rule: re-port, don't
+   distort the Python design); (b) `_advance_harvest`'s cursor derivation for
+   EMPTY-STACK HARVEST_FEED/BREED states must become band-aware (today it resumes
+   just past the sentinel window-major; several tests construct bare FEED/BREED
+   states); (c) feeding-income autos currently fire both-players at FEED entry —
+   under banding they fire per band player; (d) full suite + gates, obviously.
+2. **Field Cultivator → automatic-max (ruling 41)** — small: the occasion trigger
+   becomes an occasion AUTO taking min(tiles, pile remaining); keep the "cell:"-only
+   tile filter (ruling 32); Scythe-Worker-style documented-simplification note;
+   rewrite its choice tests.
+3. **The converter cluster (rulings 34–39, fully specified)** — the last harvest
+   machinery. Driver seams first: (i) the generalized `PendingFoodPayment` frontier —
+   crops + animals + capped building-resource conversions, liveness derived from
+   phase/cursor (the span = field phase start → end_of_harvest; a pre-field-phase
+   cost like Autumn Mother's sees none), budgets shared with the feeding crafts via
+   `harvest_conversions_used`, and **ruling 39's stateless cooking floor applied to
+   any post-breed animal cooking**; (ii) free-span trigger membership (a card
+   registered on every in-span window + the field_phase event + the feed craft seam —
+   design a span-registration helper rather than 10 manual rows). Then the cards:
+   Stone Carver + Braid Maker (pure converters: frontier + feeding craft), Basket
+   Carrier + Paintbrush (rider outputs: standalone free-span; Paintbrush = one card,
+   two output variants), Cooking Hearth Extension (a cooking_rates doubler, once per
+   improvement per harvest — NOT a standalone trigger), Furniture Carpenter's
+   migration off the FEED-only seam to free-span (its ALLOWLIST/fidelity notes
+   update), and the three craft majors reachable through the raise frame in-span.
+   CAUTION: the Social Benefits interaction is now legal CONTENT (a free-span buy
+   before the after-feeding check can deliberately zero food) — pin it with a test.
+4. **The label pass** — per-card labeler registry in display.py (bare numbers mean
+   different things per card), threaded state, the user's mechanical style (§13.4);
+   optionally the contextual decline label.
+5. **The card-fields wave** — the LAST harvest chunk: Beanfield, Lettuce Patch, Melon
+   Patch, Cherry Orchard (wood!), Artichoke Field, Crop Rotation Field, Patch
+   Caregiver, Wood Field, Rock Garden. Crops in CardStore; `field_take` iterates them
+   with `source="card:<id>"` entries; ruling 32 (never a tile) and ruling 22's shape
+   already encoded; the E-deck verb lexicon (E68/69 "harvest" vs E70 "remove") in §5
+   of Part I. Witches' Dance Floor stays BANNED.
+6. **Beyond the harvest**: the round-end / returning-home mechanism is the biggest
+   single unlock (7 cards: Baking Course, Credit, Lifting Machine, Sculpture Course,
+   Silage, Perennial Rye, Swimming Class); then the rest of CARD_DEFERRED_PLANS.
+
+7. **Ledger procedure** (do this at every integration): refresh the snapshots'
+   implemented-flags from the live registries
+   (`scripts/card_classify/data/{minors,occ}_cards.json`, set `implemented = slug in
+   registry`), THEN run `scripts/card_classify/doc_gen.py`; assert the printed counts
+   match `len(MINORS)`/`len(OCCUPATIONS)`. Bans and slug-collision cards live in
+   doc_gen's PATCH/IMPL_FIX tables (durable), never as hand-edits to the output.
+
+## 17. The settled frame inventory (the user-model sync of §13.9)
+
+`PendingHarvestWindow` (per-moment, per-player choice host — stage 1, commit 1bfdcb5),
+`PendingFieldPhase` (the field-phase during-host: the take + free-order triggers,
+`take_fired` gate — stage 2), `PendingHarvestFeed` (the PAYMENT step only, not the
+phase: crafts/Beer Stall + CommitConvert + Stop; `conversion_done` is its phase flag),
+`PendingHarvestBreed` (the breeding decision: pre-commit "breeding" triggers +
+CommitBreed + post-commit "breeding_outcome" grants + Stop), `PendingHarvestOccasion`
+(optional reactions to one emitted occasion; carries the occasion + `autos_fired` —
+this Part), and `PendingPreparation` (start-of-round, outside the harvest).
+**`PendingHarvestField` no longer exists** (retired 2026-07-05). The sequencing
+BETWEEN moments is `GameState.harvest_cursor` (the walk); frames pause it; the decider
+is always `pending_stack[-1].player_idx`.
