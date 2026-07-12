@@ -431,6 +431,19 @@ user made during this design — cite these, dated, in the docstrings of the car
    CommitBreed (default-skipped, Family-invisible — Family has no
    post-breed cooking moments).
 
+40. **Whole-phase-per-player banding extends to FEED and BREED; the outer
+   harvest moments stay shared** (ruled 2026-07-06, extending ruling 3): the
+   virtual walk gains a FEED band (start_of_feeding → the payment →
+   after_feeding) and a BREED band (start_of_breeding → the breeding →
+   after_breeding), each resolved wholly by one player before the other
+   begins (starting player first), exactly like the existing FIELD band —
+   the payment/breeding frames push one player per band pass instead of
+   pairwise. The four OUTER moments — immediately-before-harvest,
+   start-of-harvest, end-of-harvest, after-harvest — are SEPARATE from the
+   three phase bands and keep their own windows, resolving
+   both-players-per-moment as today. No frame or card changes; a walk-order
+   engine change (full suite + C++ gates on landing).
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
