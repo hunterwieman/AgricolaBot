@@ -187,30 +187,42 @@ def score(state: GameState, player_idx: int) -> tuple[int, ScoreBreakdown]:
     grid = farmyard.grid
     pastures = farmyard.pastures
 
-    # Field tiles
+    # Card-fields (user ruling 45, 2026-07-12): "this card is a field" cards
+    # count in the Fields category (1 per card, however many stacks — ruling
+    # 47), and their planted crops join the grain/veg totals. Family players
+    # own no card-fields, so both terms are 0 there and the C++ score gates
+    # are untouched.
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        card_field_count,
+        planted_card_crops,
+    )
+    card_grain, card_veg = planted_card_crops(ps)
+
+    # Fields (the scoring category counts every field the player has — grid
+    # tiles plus card-fields, per ruling 45)
     num_fields = sum(
         1 for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
-    )
+    ) + card_field_count(ps)
     pts_fields = _score_field_tiles(num_fields)
 
     # Pastures
     pts_pastures = _score_pastures(len(pastures))
 
-    # Grain: supply + all grain on field cells
+    # Grain: supply + all grain on field cells + grain planted on card-fields
     total_grain = ps.resources.grain + sum(
         grid[r][c].grain
         for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
-    )
+    ) + card_grain
     pts_grain = _score_grain(total_grain)
 
-    # Vegetables: supply + all veg on field cells
+    # Vegetables: supply + all veg on field cells + veg planted on card-fields
     total_veg = ps.resources.veg + sum(
         grid[r][c].veg
         for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
-    )
+    ) + card_veg
     pts_veg = _score_veg(total_veg)
 
     # Animals

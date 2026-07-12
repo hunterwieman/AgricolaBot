@@ -128,6 +128,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # one-field sows): Family-constant 0 (= uncapped, every Family sow), so omitting
     # it keeps the Family JSON byte-identical and needs no C++ change.
     "max_fields",
+    # PendingSow crops-only flag for crops-explicit sow grants (user ruling 48,
+    # 2026-07-12 — "sow crops" cannot target wood/stone card-fields): Family-constant
+    # False (no card-fields exist there), so omitting it keeps the Family JSON
+    # byte-identical and needs no C++ change.
+    "crops_only",
     # Card-only harvest-window walk cursor (engine._advance_harvest): set only while
     # a PendingHarvestWindow choice frame pauses the window walk mid-segment —
     # Family-constant None (no window cards → no frames), so omitting it keeps the

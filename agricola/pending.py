@@ -86,7 +86,16 @@ class PendingSow:
     # the commit at grain+veg <= max_fields. 0 = uncapped — every Family sow and
     # the full granted "Sow" action (Slurry Spreader C71) — so it is a
     # Family-constant default → canonical-skip field, no C++ change.
+    # With card-fields, a card consumes exactly ONE field-unit of the cap
+    # however many stacks the commit fills on it (user ruling 48, 2026-07-12).
     max_fields: int = 0
+    # Card-only (user ruling 48, 2026-07-12 — the sow-grant lexicon): True for
+    # a CROPS-EXPLICIT grant ("sow crops" — Fodder Planter; officially may NOT
+    # plant onto Wood Field), excluding wood/stone card-field sows from the
+    # enumeration. False (generic) for the action-space sows and every bare
+    # "Sow" grant, capped or not (Chief Forester's clarification permits wood).
+    # Family-constant False → canonical-skip field, no C++ change.
+    crops_only: bool = False
 
 
 @dataclass(frozen=True)

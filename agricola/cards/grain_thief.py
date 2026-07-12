@@ -77,13 +77,25 @@ CARD_ID = "grain_thief"
 def _groups(state: GameState, idx: int) -> dict[str, int]:
     """The replaceable-field groups: {remaining-grain key: field count}, over
     every planted grain field (any count >= 1 — leaving 1 grain on a 1-grain
-    field is a real replacement, unlike Stable Manure's >= 2 donor floor)."""
+    field is a real replacement, unlike Stable Manure's >= 2 donor floor).
+
+    A card-field holding grain is a grain field (user rulings 45/46,
+    2026-07-12) and may be replaced like any other. Each is its OWN singleton
+    group (key "cf_<card_id>", colon-free): not interchangeable with a
+    same-count grid field — leaving the grain ON the card is card state.
+    Grain-holding card-fields are always single-stack (the multi-stack cards
+    grow only wood/stone)."""
+    from agricola.cards.card_fields import iter_card_field_units
+
     out: dict[str, int] = {}
     for row in state.players[idx].farmyard.grid:
         for cell in row:
             if cell.cell_type == CellType.FIELD and cell.grain > 0:
                 key = f"grain{cell.grain}"
                 out[key] = out.get(key, 0) + 1
+    for key, good, _count in iter_card_field_units(state, idx):
+        if good == "grain":
+            out[f"cf_{key[1]}"] = 1
     return out
 
 
@@ -115,11 +127,13 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> TakeFold | None:
     1 general-supply grain per replaced field as ``bonus``. Returns None when
     the vector's demand cannot be met — the enumerator then drops that
     modifier combination as infeasible."""
+    from agricola.cards.card_fields import iter_card_field_units
+
     want: dict[str, int] = {}
     for part in variant.split("|"):
         key, _, count = part.partition(":")
         want[key] = int(count)
-    cells: list[tuple[int, int]] = []
+    cells: list = []
     for r, row in enumerate(state.players[idx].farmyard.grid):
         for c, cell in enumerate(row):
             if cell.cell_type != CellType.FIELD or cell.grain <= 0:
@@ -128,6 +142,12 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> TakeFold | None:
             if want.get(key, 0) > 0 and not claimed.get((r, c), 0):
                 want[key] -= 1
                 cells.append((r, c))
+    for key, good, _count in iter_card_field_units(state, idx):
+        gkey = f"cf_{key[1]}"
+        if (good == "grain" and want.get(gkey, 0) > 0
+                and not claimed.get(key, 0)):
+            want[gkey] -= 1
+            cells.append(key)
     if any(want.values()):
         return None
     return TakeFold(skipped=frozenset(cells),

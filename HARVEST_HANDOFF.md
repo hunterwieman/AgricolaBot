@@ -637,10 +637,12 @@ are ~20 cards STALE (regenerate before trusting).
    design a span-registration helper rather than 10 manual rows). Then the cards:
    Stone Carver + Braid Maker (pure converters: frontier + feeding craft), Basket
    Carrier + Paintbrush (rider outputs: standalone free-span; Paintbrush = one card,
-   two output variants), Cooking Hearth Extension (a cooking_rates doubler, once per
-   improvement per harvest — NOT a standalone trigger), Furniture Carpenter's
+   two output variants), Furniture Carpenter's
    migration off the FEED-only seam to free-span (its ALLOWLIST/fidelity notes
    update), and the three craft majors reachable through the raise frame in-span.
+   Cooking Hearth Extension is OUT of this cluster (ruling 42, 2026-07-12):
+   deferred alongside Gypsy's Crock until the user decides how cooking-modifier
+   cards are implemented.
    CAUTION: the Social Benefits interaction is now legal CONTENT (a free-span buy
    before the after-feeding check can deliberately zero food) — pin it with a test.
 4. **The label pass** — per-card labeler registry in display.py (bare numbers mean
@@ -651,7 +653,11 @@ are ~20 cards STALE (regenerate before trusting).
    Caregiver, Wood Field, Rock Garden. Crops in CardStore; `field_take` iterates them
    with `source="card:<id>"` entries; ruling 32 (never a tile) and ruling 22's shape
    already encoded; the E-deck verb lexicon (E68/69 "harvest" vs E70 "remove") in §5
-   of Part I. Witches' Dance Floor stays BANNED.
+   of Part I. Witches' Dance Floor stays BANNED. **Rulings 43–47 (2026-07-12) settled
+   the wave's open questions** — the two "immediately"s (take-occasion optional
+   stretch), field vs field-TILE (card-fields count as fields, never tiles),
+   per-field modifiers reach card-fields, and the Wood Field / Rock Garden stack
+   semantics; see CARD_DEFERRED_PLANS.md.
 6. **Beyond the harvest**: the round-end / returning-home mechanism is the biggest
    single unlock (7 cards: Baking Course, Credit, Lifting Machine, Sculpture Course,
    Silage, Perennial Rye, Swimming Class); then the rest of CARD_DEFERRED_PLANS.

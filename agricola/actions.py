@@ -50,9 +50,19 @@ class CommitSubAction:
 
 @dataclass(frozen=True)
 class CommitSow(CommitSubAction):
-    """Commit a sow with specific grain and veg counts."""
+    """Commit a sow with specific grain and veg counts.
+
+    `grain`/`veg` are the BOARD-field counts (cells are filled in canonical
+    order — the fields are interchangeable, so counts suffice). `card_sows`
+    is the card-field part (user rulings 45-48, 2026-07-12): a sorted tuple
+    of (card_id, good) pairs, one per card-field stack sown this commit —
+    goods include "wood"/"stone" on the cards that grow them. Family-constant
+    `()` (no card-fields exist there), so it is skipped from the wire
+    encoding at default (trace_replay.action_to_params) and the C++ engine
+    is untouched."""
     grain: int
     veg: int
+    card_sows: tuple = ()
 
 
 @dataclass(frozen=True)

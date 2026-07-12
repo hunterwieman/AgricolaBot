@@ -60,15 +60,26 @@ def _fold(state: GameState, idx: int, variant, claimed) -> dict:
     take AND the extras other modifiers already claimed — the documented
     mandatory-max simplification of the card's "you can". A field another
     fold-in emptied has no "additional" grain to give, so it is skipped
-    (graceful degradation — an auto fold-in never fails)."""
+    (graceful degradation — an auto fold-in never fails).
+
+    Card-fields holding grain are grain fields too (user rulings 45/46,
+    2026-07-12) and get the same +1 when their stack can spare it. Per-field
+    = per-stack here: the multi-stack cards (Wood Field, Rock Garden) grow
+    only wood/stone, so a grain-holding card-field is always single-stack."""
     assert variant is None   # auto fold-in: no variants
-    return {
+    from agricola.cards.card_fields import iter_card_field_units
+
+    out = {
         (r, c): 1
         for r, row in enumerate(state.players[idx].farmyard.grid)
         for c, cell in enumerate(row)
         if cell.cell_type == CellType.FIELD
         and cell.grain - 1 - claimed.get((r, c), 0) >= 1
     }
+    for key, good, count in iter_card_field_units(state, idx):
+        if good == "grain" and count - 1 - claimed.get(key, 0) >= 1:
+            out[key] = 1
+    return out
 
 
 register_occupation(CARD_ID, _on_play)

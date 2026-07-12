@@ -60,15 +60,20 @@ CARD_ID = "slurry_spreader_c71"
 
 def _sow_committable(state: GameState, idx: int) -> bool:
     """Can a pushed PendingSow commit right now? Requires >= 1 empty FIELD
-    cell AND a crop (grain or veg) in supply — the never-push-a-dead-frame
-    gate (a before-phase PendingSow offers no Stop)."""
+    cell AND a crop (grain or veg) in supply — or a card-field sow (this is
+    a GENERIC "Sow" grant, so wood/stone card-fields qualify too; ruling 48,
+    2026-07-12). The never-push-a-dead-frame gate (a before-phase PendingSow
+    offers no Stop)."""
+    from agricola.cards.card_fields import can_sow_card_fields
+
     p = state.players[idx]
-    if p.resources.grain < 1 and p.resources.veg < 1:
-        return False
-    return any(
-        cell.cell_type == CellType.FIELD and cell.grain == 0 and cell.veg == 0
-        for row in p.farmyard.grid for cell in row
-    )
+    board_ok = (
+        (p.resources.grain >= 1 or p.resources.veg >= 1)
+        and any(
+            cell.cell_type == CellType.FIELD
+            and cell.grain == 0 and cell.veg == 0
+            for row in p.farmyard.grid for cell in row))
+    return board_ok or can_sow_card_fields(p)
 
 
 def _outcome_elig(state: GameState, idx: int, outcome) -> bool:

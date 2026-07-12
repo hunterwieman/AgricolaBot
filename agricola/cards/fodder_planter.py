@@ -83,13 +83,19 @@ def _latch_outcome(state: GameState, idx: int, outcome) -> GameState:
 
 def _sow_committable(state: GameState, idx: int) -> bool:
     """Is a sow actually committable — >= 1 empty FIELD cell AND grain or veg
-    in supply? Never push a frame with no legal commit."""
+    in supply, or an empty CROP card-field with matching supply (this grant is
+    crops-explicit, so wood/stone card-fields never qualify — ruling 48,
+    2026-07-12)? Never push a frame with no legal commit."""
+    from agricola.cards.card_fields import can_sow_card_fields
+
     p = state.players[idx]
-    if p.resources.grain <= 0 and p.resources.veg <= 0:
-        return False
-    return any(
-        cell.cell_type == CellType.FIELD and cell.grain == 0 and cell.veg == 0
-        for row in p.farmyard.grid for cell in row)
+    board_ok = (
+        (p.resources.grain > 0 or p.resources.veg > 0)
+        and any(
+            cell.cell_type == CellType.FIELD
+            and cell.grain == 0 and cell.veg == 0
+            for row in p.farmyard.grid for cell in row))
+    return board_ok or can_sow_card_fields(p, crops_only=True)
 
 
 def _trig_eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
@@ -105,10 +111,14 @@ def _trig_eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> 
 def _trig_apply(state: GameState, idx: int) -> GameState:
     """Push the granted sow, capped at this round's newborn total: k newborns
     -> up to k fields in one commit (the enumerator offers 1..k; declining all
-    = not firing this trigger)."""
+    = not firing this trigger). `crops_only`: the card prints "sow CROPS" —
+    a crops-explicit grant that may not plant wood/stone card-fields (user
+    ruling 48, 2026-07-12; the card's own clarification: "You may not plant
+    onto Wood Field D075 this way")."""
     latch = _latch(state, idx)
     return push(state, PendingSow(
-        player_idx=idx, initiated_by_id=f"card:{CARD_ID}", max_fields=latch[1]))
+        player_idx=idx, initiated_by_id=f"card:{CARD_ID}",
+        max_fields=latch[1], crops_only=True))
 
 
 # Pure recurring-harvest occupation: played via Lessons, on-play is a no-op.

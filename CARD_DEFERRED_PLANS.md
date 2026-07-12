@@ -449,6 +449,64 @@ user made during this design — cite these, dated, in the docstrings of the car
    the module; if a card ever makes holding building resources a liability
    or partial takes meaningful, restore the choice — the trigger form is in
    git history).
+42. **Cooking Hearth Extension (C62) is DEFERRED alongside Gypsy's Crock**
+   (user, 2026-07-12): it is pulled OUT of the converter-cluster build
+   (ruling 34's queue had slotted it there as a `cooking_rates` doubler).
+   Both cards modify how cooking itself works, and the user wants to decide
+   how cooking-modifier cards are implemented as one dedicated design pass
+   (the ruling-35 class) rather than piecemeal. Do not implement until that
+   decision is made.
+43. **Lettuce Patch (C70) "immediately" placement** (ruled 2026-07-12 — a
+   per-instance "immediately" ruling under the ruling-18 standing
+   instruction): "you can immediately turn each vegetable you harvested from
+   this card into 4 food" is an optional trigger offered at the take
+   occasion, ALONGSIDE the other optional triggers that fire on the field
+   phase's harvesting action (the PendingHarvestOccasion stretch — Food
+   Merchant's home). "Immediately" does not jump the queue ahead of them.
+44. **Crop Rotation Field (E70) "immediately sow"** (ruled 2026-07-12):
+   the granted opposite-crop sow on itself surfaces at the SAME trigger
+   location as Lettuce Patch's convert — the removal-occasion optional
+   stretch. Normal sow semantics (costs the supply crop), targets only this
+   card, declinable ("you can"). Its firing condition stays the wider
+   "remove" verb (any last-crop departure, the E-deck lexicon) — when a
+   future non-take remover (e.g. Game Provider) empties the card, the sow
+   is offered at THAT removal's instant.
+45. **"Field tile" vs "field" — the lexicon** (ruled 2026-07-12, extending
+   ruling 32): "field TILES" means the plowed fields on the farmyard grid;
+   "field" is the BROADER category and includes card-fields. So a card-field
+   counts for field-count readers — the Fields scoring category and any
+   "you need N fields" requirement — while per-TILE readers still exclude it
+   (ruling 32 unchanged).
+46. **Per-FIELD harvest modifiers reach card-fields** (ruled 2026-07-12):
+   Scythe Worker's per-grain-field extra, Stable Manure's donors, Grain
+   Thief's replace targets — a card-field holding the qualifying crop is
+   eligible. The take-modifier fold-fns must scan card-fields alongside the
+   grid cells when the card-fields wave lands.
+47. **Wood Field (D75) / Rock Garden (E80) stack semantics** (ruled
+   2026-07-12): "as though it were 2/3 fields" = 2/3 independently-sowable
+   STACKS (each sown separately, grain-like 3 wood / veg-like 2 stone per
+   sow); the field-phase take harvests 1 from EACH non-empty stack; "but it
+   is considered 1 field" scopes only the field-count readers of ruling 45
+   (each card counts as exactly 1 field there).
+48. **The sow-grant lexicon + the capped-sow accounting** (ruled 2026-07-12,
+   from the full-catalog sow survey; the official clarification pair
+   adjudicates it): a GENERIC "Sow" grant — even limited ("for exactly 1
+   field": Chief Forester A115, Furrows D3, Changeover D71) — may target
+   wood/stone card-fields (Chief Forester's clarification: "You may sow 2
+   wood onto the Wood Field D075"); a CROPS-EXPLICIT grant ("sow crops" /
+   "1 crop": Fodder Planter D115, Apiary E23) may NOT (Fodder Planter's
+   clarification: "You may not plant onto Wood Field D075 this way") —
+   crop-growing card-fields remain legal targets for both. Cap accounting:
+   a card-field consumes exactly ONE field-unit of any capped sow's budget
+   regardless of stacks, and that one unit may fill ANY subset of its empty
+   stacks ("You may plant 2 wood at once with 1 trigger" — the "may"
+   implies 1 is also fine). Within a normal uncapped sow, stacks are sown
+   independently (Plant Fertilizer C8's clarification treats them as
+   independent piles). Encoding: `PendingSow.crops_only` flag set by
+   crops-explicit granters; default False (generic) — Family-inert, so
+   canonical default-skip. Side note for future sow-modifier cards: the
+   catalog's good-vs-crop wording is deliberate (Skimmer Plow / Cow Patty /
+   Wild Greens say "good"; Tinsmith Master is clarified to grain/veg only).
 
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a

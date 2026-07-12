@@ -161,6 +161,13 @@ class CardStore:
         kept = tuple((k, v) for k, v in self.items if k != cid)
         return CardStore(tuple(sorted(kept + ((cid, value),))))
 
+    def remove(self, cid: str) -> "CardStore":
+        """A new CardStore without `cid`'s entry (no-op if absent). For state
+        whose logical default is "no entry" (a card-field harvested back to
+        empty — card_fields.stacks_to_store): storing the default explicitly
+        would hash differently from never having stored it."""
+        return CardStore(tuple((k, v) for k, v in self.items if k != cid))
+
 
 @dataclass(frozen=True)
 class FutureReward:

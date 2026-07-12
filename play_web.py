@@ -912,7 +912,10 @@ def _action_params(action: Action) -> dict:
     if isinstance(action, Stop):
         return {}
     if isinstance(action, CommitSow):
-        return {"grain": action.grain, "veg": action.veg}
+        params = {"grain": action.grain, "veg": action.veg}
+        if action.card_sows:   # card-field sows (Cards mode only)
+            params["card_sows"] = [list(pair) for pair in action.card_sows]
+        return params
     if isinstance(action, CommitBake):
         return {"grain": action.grain}
     if isinstance(action, CommitPlow):
@@ -1014,6 +1017,16 @@ def _web_action_display(action: Action) -> str:
         if variant:
             return f"{name}: {_trigger_variant_label(variant)}"
         return name
+    # A card-field sow (Cards mode): name the card(s) so distinct card sows
+    # read distinctly ("Sow grain=1, veg=0 + Wood Field: wood x2").
+    if isinstance(action, CommitSow) and action.card_sows:
+        counts: dict[tuple, int] = {}
+        for cid, good in action.card_sows:
+            counts[(cid, good)] = counts.get((cid, good), 0) + 1
+        cards = ", ".join(
+            f"{_card_info(cid)['name']}: {good}" + (f" x{n}" if n > 1 else "")
+            for (cid, good), n in sorted(counts.items()))
+        return f"Sow grain={action.grain}, veg={action.veg} + {cards}"
     # The mandatory field-phase take at a hosted during-window (Cards mode).
     # A modifier-carrying variant names the take-modifier card(s) whose extras
     # fold into the event (e.g. Stable Manure's which-fields count vector).

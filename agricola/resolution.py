@@ -1125,8 +1125,36 @@ def _execute_sow(
     )
 
     new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
+
+    # Card-field sows (user rulings 45-48, 2026-07-12): each (card_id, good)
+    # pair spends 1 `good` from supply and plants the card's declared stack
+    # (3 for grain-like goods, 2 for veg-like) on one empty stack. Family
+    # commits never carry card_sows, so this block is card-only.
+    new_store = p.card_state
+    if commit.card_sows:
+        from agricola.cards.card_fields import (
+            EMPTY_STACK,
+            card_field_stacks,
+            sow_amount,
+            stack_with,
+            stacks_to_store,
+        )
+        probe = fast_replace(p, card_state=new_store)
+        for cid, good in commit.card_sows:
+            stacks = list(card_field_stacks(probe, cid))
+            slot = stacks.index(EMPTY_STACK)   # legality guaranteed an empty stack
+            stacks[slot] = stack_with(EMPTY_STACK, good, sow_amount(cid, good))
+            new_store = stacks_to_store(new_store, cid, stacks)
+            probe = fast_replace(p, card_state=new_store)
+            new_resources = new_resources - Resources(**{good: 1})
+        assert min(
+            new_resources.wood, new_resources.stone,
+            new_resources.grain, new_resources.veg) >= 0, (
+            "card sow overspent supply; legality should have caught this")
+
     new_player = fast_replace(
         p, resources=new_resources, farmyard=new_farmyard,
+        card_state=new_store,
     )
     state = _update_player(state, player_idx, new_player)
     return _enter_after_phase(state)   # pivot PendingSow -> after; Stop pops
@@ -1747,8 +1775,14 @@ def field_take(
     Scythe Worker). `bonus` is the replacement's general-supply goods, added
     to the player's gains but NOT to the manifest (not harvested).
 
-    Card-fields (crops living in CardStore) will be iterated here alongside
-    the board fields when they land — HARVEST_WINDOWS_DESIGN.md §6.
+    Card-fields (user rulings 45-47, 2026-07-12; `agricola/cards/card_fields`)
+    are iterated after the board scan, inside the SAME one event: each
+    non-empty stack of each owned card-field yields 1 of its take-precedence
+    good (+ any fold-in extras), emitting a `source="card:<id>"` entry per
+    stack — entries per-TILE readers ignore (ruling 32) and per-FIELD/unit
+    readers count. `extra_takes` and `skip_cells` address a card stack by the
+    key ("card", card_id, stack_idx). Family states own no card-fields, so
+    the block is inert there and the Family manifest is byte-identical.
     """
     p = state.players[idx]
     extras = extra_takes or {}
@@ -1799,13 +1833,56 @@ def field_take(
                 new_row.append(cell)
         new_grid_rows.append(tuple(new_row))
 
+    # Card-fields — the same one event, after the board scan (rulings 45-47).
+    new_store = p.card_state
+    card_gain = Resources()
+    card_keys_seen: set = set()
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        card_field_stacks,
+        owned_card_fields,
+        stack_after_take,
+        stack_take_good,
+        stacks_to_store,
+    )
+    for cid in owned_card_fields(p):
+        stacks = list(card_field_stacks(p, cid))
+        changed = False
+        for i, stack in enumerate(stacks):
+            key = ("card", cid, i)
+            card_keys_seen.add(key)
+            good, n = stack_take_good(stack)
+            if n == 0:
+                assert key not in extras, (
+                    f"take fold-in names empty card stack {key}")
+                continue
+            if key in skip_cells:
+                continue   # replaced (Grain Thief): untouched, no entry
+            take = 1 + extras.get(key, 0)
+            assert take <= n, (
+                f"take fold-in over-harvests card stack {key}: {take} > {n} {good}")
+            card_gain = card_gain + Resources(**{good: take})
+            stacks[i] = stack_after_take(stack, good, take)
+            changed = True
+            entries.append(HarvestEntry(
+                source=f"card:{cid}", crop=good, amount=take,
+                emptied=n == take))
+        if changed:
+            new_store = stacks_to_store(new_store, cid, stacks)
+    stray = {k for k in extras if isinstance(k, tuple) and len(k) == 3
+             and k not in card_keys_seen}
+    stray |= {k for k in skip_cells if isinstance(k, tuple) and len(k) == 3
+              and k not in card_keys_seen}
+    assert not stray, f"take fold-in names unknown card stacks: {stray}"
+
     # Fields cannot lie inside pastures, so the pasture cache is preserved
     # via fast_replace's natural ride-along.
     new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
-    new_resources = p.resources + Resources(grain=grain_gain, veg=veg_gain)
+    new_resources = (p.resources + Resources(grain=grain_gain, veg=veg_gain)
+                     + card_gain)
     if bonus is not None:
         new_resources = new_resources + bonus
-    new_player = fast_replace(p, farmyard=new_farmyard, resources=new_resources)
+    new_player = fast_replace(p, farmyard=new_farmyard,
+                              resources=new_resources, card_state=new_store)
     state = _update_player(state, idx, new_player)
     return state, HarvestOccasion(source=source, entries=tuple(entries))
 

@@ -408,7 +408,11 @@ def _fmt_action_inline(action: Action) -> str:
     if isinstance(action, Proceed):
         return "Proceed"
     if isinstance(action, CommitSow):
-        return f"CommitSow(grain={action.grain}, veg={action.veg})"
+        base = f"CommitSow(grain={action.grain}, veg={action.veg})"
+        if action.card_sows:
+            cards = ", ".join(f"{cid}: {good}" for cid, good in action.card_sows)
+            return f"{base} + {cards}"
+        return base
     if isinstance(action, CommitBake):
         return f"CommitBake(grain={action.grain})"
     if isinstance(action, CommitPlow):

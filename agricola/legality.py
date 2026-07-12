@@ -276,7 +276,14 @@ def _can_bake_bread(state: GameState, p: PlayerState) -> bool:
 
 
 def _can_sow(p: PlayerState) -> bool:
-    """At least one empty field cell exists AND ≥1 grain or veg in supply."""
+    """At least one empty field cell exists AND ≥1 grain or veg in supply —
+    or a card-field sow is possible (an owned card-field with an empty stack
+    and a matching sowable good in supply; rulings 45-48, 2026-07-12). The
+    card check is inert in Family states (no card-fields owned)."""
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        can_sow_card_fields,
+    )
+
     grid = p.farmyard.grid
     has_empty_field = any(
         grid[r][c].cell_type == CellType.FIELD
@@ -285,7 +292,7 @@ def _can_sow(p: PlayerState) -> bool:
         for r in range(3) for c in range(5)
     )
     has_seed = p.resources.grain >= 1 or p.resources.veg >= 1
-    return has_empty_field and has_seed
+    return (has_empty_field and has_seed) or can_sow_card_fields(p)
 
 
 def _can_plow(p: PlayerState) -> bool:
@@ -1502,22 +1509,38 @@ def _enumerate_pending_grain_utilization(
 def _enumerate_pending_sow(
     state: GameState, pending: PendingSow,
 ) -> list[Action]:
-    """Enumerate legal (grain, veg) commits at PendingSow.
+    """Enumerate legal (grain, veg[, card_sows]) commits at PendingSow.
 
-    Constraints:
-      - grain + veg >= 1 (must sow at least one field)
-      - grain <= p.resources.grain
-      - veg <= p.resources.veg
+    Board constraints:
+      - grain <= p.resources.grain, veg <= p.resources.veg
       - grain + veg <= number of empty field cells
-      - grain + veg <= pending.max_fields when set (a card-granted partial
-        sow — Fodder Planter's per-newborn cap; 0 = uncapped)
 
-    Order: sorted by (grain, veg) ascending.
+    Card-field constraints (user rulings 45-48, 2026-07-12; the Family fast
+    path — no owned card-fields — enumerates exactly the pre-card list):
+      - each (card_id, good) pair sows one empty stack of that card with an
+        allowed good, supply-bounded across the whole commit (a wood sow
+        spends supply wood, etc.)
+      - `pending.crops_only` (a crops-explicit grant — Fodder Planter)
+        excludes wood/stone card sows entirely (ruling 48)
+
+    The sow cap (`pending.max_fields`, 0 = uncapped): board fields count 1
+    each; a card-field counts exactly ONE field-unit however many of its
+    stacks the commit fills (ruling 48's cap accounting, from Chief
+    Forester's clarification "You may plant 2 wood at once with 1 trigger").
+
+    Something must be sown: board + card sows >= 1 total.
+
+    Order: card bundles in `enumerate_card_sows` order (the empty bundle
+    first), then (grain, veg) ascending — the Family ordering is unchanged.
 
     Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): in the after-phase the
     commit is done, so only after_sow triggers + Stop are offered. In the
     before-phase, any before_sow triggers precede the CommitSow options.
     """
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        enumerate_card_sows,
+    )
+
     if pending.phase == "after":
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
         actions.append(Stop())
@@ -1530,16 +1553,24 @@ def _enumerate_pending_sow(
         and p.farmyard.grid[r][c].grain == 0
         and p.farmyard.grid[r][c].veg == 0
     )
-    cap = empty_fields
-    if pending.max_fields:
-        cap = min(cap, pending.max_fields)
-    for g in range(p.resources.grain + 1):
-        for v in range(p.resources.veg + 1):
-            if g + v == 0:
-                continue
-            if g + v > cap:
-                continue
-            actions.append(CommitSow(grain=g, veg=v))
+    for bundle in enumerate_card_sows(p, crops_only=pending.crops_only):
+        spent: dict[str, int] = {}
+        for _cid, good in bundle:
+            spent[good] = spent.get(good, 0) + 1
+        if (spent.get("wood", 0) > p.resources.wood
+                or spent.get("stone", 0) > p.resources.stone):
+            continue
+        cards_touched = len({cid for cid, _good in bundle})
+        for g in range(p.resources.grain - spent.get("grain", 0) + 1):
+            for v in range(p.resources.veg - spent.get("veg", 0) + 1):
+                if g + v == 0 and not bundle:
+                    continue   # must sow something
+                if g + v > empty_fields:
+                    continue
+                if (pending.max_fields
+                        and g + v + cards_touched > pending.max_fields):
+                    continue
+                actions.append(CommitSow(grain=g, veg=v, card_sows=bundle))
     return actions
 
 

@@ -66,7 +66,21 @@ def _cap(state: GameState, idx: int) -> int:
 
 def _groups(state: GameState, idx: int) -> dict[str, int]:
     """The donor-field groups: {(crop kind + remaining) key: field count}, for
-    fields holding >= 2 of their crop (a 1-crop field can spare nothing)."""
+    fields holding >= 2 of their crop (a 1-crop field can spare nothing).
+
+    Card-fields are donor FIELDS too (user rulings 45/46, 2026-07-12 — the
+    card prints "good", so wood/stone card-fields qualify alongside crops).
+    Each card is its OWN singleton group (key "cf_<card_id>", no colon — the
+    variant encoding splits on ":"): a card-field is NOT interchangeable with
+    a same-count grid field (harvesting from the card moves card state and
+    feeds card-level readers), and a multi-stack card is ONE field (ruling
+    47) donating at most 1 extra, from whichever stack can spare it."""
+    from agricola.cards.card_fields import (
+        card_field_stacks,
+        owned_card_fields,
+        stack_take_good,
+    )
+
     out: dict[str, int] = {}
     for row in state.players[idx].farmyard.grid:
         for cell in row:
@@ -79,6 +93,10 @@ def _groups(state: GameState, idx: int) -> dict[str, int]:
             else:
                 continue
             out[key] = out.get(key, 0) + 1
+    p = state.players[idx]
+    for cid in owned_card_fields(p):
+        if any(stack_take_good(s)[1] >= 2 for s in card_field_stacks(p, cid)):
+            out[f"cf_{cid}"] = 1
     return out
 
 
@@ -108,9 +126,13 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> dict | None:
     `key:count` part, the first `count` fields of that (crop, remaining) group
     in scan order WITH REMAINING SPARE (count − 1 base − extras other
     modifiers already claimed >= 1) each contribute +1 extra unit to the one
-    take event. Returns None when the claims leave fewer spare-having fields
+    take event. A "cf_<card_id>" part takes its +1 from the card's max-spare
+    stack (rulings 45-47, 2026-07-12: the card is one field, donating at most
+    one extra). Returns None when the claims leave fewer spare-having fields
     than the vector demands — the enumerator then drops that modifier
     combination as infeasible (a rigid demand is met exactly or not at all)."""
+    from agricola.cards.card_fields import iter_card_field_units
+
     want = {}
     for part in variant.split("|"):
         key, _, count = part.partition(":")
@@ -130,6 +152,18 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> dict | None:
                     and n - 1 - claimed.get((r, c), 0) >= 1):
                 want[key] -= 1
                 extras[(r, c)] = 1
+    for gkey in [k for k, w in want.items() if k.startswith("cf_") and w > 0]:
+        cid = gkey[len("cf_"):]
+        best_key, best_spare = None, 0
+        for key, _good, count in iter_card_field_units(state, idx):
+            if key[1] != cid:
+                continue
+            spare = count - 1 - claimed.get(key, 0)
+            if spare > best_spare:
+                best_key, best_spare = key, spare
+        if best_key is not None:
+            want[gkey] -= 1
+            extras[best_key] = 1
     if any(want.values()):
         return None   # demand unmeetable under the claims -> combo infeasible
     return extras

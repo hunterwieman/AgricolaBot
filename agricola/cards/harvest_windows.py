@@ -407,6 +407,16 @@ def _as_fold(got):
 
 
 def _crop_count(state, idx, cell):
+    """The take-target's current crop count — a grid cell by (row, col), or a
+    card-field stack by ("card", card_id, stack_idx) (ruling 46, 2026-07-12:
+    the fold machinery addresses card stacks with the same claim map)."""
+    if len(cell) == 3 and cell[0] == "card":
+        from agricola.cards.card_fields import (
+            card_field_stacks,
+            stack_take_good,
+        )
+        stack = card_field_stacks(state.players[idx], cell[1])[cell[2]]
+        return stack_take_good(stack)[1]
     c = state.players[idx].farmyard.grid[cell[0]][cell[1]]
     return c.grain if c.grain > 0 else c.veg
 

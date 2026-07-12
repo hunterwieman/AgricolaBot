@@ -103,6 +103,13 @@ def action_to_params(action: Action) -> dict[str, Any]:
         # restores the dataclass default for the missing key.
         if f.name == "variant" and v is None:
             continue
+        # Same idiom for CommitSow.card_sows (user rulings 45-48, 2026-07-12):
+        # Family sows never carry card-field targets, so the empty default is
+        # omitted and the Family wire encoding — and the C++ gates — are
+        # unchanged. A non-empty value is a tuple of (card_id, good) pairs,
+        # emitted as a list of 2-lists; `action_from_params` re-tuples it.
+        if f.name == "card_sows" and v == ():
+            continue
         if isinstance(v, frozenset):
             params[f.name] = [list(t) for t in sorted(v)]
         elif isinstance(v, (Resources, ReturnImprovement)):
@@ -121,6 +128,8 @@ def action_from_params(type_name: str, params: dict[str, Any]) -> Action:
     for k, v in params.items():
         if k == "cells":
             kwargs[k] = frozenset(tuple(c) for c in v)
+        elif k == "card_sows":
+            kwargs[k] = tuple(tuple(pair) for pair in v)
         elif isinstance(v, dict) and "route" in v:
             kwargs[k] = _payment_from_json(v)
         elif k == "to_material":
