@@ -154,6 +154,49 @@ def test_empty_field_does_not_count():
 
 
 # ---------------------------------------------------------------------------
+# Card-fields count as grain fields (ruling 45, 2026-07-12)
+# ---------------------------------------------------------------------------
+
+def _own_card_field(state, idx, cid, stacks, *, occupation=False):
+    """Give player `idx` the card-field `cid` holding `stacks` — the
+    tests/test_card_fields_seam.py idiom."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[idx]
+    if occupation:
+        p = fast_replace(p, occupations=p.occupations | {cid})
+    else:
+        p = fast_replace(p, minor_improvements=p.minor_improvements | {cid})
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_grain_card_field_alone_meets_threshold_in_real_harvest():
+    """Ruling 45 (2026-07-12): a grain-holding card-field is a grain field —
+    with ZERO grid grain fields, the card-field alone crosses the printed
+    "at least 1 grain field" threshold and the +2 wood lands in the real
+    harvest walk. Both runs own the card-field (Patch Caregiver: 1 stack, no
+    harvest hooks of its own); only Pipe Smoker ownership differs."""
+    import agricola.cards.patch_caregiver  # noqa: F401  (registers the card-field)
+    base = _own_card_field(_harvest_state(), 0, "patch_caregiver",
+                           [(3, 0, 0, 0)], occupation=True)
+    baseline = _wood_after_harvest(base, 0)
+    owned = _wood_after_harvest(_own_occ(base, 0), 0)
+    assert owned == baseline + 2
+
+
+def test_wood_planted_card_field_is_not_a_grain_field():
+    """A wood-planted Wood Field is NOT a grain field (the count is per-good):
+    no wood bonus with only a wood-holding card-field, in the real walk."""
+    import agricola.cards.wood_field  # noqa: F401  (registers the card-field)
+    base = _own_card_field(_harvest_state(seed=1), 0, "wood_field",
+                           [(0, 0, 3, 0), (0, 0, 0, 0)])
+    baseline = _wood_after_harvest(base, 0)
+    owned = _wood_after_harvest(_own_occ(base, 0), 0)
+    assert owned == baseline
+
+
+# ---------------------------------------------------------------------------
 # Owner-gating
 # ---------------------------------------------------------------------------
 

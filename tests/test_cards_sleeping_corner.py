@@ -155,3 +155,38 @@ def test_prereq_veg_field_does_not_count():
              (0, 1): Cell(cell_type=CellType.FIELD, veg=2)}
     cs = f.with_grid(cs, 0, cells)
     assert prereq_met(MINORS[CARD_ID], cs, 0) is False
+
+
+def test_prereq_counts_grain_card_fields():
+    """Ruling 45 (2026-07-12): a grain-holding card-field IS a grain field, so
+    it joins the "2 Grain Fields" count — one grid grain field + one grain
+    card-field reaches 2 (the old grid-only count saw 1), and two grain
+    card-fields reach 2 with zero grid fields. A veg-holding card-field adds
+    nothing."""
+    from agricola.cards.card_fields import stacks_to_store
+    from agricola.replace import fast_replace
+
+    def _with_card_field(cs, cid, stacks):
+        p = cs.players[0]
+        p = fast_replace(
+            p,
+            minor_improvements=p.minor_improvements | {cid},
+            card_state=stacks_to_store(p.card_state, cid, stacks),
+        )
+        return fast_replace(cs, players=tuple(
+            p if i == 0 else cs.players[i] for i in range(2)))
+
+    # 1 grid grain field + 1 grain card-field -> met.
+    cs = _state(owner=0, owner_grain_fields=1)
+    assert prereq_met(MINORS[CARD_ID], cs, 0) is False       # 1 of 2
+    cs = _with_card_field(cs, "artichoke_field", ((3, 0, 0, 0),))
+    assert prereq_met(MINORS[CARD_ID], cs, 0) is True
+    # 2 grain card-fields, zero grid fields -> met.
+    cs2 = _state(owner=0, owner_grain_fields=0)
+    cs2 = _with_card_field(cs2, "artichoke_field", ((3, 0, 0, 0),))
+    cs2 = _with_card_field(cs2, "crop_rotation_field", ((3, 0, 0, 0),))
+    assert prereq_met(MINORS[CARD_ID], cs2, 0) is True
+    # A veg-holding Beanfield is not a grain field -> still 1 of 2.
+    cs3 = _state(owner=0, owner_grain_fields=1)
+    cs3 = _with_card_field(cs3, "beanfield", ((0, 2, 0, 0),))
+    assert prereq_met(MINORS[CARD_ID], cs3, 0) is False

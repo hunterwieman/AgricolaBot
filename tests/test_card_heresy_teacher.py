@@ -8,16 +8,24 @@ below the grain."
 The effect fires in the Lessons host's BEFORE-phase (the "each time you use"
 ruling → before_action_space), at the PlaceWorker("lessons") push. The card is an
 occupation, so it must already be in the player's tableau for the auto to fire.
+
+Card-fields (ruling 45, 2026-07-12): "field" is the broader category and
+includes card-fields, so a card-field holding 3+ grain and no vegetable gains
+the below-the-grain vegetable too — on its grain-bearing stack, which the
+field-phase take then harvests grain-first exactly like a grid cell.
 """
+import agricola.cards.crop_rotation_field  # noqa: F401  (registers a grain-capable card-field)
 import agricola.cards.heresy_teacher  # noqa: F401  (registers the card)
 import agricola.cards.stable_architect  # noqa: F401  (a registered no-op-on-play occupation, played to drive Lessons)
 
 from agricola.actions import ChooseSubAction, CommitPlayOccupation, PlaceWorker, Stop
+from agricola.cards.card_fields import card_field_stacks, stacks_to_store
 from agricola.cards.specs import OCCUPATIONS
 from agricola.cards.triggers import AUTO_EFFECTS, OWN_ACTION_HOOK_CARDS
 from agricola.constants import CellType
 from agricola.engine import step
 from agricola.replace import fast_replace
+from agricola.resolution import field_take
 from agricola.setup import CardPool, setup_env
 from agricola.state import Cell, get_space, with_space
 
@@ -180,3 +188,72 @@ def test_fires_each_time_lessons_is_used():
     cs = step(cs, PlaceWorker(space="lessons"))
     assert _veg_at(cs, cp, 0, 0) == 1
     assert _grain_at(cs, cp, 0, 0) == 4
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): a card-field with 3+ grain and no
+# vegetable is "a field with at least 3 grain and no vegetable" too.
+# ---------------------------------------------------------------------------
+
+def _own_card_field(cs, cp, cid):
+    p = fast_replace(cs.players[cp],
+                     minor_improvements=cs.players[cp].minor_improvements | {cid})
+    return fast_replace(cs, players=tuple(
+        p if i == cp else cs.players[i] for i in range(2)))
+
+
+def _set_stacks(cs, cp, cid, stacks):
+    p = cs.players[cp]
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(cs, players=tuple(
+        p if i == cp else cs.players[i] for i in range(2)))
+
+
+def test_card_field_with_three_grain_gains_below_the_grain_veg():
+    cs, cp = _card_state()
+    cs = _own_card_field(cs, cp, "crop_rotation_field")
+    cs = _set_stacks(cs, cp, "crop_rotation_field", [(3, 0, 0, 0)])
+    cs = step(cs, PlaceWorker(space="lessons"))   # before_action_space fires
+    # The veg joins the grain-bearing stack; the grain count is untouched.
+    assert card_field_stacks(cs.players[cp], "crop_rotation_field") == (
+        (3, 1, 0, 0),)
+
+
+def test_card_field_with_too_little_grain_does_not_qualify():
+    cs, cp = _card_state()
+    cs = _own_card_field(cs, cp, "crop_rotation_field")
+    cs = _set_stacks(cs, cp, "crop_rotation_field", [(2, 0, 0, 0)])
+    cs = step(cs, PlaceWorker(space="lessons"))
+    assert card_field_stacks(cs.players[cp], "crop_rotation_field") == (
+        (2, 0, 0, 0),)
+
+
+def test_card_field_already_holding_veg_does_not_qualify():
+    # The clarification case on a card: a mixed grain+veg card-field is
+    # excluded by the veg == 0 test (never bumped to 2).
+    cs, cp = _card_state()
+    cs = _own_card_field(cs, cp, "crop_rotation_field")
+    cs = _set_stacks(cs, cp, "crop_rotation_field", [(3, 1, 0, 0)])
+    cs = step(cs, PlaceWorker(space="lessons"))
+    assert card_field_stacks(cs.players[cp], "crop_rotation_field") == (
+        (3, 1, 0, 0),)
+
+
+def test_mixed_card_field_then_harvests_grain_first():
+    # The (3, 1, 0, 0) stack the effect creates behaves like a grid cell at
+    # the field-phase take: 1 grain is harvested (grain before veg — the
+    # take-precedence elif), the below-the-grain veg stays put.
+    cs, cp = _card_state()
+    cs = _own_card_field(cs, cp, "crop_rotation_field")
+    cs = _set_stacks(cs, cp, "crop_rotation_field", [(3, 0, 0, 0)])
+    cs = _use_lessons(cs)   # full use, so no frame is left on the stack
+    assert card_field_stacks(cs.players[cp], "crop_rotation_field") == (
+        (3, 1, 0, 0),)
+    g0 = cs.players[cp].resources.grain
+    nxt, occasion = field_take(cs, cp)
+    e = [e for e in occasion.entries
+         if e.source == "card:crop_rotation_field"][0]
+    assert (e.crop, e.amount, e.emptied) == ("grain", 1, False)
+    assert nxt.players[cp].resources.grain - g0 == 1
+    assert card_field_stacks(nxt.players[cp], "crop_rotation_field") == (
+        (2, 1, 0, 0),)

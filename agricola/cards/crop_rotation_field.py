@@ -49,14 +49,17 @@ before/after_sow hooks fire.
 THE "REMOVE" VERB (the E-deck lexicon; HARVEST_HANDOFF.md §5 — a deliberate
 contrast with Cherry Orchard E68 / Melon Patch E69, whose reactions say
 "harvest"): "remove" is ANY departure of the crop from the card, not just a
-harvest. The trigger is therefore UNSCOPED — it fires on any occasion that
-removed the card's last crop: a real harvest's field-phase take AND a
-card-driven bare take (Bumper Crop's mid-WORK field-phase effect) alike.
-Today the take is the ONLY path that removes crops from a card-field, and
-every take emits an occasion — so this occasion trigger IS the complete
-implementation. A future non-take remover (e.g. Game Provider's field-crop
-discard) must host this reactor at its own removal instant (the
-`card_fields.py` module header carries the same note).
+harvest. The reaction therefore lives on TWO seams, covering every remover:
+
+- Any occasion that removed the card's last crop — a real harvest's
+  field-phase take AND a card-driven bare take (Bumper Crop's mid-WORK
+  field-phase effect) — through the occasion trigger above.
+- Any NON-TAKE remover, through the `remove_card_crop` chokepoint
+  (`register_card_crop_removal`): per ruling 44 the sow is offered at THAT
+  removal's instant, as a sow-or-decline `PendingCardChoice` pushed right
+  where the removal happened (Craft Brewery's "1 grain from a field"
+  exchange is the first such remover — its exchange can empty this card
+  mid-feeding, and the re-sow offer surfaces there).
 
 Card-game only (minor + card-field + occasion-trigger registries, all
 ownership-gated; the CardStore content is card-only): the Family game is
@@ -69,10 +72,13 @@ from agricola.cards.card_fields import (
     EMPTY_STACK,
     card_field_stacks,
     card_holds,
+    register_card_crop_removal,
     register_card_field,
     stack_with,
     stacks_to_store,
 )
+from agricola.cards.triggers import register_card_choice_resolver
+from agricola.pending import PendingCardChoice, pop, push
 from agricola.cards.harvest_windows import register_harvest_occasion_trigger
 from agricola.cards.specs import register_minor
 from agricola.replace import fast_replace
@@ -113,14 +119,10 @@ def _eligible(state: GameState, idx: int, occasion) -> bool:
     return _sowable_crop(state, idx, occasion) is not None
 
 
-def _apply(state: GameState, idx: int, occasion) -> GameState:
-    """Sow the opposite crop on this card: 1 from supply fills the empty
-    stack with the standard planted amount (grain 3 / veg 2). No PendingSow
-    frame is pushed — the fire on the occasion host is the whole decision —
-    and no before/after_sow hooks fire (the card's own effect, not a "Sow"
-    action)."""
-    crop = _sowable_crop(state, idx, occasion)
-    assert crop is not None, "FireTrigger dispatched while ineligible"
+def _fill(state: GameState, idx: int, crop: str) -> GameState:
+    """The granted sow itself: 1 `crop` from supply fills the card's empty
+    stack with the standard planted amount (grain 3 / veg 2). The card's OWN
+    effect, not a "Sow" action — no before/after_sow hooks fire."""
     p = state.players[idx]
     stacks = list(card_field_stacks(p, CARD_ID))
     slot = stacks.index(EMPTY_STACK)
@@ -134,6 +136,42 @@ def _apply(state: GameState, idx: int, occasion) -> GameState:
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
 
 
+def _apply(state: GameState, idx: int, occasion) -> GameState:
+    """The take-path fire: no PendingSow frame — the fire on the occasion
+    host is the whole decision."""
+    crop = _sowable_crop(state, idx, occasion)
+    assert crop is not None, "FireTrigger dispatched while ineligible"
+    return _fill(state, idx, crop)
+
+
+def _on_removed(state: GameState, idx: int, removed_good: str) -> GameState:
+    """The non-take-remover path (ruling 44, 2026-07-12): a card effect (not
+    the take) just removed this card's last `removed_good`. When the granted
+    sow is possible — empty stack + the opposite crop in supply — offer it
+    RIGHT HERE as a sow-or-decline PendingCardChoice (the fire/decline
+    surface the occasion host provides on the take path)."""
+    opposite = _OPPOSITE.get(removed_good)
+    if opposite is None:
+        return state
+    p = state.players[idx]
+    if getattr(p.resources, opposite) < 1:
+        return state
+    if not any(s == EMPTY_STACK for s in card_field_stacks(p, CARD_ID)):
+        return state
+    return push(state, PendingCardChoice(
+        player_idx=idx, initiated_by_id=f"card:{CARD_ID}",
+        options=(f"sow_{opposite}", "decline")))
+
+
+def _resolve(state: GameState, idx: int, chosen: str) -> GameState:
+    """Resolve the non-take-remover choice (the resolver owns the pop)."""
+    if chosen != "decline":
+        state = _fill(state, idx, chosen[len("sow_"):])
+    return pop(state)
+
+
 register_minor(CARD_ID, min_occupations=1)
 register_card_field(CARD_ID, stacks=1, sow_amounts=(("grain", 3), ("veg", 2)))
 register_harvest_occasion_trigger(CARD_ID, _eligible, _apply)
+register_card_crop_removal(CARD_ID, _on_removed)
+register_card_choice_resolver(CARD_ID, _resolve)

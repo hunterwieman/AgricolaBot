@@ -8,12 +8,22 @@ Effect = automatic before_action_space hook on the two atomic quarry spaces. The
 hook is driven via a REAL placement on a quarry (the hosted-space lifecycle:
 PlaceWorker -> Proceed -> Stop), exactly like the Stone Tongs precedent in
 test_cards_action_space_hook.py.
+
+Card-fields (ruling 45, 2026-07-12): "field" includes card-fields, so a
+card-field growing exactly one type of crop gains +1 of that crop too —
+wood/stone are not crops, so wood/stone and empty cards gain nothing. The
+prerequisite reads "No Field TILES" and stays grid-only (ruling 32,
+2026-07-06): a card-field never breaks it.
 """
+import agricola.cards.artichoke_field  # noqa: F401  (a grain/veg card-field)
+import agricola.cards.beanfield  # noqa: F401  (a veg-only card-field)
 import agricola.cards.calcium_fertilizers  # noqa: F401  (registers the card)
+import agricola.cards.wood_field  # noqa: F401  (a wood card-field, 2 stacks)
 
 import pytest
 
 from agricola.actions import PlaceWorker, Proceed, Stop
+from agricola.cards.card_fields import card_field_stacks, stacks_to_store
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.cards.triggers import AUTO_EFFECTS, OWN_ACTION_HOOK_CARDS
 from agricola.constants import CellType
@@ -213,3 +223,53 @@ def test_opponent_card_does_not_fire_for_actor():
     assert not s.pending_stack
     # Player 1's grain field is untouched.
     assert _field_crops(s.players[1]) == [(3, 0)]
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): a card-field growing exactly one type
+# of crop gains +1 of that crop; wood/stone are not crops.
+# ---------------------------------------------------------------------------
+
+def _set_stacks(state, idx, cid, stacks):
+    p = state.players[idx]
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_card_field_single_crop_gains_one_on_quarry():
+    s = _own_minor(_card_state(), 0, CARD_ID)
+    s = _own_minor(s, 0, "beanfield")
+    s = _set_stacks(s, 0, "beanfield", [(0, 2, 0, 0)])
+    s = _ready_quarry(s, "western_quarry", owner=0)
+    out = _play_quarry(s, "western_quarry")
+    assert card_field_stacks(out.players[0], "beanfield") == ((0, 3, 0, 0),)
+
+
+def test_wood_empty_and_mixed_card_fields_gain_nothing():
+    # Wood is not a crop (wood_field skipped), an empty card is not planted
+    # (beanfield skipped), and a mixed grain+veg card grows TWO types of crop
+    # (artichoke_field skipped).
+    s = _own_minor(_card_state(), 0, CARD_ID)
+    for cid in ("beanfield", "wood_field", "artichoke_field"):
+        s = _own_minor(s, 0, cid)
+    s = _set_stacks(s, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 0, 0)])
+    s = _set_stacks(s, 0, "artichoke_field", [(3, 1, 0, 0)])
+    s = _ready_quarry(s, "western_quarry", owner=0)
+    out = _play_quarry(s, "western_quarry")
+    assert card_field_stacks(out.players[0], "wood_field") == (
+        (0, 0, 3, 0), (0, 0, 0, 0))
+    assert card_field_stacks(out.players[0], "artichoke_field") == ((3, 1, 0, 0),)
+    # The never-planted beanfield stays empty (no store entry appears).
+    assert card_field_stacks(out.players[0], "beanfield") == ((0, 0, 0, 0),)
+    assert out.players[0].card_state.get("beanfield") is None
+
+
+def test_prereq_not_broken_by_a_card_field():
+    """Ruling 32 (2026-07-06): the prereq's printed wording is "No Field
+    TILES", and a card-field is never a field tile — the card is playable with
+    a planted beanfield in play and zero grid fields."""
+    s = _card_state()
+    s = _own_minor(s, 0, "beanfield")
+    s = _set_stacks(s, 0, "beanfield", [(0, 2, 0, 0)])
+    assert prereq_met(MINORS[CARD_ID], s, 0)

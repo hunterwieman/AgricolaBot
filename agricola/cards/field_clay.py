@@ -14,6 +14,17 @@ used by Ash Trees.
 
 The prerequisite (1 planted field) guarantees the count is >= 1, so the grant is
 always >= 1 clay. No CardStore, no triggers.
+
+Card-fields count too. User ruling 45 (2026-07-12), verbatim: ""field TILES"
+means the plowed fields on the farmyard grid; "field" is the BROADER category
+and includes card-fields. So a card-field counts for field-count readers — the
+Fields scoring category and any "you need N fields" requirement — while
+per-TILE readers still exclude it (ruling 32 unchanged)." This card reads
+"planted field" (not "field tile"), so `_planted_field_count` adds
+`planted_card_field_count(p)` — 1 per card-field holding ANYTHING, however
+many stacks (ruling 47, 2026-07-12) — serving both the prerequisite and the
+payout. A wood-planted card-field counts: it IS planted (its own text says
+"plant wood on this card").
 """
 from __future__ import annotations
 
@@ -27,15 +38,21 @@ CARD_ID = "field_clay"
 
 
 def _planted_field_count(state: GameState, idx: int) -> int:
-    """FIELD cells with a crop on them (planted = sown — grain or veg present)."""
-    grid = state.players[idx].farmyard.grid
+    """Planted fields: FIELD cells with a crop on them (planted = sown — grain
+    or veg present), plus card-fields holding anything (ruling 45, 2026-07-12;
+    1 per card per ruling 47 — a wood-planted card IS planted)."""
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        planted_card_field_count,
+    )
+    p = state.players[idx]
+    grid = p.farmyard.grid
     return sum(
         1
         for r in range(3)
         for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
         and (grid[r][c].grain > 0 or grid[r][c].veg > 0)
-    )
+    ) + planted_card_field_count(p)
 
 
 def _prereq_one_planted_field(state: GameState, idx: int) -> bool:

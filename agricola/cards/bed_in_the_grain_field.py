@@ -45,7 +45,9 @@ RETURN_HOME like any other.
 Prerequisite "1 Grain Field": at least one FIELD cell that currently holds
 grain (``cell.cell_type is FIELD and cell.grain > 0``) — the project's settled
 reading of a "grain field" (Straw-Thatched Roof, Sleeping Corner, Gardener's
-Knife). A prerequisite is a HAVE-check at play time, never spent.
+Knife) — OR at least one grain-holding card-field (ruling 45, 2026-07-12;
+verbatim quote in ``_one_grain_field``). A prerequisite is a HAVE-check at
+play time, never spent.
 
 Card-only registries and CardStore are empty in the Family game, so the Family
 game is byte-identical and the C++ differential gates are untouched.
@@ -67,10 +69,18 @@ WINDOW_ID = "start_of_harvest"
 
 def _one_grain_field(state: GameState, idx: int) -> bool:
     """Prerequisite: 1 Grain Field — at least one FIELD cell that currently
-    holds grain."""
-    return any(
+    holds grain, or at least one grain-holding card-field. Ruling 45
+    (2026-07-12), verbatim: ""field TILES" means the plowed fields on the
+    farmyard grid; "field" is the BROADER category and includes card-fields.
+    So a card-field counts for field-count readers — the Fields scoring
+    category and any "you need N fields" requirement — while per-TILE readers
+    still exclude it (ruling 32 unchanged)." A veg- or wood-holding card-field
+    is not a grain field and does not satisfy this."""
+    from agricola.cards.card_fields import crop_card_field_count
+    p = state.players[idx]
+    return crop_card_field_count(p, "grain") >= 1 or any(
         cell.cell_type is CellType.FIELD and cell.grain > 0
-        for row in state.players[idx].farmyard.grid
+        for row in p.farmyard.grid
         for cell in row
     )
 

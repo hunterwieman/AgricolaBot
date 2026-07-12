@@ -111,6 +111,50 @@ def test_prereq_veg_fields_do_not_count():
     assert prereq_met(MINORS[CARD_ID], s, 0) is False
 
 
+def _with_grain_card_field(state, cid, *, occupation=False):
+    """Own the card-field `cid` (a minor, or an occupation for Patch
+    Caregiver) holding 3 grain."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[0]
+    if occupation:
+        p = fast_replace(p, occupations=p.occupations | {cid})
+    else:
+        p = fast_replace(p, minor_improvements=p.minor_improvements | {cid})
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, ((3, 0, 0, 0),)))
+    return fast_replace(state, players=tuple(
+        p if i == 0 else state.players[i] for i in range(2)))
+
+
+def test_prereq_counts_grain_card_fields():
+    """Ruling 45 (2026-07-12): a grain-holding card-field IS a grain field, so
+    it joins the "2 Grain Fields" count. One grid grain field + one grain
+    card-field reaches 2 (the old grid-only count saw 1); two grain
+    card-fields — one minor, one occupation (Patch Caregiver) — reach 2 with
+    zero grid fields; a veg card-field adds nothing."""
+    from agricola.cards.card_fields import stacks_to_store
+    # 1 grid + 1 card-field -> met.
+    s = with_grid(setup(0), 0, _grain_cells((0, 0)))
+    assert prereq_met(MINORS[CARD_ID], s, 0) is False       # 1 of 2
+    s = _with_grain_card_field(s, "artichoke_field")
+    assert prereq_met(MINORS[CARD_ID], s, 0) is True
+    # 2 card-fields, zero grid fields (occupation ownership path included).
+    s2 = _with_grain_card_field(setup(0), "artichoke_field")
+    assert prereq_met(MINORS[CARD_ID], s2, 0) is False      # 1 of 2
+    s2 = _with_grain_card_field(s2, "patch_caregiver", occupation=True)
+    assert prereq_met(MINORS[CARD_ID], s2, 0) is True
+    # A veg-holding Beanfield is not a grain field -> still 1 of 2.
+    s3 = _with_grain_card_field(setup(0), "artichoke_field")
+    p = s3.players[0]
+    p = fast_replace(
+        p,
+        minor_improvements=p.minor_improvements | {"beanfield"},
+        card_state=stacks_to_store(p.card_state, "beanfield", ((0, 2, 0, 0),)),
+    )
+    s3 = fast_replace(s3, players=tuple(
+        p if i == 0 else s3.players[i] for i in range(2)))
+    assert prereq_met(MINORS[CARD_ID], s3, 0) is False
+
+
 # ---------------------------------------------------------------------------
 # Start-of-harvest income (the core effect) — unconditional +4 food
 # ---------------------------------------------------------------------------

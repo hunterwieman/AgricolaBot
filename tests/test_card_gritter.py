@@ -19,6 +19,7 @@ from __future__ import annotations
 import agricola.cards.gritter  # noqa: F401  (registers the card; not in __init__ yet)
 
 from agricola.actions import ChooseSubAction, CommitSow, PlaceWorker
+from agricola.cards.card_fields import card_holds, stacks_to_store
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.cards.triggers import AUTO_EFFECTS
 from agricola.constants import CellType
@@ -236,3 +237,71 @@ def test_gritter_fires_on_a_second_independent_sow():
     s = step(s, sow2)
     # +2 food (now two veg fields), so total 1 + 2 = 3.
     assert s.players[cp].resources.food == 3
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): a veg-holding card-field is a
+# vegetable field for both the trigger and the payout — 1 per card (ruling 47).
+# ---------------------------------------------------------------------------
+
+def _own_card_field(s, idx, cid, stacks=None):
+    """Give player `idx` the card-field `cid` in play, optionally with contents."""
+    p = s.players[idx]
+    store = (stacks_to_store(p.card_state, cid, stacks)
+             if stacks is not None else p.card_state)
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid},
+                     card_state=store)
+    return fast_replace(
+        s, players=tuple(p if i == idx else s.players[i] for i in range(2)))
+
+
+def test_gritter_fires_on_a_card_field_only_veg_sow():
+    """A veg sow onto Beanfield ALONE (no grid fields anywhere) IS "sowing
+    vegetables in a field" — the pre-ruling-45 counter saw no veg field
+    appear and paid nothing."""
+    s, cp = _card_state()
+    s = _own_minor(s, cp, "gritter")
+    s = _own_card_field(s, cp, "beanfield")
+    s = with_resources(s, cp, veg=1, food=0)
+    s = _to_before_sow(s, cp, "grain_utilization")
+    sow = next(a for a in legal_actions(s)
+               if isinstance(a, CommitSow) and a.grain == 0 and a.veg == 0
+               and a.card_sows == (("beanfield", "veg"),))
+    s = step(s, sow)
+    # The beanfield got its veg (a real card sow ran)...
+    assert card_holds(s.players[cp], "beanfield", "veg") == 2
+    # ...and the grant fired: 1 veg field (the beanfield) -> +1 food.
+    assert s.players[cp].resources.food == 1
+
+
+def test_gritter_payout_counts_a_veg_holding_card_field():
+    """A pre-sown veg Beanfield joins the payout count: a grid veg sow pays
+    for the new grid field AND the beanfield ("for each vegetable field you
+    have") — 2 food, not 1."""
+    s, cp = _card_state()
+    s = _own_minor(s, cp, "gritter")
+    s = _own_card_field(s, cp, "beanfield", [(0, 2, 0, 0)])   # already veg-sown
+    s = _with_empty_fields(s, cp, [(1, 0)])
+    s = with_resources(s, cp, veg=1, food=0)
+    s = _to_before_sow(s, cp, "grain_utilization")
+    sow = next(a for a in legal_actions(s)
+               if isinstance(a, CommitSow) and a.grain == 0 and a.veg == 1
+               and not a.card_sows)
+    s = step(s, sow)
+    assert s.players[cp].resources.food == 2
+
+
+def test_gritter_payout_ignores_a_wood_holding_card_field():
+    """A wood-planted Wood Field is NOT a vegetable field — it never joins
+    the payout count."""
+    s, cp = _card_state()
+    s = _own_minor(s, cp, "gritter")
+    s = _own_card_field(s, cp, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    s = _with_empty_fields(s, cp, [(1, 0)])
+    s = with_resources(s, cp, veg=1, food=0)
+    s = _to_before_sow(s, cp, "grain_utilization")
+    sow = next(a for a in legal_actions(s)
+               if isinstance(a, CommitSow) and a.grain == 0 and a.veg == 1
+               and not a.card_sows)
+    s = step(s, sow)
+    assert s.players[cp].resources.food == 1   # only the grid veg field

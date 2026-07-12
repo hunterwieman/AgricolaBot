@@ -201,6 +201,53 @@ def test_mixed_two_grain_one_veg_below_threshold():
 
 
 # ---------------------------------------------------------------------------
+# Card-fields count as grain fields (ruling 45, 2026-07-12 — the card's own
+# printed "(including field cards with planted grain)")
+# ---------------------------------------------------------------------------
+
+def _own_card_field(state, idx, cid, stacks, *, occupation=False):
+    """Give player `idx` the card-field `cid` holding `stacks` — the
+    tests/test_card_fields_seam.py idiom."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[idx]
+    if occupation:
+        p = fast_replace(p, occupations=p.occupations | {cid})
+    else:
+        p = fast_replace(p, minor_improvements=p.minor_improvements | {cid})
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_grain_card_field_completes_threshold_in_real_harvest():
+    """Ruling 45 (2026-07-12) — and the card's own parenthetical "(including
+    field cards with planted grain)": 2 grid grain fields + a grain-holding
+    card-field = 3 grain fields, so the threshold is crossed ONLY via the
+    card-field and the +2 food lands in the real harvest walk. Both runs own
+    the card-field (Patch Caregiver: 1 stack, no harvest hooks of its own);
+    only Bale of Straw ownership differs."""
+    import agricola.cards.patch_caregiver  # noqa: F401  (registers the card-field)
+    base = with_grid(_harvest_state(), 0, _grain_cells((0, 0), (0, 1)))
+    base = _own_card_field(base, 0, "patch_caregiver", [(3, 0, 0, 0)],
+                           occupation=True)
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline + 2
+
+
+def test_wood_planted_card_field_is_not_a_grain_field():
+    """A wood-planted Wood Field is NOT a grain field (the count is per-good):
+    2 grid grain fields + a wood-holding Wood Field stays below the threshold
+    -> no food, driven through the real harvest walk."""
+    import agricola.cards.wood_field  # noqa: F401  (registers the card-field)
+    base = with_grid(_harvest_state(), 0, _grain_cells((0, 0), (0, 1)))
+    base = _own_card_field(base, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 0, 0)])
+    baseline = _baseline_food(base, 0)
+    owned = _food_after_harvest(_own_minor(base, 0, CARD_ID), 0)
+    assert owned == baseline
+
+
+# ---------------------------------------------------------------------------
 # Owner-gating — fires only for the player who owns it
 # ---------------------------------------------------------------------------
 

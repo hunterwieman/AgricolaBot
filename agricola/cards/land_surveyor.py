@@ -3,15 +3,18 @@
 Card text (verbatim): "In the field phase of each harvest, if you have at least
 2/4/6/7 fields, you get 1/2/3/4 food."
 
-A during-window flat state-reader. "Fields" here are FIELD tiles on the farmyard
-grid (`cell_type == CellType.FIELD` — the scoring.py `num_fields` idiom); a plowed
-field tile counts whether or not it currently holds a crop, and the count is
-independent of what the crop take harvested. Board field tiles are the only kind
-of field that exists in the engine today, so the tier gate is a plain count of
-FIELD cells. (The wider catalog contains unimplemented cards that are themselves
-sown/harvested fields — the classify census's L-CARDFIELD class; if one ever
-lands, whether it counts toward "fields you have" needs a ruling and
-`_num_fields` would need revisiting.)
+A during-window flat state-reader. "Fields" here are the player's FIELD tiles on
+the farmyard grid (`cell_type == CellType.FIELD` — the scoring.py `num_fields`
+idiom) PLUS their owned card-fields (`card_field_count`, agricola/cards/
+card_fields.py) — both count whether or not they currently hold a crop, and the
+count is independent of what the crop take harvested. Ruling 45 (2026-07-12),
+verbatim: '"field TILES" means the plowed fields on the farmyard grid; "field" is
+the BROADER category and includes card-fields. So a card-field counts for
+field-count readers — the Fields scoring category and any "you need N fields"
+requirement — while per-TILE readers still exclude it (ruling 32 unchanged).'
+Per ruling 47 (2026-07-12) a multi-stack card-field (Wood Field: 2 stacks, Rock
+Garden: 3) is "considered 1 field" — it moves this count by exactly 1, however
+many stacks it has.
 
 Slash template — a single graduated income (not four parallel gains): the highest
 threshold the player meets sets the payout.
@@ -50,12 +53,16 @@ CARD_ID = "land_surveyor"
 
 
 def _num_fields(state: GameState, idx: int) -> int:
-    """Count FIELD tiles on player `idx`'s farmyard grid (crop-agnostic)."""
-    grid = state.players[idx].farmyard.grid
+    """Count player `idx`'s fields (crop-agnostic): FIELD tiles on the farmyard
+    grid plus owned card-fields (ruling 45, 2026-07-12: "field" includes
+    card-fields; ruling 47: a multi-stack card-field counts exactly 1)."""
+    from agricola.cards.card_fields import card_field_count  # local: load-order safe
+    p = state.players[idx]
+    grid = p.farmyard.grid
     return sum(
         1 for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
-    )
+    ) + card_field_count(p)
 
 
 def _food(n_fields: int) -> int:

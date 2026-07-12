@@ -18,8 +18,12 @@ implemented set, so every `before_sow` event is an unconditional sow — this fi
 of them. (If a conditional-sow card is ever added, this eligibility must additionally
 inspect the PendingSow's provenance to exclude it; mirrors the note in drill_harrow.py.)
 
-The prerequisite is a HAVE-check (3 field tiles in the farmyard), not a cost. See
-CARD_AUTHORING_GUIDE.md.
+The prerequisite is a HAVE-check (3 fields), not a cost: FIELD cells on the farmyard
+grid plus owned card-fields, planted or not. Ruling 45 (2026-07-12), verbatim:
+'"field TILES" means the plowed fields on the farmyard grid; "field" is the BROADER
+category and includes card-fields. So a card-field counts for field-count readers —
+the Fields scoring category and any "you need N fields" requirement — while per-TILE
+readers still exclude it (ruling 32 unchanged).' See CARD_AUTHORING_GUIDE.md.
 """
 from __future__ import annotations
 
@@ -34,12 +38,17 @@ CARD_ID = "seed_pellets"
 
 
 def _three_fields(state: GameState, idx: int) -> bool:
-    """Prereq: at least 3 FIELD tiles in the farmyard (planted or not)."""
-    grid = state.players[idx].farmyard.grid
+    """Prereq: at least 3 fields, planted or not — grid FIELD cells plus owned
+    card-fields (ruling 45, 2026-07-12: "field" includes card-fields, so a
+    "you need N fields" requirement counts them; ruling 47: each card counts
+    exactly once)."""
+    from agricola.cards.card_fields import card_field_count  # local: load-order safe
+    p = state.players[idx]
+    grid = p.farmyard.grid
     return sum(
         1 for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
-    ) >= 3
+    ) + card_field_count(p) >= 3
 
 
 def _eligible(state: GameState, idx: int) -> bool:

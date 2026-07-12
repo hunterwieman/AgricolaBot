@@ -51,10 +51,18 @@ VEG_PER_QUALIFYING_ACTION = 1
 
 
 def _one_unplanted_field(state: GameState, idx: int) -> bool:
-    """Prerequisite: at least one FIELD cell that is currently unplanted (no grain
-    and no veg sown on it). A field is FIELD-typed whether or not it is sown."""
-    grid = state.players[idx].farmyard.grid
-    return any(
+    """Prerequisite: at least one unplanted field — a FIELD cell with nothing
+    sown on it (a field is FIELD-typed whether or not it is sown), OR an owned
+    card-field currently holding nothing (an owned, empty card-field is an
+    unplanted field). Ruling 45 (2026-07-12), verbatim: ""field TILES" means
+    the plowed fields on the farmyard grid; "field" is the BROADER category
+    and includes card-fields. So a card-field counts for field-count readers —
+    the Fields scoring category and any "you need N fields" requirement —
+    while per-TILE readers still exclude it (ruling 32 unchanged)."."""
+    from agricola.cards.card_fields import unplanted_card_field_count
+    p = state.players[idx]
+    grid = p.farmyard.grid
+    return unplanted_card_field_count(p) >= 1 or any(
         grid[r][c].cell_type is CellType.FIELD
         and grid[r][c].grain == 0
         and grid[r][c].veg == 0

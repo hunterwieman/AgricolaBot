@@ -18,7 +18,11 @@ round-14-only gate are exercised end-to-end.
 from __future__ import annotations
 
 import agricola.cards.wood_rake  # noqa: F401  (registers the card)
+import agricola.cards.beanfield  # noqa: F401  (registers the card-fields below)
+import agricola.cards.rock_garden  # noqa: F401
+import agricola.cards.wood_field  # noqa: F401
 
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.specs import MINORS
 from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.constants import CellType, Phase
@@ -62,6 +66,14 @@ def _seven_grain_fields(state, idx):
 
 def _banked(state, idx):
     return state.players[idx].card_state.get(CARD_ID, 0)
+
+
+def _set_stacks(state, idx, cid, stacks):
+    """Write a card-field's per-stack (grain, veg, wood, stone) contents."""
+    p = state.players[idx]
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +153,52 @@ def test_stockpiled_grain_does_not_count():
     state = fast_replace(state, players=tuple(
         p if i == 0 else state.players[i] for i in range(2)))
     # No FIELD cells with crops.
+    after = _resolve_harvest_field(state)
+    assert _banked(after, 0) == 0
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): a card-field is a field, and the print
+# reads "GOODS in your fields" — so EVERYTHING planted on card-fields counts,
+# wood/stone included (unlike the crop-only readers)
+# ---------------------------------------------------------------------------
+
+def test_threshold_reached_only_via_card_field_crops():
+    """Boundary the grid-only code failed: 5 grain on grid fields + 2 veg
+    planted on Beanfield = 7 field-goods -> banks (grid alone saw 5)."""
+    state = _own_minor(_final_harvest_state(), 0, CARD_ID)
+    state = with_grid(state, 0, {
+        (0, 0): Cell(cell_type=CellType.FIELD, grain=3),
+        (0, 1): Cell(cell_type=CellType.FIELD, grain=2),
+    })
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 2, 0, 0)])
+    after = _resolve_harvest_field(state)
+    assert _banked(after, 0) == 2
+
+
+def test_wood_and_stone_on_card_fields_are_goods():
+    """The print says GOODS, not crops: 6 wood on Wood Field + 2 stone on Rock
+    Garden = 8 field-goods with NO grid field at all -> banks."""
+    state = _own_minor(_final_harvest_state(), 0, CARD_ID)
+    state = _own_minor(state, 0, "wood_field")
+    state = _set_stacks(state, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    state = _own_minor(state, 0, "rock_garden")
+    state = _set_stacks(state, 0, "rock_garden",
+                        [(0, 0, 0, 2), (0, 0, 0, 0), (0, 0, 0, 0)])
+    after = _resolve_harvest_field(state)
+    assert _banked(after, 0) == 2
+
+
+def test_card_field_goods_one_short_no_bank():
+    """4 grid grain + 2 Beanfield veg = 6 field-goods -> below the threshold."""
+    state = _own_minor(_final_harvest_state(), 0, CARD_ID)
+    state = with_grid(state, 0, {
+        (0, 0): Cell(cell_type=CellType.FIELD, grain=3),
+        (0, 1): Cell(cell_type=CellType.FIELD, grain=1),
+    })
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 2, 0, 0)])
     after = _resolve_harvest_field(state)
     assert _banked(after, 0) == 0
 

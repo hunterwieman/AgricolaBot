@@ -16,6 +16,16 @@ P == 0 (no planted fields) schedules nothing — a legal +0.
 
 Distinct from Trellises (A47), which counts FENCE pieces built; Garden Claw counts
 3x PLANTED fields, measured at play-time.
+
+Card-fields count too. User ruling 45 (2026-07-12), verbatim: ""field TILES"
+means the plowed fields on the farmyard grid; "field" is the BROADER category
+and includes card-fields. So a card-field counts for field-count readers — the
+Fields scoring category and any "you need N fields" requirement — while
+per-TILE readers still exclude it (ruling 32 unchanged)." This card reads
+"planted fields" (not "field tiles"), so `_planted_fields` adds
+`planted_card_field_count(p)` — 1 per card-field holding ANYTHING, however
+many stacks (ruling 47, 2026-07-12). A wood-planted card-field counts: it IS
+planted (its own text says "plant wood on this card").
 """
 from __future__ import annotations
 
@@ -29,13 +39,19 @@ CARD_ID = "garden_claw"
 
 
 def _planted_fields(state: GameState, idx: int) -> int:
-    """FIELD cells holding at least one crop (grain or veg) — 'planted' = sown."""
-    grid = state.players[idx].farmyard.grid
+    """Planted fields: FIELD cells holding at least one crop (grain or veg —
+    'planted' = sown), plus card-fields holding anything (ruling 45,
+    2026-07-12; 1 per card per ruling 47 — a wood-planted card IS planted)."""
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        planted_card_field_count,
+    )
+    p = state.players[idx]
+    grid = p.farmyard.grid
     return sum(
         1 for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
         and (grid[r][c].grain > 0 or grid[r][c].veg > 0)
-    )
+    ) + planted_card_field_count(p)
 
 
 def _on_play(state: GameState, idx: int) -> GameState:

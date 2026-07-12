@@ -17,6 +17,7 @@ from __future__ import annotations
 import agricola.cards.garden_hoe  # noqa: F401  (registers the card; not in __init__ yet)
 
 from agricola.actions import ChooseSubAction, CommitSow, PlaceWorker
+from agricola.cards.card_fields import card_holds, stacks_to_store
 from agricola.cards.specs import MINORS
 from agricola.cards.triggers import AUTO_EFFECTS
 from agricola.constants import CellType
@@ -200,3 +201,55 @@ def test_garden_hoe_fires_on_a_second_independent_sow():
     s = step(s, sow2)
     assert s.players[cp].resources.clay == 2     # the grant fired a second time
     assert s.players[cp].resources.stone == 2
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): a veg sow onto a card-field is
+# "planting vegetables in at least 1 field" — 1 per card (ruling 47).
+# ---------------------------------------------------------------------------
+
+def _own_card_field(s, idx, cid, stacks=None):
+    """Give player `idx` the card-field `cid` in play, optionally with contents."""
+    p = s.players[idx]
+    store = (stacks_to_store(p.card_state, cid, stacks)
+             if stacks is not None else p.card_state)
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid},
+                     card_state=store)
+    return fast_replace(
+        s, players=tuple(p if i == idx else s.players[i] for i in range(2)))
+
+
+def test_garden_hoe_fires_on_a_card_field_only_veg_sow():
+    """A veg sow onto Beanfield ALONE (no grid fields anywhere) plants
+    vegetables in a field and earns the +1 clay +1 stone — the pre-ruling-45
+    counter saw no veg field appear and granted nothing."""
+    s, cp = _card_state()
+    s = _own_minor(s, cp, "garden_hoe")
+    s = _own_card_field(s, cp, "beanfield")
+    s = with_resources(s, cp, veg=1, clay=0, stone=0)
+    s = _to_before_sow(s, cp, "grain_utilization")
+    sow = next(a for a in legal_actions(s)
+               if isinstance(a, CommitSow) and a.grain == 0 and a.veg == 0
+               and a.card_sows == (("beanfield", "veg"),))
+    s = step(s, sow)
+    # The beanfield got its veg (a real card sow ran)...
+    assert card_holds(s.players[cp], "beanfield", "veg") == 2
+    # ...and the flat grant fired.
+    assert s.players[cp].resources.clay == 1
+    assert s.players[cp].resources.stone == 1
+
+
+def test_garden_hoe_does_not_fire_on_a_grain_only_card_field_sow():
+    """A grain sow onto Artichoke Field plants no vegetables — no grant."""
+    s, cp = _card_state()
+    s = _own_minor(s, cp, "garden_hoe")
+    s = _own_card_field(s, cp, "artichoke_field")
+    s = with_resources(s, cp, grain=1, veg=0, clay=0, stone=0)
+    s = _to_before_sow(s, cp, "grain_utilization")
+    sow = next(a for a in legal_actions(s)
+               if isinstance(a, CommitSow) and a.grain == 0 and a.veg == 0
+               and a.card_sows == (("artichoke_field", "grain"),))
+    s = step(s, sow)
+    assert card_holds(s.players[cp], "artichoke_field", "grain") == 3
+    assert s.players[cp].resources.clay == 0
+    assert s.players[cp].resources.stone == 0

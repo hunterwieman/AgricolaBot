@@ -109,6 +109,30 @@ def test_prereq_planted_field_does_not_count():
     assert prereq_met(spec, state, 0)
 
 
+def test_prereq_met_via_empty_card_field():
+    """Ruling 45 (2026-07-12): a card-field is a field, so an owned, EMPTY
+    card-field is an unplanted field — it alone satisfies "1 Unplanted Field"
+    (the old grid-only read failed this). Once planted it is no longer
+    unplanted and stops satisfying it."""
+    from agricola.cards.card_fields import stacks_to_store
+    spec = MINORS[CARD_ID]
+    state = _fencing_setup(wood=12)          # fresh farm: no grid fields
+    assert not prereq_met(spec, state, 0)
+    # An owned, never-sown Beanfield (no CardStore entry = all-empty) -> met.
+    owned = _own(state, 0, "beanfield")
+    assert prereq_met(spec, owned, 0)
+    # Plant it (2 veg) -> the card-field is planted and no grid field is
+    # unplanted -> prereq NOT met.
+    p = owned.players[0]
+    p = fast_replace(
+        p, card_state=stacks_to_store(p.card_state, "beanfield", ((0, 2, 0, 0),)))
+    planted = fast_replace(owned, players=tuple(
+        p if i == 0 else owned.players[i] for i in range(2)))
+    assert not prereq_met(spec, planted, 0)
+    # An unplanted grid field alongside the planted card-field -> met again.
+    assert prereq_met(spec, with_fields(planted, 0, [(2, 0)]), 0)
+
+
 # ---------------------------------------------------------------------------
 # The grant — threshold delta >= round_number
 # ---------------------------------------------------------------------------

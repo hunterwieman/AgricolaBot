@@ -44,6 +44,37 @@ multi-group combination). Only fields with >= 2 of their crop form groups: a
 crops" reaps nothing extra there — it is not a meaningful selection and forms no
 group (loss-less restriction). The empty selection is not enumerated — declining
 is the bare `CommitFieldTake()`, per the no-dead-option convention.
+
+**Card-fields (user rulings 45/46, 2026-07-12).** A card-field (Beanfield,
+Crop Rotation Field, ...) is one of "your fields" (ruling 45), and per-FIELD
+harvest modifiers reach card-fields (ruling 46) — so a card whose take-good is
+a crop with >= 2 remaining (the same floor as the grid's) is a selectable
+Scythe target. Each qualifying card is its OWN singleton group, keyed
+`"cf_<card_id>"` (colon-free — nothing in this module's keys needs a
+delimiter, but the key shape is shared with Stable Manure's, whose vector
+encoding splits on ":"): a card-field is NOT interchangeable with a same-count
+grid field, because harvesting from the card moves card state (the CardStore
+stacks) and fires card-level readers (Crop Rotation Field's re-sow). The fold
+addresses the card's stack by the take-target key ("card", card_id,
+stack_idx) via `iter_card_field_units` and empties it — extras = count − 1 −
+claimed — within the one event (grain-capable card-fields are single-stack,
+so per-field = per-stack). Wood/stone card-fields (Wood Field, Rock Garden,
+Cherry Orchard) NEVER qualify: the printed wording harvests "all the CROPS
+planted in it", and wood/stone are not crops (contrast Stable Manure's
+"1 additional GOOD", which they do satisfy). Unlike the grid groups' flexible
+fold, the card group is RIGID: when earlier claims leave the stack no spare —
+fully claimed, or replaced out of the take entirely (Grain Thief enters a
+replaced target at its full count) — the fold returns None and the enumerator
+drops that modifier combination as infeasible (the same-outcome combination
+without Scythe is still offered, so nothing is lost).
+
+KNOWN LIMITATION (pre-existing, shared with the grid — awaiting a user
+decision; documented, not solved here): on a MIXED field (Heresy Teacher's
+vegetable placed below 3+ grain — grid cell and card stack alike), the take
+mechanism harvests only the take-precedence crop, so Scythe's "all the crops
+planted in it" currently yields the grain and leaves the vegetable behind.
+The card-field extension deliberately matches the existing grid behavior
+(take-good only) rather than inventing new machinery for the card side alone.
 """
 from __future__ import annotations
 
@@ -63,7 +94,22 @@ def _groups(state: GameState, idx: int) -> dict[str, int]:
     """The donor-field groups keyed by (crop kind + remaining count), for fields
     holding >= 2 of their crop (a 1-crop field's crop already goes to the base
     take — emptying it reaps nothing extra, so it forms no group). The value is
-    the field count in the group (used only to know the group is non-empty)."""
+    the field count in the group (used only to know the group is non-empty).
+
+    Card-fields are selectable FIELDS too (user rulings 45/46, 2026-07-12).
+    Each qualifying card is its OWN singleton group (key "cf_<card_id>" — not
+    interchangeable with a same-count grid field: harvesting the card moves
+    card state and fires card-level readers). The floor mirrors the grid's,
+    on the stack's take-good: a CROP with >= 2 remaining. Wood/stone
+    card-fields never qualify — the card reaps "all the CROPS planted in it",
+    and wood/stone are not crops."""
+    from agricola.cards.card_fields import (
+        CROP_SOW_AMOUNTS,
+        card_field_stacks,
+        owned_card_fields,
+        stack_take_good,
+    )
+
     out: dict[str, int] = {}
     for row in state.players[idx].farmyard.grid:
         for cell in row:
@@ -76,20 +122,25 @@ def _groups(state: GameState, idx: int) -> dict[str, int]:
             else:
                 continue
             out[key] = out.get(key, 0) + 1
+    p = state.players[idx]
+    for cid in owned_card_fields(p):
+        if any(good in CROP_SOW_AMOUNTS and n >= 2
+               for good, n in map(stack_take_good, card_field_stacks(p, cid))):
+            out[f"cf_{cid}"] = 1
     return out
 
 
 def _variants(state: GameState, idx: int) -> list[str]:
-    """One variant per donor group — a single group key (e.g. "grain3"). "Select
-    exactly one of your fields" is exactly one group choice; fields within a
-    group are interchangeable, so the group key IS the choice. Empty when no
-    field can spare an extra beyond the base take — then no CommitFieldTake
-    variant carries this card and (absent another reason) the walk takes
-    inline."""
+    """One variant per donor group — a single group key (e.g. "grain3", or
+    "cf_<card_id>" for a card-field, rulings 45/46). "Select exactly one of
+    your fields" is exactly one group choice; fields within a group are
+    interchangeable, so the group key IS the choice. Empty when no field can
+    spare an extra beyond the base take — then no CommitFieldTake variant
+    carries this card and (absent another reason) the walk takes inline."""
     return sorted(_groups(state, idx))
 
 
-def _fold(state: GameState, idx: int, variant: str, claimed) -> dict:
+def _fold(state: GameState, idx: int, variant: str, claimed) -> dict | None:
     """Map the chosen group to per-cell extra takes: empty ONE field of that
     (crop, remaining) group — its remaining spare beyond the base take's 1 and
     beyond extras other modifiers already claimed is the extra, so the field
@@ -98,8 +149,32 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> dict:
     group any field is equivalent; among them the field with the MOST spare is
     chosen (the player's crops — take the most; ties break by scan order), so
     Scythe composes with a same-group Stable Manure claim by preferring an
-    unclaimed sibling. Flexible demand — never None (a fully-claimed group
-    still satisfies "all the crops harvested" with a 0-extra fold)."""
+    unclaimed sibling. Grid groups are flexible demand — never None (a
+    fully-claimed group still satisfies "all the crops harvested" with a
+    0-extra fold).
+
+    A "cf_<card_id>" group (rulings 45/46, 2026-07-12) empties the card's
+    crop stack, addressed by the take-target key ("card", card_id, stack_idx)
+    — grain-capable card-fields are single-stack, so the card's one crop
+    stack IS the field. The singleton card group is RIGID: when the claims
+    leave no spare (fully claimed, or Grain-Thief-replaced at full count) the
+    fold returns None and the combination is dropped as infeasible — there is
+    no sibling field to redirect to, and the same outcome is reachable
+    without Scythe."""
+    from agricola.cards.card_fields import (
+        CROP_SOW_AMOUNTS,
+        iter_card_field_units,
+    )
+
+    if variant.startswith("cf_"):
+        cid = variant[len("cf_"):]
+        for key, good, count in iter_card_field_units(state, idx):
+            if key[1] != cid or good not in CROP_SOW_AMOUNTS:
+                continue
+            spare = count - 1 - claimed.get(key, 0)
+            return {key: spare} if spare > 0 else None
+        raise AssertionError(
+            f"scythe variant {variant!r} names a card with no crop to reap")
     best = None   # (spare, r, c)
     for r, row in enumerate(state.players[idx].farmyard.grid):
         for c, cell in enumerate(row):

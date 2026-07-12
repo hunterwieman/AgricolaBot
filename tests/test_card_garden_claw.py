@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import agricola.cards.garden_claw  # noqa: F401  (registers the card; not in __init__)
 
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.specs import MINORS
 from agricola.cards.triggers import TRIGGERS
 from agricola.engine import _complete_preparation, step
@@ -134,6 +135,56 @@ def test_on_play_counts_only_own_planted_fields():
     s = with_sown_fields(setup(0), 1, grain_fields=[(0, 0), (0, 1)])  # opp planted
     out = MINORS["garden_claw"].on_play(s, 0)
     assert sum(_food(out, 0)) == 0       # player 0 has no planted fields
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): "planted fields" is a field-count
+# reader — a card-field holding ANYTHING is a planted field (1 per card,
+# ruling 47; a wood-planted card counts — it IS planted).
+# ---------------------------------------------------------------------------
+
+def _own_card_field(state, idx, cid, stacks=None):
+    """Give player `idx` the card-field `cid` in play, optionally with contents."""
+    p = state.players[idx]
+    store = (stacks_to_store(p.card_state, cid, stacks)
+             if stacks is not None else p.card_state)
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid},
+                     card_state=store)
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_on_play_card_field_raises_the_planted_count():
+    # 1 grid planted field + 1 veg-holding Beanfield -> P=2 -> 6 slots (2..7).
+    s = with_sown_fields(setup(0), 0, grain_fields=[(0, 0)])
+    s = _own_card_field(s, 0, "beanfield", [(0, 2, 0, 0)])
+    out = MINORS["garden_claw"].on_play(s, 0)
+    f = _food(out, 0)
+    assert [f[i] for i in range(1, 7)] == [1, 1, 1, 1, 1, 1]
+    assert sum(f) == 6
+
+
+def test_on_play_card_field_alone_schedules():
+    # Boundary the pre-ruling-45 code failed: NO grid fields — a veg-holding
+    # Beanfield alone is 1 planted field -> 3 slots.
+    s = _own_card_field(setup(0), 0, "beanfield", [(0, 2, 0, 0)])
+    out = MINORS["garden_claw"].on_play(s, 0)
+    assert sum(_food(out, 0)) == 3
+
+
+def test_on_play_wood_planted_card_field_counts_once():
+    # A wood-planted Wood Field IS planted (its own text says "plant wood on
+    # this card") and counts exactly once, however many stacks (ruling 47).
+    s = _own_card_field(setup(0), 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    out = MINORS["garden_claw"].on_play(s, 0)
+    assert sum(_food(out, 0)) == 3       # P=1 (one card), not 2 (two stacks)
+
+
+def test_on_play_unsown_card_field_does_not_count():
+    # A never-sown Beanfield holds nothing — not planted -> schedules nothing.
+    s = _own_card_field(setup(0), 0, "beanfield")
+    out = MINORS["garden_claw"].on_play(s, 0)
+    assert sum(_food(out, 0)) == 0
 
 
 # ---------------------------------------------------------------------------

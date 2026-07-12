@@ -6,8 +6,13 @@ Cost: 1 Wood. Prerequisite: 2 Vegetable Fields. VPs: 2. Not passing.
 
 Category 8 (deferred goods). Identical schedule to Pond Hut (1 food on the next 3
 round spaces, R+1..R+3) but a different cost/prereq/VP. "2 Vegetable Fields" is a
-farm-geometry prerequisite: at least 2 FIELD cells currently sown with vegetables
-(veg > 0) — read off the farmyard grid via a custom predicate.
+prerequisite: at least 2 fields currently holding vegetables — FIELD cells on the
+farmyard grid (veg > 0) plus vegetable-holding card-fields
+(`crop_card_field_count(p, "veg")`). Ruling 45 (2026-07-12), verbatim: '"field
+TILES" means the plowed fields on the farmyard grid; "field" is the BROADER
+category and includes card-fields. So a card-field counts for field-count readers —
+the Fields scoring category and any "you need N fields" requirement — while
+per-TILE readers still exclude it (ruling 32 unchanged).'
 """
 from __future__ import annotations
 
@@ -21,13 +26,18 @@ CARD_ID = "strawberry_patch"
 
 
 def _two_vegetable_fields(state: GameState, idx: int) -> bool:
-    grid = state.players[idx].farmyard.grid
+    """Prereq: 2 Vegetable Fields — grid FIELD cells holding veg, plus
+    veg-holding card-fields (ruling 45, 2026-07-12: "field" includes
+    card-fields; ruling 47: each card counts exactly once)."""
+    from agricola.cards.card_fields import crop_card_field_count  # local: load-order safe
+    p = state.players[idx]
+    grid = p.farmyard.grid
     n_veg_fields = sum(
         1
         for r in range(3)
         for c in range(5)
         if grid[r][c].cell_type is CellType.FIELD and grid[r][c].veg > 0
-    )
+    ) + crop_card_field_count(p, "veg")
     return n_veg_fields >= 2
 
 

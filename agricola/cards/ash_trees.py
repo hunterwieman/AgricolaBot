@@ -16,7 +16,9 @@ Its pieces come from the card, so the supply pile is NOT decremented for them, w
 positional/budget frees waive only the wood and still draw a supply piece.
 
 - on_play: move `min(5, fences_in_supply)` from the supply pile onto the card pool.
-- prereq: 2+ FIELD cells with a crop on them (planted = sown, per the owner's ruling).
+- prereq: 2+ planted fields (planted = sown, per the owner's ruling) — grid FIELD cells with
+  a crop, PLUS the player's planted card-fields (ruling 45, 2026-07-12; verbatim quote in
+  `_prereq_two_planted_fields`). A wood-planted Wood Field counts: it is a planted field.
 
 No on-going effect beyond the pool. Card-only state (the pool lives in CardStore, default
 empty → the Family game is byte-identical and the C++ gates are untouched). See
@@ -36,13 +38,24 @@ MAX_FENCES = 5
 
 
 def _prereq_two_planted_fields(state: GameState, idx: int) -> bool:
-    grid = state.players[idx].farmyard.grid
+    """Prerequisite "2 planted fields" — a play-time HAVE-check. Grid FIELD
+    cells holding a crop count, and so do the player's planted card-fields.
+    Ruling 45 (2026-07-12), verbatim: ""field TILES" means the plowed fields
+    on the farmyard grid; "field" is the BROADER category and includes
+    card-fields. So a card-field counts for field-count readers — the Fields
+    scoring category and any "you need N fields" requirement — while per-TILE
+    readers still exclude it (ruling 32 unchanged)." A wood-planted Wood Field
+    IS a planted field (its own text says "plant"), and a multi-stack card
+    counts exactly once (ruling 47, 2026-07-12)."""
+    from agricola.cards.card_fields import planted_card_field_count
+    p = state.players[idx]
+    grid = p.farmyard.grid
     planted = sum(
         1 for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
         and (grid[r][c].grain > 0 or grid[r][c].veg > 0)
     )
-    return planted >= 2
+    return planted + planted_card_field_count(p) >= 2
 
 
 def _on_play(state: GameState, idx: int) -> GameState:

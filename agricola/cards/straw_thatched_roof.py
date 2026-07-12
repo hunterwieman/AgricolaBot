@@ -19,10 +19,16 @@ NOT `build_major` / `play_minor` — the text names renovation and building a ro
 other improvement. The reductions are inert until a build routes its cost through the
 `effective_payments` chokepoint (renovate and build_room both do).
 
-Prerequisite "3 Grain Fields": at least three FIELD cells that currently hold grain
-(`cell.cell_type is FIELD and cell.grain > 0`) — the project's settled reading of a
-"grain field" (a FIELD carrying grain), matching Sleeping Corner's "2 Grain Fields"
-and Gardener's Knife. A prerequisite is a HAVE-check at play time, never spent.
+Prerequisite "3 Grain Fields": at least three fields that currently hold grain — the
+FIELD cells on the farmyard grid (`cell.cell_type is FIELD and cell.grain > 0`, the
+settled "grain field" reading matching Sleeping Corner's "2 Grain Fields" and
+Gardener's Knife) PLUS the player's grain-holding card-fields
+(`crop_card_field_count(p, "grain")`). Ruling 45 (2026-07-12), verbatim: '"field
+TILES" means the plowed fields on the farmyard grid; "field" is the BROADER category
+and includes card-fields. So a card-field counts for field-count readers — the Fields
+scoring category and any "you need N fields" requirement — while per-TILE readers
+still exclude it (ruling 32 unchanged).' A prerequisite is a HAVE-check at play time,
+never spent.
 
 Card-only registries are empty in the Family game (no cards owned), so the Family game
 is byte-identical and the C++ differential gates are untouched. See
@@ -47,15 +53,18 @@ def _no_reed(state: GameState, idx: int, ctx, cost: Resources) -> Resources:
 
 
 def _three_grain_fields(state: GameState, idx: int) -> bool:
-    """Prerequisite: 3 Grain Fields — at least three FIELD cells that currently hold
-    grain."""
-    grid = state.players[idx].farmyard.grid
+    """Prerequisite: 3 Grain Fields — grid FIELD cells that currently hold grain,
+    plus grain-holding card-fields (ruling 45, 2026-07-12: "field" includes
+    card-fields, so a "you need N fields" requirement counts them; ruling 47:
+    each card counts exactly once)."""
+    from agricola.cards.card_fields import crop_card_field_count  # local: load-order safe
+    p = state.players[idx]
     grain_fields = sum(
         1
-        for row in grid
+        for row in p.farmyard.grid
         for cell in row
         if cell.cell_type is CellType.FIELD and cell.grain > 0
-    )
+    ) + crop_card_field_count(p, "grain")
     return grain_fields >= 3
 
 

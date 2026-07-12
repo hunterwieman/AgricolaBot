@@ -15,6 +15,20 @@ the mechanical crop take of window #5 — so the eligibility read sees the field
 still sown, matching the card's "at the start of the field phase" timing. A FIELD
 cell counts as a grain field if it holds grain, a vegetable field if it holds
 veg, and an empty field if it holds neither.
+
+Card-fields count for all three flags. User ruling 45 (2026-07-12), verbatim:
+""field TILES" means the plowed fields on the farmyard grid; "field" is the
+BROADER category and includes card-fields. So a card-field counts for
+field-count readers — the Fields scoring category and any "you need N fields"
+requirement — while per-TILE readers still exclude it (ruling 32 unchanged)."
+This card reads "grain field" / "vegetable field" / "empty field" (not "field
+tile"), so a grain-holding card-field satisfies the grain flag
+(`crop_card_field_count(p, "grain") >= 1`), a veg-holding one the veg flag,
+and a card-field holding nothing the empty flag
+(`unplanted_card_field_count(p) >= 1`) — each card counting once, however
+many stacks (ruling 47, 2026-07-12). A wood/stone-holding card-field is NONE
+of the three: it holds no crop (not a grain or vegetable field) and it holds
+something (not empty).
 """
 from __future__ import annotations
 
@@ -30,8 +44,13 @@ CARD_ID = "three_field_rotation"
 
 
 def _eligible(state: GameState, idx: int) -> bool:
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        crop_card_field_count,
+        unplanted_card_field_count,
+    )
+    p = state.players[idx]
     has_grain = has_veg = has_empty = False
-    for row in state.players[idx].farmyard.grid:
+    for row in p.farmyard.grid:
         for cell in row:
             if cell.cell_type != CellType.FIELD:
                 continue
@@ -41,6 +60,12 @@ def _eligible(state: GameState, idx: int) -> bool:
                 has_veg = True
             else:
                 has_empty = True
+    # Card-fields (ruling 45, 2026-07-12): a grain/veg-holding card is a
+    # grain/vegetable field; one holding nothing is an empty field. A
+    # wood/stone-holding card is none of the three.
+    has_grain = has_grain or crop_card_field_count(p, "grain") >= 1
+    has_veg = has_veg or crop_card_field_count(p, "veg") >= 1
+    has_empty = has_empty or unplanted_card_field_count(p) >= 1
     return has_grain and has_veg and has_empty
 
 

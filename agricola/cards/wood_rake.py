@@ -25,11 +25,21 @@ which is what the print asks. Two gates are load-bearing:
      4/7/9/11/13/14); "the final harvest" is round 14's alone. Without the round
      gate an earlier harvest's >=7 field-goods would wrongly bank the points.
   2. "goods in your fields" = grain + veg summed across FIELD cells of the
-     owner's farmyard — NOT the player's total grain/veg stockpile.
+     owner's farmyard, PLUS everything on the owner's card-fields — NOT the
+     player's total grain/veg stockpile.
 
-"Goods" here are the field crops (grain or vegetables); a field is sown with one
-or the other, so the sum over FIELD cells of (grain + veg) is the field-goods
-count.
+"Goods" here are whatever sits on the player's fields. On the grid that is
+grain or vegetables (a field is sown with one or the other), so the sum over
+FIELD cells of (grain + veg) is the grid's contribution. Card-fields join it
+per ruling 45 (2026-07-12), verbatim: ""field TILES" means the plowed fields on
+the farmyard grid; "field" is the BROADER category and includes card-fields. So
+a card-field counts for field-count readers — the Fields scoring category and
+any "you need N fields" requirement — while per-TILE readers still exclude it
+(ruling 32 unchanged)." The print says GOODS in your fields — not crops — so
+wood planted on Wood Field and stone on Rock Garden DO count (they are goods
+sitting on fields), unlike the crop-only readers (Storeroom's "crops in your
+supply and fields", the scoring grain/veg totals): `card_field_goods_total`
+sums ALL goods on card-fields, wood/stone included.
 
 See CARD_IMPLEMENTATION_PLAN.md Category 1 / II.7 (banked scoring via CardStore,
 the Big Country pattern) and HARVEST_WINDOWS_DESIGN.md §1 (the window ladder).
@@ -52,11 +62,14 @@ BONUS_POINTS = 2
 
 
 def _field_goods(state: GameState, idx: int) -> int:
-    """Grain + veg crops currently on the owner's FIELD cells — read at window
-    #1, before ANY in-harvest effect (Straw Manure's #3 adds included) touches
-    the fields."""
+    """Goods currently on the owner's fields — grain + veg on FIELD cells plus
+    ALL goods on the owner's card-fields (`card_field_goods_total`; wood/stone
+    included — the print reads "goods", ruling 45's verbatim quote is in the
+    module docstring) — read at window #1, before ANY in-harvest effect (Straw
+    Manure's #3 adds included) touches the fields."""
+    from agricola.cards.card_fields import card_field_goods_total  # load-order safe
     grid = state.players[idx].farmyard.grid
-    return sum(
+    return card_field_goods_total(state.players[idx]) + sum(
         cell.grain + cell.veg
         for r in range(3)
         for c in range(5)

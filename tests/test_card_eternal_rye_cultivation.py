@@ -148,6 +148,31 @@ def test_prereq_one_grain_field_boundaries():
     assert prereq_met(spec, two, 0)
 
 
+def test_prereq_met_only_via_grain_card_field():
+    """Ruling 45 (2026-07-12): a grain-holding card-field IS a grain field, so
+    it alone satisfies "1 Grain Field" with zero grid fields (the old
+    grid-only read failed this). A veg-holding card-field is not a grain
+    field and does not."""
+    from agricola.cards.card_fields import stacks_to_store
+    spec = MINORS[CARD_ID]
+
+    def _with_card_field(cid, stacks):
+        state = setup(seed=0)
+        p = state.players[0]
+        p = fast_replace(
+            p,
+            minor_improvements=p.minor_improvements | {cid},
+            card_state=stacks_to_store(p.card_state, cid, stacks),
+        )
+        return fast_replace(state, players=tuple(
+            p if i == 0 else state.players[i] for i in range(2)))
+
+    grain_cf = _with_card_field("crop_rotation_field", ((3, 0, 0, 0),))
+    assert prereq_met(spec, grain_cf, 0)
+    veg_cf = _with_card_field("crop_rotation_field", ((0, 2, 0, 0),))
+    assert not prereq_met(spec, veg_cf, 0)
+
+
 def _at_play_minor_frame(*, grain_fields=()):
     """A CARDS-mode state at a real PendingPlayMinor host, the current player
     holding the card in hand with the given sown grain fields."""

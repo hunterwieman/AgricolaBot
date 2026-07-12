@@ -9,9 +9,13 @@ of the eight max-4-capped categories (field tiles, pastures, grain, vegetables,
 sheep, boar, cattle, fenced stables) in which the player scores the full 4.
 """
 import agricola.cards.lord_of_the_manor  # noqa: F401  (registers the card)
+import agricola.cards.beanfield  # noqa: F401  (registers the card-fields below)
+import agricola.cards.crop_rotation_field  # noqa: F401
+import agricola.cards.wood_field  # noqa: F401
 
 import dataclasses
 
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.lord_of_the_manor import CARD_ID, _score
 from agricola.cards.specs import OCCUPATIONS
 from agricola.constants import CellType, HouseMaterial
@@ -61,6 +65,22 @@ def _scorer():
 def _pasture(cells, num_stables=0):
     return Pasture(cells=frozenset(cells), num_stables=num_stables,
                    capacity=2 * len(cells) * (2 ** num_stables))
+
+
+def _own_minor(state, idx, card_id):
+    """Give player idx a minor improvement (a card-field card)."""
+    p = state.players[idx]
+    return dataclasses.replace(state, players=tuple(
+        dataclasses.replace(p, minor_improvements=p.minor_improvements | {card_id})
+        if i == idx else state.players[i] for i in range(2)))
+
+
+def _set_stacks(state, idx, cid, stacks):
+    """Write a card-field's per-stack (grain, veg, wood, stone) contents."""
+    p = state.players[idx]
+    p = dataclasses.replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return dataclasses.replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +218,59 @@ def test_fenced_stables_three_no_bonus():
     s = _with_pastures(s, 0, [_pasture([c], num_stables=1) for c in cells])
     # 3 fenced stables -> not maxed; 3 pastures -> not maxed.
     assert _score(s, 0) == 0
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): the Fields category and the grain/veg
+# totals count card-fields, exactly as scoring.score() does — the mirror in
+# _category_point_values must stay in lockstep with it
+# ---------------------------------------------------------------------------
+
+def test_fields_category_maxed_only_via_card_field():
+    """4 grid fields score 3; owning Beanfield (even unplanted) makes the 5th
+    field, pushing the Fields category to its 4-point max -> the bonus point.
+    The grid-only mirror saw 4 fields -> 3 points -> no bonus."""
+    s = _base()
+    s = with_grid(s, 0, {(r, c): Cell(cell_type=CellType.FIELD)
+                         for (r, c) in [(0, 0), (0, 1), (0, 2), (0, 3)]})
+    assert _score(s, 0) == 0  # 4 fields -> 3 points, not maxed
+    s = _own_minor(s, 0, "beanfield")
+    assert _score(s, 0) == 1  # 5th field via the card-field -> maxed
+
+
+def test_multi_stack_card_field_counts_once_and_wood_is_not_grain():
+    """Ruling 47: Wood Field (2 stacks) is "considered 1 field" — 3 grid fields
+    + Wood Field = 4 fields -> 3 points, NOT maxed (counting it as 2 fields
+    would wrongly max the category). Its planted wood is also not grain: the
+    grain total stays 0."""
+    s = _base()
+    s = with_grid(s, 0, {(r, c): Cell(cell_type=CellType.FIELD)
+                         for (r, c) in [(0, 0), (0, 1), (0, 2)]})
+    s = _own_minor(s, 0, "wood_field")
+    s = _set_stacks(s, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    assert _score(s, 0) == 0
+
+
+def test_grain_category_maxed_via_card_field_crops():
+    """6 supply grain + 3 grain planted on Crop Rotation Field = 9 -> the grain
+    category's 4-point max (threshold >7). Grid-only counting saw 6 -> 3."""
+    s = _base()
+    s = with_resources(s, 0, grain=6)
+    s = _own_minor(s, 0, "crop_rotation_field")
+    s = _set_stacks(s, 0, "crop_rotation_field", [(3, 0, 0, 0)])
+    # Only grain is maxed (1 field -> -1; nothing else held).
+    assert _score(s, 0) == 1
+
+
+def test_veg_category_maxed_via_card_field_crops():
+    """2 supply veg + 2 veg planted on Beanfield = 4 -> the veg category's
+    4-point max. Grid-only counting saw 2 -> 2 points."""
+    s = _base()
+    s = with_resources(s, 0, veg=2)
+    s = _own_minor(s, 0, "beanfield")
+    s = _set_stacks(s, 0, "beanfield", [(0, 2, 0, 0)])
+    # Only veg is maxed (1 field -> -1; nothing else held).
+    assert _score(s, 0) == 1
 
 
 # ---------------------------------------------------------------------------

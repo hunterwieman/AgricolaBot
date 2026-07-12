@@ -24,6 +24,17 @@ The apparent prereq/effect tension — you may PLAY this only with zero field ti
 it rewards fields — is intentional: the prerequisite is a play-time have-check, while
 the effect benefits fields plowed and sown later.
 
+CARD-FIELDS (ruling 45, 2026-07-12: "field" is the broader category and includes
+card-fields): each owned card-field growing exactly one type of CROP also gains +1 of
+that crop, on the stack holding it. Wood and stone are not crops, so a wood/stone
+card-field (Wood Field, Rock Garden, Cherry Orchard) gains nothing, an empty
+card-field gains nothing, and a mixed grain+veg card is excluded ("a single type of
+crop") — the same XOR test as a grid cell, applied to the card's totals.
+
+The PREREQUISITE stays GRID-ONLY: its printed wording is "No Field TILES", and per
+ruling 32 (2026-07-06) a card-field is never a "field tile" — owning (even a planted)
+card-field does not break the prereq.
+
 Implemented as an automatic effect (register_auto, never a FireTrigger): it is a
 guaranteed-beneficial grant with no choice or downside.
 """
@@ -41,7 +52,10 @@ QUARRY_SPACES = frozenset({"western_quarry", "eastern_quarry"})
 
 
 def _no_field_tiles(state: GameState, idx: int) -> bool:
-    """Prerequisite: the player has zero FIELD cells in their farmyard."""
+    """Prerequisite: the player has zero FIELD cells in their farmyard.
+
+    Grid-only on purpose — the printed wording is "No Field TILES", and per
+    ruling 32 (2026-07-06) a card-field is never a field tile."""
     return not any(
         cell.cell_type is CellType.FIELD
         for row in state.players[idx].farmyard.grid
@@ -59,8 +73,13 @@ def _apply(state: GameState, idx: int) -> GameState:
     A field grows a single type iff exactly one of (grain > 0, veg > 0) is true; in
     that case +1 to that same crop. Fields never lie inside pastures, so the pasture
     cache rides along on the grid fast_replace (mirrors scythe_worker / the mechanical
-    harvest take).
+    harvest take). Card-fields join by the same XOR test on the card's totals
+    (ruling 45, 2026-07-12) — wood/stone are not crops, so those cards never qualify.
     """
+    from agricola.cards.card_fields import (
+        GOODS, card_field_stacks, card_holds, owned_card_fields, stack_with,
+        stacks_to_store)
+
     p = state.players[idx]
     new_grid = []
     changed = False
@@ -79,10 +98,28 @@ def _apply(state: GameState, idx: int) -> GameState:
                     continue
             new_row.append(cell)
         new_grid.append(tuple(new_row))
+    # Card-fields (ruling 45, 2026-07-12): growing exactly one type of crop
+    # (grain XOR veg — wood/stone are not crops) → +1 of that crop on the
+    # stack holding it.
+    card_state = p.card_state
+    for cid in owned_card_fields(p):
+        grain = card_holds(p, cid, "grain")
+        veg = card_holds(p, cid, "veg")
+        if (grain > 0) == (veg > 0):
+            continue   # empty, wood/stone-only, or mixed grain+veg
+        good = "grain" if grain > 0 else "veg"
+        gi = GOODS.index(good)
+        stacks = list(card_field_stacks(p, cid))
+        for i, stack in enumerate(stacks):
+            if stack[gi] > 0:
+                stacks[i] = stack_with(stack, good, 1)
+                break
+        card_state = stacks_to_store(card_state, cid, stacks)
+        changed = True
     if not changed:
         return state
     new_fy = fast_replace(p.farmyard, grid=tuple(new_grid))
-    p = fast_replace(p, farmyard=new_fy)
+    p = fast_replace(p, farmyard=new_fy, card_state=card_state)
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )

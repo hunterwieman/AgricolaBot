@@ -42,7 +42,7 @@ from agricola.resources import Resources
 from agricola.scoring import SCORING_TERMS
 from agricola.setup import setup
 
-from tests.factories import with_minors, with_phase, with_resources
+from tests.factories import add_resources, with_minors, with_phase, with_resources
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -306,3 +306,109 @@ def test_scoring_reads_bank():
         state, players=tuple(p if i == 0 else state.players[i] for i in range(2)))
     assert score_fn(state, 0) == 4
     assert score_fn(state, 1) == 0
+
+
+# --- Card-fields (rulings 45/46, 2026-07-12) ---------------------------------
+# A grain-holding card-field is "a field" and may supply the field grain, as
+# its own per-card variant "cf_<card_id>" (never merged into a height group).
+# The card path routes through card_fields.remove_card_crop — the
+# NON-TAKE-removal chokepoint — so emptying a Crop Rotation Field this way
+# offers its re-sow RIGHT HERE, mid-feeding (ruling 44, 2026-07-12).
+
+import agricola.cards.artichoke_field       # noqa: F401,E402
+import agricola.cards.crop_rotation_field   # noqa: F401,E402
+
+from agricola.actions import CommitCardChoice          # noqa: E402
+from agricola.cards.card_fields import (               # noqa: E402
+    card_field_stacks,
+    stacks_to_store,
+)
+from agricola.pending import PendingCardChoice         # noqa: E402
+
+
+def _own_card_field(state, idx, cid, stacks):
+    """Give player `idx` card-field `cid` holding `stacks` (post-walk edit —
+    the card contents are set AT the feed frame, so the field-phase take has
+    not touched them)."""
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        minor_improvements=p.minor_improvements | {cid},
+        card_state=stacks_to_store(p.card_state, cid, stacks),
+    )
+    return fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_card_field_variant_offered_and_fires():
+    """An artichoke_field holding 2 grain offers "cf_artichoke_field"; firing
+    it debits 1 supply grain + 1 card grain, grants 4 food, banks 2 points —
+    and pushes NO frame (the card kept grain: no removal reaction)."""
+    state = _walk_to_p0_feed(_harvest_state(
+        fields={(0, 1): 2}, grain=0, food=0))
+    state = _own_card_field(state, 0, "artichoke_field", [(2, 0, 0, 0)])
+    offers = _brewery_actions(state)
+    assert CommitHarvestConversion(
+        conversion_id=CARD_ID, variant="cf_artichoke_field") in offers
+
+    state = step(state, CommitHarvestConversion(
+        conversion_id=CARD_ID, variant="cf_artichoke_field"))
+    p = state.players[0]
+    assert p.resources.food == 4
+    assert card_field_stacks(p, "artichoke_field") == ((1, 0, 0, 0),)
+    assert _field_grain(state, 0, 0, 1) == 1      # the grid field untouched
+    assert p.card_state.get(CARD_ID, 0) == 2
+    assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
+
+
+def test_emptying_crop_rotation_field_offers_resow_mid_feed():
+    """Ruling 44: Craft Brewery removing Crop Rotation Field's LAST grain is
+    a non-take removal — the sow-or-decline choice surfaces at THIS instant
+    (a PendingCardChoice on top of the feed frame); sowing swaps in 2 veg."""
+    state = _walk_to_p0_feed(_harvest_state(
+        fields={(0, 1): 2}, grain=0, food=0))
+    state = _own_card_field(state, 0, "crop_rotation_field", [(1, 0, 0, 0)])
+    state = add_resources(state, 0, veg=1)
+
+    state = step(state, CommitHarvestConversion(
+        conversion_id=CARD_ID, variant="cf_crop_rotation_field"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingCardChoice)
+    assert top.initiated_by_id == "card:crop_rotation_field"
+    assert top.options == ("sow_veg", "decline")
+    # The exchange itself already applied (banked before the push).
+    assert state.players[0].resources.food == 4
+    assert state.players[0].card_state.get(CARD_ID, 0) == 2
+
+    state = step(state, CommitCardChoice(0))      # sow_veg
+    p = state.players[0]
+    assert card_field_stacks(p, "crop_rotation_field") == ((0, 2, 0, 0),)
+    assert p.resources.veg == 0                   # the sow cost the supply veg
+    assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
+
+
+def test_emptying_crop_rotation_field_decline():
+    state = _walk_to_p0_feed(_harvest_state(
+        fields={(0, 1): 2}, grain=0, food=0))
+    state = _own_card_field(state, 0, "crop_rotation_field", [(1, 0, 0, 0)])
+    state = add_resources(state, 0, veg=1)
+    state = step(state, CommitHarvestConversion(
+        conversion_id=CARD_ID, variant="cf_crop_rotation_field"))
+    state = step(state, CommitCardChoice(1))      # decline
+    p = state.players[0]
+    assert "crop_rotation_field" not in dict(p.card_state.items)  # empty card
+    assert p.resources.veg == 1
+    assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
+
+
+def test_emptying_crop_rotation_field_no_offer_without_opposite_crop():
+    """No supply veg -> the re-sow is impossible, so NO choice frame appears
+    (the reactor declines silently) and play stays at the feed frame."""
+    state = _walk_to_p0_feed(_harvest_state(
+        fields={(0, 1): 2}, grain=0, food=0))
+    state = _own_card_field(state, 0, "crop_rotation_field", [(1, 0, 0, 0)])
+    assert state.players[0].resources.veg == 0
+    state = step(state, CommitHarvestConversion(
+        conversion_id=CARD_ID, variant="cf_crop_rotation_field"))
+    assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
+    assert "crop_rotation_field" not in dict(state.players[0].card_state.items)

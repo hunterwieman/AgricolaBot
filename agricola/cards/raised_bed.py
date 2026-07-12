@@ -14,10 +14,12 @@ not "you can" / not "if …") -> an automatic effect (`register_auto` on the
 eligibility condition, so `_eligible` is always True; the auto simply credits a
 flat 4 food and never touches the grid, so the field-phase take is unaffected.
 
-Prerequisite "2 Grain Fields" is a HAVE-check at PLAY time: at least two of the
-player's own FIELD cells currently hold grain (`cell.grain > 0`, `>= 2`) — the
-same definition Sleeping Corner / Bale of Straw / Gardener's Knife use for a
-"grain field". A prerequisite is checked, never spent (distinct from the cost).
+Prerequisite "2 Grain Fields" is a HAVE-check at PLAY time: at least two grain
+fields, counting the player's own grain-holding FIELD cells (`cell.grain > 0`)
+— the same definition Sleeping Corner / Bale of Straw / Gardener's Knife use
+for a "grain field" — PLUS the player's grain-holding card-fields (ruling 45,
+2026-07-12; verbatim quote in `_prereq`). A prerequisite is checked, never
+spent (distinct from the cost).
 """
 from __future__ import annotations
 
@@ -35,14 +37,24 @@ _FOOD = 4
 
 
 def _prereq(state: GameState, idx: int) -> bool:
-    """2 Grain Fields — at least two FIELD cells that currently hold grain."""
-    grid = state.players[idx].farmyard.grid
+    """2 Grain Fields — at least two grain fields: FIELD cells that currently
+    hold grain plus grain-holding card-fields. Ruling 45 (2026-07-12),
+    verbatim: ""field TILES" means the plowed fields on the farmyard grid;
+    "field" is the BROADER category and includes card-fields. So a card-field
+    counts for field-count readers — the Fields scoring category and any "you
+    need N fields" requirement — while per-TILE readers still exclude it
+    (ruling 32 unchanged)." Each grain-holding card counts exactly once
+    (ruling 47, 2026-07-12); a veg- or wood-holding card-field is not a grain
+    field."""
+    from agricola.cards.card_fields import crop_card_field_count
+    p = state.players[idx]
+    grid = p.farmyard.grid
     grain_fields = sum(
         1
         for row in grid
         for cell in row
         if cell.cell_type == CellType.FIELD and cell.grain > 0
-    )
+    ) + crop_card_field_count(p, "grain")
     return grain_fields >= 2
 
 

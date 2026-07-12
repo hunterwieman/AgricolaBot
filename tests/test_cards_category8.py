@@ -187,6 +187,36 @@ def test_strawberry_patch_on_play_and_prereq():
     assert prereq_met(MINORS["strawberry_patch"], _set_veg_fields(s, 0, 2), 0)
 
 
+def _own_card_field(state, idx, cid, stacks):
+    """Give player `idx` the card-field `cid` (in minor_improvements) holding
+    `stacks` — the tests/test_card_fields_seam.py idiom."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        minor_improvements=p.minor_improvements | {cid},
+        card_state=stacks_to_store(p.card_state, cid, stacks),
+    )
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_strawberry_patch_prereq_counts_veg_card_fields():
+    """Ruling 45 (2026-07-12): a veg-holding card-field is a vegetable field —
+    1 grid veg field + a sown Beanfield meets the "2 Vegetable Fields" prereq
+    (met ONLY via the card, the boundary the grid-only count failed); a
+    wood-planted Wood Field is not a vegetable field."""
+    import agricola.cards.beanfield   # noqa: F401  (registers the card-field)
+    import agricola.cards.wood_field  # noqa: F401
+    s = _set_veg_fields(setup(0), 0, 1)
+    assert not prereq_met(MINORS["strawberry_patch"], s, 0)
+    s2 = _own_card_field(s, 0, "beanfield", [(0, 2, 0, 0)])
+    assert prereq_met(MINORS["strawberry_patch"], s2, 0)
+    # Non-count: wood on a card-field is not a vegetable.
+    s3 = _own_card_field(s, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 0, 0)])
+    assert not prereq_met(MINORS["strawberry_patch"], s3, 0)
+
+
 # ---------------------------------------------------------------------------
 # Large Greenhouse — +1 veg on rounds R+4, R+7, R+9
 # ---------------------------------------------------------------------------

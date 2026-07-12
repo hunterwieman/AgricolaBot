@@ -17,12 +17,21 @@ multi-group combination for this card). Only fields with >= 2 of their crop form
 groups: a 1-crop field's sole crop already goes to the base take, so "harvest all
 the crops" reaps nothing extra there. Cost 1 Wood; no printed VPs, no prereq, not
 a passing card.
+
+Card-fields (user rulings 45/46, 2026-07-12): a card-field is one of "your
+fields" and per-field harvest modifiers reach it — a card whose take-good is a
+crop with >= 2 remaining is its OWN singleton group ("cf_<card_id>"), emptied at
+the take-target key ("card", card_id, stack_idx). Wood/stone card-fields never
+qualify ("all the CROPS planted in it" — wood/stone are not crops).
 """
+import agricola.cards.crop_rotation_field  # noqa: F401  (card-field target)
 import agricola.cards.grain_sieve      # noqa: F401  (interaction test)
 import agricola.cards.scythe            # noqa: F401  (registration side effects)
 import agricola.cards.slurry_spreader   # noqa: F401  (interaction test)
 import agricola.cards.stable_manure     # noqa: F401  (interaction test)
+import agricola.cards.wood_field        # noqa: F401  (non-crop card-field)
 from agricola.actions import CommitFieldTake, FireTrigger, Proceed
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.harvest_windows import (
     HARVEST_WINDOW_CARDS,
     TAKE_MODIFIERS,
@@ -60,6 +69,15 @@ def _own_minor(state, idx, *card_ids):
 def _own_occupations(state, idx, occ_ids):
     p = state.players[idx]
     p = fast_replace(p, occupations=frozenset(occ_ids))
+    return fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2))
+    )
+
+
+def _set_stacks(state, idx, cid, stacks):
+    """Write a card-field's per-stack contents (the seam-test idiom)."""
+    p = state.players[idx]
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
     return fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
@@ -569,3 +587,118 @@ def test_same_group_combo_prefers_distinct_fields():
     assert state.players[0].resources.grain == g0 + 5
     grid = state.players[0].farmyard.grid
     assert sorted((grid[0][0].grain, grid[0][1].grain)) == [0, 1]
+
+
+# ---------------------------------------------------------------------------
+# Card-fields — a card-field is one of "your fields" (rulings 45/46, 2026-07-12)
+# ---------------------------------------------------------------------------
+
+def test_card_field_variant_offered_and_empties_the_card():
+    """A crop_rotation_field holding 3 grain — and NO grid fields — is a
+    Scythe target on its own (the boundary the grid-only code failed): the
+    frame is hosted, the "cf_crop_rotation_field" variant is offered, and
+    committing it empties the card in the one event — +3 grain (base 1 +
+    scythe 2), a "card:" manifest entry of amount 3 with emptied=True, and
+    the CardStore entry REMOVED (a harvested-out card-field stores nothing)."""
+    state = _own_minor(_field_state(), 0, CARD_ID, "crop_rotation_field")
+    state = _set_stacks(state, 0, "crop_rotation_field", [(3, 0, 0, 0)])
+    state = _walk_to_field_frame(state)
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingFieldPhase) and top.player_idx == 0
+    assert _take_variants_offered(state) == ["cf_crop_rotation_field"]
+    g0 = state.players[0].resources.grain
+    state = step(state, _commit("cf_crop_rotation_field"))
+    assert state.players[0].resources.grain == g0 + 3
+    assert state.players[0].card_state.get("crop_rotation_field") is None
+    (occasion,) = state.pending_stack[-1].occasions
+    assert occasion.source == "take"
+    (entry,) = occasion.entries
+    assert entry.source == "card:crop_rotation_field"
+    assert (entry.crop, entry.amount, entry.emptied) == ("grain", 3, True)
+
+
+def test_card_and_grid_groups_are_distinct_variants():
+    """A 3-grain card-field and a 3-grain grid field are DIFFERENT groups —
+    a card is never interchangeable with a same-count grid field (harvesting
+    it moves card state and fires card-level readers), so both variants are
+    offered side by side."""
+    state = _own_minor(_field_state(), 0, CARD_ID, "crop_rotation_field")
+    state = _set_stacks(state, 0, "crop_rotation_field", [(3, 0, 0, 0)])
+    state = with_sown_fields(state, 0, grain_fields=[(0, 0)])
+    state = _walk_to_field_frame(state)
+    assert _take_variants_offered(state) == ["cf_crop_rotation_field", "grain3"]
+
+
+def test_wood_field_never_a_scythe_target():
+    """Wood/stone card-fields never qualify: the card harvests "all the CROPS
+    planted in it", and wood is not a crop — a wood-planted Wood Field forms
+    no group even with >= 2 wood per stack, so the field phase runs inline."""
+    state = _own_minor(_field_state(), 0, CARD_ID, "wood_field")
+    state = _set_stacks(state, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    assert _variants(state, 0) == []
+    assert choice_take_modifiers(state, 0) == []
+    after = _walk_to_field_frame(state)
+    assert after.phase != Phase.HARVEST_FIELD
+    assert not any(isinstance(f, PendingFieldPhase) for f in after.pending_stack)
+
+
+def test_one_crop_card_field_forms_no_group():
+    """The grid floor, mirrored: a card-field holding exactly 1 of its crop
+    can spare nothing beyond the base take, so it forms no group."""
+    state = _own_minor(_field_state(), 0, CARD_ID, "crop_rotation_field")
+    state = _set_stacks(state, 0, "crop_rotation_field", [(1, 0, 0, 0)])
+    assert _variants(state, 0) == []
+    assert choice_take_modifiers(state, 0) == []
+
+
+def test_fold_card_group_respects_claims_and_is_rigid():
+    """The card group's fold takes the stack's remaining spare (count − 1 −
+    claimed) at the take-target key, and is RIGID: fully-claimed leaves
+    nothing to empty and returns None (the combination is dropped — contrast
+    the grid groups' flexible 0-extra fold)."""
+    state = _own_minor(_field_state(), 0, CARD_ID, "crop_rotation_field")
+    state = _set_stacks(state, 0, "crop_rotation_field", [(3, 0, 0, 0)])
+    key = ("card", "crop_rotation_field", 0)
+    assert _fold(state, 0, "cf_crop_rotation_field", {}) == {key: 2}
+    assert _fold(state, 0, "cf_crop_rotation_field", {key: 1}) == {key: 1}
+    assert _fold(state, 0, "cf_crop_rotation_field", {key: 2}) is None
+
+
+def test_card_group_composes_with_stable_manure_claims():
+    """Scythe + Stable Manure both targeting the ONLY donor — a 3-grain
+    crop_rotation_field: Stable Manure's rigid +1 claims first, Scythe then
+    empties the remaining spare — one event, total exactly 3, card emptied,
+    no over-harvest."""
+    state = _own_minor(
+        _field_state(), 0, CARD_ID, "stable_manure", "crop_rotation_field")
+    state = with_grid(state, 0, {(2, 4): Cell(cell_type=CellType.STABLE)})
+    state = _set_stacks(state, 0, "crop_rotation_field", [(3, 0, 0, 0)])
+    state = _walk_to_field_frame(state)
+    combo = CommitFieldTake(modifiers=(
+        ("stable_manure", "cf_crop_rotation_field:1"),
+        (CARD_ID, "cf_crop_rotation_field")))
+    assert combo in legal_actions(state)
+    g0 = state.players[0].resources.grain
+    state = step(state, combo)
+    assert state.players[0].resources.grain == g0 + 3
+    assert state.players[0].card_state.get("crop_rotation_field") is None
+    (entry,) = state.pending_stack[-1].occasions[0].entries
+    assert (entry.crop, entry.amount, entry.emptied) == ("grain", 3, True)
+
+
+def test_fully_claimed_card_group_combo_is_dropped():
+    """A 2-grain card: Stable Manure's +1 leaves Scythe nothing to empty, so
+    the COMBINED commit is infeasible (the rigid card group returns None) and
+    never offered — each modifier alone still is, and either alone already
+    empties the card, so nothing is lost."""
+    state = _own_minor(
+        _field_state(), 0, CARD_ID, "stable_manure", "crop_rotation_field")
+    state = with_grid(state, 0, {(2, 4): Cell(cell_type=CellType.STABLE)})
+    state = _set_stacks(state, 0, "crop_rotation_field", [(2, 0, 0, 0)])
+    state = _walk_to_field_frame(state)
+    combos = {a.modifiers for a in legal_actions(state)
+              if isinstance(a, CommitFieldTake)}
+    assert ((CARD_ID, "cf_crop_rotation_field"),) in combos
+    assert (("stable_manure", "cf_crop_rotation_field:1"),) in combos
+    assert (("stable_manure", "cf_crop_rotation_field:1"),
+            (CARD_ID, "cf_crop_rotation_field")) not in combos

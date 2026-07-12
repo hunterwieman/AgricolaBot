@@ -10,14 +10,18 @@ import agricola.cards.straw_manure  # noqa: F401
 # player's crop take (window #5), inside the per-player FIELD segment (ruling 3,
 # 2026-07-03: each player resolves their whole FIELD segment before the other).
 # Variants: each non-empty subset (size 1 or 2) of the player's vegetable
-# fields, encoded "r-c" joined by "|". Flat 1-grain cost either way. Once per
-# harvest (the frame's triggers_resolved); Proceed declines (no grain spent).
+# fields, tokens joined by "|" — grid cells "r-c", card-fields "card:<id>"
+# (ruling 45, 2026-07-12: "field" is the broad category incl. card-fields, so a
+# veg-holding card-field is a "vegetable field" target and the bare "2 Fields"
+# prereq counts card-fields at 1 per card). Flat 1-grain cost either way. Once
+# per harvest (the frame's triggers_resolved); Proceed declines (no grain spent).
 #
 # Drivers mirror tests/test_card_home_brewer.py / tests/test_harvest_windows.py.
 
 import dataclasses
 
 from agricola.actions import FireTrigger, Proceed
+from agricola.cards.card_fields import card_holds, stacks_to_store
 from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.cards.straw_manure import CARD_ID, WINDOW_ID
@@ -43,6 +47,15 @@ def _own_minor(state, player_idx, card_id):
         state,
         players=tuple(p if i == player_idx else state.players[i] for i in range(2)),
     )
+
+
+def _set_stacks(state, idx, cid, stacks):
+    """Write a card-field's per-stack (grain, veg, wood, stone) contents
+    (the tests/test_card_fields_seam.py idiom)."""
+    p = state.players[idx]
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(
+        state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
 
 
 def _harvest_state(*, grain=0, veg_cells=(), owned=True, owner=0) -> GameState:
@@ -112,6 +125,24 @@ def test_prereq_two_fields():
     assert prereq_met(MINORS[CARD_ID], with_fields(s, 0, [(0, 0), (0, 1)]), 0)
 
 
+def test_prereq_counts_card_fields():
+    """Ruling 45 (2026-07-12): bare "2 Fields" is the broad category — owned
+    card-fields count, 1 per card, planted or not; per ruling 47 (2026-07-12) a
+    multi-stack Wood Field is still just 1 field."""
+    s = setup(0)
+    # One card-field alone: 1 field -> fails. Wood Field's 2 stacks do NOT
+    # make it 2 fields (ruling 47: "considered 1 field").
+    assert not prereq_met(MINORS[CARD_ID], _own_minor(s, 0, "beanfield"), 0)
+    assert not prereq_met(MINORS[CARD_ID], _own_minor(s, 0, "wood_field"), 0)
+    # Two card-fields, ZERO grid fields -> satisfied (unplanted card-fields
+    # count — the boundary the grid-only prereq failed).
+    two_cards = _own_minor(_own_minor(s, 0, "beanfield"), 0, "wood_field")
+    assert prereq_met(MINORS[CARD_ID], two_cards, 0)
+    # One grid field + one card-field -> satisfied.
+    mixed = with_fields(_own_minor(s, 0, "beanfield"), 0, [(0, 0)])
+    assert prereq_met(MINORS[CARD_ID], mixed, 0)
+
+
 # --- Variant enumeration ------------------------------------------------------
 
 def test_variants_single_veg_field():
@@ -141,6 +172,41 @@ def test_grain_field_is_not_a_target():
     assert _sm_variants(state) == ["0-1"]     # the grain field (1,1) never appears
 
 
+def test_veg_card_field_is_a_target():
+    """Ruling 45 (2026-07-12): a veg-holding Beanfield IS a "vegetable field" —
+    offered as its own card-keyed variant, here with NO grid veg field at all
+    (the boundary the grid-only code failed: it surfaced no window here)."""
+    state = _harvest_state(grain=1)           # no grid veg field anywhere
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 2, 0, 0)])
+    state = _walk_to_window(state)
+    assert _sm_variants(state) == ["card:beanfield"]
+
+
+def test_variants_mix_grid_and_card_targets():
+    """A grid veg field and a veg card-field are DISTINCT targets (a card
+    target is keyed by card id, never merged with a same-count grid cell):
+    two singles plus the mixed pair."""
+    state = _harvest_state(grain=1, veg_cells=((0, 1),))
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 2, 0, 0)])  # same count as (0,1)
+    state = _walk_to_window(state)
+    assert _sm_variants(state) == ["0-1", "0-1|card:beanfield", "card:beanfield"]
+
+
+def test_non_veg_card_fields_are_not_targets():
+    """A grain-holding card-field (Artichoke Field), a wood-holding one (Wood
+    Field), and an empty one (Beanfield, no store entry) are not vegetable
+    fields — never offered as targets."""
+    state = _harvest_state(grain=1, veg_cells=((0, 1),))
+    for cid in ("artichoke_field", "wood_field", "beanfield"):
+        state = _own_minor(state, 0, cid)
+    state = _set_stacks(state, 0, "artichoke_field", [(3, 0, 0, 0)])
+    state = _set_stacks(state, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 0, 0)])
+    state = _walk_to_window(state)
+    assert _sm_variants(state) == ["0-1"]     # no card token ever appears
+
+
 # --- Real-flow effect ---------------------------------------------------------
 
 def test_fire_single_target_pays_one_grain_adds_one_veg():
@@ -158,6 +224,51 @@ def test_fire_pair_costs_same_flat_grain():
     assert state.players[0].resources.grain == 0        # exactly 1 paid
     assert _cell(state, 0, 0, 1).veg == 3
     assert _cell(state, 0, 1, 2).veg == 3
+
+
+def test_fire_card_target_pays_grain_adds_veg_to_stack():
+    """Firing on a card target pays the 1 grain and adds 1 veg to the card's
+    veg-bearing stack (ruling 45, 2026-07-12)."""
+    state = _harvest_state(grain=2)
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 2, 0, 0)])
+    state = _walk_to_window(state)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="card:beanfield"))
+    assert state.players[0].resources.grain == 1        # 2 - 1 paid
+    assert card_holds(state.players[0], "beanfield", "veg") == 3
+
+
+def test_fire_pair_one_grid_one_card():
+    """Boosting one grid field AND one card-field in a single fire: still the
+    flat 1 grain; each target gains its 1 veg in its own home (the cell's veg
+    count, the card's stack)."""
+    state = _harvest_state(grain=1, veg_cells=((0, 1),))
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 1, 0, 0)])
+    state = _walk_to_window(state)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="0-1|card:beanfield"))
+    assert state.players[0].resources.grain == 0        # exactly 1 paid
+    assert _cell(state, 0, 0, 1).veg == 3
+    assert card_holds(state.players[0], "beanfield", "veg") == 2
+
+
+def test_boosted_card_field_survives_the_take():
+    """Window #3 precedes the take exactly as for grid fields: a 1-veg
+    Beanfield boosted to 2 yields 1 veg to supply at the take and keeps 1 on
+    the card (unboosted, the take would have emptied it)."""
+    state = _harvest_state(grain=1)
+    state = _own_minor(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 1, 0, 0)])
+    state = _walk_to_window(state)
+    state = step(state, FireTrigger(card_id=CARD_ID, variant="card:beanfield"))
+    assert card_holds(state.players[0], "beanfield", "veg") == 2
+    state = step(state, Proceed())                      # close window #3
+    state = _advance_until_decision(state)
+    while state.phase == Phase.HARVEST_FIELD:
+        state = step(state, legal_actions(state)[0])
+    assert state.phase == Phase.HARVEST_FEED
+    assert card_holds(state.players[0], "beanfield", "veg") == 1
+    assert state.players[0].resources.veg == 1          # the take's harvest
 
 
 def test_added_veg_is_on_the_field_for_the_take():

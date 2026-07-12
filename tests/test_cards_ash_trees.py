@@ -89,6 +89,37 @@ def test_prereq_two_planted_fields_means_sown():
     assert not prereq_met(spec, one, 0)
 
 
+def test_prereq_counts_planted_card_fields():
+    """Ruling 45 (2026-07-12): a card-field is a field, so a PLANTED card-field
+    joins the "2 planted fields" count. A wood-planted Wood Field counts (it is
+    a planted field — its own text says "plant"); an owned but EMPTY card-field
+    does not (unplanted)."""
+    from agricola.cards.card_fields import stacks_to_store
+    from agricola.cards.specs import MINORS, prereq_met
+    spec = MINORS[CARD_ID]
+    s = _fencing_setup(wood=1)
+
+    def _set_stacks(state, idx, cid, stacks):
+        p = state.players[idx]
+        p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+        return fast_replace(state, players=tuple(
+            p if i == idx else state.players[i] for i in range(2)))
+
+    # Met ONLY via card-fields (the old grid-only count saw 0): a veg-planted
+    # Beanfield + a wood-planted Wood Field, zero grid fields.
+    cs = _own(s, 0, "beanfield", "wood_field")
+    cs = _set_stacks(cs, 0, "beanfield", ((0, 2, 0, 0),))
+    cs = _set_stacks(cs, 0, "wood_field", ((0, 0, 3, 0), (0, 0, 0, 0)))
+    assert prereq_met(spec, cs, 0)
+    # One planted grid field + one planted card-field also reaches 2.
+    one_grid = with_grid(s, 0, {(0, 3): Cell(cell_type=CellType.FIELD, grain=1)})
+    mixed = _set_stacks(_own(one_grid, 0, "beanfield"), 0,
+                        "beanfield", ((0, 2, 0, 0),))
+    assert prereq_met(spec, mixed, 0)
+    # An owned but EMPTY card-field is not planted -> still only 1 of 2.
+    assert not prereq_met(spec, _own(one_grid, 0, "beanfield"), 0)
+
+
 # ---------------------------------------------------------------------------
 # on_play moves fences supply -> pool
 # ---------------------------------------------------------------------------

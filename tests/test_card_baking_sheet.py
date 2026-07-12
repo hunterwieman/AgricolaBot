@@ -122,6 +122,46 @@ def test_prereq_blocked_by_grain_field():
     assert not prereq_met(MINORS[CARD_ID], s, 0)
 
 
+def test_prereq_broken_only_by_grain_card_field():
+    """Ruling 45 (2026-07-12): a grain-holding card-field IS a grain field, so
+    it BREAKS the "No Grain Field" prereq even with zero grid grain fields
+    (the old grid-only read wrongly kept the prereq met here). Harvested out
+    (empty again), the prereq is restored."""
+    from agricola.cards.card_fields import stacks_to_store
+
+    def _with_stacks(state, cid, stacks):
+        p = state.players[0]
+        p = fast_replace(
+            p,
+            minor_improvements=p.minor_improvements | {cid},
+            card_state=stacks_to_store(p.card_state, cid, stacks),
+        )
+        return fast_replace(state, players=tuple(
+            p if i == 0 else state.players[i] for i in range(2)))
+
+    s = _with_stacks(setup(seed=0), "artichoke_field", ((3, 0, 0, 0),))
+    assert not prereq_met(MINORS[CARD_ID], s, 0)
+    # Emptied out -> no grain field anywhere -> met again.
+    emptied = _with_stacks(s, "artichoke_field", ((0, 0, 0, 0),))
+    assert prereq_met(MINORS[CARD_ID], emptied, 0)
+
+
+def test_prereq_still_met_with_veg_or_wood_card_field():
+    """A veg-holding Beanfield or a wood-planted Wood Field is NOT a grain
+    field (ruling 45 reads the crop) -> the prereq stays met."""
+    from agricola.cards.card_fields import stacks_to_store
+    s = setup(seed=0)
+    p = s.players[0]
+    p = fast_replace(
+        p, minor_improvements=p.minor_improvements | {"beanfield", "wood_field"})
+    cs = stacks_to_store(p.card_state, "beanfield", ((0, 2, 0, 0),))
+    cs = stacks_to_store(cs, "wood_field", ((0, 0, 3, 0), (0, 0, 0, 0)))
+    p = fast_replace(p, card_state=cs)
+    s = fast_replace(s, players=tuple(
+        p if i == 0 else s.players[i] for i in range(2)))
+    assert prereq_met(MINORS[CARD_ID], s, 0)
+
+
 # ---------------------------------------------------------------------------
 # Firing (BEFORE-phase): exchange 1 grain -> +2 food + 1 banked bonus point,
 # with the mandatory bake still legal afterward.

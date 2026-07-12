@@ -246,6 +246,60 @@ def test_three_field_rotation_no_fire_missing_veg_field():
     assert owned == baseline
 
 
+# Card-fields (ruling 45, 2026-07-12): "grain field" / "vegetable field" /
+# "empty field" are field-count readers, so a card-field can satisfy each flag
+# — 1 per card, however many stacks (ruling 47). A wood/stone-holding card is
+# NONE of the three (not a crop field, not empty). Baseline and owned runs
+# both own the card-field, so the +3 delta isolates Three-Field Rotation.
+
+def _own_card_field(state, idx, cid, stacks=None):
+    """Give player `idx` the card-field `cid` in play, optionally with contents."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[idx]
+    store = (stacks_to_store(p.card_state, cid, stacks)
+             if stacks is not None else p.card_state)
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid},
+                     card_state=store)
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_three_field_rotation_veg_flag_via_card_field():
+    # Grid: grain + empty field, NO grid veg field — the veg flag is met only
+    # by a veg-holding Beanfield.
+    base = with_sown_fields(_tfr_harvest_state(), 0, grain_fields=[(0, 2)])
+    base = with_grid(base, 0, {(0, 3): Cell(cell_type=CellType.FIELD)})  # empty
+    base = _own_card_field(base, 0, "beanfield", [(0, 2, 0, 0)])
+    baseline = _run_harvest(base).players[0].resources.food
+    owned = _run_harvest(
+        _own_minor(base, 0, "three_field_rotation")).players[0].resources.food
+    assert owned == baseline + 3
+
+
+def test_three_field_rotation_empty_flag_via_unsown_card_field():
+    # Grid: grain + veg field, NO empty grid field — the empty flag is met
+    # only by a never-sown Beanfield (in play, holding nothing).
+    base = with_sown_fields(_tfr_harvest_state(), 0,
+                            grain_fields=[(0, 2)], veg_fields=[(0, 3)])
+    base = _own_card_field(base, 0, "beanfield")
+    baseline = _run_harvest(base).players[0].resources.food
+    owned = _run_harvest(
+        _own_minor(base, 0, "three_field_rotation")).players[0].resources.food
+    assert owned == baseline + 3
+
+
+def test_three_field_rotation_wood_card_field_is_none_of_the_three():
+    # Grid: grain + veg field, no empty field. A wood-planted Wood Field is
+    # neither a crop field nor an empty field, so the card does NOT fire.
+    base = with_sown_fields(_tfr_harvest_state(), 0,
+                            grain_fields=[(0, 2)], veg_fields=[(0, 3)])
+    base = _own_card_field(base, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    baseline = _run_harvest(base).players[0].resources.food
+    owned = _run_harvest(
+        _own_minor(base, 0, "three_field_rotation")).players[0].resources.food
+    assert owned == baseline
+
+
 # ---------------------------------------------------------------------------
 # Scythe Worker — on-play +1 grain + 1 extra grain per grain field
 # ---------------------------------------------------------------------------

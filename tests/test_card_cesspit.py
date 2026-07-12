@@ -88,6 +88,21 @@ def test_cesspit_prereq_counts_unsown_fields():
     assert prereq_met(MINORS["cesspit"], s, 0)
 
 
+def test_cesspit_prereq_counts_card_fields_planted_or_not():
+    """Ruling 45 (2026-07-12): a card-field counts for the "2 Fields" prereq —
+    1 grid field + a NEVER-SOWN Wood Field meets it (a card-field counts
+    planted or not, like a bare plowed tile — the boundary the grid-only count
+    failed; ruling 47: the 2-stack card is exactly 1 field, so 1 grid + the
+    card is exactly 2, not 3)."""
+    import agricola.cards.wood_field  # noqa: F401  (registers the card-field)
+    s = with_fields(_with_occupations(setup(0), 0, 1), 0, [(0, 0)])
+    assert not prereq_met(MINORS["cesspit"], s, 0)     # 1 field: unmet
+    p = fast_replace(s.players[0],
+                     minor_improvements=s.players[0].minor_improvements | {"wood_field"})
+    s2 = fast_replace(s, players=(p, s.players[1]))
+    assert prereq_met(MINORS["cesspit"], s2, 0)        # 1 grid + 1 card-field = 2
+
+
 # ---------------------------------------------------------------------------
 # on_play scheduling — the alternating deferred goods
 # ---------------------------------------------------------------------------

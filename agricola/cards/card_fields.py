@@ -78,11 +78,16 @@ Orchard, Melon Patch, Crop Rotation Field) read the post-take store
 (`card_holds` == 0) alongside the occasion's entry for their card.
 
 "Remove the last crop" reactors (Crop Rotation Field's "remove" — the E-deck
-verb, ANY departure): the take is today's ONLY path that removes crops from a
-card-field, and it emits an occasion — so the reactor rides the standard
-occasion-trigger seam, and no separate removal chokepoint exists yet. A
-future non-take remover (Game Provider's field-crop discard) must host the
-reactor at its own instant; build the chokepoint then, with that consumer.
+verb, ANY departure) have TWO paths, split by who removes:
+
+- The field-phase take (and a card-driven bare take) emits an occasion, so a
+  take removal is reacted to on the standard occasion-trigger seam (rulings
+  43/44: the optional stretch alongside Food Merchant).
+- A NON-TAKE remover goes through `remove_card_crop` below — the chokepoint
+  fires the card's own registered removal reactor at THAT removal's instant
+  (ruling 44's explicit requirement). Craft Brewery's "1 grain from a field"
+  exchange is the first such remover; a future Game Provider rides the same
+  seam.
 """
 from __future__ import annotations
 
@@ -314,6 +319,52 @@ def sow_amount(card_id: str, good: str) -> int:
         if g == good:
             return amt
     raise AssertionError(f"{card_id} cannot grow {good}")
+
+
+# ---------------------------------------------------------------------------
+# Non-take removals — the chokepoint (ruling 44, 2026-07-12)
+# ---------------------------------------------------------------------------
+
+CARD_CROP_REMOVAL_REACTORS: dict = {}
+
+
+def register_card_crop_removal(card_id: str, fn) -> None:
+    """Register `card_id`'s own last-crop removal reactor —
+    `fn(state, idx, removed_good) -> state`, fired by `remove_card_crop` when
+    a NON-TAKE effect removes the card's last grain/veg. (Ruling 44,
+    2026-07-12: a non-take remover hosts the reaction at ITS instant. The
+    field-phase take never comes through here — its removal reactions ride
+    the occasion seam.) Crop Rotation Field is the registrant."""
+    CARD_CROP_REMOVAL_REACTORS[card_id] = fn
+
+
+def remove_card_crop(state, idx: int, card_id: str, good: str, n: int = 1):
+    """THE chokepoint for non-take removals of card-field crops (Craft
+    Brewery's grain-from-a-field exchange; future non-take removers).
+    Removes `n` of `good` from the card's stack holding it, then — when that
+    took the card's LAST `good` and the card registers a removal reactor —
+    fires the reactor at this instant (it may push a decision frame, e.g.
+    Crop Rotation Field's optional re-sow choice)."""
+    from agricola.replace import fast_replace
+
+    p = state.players[idx]
+    gi = _GOOD_IDX[good]
+    stacks = list(card_field_stacks(p, card_id))
+    for i, s in enumerate(stacks):
+        if s[gi] >= n:
+            stacks[i] = stack_after_take(s, good, n)
+            break
+    else:
+        raise AssertionError(
+            f"remove_card_crop: no stack of {card_id} holds {n} {good}")
+    p = fast_replace(p, card_state=stacks_to_store(p.card_state, card_id, stacks))
+    state = fast_replace(
+        state, players=tuple(p if j == idx else state.players[j]
+                             for j in range(2)))
+    if (card_holds(state.players[idx], card_id, good) == 0
+            and card_id in CARD_CROP_REMOVAL_REACTORS):
+        state = CARD_CROP_REMOVAL_REACTORS[card_id](state, idx, good)
+    return state
 
 
 def can_sow_card_fields(player_state, *, crops_only: bool = False) -> bool:

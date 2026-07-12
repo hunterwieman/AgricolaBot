@@ -151,6 +151,70 @@ def test_eight_fields_still_four():
 
 
 # ---------------------------------------------------------------------------
+# Card-fields count as fields (rulings 45 + 47, 2026-07-12)
+# ---------------------------------------------------------------------------
+
+def _own_minor_card_field(state, idx, cid, stacks=None):
+    """Give player `idx` the (minor) card-field `cid`, optionally holding
+    `stacks` — the tests/test_card_fields_seam.py idiom."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[idx]
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid})
+    if stacks is not None:
+        p = fast_replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_wood_field_two_stacks_move_count_by_exactly_one():
+    """Ruling 47 (2026-07-12): Wood Field has 2 sowable stacks but is
+    "considered 1 field" — it moves `_num_fields` by exactly 1, bare or with
+    both stacks planted (ruling 45: a card-field counts planted or not)."""
+    import agricola.cards.wood_field  # noqa: F401  (registers the card-field)
+    from agricola.cards.land_surveyor import _num_fields
+    state = _with_n_fields(setup(0), 0, 3)
+    assert _num_fields(state, 0) == 3
+    bare = _own_minor_card_field(state, 0, "wood_field")
+    assert _num_fields(bare, 0) == 4          # +1 (not +2), never sown
+    planted = _own_minor_card_field(state, 0, "wood_field",
+                                    [(0, 0, 3, 0), (0, 0, 3, 0)])
+    assert _num_fields(planted, 0) == 4       # still exactly +1, both stacks sown
+
+
+def test_card_field_tier_boundary_counts_one_not_two():
+    """5 grid fields + Wood Field = 6 fields -> 3 food. Were the 2-stack card
+    counted as 2 fields, 7 fields would pay 4 — this pins the ruling-47 count
+    at a tier boundary where the difference shows."""
+    import agricola.cards.wood_field  # noqa: F401
+    state = _with_n_fields(_own_occ(_field_state(), 0), 0, 5)
+    state = _own_minor_card_field(state, 0, "wood_field")
+    f0 = state.players[0].resources.food
+    after = _resolve_harvest_field(state)
+    assert after.players[0].resources.food - f0 == 3
+
+
+def test_card_field_crosses_tier_in_real_harvest_walk():
+    """Ruling 45 (2026-07-12): 1 grid field alone pays nothing; a bare Wood
+    Field makes it 2 fields -> tier 1 -> exactly +1 food, driven through the
+    real harvest walk. Both runs own the card-field; only Land Surveyor
+    ownership differs."""
+    import agricola.cards.wood_field  # noqa: F401
+    base = setup(0)
+    base = with_resources(base, 0, food=10)
+    base = with_resources(base, 1, food=10)
+    base = with_phase(base, Phase.HARVEST_FIELD)
+    base = _with_n_fields(base, 0, 1)          # 1 grid field: below every tier
+    base = _own_minor_card_field(base, 0, "wood_field")
+
+    end_without = _drive_harvest_to_completion(base)
+    end_with = _drive_harvest_to_completion(_own_occ(base, 0))
+    assert (end_with.players[0].resources.food
+            == end_without.players[0].resources.food + 1)
+    assert (end_with.players[1].resources.food
+            == end_without.players[1].resources.food)
+
+
+# ---------------------------------------------------------------------------
 # Owner-gating: fires only for the owner
 # ---------------------------------------------------------------------------
 

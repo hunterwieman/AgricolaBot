@@ -14,8 +14,14 @@ window event), fired by the harvest walk (`_process_simple_window`) per owner,
 window-major, starting player first, GATED by the printed condition.
 
 Eligibility — "if you have at least 1 grain field": at least one of the player's
-own FIELD cells currently holds grain (`cell.grain > 0`, `>= 1`) — the same
+own FIELD cells currently holds grain (`cell.grain > 0`, `>= 1`) OR at least one
+of their card-fields holds grain (`crop_card_field_count(p, "grain")`) — the same
 "grain field" definition Sleeping Corner / Bale of Straw / Gardener's Knife use.
+Ruling 45 (2026-07-12), verbatim: '"field TILES" means the plowed fields on the
+farmyard grid; "field" is the BROADER category and includes card-fields. So a
+card-field counts for field-count readers — the Fields scoring category and any
+"you need N fields" requirement — while per-TILE readers still exclude it (ruling
+32 unchanged).' Per ruling 47 a multi-stack card-field counts exactly once.
 This window is BEFORE the field-phase crop take (window #5), so `_eligible` reads
 the still-sown grid — exactly when "you have at least 1 grain field" should be
 evaluated, since no grain has been removed yet. The reward is a flat 2 wood (not
@@ -39,13 +45,17 @@ _WOOD = 2
 
 
 def _grain_fields(state: GameState, idx: int) -> int:
-    """Count the player's FIELD cells that currently have grain planted."""
+    """Count the player's grain fields: grid FIELD cells with grain planted,
+    plus grain-holding card-fields (ruling 45, 2026-07-12: "field" includes
+    card-fields; ruling 47: each card counts exactly once)."""
+    from agricola.cards.card_fields import crop_card_field_count  # local: load-order safe
+    p = state.players[idx]
     return sum(
         1
-        for row in state.players[idx].farmyard.grid
+        for row in p.farmyard.grid
         for cell in row
         if cell.cell_type == CellType.FIELD and cell.grain > 0
-    )
+    ) + crop_card_field_count(p, "grain")
 
 
 def _eligible(state: GameState, idx: int) -> bool:

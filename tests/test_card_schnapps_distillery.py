@@ -14,12 +14,19 @@ import agricola.cards.schnapps_distillery  # noqa: F401
 #      choice of amount, so a single registry entry).
 #   2. A scoring term: +1 point each for the player's 5th and 6th vegetable,
 #      counting vegetables the SAME way scoring.py does (supply veg + veg on
-#      unharvested FIELD cells). The printed 2 VP is awarded separately by the
-#      engine, so the term must NOT re-add it.
+#      unharvested FIELD cells + veg planted on card-fields — ruling 45,
+#      2026-07-12: crops planted on card-fields are crops "in your fields";
+#      stone on Rock Garden is not a vegetable and never counts). The printed
+#      2 VP is awarded separately by the engine, so the term must NOT re-add it.
 #
 # Mirrors tests/test_card_beer_keg.py's craft-firing flow.
 
+import agricola.cards.beanfield  # noqa: F401  (registers the card-fields used below)
+import agricola.cards.rock_garden  # noqa: F401
+
 import dataclasses
+
+from agricola.cards.card_fields import stacks_to_store
 
 from agricola.actions import CommitConvert, CommitHarvestConversion
 from agricola.cards.schnapps_distillery import CARD_ID
@@ -68,6 +75,22 @@ def _score_fn():
     """The registered scoring callable (SCORING_TERMS is a list of (card_id, fn)
     tuples, not a dict)."""
     return next(fn for cid, fn in SCORING_TERMS if cid == CARD_ID)
+
+
+def _own_card(state, idx, card_id):
+    """Give player idx an arbitrary minor improvement (a card-field card)."""
+    p = state.players[idx]
+    return dataclasses.replace(state, players=tuple(
+        dataclasses.replace(p, minor_improvements=p.minor_improvements | {card_id})
+        if i == idx else state.players[i] for i in range(2)))
+
+
+def _set_stacks(state, idx, cid, stacks):
+    """Write a card-field's per-stack (grain, veg, wood, stone) contents."""
+    p = state.players[idx]
+    p = dataclasses.replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return dataclasses.replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
 
 
 # --- Registration -----------------------------------------------------------
@@ -172,6 +195,33 @@ def test_scoring_counts_veg_on_fields():
     state = with_resources(state, 0, veg=1)
     state = with_sown_fields(state, 0, veg_fields=[(0, 0), (0, 1)])
     assert score_fn(state, 0) == 1  # 5th vegetable counted across supply+fields
+
+
+def test_scoring_counts_veg_on_card_fields():
+    """Ruling 45 (2026-07-12): veg planted on a card-field is a vegetable "in
+    your fields" — the 5th-veg threshold is reached ONLY by counting Beanfield's
+    2 planted veg (grid-only counting saw 3 -> 0 points)."""
+    score_fn = _score_fn()
+    state = setup(seed=0)
+    state = with_resources(state, 0, veg=3)
+    state = _own_card(state, 0, "beanfield")
+    state = _set_stacks(state, 0, "beanfield", [(0, 2, 0, 0)])
+    assert score_fn(state, 0) == 1  # 3 supply + 2 on Beanfield = 5th veg
+    # One more supply veg makes 6 -> both bonus points.
+    state6 = with_resources(state, 0, veg=4)
+    assert score_fn(state6, 0) == 2
+
+
+def test_stone_on_rock_garden_is_not_a_vegetable():
+    """Rock Garden sows stone "as you would vegetables", but stone is NOT a
+    vegetable — 6 planted stone add nothing to the 5th/6th-veg count."""
+    score_fn = _score_fn()
+    state = setup(seed=0)
+    state = with_resources(state, 0, veg=4)
+    state = _own_card(state, 0, "rock_garden")
+    state = _set_stacks(state, 0, "rock_garden",
+                        [(0, 0, 0, 2), (0, 0, 0, 2), (0, 0, 0, 2)])
+    assert score_fn(state, 0) == 0  # still 4 vegetables
 
 
 def test_opponent_without_card_unaffected():

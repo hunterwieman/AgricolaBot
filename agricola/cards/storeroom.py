@@ -14,9 +14,17 @@ an OR/play-variant alternative — there is no choice to make.
 Counting and rounding. "All crops in your supply and fields" pools grain and
 vegetables together: total = (supply grain + grain on field cells) + (supply veg +
 veg on field cells), counting crops on `CellType.FIELD` cells exactly as
-scoring.score() does (supply + the per-field-cell amounts). A "pair" is two pooled
-crops, so pairs = total // 2 (an odd leftover crop forms no pair). You then get
-half a point per pair, ROUNDED UP: points = ceil(pairs / 2).
+scoring.score() does (supply + the per-field-cell amounts), PLUS crops planted on
+the player's card-fields. Ruling 45 (2026-07-12), verbatim: ""field TILES" means
+the plowed fields on the farmyard grid; "field" is the BROADER category and
+includes card-fields. So a card-field counts for field-count readers — the Fields
+scoring category and any "you need N fields" requirement — while per-TILE readers
+still exclude it (ruling 32 unchanged)." Crops planted on card-fields are
+therefore crops "in your fields" and join the pool via `planted_card_crops`;
+wood/stone planted on card-fields (Wood Field, Rock Garden) are not crops and
+never count here. A "pair" is two pooled crops, so pairs = total // 2 (an odd
+leftover crop forms no pair). You then get half a point per pair, ROUNDED UP:
+points = ceil(pairs / 2).
 
 Worked examples: 5 grain + 4 veg = 9 crops -> 4 pairs -> ceil(4/2) = 2 points;
 3 crops -> 1 pair -> ceil(1/2) = 1 point; 1 crop -> 0 pairs -> 0 points.
@@ -35,20 +43,25 @@ CARD_ID = "storeroom"
 
 
 def _pooled_crops(state: GameState, idx: int) -> int:
-    """Total grain + vegetables across supply and all field cells.
+    """Total grain + vegetables across supply, all field cells, and card-fields.
 
     Mirrors scoring.score(): supply grain/veg plus the per-field-cell grain/veg
     on cells whose `cell_type is CellType.FIELD` (crops sitting on pasture/other
-    cells are not counted)."""
+    cells are not counted), plus `planted_card_crops` — ruling 45 (2026-07-12)
+    makes crops planted on card-fields crops "in your fields" (module docstring
+    has the verbatim quote). Wood/stone on card-fields are not crops and
+    contribute nothing."""
+    from agricola.cards.card_fields import planted_card_crops  # load-order safe
     ps = state.players[idx]
     grid = ps.farmyard.grid
-    total_grain = ps.resources.grain + sum(
+    card_grain, card_veg = planted_card_crops(ps)
+    total_grain = card_grain + ps.resources.grain + sum(
         grid[r][c].grain
         for r in range(3)
         for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
     )
-    total_veg = ps.resources.veg + sum(
+    total_veg = card_veg + ps.resources.veg + sum(
         grid[r][c].veg
         for r in range(3)
         for c in range(5)

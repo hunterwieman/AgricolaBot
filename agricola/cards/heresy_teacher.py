@@ -29,6 +29,17 @@ already excludes any field carrying vegetables, so the clarification (a mixed
 grain+veg field is never counted here) is automatic — no behavior change. Only
 the crop counts on the cell change; the grid's geometry (and so the cached
 pasture decomposition) is unaffected.
+
+CARD-FIELDS (ruling 45, 2026-07-12: "field" is the broader category and includes
+card-fields — only "field TILES" means the farmyard grid): a card-field holding
+3+ grain and no vegetable is equally "a field with at least 3 grain and no
+vegetable", so it gains the vegetable too — added to the card's grain-bearing
+stack (`stack_with(stack, "veg", 1)`), the below-the-grain mixed field the
+(grain, veg, wood, stone) stack shape exists for. The field-phase take then
+harvests that stack grain-first, exactly like a grid cell. The card-level
+`card_holds` test mirrors the cell test: 3+ grain, zero veg, on the whole card.
+(Today every grain-capable card-field is single-stack — the multi-stack cards
+grow only wood/stone — but the stack scan is written generically.)
 """
 from __future__ import annotations
 
@@ -49,6 +60,10 @@ def _eligible(state: GameState, idx: int) -> bool:
 
 
 def _apply(state: GameState, idx: int) -> GameState:
+    from agricola.cards.card_fields import (
+        GOODS, card_field_stacks, card_holds, owned_card_fields, stack_with,
+        stacks_to_store)
+
     p = state.players[idx]
     grid = p.farmyard.grid
     new_grid_rows = []
@@ -63,7 +78,22 @@ def _apply(state: GameState, idx: int) -> GameState:
                 new_row.append(cell)
         new_grid_rows.append(tuple(new_row))
     new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
-    p = fast_replace(p, farmyard=new_farmyard)
+    # Card-fields (ruling 45, 2026-07-12): a card-field with 3+ grain and no
+    # vegetable is such a field too — the vegetable goes below the grain on
+    # the card's grain-bearing stack.
+    gi = GOODS.index("grain")
+    card_state = p.card_state
+    for cid in owned_card_fields(p):
+        if not (card_holds(p, cid, "grain") >= 3
+                and card_holds(p, cid, "veg") == 0):
+            continue
+        stacks = list(card_field_stacks(p, cid))
+        for i, stack in enumerate(stacks):
+            if stack[gi] > 0:
+                stacks[i] = stack_with(stack, "veg", 1)
+                break
+        card_state = stacks_to_store(card_state, cid, stacks)
+    p = fast_replace(p, farmyard=new_farmyard, card_state=card_state)
     return fast_replace(state, players=tuple(
         p if i == idx else state.players[i] for i in range(2)))
 

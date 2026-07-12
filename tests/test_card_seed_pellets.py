@@ -76,6 +76,19 @@ def test_seed_pellets_prereq_three_fields():
     assert prereq_met(spec, s3, cp)
 
 
+def test_seed_pellets_prereq_counts_card_fields():
+    """Ruling 45 (2026-07-12): a card-field counts for the "3 Fields" prereq,
+    planted or not — 2 grid fields + a never-sown Beanfield = 3 fields, met
+    ONLY via the card (the boundary the grid-only count failed)."""
+    import agricola.cards.beanfield  # noqa: F401  (registers the card-field)
+    s, cp = _card_state()
+    spec = MINORS["seed_pellets"]
+    s2 = with_fields(s, cp, [(0, 0), (0, 1)])
+    assert not prereq_met(spec, s2, cp)
+    s3 = _own_minor(s2, cp, "beanfield")     # bare card-field, never sown
+    assert prereq_met(spec, s3, cp)
+
+
 # ---------------------------------------------------------------------------
 # The grant fires via a real sow flow
 # ---------------------------------------------------------------------------

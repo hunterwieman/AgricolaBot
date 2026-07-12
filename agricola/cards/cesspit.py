@@ -39,12 +39,20 @@ CARD_ID = "cesspit"
 
 
 def _prereq_two_fields(state: GameState, idx: int) -> bool:
-    """At least 2 FIELD cells (any field tiles; no crop required, unlike Ash Trees)."""
-    grid = state.players[idx].farmyard.grid
+    """At least 2 fields, no crop required (unlike Ash Trees): FIELD cells on the
+    grid plus owned card-fields, planted or not (`card_field_count`). Ruling 45
+    (2026-07-12), verbatim: '"field TILES" means the plowed fields on the farmyard
+    grid; "field" is the BROADER category and includes card-fields. So a card-field
+    counts for field-count readers — the Fields scoring category and any "you need
+    N fields" requirement — while per-TILE readers still exclude it (ruling 32
+    unchanged).' (Ruling 47: a multi-stack card-field still counts exactly once.)"""
+    from agricola.cards.card_fields import card_field_count  # local: load-order safe
+    p = state.players[idx]
+    grid = p.farmyard.grid
     fields = sum(
         1 for r in range(3) for c in range(5)
         if grid[r][c].cell_type is CellType.FIELD
-    )
+    ) + card_field_count(p)
     return fields >= 2
 
 

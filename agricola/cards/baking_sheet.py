@@ -42,7 +42,10 @@ accommodatable, so firing never dead-ends.
 
 "No Grain Field" — the prerequisite is checked at PLAY time: the player must own no
 field cell that currently holds grain (a vegetable field, with grain == 0, does not
-count). See CARD_IMPLEMENTATION_PLAN.md Category 5.
+count) AND no grain-holding card-field (ruling 45, 2026-07-12; verbatim quote in
+`_no_grain_field`) — a card-field with grain on it IS a grain field and breaks the
+prereq, while a veg- or wood/stone-holding card-field does not. See
+CARD_IMPLEMENTATION_PLAN.md Category 5.
 """
 from __future__ import annotations
 
@@ -58,12 +61,23 @@ CARD_ID = "baking_sheet"
 
 
 # ---------------------------------------------------------------------------
-# Prerequisite: "No Grain Field" — no field cell currently holds grain.
+# Prerequisite: "No Grain Field" — no field currently holds grain.
 # ---------------------------------------------------------------------------
 
 def _no_grain_field(state: GameState, idx: int) -> bool:
-    grid = state.players[idx].farmyard.grid
-    return all(
+    """No grid FIELD cell holds grain AND no owned card-field holds grain.
+    Ruling 45 (2026-07-12), verbatim: ""field TILES" means the plowed fields
+    on the farmyard grid; "field" is the BROADER category and includes
+    card-fields. So a card-field counts for field-count readers — the Fields
+    scoring category and any "you need N fields" requirement — while per-TILE
+    readers still exclude it (ruling 32 unchanged)." Here the reading runs the
+    OTHER way: a grain-holding card-field IS a grain field, so it BREAKS this
+    "No Grain Field" prereq; a veg- or wood/stone-holding card-field is not a
+    grain field and leaves it met."""
+    from agricola.cards.card_fields import crop_card_field_count
+    p = state.players[idx]
+    grid = p.farmyard.grid
+    return crop_card_field_count(p, "grain") == 0 and all(
         not (cell.cell_type is CellType.FIELD and cell.grain > 0)
         for row in grid
         for cell in row

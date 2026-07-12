@@ -41,14 +41,24 @@ WISH_SPACES = frozenset({"basic_wish_for_children", "urgent_wish_for_children"})
 
 
 def _prereq(state: GameState, idx: int) -> bool:
-    """2 Grain Fields — at least two FIELD cells that currently hold grain."""
-    grid = state.players[idx].farmyard.grid
+    """2 Grain Fields — at least two grain fields: FIELD cells that currently
+    hold grain plus grain-holding card-fields. Ruling 45 (2026-07-12),
+    verbatim: ""field TILES" means the plowed fields on the farmyard grid;
+    "field" is the BROADER category and includes card-fields. So a card-field
+    counts for field-count readers — the Fields scoring category and any "you
+    need N fields" requirement — while per-TILE readers still exclude it
+    (ruling 32 unchanged)." Each grain-holding card counts exactly once
+    (ruling 47, 2026-07-12); a veg- or wood-holding card-field is not a grain
+    field."""
+    from agricola.cards.card_fields import crop_card_field_count
+    p = state.players[idx]
+    grid = p.farmyard.grid
     grain_fields = sum(
         1
         for row in grid
         for cell in row
         if cell.cell_type == CellType.FIELD and cell.grain > 0
-    )
+    ) + crop_card_field_count(p, "grain")
     return grain_fields >= 2
 
 

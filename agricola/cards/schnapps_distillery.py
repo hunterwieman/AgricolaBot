@@ -22,11 +22,20 @@ Two independent effects, both off existing machinery:
 
 2. A scoring term: +1 point each for the player's 5th and 6th vegetable. The
    relevant count is the SAME total scoring.py uses for the printed-veg track —
-   supply veg PLUS veg sitting on unharvested FIELD cells (scoring.py line 181) —
-   not just supply veg, which would undercount a player holding vegetables on
-   fields. The term returns (1 if total_veg >= 5 else 0) + (1 if total_veg >= 6
-   else 0). The card's printed 2 VP is awarded separately by the engine via
-   MINORS[card_id].vps, so this term must NOT re-add it (no double count).
+   supply veg PLUS veg sitting on unharvested FIELD cells PLUS veg planted on
+   the player's card-fields — not just supply veg, which would undercount a
+   player holding vegetables on fields. The card-field term follows ruling 45
+   (2026-07-12), verbatim: ""field TILES" means the plowed fields on the
+   farmyard grid; "field" is the BROADER category and includes card-fields. So
+   a card-field counts for field-count readers — the Fields scoring category
+   and any "you need N fields" requirement — while per-TILE readers still
+   exclude it (ruling 32 unchanged)." Veg planted on a card-field is a
+   vegetable the player has, exactly as scoring.py's veg total now counts it
+   (`planted_card_crops`); stone planted on Rock Garden is not a vegetable and
+   never counts. The term returns (1 if total_veg >= 5 else 0) + (1 if
+   total_veg >= 6 else 0). The card's printed 2 VP is awarded separately by the
+   engine via MINORS[card_id].vps, so this term must NOT re-add it (no double
+   count).
 
 Card-only state (the single harvest_conversions_used entry) is empty in the
 Family game, so it stays byte-identical and the C++ gates are untouched.
@@ -59,8 +68,11 @@ def _is_owned(state: GameState, idx: int) -> bool:
 
 
 def _total_veg(state: GameState, idx: int) -> int:
-    """Vegetables counted exactly as scoring.py does: supply veg plus all veg
-    sitting on unharvested FIELD cells."""
+    """Vegetables counted exactly as scoring.py's veg total: supply veg plus
+    all veg sitting on unharvested FIELD cells plus veg planted on card-fields
+    (`planted_card_crops` — ruling 45, 2026-07-12; verbatim quote in the module
+    docstring). Non-veg card-field goods contribute nothing."""
+    from agricola.cards.card_fields import planted_card_crops  # load-order safe
     p = state.players[idx]
     grid = p.farmyard.grid
     on_fields = sum(
@@ -68,7 +80,8 @@ def _total_veg(state: GameState, idx: int) -> int:
         for r in range(3) for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
     )
-    return p.resources.veg + on_fields
+    _card_grain, card_veg = planted_card_crops(p)
+    return p.resources.veg + on_fields + card_veg
 
 
 def _score(state: GameState, idx: int) -> int:

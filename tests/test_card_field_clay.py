@@ -11,6 +11,7 @@ from __future__ import annotations
 import agricola.cards.field_clay  # noqa: F401  (registers the card)
 
 from agricola.actions import ChooseSubAction, PlaceWorker
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.specs import MINORS, prereq_met
 from agricola.engine import step
 from agricola.replace import fast_replace
@@ -112,6 +113,67 @@ def test_on_play_only_owner_gains_clay():
     out = MINORS[CARD_ID].on_play(s, 0)
     assert _clay(out, 0) == _clay(s, 0) + 2   # owner's 2 fields
     assert _clay(out, 1) == opp_before         # opponent untouched
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): "planted field" is a field-count
+# reader — a card-field holding ANYTHING is a planted field (1 per card,
+# ruling 47; a wood-planted card counts — it IS planted).
+# ---------------------------------------------------------------------------
+
+def _own_card_field(state, idx, cid, stacks=None):
+    """Give player `idx` the card-field `cid` in play, optionally with contents."""
+    p = state.players[idx]
+    store = (stacks_to_store(p.card_state, cid, stacks)
+             if stacks is not None else p.card_state)
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid},
+                     card_state=store)
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_prereq_met_only_via_a_card_field():
+    """Boundary the pre-ruling-45 code failed: no grid fields at all — a
+    veg-holding Beanfield alone satisfies the 1-planted-field prerequisite
+    and pays 1 clay."""
+    spec = MINORS[CARD_ID]
+    s = _own_card_field(setup(0), 0, "beanfield", [(0, 2, 0, 0)])
+    assert prereq_met(spec, s, 0)
+    before = _clay(s, 0)
+    out = spec.on_play(s, 0)
+    assert _clay(out, 0) == before + 1
+
+
+def test_wood_planted_card_field_counts_as_planted():
+    """A wood-planted Wood Field IS a planted field (its own text says "plant
+    wood on this card") — it satisfies the prereq and pays 1 clay (once,
+    however many stacks — ruling 47)."""
+    spec = MINORS[CARD_ID]
+    s = _own_card_field(setup(0), 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    assert prereq_met(spec, s, 0)
+    before = _clay(s, 0)
+    out = spec.on_play(s, 0)
+    assert _clay(out, 0) == before + 1        # 1 field, not 2 (per-card count)
+
+
+def test_unsown_card_field_is_not_planted():
+    """A never-sown Beanfield holds nothing — not planted: the prereq stays
+    unmet and the count stays 0."""
+    spec = MINORS[CARD_ID]
+    s = _own_card_field(setup(0), 0, "beanfield")
+    assert not prereq_met(spec, s, 0)
+    before = _clay(s, 0)
+    out = spec.on_play(s, 0)
+    assert _clay(out, 0) == before
+
+
+def test_on_play_adds_card_fields_to_grid_planted_fields():
+    s = setup(0)
+    s = with_sown_fields(s, 0, grain_fields=[(0, 0), (0, 1)])
+    s = _own_card_field(s, 0, "beanfield", [(0, 2, 0, 0)])
+    before = _clay(s, 0)
+    out = MINORS[CARD_ID].on_play(s, 0)
+    assert _clay(out, 0) == before + 3        # 2 grid + 1 card-field
 
 
 # ---------------------------------------------------------------------------

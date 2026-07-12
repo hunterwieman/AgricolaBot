@@ -19,10 +19,17 @@ the earlier printed instant with no change in what it sees, since no grain is
 taken before either position.)
 
 "Grain fields" = your own FIELD cells that currently have grain planted on them
-(`cell.grain > 0`). The parenthetical "(including field cards with planted
-grain)" refers to expansion field-card mechanics not modeled in this engine, so
-it adds nothing here. The threshold is at least 3 such fields; the reward is a
-flat 2 food (not per-field). See CARD_IMPLEMENTATION_PLAN.md Category 6.
+(`cell.grain > 0`) PLUS your card-fields currently holding grain
+(`crop_card_field_count(p, "grain")`) — the parenthetical "(including field cards
+with planted grain)" names exactly the card-field machinery
+(agricola/cards/card_fields.py), now modeled, in the catalog's own words. Ruling
+45 (2026-07-12), verbatim: '"field TILES" means the plowed fields on the farmyard
+grid; "field" is the BROADER category and includes card-fields. So a card-field
+counts for field-count readers — the Fields scoring category and any "you need N
+fields" requirement — while per-TILE readers still exclude it (ruling 32
+unchanged).' Per ruling 47 (2026-07-12) a multi-stack card-field counts exactly
+once. The threshold is at least 3 such fields; the reward is a flat 2 food (not
+per-field). See CARD_IMPLEMENTATION_PLAN.md Category 6.
 """
 from __future__ import annotations
 
@@ -41,13 +48,18 @@ _FOOD = 2
 
 
 def _grain_fields(state: GameState, idx: int) -> int:
-    """Count the player's FIELD cells that currently have grain planted."""
+    """Count the player's grain fields: grid FIELD cells with grain planted,
+    plus grain-holding card-fields — the printed "(including field cards with
+    planted grain)" (ruling 45, 2026-07-12: "field" includes card-fields;
+    ruling 47: each card counts exactly once)."""
+    from agricola.cards.card_fields import crop_card_field_count  # local: load-order safe
+    p = state.players[idx]
     return sum(
         1
-        for row in state.players[idx].farmyard.grid
+        for row in p.farmyard.grid
         for cell in row
         if cell.cell_type == CellType.FIELD and cell.grain > 0
-    )
+    ) + crop_card_field_count(p, "grain")
 
 
 def _eligible(state: GameState, idx: int) -> bool:

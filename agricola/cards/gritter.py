@@ -39,6 +39,21 @@ and Cultivation (and no implemented card grants two separate Sow sub-actions in 
 placement). This mirrors Garden Hoe / Tumbrel, which treat the per-`after_sow`
 boundary as the action boundary.
 
+Card-fields count as vegetable fields. User ruling 45 (2026-07-12), verbatim:
+""field TILES" means the plowed fields on the farmyard grid; "field" is the
+BROADER category and includes card-fields. So a card-field counts for
+field-count readers — the Fields scoring category and any "you need N fields"
+requirement — while per-TILE readers still exclude it (ruling 32 unchanged)."
+This card reads "vegetable field" (not "field tile"), so `_veg_field_count`
+adds `crop_card_field_count(p, "veg")` — 1 per veg-holding card, however many
+stacks (ruling 47, 2026-07-12). Because BOTH sides of the snapshot delta use
+the one extended counter, the extension covers both halves of the card at
+once: a veg sow onto a card-field alone (a `CommitSow.card_sows` entry —
+applied inside `_execute_sow`, so `after_sow` sees the updated store) raises
+the count and IS "sowing vegetables in a field", triggering the payout; and a
+veg-holding card-field raises the payout count itself ("including the new
+ones").
+
 Card-only state (the CardStore snapshot) defaults to its canonical 0, so the Family
 game is byte-identical and the C++ gates are untouched. See CARD_AUTHORING_GUIDE.md
 §4 (deferred snapshot / CardStore).
@@ -57,17 +72,22 @@ CARD_ID = "gritter"
 
 
 def _veg_field_count(player) -> int:
-    """Number of field cells currently bearing vegetables (veg > 0).
+    """Number of fields currently bearing vegetables: grid FIELD cells with
+    veg > 0, plus veg-holding card-fields (ruling 45, 2026-07-12 — "vegetable
+    field" is a field-count reader; 1 per card per ruling 47).
 
     A sown field holds grain XOR veg (never both — _execute_sow fills grain=3 OR
     veg=2 per cell), so this counts exactly the vegetable-planted fields."""
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        crop_card_field_count,
+    )
     grid = player.farmyard.grid
     return sum(
         1
         for r in range(3)
         for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD and grid[r][c].veg > 0
-    )
+    ) + crop_card_field_count(player, "veg")
 
 
 def _prereq(state: GameState, idx: int) -> bool:

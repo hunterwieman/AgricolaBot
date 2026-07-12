@@ -37,8 +37,9 @@ counts it.
 Prerequisite "1 Grain Field" is a HAVE-check at PLAY time: at least one of the
 player's own FIELD cells currently holds grain (``cell.grain > 0``) — the same
 definition Bumper Crop's "2 Grain Fields" prerequisite uses (and Raised Bed /
-Bale of Straw's "grain field" counting). A prerequisite is checked, never spent
-(distinct from the cost).
+Bale of Straw's "grain field" counting) — or at least one grain-holding
+card-field (ruling 45, 2026-07-12; verbatim quote in ``_prereq``). A
+prerequisite is checked, never spent (distinct from the cost).
 
 Card-only state is empty (no CardStore use) and the registrations are
 card-only registries, so the Family game is byte-identical and the C++ gates
@@ -60,10 +61,18 @@ WINDOW_ID = "after_harvest"
 
 
 def _prereq(state: GameState, idx: int) -> bool:
-    """1 Grain Field — at least one FIELD cell that currently holds grain."""
-    return any(
+    """1 Grain Field — at least one FIELD cell that currently holds grain, or
+    at least one grain-holding card-field. Ruling 45 (2026-07-12), verbatim:
+    ""field TILES" means the plowed fields on the farmyard grid; "field" is
+    the BROADER category and includes card-fields. So a card-field counts for
+    field-count readers — the Fields scoring category and any "you need N
+    fields" requirement — while per-TILE readers still exclude it (ruling 32
+    unchanged)." A veg- or wood-holding card-field is not a grain field."""
+    from agricola.cards.card_fields import crop_card_field_count
+    p = state.players[idx]
+    return crop_card_field_count(p, "grain") >= 1 or any(
         cell.cell_type == CellType.FIELD and cell.grain > 0
-        for row in state.players[idx].farmyard.grid
+        for row in p.farmyard.grid
         for cell in row
     )
 

@@ -174,6 +174,48 @@ def test_prereq_is_per_player():
 
 
 # --------------------------------------------------------------------------- #
+# Prerequisite — card-fields count (ruling 45, 2026-07-12)                     #
+# --------------------------------------------------------------------------- #
+
+def _own_card_field(state, idx, cid, stacks):
+    """Give player `idx` the card-field `cid` (played, in minor_improvements)
+    holding `stacks` — the tests/test_card_fields_seam.py idiom."""
+    from agricola.cards.card_fields import stacks_to_store
+    p = state.players[idx]
+    p = fast_replace(
+        p,
+        minor_improvements=p.minor_improvements | {cid},
+        card_state=stacks_to_store(p.card_state, cid, stacks),
+    )
+    return fast_replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
+
+
+def test_prereq_grain_card_field_completes_threshold():
+    """Ruling 45 (2026-07-12): a grain-holding card-field is a grain field —
+    2 grid grain fields + a sown Artichoke Field = 3, met ONLY via the card
+    (the boundary the grid-only count failed)."""
+    import agricola.cards.artichoke_field  # noqa: F401  (registers the card-field)
+    state = _with_grain_fields(n_grain=2)
+    assert prereq_met(MINORS[CARD_ID], state, 0) is False
+    state = _own_card_field(state, 0, "artichoke_field", [(3, 0, 0, 0)])
+    assert prereq_met(MINORS[CARD_ID], state, 0) is True
+
+
+def test_prereq_non_grain_card_fields_do_not_count():
+    """A wood-planted Wood Field is NOT a grain field (per-good count), and an
+    unplanted grain-capable card-field holds no grain either — both leave
+    2 grid grain fields below the threshold."""
+    import agricola.cards.artichoke_field  # noqa: F401
+    import agricola.cards.wood_field       # noqa: F401
+    state = _with_grain_fields(n_grain=2)
+    state = _own_card_field(state, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 0, 0)])
+    assert prereq_met(MINORS[CARD_ID], state, 0) is False
+    state = _own_card_field(state, 0, "artichoke_field", [(0, 0, 0, 0)])  # empty
+    assert prereq_met(MINORS[CARD_ID], state, 0) is False
+
+
+# --------------------------------------------------------------------------- #
 # End-to-end                                                                   #
 # --------------------------------------------------------------------------- #
 

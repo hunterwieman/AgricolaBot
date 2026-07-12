@@ -5,13 +5,19 @@ vegetable you have (considering all crops in your supply and fields), rounded up
 Cost: 1 Wood, 2 Stone. Printed VPs: 1.
 
 A pure end-game scoring minor (no on-play, no prereq, no passing). Pool grain +
-vegetables across supply and field cells: pairs = total // 2, bonus points =
+vegetables across supply, field cells, AND card-fields (ruling 45, 2026-07-12:
+crops planted on card-fields are crops "in your fields"; wood/stone on
+card-fields are not crops and never count): pairs = total // 2, bonus points =
 ceil(pairs / 2). Plus the 1 printed VP whenever the card is kept.
 """
 import agricola.cards.storeroom  # noqa: F401  (registers the card)
+import agricola.cards.beanfield  # noqa: F401  (registers the card-fields below)
+import agricola.cards.crop_rotation_field  # noqa: F401
+import agricola.cards.wood_field  # noqa: F401
 
 import dataclasses
 
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.specs import MINORS
 from agricola.cards.storeroom import CARD_ID, _pooled_crops, _score
 from agricola.constants import CellType
@@ -41,6 +47,22 @@ def _own(state, idx):
     return dataclasses.replace(state, players=tuple(
         dataclasses.replace(p, minor_improvements=p.minor_improvements | {CARD_ID})
         if i == idx else state.players[i] for i in range(2)))
+
+
+def _own_card(state, idx, card_id):
+    """Give player idx an arbitrary minor improvement (a card-field card)."""
+    p = state.players[idx]
+    return dataclasses.replace(state, players=tuple(
+        dataclasses.replace(p, minor_improvements=p.minor_improvements | {card_id})
+        if i == idx else state.players[i] for i in range(2)))
+
+
+def _set_stacks(state, idx, cid, stacks):
+    """Write a card-field's per-stack (grain, veg, wood, stone) contents."""
+    p = state.players[idx]
+    p = dataclasses.replace(p, card_state=stacks_to_store(p.card_state, cid, stacks))
+    return dataclasses.replace(state, players=tuple(
+        p if i == idx else state.players[i] for i in range(2)))
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +168,45 @@ def test_bonus_includes_field_crops():
     s = with_resources(s, 0, grain=4)
     s = with_grid(s, 0, {(0, 0): Cell(cell_type=CellType.FIELD, veg=4)})
     assert _score(s, 0) == 2
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): crops planted on card-fields are crops
+# "in your fields" and join the pool; wood/stone on card-fields are not crops
+# ---------------------------------------------------------------------------
+
+def test_card_field_crops_raise_the_pool():
+    # 5 grain + 4 veg in supply scored 2 points on their own (the card example);
+    # 2 more veg planted on Beanfield make 11 crops -> 5 pairs -> ceil(5/2) = 3.
+    s = _base()
+    s = with_resources(s, 0, grain=5, veg=4)
+    s = _own_card(s, 0, "beanfield")
+    s = _set_stacks(s, 0, "beanfield", [(0, 2, 0, 0)])
+    assert _pooled_crops(s, 0) == 11
+    assert _score(s, 0) == 3
+
+
+def test_pair_formed_only_on_a_card_field():
+    # Boundary the pre-ruling-45 code failed: NO supply crops, NO grid fields —
+    # the only crops in existence are 3 grain planted on Crop Rotation Field.
+    # 3 crops -> 1 pair -> 1 point (grid-only counting saw 0 crops -> 0 points).
+    s = _base()
+    s = _own_card(s, 0, "crop_rotation_field")
+    s = _set_stacks(s, 0, "crop_rotation_field", [(3, 0, 0, 0)])
+    assert _pooled_crops(s, 0) == 3
+    assert _score(s, 0) == 1
+
+
+def test_wood_on_card_fields_is_not_a_crop():
+    # Wood Field holding 6 wood (both stacks planted) contributes NOTHING to the
+    # crop pool — "crops" are grain/veg only (ruling 45 covers crops on fields;
+    # wood and stone are goods, not crops). 1 supply grain -> 0 pairs -> 0.
+    s = _base()
+    s = with_resources(s, 0, grain=1)
+    s = _own_card(s, 0, "wood_field")
+    s = _set_stacks(s, 0, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    assert _pooled_crops(s, 0) == 1
+    assert _score(s, 0) == 0
 
 
 # ---------------------------------------------------------------------------

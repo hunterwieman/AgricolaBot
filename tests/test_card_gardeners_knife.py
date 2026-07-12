@@ -1,6 +1,7 @@
 import agricola.cards.gardeners_knife  # noqa: F401  (registers the card)
 
 from agricola.actions import ChooseSubAction, PlaceWorker
+from agricola.cards.card_fields import stacks_to_store
 from agricola.cards.specs import MINORS
 from agricola.engine import step
 from agricola.replace import fast_replace
@@ -106,3 +107,59 @@ def test_only_veg_fields_grant_grain_only():
     cs = _play(cs, cp)
     assert cs.players[cp].resources.food == food0       # no grain fields -> +0 food
     assert cs.players[cp].resources.grain == grain0 + 2  # 2 veg fields -> +2 grain
+
+
+# ---------------------------------------------------------------------------
+# Card-fields (ruling 45, 2026-07-12): a crop-holding card-field is a
+# grain/vegetable field for this reader — 1 per card (ruling 47).
+# ---------------------------------------------------------------------------
+
+def _own_card_field(cs, idx, cid, stacks=None):
+    """Give player `idx` the card-field `cid` in play, optionally with contents."""
+    p = cs.players[idx]
+    store = (stacks_to_store(p.card_state, cid, stacks)
+             if stacks is not None else p.card_state)
+    p = fast_replace(p, minor_improvements=p.minor_improvements | {cid},
+                     card_state=store)
+    return fast_replace(
+        cs, players=tuple(p if i == idx else cs.players[i] for i in range(2)))
+
+
+def test_card_fields_add_to_both_counts():
+    """A grain-holding card-field raises the grain-field count and a
+    veg-holding one the vegetable-field count, on top of the grid fields."""
+    cs, cp = _setup(5)
+    cs = with_sown_fields(cs, cp, grain_fields=[(0, 0)], veg_fields=[])
+    cs = _own_card_field(cs, cp, "artichoke_field", [(3, 0, 0, 0)])  # grain
+    cs = _own_card_field(cs, cp, "beanfield", [(0, 2, 0, 0)])        # veg
+    food0 = cs.players[cp].resources.food
+    grain0 = cs.players[cp].resources.grain
+    cs = _play(cs, cp)
+    assert cs.players[cp].resources.food == food0 + 2    # grid grain + artichoke
+    assert cs.players[cp].resources.grain == grain0 + 1  # beanfield
+
+
+def test_card_fields_alone_grant_without_grid_fields():
+    """Boundary the pre-ruling-45 code failed: NO grid fields at all — the
+    grant is earned entirely via card-fields."""
+    cs, cp = _setup(5)
+    cs = _own_card_field(cs, cp, "artichoke_field", [(3, 0, 0, 0)])  # grain
+    cs = _own_card_field(cs, cp, "beanfield", [(0, 2, 0, 0)])        # veg
+    food0 = cs.players[cp].resources.food
+    grain0 = cs.players[cp].resources.grain
+    cs = _play(cs, cp)
+    assert cs.players[cp].resources.food == food0 + 1    # 1 grain card-field
+    assert cs.players[cp].resources.grain == grain0 + 1  # 1 veg card-field
+
+
+def test_wood_planted_and_unsown_card_fields_count_as_neither():
+    """A wood-holding Wood Field is neither a grain field nor a vegetable
+    field, and an unsown Beanfield holds no crop — neither pays."""
+    cs, cp = _setup(5)
+    cs = _own_card_field(cs, cp, "wood_field", [(0, 0, 3, 0), (0, 0, 3, 0)])
+    cs = _own_card_field(cs, cp, "beanfield")   # in play, nothing planted
+    food0 = cs.players[cp].resources.food
+    grain0 = cs.players[cp].resources.grain
+    cs = _play(cs, cp)
+    assert cs.players[cp].resources.food == food0
+    assert cs.players[cp].resources.grain == grain0

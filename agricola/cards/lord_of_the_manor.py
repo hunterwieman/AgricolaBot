@@ -19,6 +19,21 @@ mirroring agricola/scoring.py's own counting (and reusing its `_score_*` look-up
 helpers). It must NOT call `scoring.score()`: `score()` iterates `SCORING_TERMS`
 and would re-invoke this very term — infinite recursion.
 
+LOCKSTEP WITH scoring.py. Because the mirror is inline, any change to how
+score() counts a max-4 category must be replicated here or this card silently
+scores the wrong categories. The current card-field terms (three of them,
+matching score() exactly): (a) the Fields count adds `card_field_count(ps)`
+(1 per owned card-field, however many stacks — ruling 47), and (b)/(c) the
+grain and vegetable totals add `planted_card_crops(ps)`'s grain and veg. Per
+ruling 45 (2026-07-12), verbatim: ""field TILES" means the plowed fields on the
+farmyard grid; "field" is the BROADER category and includes card-fields. So a
+card-field counts for field-count readers — the Fields scoring category and any
+"you need N fields" requirement — while per-TILE readers still exclude it
+(ruling 32 unchanged)." The Fields SCORING category is a field-count reader
+(scoring.py counts card-fields in it), so this mirror counts them too; the
+`_score_field_tiles` helper name is just the value table's name, not a
+tile-only reading.
+
 Category 1 (end-game scoring). No stored state — derived from the farmyard.
 """
 from __future__ import annotations
@@ -43,29 +58,40 @@ CARD_ID = "lord_of_the_manor"
 def _category_point_values(state: GameState, idx: int) -> list[int]:
     """The eight max-4-capped categories' point values, mirroring scoring.score().
 
-    Returned in the same order as scoring.py computes them: field tiles, pastures,
-    grain, vegetables, sheep, boar, cattle, fenced stables.
+    Returned in the same order as scoring.py computes them: fields, pastures,
+    grain, vegetables, sheep, boar, cattle, fenced stables. MUST stay in
+    lockstep with score()'s counting — including its three card-field terms
+    (ruling 45, 2026-07-12; verbatim quote in the module docstring):
+    `card_field_count` on the Fields count, `planted_card_crops` on the grain
+    and veg totals.
     """
+    from agricola.cards.card_fields import (   # local import: load-order safe
+        card_field_count,
+        planted_card_crops,
+    )
     ps = state.players[idx]
     grid = ps.farmyard.grid
     pastures = ps.farmyard.pastures
+    card_grain, card_veg = planted_card_crops(ps)
 
-    # Field tiles
+    # Fields: grid tiles + card-fields (1 per card, however many stacks —
+    # rulings 45 + 47), exactly as scoring.score().
     num_fields = sum(
         1
         for r in range(3)
         for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
-    )
+    ) + card_field_count(ps)
 
-    # Grain / vegetables: supply + all on field cells (exactly as scoring.score()).
-    total_grain = ps.resources.grain + sum(
+    # Grain / vegetables: supply + all on field cells + crops planted on
+    # card-fields (exactly as scoring.score()).
+    total_grain = card_grain + ps.resources.grain + sum(
         grid[r][c].grain
         for r in range(3)
         for c in range(5)
         if grid[r][c].cell_type == CellType.FIELD
     )
-    total_veg = ps.resources.veg + sum(
+    total_veg = card_veg + ps.resources.veg + sum(
         grid[r][c].veg
         for r in range(3)
         for c in range(5)
