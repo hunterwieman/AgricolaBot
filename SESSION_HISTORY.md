@@ -3197,3 +3197,27 @@ entry is the pointer, not the record:
 - **Next:** the queued builds in HARVEST_HANDOFF.md §16 — FEED/BREED banding (ruling 40;
   the arc's first change requiring a C++ re-port), Field Cultivator auto-max (ruling 41),
   the converter cluster (rulings 34–39), the web-UI label pass, the card-fields wave.
+
+## Session — The card-fields wave + Field Cultivator auto-max (2026-07-12)
+
+Queue items 2 and 5 of HARVEST_HANDOFF.md §16, executed in one session (rulings 42–48,
+all dated in `CARD_DEFERRED_PLANS.md`):
+
+- **Ruling 42:** Cooking Hearth Extension pulled OUT of the converter cluster — deferred
+  alongside Gypsy's Crock until the user decides how cooking-modifier cards work.
+- **Field Cultivator → automatic-take-the-maximum** (ruling 41; `4b651de`).
+- **The card-fields system** (`f427f71` seams, `329c8cd` cards, `860fd5a` sweep):
+  `agricola/cards/card_fields.py` — spec registry, per-stack (grain, veg, wood, stone)
+  CardStore state, ruling-45 count helpers, sow integration (`CommitSow.card_sows`,
+  `PendingSow.crops_only` — Family-default-skipped; **no C++ re-port needed, gates green
+  throughout**), per-stack `card:<id>` take entries, fold-key extension, and the
+  non-take-removal chokepoint (ruling 44) proven by Craft Brewery emptying a Crop
+  Rotation Field mid-feeding. All nine "this card is a field" cards landed (7 agents),
+  and 26 implemented "field(s)"-reading cards were swept to see card-fields (8 agents),
+  including Heresy Teacher writing below-the-grain veg onto card stacks and Plant
+  Fertilizer's multi-stack placement choice as wide play variants.
+- **Catalog: 214 minors + 104 occupations.** Full suite 4,438 green; verify_web_sync
+  passing; a public planted-contents badge renders card-field crops in the web UI.
+- **Flagged for the user:** Scythe E73 × mixed fields (veg below grain) harvests only
+  the grain — a pre-existing take-precedence limitation, grid and card alike,
+  documented in `scythe.py`.

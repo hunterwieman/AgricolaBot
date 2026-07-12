@@ -622,10 +622,10 @@ are ~20 cards STALE (regenerate before trusting).
    just past the sentinel window-major; several tests construct bare FEED/BREED
    states); (c) feeding-income autos currently fire both-players at FEED entry —
    under banding they fire per band player; (d) full suite + gates, obviously.
-2. **Field Cultivator → automatic-max (ruling 41)** — small: the occasion trigger
-   becomes an occasion AUTO taking min(tiles, pile remaining); keep the "cell:"-only
-   tile filter (ruling 32); Scythe-Worker-style documented-simplification note;
-   rewrite its choice tests.
+2. **DONE 2026-07-12 (`4b651de`) — Field Cultivator → automatic-max (ruling 41)**: the
+   occasion trigger became an occasion AUTO taking min(tiles, pile remaining); the
+   "cell:"-only tile filter (ruling 32) and its pinned test kept; choice tests
+   rewritten as automatic-fire tests.
 3. **The converter cluster (rulings 34–39, fully specified)** — the last harvest
    machinery. Driver seams first: (i) the generalized `PendingFoodPayment` frontier —
    crops + animals + capped building-resource conversions, liveness derived from
@@ -648,16 +648,17 @@ are ~20 cards STALE (regenerate before trusting).
 4. **The label pass** — per-card labeler registry in display.py (bare numbers mean
    different things per card), threaded state, the user's mechanical style (§13.4);
    optionally the contextual decline label.
-5. **The card-fields wave** — the LAST harvest chunk: Beanfield, Lettuce Patch, Melon
-   Patch, Cherry Orchard (wood!), Artichoke Field, Crop Rotation Field, Patch
-   Caregiver, Wood Field, Rock Garden. Crops in CardStore; `field_take` iterates them
-   with `source="card:<id>"` entries; ruling 32 (never a tile) and ruling 22's shape
-   already encoded; the E-deck verb lexicon (E68/69 "harvest" vs E70 "remove") in §5
-   of Part I. Witches' Dance Floor stays BANNED. **Rulings 43–47 (2026-07-12) settled
-   the wave's open questions** — the two "immediately"s (take-occasion optional
-   stretch), field vs field-TILE (card-fields count as fields, never tiles),
-   per-field modifiers reach card-fields, and the Wood Field / Rock Garden stack
-   semantics; see CARD_DEFERRED_PLANS.md.
+5. **DONE 2026-07-12 (`f427f71` seams, `329c8cd` the nine cards, `860fd5a` the reader
+   sweep) — the card-fields wave**, rulings 43–48. The machinery is
+   `agricola/cards/card_fields.py` (per-stack CardStore state, ruling-45 count helpers,
+   `CommitSow.card_sows` + `PendingSow.crops_only` — Family-default-skipped, gates
+   stayed green with no C++ re-port); all nine cards implemented; every implemented
+   "field(s)"-reading card swept (26 modules); the NON-take-removal chokepoint
+   (`remove_card_crop`, ruling 44) landed with Craft Brewery × Crop Rotation Field as
+   its proven consumer pair. OPEN ITEM flagged to the user: Scythe E73's "harvest all
+   the crops planted in it" on a MIXED field (Heresy Teacher's veg below grain — grid
+   or card alike) takes only the grain (pre-existing take-precedence limitation,
+   documented in scythe.py). Witches' Dance Floor stays BANNED.
 6. **Beyond the harvest**: the round-end / returning-home mechanism is the biggest
    single unlock (7 cards: Baking Course, Credit, Lifting Machine, Sculpture Course,
    Silage, Perennial Rye, Swimming Class); then the rest of CARD_DEFERRED_PLANS.

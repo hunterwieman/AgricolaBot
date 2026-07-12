@@ -112,7 +112,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-05, HEAD `ff874ba`.** A card batch is not integrated until this
+> **Last updated: 2026-07-12, HEAD `860fd5a`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -124,7 +124,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 291 cards — 96 occupations + 195 minors**, spanning decks A–E
+- **Implemented & registered: 318 cards — 104 occupations + 214 minors**, spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
   §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
@@ -140,10 +140,20 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   event, the per-occasion trigger host `PendingHarvestOccasion` (the loud guard is gone),
   replace-kind take-modifiers (`TakeFold` — Grain Thief's shape), and the
   `feeding_requirement` chokepoint + `PendingSow.max_fields`. All are in §5b/§3/§4.
-- **In flight (uncommitted working tree at this stamp)**: the consumer-card wave for those
-  seams (Stone Importer, Fodder Planter, Grain Thief, Potato Ridger, Food Merchant, Child's
-  Toy, …) is actively building. `HARVEST_HANDOFF.md` §12 is its worklist with per-item
-  cautions; this document describes HEAD and must be re-stamped when that wave lands.
+- **The 2026-07-05 → 06 waves landed** (the seam-consumer cards, the after-harvest wave, the
+  arrangement trio — Dolly's Mother / Mineral Feeder / Beer Stall; rulings 18–41 in
+  `CARD_DEFERRED_PLANS.md`, reasoning in `HARVEST_HANDOFF.md` Part II).
+- **The card-fields system landed (2026-07-12; rulings 42–48)**: `agricola/cards/card_fields.py`
+  is the machinery module — the spec registry, the CardStore per-stack (grain, veg, wood,
+  stone) state, the ruling-45 count helpers, sow integration (`CommitSow.card_sows` +
+  `PendingSow.crops_only`, both Family-default-skipped on the wire), the take's
+  `source="card:<id>"` manifest entries, fold-key extension ("card", id, stack), and the
+  NON-take-removal chokepoint (`remove_card_crop` / `register_card_crop_removal` — ruling 44;
+  Craft Brewery × Crop Rotation Field is the proven consumer pair). All nine "this card is a
+  field" cards are implemented; every implemented "field(s)"-reading card was swept to count
+  card-fields (ruling 45), while "field tile" readers stay grid-only (ruling 32). Field
+  Cultivator is automatic-take-the-maximum (ruling 41). Cooking Hearth Extension is deferred
+  alongside Gypsy's Crock (ruling 42).
 - **Per-card status + mechanics classification:** `CARD_IMPLEMENTATION_PROGRESS.md` (the
   adjudicated two-pass taxonomy). **Deferred cards:** clustered with build proposals in
   `CARD_DEFERRED_PLANS.md` (+ the C/D/E triage's defers in `CARD_TRIAGE_CDE.md`); deferred
