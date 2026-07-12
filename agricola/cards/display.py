@@ -112,6 +112,21 @@ def _moldboard_plow(ps) -> str | None:
     return f"{uses} field-plow{'' if uses == 1 else 's'} left"
 
 
+def _card_field_badge(card_id: str, ps) -> str | None:
+    """The planted contents of a card-field (rulings 45-47, 2026-07-12), one
+    " | "-separated part per non-empty stack ("3 wood | 1 wood"; a mixed
+    Heresy-Teacher stack reads "3 grain + 1 veg"). None when nothing is
+    planted — crops on a card are public, like crops on a board field."""
+    from agricola.cards.card_fields import GOODS, card_field_stacks
+
+    parts = []
+    for stack in card_field_stacks(ps, card_id):
+        bits = [f"{n} {g}" for g, n in zip(GOODS, stack) if n]
+        if bits:
+            parts.append(" + ".join(bits))
+    return ("Planted: " + " | ".join(parts)) if parts else None
+
+
 _STATE_FORMATTERS = {
     "interim_storage": _interim_storage,
     "moldboard_plow": _moldboard_plow,
@@ -120,9 +135,16 @@ _STATE_FORMATTERS = {
 
 def state_text(card_id: str, player_state) -> str | None:
     """A PUBLIC live-state badge for a resource/counter card, or None. Shown to both
-    seats (goods on a card / field tiles on a card are visible to everyone)."""
+    seats (goods on a card / field tiles on a card are visible to everyone).
+    Registered card-fields get the generic planted-contents badge."""
     fn = _STATE_FORMATTERS.get(card_id)
-    return fn(player_state) if fn is not None else None
+    if fn is not None:
+        return fn(player_state)
+    from agricola.cards.card_fields import CARD_FIELDS
+
+    if card_id in CARD_FIELDS:
+        return _card_field_badge(card_id, player_state)
+    return None
 
 
 # --- Owner-only badges (a hidden fact the owner may have forgotten) ---------------

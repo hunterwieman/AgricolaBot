@@ -547,3 +547,15 @@ from agricola.cards import mineral_feeder  # noqa: F401
 # Beer Stall (2026-07-06, ruling 30): the per-conversions-taken frontier with
 # the exchanges bundled into the options, on the conversion-variants seam.
 from agricola.cards import beer_stall  # noqa: F401
+# The card-fields wave (rulings 43-48, 2026-07-12): "this card is a field"
+# cards on the shared card_fields machinery (registry + sow/take/scoring
+# integration). The three plain fields, then the reactive ones.
+from agricola.cards import beanfield  # noqa: F401
+from agricola.cards import wood_field  # noqa: F401
+from agricola.cards import rock_garden  # noqa: F401
+from agricola.cards import cherry_orchard  # noqa: F401
+from agricola.cards import artichoke_field  # noqa: F401
+from agricola.cards import melon_patch  # noqa: F401
+from agricola.cards import lettuce_patch  # noqa: F401
+from agricola.cards import crop_rotation_field  # noqa: F401
+from agricola.cards import patch_caregiver  # noqa: F401

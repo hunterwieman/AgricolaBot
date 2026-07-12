@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 206 implemented · 🚫 3 won't-fix/banned · ⬜ 211 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 214 implemented · 🚫 3 won't-fix/banned · ⬜ 203 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -478,7 +478,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B67 Hand Truck** · cost: 1 Wood
   - _Each time before you take a "Bake Bread" action, you also get 1 grain for each of your people occupying an accumulation space.  [CLARIFICATION: You must bake if you receive the grain.]_
   - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-GOODS ST-PLACELOG` — Grain count = number of YOUR people on accumulation spaces, which requires knowing which spaces your workers occupy — exactly ST-PLACELOG's definition; otherwise both labels agree.
-- ⬜ **B68 Beanfield** · cost: 1 Food · prereq: 2 Occupations
+- ✅ **B68 Beanfield** · cost: 1 Food · prereq: 2 Occupations
   - _This card is a field that can only grow vegetables._
   - `PASSIVE L-CARDFIELD E-FOODCOST` — The card IS a field (L-CARDFIELD) as an always-on rule with no once-at-play effect — PASSIVE, not ONPLAY (same ruling as adjudicated D75); its printed 1-Food play cost is a food cost payable by conversion, which the rulings say to flag as E-FOODCOST.
 - ⬜ **B69 Potters Market** · cost: 2 Wood
@@ -739,7 +739,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C69 Land Consolidation**
   - _At any time, you can exchange 3 grain in a field for 1 vegetable in that field._
   - `ATWILL E-CONVERT E-CROPMANIP` — 'At any time' exchange = ATWILL; 'exchange 3 grain for 1 vegetable' is literally a good-for-good conversion at a rate (E-CONVERT), and both operands live ON a field, so it also manipulates planted crops (E-CROPMANIP) — both tags apply.
-- ⬜ **C70 Lettuce Patch** · prereq: 3 Occupations
+- ✅ **C70 Lettuce Patch** · prereq: 3 Occupations
   - _This card is a field that can only grow vegetables. You can immediately turn each vegetable you harvested from this card into 4 food._
   - `PASSIVE L-CARDFIELD HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-CONVERT ST-PROV` — Card-is-a-veg-only-field is a standing rule (PASSIVE + L-CARDFIELD, nothing fires on play — labelA's ONPLAY is wrong); the 'immediately turn each vegetable you harvested from this card into 4 food' is an optional conversion fired right after the harvest field phase (T-AFTER/S-HFIELD/F-TRIG/A-OWN) and needs provenance of which veg came off this card (ST-PROV).
 - ✅ **C71 Slurry Spreader**
@@ -1009,7 +1009,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D74 Royal Wood** · cost: 1 Food
   - _At the end of each turn in which you use the "Farm Expansion" action space or build an improvement, you get 1 wood back for every 2 wood paid during those actions (rounded down)._
   - `HOOK T-AFTER S-TURNEND F-AUTO A-OWN E-GOODS E-FOODCOST ST-COUNTER ST-PROV` — 1-Food play cost → E-FOODCOST per the cost ruling; the rebate accumulates wood paid across the turn's qualifying actions (ST-COUNTER) from payment provenance (ST-PROV), paid out automatically at turn end.
-- ⬜ **D75 Wood Field** · cost: 1 Food · prereq: 1 Occupation
+- ✅ **D75 Wood Field** · cost: 1 Food · prereq: 1 Occupation
   - _You can plant wood on this card as though it were 2 fields, but it is considered 1 field. Sow and harvest wood on this card as you would grain.  [ERRATA: ERRATA: add “You can plant only wood on this card.”]  [CLARIFICATION: You may plant 2 wood at once with 1 trigger of the Chief Forester A115.  Planted wood may not be spent during scoring for the Joinery 8 / 18.]_
   - `PASSIVE L-CARDFIELD L-EXT E-CROPMANIP ST-STACK` — Always-on (PASSIVE) card-as-field you sow/harvest on (L-CARDFIELD), holding a pile of planted wood consumed over harvests (ST-STACK). It changes the sow rule (plant 2-at-once as though 2 fields, counts as 1 field; wood as a crop) — E-CROPMANIP — and extends sow eligibility to a good (wood) not otherwise sowable, which is an eligibility extension (L-EXT, label B is right to add it).
 - ✅ **D76 Social Benefits** · cost: 1 Reed · prereq: At Most 1 Occupation
@@ -1243,19 +1243,19 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E67 Grain Bag** · cost: 1 Reed
   - _Each time you use the "Grain Seeds" action space, you get 1 additional grain for each baking improvement you have._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Grain Seeds, gain extra grain per baking improvement owned.
-- ⬜ **E68 Cherry Orchard**
+- ✅ **E68 Cherry Orchard**
   - _This card is a field on which you can only sow and harvest wood as you would grain. Each time you harvest the last wood from this card, you also get 1 vegetable._
   - `L-CARDFIELD E-GOODS` — Card-field that grows WOOD; +1 veg when its last wood is harvested.
-- ⬜ **E69 Melon Patch** · prereq: 2 Occupations
+- ✅ **E69 Melon Patch** · prereq: 2 Occupations
   - _This card is a field that can only grow vegetables. Each time you harvest the last vegetable from this card, you can plow 1 field._
   - `PASSIVE HOOK T-AFTER S-HFIELD F-TRIG A-OWN E-GRANTSUB L-CARDFIELD` — Card-is-a-field is a continuous rule (PASSIVE+L-CARDFIELD); harvesting from the card happens in the harvest field phase (S-HFIELD — harvest is not a listed S-SUB primitive), and the optional plow after the last veg is T-AFTER+F-TRIG+E-GRANTSUB.
-- ⬜ **E70 Crop Rotation Field** · prereq: 1 Occupation
+- ✅ **E70 Crop Rotation Field** · prereq: 1 Occupation
   - _This card is a field. Each time you remove the last grain or vegetable from this card, you can immediately sow vegetable or grain on this card, respectively._
   - `L-CARDFIELD HOOK T-AFTER S-SUB F-TRIG A-OWN E-CROPMANIP` — 'This card is a field' -> L-CARDFIELD (a card-STRUCTURE tag, not geometry); crop-swap on it is E-CROPMANIP.
 - ⬜ **E71 Cow Patty** · prereq: 1 Cattle
   - _Each time you sow in a field that is orthogonally adjacent to a pasture, you can place 1 additional good of the planted type in it._
   - `HOOK T-AFTER S-SUB F-TRIG A-OWN E-CROPMANIP L-GEOMFARM` — Hook on the sow sub-action with orthogonal-adjacency geometry; the extra good is placed ON the field as a planted crop (changes field yield → E-CROPMANIP, not loose E-GOODS) and depends on the completed sow's planted type, so T-AFTER.
-- ⬜ **E72 Artichoke Field** · cost: 1 Wood · prereq: 2 Occupations
+- ✅ **E72 Artichoke Field** · cost: 1 Wood · prereq: 2 Occupations
   - _This card is a field. During the field phase of each harvest, if you harvest at least 1 good from this card, you also get 1 food._
   - `PASSIVE HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-CARDFIELD` — Card-is-a-field is a continuous rule (PASSIVE+L-CARDFIELD, consistent with E69); the mandatory 1 food after harvesting from it is a HOOK on the harvest field phase (S-HFIELD, T-AFTER, F-AUTO) giving E-GOODS.
 - ✅ **E73 Scythe** · cost: 1 Wood
@@ -1279,7 +1279,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E79 Field Spade** · cost: 1 Wood
   - _Each time after you sow in at least 1 field, you get 1 stone._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS` — After you sow in >=1 field, auto get 1 stone.
-- ⬜ **E80 Rock Garden**
+- ✅ **E80 Rock Garden**
   - _You can only plant stone on this card. Plant as though it were 3 fields, but it is considered 1 field. Sow and harvest stone on this card as you would vegetables._
   - `L-CARDFIELD` — Card-field that grows STONE (plant-as-3, counts as 1).
 - ⬜ **E81 Alchemists Lab** · prereq: 3 Occupations
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 103 implemented · 🚫 2 won't-fix/banned · ⬜ 315 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 104 implemented · 🚫 2 won't-fix/banned · ⬜ 314 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1722,7 +1722,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B112 Silokeeper** · [1+]
   - _Each time you use the action space card that has been revealed right before the most recent harvest, you also get 1 grain.  [CLARIFICATION: The action space card is Round 4, 7, 9, 11, or 13.]_
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS L-GEOMBOARD` — Kept L-GEOMBOARD: 'card revealed right before the most recent harvest' depends on round-space number/reveal order, a board-position dependency.
-- ⬜ **B113 Patch Caregiver** · [1+]
+- ✅ **B113 Patch Caregiver** · [1+]
   - _When you play this card, you can choose to buy 1 grain for 1 food, or 1 vegetable for 3 food. This card is a field._
   - `ONPLAY E-FOODCOST E-GOODS L-CARDFIELD` — Optional one-time on-play buy ('you can choose'), so no F-MANDCHOICE (F-codes are HOOK-only and the choice is declinable); the buy costs food (E-FOODCOST) and gains a crop (E-GOODS) — a one-off purchase, not a standing E-CONVERT rate; the card is itself a field (L-CARDFIELD).
 - ✅ **B114 Childless** · [1+]

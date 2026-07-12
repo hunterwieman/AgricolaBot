@@ -1994,8 +1994,8 @@
   "vps": 0,
   "text": "When you play this card, you can choose to buy 1 grain for 1 food, or 1 vegetable for 3 food. This card is a field.",
   "slug": "patch_caregiver",
-  "implemented": false,
-  "status": "todo",
+  "implemented": true,
+  "status": "implemented",
   "players": "1+",
   "name_dup": false
  },
