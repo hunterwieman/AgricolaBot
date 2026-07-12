@@ -1,10 +1,12 @@
-"""Cost-modifier chokepoint tests (COST_MODIFIER_DESIGN.md §8 prototype, step 1).
+"""Cost-modifier chokepoint tests (COST_MODIFIER_DESIGN.md §8).
 
-Validates `effective_payments` / `can_pay` (the cost-resolution chokepoint) directly,
-with a hand-built `CostCtx` — no engine wiring yet (renovate routes through it in a
-later step). Importing the two prototype card modules below populates the cost-mod
-registries; the test states own the cards by putting their ids in `occupations`
-(which is all `_owns` checks). The worked traces mirror COST_MODIFIER_DESIGN.md §4.
+Validates `effective_payments` / `can_pay` (the cost-resolution chokepoint) — partly
+directly with a hand-built `CostCtx` (the worked traces mirroring
+COST_MODIFIER_DESIGN.md §4), partly end-to-end through the real engine flows (renovate
+and build-room both route through the chokepoint; the "no engine wiring yet" prototype
+era this file's header once described is over). Importing the card modules below
+populates the cost-mod registries; the test states own the cards by putting their ids
+in `occupations` (which is all `_owns` checks).
 """
 from __future__ import annotations
 

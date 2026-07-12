@@ -9,11 +9,12 @@ internally-budgeted generator: it returns the unchanged cost plus each legal sin
 substitution, so "only once per room/action" is structural — `expand_conversions`
 applies the generator once, and it offers at most one replacement.
 
-Prototype-slice status (COST_MODIFIER_DESIGN.md §8): only the `renovate` clause is
-exercised today (the first action wired through `effective_payments`); `build_room` is
-registered for completeness but inert until that path routes through the chokepoint.
-The card is live (dealable) — `register_occupation` is below and `cards/__init__`
-imports it — with a no-op on-play (its only effect is the passive cost conversion).
+Both clauses are live: renovate and build_room each resolve through the
+`effective_payments` chokepoint with a `CostCtx` carrying the matching `action_kind`
+(the prototype-slice era, when only renovate was wired, is over — end-to-end coverage
+in tests/test_cost_modifiers.py::test_frame_builder_room_conversion_two_step). The card
+is dealable — `register_occupation` is below and `cards/__init__` imports it — with a
+no-op on-play (its only effect is the passive cost conversion).
 """
 from __future__ import annotations
 

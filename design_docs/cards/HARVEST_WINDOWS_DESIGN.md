@@ -726,18 +726,21 @@ of §0–§11 is the authority; this only orients.*
   (19 numbered + C++/4p notes). **Card census (verbatim, grouped by window):**
   `design_docs/cards/HARVEST_CARDS_REVIEW.md` (130 cards).
 - **Open questions still needing the user:** §8 #6 (Dung Collector's any-source newborn
-  event — defer, don't stretch #14); §10 (8) the late-anchor dominance ratification for
-  the food→VP buys — NOW WITH A KNOWN COUNTEREXAMPLE (2026-07-06): a Social Benefits
-  owner profits from buying BEFORE the post-feeding "no food left" check (2 spare food →
-  the buy → food==0 → +1 wood +1 clay), which a #16-only anchor forecloses; the choice is
-  free-span for the VP buys, anchor-with-exception, or ruling the interaction away; §10
+  event — defer, don't stretch #14); ruling 39's edge (does the post-breed cooking floor
+  protect a type that held enough parents but did NOT breed?). §10 (8) is RESOLVED
+  (ruling 36, 2026-07-06): the food→resources/points buys are FREE-SPAN — the late
+  anchor is DROPPED (its dominance argument fell to the Social Benefits counterexample);
+  Furniture Carpenter migrates to free-span with the cluster. Lumber Virtuoso's timing is
+  RESOLVED (ruling 38: free-span). §10
   (9) is DECIDED (2026-07-06, ruling 34): the generalized conversion frontier lands on
   the mid-harvest food-raise frame ONLY (crops + animals + capped building-resource
   conversions, instant-scoped); the FEEDING surface stays as-is (not folded — it is
   outcome-equivalent there, folding breaks the no-card AI, and it would prejudge the
-  conversion-event-granularity question parked with Gypsy's Crock, ruling 35). Still
-  open in §10: the pure-converters-only boundary (mixed/rider-output cards as
-  standalone free-span triggers) is PROPOSED, not yet confirmed; and
+  conversion-event-granularity question parked with Gypsy's Crock, ruling 35). The
+  pure-converters-only boundary is CONFIRMED (ruling 37: rider-output cards are
+  standalone free-span triggers). NEW constraint for the cluster build — ruling 39's
+  post-breed cooking floor (parents + offspring of a bred type uncookable for the rest
+  of the harvest; needs a small breed-record on commit); and
   Lumber Virtuoso's ask-at-build timing ([3+]). §10 (7) is RESOLVED (span ends at #16,
   ruled 2026-07-03 — this footer had gone stale on it). RESOLVED: #1 ("immediately after each harvest" = "after
   each harvest", ruling 18 — windows merged into `after_harvest`; Value Assets itself is

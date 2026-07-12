@@ -7,12 +7,14 @@ A passive COST-REDUCTION card (COST_MODIFIER_DESIGN.md §1.1): no on-play effect
 registers a clay reduction on each affected build kind. Reductions are signed deltas
 that `apply_reductions` floors at 0.
 
-Prototype-slice status (COST_MODIFIER_DESIGN.md §8): only the `renovate` clause is
-exercised today — renovate is the first action wired through `effective_payments`. The
-`build_room` / `build_major` / `play_minor` clauses are registered for completeness but
-stay inert until those paths route through the chokepoint. The card is live (dealable)
-— `register_occupation` is below and `cards/__init__` imports it — with a no-op on-play
-(its only effect is passive cost reduction).
+All four clauses are live: renovate, build_room, build_major, and play_minor each
+resolve through the `effective_payments` chokepoint with a `CostCtx` carrying the
+matching `action_kind` (the prototype-slice era, when only renovate was wired, is over
+— room coverage in tests/test_cost_modifiers.py::
+test_bricklayer_room_reduction_singleton_inline_debit; the major/minor chokepoints are
+exercised end-to-end by the sibling reductions in tests/test_cards_cost_cards.py). The
+card is dealable — `register_occupation` is below and `cards/__init__` imports it —
+with a no-op on-play (its only effect is passive cost reduction).
 """
 from __future__ import annotations
 

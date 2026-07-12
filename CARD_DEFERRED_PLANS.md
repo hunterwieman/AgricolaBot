@@ -391,6 +391,46 @@ user made during this design — cite these, dated, in the docstrings of the car
    implementation. Do not implement casually; do not let its needs leak into
    the converter build.
 
+36. **The anytime food→resources / food→points buys are FREE-SPAN** (ruled
+   2026-07-06): available throughout the harvest span (field phase through
+   end-of-harvest), NOT anchored to the last in-harvest moment. This DROPS
+   the previously-approved late-anchor approach (its dominance argument
+   fell to the Social Benefits counterexample: buying before the
+   post-feeding "no food left" check can be strictly profitable).
+   Consequence: Furniture Carpenter migrates off its FEED-only seam to
+   free-span when the converter cluster builds; Paintbrush's VP option and
+   Stone Sculptor's buy are free-span. Revisitable ("we can change this
+   later if we want").
+37. **The frontier boundary rule CONFIRMED** (2026-07-06): the generalized
+   conversion frontier (ruling 34) integrates PURE goods→food converters
+   only; any card whose output carries a rider — goods (Ebonist, Basket
+   Carrier) or points (Stone Sculptor, Paintbrush's VP option) — surfaces
+   as a standalone free-span trigger instead. Revisitable.
+38. **Lumber Virtuoso is available throughout the harvest** (ruled
+   2026-07-06, resolving its ask-at-build timing question): free-span, not
+   start-of-harvest-only (the official implementation's narrowing is not
+   followed here). [3+] — a design input until 4p.
+39. **Post-breed cooking protection** (ruled 2026-07-06, the user's catch):
+   after the breed action has resolved, the PARENTS and the OFFSPRING of a
+   type that bred may not be cooked for the rest of that harvest — only
+   non-parents. The user's implementation sketch: a per-type cooking FLOOR
+   on post-breed in-harvest conversions — a type may not be cooked from
+   (min_parents + 1) or above down below (min_parents + 1), i.e. below 3,
+   or below 2 for sheep with Dolly's Mother in play. This becomes LIVE
+   exactly when the converter cluster lands (today nothing cooks animals
+   after breeding — the feed payment precedes breeding and the breed
+   commit's own bundled cooking happens AT the commit); the generalized
+   raise frame and any post-breed cooking surface must apply the floor.
+   OPEN EDGE (flagged to the user, unanswered): does the floor apply to a
+   type that held >= min_parents but did NOT breed (no capacity for the
+   newborn)? No offspring exist, so the parents-and-offspring reading
+   suggests no protection — but the user's stated ">= 3 may not drop below
+   3" shorthand would protect them. Also an implementation note: "which
+   types bred this harvest" is not derivable post-commit (pre-breed counts
+   are gone), so the floor needs a small card-game-only record written at
+   CommitBreed (default-skipped, Family-invisible — Family has no
+   post-breed cooking moments).
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
@@ -509,9 +549,8 @@ decline path.
 **Proposed build.** Add `schedule_animals(state, idx, rounds, Animals)` to `cards/schedules.py`,
 mirroring `schedule_resources` but writing `FutureReward(animals=…)` additively. Acorns Basket's
 `on_play` then schedules 1 boar onto its target rounds.
-**Question:** Acorns Basket's text is "Place 1 wild boar on each of **the 2 round spaces**" — the data
-doesn't say *which* two (the physical card's diagram designates them). Which 2 rounds? (If it's simply
-"the next 2 rounds," say so and I'll build it.)
+**RESOLVED (2026-06-30, user ruling recorded in `acorns_basket.py`):** the 2 round spaces are the
+NEXT 2 rounds (R+1, R+2). Built on `schedule_animals`; this item is done — kept for provenance.
 
 ### A7. Passing-status confirmation
 **Card unblocked:** B5 Store of Experience (an otherwise-trivial tiered on-play; ~15 lines once known).
@@ -752,3 +791,36 @@ distribution — so a card reads the pre-income, post-harvest state. Module + te
 resource_analyzer are archived in `archive/deferred_cards/`; un-archive and move it onto this
 hook when it exists. (Do NOT approximate with `start_of_round` — that is the post-income instant
 this hook exists to avoid.)
+
+---
+
+## Placement legality as reachability — the design arc (2026-07-06)
+
+**Problem catalog of record: `LEGALITY_HARD_CASES.md` (repo root)** — the ten mechanisms
+that break state-read placement legality, worked multi-card interactions, and per-mechanism
+card lists; **solution sketch (ON HOLD): `PLACEMENT_REACHABILITY_DESIGN.md` (repo root)**,
+backed by three full-catalog censuses (`CENSUS_AT_ANY_TIME.md`, `CENSUS_REACTIVE_TRIGGERS.md`,
+`CENSUS_COST_IMPOSITION.md`, all repo root). The problem: cards that grant goods on placement,
+at-any-time cards, and reactive cards (Potter's Yard family) make placement legality a
+*reachability* question ("could the player complete this action?"), which the per-space
+predicates in `legality.py` cannot answer. The design doc holds the general architecture
+(a closure-by-simulation oracle), the phase ladder, and the soundness contract, but the
+user is designing the approach — it is a sketch, not a plan. Nothing is implemented at this stamp; the reveal-order card
+cluster (Brook / Master Workman / Knapper / Sweep / Silokeeper / Outrider / Pioneer /
+Legworker / Bean Counter / Wholesaler / Pig Stalker / Task Artisan / Water Worker) is Phase
+1's scope and supersedes this file's "Hidden round-space identity" long-tail entry when it
+lands.
+
+**Dated rulings recorded here:**
+- **Reed Seller (D159) is permanently out of scope** (user ruling 2026-07-06): an at-any-time
+  conversion the *opponent* can preempt by paying — free timing plus an out-of-turn opponent
+  decision would need machinery nothing else in the 31-card at-any-time family needs, for one
+  4+-only card. Do not re-triage.
+- **Minstrel (A151) deferred** (2026-07-06): out-of-turn action-space use at returning home —
+  a new subsystem (its errata "use the effect of that action space" doesn't change this).
+- **Sidekick (A171) deferred** (2026-07-06): placing two workers in the same turn.
+- **Witches' Dance Floor (D25) is permanently out of scope** (user ruling 2026-07-09,
+  `status: wontfix` in the data): simultaneously a sowable field, an occupation, and
+  the Fireplace major with all its effects, playable only via a Minor-Improvement
+  action — a multi-identity chimera touching the card-as-field, identity-counting, and
+  major-ownership subsystems at once. Do not re-triage.
