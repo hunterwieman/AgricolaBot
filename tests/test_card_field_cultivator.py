@@ -4,18 +4,21 @@ Card text (verbatim): "Pile 1 wood, 1 clay, 1 reed, 1 stone, 1 reed, 1 clay,
 and 1 wood on this card. Each time you harvest a field tile, you can also take
 the top good from the pile."
 
-An UNSCOPED per-occasion optional trigger (user ruling 12, 2026-07-04 — no
-harvest-event anchor in the wording, so it reacts to ANY harvesting occasion)
-with per-TILE counting (user ruling 2026-07-06: count the occasion's manifest
-ENTRIES, ignoring amounts; k tiles in one occasion = up to k takes AT ONCE, the
-count j chosen at the fire, Proceed declining). The pile is the fixed module
-constant ``PILE``; the only state is the taken counter (a CardStore int,
-absent = 0). The harvest tests drive the REAL walk (`_advance_until_decision`
-over a `Phase.HARVEST_FIELD` entry state) to the `PendingHarvestOccasion`
-host; the card-driven test plays Bumper Crop through a real `PendingPlayMinor`
-/ `CommitPlayMinor` flow mid-WORK; the Grain Thief interaction drives the
-`PendingFieldPhase` take commit (a replaced field is not harvested and emits
-no manifest entry — ruling 22, user ruling 2026-07-06).
+An UNSCOPED per-occasion AUTO (user ruling 12, 2026-07-04 — no harvest-event
+anchor in the wording, so it reacts to ANY harvesting occasion) with per-TILE
+counting (user ruling 2026-07-06: count the occasion's manifest ENTRIES,
+ignoring amounts). Per user ruling 41 (2026-07-06) the take is AUTOMATIC
+maximum — the owner takes min(tiles harvested, pile remaining) goods with no
+FireTrigger, no host frame, and no per-occasion choice (the Scythe Worker
+mandatory-max precedent; the optional trigger form is in git history). The
+pile is the fixed module constant ``PILE``; the only state is the taken
+counter (a CardStore int, absent = 0). The harvest tests drive the REAL walk
+(`_advance_until_decision` over a `Phase.HARVEST_FIELD` entry state) through
+the inline take — the auto fires with no decision step; the card-driven test
+plays Bumper Crop through a real `PendingPlayMinor` / `CommitPlayMinor` flow
+mid-WORK; the Grain Thief interaction drives the `PendingFieldPhase` take
+commit (a replaced field is not harvested and emits no manifest entry —
+ruling 22, user ruling 2026-07-06).
 """
 from __future__ import annotations
 
@@ -27,7 +30,7 @@ import agricola.cards.bumper_crop       # noqa: F401  (card-driven occasion sour
 import agricola.cards.field_cultivator  # noqa: F401  (registers the card)
 import agricola.cards.grain_thief       # noqa: F401  (replaced-field interaction)
 
-from agricola.actions import CommitFieldTake, CommitPlayMinor, FireTrigger, Proceed
+from agricola.actions import CommitFieldTake, CommitPlayMinor, FireTrigger
 from agricola.cards.field_cultivator import PILE
 from agricola.cards.harvest_windows import (
     HARVEST_OCCASION_AUTOS,
@@ -93,8 +96,8 @@ def _staged(grain_fields, *, own=True, taken=0, veg_fields=(), also_own=()):
 
 
 def _harvest_entry(grain_fields, **kwargs):
-    """Stage and advance the real walk. With the card owned and eligible, the
-    walk's inline take pushes P0's PendingHarvestOccasion host and pauses."""
+    """Stage and advance the real walk. The inline take fires the auto with
+    no pause: the returned state has already received the pile goods."""
     return _advance_until_decision(_staged(grain_fields, **kwargs))
 
 
@@ -110,19 +113,16 @@ def _walk_to_field_frame(state):
     return state
 
 
-def _fire(j=1):
-    return FireTrigger(card_id=CARD_ID, variant=str(j))
-
-
-def _offered_js(state):
-    """The take counts j currently offered as this card's variants."""
-    return sorted(int(a.variant) for a in legal_actions(state)
-                  if isinstance(a, FireTrigger) and a.card_id == CARD_ID)
-
-
 def _no_host(state):
     return not any(isinstance(f, PendingHarvestOccasion)
                    for f in state.pending_stack)
+
+
+def _no_fire_offered(state):
+    """No FireTrigger for this card anywhere in the legal set — the automatic
+    form never surfaces a choice (user ruling 41, 2026-07-06)."""
+    return not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
+                   for a in legal_actions(state))
 
 
 # ---------------------------------------------------------------------------
@@ -131,10 +131,9 @@ def _no_host(state):
 
 def test_registered():
     assert CARD_ID in OCCUPATIONS
-    entry = next(e for e in HARVEST_OCCASION_TRIGGERS if e.card_id == CARD_ID)
-    assert entry.variants_fn is not None            # a play-variant trigger
-    # Optional ("you can") — never an occasion AUTO.
-    assert all(e.card_id != CARD_ID for e in HARVEST_OCCASION_AUTOS)
+    # An occasion AUTO (user ruling 41, 2026-07-06) — never an optional trigger.
+    assert any(e.card_id == CARD_ID for e in HARVEST_OCCASION_AUTOS)
+    assert all(e.card_id != CARD_ID for e in HARVEST_OCCASION_TRIGGERS)
 
 
 def test_on_play_is_noop():
@@ -169,39 +168,30 @@ def test_pile_constant_matches_printed_order():
 
 
 # ---------------------------------------------------------------------------
-# The pile order — takes come off the top, the counter advances
+# The automatic maximum take (user ruling 41, 2026-07-06) — no choice, ever
 # ---------------------------------------------------------------------------
 
-def test_first_two_takes_are_wood_then_clay():
-    """A 2-tile harvest offers j in {1, 2}; firing j=2 grants the top two pile
-    goods (+1 wood, +1 clay) and advances the counter to 2. The card is then
-    resolved for this occasion."""
+def test_two_tile_harvest_takes_top_two_automatically():
+    """A 2-tile harvest fires the auto during the walk's inline take: the top
+    two pile goods (+1 wood, +1 clay) arrive with NO decision step — no host
+    frame is pushed, no FireTrigger is offered — and the counter advances to
+    2 before the walk pauses (at the feed decision)."""
     state = _harvest_entry({(0, 1): 1, (0, 2): 1})
-    top = state.pending_stack[-1]
-    assert isinstance(top, PendingHarvestOccasion)
-    assert top.player_idx == 0
-    assert top.occasion.source == "take"
-    assert _offered_js(state) == [1, 2]
-    assert Proceed() in legal_actions(state)
-
-    state = step(state, _fire(j=2))
     p = state.players[0]
     assert p.resources.wood == 1
     assert p.resources.clay == 1
     assert p.resources.reed == 0 and p.resources.stone == 0
     assert p.card_state.get(CARD_ID, 0) == 2
-    # Once per occasion: the host's triggers_resolved bars a re-fire.
-    assert legal_actions(state) == [Proceed()]
-    state = step(state, Proceed())
+    assert p.resources.grain == 2                    # the harvest itself
+    assert _no_host(state)
+    assert _no_fire_offered(state)
     assert state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED)
 
 
 def test_later_harvest_continues_down_the_pile():
-    """With 2 goods already taken, the next takes are the 3rd and 4th pile
-    entries: firing j=2 grants +1 reed, +1 stone (counter -> 4)."""
+    """With 2 goods already taken, the next automatic takes are the 3rd and
+    4th pile entries: a 2-tile harvest grants +1 reed, +1 stone (counter -> 4)."""
     state = _harvest_entry({(0, 1): 1, (0, 2): 1}, taken=2)
-    assert _offered_js(state) == [1, 2]
-    state = step(state, _fire(j=2))
     p = state.players[0]
     assert p.resources.reed == 1
     assert p.resources.stone == 1
@@ -214,103 +204,80 @@ def test_later_harvest_continues_down_the_pile():
 # ---------------------------------------------------------------------------
 
 def test_one_multi_grain_field_is_one_tile():
-    """One 3-grain field harvested (for 1 grain) is ONE tile: j caps at 1
-    regardless of the crop left behind."""
+    """One 3-grain field harvested (for 1 grain) is ONE tile: the auto takes
+    exactly 1 good (the pile-top wood) regardless of the crop left behind."""
     state = _harvest_entry({(0, 2): 3})
-    assert _offered_js(state) == [1]
-    state = step(state, _fire(j=1))
     p = state.players[0]
     assert p.resources.wood == 1                     # the pile top
+    assert p.resources.clay == 0
     assert p.card_state.get(CARD_ID, 0) == 1
 
 
 def test_two_one_grain_fields_are_two_tiles():
-    """Two 1-crop fields = 2 tiles = j up to 2 — same total crop as one
-    2-grain field, but per-TILE counting sees two entries."""
+    """Two 1-crop fields = 2 tiles = 2 automatic takes — same total crop as
+    one 2-grain field, but per-TILE counting sees two entries."""
     state = _harvest_entry({(0, 1): 1, (0, 2): 1})
-    assert _offered_js(state) == [1, 2]
+    p = state.players[0]
+    assert p.resources.wood == 1 and p.resources.clay == 1
+    assert p.card_state.get(CARD_ID, 0) == 2
 
 
 def test_veg_tiles_count_alike():
     """'A field tile' names no crop: a veg field is a tile too (one grain +
-    one veg field = 2 tiles)."""
+    one veg field = 2 tiles = 2 takes)."""
     state = _harvest_entry({(0, 1): 1}, veg_fields=((0, 4),))
-    assert _offered_js(state) == [1, 2]
+    p = state.players[0]
+    assert p.resources.wood == 1 and p.resources.clay == 1
+    assert p.card_state.get(CARD_ID, 0) == 2
 
 
 # ---------------------------------------------------------------------------
-# The pile remainder caps j; an empty pile never hosts
+# The pile remainder caps the take; an empty pile never fires
 # ---------------------------------------------------------------------------
 
-def test_pile_remainder_caps_j():
-    """With 6 of 7 goods taken, a 3-tile harvest still offers only j=1, and
-    that take grants the last pile entry (wood), exhausting the pile."""
+def test_pile_remainder_caps_the_take():
+    """With 6 of 7 goods taken, a 3-tile harvest takes only the 1 remaining
+    good — the last pile entry (wood) — exhausting the pile."""
     state = _harvest_entry({(0, 1): 1, (0, 2): 1, (0, 3): 1}, taken=6)
-    assert _offered_js(state) == [1]
-    state = step(state, _fire(j=1))
     p = state.players[0]
     assert p.resources.wood == 1                     # PILE[6] is the bottom wood
+    assert p.resources.clay == 0
     assert p.card_state.get(CARD_ID, 0) == 7
 
 
-def test_exhausted_pile_never_hosts():
-    """Counter at 7: no goods remain, so the trigger is ineligible and no
-    occasion host is pushed at all (the harvest itself proceeds normally)."""
+def test_exhausted_pile_never_fires():
+    """Counter at 7: no goods remain, so the auto is ineligible — no goods
+    move, the counter stays put, and the harvest itself proceeds normally."""
     state = _harvest_entry({(0, 1): 1, (0, 2): 1, (0, 3): 1}, taken=7)
+    p = state.players[0]
+    assert p.resources.wood == 0 and p.resources.clay == 0
+    assert p.card_state.get(CARD_ID, 0) == 7
+    assert p.resources.grain == 3                    # the take still happened
     assert _no_host(state)
-    assert state.players[0].resources.grain == 3     # the take still happened
 
 
-def test_no_fields_no_host():
-    """Nothing harvested = zero tiles = ineligible (no host)."""
+def test_no_fields_no_take():
+    """Nothing harvested = zero tiles = ineligible (no goods, no counter)."""
     state = _harvest_entry({})
+    p = state.players[0]
+    assert p.resources.wood == 0
+    assert p.card_state.get(CARD_ID, 0) == 0
     assert _no_host(state)
 
 
 # ---------------------------------------------------------------------------
-# Optionality — Proceed declines; forgone takes are not recoverable
+# Negative case — unowned never fires
 # ---------------------------------------------------------------------------
 
-def test_decline_via_proceed_counter_unchanged():
-    """Proceed declines every offered take: no goods, no counter movement.
-    Forgone takes are NOT recoverable — a later 1-tile occasion at the same
-    counter caps at j=1 (its own tile count) and still starts from the
-    untouched pile top."""
-    state = _harvest_entry({(0, 1): 1, (0, 2): 1})
-    assert isinstance(state.pending_stack[-1], PendingHarvestOccasion)
-    state = step(state, Proceed())
+def test_unowned_never_fires():
+    """The registration is global but ownership-gated: the same harvest
+    without the card in the tableau moves no goods."""
+    state = _harvest_entry({(0, 1): 1, (0, 2): 1}, own=False)
     p = state.players[0]
     assert p.resources.wood == 0 and p.resources.clay == 0
     assert p.card_state.get(CARD_ID, 0) == 0
-    assert state.phase in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED)
-
-    later = _harvest_entry({(0, 1): 1})              # same counter (0), 1 tile
-    assert _offered_js(later) == [1]                 # no make-up for the 2 declined
-    later = step(later, _fire(j=1))
-    assert later.players[0].resources.wood == 1      # the pile top, unmoved
-
-
-def test_partial_take_leaves_the_rest_on_the_pile():
-    """Firing j=1 on a 2-tile occasion takes only the top good; the second
-    opportunity lapses with the occasion (once per occasion)."""
-    state = _harvest_entry({(0, 1): 1, (0, 2): 1})
-    state = step(state, _fire(j=1))
-    p = state.players[0]
-    assert p.resources.wood == 1 and p.resources.clay == 0
-    assert p.card_state.get(CARD_ID, 0) == 1
-    assert legal_actions(state) == [Proceed()]
-
-
-# ---------------------------------------------------------------------------
-# Negative case — unowned never hosts
-# ---------------------------------------------------------------------------
-
-def test_unowned_never_hosts():
-    """The registration is global but ownership-gated: the same harvest
-    without the card in the tableau pushes no occasion host."""
-    state = _harvest_entry({(0, 1): 1, (0, 2): 1}, own=False)
+    assert p.resources.grain == 2                    # normal harvest
     assert _no_host(state)
-    assert state.players[0].resources.grain == 2     # normal harvest
 
 
 # ---------------------------------------------------------------------------
@@ -320,8 +287,9 @@ def test_unowned_never_hosts():
 def test_grain_thief_replaced_field_is_no_tile():
     """Ruling 22 (user ruling 2026-07-06): a Grain-Thief-replaced field is not
     harvested and emits no manifest entry, so of two grain fields with one
-    replaced only 1 tile remains — j caps at 1. The bare take (control) keeps
-    both tiles; replacing both leaves zero tiles and no host."""
+    replaced only 1 tile remains — the auto takes 1 good. The bare take
+    (control) keeps both tiles (2 takes); replacing both leaves zero tiles
+    and no take at all."""
     state = _staged({}, also_own=("grain_thief",))
     state = with_sown_fields(state, 0, grain_fields=[(0, 1), (0, 2)])
     at_frame = _walk_to_field_frame(state)
@@ -329,17 +297,20 @@ def test_grain_thief_replaced_field_is_no_tile():
 
     replaced = step(at_frame, CommitFieldTake(
         modifiers=(("grain_thief", "grain3:1"),)))
-    top = replaced.pending_stack[-1]
-    assert isinstance(top, PendingHarvestOccasion)
-    assert len(top.occasion.entries) == 1            # the replaced field: no entry
-    assert _offered_js(replaced) == [1]
+    p = replaced.players[0]
+    assert p.resources.wood == 1 and p.resources.clay == 0   # 1 tile -> 1 take
+    assert p.card_state.get(CARD_ID, 0) == 1
 
     control = step(at_frame, CommitFieldTake())
-    assert _offered_js(control) == [1, 2]            # both tiles harvested
+    p = control.players[0]
+    assert p.resources.wood == 1 and p.resources.clay == 1   # both tiles
+    assert p.card_state.get(CARD_ID, 0) == 2
 
     both = step(at_frame, CommitFieldTake(
         modifiers=(("grain_thief", "grain3:2"),)))
-    assert _no_host(both)                            # zero tiles harvested
+    p = both.players[0]
+    assert p.resources.wood == 0 and p.resources.clay == 0   # zero tiles
+    assert p.card_state.get(CARD_ID, 0) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +326,8 @@ _POOL = CardPool(
 def test_fires_off_bumper_crop_card_driven_occasion():
     """Ruling 12: 'each time you harvest a field tile' is unscoped, so Bumper
     Crop's mid-WORK field-phase effect (occasion source 'card:bumper_crop')
-    hosts the takes too — same per-tile cap off that occasion's manifest."""
+    fires the auto too — the maximum take off that occasion's manifest
+    (2 tiles -> the top two pile goods), inline, with no host frame."""
     cs, _env = setup_env(5, card_pool=_POOL)
     cp = cs.current_player
     p = fast_replace(cs.players[cp],
@@ -371,30 +343,25 @@ def test_fires_off_bumper_crop_card_driven_occasion():
              if isinstance(a, CommitPlayMinor) and a.card_id == "bumper_crop"]
     assert len(plays) == 1                           # free -> one payment option
     w0 = cs.players[cp].resources.wood
+    c0 = cs.players[cp].resources.clay
     cs = step(cs, plays[0])
 
     assert cs.phase == Phase.WORK                    # mid-round, not a harvest
-    top = cs.pending_stack[-1]
-    assert isinstance(top, PendingHarvestOccasion)
-    assert top.player_idx == cp
-    assert top.occasion.source == "card:bumper_crop"
-    assert _offered_js(cs) == [1, 2]                 # 2 tiles here too
-
-    cs = step(cs, _fire(j=1))
-    assert cs.players[cp].resources.wood == w0 + 1   # the pile top
-    assert cs.players[cp].card_state.get(CARD_ID, 0) == 1
-    assert legal_actions(cs) == [Proceed()]          # once per occasion
-    cs = step(cs, Proceed())
-    assert cs.phase == Phase.WORK
+    p = cs.players[cp]
+    assert p.resources.wood == w0 + 1                # the automatic maximum:
+    assert p.resources.clay == c0 + 1                # 2 tiles -> top two goods
+    assert p.card_state.get(CARD_ID, 0) == 2
+    assert _no_host(cs)
 
 
 # --- Ruling 32 (2026-07-06): a card-field is NOT a "field tile" ---------------
 
 def test_card_field_entries_are_not_tiles():
     """A future card-field's manifest entry (source="card:<id>") contributes no
-    tile: an occasion of one board field + one card-field caps j at 1, and an
-    occasion of card-field entries alone is ineligible (user ruling 32)."""
-    from agricola.cards.field_cultivator import _eligible, _variants
+    tile: an occasion of one board field + one card-field caps the automatic
+    take at 1, and an occasion of card-field entries alone is ineligible
+    (user ruling 32)."""
+    from agricola.cards.field_cultivator import _eligible, _max_take
     from agricola.pending import HarvestEntry, HarvestOccasion
 
     state = _own_occ(setup(0), 0, CARD_ID)
@@ -402,7 +369,7 @@ def test_card_field_entries_are_not_tiles():
         HarvestEntry(source="cell:0,1", crop="grain", amount=1, emptied=False),
         HarvestEntry(source="card:beanfield", crop="grain", amount=1, emptied=True),
     ))
-    assert _variants(state, 0, mixed) == ["1"]
+    assert _max_take(state, 0, mixed) == 1
     card_only = HarvestOccasion(source="take", entries=(
         HarvestEntry(source="card:beanfield", crop="grain", amount=1, emptied=True),
     ))

@@ -8,8 +8,8 @@ the top good from the pile."
 Occupation (no cost beyond the play route's; no printed VPs). WHAT THE CARD
 DOES: at play, seven building resources are piled on the card in the printed
 order (wood on top, then clay, reed, stone, reed, clay, wood at the bottom).
-From then on, every field tile the owner harvests lets them also take the
-current top good of the pile; once all seven are taken the card is spent.
+From then on, every field tile the owner harvests also takes the current top
+good of the pile; once all seven are taken the card is spent.
 
 THE PILE IS NOTIONAL. The printed sequence is fixed and public, so no goods
 move at play (the on-play is a no-op) and nothing is escrowed from the general
@@ -17,7 +17,7 @@ supply: the module constant ``PILE`` carries the sequence, the ONLY state is
 how many goods have been taken (a CardStore int, absent = 0), and each taken
 good comes from the GENERAL SUPPLY at the moment of the take.
 
-TIMING — an UNSCOPED per-occasion trigger (``register_harvest_occasion_trigger``,
+TIMING — an UNSCOPED per-occasion AUTO (``register_harvest_occasion_auto``,
 ``agricola/cards/harvest_windows.py``). Per user ruling 12 (2026-07-04): "each
 time you harvest a field tile" is unscoped harvest-verb wording — there is no
 "in the field phase of each harvest" anchor — so the card reacts to ANY
@@ -26,7 +26,21 @@ harvesting occasion: a real harvest's field-phase take
 Crop's mid-WORK ``source="card:bumper_crop"`` occasion) alike. The gate is the
 occasion itself, never ``state.phase``.
 
-COUNTING & THE VARIANT SET — user ruling 2026-07-06:
+AUTOMATIC MAXIMUM TAKE — user ruling 41 (2026-07-06), verbatim: "Field
+Cultivator becomes AUTOMATIC-take-the-maximum: the per-occasion pile take is
+no longer a choice — the owner takes min(tiles harvested, pile remaining)
+goods automatically, the Scythe Worker mandatory-max precedent (document the
+simplification in the module; if a card ever makes holding building resources
+a liability or partial takes meaningful, restore the choice — the trigger
+form is in git history)." The printed "you CAN also take" is thus simplified:
+no FireTrigger, no host frame, no per-occasion j choice — the effect fires
+mechanically right after the occasion applies, granting the next
+min(tiles harvested, pile remaining) goods off the pile top-down. RESTORE
+CONDITION (from the same ruling): "if a card ever makes holding building
+resources a liability or partial takes meaningful, restore the choice — the
+trigger form is in git history."
+
+COUNTING — user ruling 2026-07-06:
 
 - "Each time you harvest a field TILE" is per-TILE counting (the counting
   doctrine, ``harvest_windows.py`` occasion-registry header; the Lynchet
@@ -35,32 +49,26 @@ COUNTING & THE VARIANT SET — user ruling 2026-07-06:
   harvested for 1 (or for 2 via a take-modifier fold-in) is ONE tile; two
   1-crop fields are TWO tiles. Grain and vegetable tiles count alike ("a
   field tile" names no crop).
-- Harvesting k tiles in one occasion grants up to k takes AT ONCE (rulings
-  5/11, 2026-07-05: all field-phase harvesting is ONE simultaneous event, so
-  the k take opportunities arrive together — the Food Merchant per-grain-buys
-  shape). Each take is optional ("you CAN also take"): the trigger's variants
-  are j in 1..min(k, pile remaining), one FireTrigger per j, and Proceed
-  declines (j = 0). The chosen j receives the next j goods off the pile
-  top-down — the fixed order leaves nothing else to choose — and choosing j
-  in ONE fire is exact: a take neither harvests anything nor changes what the
-  pile yields next, so per-take sequential choices collapse loss-lessly into
-  the count.
-- ONCE PER OCCASION comes from the host frame's ``triggers_resolved``; a
-  later occasion hosts afresh from the advanced counter. Forgone takes are
-  NOT recoverable: declining moves no counter, and each occasion's cap is its
-  own tile count.
+- Harvesting k tiles in one occasion grants k takes AT ONCE (rulings 5/11,
+  2026-07-05: all field-phase harvesting is ONE simultaneous event, so the k
+  take opportunities arrive together). Under ruling 41 all of them are taken
+  automatically, capped by the pile remainder; the fixed pile order leaves
+  nothing to choose about WHICH goods arrive.
+- Once per occasion is structural: the auto seam fires each registered card
+  at most once per emitted occasion, and a later occasion reacts afresh from
+  the advanced counter.
 
 A Grain-Thief-replaced field contributes NO tile — user ruling 2026-07-06
 (ruling 22): a replaced field is not harvested and emits no manifest entry,
 so the manifest read here excludes it for free.
 
-Card-game only (occupation + occasion-trigger registries, both
-ownership-gated; CardStore is a card-only field): the Family game is
-byte-identical and the C++ gates are untouched.
+Card-game only (occupation + occasion-auto registries, both ownership-gated;
+CardStore is a card-only field): the Family game is byte-identical and the
+C++ gates are untouched.
 """
 from __future__ import annotations
 
-from agricola.cards.harvest_windows import register_harvest_occasion_trigger
+from agricola.cards.harvest_windows import register_harvest_occasion_auto
 from agricola.cards.specs import register_occupation
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -87,22 +95,22 @@ def _tiles(occasion) -> int:
     return sum(1 for e in occasion.entries if e.source.startswith("cell:"))
 
 
-def _variants(state: GameState, idx: int, occasion) -> list[str]:
-    """One variant per take count j in 1..min(tiles harvested, pile remaining)."""
-    cap = min(_tiles(occasion), len(PILE) - _taken(state, idx))
-    return [str(j) for j in range(1, cap + 1)]
+def _max_take(state: GameState, idx: int, occasion) -> int:
+    """The automatic take count: min(tiles harvested this occasion, pile
+    remaining) — user ruling 41 (2026-07-06), no choice."""
+    return min(_tiles(occasion), len(PILE) - _taken(state, idx))
 
 
 def _eligible(state: GameState, idx: int, occasion) -> bool:
-    """>= 1 tile harvested this occasion AND >= 1 good left on the pile —
-    exactly 'some variant exists'."""
-    return bool(_variants(state, idx, occasion))
+    """>= 1 tile harvested this occasion AND >= 1 good left on the pile."""
+    return _max_take(state, idx, occasion) > 0
 
 
-def _apply(state: GameState, idx: int, occasion, variant: str) -> GameState:
-    """Take the next j goods off the pile top-down (from the general supply —
-    the pile is notional) and advance the taken counter by j."""
-    j = int(variant)
+def _apply(state: GameState, idx: int, occasion) -> GameState:
+    """Take the next min(tiles, pile remaining) goods off the pile top-down
+    (from the general supply — the pile is notional) and advance the taken
+    counter by that count. Fires automatically (user ruling 41, 2026-07-06)."""
+    j = _max_take(state, idx, occasion)
     taken = _taken(state, idx)
     counts: dict[str, int] = {}
     for tag in PILE[taken:taken + j]:
@@ -119,4 +127,4 @@ def _apply(state: GameState, idx: int, occasion, variant: str) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register_harvest_occasion_trigger(CARD_ID, _eligible, _apply, variants_fn=_variants)
+register_harvest_occasion_auto(CARD_ID, _eligible, _apply)
