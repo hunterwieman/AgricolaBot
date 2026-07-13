@@ -636,8 +636,9 @@ are ~20 cards STALE (regenerate before trusting).
    Paintbrush E39 (one budget, three surfaces), Furniture Carpenter's
    free-span migration. The ruling-36 Social Benefits line is pinned. Braid
    Maker E109 DEFERRED whole (the play-minor major-build gap — recorded in
-   CARD_DEFERRED_PLANS.md with a build proposal); Lumber Virtuoso [3+] waits
-   for 4p (the Old Miser precedent — the helper fits it, no module). USER
+   CARD_DEFERRED_PLANS.md with a build proposal); Lumber Virtuoso [3+] was
+   moved to the AMBIGUITY defers 2026-07-12 (its "discard down to 5 wood"
+   clause; ruling 38's timing stands if un-deferred). USER
    FLAGS: the breeding-SKIPPER corner of ruling 39's stateless floor
    (over-protects a skipped player's animals — same accepted class as the
    capacity-blocked corner, but not explicitly ruled). Cooking Hearth
