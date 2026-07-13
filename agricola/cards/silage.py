@@ -35,9 +35,11 @@ source) x (breedable type):
   grain, but is never merged into a grid height group — taking its grain
   moves card state and can fire card-level reactions).
 
-A type is BREEDABLE when the player holds at least its pair threshold — 2,
-sheep via the ``capacity_mods.sheep_min_parents`` seam (Dolly's Mother E84's
-single-parent lowering reads through it) — AND the newborn is accommodatable
+A type is BREEDABLE when the player holds at least its pair threshold — a
+FLAT 2 for every type (user ruling 52, 2026-07-12: Dolly's Mother's printed
+scope is "during the breeding phase of a harvest", which this mid-round breed
+is not — the `sheep_min_parents` seam deliberately does NOT reach it) — AND
+the newborn is accommodatable
 (+1 of that type fits: ``helpers.accommodates``, the standard
 ``extract_slots`` + sheep-slot strip + ``can_accommodate`` check). The
 breeding rule "you must be able to accommodate the newborn — no newborn
@@ -131,18 +133,18 @@ def _grain_sources(state: GameState, idx: int) -> list:
 
 def _breedable_types(state: GameState, idx: int) -> list:
     """The types the player can breed right now: holds >= the pair threshold
-    (2; sheep via the `sheep_min_parents` seam — Dolly's Mother lowers it to
-    1) AND the newborn is accommodatable (+1 of the type fits —
-    `helpers.accommodates`, the standard capacity check). The breeding rule
-    "you must be able to accommodate the newborn" is inherent: no newborn
-    otherwise, so an unaccommodatable type is not offered."""
-    from agricola.cards.capacity_mods import sheep_min_parents
-
+    (a FLAT 2 for every type — user ruling 52, 2026-07-12: Dolly's Mother's
+    printed scope is the HARVEST breeding phase, so its single-parent seam
+    does not reach this mid-round breed) AND the newborn is accommodatable
+    (+1 of the type fits — `helpers.accommodates`, the standard capacity
+    check). The breeding rule "you must be able to accommodate the newborn"
+    is inherent: no newborn otherwise, so an unaccommodatable type is not
+    offered."""
     p = state.players[idx]
     a = p.animals
     out = []
     for animal in _ANIMALS:
-        threshold = sheep_min_parents(p) if animal == "sheep" else 2
+        threshold = 2
         if getattr(a, animal) < threshold:
             continue
         if not accommodates(p,

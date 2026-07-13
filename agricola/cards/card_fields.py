@@ -47,10 +47,13 @@ THE STATE SHAPE. A card-field's contents live in the owner's `CardStore`
 under the card's own id, as a tuple of per-stack 4-tuples
 ``(grain, veg, wood, stone)`` — one 4-tuple per stack, ``(0, 0, 0, 0)`` for
 an empty stack. A stack mirrors a grid cell's crop capacity rather than
-holding a single tagged good because a card-field IS a field, and implemented
-cards already create MIXED fields: Heresy Teacher places "1 vegetable ...
-below the grain" in any field with 3+ grain (per ruling 45 a grain-holding
-card-field qualifies), exactly as it does on a grid cell. Take precedence
+holding a single tagged good because a card-field IS a field, and the rules
+create MIXED fields: Heresy Teacher places "1 vegetable ... below the grain"
+in any field with 3+ grain (per ruling 45 a grain-holding card-field
+qualifies), exactly as on a grid cell. (Heresy Teacher was un-implemented
+and ambiguity-deferred 2026-07-12, ruling 53 — mixed fields are unreachable
+until a mixer returns — but the shape stays: it is the faithful field model
+and the seam tests pin it.) Take precedence
 within a stack follows the grid cell's: grain, then veg (RULES.md — the elif
 in `field_take`), then wood, then stone (a stack never mixes a crop with
 wood/stone: the specs' sow whitelists forbid it, and no card adds one to the

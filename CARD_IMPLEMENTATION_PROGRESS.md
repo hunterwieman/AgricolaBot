@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 106 implemented · 🚫 2 won't-fix/banned · ⬜ 312 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 105 implemented · 🚫 2 won't-fix/banned · ⬜ 313 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1467,7 +1467,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A112 Scythe Worker** · [1+]
   - _When you play this card, you immediately get 1 grain. In the field phase of each harvest, you can harvest 1 additional grain from each of your grain fields._
   - `ONPLAY E-GOODS HOOK S-HFIELD T-AFTER F-TRIG A-OWN E-CROPMANIP` — On play +1 grain (ONPLAY+E-GOODS). The field-phase extra grain per grain field says 'you can' — optional, so F-TRIG, not F-AUTO (labelA's error). Changing how much a field yields in the field phase is E-CROPMANIP; own-harvest hook at the field-phase seam (S-HFIELD/T-AFTER).
-- ✅ **A113 Heresy Teacher** · [1+]
+- ⬜ **A113 Heresy Teacher** · [1+]
   - _Each time you use a "Lessons" action space, you get 1 vegetable in each of your fields with at least 3 grain and no vegetable. Place the vegetable below the grain.  [CLARIFICATION: Fields with both crops can count as a grain field or a vegetable field, but not both simultaneously.]_
   - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-CROPMANIP` — 'Each time you use Lessons' (T-BEFORE space hook, F-AUTO) places a vegetable onto qualifying existing fields (crops-on-fields = E-CROPMANIP, not loose E-GOODS); uses regular fields so not L-CARDFIELD.
 - ✅ **A114 Seasonal Worker** · [1+]

@@ -286,7 +286,6 @@ from agricola.cards import feeding_dish  # noqa: F401
 from agricola.cards import wood_harvester  # noqa: F401
 from agricola.cards import slurry_spreader  # noqa: F401
 from agricola.cards import catcher  # noqa: F401
-from agricola.cards import heresy_teacher  # noqa: F401
 from agricola.cards import calcium_fertilizers  # noqa: F401
 from agricola.cards import asparagus_gift  # noqa: F401
 from agricola.cards import interim_storage  # noqa: F401

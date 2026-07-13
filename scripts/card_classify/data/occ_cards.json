@@ -282,7 +282,7 @@
   "vps": 0,
   "text": "Each time you use a \"Lessons\" action space, you get 1 vegetable in each of your fields with at least 3 grain and no vegetable. Place the vegetable below the grain.  [CLARIFICATION: Fields with both crops can count as a grain field or a vegetable field, but not both simultaneously.]",
   "slug": "heresy_teacher",
-  "implemented": true,
+  "implemented": false,
   "status": "todo",
   "players": "1+",
   "name_dup": false

@@ -282,15 +282,16 @@ def test_pair_threshold():
     assert _variants(state, 0) == ["supply:sheep"]
 
 
-def test_single_parent_sheep_seam():
-    """A Dolly's-Mother-style single-parent card lowers the sheep threshold
-    through the sheep_min_parents seam: 1 sheep IS offered."""
+def test_single_parent_sheep_does_not_reach_silage():
+    """User ruling 52 (2026-07-12): Dolly's Mother's printed scope is the
+    HARVEST breeding phase — its single-parent seam does NOT lower Silage's
+    mid-round threshold. A single-parent card + 1 sheep: still no offer."""
     register_single_parent_sheep("_test_silage_single_parent")
     state = _silage_state(grain=1, sheep=1)
     p = state.players[0]
     state = _edit_player(
         state, 0, occupations=p.occupations | {"_test_silage_single_parent"})
-    assert _variants(state, 0) == ["supply:sheep"]
+    assert _variants(state, 0) == []
 
 
 def test_accommodation_gating():

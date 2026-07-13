@@ -75,6 +75,9 @@ mechanism harvests only the take-precedence crop, so Scythe's "all the crops
 planted in it" currently yields the grain and leaves the vegetable behind.
 The card-field extension deliberately matches the existing grid behavior
 (take-good only) rather than inventing new machinery for the card side alone.
+(UPDATE 2026-07-12, ruling 53: Heresy Teacher — the only mixed-field
+producer — is un-implemented and ambiguity-deferred, so this documented gap
+is UNREACHABLE until a mixer card returns.)
 """
 from __future__ import annotations
 

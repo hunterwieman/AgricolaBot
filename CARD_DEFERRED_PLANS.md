@@ -559,6 +559,25 @@ user made during this design — cite these, dated, in the docstrings of the car
    card's first sentence grants. The grant itself is an optional
    end_of_round bake (non-harvest rounds, ruling 49's rung).
 
+52. **Dolly's Mother does NOT reach Silage's mid-round breed** (ruled
+   2026-07-12): Silage's pair threshold is a FLAT 2 for every type — Dolly's
+   Mother's printed scope is "during the breeding phase of a harvest", which
+   Silage's returning-home breed is not, so the `sheep_min_parents` seam
+   deliberately does not apply there (it keeps reading through everywhere
+   its printed scope covers).
+53. **Heresy Teacher A113 is UN-IMPLEMENTED and moved to the ambiguity
+   defers** (user, 2026-07-12): the sole producer of mixed grain+veg fields
+   ("Place the vegetable below the grain") made every per-field interaction
+   ruling too complicated and unclear (the Scythe-E73 "all the crops" gap,
+   the crop-count group keys, the card-field mixed stacks). Its module +
+   tests are archived under `archive/deferred_cards/` (never deleted). The
+   card's own text is clear — the deferral is about its interaction surface.
+   CONSEQUENCE: mixed grain+veg fields are now UNREACHABLE (grid and card
+   stacks alike), so the flagged mixed-field wrinkles are moot until it (or
+   another mixer) returns; the machinery keeps supporting mixture (the
+   card-field 4-tuple stacks, the take's grain-precedence) — that generality
+   stays correct and tested at the seam level.
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
@@ -583,6 +602,15 @@ surface) before implementation.
   missing entirely (every sibling names "the end of each round" or "the returning
   home phase"), and the user found the card's intent unclear ("perennial rye does
   seem confused").
+
+- **Heresy Teacher A113** (occupation, [1+]; "Each time you use a 'Lessons' action
+  space, you get 1 vegetable in each of your fields with at least 3 grain and no
+  vegetable. Place the vegetable below the grain." Clarification: "Fields with both
+  crops can count as a grain field or a vegetable field, but not both
+  simultaneously.") — UN-implemented and placed here by the user 2026-07-12
+  (ruling 53): the card itself is clear, but as the only mixed-field producer it
+  made the per-field interaction rulings too complicated; archived under
+  `archive/deferred_cards/`.
 
 - **Lumber Virtuoso D129** (occupation, [3+]; "Each harvest in which you have at
   least 5 wood in your supply, you can discard down to 5 wood to take a "Build
