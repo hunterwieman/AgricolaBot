@@ -17,6 +17,7 @@ from agricola.canonical import to_canonical
 from agricola.cards.harvest_windows import (
     FIELD_BAND_LEN,
     HARVEST_WINDOWS,
+    WALK_LENGTH,
     WINDOW_INDEX,
     register_harvest_window_hook,
 )
@@ -117,7 +118,11 @@ def _run_harvest(state, pick=lambda acts: acts[0]):
 # Family fast path: no window card owned → byte-identical, cursor never set
 # ---------------------------------------------------------------------------
 
-def test_family_harvest_unchanged_and_cursor_none():
+def test_family_harvest_banded_cursor_pauses_only():
+    """Ruling 40 (2026-07-12): a Family harvest's cursor is set exactly while
+    a band frame is up — the four payment/breeding pauses (after_feeding /
+    after_breeding resume points per pass: 14, 17, 20, 23) — and None
+    everywhere else (the walk never pauses a cardless FIELD band)."""
     state = with_sown_fields(_harvest_state(), 0, grain_fields=((0, 1), (0, 2)))
     seen_cursors = set()
     state = _advance_until_decision(state)
@@ -126,7 +131,7 @@ def test_family_harvest_unchanged_and_cursor_none():
                           Phase.HARVEST_BREED):
         state = step(state, legal_actions(state)[0])
         seen_cursors.add(state.harvest_cursor)
-    assert seen_cursors == {None}
+    assert seen_cursors == {None, 14, 17, 20, 23}
     assert state.phase == Phase.PREPARATION
     # No window frame ever appeared, and the canonical JSON has no cursor key.
     assert "harvest_cursor" not in to_canonical(state)
@@ -185,9 +190,9 @@ def test_trigger_frame_pushed_and_fireable():
     assert top.window_id == "end_of_harvest"
     assert top.player_idx == 0
     # The cursor pins the resume point at the NEXT window — a VIRTUAL-walk
-    # index: past the FIELD band, raw ladder positions shift by one band length
-    # (walk_position decodes; HARVEST_WINDOWS_DESIGN.md §3 / user ruling 3).
-    assert state.harvest_cursor == WINDOW_INDEX["end_of_harvest"] + 1 + FIELD_BAND_LEN
+    # index: with the three per-player bands (rulings 3 + 40) the position
+    # after end_of_harvest is the walk's last, after_harvest.
+    assert state.harvest_cursor == WALK_LENGTH - 1
 
     acts = legal_actions(state)
     assert FireTrigger(card_id=EOH_CARD) in acts and Proceed() in acts

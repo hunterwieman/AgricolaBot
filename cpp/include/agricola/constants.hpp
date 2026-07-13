@@ -55,4 +55,20 @@ bool is_harvest_round(int round_number);
 constexpr int NUM_ROUNDS = 14;
 constexpr int NUM_MAJOR_IMPROVEMENTS = 10;
 
+// Harvest virtual-walk cursor anchors (ruling 40, 2026-07-12 — FEED/BREED
+// banding). GameState.harvest_cursor indexes the 26-position 2-player VIRTUAL
+// walk of the harvest-window ladder (agricola/cards/harvest_windows.py: the
+// raw window ladder with the FIELD/FEED/BREED bands each repeated once per
+// player, starting player's pass — "pass 0" — first). The C++ engine is
+// Family-only: every window between the payment/breeding frames is a
+// cards-only no-op, so the walk collapses to a fixed state machine over the
+// anchors below. Each CURSOR_AFTER_* value is the position just PAST a band
+// pass's frame push (Python: sentinel_position("<after-window>", pass)) — the
+// value carried while that pass's frame is up.
+constexpr int CURSOR_AFTER_FEEDING_PASS0 = 14;    // SP's payment frame up
+constexpr int CURSOR_START_FEEDING_PASS1 = 15;    // 2nd FEED pass begins (encoder's has_fed boundary)
+constexpr int CURSOR_AFTER_FEEDING_PASS1 = 17;    // other player's payment frame up
+constexpr int CURSOR_AFTER_BREEDING_PASS0 = 20;   // SP's breeding frame up
+constexpr int CURSOR_AFTER_BREEDING_PASS1 = 23;   // other player's breeding frame up
+
 }  // namespace agricola

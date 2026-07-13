@@ -190,6 +190,9 @@ std::uint64_t state_hash(const GameState& s) {
     std::visit([&](const auto& f) { hf(h, f); }, frame);
   }
   mix(h, s.pending_stack.size());
+  // Mirrors GameState.__hash__: two states differing only in the harvest
+  // virtual-walk cursor must hash apart (mid-FEED/BREED band passes carry it).
+  hi(h, s.harvest_cursor);
   return h;
 }
 

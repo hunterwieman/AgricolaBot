@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import dataclasses
 
+from agricola.actions import CommitConvert, Stop
 from agricola.constants import CellType, Phase
-from agricola.engine import _resolve_harvest_field
+from agricola.engine import _resolve_harvest_field, step
 from agricola.pending import PendingHarvestFeed
 from agricola.setup import setup
 from agricola.state import Cell
@@ -124,18 +125,28 @@ def test_phase_transitions_to_harvest_feed():
     assert new_state.phase == Phase.HARVEST_FEED
 
 
-def test_feed_pendings_pushed_one_per_player_sp_on_top():
+def test_feed_pendings_banded_one_player_per_pass_sp_first():
+    """Ruling 40 (2026-07-12): FEED resolves whole-phase-per-player — the
+    walk pushes ONE payment frame per band pass (starting player first, the
+    cursor carried), never both players' frames at once."""
     state = setup(seed=0)
     state = with_phase(state, Phase.HARVEST_FIELD)
     sp = state.starting_player
 
     new_state = _resolve_harvest_field(state)
 
-    assert len(new_state.pending_stack) == 2
-    assert all(isinstance(f, PendingHarvestFeed) for f in new_state.pending_stack)
-    # Top frame is the starting player.
+    assert len(new_state.pending_stack) == 1
+    assert isinstance(new_state.pending_stack[-1], PendingHarvestFeed)
     assert new_state.pending_stack[-1].player_idx == sp
-    assert new_state.pending_stack[0].player_idx == 1 - sp
+    assert new_state.harvest_cursor is not None
+
+    # The starting player pays and Stops; the OTHER player's frame arrives
+    # on the second band pass.
+    new_state = step(new_state, CommitConvert(0, 0, 0, 0, 0))
+    new_state = step(new_state, Stop())
+    assert len(new_state.pending_stack) == 1
+    assert isinstance(new_state.pending_stack[-1], PendingHarvestFeed)
+    assert new_state.pending_stack[-1].player_idx == 1 - sp
 
 
 def test_pasture_cache_preserved():
@@ -170,11 +181,10 @@ def test_newborns_not_cleared():
 
 
 def test_feed_push_does_not_debit_food():
-    """_initiate_harvest_feed (invoked by _resolve_harvest_field) does NOT
-    pre-debit food. Payment is deferred to CommitConvert.
-
-    Each player keeps their full supply when FEED begins; the pending shape
-    is just (player_idx, initiated_by_id, conversion_done).
+    """The FEED-band sentinel does NOT pre-debit food. Payment is deferred to
+    CommitConvert. Each player keeps their full supply when their frame is
+    up; the pending shape is just (player_idx, initiated_by_id,
+    conversion_done). Banded (ruling 40): one frame per pass.
     """
     state = setup(seed=0)
     state = with_resources(state, 0, food=5)
@@ -183,11 +193,15 @@ def test_feed_push_does_not_debit_food():
 
     new_state = _resolve_harvest_field(state)
 
-    for p_idx in (0, 1):
-        pendings = [f for f in new_state.pending_stack
-                    if isinstance(f, PendingHarvestFeed) and f.player_idx == p_idx]
-        assert len(pendings) == 1
+    sp = new_state.starting_player
+    for expected_idx in (sp, 1 - sp):
+        top = new_state.pending_stack[-1]
+        assert isinstance(top, PendingHarvestFeed)
+        assert top.player_idx == expected_idx
         # No food_owed field on the pending in the deferred-payment model.
-        assert not hasattr(pendings[0], "food_owed")
-        # Food untouched by initiate.
-        assert new_state.players[p_idx].resources.food == 5
+        assert not hasattr(top, "food_owed")
+        # Food untouched by the sentinel: the deciding player still holds
+        # their full 5 when their frame comes up.
+        assert new_state.players[expected_idx].resources.food == 5
+        new_state = step(new_state, CommitConvert(0, 0, 0, 0, 0))
+        new_state = step(new_state, Stop())

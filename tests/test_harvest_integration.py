@@ -180,7 +180,9 @@ def test_begging_markers_propagate_to_score():
 # --- Pending stack shape during multi-player FEED ---------------------------
 
 def test_fed_stack_evolves_correctly():
-    """Walk FEED for both players, asserting the stack shrinks predictably."""
+    """Walk FEED and BREED for both players — banded per ruling 40
+    (2026-07-12): ONE frame per band pass, starting player's whole pass
+    before the other player's, the cursor carrying the walk between them."""
     state = setup(seed=0)
     state = dataclasses.replace(state, starting_player=0)
     state = with_resources(state, 0, food=99)
@@ -190,27 +192,33 @@ def test_fed_stack_evolves_correctly():
     from agricola.engine import _resolve_harvest_field
     state = _resolve_harvest_field(state)
 
-    assert len(state.pending_stack) == 2
+    assert len(state.pending_stack) == 1
+    assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
     assert state.pending_stack[-1].player_idx == 0
 
-    # SP commits + stops.
+    # SP commits + stops; the walk resumes and pushes the OTHER player's frame.
     state = step(state, CommitConvert(0, 0, 0, 0, 0))
     state = step(state, Stop())
 
-    # Now only player 1's pending should remain.
     assert len(state.pending_stack) == 1
     assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
     assert state.pending_stack[-1].player_idx == 1
 
-    # Player 1 commits + stops. After Stop, _advance_until_decision will see
-    # phase=HARVEST_FEED + empty stack and push BREED pendings.
+    # Player 1 commits + stops -> the BREED band, again one frame per pass.
     state = step(state, CommitConvert(0, 0, 0, 0, 0))
     state = step(state, Stop())
 
-    # Now in HARVEST_BREED with two pendings.
     assert state.phase == Phase.HARVEST_BREED
-    assert len(state.pending_stack) == 2
-    assert all(isinstance(f, PendingHarvestBreed) for f in state.pending_stack)
+    assert len(state.pending_stack) == 1
+    assert isinstance(state.pending_stack[-1], PendingHarvestBreed)
+    assert state.pending_stack[-1].player_idx == 0
+
+    state = step(state, legal_actions(state)[0])           # SP breeds/commits
+    while state.pending_stack and state.pending_stack[-1].player_idx == 0:
+        state = step(state, legal_actions(state)[0])
+    assert len(state.pending_stack) == 1
+    assert isinstance(state.pending_stack[-1], PendingHarvestBreed)
+    assert state.pending_stack[-1].player_idx == 1
 
 
 # --- Newborn discount applied at FEED ---------------------------------------

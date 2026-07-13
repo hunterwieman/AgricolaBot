@@ -75,53 +75,94 @@ SENTINEL_WINDOWS: frozenset = frozenset({"field_phase", "feeding", "breeding"})
 
 
 # ---------------------------------------------------------------------------
-# The FIELD band and the virtual walk (user ruling 3 — whole-phase-per-player)
+# The phase bands and the virtual walk (rulings 3 + 40 — whole-phase-per-player)
 # ---------------------------------------------------------------------------
-# Within the FIELD segment — windows before_field_phase .. after_field_phase,
-# the take included — the starting player resolves their ENTIRE segment first,
-# then the other player theirs (ruling 3, PROVISIONAL: the user dislikes the
-# later-player advantage; revisit if distortive). Everywhere else the walk is
-# window-major (both players per window, SP first).
+# Within each of the three PHASE segments, one player resolves their ENTIRE
+# segment before the other player begins (starting player first):
 #
-# The walk cursor (`GameState.harvest_cursor`) therefore indexes a VIRTUAL walk
-# rather than the raw ladder: the FIELD band appears once per player, in seat-
-# resolve order. For 2 players the virtual sequence is
+# - FIELD: before_field_phase .. after_field_phase, the take included
+#   (ruling 3, PROVISIONAL: the user dislikes the later-player advantage;
+#   revisit if distortive — it matches the official implementation).
+# - FEED:  start_of_feeding .. after_feeding, the payment included, and
+# - BREED: start_of_breeding .. after_breeding, the breeding included
+#   (**ruling 40, 2026-07-12**: the banding extends to FEED and BREED; the
+#   payment/breeding frames push ONE player per band pass, and that player's
+#   feeding-income autos fire at their own pass's entry).
 #
-#   [w0, w1,  band(SP: w2..w6),  band(other: w2..w6),  w7..w16]
+# The four OUTER moments — immediately_before_harvest, start_of_harvest,
+# end_of_harvest, after_harvest — are SEPARATE from the phase bands and stay
+# window-major (both players per window, SP first; ruling 40's second half).
 #
-# (22 positions). `walk_position` decodes a virtual cursor into (window_index,
-# band_player): band_player is the single player whose band pass this position
-# belongs to, or None outside the band (window-major). Decoding needs
-# `starting_player`, which is fixed for the duration of a harvest (SP changes
-# only via WORK-phase actions). With N players the band would simply repeat N
-# times — the shape 4p needs (CLAUDE.md Phase 3).
+# The walk cursor (`GameState.harvest_cursor`) therefore indexes a VIRTUAL
+# walk rather than the raw ladder: each band appears once per player, in
+# seat-resolve order. For 2 players the virtual sequence is
 #
-# The FEED and BREED segments are NOT banded yet: their frames already resolve
-# SP-first within each window, and realizing ruling 3's whole-segment-per-player
-# ordering there is deferred until a window in those segments has a member card
-# whose ordering it would change.
+#   [w0, w1,  FIELD(SP), FIELD(other),  FEED(SP), FEED(other),
+#    BREED(SP), BREED(other),  end_of_harvest, after_harvest]
+#
+# (26 positions, `_VIRTUAL_WALK`). `walk_position` decodes a virtual cursor
+# into (window_index, band_player): band_player is the single player whose
+# band pass the position belongs to, or None outside every band
+# (window-major). Decoding needs `starting_player`, which is fixed for the
+# duration of a harvest (SP changes only via WORK-phase actions). With N
+# players each band would simply repeat N times — the shape 4p needs
+# (CLAUDE.md Phase 3).
 FIELD_BAND_START: int = WINDOW_INDEX["before_field_phase"]
 FIELD_BAND_END: int = WINDOW_INDEX["after_field_phase"]        # inclusive
 FIELD_BAND_LEN: int = FIELD_BAND_END - FIELD_BAND_START + 1
+FEED_BAND_START: int = WINDOW_INDEX["start_of_feeding"]
+FEED_BAND_END: int = WINDOW_INDEX["after_feeding"]             # inclusive
+BREED_BAND_START: int = WINDOW_INDEX["start_of_breeding"]
+BREED_BAND_END: int = WINDOW_INDEX["after_breeding"]           # inclusive
 
-WALK_LENGTH: int = len(HARVEST_WINDOWS) + FIELD_BAND_LEN       # 2-player
+_BANDS: tuple = ((FIELD_BAND_START, FIELD_BAND_END),
+                 (FEED_BAND_START, FEED_BAND_END),
+                 (BREED_BAND_START, BREED_BAND_END))
+
+# The virtual sequence, built once: (window_index, band_pass) per position —
+# band_pass is None (window-major), 0 (the starting player's pass) or 1 (the
+# other player's).
+def _build_virtual_walk() -> tuple:
+    out = []
+    i = 0
+    band_of = {start: end for start, end in _BANDS}
+    while i < len(HARVEST_WINDOWS):
+        if i in band_of:
+            end = band_of[i]
+            for band_pass in (0, 1):
+                for w in range(i, end + 1):
+                    out.append((w, band_pass))
+            i = end + 1
+        else:
+            out.append((i, None))
+            i += 1
+    return tuple(out)
+
+
+_VIRTUAL_WALK: tuple = _build_virtual_walk()
+WALK_LENGTH: int = len(_VIRTUAL_WALK)                          # 26 at 2 players
 
 
 def walk_position(cursor: int, starting_player: int) -> tuple[int, int | None]:
     """Decode a virtual walk cursor into (window_index, band_player | None).
 
-    band_player is the player whose FIELD-band pass the position belongs to
-    (windows in the band fire for that ONE player), or None for a window-major
-    position (fires for both players, SP first)."""
-    if cursor < FIELD_BAND_START:
-        return cursor, None
-    first_pass_end = FIELD_BAND_START + FIELD_BAND_LEN
-    if cursor < first_pass_end:
-        return cursor, starting_player
-    second_pass_end = first_pass_end + FIELD_BAND_LEN
-    if cursor < second_pass_end:
-        return cursor - FIELD_BAND_LEN, 1 - starting_player
-    return cursor - FIELD_BAND_LEN, None
+    band_player is the player whose band pass the position belongs to (windows
+    in a band fire for that ONE player), or None for a window-major position
+    (fires for both players, SP first)."""
+    w_idx, band_pass = _VIRTUAL_WALK[cursor]
+    if band_pass is None:
+        return w_idx, None
+    return w_idx, starting_player if band_pass == 0 else 1 - starting_player
+
+
+def sentinel_position(window_id: str, band_pass: int) -> int:
+    """The virtual-walk position of a sentinel window's given band pass —
+    the engine's anchor for cursor bookkeeping (e.g. the legacy bare-state
+    resume points)."""
+    for pos, (w_idx, bp) in enumerate(_VIRTUAL_WALK):
+        if HARVEST_WINDOWS[w_idx] == window_id and bp == band_pass:
+            return pos
+    raise AssertionError((window_id, band_pass))
 
 
 # ---------------------------------------------------------------------------

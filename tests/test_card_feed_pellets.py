@@ -318,7 +318,10 @@ def test_next_harvest_offers_again():
     assert _offered(state) == []           # spent for this harvest
 
     # Enter the next harvest: the walk's fresh-start reset clears the budget.
+    # (A hand-built fresh harvest must also drop the banded walk's mid-feed
+    # cursor -- ruling 40 carries it while a payment frame is up.)
     state = with_pending_stack(state, ())
+    state = fast_replace(state, harvest_cursor=None)
     state = with_phase(state, Phase.HARVEST_FIELD)
     state = _advance_until_decision(state)
     top = state.pending_stack[-1]

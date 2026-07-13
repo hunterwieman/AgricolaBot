@@ -134,14 +134,16 @@ from agricola.cards.triggers import (
 # and the per-occasion auto firing — all consumed by _advance_harvest. Another leaf
 # module — safe to import here without a load-order cycle.
 from agricola.cards.harvest_windows import (
-    FIELD_BAND_LEN,
+    BREED_BAND_START,
+    FEED_BAND_END,
+    FEED_BAND_START,
     HARVEST_WINDOWS,
     WALK_LENGTH,
-    WINDOW_INDEX,
     apply_harvest_occasion_autos,
     maybe_host_occasion_triggers,
     auto_take_fold_ins,
     choice_take_modifiers,
+    sentinel_position,
     walk_position,
     window_skipped,
 )
@@ -1287,30 +1289,57 @@ def _fire_preparation_hook(state: GameState) -> GameState:
 # Harvest phase resolvers (Task 7)
 # ---------------------------------------------------------------------------
 
-def _initiate_harvest_feed(state: GameState) -> GameState:
-    """Push a PendingHarvestFeed for each player, starting player's frame on top.
+def _initiate_harvest_feed_for(state: GameState, idx: int):
+    """One player's FEED-band sentinel (ruling 40, 2026-07-12: FEED resolves
+    whole-phase-per-player). Returns (state, frame_pushed).
 
     No food is debited here. Food payment is deferred to `CommitConvert`
     (see `_execute_convert` in resolution.py), and the "Cannot withhold
     food tokens" rule is enforced there by paying `min(need, available)`
     unconditionally — the player has no knob to keep food while begging.
 
-    Feeding-INCOME card autos fire FIRST (the "feeding" event, per player,
-    starting player first): a card printed "in the feeding phase, you get X
-    food" (Town Hall, Milking Place, Dentist's payout) must deliver its food
-    before the payment decision so the food is payable
-    (HARVEST_WINDOWS_DESIGN.md §5). Choice-free income only — in-feeding
-    CONVERSIONS ride the HARVEST_CONVERSIONS seam on the frames themselves.
-    A whole-harvest skipper (Layabout, ruling 14) gets neither the income nor
-    a feeding frame — they do not feed at all.
-
-    Push order: non-starting player pushed first (bottom of stack), starting
-    player pushed second (top). When the starting player Stops, the
-    non-starting player's pending becomes top automatically.
-
-    Also exposed standalone so tests can construct a FEED-only state without
-    running FIELD mechanics.
+    THIS player's feeding-INCOME card autos fire FIRST (the "feeding" event):
+    a card printed "in the feeding phase, you get X food" (Town Hall, Milking
+    Place, Dentist's payout) must deliver its food before the payment decision
+    so the food is payable (HARVEST_WINDOWS_DESIGN.md §5). Under the banding,
+    a player's income fires at their OWN band pass — after the earlier
+    player's entire FEED segment. Choice-free income only — in-feeding
+    CONVERSIONS ride the HARVEST_CONVERSIONS seam on the frame itself. A
+    feeding-skipper (Layabout, ruling 14) gets neither the income nor a frame
+    — they do not feed at all.
     """
+    if window_skipped(state, idx, "feeding"):
+        return state, False
+    state = apply_auto_effects(state, "feeding", idx)
+    state = push(state, PendingHarvestFeed(
+        player_idx=idx,
+        initiated_by_id="phase:harvest_feed",
+    ))
+    return state, True
+
+
+def _initiate_harvest_breed_for(state: GameState, idx: int):
+    """One player's BREED-band sentinel (ruling 40) — mirrors
+    `_initiate_harvest_feed_for`, without income autos (no "breeding"-event
+    income exists; pre-commit breed triggers live on the frame itself, ruling
+    20). A breeding-phase skipper gets no frame — no frame = no newborns."""
+    if window_skipped(state, idx, "breeding"):
+        return state, False
+    state = push(state, PendingHarvestBreed(
+        player_idx=idx,
+        initiated_by_id="phase:harvest_breed",
+    ))
+    return state, True
+
+
+def _initiate_harvest_feed(state: GameState) -> GameState:
+    """LEGACY TEST HELPER — the pre-ruling-40 shape: BOTH players' payment
+    frames at once (starting player's on top), both players' feeding income
+    up front. The engine's banded walk pushes one frame per band pass via
+    `_initiate_harvest_feed_for` and never calls this; it survives because
+    many tests construct bare FEED states with it (their resume path is
+    `_advance_harvest`'s legacy None-cursor derivation). New tests should
+    drive the real walk instead."""
     sp = state.starting_player
     for idx in (sp, (sp + 1) % 2):
         if not window_skipped(state, idx, "feeding"):
@@ -1329,13 +1358,9 @@ def _initiate_harvest_feed(state: GameState) -> GameState:
 
 
 def _initiate_harvest_breed(state: GameState) -> GameState:
-    """Push a PendingHarvestBreed for each player, starting player's frame on top.
-
-    No pre-debit (breeding doesn't consume food upfront). Push order
-    mirrors _initiate_harvest_feed. A breeding-phase skipper gets no frame —
-    Lunchtime Beer skips its owner's field + breeding phases (ruling 1), a
-    Layabout skipper the whole harvest (ruling 14); no frame = no newborns.
-    """
+    """LEGACY TEST HELPER — the pre-ruling-40 shape: BOTH players' breed
+    frames at once. See `_initiate_harvest_feed`'s note; the banded walk uses
+    `_initiate_harvest_breed_for`."""
     sp = state.starting_player
     push_order = [(sp + 1) % 2, sp]
 
@@ -1479,23 +1504,31 @@ def _advance_harvest(state: GameState) -> GameState:
 
     Called by _advance_until_decision whenever the phase is a harvest phase and
     the stack is empty. Walks the VIRTUAL ladder (`walk_position`: the raw
-    window ladder with the FIELD band — before_field_phase .. after_field_phase
-    — repeated once per player, starting player first, per user ruling 3) from
-    the resume point, processing simple windows (autos + choice frames), the
-    per-player FIELD during-window (`_field_phase_step`), and the FEED/BREED
-    sentinels (push the existing frames) — until either frames are pushed
-    (return; the outer Case-1 guard surfaces them), a harvest phase transition
-    happens, or the harvest completes into PREPARATION / BEFORE_SCORING.
+    window ladder with the FIELD, FEED, and BREED bands each repeated once per
+    player, starting player first — rulings 3 + 40) from the resume point,
+    processing simple windows (autos + choice frames), the per-player FIELD
+    during-window (`_field_phase_step`), and the per-player FEED/BREED
+    sentinels (fire that player's feeding income, push that player's frame) —
+    until either frames are pushed (return; the outer Case-1 guard surfaces
+    them), or the harvest completes into PREPARATION / BEFORE_SCORING.
 
-    Resume point: `state.harvest_cursor` when set (a frame paused the walk
-    mid-segment — always the CARDS game); otherwise derived from the phase — a
-    FIELD entry with an empty cursor is the harvest's fresh start (walk from
-    position 0, and reset both players' once-per-harvest conversion budget
-    HERE, before the harvest's first conversion opportunity, not at the take —
-    so a future phase-skipping player still gets a fresh budget), and an
-    empty-stack FEED/BREED resumes just past its sentinel. A Family game never
-    pushes window frames, so its returned states always carry cursor None and
-    stay byte-identical.
+    The harvest phase is derived from the walk position (the flip happens at
+    each band's entry, so a whole band runs under one phase); the two outer
+    windows after the BREED band run under HARVEST_BREED, as before ruling 40.
+
+    Resume point: `state.harvest_cursor` when set — since ruling 40 (banded
+    FEED/BREED) the cursor is carried across EVERY mid-walk pause, the Family
+    game included (a Family mid-feed state now holds one payment frame and the
+    cursor; the C++ twin mirrors this — the first Family-visible harvest-shape
+    change of the arc). A None cursor is either the harvest's fresh start (a
+    FIELD entry: walk from position 0, resetting both players' once-per-harvest
+    conversion budget HERE, before the harvest's first conversion opportunity)
+    or a LEGACY hand-built bare FEED/BREED state (tests pushing both players'
+    frames at once via the compat initiators): both payments/breedings are
+    done, so resume at the SECOND pass's after-window — the banded walk has no
+    exact equivalent of the pre-banding both-players-done instant, and the
+    first pass's after-window is skipped on this compat path (drive the real
+    walk to exercise per-player after-windows).
     """
     cur = state.harvest_cursor
     if cur is None:
@@ -1506,15 +1539,25 @@ def _advance_harvest(state: GameState) -> GameState:
                     fast_replace(p, harvest_conversions_used=frozenset())
                     for p in state.players))
         elif state.phase == Phase.HARVEST_FEED:
-            cur = WINDOW_INDEX["feeding"] + 1 + FIELD_BAND_LEN
+            cur = sentinel_position("after_feeding", 1)
         else:  # Phase.HARVEST_BREED
-            cur = WINDOW_INDEX["breeding"] + 1 + FIELD_BAND_LEN
+            cur = sentinel_position("after_breeding", 1)
     else:
         state = fast_replace(state, harvest_cursor=None)
 
     while cur < WALK_LENGTH:
         w_idx, band_player = walk_position(cur, state.starting_player)
         window_id = HARVEST_WINDOWS[w_idx]
+
+        # The phase follows the walk position: HARVEST_FEED from the FEED
+        # band's entry, HARVEST_BREED from the BREED band's entry through the
+        # trailing outer windows (idempotent on band resumes).
+        if w_idx >= BREED_BAND_START:
+            if state.phase != Phase.HARVEST_BREED:
+                state = fast_replace(state, phase=Phase.HARVEST_BREED)
+        elif FEED_BAND_START <= w_idx <= FEED_BAND_END:
+            if state.phase != Phase.HARVEST_FEED:
+                state = fast_replace(state, phase=Phase.HARVEST_FEED)
 
         if window_id == "field_phase":
             state, hosted = _field_phase_step(state, band_player)
@@ -1526,14 +1569,18 @@ def _advance_harvest(state: GameState) -> GameState:
             continue
 
         if window_id == "feeding":
-            state = _initiate_harvest_feed(state)
-            return fast_replace(state, phase=Phase.HARVEST_FEED,
-                                harvest_cursor=None)
+            state, pushed = _initiate_harvest_feed_for(state, band_player)
+            cur += 1
+            if pushed:
+                return fast_replace(state, harvest_cursor=cur)
+            continue
 
         if window_id == "breeding":
-            state = _initiate_harvest_breed(state)
-            return fast_replace(state, phase=Phase.HARVEST_BREED,
-                                harvest_cursor=None)
+            state, pushed = _initiate_harvest_breed_for(state, band_player)
+            cur += 1
+            if pushed:
+                return fast_replace(state, harvest_cursor=cur)
+            continue
 
         if band_player is None:
             state, pushed = _process_simple_window(state, window_id)

@@ -133,10 +133,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # False (no card-fields exist there), so omitting it keeps the Family JSON
     # byte-identical and needs no C++ change.
     "crops_only",
-    # Card-only harvest-window walk cursor (engine._advance_harvest): set only while
-    # a PendingHarvestWindow choice frame pauses the window walk mid-segment —
-    # Family-constant None (no window cards → no frames), so omitting it keeps the
-    # Family JSON byte-identical and needs no C++ change.
+    # The harvest-window walk cursor (engine._advance_harvest): skipped when None
+    # (any non-harvest state, and every pre-ruling-40 Family state). Since the
+    # FEED/BREED banding (ruling 40, 2026-07-12) the FAMILY game carries it while a
+    # payment/breeding frame is up (values 14/17/20/23), so mid-feed/mid-breed
+    # Family JSON now EMITS it — mirrored by the C++ engine (the banding re-port).
     "harvest_cursor",
     # QUALIFIED entries ("<Type>.<field>") skip a field on ONE dataclass only —
     # for a field whose NAME is emitted on other (Family) frames but whose value

@@ -591,6 +591,23 @@ of §0–§11 is the authority; this only orients.*
 
 ### The as-built code map (grounded, post-stage-2)
 
+> **AMENDED 2026-07-12 — ruling 40 (FEED/BREED banding).** The virtual walk now
+> has THREE per-player bands: FIELD (#3–#7), FEED (start_of_feeding → feeding →
+> after_feeding), and BREED (start_of_breeding → breeding → after_breeding),
+> each resolved wholly by one player before the other begins (SP first); the
+> four OUTER moments stay window-major. `_VIRTUAL_WALK`/`walk_position` decode
+> the 26-position 2p sequence; the FEED/BREED sentinels push ONE frame per band
+> pass (`_initiate_harvest_feed_for`/`_breed_for` — that player's feeding
+> income fires at their own pass), the cursor is CARRIED while those frames are
+> up (Family pauses at 14/17/20/23 — the arc's first Family-visible shape
+> change, mirrored in the C++ twin), and the harvest phase is derived from the
+> walk position (flips at each band's entry). The both-players
+> `_initiate_harvest_feed`/`_breed` survive as legacy TEST helpers whose bare
+> states resume via the None-cursor derivation (the second pass's
+> after-window). The encoder's `has_fed` became band-aware (value-identical at
+> every decision state — no ENCODING_VERSION bump). Mentions of "FEED/BREED
+> sentinels unchanged" below predate this.
+
 - `agricola/cards/harvest_windows.py` — the ladder (`HARVEST_WINDOWS`, `WINDOW_INDEX`,
   `SENTINEL_WINDOWS`); the **virtual walk** (`FIELD_BAND_START/END/LEN`, `WALK_LENGTH`,
   `walk_position(cursor, sp) -> (window_idx, band_player|None)` — the FIELD band #3–#7

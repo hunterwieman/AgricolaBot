@@ -196,30 +196,22 @@ GameState complete_preparation(const GameState& state) {
   return s;
 }
 
-GameState initiate_harvest_feed(const GameState& state) {
-  GameState s = state;
-  int sp = s.starting_player;
-  int order[2] = {(sp + 1) % 2, sp};
-  for (int idx : order) {
-    PendingHarvestFeed frame;
-    frame.player_idx = idx;
-    frame.initiated_by_id = "phase:harvest_feed";
-    s = push(s, frame);
-  }
-  return s;
+// One player's FEED/BREED band pass (ruling 40 — whole-phase-per-player): the
+// banded walk pushes ONE payment/breeding frame per pass, starting player
+// first, instead of both players' frames at once. Feeding-income autos are
+// cards-only, so a Family pass is just the frame push.
+GameState push_harvest_feed_frame(const GameState& state, int idx) {
+  PendingHarvestFeed frame;
+  frame.player_idx = idx;
+  frame.initiated_by_id = "phase:harvest_feed";
+  return push(state, frame);
 }
 
-GameState initiate_harvest_breed(const GameState& state) {
-  GameState s = state;
-  int sp = s.starting_player;
-  int order[2] = {(sp + 1) % 2, sp};
-  for (int idx : order) {
-    PendingHarvestBreed frame;
-    frame.player_idx = idx;
-    frame.initiated_by_id = "phase:harvest_breed";
-    s = push(s, frame);
-  }
-  return s;
+GameState push_harvest_breed_frame(const GameState& state, int idx) {
+  PendingHarvestBreed frame;
+  frame.player_idx = idx;
+  frame.initiated_by_id = "phase:harvest_breed";
+  return push(state, frame);
 }
 
 GameState resolve_harvest_field(const GameState& state) {
@@ -242,8 +234,12 @@ GameState resolve_harvest_field(const GameState& state) {
     p.resources = p.resources + Resources{0, 0, 0, 0, 0, grain_gain, veg_gain};
     p.harvest_conversions_used.clear();
   }
-  s = initiate_harvest_feed(s);
+  // Banded FEED entry (ruling 40): only the starting player's payment frame;
+  // the other player's follows when this one pops (advance_until_decision
+  // dispatches on the cursor).
   s.phase = Phase::HARVEST_FEED;
+  s = push_harvest_feed_frame(s, s.starting_player);
+  s.harvest_cursor = CURSOR_AFTER_FEEDING_PASS0;
   return s;
 }
 
@@ -323,17 +319,44 @@ GameState advance_until_decision(GameState s) {
       continue;
     }
 
-    if (s.phase == Phase::HARVEST_FEED) {
-      s = initiate_harvest_breed(s);
-      s.phase = Phase::HARVEST_BREED;
-      continue;
-    }
-
-    if (s.phase == Phase::HARVEST_BREED) {
-      if (s.round_number >= NUM_ROUNDS)
-        s.phase = Phase::BEFORE_SCORING;
-      else
-        s.phase = Phase::PREPARATION;
+    if (s.phase == Phase::HARVEST_FEED || s.phase == Phase::HARVEST_BREED) {
+      // Banded FEED/BREED walk (ruling 40): an empty stack here means the
+      // current band pass's frame just popped; the cursor says where the walk
+      // resumes. In the cardless Family game every window between frames is a
+      // no-op, so the walk is this fixed state machine over the cursor
+      // anchors (constants.hpp). A nullopt cursor is a LEGACY hand-built bare
+      // FEED/BREED state (both players' frames pushed at once, e.g. by the
+      // Python compat initiators): both passes are done, so it resumes past
+      // the band — mirroring Python's legacy None-cursor derivation.
+      int sp = s.starting_player;
+      int cur = s.harvest_cursor
+                    ? *s.harvest_cursor
+                    : (s.phase == Phase::HARVEST_FEED
+                           ? CURSOR_AFTER_FEEDING_PASS1
+                           : CURSOR_AFTER_BREEDING_PASS1);
+      s.harvest_cursor = std::nullopt;
+      if (cur == CURSOR_AFTER_FEEDING_PASS0) {
+        // SP paid -> the other player's FEED pass.
+        s = push_harvest_feed_frame(s, (sp + 1) % 2);
+        s.harvest_cursor = CURSOR_AFTER_FEEDING_PASS1;
+      } else if (cur == CURSOR_AFTER_FEEDING_PASS1) {
+        // FEED band done -> BREED band, SP's pass first.
+        s.phase = Phase::HARVEST_BREED;
+        s = push_harvest_breed_frame(s, sp);
+        s.harvest_cursor = CURSOR_AFTER_BREEDING_PASS0;
+      } else if (cur == CURSOR_AFTER_BREEDING_PASS0) {
+        // SP bred -> the other player's BREED pass.
+        s = push_harvest_breed_frame(s, (sp + 1) % 2);
+        s.harvest_cursor = CURSOR_AFTER_BREEDING_PASS1;
+      } else if (cur == CURSOR_AFTER_BREEDING_PASS1) {
+        // The walk is done: the harvest is over.
+        if (s.round_number >= NUM_ROUNDS)
+          s.phase = Phase::BEFORE_SCORING;
+        else
+          s.phase = Phase::PREPARATION;
+      } else {
+        throw std::runtime_error("unexpected harvest_cursor in advance loop");
+      }
       continue;
     }
 

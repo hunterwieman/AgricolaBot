@@ -226,17 +226,33 @@ void write_player_block(float* out, int base, const GameState& state,
   if (state.phase == Phase::HARVEST_BREED) {
     has_fed = 1.0f;
   } else if (state.phase == Phase::HARVEST_FEED) {
-    bool still_to_feed = false;
+    bool frame_up = false;
     for (const auto& f : state.pending_stack) {
       if (std::holds_alternative<PendingHarvestFeed>(f)) {
         const auto& hf = std::get<PendingHarvestFeed>(f);
         if (hf.player_idx.has_value() && *hf.player_idx == player_idx) {
-          still_to_feed = true;
+          frame_up = true;
           break;
         }
       }
     }
-    has_fed = still_to_feed ? 0.0f : 1.0f;
+    if (frame_up) {
+      has_fed = 0.0f;
+    } else if (player_idx == state.starting_player) {
+      // Banded FEED (ruling 40): one payment frame per band pass, SP first —
+      // so an absent frame no longer means "already paid" for the second
+      // player. SP's pass is first: no frame means they paid.
+      has_fed = 1.0f;
+    } else {
+      // The non-SP has paid only once the walk has crossed into their pass
+      // (cursor >= the second pass's start; a nullopt cursor is the legacy
+      // hand-built shape, where absent == paid). Mirrors encoder.py's
+      // _FEED_SECOND_PASS = sentinel_position("start_of_feeding", 1).
+      has_fed = (!state.harvest_cursor ||
+                 *state.harvest_cursor >= CURSOR_START_FEEDING_PASS1)
+                    ? 1.0f
+                    : 0.0f;
+    }
   } else {
     has_fed = 0.0f;
   }

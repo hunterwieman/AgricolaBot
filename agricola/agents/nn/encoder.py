@@ -41,6 +41,12 @@ from agricola.constants import (
     SPACE_INDEX,
 )
 from agricola.helpers import can_accommodate, cooking_rates, enclosed_cells, extract_slots
+from agricola.cards.harvest_windows import sentinel_position
+
+# The virtual-walk position where the second player's FEED band pass begins
+# (ruling 40's banding) -- the has_fed feature's fed/not-yet-reached boundary.
+_FEED_SECOND_PASS = sentinel_position("start_of_feeding", 1)
+
 from agricola.pending import (
     PendingBakeBread,
     PendingBuildFences,
@@ -269,11 +275,26 @@ def _player_features(
     if state.phase is Phase.HARVEST_BREED:
         has_fed = 1.0
     elif state.phase is Phase.HARVEST_FEED:
-        still_to_feed = any(
+        frame_up = any(
             isinstance(f, PendingHarvestFeed) and f.player_idx == player_idx
             for f in state.pending_stack
         )
-        has_fed = 0.0 if still_to_feed else 1.0
+        if frame_up:
+            has_fed = 0.0
+        elif player_idx == state.starting_player:
+            # Banded FEED (ruling 40, 2026-07-12): one payment frame per band
+            # pass, SP first — so an absent frame no longer means "already
+            # paid" for the second player. SP's pass is first: no frame means
+            # they paid. The non-SP has paid only once the walk has crossed
+            # into their pass (cursor >= the second pass's start; a None
+            # cursor is the legacy hand-built shape, where absent == paid).
+            # This keeps the feature's VALUE identical to the pre-banding
+            # encoder at every reachable decision state — the trained models'
+            # input distribution is unchanged, so no ENCODING_VERSION bump.
+            has_fed = 1.0
+        else:
+            cur = state.harvest_cursor
+            has_fed = 1.0 if (cur is None or cur >= _FEED_SECOND_PASS) else 0.0
     else:
         has_fed = 0.0
     feats.append(("has_fed", has_fed))
@@ -609,11 +630,17 @@ def _write_player_block(out, base: int, state, p, player_idx: int) -> None:
     if state.phase is Phase.HARVEST_BREED:
         has_fed = 1.0
     elif state.phase is Phase.HARVEST_FEED:
-        still_to_feed = any(
+        frame_up = any(
             isinstance(f, PendingHarvestFeed) and f.player_idx == player_idx
             for f in state.pending_stack
         )
-        has_fed = 0.0 if still_to_feed else 1.0
+        if frame_up:
+            has_fed = 0.0
+        elif player_idx == state.starting_player:
+            has_fed = 1.0     # banded FEED (ruling 40) — see _player_features
+        else:
+            cur = state.harvest_cursor
+            has_fed = 1.0 if (cur is None or cur >= _FEED_SECOND_PASS) else 0.0
     else:
         has_fed = 0.0
     out[base + 52] = has_fed

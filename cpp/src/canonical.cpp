@@ -383,6 +383,9 @@ json tc(const GameState& s) {
   json stack = json::array();
   for (const auto& f : s.pending_stack) stack.push_back(tc(f));
   j["pending_stack"] = std::move(stack);
+  // harvest_cursor is default-skipped in Python's canonical (canonical.py
+  // _DEFAULT_SKIP_FIELDS): emitted only when set, omitted when None.
+  if (s.harvest_cursor) j["harvest_cursor"] = *s.harvest_cursor;
   return j;
 }
 
@@ -557,6 +560,8 @@ GameState game_state_from(const json& j) {
   s.players[1] = player_from(j.at("players").at(1));
   s.board = board_from(j.at("board"));
   for (const auto& f : j.at("pending_stack")) s.pending_stack.push_back(pending_from(f));
+  if (j.contains("harvest_cursor"))
+    s.harvest_cursor = j.at("harvest_cursor").get<int>();
   return s;
 }
 

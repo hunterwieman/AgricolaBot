@@ -74,11 +74,18 @@ def test_corpus_exercises_hard_cases():
     assert any(
         s.pending_stack and decider_of(s) is None for s in corpus
     ), "no reveal (nature) states"
-    # Multi-player coexisting frames during harvest feed/breed.
+    # Banded FEED/BREED (ruling 40, 2026-07-12): mid-band states carry the
+    # walk cursor with exactly ONE payment/breeding frame — the new
+    # serialization hard case (harvest_cursor emitted; pre-banding states
+    # never carried it in a Family game). Both band phases must appear.
     assert any(
-        len({getattr(f, "player_idx", -1) for f in s.pending_stack}) > 1
+        s.harvest_cursor is not None and s.phase == Phase.HARVEST_FEED
         for s in corpus
-    ), "no states with both players' frames on the stack"
+    ), "no cursor-carrying mid-FEED states"
+    assert any(
+        s.harvest_cursor is not None and s.phase == Phase.HARVEST_BREED
+        for s in corpus
+    ), "no cursor-carrying mid-BREED states"
     assert any(s.phase == Phase.BEFORE_SCORING for s in corpus), "no terminal state"
 
 

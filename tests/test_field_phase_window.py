@@ -142,21 +142,25 @@ def _walk_to_field_frame(state):
 # The virtual walk
 # ---------------------------------------------------------------------------
 
-def test_walk_position_decodes_the_band():
+def test_walk_position_decodes_the_bands():
+    """Rulings 3 + 40: three per-player bands (FIELD, FEED, BREED), the four
+    outer moments window-major. The decoded sequence IS the design."""
     sp = 1
-    # Pre-band positions are window-major.
-    for v in range(FIELD_BAND_START):
-        assert walk_position(v, sp) == (v, None)
-    # First band pass: the starting player, raw indices.
-    for off in range(FIELD_BAND_LEN):
-        assert walk_position(FIELD_BAND_START + off, sp) == (FIELD_BAND_START + off, sp)
-    # Second pass: the other player, shifted back by one band length.
-    for off in range(FIELD_BAND_LEN):
-        v = FIELD_BAND_START + FIELD_BAND_LEN + off
-        assert walk_position(v, sp) == (FIELD_BAND_START + off, 1 - sp)
-    # Post-band positions are window-major again, shifted by one band length.
-    for v in range(FIELD_BAND_START + 2 * FIELD_BAND_LEN, WALK_LENGTH):
-        assert walk_position(v, sp) == (v - FIELD_BAND_LEN, None)
+    decoded = [walk_position(v, sp) for v in range(WALK_LENGTH)]
+    names = [(HARVEST_WINDOWS[w], bp) for w, bp in decoded]
+    field = ["before_field_phase", "start_of_field_phase", "field_phase",
+             "end_of_field_phase", "after_field_phase"]
+    feed = ["start_of_feeding", "feeding", "after_feeding"]
+    breed = ["start_of_breeding", "breeding", "after_breeding"]
+    expected = (
+        [("immediately_before_harvest", None), ("start_of_harvest", None)]
+        + [(w, sp) for w in field] + [(w, 1 - sp) for w in field]
+        + [(w, sp) for w in feed] + [(w, 1 - sp) for w in feed]
+        + [(w, sp) for w in breed] + [(w, 1 - sp) for w in breed]
+        + [("end_of_harvest", None), ("after_harvest", None)]
+    )
+    assert names == expected
+    assert WALK_LENGTH == 26
     # The virtual walk ends exactly at the ladder's end.
     assert walk_position(WALK_LENGTH - 1, sp)[0] == len(HARVEST_WINDOWS) - 1
 
@@ -260,7 +264,8 @@ def test_frame_take_then_trigger_free_order():
     state = step(state, Proceed())
     state = _advance_until_decision(state)
     assert state.phase == Phase.HARVEST_FEED
-    assert state.harvest_cursor is None
+    # Ruling 40 (2026-07-12): the banded walk carries the cursor through FEED.
+    assert state.harvest_cursor is not None
 
 
 def test_frame_trigger_then_take_other_order():
@@ -361,11 +366,14 @@ def test_no_rehost_when_trigger_stays_ineligible():
 # Family fast path: the occasion machinery is invisible without registrations
 # ---------------------------------------------------------------------------
 
-def test_family_field_phase_no_frame_no_cursor():
+def test_family_field_phase_no_frame_mid_feed_cursor():
     state = with_sown_fields(_harvest_state(), 0, grain_fields=[(0, 0)])
     state = _advance_until_decision(state)
     assert state.phase == Phase.HARVEST_FEED
-    assert state.harvest_cursor is None
+    # Ruling 40 (2026-07-12): a Family mid-feed state now carries the walk
+    # cursor (one payment frame per band pass) — the arc's first
+    # Family-visible harvest-shape change; the C++ twin mirrors it.
+    assert state.harvest_cursor is not None
     assert not any(isinstance(f, PendingFieldPhase) for f in state.pending_stack)
     assert _grid_grain_total(state, 0) == 2
     # The once-per-harvest conversion budget was reset at harvest entry.

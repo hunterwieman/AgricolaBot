@@ -345,6 +345,12 @@ struct GameState {
   std::array<PlayerState, 2> players{};
   BoardState board{};
   std::vector<PendingDecision> pending_stack{};
+  // Harvest virtual-walk cursor (mirrors GameState.harvest_cursor; ruling 40 —
+  // FEED/BREED banding). Set while a per-band-pass harvest frame is up (one
+  // payment/breeding frame per player pass, starting player first); nullopt
+  // everywhere else. The anchor values the Family engine produces live in
+  // constants.hpp (CURSOR_AFTER_*).
+  std::optional<int> harvest_cursor{};
   bool operator==(const GameState&) const = default;
 };
 
