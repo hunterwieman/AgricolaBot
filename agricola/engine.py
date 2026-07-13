@@ -133,6 +133,11 @@ from agricola.cards.triggers import (
 # table + the virtual-walk decode (the per-player FIELD band), the skip-guard seam,
 # and the per-occasion auto firing — all consumed by _advance_harvest. Another leaf
 # module — safe to import here without a load-order cycle.
+from agricola.cards.round_end import (
+    RETURN_SEGMENT_START,
+    ROUND_END_STEPS,
+    WORK_SEGMENT_END,
+)
 from agricola.cards.harvest_windows import (
     BREED_BAND_START,
     FEED_BAND_END,
@@ -928,9 +933,14 @@ def _advance_until_decision(state: GameState) -> GameState:
             continue
 
         # Case 3: WORK phase. If any player has workers, an agent decision
-        # is awaiting. If neither does, the work phase ends.
+        # is awaiting. If neither does, the work phase ends — but first the
+        # round-end ladder's WORK segment runs (end_of_work + after_work,
+        # rulings 49/50; a Family no-op).
         if state.phase == Phase.WORK:
             if all(p.people_home == 0 for p in state.players):
+                state, paused = _advance_round_end(state)
+                if paused:
+                    continue           # Case 1 returns the pushed frames
                 state = fast_replace(state, phase=Phase.RETURN_HOME)
                 continue
             # Accommodation barrier: round-start collection (_collect_future_rewards)
@@ -941,9 +951,14 @@ def _advance_until_decision(state: GameState) -> GameState:
                 continue
             return state
 
-        # Case 4: RETURN_HOME phase. End-of-round bookkeeping.
+        # Case 4: RETURN_HOME phase. The ladder's RETURN segment
+        # (start_of_returning_home → returning_home → the reset →
+        # after_returning_home → end_of_round), then the round transition.
         if state.phase == Phase.RETURN_HOME:
-            state = _resolve_return_home(state)
+            state, paused = _advance_round_end(state)
+            if paused:
+                continue
+            state = _round_transition(state)
             continue
 
         # Cases 5-7: the harvest phases with an empty stack. One unified walk
@@ -972,19 +987,57 @@ def _advance_until_decision(state: GameState) -> GameState:
 # Phase resolvers
 # ---------------------------------------------------------------------------
 
-def _resolve_return_home(state: GameState) -> GameState:
-    """End-of-round bookkeeping: reset worker placements, return people
-    home. Does NOT clear newborns (those need to survive to HARVEST_FEED
-    for the 1-food discount; clearing happens in _resolve_preparation of
-    the next round). Does NOT increment round_number (that happens in
-    _resolve_preparation).
+def _advance_round_end(state: GameState):
+    """Walk the round-end ladder (rulings 49/50; `round_end.ROUND_END_STEPS`)
+    from `state.round_end_cursor` — or the phase-derived segment start: the
+    WORK segment (end_of_work, after_work) before the RETURN_HOME flip, the
+    RETURN segment (start_of_returning_home → returning_home → the reset →
+    after_returning_home → end_of_round) inside RETURN_HOME. Returns
+    (state, paused): paused means frames were pushed (the cursor stores the
+    resume point); otherwise the segment completed and the cursor is clear.
 
-    Transitions to PREPARATION for ongoing rounds, or to BEFORE_SCORING
-    after round 4 in Task 5.
+    Windows resolve window-major (`_process_simple_window`, both players SP
+    first) with the harvest SKIP guard OFF — ruling 14's whole-harvest skip
+    covers the harvest ladder only (the returning-home phase is distinct
+    from the harvest, user 2026-07-12), and Layabout's round-latched
+    predicate is id-blind. The `returning_home` window fires BEFORE the
+    reset sentinel, so member cards read the still-placed board directly
+    (live occupancy is the event data — the Swimming Class design,
+    generalized). Constraint on member cards: a WORK-segment trigger must
+    not grant a worker placement (Case 3's all-placed gate is the segment's
+    resume guard); the placement-granting wordings (Delayed Wayfarer et al.)
+    are out of this ladder's scope by design.
+
+    Family fast path: no registrations → every window is two empty dict
+    lookups; no frames, no cursor, byte-identical states.
     """
-    # Future: card triggers fire here ("when you return home from
-    # action space X, may do Y"). Stub for Task 5.
+    cur = state.round_end_cursor
+    if cur is None:
+        cur = 0 if state.phase == Phase.WORK else RETURN_SEGMENT_START
+    else:
+        state = fast_replace(state, round_end_cursor=None)
+    end = (WORK_SEGMENT_END if state.phase == Phase.WORK
+           else len(ROUND_END_STEPS) - 1)
+    while cur <= end:
+        step_id = ROUND_END_STEPS[cur]
+        if step_id == "__reset__":
+            state = _return_home_reset(state)
+            cur += 1
+            continue
+        state, pushed = _process_simple_window(state, step_id,
+                                               skip_guarded=False)
+        cur += 1
+        if pushed:
+            return fast_replace(state, round_end_cursor=cur), True
+    return state, False
 
+
+def _return_home_reset(state: GameState) -> GameState:
+    """The mechanical return-home bookkeeping — the ladder's "__reset__"
+    sentinel: reset worker placements, return people home. Does NOT clear
+    newborns (those need to survive to HARVEST_FEED for the 1-food discount;
+    clearing happens in _resolve_preparation of the next round). Does NOT
+    increment round_number (that happens in _resolve_preparation)."""
     # 1. Reset every action space's worker tuple. Unrevealed spaces and any
     #    space no worker landed on this round already have workers=(0, 0);
     #    skip the replace for those so we don't construct identical objects.
@@ -1006,17 +1059,25 @@ def _resolve_return_home(state: GameState) -> GameState:
         for p in state.players
     )
 
-    state = fast_replace(state, players=new_players, board=new_board)
+    return fast_replace(state, players=new_players, board=new_board)
 
-    # 3. Decide next phase.
-    # On a HARVEST_ROUND (4, 7, 9, 11, 13, 14), route to HARVEST_FIELD. The
-    # harvest sub-phases (Field/Feed/Breed) own their own transitions and
-    # eventually land back in PREPARATION (rounds 1–13) or BEFORE_SCORING
-    # (after round 14's HARVEST_BREED — handled in _advance_until_decision).
+
+def _round_transition(state: GameState) -> GameState:
+    """The post-round-end phase transition. On a HARVEST_ROUND (4, 7, 9, 11,
+    13, 14), route to HARVEST_FIELD — the harvest sub-phases own their own
+    transitions and eventually land back in PREPARATION (rounds 1–13) or
+    BEFORE_SCORING (after round 14's HARVEST_BREED). Otherwise PREPARATION."""
     if state.round_number in HARVEST_ROUNDS:
         return fast_replace(state, phase=Phase.HARVEST_FIELD)
-
     return fast_replace(state, phase=Phase.PREPARATION)
+
+
+def _resolve_return_home(state: GameState) -> GameState:
+    """LEGACY TEST/COMPAT shape — the reset + the phase transition in one
+    call (the pre-ladder behavior; many tests drive the round boundary by
+    this name). The engine's walk runs the round-end ladder around these
+    pieces instead (`_advance_round_end` + `_round_transition`)."""
+    return _round_transition(_return_home_reset(state))
 
 
 def _count_revealed_stage_cards(state: GameState) -> int:
@@ -1388,21 +1449,27 @@ def _has_window_trigger(state: GameState, idx: int, event: str) -> bool:
                for e in entries)
 
 
-def _window_trigger_players(state: GameState, window_id: str) -> list[int]:
+def _window_trigger_players(state: GameState, window_id: str,
+                            *, skip_guarded: bool = True) -> list[int]:
     """The players owed a PendingHarvestWindow choice frame for a WINDOW-MAJOR
     window, in resolve order (starting player first): each non-skipped player
     owning an eligible trigger registered on the window's event. Empty — the
-    Family fast path and the autos-only path — when no trigger would surface."""
+    Family fast path and the autos-only path — when no trigger would surface.
+    `skip_guarded=False` — the round-end ladder — bypasses the harvest skip
+    guard (see _advance_round_end)."""
     sp = state.starting_player
     return [idx for idx in (sp, (sp + 1) % 2)
-            if not window_skipped(state, idx, window_id)
+            if (not skip_guarded or not window_skipped(state, idx, window_id))
             and _has_window_trigger(state, idx, window_id)]
 
 
-def _process_simple_window(state: GameState, window_id: str):
-    """Run one WINDOW-MAJOR simple harvest window (outside the FIELD band —
-    see `walk_position`): fire its automatic effects per player (starting
-    player first, skip-guarded), then push a PendingHarvestWindow choice frame
+def _process_simple_window(state: GameState, window_id: str,
+                           *, skip_guarded: bool = True):
+    """Run one WINDOW-MAJOR simple window — a harvest-ladder window outside
+    the bands (see `walk_position`) or a round-end-ladder window
+    (`_advance_round_end`, which passes skip_guarded=False: the harvest skip
+    covers the harvest ladder only): fire its automatic effects per player
+    (starting player first), then push a PendingHarvestWindow choice frame
     per player with an eligible trigger (non-SP first, so the starting player
     decides first). Returns (state, frames_pushed).
 
@@ -1410,9 +1477,10 @@ def _process_simple_window(state: GameState, window_id: str):
     lookups and back."""
     sp = state.starting_player
     for idx in (sp, (sp + 1) % 2):
-        if not window_skipped(state, idx, window_id):
+        if not skip_guarded or not window_skipped(state, idx, window_id):
             state = apply_auto_effects(state, window_id, idx)
-    frame_players = _window_trigger_players(state, window_id)
+    frame_players = _window_trigger_players(state, window_id,
+                                            skip_guarded=skip_guarded)
     for idx in reversed(frame_players):
         state = push(state, PendingHarvestWindow(window_id=window_id, player_idx=idx))
     return state, bool(frame_players)

@@ -139,6 +139,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # payment/breeding frame is up (values 14/17/20/23), so mid-feed/mid-breed
     # Family JSON now EMITS it — mirrored by the C++ engine (the banding re-port).
     "harvest_cursor",
+    # Card-only round-end walk cursor (engine._advance_round_end, rulings 49/50):
+    # set only while a round-end window's choice frame pauses the walk —
+    # Family-constant None (no round-end cards → no frames), so omitting it keeps
+    # the Family JSON byte-identical and needs no C++ change.
+    "round_end_cursor",
     # QUALIFIED entries ("<Type>.<field>") skip a field on ONE dataclass only —
     # for a field whose NAME is emitted on other (Family) frames but whose value
     # is Family-constant-default on this one. PendingHarvestBreed exists in every

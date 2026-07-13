@@ -394,15 +394,24 @@ class GameState:
     # size > 0). Set to None when the draft completes (all pools empty).
     draft_pools: tuple | None = None
 
-    # Card-only harvest-window walk cursor (engine._advance_harvest): the
+    # The harvest-window walk cursor (engine._advance_harvest): the
     # VIRTUAL-walk index the walk resumes at — the HARVEST_WINDOWS ladder with
-    # the FIELD band repeated once per player (harvest_windows.walk_position
-    # decodes it) — set ONLY when a choice frame pauses the walk mid-segment.
-    # None everywhere else — the phase derives the resume point at each harvest
-    # phase boundary, so a Family game (no window cards, no frames) carries
-    # None on every returned state and stays byte-identical (default-skipped
-    # in canonical.py).
+    # the FIELD, FEED, and BREED bands each repeated once per player
+    # (harvest_windows.walk_position decodes it). Set while any mid-walk frame
+    # is up — since the FEED/BREED banding (ruling 40, 2026-07-12) that
+    # includes the FAMILY game's payment/breeding pauses (values 14/17/20/23,
+    # mirrored by the C++ twin); None everywhere else (default-skipped in
+    # canonical.py when None).
     harvest_cursor: int | None = None
+
+    # Card-only round-end walk cursor (engine._advance_round_end): the index
+    # into round_end.ROUND_END_STEPS the walk resumes at — set ONLY while a
+    # round-end window's choice frame pauses the walk (ruling 49/50's ladder:
+    # end_of_work → after_work → start_of_returning_home → returning_home →
+    # the reset → after_returning_home → end_of_round). A Family game hosts
+    # no round-end frames, so it carries None on every state and stays
+    # byte-identical (default-skipped; the C++ engine needs no field).
+    round_end_cursor: int | None = None
 
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
@@ -410,7 +419,7 @@ class GameState:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
                       self.pending_stack, self.mode, self.draft_pools,
-                      self.harvest_cursor))
+                      self.harvest_cursor, self.round_end_cursor))
             object.__setattr__(self, "_hash_cache", h)
         return h
 
