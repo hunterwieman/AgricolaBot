@@ -642,7 +642,10 @@ The registration side of the window system; §5b has the mechanics and
   automatic effect — the window id IS the event string. Registrable: every simple window, plus
   the sentinels `"field_phase"` (during-window triggers + pre-take flat autos) and `"feeding"`
   (**choice-free income autos only** — fired at the FEED entry, before the payment decision);
-  `"breeding"` is not registrable. A card may register in more than one window (Dentist).
+  `"breeding"` is not hook-registrable — there is no window frame to host at that sentinel;
+  instead the breed frames host their own `"breeding"` / `"breeding_outcome"` triggers directly
+  (§5b, ruling 20 — Stone Importer / Fodder Planter). A card may register in more than one
+  window (Dentist).
 - **`register_harvest_skip(card_id, skip_fn)`** → `HARVEST_SKIP_CARDS` — per-card window
   suppression predicates `(state, idx, window_id) -> bool` (§5b). Exemplars: `lunchtime_beer`,
   `layabout`.
