@@ -965,12 +965,20 @@ decline; a single-option frame auto-resolves via singleton-skip). *(The legacy d
 `PendingHarvestField` is deleted — §5b.)* Beside the frames live the payload dataclasses they
 log or hand to consumers: `HarvestOccasion` / `HarvestEntry` and `BreedingOutcome` (§5b).
 
-**Grant wrappers.** `PendingGrantedBuildFences` — the choose-or-decline parent for an *optional*
-granted Build Fences (Field Fences): offers `ChooseSubAction("build_fences")` or `Stop`
-(declining), pushing the real multi-shot `PendingBuildFences` with the *card's* provenance so
-its discounts scope correctly. This is the template for optional grants of a mandatory-shaped
-primitive: the inner frame keeps its "must do ≥1" shape; **declining lives at the parent's
-choose+Stop, never a per-frame flag** (ENGINE_IMPLEMENTATION.md §2 invariant 3's corollary).
+**Grant wrappers.** `PendingGrantedSubAction` — the *generic* choose-or-decline parent for an
+*optional* granted sub-action, carrying a `subaction` discriminator (`"build_fences"` — Field
+Fences / Trellis; `"renovate"` — Dwelling Plan). It offers `ChooseSubAction(subaction)` (gated on
+the primitive being doable now, per a per-subaction eligibility dispatch) or `Stop` (declining),
+and on choose pushes the real primitive frame (`PendingBuildFences` / `PendingRenovate`) with the
+*card's* provenance so discounts/free-fence budgets scope correctly. This is the template for
+optional grants of a mandatory-shaped primitive: the inner frame keeps its "must do ≥1" shape;
+**declining lives at the parent's choose+Stop, never a per-frame flag** (ENGINE_IMPLEMENTATION.md
+§2 invariant 3's corollary). All primitive-specific *state* lives on the pushed child, so the
+wrapper stays field-free beyond the discriminator — the same one-frame-with-a-discriminator shape
+`PendingSubActionSpace` uses for delegating hosts (it generalized the deleted per-primitive
+`PendingGrantedBuildFences`). A passing card's optional grant *requires* this wrapper: an
+ownership-gated `after_play_minor` trigger can't host it, because a traveling card leaves the
+tableau before the after-phase (Dwelling Plan — §6).
 
 **Reconciliation.** `PendingAccommodate` — a bare per-player frame (no before/after lifecycle)
 hosting one `CommitAccommodate`: the player chooses which animals to KEEP (one option per
@@ -1610,7 +1618,7 @@ examples; this is the reference list.
 - **A granted sub-action is optional** unless the card says "you must" — even when worded like a
   command. Optional grants register as triggers (declinable); pure-goods "you can" grants with
   no downside may be autos. Optionality lives at the **parent's** choose+Stop
-  (`PendingGrantedBuildFences`), never a per-frame skip flag on the primitive. Always gate a
+  (`PendingGrantedSubAction`), never a per-frame skip flag on the primitive. Always gate a
   grant's eligibility on the action being legal *and affordable now* (`_can_plow`,
   `_can_build_stable(state, p, cost)`, `_can_renovate`, `_can_bake_bread`, …) so firing can
   never strand the player.
@@ -1714,11 +1722,53 @@ examples; this is the reference list.
   ```
 - **CardStore access**: `p.card_state.get(key, default)` / `p.card_state.set(key, value)`
   (immutable — `set` returns a new store).
-- **Pushing a granted primitive**: `push(state, PendingPlow(player_idx=idx,
+- **Pushing a MANDATORY granted primitive**: `push(state, PendingPlow(player_idx=idx,
   initiated_by_id="card:<id>"))`; `PendingBuildStables(..., cost=Resources(), max_builds=1)`;
   `PendingPlayOccupation(player_idx, initiated_by_id, cost=Resources())` (a free occupation
   play — gate on `playable_occupations` non-empty). The engine seams fire the leaf's
-  before-autos for you (§2's seam map).
+  before-autos for you (§2's seam map). This is the **mandatory** shape — the pushed primitive
+  runs to completion with no decline. For an **optional** grant, use the wrapper below.
+- **Granting an OPTIONAL sub-action at play — the standard `PendingGrantedSubAction` wrapper.**
+  When a card grants an *optional* sub-action of a **mandatory-shaped primitive** (one whose own
+  frame offers no decline — renovate, build-fences, build-rooms/stables, a granted plow) at card
+  play, push the generic choose-or-decline wrapper. **This is the canonical way; do not invent a
+  per-card mechanism or a per-primitive frame.**
+  ```python
+  from agricola.pending import PendingGrantedSubAction, push
+  return push(state, PendingGrantedSubAction(
+      player_idx=idx, initiated_by_id="card:<id>", subaction="renovate"))
+  ```
+  The wrapper offers `ChooseSubAction(subaction)` (gated on the primitive being doable *now* — never
+  a dead-end) or `Stop` (decline); choosing pushes the real primitive frame carrying the card's
+  provenance (so discounts / free-fence budgets scope correctly). Exemplars: **Dwelling Plan**
+  (`"renovate"`), **Field Fences** / **Trellis** (`"build_fences"`). It is the same
+  one-frame-with-a-discriminator shape `PendingSubActionSpace` uses for delegating hosts, and it
+  *replaced* the deleted per-primitive `PendingGrantedBuildFences`.
+
+  **Which of the three grant shapes you have:**
+  - **Mandatory** grant ("you must", or a grant with no rules decline) → push the primitive frame
+    *directly* (bullet above; Mini Pasture → `PendingBuildFences`, Shifting Cultivation →
+    `PendingPlow`). No wrapper.
+  - **Optional** grant fired from an **action-space host** that already hosts a decline (its
+    Proceed/Stop) → a `before_/after_action_space` trigger whose `apply_fn` pushes the primitive;
+    the host's Proceed/Stop *is* the decline (Assistant Tiller, Oven Firing Boy). No wrapper.
+  - **Optional** grant with **no surrounding decline** — an `on_play` grant, or *any* grant on a
+    **passing (traveling) card** → `PendingGrantedSubAction`. This is the only correct home: an
+    ownership-gated `after_play_minor` trigger **cannot** host a passing card's grant (the
+    traveling card leaves the tableau before the after-phase, so `_owns` fails and the trigger
+    never fires — the Dwelling Plan bug, fixed 2026-07-13), and pushing the primitive directly
+    would force it (no decline).
+
+  **Adding a new granted primitive is NOT a new frame** — extend the two dispatches:
+  - `legality._granted_subaction_eligible` — a `subaction` branch returning the primitive's
+    "doable now?" predicate (`_can_renovate`, `_any_legal_pasture_commit`, …), so the offer is
+    never a dead-end.
+  - `resolution._choose_subaction_granted_subaction` — a `subaction` branch pushing the primitive
+    frame with `top.initiated_by_id` + any setup (e.g. `free_fence_budget_for` for fences).
+
+  The wrapper carries only `player_idx` / `initiated_by_id` / `subaction` / `chosen`; **all
+  primitive-specific state lives on the pushed child**, which is what keeps it generic. Card-only:
+  auto-registered in canonical, never in a Family state, no C++ change (§4 frame reference).
 - **"Nth person placed this round"** = `(people_total − newborns) − people_home` — subtract
   same-round newborns or the index inflates mid-round (the Catcher bug).
 - **Round arithmetic**: harvest rounds {4, 7, 9, 11, 13, 14}; post-harvest rounds

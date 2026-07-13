@@ -146,7 +146,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A40 Potter's Yard** · cost: 1 Wood,1 Reed · prereq: At Most 7 Unused Farmyard Spaces
   - _Immediately place 1 clay on each unused space in your farmyard. Each time you turn a space into a used space, you get the clay and you can immediately exchange it for 2 food._
   - `ONPLAY HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-CONVERT ST-STACK` — Clay is laid out on play and stockpiled on farmyard spaces (ST-STACK); a space becomes used as the RESULT of a sub-action (plow/build room/stable/fence) so the hook is S-SUB and fires after it; 'you get the clay' is mandatory (F-AUTO), with the 2-food exchange an optional rider (E-CONVERT).
-- ⬜ **A41 Vegetable Slicer** · cost: 1 Wood
+- ✅ **A41 Vegetable Slicer** · cost: 1 Wood
   - _Each time you upgrade a Fireplace to a Cooking Hearth, you immediately get 2 wood and 1 vegetable (not retroactively)._
   - `HOOK T-AFTER S-MAJMIN F-AUTO A-OWN E-GOODS ST-PROV` — The Fireplace-to-Cooking-Hearth upgrade happens via the improvement-buying action, not a listed primitive sub-action, so S-MAJMIN; the card must see WHICH improvement was built and that a Fireplace was returned in payment (ST-PROV); 'immediately get' = T-AFTER + F-AUTO.
 - ✅ **A42 Forest Lake Hut** · cost: 2 Clay
@@ -305,7 +305,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B8 Market Stall** · cost: 1 Grain · passing
   - _You immediately get 1 vegetable. (Effectively, you are exchanging 1 grain for 1 vegetable)._
   - `ONPLAY E-GOODS E-PASSING` — The 'exchange' is just the printed play-cost (1 grain) plus an on-play vegetable gain; ordinary-resource costs get no code, so E-CONVERT is wrong. Passing minor.
-- ⬜ **B9 Beating Rod** · passing
+- ✅ **B9 Beating Rod** · passing
   - _You can immediately choose to either get 1 reed or exchange 1 reed for 1 cattle._
   - `ONPLAY E-GOODS E-CONVERT E-ANIMALS E-PASSING` — Choose gain 1 reed OR convert 1 reed->1 cattle; convert + provides animal; passing.
 - 🚫 **B10 Caravan** · cost: 3 Wood,3 Food
@@ -401,7 +401,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B40 Brewery Pond** · prereq: 2 Occupations
   - _Each time you use the "Fishing" or "Reed Bank" accumulation space, you also get 1 grain and 1 wood._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — "Each time you use [space]" fires BEFORE the space's action per the explicit ruling; labelB's T-BEFORE is correct, all other tags agree.
-- ⬜ **B41 Hauberg** · cost: 3 Food · prereq: 3 Occupations
+- ✅ **B41 Hauberg** · cost: 3 Food · prereq: 3 Occupations
   - _Alternate placing 2 wood and 1 wild boar on the next 4 round spaces. You decide what to start with. At the start of these rounds, you get the goods._
   - `ONPLAY E-SCHED E-SCHEDANIMAL E-ANIMALS` — On play, alternate 2 wood / 1 wild boar on next 4 round spaces (player chooses start); collected at round start; animals must be accommodated.
 - ⬜ **B42 Forest Inn** · cost: 1 Clay,1 Reed · prereq: Play in Round 6 or Before
@@ -653,7 +653,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C39 Studio Boat** · cost: 1 Wood · prereq: 1 Occupation
   - _Each time you use the "Traveling Players" accumulation space, you also get 1 bonus point. In games with 1-3 players, this card is considered "Traveling Players" (same effect as "Fishing").  [CLARIFICATION: In 1-3 player games, the card becomes another accumulation space (+1 food) for all.]_
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-SCORE L-CARDSPACE ST-COUNTER` — Both labels agree on the core: mandatory bonus point each use of Traveling Players ('each time you use' -> T-BEFORE), and in 1-3p (incl. this 2p engine) the card IS an accumulation space (L-CARDSPACE). Added ST-COUNTER: bonus points earned through play must be tallied.
-- ⬜ **C40 Canvas Sack** · cost: 1 Grain/1 Reed · prereq: No Occupations
+- ✅ **C40 Canvas Sack** · cost: 1 Grain/1 Reed · prereq: No Occupations
   - _When you play this card paying grain/reed for it, you immediately get 1 vegetable/4 wood._
   - `ONPLAY E-GOODS E-PLAYVARIANT` — Play cost forks grain->1 veg or reed->4 wood; cost and reward linked = play-variant.
 - ✅ **C41 Farm Store** · cost: 2 Wood,2 Clay
@@ -1163,13 +1163,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E39 Paintbrush** · cost: 1 Wood · prereq: 1 Wild Boar
   - _Each harvest, you can exchange exactly 1 clay for your choice of 2 food or 1 bonus point._
   - `ATWILL CAP-HARVEST E-CONVERT E-SCORE ST-COUNTER` — Optional once-per-harvest exchange (ATWILL+CAP-HARVEST); clay->2-food is E-CONVERT (food is the conversion output, not separate E-GOODS); clay->bonus-point is action-earned E-SCORE whose accumulated points need a per-card running count (ST-COUNTER).
-- ⬜ **E40 Bee Statue** · cost: 2 Clay
+- ✅ **E40 Bee Statue** · cost: 2 Clay
   - _Pile (from bottom to top) 1 vegetable, 1 stone, 1 grain, 1 stone, 1 grain on this card. Each time you use the "Day Laborer" action space, you get the top good._
   - `ONPLAY HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS ST-STACK` — On-play piles goods on the card (ONPLAY+ST-STACK); 'each time you use Day Laborer' fires T-BEFORE on S-SPACE, and 'you get the top good' is mandatory -> F-AUTO (B right, A's F-TRIG wrong).
-- ⬜ **E41 Muddy Waters** · prereq: 5 Cards in Play
+- ✅ **E41 Muddy Waters** · prereq: 5 Cards in Play
   - _Alternate placing 1 food and 1 clay on each remaining even-numbered round space, starting with food. At the start of these rounds, you get the respective good._
   - `ONPLAY E-SCHED` — Places food/clay on remaining even round spaces, collected at start of those rounds.
-- ⬜ **E42 Water Gully** · cost: 1 Stone · prereq: “Well” Major Improvement
+- ✅ **E42 Water Gully** · cost: 1 Stone · prereq: “Well” Major Improvement
   - _Place 1 cattle, 1 grain, and 1 cattle on the next 3 round spaces (in that order). At the start of these rounds, you get the respective good._
   - `ONPLAY E-SCHED E-SCHEDANIMAL E-ANIMALS` — Places cattle/grain/cattle on next 3 round spaces; cattle are animals needing accommodation.
 - ⬜ **E43 Barn Cats** · prereq: 1 Stable

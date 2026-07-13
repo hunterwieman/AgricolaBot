@@ -2,61 +2,50 @@
 
 Card text: "You can immediately take a 'Renovation' action."
 
-No prerequisite, no printed VPs, not a passing/traveling card.
+TRAVELING (passing) minor — D2 is a number-001-009 card (`passing_left='X'` in the
+catalog): after its immediate effect it passes to the opponent's hand rather than
+staying in the tableau. No prerequisite, no printed VPs.
 
 Category 4 (granted sub-action) — an OPTIONAL on-play grant of a single Renovate
 primitive. "You can ... take" is the standard optional wording, so the renovation
 is DECLINABLE.
 
-Optionality is the whole trap here. PendingRenovate's before-phase enumerator
-(`_enumerate_pending_renovate`) offers a CommitRenovate per legal target but NO
-Stop — the renovate cannot be declined once that frame is pushed. So we must NOT
-push PendingRenovate unconditionally from on_play (that is Shifting Cultivation's
-shape, correct only for a MANDATORY primitive). Instead the grant is an OPTIONAL
-`after_play_minor` trigger: the play-minor host (`PendingPlayMinor`) pivots to its
-after-phase after this minor is played, and that after-phase already surfaces
-`FireTrigger("dwelling_plan")` (= renovate) alongside `Stop` (= decline). The
-player chooses; declining is just picking Stop instead of firing.
+Mechanism — because the card is PASSING, an ownership-gated `after_play_minor`
+trigger cannot host the grant: `_execute_play_minor` moves a traveling card to the
+opponent's hand BEFORE the after-phase, so the owner no longer `_owns` it and the
+trigger would never fire (it would silently do nothing). Instead `on_play` pushes
+the generic `PendingGrantedSubAction(subaction="renovate")` choose-or-decline
+wrapper — the optional-grant pattern shared with Field Fences / Trellis, which is
+NOT ownership-gated (it is a pushed frame, so it works regardless of the card
+having passed). The wrapper offers `ChooseSubAction("renovate")` when a renovate is
+legal + payable (its enumerator gates on `_can_renovate`, so the no-Stop
+`PendingRenovate` is never a dead-end), alongside `Stop` (= decline). Choosing
+pushes the standard `PendingRenovate` with this card's provenance; its cost resolves
+through the cost-modifier chokepoint exactly like House Redevelopment.
 
-Sequencing (load-bearing): `_execute_play_minor` adds `dwelling_plan` to
-`minor_improvements` and flips the host to its after-phase BEFORE running on_play,
-so the card IS owned by the time the after-phase enumerates triggers — `_owns`
-passes and the trigger is offered. on_play itself is a no-op here.
-
-Eligibility gates on `_can_renovate` (at least one legal, payable renovate target
-through the cost-modifier chokepoint) so the grant is never offered when firing it
-would dead-end on the no-Stop PendingRenovate frame. The host's `triggers_resolved`
-guard fires it at most once.
-
-See CARD_IMPLEMENTATION_PLAN.md Category 4; mirrors the optional-renovate grant
-shape of Cottager's renovate variant and the after_play_X granted-primitive shape
-of Bread Paddle.
+That a passing card with an optional sub-action grant NEEDS the wrapper (not an
+after-trigger) is the reason the generic frame exists. See PendingGrantedSubAction
+(pending.py) and the Field Fences / Trellis build-fences grants.
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register
-from agricola.legality import _can_renovate
-from agricola.pending import PendingRenovate, push
+from agricola.pending import PendingGrantedSubAction, push
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "dwelling_plan"
 
 
-def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
-    """Offer the renovate only when it is unfired this play and a legal, payable
-    renovate target exists (so the pushed no-Stop PendingRenovate never dead-ends)."""
-    return (CARD_ID not in triggers_resolved
-            and _can_renovate(state, state.players[idx]))
+def _on_play(state: GameState, idx: int) -> GameState:
+    # Push the generic optional-grant wrapper for a renovate; its enumerator gates the
+    # offer on _can_renovate (never a dead-end) and hosts the decline (Stop). Works even
+    # though this passing card has already left the tableau — the wrapper isn't
+    # ownership-gated. on_play runs after the play host flips to its after-phase (the
+    # Shifting-Cultivation nesting), so the wrapper lands on the already-"after" host.
+    return push(state, PendingGrantedSubAction(
+        player_idx=idx, initiated_by_id="card:dwelling_plan", subaction="renovate"))
 
 
-def _apply(state: GameState, idx: int) -> GameState:
-    # Push the standard Renovate primitive; its enumerator offers the CommitRenovate
-    # targets and resolves cost through the cost-modifier chokepoint (exactly like
-    # House Redevelopment) — nothing to compute or store here.
-    return push(state, PendingRenovate(player_idx=idx, initiated_by_id="card:dwelling_plan"))
-
-
-register_minor(CARD_ID, cost=Cost(resources=Resources(food=1)))
-register("after_play_minor", CARD_ID, _eligible, _apply)
+register_minor(CARD_ID, cost=Cost(resources=Resources(food=1)),
+               passing_left=True, on_play=_on_play)

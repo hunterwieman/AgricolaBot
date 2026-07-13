@@ -36,7 +36,7 @@ def test_registered():
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost(resources=Resources(wood=1))
     assert spec.vps == 0
-    assert spec.passing_left is False
+    assert spec.passing_left is True          # D7 is a traveling minor
     assert spec.on_play is not None
     assert spec.prereq is not None
     # Pure on-play minor — no trigger/hook machinery.
@@ -129,7 +129,8 @@ def test_play_minor_flow():
     cs = step(cs, sole_play_minor(cs, CARD_ID))
 
     pl = cs.players[cp]
-    assert CARD_ID in pl.minor_improvements
-    assert CARD_ID not in pl.hand_minors
+    # Traveling: passes to the opponent's hand, not kept in the tableau.
+    assert CARD_ID not in pl.minor_improvements
+    assert CARD_ID in cs.players[1 - cp].hand_minors
     assert pl.resources.wood == 0                 # cost paid
     assert pl.resources.food == before_food + 4   # round 6 -> +4 food

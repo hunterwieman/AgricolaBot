@@ -74,11 +74,16 @@ def _fmt(card: dict, implemented: set[str]) -> str:
             f"players {card.get('players', '-')} · category {card.get('card_category', '-')}"
             f" · status {card.get('status', '-')}")
     lines = [head]
-    # Minor-only structured fields (None/"X" when absent).
-    for key, label in (("cost", "cost"), ("prerequisites", "prereq"),
-                       ("vps", "vps"), ("passing_left", "passing_left")):
+    # Minor-only structured fields. These use "X" as an ABSENT placeholder.
+    for key, label in (("cost", "cost"), ("prerequisites", "prereq"), ("vps", "vps")):
         if key in card and card[key] not in (None, "X", ""):
             lines.append(f"  {label}: {card[key]}")
+    # `passing_left` is the ONE field where "X" means PRESENT (this is a traveling
+    # minor that passes to the opponent after play — a load-bearing rules fact), so it
+    # must NOT be swept into the absent-placeholder skip above. Surface it loudly: this
+    # exact confusion silently hid the flag and mis-implemented five traveling minors.
+    if card.get("passing_left"):
+        lines.append("  passing: YES — traveling minor (passes to the opponent after play)")
     lines.append(f"  text: {card['text']}")
     # Compendium rulings (added from the Unofficial Compendium): clarifications are
     # community/official rulings; errata are official corrections (may change the card).

@@ -2,7 +2,9 @@
 
 Card text (verbatim): "You can immediately choose to either get 1 reed or
 exchange 1 reed for 1 cattle."
-No cost, no prerequisite, no printed VPs.
+No cost, no prerequisite, no printed VPs. TRAVELING (passing) minor — B9 is a
+number-001-009 card (`passing_left='X'` in the catalog): after its on-play effect
+it moves to the OPPONENT's hand rather than staying in the player's tableau.
 
 An on-play choice between two EFFECTS (not two costs): (a) get 1 reed, or (b) pay
 1 reed to get 1 cattle. Per the user (2026-07-13) the player must take ONE of the
@@ -53,5 +55,5 @@ def _on_play(state: GameState, idx: int, variant: str) -> GameState:
         p if i == idx else state.players[i] for i in range(2)))
 
 
-register_minor(CARD_ID, on_play=_on_play)
+register_minor(CARD_ID, passing_left=True, on_play=_on_play)
 register_play_minor_variant(CARD_ID, _variants)

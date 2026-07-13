@@ -5,7 +5,9 @@ you have."
 
 Clarification: "A newborn is a person."
 
-Cost 2 food, prerequisite 1 occupation, no printed VPs, kept (not passing).
+Cost 2 food, prerequisite 1 occupation, no printed VPs. TRAVELING (passing) minor
+— B6 is a number-001-009 card (`passing_left='X'` in the catalog): after its
+on-play gain it passes to the opponent's hand rather than staying in the tableau.
 
 Category 2 (on-play one-shot). The stone gained equals `people_total` — the
 player's home + placed workers AND newborns (the `PlayerState.people_total` field
@@ -34,5 +36,6 @@ register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(food=2)),
     min_occupations=1,
+    passing_left=True,
     on_play=_on_play,
 )

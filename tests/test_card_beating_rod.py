@@ -70,7 +70,15 @@ def test_json_row():
 def test_registered():
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost()
+    assert spec.passing_left is True          # B9 is a traveling minor
     assert CARD_ID in PLAY_MINOR_VARIANTS
+
+
+def test_json_passing():
+    """Guard the traveling-minor classification against the raw catalog."""
+    row = next(r for r in json.load(open(_DATA / "revised_minor_improvements.json"))
+               if r["name"] == "Beating Rod")
+    assert row["passing_left"] == "X"
 
 
 # ---------------------------------------------------------------------------
@@ -99,14 +107,17 @@ def test_always_playable_and_no_do_nothing():
 # Effects
 # ---------------------------------------------------------------------------
 
-def test_get_reed_route():
+def test_get_reed_route_and_passes():
     state, cp = _at_play_minor_frame(reed=2)
     (reed_play,) = [a for a in _plays(state) if a.variant == "reed"]
     out = step(state, reed_play)
     p = out.players[cp]
-    assert CARD_ID in p.minor_improvements
     assert p.resources.reed == 3             # 2 + 1
     assert p.animals.cattle == 0
+    # Traveling minor: it does NOT stay in the tableau; it moves to the opponent.
+    assert CARD_ID not in p.minor_improvements
+    assert CARD_ID not in p.hand_minors
+    assert CARD_ID in out.players[1 - cp].hand_minors
 
 
 def test_exchange_reed_for_cattle_that_fits():

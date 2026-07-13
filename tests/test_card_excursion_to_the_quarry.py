@@ -2,7 +2,7 @@
 
 Card text: "You immediately get a number of stone equal to the number of people
 you have." Clarification: "A newborn is a person." Cost 2 food, prereq 1 occupation,
-kept (not passing), vps 0.
+traveling (passing), vps 0.
 
 Drives the effect through the real improvement-space minor-play flow (PlaceWorker
 -> ChooseSubAction("improvement") -> ChooseSubAction("play_minor") -> commit),
@@ -49,7 +49,7 @@ def test_registered_with_correct_spec():
     spec = MINORS[CARD_ID]
     assert spec.cost == Cost(resources=Resources(food=2))
     assert spec.min_occupations == 1
-    assert spec.passing_left is False
+    assert spec.passing_left is True         # B6 is a traveling minor
     assert spec.vps == 0
 
 
@@ -92,9 +92,9 @@ def test_gain_stone_equal_to_people():
     cs, cp = _play(5, people_total=2, newborns=0)
     assert cs.players[cp].resources.stone == 2       # base 2 people
     assert cs.players[cp].resources.food == 0        # 2 food cost paid
-    # kept (non-passing): lands in the tableau, NOT the opponent's hand.
-    assert CARD_ID in cs.players[cp].minor_improvements
-    assert CARD_ID not in cs.players[1 - cp].hand_minors
+    # traveling: passes to the opponent's hand, not kept in the tableau.
+    assert CARD_ID not in cs.players[cp].minor_improvements
+    assert CARD_ID in cs.players[1 - cp].hand_minors
 
 
 def test_stone_adds_to_existing_and_scales_with_people():

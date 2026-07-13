@@ -681,11 +681,12 @@ Find the row that matches your card's shape and copy that module's structure.
 | Cost modifier — conversion ("replace A with B") / per-action-budgeted sink | `frame_builder.py`, `millwright.py` (the per-action-budget + `record` pattern) |
 | Cost modifier — renovate-target extension ("renovate wood→stone directly") | `conservator.py` (`register_renovate_target_extension`; cost follows the target) |
 | On-play: gain goods | `consultant.py`, `clay_embankment.py` |
-| On-play: push a primitive (plow/etc.) | `shifting_cultivation.py` |
+| On-play: push a MANDATORY primitive (plow/etc.) | `shifting_cultivation.py` |
+| On-play OPTIONAL granted sub-action (renovate/build-fences/…) | `dwelling_plan.py`, `field_fences.py` — the generic `PendingGrantedSubAction` choose-or-decline wrapper (CARD_ENGINE_IMPLEMENTATION.md §6 Idioms). **The standard way**; the *only* correct home for a passing card's optional grant (an `after_play_minor` trigger can't host it). NOT `assistant_tiller.py` (that's the action-space-host trigger shape below). |
 | Passing (traveling) minor | `market_stall.py` |
 | Variable end-game VP (scoring term) | `stable_architect.py`, `manger.py`, `wool_blankets.py` |
 | Automatic income on space use (before/after) | `wood_cutter.py`, `corn_scoop.py` |
-| Optional granted sub-action (trigger) | `assistant_tiller.py`, `threshing_board.py`, `oven_firing_boy.py` |
+| Optional granted sub-action ON AN ACTION SPACE (trigger; the host's Proceed/Stop is the decline) | `assistant_tiller.py`, `threshing_board.py`, `oven_firing_boy.py` |
 | Mandatory-with-choice | `seasonal_worker.py`, `childless.py` |
 | Play-variant choice (two routes) | `scholar.py` (start-of-round), `cottager.py` (action-space) |
 | Opponent-action hook (`any_player`) | `milk_jug.py` |

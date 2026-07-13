@@ -20,8 +20,9 @@ a literal Build Fences action. It combines two shapes already in the codebase:
 - The OPTIONAL granted Build Fences action (Field Fences): "you CAN take a Build Fences
   action" is the player's choice, so this is a declinable `register` trigger (NOT a
   choiceless `register_auto`). The optionality IS the FireTrigger — declining is simply not
-  firing it (the host's Proceed). Once fired, `_apply` pushes the thin
-  `PendingGrantedBuildFences` choose-or-decline wrapper (NOT the build host directly), which
+  firing it (the host's Proceed). Once fired, `_apply` pushes the thin generic
+  `PendingGrantedSubAction(subaction="build_fences")` choose-or-decline wrapper (NOT the build
+  host directly), which
   offers ChooseSubAction("build_fences") when a pasture is buildable, else only Stop. The
   wrapper's build_fences choice pushes the real multi-shot `PendingBuildFences` carrying this
   card's provenance ("card:trellis"); the player builds pasture(s) one at a time then Stops.
@@ -44,7 +45,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register
-from agricola.pending import PendingGrantedBuildFences, push
+from agricola.pending import PendingGrantedSubAction, push
 from agricola.resources import Cost
 from agricola.state import GameState
 
@@ -71,7 +72,8 @@ def _apply(state: GameState, idx: int) -> GameState:
     # natural multi-shot "build a pasture / Stop" loop (matching Field Fences). The wrapper
     # pushes the real PendingBuildFences with this card's provenance — no free-fence budget,
     # so it pays the normal wood cost.
-    return push(state, PendingGrantedBuildFences(player_idx=idx, initiated_by_id=FRAME_ID))
+    return push(state, PendingGrantedSubAction(
+        player_idx=idx, initiated_by_id=FRAME_ID, subaction="build_fences"))
 
 
 register_minor(CARD_ID, cost=Cost(), min_occupations=2)   # no on-play effect (default no-op)

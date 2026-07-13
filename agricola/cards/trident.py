@@ -3,7 +3,9 @@ prereq "Play in Round 3, 6, 9, or 12").
 
 Card text: "If you play this card in round 3/6/9/12, you immediately get
 3/4/5/6 food."
-Cost: 1 Wood. VPs: 0. Not passing.
+Cost: 1 Wood. VPs: 0. TRAVELING (passing) minor — D7 is a number-001-009 card
+(`passing_left='X'` in the catalog): after its on-play food gain it passes to the
+opponent's hand rather than staying in the tableau.
 
 Category 2 (on-play one-shot). The "3/6/9/12 -> 3/4/5/6 food" slash list is NOT
 an OR/play-variant — it is a positional schedule keyed to the round in which the
@@ -48,5 +50,6 @@ register_minor(
     CARD_ID,
     cost=Cost(resources=Resources(wood=1)),
     prereq=_prereq,
+    passing_left=True,
     on_play=_on_play,
 )

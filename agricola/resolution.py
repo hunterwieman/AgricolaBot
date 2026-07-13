@@ -45,7 +45,7 @@ from agricola.pending import (
     PendingChooseCost,
     PendingBuildStables,
     PendingFieldPhase,
-    PendingGrantedBuildFences,
+    PendingGrantedSubAction,
     PendingBuildMajor,
     PendingClayOven,
     PendingFarmRedevelopment,
@@ -985,25 +985,31 @@ def _choose_subaction_farm_redevelopment(
     raise ValueError(f"Unknown sub-action {action.name!r} for Farm Redevelopment")
 
 
-def _choose_subaction_granted_build_fences(
+def _choose_subaction_granted_subaction(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
-    """Card-game choose handler for an OPTIONAL granted Build Fences (Field Fences). The
-    sole sub-action `build_fences` flips the wrapper's `build_fences_chosen` and pushes the
-    real multi-shot PendingBuildFences carrying the grant's own provenance (so the card's
-    positional discount applies) + any seeded free-fence budget. Declining is the wrapper's
-    Stop, not handled here. Mirrors Farm Redevelopment's build-fences push."""
-    from agricola.cards.cost_mods import free_fence_budget_for
+    """Card-game choose handler for an OPTIONAL granted sub-action (Field Fences / Trellis →
+    build_fences; Dwelling Plan → renovate). Flips the wrapper's `chosen` and pushes the real
+    primitive frame carrying the grant's own provenance (so a fence grant's positional discount
+    + seeded free-fence budget apply). Declining is the wrapper's Stop, not handled here.
+    Dispatches on the wrapper's `subaction` (== `action.name`)."""
     top = state.pending_stack[-1]
     p_idx = top.player_idx
-    if action.name == "build_fences":
-        state = replace_top(state, fast_replace(top, build_fences_chosen=True))
+    if action.name != top.subaction:
+        raise ValueError(
+            f"sub-action {action.name!r} != granted {top.subaction!r}")
+    state = replace_top(state, fast_replace(top, chosen=True))
+    if top.subaction == "renovate":
+        return push(state, PendingRenovate(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id))
+    if top.subaction == "build_fences":
+        from agricola.cards.cost_mods import free_fence_budget_for
         return push(state, PendingBuildFences(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id,
             free_fence_budget=free_fence_budget_for(
                 state, p_idx, build_fences_action=True, space_id=top.initiated_by_id),
         ))
-    raise ValueError(f"Unknown sub-action {action.name!r} for granted Build Fences")
+    raise ValueError(f"Unknown granted sub-action {top.subaction!r}")
 
 
 def _choose_subaction_basic_wish_for_children(
@@ -1084,7 +1090,7 @@ CHOOSE_SUBACTION_HANDLERS[PendingStoneOven] = _choose_subaction_stone_oven
 CHOOSE_SUBACTION_HANDLERS[PendingHouseRedevelopment] = _choose_subaction_house_redevelopment
 CHOOSE_SUBACTION_HANDLERS[PendingFarmExpansion] = _choose_subaction_farm_expansion
 CHOOSE_SUBACTION_HANDLERS[PendingFarmRedevelopment] = _choose_subaction_farm_redevelopment
-CHOOSE_SUBACTION_HANDLERS[PendingGrantedBuildFences] = _choose_subaction_granted_build_fences
+CHOOSE_SUBACTION_HANDLERS[PendingGrantedSubAction] = _choose_subaction_granted_subaction
 CHOOSE_SUBACTION_HANDLERS[PendingBasicWishForChildren] = _choose_subaction_basic_wish_for_children
 CHOOSE_SUBACTION_HANDLERS[PendingMeetingPlace] = _choose_subaction_meeting_place
 

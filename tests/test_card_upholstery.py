@@ -3,7 +3,7 @@ place 1 reed on the card for 1 bonus point, capped at your room count."""
 import agricola.cards.upholstery  # noqa: F401  (registers the card)
 import agricola.cards.dwelling_plan  # noqa: F401  (a second minor to play "after")
 
-from agricola.actions import FireTrigger
+from agricola.actions import FireTrigger, Stop
 from agricola.cards.specs import MINORS
 from agricola.cards.triggers import CARDS, TRIGGERS
 from agricola.cards.upholstery import CARD_ID, _apply, _eligible, _on_play
@@ -121,7 +121,11 @@ def test_fires_on_a_later_minor_play():
     cs = with_pending_stack(
         cs, (PendingPlayMinor(player_idx=cp, initiated_by_id="space:meeting_place_cards"),))
     cs = step(cs, sole_play_minor(cs, "dwelling_plan"))
-    # dwelling_plan's own renovate is unaffordable (no clay) -> only Upholstery offered.
+    # dwelling_plan pushes its optional-renovate wrapper from on_play (like any on_play frame
+    # push — Shifting Cultivation, Field Fences); it sits above the play-minor after-phase.
+    # Renovate is unaffordable here (no clay) so the wrapper offers only Stop; declining it
+    # returns to the after-phase where Upholstery's after_play_minor trigger lives.
+    cs = step(cs, Stop())
     assert FireTrigger(card_id=CARD_ID) in legal_actions(cs)
     cs = step(cs, FireTrigger(card_id=CARD_ID))
     assert cs.players[cp].resources.reed == 0

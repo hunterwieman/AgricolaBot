@@ -17,8 +17,11 @@ Ownership is read from the BOARD (state.board.major_improvement_owners), not a
 PlayerState field. In the 2-player game each major exists in exactly one copy
 and is owned 0 or 1 times, so the "1 of each" clarification needs no dedup.
 
-Category 2 (on-play one-shot). No cost, no prerequisite, no printed VPs, kept
-(not passing). No stored state.
+Category 2 (on-play one-shot). No cost, no prerequisite, no printed VPs. TRAVELING
+(passing) minor — A6 is a number-001-009 card (`passing_left='X'` in the catalog):
+after its on-play gain it passes to the opponent's hand rather than staying in the
+tableau. The gain reads the board, so passing (which happens before on_play) does
+not affect it. No stored state.
 """
 from __future__ import annotations
 
@@ -53,4 +56,4 @@ def _on_play(state: GameState, idx: int) -> GameState:
     )
 
 
-register_minor(CARD_ID, on_play=_on_play)
+register_minor(CARD_ID, passing_left=True, on_play=_on_play)

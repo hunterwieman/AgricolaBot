@@ -19,7 +19,7 @@ from agricola.cards.field_fences import CARD_ID, FRAME_ID
 from agricola.constants import GameMode
 from agricola.engine import step
 from agricola.legality import legal_actions
-from agricola.pending import PendingBuildFences, PendingGrantedBuildFences, push
+from agricola.pending import PendingBuildFences, PendingGrantedSubAction, push
 from agricola.replace import fast_replace
 
 from tests.factories import with_fields, with_resources
@@ -153,7 +153,8 @@ def test_play_grants_optional_build_fences_then_build():
     cs = _play_field_fences_via_improvement(cs, cp)
     # The OPTIONAL grant wrapper is on top of the after-flipped play host — NOT the build host.
     top = cs.pending_stack[-1]
-    assert isinstance(top, PendingGrantedBuildFences) and top.initiated_by_id == FRAME_ID
+    assert isinstance(top, PendingGrantedSubAction) and top.initiated_by_id == FRAME_ID
+    assert top.subaction == "build_fences"
     assert cs.players[cp].resources.food == 0       # the 2-food cost was paid at play
     # Opt in: choose Build Fences -> the real build host (with the grant provenance).
     cs = step(cs, ChooseSubAction(name="build_fences"))
@@ -171,12 +172,12 @@ def test_play_grant_can_be_declined_even_when_buildable():
     cs = with_fields(cs, cp, [(0, 2)])
     cs = _play_field_fences_via_improvement(cs, cp)
     top = cs.pending_stack[-1]
-    assert isinstance(top, PendingGrantedBuildFences)
+    assert isinstance(top, PendingGrantedSubAction)
     options = legal_actions(cs)
     assert any(isinstance(a, ChooseSubAction) and a.name == "build_fences" for a in options)
     assert any(isinstance(a, Stop) for a in options)     # decline is offered
     cs = step(cs, Stop())                                # decline
-    assert not any(isinstance(f, (PendingGrantedBuildFences, PendingBuildFences))
+    assert not any(isinstance(f, (PendingGrantedSubAction, PendingBuildFences))
                    for f in cs.pending_stack)            # wrapper popped, no build host
     assert CARD_ID in cs.players[cp].minor_improvements  # card kept, cost paid
 
@@ -187,7 +188,7 @@ def test_play_grant_only_decline_when_nothing_buildable():
     cs, cp = _setup_play(food=2, wood=0)
     cs = _play_field_fences_via_improvement(cs, cp)
     top = cs.pending_stack[-1]
-    assert isinstance(top, PendingGrantedBuildFences)
+    assert isinstance(top, PendingGrantedSubAction)
     assert [type(a).__name__ for a in legal_actions(cs)] == ["Stop"]
     cs = step(cs, Stop())
     assert cs.players[cp].resources.food == 0        # cost still paid; card kept

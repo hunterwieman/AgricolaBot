@@ -80,7 +80,7 @@ from agricola.pending import (
     PendingFieldPhase,
     FenceRestrictions,
     PendingFarmRedevelopment,
-    PendingGrantedBuildFences,
+    PendingGrantedSubAction,
     PendingFoodPayment,
     PendingGrainUtilization,
     PendingHarvestOccasion,
@@ -2242,22 +2242,32 @@ def _enumerate_pending_farm_redevelopment(
     return actions
 
 
-def _enumerate_pending_granted_build_fences(
-    state: GameState, pending: "PendingGrantedBuildFences",
+def _granted_subaction_eligible(state: GameState, pending: "PendingGrantedSubAction") -> bool:
+    """Is the granted sub-action doable RIGHT NOW (so the grant never offers a dead-end)?
+    Dispatches on `pending.subaction` to the primitive's own legality — anticipating the exact
+    frame the choose-handler will push (same provenance / free-fence budget for fences)."""
+    p = state.players[pending.player_idx]
+    if pending.subaction == "renovate":
+        return _can_renovate(state, p)
+    if pending.subaction == "build_fences":
+        return _any_legal_pasture_commit(
+            state, p, space_id=pending.initiated_by_id,
+            initiated_by_id=pending.initiated_by_id)
+    raise ValueError(f"Unknown granted sub-action {pending.subaction!r}")
+
+
+def _enumerate_pending_granted_subaction(
+    state: GameState, pending: "PendingGrantedSubAction",
 ) -> list[Action]:
-    """Enumerate legal actions at PendingGrantedBuildFences — an OPTIONAL granted Build
-    Fences (Field Fences). Offers ChooseSubAction("build_fences") (only before the build is
-    taken AND when at least one pasture is buildable under THIS grant's provenance — so the
-    grant's positional discount is anticipated, mirroring Farm Redev's offer) plus Stop
-    (decline before, or finish after). After the inner build pops, `build_fences_chosen` is
-    True, so only Stop remains."""
+    """Enumerate legal actions at PendingGrantedSubAction — an OPTIONAL granted sub-action
+    (Field Fences / Trellis → build_fences; Dwelling Plan → renovate). Offers
+    `ChooseSubAction(pending.subaction)` (only before it is taken AND when the primitive is
+    doable — so a fence grant's positional discount is anticipated, mirroring Farm Redev's
+    offer) plus Stop (decline before, or finish after). After the inner primitive pops, `chosen`
+    is True, so only Stop remains."""
     actions: list[Action] = []
-    if not pending.build_fences_chosen:
-        p = state.players[pending.player_idx]
-        if _any_legal_pasture_commit(
-                state, p, space_id=pending.initiated_by_id,
-                initiated_by_id=pending.initiated_by_id):
-            actions.append(ChooseSubAction(name="build_fences"))
+    if not pending.chosen and _granted_subaction_eligible(state, pending):
+        actions.append(ChooseSubAction(name=pending.subaction))
     actions.append(Stop())
     return actions
 
@@ -2928,7 +2938,7 @@ PENDING_ENUMERATORS: dict[type, Callable] = {
     PendingHouseRedevelopment:  _enumerate_pending_house_redevelopment,
     PendingBuildFences:         _enumerate_pending_build_fences,
     PendingFarmRedevelopment:   _enumerate_pending_farm_redevelopment,
-    PendingGrantedBuildFences:  _enumerate_pending_granted_build_fences,
+    PendingGrantedSubAction:    _enumerate_pending_granted_subaction,
     PendingHarvestFeed:         _enumerate_pending_harvest_feed,
     PendingHarvestBreed:        _enumerate_pending_harvest_breed,
     PendingAccommodate:         _enumerate_pending_accommodate,

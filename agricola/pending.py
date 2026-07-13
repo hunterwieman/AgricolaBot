@@ -1276,28 +1276,40 @@ class PendingDraftPick:
 
 
 @dataclass(frozen=True)
-class PendingGrantedBuildFences:
-    """An OPTIONAL granted Build Fences action (a card grant — e.g. Field Fences).
+class PendingGrantedSubAction:
+    """An OPTIONAL granted sub-action (a card grant — Field Fences / Trellis grant a
+    Build Fences; Dwelling Plan grants a Renovate).
 
-    "You CAN take a 'Build Fences' action" — the optionality. This thin PARENT host offers
-    the choice (ChooseSubAction("build_fences")) OR a decline (Stop), instead of forcing the
-    build (CARD_AUTHORING_GUIDE: granted sub-actions are optional; optionality lives at the
-    parent's choose+Stop, never a per-frame flag on the inner host — so the inner
-    PendingBuildFences keeps its mandatory ">=1 build" shape, and this wrapper is where
-    declining lives). Choosing build_fences pushes the real multi-shot PendingBuildFences
-    carrying THIS frame's `initiated_by_id`, so the card's positional discount + provenance +
-    any seeded free-fence budget all apply (mirrors Farm Redevelopment's optional build-fences
-    step, but with the card's own provenance rather than "farm_redevelopment"). Stop pops —
-    declining if no build was taken, or finishing after the inner build has popped.
+    "You CAN take a '<sub-action>' action" — the optionality. This thin, generic PARENT host
+    offers the choice (`ChooseSubAction(<subaction>)`) OR a decline (`Stop`), instead of forcing
+    the sub-action (CARD_AUTHORING_GUIDE: granted sub-actions are optional; optionality lives at
+    the parent's choose+Stop, never a per-frame flag on the inner host — so the inner
+    primitive keeps its mandatory shape, and this wrapper is where declining lives). Choosing
+    pushes the real primitive frame (`PendingBuildFences` / `PendingRenovate`) carrying THIS
+    frame's `initiated_by_id`, so the grant's provenance — and any positional discount / seeded
+    free-fence budget — applies. `Stop` pops: declining if nothing was taken, or finishing after
+    the inner primitive has popped.
 
-    `initiated_by_id` is the grant's provenance (e.g. "card:field_fences"). `build_fences_chosen`
-    flips True when the build is entered, so build_fences is offered at most once (after the
-    inner build pops, only Stop remains). Card-only: never reaches the C++ (Family) engine.
+    This is the generic form of the pattern the delegating hosts already use — one frame with a
+    discriminator (`PendingSubActionSpace` dispatches its child by `space_id`); here the
+    discriminator is `subaction`, and the per-primitive eligibility + push live in the
+    enumerator / choose-handler dispatch (legality/resolution), NOT in bespoke per-primitive
+    frame classes. All primitive-specific STATE lives on the pushed child frame, so this wrapper
+    stays field-free beyond the discriminator.
+
+    - `subaction`: the granted primitive's id (`"build_fences"` | `"renovate"`), matched by the
+      offered `ChooseSubAction(name=subaction)`.
+    - `initiated_by_id`: the grant's provenance (e.g. `"card:field_fences"`).
+    - `chosen`: flips True when the sub-action is entered, so it is offered at most once (after
+      the inner primitive pops, only Stop remains).
+
+    Card-only: never reaches the C++ (Family) engine.
     """
-    PENDING_ID: ClassVar[str] = "granted_build_fences"
+    PENDING_ID: ClassVar[str] = "granted_subaction"
     player_idx: int
     initiated_by_id: str
-    build_fences_chosen: bool = False
+    subaction: str
+    chosen: bool = False
 
 
 # The PendingDecision union. New pending types are added here as the
@@ -1325,7 +1337,7 @@ PendingDecision = Union[
     PendingStoneOven,
     PendingBuildFences,
     PendingFarmRedevelopment,
-    PendingGrantedBuildFences,
+    PendingGrantedSubAction,
     PendingPlayOccupation,
     PendingPlayMinor,
     PendingBasicWishForChildren,

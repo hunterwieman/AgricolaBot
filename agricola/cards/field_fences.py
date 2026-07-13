@@ -6,8 +6,9 @@ Cost: 2 Food. No prerequisite; kept (not traveling); no printed VPs.
 
 Two mechanisms:
 - an OPTIONAL GRANT of a Build Fences action (on play): "you CAN take a Build Fences action"
-  is optional, so `_on_play` pushes the thin `PendingGrantedBuildFences` choose-or-decline
-  wrapper (NOT the build host directly — that would force the build). The wrapper offers
+  is optional, so `_on_play` pushes the thin generic `PendingGrantedSubAction(subaction=
+  "build_fences")` choose-or-decline wrapper (NOT the build host directly — that would force
+  the build). The wrapper offers
   ChooseSubAction("build_fences") when a pasture is buildable under this grant's discount, else
   only Stop (decline). Choosing build_fences pushes the real multi-shot `PendingBuildFences`
   with `initiated_by_id="card:field_fences"` and `build_fences_action=True` (the LITERAL Build
@@ -46,13 +47,14 @@ FRAME_ID = "card:field_fences"   # the granted Build Fences frame's initiated_by
 
 
 def _on_play(state: GameState, idx: int) -> GameState:
-    from agricola.pending import PendingGrantedBuildFences, push
-    # "You CAN take a Build Fences action" — OPTIONAL. Push the choose-or-decline wrapper
-    # (not the build host directly); it offers ChooseSubAction("build_fences") when a pasture
-    # is buildable under this grant's field-adjacency discount, else only Stop (decline). The
-    # wrapper's build_fences choice pushes the real PendingBuildFences with initiated_by_id
-    # FRAME_ID, seeding any other card's free-fence budget at that point.
-    return push(state, PendingGrantedBuildFences(player_idx=idx, initiated_by_id=FRAME_ID))
+    from agricola.pending import PendingGrantedSubAction, push
+    # "You CAN take a Build Fences action" — OPTIONAL. Push the generic choose-or-decline
+    # wrapper (not the build host directly); it offers ChooseSubAction("build_fences") when a
+    # pasture is buildable under this grant's field-adjacency discount, else only Stop
+    # (decline). The wrapper's build_fences choice pushes the real PendingBuildFences with
+    # initiated_by_id FRAME_ID, seeding any other card's free-fence budget at that point.
+    return push(state, PendingGrantedSubAction(
+        player_idx=idx, initiated_by_id=FRAME_ID, subaction="build_fences"))
 
 
 def _field_adjacent_edges(farmyard, h_new: int, v_new: int, *, initiated_by_id, **_kw):

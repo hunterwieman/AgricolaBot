@@ -65,7 +65,7 @@ def test_registered_as_free_kept_minor():
     assert spec.cost_fn is None
     assert spec.prereq is None
     assert spec.vps == 0
-    assert spec.passing_left is False                          # kept, not passing
+    assert spec.passing_left is True                           # A6 is a traveling minor
 
 
 # ---------------------------------------------------------------------------
@@ -86,9 +86,9 @@ def test_grants_for_each_owned_major():
     assert after.wood == before.wood + 1     # Joinery
     assert after.clay == before.clay + 1     # Pottery
     assert after.reed == before.reed + 1     # Basketmaker's Workshop
-    # Kept, not passed.
-    assert "storage_barn" in cs.players[cp].minor_improvements
-    assert "storage_barn" not in cs.players[1 - cp].hand_minors
+    # Traveling: passes to the opponent's hand, not kept in the tableau.
+    assert "storage_barn" not in cs.players[cp].minor_improvements
+    assert "storage_barn" in cs.players[1 - cp].hand_minors
 
 
 def test_grants_only_for_the_subset_owned():
@@ -120,7 +120,9 @@ def test_no_majors_owned_grants_nothing():
     assert after.wood == before.wood
     assert after.clay == before.clay
     assert after.reed == before.reed
-    assert "storage_barn" in cs.players[cp].minor_improvements
+    # Played (then passed) even when it granted nothing.
+    assert "storage_barn" not in cs.players[cp].minor_improvements
+    assert "storage_barn" in cs.players[1 - cp].hand_minors
 
 
 def test_opponent_owned_majors_do_not_grant():

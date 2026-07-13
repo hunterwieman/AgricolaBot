@@ -6,7 +6,7 @@ Prerequisite: 2 Occupations. No cost; no VPs; kept (not passing).
 
 An OPTIONAL, declinable `before_action_space` trigger on the NON-ATOMIC Pig Market space
 (always hosted by PendingPigMarket — no register_action_space_hook needed) that grants a
-literal Build Fences action via the PendingGrantedBuildFences choose-or-decline wrapper, paid
+literal Build Fences action via the PendingGrantedSubAction choose-or-decline wrapper, paid
 at the normal wood cost (no discount registered). Mirrors tests/test_card_brewing_water.py
 (the optional market FireTrigger / decline / once-per-use flow) crossed with
 tests/test_cards_field_fences.py (the granted-Build-Fences wrapper + build).
@@ -34,7 +34,7 @@ from agricola.engine import step
 from agricola.legality import legal_actions
 from agricola.pending import (
     PendingBuildFences,
-    PendingGrantedBuildFences,
+    PendingGrantedSubAction,
     PendingPigMarket,
 )
 from agricola.replace import fast_replace
@@ -119,7 +119,8 @@ def test_fire_grants_optional_build_fences_wrapper():
     s = step(s, FireTrigger(card_id=CARD_ID))
     # The OPTIONAL grant wrapper lands on top of the (still-before-phase) market host.
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingGrantedBuildFences) and top.initiated_by_id == FRAME_ID
+    assert isinstance(top, PendingGrantedSubAction) and top.initiated_by_id == FRAME_ID
+    assert top.subaction == "build_fences"
     assert isinstance(s.pending_stack[-2], PendingPigMarket)
     # It offers both opt-in and decline.
     la = legal_actions(s)
@@ -160,10 +161,10 @@ def test_fire_then_decline_builds_nothing():
     s = _market_state(wood=20)
     s = step(s, PlaceWorker(space="pig_market"))
     s = step(s, FireTrigger(card_id=CARD_ID))
-    assert isinstance(s.pending_stack[-1], PendingGrantedBuildFences)
+    assert isinstance(s.pending_stack[-1], PendingGrantedSubAction)
     s = step(s, Stop())                    # decline the wrapper
     assert isinstance(s.pending_stack[-1], PendingPigMarket)
-    assert not any(isinstance(f, (PendingGrantedBuildFences, PendingBuildFences))
+    assert not any(isinstance(f, (PendingGrantedSubAction, PendingBuildFences))
                    for f in s.pending_stack)
     assert _wood(s) == 20                   # nothing built, no wood spent
     assert not s.players[0].farmyard.pastures
@@ -246,5 +247,5 @@ def test_family_pig_market_unaffected():
     s = setup(0)
     s = with_space(s, "pig_market", revealed=True, accumulated_amount=1)
     s = step(s, PlaceWorker(space="pig_market"))
-    assert not any(isinstance(f, PendingGrantedBuildFences) for f in s.pending_stack)
+    assert not any(isinstance(f, PendingGrantedSubAction) for f in s.pending_stack)
     assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
