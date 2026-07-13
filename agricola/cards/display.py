@@ -113,6 +113,30 @@ def _moldboard_plow(ps) -> str | None:
     return f"{uses} field-plow{'' if uses == 1 else 's'} left"
 
 
+# --- Per-card action-variant labelers (the web-UI label pass, 2026-07-12) ---
+# The user's style directive: MECHANICAL and terse — "the player can interpret
+# meaning from the card description" — with the card name prepended by the web
+# layer and zero counts omitted (e.g. "Shepherd's Whistle: activate, keep
+# sheep=2, boar=1"). A labeler maps ONE card's variant encoding to that style;
+# unregistered cards keep the web layer's generic fallbacks (the static route
+# labels, the count-vector prettifier, raw).
+
+ACTION_LABELERS: dict = {}
+
+
+def register_action_labeler(card_id: str, fn) -> None:
+    """Register `card_id`'s variant labeler — `fn(variant: str) -> str | None`
+    (None = fall through to the generic paths). Pure string→string: every
+    variant encoding carries its own numbers."""
+    ACTION_LABELERS[card_id] = fn
+
+
+def variant_label(card_id: str, variant: str):
+    """The card-aware variant label, or None when no labeler claims it."""
+    fn = ACTION_LABELERS.get(card_id)
+    return fn(variant) if fn is not None else None
+
+
 def _card_field_badge(card_id: str, ps) -> str | None:
     """The planted contents of a card-field (rulings 45-47, 2026-07-12), one
     " | "-separated part per non-empty stack ("3 wood | 1 wood"; a mixed

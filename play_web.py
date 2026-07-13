@@ -977,10 +977,18 @@ _TRIGGER_VARIANT_LABELS = {
 _FIELD_GROUP_RE = re.compile(r"^(grain|veg)(\d+):(\d+)$")
 
 
-def _trigger_variant_label(variant: str) -> str:
-    """Human label for a FireTrigger variant: the static route labels, plus the
-    field-count-vector encoding of the harvest-field triggers (Stable Manure) —
-    "grain3:1|veg2:2" -> "+1 grain (from a 3-grain field), +2 veg (from 2-veg fields)"."""
+def _trigger_variant_label(variant: str, card_id: str | None = None) -> str:
+    """Human label for a FireTrigger variant: a registered PER-CARD labeler
+    first (`display.register_action_labeler` — the mechanical terse style the
+    user directed 2026-07-12), then the static route labels, then the
+    field-count-vector encoding of the harvest-field triggers (Stable Manure)
+    — "grain3:1|veg2:2" -> "+1 grain (from a 3-grain field), +2 veg (from
+    2-veg fields)" — then raw."""
+    if card_id is not None:
+        from agricola.cards.display import variant_label
+        lbl = variant_label(card_id, variant)
+        if lbl is not None:
+            return lbl
     if variant in _TRIGGER_VARIANT_LABELS:
         return _TRIGGER_VARIANT_LABELS[variant]
     parts = []
@@ -1015,7 +1023,7 @@ def _web_action_display(action: Action) -> str:
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
         if variant:
-            return f"{name}: {_trigger_variant_label(variant)}"
+            return f"{name}: {_trigger_variant_label(variant, action.card_id)}"
         return name
     # A card-field sow (Cards mode): name the card(s) so distinct card sows
     # read distinctly ("Sow grain=1, veg=0 + Wood Field: wood x2").
@@ -1045,11 +1053,19 @@ def _web_action_display(action: Action) -> str:
         return f"Pay {_payment_str(action.payment)}"
     if isinstance(action, CommitFoodPayment):
         # Raise food to pay a card cost: show the goods cooked/eaten (animals at their
-        # cooking_rates, grain/veg at 1:1). Always non-empty — the frame only appears when
-        # food on hand is short, so every frontier point consumes something.
+        # cooking_rates, grain/veg at 1:1) and any once-per-harvest converter the bundle
+        # fires through the raise frame (rulings 34/37 — e.g. "fire Joinery").
         spent = [f"{getattr(action, f)} {f}"
                  for f in ("grain", "veg", "sheep", "boar", "cattle") if getattr(action, f)]
+        spent += [f"fire {_card_info(cid)['name']}" for cid in action.conversions]
         return "Pay with " + (", ".join(spent) if spent else "food on hand")
+    # A harvest conversion with a per-fire choice (Craft Brewery's field height,
+    # Paintbrush's food-vs-point): name the card + the mechanical variant label.
+    if isinstance(action, CommitHarvestConversion) and action.variant is not None:
+        from agricola.cards.display import variant_label
+        name = _card_info(action.conversion_id)["name"]
+        lbl = variant_label(action.conversion_id, action.variant)
+        return f"{name}: {lbl if lbl is not None else action.variant}"
     return _fmt_action_inline(action)
 
 
