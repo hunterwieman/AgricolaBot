@@ -519,6 +519,24 @@ at 2 players.
 
 ---
 
+## Deferred 2026-07-12 — Braid Maker E109 (the converter cluster's one defer)
+
+**Braid Maker (E109, occupation)**: "Each harvest, you can use this card to exchange
+1 reed for 2 food. You can build the Basketmaker's Workshop for 1 reed and 1 stone
+even when taking a "Minor Impr." action." The FIRST clause fits the converter seam
+exactly (a pure reed->2-food `HarvestConversionSpec` + `frontier_fire`). The SECOND
+clause needs a seam that does not exist: a play-MINOR surface (Basic Wish's minor
+branch, Meeting Place's optional minor, the improvement spaces' play-minor branch)
+additionally offering the build of one specific MAJOR at an alternate cost. The
+existing composite host runs the other direction (the Major/Minor space offering
+both), and no legality extension lets a card inject a major build into minor-only
+surfaces. Per §0.1 and the recorded 2026-07-12 refinement (HARVEST_HANDOFF.md §16
+item 3), a card defers WHOLE when any clause doesn't fit — implementing only the
+converter clause would be an approximation. Build proposal: a
+`register_minor_action_major_build(card_id, major_idx, alt_cost)` legality
+extension on the play-minor enumerators; small, but user-gated like the other
+shared-infra proposals.
+
 ## Group A — small, well-scoped, high-yield (recommend building on approval)
 
 ### A1. Card-granted Family Growth with NO space placement
