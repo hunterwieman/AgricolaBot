@@ -476,7 +476,9 @@ def food_payment_frontier(
     player_state: PlayerState,
     food_owed: int,
     rates: tuple[int, int, int, int],
-) -> list[tuple[int, int, int, int, int]]:
+    span_converters: tuple = (),
+    animal_floors: tuple = (0, 0, 0),
+) -> list:
     """Return Pareto-optimal (grain_rem, veg_rem, sheep_rem, boar_rem, cattle_rem)
     tuples for FULLY paying ``food_owed`` food via crop/animal conversion.
 
@@ -513,7 +515,46 @@ def food_payment_frontier(
     feasibility. The harvest feeding path uses harvest_feed_frontier below,
     which always has at least the (all-goods-remaining, begging=food_owed)
     entry.
+
+    THE CONVERTER-CLUSTER EXTENSIONS (rulings 34/37/39, 2026-07-12 — the
+    generalized in-harvest raise frame; CARD_DEFERRED_PLANS.md):
+
+    **`animal_floors` (ruling 39's stateless post-breed cooking floor)** —
+    (sheep_F, boar_F, cattle_F): a type currently AT OR ABOVE its floor may
+    not be cooked below it (consumable = count − F when count >= F, else
+    count — the parents+offspring protection in shorthand form). Applied by
+    CLIPPING the animal supplies the core enumeration sees and translating
+    the protected amounts back onto every result — a uniform per-dimension
+    +const, so dominance and order are preserved exactly and the cached core
+    (`_food_payment_points`) is untouched: no new cache key, no cache hazard.
+    The default (0, 0, 0) clips nothing (every pre-existing caller).
+
+    **`span_converters` (rulings 34/37 — pure building-resource converters
+    in the raise frame)** — a tuple of (conversion_id, (wood, clay, reed,
+    stone) input, food_out) for each once-per-harvest BINARY converter
+    currently available to the player (owned + in-span + budget-unused —
+    the CALLER derives this from state; the budget is shared with the
+    feed-phase craft seam via `harvest_conversions_used`). Non-empty input
+    CHANGES THE RETURN SHAPE: each element becomes
+    ``((g, v, s, b, c, wood_rem, clay_rem, reed_rem, stone_rem), fired)``
+    with `fired` a sorted tuple of the conversion_ids this config fires —
+    the Pareto space gains the four building-resource remaining dims (fired
+    is NOT a dim; on an exact 9-dim tie the SMALLER fired set wins — fewer
+    burned once-per-harvest budgets dominates). Subsets are enumerated
+    OUTSIDE the cached core (each subset's food offsets the owed amount and
+    its inputs debit the building supplies). With ``food_owed == 0`` no
+    fires are offered — deferring a budget preserves optionality, the span
+    continues (Foundations' preserving-optionality rule).
     """
+    sp_, bp_, cp_ = (
+        animal_floors[0] if player_state.animals.sheep >= animal_floors[0] else 0,
+        animal_floors[1] if player_state.animals.boar >= animal_floors[1] else 0,
+        animal_floors[2] if player_state.animals.cattle >= animal_floors[2] else 0,
+    )
+    if sp_ or bp_ or cp_ or span_converters:
+        return _food_payment_generalized(
+            player_state, food_owed, rates, span_converters, (sp_, bp_, cp_))
+
     if opt_config.PARETO_OPT_LEVEL >= 1:
         return _food_payment_frontier_opt(player_state, food_owed, rates)
 
@@ -561,6 +602,104 @@ def food_payment_frontier(
             frontier.append(tup)
 
     return frontier
+
+
+def _food_payment_counts(g, v, s, b, c, food_owed, rates) -> list:
+    """The crop/animal payment frontier over EXPLICIT counts — the shared core
+    the generalized path calls per converter subset. Dispatches to the cached
+    rate-descending enumeration (opt level >= 1) or a brute baseline identical
+    to `food_payment_frontier`'s (cross-level-tested there)."""
+    if food_owed == 0:
+        return [(g, v, s, b, c)]
+    if opt_config.PARETO_OPT_LEVEL >= 1:
+        return _food_payment_points(g, v, s, b, c, food_owed, rates)
+    sR, bR, cR, vR = rates
+    caps = (
+        min(g, food_owed),
+        min(v, math.ceil(food_owed / vR)) if vR > 0 else 0,
+        min(s, math.ceil(food_owed / sR)) if sR > 0 else 0,
+        min(b, math.ceil(food_owed / bR)) if bR > 0 else 0,
+        min(c, math.ceil(food_owed / cR)) if cR > 0 else 0,
+    )
+    maxes = (g, v, s, b, c)
+    candidates = []
+    for cg in range(caps[0] + 1):
+        for cv in range(caps[1] + 1):
+            for cs in range(caps[2] + 1):
+                for cb in range(caps[3] + 1):
+                    for cc in range(caps[4] + 1):
+                        if cg + cv * vR + cs * sR + cb * bR + cc * cR < food_owed:
+                            continue
+                        candidates.append(tuple(
+                            m - x for m, x in zip(maxes, (cg, cv, cs, cb, cc))))
+
+    def _dom(a, b2):
+        return (all(ax >= bx for ax, bx in zip(a, b2))
+                and any(ax > bx for ax, bx in zip(a, b2)))
+
+    return [t for i, t in enumerate(candidates)
+            if not any(_dom(candidates[j], t)
+                       for j in range(len(candidates)) if j != i)]
+
+
+def _food_payment_generalized(
+    player_state, food_owed, rates, span_converters, protected,
+) -> list:
+    """The generalized raise-frame frontier (rulings 34/37/39, 2026-07-12) —
+    see `food_payment_frontier`'s docstring for the full contract. `protected`
+    is the already-clipped (sheep, boar, cattle) floor amounts (0 where the
+    floor doesn't bind). Enumerates converter SUBSETS around the crop/animal
+    core; the core sees floor-clipped animal supplies and the protected
+    amounts translate back onto every result (a uniform +const per dimension:
+    dominance-order preserving, so the Pareto pass here is exact)."""
+    r = player_state.resources
+    a = player_state.animals
+    sp_, bp_, cp_ = protected
+    g, v = r.grain, r.veg
+    s2, b2, c2 = a.sheep - sp_, a.boar - bp_, a.cattle - cp_
+
+    if not span_converters:
+        # Floors only: legacy 5-tuple shape, translated back.
+        return [(rg, rv, rs + sp_, rb + bp_, rc + cp_)
+                for (rg, rv, rs, rb, rc)
+                in _food_payment_counts(g, v, s2, b2, c2, food_owed, rates)]
+
+    build = (r.wood, r.clay, r.reed, r.stone)
+    best: dict = {}   # 9-dim remaining vector -> fired ids (smaller set wins)
+    n = len(span_converters)
+    for mask in range(1 << n):
+        chosen = [span_converters[i] for i in range(n) if mask & (1 << i)]
+        if chosen and food_owed == 0:
+            continue   # no fires at owe 0 — deferring preserves optionality
+        need = [0, 0, 0, 0]
+        food_s = 0
+        for _cid, inp, out in chosen:
+            for k in range(4):
+                need[k] += inp[k]
+            food_s += out
+        if any(need[k] > build[k] for k in range(4)):
+            continue
+        build_rem = tuple(build[k] - need[k] for k in range(4))
+        fired = tuple(sorted(cid for cid, _inp, _out in chosen))
+        owe2 = max(0, food_owed - food_s)
+        for (rg, rv, rs, rb, rc) in _food_payment_counts(
+                g, v, s2, b2, c2, owe2, rates):
+            vec = (rg, rv, rs + sp_, rb + bp_, rc + cp_) + build_rem
+            old = best.get(vec)
+            if old is None or len(fired) < len(old) or (
+                    len(fired) == len(old) and fired < old):
+                best[vec] = fired
+
+    def _dom(x, y):
+        return (all(ax >= bx for ax, bx in zip(x, y))
+                and any(ax > bx for ax, bx in zip(x, y)))
+
+    vecs = list(best)
+    frontier = [
+        (vec, best[vec]) for i, vec in enumerate(vecs)
+        if not any(_dom(vecs[j], vec) for j in range(len(vecs)) if j != i)
+    ]
+    return sorted(frontier)
 
 
 def harvest_feed_frontier(
