@@ -116,3 +116,115 @@ def test_cross_level_equivalence(monkeypatch):
             animal_floors=(3, 0, 0)))
     assert results[0] == results[1]
     assert all(vec[2] >= 3 for vec, _f in results[0])    # sheep floor holds
+
+
+# ---------------------------------------------------------------------------
+# The raise-frame wiring (enumerator + executor) — rulings 34/37/39
+# ---------------------------------------------------------------------------
+
+from agricola.actions import CommitFoodPayment
+from agricola.cards.harvest_windows import (
+    available_span_converters,
+    in_conversion_span,
+    post_breed_floors,
+    sentinel_position,
+)
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES
+from agricola.constants import Phase
+from agricola.resources import Cost
+from agricola.engine import step
+from agricola.legality import legal_actions
+from agricola.pending import PendingFoodPayment
+from agricola.state import GameState
+
+from tests.factories import with_majors, with_phase
+
+# A synthetic resume so a hand-built frame can be stepped through the
+# executor (registered once; only frames naming it ever reach it).
+FOOD_PAYMENT_RESUMES["_test_fpg_resume"] = lambda state, idx: state
+
+
+def _in_span_state(*, sheep=0, wood=0, stone=0, food=0, owe=2,
+                   cursor=None, phase=Phase.HARVEST_BREED, joinery=True):
+    state = setup(3)
+    state = fast_replace(state, starting_player=0)
+    if joinery:
+        state = with_majors(state, owner_by_idx={7: 0})
+    p = state.players[0]
+    p = fast_replace(
+        p,
+        resources=Resources(wood=wood, stone=stone, food=food),
+        animals=fast_replace(p.animals, sheep=sheep, boar=0, cattle=0),
+    )
+    frame = PendingFoodPayment(
+        player_idx=0, food_needed=food + owe,
+        resume_kind="_test_fpg_resume", reserved=Cost())
+    # Post-both-breed-passes by default (cursor past after_breeding pass 1).
+    cur = cursor if cursor is not None else sentinel_position("after_breeding", 1)
+    return fast_replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2)),
+        phase=phase, pending_stack=(frame,), harvest_cursor=cur)
+
+
+def test_span_derivations():
+    s = _in_span_state()
+    assert in_conversion_span(s, 0)
+    assert available_span_converters(s, 0) == ((("joinery"), (1, 0, 0, 0), 2),)
+    # WORK phase: never in span.
+    s2 = with_phase(s, Phase.WORK)
+    assert not in_conversion_span(s2, 0)
+    assert available_span_converters(s2, 0) == ()
+    # Fresh FIELD entry (cursor None): pre-span.
+    s3 = fast_replace(s, phase=Phase.HARVEST_FIELD, harvest_cursor=None)
+    assert not in_conversion_span(s3, 0)
+
+
+def test_post_breed_floors_by_cursor():
+    s = _in_span_state(sheep=3)
+    assert post_breed_floors(s, 0) == (3, 3, 3)        # own pass resolved
+    # Before the player's breeding sentinel: no floor.
+    pre = fast_replace(s, harvest_cursor=sentinel_position("breeding", 0))
+    assert post_breed_floors(pre, 0) == (0, 0, 0)
+    # FEED phase: never floored (feeding precedes breeding per-player).
+    feed = fast_replace(s, phase=Phase.HARVEST_FEED)
+    assert post_breed_floors(feed, 0) == (0, 0, 0)
+
+
+def test_raise_frame_offers_converter_fire():
+    s = _in_span_state(wood=1, owe=2)
+    opts = legal_actions(s)
+    assert opts == [CommitFoodPayment(
+        grain=0, veg=0, sheep=0, boar=0, cattle=0, conversions=("joinery",))]
+
+
+def test_raise_frame_budget_shared_with_feed_seam():
+    s = _in_span_state(wood=1, owe=2)
+    p = s.players[0]
+    p = fast_replace(p, resources=fast_replace(p.resources, grain=2),
+                     harvest_conversions_used=frozenset({"joinery"}))
+    s = fast_replace(s, players=tuple(
+        p if i == 0 else s.players[i] for i in range(2)))
+    assert available_span_converters(s, 0) == ()       # budget spent
+    opts = legal_actions(s)
+    assert all(a.conversions == () for a in opts)      # grain pays instead
+    assert any(a.grain == 2 for a in opts)
+
+
+def test_raise_frame_floor_shapes_offers():
+    # 3 sheep post-breed (floored) + 1 wood: only the joinery fire pays.
+    s = _in_span_state(sheep=3, wood=1, owe=2)
+    opts = legal_actions(s)
+    assert opts == [CommitFoodPayment(
+        grain=0, veg=0, sheep=0, boar=0, cattle=0, conversions=("joinery",))]
+
+
+def test_executor_fires_conversion_and_marks_budget():
+    s = _in_span_state(wood=1, owe=2)
+    nxt = step(s, legal_actions(s)[0])
+    p = nxt.players[0]
+    assert p.resources.wood == 0
+    assert p.resources.food == 2                       # joinery's 2 food raised
+    assert "joinery" in p.harvest_conversions_used
+    # The frame popped and the resume ran; with an empty stack the walk
+    # completed the harvest (cursor 23 was the last band pause).
+    assert not any(isinstance(f, PendingFoodPayment) for f in nxt.pending_stack)

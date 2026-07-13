@@ -450,12 +450,19 @@ class CommitFoodPayment(CommitSubAction):
     The legality enumerator constructs these by inverting the REMAINING-goods tuples from
     `food_payment_frontier`, run over the player's goods MINUS the frame's `reserved` cost
     goods (consumed = reduced_max - remaining).
+
+    `conversions` (rulings 34/37, 2026-07-12 — the converter cluster): the once-per-harvest
+    building-resource converters this bundle fires through the generalized raise frame
+    (sorted conversion_ids, e.g. ("joinery",)). The executor debits each converter's input,
+    adds its food, and marks its shared budget in `harvest_conversions_used`. Family-constant
+    `()` — the frame itself is card-only, so no wire/canonical/C++ concern.
     """
     grain:  int
     veg:    int
     sheep:  int
     boar:   int
     cattle: int
+    conversions: tuple = ()
 
 
 @dataclass(frozen=True)

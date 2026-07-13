@@ -54,6 +54,14 @@ class HarvestConversionSpec:
       currently-legal variant, still once per harvest total. An empty list =
       no legal use right now (the conversion is withheld). None (the default,
       all pre-existing entries) = the ordinary single-commit conversion.
+    - frontier_fire: ((wood, clay, reed, stone), food_out) when this entry
+      (or one branch of it — Paintbrush's food branch) is a PURE
+      building-resource -> food converter reachable through the generalized
+      in-harvest raise frame (ruling 37, 2026-07-12: rider outputs — points,
+      goods — and crop-input converters are NOT frontier-eligible; they stay
+      feed-seam-only). None (the default) = feed-seam-only. The raise-frame
+      fire shares this entry's once-per-harvest budget
+      (`harvest_conversions_used`) with the feed-seam offer (ruling 34).
     """
     conversion_id: str
     input_cost:    Resources
@@ -61,6 +69,7 @@ class HarvestConversionSpec:
     is_owned_fn:   Callable[["GameState", int], bool]
     side_effect_fn: Optional[Callable] = None
     variants_fn:   Optional[Callable[["GameState", int], list]] = None
+    frontier_fire: Optional[tuple] = None
 
 
 # Conversion-id-keyed registry. Mutable at import time only; treated as
@@ -88,11 +97,15 @@ def _owns_major(idx: int) -> Callable[["GameState", int], bool]:
     return fn
 
 
+# The three craft majors are pure building-resource converters, so they are
+# also reachable through the generalized in-harvest raise frame (rulings
+# 34/37, 2026-07-12) — frontier_fire mirrors their input/output.
 register_harvest_conversion(HarvestConversionSpec(
     conversion_id="joinery",
     input_cost=Resources(wood=1),
     food_out=2,
     is_owned_fn=_owns_major(7),
+    frontier_fire=((1, 0, 0, 0), 2),
 ))
 
 register_harvest_conversion(HarvestConversionSpec(
@@ -100,6 +113,7 @@ register_harvest_conversion(HarvestConversionSpec(
     input_cost=Resources(clay=1),
     food_out=2,
     is_owned_fn=_owns_major(8),
+    frontier_fire=((0, 1, 0, 0), 2),
 ))
 
 register_harvest_conversion(HarvestConversionSpec(
@@ -107,4 +121,5 @@ register_harvest_conversion(HarvestConversionSpec(
     input_cost=Resources(reed=1),
     food_out=3,
     is_owned_fn=_owns_major(9),
+    frontier_fire=((0, 0, 1, 0), 3),
 ))

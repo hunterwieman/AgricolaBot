@@ -166,6 +166,86 @@ def sentinel_position(window_id: str, band_pass: int) -> int:
 
 
 # ---------------------------------------------------------------------------
+# The in-harvest conversion span + ruling 39's cooking floor (the converter
+# cluster — rulings 34/37/39, 2026-07-12; CARD_DEFERRED_PLANS.md)
+# ---------------------------------------------------------------------------
+
+def in_conversion_span(state, idx: int) -> bool:
+    """Is player `idx` inside ruling 34's conversion span — their own FIELD
+    band's start through end_of_harvest? A pre-field-phase cost (Autumn
+    Mother's, at the outer windows) sees no span converters; a WORK-phase
+    cost never does. The span is derived from phase/cursor: the walk must
+    have reached the player's band start (paused AT before_field_phase
+    counts — the band's first instant; the before-vs-start_of_field_phase
+    distinction is an unreachable corner today, no in-band cost frame
+    exists). A None cursor inside FEED/BREED is the legacy hand-built shape
+    (mid-phase — in span); a None cursor at FIELD is the fresh entry
+    (pre-span)."""
+    from agricola.constants import Phase
+
+    if state.phase not in (Phase.HARVEST_FIELD, Phase.HARVEST_FEED,
+                           Phase.HARVEST_BREED):
+        return False
+    cur = state.harvest_cursor
+    if cur is None:
+        return state.phase != Phase.HARVEST_FIELD
+    band_pass = 0 if idx == state.starting_player else 1
+    return cur > sentinel_position("before_field_phase", band_pass)
+
+
+def post_breed_floors(state, idx: int) -> tuple:
+    """Ruling 39's stateless post-breed cooking floors for player `idx`:
+    (sheep_F, boar_F, cattle_F), all 0 while the player has not bred this
+    harvest. Once their breed pass has RESOLVED (the walk passed their
+    breeding sentinel and no un-committed breed frame of theirs remains), a
+    type currently at or above min_parents + 1 may not be cooked below it —
+    3, or 2 for sheep with Dolly's Mother in play (the user kept this
+    shorthand knowing it slightly over-protects: the capacity-blocked corner,
+    and likewise a breeding-SKIPPED player's animals — same accepted class,
+    flagged to the user 2026-07-12)."""
+    from agricola.constants import Phase
+    from agricola.pending import PendingHarvestBreed
+
+    if state.phase != Phase.HARVEST_BREED:
+        return (0, 0, 0)
+    cur = state.harvest_cursor
+    band_pass = 0 if idx == state.starting_player else 1
+    if cur is None or cur <= sentinel_position("breeding", band_pass):
+        return (0, 0, 0)
+    for f in state.pending_stack:
+        if (isinstance(f, PendingHarvestBreed) and f.player_idx == idx
+                and not f.breed_chosen):
+            return (0, 0, 0)
+    from agricola.cards.capacity_mods import sheep_min_parents
+
+    return (sheep_min_parents(state.players[idx]) + 1, 3, 3)
+
+
+def available_span_converters(state, idx: int) -> tuple:
+    """The frontier-eligible converters player `idx` can fire through the
+    generalized raise frame RIGHT NOW (rulings 34/37): each registered
+    `frontier_fire` entry that is owned, in-span, and budget-unused (the
+    once-per-harvest budget is SHARED with the feed-seam offer via
+    `harvest_conversions_used`). Sorted by id; () — the Family fast path —
+    whenever out of span or nothing qualifies."""
+    if not in_conversion_span(state, idx):
+        return ()
+    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+
+    used = state.players[idx].harvest_conversions_used
+    out = []
+    for cid in sorted(HARVEST_CONVERSIONS):
+        spec = HARVEST_CONVERSIONS[cid]
+        if spec.frontier_fire is None or cid in used:
+            continue
+        if not spec.is_owned_fn(state, idx):
+            continue
+        inp, food_out = spec.frontier_fire
+        out.append((cid, inp, food_out))
+    return tuple(out)
+
+
+# ---------------------------------------------------------------------------
 # Hosting index (the should_host_space pattern)
 # ---------------------------------------------------------------------------
 # window_id -> the card ids registered to fire there. Consulted per player when the

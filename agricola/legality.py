@@ -2687,6 +2687,11 @@ def _enumerate_pending_food_payment(
     goods), exactly as `_enumerate_pending_harvest_feed` does. The frontier is asserted
     non-empty: the gate (`_liquidatable_to`) guarantees feasibility over the same reduced
     goods, so an empty frontier here is a gate↔frontier mismatch and must fail loud."""
+    from agricola.cards.harvest_windows import (
+        available_span_converters,
+        post_breed_floors,
+    )
+
     p = state.players[top.player_idx]
     owe = max(0, top.food_needed - p.resources.food)
     rates = cooking_rates(state, top.player_idx)
@@ -2700,20 +2705,40 @@ def _enumerate_pending_food_payment(
     sheep_pre  = avail.animals.sheep
     boar_pre   = avail.animals.boar
     cattle_pre = avail.animals.cattle
-    frontier = food_payment_frontier(avail, owe, rates)
+    # The converter cluster (rulings 34/37/39, 2026-07-12): in-span once-per-
+    # harvest building-resource converters join the Pareto space, and the
+    # post-breed cooking floor protects bred types. Both are () / zeros in the
+    # Family game and outside the harvest span — the legacy path.
+    converters = available_span_converters(state, top.player_idx)
+    floors = post_breed_floors(state, top.player_idx)
+    frontier = food_payment_frontier(
+        avail, owe, rates, span_converters=converters, animal_floors=floors)
     assert frontier, (
         f"PendingFoodPayment frontier empty: owe={owe} food_needed={top.food_needed} "
         f"reserved={top.reserved} resume_kind={top.resume_kind} — gate↔frontier mismatch"
     )
+    if not converters:
+        # With or without floors, the converter-less shape is plain 5-tuples.
+        return [
+            CommitFoodPayment(
+                grain  = grain_pre  - g_rem,
+                veg    = veg_pre    - v_rem,
+                sheep  = sheep_pre  - s_rem,
+                boar   = boar_pre   - b_rem,
+                cattle = cattle_pre - c_rem,
+            )
+            for (g_rem, v_rem, s_rem, b_rem, c_rem) in frontier
+        ]
     return [
         CommitFoodPayment(
-            grain  = grain_pre  - g_rem,
-            veg    = veg_pre    - v_rem,
-            sheep  = sheep_pre  - s_rem,
-            boar   = boar_pre   - b_rem,
-            cattle = cattle_pre - c_rem,
+            grain  = grain_pre  - vec[0],
+            veg    = veg_pre    - vec[1],
+            sheep  = sheep_pre  - vec[2],
+            boar   = boar_pre   - vec[3],
+            cattle = cattle_pre - vec[4],
+            conversions = fired,
         )
-        for (g_rem, v_rem, s_rem, b_rem, c_rem) in frontier
+        for (vec, fired) in frontier
     ]
 
 

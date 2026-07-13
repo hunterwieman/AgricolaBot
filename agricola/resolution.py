@@ -634,18 +634,35 @@ def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
     RAISE-ONLY: this only PRODUCES food (each consumed good at its `cooking_rates` rate, banking
     any overshoot); it does NOT debit. The resumed action debits the full cost itself, from the
     now-sufficient supply. `action` holds CONSUMED amounts (the enumerator inverted the frontier
-    over goods MINUS the frame's reserved cost goods, so nothing here touches a reserved good)."""
+    over goods MINUS the frame's reserved cost goods, so nothing here touches a reserved good).
+
+    `action.conversions` (rulings 34/37, 2026-07-12): each named once-per-harvest converter
+    fires as part of the bundle — its building-resource input is debited, its food added, and
+    its SHARED budget marked in `harvest_conversions_used` (the same entry the feed-phase
+    craft seam checks). Pure converters only (ruling 37), so no side effects run here."""
+    from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
+
     top = state.pending_stack[-1]   # PendingFoodPayment
     sR, bR, cR, vR = cooking_rates(state, idx)
     produced = (action.grain + action.veg * vR
                 + action.sheep * sR + action.boar * bR + action.cattle * cR)
+    conv_cost = Resources()
+    conv_food = 0
+    for cid in action.conversions:
+        inp, food_out = HARVEST_CONVERSIONS[cid].frontier_fire
+        conv_cost = conv_cost + Resources(
+            wood=inp[0], clay=inp[1], reed=inp[2], stone=inp[3])
+        conv_food += food_out
     p = state.players[idx]
     p = fast_replace(
         p,
         resources=(p.resources - Resources(grain=action.grain, veg=action.veg)
-                   + Resources(food=produced)),
+                   - conv_cost + Resources(food=produced + conv_food)),
         animals=p.animals - Animals(action.sheep, action.boar, action.cattle),
     )
+    if action.conversions:
+        p = fast_replace(p, harvest_conversions_used=(
+            p.harvest_conversions_used | frozenset(action.conversions)))
     state = _update_player(pop(state), idx, p)   # pop PendingFoodPayment; host back on top
     return _resume(state, idx, top)
 
