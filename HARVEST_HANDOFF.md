@@ -792,8 +792,10 @@ are ~20 cards STALE (regenerate before trusting).
    defers (archive/deferred_cards/) — mixed fields are unreachable, mooting
    the Scythe-E73/group-key flags. Ruling 39's record was CORRECTED
    2026-07-13 (the "capacity-blocked over-protection" claim was wrong — the
-   floor is exact there; the real unruled corner is the breeding-SKIPPER,
-   plus the unreachable post-breed-gain class). The ambiguity category is
+   floor is exact there) and the breeding-skipper flag CLOSED the same day
+   (user-driven: a Layabout total skip leaves no in-harvest surface, and no
+   post-breed raise-frame producer exists — the partial-skipper residue is a
+   docstring note on post_breed_floors, not an open question). The ambiguity category is
    now DURABLE in the ledger (doc_gen AMBIGUOUS_MIN/OCC tables + snapshot
    status "ambiguous" + the ❓ marker/section). What remains beyond the
    queue: the rest of CARD_DEFERRED_PLANS (largely user-gated clusters +

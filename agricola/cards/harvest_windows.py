@@ -199,10 +199,16 @@ def post_breed_floors(state, idx: int) -> tuple:
     harvest. Once their breed pass has RESOLVED (the walk passed their
     breeding sentinel and no un-committed breed frame of theirs remains), a
     type currently at or above min_parents + 1 may not be cooked below it —
-    3, or 2 for sheep with Dolly's Mother in play (the user kept this
-    shorthand knowing it slightly over-protects: the capacity-blocked corner,
-    and likewise a breeding-SKIPPED player's animals — same accepted class,
-    flagged to the user 2026-07-12)."""
+    3, or 2 for sheep with Dolly's Mother in play. The stateless shorthand
+    is EXACT at every reachable state (ruling 39's corrected record,
+    2026-07-13: at count 2 the floor does not bind, so a capacity-blocked
+    pair stays cookable — correct, they never bred). The one theoretical
+    residue, for whoever builds the first POST-BREED cost effect that pushes
+    the raise frame: a PARTIAL harvest-skipper (Lunchtime Beer skips field +
+    breeding but keeps the outer windows) standing at such a surface with 3+
+    of a type that never bred would be over-protected. Unreachable today —
+    every raise-frame producer is WORK-phase or outer-window; a TOTAL
+    skipper (Layabout) has no in-harvest surface at all."""
     from agricola.constants import Phase
     from agricola.pending import PendingHarvestBreed
 
