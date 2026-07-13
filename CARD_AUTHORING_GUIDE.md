@@ -322,6 +322,18 @@ play-variant: for minors that is `register_play_minor_variant` (the wide play-va
 Facades Carving, Plant Fertilizer, Automatic Water Trough; CARD_ENGINE_IMPLEMENTATION.md §3),
 the minor analog of Roof Ballaster's occupation mechanism.
 
+> **When the reward's "/" is COUPLED to a cost's "/", use `cost_labels`, not the variant
+> surcharge.** A card like **Canvas Sack** ("*paying grain/reed for it, get 1 vegetable/4
+> wood*") is not a free reward choice — the reward is *determined* by which alternative cost you
+> paid (grain→veg, reed→wood, the slash-correlation rule). This is a genuine alternative COST, so
+> it must stay cost-modifier-visible. Model it with `alt_costs` **plus** `cost_labels=` (parallel
+> per-alternative labels): the alternatives still flow through `effective_payments`, and the
+> chosen label is threaded into a 3-arg `on_play(state, idx, label)` that grants the matching
+> reward. Do **not** reach for `register_play_minor_variant` here — a variant *surcharge* is an
+> effect price that deliberately BYPASSES cost modifiers, which is wrong when the "/" is the
+> card's actual cost. (Contrast Facades Carving, where the surcharge — food-for-points — really
+> is an effect price.)
+
 ### "After the feeding phase" is NOT "during feeding" — a conversion must not feed itself
 
 A harvest conversion registered with `register_harvest_conversion` is offered **during**

@@ -19,6 +19,39 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Deck-B/E scoring-and-timing batch — deferred/held members (2026-07-13)
+
+The batch that implemented Heirloom, Nave, Land Register, Misanthropy, Rod Collection, Upholstery,
+Herbal Garden, Beaver Colony, Hook Knife, Ox Skull, and Cookery Lesson (§1) left three cards out:
+
+- **Muck Rake (D29, minor)** — *"During scoring, you get 1 bonus point for exactly 1 unfenced stable
+  holding exactly 1 sheep. The same applies to wild boar and cattle, if held in different unfenced
+  stables."* **Deferred: the first scoring-time ANIMAL-ARRANGEMENT card.** No existing scoring term
+  depends on how animals are arranged among pastures/stables (animals aren't location-tracked), and
+  scoring it correctly needs a multi-slot arrangement-feasibility search (dedicate up to 3 distinct
+  standalone stables to a lone sheep/boar/cattle while housing all other animals) — the doctored-
+  player + `can_accommodate` technique (`shepherds_whistle`/`mineral_feeder`) extended to reserve
+  several capacity-1 slots. Buildable, but it is also the card that would first trigger the
+  arrangement-sharing ruling (§6, CARD_AUTHORING_GUIDE §2) if paired with a future scoring-arrangement
+  card. Removed from this session at the user's direction; revisit as a deliberate scoring-arrangement
+  task.
+- **Breed Registry (D36, minor)** — *"During scoring, if you gained at most 2 sheep from sources
+  other than breeding during the game and have not turned any sheep into food, you get 3 bonus
+  points."* **Postponed (user-agreed 2026-07-13): needs game-long, all-players, gross provenance
+  tracking that PREDATES the card's play.** Two per-player fields tracked from turn 1 — sheep
+  obtained from non-breeding sources (GROSS, not net: discard/exchange diverges gross from net
+  without cooking) and whether a sheep was ever cooked — instrumented at ~8–10 non-centralized
+  sites (sheep market, breeding-exclusion, `grant_animals`, on-play direct adds, exchanges; and the
+  four scattered cook sites), gated to card-mode for Family byte-identity. Real correctness risk
+  (a missed site ships silently wrong). Best done deliberately, ideally alongside sibling
+  "gained X from source Y" provenance cards so the instrumentation is built once.
+- **Writing Chamber (C31, minor)** — *"During scoring, you get a number of bonus points equal to the
+  total of negative points you have, to a maximum of 7 bonus points."* **NOT TO BE IMPLEMENTED**
+  (explicit user directive 2026-07-13). Not a defer awaiting infrastructure — deliberately excluded;
+  do not implement it in a future batch.
+
+---
+
 ## PRIORITY: three mis-timed harvest cards awaiting the user's disposition (2026-07-02)
 
 **The problem.** A 2026-07-02 fidelity audit found three **implemented, live** harvest cards whose

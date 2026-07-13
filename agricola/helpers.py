@@ -167,11 +167,24 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     # package imports engine modules, so a top-level import here would cycle — the
     # load-order-safe pattern legality.py uses for cost_mods. Empty registries -> +0 / 1, so
     # this stays byte-identical (and the frontier caches key on these outputs, so no staleness).
-    from agricola.cards.capacity_mods import house_pet_capacity, pasture_capacity_bonus
+    from agricola.cards.capacity_mods import (
+        house_pet_capacity,
+        pasture_capacity_bonus,
+        reserved_empty_pasture_indices,
+    )
     bonus = pasture_capacity_bonus(player_state)
     if bonus:
         pasture_capacities = [c + bonus for c in pasture_capacities]
     num_flexible = standalone_stables + house_pet_capacity(player_state)
+
+    # A card may FORBID animals in one pasture (Herbal Garden / Beaver Colony): drop the
+    # reserved (smallest-capacity qualifying) pasture from the list entirely. Empty registry
+    # -> no reservation -> byte-identical. `pasture_capacities` is still parallel to
+    # `pastures` here (the bonus preserves order/length), so the indices align.
+    reserved = reserved_empty_pasture_indices(player_state, pastures, pasture_capacities)
+    if reserved:
+        pasture_capacities = [c for i, c in enumerate(pasture_capacities)
+                              if i not in reserved]
 
     return pasture_capacities, num_flexible
 

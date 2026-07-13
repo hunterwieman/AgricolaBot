@@ -125,10 +125,21 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 330 cards — 105 occupations + 225 minors** (Heresy Teacher
+- **Implemented & registered: 348 cards — 105 occupations + 243 minors** (Heresy Teacher
   un-implemented 2026-07-13, ruling 53; the livestock-provider batch — Early Cattle,
   Pigswill, Automatic Water Trough, Bartering Hut — landed 2026-07-13, introducing
-  `PendingAccommodate.min_keep`), spanning decks A–E
+  `PendingAccommodate.min_keep`; the goods-provider batch — Vegetable Slicer, Canvas Sack,
+  Beating Rod, Hauberg, Bee Statue, Water Gully, Muddy Waters — landed 2026-07-13, introducing
+  two additive seams: the `upgrade_to_cooking_hearth` event and `MinorSpec.cost_labels`;
+  the **deck-B/E scoring-and-timing batch** — Heirloom, Nave, Land Register, Misanthropy, Rod
+  Collection, Upholstery, Herbal Garden, Beaver Colony, Hook Knife, Ox Skull, Cookery Lesson —
+  landed 2026-07-13, introducing FOUR additive seams: `register_empty_pasture` (a pasture
+  capacity REDUCTION folded into `extract_slots`), `register_boundary_one_shot` (the
+  decision-boundary one-shot sweep), `register_before_scoring` (the minimal BEFORE_SCORING
+  decision window, reusing `PendingCardChoice`), and `register_animal_cook_reaction` (the
+  animal-cook seam at the two work-phase cook sites); Muck Rake deferred (scoring-time animal
+  arrangement), Breed Registry postponed (game-long sheep provenance), Writing Chamber marked
+  not-to-be-implemented), spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
   §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
@@ -314,8 +325,11 @@ triggers fire on `before_/after_action_space`, `before_bake_bread`, `before_plow
 `after_play_minor`, `start_of_round`; autos additionally on `after_plow`, `after_sow`,
 `after_renovate`, `after_build_major`, `after_build_rooms`, `after_build_stables`,
 `after_major_minor_improvement`, `before_play_minor`, `before_build_major`, `before_build_rooms`,
-and the coarse `after_build_improvement` ("any improvement built" — fired by
-`_execute_play_minor` and the major-build path for cards like Junk Room). The harvest adds its
+the coarse `after_build_improvement` ("any improvement built" — fired by
+`_execute_play_minor` and the major-build path for cards like Junk Room), and the narrow
+`upgrade_to_cooking_hearth` (fired only in the return-Fireplace branch of `_execute_build_major`
+— building a Cooking Hearth by returning a Fireplace, which no post-build state can reconstruct;
+Vegetable Slicer's seam). The harvest adds its
 own event family: every simple harvest-window id is a literal event string (`start_of_harvest`,
 `after_feeding`, `end_of_harvest`, …), plus the during-window `field_phase` and the
 feeding-income `feeding` — §5b. (The old `harvest_field` event is deleted.)
@@ -407,6 +421,7 @@ Where each firing actually happens in the engine — the complete set of call si
 | Feeding income | `feeding` autos | `_initiate_harvest_feed_for(band_player)` — one player per FEED band pass (ruling 40), the autos firing before that player's payment frames are pushed (§5b) |
 | Round-end windows | the six round-end window ids (autos + triggers) | `engine._advance_round_end` — the seven-step walk of §5c (window-major, no banding, harvest-skip guard OFF), reusing `_process_simple_window` + the `PendingHarvestWindow` choice host |
 | Renovate / card play | the one-shot conditional sweep | `_fire_ready_one_shots` (§3), called after a renovate applies and after any card is played |
+| Decision boundary | the boundary one-shot sweep | `engine._fire_boundary_one_shots` (§3), at both `_advance_until_decision` return points, after `_reconcile_accommodation` settles — resource/animal-count one-shots (Hook Knife) |
 | Triggers (all events) | `FireTrigger` surfacing | each host enumerator via `_eligible_fire_triggers` + `_expand_variant_triggers` |
 
 `Stop` fires nothing (`_apply_stop` is a pure pop). There is deliberately **no end-of-turn
@@ -431,13 +446,24 @@ module-local `_owns(player_state, card_id)` helpers.
   **route-supplied** (Lessons charges `occupation_cost(num_played)`: first free, then 1 food;
   Scholar's route charges a flat 1 food) and lives on `PendingPlayOccupation.cost`, not the spec.
   Exemplar: `consultant.py`.
-- **`register_minor(card_id, *, cost=Cost(), alt_costs=(), cost_fn=None, min_occupations=0,
-  max_occupations=None, prereq=None, passing_left=False, vps=0, on_play=_noop)`** →
+- **`register_minor(card_id, *, cost=Cost(), alt_costs=(), cost_labels=(), cost_fn=None,
+  min_occupations=0, max_occupations=None, prereq=None, passing_left=False, vps=0,
+  on_play=_noop)`** →
   `MINORS: dict[str, MinorSpec]`. The pieces:
   - `cost: Cost` — the spendable price (Resources + Animals), paid at play.
   - `alt_costs: tuple[Cost, ...]` — the printed **"/"-alternatives** (Chophouse "2 Wood / 2
     Clay"): the ways to pay are `(cost,) + alt_costs` and the player pays exactly one; each
     alternative is enumerated as its own `CommitPlayMinor` (§5). Not combinable with `cost_fn`.
+  - `cost_labels: tuple[str, ...]` — optional per-alternative labels **parallel to**
+    `(cost,) + alt_costs` (same length). When a card's REWARD is coupled to which alternative it
+    paid (Canvas Sack "*paying grain/reed … get 1 vegetable/4 wood*"), the enumerator tags each
+    alt-cost `CommitPlayMinor` with its label (carried on the commit's `variant`), and
+    `_execute_play_minor` threads it into a 3-arg `on_play(state, idx, label)`. Crucially the cost
+    is the real alternative — it still runs through `effective_payments`, so it stays
+    cost-modifier-visible. This is the deliberate contrast with a play-variant *surcharge*
+    (`register_play_minor_variant`), which is an effect price that bypasses cost modifiers; a
+    genuine "/"-cost with a coupled reward must use `cost_labels`, never the surcharge. Default
+    `()` → the reward doesn't depend on the alternative (ordinary `alt_costs` — Chophouse).
   - `cost_fn: (state, idx) -> Cost` — a state-*scaling* cost, overriding `cost` at play time
     (Bottles: per-person clay+food).
   - `min_occupations` / `max_occupations` — the dominant prerequisite shape ("at least/at most N
@@ -517,14 +543,44 @@ module-local `_owns(player_state, card_id)` helpers.
   already true when the card was played. The sweep, `engine._fire_ready_one_shots`, latches into
   `fired_once` *before* applying (idempotent under re-entry) and runs at exactly the two seams a
   house-material condition can change for the owner: **after a renovate applies and after any
-  card is played**. A condition on anything else (a resource count — Hook Knife's "8 sheep")
-  never gets swept and is a defer (§8). Exemplar: `manservant`.
+  card is played**. A condition on *anything else* — a resource or animal count — is not
+  reachable at those two seams; it belongs on the **decision-boundary** sweep below. Exemplar:
+  `manservant`.
+- **`register_boundary_one_shot(card_id, condition_fn, apply_fn)`** → `BOUNDARY_ONE_SHOTS`.
+  The one-shot's *decision-boundary* sibling: `engine._fire_boundary_one_shots` runs it at
+  **every agent-decision boundary** (both `_advance_until_decision` return points), rather than
+  only the renovate/card-play seams — the home for a one-shot keyed to a **resource/animal count**
+  that those two seams miss (Hook Knife's "when you have 8 sheep on your farm, get 2 points";
+  sheep counts change at the market, at breeding, via cards). It runs **after
+  `_reconcile_accommodation` settles**, so an animal-count condition sees the *housed* animals —
+  the card's own condition still verifies accommodation (`accommodates`) so a transient
+  over-capacity grant, at the boundary where its `PendingAccommodate` is still up, cannot fire it.
+  Latches `fired_once` before applying (idempotent). Empty index → Family no-op / byte-identical.
+  Exemplar: `hook_knife`.
 - **`register_card_choice_resolver(card_id, resolver)`** → `CARD_CHOICE_RESOLVERS`.
   `resolver(state, player_idx, chosen_option) -> state` applies a `PendingCardChoice` pick and
   pops the frame itself. Pair with a `mandatory=True` trigger whose `apply_fn` pushes the frame.
 - **`register_play_variant_trigger(card_id, variants_fn)`** → `PLAY_VARIANT_TRIGGERS`.
   `variants_fn(state, idx) -> list[str]` (empty = none legal now); expands the card's trigger
-  into per-variant `FireTrigger`s (§2). Exemplars: `scholar`, `cottager`.
+  into per-variant `FireTrigger`s (§2). Exemplars: `scholar`, `cottager`. **Both the atomic and
+  the delegating space-host enumerators now expand these** (Cookery Lesson's cook-sheep/boar/cattle
+  routes on the Lessons after-phase — the delegating expansion was added 2026-07-13, a no-op where
+  no owned trigger is a variant trigger).
+- **`register_before_scoring(card_id, options_fn)`** → `BEFORE_SCORING_CARDS`. The minimal
+  before-scoring decision window: `engine._push_before_scoring_choice` runs at the BEFORE_SCORING
+  boundary and, for each owning player (once — latched in `fired_once` at push) whose
+  `options_fn(state, idx)` returns a non-empty option tuple, pushes a `PendingCardChoice`
+  (`initiated_by_id="card:<id>"`) — reusing the existing choice frame + `register_card_choice_resolver`
+  machinery. `step`'s terminal guard was relaxed to fire only on an EMPTY-stack BEFORE_SCORING, so a
+  before-scoring frame is a valid step target. Offered only where a card makes an end-game
+  animal-discard relevant (Ox Skull at exactly 1 cattle). Exemplar: `ox_skull`.
+- **`register_animal_cook_reaction(card_id, react_fn)`** → `ANIMAL_COOK_REACTIONS`. A card reacting to
+  an animal being COOKED (converted to food via a Fireplace/Cooking Hearth). `resolution.note_animal_cook`
+  fires each owned card's `react_fn(state, owner_idx) -> state` at the two work-phase cook sites
+  (`_execute_food_payment`, `_execute_accommodate`) right after the animal→food conversion — so "used a
+  cooking improvement" is detected as the ACTUAL cook, never an animal-count change (an animal spent as
+  a card cost / discarded / exchanged is not a cook). Cookery Lesson uses it to award its point for
+  cooking on a Lessons turn, wherever the cook happens. Exemplar: `cookery_lesson`.
 
 ### `agricola/cards/cost_mods.py` — cost modifiers + free fences
 
@@ -595,8 +651,18 @@ Read by `helpers.extract_slots` (the accommodation decomposition every frontier 
   bonus applied to **every pasture's** final capacity (after the stable doubling — the card adds
   to the finished pasture, not inside the `2·cells·2^stables` formula). Fold: **sum over owned
   modifiers, default 0** — `pasture_capacity_bonus`. Exemplar: `drinking_trough` (+2).
+- **`register_empty_pasture(card_id, qualifies_fn)`** → `EMPTY_PASTURE_CARDS`. The first capacity
+  *reduction*: a card that forces one qualifying pasture to hold no animals ("at least one of your
+  pastures must contain no animals" — Herbal Garden; "one of your pastures WITH stable cannot hold
+  animals" — Beaver Colony). `qualifies_fn(pasture) -> bool` restricts which pastures can be the
+  empty one (Herbal: any; Beaver: `num_stables >= 1`). `extract_slots` calls
+  `reserved_empty_pasture_indices` and DROPS the smallest-capacity reserved pasture from the
+  capacity list — dropping the smallest is optimal for max housing. Two rulings (2026-07-13): when
+  both are owned, ONE empty pasture-with-stable satisfies both (the fold shares it); a member with
+  no qualifying pasture imposes nothing. Owning one sets `animals_need_accommodation` on play
+  (eviction, the Milking Place idiom). Exemplars: `herbal_garden`, `beaver_colony`.
 
-The two folds are the first mechanism to make pasture capacities non-canonical (dependent on
+The three folds are the first mechanism to make pasture capacities non-canonical (dependent on
 owned cards, not just geometry) — which is exactly the situation the frontier-cache
 projection-key contract warns about; see §5's closing note.
 
@@ -1575,9 +1641,14 @@ examples; this is the reference list.
   earlier batch-era ruling that any "/" cost is an automatic defer — commit a8e1ee2.)* Still
   unsupported: a minor whose "/" is in the *effect* (Canvas Sack's choose-a-reward) — no
   `PLAY_MINOR_VARIANTS` registry exists; defer (§8).
-- **A conditional one-shot latch fires only at the two swept seams** (renovate, card play). A
-  standing condition on anything else — a resource count (Hook Knife's "8 sheep") — never gets
-  swept; defer rather than approximating with an action hook.
+- **A one-shot's sweep matches its condition's reachability.** A house-material condition
+  ("once you live in a stone house") fires on the `register_conditional` sweep at the renovate /
+  card-play seams (`_fire_ready_one_shots`). A **resource/animal-count** condition (Hook Knife's
+  "8 sheep") those seams can't see fires on the `register_boundary_one_shot` sweep at every
+  decision boundary (`_fire_boundary_one_shots`), after the accommodation barrier — with the
+  card's own `accommodates` check so an un-trimmed over-capacity grant never fires it. Neither is
+  a defer; pick the sweep whose timing the condition needs (§3), and never approximate with an
+  action hook.
 - **Harvest timing is the window ladder** — a harvest card registers on the window id its
   printed text names (§5b), never an approximated neighbor. The field phase is ONE
   simultaneous event (rulings 5/11): all during-phase extra harvesting folds into the take as

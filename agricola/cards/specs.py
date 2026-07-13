@@ -147,6 +147,17 @@ class MinorSpec:
                       exactly ONE affordable member. Default () → the ordinary
                       single-cost card (only `cost` applies). Not combinable with
                       `cost_fn` (a scaling cost has no printed alternatives).
+    cost_labels     — optional per-alternative labels, parallel to
+                      `(cost,) + alt_costs` (same length). When set, the chosen
+                      alternative's label is threaded into a 3-arg
+                      `on_play(state, idx, label)`, so a card whose REWARD is
+                      coupled to which cost it paid (Canvas Sack "paying
+                      grain/reed … get 1 vegetable/4 wood") can grant the matching
+                      benefit. Distinct from a play-variant surcharge: the cost
+                      here is a REAL alternative cost that still flows through the
+                      cost-modifier chokepoint (`effective_payments`), so a
+                      discount card sees it — which a variant surcharge does not.
+                      Default () → the reward does not depend on the alternative.
     cost_fn         — optional (state, idx) -> Cost; when present, overrides
                       `cost` at play time (for cards whose cost scales with game
                       state, e.g. Bottles: people_total × clay+food).
@@ -164,6 +175,7 @@ class MinorSpec:
     card_id: str
     cost: Cost = Cost()
     alt_costs: tuple[Cost, ...] = ()
+    cost_labels: tuple[str, ...] = ()
     cost_fn: Optional[Callable] = None
     min_occupations: int = 0
     max_occupations: Optional[int] = None
@@ -181,6 +193,7 @@ def register_minor(
     *,
     cost: Cost = Cost(),
     alt_costs: tuple[Cost, ...] = (),
+    cost_labels: tuple[str, ...] = (),
     cost_fn: Optional[Callable] = None,
     min_occupations: int = 0,
     max_occupations: Optional[int] = None,
@@ -190,10 +203,14 @@ def register_minor(
     on_play: Callable = _noop_on_play,
 ) -> None:
     """Register a minor improvement's spec (called at card-module import)."""
+    assert not cost_labels or len(cost_labels) == 1 + len(alt_costs), (
+        "cost_labels must be parallel to (cost,) + alt_costs"
+    )
     MINORS[card_id] = MinorSpec(
-        card_id=card_id, cost=cost, alt_costs=alt_costs, cost_fn=cost_fn,
-        min_occupations=min_occupations, max_occupations=max_occupations,
-        prereq=prereq, passing_left=passing_left, vps=vps, on_play=on_play,
+        card_id=card_id, cost=cost, alt_costs=alt_costs, cost_labels=cost_labels,
+        cost_fn=cost_fn, min_occupations=min_occupations,
+        max_occupations=max_occupations, prereq=prereq, passing_left=passing_left,
+        vps=vps, on_play=on_play,
     )
 
 

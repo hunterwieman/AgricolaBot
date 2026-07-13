@@ -131,6 +131,59 @@ def sheep_min_parents(player_state) -> int:
     return 2
 
 
+# Cards that FORBID animals in one of the player's pastures — a standing capacity
+# restriction: "at least one of your pastures must contain no animals" (Herbal Garden
+# E36) / "one of your pastures with a stable cannot hold animals" (Beaver Colony E33).
+# Each owned member reserves ONE qualifying pasture empty; `extract_slots` then drops the
+# smallest-capacity reserved pasture from the capacity list (dropping the smallest is
+# optimal for maximum housing — a larger remaining capacity multiset never houses fewer).
+# A member's `qualifies_fn(pasture) -> bool` restricts which pastures satisfy it (Herbal:
+# any pasture; Beaver: `pasture.num_stables >= 1`).
+#
+# Arrangement sharing (user ruling 2026-07-13): when one pasture satisfies two members'
+# predicates, a SINGLE empty pasture covers both (Herbal + Beaver share one empty
+# pasture-with-stable — the optimal play). And when a member has NO qualifying pasture
+# (Beaver with no pasture-with-stable — e.g. after Overhaul razes it), that member imposes
+# NO restriction at all (it is dropped). The fold below is exact for the current
+# nested-predicate members. Empty registry -> no reduction (Family byte-identity).
+EMPTY_PASTURE_CARDS: list[tuple[str, Callable]] = []
+
+
+def register_empty_pasture(card_id: str, qualifies_fn: Callable) -> None:
+    """Register a card that forces one qualifying pasture to hold no animals.
+    `qualifies_fn(pasture) -> bool` says which pastures can be the empty one (Herbal
+    Garden: any pasture; Beaver Colony: `p.num_stables >= 1`). Import-time; ownership-gated
+    in the fold below."""
+    EMPTY_PASTURE_CARDS.append((card_id, qualifies_fn))
+
+
+def reserved_empty_pasture_indices(player_state, pastures, capacities) -> set:
+    """Indices (into `pastures`/`capacities`) of pastures that owned "empty-pasture" cards
+    force to hold no animals — the minimum-capacity set satisfying every owned member,
+    dropping any member with no qualifying pasture.
+
+    `pastures` is the `Pasture` list; `capacities` the parallel (bonus-applied) capacity
+    list. Empty registry / nothing owned -> empty set (Family byte-identity). Greedy,
+    strictest-predicate-first: for each still-uncovered member reserve its smallest-capacity
+    qualifying pasture, which also covers every looser member that pasture satisfies — exact
+    for nested predicates (the current cards)."""
+    if not EMPTY_PASTURE_CARDS or not pastures:
+        return set()
+    quals = []
+    for card_id, qualifies_fn in EMPTY_PASTURE_CARDS:
+        if not _owns(player_state, card_id):
+            continue
+        idxs = frozenset(i for i, p in enumerate(pastures) if qualifies_fn(p))
+        if idxs:                       # a member with no qualifying pasture imposes nothing
+            quals.append(idxs)
+    reserved: set = set()
+    for idxs in sorted(quals, key=len):        # strictest (smallest set) first
+        if reserved & idxs:                    # already covered by an earlier reservation
+            continue
+        reserved.add(min(idxs, key=lambda i: capacities[i]))
+    return reserved
+
+
 def pasture_capacity_bonus(player_state) -> int:
     """Flat per-pasture capacity bonus from owned cards (Drinking Trough: +2 each), summed.
     Empty registry / no owned modifier -> 0 (Family byte-identity). Applied AFTER the stable

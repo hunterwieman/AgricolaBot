@@ -163,21 +163,23 @@ def step(state: GameState, action: Action) -> GameState:
 
     Preconditions (caller's responsibility — step does NOT validate):
       - action is in legal_actions(state).
-      - state.phase != Phase.BEFORE_SCORING.
+      - the game is not terminal — i.e. NOT (phase == BEFORE_SCORING and the pending
+        stack is empty). A before-scoring decision frame (Ox Skull's discard) sits at
+        BEFORE_SCORING with a non-empty stack and IS a valid step target.
 
     Postconditions:
       - The action's effect has been applied.
       - The state has been auto-advanced through phase transitions and
-        active-player switches until the next agent decision OR
-        state.phase == Phase.BEFORE_SCORING.
+        active-player switches until the next agent decision OR a terminal
+        state (BEFORE_SCORING with an empty stack).
 
     Raises:
-      - RuntimeError if state.phase == Phase.BEFORE_SCORING.
+      - RuntimeError if the game is terminal (BEFORE_SCORING, empty stack).
       - NotImplementedError only as a defensive guard if a PlaceWorker
         targets a space without registered handlers (should not happen for
         any space surfaced by legal_placements).
     """
-    if state.phase == Phase.BEFORE_SCORING:
+    if state.phase == Phase.BEFORE_SCORING and not state.pending_stack:
         raise RuntimeError("step called on a terminated game")
 
     # The start-of-round phase hook (II.6, card-only) resolves its
@@ -771,6 +773,66 @@ def _fire_ready_one_shots(state: GameState, idx: int) -> GameState:
     return state
 
 
+def _fire_boundary_one_shots(state: GameState) -> GameState:
+    """Fire owned resource/animal-count one-shot cards whose condition holds — the
+    decision-BOUNDARY analog of `_fire_ready_one_shots` (which fires only at the renovate /
+    card-play seams, for house-material conditions).
+
+    Called at every agent-decision boundary in `_advance_until_decision`, AFTER
+    `_reconcile_accommodation` settles, so a card keyed on an animal count sees the
+    ACCOMMODATED animals — Hook Knife's "when you have 8 sheep on your farm" must not fire on
+    a transient over-capacity grant the barrier will trim. Each card fires at most once per
+    game (`fired_once`, latched before apply so a re-check is idempotent).
+
+    A no-op in the Family game: `BOUNDARY_ONE_SHOTS` may be non-empty (cards register into
+    it), but no Family player owns such a card, so the loop makes zero state changes — the
+    walk stays byte-identical (the C++ Family gates are unaffected).
+    """
+    from agricola.cards.triggers import BOUNDARY_ONE_SHOTS
+    if not BOUNDARY_ONE_SHOTS:
+        return state
+    for idx in (state.starting_player, 1 - state.starting_player):
+        for cid, (condition_fn, apply_fn) in BOUNDARY_ONE_SHOTS.items():
+            p = state.players[idx]
+            if cid not in (p.occupations | p.minor_improvements) or cid in p.fired_once:
+                continue
+            if not condition_fn(state, idx):
+                continue
+            state = _update_player(state, idx, fast_replace(p, fired_once=p.fired_once | {cid}))
+            state = apply_fn(state, idx)
+    return state
+
+
+def _push_before_scoring_choice(state: GameState) -> tuple[GameState, bool]:
+    """The before-scoring decision window: at the BEFORE_SCORING boundary, offer any owned
+    card's end-game choice (Ox Skull's discard-the-single-cow) as a `PendingCardChoice`.
+
+    Pushes at most ONE frame per call and returns (state, True); the walk re-enters Case 1,
+    surfaces it, and the resolver pops it — then this runs again for the next unresolved
+    card, until none remain (returns (state, False) and scoring proceeds). The offer is
+    latched in `fired_once` AT PUSH (so a "keep" choice, which leaves the option live, is not
+    re-offered forever). Push order is starting-player-first; each player's frame resolves
+    before the next is offered. A no-op in the Family game (empty registry / no owner).
+    """
+    from agricola.cards.triggers import BEFORE_SCORING_CARDS
+    if not BEFORE_SCORING_CARDS:
+        return state, False
+    for idx in (state.starting_player, 1 - state.starting_player):
+        p = state.players[idx]
+        owned = p.occupations | p.minor_improvements
+        for cid, options_fn in BEFORE_SCORING_CARDS.items():
+            if cid not in owned or cid in p.fired_once:
+                continue
+            options = options_fn(state, idx)
+            if not options:
+                continue
+            state = _update_player(state, idx, fast_replace(p, fired_once=p.fired_once | {cid}))
+            state = push(state, PendingCardChoice(
+                player_idx=idx, initiated_by_id=f"card:{cid}", options=tuple(options)))
+            return state, True
+    return state, False
+
+
 # ---------------------------------------------------------------------------
 # Active-player alternation
 # ---------------------------------------------------------------------------
@@ -902,6 +964,7 @@ def _advance_until_decision(state: GameState) -> GameState:
             state, pushed = _reconcile_accommodation(state)
             if pushed:
                 continue
+            state = _fire_boundary_one_shots(state)   # resource/animal-count one-shots
             return state
 
         # Case 1.5: DRAFT phase with empty stack. Push the next pick frame,
@@ -949,6 +1012,7 @@ def _advance_until_decision(state: GameState) -> GameState:
             state, pushed = _reconcile_accommodation(state)
             if pushed:
                 continue
+            state = _fire_boundary_one_shots(state)   # resource/animal-count one-shots
             return state
 
         # Case 4: RETURN_HOME phase. The ladder's RETURN segment
@@ -974,8 +1038,13 @@ def _advance_until_decision(state: GameState) -> GameState:
             state = _advance_harvest(state)
             continue
 
-        # Case 8: terminal phase. No more steps possible.
+        # Case 8: terminal phase. Before scoring, offer any card's end-game decision
+        # (Ox Skull's discard-the-single-cow) — a PendingCardChoice surfaced via Case 1;
+        # when none remain, scoring proceeds. Family no-op (empty registry).
         if state.phase == Phase.BEFORE_SCORING:
+            state, pushed = _push_before_scoring_choice(state)
+            if pushed:
+                continue
             if __debug__:
                 _assert_animals_accommodated(state)   # unconditional backstop
             return state

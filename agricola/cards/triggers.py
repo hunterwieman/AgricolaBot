@@ -295,6 +295,62 @@ def register_conditional(card_id: str, condition_fn: Callable, apply_fn: Callabl
     CONDITIONAL_ONE_SHOTS[card_id] = (condition_fn, apply_fn)
 
 
+# A one-shot fired at every AGENT-DECISION BOUNDARY (rather than only at the renovate /
+# card-play seams `CONDITIONAL_ONE_SHOTS` uses). This is the home for a one-shot keyed to a
+# condition that can become true at points those two seams miss — most importantly a
+# RESOURCE / ANIMAL COUNT (Hook Knife's "when you have 8 sheep on your farm, get 2 bonus
+# points"): sheep counts change at the animal market, at breeding, and via cards, none of
+# which the renovate/card-play sweep covers. `engine._fire_boundary_one_shots` runs these
+# right AFTER the accommodation barrier settles at each boundary, so an animal-count
+# condition sees the ACCOMMODATED animals (never a transient over-capacity grant). Each
+# fires once per game (`fired_once`). Empty registry -> Family no-op / byte-identical.
+BOUNDARY_ONE_SHOTS: dict[str, tuple[Callable, Callable]] = {}
+
+
+def register_boundary_one_shot(card_id: str, condition_fn: Callable,
+                               apply_fn: Callable) -> None:
+    """Register `card_id` as a decision-boundary one-shot (§3/§6). Fires once, via
+    `engine._fire_boundary_one_shots`, the first boundary at which
+    `condition_fn(state, owner_idx)` is true for the OWNER — checked after the
+    accommodation barrier settles, so an animal-count condition reads housed animals."""
+    BOUNDARY_ONE_SHOTS[card_id] = (condition_fn, apply_fn)
+
+
+# A card that offers a DECISION just before end-game scoring — the minimal
+# `PendingBeforeScoring` window (Ox Skull's "discard your one cattle to reach 0 for +3").
+# `engine._push_before_scoring_choice` runs at the BEFORE_SCORING boundary: for each owning
+# player (once — latched in `fired_once` at push) whose `options_fn(state, idx)` returns a
+# non-empty option tuple, it pushes a `PendingCardChoice(initiated_by_id="card:<id>",
+# options=...)`, reusing the existing choice frame + resolver machinery
+# (`register_card_choice_resolver`). The choice is surfaced only where a card makes an
+# end-game animal-discard relevant, keeping the action set small (the optionality-preservation
+# principle). Empty registry -> Family no-op / byte-identical.
+BEFORE_SCORING_CARDS: dict[str, Callable] = {}
+
+
+def register_before_scoring(card_id: str, options_fn: Callable) -> None:
+    """Register `card_id`'s before-scoring decision. `options_fn(state, owner_idx) -> tuple`
+    returns the choice options (empty = no decision now); pair with a
+    `register_card_choice_resolver` that applies the pick and pops the frame."""
+    BEFORE_SCORING_CARDS[card_id] = options_fn
+
+
+# A card that REACTS to an animal being cooked (converted to food via a cooking improvement —
+# a Fireplace/Cooking Hearth). `resolution.note_animal_cook` fires each owned card's reaction
+# at the two work-phase cook sites (`_execute_food_payment`, `_execute_accommodate`) right
+# after the animal→food conversion — so "used a cooking improvement" is detected as the ACTUAL
+# cook, not an animal-count change (an animal spent as a card COST, or discarded, never fires
+# it). Cookery Lesson uses this to award its point for cooking on a Lessons turn, wherever the
+# cook happens (paying the occupation cost, an on-play-grant overflow, or its own explicit
+# cook). `react_fn(state, owner_idx) -> state`. Empty registry / no owner -> Family no-op.
+ANIMAL_COOK_REACTIONS: dict[str, Callable] = {}
+
+
+def register_animal_cook_reaction(card_id: str, react_fn: Callable) -> None:
+    """Register `card_id`'s reaction to an animal being cooked (import time)."""
+    ANIMAL_COOK_REACTIONS[card_id] = react_fn
+
+
 # ---------------------------------------------------------------------------
 # Mandatory-with-choice gate (CARD_IMPLEMENTATION_PLAN.md II.1)
 # ---------------------------------------------------------------------------

@@ -38,12 +38,13 @@ from agricola.scoring import SCORING_TERMS
 # sets partition every registered scoring term, so adding a new scoring card without
 # classifying it FAILS the suite rather than silently going emblem-less.
 HISTORY_VP_CARDS: frozenset[str] = frozenset({
-    "baking_sheet", "beer_keg", "beer_stein", "beer_table", "big_country",
+    "baking_sheet", "beaver_colony", "beer_keg", "beer_stein", "beer_table", "big_country",
+    "cookery_lesson",
     "bucksaw", "clay_deposit", "craft_brewery", "cube_cutter", "elephantgrass_plant",
     "facades_carving",
-    "furniture_carpenter", "home_brewer", "loppers", "mantlepiece",
-    "paintbrush", "rustic", "swimming_class",
-    "truffle_slicer", "tutor", "uncaring_parents", "wood_rake",
+    "furniture_carpenter", "home_brewer", "hook_knife", "loppers", "mantlepiece",
+    "paintbrush", "rod_collection", "rustic", "swimming_class",
+    "truffle_slicer", "tutor", "uncaring_parents", "upholstery", "wood_rake",
 })
 
 # History-derived scoring cards that DON'T take the emblem, because the live
@@ -62,9 +63,10 @@ PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler", "earthenware_potter
 # unclassified new card; nothing consumes this set at runtime.
 PUBLIC_VP_CARDS: frozenset[str] = frozenset({
     "artisan_district", "cookery_outfitter", "debt_security", "fellow_grazer",
-    "fodder_chamber", "greening_plan", "lantern_house", "loom", "lord_of_the_manor",
-    "manger", "milking_stool", "pottery_yard", "schnapps_distillery", "soldier",
-    "stable_architect", "storeroom", "summer_house", "wool_blankets",
+    "fodder_chamber", "greening_plan", "land_register", "lantern_house", "loom",
+    "lord_of_the_manor", "manger", "milking_stool", "misanthropy", "nave", "ox_skull",
+    "pottery_yard", "schnapps_distillery", "soldier", "stable_architect", "storeroom",
+    "summer_house", "wool_blankets",
 })
 
 _SCORING_BY_ID: dict[str, "callable"] | None = None

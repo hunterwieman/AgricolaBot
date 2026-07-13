@@ -583,3 +583,54 @@ from agricola.cards import early_cattle  # noqa: F401
 from agricola.cards import pigswill  # noqa: F401
 from agricola.cards import automatic_water_trough  # noqa: F401
 from agricola.cards import bartering_hut  # noqa: F401
+# The goods-provider batch (2026-07-13): two new additive engine seams + 7 cards.
+# Vegetable Slicer rides the new `upgrade_to_cooking_hearth` event (fired at the
+# return-Fireplace branch of _execute_build_major). Canvas Sack is the first
+# `cost_labels` card (labeled alternative cost -> the coupled reward reaches
+# on_play while the cost stays cost-modifier-visible). Beating Rod / Hauberg use
+# the play-minor variant seam (effect-priced surcharge). Bee Statue is a Day
+# Laborer CardStore dispenser; Water Gully / Muddy Waters are deferred schedulers.
+from agricola.cards import vegetable_slicer  # noqa: F401
+from agricola.cards import canvas_sack  # noqa: F401
+from agricola.cards import beating_rod  # noqa: F401
+from agricola.cards import hauberg  # noqa: F401
+from agricola.cards import bee_statue  # noqa: F401
+from agricola.cards import water_gully  # noqa: F401
+from agricola.cards import muddy_waters  # noqa: F401
+# The Ephipparius (deck E) batch (2026-07-13), wave 1 — the clean-fit cards: pure
+# scoring / prereq (Heirloom E29 = 2 VP if your person is on Day Laborer; Nave E32 =
+# 1/column with a room; Land Register E34 = 2 if no unused space; Misanthropy E35 =
+# 2/3/5 for exactly 4/3/2 people), the Fishing wood-banker Rod Collection E38 (a
+# play-variant "place up to 2 wood" trigger + a 1/4/7/10-excluded scoring formula), and
+# Upholstery E31 (reed->point banked per later improvement, hooking BOTH after_play_minor
+# and after_build_major with a same-turn self-exclusion latch in used_this_turn).
+from agricola.cards import heirloom  # noqa: F401
+from agricola.cards import nave  # noqa: F401
+from agricola.cards import land_register  # noqa: F401
+from agricola.cards import misanthropy  # noqa: F401
+from agricola.cards import rod_collection  # noqa: F401
+from agricola.cards import upholstery  # noqa: F401
+# Wave 2 — the "empty-pasture" capacity restriction (new additive seam
+# capacity_mods.register_empty_pasture, folded into extract_slots, no-op in Family):
+# Herbal Garden E36 (any pasture must be empty) and Beaver Colony E33 (a pasture-WITH-
+# stable must be empty; the two share one empty pasture when both are owned, and Beaver
+# is vacuous with no stabled pasture). Beaver also banks +1 point per Reed Bank use.
+from agricola.cards import herbal_garden  # noqa: F401
+from agricola.cards import beaver_colony  # noqa: F401
+# Wave 3 — the decision-BOUNDARY one-shot sweep (new seam
+# triggers.register_boundary_one_shot + engine._fire_boundary_one_shots, run after the
+# accommodation barrier at each boundary; Family no-op). Hook Knife B35: once per game,
+# reaching 8 HOUSED sheep (2p) banks 2 points — the accommodation guard keeps a transient
+# over-capacity grant from triggering it.
+from agricola.cards import hook_knife  # noqa: F401
+# Wave 4 — the minimal before-scoring decision window (new seam
+# triggers.register_before_scoring + engine._push_before_scoring_choice at the
+# BEFORE_SCORING boundary, reusing PendingCardChoice; Family no-op). Ox Skull E37: on-play
+# +1 food, +3 at scoring with no cattle, and a keep/discard offer at exactly 1 cattle.
+from agricola.cards import ox_skull  # noqa: F401
+# Wave 5 — the animal-cook reaction seam (new triggers.register_animal_cook_reaction +
+# resolution.note_animal_cook at the two work-phase cook sites; Family no-op). Cookery
+# Lesson B29: 1 point per Lessons-placement turn on which you also cook an animal via a
+# cooking improvement — granted AT the cook (paying the occupation cost, an on-play-grant
+# overflow, or an explicit cook offered on the Lessons after-phase), never off a count-diff.
+from agricola.cards import cookery_lesson  # noqa: F401

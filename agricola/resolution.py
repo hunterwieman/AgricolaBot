@@ -608,11 +608,13 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     state = apply_auto_effects(state, "after_build_improvement", idx)
     prev_depth = len(state.pending_stack)
     # Run the immediate effect (whether kept or passed). A pushing on_play lands its primitive
-    # on top of the already-"after" host. A play-variant minor (PLAY_MINOR_VARIANTS —
-    # Facades Carving) gets the chosen route as a 3rd arg; its surcharge was already
-    # debited (folded into `payment` at enumeration), so on_play grants only the benefit.
-    from agricola.cards.specs import PLAY_MINOR_VARIANTS
-    if cid in PLAY_MINOR_VARIANTS:
+    # on top of the already-"after" host. When the commit carries a `variant`, the chosen route
+    # is threaded as a 3rd arg — a play-variant minor (PLAY_MINOR_VARIANTS — Facades Carving),
+    # whose surcharge was already debited (folded into `payment`), OR a labeled-alternative-cost
+    # minor (`cost_labels` — Canvas Sack), whose real alternative cost was already debited via
+    # `payment`. Either way on_play grants only the benefit. `variant is None` -> the ordinary
+    # 2-arg call (every plain minor; Family never plays minors, so this stays inert there).
+    if action.variant is not None:
         state = spec.on_play(state, idx, action.variant)
     else:
         state = spec.on_play(state, idx)
@@ -625,6 +627,23 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     # which is what used to require Wood Workshop's per-card phase gate).
     from agricola.engine import _fire_subaction_before_auto
     return _fire_subaction_before_auto(state, prev_depth)
+
+
+def note_animal_cook(state: GameState, idx: int) -> GameState:
+    """An animal was just cooked (converted to food via a cooking improvement) by player
+    `idx`. Fire the reaction of each owned card registered for animal-cook events (Cookery
+    Lesson's "used a cooking improvement this turn"). Called at the two work-phase cook sites
+    after the animal→food conversion. Detecting the ACTUAL cook — not an animal-count change —
+    is load-bearing: an animal spent as a card cost, discarded, or exchanged is not a cook and
+    must not fire this. Empty registry / no owner -> no-op (Family byte-identical)."""
+    from agricola.cards.triggers import ANIMAL_COOK_REACTIONS
+    if not ANIMAL_COOK_REACTIONS:
+        return state
+    owned = state.players[idx].occupations | state.players[idx].minor_improvements
+    for cid, react_fn in ANIMAL_COOK_REACTIONS.items():
+        if cid in owned:
+            state = react_fn(state, idx)
+    return state
 
 
 def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
@@ -664,6 +683,8 @@ def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
         p = fast_replace(p, harvest_conversions_used=(
             p.harvest_conversions_used | frozenset(action.conversions)))
     state = _update_player(pop(state), idx, p)   # pop PendingFoodPayment; host back on top
+    if action.sheep + action.boar + action.cattle > 0:   # an animal was cooked to pay
+        state = note_animal_cook(state, idx)
     return _resume(state, idx, top)
 
 
@@ -1521,6 +1542,18 @@ def _execute_build_major(
         board=fast_replace(state.board, major_improvement_owners=new_owners),
     )
 
+    # 2b. Building a Cooking Hearth by RETURNING a Fireplace is the "upgrade a
+    #     Fireplace to a Cooking Hearth" event — the only route that counts as an
+    #     upgrade (a clay-paid Cooking Hearth keeps the Fireplace and is NOT an
+    #     upgrade). The discriminator lives only on `commit.payment` (a
+    #     ReturnImprovement), so this is the one place that can fire the hook. Its
+    #     consumer is Vegetable Slicer (A41). A no-op in the Family game (empty
+    #     AUTO_EFFECTS) — the same additive pattern as the after_build_improvement
+    #     fire below, so the C++ Family differential gates stay green untouched.
+    if isinstance(commit.payment, ReturnImprovement):
+        from agricola.cards.triggers import apply_auto_effects
+        state = apply_auto_effects(state, "upgrade_to_cooking_hearth", player_idx)
+
     # 3. Well's special effect: +1 food on each of the next 5 round spaces.
     if commit.major_idx == 4:  # Well
         p = state.players[player_idx]
@@ -1737,6 +1770,8 @@ def _execute_accommodate(
     new_resources = p.resources + Resources(food=food)
     new_player = fast_replace(p, animals=new_animals, resources=new_resources)
     state = _update_player(state, player_idx, new_player)
+    if (s_avail - commit.sheep) + (b_avail - commit.boar) + (c_avail - commit.cattle) > 0:
+        state = note_animal_cook(state, player_idx)   # excess animals cooked to food
     if isinstance(pending, PendingAccommodate):
         return pop(state)          # bare reconciliation: no host lifecycle, just pop
     # Market: pivot to the after-phase (do NOT pop) and fire after_action_space autos at

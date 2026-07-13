@@ -1882,7 +1882,11 @@ def _enumerate_pending_subactionspace(
     that competes with the mandatory sub-action for a resource must gate its own
     eligibility so the sub-action stays legal after it fires."""
     event = trigger_event(pending)
-    actions = _eligible_fire_triggers(state, pending, event)
+    # Expand play-variant triggers (Cookery Lesson's cook-sheep/boar/cattle on the Lessons
+    # after-phase) into one FireTrigger per legal route, mirroring the atomic-host enumerator;
+    # a no-op when no owned trigger here is a variant trigger (so Family is byte-identical).
+    actions = _expand_variant_triggers(
+        state, pending, _eligible_fire_triggers(state, pending, event))
     if pending.phase == "after":
         actions.append(Stop())
         return actions
@@ -2662,11 +2666,16 @@ def _enumerate_pending_play_minor(
             # Family byte-identity untouched). `_execute_play_minor` reads the chosen
             # alternative's animal portion from it; the resource debit is `payment`.
             commit_cost = None if i == 0 else cost
+            # A card whose reward is coupled to WHICH alternative it paid (Canvas
+            # Sack) labels its alternatives; the chosen label rides on the commit's
+            # `variant` and is threaded into a 3-arg on_play. The cost itself is the
+            # real alternative (already run through `effective_payments` above), so
+            # it stays cost-modifier-visible — unlike a play-variant surcharge.
+            label = spec.cost_labels[i] if spec.cost_labels else None
             for payment in effective_payments(state, top.player_idx, ctx):
                 if variants_fn is None:
-                    actions.append(
-                        CommitPlayMinor(card_id=cid, payment=payment, cost=commit_cost)
-                    )
+                    actions.append(CommitPlayMinor(
+                        card_id=cid, payment=payment, cost=commit_cost, variant=label))
                     continue
                 # Play-variant minor (PLAY_MINOR_VARIANTS — Facades Carving): one
                 # commit per variant whose surcharge, ON TOP of this payment, is
