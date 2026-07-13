@@ -623,8 +623,27 @@ are ~20 cards STALE (regenerate before trusting).
    occasion trigger became an occasion AUTO taking min(tiles, pile remaining); the
    "cell:"-only tile filter (ruling 32) and its pinned test kept; choice tests
    rewritten as automatic-fire tests.
-3. **The converter cluster (rulings 34–39, fully specified)** — the last harvest
-   machinery. **PROGRESS 2026-07-12: step (a) — the generalized frontier core —
+3. **DONE 2026-07-12 (`444a679` the frontier core, `982c2ce` the raise-frame
+   wiring, `f084826` the cards) — the converter cluster (rulings 34–39)**, the
+   last harvest machinery. Landed: the generalized food_payment_frontier
+   (span_converters subsets + ruling 39's floors, BOTH outside the cached core
+   — zero new cache surfaces), HarvestConversionSpec.frontier_fire (the three
+   craft majors + Stone Carver + Paintbrush's food branch reach the raise
+   frame), in_conversion_span / post_breed_floors / available_span_converters,
+   CommitFoodPayment.conversions, register_free_span_trigger (eleven surfaces
+   per call; the feed frame is covered by the card's own conversion entry —
+   one shared budget), and the cards: Stone Carver D108, Basket Carrier C105,
+   Paintbrush E39 (one budget, three surfaces), Furniture Carpenter's
+   free-span migration. The ruling-36 Social Benefits line is pinned. Braid
+   Maker E109 DEFERRED whole (the play-minor major-build gap — recorded in
+   CARD_DEFERRED_PLANS.md with a build proposal); Lumber Virtuoso [3+] waits
+   for 4p (the Old Miser precedent — the helper fits it, no module). USER
+   FLAGS: the breeding-SKIPPER corner of ruling 39's stateless floor
+   (over-protects a skipped player's animals — same accepted class as the
+   capacity-blocked corner, but not explicitly ruled). Cooking Hearth
+   Extension stays OUT (ruling 42).
+   The build spec below is the historical record of the derivation:
+   **PROGRESS 2026-07-12: step (a) — the generalized frontier core —
    is LANDED (`444a679`, helpers.food_payment_frontier + _food_payment_generalized
    + _food_payment_counts, 10 seam tests in tests/test_food_payment_generalized.py;
    the floors/converters sit OUTSIDE the cached core — no cache-key change at

@@ -112,7 +112,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-12, HEAD `479135e`.** A card batch is not integrated until this
+> **Last updated: 2026-07-12, HEAD `f084826`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -124,7 +124,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 318 cards — 104 occupations + 214 minors**, spanning decks A–E
+- **Implemented & registered: 321 cards — 106 occupations + 215 minors**, spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
   §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
@@ -143,6 +143,16 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 - **The 2026-07-05 → 06 waves landed** (the seam-consumer cards, the after-harvest wave, the
   arrangement trio — Dolly's Mother / Mineral Feeder / Beer Stall; rulings 18–41 in
   `CARD_DEFERRED_PLANS.md`, reasoning in `HARVEST_HANDOFF.md` Part II).
+- **The converter cluster landed (2026-07-12; rulings 34–39, `f084826`)**: the
+  generalized in-harvest raise frame — `food_payment_frontier` takes span-converter
+  subsets and ruling 39's post-breed cooking floors as memo-safe arguments (both applied
+  OUTSIDE the cached core); `HarvestConversionSpec.frontier_fire` marks pure
+  building-resource converters (the craft majors, Stone Carver, Paintbrush's food
+  branch); `register_free_span_trigger` covers ruling 36's whole span in one call (the
+  feed payment frame rides the card's own conversion entry — one shared
+  once-per-harvest budget across every surface). Braid Maker E109 deferred (the
+  play-minor major-build gap). Feeding itself stays UN-generalized (ruling 34) and
+  Gypsy's Crock / Cooking Hearth Extension stay parked (rulings 35/42).
 - **FEED/BREED banding landed (2026-07-12; ruling 40, `479135e`)**: the harvest walk's
   three phase segments each resolve whole-phase-per-player (the 26-position virtual walk;
   one payment/breeding frame per band pass, per-pass feeding income, the cursor carried
