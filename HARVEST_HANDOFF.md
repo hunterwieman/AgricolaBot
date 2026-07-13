@@ -624,8 +624,23 @@ are ~20 cards STALE (regenerate before trusting).
    "cell:"-only tile filter (ruling 32) and its pinned test kept; choice tests
    rewritten as automatic-fire tests.
 3. **The converter cluster (rulings 34–39, fully specified)** — the last harvest
-   machinery. **DRIVER BUILD SPEC (derived 2026-07-12 — build from this, don't
-   re-derive):**
+   machinery. **PROGRESS 2026-07-12: step (a) — the generalized frontier core —
+   is LANDED (`444a679`, helpers.food_payment_frontier + _food_payment_generalized
+   + _food_payment_counts, 10 seam tests in tests/test_food_payment_generalized.py;
+   the floors/converters sit OUTSIDE the cached core — no cache-key change at
+   all, better than the spec's "keys extended"). NEXT: steps (b) the state-side
+   derivations (available span converters — needs a purity flag or registry
+   distinguishing pure goods->food HARVEST_CONVERSIONS entries from
+   side-effect-bearing ones like Craft Brewery/Beer Keg/Furniture Carpenter,
+   which are NOT frontier-eligible per ruling 37 — plus post_breed_floors(state,
+   idx) reading cursor > sentinel_position("breeding", pass) and the breed
+   frame's breed_chosen; sheep floor = capacity_mods.sheep_min_parents + 1;
+   NOTE the breeding-SKIPPER corner: the stateless floor over-protects a
+   skipped player's animals — same accepted class as ruling 39's
+   capacity-blocked corner, FLAG to the user), CommitFoodPayment.conversions
+   wiring (enumerator legality.py:~2676 + executor resolution.py:~630), then
+   (c) the free-span helper and (d) the cards. DRIVER BUILD SPEC (build from
+   this, don't re-derive):**
    (a) `food_payment_frontier(player_state, food_owed, rates)` gains two
    MEMO-KEY-JOINED arguments (the Dolly's Mother pattern — passed through both
    the baseline and `_food_payment_frontier_opt`/`_food_payment_points` paths,
