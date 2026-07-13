@@ -683,6 +683,24 @@ are ~20 cards STALE (regenerate before trusting).
    don't implement the module. Furniture Carpenter B101 (implemented,
    feed-seam `HarvestConversionSpec(food=2 -> bank 1 VP)` + scoring term, no
    ALLOWLIST note) migrates to free-span.
+   FRONTIER-SHAPE DECISIONS (derived 2026-07-12, final layer): (1) the
+   extension WRAPS the existing cached crop/animal core — subsets S of the
+   binary converters are enumerated OUTSIDE it (inputs(S) must fit available
+   building resources; food(S) offsets owe; the core runs at
+   max(0, owe - food(S)) per S), so no new cache surface exists; ties on the
+   full 9-good vector keep the SMALLER fired set (fewer burned budgets
+   dominates — deliberate tie-break, document it). (2) RETURN SHAPE SWITCH:
+   with span_converters == () the function returns the legacy 5-tuples
+   (every existing caller unchanged); non-empty -> ((g,v,s,b,c,w,cl,r,st),
+   fired_ids) pairs. (3) owe == 0 offers NO fires (deferring a budget
+   preserves optionality — the span continues). (4) animal_floors applies
+   ONLY to the raise frame: the FEED payment is always pre-breed under the
+   banding (p's feed pass precedes p's breed pass), and the breed commit's
+   bundled cooking is its own machinery; derive "p has bred" from cursor >
+   sentinel_position("breeding", pass_of(p)) AND p's breed frame (if still
+   up) records a done commit — check PendingHarvestBreed for its commit flag
+   when building; floors formula: consumable = count - F if count >= F else
+   count (F=3; sheep F=2 with Dolly's Mother in play).
    Original spec follows. Driver seams first: (i) the generalized `PendingFoodPayment` frontier —
    crops + animals + capped building-resource conversions, liveness derived from
    phase/cursor (the span = field phase start → end_of_harvest; a pre-field-phase
