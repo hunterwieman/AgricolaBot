@@ -112,7 +112,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-12, HEAD `860fd5a`.** A card batch is not integrated until this
+> **Last updated: 2026-07-12, HEAD `479135e`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -143,6 +143,13 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 - **The 2026-07-05 → 06 waves landed** (the seam-consumer cards, the after-harvest wave, the
   arrangement trio — Dolly's Mother / Mineral Feeder / Beer Stall; rulings 18–41 in
   `CARD_DEFERRED_PLANS.md`, reasoning in `HARVEST_HANDOFF.md` Part II).
+- **FEED/BREED banding landed (2026-07-12; ruling 40, `479135e`)**: the harvest walk's
+  three phase segments each resolve whole-phase-per-player (the 26-position virtual walk;
+  one payment/breeding frame per band pass, per-pass feeding income, the cursor carried
+  while band frames are up — Family pauses at 14/17/20/23). The first Family-visible
+  harvest-shape change; the C++ twin was re-ported in the same commit and all 139
+  differential gates are green. The encoder's `has_fed` is band-aware (value-identical —
+  no ENCODING_VERSION bump).
 - **The card-fields system landed (2026-07-12; rulings 42–48)**: `agricola/cards/card_fields.py`
   is the machinery module — the spec registry, the CardStore per-stack (grain, veg, wood,
   stone) state, the ruling-45 count helpers, sow integration (`CommitSow.card_sows` +

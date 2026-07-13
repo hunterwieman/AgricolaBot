@@ -608,20 +608,15 @@ are ~20 cards STALE (regenerate before trusting).
 
 ## 16. THE BUILD QUEUE (next session, in order, with per-item cautions)
 
-1. **FEED/BREED banding (ruling 40)** — engine change. Extend the virtual walk to
-   three bands (FIELD as-is; FEED = start_of_feeding → the payment → after_feeding;
-   BREED = start_of_breeding → the breeding → after_breeding), each visited once per
-   player, SP first; outer moments stay window-major. Push the payment/breeding frames
-   ONE PLAYER PER BAND PASS (today `_initiate_harvest_feed/_breed` push both, SP on
-   top). CAUTIONS: (a) **this is the arc's first change that is NOT Family-invisible
-   at the state level** — Family mid-feed stacks currently hold BOTH frames; banding
-   changes mid-turn stack shapes → the C++ walk needs a mirroring re-port and the
-   differential gates will be red until it lands (the standing rule: re-port, don't
-   distort the Python design); (b) `_advance_harvest`'s cursor derivation for
-   EMPTY-STACK HARVEST_FEED/BREED states must become band-aware (today it resumes
-   just past the sentinel window-major; several tests construct bare FEED/BREED
-   states); (c) feeding-income autos currently fire both-players at FEED entry —
-   under banding they fire per band player; (d) full suite + gates, obviously.
+1. **DONE 2026-07-12 (`479135e`) — FEED/BREED banding (ruling 40)** + the C++
+   re-port, all 139 gates green. Three per-player bands (26-position virtual walk);
+   one frame per band pass with per-pass feeding income; the cursor CARRIED while
+   band frames are up (Family pauses 14/17/20/23 — the predicted Family-visible
+   change; Family decision ORDER unchanged); phase derived from the walk position
+   (flips at band entries); `_initiate_harvest_feed/_breed` kept as legacy test
+   helpers (bare states resume at the second pass's after-window). The encoder's
+   `has_fed` became band-aware — value-identical at every decision state, no
+   ENCODING_VERSION bump. Every caution (a)-(d) played out as predicted.
 2. **DONE 2026-07-12 (`4b651de`) — Field Cultivator → automatic-max (ruling 41)**: the
    occasion trigger became an occasion AUTO taking min(tiles, pile remaining); the
    "cell:"-only tile filter (ruling 32) and its pinned test kept; choice tests
