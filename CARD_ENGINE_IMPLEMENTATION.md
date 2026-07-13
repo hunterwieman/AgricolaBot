@@ -112,7 +112,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-12, HEAD `f084826`.** A card batch is not integrated until this
+> **Last updated: 2026-07-12, HEAD `3146fe6`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -124,7 +124,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 321 cards — 106 occupations + 215 minors**, spanning decks A–E
+- **Implemented & registered: 327 cards — 106 occupations + 221 minors**, spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
   §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
@@ -143,6 +143,15 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 - **The 2026-07-05 → 06 waves landed** (the seam-consumer cards, the after-harvest wave, the
   arrangement trio — Dolly's Mother / Mineral Feeder / Beer Stall; rulings 18–41 in
   `CARD_DEFERRED_PLANS.md`, reasoning in `HARVEST_HANDOFF.md` Part II).
+- **The round-end ladder landed (2026-07-12; rulings 49–51, `3146fe6`)**: a second,
+  smaller timing ladder (`agricola/cards/round_end.py`) between the work phase's last
+  placement and the round transition — end_of_work → after_work →
+  start_of_returning_home → returning_home (fired BEFORE the return-home reset, so
+  member cards read the still-placed board: live occupancy is the event data) → the
+  reset → after_returning_home → end_of_round — walked by `engine._advance_round_end`
+  with `GameState.round_end_cursor` (card-only; the harvest skip guard deliberately
+  does not apply). Six member cards landed; a new DEFERRED-FOR-AMBIGUITY category in
+  CARD_DEFERRED_PLANS.md holds Perennial Rye + Lumber Virtuoso.
 - **The converter cluster landed (2026-07-12; rulings 34–39, `f084826`)**: the
   generalized in-harvest raise frame — `food_payment_frontier` takes span-converter
   subsets and ruling 39's post-breed cooking floors as memo-safe arguments (both applied

@@ -774,9 +774,21 @@ are ~20 cards STALE (regenerate before trusting).
    the crops planted in it" on a MIXED field (Heresy Teacher's veg below grain — grid
    or card alike) takes only the grain (pre-existing take-precedence limitation,
    documented in scythe.py). Witches' Dance Floor stays BANNED.
-6. **Beyond the harvest**: the round-end / returning-home mechanism is the biggest
-   single unlock (7 cards: Baking Course, Credit, Lifting Machine, Sculpture Course,
-   Silage, Perennial Rye, Swimming Class); then the rest of CARD_DEFERRED_PLANS.
+6. **DONE 2026-07-12 (`25c84a0` the ladder, `3146fe6` the cards) — the round-end
+   mechanism** (rulings 49-51): the seven-step ladder (end_of_work → after_work →
+   start_of_returning_home → returning_home [PRE-reset: the live board is the
+   event data] → the reset → after_returning_home → end_of_round) walked by
+   engine._advance_round_end with GameState.round_end_cursor (card-only;
+   Family byte-identical, no C++ change). Six cards landed: Credit, Sculpture
+   Course, Swimming Class, Lifting Machine, Silage, Baking Course (ruling 51:
+   a Fireplace-like global 2/grain source). Perennial Rye + Lumber Virtuoso
+   went to the new DEFERRED-FOR-AMBIGUITY category (ruling 50). OPEN USER
+   FLAG: Dolly's Mother × Silage — the spec routes Silage's sheep threshold
+   through sheep_min_parents, but Dolly's printed scope is "during the
+   breeding phase of a harvest"; a strict reading keeps Silage at 2.
+   **THE QUEUE IS COMPLETE.** What remains beyond it: the rest of
+   CARD_DEFERRED_PLANS (largely user-gated clusters + the ambiguity defers),
+   the C++ card port, the card-game agent.
 
 7. **Ledger procedure** (do this at every integration): refresh the snapshots'
    implemented-flags from the live registries

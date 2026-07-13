@@ -3221,3 +3221,21 @@ all dated in `CARD_DEFERRED_PLANS.md`):
 - **Flagged for the user:** Scythe E73 × mixed fields (veg below grain) harvests only
   the grain — a pre-existing take-precedence limitation, grid and card alike,
   documented in `scythe.py`.
+
+## Session — The build queue executed end-to-end (2026-07-12, continued)
+
+The same 2026-07-12 session ran HARVEST_HANDOFF.md §16's whole queue after the
+card-fields wave: FEED/BREED banding (ruling 40 — the arc's first C++ re-port,
+139 gates green; the encoder's has_fed made band-aware with value-identical
+inputs), the converter cluster (rulings 34-39/42 + ruling-48ff card-fields
+interplay — the generalized raise-frame frontier with zero new cache surfaces,
+free-span triggers, Stone Carver / Basket Carrier / Paintbrush / Furniture
+Carpenter's migration; Braid Maker deferred on the play-minor major-build gap),
+the label pass (twelve mechanical labelers, all four web variant surfaces
+routed), and the round-end ladder (rulings 49-51 — six cards incl. Swimming
+Class's pre-reset live-board design and Baking Course's Fireplace-like global
+rate; Perennial Rye + Lumber Virtuoso opened the DEFERRED-FOR-AMBIGUITY
+category). Catalog: **221 minors + 106 occupations**; suite 4,584 green.
+Rulings 42-51 recorded dated in CARD_DEFERRED_PLANS.md. Open user flags:
+Dolly's Mother × Silage scope; the Scythe/Lifting-Machine mixed-field group
+wrinkle; ruling 39's breeding-skipper corner.
