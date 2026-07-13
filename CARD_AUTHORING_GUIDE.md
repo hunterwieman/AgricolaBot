@@ -312,14 +312,15 @@ strand. That ease is exactly the trap.
 
 A minor's printed cost like **"3 Wood / 2 Clay"** (or "3 wood or 2 clay") is an
 **alternative**: you pay 3 wood *or* 2 clay — whichever you choose and can afford, **not
-both**. `MinorSpec.cost` is a **single** `Cost` and cannot express an alternative, so encoding
-it as `Cost(resources=Resources(wood=3, clay=2))` — paying BOTH — is a silent, roughly
-double-price bug (this shipped on **Club House**). The correct behavior is to offer the play
-**wide**: one play option per affordable alternative, mirroring how builds surface
-`effective_payments`. Until that alternative-cost machinery exists, an alternative-cost card is
-a **§0 — defer and ask.** **Always scan the `cost` field for `/` or "or"** when classifying (§1
-step 2). The same applies to a `/` in a *reward* or effect ("1 veg / 4 wood") — that is an
-OR-reward / play-variant, and for minors there is no play-variant mechanism, so **defer**.
+both**. Encoding it as `Cost(resources=Resources(wood=3, clay=2))` — paying BOTH — is a silent,
+roughly double-price bug (this shipped on **Club House**). The machinery exists: the printed
+first cost goes in `cost=` and each further alternative in `alt_costs=` (`register_minor`;
+Chophouse "2 Wood / 2 Clay" is the template) — the play path enumerates one `CommitPlayMinor`
+per affordable alternative. **Always scan the `cost` field for `/` or "or"** when classifying
+(§1 step 2). A `/` in a *reward* or effect ("1 veg / 4 wood") is instead an OR-reward /
+play-variant: for minors that is `register_play_minor_variant` (the wide play-variant seam —
+Facades Carving, Plant Fertilizer, Automatic Water Trough; CARD_ENGINE_IMPLEMENTATION.md §3),
+the minor analog of Roof Ballaster's occupation mechanism.
 
 ### "After the feeding phase" is NOT "during feeding" — a conversion must not feed itself
 

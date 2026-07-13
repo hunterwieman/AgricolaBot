@@ -125,8 +125,10 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 326 cards — 105 occupations + 221 minors** (Heresy Teacher
-  un-implemented 2026-07-13, ruling 53), spanning decks A–E
+- **Implemented & registered: 330 cards — 105 occupations + 225 minors** (Heresy Teacher
+  un-implemented 2026-07-13, ruling 53; the livestock-provider batch — Early Cattle,
+  Pigswill, Automatic Water Trough, Bartering Hut — landed 2026-07-13, introducing
+  `PendingAccommodate.min_keep`), spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
   §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
@@ -453,8 +455,16 @@ module-local `_owns(player_state, card_id)` helpers.
   enumerator offers one `CommitPlayOccupation(card_id, variant=v)` per payable variant, the
   executor folds the chosen surcharge into the debited cost, and `on_play` becomes
   `(state, idx, variant)`. **The cost lives on the option that surfaces it**, not a side table —
-  the "paid option" principle (FOOD_PAYMENT_DESIGN.md §8). *No minor equivalent exists* — a "/"
-  play-variant *reward* on a minor is a defer (§8).
+  the "paid option" principle (FOOD_PAYMENT_DESIGN.md §8).
+- **`register_play_minor_variant(card_id, variants_fn)`** → `PLAY_MINOR_VARIANTS` — the minor
+  analog (built 2026-07-06 for Facades Carving; user ruling: on-play optional choices surface
+  WIDE). Same `variants_fn` signature; each variant's surcharge is folded into the commit's
+  `payment` at enumeration (cost *modifiers* never see it — a discount reduces the card's cost,
+  not the effect's price), and the variant threads to a 3-arg `on_play`. Consumers: Facades
+  Carving, Plant Fertilizer, Petrified Wood (migrated from a deep on-play `PendingCardChoice`
+  2026-07-13 — it predated the seam), and Automatic Water Trough (whose variants also carry a
+  per-variant *eligibility* gate — the accommodation check — beside the surcharge). *(A stale
+  note here previously said no minor equivalent exists; it misled the 2026-07-13 session.)*
 - **`register_occupation_food_source(card_id, source_fn)`** → `OCCUPATION_FOOD_SOURCES`.
   A card that can *produce* food usable toward an occupation's play cost (Paper Maker: pay 1 wood
   → 1 food per occupation). The card itself is an ordinary `before_play_occupation` trigger; this

@@ -462,6 +462,26 @@ the current state (reuse the game-over modal's table renderer).
 
 ---
 
+## 14. Readable labels for tuple-valued card-choice options  *(open, low priority)*
+
+**Problem.** `_card_choice_display` labels a `CommitCardChoice` as
+`f"Choose: {option}"`, which is fine for string options ("grain", "decline")
+but renders a structured tuple option raw — Bartering Hut's purchase menu
+(options like `("cattle", 2, 1, 1, 0)` = animal + wood/clay/reed/stone counts)
+shows as `Choose: ('cattle', 2, 1, 1, 0)`.
+
+**Backend support.** The option tuples are self-describing; only the label
+needs formatting.
+
+**Required change.** Teach `_card_choice_display` (play_web.py) to format known
+tuple shapes — e.g. Bartering Hut's `(animal, w, c, r, s)` as
+"Buy 1 cattle for 2 wood + 1 clay + 1 reed" — keyed off the frame's
+`initiated_by_id`.
+
+**Files.** `play_web.py`.
+
+---
+
 ## Notes for the implementer
 
 - The backend (`play_web.py`) was written carefully and shouldn't need

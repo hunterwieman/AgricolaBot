@@ -574,3 +574,12 @@ from agricola.cards import swimming_class  # noqa: F401
 from agricola.cards import lifting_machine  # noqa: F401
 from agricola.cards import silage  # noqa: F401
 from agricola.cards import baking_course  # noqa: F401
+# The livestock-provider batch (2026-07-13): Early Cattle (on-play 2 cattle via
+# grant_animals), Pigswill (before_action_space boar on the Fencing space —
+# user-ruled BEFORE, so the boar can't ride the pastures built that turn),
+# Automatic Water Trough (wide play-variant buy, min_keep-filtered
+# accommodation), Bartering Hut (repeatable PendingCardChoice purchase menu).
+from agricola.cards import early_cattle  # noqa: F401
+from agricola.cards import pigswill  # noqa: F401
+from agricola.cards import automatic_water_trough  # noqa: F401
+from agricola.cards import bartering_hut  # noqa: F401

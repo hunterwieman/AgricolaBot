@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar, TYPE_CHECKING, Union
 
 from agricola.replace import fast_replace
-from agricola.resources import Cost, Resources
+from agricola.resources import Animals, Cost, Resources
 
 if TYPE_CHECKING:
     from agricola.actions import Action
@@ -976,10 +976,21 @@ class PendingAccommodate:
     Card-only: the Family game never grants animals decision-free, so this frame is never
     constructed and the Family trace / C++ engine never see it. No `triggers_resolved` /
     `TRIGGER_EVENT` yet (harvest-frame precedent) — it hosts no card hooks today.
+
+    `min_keep` — a componentwise LOWER BOUND on the offered keep-configs: the enumerator
+    drops every frontier point that keeps fewer than `min_keep` of any type. The default
+    `Animals()` (no bound) is the barrier's unfiltered frame. A card that must house a
+    specific just-gained animal (Automatic Water Trough's "If you can accommodate the
+    animal, you can buy…") pushes this frame directly with `min_keep=<the purchase>`, so
+    the choice can never discard the animal the purchase was conditioned on housing.
+    Filtering the frontier is loss-less: dominance is over kept animal counts only, so
+    a point satisfying the bound can only be dominated by another point that also
+    satisfies it.
     """
     PENDING_ID: ClassVar[str] = "accommodate"
     player_idx:      int
     initiated_by_id: str = "reconcile:accommodate"
+    min_keep:        Animals = Animals()
 
 
 @dataclass(frozen=True)

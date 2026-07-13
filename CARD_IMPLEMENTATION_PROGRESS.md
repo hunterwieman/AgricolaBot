@@ -560,7 +560,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C8 Plant Fertilizer** · passing
   - _In each field with exactly 1 good, you can immediately place 1 additional good of the same type.  [CLARIFICATION: Boar held on unplanted fields (from Mud Patch A011) do not apply for this effect.  《If there is exactly 1 wood on the Wood Field D075, another wood may be added on either the same or a different stack.》]_
   - `ONPLAY E-CROPMANIP E-PASSING` — Add 1 good to each field holding exactly 1 good; passing minor. Manipulates crops on fields.
-- ⬜ **C9 Automatic Water Trough** · cost: 1 Wood · passing
+- ✅ **C9 Automatic Water Trough** · cost: 1 Wood · passing
   - _If you can accommodate the animal, you can immediately buy 1 sheep/wild boar/cattle for 0/1/2 food._
   - `ONPLAY E-ANIMALS E-FOODCOST E-PASSING` — Passing minor (JSON passing_left=X); one-time on-play optional buy of an animal at a FOOD price -> E-FOODCOST per the ruling (food cost payable by conversion), not E-CONVERT (that is a good-for-good exchange rate, not a priced purchase).
 - ⬜ **C10 Bunk Beds** · cost: 1 Wood · prereq: 2 Major Improvements
@@ -782,7 +782,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C82 Hardware Store** · cost: 1 Wood,1 Clay
   - _Each time after you use the "Day Laborer" action space, you can pay 2 food total to buy 1 wood, 1 clay, 1 reed, and 1 stone._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-FOODCOST E-GOODS` — Optional after-Day-Laborer purchase: 2 food exchanged for four resources — a food-cost conversion yielding goods (E-CONVERT + E-FOODCOST + E-GOODS), same shape as C80's buy.
-- ⬜ **C83 Early Cattle** · prereq: 1 Pasture
+- ✅ **C83 Early Cattle** · prereq: 1 Pasture
   - _When you play this card, you immediately get 2 cattle._
   - `ONPLAY E-ANIMALS` — One-time on-play gain of 2 cattle; animals are flagged E-ANIMALS (accommodation required), not E-GOODS (goods/food/crops only). Printed -3 VP circle needs no code.
 - ❓ **C84 Perennial Rye** · cost: 1 Food · prereq: 2 Occupations
@@ -1037,7 +1037,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D82 Hunting Trophy** · cost: Return or Cook 1 Wild Boar
   - _Improvements built on "House Redevelopment" cost you 1 building resource of your choice less. Fences built on "Farm Redevelopment" cost you a total of 3 wood less.  [CLARIFICATION: Alone, “built” can refer to either improvement type.  《lmprovements played by Merchant C096 do not get discounted.》]_
   - `ONPLAY PASSIVE E-COSTMOD E-FREEFENCE E-GOODS E-PLAYVARIANT` — Passive discounts: −1 building resource on House-Redev improvements (E-COSTMOD) and −3 wood on Farm-Redev fences (E-FREEFENCE). The 'Return or Cook 1 Wild Boar' cost forks the play into cook-for-food (ONPLAY E-GOODS) vs plain return — a cost/reward fork = E-PLAYVARIANT. The card consumes a boar, never provides one, so labelA's E-ANIMALS is wrong.
-- ⬜ **D83 Pigswill** · cost: 2 Food/1 Grain
+- ✅ **D83 Pigswill** · cost: 2 Food/1 Grain
   - _Each time you use the "Fencing" action space, you also get 1 wild boar._
   - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-ANIMALS E-ALTCOST E-FOODCOST` — 'Each time you use Fencing, you also get 1 wild boar' = own-action space hook, T-BEFORE default, mandatory, providing an animal. The '2 Food/1 Grain' printed cost is a pay-one-or-the-other choice for the same effect = E-ALTCOST (not E-PLAYVARIANT — the reward doesn't fork), and the food branch flags E-FOODCOST per the rulings.
 - ✅ **D84 Feed Pellets**
@@ -1070,9 +1070,9 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E8 Farmers Market** · cost: 2 Food · passing
   - _You immediately get 1 vegetable. (Effectively, you are buying 1 vegetable for 2 food.)_
   - `ONPLAY E-GOODS E-PASSING E-FOODCOST` — On-play gain of 1 vegetable; the 2-Food play cost is flagged E-FOODCOST per the ruling that food costs (payable via conversion) get flagged. Passing minor.
-- ⬜ **E9 Bartering Hut** · passing
+- ✅ **E9 Bartering Hut** · passing
   - _Up to two times: Immediately spend any 2/3/4 building resources for 1 sheep/wild boar/cattle from the general supply._
-  - `ONPLAY E-CONVERT E-ANIMALS` — 'Immediately spend... up to two times' is an on-play resource-for-animal exchange (convert + animals to accommodate); the card data has no passing flag, so E-PASSING is an invention.
+  - `ONPLAY E-CONVERT E-ANIMALS` — 'Immediately spend... up to two times' is an on-play resource-for-animal exchange (convert + animals to accommodate); the card data has no passing flag, so E-PASSING is an invention. *(Correction 2026-07-13: the JSON does carry `passing_left='X'` — E9 is a #9 traveling minor like every deck's #9 — and it is implemented as passing.)*
 - ⬜ **E10 Straw Hat** · cost: 1 Reed
   - _At the end of the work phases of rounds 3 and 6, you can move your person from the "Farmland" action space to an unoccupied action space and take that action, or get 1 food._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-WORKERMANIP E-GRANTACT E-GOODS ST-PLACELOG` — At end of work phase rounds 3&6, move person from Farmland to unoccupied space and take that action, or 1 food; needs placement log.

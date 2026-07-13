@@ -1,25 +1,25 @@
 """Tests for Petrified Wood (minor improvement, D6; Dulcinaria Expansion).
 
 Card text: "Immediately exchange up to 3 wood for 1 stone each." Cost: none;
-prereq "2 Occupations"; PASSING (traveling minor). On play it offers an amount choice (0..3,
-capped at wood on hand) and trades that many wood for the same number of stone
-(strict 1:1); 0 is a valid choice (the player may decline entirely).
+prereq "2 Occupations"; PASSING (traveling minor). Surfaced WIDE via the minor
+play-variant seam (migrated from the deep PendingCardChoice shape 2026-07-13):
+one CommitPlayMinor per amount 0..min(3, wood on hand), the wood riding the
+variant surcharge, the stone granted by the variant-aware on_play. 0 is the
+zero-surcharge decline variant.
 """
 import agricola.cards.petrified_wood  # noqa: F401  (registers the card)
 
 import pytest
 
-from agricola.actions import CommitCardChoice, Stop
-from agricola.cards.specs import MINORS, prereq_met
-from agricola.cards.triggers import CARD_CHOICE_RESOLVERS
+from agricola.actions import CommitPlayMinor, Stop
+from agricola.cards.specs import MINORS, PLAY_MINOR_VARIANTS, prereq_met
 from agricola.engine import step
 from agricola.legality import legal_actions, playable_minors
-from agricola.pending import PendingCardChoice, PendingPlayMinor
+from agricola.pending import PendingPlayMinor
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Resources
 from agricola.setup import CardPool, setup_env
 from tests.factories import with_pending_stack
-from tests.test_utils import sole_play_minor
 
 _POOL = CardPool(
     occupations=tuple(f"o{i}" for i in range(20)),
@@ -46,10 +46,13 @@ def _push_minor(cs, cp):
     )
 
 
-def _play(cs, cp):
-    """Play Petrified Wood; return the state paused at its PendingCardChoice."""
-    cs = _push_minor(cs, cp)
-    return step(cs, sole_play_minor(cs, "petrified_wood"))
+def _commits(cs):
+    return [a for a in legal_actions(cs)
+            if isinstance(a, CommitPlayMinor) and a.card_id == "petrified_wood"]
+
+
+def _commit(cs, variant):
+    return next(a for a in _commits(cs) if a.variant == variant)
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +68,7 @@ def test_registered():
     assert spec.cost.animals == Animals()             # no animal cost
     assert spec.passing_left is True   # traveling minor (passing_left='X')
     assert spec.vps == 0
-    assert "petrified_wood" in CARD_CHOICE_RESOLVERS
+    assert "petrified_wood" in PLAY_MINOR_VARIANTS
 
 
 # ---------------------------------------------------------------------------
@@ -100,23 +103,49 @@ def test_playable_gates_on_prereq_only():
 
 
 # ---------------------------------------------------------------------------
-# On-play: the amount choice frame + the 1:1 exchange
+# The wide variants: one commit per amount, capped at wood on hand
 # ---------------------------------------------------------------------------
 
-def test_play_offers_full_choice_when_wood_at_least_three():
+def test_play_offers_full_variant_range_when_wood_at_least_three():
     cs, cp = _state(
         cp_minors=frozenset({"petrified_wood"}),
         cp_occ=frozenset({"a", "b"}),
         cp_res=Resources(wood=5),
     )
-    cs = _play(cs, cp)
-    top = cs.pending_stack[-1]
-    assert isinstance(top, PendingCardChoice)
-    assert top.player_idx == cp
-    assert top.options == (0, 1, 2, 3)                  # "up to 3"
-    # Exactly one CommitCardChoice per option, NO Stop/decline action.
-    assert legal_actions(cs) == [CommitCardChoice(index=i) for i in range(4)]
+    cs = _push_minor(cs, cp)
+    commits = _commits(cs)
+    assert sorted(c.variant for c in commits) == ["0", "1", "2", "3"]
+    # Each variant's wood surcharge is folded into its payment.
+    assert sorted(c.payment.wood for c in commits) == [0, 1, 2, 3]
 
+
+def test_options_capped_at_wood_on_hand():
+    cs, cp = _state(
+        cp_minors=frozenset({"petrified_wood"}),
+        cp_occ=frozenset({"a", "b"}),
+        cp_res=Resources(wood=2),
+    )
+    cs = _push_minor(cs, cp)
+    assert sorted(c.variant for c in _commits(cs)) == ["0", "1", "2"]
+
+
+def test_zero_wood_offers_only_the_noop():
+    cs, cp = _state(
+        cp_minors=frozenset({"petrified_wood"}),
+        cp_occ=frozenset({"a", "b"}),
+        cp_res=Resources(wood=0),
+    )
+    cs = _push_minor(cs, cp)
+    (commit,) = _commits(cs)
+    assert commit.variant == "0"
+    cs = step(cs, commit)
+    p = cs.players[cp]
+    assert p.resources.wood == 0 and p.resources.stone == 0
+
+
+# ---------------------------------------------------------------------------
+# The exchange itself
+# ---------------------------------------------------------------------------
 
 def test_exchange_two_wood_for_two_stone():
     cs, cp = _state(
@@ -124,14 +153,41 @@ def test_exchange_two_wood_for_two_stone():
         cp_occ=frozenset({"a", "b"}),
         cp_res=Resources(wood=5),
     )
-    cs = _play(cs, cp)
-    cs = step(cs, CommitCardChoice(index=2))            # options[2] == 2 wood
+    cs = _push_minor(cs, cp)
+    cs = step(cs, _commit(cs, "2"))
     p = cs.players[cp]
     assert p.resources.wood == 3                        # 5 - 2
     assert p.resources.stone == 2                        # +2 (1:1)
-    # Choice frame popped; back at the PendingPlayMinor host (only Stop remains).
+    # No choice frame: the play resolved in one step, back at the host.
     assert [type(f).__name__ for f in cs.pending_stack] == ["PendingPlayMinor"]
     assert legal_actions(cs) == [Stop()]
+
+
+def test_exchange_full_three():
+    cs, cp = _state(
+        cp_minors=frozenset({"petrified_wood"}),
+        cp_occ=frozenset({"a", "b"}),
+        cp_res=Resources(wood=4, stone=1),
+    )
+    cs = _push_minor(cs, cp)
+    cs = step(cs, _commit(cs, "3"))
+    p = cs.players[cp]
+    assert p.resources.wood == 1                        # 4 - 3
+    assert p.resources.stone == 4                        # 1 + 3
+
+
+def test_choosing_zero_declines():
+    cs, cp = _state(
+        cp_minors=frozenset({"petrified_wood"}),
+        cp_occ=frozenset({"a", "b"}),
+        cp_res=Resources(wood=5),
+    )
+    cs = _push_minor(cs, cp)
+    cs = step(cs, _commit(cs, "0"))
+    p = cs.players[cp]
+    assert p.resources.wood == 5                        # unchanged
+    assert p.resources.stone == 0                       # unchanged
+    assert "petrified_wood" not in p.minor_improvements  # passing -> not kept (still played)
 
 
 def test_passes_to_opponent():
@@ -141,81 +197,13 @@ def test_passes_to_opponent():
         cp_res=Resources(wood=3),
     )
     opp = 1 - cp
-    cs = _play(cs, cp)
-    cs = step(cs, CommitCardChoice(index=1))
+    cs = _push_minor(cs, cp)
+    cs = step(cs, _commit(cs, "1"))
     p = cs.players[cp]
+    assert p.resources.wood == 2 and p.resources.stone == 1
     assert "petrified_wood" not in p.minor_improvements  # passing -> not kept
     assert "petrified_wood" not in p.hand_minors         # left the hand
     assert "petrified_wood" in cs.players[opp].hand_minors  # circulated to opponent
-    # The choice frame resolved for the PLAYER (the hand-transfer precedes on_play).
-
-
-# ---------------------------------------------------------------------------
-# Eligibility boundaries: the option set is capped at wood on hand
-# ---------------------------------------------------------------------------
-
-def test_options_capped_at_wood_on_hand():
-    # 2 wood -> can only choose 0, 1 or 2 (never an illegal over-spend to 3).
-    cs, cp = _state(
-        cp_minors=frozenset({"petrified_wood"}),
-        cp_occ=frozenset({"a", "b"}),
-        cp_res=Resources(wood=2),
-    )
-    cs = _play(cs, cp)
-    assert cs.pending_stack[-1].options == (0, 1, 2)
-    cs = step(cs, CommitCardChoice(index=2))            # exchange both wood
-    p = cs.players[cp]
-    assert p.resources.wood == 0
-    assert p.resources.stone == 2
-
-
-def test_zero_wood_is_a_singleton_noop():
-    cs, cp = _state(
-        cp_minors=frozenset({"petrified_wood"}),
-        cp_occ=frozenset({"a", "b"}),
-        cp_res=Resources(wood=0),
-    )
-    cs = _play(cs, cp)
-    top = cs.pending_stack[-1]
-    assert isinstance(top, PendingCardChoice)
-    assert top.options == (0,)                          # only the no-op
-    assert legal_actions(cs) == [CommitCardChoice(index=0)]
-    cs = step(cs, CommitCardChoice(index=0))
-    p = cs.players[cp]
-    assert p.resources.wood == 0 and p.resources.stone == 0
-
-
-# ---------------------------------------------------------------------------
-# Optionality: choosing 0 declines the exchange entirely
-# ---------------------------------------------------------------------------
-
-def test_choosing_zero_declines():
-    cs, cp = _state(
-        cp_minors=frozenset({"petrified_wood"}),
-        cp_occ=frozenset({"a", "b"}),
-        cp_res=Resources(wood=5),
-    )
-    wood0 = cs.players[cp].resources.wood
-    stone0 = cs.players[cp].resources.stone
-    cs = _play(cs, cp)
-    cs = step(cs, CommitCardChoice(index=0))            # options[0] == 0 -> decline
-    p = cs.players[cp]
-    assert p.resources.wood == wood0                    # unchanged
-    assert p.resources.stone == stone0                  # unchanged
-    assert "petrified_wood" not in p.minor_improvements  # passing -> not kept (still played)
-
-
-def test_exchange_full_three():
-    cs, cp = _state(
-        cp_minors=frozenset({"petrified_wood"}),
-        cp_occ=frozenset({"a", "b"}),
-        cp_res=Resources(wood=4, stone=1),
-    )
-    cs = _play(cs, cp)
-    cs = step(cs, CommitCardChoice(index=3))            # exchange the max 3
-    p = cs.players[cp]
-    assert p.resources.wood == 1                        # 4 - 3
-    assert p.resources.stone == 4                        # 1 + 3
 
 
 if __name__ == "__main__":

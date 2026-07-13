@@ -1990,6 +1990,13 @@ def _enumerate_pending_accommodate(
     CURRENT animals (`gained=Animals()` — the grant already landed in `player.animals`);
     the excess is cooked to food at cooking rates by _execute_accommodate, which then
     pops this frame. No before/after triggers — a bare reconciliation, not a space host.
+
+    The frame's `min_keep` (default Animals() — no bound) drops every frontier point
+    that keeps fewer than the bound of any type: a card that pushed this frame to house
+    a specific just-gained animal (Automatic Water Trough) never offers a config that
+    discards it. Loss-less (dominance is over kept counts, so a bound-satisfying point
+    is only ever dominated by another bound-satisfying point) and asserted non-empty —
+    the pushing card's eligibility gate certified a satisfying config exists.
     """
     from agricola.helpers import cooking_rates, pareto_frontier
     from agricola.resources import Animals
@@ -1997,10 +2004,14 @@ def _enumerate_pending_accommodate(
     p = state.players[pending.player_idx]
     rates = cooking_rates(state, pending.player_idx)[:3]
     frontier = pareto_frontier(p, Animals(), rates)
-    return [
+    mk = pending.min_keep
+    options = [
         CommitAccommodate(sheep=a.sheep, boar=a.boar, cattle=a.cattle)
         for (a, _food) in frontier
+        if a.sheep >= mk.sheep and a.boar >= mk.boar and a.cattle >= mk.cattle
     ]
+    assert options, "PendingAccommodate.min_keep filtered the frontier empty (gate/frontier mismatch)"
+    return options
 
 
 def _enumerate_pending_major_minor_improvement(
