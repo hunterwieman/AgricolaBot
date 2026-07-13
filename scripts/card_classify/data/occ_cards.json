@@ -283,7 +283,7 @@
   "text": "Each time you use a \"Lessons\" action space, you get 1 vegetable in each of your fields with at least 3 grain and no vegetable. Place the vegetable below the grain.  [CLARIFICATION: Fields with both crops can count as a grain field or a vegetable field, but not both simultaneously.]",
   "slug": "heresy_teacher",
   "implemented": false,
-  "status": "todo",
+  "status": "ambiguous",
   "players": "1+",
   "name_dup": false
  },
@@ -4859,7 +4859,7 @@
   "text": "Each harvest in which you have at least 5 wood in your supply, you can discard down to 5 wood to take a \"Build Stables\" or \"Build Wood Rooms\" action by paying the usual costs.  [CLARIFICATION: \"Build Wooden Rooms\" action is actually a \"Build Rooms\" action limited to wood.]",
   "slug": "lumber_virtuoso",
   "implemented": false,
-  "status": "todo",
+  "status": "ambiguous",
   "players": "3+",
   "name_dup": false
  },

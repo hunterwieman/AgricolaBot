@@ -2,7 +2,7 @@
 
 _Pipeline: each card was tagged by two independent classification passes against the mechanics taxonomy; the ~290 cards where the passes disagreed on a gating code were then settled by a high-effort adjudication review. A handful of cards are hand-verified. Each entry: player-count (occupations), cost/prereq, verbatim text, and the mechanic codes it uses._
 
-_Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fix/banned · ⬜ not yet · ⚖ adjudicated (a high-effort reviewer settled a two-pass disagreement) · 🔶 residual (still low-confidence after review, or unresolved — worth a human look) · ⚠ revisit (classification understood but genuinely unsettled — re-derive the codes before implementing; carries a `REVISIT` tag). Per-card tags are a strong map, not a formal spec._
+_Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fix/banned · ❓ deferred-for-ambiguity (a reading must be chosen — CARD_DEFERRED_PLANS.md) · ⬜ not yet · ⚖ adjudicated (a high-effort reviewer settled a two-pass disagreement) · 🔶 residual (still low-confidence after review, or unresolved — worth a human look) · ⚠ revisit (classification understood but genuinely unsettled — re-derive the codes before implementing; carries a `REVISIT` tag). Per-card tags are a strong map, not a formal spec._
 
 ## Legend
 
@@ -18,7 +18,11 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 221 implemented · 🚫 3 won't-fix/banned · ⬜ 196 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 221 implemented · 🚫 3 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 195 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+
+### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
+
+- **C84 Perennial Rye** — Perennial Rye -- no timing anchor at all (ruling 50)
 
 ### Deck A
 
@@ -781,7 +785,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C83 Early Cattle** · prereq: 1 Pasture
   - _When you play this card, you immediately get 2 cattle._
   - `ONPLAY E-ANIMALS` — One-time on-play gain of 2 cattle; animals are flagged E-ANIMALS (accommodation required), not E-GOODS (goods/food/crops only). Printed -3 VP circle needs no code.
-- ⬜ **C84 Perennial Rye** · cost: 1 Food · prereq: 2 Occupations
+- ❓ **C84 Perennial Rye** · cost: 1 Food · prereq: 2 Occupations
   - _Each round that does not end with a harvest, you can pay 1 grain to breed exactly 1 type of animal. (This is not considered a breeding phase.)_
   - `HOOK S-ROUNDEND F-TRIG A-OWN E-BREEDMOD E-ANIMALS CAP-ROUND` — Non-harvest round: pay 1 grain to breed 1 type off-phase.
 
@@ -1379,7 +1383,12 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 105 implemented · 🚫 2 won't-fix/banned · ⬜ 313 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 105 implemented · 🚫 2 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 311 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+
+### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
+
+- **A113 Heresy Teacher** — Heresy Teacher -- un-implemented 2026-07-12 (ruling 53): the sole mixed-field producer; interaction rulings too complicated
+- **D129 Lumber Virtuoso** — Lumber Virtuoso -- the 'discard down to 5 wood' quantity clause
 
 ### Deck A
 
@@ -1467,7 +1476,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A112 Scythe Worker** · [1+]
   - _When you play this card, you immediately get 1 grain. In the field phase of each harvest, you can harvest 1 additional grain from each of your grain fields._
   - `ONPLAY E-GOODS HOOK S-HFIELD T-AFTER F-TRIG A-OWN E-CROPMANIP` — On play +1 grain (ONPLAY+E-GOODS). The field-phase extra grain per grain field says 'you can' — optional, so F-TRIG, not F-AUTO (labelA's error). Changing how much a field yields in the field phase is E-CROPMANIP; own-harvest hook at the field-phase seam (S-HFIELD/T-AFTER).
-- ⬜ **A113 Heresy Teacher** · [1+]
+- ❓ **A113 Heresy Teacher** · [1+]
   - _Each time you use a "Lessons" action space, you get 1 vegetable in each of your fields with at least 3 grain and no vegetable. Place the vegetable below the grain.  [CLARIFICATION: Fields with both crops can count as a grain field or a vegetable field, but not both simultaneously.]_
   - `HOOK S-SPACE T-BEFORE F-AUTO A-OWN E-CROPMANIP` — 'Each time you use Lessons' (T-BEFORE space hook, F-AUTO) places a vegetable onto qualifying existing fields (crops-on-fields = E-CROPMANIP, not loose E-GOODS); uses regular fields so not L-CARDFIELD.
 - ✅ **A114 Seasonal Worker** · [1+]
@@ -2280,7 +2289,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D128 Building Tycoon** · [3+]
   - _Each time after another player builds 1 or more rooms, you can give them 1 food to build exactly 1 room yourself. (You must pay the building cost of the room.)_
   - `HOOK T-AFTER S-SUB F-TRIG A-OPP E-GRANTSUB E-OPPTRANSFER E-FOODCOST` — Optional after-hook on an opponent's build-rooms sub-action; grants a build-one-room sub-action whose activation costs 1 food (E-FOODCOST) paid to the opponent (E-OPPTRANSFER).
-- ⬜ **D129 Lumber Virtuoso** · [3+]
+- ❓ **D129 Lumber Virtuoso** · [3+]
   - _Each harvest in which you have at least 5 wood in your supply, you can discard down to 5 wood to take a "Build Stables" or "Build Wood Rooms" action by paying the usual costs.  [CLARIFICATION: "Build Wooden Rooms" action is actually a "Build Rooms" action limited to wood.]_
   - `HOOK S-HSTART F-TRIG A-OWN E-GRANTACT E-NOPLACE CAP-HARVEST` — Each harvest w/ >=5 wood: discard down to 5 wood to Build Stables/Wood Rooms.
 - ⬜ **D130 Recreational Carpenter** · [3+]

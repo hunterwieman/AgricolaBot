@@ -19,6 +19,21 @@ NORMALIZE = {"COST-GAME": "CAP-GAME", "T-DURING": "S-HFEED",
 # Spreader" minor (card_id `slurry_spreader_c71`; the A-deck occupation of
 # the same name owns the plain slug).
 IMPL_FIX = {"C54": True, "C71": True}
+
+# DEFERRED FOR AMBIGUITY (rulings 50/53 — CARD_DEFERRED_PLANS.md's category):
+# the printed text (or, for Heresy Teacher, its interaction surface) does not
+# determine a reading; the user must pick one before implementation. DURABLE
+# here (the generator's own source — the D25/D97 ban lesson: never a hand-edit
+# to the output) AND mirrored as status "ambiguous" in the snapshot JSONs.
+# Keyed per kind (deck numbers repeat across minors/occupations).
+AMBIGUOUS_MIN = {
+    "C84": "Perennial Rye -- no timing anchor at all (ruling 50)",
+}
+AMBIGUOUS_OCC = {
+    "A113": "Heresy Teacher -- un-implemented 2026-07-12 (ruling 53): the sole "
+            "mixed-field producer; interaction rulings too complicated",
+    "D129": "Lumber Virtuoso -- the 'discard down to 5 wood' quantity clause",
+}
 # Codes too noisy/low-stakes to flag a review on (actor, timing, minor-goods, on-play, firing).
 REVIEW_IGNORE = {"A-OWN", "A-OPP", "T-BEFORE", "T-AFTER", "E-GOODS", "ONPLAY", "F-AUTO", "F-TRIG",
                  "S-OBTAIN", "LATCH", "E-WORKERMANIP", "E-CROPMANIP", "E-BREEDMOD", "EXOTIC",
@@ -148,7 +163,7 @@ def _norm_codes(codes):
     return list(dict.fromkeys(NORMALIZE.get(x, NORMALIZE.get(x.upper(), x)) for x in codes))
 
 
-def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
+def build_part(kind, resultfile, cardsfile, patch, compare_file=None, ambiguous=None):
     meta = {c["id"]: c for c in json.load(open(cardsfile))}
     res = json.load(open(resultfile))["result"]["cards"]
     tag, resid, unclear = {}, Counter(), []
@@ -189,9 +204,13 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
             unclear.append(c["id"])
         resid.update(x for x in codes if x not in CANON)
 
+    ambiguous = ambiguous or {}
+
     def status_of(i):
         if meta[i].get("status") == "wontfix":
             return "wontfix"
+        if i in ambiguous or meta[i].get("status") == "ambiguous":
+            return "ambiguous"
         return "impl" if IMPL_FIX.get(i, meta[i]["implemented"]) else "todo"
 
     def is_residual(i):  # 🔶 — still low-confidence after review (or unclear & not reviewed)
@@ -203,6 +222,7 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
 
     n_impl = sum(1 for i in meta if status_of(i) == "impl")
     n_ban = sum(1 for i in meta if status_of(i) == "wontfix")
+    n_amb = sum(1 for i in meta if status_of(i) == "ambiguous")
     n_rev = sum(1 for i in meta if i in tag and tag[i].get("reviewed"))
     residual = [i for i in meta if is_residual(i)]
     revisit = [i for i in meta if is_revisit(i)]
@@ -210,8 +230,16 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
     W = L.append
     W(f"# Part — {kind.title()}s\n")
     W(f"**{len(meta)} {kind}s** — ✅ {n_impl} implemented · 🚫 {n_ban} won't-fix/banned · "
-      f"⬜ {len(meta)-n_impl-n_ban} not yet · ⚖ {n_rev} high-effort adjudicated · 🔶 {len(residual)} residual (low-confidence) · "
+      f"❓ {n_amb} deferred-for-ambiguity · "
+      f"⬜ {len(meta)-n_impl-n_ban-n_amb} not yet · ⚖ {n_rev} high-effort adjudicated · 🔶 {len(residual)} residual (low-confidence) · "
       f"⚠ {len(revisit)} revisit (unsettled — think harder before implementing).\n")
+    if n_amb:
+        W("### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)\n")
+        for i in sorted((j for j in meta if status_of(j) == "ambiguous"),
+                        key=lambda z: (meta[z]["deck"], meta[z]["number"])):
+            why = ambiguous.get(i, "see CARD_DEFERRED_PLANS.md")
+            W(f"- **{i} {meta[i]['name']}** — {why}")
+        W("")
     if residual:
         W("### Residual — low-confidence, worth a human look\n")
         for i in sorted(residual, key=lambda z: (meta[z]["deck"], meta[z]["number"])):
@@ -230,7 +258,8 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
         for i in sorted(by_deck[deck], key=lambda z: meta[z]["number"]):
             m = meta[i]
             t = tag.get(i, {"codes": ["(MISSING)"], "note": "", "unclear": False})
-            box = {"impl": "✅", "wontfix": "🚫", "todo": "⬜"}[status_of(i)]
+            box = {"impl": "✅", "wontfix": "🚫", "todo": "⬜",
+                   "ambiguous": "❓"}[status_of(i)]
             flag = (" 🔶" if is_residual(i) else "") + (" ⚠" if is_revisit(i) else "")
             pcs = f" · [{m['players']}]" if m.get("players") else ""
             cost = f" · cost: {m['cost']}" if m.get("cost") else ""
@@ -254,18 +283,18 @@ def build_part(kind, resultfile, cardsfile, patch, compare_file=None):
 
 H = ["# Card Implementation Progress\n",
      "_Pipeline: each card was tagged by two independent classification passes against the mechanics taxonomy; the ~290 cards where the passes disagreed on a gating code were then settled by a high-effort adjudication review. A handful of cards are hand-verified. Each entry: player-count (occupations), cost/prereq, verbatim text, and the mechanic codes it uses._\n",
-     "_Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fix/banned · ⬜ not yet · ⚖ adjudicated (a high-effort reviewer settled a two-pass disagreement) · 🔶 residual (still low-confidence after review, or unresolved — worth a human look) · ⚠ revisit (classification understood but genuinely unsettled — re-derive the codes before implementing; carries a `REVISIT` tag). Per-card tags are a strong map, not a formal spec._\n",
+     "_Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fix/banned · ❓ deferred-for-ambiguity (a reading must be chosen — CARD_DEFERRED_PLANS.md) · ⬜ not yet · ⚖ adjudicated (a high-effort reviewer settled a two-pass disagreement) · 🔶 residual (still low-confidence after review, or unresolved — worth a human look) · ⚠ revisit (classification understood but genuinely unsettled — re-derive the codes before implementing; carries a `REVISIT` tag). Per-card tags are a strong map, not a formal spec._\n",
      "## Legend\n"]
 for k, v in LEGEND:
     H.append(f"- **{k}:** {v}")
 H.append("")
 
 parts, resids, stats, residuals = [], Counter(), {}, {}
-for kind, rf, cf, patch, cmp in [
-    ("minor", os.path.join(DATA, "minors_cold.json"), os.path.join(DATA, "minors_cards.json"), PATCH_MIN, os.path.join(DATA, "minors_prev.json")),
-    ("occupation", os.path.join(DATA, "occ_cold.json"), os.path.join(DATA, "occ_cards.json"), PATCH_OCC, os.path.join(DATA, "occ_prev.json")),
+for kind, rf, cf, patch, cmp, amb in [
+    ("minor", os.path.join(DATA, "minors_cold.json"), os.path.join(DATA, "minors_cards.json"), PATCH_MIN, os.path.join(DATA, "minors_prev.json"), AMBIGUOUS_MIN),
+    ("occupation", os.path.join(DATA, "occ_cold.json"), os.path.join(DATA, "occ_cards.json"), PATCH_OCC, os.path.join(DATA, "occ_prev.json"), AMBIGUOUS_OCC),
 ]:
-    lines, resid, st, residual = build_part(kind, rf, cf, patch, cmp)
+    lines, resid, st, residual = build_part(kind, rf, cf, patch, cmp, amb)
     parts += lines
     resids.update(resid)
     stats[kind] = st

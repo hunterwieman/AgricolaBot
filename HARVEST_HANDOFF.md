@@ -786,9 +786,18 @@ are ~20 cards STALE (regenerate before trusting).
    FLAG: Dolly's Mother × Silage — the spec routes Silage's sheep threshold
    through sheep_min_parents, but Dolly's printed scope is "during the
    breeding phase of a harvest"; a strict reading keeps Silage at 2.
-   **THE QUEUE IS COMPLETE.** What remains beyond it: the rest of
-   CARD_DEFERRED_PLANS (largely user-gated clusters + the ambiguity defers),
-   the C++ card port, the card-game agent.
+   **THE QUEUE IS COMPLETE.** Post-queue rulings 52/53 (2026-07-12/13):
+   Silage's threshold is a flat 2 (Dolly's Mother's seam does not reach the
+   mid-round breed); Heresy Teacher is UN-implemented into the ambiguity
+   defers (archive/deferred_cards/) — mixed fields are unreachable, mooting
+   the Scythe-E73/group-key flags. Ruling 39's record was CORRECTED
+   2026-07-13 (the "capacity-blocked over-protection" claim was wrong — the
+   floor is exact there; the real unruled corner is the breeding-SKIPPER,
+   plus the unreachable post-breed-gain class). The ambiguity category is
+   now DURABLE in the ledger (doc_gen AMBIGUOUS_MIN/OCC tables + snapshot
+   status "ambiguous" + the ❓ marker/section). What remains beyond the
+   queue: the rest of CARD_DEFERRED_PLANS (largely user-gated clusters +
+   the ambiguity defers), the C++ card port, the card-game agent.
 
 7. **Ledger procedure** (do this at every integration): refresh the snapshots'
    implemented-flags from the live registries

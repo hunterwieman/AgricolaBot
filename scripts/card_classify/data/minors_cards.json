@@ -4411,7 +4411,7 @@
   "text": "Each round that does not end with a harvest, you can pay 1 grain to breed exactly 1 type of animal. (This is not considered a breeding phase.)",
   "slug": "perennial_rye",
   "implemented": false,
-  "status": "todo",
+  "status": "ambiguous",
   "players": null,
   "name_dup": false
  },

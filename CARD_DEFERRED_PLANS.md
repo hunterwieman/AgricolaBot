@@ -423,10 +423,19 @@ user made during this design — cite these, dated, in the docstrings of the car
    raise frame and any post-breed cooking surface must apply the floor.
    EDGE RESOLVED (2026-07-06): the user KEPT the shorthand — the floor
    reads CURRENT counts at cook time (a type at >= 3 may not be cooked
-   below 3; >= 2 not below 2 for sheep with Dolly's Mother), which slightly
-   over-protects the capacity-blocked corner (parents whose newborn never
-   fit) and, crucially, is STATELESS: no breed-record is needed at all —
-   the user's own observation ("how would a player end at 3+ without
+   below 3; >= 2 not below 2 for sheep with Dolly's Mother) and, crucially,
+   is STATELESS: no breed-record is needed at all — the user's own
+   observation ("how would a player end at 3+ without
+   [CORRECTION 2026-07-13, user-driven: this record originally claimed the
+   shorthand "slightly over-protects the capacity-blocked corner (parents
+   whose newborn never fit)". That is WRONG — at count 2 the floor (3) does
+   not bind and both animals stay cookable, and under the official
+   only-if-room rule a capacity-blocked pair never bred and is correctly
+   unprotected, so the floor is EXACT there. The real over-protection
+   corners are: (a) a breeding-SKIPPED player (Layabout) holding 3+ — the
+   stateless floor cannot tell they never bred; (b) the currently
+   unreachable class of post-breed non-breed animal gains reaching 3+.
+   Neither has an explicit user ruling yet.]
    breeding?") exposed that the record was only required under the stricter
    parents-and-offspring reading.
 
