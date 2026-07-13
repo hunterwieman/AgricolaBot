@@ -27,9 +27,10 @@ where each simple window's id doubles as a trigger/auto event string, and three
 entries are sentinels for the engine's own machinery (the field-phase take, the
 feeding frames, the breeding frames). Cards register on the instant their text names.
 The walk is `engine._advance_harvest`; it resumes at `GameState.harvest_cursor` (a
-VIRTUAL index — see §3) and a Family game never sets the cursor or hosts a frame
-(byte-identical, C++ gates untouched — every change in this arc was card-only or
-Family-invisible, verified by the differential gates at every commit).
+VIRTUAL index — see §3). *(Updated 2026-07-12: since ruling 40's FEED/BREED banding
+a FAMILY game carries the cursor while a payment/breeding frame is up — the C++ twin
+mirrors it and the gates are green. Before that, every change in this arc was
+card-only or Family-invisible.)*
 
 ## 2. The one-event model of the field phase (rulings 5, 11 — the core insight)
 
@@ -76,13 +77,14 @@ Within the FIELD segment (before_field_phase … after_field_phase, the take inc
 the starting player resolves their ENTIRE segment before the other player begins
 (ruling 3, PROVISIONAL — the user dislikes the later-player advantage; matches the
 official implementation; revisit if distortive). Everywhere else windows resolve
-window-major (both players per window, SP first). FEED/BREED are NOT banded yet —
-deferred until a member card's ordering depends on it.
+window-major (both players per window, SP first). *(Updated 2026-07-12: ruling 40
+extended the banding to FEED and BREED — three per-player bands, 26 virtual positions
+at 2 players; the four outer moments stay window-major. §16's queue item 1 records
+the landing.)*
 
-Implementation: `harvest_cursor` indexes a VIRTUAL walk — the raw ladder with the
-FIELD band repeated once per player (`walk_position(cursor, sp)` decodes; 21 positions
-at 2 players since the 2026-07-05 after-harvest window merge; N players = N band
-repeats, the shape 4p needs). The stakes the user
+Implementation: `harvest_cursor` indexes a VIRTUAL walk — the raw ladder with each
+phase band repeated once per player (`walk_position(cursor, sp)` decodes; N players
+= N band repeats, the shape 4p needs). The stakes the user
 named when demanding this: Beer Table (end-of-field-phase: pay grain → 2 VP, opponent
 gets 1 food) resolves in the SP's segment BEFORE the opponent's segment starts, so the
 opponent's Cube Cutter can spend that food — the segment ordering deliberately creates
