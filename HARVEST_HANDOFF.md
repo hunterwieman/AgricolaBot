@@ -664,6 +664,25 @@ are ~20 cards STALE (regenerate before trusting).
    (d) Pin the now-legal Social Benefits line: an in-span buy after feeding
    can deliberately zero food before the after_feeding check.
    Cooking Hearth Extension is OUT (ruling 42, deferred with Gypsy's Crock).
+   TEXT-DERIVED REFINEMENTS (verbatim texts pulled 2026-07-12): Stone Carver
+   D108 occ "turn exactly 1 stone into 3 food" — pure converter, frontier +
+   craft seam. Braid Maker E109 occ: the reed->2-food clause is a pure
+   converter, but the card has a SECOND clause ("You can build the
+   Basketmaker's Workshop for 1 reed and 1 stone even when taking a 'Minor
+   Impr.' action") needing the build-major-via-minor-action surface — assess
+   that machinery separately; if it doesn't fit exactly, the CARD defers
+   (both clauses) while the converter seam still lands via Stone Carver.
+   Paintbrush E39 minor (1 wood, prereq 1 boar): "exchange exactly 1 clay for
+   your choice of 2 food or 1 bonus point" — the FOOD branch is itself a pure
+   converter (frontier + craft seam); only the VP branch is the ruling-37
+   rider (free-span standalone); one conversion_id, shared once-per-harvest
+   budget across both branches. Basket Carrier C105 occ: "Once each harvest,
+   you can buy 1 wood, 1 reed, and 1 grain for 2 food total" — free-span
+   rider. Lumber Virtuoso D129 is [3+]: per the Old Miser precedent it waits
+   for the 4p work, NOT machinery — design the free-span helper to fit it,
+   don't implement the module. Furniture Carpenter B101 (implemented,
+   feed-seam `HarvestConversionSpec(food=2 -> bank 1 VP)` + scoring term, no
+   ALLOWLIST note) migrates to free-span.
    Original spec follows. Driver seams first: (i) the generalized `PendingFoodPayment` frontier —
    crops + animals + capped building-resource conversions, liveness derived from
    phase/cursor (the span = field phase start → end_of_harvest; a pre-field-phase
