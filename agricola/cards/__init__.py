@@ -566,3 +566,12 @@ from agricola.cards import patch_caregiver  # noqa: F401
 from agricola.cards import stone_carver  # noqa: F401
 from agricola.cards import basket_carrier  # noqa: F401
 from agricola.cards import paintbrush  # noqa: F401
+# The round-end ladder's card wave (rulings 49-51, 2026-07-12): the queued
+# round-end/returning-home cards. Perennial Rye C84 + Lumber Virtuoso D129
+# are DEFERRED FOR AMBIGUITY (CARD_DEFERRED_PLANS.md).
+from agricola.cards import credit  # noqa: F401
+from agricola.cards import sculpture_course  # noqa: F401
+from agricola.cards import swimming_class  # noqa: F401
+from agricola.cards import lifting_machine  # noqa: F401
+from agricola.cards import silage  # noqa: F401
+from agricola.cards import baking_course  # noqa: F401

@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 215 implemented · 🚫 3 won't-fix/banned · ⬜ 202 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 221 implemented · 🚫 3 won't-fix/banned · ⬜ 196 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -124,7 +124,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A34 Loppers** · cost: 1 Wood · prereq: 2 Occupations
   - _Each time you build 1 or more fences, you can also use this card to exchange 1 wood and 1 fence in your supply for 2 food and 1 bonus point._
   - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-CONVERT E-PIECECOST E-SCORE ST-COUNTER` — "Each time you build fences" = own fence sub-action hook, T-BEFORE default; the exchange spends a fence piece (E-PIECECOST) and converts goods (E-CONVERT — food output is part of the conversion, so no separate E-GOODS); bonus points accrue over the game (ST-COUNTER).
-- ⬜ **A35 Swimming Class** · cost: 1 Food · prereq: 2 Occupations
+- ✅ **A35 Swimming Class** · cost: 1 Food · prereq: 2 Occupations
   - _In the returning home phase of each round, if you return a person from the "Fishing" accumulation space, you get 2 bonus points for each newborn that you return home.  [CLARIFICATION: If you used Adoptive Parents A092, there is no longer a newborn to return home.]_
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-SCORE E-PEOPLE ST-PLACELOG ST-COUNTER` — "You get" = mandatory, so F-AUTO (A's F-TRIG wrong); needs which worker sat on Fishing (ST-PLACELOG) and per-person newborn classification (explicitly within E-PEOPLE's definition — the Adoptive Parents clarification confirms it keys on newborn status); points earned across rounds = ST-COUNTER.
 - ✅ **A36 Facades Carving** · cost: 2 Clay,1 Reed · prereq: Wood in Your Supply >= Current Round
@@ -181,7 +181,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A53 Claypipe** · cost: 1 Clay
   - _In the returning home phase of each round, if you gained at least 7 building resources in the preceding work phase, you get 2 food.  [CLARIFICATION: Count the total of all gains during the work phase even if resources were lost in the process.  Resources gained at the start of a round don’t count.]_
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS ST-COUNTER` — Returning-home auto payout gated on a running count of building resources gained during the work phase (ST-COUNTER, gross gains, start-of-round excluded); no per-event payload beyond the count is needed, so ST-PROV is unwarranted.
-- ⬜ **A54 Credit** · prereq: At Most 3 Occupations
+- ✅ **A54 Credit** · prereq: At Most 3 Occupations
   - _When you play this card, you immediately get 5 food. At the end of each round that does not end with a harvest, you must pay 1 food, or else take a begging marker._
   - `ONPLAY HOOK T-AFTER S-ROUNDEND F-MANDCHOICE A-OWN E-GOODS E-FOODCOST` — On play get 5 food; at end of each non-harvest round pay 1 food or take a begging marker — a mandatory choice with a decline-into-penalty branch (F-MANDCHOICE), food cost payable by conversion.
 - ✅ **A55 Junk Room** · cost: 1 Wood,1 Clay
@@ -229,7 +229,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A69 Large Greenhouse** · cost: 2 Wood · prereq: 2 Occupations
   - _Add 4, 7, and 9 to the current round and place 1 vegetable on each corresponding round space. At the start of these rounds, you get the vegetable._
   - `ONPLAY E-SCHED` — On play, place 1 vegetable on round spaces 4/7/9 ahead, collected at start of those rounds.
-- ⬜ **A70 Lifting Machine** · cost: 1 Wood · prereq: 3 Fields
+- ✅ **A70 Lifting Machine** · cost: 1 Wood · prereq: 3 Fields
   - _At the end of each round that does not end with a harvest, you can move 1 vegetable from one of your fields to your supply. (This is not considered a field phase.)_
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CROPMANIP` — Optional end-of-non-harvest-round hook; moving a planted vegetable from a field to supply is crop manipulation, which by definition excludes tagging the supply arrival as separate E-GOODS (labelA's extra tag).
 - ⬜ **A71 Clearing Spade** · cost: 1 Wood
@@ -271,7 +271,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A83 Shepherd's Crook** · cost: 1 Wood
   - _Each time you fence a new pasture covering at least 4 farmyard spaces, you immediately get 2 sheep on this pasture.  [CLARIFICATION: To receive sheep, new pasture(s) can’t be divided.  Building 2 such pastures at once gives you 4 sheep.]_
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-ANIMALS ST-PROV` — Fires after the fence sub-action; '≥4 spaces' is a pasture size COUNT, which the L-GEOMFARM ruling explicitly excludes; the hook needs the just-built pasture's identity/size (undivided check, sheep placed on it) → ST-PROV; mandatory sheep (F-AUTO, E-ANIMALS).
-- ⬜ **A84 Silage** · prereq: 2 Fields
+- ✅ **A84 Silage** · prereq: 2 Fields
   - _In each returning home phase after which there is no harvest, you can pay exactly 1 grain—even from a field-to breed exactly one type of animal._
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-ANIMALS E-BREEDMOD E-CROPMANIP` — The cost is 1 grain, not food — E-FOODCOST applies only to food costs; optional returning-home-phase breed outside harvest (E-BREEDMOD), grain payable from a field (E-CROPMANIP), yields an animal (E-ANIMALS).
 
@@ -433,7 +433,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B52 Growing Farm** · cost: 2 Clay,1 Reed · prereq: see below
   - _You can only play this card if you have at least as many pasture spaces as the number of completed rounds. If you do, you get a number of food equal to the current round._
   - `ONPLAY E-GOODS NONE` — Play restriction computable from state; on play get food equal to current round — plain goods.
-- ⬜ **B53 Sculpture Course** · cost: 1 Grain
+- ✅ **B53 Sculpture Course** · cost: 1 Grain
   - _At the end of each round that does not end with a harvest, you can use this card to exchange your choice of 1 wood for 2 food, or 1 stone for 4 food._
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-CONVERT` — The use is locked to a specific event window — the end of each non-harvest round — which is exactly the S-ROUNDEND hook seam, not a freely-deferrable ATWILL; optional ("you can") -> F-TRIG; the exchange is E-CONVERT (conversion output is not separately E-GOODS).
 - ✅ **B54 Tumbrel** · cost: 1 Wood
@@ -976,7 +976,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D63 Lynchet**
   - _In the field phase of each harvest, you get 1 food for each harvested field tile that is orthogonally adjacent to your house._
   - `HOOK T-AFTER S-HFIELD F-AUTO A-OWN E-GOODS L-GEOMFARM ST-PROV` — Which field tiles were harvested is not recoverable from post-phase state (an emptied field looks never-sown), so the field-phase event payload is needed → ST-PROV; adjacency-to-house is L-GEOMFARM.
-- ⬜ **D64 Baking Course** · prereq: 1 Occupation
+- ✅ **D64 Baking Course** · prereq: 1 Occupation
   - _At the end of each round that does not end with a harvest, you can take a "Bake Bread" action. "Bake Bread" action: Grain → 2 Food_
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GRANTSUB E-BAKESPEC` — Bake Bread is a primitive sub-action → E-GRANTSUB (not E-GRANTACT); the card's own Grain→2 Food bake rate is E-BAKESPEC, and E-CONVERT would double-count that rate.
 - ✅ **D65 Grain Sieve** · cost: 1 Wood

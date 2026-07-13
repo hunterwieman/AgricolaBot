@@ -42,7 +42,7 @@ HISTORY_VP_CARDS: frozenset[str] = frozenset({
     "bucksaw", "clay_deposit", "craft_brewery", "cube_cutter", "elephantgrass_plant",
     "facades_carving",
     "furniture_carpenter", "home_brewer", "loppers", "mantlepiece",
-    "paintbrush", "rustic",
+    "paintbrush", "rustic", "swimming_class",
     "truffle_slicer", "tutor", "uncaring_parents", "wood_rake",
 })
 
