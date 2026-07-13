@@ -624,7 +624,47 @@ are ~20 cards STALE (regenerate before trusting).
    "cell:"-only tile filter (ruling 32) and its pinned test kept; choice tests
    rewritten as automatic-fire tests.
 3. **The converter cluster (rulings 34–39, fully specified)** — the last harvest
-   machinery. Driver seams first: (i) the generalized `PendingFoodPayment` frontier —
+   machinery. **DRIVER BUILD SPEC (derived 2026-07-12 — build from this, don't
+   re-derive):**
+   (a) `food_payment_frontier(player_state, food_owed, rates)` gains two
+   MEMO-KEY-JOINED arguments (the Dolly's Mother pattern — passed through both
+   the baseline and `_food_payment_frontier_opt`/`_food_payment_points` paths,
+   keys extended, no cache hazard): `span_converters: tuple` of
+   (conversion_id, input_good, food_out) for each 0/1-fire converter currently
+   available, and `animal_floors: tuple` (sheep, boar, cattle) for ruling 39.
+   Converters are BINARY fires (the existing HARVEST_CONVERSIONS shape: fixed
+   input_cost -> food_out, once per harvest): enumerate subsets S (tiny — <=
+   ~5), food(S) offsets food_owed, and the Pareto space gains one
+   remaining-count dim per DISTINCT building resource touched (wood/clay/
+   reed/stone). Floors clip animal consumption caps: consumable = count - F
+   when count >= F else count (F = 3, or 2 for sheep with Dolly's Mother —
+   ruling 39's stateless shorthand; F applies only POST-BREED-for-that-player
+   within the harvest, derived from phase/cursor vs the player's breed pass).
+   (b) The CALLER (the PendingFoodPayment enumerator in legality.py) computes
+   both args from state: converters = registered pure goods->food entries
+   (the 3 craft majors + Stone Carver + Braid Maker) that are owned, in-span,
+   and budget-unused (`conversion_id not in harvest_conversions_used` — the
+   budget is SHARED with the feed-phase craft seam); in_span(player) = a
+   harvest phase AND the walk has reached that player's FIELD band start
+   (positions 2/7 for SP/other; before_field_phase vs start_of_field_phase is
+   an unreachable corner today — no in-band cost frame exists — note it in the
+   docstring). `CommitFoodPayment` gains `conversions: tuple[str,...] = ()`
+   (card-only action, never on the Family wire — no C++ concern);
+   `_execute_food_payment` debits the converter inputs, adds their food, and
+   marks each fired id in harvest_conversions_used.
+   (c) The free-span helper (`register_free_span_trigger(card_id, ...)` in
+   harvest_windows.py): registers the card's optional trigger on every ladder
+   window from before_field_phase through end_of_harvest + the "field_phase"
+   during-event + a feed-frame surface (the craft seam or the frame's trigger
+   stretch) — one helper, not 10 manual rows. Members: the rider-output buys
+   (ruling 37): Basket Carrier, Paintbrush (one card, two output variants),
+   Stone Sculptor when built; Lumber Virtuoso [3+] (ruling 38); Furniture
+   Carpenter MIGRATES off its FEED-only seam here (update its ALLOWLIST/
+   fidelity notes).
+   (d) Pin the now-legal Social Benefits line: an in-span buy after feeding
+   can deliberately zero food before the after_feeding check.
+   Cooking Hearth Extension is OUT (ruling 42, deferred with Gypsy's Crock).
+   Original spec follows. Driver seams first: (i) the generalized `PendingFoodPayment` frontier —
    crops + animals + capped building-resource conversions, liveness derived from
    phase/cursor (the span = field phase start → end_of_harvest; a pre-field-phase
    cost like Autumn Mother's sees none), budgets shared with the feeding crafts via
