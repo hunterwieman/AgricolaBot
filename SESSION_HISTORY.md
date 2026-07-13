@@ -3239,3 +3239,32 @@ category). Catalog: **221 minors + 106 occupations**; suite 4,584 green.
 Rulings 42-51 recorded dated in CARD_DEFERRED_PLANS.md. Open user flags:
 Dolly's Mother × Silage scope; the Scythe/Lifting-Machine mixed-field group
 wrinkle; ruling 39's breeding-skipper corner.
+
+## Session — The livestock-provider batch + Petrified Wood migrated wide (2026-07-13)
+
+Implemented four Livestock Provider minors on user rulings dated 2026-07-13: **Early
+Cattle** (on-play 2 cattle via `grant_animals`; prereq 1 pasture; −3 VP), **Pigswill**
+(the first animal-granting space hook — `before_action_space` auto on Fencing, user-ruled
+BEFORE with the explicit downside that the boar cannot ride the pastures built that turn;
+cost 2 Food alt 1 Grain), **Automatic Water Trough** (traveling; wide via the existing
+`register_play_minor_variant` seam — decline + one variant per animal at a 0/1/2-food
+surcharge, gated on the user-confirmed PERMISSIVE accommodation reading; a displacing buy
+resolves through the new **`PendingAccommodate.min_keep`** frontier filter, which forbids
+discarding the purchase itself — the user-confirmed "cook 1 sheep, buy the replacement
+for 0" play is tested), and **Bartering Hut** (traveling; a repeatable `PendingCardChoice`
+purchase menu — decline + every affordable (animal, w/c/r/s) composition at 2/3/4
+resources for sheep/boar/cattle, ≤66 options, a CardStore budget of 2 reset per play,
+UNFILTERED barrier interleaving between purchases).
+
+The session's near-miss and its cleanup: the docs still claimed no minor play-variant
+seam exists (it landed 2026-07-06 for Facades Carving), which almost produced a duplicate
+seam — both stale passages fixed (CARD_ENGINE_IMPLEMENTATION.md §3, CARD_AUTHORING_GUIDE.md
+§2). A follow-up audit of pre-seam deep minors found exactly two: **Petrified Wood**
+(migrated wide this session — it is the seam's intended shape verbatim) and **Bumper Crop**
+(deliberately left deep — its choice is a take-modifier parameter shared with the harvest
+take path, not a priced play route). Also corrected the E9 ledger note's wrong "no passing
+flag" claim (the JSON carries `passing_left='X'` — every deck's #9 travels).
+
+Catalog: **225 minors + 105 occupations (330)**; full suite 4,604 green twice (C++ gates
+untouched — `min_keep` lives on the card-only reconciliation frame). FRONTEND_FIXES gained
+item 14 (readable labels for Bartering Hut's tuple options).
