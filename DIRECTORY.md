@@ -208,7 +208,7 @@ AgricolaBot/
 
             schedules.py            # Deferred-goods/effects helpers for "place on future round spaces" cards: schedule_resources (goods → future_resources), schedule_effect (round-start grant hooks → future_rewards; Handplow), schedule_animals (animals → future_rewards, auto-accommodated at round start; Acorns Basket).
 
-            display.py              # UI-only CardStore surfacing for the web UI (the engine never reads it): live banked-VP emblems for history-derived scoring cards + state badges (Interim Storage's held goods, Moldboard Plow's uses left).
+            display.py              # UI-only card surfacing for the web UI (the engine never reads it): live banked-VP emblems for history-derived scoring cards, state badges (Interim Storage's held goods, Moldboard Plow's uses left), and the per-card action-labeler registry (register_action_labeler / variant_label — maps a card's variant encoding to terse mechanical action labels; play_web.py consults it for FireTrigger variants, variant-bearing harvest conversions, and food-payment converter names).
 
         agents/                     # Agent implementations: random + heuristics. Built atop the engine's pure `step` / `legal_actions` interface.
 

@@ -31,6 +31,7 @@ Contents:
 4. Card state & pending frames
 5. Costs, food & capacity — the three resolution layers
 5b. The harvest timing windows — the ladder, the take & its manifest, take-modifiers, skips
+5c. The round-end timing ladder — the seven-step walk between the last placement and the round transition
 6. Rulings & idioms
 7. Implementing a card (process pointer)
 8. Boundaries — what deliberately does not exist
@@ -112,7 +113,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-12, HEAD `3146fe6`.** A card batch is not integrated until this
+> **Last updated: 2026-07-13, HEAD `c4f813d`.** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -124,7 +125,8 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **Implemented & registered: 327 cards — 106 occupations + 221 minors**, spanning decks A–E
+- **Implemented & registered: 326 cards — 105 occupations + 221 minors** (Heresy Teacher
+  un-implemented 2026-07-13, ruling 53), spanning decks A–E
   (deck = 168 cards interleaving Base-Revised + one expansion: A=Artifex, B=Bubulcus,
   C=Corbarius, D=Dulcinaria, E=Ephipparius; catalog 420 + 420 total). All firing machinery of
   §2–§5b is live and exercised; the full pytest suite and the C++ Family differential gates are
@@ -404,7 +406,8 @@ Where each firing actually happens in the engine — the complete set of call si
 | Harvest windows | the window-id autos + triggers | `engine._advance_harvest` — the virtual walk (§5b): per window, autos fire for both players SP-first, then a per-player `PendingHarvestWindow` choice host is pushed for each player with an eligible trigger (SP decides first) |
 | Harvest field phase | `field_phase` autos + triggers; the take | `engine._field_phase_step` (§5b): autos, then `PendingFieldPhase` when the player has a during-window decision (an eligible trigger or a usable choice-bearing take-modifier), else the inline take — with a post-take re-check that hosts the frame when take income enabled a trigger |
 | Harvest occasions | the per-occasion autos | `apply_harvest_occasion_autos`, wherever a `HarvestOccasion` is emitted — the walk's inline take, `_execute_field_take`, or a bare card-driven `field_take` (§5b) |
-| Feeding income | `feeding` autos | `_initiate_harvest_feed`, per player SP-first, before the payment frames are pushed (§5b) |
+| Feeding income | `feeding` autos | `_initiate_harvest_feed_for(band_player)` — one player per FEED band pass (ruling 40), the autos firing before that player's payment frames are pushed (§5b) |
+| Round-end windows | the six round-end window ids (autos + triggers) | `engine._advance_round_end` — the seven-step walk of §5c (window-major, no banding, harvest-skip guard OFF), reusing `_process_simple_window` + the `PendingHarvestWindow` choice host |
 | Renovate / card play | the one-shot conditional sweep | `_fire_ready_one_shots` (§3), called after a renovate applies and after any card is played |
 | Triggers (all events) | `FireTrigger` surfacing | each host enumerator via `_eligible_fire_triggers` + `_expand_variant_triggers` |
 
@@ -764,7 +767,12 @@ Exactly four card-new fields (plus the frames below riding the existing `pending
   repeated once per player, starting player first (ruling 3) — decoded by
   `harvest_windows.walk_position(cursor, starting_player)`. Hash-included like every state
   field; Family-constant `None` (no window cards → no frames → never set), so default-skipped
-  in `canonical.py`. *(It replaced `field_triggers_offered`, the deleted two-stage-walk
+  in `canonical.py`. Its sibling **`round_end_cursor: int | None = None`** is the same idea for
+  the round-end ladder (§5c): the resume index into `round_end.ROUND_END_STEPS`, set only while
+  a round-end window's choice frame is up, `None` the moment its segment completes — likewise
+  hash-included, Family-constant `None`, default-skipped, no C++ change. The two cursors are
+  distinct fields and coexist on harvest rounds (at different times — §5c).
+  *(`harvest_cursor` replaced `field_triggers_offered`, the deleted two-stage-walk
   discriminator of the legacy `harvest_field` seam.)*
 
 `starting_player` is **not** card-new — it is a Phase-1 field.
@@ -1254,9 +1262,11 @@ cannot spend it at Farm Store and still collect the grant. `walk_position(cursor
 starting_player)` decodes the virtual index; N players would repeat the band N times (the
 shape 4-player needs). At the harvest's fresh entry the walk also resets both players'
 `harvest_conversions_used` (§4 — moved from the field take, skip- and
-anytime-conversion-proof). FEED and BREED are *not* banded per-player (their frames already
-resolve SP-first per window; banding is deferred until a member card's ordering depends on
-it).
+anytime-conversion-proof). **FEED and BREED are banded per-player too** (ruling 40,
+2026-07-12): `_BANDS` spans all three phase segments, each appearing once per player in the
+virtual walk (SP first — 26 positions at 2p), and the payment/breeding frames are pushed for
+**one player per band pass** via `_initiate_harvest_feed_for` / `_initiate_harvest_breed_for`
+— that player's whole phase resolves before the other's band begins.
 
 `PendingHarvestWindow` is once-per-window via `triggers_resolved`; `Proceed` declines
 whatever is unfired and pops. Growth grants prove the frames compose: **Autumn Mother**
@@ -1430,6 +1440,61 @@ in older docs or docstrings — is history now.
 
 ---
 
+## 5c. The round-end timing ladder
+
+Cards also fire in the seam **between the work phase's last placement and the round
+transition** — "at the end of the round", "when you return home", "immediately before the
+returning home phase". The engine's answer (rulings 49/50, 2026-07-12) is a second, smaller
+timing ladder: the structural sibling of §5b's harvest ladder, sharing its window primitives
+but with its own step table, driver, and cursor. It lives in **`agricola/cards/round_end.py`**;
+the rulings' derivations are in `CARD_DEFERRED_PLANS.md` (rulings 49–51).
+
+**The seven steps** (`round_end.ROUND_END_STEPS` — six window ids that double as trigger/auto
+event strings, exactly like §5b's simple windows, plus one non-event sentinel):
+
+| # | step | what it is |
+|---|---|---|
+| 0 | `end_of_work` | still *during* the work phase (ruling 49). Reserved — no live card yet |
+| 1 | `after_work` | ruling 50's separate later rung ("immediately before the returning home phase"). Reserved |
+| 2 | `start_of_returning_home` | before the phase proper. Reserved |
+| 3 | `returning_home` | fires **PRE-reset**: the still-placed board is the event data — a member card reads live occupancy directly, no manifest (the generalized Swimming Class design). Members: Swimming Class (auto), Silage (trigger) |
+| 4 | `__reset__` | **not an event** — the mechanical return-home bookkeeping (`_return_home_reset`: placements cleared, people home). Its position *is* the pre/post boundary |
+| 5 | `after_returning_home` | post-reset, board cleared ("immediately after each returning home phase" merges here). Reserved |
+| 6 | `end_of_round` | the round's last, distinct instant (ruling 49). Members: Credit (auto), Lifting Machine, Baking Course, Sculpture Course (triggers) |
+
+**The walk.** `engine._advance_round_end(state) -> (state, paused)` drives it **window-major
+with no banding** (unlike §5b's per-player phase bands — no round-end ordering ruling requires
+banding). The ladder is split at the RETURN_HOME phase flip into two segments:
+`_advance_until_decision`'s WORK case runs positions 0–1 once every worker is placed (before
+flipping the phase), and its RETURN_HOME case runs positions 2–6, followed by
+`_round_transition` (harvest routing / preparation). Each window resolves both players through
+the **same primitives as §5b** — `_process_simple_window` fires the autos per player SP-first,
+then pushes a per-player `PendingHarvestWindow` choice host (a round-end frame is simply a
+`PendingHarvestWindow` whose `window_id` is a round-end id) for each player with an eligible
+trigger, non-SP first so the SP decides first. A pushed frame pauses the walk:
+**`GameState.round_end_cursor`** carries the resume index (card-only, hash-included,
+Family-constant `None`, canonical default-skipped, no C++ change — §4), cleared when the
+segment completes. `_resolve_return_home` survives only as a legacy compat shape
+(`_round_transition ∘ _return_home_reset`) for tests that drive the transition by name.
+
+**The harvest-skip guard is OFF on this ladder** (`_process_simple_window(...,
+skip_guarded=False)`), deliberately: ruling 14's whole-harvest skip (Layabout) covers the
+*harvest* ladder only — the returning-home phase is distinct from the harvest (ruling 49) —
+and Layabout's skip predicate is round-latched and id-blind, so consulting it here would
+wrongly swallow round-end windows on Layabout's latched round
+(`tests/test_round_end_ladder.py` pins this).
+
+**Sequencing on a harvest round:** the *entire* round-end ladder runs **before** the harvest —
+WORK segment → phase flip → RETURN segment (through `end_of_round`) → `_round_transition`
+routes to HARVEST_FIELD → §5b's `_advance_harvest`. The two cursors coexist on the state but
+are live at different times.
+
+**Member-card constraint:** a WORK-segment trigger must not grant a worker placement — the
+"all workers placed" gate is that segment's resume guard, so placement-granting round-end
+wordings are out of scope by design (defer).
+
+---
+
 ## 6. Rulings & idioms
 
 The rulings are *correctness decisions* — settled by the game's rules (the user is the
@@ -1593,10 +1658,14 @@ fidelity is absolute; convincing yourself the shift is harmless does not make it
 user understands the rules and interactions far better than a coding session; a deferred card
 costs nothing, a plausible-but-wrong card costs trust. When work is delegated, this rule goes
 into the subagent prompt verbatim. Defer indicators: ambiguous
-timing/optionality; needs new shared infrastructure (§8's list); at-any-time effects;
-"/"-rewards; end-of-turn / return-home / after-harvest timing; geometry beyond the fence
+timing/optionality (genuinely ambiguous *text* goes to the durable **ambiguity-defer
+category** in `CARD_DEFERRED_PLANS.md` / the PROGRESS ledger — ruling 50 — distinct from the
+power bans); needs new shared infrastructure (§8's list); at-any-time effects;
+"/"-rewards; end-of-turn timing; geometry beyond the fence
 universe; new shared action spaces; randomness inside `step`; temporary workers;
-card-as-field / card-as-animal-holder. (Immediate animal grants are no longer a defer —
+card-as-field / card-as-animal-holder. (Return-home and after-harvest timing are no longer
+defers — the §5c round-end ladder and §5b's `after_harvest` window cover them. Immediate
+animal grants are no longer a defer —
 route them through `grant_animals`, §6.)
 
 **One module per card** (`agricola/cards/<id>.py`, registering at the bottom of its body) + one
@@ -1681,10 +1750,10 @@ defer (§7); building the missing piece is a design conversation with the user f
   `start_of_feeding`/`after_feeding` windows (§5b). *(The BREED half of the old deferral
   retired at `ff874ba`: the breed frame hosts `"breeding"` / `"breeding_outcome"` triggers —
   §5b.)*
-- **No round-end / before-round-start hooks.** Designed in sketch, gated on the
-  user (`CARD_DEFERRED_PLANS.md`); `resource_analyzer` (deck E) is deferred on exactly
-  "before the start of each round". (After-feeding is no longer in this list — it exists as
-  the `after_feeding` window, §5b.)
+- **No before-round-start hook.** `resource_analyzer` (deck E) is deferred on exactly
+  "before the start of each round" — an instant after the round-end ladder but before round
+  income, which no window covers yet. (Round-end and after-feeding are no longer in this
+  list — the §5c ladder and §5b's `after_feeding` window exist now.)
 - **Cost-model gaps** (each flagged so the model isn't mistaken for complete): a
   payment-*source* restriction (Carpenter's Bench "use only the taken wood") — `effective_
   payments` has no concept of where goods came from; a *minimum-spend* filter (Stone Company);
