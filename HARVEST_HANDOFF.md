@@ -753,9 +753,15 @@ are ~20 cards STALE (regenerate before trusting).
    cards are implemented.
    CAUTION: the Social Benefits interaction is now legal CONTENT (a free-span buy
    before the after-feeding check can deliberately zero food) — pin it with a test.
-4. **The label pass** — per-card labeler registry in display.py (bare numbers mean
-   different things per card), threaded state, the user's mechanical style (§13.4);
-   optionally the contextual decline label.
+4. **DONE 2026-07-12 (`70714fe` the seam, `f0f7999` the labels) — the label pass**:
+   display.register_action_labeler / variant_label (pure string→string — the
+   encodings carry their own numbers, so no state threading was needed); twelve
+   per-card labelers in one authorial voice (§13.4's mechanical style); play_web
+   routes all four variant surfaces through the registry (FireTrigger,
+   CommitHarvestConversion, CommitFieldTake modifiers, CommitPlayMinor
+   variants). Food Merchant's label omits the price (cost depends on occasion
+   state not in the variant string — documented). The contextual decline label
+   was NOT built (optional in the spec; nothing demanded it).
 5. **DONE 2026-07-12 (`f427f71` seams, `329c8cd` the nine cards, `860fd5a` the reader
    sweep) — the card-fields wave**, rulings 43–48. The machinery is
    `agricola/cards/card_fields.py` (per-stack CardStore state, ruling-45 count helpers,
