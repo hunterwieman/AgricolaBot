@@ -508,6 +508,30 @@ user made during this design — cite these, dated, in the docstrings of the car
    catalog's good-vs-crop wording is deliberate (Skimmer Plow / Cow Patty /
    Wild Greens say "good"; Tinsmith Master is clarified to grain/veg only).
 
+49. **The round-end timing ladder** (ruled 2026-07-12): the returning-home
+   phase is the round's LAST phase (preparation, work, returning home), and
+   the "end of the round" is a DISTINCT, LATER instant — the returning-home
+   seam fires BEFORE the end-of-round seam. The rungs, in order:
+   `end_of_work` (the work phase's end, still DURING the work phase — this
+   is where Archway D51's "immediately before the returning home phase"
+   fires, a per-instance "immediately" ruling; Straw Hat E10 / Sundial E26 /
+   Master Renovator E87 name this instant directly), then
+   `start_of_returning_home` (before the phase — Turnip Farmer, Minstrel,
+   Bohemian, Food Distributor, Sample Stable Maker), then `returning_home`
+   (the phase itself — the "in the returning home phase" family, Silage
+   included: its printed anchor plainly names the phase), then
+   `after_returning_home` ("immediately after each returning home phase" —
+   Steam Plow D18 — is CONCURRENT with it, a per-instance "immediately"
+   merge), then `end_of_round` (Baking Course D64, Credit A54, Lifting
+   Machine A70, Sculpture Course B53 — the "at the end of each round"
+   family). The "that does not end with a harvest" condition suppresses its
+   bearer on harvest rounds; UNCONDITIONED returning-home cards fire
+   normally on harvest rounds, in the returning-home phase that precedes
+   the harvest — the returning-home phase is DISTINCT from the harvest.
+   (Perennial Rye C84's anchorless "Each round that does not end with a
+   harvest" placement: proposed end_of_round with its condition-family
+   siblings, NOT yet confirmed by the user.)
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
