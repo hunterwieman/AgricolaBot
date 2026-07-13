@@ -551,6 +551,14 @@ user made during this design — cite these, dated, in the docstrings of the car
    loop's termination), Steam Machine C25 / Market Master E131 (own-last-
    placement instants, not the shared boundary).
 
+51. **Baking Course D64 supplies a GLOBAL baking rate** (ruled 2026-07-12):
+   its second sentence ("'Bake Bread' action: Grain → 2 Food") is the card
+   supplying an UNLIMITED grain→2-food conversion rate during ALL Bake
+   Bread actions, "just like the fireplace does" — a standing baking source
+   (the BAKING_SPEC_EXTENSIONS seam), NOT a rate scoped to the bake the
+   card's first sentence grants. The grant itself is an optional
+   end_of_round bake (non-harvest rounds, ruling 49's rung).
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
@@ -575,6 +583,14 @@ surface) before implementation.
   missing entirely (every sibling names "the end of each round" or "the returning
   home phase"), and the user found the card's intent unclear ("perennial rye does
   seem confused").
+
+- **Lumber Virtuoso D129** (occupation, [3+]; "Each harvest in which you have at
+  least 5 wood in your supply, you can discard down to 5 wood to take a "Build
+  Stables" or "Build Wood Rooms" action by paying the usual costs." Clarification:
+  the "Build Wooden Rooms" action is a "Build Rooms" action limited to wood.) —
+  placed here by the user 2026-07-12 (superseding the earlier waits-for-4p
+  status; ruling 38's free-span timing stands if it is ever un-deferred). The
+  "discard down to 5 wood" quantity clause does not determine a reading.
 
 ## Deferred 2026-07-12 — Braid Maker E109 (the converter cluster's one defer)
 
