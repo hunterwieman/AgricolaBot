@@ -209,3 +209,12 @@ def test_case_b_not_offered_when_auto_fired():
     state = _enter_round(state, from_round=1)
     assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
                    for a in legal_actions(state))
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): the mechanical
+    keep-set style, zero counts omitted; unrecognized falls through (None)."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label(CARD_ID, "s1b2c0") == "activate, keep sheep=1, boar=2"
+    assert variant_label(CARD_ID, "bogus") is None

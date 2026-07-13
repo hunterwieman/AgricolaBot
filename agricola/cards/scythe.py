@@ -78,6 +78,9 @@ The card-field extension deliberately matches the existing grid behavior
 """
 from __future__ import annotations
 
+import re
+
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import (
     register_harvest_window_hook,
     register_take_modifier,
@@ -196,7 +199,25 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> dict | None:
     return {(r, c): spare} if spare > 0 else {}
 
 
+_GROUP_RE = re.compile(r"^(grain|veg)(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a group key (mechanical, terse): "grain3" -> "empty a
+    3-grain field (+3 grain)" (the field's full yield in the one take event);
+    "cf_<id>" -> "empty <Title Case Slug>" (the card's remaining count is not
+    in the string, so no parenthetical)."""
+    if variant.startswith("cf_"):
+        return "empty " + variant[len("cf_"):].replace("_", " ").title()
+    m = _GROUP_RE.match(variant)
+    if m is None:
+        return None
+    crop, n = m.group(1), int(m.group(2))
+    return f"empty a {n}-{crop} field (+{n} {crop})"
+
+
 # Cost 1 Wood; no printed VPs, no prereq, not passing; no on-play effect.
 register_minor(CARD_ID, cost=Cost(Resources(wood=1)))
 register_take_modifier(CARD_ID, _fold, variants_fn=_variants)
 register_harvest_window_hook(CARD_ID, "field_phase")
+register_action_labeler(CARD_ID, _action_label)

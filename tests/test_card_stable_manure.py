@@ -454,3 +454,13 @@ def test_scythe_worker_collision_on_a_two_count_field():
     state = step(state, _commit("grain2:1"))
     assert state.players[0].resources.grain == g0 + 2      # base + SM's 1 (SW: none)
     assert state.players[0].farmyard.grid[0][0].grain == 0
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): terse "+k from
+    <group>" parts; a "cf_" part names its card (title-cased slug)."""
+    from agricola.cards.display import variant_label
+
+    assert (variant_label(CARD_ID, "grain3:1|veg2:2")
+            == "+1 from a 3-grain field, +2 from 2-veg fields")
+    assert variant_label(CARD_ID, "cf_wood_field:1") == "+1 from Wood Field"

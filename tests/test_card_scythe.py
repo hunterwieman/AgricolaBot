@@ -702,3 +702,13 @@ def test_fully_claimed_card_group_combo_is_dropped():
     assert (("stable_manure", "cf_crop_rotation_field:1"),) in combos
     assert (("stable_manure", "cf_crop_rotation_field:1"),
             (CARD_ID, "cf_crop_rotation_field")) not in combos
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): the group's full
+    yield for a grid group, the title-cased card name for a "cf_" group."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label(CARD_ID, "grain3") == "empty a 3-grain field (+3 grain)"
+    assert (variant_label(CARD_ID, "cf_crop_rotation_field")
+            == "empty Crop Rotation Field")

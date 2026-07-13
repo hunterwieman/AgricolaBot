@@ -71,6 +71,7 @@ through stack_with + stacks_to_store, keeping the store canonical.
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.specs import register_minor, register_play_minor_variant
 from agricola.constants import CellType
 from agricola.replace import fast_replace
@@ -192,3 +193,19 @@ register_minor(CARD_ID, cost=Cost(), passing_left=True, on_play=_on_play)
 # via the PLAY_MINOR_VARIANTS seam; the None route keeps no-choice states on
 # the plain variant-less commit.
 register_play_minor_variant(CARD_ID, _variants)
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a placement route (mechanical, terse):
+    "wood_field:same|rock_garden:new" -> "Wood Field: same stack, Rock
+    Garden: new stack" (each choice card's slug title-cased)."""
+    parts: list[str] = []
+    for part in variant.split("|"):
+        cid, _, placement = part.partition(":")
+        if not cid or placement not in ("same", "new"):
+            return None
+        parts.append(f"{cid.replace('_', ' ').title()}: {placement} stack")
+    return ", ".join(parts)
+
+
+register_action_labeler(CARD_ID, _action_label)

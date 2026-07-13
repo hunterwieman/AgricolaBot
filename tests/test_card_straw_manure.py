@@ -375,3 +375,13 @@ def test_fires_in_owners_band_when_owner_is_not_starting_player():
     assert _cell(state, 1, 0, 1).veg == 3
     # The non-owner (player 0) was never touched.
     assert state.players[0].resources.grain == 0
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): "+1 veg:" plus
+    the chosen targets — grid cells as coordinates, cards by name."""
+    from agricola.cards.display import variant_label
+
+    assert (variant_label(CARD_ID, "0-1|card:beanfield")
+            == "+1 veg: field (0,1), Beanfield")
+    assert variant_label(CARD_ID, "1-3") == "+1 veg: field (1,3)"

@@ -46,6 +46,9 @@ what consumes them), so the groups always read the fully-sown pre-take grid.
 """
 from __future__ import annotations
 
+import re
+
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import (
     register_harvest_window_hook,
     register_take_modifier,
@@ -169,7 +172,34 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> dict | None:
     return extras
 
 
+_GRID_PART_RE = re.compile(r"^(grain|veg)(\d+):(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a count vector (mechanical, terse): each field donates
+    +1, so the extra count IS the field count — "grain3:1|veg2:2" -> "+1 from
+    a 3-grain field, +2 from 2-veg fields". A "cf_<id>" part names its card
+    (title-cased slug)."""
+    parts: list[str] = []
+    for part in variant.split("|"):
+        if part.startswith("cf_"):
+            key, _, count = part.partition(":")
+            if not count.isdigit():
+                return None
+            parts.append(f"+{int(count)} from "
+                         + key[len("cf_"):].replace("_", " ").title())
+            continue
+        m = _GRID_PART_RE.match(part)
+        if m is None:
+            return None
+        crop, n, k = m.group(1), int(m.group(2)), int(m.group(3))
+        where = f"a {n}-{crop} field" if k == 1 else f"{n}-{crop} fields"
+        parts.append(f"+{k} from {where}")
+    return ", ".join(parts) if parts else None
+
+
 # Free minor; prereq "At Most 1 Occupation" → max_occupations=1.
 register_minor(CARD_ID, max_occupations=1)
 register_take_modifier(CARD_ID, _fold, variants_fn=_variants)
 register_harvest_window_hook(CARD_ID, "field_phase")
+register_action_labeler(CARD_ID, _action_label)

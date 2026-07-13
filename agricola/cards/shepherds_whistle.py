@@ -39,6 +39,9 @@ see exactly "the farm minus one unfenced stable".
 """
 from __future__ import annotations
 
+import re
+
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_minor
 from agricola.cards.stable_architect import count_unfenced_stables
@@ -162,8 +165,25 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     raise AssertionError(f"shepherds_whistle variant {variant!r} not offered")
 
 
+_VARIANT_RE = re.compile(r"^s(\d+)b(\d+)c(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a make-room variant (mechanical, terse): the final
+    animal vector the option keeps (the granted sheep included), zero counts
+    omitted — "activate, keep sheep=2, boar=1"."""
+    m = _VARIANT_RE.match(variant)
+    if m is None:
+        return None
+    keeps = [f"{name}={n}"
+             for name, n in zip(("sheep", "boar", "cattle"), map(int, m.groups()))
+             if n]
+    return "activate, keep " + ", ".join(keeps) if keeps else "activate"
+
+
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)))
 register_auto(WINDOW_ID, CARD_ID, _auto_eligible, _auto_apply)
 register(WINDOW_ID, CARD_ID, _trig_eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
 register_harvest_window_hook(CARD_ID, WINDOW_ID)
+register_action_labeler(CARD_ID, _action_label)

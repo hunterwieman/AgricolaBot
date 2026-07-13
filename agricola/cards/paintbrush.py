@@ -53,6 +53,7 @@ harvest_windows.register_free_span_trigger.
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_conversions import (
     HarvestConversionSpec,
     register_harvest_conversion,
@@ -162,4 +163,14 @@ register_harvest_conversion(HarvestConversionSpec(
 register_free_span_trigger(CARD_ID, _span_eligible, _span_apply,
                            variants_fn=_variants)
 
+_ACTION_LABELS = {"food": "1 clay → 2 food", "point": "1 clay → 1 point"}
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for the per-fire choice (mechanical, terse): the full
+    exchange each variant performs."""
+    return _ACTION_LABELS.get(variant)
+
+
 register_scoring(CARD_ID, _score)
+register_action_labeler(CARD_ID, _action_label)

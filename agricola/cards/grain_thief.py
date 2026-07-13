@@ -61,6 +61,9 @@ registration here is ownership-gated — the Family game is byte-identical.
 """
 from __future__ import annotations
 
+import re
+
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import (
     TakeFold,
     register_harvest_window_hook,
@@ -154,7 +157,40 @@ def _fold(state: GameState, idx: int, variant: str, claimed) -> TakeFold | None:
                     bonus=Resources(grain=len(cells)))
 
 
+_GRID_PART_RE = re.compile(r"^grain(\d+):(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a count vector (mechanical, terse): what happens — the
+    grain stays on the replaced fields and 1 supply grain arrives per field —
+    "grain1:2|grain2:1" -> "leave 2 1-grain fields + 1 2-grain field, +3 grain
+    from supply". A "cf_<id>" group names its card (title-cased slug). The
+    generic count-vector prettifier would misread this as extra harvesting."""
+    parts: list[str] = []
+    total = 0
+    for part in variant.split("|"):
+        if part.startswith("cf_"):
+            key, _, count = part.partition(":")
+            if not count.isdigit():
+                return None
+            k = int(count)
+            name = key[len("cf_"):].replace("_", " ").title()
+            parts.append(name if k == 1 else f"{k}x {name}")
+            total += k
+            continue
+        m = _GRID_PART_RE.match(part)
+        if m is None:
+            return None
+        n, k = int(m.group(1)), int(m.group(2))
+        parts.append(f"{k} {n}-grain field" + ("" if k == 1 else "s"))
+        total += k
+    if not parts or total < 1:
+        return None
+    return "leave " + " + ".join(parts) + f", +{total} grain from supply"
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_take_modifier(CARD_ID, _fold, variants_fn=_variants,
                        order=0, harvest_scoped=False)
 register_harvest_window_hook(CARD_ID, "field_phase")
+register_action_labeler(CARD_ID, _action_label)

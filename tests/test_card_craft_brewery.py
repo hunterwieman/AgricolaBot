@@ -412,3 +412,13 @@ def test_emptying_crop_rotation_field_no_offer_without_opposite_crop():
         conversion_id=CARD_ID, variant="cf_crop_rotation_field"))
     assert isinstance(state.pending_stack[-1], PendingHarvestFeed)
     assert "crop_rotation_field" not in dict(state.players[0].card_state.items)
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): where the field
+    grain comes from — a height group or a named card-field."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label(CARD_ID, "h2") == "field grain from a 2-grain field"
+    assert (variant_label(CARD_ID, "cf_crop_rotation_field")
+            == "field grain from Crop Rotation Field")

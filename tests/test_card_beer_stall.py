@@ -170,3 +170,12 @@ def test_unowned_never_offered():
     state = _to_p0_feed_frame(state)
     assert not any(isinstance(a, CommitHarvestConversion)
                    and a.conversion_id == CARD_ID for a in legal_actions(state))
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): "convert <k>"
+    plus the kept animals, zero counts omitted."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label(CARD_ID, "k2s0b1c0") == "convert 2, keep boar=1"
+    assert variant_label(CARD_ID, "k1s0b0c0") == "convert 1"

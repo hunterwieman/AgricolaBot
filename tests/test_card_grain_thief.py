@@ -474,3 +474,15 @@ def test_bumper_crop_without_grain_thief_no_choice():
     grid = cs.players[cp].farmyard.grid
     assert grid[0][1].grain == 2 and grid[0][2].grain == 2
     assert cs.players[cp].resources.grain == g0 + 2
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler) says what happens
+    — leave the grain, take supply grain — never the generic count-vector
+    prettifier's "+N grain (from ...)" misread."""
+    from agricola.cards.display import variant_label
+
+    assert (variant_label("grain_thief", "grain1:2|grain2:1")
+            == "leave 2 1-grain fields + 1 2-grain field, +3 grain from supply")
+    assert (variant_label("grain_thief", "cf_crop_rotation_field:1")
+            == "leave Crop Rotation Field, +1 grain from supply")

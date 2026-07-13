@@ -1018,7 +1018,11 @@ def _web_action_display(action: Action) -> str:
     if isinstance(action, (CommitPlayOccupation, CommitPlayMinor)):
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
-        return f"{name} [{variant}]" if variant else name
+        if variant:
+            from agricola.cards.display import variant_label
+            lbl = variant_label(action.card_id, variant)
+            return f"{name} [{lbl if lbl is not None else variant}]"
+        return name
     if isinstance(action, FireTrigger):
         name = _card_info(action.card_id)["name"]
         variant = getattr(action, "variant", None)
@@ -1042,8 +1046,9 @@ def _web_action_display(action: Action) -> str:
         base = "Harvest your fields (take 1 crop from each)"
         if not action.modifiers:
             return base
-        mods = ", ".join(f"{_card_info(cid)['name']}: {variant}"
-                         for cid, variant in action.modifiers)
+        mods = ", ".join(
+            f"{_card_info(cid)['name']}: {_trigger_variant_label(variant, cid)}"
+            for cid, variant in action.modifiers)
         return f"{base} + {mods}"
     # Payment-bearing commits (cost-modifier cards): show the chosen payment so the
     # multiple options of a renovate / two-step build read distinctly.

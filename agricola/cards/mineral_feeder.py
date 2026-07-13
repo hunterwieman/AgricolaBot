@@ -52,7 +52,10 @@ Card-only registries throughout; the Family game is byte-identical.
 """
 from __future__ import annotations
 
+import re
+
 from agricola.cards.capacity_mods import sheep_slot_count
+from agricola.cards.display import register_action_labeler
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import (
     register,
@@ -176,8 +179,25 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     raise AssertionError(f"mineral_feeder variant {variant!r} not offered")
 
 
+_VARIANT_RE = re.compile(r"^s(\d+)b(\d+)c(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a cook-to-qualify variant (mechanical, terse): the
+    kept animal vector, zero counts omitted — "activate, keep sheep=1,
+    boar=2"."""
+    m = _VARIANT_RE.match(variant)
+    if m is None:
+        return None
+    keeps = [f"{name}={n}"
+             for name, n in zip(("sheep", "boar", "cattle"), map(int, m.groups()))
+             if n]
+    return "activate, keep " + ", ".join(keeps) if keeps else "activate"
+
+
 register_minor(CARD_ID, cost=Cost(resources=Resources(reed=1)), vps=1)
 register_auto("start_of_round", CARD_ID, _auto_eligible, _auto_apply)
 register("start_of_round", CARD_ID, _trig_eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
 register_start_of_round_hook(CARD_ID)
+register_action_labeler(CARD_ID, _action_label)

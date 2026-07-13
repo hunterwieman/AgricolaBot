@@ -313,3 +313,13 @@ def test_sw_cook_and_replace_pruned_without_cooking():
         acts = legal_actions(state)
         best = max(acts, key=lambda a: getattr(a, "sheep", 0))
         state = step(state, best)
+
+
+def test_sw_action_labels():
+    """The web-UI labeler (display.register_action_labeler): the mechanical
+    keep-set style, zero counts omitted; unrecognized falls through (None)."""
+    from agricola.cards.display import variant_label
+
+    assert (variant_label("shepherds_whistle", "s2b1c0")
+            == "activate, keep sheep=2, boar=1")
+    assert variant_label("shepherds_whistle", "bogus") is None

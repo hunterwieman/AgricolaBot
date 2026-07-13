@@ -349,3 +349,13 @@ def test_two_choice_cards_product_variants_and_shared_placements():
         (0, 0, 2, 0), (0, 0, 0, 0))
     assert card_field_stacks(out.players[0], "rock_garden") == (
         (0, 0, 0, 1), (0, 0, 0, 1), (0, 0, 0, 0))
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): each choice
+    card's placement, title-cased slug + the chosen stack."""
+    from agricola.cards.display import variant_label
+
+    assert (variant_label(CARD_ID, "wood_field:same|rock_garden:new")
+            == "Wood Field: same stack, Rock Garden: new stack")
+    assert variant_label(CARD_ID, "bogus") is None

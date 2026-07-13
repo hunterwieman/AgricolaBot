@@ -43,6 +43,9 @@ Card-only registries; the Family game is byte-identical.
 """
 from __future__ import annotations
 
+import re
+
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_conversions import (
     HarvestConversionSpec,
     register_harvest_conversion,
@@ -142,6 +145,23 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     raise AssertionError(f"beer_stall variant {variant!r} not offered")
 
 
+_VARIANT_RE = re.compile(r"^k(\d+)s(\d+)b(\d+)c(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for an option (mechanical, terse): the k exchanges taken
+    plus the kept animal vector, zero counts omitted — "convert 2, keep
+    boar=1"."""
+    m = _VARIANT_RE.match(variant)
+    if m is None:
+        return None
+    k, *animals = map(int, m.groups())
+    keeps = [f"{name}={n}"
+             for name, n in zip(("sheep", "boar", "cattle"), animals) if n]
+    label = f"convert {k}"
+    return label + ", keep " + ", ".join(keeps) if keeps else label
+
+
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)))
 register_harvest_conversion(HarvestConversionSpec(
     conversion_id=CARD_ID,
@@ -151,3 +171,4 @@ register_harvest_conversion(HarvestConversionSpec(
     side_effect_fn=_apply,
     variants_fn=_variants,
 ))
+register_action_labeler(CARD_ID, _action_label)

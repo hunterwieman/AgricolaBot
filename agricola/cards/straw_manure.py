@@ -68,6 +68,9 @@ module writes is a chosen card-field target's stack (+1 veg); no scoring term.
 """
 from __future__ import annotations
 
+import re
+
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register, register_play_variant_trigger
@@ -227,9 +230,30 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     )
 
 
+_CELL_TOKEN_RE = re.compile(r"^(\d+)-(\d+)$")
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a target subset (mechanical, terse): "+1 veg: " plus
+    the chosen fields — a grid token "r-c" as "field (r,c)", a "card:<id>"
+    token as the title-cased slug — "0-1|card:beanfield" -> "+1 veg: field
+    (0,1), Beanfield"."""
+    parts: list[str] = []
+    for token in variant.split("|"):
+        if token.startswith("card:"):
+            parts.append(token[len("card:"):].replace("_", " ").title())
+            continue
+        m = _CELL_TOKEN_RE.match(token)
+        if m is None:
+            return None
+        parts.append(f"field ({m.group(1)},{m.group(2)})")
+    return "+1 veg: " + ", ".join(parts) if parts else None
+
+
 register_minor(CARD_ID, cost=Cost(), prereq=_prereq_two_fields)
 # Optional play-variant trigger on window #3 (before_field_phase): pay 1 grain,
 # add 1 veg to each of up to 2 chosen vegetable fields; once per harvest.
 register(WINDOW_ID, CARD_ID, _eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
 register_harvest_window_hook(CARD_ID, WINDOW_ID)
+register_action_labeler(CARD_ID, _action_label)

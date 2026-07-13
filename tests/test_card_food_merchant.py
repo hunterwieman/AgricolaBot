@@ -286,3 +286,13 @@ def test_fires_off_bumper_crop_card_driven_occasion():
     assert legal_actions(cs) == [Proceed()]             # once per occasion
     cs = step(cs, Proceed())
     assert cs.phase == Phase.WORK
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): the buy count.
+    The price is deliberately absent — cost(k) depends on the occasion's
+    discounted-buy count, which is not in the variant string."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label("food_merchant", "2") == "buy 2 veg"
+    assert variant_label("food_merchant", "bogus") is None

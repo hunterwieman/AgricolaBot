@@ -348,3 +348,12 @@ def test_fires_off_bumper_crop_card_driven_occasion():
     assert legal_actions(cs) == [Proceed()]         # once per occasion
     cs = step(cs, Proceed())
     assert cs.phase == Phase.WORK
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): the full
+    exchange at 4 food per vegetable."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label(CARD_ID, "2") == "2 veg → 8 food"
+    assert variant_label(CARD_ID, "bogus") is None

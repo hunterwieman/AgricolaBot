@@ -66,6 +66,7 @@ untouched.
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import register_harvest_occasion_trigger
 from agricola.cards.specs import register_occupation
 from agricola.replace import fast_replace
@@ -117,5 +118,16 @@ def _apply(state: GameState, idx: int, occasion, variant: str) -> GameState:
     )
 
 
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a buy-count variant (mechanical, terse): "buy 2 veg".
+    The food price is NOT in the variant string (cost(k) depends on the
+    occasion's discounted-buy count n2), so the label states only the count —
+    a price would need state this labeler deliberately has no access to."""
+    if not variant.isdigit():
+        return None
+    return f"buy {int(variant)} veg"
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_harvest_occasion_trigger(CARD_ID, _eligible, _apply, variants_fn=_variants)
+register_action_labeler(CARD_ID, _action_label)

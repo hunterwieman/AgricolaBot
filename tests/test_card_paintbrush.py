@@ -402,3 +402,12 @@ def test_points_accumulate_across_harvests():
         fast_replace(p, card_state=p.card_state.set(CARD_ID, 4))
         if i == 0 else state.players[i] for i in range(2)))
     assert _score_fn()(state, 0) == 4
+
+
+def test_action_labels():
+    """The web-UI labeler (display.register_action_labeler): the full
+    exchange each variant performs."""
+    from agricola.cards.display import variant_label
+
+    assert variant_label(CARD_ID, "food") == "1 clay → 2 food"
+    assert variant_label(CARD_ID, "point") == "1 clay → 1 point"

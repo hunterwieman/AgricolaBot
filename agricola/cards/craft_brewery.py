@@ -65,6 +65,7 @@ are untouched.
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_conversions import (
     HarvestConversionSpec,
     register_harvest_conversion,
@@ -182,4 +183,17 @@ register_harvest_conversion(HarvestConversionSpec(
     variants_fn=_variants,
 ))
 
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a which-field variant (mechanical, terse): "h2" ->
+    "field grain from a 2-grain field"; "cf_<id>" -> "field grain from
+    <Title Case Slug>"."""
+    if variant.startswith("cf_"):
+        return ("field grain from "
+                + variant[len("cf_"):].replace("_", " ").title())
+    if variant.startswith("h") and variant[1:].isdigit():
+        return f"field grain from a {int(variant[1:])}-grain field"
+    return None
+
+
 register_scoring(CARD_ID, _score)
+register_action_labeler(CARD_ID, _action_label)

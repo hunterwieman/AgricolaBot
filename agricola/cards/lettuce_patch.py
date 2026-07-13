@@ -54,6 +54,7 @@ is byte-identical and the C++ gates are untouched.
 from __future__ import annotations
 
 from agricola.cards.card_fields import register_card_field
+from agricola.cards.display import register_action_labeler
 from agricola.cards.harvest_windows import register_harvest_occasion_trigger
 from agricola.cards.specs import register_minor
 from agricola.replace import fast_replace
@@ -99,6 +100,16 @@ def _apply(state: GameState, idx: int, occasion, variant: str) -> GameState:
         players=tuple(p if i == idx else state.players[i] for i in range(2)))
 
 
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a convert-count variant (mechanical, terse): the full
+    exchange at 4 food per vegetable — "2" -> "2 veg → 8 food"."""
+    if not variant.isdigit():
+        return None
+    j = int(variant)
+    return f"{j} veg → {4 * j} food"
+
+
 register_minor(CARD_ID, min_occupations=3, vps=1)
 register_card_field(CARD_ID, stacks=1, sow_amounts=(("veg", 2),))
 register_harvest_occasion_trigger(CARD_ID, _eligible, _apply, variants_fn=_variants)
+register_action_labeler(CARD_ID, _action_label)
