@@ -512,10 +512,10 @@ user made during this design — cite these, dated, in the docstrings of the car
    phase is the round's LAST phase (preparation, work, returning home), and
    the "end of the round" is a DISTINCT, LATER instant — the returning-home
    seam fires BEFORE the end-of-round seam. The rungs, in order:
-   `end_of_work` (the work phase's end, still DURING the work phase — this
-   is where Archway D51's "immediately before the returning home phase"
-   fires, a per-instance "immediately" ruling; Straw Hat E10 / Sundial E26 /
-   Master Renovator E87 name this instant directly), then
+   `end_of_work` (the work phase's end, still DURING the work phase —
+   Straw Hat E10 / Iron Hoe E20 / Apiary E23 / Sundial E26 / Piggy Bank E27 /
+   Master Renovator E87 name this instant directly; Archway's placement here
+   was REVISED to the after_work rung by ruling 50), then
    `start_of_returning_home` (before the phase — Turnip Farmer, Minstrel,
    Bohemian, Food Distributor, Sample Stable Maker), then `returning_home`
    (the phase itself — the "in the returning home phase" family, Silage
@@ -532,6 +532,25 @@ user made during this design — cite these, dated, in the docstrings of the car
    harvest" placement: proposed end_of_round with its condition-family
    siblings, NOT yet confirmed by the user.)
 
+50. **The after_work rung + the ambiguity-defer category** (ruled
+   2026-07-12): a separate `after_work` hook sits AFTER the `end_of_work`
+   hooks and before `start_of_returning_home` — its members are Informant
+   B117 ("After each work phase...") and Archway D51 ("Immediately before
+   the returning home phase..." — revising ruling 49's initial
+   end-of-work placement; the user: "this inconsistent wording is
+   annoying"). The full round-end ladder is therefore: end_of_work →
+   after_work → start_of_returning_home → returning_home (fired BEFORE
+   `_resolve_return_home` resets placements, so the live board is the event
+   data — the user's Swimming Class design, generalized) →
+   after_returning_home → end_of_round → (the harvest, on harvest rounds,
+   or the next round's preparation). **Perennial Rye C84 is DEFERRED FOR
+   AMBIGUITY** (its anchorless "Each round that does not end with a
+   harvest" confused the user too) — the first member of the new
+   ambiguity-defer category below, distinct from the power bans. Out of
+   scope for this arc (confirmed): Delayed Wayfarer E125 (extends the work
+   loop's termination), Steam Machine C25 / Market Master E131 (own-last-
+   placement instants, not the shared boundary).
+
 Also settled in this design thread: C++ byte-identity is **not** a constraint on this
 redesign — design the Python harvest machinery on its merits and re-port to `cpp/` if a
 Family-shape change falls out (the user explicitly deprioritized gate-preservation here in
@@ -542,6 +561,20 @@ field-crop discard, Champion Breeder's newborns-placed count), even though they 
 at 2 players.
 
 ---
+
+## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)
+
+Cards here are set aside because their PRINTED TEXT does not determine a reading —
+not because of strength (the banned list) or missing machinery (the defer clusters).
+Each entry needs the user to pick a reading (or an official clarification to
+surface) before implementation.
+
+- **Perennial Rye C84** (minor; "Each round that does not end with a harvest, you
+  can pay 1 grain to breed exactly 1 type of animal. (This is not considered a
+  breeding phase.)") — deferred 2026-07-12 (ruling 50): the timing anchor is
+  missing entirely (every sibling names "the end of each round" or "the returning
+  home phase"), and the user found the card's intent unclear ("perennial rye does
+  seem confused").
 
 ## Deferred 2026-07-12 — Braid Maker E109 (the converter cluster's one defer)
 
