@@ -5994,8 +5994,8 @@
   "vps": null,
   "text": "Each harvest, you can exchange exactly 1 clay for your choice of 2 food or 1 bonus point.",
   "slug": "paintbrush",
-  "implemented": false,
-  "status": "todo",
+  "implemented": true,
+  "status": "implemented",
   "players": null,
   "name_dup": false
  },

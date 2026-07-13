@@ -559,3 +559,10 @@ from agricola.cards import melon_patch  # noqa: F401
 from agricola.cards import lettuce_patch  # noqa: F401
 from agricola.cards import crop_rotation_field  # noqa: F401
 from agricola.cards import patch_caregiver  # noqa: F401
+# The converter cluster (rulings 34-39, 2026-07-12): pure converters reach the
+# generalized raise frame (frontier_fire); the rider-output buys are free-span
+# (register_free_span_trigger). Braid Maker E109 is DEFERRED (the play-minor
+# major-build gap — CARD_DEFERRED_PLANS.md).
+from agricola.cards import stone_carver  # noqa: F401
+from agricola.cards import basket_carrier  # noqa: F401
+from agricola.cards import paintbrush  # noqa: F401

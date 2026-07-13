@@ -321,3 +321,47 @@ def test_social_benefits_resolves_before_farm_store():
     assert state.players[0].resources.wood == wood0
     assert state.players[0].resources.clay == clay0
     assert state.players[0].resources.veg >= 1
+
+
+# ---------------------------------------------------------------------------
+# The converter-cluster interaction (rulings 34/36, 2026-07-12) — a buy at the
+# payment frame can DELIBERATELY zero food before the after_feeding check.
+# This is the very line whose profitability killed the late-anchor approach
+# (ruling 36's derivation): keep 2 food after covering the need, spend it on
+# Furniture Carpenter's point AT the payment frame (conversions fire before
+# CommitConvert), end feeding at 0 food, and collect Social Benefits' grant.
+# ---------------------------------------------------------------------------
+
+import agricola.cards.furniture_carpenter  # noqa: F401,E402
+
+from agricola.actions import CommitConvert, CommitHarvestConversion  # noqa: E402
+from agricola.pending import PendingHarvestFeed  # noqa: E402
+
+
+def test_deliberate_zero_via_payment_frame_buy_fires_social_benefits():
+    state = _harvest_state(food=6)          # 2 people need 4; 2 would remain
+    from agricola.replace import fast_replace
+    p0 = state.players[0]
+    p0 = fast_replace(p0, occupations=p0.occupations | {"furniture_carpenter"})
+    state = fast_replace(state, players=tuple(
+        p0 if i == 0 else state.players[i] for i in range(2)))
+    state = _own_minor(state, 0, CARD_ID)
+    from tests.factories import with_majors
+    state = with_majors(state, owner_by_idx={7: 0})   # the Joinery condition
+    wood0 = state.players[0].resources.wood
+    clay0 = state.players[0].resources.clay
+
+    def pick(acts):
+        top_buy = [a for a in acts
+                   if isinstance(a, CommitHarvestConversion)
+                   and a.conversion_id == "furniture_carpenter"]
+        return top_buy[0] if top_buy else acts[0]
+
+    state = _run_harvest(state, pick)
+    p = state.players[0]
+    assert p.card_state.get("furniture_carpenter", 0) == 1   # the point bought
+    assert p.resources.food == 0                              # fed to exactly 0
+    assert p.begging_markers == 0                             # no shortfall
+    # Social Benefits saw "no food left after feeding": +1 wood +1 clay.
+    assert p.resources.wood == wood0 + 1
+    assert p.resources.clay == clay0 + 1

@@ -3226,8 +3226,8 @@
   "vps": 0,
   "text": "Each harvest, you can use this card to turn exactly 1 stone into 3 food.",
   "slug": "stone_carver",
-  "implemented": false,
-  "status": "todo",
+  "implemented": true,
+  "status": "implemented",
   "players": "1+",
   "name_dup": false
  },
@@ -3722,8 +3722,8 @@
   "vps": 0,
   "text": "Once each harvest, you can buy 1 wood, 1 reed, and 1 grain for 2 food total.",
   "slug": "basket_carrier",
-  "implemented": false,
-  "status": "todo",
+  "implemented": true,
+  "status": "implemented",
   "players": "1+",
   "name_dup": false
  },

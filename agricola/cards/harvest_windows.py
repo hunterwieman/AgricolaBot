@@ -221,6 +221,46 @@ def post_breed_floors(state, idx: int) -> tuple:
     return (sheep_min_parents(state.players[idx]) + 1, 3, 3)
 
 
+# Every event surface inside ruling 36's free span (field phase through
+# end_of_harvest): the nine in-span simple windows, the FIELD during-window
+# event, and the breed frame's pre-commit stretch. The FEED payment surface is
+# NOT an event — a free-span card covers it with its own HarvestConversionSpec
+# entry (the same once-per-harvest budget id), which is also what puts the
+# card on the feed frame's offer list.
+FREE_SPAN_EVENTS: tuple[str, ...] = (
+    "before_field_phase", "start_of_field_phase", "field_phase",
+    "end_of_field_phase", "after_field_phase",
+    "start_of_feeding", "after_feeding",
+    "start_of_breeding", "breeding", "after_breeding",
+    "end_of_harvest",
+)
+
+
+def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
+                               *, variants_fn=None) -> None:
+    """Register an optional trigger on EVERY free-span surface (ruling 36,
+    2026-07-12: the anytime food→resources/points buys are available
+    throughout the harvest span, field phase through end_of_harvest — the
+    late-anchor approach is dead; ruling 38 puts Lumber Virtuoso here too).
+    One call replaces eleven manual rows: the trigger + window hook per
+    in-span simple window, the "field_phase" during-event, and the breed
+    frame's pre-commit "breeding" stretch. The card's own eligibility_fn
+    must gate its once-per-X budget (typically `conversion_id not in
+    harvest_conversions_used` — shared with the card's feed-seam
+    HarvestConversionSpec entry, which covers the payment surface). A card
+    with a per-fire CHOICE (Paintbrush's food-vs-point) passes `variants_fn`
+    — registered once in the play-variant registry (event-independent), so
+    every surface expands the trigger into per-variant FireTriggers."""
+    from agricola.cards.triggers import register, register_play_variant_trigger
+
+    for event in FREE_SPAN_EVENTS:
+        register(event, card_id, eligibility_fn, apply_fn)
+        if event not in SENTINEL_WINDOWS:
+            register_harvest_window_hook(card_id, event)
+    if variants_fn is not None:
+        register_play_variant_trigger(card_id, variants_fn)
+
+
 def available_span_converters(state, idx: int) -> tuple:
     """The frontier-eligible converters player `idx` can fire through the
     generalized raise frame RIGHT NOW (rulings 34/37): each registered

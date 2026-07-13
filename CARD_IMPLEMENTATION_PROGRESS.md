@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 214 implemented · 🚫 3 won't-fix/banned · ⬜ 203 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 215 implemented · 🚫 3 won't-fix/banned · ⬜ 202 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1156,7 +1156,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E38 Rod Collection** · prereq: 3 Occupations
   - _Each time you use "Fishing", you can place up to 2 wood on this card, irretrievably. During scoring, each such wood is worth 1 bonus point, except the 1st, 4th, 7th, and 10th._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SCORE ST-COUNTER` — "Each time you use Fishing" is an optional own-action space hook firing before the action (T-BEFORE per ruling); the irretrievable wood is never consumed, only counted for the skip-1st/4th/7th/10th bonus formula → ST-COUNTER, not ST-STACK.
-- ⬜ **E39 Paintbrush** · cost: 1 Wood · prereq: 1 Wild Boar
+- ✅ **E39 Paintbrush** · cost: 1 Wood · prereq: 1 Wild Boar
   - _Each harvest, you can exchange exactly 1 clay for your choice of 2 food or 1 bonus point._
   - `ATWILL CAP-HARVEST E-CONVERT E-SCORE ST-COUNTER` — Optional once-per-harvest exchange (ATWILL+CAP-HARVEST); clay->2-food is E-CONVERT (food is the conversion output, not separate E-GOODS); clay->bonus-point is action-earned E-SCORE whose accumulated points need a per-card running count (ST-COUNTER).
 - ⬜ **E40 Bee Statue** · cost: 2 Clay
@@ -1379,7 +1379,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 104 implemented · 🚫 2 won't-fix/banned · ⬜ 314 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 106 implemented · 🚫 2 won't-fix/banned · ⬜ 312 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### Deck A
 
@@ -1953,7 +1953,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C104 Collector** · [1+]
   - _This card is an action space for you only. When you use it for the 1st/2nd/3rd/4th time, you get 1 begging marker and 6/7/8/9 different good of your choice._
   - `HOOK T-AFTER S-SPACE F-MANDCHOICE A-OWN E-GOODS E-ANIMALS L-CARDSPACE ST-COUNTER` — A personal action space whose use pays out (goods of your choice + a begging marker) — a mandatory-with-choice payout on using the space, not PASSIVE. 8/9 different goods is only reachable if animals count among the choices, so keep E-ANIMALS. The 1st–4th use scaling and exhaustion is the ST-COUNTER; dropped labelA's CAP-GAME since it means once-ever, not four uses.
-- ⬜ **C105 Basket Carrier** · [1+]
+- ✅ **C105 Basket Carrier** · [1+]
   - _Once each harvest, you can buy 1 wood, 1 reed, and 1 grain for 2 food total._
   - `ATWILL CAP-HARVEST E-CONVERT E-FOODCOST E-GOODS` — 'Once each harvest, you can buy...' = deferrable at-will conversion of food to goods, capped per harvest (CAP-HARVEST). Not a forced hook.
 - ✅ **C106 Potato Harvester** · [1+]
@@ -2217,7 +2217,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D107 Bellfounder** · [1+]
   - _In the returning home phase of each round, if you have at least 1 clay, you can use this card to discard all of your clay and get your choice of 3 food or 1 bonus point._
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-GOODS E-SCORE` — Per-round returning-home hook; "you can use this card" makes firing optional -> F-TRIG (the 3-food-vs-1-bp fork is inside the opted-in effect, not F-MANDCHOICE); discard-all-clay is an ordinary resource cost (no code, not a rate conversion, not EXOTIC); rewards are E-GOODS / E-SCORE.
-- ⬜ **D108 Stone Carver** · [1+]
+- ✅ **D108 Stone Carver** · [1+]
   - _Each harvest, you can use this card to turn exactly 1 stone into 3 food._
   - `ATWILL CAP-HARVEST E-CONVERT` — 'Each harvest, you can use' = player-timed option capped per harvest; a pure exchange (1 stone -> 3 food) is E-CONVERT alone — E-GOODS would double-tag every conversion's output.
 - ⬜ **D109 Sowing Master** · [1+]
