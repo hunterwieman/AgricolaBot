@@ -116,3 +116,13 @@ POST_COMPACTION_DETOUR.md
 # Personal cloud ops files — removed from public history 2026-06-30, kept locally only
 /CLOUD_RUNBOOK.md
 /_cloud_spatial/
+
+# Images kept local, never committed — the photoshopped card art plus the
+# resized bedtime-overlay assets under static/bedtime/. Deploys build from the
+# local working tree (Docker COPY), so the live site has them; a fresh git clone
+# would not (re-run the resize step in that case).
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif

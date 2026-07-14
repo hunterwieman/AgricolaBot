@@ -221,6 +221,67 @@
     </div>
   </div>
 
+  <!-- First-visit name prompt (asked once; stored in localStorage). -->
+  <div id="name-prompt-modal" class="modal hidden">
+    <div class="modal-body">
+      <h2>Welcome to AgricolaBot</h2>
+      <p class="name-prompt-intro">What's your first name?</p>
+      <form id="name-prompt-form" class="name-prompt-form">
+        <input type="text" id="name-prompt-input" autocomplete="given-name"
+               placeholder="First name" maxlength="40" spellcheck="false">
+        <button type="submit" id="name-prompt-submit">Continue</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bedtime overlay: name-gated (Rob/Robert), shown 11 PM–5 AM Eastern. Covers
+       the screen and blocks play; one screen is shown at random. -->
+  <div id="bedtime-overlay" aria-hidden="true">
+    <!-- Night lock -->
+    <div class="bt-screen" data-bt="c">
+      <div class="bt-lock-note">— agricola night-watch · session held, not ended —</div>
+      <div class="bt-sky" aria-hidden="true"><div class="bt-moon"></div></div>
+      <div class="bt-stage">
+        <div class="bt-c-badge" aria-hidden="true">🐑 🐖 🐄 💤</div>
+        <p class="bt-c-head">Night lock engaged</p>
+        <p class="bt-c-sub">Your virtual livestock staged an intervention. The farm reopens with the sunrise.</p>
+        <div class="bt-clockline" data-bt-clock></div>
+      </div>
+    </div>
+    <!-- Note from the animals -->
+    <div class="bt-screen" data-bt="d">
+      <div class="bt-sky" aria-hidden="true"><div class="bt-moon"></div></div>
+      <div class="bt-stage">
+        <div class="bt-note">
+          <p class="bt-note-body">Dear Rob,<br>We love you, and we love farming with you. But it's <span data-bt-clock="hm"></span> <span data-bt-daypart></span> and we're exhausted. Please go to bed. We'll be right here in the morning. 💤</p>
+          <p class="bt-note-sign">— love, the animals 🐑🐖🐄</p>
+        </div>
+      </div>
+    </div>
+    <!-- Nightworker -->
+    <div class="bt-screen" data-bt="n">
+      <div class="bt-sky" aria-hidden="true"><div class="bt-moon"></div></div>
+      <div class="bt-stage">
+        <div class="bt-nw-wrap">
+          <div class="bt-nw-text">
+            <p class="bt-nw-eyebrow">Card revision notice</p>
+            <p class="bt-nw-head">If you don't go to sleep, we will have to edit the Nightworker card.</p>
+          </div>
+          <img class="bt-nw-card" src="/static/bedtime/nightworker.png" alt="The Nightworker occupation card, with Rob's face on the portrait">
+        </div>
+      </div>
+    </div>
+    <!-- Sleeping Corner -->
+    <div class="bt-screen" data-bt="s">
+      <div class="bt-sky" aria-hidden="true"><div class="bt-moon"></div></div>
+      <div class="bt-stage">
+        <p class="bt-sc-head">The Sleeping Corner is worthless if you don't use it.</p>
+        <img class="bt-sc-img" src="/static/bedtime/sleeping_corner.png" alt="Rob asleep in the Sleeping Corner under the Wool Blankets">
+        <p class="bt-sc-sub">You can play again in the morning.</p>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

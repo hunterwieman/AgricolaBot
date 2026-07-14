@@ -1049,3 +1049,113 @@ body.is-submitting * { cursor: wait !important; }
   cursor: pointer;
 }
 .draft-handoff-btn:hover { opacity: 0.9; }
+
+/* ============================================================
+   Bedtime overlay (name-gated, 11 PM–5 AM Eastern)
+   All rules scoped under #bedtime-overlay so nothing leaks into
+   the game UI. Sizes use container-query units so the screens
+   scale with the viewport.
+   ============================================================ */
+.name-prompt-form { display: flex; gap: 10px; margin-top: 12px; }
+#name-prompt-input {
+  flex: 1; padding: 8px 10px; font-size: 16px;
+  border: 2px solid var(--panel-border); border-radius: 6px; background: #fff;
+}
+#name-prompt-submit {
+  background: var(--accent-active); color: #fff; border: none;
+  border-radius: 6px; padding: 8px 18px; font-size: 15px; font-weight: bold; cursor: pointer;
+}
+#name-prompt-submit:hover { opacity: 0.9; }
+#name-prompt-modal { z-index: 2000; }
+.name-prompt-intro { margin: 6px 0 0; }
+
+#bedtime-overlay {
+  position: fixed; inset: 0; z-index: 6000; display: none;
+  background: #0d1020; container-type: size;
+  --bt-night-0: #0d1020; --bt-night-2: #20263f;
+  --bt-moon: #f4d06a; --bt-moon-soft: #f6e08c; --bt-cream: #f4e9d0; --bt-barn: #c0392b;
+  --bt-sans: system-ui, "Helvetica Neue", Arial, sans-serif;
+  --bt-serif: Georgia, "Times New Roman", serif;
+  --bt-block: "Arial Black", Impact, system-ui, sans-serif;
+  --bt-script: "Segoe Script", "Bradley Hand", "Brush Script MT", "Comic Sans MS", cursive;
+  --bt-mono: ui-monospace, "SF Mono", Menlo, "Courier New", monospace;
+}
+#bedtime-overlay.active { display: block; }
+#bedtime-overlay .bt-screen {
+  position: absolute; inset: 0; display: none; place-items: center; text-align: center;
+  padding: 4vh 5vw; color: var(--bt-cream);
+  background: radial-gradient(120% 90% at 50% 8%, var(--bt-night-2), var(--bt-night-0) 70%);
+}
+#bedtime-overlay .bt-screen.active { display: grid; }
+#bedtime-overlay .bt-sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+#bedtime-overlay .bt-moon {
+  position: absolute; top: 8cqh; right: 8cqw; width: 13cqh; height: 13cqh; border-radius: 50%;
+  background: var(--bt-moon-soft);
+  box-shadow: 0 0 7cqh 1.5cqh rgba(244,208,106,.34), inset -2.6cqh -1.4cqh 0 -0.3cqh var(--bt-moon);
+  animation: bt-glow 5s ease-in-out infinite;
+}
+@keyframes bt-glow {
+  0%, 100% { box-shadow: 0 0 7cqh 1.5cqh rgba(244,208,106,.30), inset -2.6cqh -1.4cqh 0 -0.3cqh var(--bt-moon); }
+  50%      { box-shadow: 0 0 9cqh 2.5cqh rgba(244,208,106,.50), inset -2.6cqh -1.4cqh 0 -0.3cqh var(--bt-moon); }
+}
+#bedtime-overlay .bt-stage { position: relative; z-index: 2; display: grid; gap: 2.4cqh; justify-items: center; }
+#bedtime-overlay .bt-clockline {
+  font-family: var(--bt-mono); font-size: min(20px,2.6cqh); letter-spacing: .04em;
+  color: #d7d1ff; font-variant-numeric: tabular-nums;
+}
+
+/* Night lock */
+#bedtime-overlay .bt-lock-note {
+  position: absolute; top: 2.6vh; left: 0; right: 0; z-index: 3;
+  font-family: var(--bt-mono); font-size: min(15px,2cqh); letter-spacing: .08em; color: #c9c2ff; opacity: .72;
+}
+#bedtime-overlay .bt-c-badge { font-size: min(60px,8cqh); letter-spacing: .14em; }
+#bedtime-overlay .bt-c-head {
+  font-family: var(--bt-block); font-weight: 900; text-transform: uppercase; letter-spacing: .02em;
+  font-size: min(78px,10cqh); margin: 0; color: var(--bt-cream); text-wrap: balance;
+}
+#bedtime-overlay .bt-c-sub {
+  font-family: var(--bt-sans); font-size: min(24px,3.3cqh); max-width: 22ch; color: #e7dcbf; margin: 0;
+}
+
+/* Note from the animals */
+#bedtime-overlay .bt-note {
+  font-size: min(30px,4.2cqh); background: #f7efd8; color: #3a2f1c; border-radius: .4em;
+  padding: 1.2em 1.6em 1.4em; max-width: min(640px,74cqw); transform: rotate(-2.2deg);
+  position: relative; box-shadow: 0 16px 30px -12px rgba(0,0,0,.5);
+}
+#bedtime-overlay .bt-note::before {
+  content: ""; position: absolute; top: -.4em; left: 50%; width: .7em; height: .7em;
+  transform: translateX(-50%); border-radius: 50%; background: var(--bt-barn);
+}
+#bedtime-overlay .bt-note-body { font-family: var(--bt-script); font-size: 1em; line-height: 1.4; margin: 0; }
+#bedtime-overlay .bt-note-sign { font-family: var(--bt-script); font-size: .85em; text-align: right; margin: .4em 0 0; color: #6a4a22; }
+
+/* Nightworker */
+#bedtime-overlay .bt-nw-wrap { display: flex; align-items: center; justify-content: center; gap: 6cqw; }
+#bedtime-overlay .bt-nw-text { text-align: left; max-width: 34cqw; }
+#bedtime-overlay .bt-nw-eyebrow {
+  font-family: var(--bt-mono); font-size: min(16px,2.4cqh); letter-spacing: .2em;
+  text-transform: uppercase; color: var(--bt-moon); margin: 0 0 .7em;
+}
+#bedtime-overlay .bt-nw-head {
+  font-family: var(--bt-serif); font-weight: 700; line-height: 1.14;
+  font-size: min(40px,5.6cqh); margin: 0; color: var(--bt-cream); text-wrap: balance;
+}
+#bedtime-overlay .bt-nw-card {
+  max-height: 78cqh; max-width: 42cqw; width: auto; height: auto;
+  border-radius: 2cqh; transform: rotate(3deg); box-shadow: 0 22px 42px -14px rgba(0,0,0,.7);
+}
+
+/* Sleeping Corner */
+#bedtime-overlay .bt-sc-head {
+  font-family: var(--bt-serif); font-weight: 700; line-height: 1.16;
+  font-size: min(38px,5cqh); margin: 0; color: var(--bt-cream); max-width: 22ch; text-wrap: balance;
+}
+#bedtime-overlay .bt-sc-img {
+  max-height: 60cqh; max-width: 90cqw; width: auto; height: auto;
+  filter: drop-shadow(0 16px 28px rgba(0,0,0,.55));
+}
+#bedtime-overlay .bt-sc-sub { font-family: var(--bt-serif); font-size: min(24px,3.3cqh); color: #e7dcbf; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) { #bedtime-overlay .bt-moon { animation: none; } }

@@ -2124,6 +2124,106 @@
   }
 
   // ---------------------------------------------------------------------
+  // Bedtime overlay — name-gated (Rob/Robert), shown 11 PM–5 AM Eastern.
+  // Frontend-only: it covers the screen and blocks play, but never touches
+  // game state, so at 5 AM the overlay lifts and the game resumes exactly
+  // where it was. One pool screen is chosen at random on each entry into the
+  // window (including each reload while inside it). Farm inspection ('f') is
+  // intentionally left out of the pool.
+  // ---------------------------------------------------------------------
+  const BT_POOL = ['c', 'd', 'n', 's'];
+  let bedtimeActive = false;
+
+  function btEasternMinutes() {
+    // Minutes-since-midnight in America/New_York (tracks EST/EDT). -1 if the
+    // timezone is unavailable, so we never trigger on a bad clock read.
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      }).formatToParts(new Date());
+      const o = {};
+      parts.forEach((p) => { o[p.type] = p.value; });
+      const h = parseInt(o.hour, 10) % 24;
+      return h * 60 + parseInt(o.minute, 10) + parseInt(o.second, 10) / 60;
+    } catch (e) { return -1; }
+  }
+  function btInWindow(m) { return m >= 0 && (m >= 23 * 60 || m < 5 * 60); }  // 11 PM–5 AM
+  function btIsRob() {
+    let name = '';
+    try { name = (localStorage.getItem('agricola.playerName') || '').trim().toLowerCase(); } catch (e) {}
+    return name === 'rob' || name === 'robert';
+  }
+  function btNorm(m) { return ((m % 1440) + 1440) % 1440; }
+  function btFmtClock(m) {
+    m = btNorm(m);
+    const h = Math.floor(m / 60), mm = Math.floor(m % 60);
+    const ap = h < 12 ? 'AM' : 'PM';
+    let h12 = h % 12; if (h12 === 0) h12 = 12;
+    return h12 + ':' + (mm < 10 ? '0' : '') + mm + ' ' + ap;
+  }
+  function btFmtHM(m) {
+    m = btNorm(m);
+    let h = Math.floor(m / 60) % 12; if (h === 0) h = 12;
+    const mm = Math.floor(m % 60);
+    return h + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  function btRenderClock() {
+    const m = btEasternMinutes();
+    if (m < 0) return;
+    document.querySelectorAll('#bedtime-overlay [data-bt-clock]').forEach((el) => {
+      el.textContent = el.getAttribute('data-bt-clock') === 'hm' ? btFmtHM(m) : btFmtClock(m);
+    });
+    document.querySelectorAll('#bedtime-overlay [data-bt-daypart]').forEach((el) => {
+      el.textContent = btNorm(m) < 720 ? 'in the morning' : 'at night';
+    });
+  }
+  function btShow(which) {
+    const ov = document.getElementById('bedtime-overlay');
+    if (!ov) return;
+    ov.querySelectorAll('.bt-screen').forEach((s) => {
+      s.classList.toggle('active', s.getAttribute('data-bt') === which);
+    });
+    btRenderClock();
+    ov.classList.add('active');
+    ov.setAttribute('aria-hidden', 'false');
+    bedtimeActive = true;
+  }
+  function btHide() {
+    const ov = document.getElementById('bedtime-overlay');
+    if (ov) { ov.classList.remove('active'); ov.setAttribute('aria-hidden', 'true'); }
+    bedtimeActive = false;
+  }
+  function btCheck() {
+    const inWin = btIsRob() && btInWindow(btEasternMinutes());
+    if (inWin && !bedtimeActive) {
+      btShow(BT_POOL[Math.floor(Math.random() * BT_POOL.length)]);
+    } else if (!inWin && bedtimeActive) {
+      btHide();
+    } else if (bedtimeActive) {
+      btRenderClock();  // keep the live clock/daypart fresh while shown
+    }
+  }
+  // One-time first-name prompt (stored in localStorage), then run `done`.
+  function btEnsureName(done) {
+    let name = '';
+    try { name = (localStorage.getItem('agricola.playerName') || '').trim(); } catch (e) {}
+    const modal = document.getElementById('name-prompt-modal');
+    const form = document.getElementById('name-prompt-form');
+    const input = document.getElementById('name-prompt-input');
+    if (name || !modal || !form) { if (done) done(); return; }
+    modal.classList.remove('hidden');
+    if (input) input.focus();
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = (input && input.value || '').trim();
+      try { localStorage.setItem('agricola.playerName', v); } catch (err) {}
+      modal.classList.add('hidden');
+      if (done) done();
+    }, { once: true });
+  }
+
+  // ---------------------------------------------------------------------
   // Init
   // ---------------------------------------------------------------------
 
@@ -2205,6 +2305,7 @@
     // the seed prompt or future form inputs). Also ignored on the game-over
     // modal (no AI moves to take).
     document.addEventListener('keydown', (e) => {
+      if (bedtimeActive) return;  // bedtime overlay blocks all play
       if (e.key !== 'Enter') return;
       const tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -2215,6 +2316,13 @@
         stepAI();
       }
     });
+    // Bedtime overlay: ask the first name once, then gate on Rob + the Eastern
+    // 11 PM–5 AM window. Checked now (covers reloads at/after 11 PM) and every
+    // 30 s (covers the clock crossing 11 PM while the page is already open, and
+    // lifts the overlay at 5 AM).
+    btEnsureName(btCheck);
+    setInterval(btCheck, 30000);
+
     // Load the initial state. From here on, every render comes from an action
     // or toggle response — there is no push channel. The server pre-creates a
     // default Family game; after the first render we pop up the mode-select
