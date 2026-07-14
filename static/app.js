@@ -2124,7 +2124,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Bedtime overlay — name-gated (Rob/Robert), shown 11 PM–5 AM Eastern.
+  // Bedtime overlay — name-gated (Rob/Robert/Dad), shown 11 PM–5 AM Eastern.
   // Frontend-only: it covers the screen and blocks play, but never touches
   // game state, so at 5 AM the overlay lifts and the game resumes exactly
   // where it was. One pool screen is chosen at random on each entry into the
@@ -2149,10 +2149,11 @@
     } catch (e) { return -1; }
   }
   function btInWindow(m) { return m >= 0 && (m >= 23 * 60 || m < 5 * 60); }  // 11 PM–5 AM
-  function btIsRob() {
+  // Names that trigger the overlay (case-insensitive).
+  function btNameGated() {
     let name = '';
     try { name = (localStorage.getItem('agricola.playerName') || '').trim().toLowerCase(); } catch (e) {}
-    return name === 'rob' || name === 'robert';
+    return name === 'rob' || name === 'robert' || name === 'dad';
   }
   function btNorm(m) { return ((m % 1440) + 1440) % 1440; }
   function btFmtClock(m) {
@@ -2195,7 +2196,7 @@
     bedtimeActive = false;
   }
   function btCheck() {
-    const inWin = btIsRob() && btInWindow(btEasternMinutes());
+    const inWin = btNameGated() && btInWindow(btEasternMinutes());
     if (inWin && !bedtimeActive) {
       btShow(BT_POOL[Math.floor(Math.random() * BT_POOL.length)]);
     } else if (!inWin && bedtimeActive) {

@@ -75,10 +75,11 @@ change, no NN-encoder impact, nothing to re-validate. Four mechanisms deliver th
   on an empty dict, an empty fold over `REDUCTIONS`, …). The Family game plays no cards, so every
   ownership-gated entry is dead even when registered.
 - **Ownership indexes with O(1) guards.** Where a card would change *control flow* (push a host
-  frame on an atomic space, host a harvest window, host round start), a hosting predicate
-  (`should_host_space`, `should_host_preparation`, `owns_window_card`) consults a
-  registration-time index of card ids and short-circuits on the empty set — the Family game
-  never constructs the frame at all (§2, §3, §5b).
+  frame on an atomic space, host a harvest window), a hosting predicate (`should_host_space`,
+  `owns_window_card`) consults a registration-time index of card ids and short-circuits on the
+  empty set — the Family game never constructs the frame at all (§2, §5b). The preparation and
+  round-end ladders need no index: their windows host per ELIGIBLE trigger, which is an empty
+  registry lookup in Family (§5c, §5d).
 - **Default-skip canonical fields.** Every card-only field on `GameState` / `PlayerState` / the
   pending frames defaults to an inert value and is listed in `canonical._DEFAULT_SKIP_FIELDS`, so
   a Family state serializes without it — the canonical JSON (the C++ contract) is unchanged
@@ -430,7 +431,7 @@ Where each firing actually happens in the engine — the complete set of call si
 | Work-complete flip | `after_<derived event>` autos | `_enter_after_phase` (resolution.py) — called by every commit-terminated effect at its commit, by the markets, by `_apply_proceed` for atomic/Proceed/multi-shot hosts, and by the Delegating auto-advance |
 | Composite host | `before_/after_major_minor_improvement` autos | its choose-handler push / the Delegating auto-advance |
 | Any improvement built | `after_build_improvement` autos | `_execute_play_minor` / the major-build path |
-| Round start | `start_of_round` autos | `_fire_preparation_hook` (at each `PendingPreparation` push); its triggers via the host's enumerator |
+| Round entry | the prep window-id autos + triggers | `engine._advance_preparation` — the preparation ladder (§5d): per window, autos fire for both players SP-first, then a per-player `PendingHarvestWindow` choice host is pushed for each player with an eligible trigger (SP decides first) |
 | Harvest windows | the window-id autos + triggers | `engine._advance_harvest` — the virtual walk (§5b): per window, autos fire for both players SP-first, then a per-player `PendingHarvestWindow` choice host is pushed for each player with an eligible trigger (SP decides first) |
 | Harvest field phase | `field_phase` autos + triggers; the take | `engine._field_phase_step` (§5b): autos, then `PendingFieldPhase` when the player has a during-window decision (an eligible trigger or a usable choice-bearing take-modifier), else the inline take — with a post-take re-check that hosts the frame when take income enabled a trigger |
 | Harvest occasions | the per-occasion autos | `apply_harvest_occasion_autos`, wherever a `HarvestOccasion` is emitted — the walk's inline take, `_execute_field_take`, or a bare card-driven `field_take` (§5b) |
@@ -547,12 +548,13 @@ module-local `_owns(player_state, card_id)` helpers.
   cards now register on the timing-window ladder: the printed instant's window id is the event
   (`register`/`register_auto` as usual) plus a `register_harvest_window_hook` index entry —
   see the `harvest_windows.py` block below and §5b.
-- **`register_start_of_round_hook(card_id)`** → `START_OF_ROUND_CARDS`, consulted by
-  `should_host_preparation` (together with `has_scheduled_round_start_effect` — a
-  `future_rewards` slot carrying effect-card ids drives hosting on its own, so a deferred grant
-  like Handplow hosts only the round it comes due, §3 schedules). Pair with
-  `register("start_of_round", ...)` (optional triggers ARE supported here, unlike the field
-  phase) or `register_auto`. Exemplars: `scullery` (auto), `plow_driver` (trigger).
+- **`register_start_of_round_hook` is GONE** (2026-07-14, with the whole ownership-hosting
+  seam — `START_OF_ROUND_CARDS`, `should_host_preparation`, `PendingPreparation`). Round-entry
+  cards register on the preparation ladder: the printed instant's window id is the event
+  (`register`/`register_auto` as usual — `before_round`, `round_space_collection`,
+  `start_of_round`, `replenishment`, `before_work`, `start_of_work`), and hosting is
+  eligibility-driven per window with no index — see §5d. A schedule-driven grant (Handplow)
+  hosts exactly on its due rounds because its own eligibility reads its `future_rewards` slot.
 - **`register_conditional(card_id, condition_fn, apply_fn)`** → `CONDITIONAL_ONE_SHOTS`.
   The one-shot **level-triggered latch**: "once you live in a stone house, …" fires the first
   moment the standing condition holds — whether the condition changed under a played card or was
@@ -778,9 +780,9 @@ repeated placers stack additively.
   mechanically at round start).
 - **`schedule_effect(state, idx, rounds, card_id)`** — a card id into
   `future_rewards[slot].effect_card_ids`. The schedule gates the card's **optional**
-  `start_of_round` trigger AND drives preparation hosting for that round
-  (`has_scheduled_round_start_effect`); the grant is the player's to take or decline, never
-  auto-fired. Exemplar: `handplow` (a deferred plow).
+  `round_space_collection` trigger (§5d: a thing on the round space resolves at collection
+  time), and that same eligibility is what hosts the window on due rounds; the grant is the
+  player's to take or decline, never auto-fired. Exemplar: `handplow` (a deferred plow).
 - **`schedule_animals(state, idx, rounds, animals: Animals)`** — animals into
   `future_rewards[slot].animals`; collected at round start by `engine._collect_future_rewards`,
   which grants them via **`helpers.grant_animals`** (add + flag). If they fit, nothing more
@@ -963,12 +965,11 @@ phase/triggers/Stop) and `PendingFoodPayment` (the raise-only food-raising frame
 closed — `food_needed`, `resume_kind`, `reserved: Cost`, and the stored commit `action` for the
 "rerun" continuation).
 
-**Phase hosts.** `PendingPreparation` (start-of-round host, one per *owning* player,
-non-starting player pushed first so the starting player decides first; `start_of_round` autos
-fire at its push, triggers via its enumerator, `Proceed` pops — no after-phase), the two
-harvest-window frames (§5b) — `PendingHarvestWindow` (the per-player simple-window choice
-host: pushed only for a player with an eligible trigger on that window id, once-per-window via
-`triggers_resolved`, `Proceed` declines and pops) and `PendingFieldPhase` (the FIELD
+**Phase hosts.** `PendingHarvestWindow` — the per-player simple-window choice host serving
+ALL THREE timing ladders (harvest §5b, round-end §5c, preparation §5d; a frame is this class
+with the ladder's window id): pushed only for a player with an eligible trigger on that window
+id (non-SP first, so the starting player decides first), once-per-window via
+`triggers_resolved`, `Proceed` declines and pops. Beside it, `PendingFieldPhase` (the FIELD
 during-window host: free-order `field_phase` triggers around the mandatory `CommitFieldTake`,
 which is the only path to `Proceed`; carries `take_fired` and the frame-scoped `occasions`
 manifest) and `PendingHarvestOccasion` (the per-occasion reaction host: carries its

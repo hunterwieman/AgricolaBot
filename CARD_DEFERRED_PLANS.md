@@ -785,11 +785,12 @@ clarification excludes off-turn builds (Groom B089 / Stable Planner A089). A na�
 auto also fires on those start-of-round grants.
 
 **Proposed build.** A card-local eligibility predicate — the build is "on your turn" iff **no
-`PendingPreparation` frame is on the stack**. In the current card set every off-turn stable build is a
-`start_of_round` grant (Groom, Stable Planner), which carries a `PendingPreparation` frame at the
-bottom of the stack; a real worker-placement build never does. So
-`not any(isinstance(f, PendingPreparation) for f in state.pending_stack)` in the auto's eligibility is
-exact today. No engine change. I'd add a shared helper `_is_on_turn_build(state)` for reuse.
+preparation-window choice frame is on the stack**. In the current card set every off-turn stable
+build is a preparation-ladder grant (Groom at `start_of_round`, Stable Planner at
+`round_space_collection`), which carries a `PendingHarvestWindow` frame with a prep window id at
+the bottom of the stack; a real worker-placement build never does. So "no `PendingHarvestWindow`
+whose `window_id` is in `preparation.PREP_STEPS`" in the auto's eligibility is exact today. No
+engine change. I'd add a shared helper `_is_on_turn_build(state)` for reuse.
 
 **Effort:** ~5 lines/card + a 3-line helper. **Risk:** low-medium — correct for *all* current off-turn
 sources; a future card that builds stables on the **opponent's** turn would need the predicate widened
