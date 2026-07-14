@@ -656,7 +656,8 @@ def _can_build_room(state: GameState, p: PlayerState) -> bool:
 _RENOVATE_BASE_FIELD = {HouseMaterial.CLAY: "clay", HouseMaterial.STONE: "stone"}
 
 
-def _renovate_ctx(p: PlayerState, to_material: HouseMaterial) -> CostCtx:
+def _renovate_ctx(p: PlayerState, to_material: HouseMaterial,
+                  granted_by: str | None = None) -> CostCtx:
     """The cost-resolution context for renovating player `p`'s house to `to_material`.
 
     Base (printed) cost: 1 of the TARGET material per room + 1 reed total (to clay:
@@ -664,10 +665,18 @@ def _renovate_ctx(p: PlayerState, to_material: HouseMaterial) -> CostCtx:
     degree of freedom — usually the next tier, but a card may make a further tier legal
     (Conservator: wood→stone). Cost-modifier cards may read `to_material` (e.g. a card
     that only discounts the stone tier).
+
+    `granted_by`: the provenance of a CARD-GRANTED renovate ("card:<id>", parsed off
+    the pending frame's `initiated_by_id` by the enumerator) — None for every
+    space-initiated renovate. Lets a granting card scope a cost modifier to ITS OWN
+    grant only (Master Renovator's "pay 1 building resource of your choice less";
+    Established Person's free renovate) — the same grant-scoping Field Fences does
+    for fences via frame provenance. Modifiers that don't read it are unaffected.
     """
     num_rooms = _num_rooms(p)
     base = Resources(**{_RENOVATE_BASE_FIELD[to_material]: num_rooms, "reed": 1})
-    return CostCtx("renovate", base, to_material=to_material, num_rooms=num_rooms)
+    return CostCtx("renovate", base, to_material=to_material, num_rooms=num_rooms,
+                   granted_by=granted_by)
 
 
 def _legal_renovate_targets(state: GameState, p: PlayerState) -> list:
@@ -1796,8 +1805,12 @@ def _enumerate_pending_renovate(
         actions.append(Stop())
         return actions
     p = state.players[pending.player_idx]
+    # A card-granted renovate carries its granting card as provenance, so a
+    # grant-scoped cost modifier (Master Renovator) applies to exactly this frame.
+    granted_by = (pending.initiated_by_id
+                  if pending.initiated_by_id.startswith("card:") else None)
     for target in _legal_renovate_targets(state, p):
-        ctx = _renovate_ctx(p, target)
+        ctx = _renovate_ctx(p, target, granted_by=granted_by)
         for payment in effective_payments(state, pending.player_idx, ctx):
             actions.append(CommitRenovate(payment=payment, to_material=target))
     return actions

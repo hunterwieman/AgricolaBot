@@ -53,6 +53,12 @@ class CostCtx:
     card_id: str | None = None
     space_id: str | None = None          # entry-point scope (Hunting Trophy, House Artist)
     build_index: int | None = None       # Nth room/stable/fence (Carpenter's Apprentice)
+    granted_by: str | None = None        # a card-GRANTED action's provenance ("card:<id>",
+    #                                      from the pending frame's initiated_by_id; None for
+    #                                      every space-initiated action) — lets a granting card
+    #                                      scope a cost modifier to its own grant only (Master
+    #                                      Renovator's discounted renovate). Wired for renovate;
+    #                                      other action kinds pass None until a card needs it.
     reserved_animals: Animals = Animals()  # animal portion of THIS cost — reserved before
     #                                        counting animals as food-liquidation fuel, so
     #                                        liquidation never double-spends an animal the cost

@@ -3301,7 +3301,7 @@
     "players": "1+",
     "name": "Fish Farmer",
     "card_category": "Food Provider",
-    "text": "Each time there is 1/2/3+ food on the \"Fishing\" accumulation space, you get an additional 2 food on the \"Reed Bank\"/ \"Clay Pit\"/ \"Grove\" accumulation spaces.",
+    "text": "Each time there is 1/2/3+ food on the \"Fishing\" accumulation space, you get an additional 2 food on the \"Reed Bank\"/ \"Clay Pit\"/ \"Forest\" accumulation spaces.",
     "errata": "ERRATA: “Grove” should be “Forest”."
   },
   {
@@ -3881,7 +3881,7 @@
     "players": "1+",
     "name": "Field Doctor",
     "card_category": "Actions Booster",
-    "text": "Once this game, if you live in a house with exactly 2 rooms surrounded by 4 field tiles, you can use any \"Family Growth\" action space even without room.",
+    "text": "Once this game, if you live in a house with exactly 2 rooms surrounded by 4 field tiles, you can use any \"Wish for Children\" action space even without room.",
     "clarifications": "Should be “Wish for Children” action space."
   },
   {
