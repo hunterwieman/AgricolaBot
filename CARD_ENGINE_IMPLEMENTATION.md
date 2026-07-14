@@ -125,13 +125,13 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **The preparation ladder landed (2026-07-14; ruling 54, order revised same day)** — the
-  third timing ladder (§5d is the machinery reference): the mis-timed single
-  `start_of_round` event became seven distinct instants (`before_round` through
-  `start_of_work`); `PendingPreparation` + ownership hosting deleted (eligibility-driven
-  windows); `register_auto(order=)`; the revised order (reveal before collection) keeps the
-  Family game byte-identical, so the C++ twin is untouched (all gates green). The
-  **Points Provider batch** rode it in (rulings 54–59):
+- **The preparation ladder landed (2026-07-14; ruling 54)** — the third timing ladder
+  (§5d is the machinery reference and the round-entry chronology of record): the mis-timed
+  single `start_of_round` event became seven distinct instants (`before_round` through
+  `start_of_work`, with the reveal and round-space collection ordered between them);
+  `PendingPreparation` + ownership hosting deleted (eligibility-driven windows);
+  `register_auto(order=)` added. The Family game is byte-identical and the C++ twin
+  untouched (all gates green). The **Points Provider batch** rode it in (rulings 54–59):
   Curator (+ the `helpers.accumulation_spaces` category accessor), Clutterer (+ the
   `played_card_id` stamp on the play hosts), Sugar Baker, Prodigy, Museum Caretaker
   (+ auto ordering), Blighter (+ the occupation-play-blocker chokepoint gate).
@@ -1606,62 +1606,86 @@ wordings are out of scope by design (defer).
 
 ## 5d. The preparation ladder
 
-Cards also fire between a round's beginning and its first worker placement — "at the start of
-each round", "at the start of each work phase", "placed … during the preparation phase". The
-pre-ladder engine collapsed all of these onto one mis-timed `start_of_round` event fired at the
-very END of preparation (after the phase had already flipped to WORK), with ownership-indexed
-hosting (`PendingPreparation`, one frame per owning player). **Ruling 54 (2026-07-14)** replaced
-it with the third timing ladder — the structural sibling of §5b's harvest and §5c's round-end
-ladders, sharing their window primitives. It lives in **`agricola/cards/preparation.py`**; the
-walk is **`engine._advance_preparation`**, driven from `_advance_until_decision`'s PREPARATION
-case.
+Between one round's end and the next round's first worker placement, printed card text names
+SEVEN distinct instants — "before the start of each round", reveal reactions, "at the start of
+these rounds you can [take the thing on the round space]", "at the start of each round",
+"placed … during the preparation phase", "at the end of each preparation phase" / "before each
+work phase", and "at the start of each work phase". The cards and the printed rules are
+AMBIGUOUS about how these instants are ordered relative to one another and to the mechanical
+preparation steps (the reveal, round-space collection, the accumulation refill); the engine
+cannot be. **Ruling 54 (2026-07-14) fixes the canonical chronology**, and this section is its
+reference of record. The machinery is the third timing ladder — the structural sibling of §5b's
+harvest and §5c's round-end ladders, sharing their window primitives. The step table lives in
+**`agricola/cards/preparation.py`**; the walk is **`engine._advance_preparation`**, driven from
+`_advance_until_decision`'s PREPARATION case. The ladder runs on entry to every round 1–14
+(round 1's pass happens inside `setup_env`; on harvest rounds it follows the completed harvest,
+otherwise it follows the round-end ladder directly).
 
-**The eleven steps** (`preparation.PREP_STEPS` — seven window ids that double as trigger/auto
-event strings, plus four mechanical sentinels; order revised by the user the same day — the
-reveal PRECEDES collection, and `before_round` was added at the top):
+**The canonical chronology** (`preparation.PREP_STEPS` — eleven steps: seven window ids that
+double as trigger/auto event strings, plus four `__dunder__` mechanical sentinels that are
+never events):
 
-| # | step | what it is |
+| # | step | what happens |
 |---|---|---|
-| 0 | `before_round` | window — "BEFORE the start of each round": Small Animal Breeder, Civic Facade. Pre-reveal, pre-collection (`round_number` still names the just-completed round — the round being entered is `round_number + 1` here) |
-| 1 | `__reveal__` | the nature step: pushes `PendingReveal` if the round card is face-down (the walk pauses; `prep_cursor` deliberately NOT set — see below) |
-| 2 | `__round_setup__` | `round_number += 1` — post-reveal, preserving the public-state discriminator |
-| 3 | `reveal` | window — reserved (Heart of Stone, Task Artisan, Tree Inspector when built) |
-| 4 | `__collect__` | newborns become adults, the used-sets clear, round-space goods (`future_resources`) + scheduled animals (`future_rewards`, via the accommodation barrier) are collected — post-reveal per the revised ruling (the card is turned up before the goods on its space are taken) |
-| 5 | `round_space_collection` | window — the round-space schedule grants (user ruling 2026-07-14: a thing on the round space resolves at COLLECTION time): Handplow, Chain Float, Grassland Harrow, Plowman, Small Greenhouse, Stable Planner, Tree Farm Joiner |
-| 6 | `start_of_round` | window — Childless, Scullery, Plow Driver, Scholar, Groom, Recluse, Mineral Feeder, Small-scale Farmer, Interim Storage |
-| 7 | `__replenish__` | the accumulation-space refill (RULES.md Preparation) |
-| 8 | `replenishment` | window — the refill-reaction seam: Nest Site (Shoreforester when built) |
-| 9 | `before_work` | window — "at the end of each preparation phase" / "before each work phase": Pavior (Handcart, Nightworker when built) |
-| 10 | `start_of_work` | window — Freemason, Cob, Trout Pool, Museum Caretaker (Roman Pot when built) |
+| 0 | `before_round` | window — the instant before the round exists: nothing about the new round (its card, its round-space goods) is known or collected yet. `round_number` still names the just-completed round; the round being entered is `round_number + 1` |
+| 1 | `__reveal__` | the nature step: pushes `PendingReveal` if the round's stage card is face-down; the walk pauses at the nature node and the environment (or a search chance node) answers with `RevealCard` |
+| 2 | `__round_setup__` | `round_number += 1`. From here on `round_number` names the current round |
+| 3 | `reveal` | window — the reveal-reaction seam: the just-turned-up card is the event data (no member card yet; Heart of Stone, Task Artisan, Tree Inspector belong here when built) |
+| 4 | `__collect__` | the round-space payout: newborns become plain adults, the per-round/per-turn used-sets clear, goods promised on this round's round space (`future_resources`, slot `round_number − 1`) land in supply, and scheduled animals (`future_rewards`) are granted through the accommodation barrier. Scheduled EFFECT grants are deliberately NOT consumed — they surface as the next window's triggers |
+| 5 | `round_space_collection` | window — the collection instant's choice host: a thing sitting ON the round space resolves HERE, at collection time |
+| 6 | `start_of_round` | window — "at the start of each round" |
+| 7 | `__replenish__` | the accumulation-space refill (RULES.md's Preparation step) — every revealed accumulation space gains its per-round goods, the just-revealed card included |
+| 8 | `replenishment` | window — the refill-reaction seam: fires immediately after the refill, so members read the post-refill board |
+| 9 | `before_work` | window — the preparation phase's last instant, post-replenishment |
+| 10 | `start_of_work` | window — the work phase opens; the walk then flips `phase` to WORK with `current_player = starting_player` |
 
-The walk completes by flipping `phase` to WORK with the starting player active. Windows resolve
-window-major via the same `_process_simple_window` as §5b/§5c (autos SP-first, then one
-`PendingHarvestWindow` choice frame per player with an eligible trigger, SP deciding first;
-skip-guard OFF — preparation is not part of any harvest). **Hosting is eligibility-driven** — no
-ownership index; an auto-only owner gets no frame at all (the old always-pushed
-`PendingPreparation` + its `START_OF_ROUND_CARDS` machinery are deleted), and a schedule-driven
-grant (Handplow) hosts exactly on its due rounds because its own eligibility reads the slot.
+**Classifying a card onto a rung** — the printed wording is the key, and because the printed
+material never states the order, this mapping (each entry user-ruled) is load-bearing:
 
-**The cursor.** `GameState.prep_cursor` (card-only, hash-included, Family-constant `None`,
-canonical default-skipped, no C++ field) carries the resume index across a card window's pause —
-but deliberately NOT across the reveal: the post-reveal resume is derived from public state
-(revealed-count == `round_number + 1` exactly in the post-reveal segment), which is what keeps
-the field off every Family state. Consequence, documented not hidden: at the `before_round`
-window and the reveal itself `round_number` still names the just-completed round (the round
-being entered is `round_number + 1` there); from `__round_setup__` on it names the new round,
-collection included.
+| printed wording | rung | members today |
+|---|---|---|
+| "Before the start of each round" | `before_round` | Small Animal Breeder (its food threshold reads the PRE-collection supply against `round_number + 1` — this round's round-space income deliberately does not count), Civic Facade |
+| "each time [a card / space] is revealed" | `reveal` | none yet (Heart of Stone, Task Artisan, Tree Inspector) |
+| "At the start of these rounds, you can [take / use the thing placed on the round space]" | `round_space_collection` | Handplow, Plowman, Chain Float, Grassland Harrow, Small Greenhouse, Stable Planner, Tree Farm Joiner — the schedule grants, offered at the very instant their scheduled goods land (Tree Farm Joiner's "you get the wood and, immediately afterward, a Minor Improvement action" is literal: same instant) |
+| "At the start of each round" | `start_of_round` | Childless, Scullery, Plow Driver, Scholar, Groom, Recluse, Mineral Feeder, Small-scale Farmer, Interim Storage |
+| "… placed on [a space] … during the preparation phase" | `replenishment` | Nest Site (Shoreforester when built) |
+| "At the end of each preparation phase" / "Before each work phase" | `before_work` | Pavior (Handcart, Nightworker when built) |
+| "At the start of each work phase" | `start_of_work` | Freemason, Cob, Trout Pool, Museum Caretaker (Roman Pot when built) |
 
-**No Family-observable change, no C++ change.** With the revised order (reveal first, then
-collection) the mechanical sentinels run in exactly the pre-ladder sequence, so every Family
-state is byte-identical to the pre-ladder engine and the C++ twin is untouched. (An earlier
-same-day draft collected before the reveal and re-ported that to C++; the user's revision
-reverted both — the twin is back on its original code.) `_complete_preparation` survives as the
-legacy test/compat shape (runs the whole ladder with the reveal step assumed done).
+Consequences a card author must internalize: `start_of_round` fires BEFORE the accumulation
+refill (a board-reading member sees the pre-refill banks), while `replenishment` /
+`before_work` / `start_of_work` fire after it; and the two pre-increment rungs
+(`before_round`, the reveal) read `round_number` as the just-completed round, so "the current
+round number" there is `round_number + 1`.
+
+**How the walk resolves a window.** Each window runs window-major through the same
+`_process_simple_window` as §5b/§5c: its automatic effects fire per player, starting player
+first; then one `PendingHarvestWindow(window_id=…)` choice frame is pushed per player with an
+ELIGIBLE trigger (non-SP pushed first, so the starting player decides first), and the walk
+pauses until the frames resolve (FireTrigger / Proceed, mandatory gating as everywhere else).
+The harvest skip-guard is OFF — preparation is not part of any harvest. **Hosting is
+eligibility-driven**: there is no ownership index, an auto-only owner gets no frame at all, and
+a schedule grant hosts exactly on its due rounds because its own eligibility reads its
+`future_rewards` slot.
+
+**Pauses and resumption.** A card window's pause stores the resume index in
+`GameState.prep_cursor` (card-only, hash-included, canonical default-skipped). The reveal pause
+deliberately does NOT set the cursor: the post-reveal resume is derived from public state —
+revealed-count equals `round_number + 1` exactly in the post-reveal segment, and equals
+`round_number` on fresh entry — which is what keeps `prep_cursor` `None` on every Family state
+(no C++ field). `_complete_preparation(state)` is the legacy test/compat shape: it runs the
+whole ladder from the top with the reveal step assumed done (collection is slot-clearing, so a
+re-entry is idempotent); many tests drive the round boundary by that name.
 
 **Auto ordering within a window.** `register_auto(..., order=N)` (stable-sorted per event,
 default 0) is the explicit mechanism for an auto that must read the combined result of its
 same-instant peers — Museum Caretaker's six-goods check registers `order=10` so Freemason's
 clay/stone lands first. Import order is never load-bearing.
+
+**The Family game and the C++ twin.** In the Family game every window is empty, so the walk is
+exactly the mechanical sentinels plus the reveal pause — the same states, in the same order, as
+the C++ twin's preparation code computes. Nothing here required a C++ change, and `prep_cursor`
+never appears on a Family state.
 
 ---
 

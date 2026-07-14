@@ -1,23 +1,21 @@
-"""The preparation-phase timing ladder — user ruling 54, 2026-07-14 (order
-revised same day: the reveal PRECEDES round-space collection, and a
-``before_round`` rung was added at the very top).
+"""The preparation-phase timing ladder — the canonical round-entry chronology
+(user ruling 54, 2026-07-14; the reference of record is
+CARD_ENGINE_IMPLEMENTATION.md §5d).
 
-Printed card text names several distinct instants between a round's beginning
-and its first worker placement: "BEFORE the start of each round" (Small
-Animal Breeder, Civic Facade), "each time [a card] is revealed" (Heart of
-Stone, Task Artisan, Tree Inspector), "at the start of these rounds, you
-get …" (the ~68 round-space schedule cards — Pond Hut, Sack Cart, Wall
-Builder), "at the start of each round" (Childless, Scullery, Plow Driver,
-Scholar, …), "… placed on [a space] … in the preparation phase" (Nest Site,
-Shoreforester), "at the end of each preparation phase" / "before each work
-phase" (Pavior; Handcart, Nightworker), and "at the start of each work
-phase" (Freemason, Cob, Trout Pool, Roman Pot, Museum Caretaker). The
-pre-ladder engine collapsed all of these onto one mis-timed event (a
-"start_of_round" fired at the END of preparation, after the phase had
-already flipped to WORK) — wrong on both counts, since the start of the
-round IS the start of the preparation phase (RULES.md's phase order).
-
-The user's ruling (2026-07-14, as revised) fixes the order:
+Between one round's end and the next round's first worker placement, printed
+card text names SEVEN distinct instants: "before the start of each round"
+(Small Animal Breeder, Civic Facade), reveal reactions ("each time [a card]
+is revealed" — Heart of Stone, Task Artisan, Tree Inspector, when built),
+"at the start of these rounds, you can [take the thing on the round space]"
+(the schedule grants — Handplow, Plowman, Chain Float, Grassland Harrow,
+Small Greenhouse, Stable Planner, Tree Farm Joiner), "at the start of each
+round" (Childless, Scullery, Plow Driver, Scholar, …), "… placed on [a
+space] … during the preparation phase" (Nest Site), "at the end of each
+preparation phase" / "before each work phase" (Pavior; Handcart, Nightworker
+when built), and "at the start of each work phase" (Freemason, Cob, Trout
+Pool, Museum Caretaker). The cards and printed rules are AMBIGUOUS about how
+these instants are ordered relative to one another and to the mechanical
+preparation steps; ruling 54 fixes the order:
 
     before the round → round card revealed → round-space goods collected
     → start of round → replenishment → before the work phase
@@ -44,12 +42,13 @@ like the harvest and round-end ladders' windows — resolved window-major
   ``round_number + 1`` there (Small Animal Breeder's "the current round
   number" reads it so), and ``round_number`` itself from the ``reveal``
   window onward.
-- ``__collect__`` — last round's newborns become plain adults (the field
-  clears), the per-round/per-turn used-sets clear, and the goods/animals
-  promised on this round's round space are collected (``future_resources``
-  + the ``future_rewards`` animals; over-capacity animal grants reconcile
-  through the standard accommodation barrier). Post-reveal per the revised
-  ruling — the card is turned up before the goods on its space are taken.
+- ``__collect__`` — the round-space payout: last round's newborns become
+  plain adults (the field clears), the per-round/per-turn used-sets clear,
+  and the goods/animals promised on this round's round space are collected
+  (``future_resources``, slot ``round_number - 1``, plus the
+  ``future_rewards`` animals; over-capacity animal grants reconcile through
+  the standard accommodation barrier). The card is turned up before the
+  goods on its space are taken.
 - ``__replenish__`` — the accumulation spaces refill (the mechanical
   Preparation step of RULES.md).
 
@@ -57,22 +56,20 @@ The walk completes by flipping ``phase`` to WORK with the starting player
 active. Scheduled GOODS are the ``__collect__`` sentinel's mechanical job;
 scheduled EFFECT grants (Handplow's deferred plow — "at the start of that
 round, you can plow [the field on the round space]") surface at the
-``round_space_collection`` window, the same instant's choice host (user
-ruling 2026-07-14: a thing on the round space resolves at COLLECTION time,
-not the ``start_of_round`` rung).
+``round_space_collection`` window, the same instant's choice host (ruling
+54: a thing on the round space resolves at COLLECTION time, not the
+``start_of_round`` rung).
 
 The harvest SKIP guard (`window_skipped`) is NOT consulted on this ladder:
 ruling 14's whole-harvest skip (Layabout) covers the harvest ladder only,
 and preparation is not part of any harvest.
 
 Family fast path: no registrations → each window is two empty dict lookups;
-no frames beyond the (pre-existing) reveal, ``prep_cursor`` stays None on
-every state — it is set only across a card window's pause, never across the
-reveal — and the walk applies exactly the pre-ladder mechanical effects in
-exactly the pre-ladder order (reveal, then increment/collection/refill), so
-every Family state is byte-identical to the pre-ladder engine and the C++
-twin needs no change. (An earlier same-day draft collected before the
-reveal and re-ported that to C++; the user's revision reverted both.)
+no frames beyond the (pre-existing) reveal, and ``prep_cursor`` stays None
+on every state — it is set only across a card window's pause, never across
+the reveal — so the walk is exactly the mechanical sentinels plus the reveal
+pause, matching the C++ twin's preparation code state-for-state (no C++
+field, no C++ change).
 """
 from __future__ import annotations
 
