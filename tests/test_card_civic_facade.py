@@ -100,11 +100,14 @@ def test_registered_as_minor():
     assert spec.cost == Cost(resources=Resources(clay=1))
 
 
-def test_registered_on_start_of_round_window():
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
+def test_registered_on_before_round_window():
+    # "Before the start of each round" -> the before_round window (user ruling
+    # 2026-07-14): the ladder's FIRST rung, before the reveal and collection.
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_round", ())}
     assert CARD_ID in auto_ids
+    assert CARD_ID not in {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     # Choice-free auto (no mandatory FireTrigger): it is in AUTO_EFFECTS, not TRIGGERS.
-    trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
+    trigger_ids = {e.card_id for e in TRIGGERS.get("before_round", ())}
     assert CARD_ID not in trigger_ids
 
 
@@ -243,29 +246,35 @@ def test_hand_card_does_not_fire():
 # ---------------------------------------------------------------------------
 
 def test_fires_across_a_real_round_boundary():
-    """Drive a real game from round 1 into round 2 via `step` and confirm the income
-    lands during the preparation transition. Random play also collects food in round
-    1, so isolate the boundary by measuring P0's food on the last round-1 state vs the
-    first round-2 state — the delta across that single transition is exactly the +1."""
-    import numpy as np
-
-    from agricola.agents.base import decider_of
+    """Cross the real round-1 → round-2 boundary via the engine walk and the
+    nature step, and confirm the +1 lands at the before_round window — the
+    ladder's FIRST rung, so it is already applied AT the reveal pause (before
+    the round card is even turned up). Workers are parked on food-free spaces
+    directly so the boundary's only food source is the card."""
+    from agricola.state import get_space, with_space
 
     s, env = setup_env(0)
     s = _own_minor(s, 0)
     s = _set_hand(s, 0, occ={"a", "b"}, minors={"x"})  # eligible
-    rng = np.random.default_rng(0)
-    steps = 0
-    food_before_boundary = s.players[0].resources.food
-    while s.round_number == 1 and s.phase != Phase.BEFORE_SCORING and steps < 4000:
-        d = decider_of(s)
-        if d is None:
-            s = step(s, env.resolve(s))
-        else:
-            la = legal_actions(s)
-            s = step(s, la[int(rng.integers(len(la)))])
-        if s.round_number == 1:
-            food_before_boundary = s.players[0].resources.food
-        steps += 1
-    assert s.round_number >= 2
-    assert s.players[0].resources.food == food_before_boundary + 1
+    # Park both players' workers on food-free spaces; nobody left at home.
+    board = s.board
+    for sid, workers in (("farmland", (1, 0)), ("forest", (1, 0)),
+                         ("clay_pit", (0, 1)), ("reed_bank", (0, 1))):
+        board = with_space(board, sid, fast_replace(get_space(board, sid),
+                                                    workers=workers))
+    s = fast_replace(
+        s, board=board,
+        players=tuple(fast_replace(p, people_home=0) for p in s.players))
+    food_before = s.players[0].resources.food
+    # The walk runs the round-end ladder, then the prep ladder's before_round
+    # window (the +1 fires here, round_number still 1), then pauses at the
+    # reveal nature node.
+    from agricola.engine import _advance_until_decision
+    s = _advance_until_decision(s)
+    assert s.phase is Phase.PREPARATION and s.round_number == 1
+    assert s.players[0].resources.food == food_before + 1   # pre-reveal income
+    # Resolving the reveal completes the boundary into round-2 WORK with no
+    # further income.
+    s = step(s, env.resolve(s))
+    assert s.phase is Phase.WORK and s.round_number == 2
+    assert s.players[0].resources.food == food_before + 1

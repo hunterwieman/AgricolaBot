@@ -359,13 +359,13 @@ transitions — phase changes (WORK → RETURN_HOME → PREPARATION → WORK), t
 until the state is at a real agent decision or game-over. It does not advance the current player
 and does not auto-resolve agent decisions. The **PREPARATION** phase is a timing *ladder*
 (`_advance_preparation` walking `agricola/cards/preparation.py`'s step table — ruling 54,
-2026-07-14, the sibling of the harvest and round-end ladders): round-space goods are collected
-and newborns become adults, then the round-card reveal runs as a nature step (a `PendingReveal`
-for the round being entered pauses the walk), then `round_number` increments, the
-`start_of_round` card window fires, every `revealed` accumulation space refills, the
-`replenishment` / `before_work` / `start_of_work` card windows fire, and the phase flips to
-WORK. In the Family game every window is empty, so the walk is the mechanical steps plus the
-reveal pause. `RevealCard` is dispatched in `_apply_action` (turning the named card's `revealed`
+2026-07-14 as revised, the sibling of the harvest and round-end ladders): the `before_round`
+card window fires, then the round-card reveal runs as a nature step (a `PendingReveal` for the
+round being entered pauses the walk), then `round_number` increments, round-space goods are
+collected and newborns become adults, the `start_of_round` card window fires, every `revealed`
+accumulation space refills, and the `replenishment` / `before_work` / `start_of_work` card
+windows fire before the phase flips to WORK. In the Family game every window is empty, so the
+walk is the mechanical steps plus the reveal pause — byte-identical to the pre-ladder engine. `RevealCard` is dispatched in `_apply_action` (turning the named card's `revealed`
 to `True` and popping the frame) — a top-level transition like `PlaceWorker`, not a
 `CommitSubAction`.
 

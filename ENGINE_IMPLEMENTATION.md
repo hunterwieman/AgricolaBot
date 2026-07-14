@@ -201,22 +201,24 @@ re-running it on a returned state is a no-op. The cases, in order:
 1.5. **DRAFT with empty stack** (card game, `draft=True` setups only) → push the next
    `PendingDraftPick`, or transition to PREPARATION once all four pools are empty
    (CARD_ENGINE_IMPLEMENTATION.md §4).
-2. **PREPARATION** → the preparation ladder (ruling 54, 2026-07-14):
-   `_advance_preparation` walks `agricola/cards/preparation.py`'s step table —
-   `__collect__` (newborns become adults, used-sets clear, round-space `future_resources` +
-   scheduled `future_rewards` animals collected; the animals reconcile through the
-   accommodation barrier) → the `round_space_collection` card window → `__reveal__` (push a
+2. **PREPARATION** → the preparation ladder (ruling 54, 2026-07-14 as revised):
+   `_advance_preparation` walks `agricola/cards/preparation.py`'s step table — the
+   `before_round` card window ("before the start of each round") → `__reveal__` (push a
    `PendingReveal()` with `player_idx=None` if the round card is face-down — case 1 then
    returns on the non-empty stack, pausing at the nature decision) → `__round_setup__`
-   (`round_number += 1`) → the `reveal` and `start_of_round` card windows → `__replenish__`
-   (refill every accumulation space where `sp.revealed`, the just-revealed card included) →
-   the `replenishment` / `before_work` / `start_of_work` card windows → flip to WORK with
-   `current_player = starting_player`. While the reveal is pending, `round_number` still
+   (`round_number += 1`) → the `reveal` card window → `__collect__` (newborns become adults,
+   used-sets clear, round-space `future_resources` + scheduled `future_rewards` animals
+   collected; the animals reconcile through the accommodation barrier) → the
+   `round_space_collection` and `start_of_round` card windows → `__replenish__` (refill every
+   accumulation space where `sp.revealed`, the just-revealed card included) → the
+   `replenishment` / `before_work` / `start_of_work` card windows → flip to WORK with
+   `current_player = starting_player`. At `before_round` and the reveal, `round_number` still
    names the round just *completed* (the increment is post-reveal), preserving the
    `count == round_number` public-state discriminator; a resume with
    `count == round_number + 1` re-enters at `__round_setup__`, and a card window's pause is
-   carried by `GameState.prep_cursor` (card-only, Family-constant None). In Family every
-   window is empty, so the walk is the mechanical steps plus the reveal pause; hosting is
+   carried by `GameState.prep_cursor` (card-only, Family-constant None; never set across the
+   reveal). In Family every window is empty, so the walk is the mechanical steps plus the
+   reveal pause, in the pre-ladder order — byte-identical, no C++ change; hosting is
    eligibility-driven per window (CARD_ENGINE_IMPLEMENTATION.md §5d). `_complete_preparation`
    survives as the legacy test/compat shape (the whole ladder, reveal step assumed done).
 
@@ -725,10 +727,11 @@ breeding animals): it matches "no auto-resolved singleton decisions," provides s
 frames for future cards, and is symmetric with the parent-pending pattern atomic spaces will adopt.
 
 **The round-card reveal sits near the start of each round.** After HARVEST_BREED drains (round < 14),
-the walk transitions to PREPARATION — the preparation ladder (§1, case 2; ruling 54, 2026-07-14):
-round-space goods are collected and newborns become adults, then the reveal nature step runs (a
-`PendingReveal` is pushed, the dealer / chance node turns up the next round's stage card), then the
-post-reveal segment increments the round and refills accumulation. So on harvest
+the walk transitions to PREPARATION — the preparation ladder (§1, case 2; ruling 54, 2026-07-14 as
+revised): the `before_round` window fires, then the reveal nature step runs (a `PendingReveal` is
+pushed, the dealer / chance node turns up the next round's stage card), then the post-reveal
+segment increments the round, collects round-space goods, clears newborns, and refills
+accumulation. So on harvest
 rounds the full span is RETURN_HOME → HARVEST_FIELD → FEED → BREED → PREPARATION (reveal) → WORK;
 on non-harvest rounds it is RETURN_HOME → PREPARATION (reveal) → WORK. A reveal happens entering
 **every** round 1–14 — round 1's is dealt inside `setup_env` (the round-1 nature node is resolved

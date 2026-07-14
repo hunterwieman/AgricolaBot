@@ -556,15 +556,18 @@ A card registers an effect against an **event string**:
   `play_occupation`, `play_minor`, `family_growth`. (`build_fences` joined the uniform
   host model — it flips to its after-phase on `Proceed`, like the other multi-shot
   builders; Shepherd's Crook hooks `before_/after_build_fences`.)
-- **The preparation ladder** (ruling 54, 2026-07-14 — CARD_ENGINE_IMPLEMENTATION.md §5d):
-  every prep window id is an event string, in firing order `round_space_collection` →
-  `reveal` → `start_of_round` → `replenishment` (post-refill) → `before_work` →
-  `start_of_work`. Classify by the printed wording: "at the start of each round" →
-  `start_of_round`; "at the start of each work phase" → `start_of_work` (Freemason, Cob,
-  Trout Pool, Museum Caretaker); "placed … during the preparation phase" → `replenishment`
-  (Nest Site). Hosting is eligibility-driven — no hook registration; an auto-only card never
-  makes a frame. Wordings NOT yet ruled onto a rung ("at the END of each preparation phase",
-  "BEFORE the start of each round"): ask (§0).
+- **The preparation ladder** (ruling 54, 2026-07-14 as revised —
+  CARD_ENGINE_IMPLEMENTATION.md §5d): every prep window id is an event string, in firing
+  order `before_round` → (the reveal) → `reveal` → (collection) → `round_space_collection`
+  → `start_of_round` → `replenishment` (post-refill) → `before_work` → `start_of_work`.
+  Classify by the printed wording: "BEFORE the start of each round" → `before_round`
+  (pre-reveal, pre-collection — Small Animal Breeder, Civic Facade; `round_number` is still
+  the just-completed round there); "at the start of each round" → `start_of_round`;
+  "at the end of each preparation phase" / "before each work phase" → `before_work`
+  (Pavior); "at the start of each work phase" → `start_of_work` (Freemason, Cob, Trout
+  Pool, Museum Caretaker); "placed … during the preparation phase" → `replenishment`
+  (Nest Site). Hosting is eligibility-driven — no hook registration; an auto-only card
+  never makes a frame.
 - **The round-end ladder** (§5c) and **harvest ladder** (§5b) likewise use their window ids
   as event strings (`returning_home`, `end_of_round`, `start_of_harvest`, …).
 - (`end_of_turn` was removed with Firewood Collector — see §2 and §9; the old

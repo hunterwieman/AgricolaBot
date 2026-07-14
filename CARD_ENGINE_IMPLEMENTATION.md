@@ -125,11 +125,13 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
-- **The preparation ladder landed (2026-07-14; ruling 54)** — the third timing ladder
-  (§5d is the machinery reference): the mis-timed single `start_of_round` event became six
-  distinct instants; `PendingPreparation` + ownership hosting deleted (eligibility-driven
-  windows); `register_auto(order=)`; the collection-before-reveal reorder re-ported to C++
-  the same day (all gates green). The **Points Provider batch** rode it in (rulings 54–59):
+- **The preparation ladder landed (2026-07-14; ruling 54, order revised same day)** — the
+  third timing ladder (§5d is the machinery reference): the mis-timed single
+  `start_of_round` event became seven distinct instants (`before_round` through
+  `start_of_work`); `PendingPreparation` + ownership hosting deleted (eligibility-driven
+  windows); `register_auto(order=)`; the revised order (reveal before collection) keeps the
+  Family game byte-identical, so the C++ twin is untouched (all gates green). The
+  **Points Provider batch** rode it in (rulings 54–59):
   Curator (+ the `helpers.accumulation_spaces` category accessor), Clutterer (+ the
   `played_card_id` stamp on the play hosts), Sugar Baker, Prodigy, Museum Caretaker
   (+ auto ordering), Blighter (+ the occupation-play-blocker chokepoint gate).
@@ -343,9 +345,10 @@ own event family: every simple harvest-window id is a literal event string (`sta
 `after_feeding`, `end_of_harvest`, …), plus the during-window `field_phase` and the
 feeding-income `feeding` — §5b. (The old `harvest_field` event is deleted.) The round-end
 ladder (§5c) and the **preparation ladder (§5d — ruling 54, 2026-07-14)** add theirs: every
-prep window id is a literal event string — `round_space_collection`, `reveal`,
+prep window id is a literal event string — `before_round`, `round_space_collection`, `reveal`,
 `start_of_round`, `replenishment`, `before_work`, `start_of_work` (the last carrying
-Freemason / Cob / Trout Pool / Museum Caretaker; `replenishment` carrying Nest Site).
+Freemason / Cob / Trout Pool / Museum Caretaker; `before_round` carrying Small Animal Breeder /
+Civic Facade; `before_work` carrying Pavior; `replenishment` carrying Nest Site).
 
 ### The three firing kinds
 
@@ -1613,21 +1616,23 @@ ladders, sharing their window primitives. It lives in **`agricola/cards/preparat
 walk is **`engine._advance_preparation`**, driven from `_advance_until_decision`'s PREPARATION
 case.
 
-**The ten steps** (`preparation.PREP_STEPS` — six window ids that double as trigger/auto event
-strings, plus four mechanical sentinels):
+**The eleven steps** (`preparation.PREP_STEPS` — seven window ids that double as trigger/auto
+event strings, plus four mechanical sentinels; order revised by the user the same day — the
+reveal PRECEDES collection, and `before_round` was added at the top):
 
 | # | step | what it is |
 |---|---|---|
-| 0 | `__collect__` | the new round begins: newborns become adults, the used-sets clear, round-space goods (`future_resources`) + scheduled animals (`future_rewards`, via the accommodation barrier) are collected |
-| 1 | `round_space_collection` | window — reserved (collection-reactive wordings; no live card) |
-| 2 | `__reveal__` | the nature step: pushes `PendingReveal` if the round card is face-down (the walk pauses; `prep_cursor` deliberately NOT set — see below) |
-| 3 | `__round_setup__` | `round_number += 1` — post-reveal, preserving the public-state discriminator |
-| 4 | `reveal` | window — reserved (Heart of Stone, Task Artisan, Tree Inspector when built) |
-| 5 | `start_of_round` | window — Childless, Scullery, Plow Driver, Scholar, Groom, Recluse, Mineral Feeder, Civic Facade, Small Animal Breeder, Small-scale Farmer, Interim Storage, Pavior + the schedule-driven grants (Handplow, Chain Float, Grassland Harrow, Plowman, Small Greenhouse, Stable Planner, Tree Farm Joiner) |
-| 6 | `__replenish__` | the accumulation-space refill (RULES.md Preparation) |
-| 7 | `replenishment` | window — the refill-reaction seam: Nest Site (Shoreforester when built) |
-| 8 | `before_work` | window — reserved (Handcart, Nightworker when built) |
-| 9 | `start_of_work` | window — Freemason, Cob, Trout Pool, Museum Caretaker (Roman Pot when built) |
+| 0 | `before_round` | window — "BEFORE the start of each round": Small Animal Breeder, Civic Facade. Pre-reveal, pre-collection (`round_number` still names the just-completed round — the round being entered is `round_number + 1` here) |
+| 1 | `__reveal__` | the nature step: pushes `PendingReveal` if the round card is face-down (the walk pauses; `prep_cursor` deliberately NOT set — see below) |
+| 2 | `__round_setup__` | `round_number += 1` — post-reveal, preserving the public-state discriminator |
+| 3 | `reveal` | window — reserved (Heart of Stone, Task Artisan, Tree Inspector when built) |
+| 4 | `__collect__` | newborns become adults, the used-sets clear, round-space goods (`future_resources`) + scheduled animals (`future_rewards`, via the accommodation barrier) are collected — post-reveal per the revised ruling (the card is turned up before the goods on its space are taken) |
+| 5 | `round_space_collection` | window — reserved (collection-reactive wordings; no live card) |
+| 6 | `start_of_round` | window — Childless, Scullery, Plow Driver, Scholar, Groom, Recluse, Mineral Feeder, Small-scale Farmer, Interim Storage + the schedule-driven grants (Handplow, Chain Float, Grassland Harrow, Plowman, Small Greenhouse, Stable Planner, Tree Farm Joiner) |
+| 7 | `__replenish__` | the accumulation-space refill (RULES.md Preparation) |
+| 8 | `replenishment` | window — the refill-reaction seam: Nest Site (Shoreforester when built) |
+| 9 | `before_work` | window — "at the end of each preparation phase" / "before each work phase": Pavior (Handcart, Nightworker when built) |
+| 10 | `start_of_work` | window — Freemason, Cob, Trout Pool, Museum Caretaker (Roman Pot when built) |
 
 The walk completes by flipping `phase` to WORK with the starting player active. Windows resolve
 window-major via the same `_process_simple_window` as §5b/§5c (autos SP-first, then one
@@ -1641,16 +1646,17 @@ grant (Handplow) hosts exactly on its due rounds because its own eligibility rea
 canonical default-skipped, no C++ field) carries the resume index across a card window's pause —
 but deliberately NOT across the reveal: the post-reveal resume is derived from public state
 (revealed-count == `round_number + 1` exactly in the post-reveal segment), which is what keeps
-the field off every Family state. Consequence, documented not hidden: at steps 0–2
-`round_number` still names the just-completed round (the round being entered is
-`round_number + 1` there); from `__round_setup__` on it names the new round.
+the field off every Family state. Consequence, documented not hidden: at the `before_round`
+window and the reveal itself `round_number` still names the just-completed round (the round
+being entered is `round_number + 1` there); from `__round_setup__` on it names the new round,
+collection included.
 
-**The Family-observable change + the C++ re-port.** The ruling's ordering itself moved
-round-space collection (the Well) and the newborn clear BEFORE the reveal pause, so the reveal
-decision state shows them settled — a Family-visible reordering, re-ported to the C++ twin
-(`enter_new_round` in `cpp/src/engine.cpp`, 2026-07-14; all differential gates green).
-`_complete_preparation` survives as the legacy test/compat shape (runs the whole ladder with the
-reveal step assumed done).
+**No Family-observable change, no C++ change.** With the revised order (reveal first, then
+collection) the mechanical sentinels run in exactly the pre-ladder sequence, so every Family
+state is byte-identical to the pre-ladder engine and the C++ twin is untouched. (An earlier
+same-day draft collected before the reveal and re-ported that to C++; the user's revision
+reverted both — the twin is back on its original code.) `_complete_preparation` survives as the
+legacy test/compat shape (runs the whole ladder with the reveal step assumed done).
 
 **Auto ordering within a window.** `register_auto(..., order=N)` (stable-sorted per event,
 default 0) is the explicit mechanism for an auto that must read the combined result of its

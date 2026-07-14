@@ -1261,19 +1261,22 @@ def _advance_preparation(state: GameState, *, assume_revealed: bool = False,
     harvest. The cursor is deliberately NOT set across the reveal pause: the
     resume is derivable from public state, which keeps `prep_cursor`
     Family-constant None (no C++ field — a Family walk pauses only at the
-    reveal). At the pre-reveal steps (`__collect__`, `round_space_collection`,
-    the reveal itself) `round_number` still names the just-completed round —
-    the round being entered is `round_number + 1` there — and names the new
-    round from `__round_setup__` onward.
+    reveal). At the pre-reveal steps (the `before_round` window and the
+    reveal itself) `round_number` still names the just-completed round — the
+    round being entered is `round_number + 1` there (Small Animal Breeder's
+    "the current round number" reads it so) — and names the new round from
+    `__round_setup__` onward, collection included (the revised ruling:
+    reveal first, then collection).
 
     `assume_revealed` / `force_start` serve the `_complete_preparation`
     legacy-compat shape only (tests drive the round boundary by that name on
     fixtures whose stage card was never physically revealed).
 
     Family fast path: no registrations → every window is two empty dict
-    lookups; the mechanical sentinels apply exactly the pre-ladder effects,
-    reordered per the ruling (collection and the newborn clear now precede
-    the reveal — the 2026-07-14 C++ re-port mirrors this).
+    lookups; the mechanical sentinels apply exactly the pre-ladder effects in
+    exactly the pre-ladder order (reveal → increment/collect/refill), so
+    every Family state is byte-identical to the pre-ladder engine and the
+    C++ twin is unchanged.
     """
     cur = state.prep_cursor
     if cur is not None:
@@ -1318,9 +1321,10 @@ def _advance_preparation(state: GameState, *, assume_revealed: bool = False,
 
 
 def _enter_new_round(state: GameState) -> GameState:
-    """The `__collect__` sentinel — the new round begins (ruling 54's first
-    instant, BEFORE the reveal). `round_number` still names the just-completed
-    round, so the round being entered is slot `round_number` (0-based).
+    """The `__collect__` sentinel (ruling 54 as revised: POST-reveal, after
+    `__round_setup__` — the card is turned up before the goods on its space
+    are taken). `round_number` already names the round being entered, so its
+    0-based slot is `round_number - 1`.
 
     - Last round's newborns become plain adults (`newborns=0` — they survived
       through the harvest for the 1-food feeding discount; nothing reads the
@@ -1333,7 +1337,7 @@ def _enter_new_round(state: GameState) -> GameState:
       barrier (`_collect_future_rewards`); scheduled EFFECT grants stay in
       the slot for the `start_of_round` window's triggers (Handplow).
     """
-    slot = state.round_number     # 0-based slot of the round being entered
+    slot = state.round_number - 1  # 0-based slot of the round being entered
     new_players = tuple(
         fast_replace(
             p,

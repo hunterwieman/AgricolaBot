@@ -1,23 +1,27 @@
-"""The preparation-phase timing ladder — user ruling 54, 2026-07-14.
+"""The preparation-phase timing ladder — user ruling 54, 2026-07-14 (order
+revised same day: the reveal PRECEDES round-space collection, and a
+``before_round`` rung was added at the very top).
 
 Printed card text names several distinct instants between a round's beginning
-and its first worker placement: "at the start of these rounds, you get …"
-(the ~68 round-space schedule cards — Pond Hut, Sack Cart, Wall Builder),
-"each time [a card] is revealed" (Heart of Stone, Task Artisan, Tree
-Inspector), "at the start of each round" (Childless, Scullery, Plow Driver,
+and its first worker placement: "BEFORE the start of each round" (Small
+Animal Breeder, Civic Facade), "each time [a card] is revealed" (Heart of
+Stone, Task Artisan, Tree Inspector), "at the start of these rounds, you
+get …" (the ~68 round-space schedule cards — Pond Hut, Sack Cart, Wall
+Builder), "at the start of each round" (Childless, Scullery, Plow Driver,
 Scholar, …), "… placed on [a space] … in the preparation phase" (Nest Site,
-Shoreforester), "before each work phase" (Handcart, Nightworker), and "at
-the start of each work phase" (Freemason, Cob, Trout Pool, Roman Pot,
-Museum Caretaker). The pre-ladder engine collapsed the last four phrasings
-onto one mis-timed event (a "start_of_round" fired at the END of
-preparation, after the phase had already flipped to WORK) — wrong on both
-counts, since the start of the round IS the start of the preparation phase
-(RULES.md's phase order).
+Shoreforester), "at the end of each preparation phase" / "before each work
+phase" (Pavior; Handcart, Nightworker), and "at the start of each work
+phase" (Freemason, Cob, Trout Pool, Roman Pot, Museum Caretaker). The
+pre-ladder engine collapsed all of these onto one mis-timed event (a
+"start_of_round" fired at the END of preparation, after the phase had
+already flipped to WORK) — wrong on both counts, since the start of the
+round IS the start of the preparation phase (RULES.md's phase order).
 
-The user's ruling (2026-07-14) fixes the order:
+The user's ruling (2026-07-14, as revised) fixes the order:
 
-    round-space goods collected → round card revealed → start of round
-    → replenishment → before the work phase → start of the work phase
+    before the round → round card revealed → round-space goods collected
+    → start of round → replenishment → before the work phase
+    → start of the work phase
 
 each an explicitly DISTINCT instant. This module is the data side: the
 ordered step table the engine's ``_advance_preparation`` walks between the
@@ -27,23 +31,25 @@ like the harvest and round-end ladders' windows — resolved window-major
 (both players per window, starting player first; no banding). The
 ``__dunder__`` entries are mechanical sentinels, never events:
 
-- ``__collect__`` — the new round begins: last round's newborns become
-  plain adults (the field clears), the per-round/per-turn used-sets clear,
-  and the goods/animals promised on this round's round space are collected
-  (``future_resources`` + the ``future_rewards`` animals; over-capacity
-  animal grants reconcile through the standard accommodation barrier).
 - ``__reveal__`` — the nature step: push ``PendingReveal`` if this round's
   stage card is still face-down (the walk pauses; the environment answers
   with ``RevealCard``). The step re-checks, so a resume — or a legacy
   fixture whose card is already up — passes straight through.
-- ``__round_setup__`` — ``round_number`` increments here, AFTER the reveal,
-  preserving the public-state discriminator (revealed-count == round_number
-  at every WORK state; count == round_number + 1 exactly in the post-reveal
-  segment). Consequence, documented rather than hidden: at the
-  ``round_space_collection`` window and the reveal, ``round_number`` still
+- ``__round_setup__`` — ``round_number`` increments here, immediately AFTER
+  the reveal, preserving the public-state discriminator (revealed-count ==
+  round_number at every WORK state; count == round_number + 1 exactly in
+  the post-reveal segment). Consequence, documented rather than hidden: at
+  the ``before_round`` window and the reveal itself, ``round_number`` still
   names the JUST-COMPLETED round — the round being entered is
-  ``round_number + 1`` there, and ``round_number`` itself from
-  ``reveal`` onward.
+  ``round_number + 1`` there (Small Animal Breeder's "the current round
+  number" reads it so), and ``round_number`` itself from the ``reveal``
+  window onward.
+- ``__collect__`` — last round's newborns become plain adults (the field
+  clears), the per-round/per-turn used-sets clear, and the goods/animals
+  promised on this round's round space are collected (``future_resources``
+  + the ``future_rewards`` animals; over-capacity animal grants reconcile
+  through the standard accommodation barrier). Post-reveal per the revised
+  ruling — the card is turned up before the goods on its space are taken.
 - ``__replenish__`` — the accumulation spaces refill (the mechanical
   Preparation step of RULES.md).
 
@@ -60,28 +66,29 @@ and preparation is not part of any harvest.
 Family fast path: no registrations → each window is two empty dict lookups;
 no frames beyond the (pre-existing) reveal, ``prep_cursor`` stays None on
 every state — it is set only across a card window's pause, never across the
-reveal — and the walk applies exactly the pre-ladder mechanical effects.
-The one Family-OBSERVABLE change from the pre-ladder engine is the ruling's
-reordering itself: round-space goods (the Well) are collected — and
-newborns cleared — BEFORE the reveal pause instead of after it, so the
-reveal decision state shows them settled. The C++ twin mirrors that
-reordering (the 2026-07-14 re-port).
+reveal — and the walk applies exactly the pre-ladder mechanical effects in
+exactly the pre-ladder order (reveal, then increment/collection/refill), so
+every Family state is byte-identical to the pre-ladder engine and the C++
+twin needs no change. (An earlier same-day draft collected before the
+reveal and re-ported that to C++; the user's revision reverted both.)
 """
 from __future__ import annotations
 
 # The walk order. Window ids double as event strings; "__dunder__" entries
 # are the engine's mechanical bookkeeping sentinels (never events).
 PREP_STEPS: tuple[str, ...] = (
-    "__collect__",              # 0 — newborns/used-sets clear + round-space collection
-    "round_space_collection",   # 1 — window (reserved — no live card yet)
-    "__reveal__",               # 2 — the nature reveal (PendingReveal; pauses, no cursor)
-    "__round_setup__",          # 3 — round_number += 1 (post-reveal: the discriminator)
-    "reveal",                   # 4 — window (reserved: Heart of Stone, Task Artisan, …)
-    "start_of_round",           # 5 — window (Childless, Scullery, Plow Driver, Scholar, …)
-    "__replenish__",            # 6 — accumulation spaces refill
-    "replenishment",            # 7 — window (Nest Site)
-    "before_work",              # 8 — window (reserved: Handcart, Nightworker)
-    "start_of_work",            # 9 — window (Freemason, Cob, Trout Pool, Museum Caretaker)
+    "before_round",             # 0 — window: "before the start of each round"
+    #                                 (Small Animal Breeder, Civic Facade)
+    "__reveal__",               # 1 — the nature reveal (PendingReveal; pauses, no cursor)
+    "__round_setup__",          # 2 — round_number += 1 (post-reveal: the discriminator)
+    "reveal",                   # 3 — window (reserved: Heart of Stone, Task Artisan, …)
+    "__collect__",              # 4 — newborns/used-sets clear + round-space collection
+    "round_space_collection",   # 5 — window (reserved — no live card yet)
+    "start_of_round",           # 6 — window (Childless, Scullery, Plow Driver, Scholar, …)
+    "__replenish__",            # 7 — accumulation spaces refill
+    "replenishment",            # 8 — window (Nest Site)
+    "before_work",              # 9 — window (Pavior; Handcart, Nightworker when built)
+    "start_of_work",            # 10 — window (Freemason, Cob, Trout Pool, Museum Caretaker)
 )
 
 PREP_INDEX: dict[str, int] = {w: i for i, w in enumerate(PREP_STEPS)}

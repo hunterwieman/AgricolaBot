@@ -72,12 +72,15 @@ def test_registered_as_occupation():
     assert s2.players[0].resources == before
 
 
-def test_registered_on_start_of_round_window():
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
+def test_registered_on_before_work_window():
+    # "At the end of each preparation phase" -> the before_work window (user
+    # ruling 2026-07-14): post-replenishment, the prep phase's last instant.
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_work", ())}
     assert CARD_ID in auto_ids
+    assert CARD_ID not in {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     # Choice-free auto (no mandatory FireTrigger): it is in AUTO_EFFECTS, not TRIGGERS.
     from agricola.cards.triggers import TRIGGERS
-    trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
+    trigger_ids = {e.card_id for e in TRIGGERS.get("before_work", ())}
     assert CARD_ID not in trigger_ids
 
 

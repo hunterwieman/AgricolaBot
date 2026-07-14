@@ -4,19 +4,23 @@ Card text: "Before the start of each round, if you have food equal to or higher
 than the current round number (e.g., 8+ food in round 8), you get 1 food."
 Printed VPs: none. No cost / prerequisite / passing.
 
-Category 7 (start-of-round phase hook). The clause is a MANDATORY, choice-free
-income gated on a food threshold → an automatic effect (`register_auto` on the
-`start_of_round` event), fired mechanically by the preparation walk for the owner. The
-condition is re-checked each round, so the income switches on/off as the player's
-food rises and falls relative to the advancing round number.
+"BEFORE the start of each round" → the preparation ladder's `before_round`
+window (user ruling 2026-07-14): the ladder's FIRST rung, before the reveal,
+before round-space collection, before `start_of_round`. A MANDATORY, choice-free
+income gated on a food threshold → an automatic effect (`register_auto`), fired
+mechanically by the walk for the owner. The condition is re-checked each round,
+so the income switches on/off as the player's food rises and falls relative to
+the advancing round number.
 
-Round-number semantics (verified in engine.py `_complete_preparation`): the
-start-of-round autos fire AFTER `round_number` is incremented to the round being
-entered AND after that round's `future_resources` are distributed (step 2). So at
-firing time `state.round_number` IS "the current round number" the card refers to,
-and the player's food total is the post-distribution total — exactly the food the
-player has at the start of the round. The comparison is therefore `food >=
-state.round_number` directly (no offset). See CARD_IMPLEMENTATION_PLAN.md Category 7.
+Round-number semantics: the `before_round` window fires BEFORE `__round_setup__`
+increments, so `state.round_number` still names the JUST-COMPLETED round — "the
+current round number" the card refers to (the round being entered, the printed
+"8+ food in round 8") is `state.round_number + 1`. And because the window
+precedes `__collect__`, the food total is the PRE-collection total: goods
+promised on this round's round space (the Well, schedule cards) have NOT yet
+landed — exactly what "before the start of the round" means, and the observable
+reason this rung exists as its own instant.
+See CARD_IMPLEMENTATION_PLAN.md Category 7.
 """
 from __future__ import annotations
 
@@ -35,7 +39,8 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 
 def _eligible(state: GameState, idx: int) -> bool:
-    return state.players[idx].resources.food >= state.round_number
+    # Pre-increment window: the round being entered is round_number + 1.
+    return state.players[idx].resources.food >= state.round_number + 1
 
 
 def _apply(state: GameState, idx: int) -> GameState:
@@ -47,4 +52,6 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, _on_play)
-register_auto("start_of_round", CARD_ID, _eligible, _apply)
+# "Before the start of each round" — the before_round window (user ruling
+# 2026-07-14), the ladder's first rung, distinct from start_of_round.
+register_auto("before_round", CARD_ID, _eligible, _apply)

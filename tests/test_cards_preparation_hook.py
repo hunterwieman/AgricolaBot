@@ -317,13 +317,13 @@ def test_single_option_card_choice_is_singleton():
 # The reveal pause — no cursor, goods collected BEFORE the reveal
 # ---------------------------------------------------------------------------
 
-def test_reveal_pause_no_cursor_and_precollected_goods():
+def test_reveal_pause_no_cursor_and_postcollected_goods():
     """Drive a real Family game to the round-1 → round-2 boundary. The reveal
     pause: PendingReveal up, phase PREPARATION, prep_cursor None (the resume is
-    derived from public state, never stored across the reveal) — and, ruling
-    53's one Family-observable reordering, the round-space goods were collected
-    at __collect__ BEFORE the reveal, with round_number still naming the
-    just-completed round (steps 0-2 semantics)."""
+    derived from public state, never stored across the reveal) — and, per
+    ruling 54 as revised (reveal FIRST), the round-space goods are NOT yet
+    collected at the reveal (they land at the post-reveal __collect__), with
+    round_number still naming the just-completed round."""
     rng = np.random.default_rng(3)
     s, env = setup_env(3)
     # Promise 1 veg on the round-2 slot (index 1), Well-style. Veg is
@@ -344,11 +344,12 @@ def test_reveal_pause_no_cursor_and_precollected_goods():
     assert s.phase is Phase.PREPARATION
     assert s.prep_cursor is None
     assert s.round_number == 1                       # pre-__round_setup__
-    assert s.players[0].resources.veg == 1           # collected pre-reveal
+    assert s.players[0].resources.veg == 0           # NOT yet collected (post-reveal)
     # Resuming through the reveal completes the Family ladder: WORK, round 2,
-    # no frame, cursor still None.
+    # the veg collected at __collect__, no frame, cursor still None.
     s = step(s, env.resolve(s))
     assert s.phase is Phase.WORK and s.round_number == 2
+    assert s.players[0].resources.veg == 1           # collected post-reveal
     assert s.pending_stack == ()
     assert s.prep_cursor is None
 

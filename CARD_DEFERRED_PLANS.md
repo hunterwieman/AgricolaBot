@@ -629,32 +629,45 @@ machinery (e.g. Old Miser's per-person feeding discount, Game Provider's immedia
 field-crop discard, Champion Breeder's newborns-placed count), even though they aren't dealt
 at 2 players.
 
-54. **The preparation ladder** (ruled 2026-07-14). The start of the round IS the
-   start of the preparation phase (the pre-ladder engine's single
-   `start_of_round` event — fired at the END of preparation, after the WORK
-   flip, conflating "start of each round" with "start of each work phase" —
-   was wrong on both counts). The ruled order, each an explicitly DISTINCT
-   instant: **round-space goods collected → round card revealed →
-   start_of_round → replenishment → before the work phase → start of the work
-   phase.** Built as the third timing ladder (`agricola/cards/preparation.py`,
-   `engine._advance_preparation` — CARD_ENGINE_IMPLEMENTATION.md §5d);
-   re-tagged by printed text: Freemason / Cob / Trout Pool → `start_of_work`,
-   Nest Site → `replenishment`. The collection-before-reveal reordering is
-   Family-visible (the Well) and was re-ported to C++ the same day. NOTE for
-   future wording questions (not yet ruled): Pavior's "at the END of each
-   preparation phase", Small Animal Breeder / Civic Facade's "BEFORE the start
-   of each round", and whether the round-space schedule grants ("at the start
-   of these rounds, you can plow the field [on the round space]") belong at
-   the collection rung rather than `start_of_round` — all three groups
-   currently sit at `start_of_round`, preserving their pre-ladder observable
-   behavior, and each needs its own ruling before being moved.
+54. **The preparation ladder** (ruled 2026-07-14; order REVISED by the user the
+   same day). The start of the round IS the start of the preparation phase
+   (the pre-ladder engine's single `start_of_round` event — fired at the END
+   of preparation, after the WORK flip, conflating "start of each round" with
+   "start of each work phase" — was wrong on both counts). The ruled order,
+   each an explicitly DISTINCT instant: **before the round → round card
+   revealed → round-space goods collected → start_of_round → replenishment →
+   before the work phase → start of the work phase.** (The first draft
+   collected before the reveal; the user corrected it — reveal first — which
+   also restored the pre-ladder Family order, so the C++ twin needed no
+   change in the end.) Built as the third timing ladder
+   (`agricola/cards/preparation.py`, `engine._advance_preparation` —
+   CARD_ENGINE_IMPLEMENTATION.md §5d); re-tagged by printed text:
+   Freemason / Cob / Trout Pool → `start_of_work`, Nest Site →
+   `replenishment`, Pavior ("at the END of each preparation phase") →
+   `before_work`, Small Animal Breeder / Civic Facade ("BEFORE the start of
+   each round") → the new `before_round` rung — the ladder's first instant,
+   pre-reveal and pre-collection, so Small Animal Breeder's food threshold
+   deliberately does NOT count this round's round-space income, and "the
+   current round number" there is `round_number + 1` (pre-increment). STILL
+   OPEN (needs its own ruling before being moved): whether the round-space
+   schedule grants ("at the start of these rounds, you can plow the field
+   [on the round space]" — Handplow, Plowman, Chain Float, Grassland Harrow,
+   Small Greenhouse, Stable Planner, Tree Farm Joiner) belong at the
+   collection rung (post-reveal but pre-`start_of_round`) rather than
+   `start_of_round`, where they currently sit preserving pre-ladder
+   observable behavior.
 
 55. **Museum Caretaker fires as auto AND trigger at `start_of_work`** (ruled
    2026-07-14): the mandatory "you get" is an automatic effect ordered AFTER
    the window's other autos (the `register_auto(order=)` mechanism — Freemason
-   first), PLUS a trigger so same-window TRIGGER grants (Cob's exchange) that
-   newly complete the six-goods criterion still yield the point; hard cap 1
-   point per round (`used_this_round` latch shared by both paths).
+   first), PLUS a trigger so same-window TRIGGER grants that newly complete
+   the six-goods criterion still yield the point; hard cap 1 point per round
+   (`used_this_round` latch shared by both paths). Implementation note (not
+   part of the ruling): with today's catalog the trigger half has no live
+   firing partner — Cob, the only implemented `start_of_work` trigger,
+   requires ≥1 clay itself and cannot flip the criterion — the user confirmed
+   2026-07-14 that this is fine; the machinery awaits a criterion-good-
+   granting `start_of_work` trigger card.
 
 56. **Sugar Baker's deposited food is a CardStore debt, not board state**
    (ruled 2026-07-14, option (b) of the two representations offered): the food

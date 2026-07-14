@@ -3,15 +3,15 @@
 Card text: "At the end of each preparation phase, if you have at least 1 stone in
 your supply, you get 1 food. In round 14, you get 1 vegetable instead."
 
-Category 7 (start-of-round phase hook). The clause is a MANDATORY, choice-free
-income gated on holding at least 1 stone → an automatic effect (`register_auto`
-on the `start_of_round` event), fired mechanically by the preparation walk for the
-owner. "At the end of each preparation phase" is exactly the start-of-round hook:
-by the time these autos fire, `_complete_preparation` has already incremented
-`round_number` to the round being entered, so `state.round_number` is the current
-round. The stone-supply condition (>= 1 stone) is re-checked each round in the
-eligibility, so the income stops in any round the player holds no stone. In the
-final round (round 14, NUM_ROUNDS) the grant is 1 vegetable instead of 1 food.
+"At the end of each preparation phase" → the preparation ladder's `before_work`
+window (user ruling 2026-07-14): post-replenishment, immediately before the work
+phase — the preparation phase's last instant. A MANDATORY, choice-free income
+gated on holding at least 1 stone → an automatic effect (`register_auto`), fired
+mechanically by the walk for the owner. By this window `round_number` already
+names the round being entered, so `state.round_number` is the current round. The
+stone-supply condition (>= 1 stone) is re-checked each round in the eligibility,
+so the income stops in any round the player holds no stone. In the final round
+(round 14, NUM_ROUNDS) the grant is 1 vegetable instead of 1 food.
 See CARD_IMPLEMENTATION_PLAN.md Category 7.
 """
 from __future__ import annotations
@@ -41,4 +41,6 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register_auto("start_of_round", CARD_ID, _eligible, _apply)
+# "at the end of each preparation phase" — the before_work window (user ruling
+# 2026-07-14), the prep phase's last instant, distinct from start_of_round.
+register_auto("before_work", CARD_ID, _eligible, _apply)

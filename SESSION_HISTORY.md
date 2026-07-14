@@ -3325,3 +3325,22 @@ collection rung — pre-reveal — rather than start_of_round).
 Catalog: **243 minors + 111 occupations (354, per the live registries)**. Full suite green (4,6xx incl. the C++
 gates); the six cards' tests were written adversarially against the printed text by
 independent agents (no implementation bugs surfaced).
+
+### Same-day revision (user corrections)
+
+Three corrections after review: (1) **the reveal precedes round-space collection**
+(the first draft had it backwards — the user's own initial ruling, which they then
+corrected). Reordering the sentinels restored the pre-ladder Family sequence, so
+the C++ `enter_new_round` re-port was REVERTED — the twin is back on its original
+code and the Family game is byte-identical to the pre-ladder engine. (2) A new
+**`before_round`** rung at the very top of the ladder — pre-reveal, pre-collection
+— for the printed "BEFORE the start of each round": Small Animal Breeder and Civic
+Facade re-tagged onto it. SAB's threshold now correctly reads the PRE-collection
+food total (this round's Well/schedule income doesn't count) against
+`round_number + 1` (the window is pre-increment) — the observable difference that
+motivated the rung. (3) **Pavior → `before_work`** ("at the end of each
+preparation phase" = the prep phase's last instant, post-replenishment). The
+schedule-grant wording group remains the only open rung question (ruling 54's
+ledger entry). Ruling 55's note also corrected: the Cob pairing was the session's
+illustrative example, not the user's motivation — the trigger half has no live
+firing partner today, confirmed fine.

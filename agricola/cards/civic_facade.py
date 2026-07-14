@@ -5,13 +5,17 @@ improvements in your hand, you get 1 food."
 
 Cost 1 clay; prerequisite 3 rooms (a HAVE-check at play time).
 
-Category 7 (start-of-round phase hook). "Before the start of each round" is exactly
-the `start_of_round` hook: by the time these autos fire, `_complete_preparation` has
-already incremented `round_number` to the round being entered. The food grant is
-round-independent, so firing after the increment is fine.
+"BEFORE the start of each round" → the preparation ladder's `before_round`
+window (user ruling 2026-07-14): the ladder's FIRST rung, before the reveal,
+before round-space collection, before `start_of_round`. The eligibility reads
+only the player's hand counts, which nothing earlier in the round boundary
+touches, so the rung placement is about fidelity, not observability (contrast
+Small Animal Breeder, whose food read makes the pre-collection instant
+observable). `round_number` still names the just-completed round at this window;
+the food grant is round-independent, so no offset is needed.
 
-The income is MANDATORY and choice-free → an automatic effect (`register_auto` on the
-`start_of_round` event), fired at the preparation push for the owner.
+The income is MANDATORY and choice-free → an automatic effect (`register_auto`),
+fired mechanically by the walk for the owner.
 
 The eligibility condition is unusual: it compares the player's UNPLAYED HAND — strictly
 "more occupations than improvements IN YOUR HAND" — i.e. `len(hand_occupations) >
@@ -64,4 +68,6 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(clay=1)), prereq=_prereq)
-register_auto("start_of_round", CARD_ID, _eligible, _apply)
+# "Before the start of each round" — the before_round window (user ruling
+# 2026-07-14), the ladder's first rung, distinct from start_of_round.
+register_auto("before_round", CARD_ID, _eligible, _apply)

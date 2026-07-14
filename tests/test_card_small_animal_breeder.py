@@ -64,14 +64,17 @@ def test_registered_as_occupation_with_no_cost_or_vps():
     assert getattr(spec, "vps", 0) == 0
 
 
-def test_registered_as_start_of_round_auto():
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
+def test_registered_as_before_round_auto():
+    # "BEFORE the start of each round" -> the before_round window (user ruling
+    # 2026-07-14): the ladder's FIRST rung, before the reveal and collection.
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_round", ())}
     assert CARD_ID in auto_ids
+    assert CARD_ID not in {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     # Auto effect is choice-free (not surfaced as a FireTrigger / mandatory tag);
     # it fires mechanically at the window with no frame, so there is no separate
     # hosting registration to assert.
     from agricola.cards.triggers import TRIGGERS
-    trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
+    trigger_ids = {e.card_id for e in TRIGGERS.get("before_round", ())}
     assert CARD_ID not in trigger_ids
 
 
@@ -147,18 +150,28 @@ def test_condition_rechecked_each_round_off_then_on():
     assert _complete_preparation(s_hi).players[0].resources.food == f_hi + 1
 
 
-def test_uses_post_distribution_food_total():
-    # The auto fires AFTER the round's future_resources are added, so a player who
-    # is below threshold pre-distribution but reaches it via the round's grant gets
-    # the income. Schedule +2 food into the round-4 slot (index 3) and start at 2.
+def test_uses_pre_collection_food_total():
+    # "BEFORE the start of each round": the before_round window fires BEFORE the
+    # round-space collection, so goods promised on this round's space (the Well,
+    # schedule cards) do NOT count toward the threshold — the observable reason
+    # this rung exists (user ruling 2026-07-14). Schedule +2 food into the
+    # round-4 slot (index 3) and start at 2: pre-collection 2 < 4 → NO income;
+    # the scheduled food still lands afterwards.
     s = _own_occ(setup(0), 0, CARD_ID)
     s = _prep(s, 4)            # entering round 4 → threshold 4
-    s = _set_food(s, 0, 2)     # only 2 food pre-distribution (below 4)
+    s = _set_food(s, 0, 2)     # only 2 food pre-collection (below 4)
     p = s.players[0]
     fr = list(p.future_resources)
     fr[3] = fr[3] + Resources(food=2)   # round-4 slot grants +2 food
     p = fast_replace(p, future_resources=tuple(fr))
     s = fast_replace(s, players=(p, s.players[1]))
     after = _complete_preparation(s)
-    # 2 + 2 (distribution) = 4 == threshold → eligible → +1.
-    assert after.players[0].resources.food == 5
+    # No income (2 < 4 at the window); collection then adds the 2.
+    assert after.players[0].resources.food == 4
+
+    # Control: the same player already AT the threshold pre-collection gets it.
+    s2 = _own_occ(setup(0), 0, CARD_ID)
+    s2 = _prep(s2, 4)
+    s2 = _set_food(s2, 0, 4)   # 4 >= 4 pre-collection → +1
+    after2 = _complete_preparation(s2)
+    assert after2.players[0].resources.food == 5

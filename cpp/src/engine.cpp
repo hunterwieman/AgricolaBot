@@ -160,29 +160,10 @@ GameState resolve_return_home(const GameState& state) {
   return s;
 }
 
-// The pre-reveal segment of the preparation ladder (ruling 54, 2026-07-14 —
-// the Python `__collect__` sentinel, re-ported): the new round begins BEFORE
-// the reveal pause. Last round's newborns become plain adults, and the goods
-// promised on this round's round space (the Well) are collected — slot is the
-// still-un-incremented round_number (0-based slot of the round being entered).
-// The Python walk's card windows are all no-ops here (Family-only engine).
-GameState enter_new_round(const GameState& state) {
-  GameState s = state;
-  int slot = s.round_number;
-  for (auto& p : s.players) {
-    p.resources = p.resources + p.future_resources[static_cast<size_t>(slot)];
-    p.future_resources[static_cast<size_t>(slot)] = Resources{};
-    p.newborns = 0;
-  }
-  return s;
-}
-
 GameState complete_preparation(const GameState& state) {
   GameState s = state;
   int new_round = s.round_number + 1;
-  // 1. Refill every revealed accumulation space. (future_resources collection
-  //    and the newborn clear moved to enter_new_round — the pre-reveal segment
-  //    of the preparation ladder, ruling 54, 2026-07-14.)
+  // 1. Refill every revealed accumulation space.
   for (int i = 0; i < static_cast<int>(s.board.action_spaces.size()); ++i) {
     ActionSpaceState& sp = s.board.action_spaces[static_cast<size_t>(i)];
     if (!sp.revealed) continue;
@@ -201,7 +182,14 @@ GameState complete_preparation(const GameState& state) {
              id == "cattle_market")
       sp.accumulated_amount += 1;  // animal
   }
-  // 2. Transition to WORK with starting_player active.
+  // 2. Per-player: distribute future_resources[new_round-1], clear newborns.
+  int idx = new_round - 1;
+  for (auto& p : s.players) {
+    p.resources = p.resources + p.future_resources[static_cast<size_t>(idx)];
+    p.future_resources[static_cast<size_t>(idx)] = Resources{};
+    p.newborns = 0;
+  }
+  // 3. Transition to WORK with starting_player active.
   s.round_number = new_round;
   s.phase = Phase::WORK;
   s.current_player = s.starting_player;
@@ -303,15 +291,10 @@ GameState advance_until_decision(GameState s) {
     }
 
     if (s.phase == Phase::PREPARATION) {
-      if (count_revealed_stage_cards(s) == s.round_number) {
-        // Fresh entry — the pre-reveal segment (collection + newborn clear)
-        // runs BEFORE the reveal pause (ruling 54, 2026-07-14), mirroring the
-        // Python ladder's __collect__ sentinel.
-        s = enter_new_round(s);
+      if (count_revealed_stage_cards(s) == s.round_number)
         s = push(s, PendingReveal{});
-      } else {
+      else
         s = complete_preparation(s);
-      }
       continue;
     }
 
