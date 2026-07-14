@@ -16,7 +16,7 @@ OPTIONAL granted sub-action: at each scheduled round start the owner MAY build e
 one free stable, or decline (a stable consumes a farmyard cell that may be wanted
 elsewhere, so it is not always correct). It is therefore modeled exactly like the
 optional start-of-round stable grant Groom uses, but schedule-gated like Handplow:
-an optional `start_of_round` FireTrigger surfaced at that window's choice host, with
+an optional `round_space_collection` FireTrigger surfaced at that window's choice host, with
 the host's Proceed as the decline. Eligibility checks (a) this round's `future_rewards`
 slot carries the grant and (b) a free stable is actually buildable (`_can_build_stable`
 with zero cost), so it never offers a dead-end. Firing consumes ONLY the entered
@@ -33,10 +33,10 @@ OFF-TURN NOTE for future implementers: the clarification says stables built this
 (A043). Neither of those is implemented today, so there is no `after_build_stables`
 automatic effect that this card's PendingBuildStables push could spuriously fire — no
 live impact. When Stable Tree / Farmyard Manure are implemented, they MUST gate on
-on-turn vs off-turn (this push runs under a start_of_round window host at the stack
+on-turn vs off-turn (this push runs under a collection-window host at the stack
 base, i.e. off-turn) and not fire on this card's stable build. (Sibling Groom, B89, named in
 the same clarification, builds stables off-turn via the identical
-start_of_round → PendingBuildStables path.)
+window → PendingBuildStables path.)
 """
 from __future__ import annotations
 
@@ -96,4 +96,8 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, _on_play)
-register("start_of_round", CARD_ID, _eligible, _apply)
+# "At the start of these rounds, you can [take the thing on the round
+# space]" — the round_space_collection window (user ruling 2026-07-14:
+# round-space schedule grants resolve at COLLECTION time, immediately
+# after the mechanical collect, not at the start_of_round rung).
+register("round_space_collection", CARD_ID, _eligible, _apply)

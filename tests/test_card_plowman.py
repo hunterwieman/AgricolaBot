@@ -9,7 +9,7 @@ Plowman fuses Handplow's deferred-plow SCHEDULE (the three due rounds ride on
 Driver's pay-1-food-to-plow body (the 1 food flows through the shared food-payment
 path; eligibility is liquidation-aware). Verified here: registration, the on-play
 schedule (R+4/7/10, with rounds > 14 dropped), the optional FireTrigger at the
-preparation ladder's start_of_round window frame (a PendingHarvestWindow, ruling
+preparation ladder's round_space_collection (collection) window frame (a PendingHarvestWindow, ruling
 53, 2026-07-14) with Proceed as the decline, the 1-food debit + plow, eligibility
 boundaries (unplowable / unaffordable / unscheduled round — an ineligible trigger
 gets NO frame at all), the liquidation path when food is short, and that firing
@@ -95,8 +95,8 @@ def test_plowman_registered():
     assert "plowman" in OCCUPATIONS
     # A bare on-play occupation (occupations carry no printed cost in this engine).
     assert OCCUPATIONS["plowman"].card_id == "plowman"
-    # The deferred plow is an OPTIONAL start_of_round trigger (not a forced auto).
-    assert "plowman" in {e.card_id for e in TRIGGERS.get("start_of_round", [])}
+    # The deferred plow is an OPTIONAL round_space_collection trigger (not a forced auto).
+    assert "plowman" in {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
     # The 1-food price flows through the shared food-payment resume registry.
     assert "plowman" in FOOD_PAYMENT_RESUMES
 
@@ -130,7 +130,7 @@ def test_on_play_drops_rounds_past_14():
 # ---------------------------------------------------------------------------
 
 def test_offers_optional_plow_and_debits_food():
-    # The scheduled round is entered → the start_of_round window pushes a choice
+    # The scheduled round is entered → the round_space_collection (collection) window pushes a choice
     # frame surfacing the plow as an OPTIONAL FireTrigger alongside Proceed (the
     # decline). Firing debits 1 food, pushes the plow, and consumes the slot.
     s, entered = _prep_with_plowman_scheduled(idx=0, prev_round=1)
@@ -139,7 +139,7 @@ def test_offers_optional_plow_and_debits_food():
     assert s.round_number == entered
     top = s.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
-    assert top.window_id == "start_of_round"
+    assert top.window_id == "round_space_collection"
     assert s.phase is Phase.PREPARATION   # the ladder is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id="plowman") in la

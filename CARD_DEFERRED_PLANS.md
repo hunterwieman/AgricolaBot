@@ -648,14 +648,13 @@ at 2 players.
    each round") → the new `before_round` rung — the ladder's first instant,
    pre-reveal and pre-collection, so Small Animal Breeder's food threshold
    deliberately does NOT count this round's round-space income, and "the
-   current round number" there is `round_number + 1` (pre-increment). STILL
-   OPEN (needs its own ruling before being moved): whether the round-space
-   schedule grants ("at the start of these rounds, you can plow the field
-   [on the round space]" — Handplow, Plowman, Chain Float, Grassland Harrow,
-   Small Greenhouse, Stable Planner, Tree Farm Joiner) belong at the
-   collection rung (post-reveal but pre-`start_of_round`) rather than
-   `start_of_round`, where they currently sit preserving pre-ladder
-   observable behavior.
+   current round number" there is `round_number + 1` (pre-increment).
+   RESOLVED same day: the round-space schedule grants ("at the start of
+   these rounds, you can plow the field [on the round space]" — Handplow,
+   Plowman, Chain Float, Grassland Harrow, Small Greenhouse, Stable Planner,
+   Tree Farm Joiner) resolve at COLLECTION time — the
+   `round_space_collection` window, post-reveal but before `start_of_round`
+   — not the `start_of_round` rung. No rung question remains open.
 
 55. **Museum Caretaker fires as auto AND trigger at `start_of_work`** (ruled
    2026-07-14): the mandatory "you get" is an automatic effect ordered AFTER

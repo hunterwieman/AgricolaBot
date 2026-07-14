@@ -562,12 +562,15 @@ A card registers an effect against an **event string**:
   → `start_of_round` → `replenishment` (post-refill) → `before_work` → `start_of_work`.
   Classify by the printed wording: "BEFORE the start of each round" → `before_round`
   (pre-reveal, pre-collection — Small Animal Breeder, Civic Facade; `round_number` is still
-  the just-completed round there); "at the start of each round" → `start_of_round`;
-  "at the end of each preparation phase" / "before each work phase" → `before_work`
-  (Pavior); "at the start of each work phase" → `start_of_work` (Freemason, Cob, Trout
-  Pool, Museum Caretaker); "placed … during the preparation phase" → `replenishment`
-  (Nest Site). Hosting is eligibility-driven — no hook registration; an auto-only card
-  never makes a frame.
+  the just-completed round there); "at the start of these rounds, you can [take the thing
+  on the round space]" → `round_space_collection` (the schedule grants — Handplow, Plowman,
+  Chain Float, Grassland Harrow, Small Greenhouse, Stable Planner, Tree Farm Joiner; user
+  ruling 2026-07-14: a thing on the round space resolves at COLLECTION time); "at the
+  start of each round" → `start_of_round`; "at the end of each preparation phase" /
+  "before each work phase" → `before_work` (Pavior); "at the start of each work phase" →
+  `start_of_work` (Freemason, Cob, Trout Pool, Museum Caretaker); "placed … during the
+  preparation phase" → `replenishment` (Nest Site). Hosting is eligibility-driven — no
+  hook registration; an auto-only card never makes a frame.
 - **The round-end ladder** (§5c) and **harvest ladder** (§5b) likewise use their window ids
   as event strings (`returning_home`, `end_of_round`, `start_of_harvest`, …).
 - (`end_of_turn` was removed with Firewood Collector — see §2 and §9; the old

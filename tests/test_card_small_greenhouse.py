@@ -9,7 +9,7 @@ The paid sibling of Large Greenhouse (A69): the round-start vegetable is BOUGHT 
 food (an OPTIONAL paid grant), so this fuses Chain Float's per-slot effect scheduling
 (offsets R+4 / R+7 on `future_rewards`, per-round slot scoping) with Plow Driver's paid
 optional start-of-round grant + food-payment resume. The buy surfaces as a FireTrigger
-on the preparation ladder's start_of_round window frame (a PendingHarvestWindow,
+on the preparation ladder's round_space_collection (collection) window frame (a PendingHarvestWindow,
 ruling 54, 2026-07-14), pushed exactly when the trigger is eligible; Proceed declines.
 Mirrors `tests/test_card_chain_float.py` (scheduling/scoping) and
 `tests/test_card_rocky_terrain.py` (the food-payment path).
@@ -76,9 +76,9 @@ def test_registered():
     assert spec.prereq is None
     assert spec.vps == 1
     assert spec.passing_left is False
-    # OPTIONAL start_of_round trigger + the food-payment resume continuation.
-    assert CARD_ID in {e.card_id for e in TRIGGERS.get("start_of_round", [])}
-    entry = next(e for e in TRIGGERS["start_of_round"] if e.card_id == CARD_ID)
+    # OPTIONAL round_space_collection trigger + the food-payment resume continuation.
+    assert CARD_ID in {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
+    entry = next(e for e in TRIGGERS["round_space_collection"] if e.card_id == CARD_ID)
     assert entry.mandatory is False
     assert CARD_ID in FOOD_PAYMENT_RESUMES
 
@@ -128,7 +128,7 @@ def test_offers_optional_buy_at_round_start():
     assert s.round_number == entered          # round 4
     top = s.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
-    assert top.window_id == "start_of_round"
+    assert top.window_id == "round_space_collection"
     assert s.phase is Phase.PREPARATION       # the ladder is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la

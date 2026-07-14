@@ -1627,8 +1627,8 @@ reveal PRECEDES collection, and `before_round` was added at the top):
 | 2 | `__round_setup__` | `round_number += 1` — post-reveal, preserving the public-state discriminator |
 | 3 | `reveal` | window — reserved (Heart of Stone, Task Artisan, Tree Inspector when built) |
 | 4 | `__collect__` | newborns become adults, the used-sets clear, round-space goods (`future_resources`) + scheduled animals (`future_rewards`, via the accommodation barrier) are collected — post-reveal per the revised ruling (the card is turned up before the goods on its space are taken) |
-| 5 | `round_space_collection` | window — reserved (collection-reactive wordings; no live card) |
-| 6 | `start_of_round` | window — Childless, Scullery, Plow Driver, Scholar, Groom, Recluse, Mineral Feeder, Small-scale Farmer, Interim Storage + the schedule-driven grants (Handplow, Chain Float, Grassland Harrow, Plowman, Small Greenhouse, Stable Planner, Tree Farm Joiner) |
+| 5 | `round_space_collection` | window — the round-space schedule grants (user ruling 2026-07-14: a thing on the round space resolves at COLLECTION time): Handplow, Chain Float, Grassland Harrow, Plowman, Small Greenhouse, Stable Planner, Tree Farm Joiner |
+| 6 | `start_of_round` | window — Childless, Scullery, Plow Driver, Scholar, Groom, Recluse, Mineral Feeder, Small-scale Farmer, Interim Storage |
 | 7 | `__replenish__` | the accumulation-space refill (RULES.md Preparation) |
 | 8 | `replenishment` | window — the refill-reaction seam: Nest Site (Shoreforester when built) |
 | 9 | `before_work` | window — "at the end of each preparation phase" / "before each work phase": Pavior (Handcart, Nightworker when built) |

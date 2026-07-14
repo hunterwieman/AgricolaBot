@@ -19,8 +19,8 @@ wasted but legal play.
 
 "At the start of these rounds, you **can** plow" is OPTIONAL — a granted sub-action is
 the player's to take or decline (a new field consumes a farmyard cell that may be wanted
-for a pasture/stable). So, exactly like Handplow: an optional `start_of_round` trigger
-surfaced as a FireTrigger at the start_of_round window's choice host, with the host's
+for a pasture/stable). So, exactly like Handplow: an optional `round_space_collection` trigger
+surfaced as a FireTrigger at the collection window's choice host, with the host's
 Proceed as the decline. Eligibility checks the SCHEDULE (the card id sits in the entered round's
 `future_rewards` slot) plus a plowable cell (`_can_plow`, so it never offers a dead-end).
 
@@ -87,4 +87,8 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=3)), on_play=_on_play)
-register("start_of_round", CARD_ID, _eligible, _apply)
+# "At the start of these rounds, you can [take the thing on the round
+# space]" — the round_space_collection window (user ruling 2026-07-14:
+# round-space schedule grants resolve at COLLECTION time, immediately
+# after the mechanical collect, not at the start_of_round rung).
+register("round_space_collection", CARD_ID, _eligible, _apply)

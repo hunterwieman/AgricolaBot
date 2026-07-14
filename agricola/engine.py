@@ -1335,7 +1335,8 @@ def _enter_new_round(state: GameState) -> GameState:
       not be declined, RULES.md) and the consumed slot cleared.
     - Scheduled ANIMALS (`future_rewards`) are granted via the accommodation
       barrier (`_collect_future_rewards`); scheduled EFFECT grants stay in
-      the slot for the `start_of_round` window's triggers (Handplow).
+      the slot for the `round_space_collection` window's triggers (Handplow —
+      the same instant's choice host).
     """
     slot = state.round_number - 1  # 0-based slot of the round being entered
     new_players = tuple(
@@ -1416,11 +1417,13 @@ def _collect_future_rewards(state: GameState, slot: int) -> GameState:
 
     Effect-card round-start grants (`effect_card_ids`, e.g. Handplow's deferred plow)
     are deliberately NOT consumed here. They stay in the slot and are surfaced as
-    OPTIONAL triggers at the ladder's `start_of_round` window (their printed rung),
-    because a granted sub-action is the player's to take or decline — a granted
-    plow can be strategically wrong (a new field consumes a farmyard cell wanted
-    for a pasture). Force-firing them here would remove that choice, so the
-    schedule is left for the window's trigger to consume on FIRE.
+    OPTIONAL triggers at the ladder's `round_space_collection` window — the same
+    instant's choice host (user ruling 2026-07-14: a thing on the round space
+    resolves at collection time) — because a granted sub-action is the player's to
+    take or decline: a granted plow can be strategically wrong (a new field
+    consumes a farmyard cell wanted for a pasture). Force-firing them here would
+    remove that choice, so the schedule is left for the window's trigger to
+    consume on FIRE.
 
     A no-op in the Family game: every slot is the default `FutureReward()` (no animals),
     so the guard skips and `state` is returned object-identical (preparation stays

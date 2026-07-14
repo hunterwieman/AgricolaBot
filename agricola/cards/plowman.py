@@ -18,7 +18,7 @@ A FUSION of two existing patterns:
 
 - **Plow Driver's pay-1-food-to-plow body** (Category 7). "you **can** plow the field
   for 1 food" is an OPTIONAL granted sub-action carrying a 1-food price, surfaced as a
-  FireTrigger at the start_of_round window's choice host with the host's Proceed as the
+  FireTrigger at the collection window's choice host with the host's Proceed as the
   decline.
   The 1 food is paid through the shared food-payment path (FOOD_PAYMENT_DESIGN.md): with
   the food on hand it runs directly; short, it pushes a raise-only PendingFoodPayment
@@ -110,5 +110,9 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, _on_play)
-register("start_of_round", CARD_ID, _eligible, _apply)
+# "At the start of these rounds, you can [take the thing on the round
+# space]" — the round_space_collection window (user ruling 2026-07-14:
+# round-space schedule grants resolve at COLLECTION time, immediately
+# after the mechanical collect, not at the start_of_round rung).
+register("round_space_collection", CARD_ID, _eligible, _apply)
 register_food_payment_resume(CARD_ID, _pay_and_plow)

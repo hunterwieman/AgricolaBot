@@ -13,7 +13,7 @@ On play it unions the card id "handplow" into the round R+5 slot (`schedule_effe
 the player's to take or decline (a new field consumes a farmyard cell that may be
 wanted for a pasture/stable, so plowing is not always correct). So Handplow is
 modeled exactly like the other optional start-of-round plow grant, Plow Driver: an
-optional `start_of_round` trigger surfaced as a FireTrigger at that window's choice
+optional `round_space_collection` trigger surfaced as a FireTrigger at that window's choice
 host, with the host's Proceed as the decline. The difference from Plow Driver is the
 gate: instead of "owns the card + lives in stone", Handplow's eligibility checks the
 SCHEDULE — the card id sits in this round's `future_rewards` slot — plus a plowable
@@ -77,4 +77,8 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), on_play=_on_play)
-register("start_of_round", CARD_ID, _eligible, _apply)
+# "At the start of these rounds, you can [take the thing on the round
+# space]" — the round_space_collection window (user ruling 2026-07-14:
+# round-space schedule grants resolve at COLLECTION time, immediately
+# after the mechanical collect, not at the start_of_round rung).
+register("round_space_collection", CARD_ID, _eligible, _apply)

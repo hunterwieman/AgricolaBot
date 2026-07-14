@@ -106,9 +106,15 @@ def _prep_boundary(state, round_number=1):
 def test_ladder_registration_mapping():
     # Optional / mandatory TRIGGERS on the start_of_round window.
     sor = {e.card_id for e in TRIGGERS.get("start_of_round", [])}
-    for cid in ("plow_driver", "groom", "scholar", "childless", "handplow",
-                "tree_farm_joiner"):
+    for cid in ("plow_driver", "groom", "scholar", "childless"):
         assert cid in sor
+    # The round-space schedule grants resolve at COLLECTION time (user ruling
+    # 2026-07-14) — the round_space_collection window, not start_of_round.
+    rsc = {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
+    for cid in ("handplow", "tree_farm_joiner", "plowman", "chain_float",
+                "grassland_harrow", "small_greenhouse", "stable_planner"):
+        assert cid in rsc
+        assert cid not in sor
     # Choice-free AUTOS on start_of_round.
     sor_autos = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     for cid in ("small_scale_farmer", "scullery"):

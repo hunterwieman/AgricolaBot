@@ -140,12 +140,12 @@ def test_collect_future_rewards_animals_overflow_flags_for_barrier():
 
 # ---------------------------------------------------------------------------
 # Effect-card round-start hooks are NOT force-fired — they are left in the slot for
-# an OPTIONAL start_of_round trigger to consume (a granted sub-action is optional).
+# an OPTIONAL round_space_collection trigger to consume (a granted sub-action is optional).
 # ---------------------------------------------------------------------------
 
 def test_collect_future_rewards_preserves_effect_ids():
     # An effect-only slot is NOT consumed by _collect_future_rewards (which handles
-    # animals only): the id survives for the start_of_round trigger, and since there
+    # animals only): the id survives for the round_space_collection trigger, and since there
     # are no animals the call returns state object-identical.
     state = _prep_state(round_number=2)
     slot = 2
@@ -173,10 +173,10 @@ def test_collect_future_rewards_keeps_effect_ids_when_clearing_animals():
 
 def test_scheduled_effect_drives_window_surfacing():
     # A scheduled effect id in the CURRENT round's slot is what makes the card's
-    # registered start_of_round trigger eligible — the schedule, not card ownership
+    # registered round_space_collection trigger eligible — the schedule, not card ownership
     # per se, gates the window frame (so a played Handplow surfaces only when its
     # plow is due). The eligibility fn reads the slot directly:
-    entry = next(e for e in TRIGGERS["start_of_round"] if e.card_id == "handplow")
+    entry = next(e for e in TRIGGERS["round_space_collection"] if e.card_id == "handplow")
     state = setup(0)
     p = fast_replace(state.players[0],
                      minor_improvements=state.players[0].minor_improvements

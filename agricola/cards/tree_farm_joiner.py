@@ -12,7 +12,7 @@ next two odd-numbered round spaces strictly after the current round:
 2. **A round-start "Minor Improvement" action** — riding on `future_rewards` via
    `schedule_effect` (the FutureReward effect-hook tuple), exactly like Handplow's
    deferred plow. The scheduled card id is what this card's OPTIONAL
-   `start_of_round` trigger checks for eligibility, and that eligibility is also
+   `round_space_collection` trigger checks for eligibility, and that eligibility is also
    what drives hosting (the preparation ladder's eligibility-driven model, ruling
    53, 2026-07-14) — so a played Tree Farm Joiner only hosts a window frame on its
    two scheduled rounds, NOT every round.
@@ -24,7 +24,7 @@ fewer than two.
 
 OPTIONALITY: "a Minor Improvement action" is the player's to take or decline (a
 granted action is optional unless the text says "you must"), so it is modeled as an
-OPTIONAL `start_of_round` trigger surfaced as a FireTrigger at that window's choice
+OPTIONAL `round_space_collection` trigger surfaced as a FireTrigger at that window's choice
 host — the host's Proceed IS the decline. `PendingPlayMinor` has no decline of its
 own (it forces exactly one minor once pushed), so eligibility ALSO requires at least
 one affordable hand minor (`legality.playable_minors`); otherwise a fired grant would
@@ -32,7 +32,8 @@ dead-end on an empty legal set.
 
 WOOD-BEFORE-MINOR ORDERING is provided by `_complete_preparation`, which distributes
 `future_resources` (the +1 wood, at the `__collect__` sentinel) BEFORE the
-start_of_round window surfaces the minor
+collection window surfaces the minor — "immediately afterward" is literal: the
+same instant's choice window, right after the wood lands
 trigger — so the wood is on hand to pay the minor, matching "you get the wood and,
 immediately afterward, a Minor Improvement action."
 
@@ -110,4 +111,8 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, _on_play)
-register("start_of_round", CARD_ID, _eligible, _apply)
+# "At the start of these rounds, you can [take the thing on the round
+# space]" — the round_space_collection window (user ruling 2026-07-14:
+# round-space schedule grants resolve at COLLECTION time, immediately
+# after the mechanical collect, not at the start_of_round rung).
+register("round_space_collection", CARD_ID, _eligible, _apply)

@@ -54,10 +54,12 @@ like the harvest and round-end ladders' windows — resolved window-major
   Preparation step of RULES.md).
 
 The walk completes by flipping ``phase`` to WORK with the starting player
-active. Scheduled EFFECT grants (Handplow's deferred plow — "at the start
-of that round, you can plow") surface at the ``start_of_round`` window,
-their printed wording's rung; scheduled GOODS are the ``__collect__``
-sentinel's mechanical job.
+active. Scheduled GOODS are the ``__collect__`` sentinel's mechanical job;
+scheduled EFFECT grants (Handplow's deferred plow — "at the start of that
+round, you can plow [the field on the round space]") surface at the
+``round_space_collection`` window, the same instant's choice host (user
+ruling 2026-07-14: a thing on the round space resolves at COLLECTION time,
+not the ``start_of_round`` rung).
 
 The harvest SKIP guard (`window_skipped`) is NOT consulted on this ladder:
 ruling 14's whole-harvest skip (Layabout) covers the harvest ladder only,
@@ -83,7 +85,10 @@ PREP_STEPS: tuple[str, ...] = (
     "__round_setup__",          # 2 — round_number += 1 (post-reveal: the discriminator)
     "reveal",                   # 3 — window (reserved: Heart of Stone, Task Artisan, …)
     "__collect__",              # 4 — newborns/used-sets clear + round-space collection
-    "round_space_collection",   # 5 — window (reserved — no live card yet)
+    "round_space_collection",   # 5 — window (the round-space schedule grants:
+    #                                 Handplow, Plowman, Chain Float, Grassland
+    #                                 Harrow, Small Greenhouse, Stable Planner,
+    #                                 Tree Farm Joiner)
     "start_of_round",           # 6 — window (Childless, Scullery, Plow Driver, Scholar, …)
     "__replenish__",            # 7 — accumulation spaces refill
     "replenishment",            # 8 — window (Nest Site)

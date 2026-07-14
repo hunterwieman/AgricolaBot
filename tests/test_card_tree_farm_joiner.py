@@ -95,7 +95,7 @@ def _prep_with_grant_scheduled(idx=0, prev_round=1):
 def test_registered_as_occupation_and_start_of_round_trigger():
     assert CARD_ID in OCCUPATIONS
     assert CARD_ID not in MINORS
-    assert CARD_ID in {e.card_id for e in TRIGGERS.get("start_of_round", [])}
+    assert CARD_ID in {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ def test_on_play_late_play_clamps_rounds_past_14():
 # ---------------------------------------------------------------------------
 
 def test_owner_not_hosted_on_unscheduled_round():
-    # Owning the occupation does NOT surface a start_of_round window frame on an
+    # Owning the occupation does NOT surface a round_space_collection (collection) window frame on an
     # unscheduled round: the trigger's eligibility reads its future_rewards slot,
     # so the ladder completes straight to WORK with no frame.
     state = _own_occ(setup(0), 0, CARD_ID)
@@ -154,11 +154,11 @@ def test_owner_not_hosted_on_unscheduled_round():
 def test_scheduled_round_makes_trigger_eligible():
     # Eligibility is gated on the round being ENTERED. The grant for round `entered`
     # is in slot `entered-1`; on a state whose round_number == entered the registered
-    # start_of_round trigger reads that slot and reports eligible (which is what
+    # round_space_collection trigger reads that slot and reports eligible (which is what
     # drives the PendingHarvestWindow frame in the ladder).
     s, entered = _prep_with_grant_scheduled(idx=0, prev_round=1)
     s_entered = fast_replace(s, round_number=entered)
-    entry = next(e for e in TRIGGERS["start_of_round"] if e.card_id == CARD_ID)
+    entry = next(e for e in TRIGGERS["round_space_collection"] if e.card_id == CARD_ID)
     assert entry.eligibility_fn(s_entered, 0, frozenset())
     # On the pre-entry round (slot not scheduled) it is not eligible.
     assert not entry.eligibility_fn(s, 0, frozenset())
@@ -178,7 +178,7 @@ def test_wood_distributed_then_minor_action_offered():
     assert s.players[0].resources.wood == wood_before + 1
     top = s.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
-    assert top.window_id == "start_of_round"
+    assert top.window_id == "round_space_collection"
     assert s.phase is Phase.PREPARATION   # the walk is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la

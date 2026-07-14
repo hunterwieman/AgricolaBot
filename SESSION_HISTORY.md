@@ -3344,3 +3344,14 @@ schedule-grant wording group remains the only open rung question (ruling 54's
 ledger entry). Ruling 55's note also corrected: the Cob pairing was the session's
 illustrative example, not the user's motivation — the trigger half has no live
 firing partner today, confirmed fine.
+
+### Second same-day revision — the schedule grants move to collection time
+
+The last open rung question resolved (user, 2026-07-14): the round-space schedule
+grants ("at the start of these rounds, you can [take the thing on the round
+space]" — Handplow, Plowman, Chain Float, Grassland Harrow, Small Greenhouse,
+Stable Planner, Tree Farm Joiner) resolve at COLLECTION time — re-tagged from
+`start_of_round` to the `round_space_collection` window, the choice host of the
+same instant their scheduled goods land. Tree Farm Joiner's "immediately
+afterward" became literal (the minor-improvement action surfaces at the very
+window that just delivered its wood). No rung question remains open.

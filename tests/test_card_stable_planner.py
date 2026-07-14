@@ -6,7 +6,7 @@ the stable at no cost."
 
 Stable Planner schedules a deferred OPTIONAL free-stable grant onto rounds R+3, R+6,
 R+9 via `future_rewards` (the Handplow carrier), surfaced at each scheduled round start
-as a FireTrigger on the preparation ladder's start_of_round window frame (a
+as a FireTrigger on the preparation ladder's round_space_collection (collection) window frame (a
 PendingHarvestWindow, ruling 54, 2026-07-14; Proceed = decline). The build is one
 free stable (cost Resources(), cap 1). The frame is eligibility-driven — the schedule
 slot gates the trigger — so an owner gets one only on the three scheduled rounds.
@@ -85,13 +85,13 @@ def _fill_grid(state, idx):
 
 def test_registered():
     assert CARD_ID in OCCUPATIONS
-    assert any(t.card_id == CARD_ID for t in TRIGGERS.get("start_of_round", ()))
+    assert any(t.card_id == CARD_ID for t in TRIGGERS.get("round_space_collection", ()))
     # An OPTIONAL trigger, gated by the schedule slot — never a blanket auto that
     # would fire on every round.
-    entry = next(t for t in TRIGGERS["start_of_round"] if t.card_id == CARD_ID)
+    entry = next(t for t in TRIGGERS["round_space_collection"] if t.card_id == CARD_ID)
     assert entry.mandatory is False
     from agricola.cards.triggers import AUTO_EFFECTS
-    assert all(e.card_id != CARD_ID for e in AUTO_EFFECTS.get("start_of_round", ()))
+    assert all(e.card_id != CARD_ID for e in AUTO_EFFECTS.get("round_space_collection", ()))
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ def test_offers_optional_free_stable_at_scheduled_round():
     assert s.round_number == entered
     top = s.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
-    assert top.window_id == "start_of_round"
+    assert top.window_id == "round_space_collection"
     assert s.phase is Phase.PREPARATION   # the ladder is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la

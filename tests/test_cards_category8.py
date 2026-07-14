@@ -135,8 +135,8 @@ def test_category8_cards_registered():
     assert MINORS["thick_forest"].cost == Cost()   # "5 Clay in Your Supply" is a prereq
     assert MINORS["herring_pot"].cost == Cost(resources=Resources(clay=1))
     assert MINORS["handplow"].cost == Cost(resources=Resources(wood=1))
-    # Handplow's deferred plow is an OPTIONAL start_of_round trigger (not a forced auto).
-    assert "handplow" in {e.card_id for e in TRIGGERS.get("start_of_round", [])}
+    # Handplow's deferred plow is an OPTIONAL round_space_collection trigger (not a forced auto).
+    assert "handplow" in {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +339,7 @@ def _prep_with_handplow_scheduled(idx=0, prev_round=1):
 
 
 def test_handplow_offers_optional_plow_at_round_start():
-    # The scheduled round is entered → the start_of_round window's choice frame
+    # The scheduled round is entered → the round_space_collection (collection) window's choice frame
     # surfaces the plow as an OPTIONAL FireTrigger alongside Proceed (the decline).
     # Firing pushes the plow and consumes the grant.
     s, entered = _prep_with_handplow_scheduled(idx=0, prev_round=1)
@@ -347,7 +347,7 @@ def test_handplow_offers_optional_plow_at_round_start():
     assert s.round_number == entered
     top = s.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
-    assert top.window_id == "start_of_round"
+    assert top.window_id == "round_space_collection"
     assert s.phase is Phase.PREPARATION   # the walk is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id="handplow") in la

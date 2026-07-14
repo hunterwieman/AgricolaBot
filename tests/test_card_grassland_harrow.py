@@ -72,8 +72,8 @@ def test_registered():
     assert spec.cost == Cost(resources=Resources(wood=2))
     assert spec.min_occupations == 2
     assert spec.prereq is not None
-    # The deferred plow is an OPTIONAL start_of_round trigger (not a forced auto).
-    assert CARD_ID in {e.card_id for e in TRIGGERS.get("start_of_round", [])}
+    # The deferred plow is an OPTIONAL round_space_collection trigger (not a forced auto).
+    assert CARD_ID in {e.card_id for e in TRIGGERS.get("round_space_collection", [])}
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ def test_offers_optional_plow_at_round_start():
     assert s.round_number == entered
     top = s.pending_stack[-1]
     assert isinstance(top, PendingHarvestWindow)
-    assert top.window_id == "start_of_round" and top.player_idx == 0
+    assert top.window_id == "round_space_collection" and top.player_idx == 0
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la
     assert Proceed() in la                            # optional → declinable

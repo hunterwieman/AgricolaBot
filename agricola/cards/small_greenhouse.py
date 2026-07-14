@@ -25,7 +25,7 @@ OPTIONAL paid grant, not an automatic goods drop. The two ideas it fuses:
 
 - **The paid optional pickup** (like Plow Driver, A90). "you CAN buy" is OPTIONAL — a
   granted paid action the player takes or declines. Surfaced as a FireTrigger on the
-  `start_of_round` window's choice host, with the host's Proceed as the decline. The 1 food is paid through the shared food-payment path
+  `round_space_collection` window's choice host, with the host's Proceed as the decline. The 1 food is paid through the shared food-payment path
   (FOOD_PAYMENT_DESIGN.md): `_apply` is the guard and `_buy_veg` the body. With the food
   on hand it runs directly; short, it pushes a raise-only PendingFoodPayment whose
   resume (registered under this card id) debits the raised food then grants the veg.
@@ -124,5 +124,9 @@ register_minor(
     vps=1,
     on_play=_on_play,
 )
-register("start_of_round", CARD_ID, _eligible, _apply)
+# "At the start of these rounds, you can [take the thing on the round
+# space]" — the round_space_collection window (user ruling 2026-07-14:
+# round-space schedule grants resolve at COLLECTION time, immediately
+# after the mechanical collect, not at the start_of_round rung).
+register("round_space_collection", CARD_ID, _eligible, _apply)
 register_food_payment_resume(CARD_ID, _buy_veg)
