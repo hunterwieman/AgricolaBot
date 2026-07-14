@@ -13,8 +13,9 @@ the START of each scheduled round (in `engine._complete_preparation`):
   card-only `tuple[FutureReward, ...]`). `schedule_effect` unions a card id into
   the named round slots; that scheduled id is what an OPTIONAL `start_of_round`
   trigger checks for eligibility (Handplow's deferred plow), surfaced at the
-  PendingPreparation host with a decline. The schedule also drives whether that host
-  is pushed (`triggers.has_scheduled_round_start_effect`). A granted sub-action is
+  preparation ladder's start_of_round window with a decline (hosting is
+  eligibility-driven — the window's choice frame is pushed exactly when the
+  schedule makes the trigger eligible). A granted sub-action is
   the player's to take or decline, so it is NOT auto-fired at round start.
 
 Index convention (matching the engine's Well code): slot `r` (0-indexed) holds the
@@ -58,7 +59,7 @@ def schedule_effect(
 ) -> GameState:
     """Union `card_id` into player `idx`'s future_rewards effect-hook set for each
     1-indexed round in `rounds`. The scheduled id gates the card's OPTIONAL
-    start_of_round trigger (surfaced at the PendingPreparation host) when that round
+    start_of_round trigger (surfaced at that window's choice host) when that round
     is entered. Additive."""
     p = state.players[idx]
     slots = list(p.future_rewards)

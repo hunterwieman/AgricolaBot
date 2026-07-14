@@ -20,7 +20,7 @@ from agricola.cards.triggers import TRIGGERS
 from agricola.constants import CellType, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import _can_plow, legal_actions
-from agricola.pending import PendingPlow, PendingPreparation
+from agricola.pending import PendingHarvestWindow, PendingPlow
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup
@@ -130,7 +130,8 @@ def test_offers_optional_plow_at_round_start():
     s = _complete_preparation(s)
     assert s.round_number == entered          # round 8
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    assert isinstance(top, PendingHarvestWindow)
+    assert top.window_id == "start_of_round" and top.player_idx == 0
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la
     assert Proceed() in la                    # optional → declinable
@@ -161,30 +162,37 @@ def test_can_be_declined():
     s = _complete_preparation(s)
     s = step(s, Proceed())
     assert all(not isinstance(f, PendingPlow) for f in s.pending_stack)
+    # Declining resumes the ladder, which completes into WORK.
+    assert s.pending_stack == ()
+    assert s.phase == Phase.WORK
 
 
 def test_not_offered_when_unplowable():
-    # Scheduled but no plowable cell → host appears (schedule drives hosting) but the
-    # card is not eligible, so only Proceed is offered.
+    # Scheduled but no plowable cell → the trigger is not eligible, so no window
+    # frame is pushed at all: the ladder completes straight into WORK.
     s, _ = _prep_with_scheduled(idx=0, prev_round=7, rounds=(8, 9, 10))
     s = _fill_grid_fields(s, 0)
     assert not _can_plow(s.players[0])
     s = _complete_preparation(s)
-    assert legal_actions(s) == [Proceed()]
+    assert s.pending_stack == ()
+    assert s.phase == Phase.WORK
 
 
 def test_owner_not_hosted_on_unscheduled_round():
-    # Owning the card does NOT host a preparation frame on a round its plow isn't due
-    # (hosting is gated on the schedule, not card ownership). Entering round 6 with the
-    # plows scheduled only for 8/9/10 produces no host.
+    # Owning the card does NOT surface a window frame on a round its plow isn't due
+    # (eligibility is gated on the schedule, not card ownership). Entering round 6
+    # with the plows scheduled only for 8/9/10 produces no frame.
     s, _ = _prep_with_scheduled(idx=0, prev_round=5, rounds=(8, 9, 10))
     out = _complete_preparation(s)
     assert out.pending_stack == ()
 
 
 def test_scoped_to_owner_only():
-    # The opponent (no schedule) is not hosted/offered the plow on the entered round.
+    # The opponent (no schedule) is not offered the plow on the entered round:
+    # the only window frame belongs to player 0 (the owner).
     s, _ = _prep_with_scheduled(idx=0, prev_round=7, rounds=(8, 9, 10))
     s = _complete_preparation(s)
+    assert [f.player_idx for f in s.pending_stack
+            if isinstance(f, PendingHarvestWindow)] == [0]
     for f in s.pending_stack:
         assert getattr(f, "player_idx", 0) == 0

@@ -4,32 +4,31 @@ Card text: "Each time 1 reed is placed on a non-empty 'Reed Bank' accumulation
 space during the preparation phase, you get 1 food."
 Cost 1 food; prereq 1 occupation; no VPs; not passing.
 
-Nest Site is a MANDATORY, choice-free start-of-round income (an `register_auto`
-on the `start_of_round` event, like Scullery): when the preparation refill drops a
-reed onto a Reed Bank that was already non-empty, the owner gets 1 food.
+Nest Site is a MANDATORY, choice-free preparation-phase income (a `register_auto`
+on the preparation ladder's `replenishment` window — the post-refill step, ruling
+53, 2026-07-14): when the preparation refill drops a reed onto a Reed Bank that was
+already non-empty, the owner gets 1 food.
 
-`_complete_preparation` refills the Reed Bank (+1 reed) BEFORE firing start-of-round
-autos, so the auto reads the POST-refill board. Post-refill `reed_bank.reed >= 2`
-exactly captures "the bank held >= 1 reed before the refill = the reed was placed on
-a non-empty bank". These tests drive `_complete_preparation` directly (mirroring
-tests/test_cards_category7.py's Scullery / Small-scale Farmer tests) and also run a
-real round advancement end-to-end.
+The ladder's `__replenish__` step refills the Reed Bank (+1 reed) BEFORE the
+`replenishment` window fires its autos, so the auto reads the POST-refill board.
+Post-refill `reed_bank.reed >= 2` exactly captures "the bank held >= 1 reed before
+the refill = the reed was placed on a non-empty bank". These tests drive
+`_complete_preparation` directly (mirroring tests/test_cards_category7.py's
+Scullery / Small-scale Farmer tests) and also run a real round advancement
+end-to-end. As a choice-free auto it produces NO pending frame: with no eligible
+trigger for either player, `_complete_preparation` returns a phase==WORK state
+with an empty stack.
 """
 from __future__ import annotations
 
 import agricola.cards.nest_site  # noqa: F401  (registers the card — not in cards/__init__.py)
 
 from agricola.cards.specs import MINORS, prereq_met
-from agricola.cards.triggers import (
-    AUTO_EFFECTS,
-    START_OF_ROUND_CARDS,
-    owns_start_of_round_card,
-    should_host_preparation,
-)
+from agricola.cards.triggers import AUTO_EFFECTS, TRIGGERS
 from agricola.constants import Phase
-from agricola.engine import _complete_preparation, step
+from agricola.engine import _complete_preparation
 from agricola.legality import legal_actions
-from agricola.pending import PendingPreparation
+from agricola.pending import PendingHarvestWindow
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup, setup_env
@@ -86,13 +85,15 @@ def test_registered_as_minor():
     assert spec.min_occupations == 1
 
 
-def test_registered_on_start_of_round_hook():
-    assert CARD_ID in START_OF_ROUND_CARDS
-    # Registered as an AUTO effect (mandatory, choice-free) — not an optional trigger.
-    assert any(e.card_id == CARD_ID for e in AUTO_EFFECTS.get("start_of_round", ()))
-    state = _own_minor(setup(0), 0)
-    assert owns_start_of_round_card(state.players[0]) is True
-    assert should_host_preparation(state) is True
+def test_registered_on_replenishment_window():
+    # Registered as an AUTO effect (mandatory, choice-free) — not an optional
+    # trigger — on the preparation ladder's `replenishment` window (post-refill;
+    # RE-TAGGED there from the pre-ladder start_of_round event).
+    assert any(e.card_id == CARD_ID for e in AUTO_EFFECTS.get("replenishment", ()))
+    assert all(e.card_id != CARD_ID for e in AUTO_EFFECTS.get("start_of_round", ()))
+    # Never a trigger on any window (an auto fires frame-lessly).
+    assert all(e.card_id != CARD_ID
+               for entries in TRIGGERS.values() for e in entries)
 
 
 def test_prereq_requires_one_occupation():
@@ -117,8 +118,10 @@ def test_food_when_reed_placed_on_nonempty_bank():
     after = _complete_preparation(s)
     assert get_space(after.board, "reed_bank").accumulated.reed == 2
     assert after.players[0].resources.food == before + 1
-    # The host frame is still on the stack (owner owns a start-of-round card).
-    assert isinstance(after.pending_stack[-1], PendingPreparation)
+    # A choice-free auto pushes no frame: the ladder ran to completion and the
+    # returned state is already at the new round's WORK phase, stack empty.
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
 
 
 def test_no_food_when_reed_placed_on_empty_bank():
@@ -145,13 +148,17 @@ def test_food_when_bank_well_stocked():
 # ---------------------------------------------------------------------------
 
 def test_no_firetrigger_surfaced_choicefree_auto():
-    # After the auto fires at push, the only legal action at the host is Proceed
-    # (a mandatory-with-choice trigger would withhold Proceed; an auto never does).
-    from agricola.actions import Proceed
+    # The auto fires mechanically during the ladder walk — no window frame is
+    # ever constructed for it, so no FireTrigger can surface: the returned state
+    # is already at WORK with the effect applied and worker placements legal.
+    from agricola.actions import FireTrigger
     s = _prep_state(0, reed_before=1)
     after = _complete_preparation(s)
+    assert all(not isinstance(f, PendingHarvestWindow) for f in after.pending_stack)
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
     la = legal_actions(after)
-    assert la == [Proceed()]
+    assert all(not isinstance(a, FireTrigger) for a in la)
 
 
 # ---------------------------------------------------------------------------
@@ -197,9 +204,9 @@ def test_round_one_excluded_no_food_at_game_start():
     assert s.phase is Phase.WORK
     # The fixed setup-time starting resources for the owner (no Nest Site income yet):
     # both players start with the canonical opening food (3 for the non-starter).
-    # Rather than couple to that constant, assert no PendingPreparation host exists
+    # Rather than couple to that constant, assert no preparation window frame exists
     # and the bank fill at setup did not trigger the auto.
-    assert all(not isinstance(f, PendingPreparation) for f in s.pending_stack)
+    assert all(not isinstance(f, PendingHarvestWindow) for f in s.pending_stack)
 
 
 # ---------------------------------------------------------------------------

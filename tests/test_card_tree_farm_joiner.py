@@ -7,10 +7,11 @@ Improvement' action."
 On play it schedules, for the next two odd-numbered rounds strictly after the current
 round: +1 wood (rides on `future_resources`) AND a round-start grant (rides on
 `future_rewards`, like Handplow). At the start of each scheduled round the player gets
-the wood (distributed before the hook fires) and an OPTIONAL Minor Improvement action
-surfaced as a `FireTrigger` at the PendingPreparation host — the host's `Proceed` is
-the decline. The grant is eligible only when at least one hand minor is playable, so a
-forced `PendingPlayMinor` never dead-ends.
+the wood (distributed at the preparation ladder's `__collect__` step, before any
+window) and an OPTIONAL Minor Improvement action surfaced as a `FireTrigger` at the
+`start_of_round` window's choice frame (`PendingHarvestWindow`) — the frame's
+`Proceed` is the decline. The grant is eligible only when at least one hand minor is
+playable, so a forced `PendingPlayMinor` never dead-ends.
 
 Mirrors the Handplow section of tests/test_cards_category8.py (it shares the exact
 deferred-effect machinery) plus a real CommitPlayMinor drive.
@@ -21,11 +22,11 @@ import agricola.cards.tree_farm_joiner  # noqa: F401  (registers the card)
 
 from agricola.actions import CommitPlayMinor, FireTrigger, Proceed
 from agricola.cards.specs import MINORS, OCCUPATIONS
-from agricola.cards.triggers import TRIGGERS, should_host_preparation
+from agricola.cards.triggers import TRIGGERS
 from agricola.constants import Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions, playable_minors
-from agricola.pending import PendingPlayMinor, PendingPreparation
+from agricola.pending import PendingHarvestWindow, PendingPlayMinor
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -136,25 +137,31 @@ def test_on_play_late_play_clamps_rounds_past_14():
 
 
 # ---------------------------------------------------------------------------
-# hosting is driven by the schedule (not by ownership every round)
+# the window frame is driven by the schedule (not by ownership every round)
 # ---------------------------------------------------------------------------
 
 def test_owner_not_hosted_on_unscheduled_round():
-    # Owning the occupation does NOT host a preparation frame on an unscheduled round.
+    # Owning the occupation does NOT surface a start_of_round window frame on an
+    # unscheduled round: the trigger's eligibility reads its future_rewards slot,
+    # so the ladder completes straight to WORK with no frame.
     state = _own_occ(setup(0), 0, CARD_ID)
     state = fast_replace(state, round_number=3, phase=Phase.PREPARATION)
-    assert should_host_preparation(state) is False
     out = _complete_preparation(state)
     assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
-def test_scheduled_round_hosts_preparation():
-    # Hosting is gated on the round being ENTERED. The grant for round `entered` is in
-    # slot `entered-1`; a state whose round_number == entered hosts (that slot carries
-    # the effect id), driving the PendingPreparation frame.
+def test_scheduled_round_makes_trigger_eligible():
+    # Eligibility is gated on the round being ENTERED. The grant for round `entered`
+    # is in slot `entered-1`; on a state whose round_number == entered the registered
+    # start_of_round trigger reads that slot and reports eligible (which is what
+    # drives the PendingHarvestWindow frame in the ladder).
     s, entered = _prep_with_grant_scheduled(idx=0, prev_round=1)
     s_entered = fast_replace(s, round_number=entered)
-    assert should_host_preparation(s_entered) is True
+    entry = next(e for e in TRIGGERS["start_of_round"] if e.card_id == CARD_ID)
+    assert entry.eligibility_fn(s_entered, 0, frozenset())
+    # On the pre-entry round (slot not scheduled) it is not eligible.
+    assert not entry.eligibility_fn(s, 0, frozenset())
 
 
 # ---------------------------------------------------------------------------
@@ -166,10 +173,13 @@ def test_wood_distributed_then_minor_action_offered():
     wood_before = s.players[0].resources.wood
     s = _complete_preparation(s)
     assert s.round_number == entered
-    # Wood was distributed at step 2 BEFORE the hook fired (so it can pay the minor).
+    # Wood was distributed at __collect__ (step 0) BEFORE the start_of_round
+    # window fired (so it can pay the minor).
     assert s.players[0].resources.wood == wood_before + 1
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
+    assert top.window_id == "start_of_round"
+    assert s.phase is Phase.PREPARATION   # the walk is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la
     assert Proceed() in la  # optional → declinable
@@ -211,8 +221,10 @@ def test_minor_action_can_be_declined():
     s, _ = _prep_with_grant_scheduled(idx=0, prev_round=1)
     s = _complete_preparation(s)
     s = step(s, Proceed())
-    # Declining: no PendingPlayMinor is pushed and the host resolves.
+    # Declining: no PendingPlayMinor is pushed; the walk resumes past the window
+    # and completes to WORK.
     assert all(not isinstance(f, PendingPlayMinor) for f in s.pending_stack)
+    assert s.phase is Phase.WORK
     # Market Stall stays in hand, unplayed.
     assert "market_stall" in s.players[0].hand_minors
 
@@ -222,9 +234,9 @@ def test_minor_action_can_be_declined():
 # ---------------------------------------------------------------------------
 
 def test_not_offered_when_no_playable_hand_minor():
-    # Scheduled, but the player has no affordable hand minor → only Proceed is offered
-    # (the host appears because the schedule drives hosting, but the trigger is
-    # ineligible so it never surfaces a dead-ending PendingPlayMinor).
+    # Scheduled, but the player has no affordable hand minor → the trigger is
+    # ineligible, so NO window frame is pushed at all (it never surfaces a
+    # dead-ending PendingPlayMinor) and the ladder completes straight to WORK.
     s, _ = _prep_with_grant_scheduled(idx=0, prev_round=1)
     # Strip the grain so Market Stall (cost 1 grain) is unaffordable.
     p = s.players[0]
@@ -232,4 +244,5 @@ def test_not_offered_when_no_playable_hand_minor():
     s = fast_replace(s, players=(p, s.players[1]))
     assert playable_minors(s, 0) == []
     s = _complete_preparation(s)
-    assert legal_actions(s) == [Proceed()]
+    assert s.pending_stack == ()
+    assert s.phase is Phase.WORK

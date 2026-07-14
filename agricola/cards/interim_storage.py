@@ -32,7 +32,6 @@ from agricola.cards.specs import register_minor
 from agricola.cards.triggers import (
     register_action_space_hook,
     register_auto,
-    register_start_of_round_hook,
 )
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -94,5 +93,4 @@ register_action_space_hook(CARD_ID, frozenset(ACCUMULATION_GAIN))
 register_auto("before_action_space", CARD_ID, _eligible_accum, _apply_accum)
 
 # Release half: at the start of rounds 7/11/14, move all held goods to supply.
-register_start_of_round_hook(CARD_ID)
 register_auto("start_of_round", CARD_ID, _eligible_release, _apply_release)

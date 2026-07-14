@@ -32,7 +32,7 @@ Atomic-space resolution tests via `engine.step` (migrated from the removed `reso
 
 ### `tests/test_engine.py`
 
-Tests for the engine module: `step`, `_advance_current_player`, `_advance_until_decision`, `_resolve_return_home`, and the PREPARATION reveal walk (`_complete_preparation` + the `PendingReveal` nature node). Covers:
+Tests for the engine module: `step`, `_advance_current_player`, `_advance_until_decision`, `_resolve_return_home`, and the preparation ladder (`_advance_preparation` / the `_complete_preparation` compat shape + the `PendingReveal` nature node). Covers:
 
 - Atomic placement basics: effect applied, `people_home` decremented, workers updated, stack stays empty, current_player alternates.
 - Stack invariants: atomic placements leave the stack empty; `_advance_until_decision` is idempotent on states returned by `step`.

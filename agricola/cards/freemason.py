@@ -8,9 +8,11 @@ unless they self-identify as a room." — so only true `CellType.ROOM` cells cou
 (no implemented card grants a non-room living space, so this needs no special
 handling — exactly as Priest / Small-scale Farmer / Childless already count).
 
-Category 7 (start-of-round phase hook). The income is a MANDATORY, choice-free
-grant ("you get", not "you can") → an automatic effect (`register_auto` on the
-`start_of_round` event), fired at the `PendingPreparation` push for the owner.
+"At the start of each work phase" → the preparation ladder's `start_of_work`
+window (ruling 54, 2026-07-14) — the ladder's last rung, post-replenishment,
+distinct from and later than `start_of_round`. The income is a MANDATORY,
+choice-free grant ("you get", not "you can") → an automatic effect
+(`register_auto`), fired mechanically by the walk for each owner.
 
 The grant is material-conditioned: a CLAY house yields +2 clay, a STONE house
 yields +2 stone, and a WOOD house yields nothing. The "clay/stone" + "2 clay/stone"
@@ -18,12 +20,12 @@ notation is split by `house_material` inside `_apply`, with the wood case exclud
 by `_eligible`. The condition (clay-or-stone house AND exactly 2 rooms) is
 re-checked each round in `_eligible`, so the income auto-stops on a renovate to
 wood or a room-count change. No once-per-round latch is needed: the engine fires
-`start_of_round` exactly once per owner per round.
+`start_of_work` exactly once per owner per round.
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.constants import CellType, HouseMaterial
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -63,5 +65,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)
+register_auto("start_of_work", CARD_ID, _eligible, _apply)

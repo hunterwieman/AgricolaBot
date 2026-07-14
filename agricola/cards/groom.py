@@ -15,7 +15,7 @@ so it never grants a dead-end. See CARD_IMPLEMENTATION_PLAN.md Category 7.
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register, register_start_of_round_hook
+from agricola.cards.triggers import register
 from agricola.constants import HouseMaterial
 from agricola.legality import _can_build_stable
 from agricola.pending import PendingBuildStables, push
@@ -55,4 +55,3 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, _on_play)
 register("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)

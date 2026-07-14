@@ -536,6 +536,10 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
         occupations=p.occupations | {cid},
     )
     state = _update_player(state, idx, p)
+    # Stamp WHICH card landed on the host before the flip, so after_play_occupation
+    # autos/triggers can read it (Clutterer's text-filtered count).
+    state = replace_top(state, fast_replace(state.pending_stack[-1],
+                                            played_card_id=cid))
     # Pivot to the after-phase (firing after_play_occupation autos) BEFORE on_play, while the
     # host is still on top — mirrors _execute_play_minor. The tableau add above precedes the
     # flip, so an occupation-counting auto (Education Bonus) sees the new card either way.
@@ -598,6 +602,11 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
             state.players[opp],
             hand_minors=state.players[opp].hand_minors | {cid},
         ))
+    # Stamp WHICH card landed on the host before the flip, so after_play_minor
+    # autos/triggers can read it (Clutterer's text-filtered count — a traveling
+    # minor is stamped too, though it has already been passed on).
+    state = replace_top(state, fast_replace(state.pending_stack[-1],
+                                            played_card_id=cid))
     # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos); the trailing
     # Stop pops. Then fire the coarse "any improvement built" event (Category 5, Junk Room).
     # Both happen BEFORE the card's on_play — load-bearing for on_plays that PUSH a frame

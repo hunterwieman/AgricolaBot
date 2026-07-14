@@ -7,7 +7,7 @@ cost)."
 Category 7 (start-of-round phase hook), the COLLAPSED PLAY-VARIANT trigger
 (CARD_IMPLEMENTATION_PLAN.md Category 7): once in a stone house, at round start the
 owner may play an occupation from hand (flat 1-food cost) OR a minor (its printed
-cost). The route is chosen AT the fire: the PendingPreparation enumerator surfaces a
+cost). The route is chosen AT the fire: the start_of_round window's enumerator surfaces a
 distinct `FireTrigger("scholar", variant="occupation")` (when a hand occupation is
 playable and you have 1 food) and `FireTrigger("scholar", variant="minor")` (when a
 hand minor is playable), with "do neither" = the host's Proceed. Firing pushes the
@@ -21,7 +21,6 @@ from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import (
     register,
     register_play_variant_trigger,
-    register_start_of_round_hook,
 )
 from agricola.constants import HouseMaterial
 from agricola.legality import playable_minors, playable_occupations
@@ -78,4 +77,3 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("start_of_round", CARD_ID, _eligible, _apply)
 register_play_variant_trigger(CARD_ID, _legal_variants)
-register_start_of_round_hook(CARD_ID)

@@ -99,15 +99,24 @@ class AutoEntry:
     any_player: False = fires for the ACTING player only; True = fires for EVERY
         owner regardless of whose turn it is (Milk Jug on the opponent's Cattle
         Market use). Owner routing lives in `apply_auto_effects`, not on frames.
+    order: firing priority WITHIN one event (lower first; ties keep registration
+        order — the sort is stable). The default 0 leaves ordinary autos in
+        registration order; a card whose effect must READ the combined result of
+        its same-instant peers registers late (Museum Caretaker's six-goods check
+        at `start_of_work` must see Freemason's clay/stone land first — import
+        order is an accident, this is the explicit mechanism).
     """
     card_id: str
     event: str
     eligibility_fn: Callable
     apply_fn: Callable
     any_player: bool = False
+    order: int = 0
 
 
-# Event-keyed registry — mirrors TRIGGERS for the automatic-effect path.
+# Event-keyed registry — mirrors TRIGGERS for the automatic-effect path. Each
+# event's list is kept sorted by `order` (stable — equal orders keep
+# registration order); registration is import-time only, so the sort is free.
 AUTO_EFFECTS: dict[str, list[AutoEntry]] = {}
 
 
@@ -118,15 +127,19 @@ def register_auto(
     apply_fn: Callable,
     *,
     any_player: bool = False,
+    order: int = 0,
 ) -> None:
     """Register an automatic effect (called at import time by each card module)."""
-    AUTO_EFFECTS.setdefault(event, []).append(
-        AutoEntry(card_id, event, eligibility_fn, apply_fn, any_player)
+    entries = AUTO_EFFECTS.setdefault(event, [])
+    entries.append(
+        AutoEntry(card_id, event, eligibility_fn, apply_fn, any_player, order)
     )
+    entries.sort(key=lambda e: e.order)
 
 
 def apply_auto_effects(state, event: str, acting_player: int):
-    """Fire every owned, eligible automatic effect for `event`, in registration order.
+    """Fire every owned, eligible automatic effect for `event`, in `order` then
+    registration order (the registry list is kept order-sorted, stably).
 
     A no-op when ``AUTO_EFFECTS.get(event)`` is empty — the Family fast path (no
     card ever registers, so the dict is empty and this returns `state` unchanged).
@@ -202,69 +215,18 @@ def should_host_space(state, space_id: str, acting_player: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Start-of-round phase-hook index (CARD_IMPLEMENTATION_PLAN.md II.6)
+# Start-of-round hosting — RETIRED (the preparation ladder, ruling 54, 2026-07-14)
 # ---------------------------------------------------------------------------
-# The start-of-round (preparation) phase stays purely mechanical (today's fast
-# path — increment round, refill, distribute future_resources, → WORK) UNTIL a
-# card could fire on it. `should_host_preparation` answers "should
-# _complete_preparation push a PendingPreparation host frame before the → WORK
-# transition?" by consulting this registration-time set of start-of-round card ids
-# — the preparation-phase analog of `should_host_space`.
-#
-# Family game → no card registered → the set is empty → should_host_preparation is
-# always False → preparation runs unhosted → byte-identical, no host frame ever
-# pushed (and the C++ Family-only engine never sees it). Per-player ownership is
-# what is indexed; the engine pushes a PendingPreparation per OWNING player.
-START_OF_ROUND_CARDS: set[str] = set()
-
-
-def register_start_of_round_hook(card_id: str) -> None:
-    """Index `card_id` as firing on the start-of-round phase hook.
-
-    Called at card-module import alongside the card's `register("start_of_round", …)`
-    or `register_auto("start_of_round", …)`.
-    """
-    START_OF_ROUND_CARDS.add(card_id)
-
-
-def owns_start_of_round_card(player_state) -> bool:
-    """Does this player own any start-of-round card? O(1) on the Family fast path
-    (the index is empty)."""
-    if not START_OF_ROUND_CARDS:
-        return False
-    return bool(
-        START_OF_ROUND_CARDS & (player_state.occupations | player_state.minor_improvements)
-    )
-
-
-def has_scheduled_round_start_effect(player_state, round_number: int) -> bool:
-    """Does this player have a scheduled round-start effect grant for `round_number`?
-
-    A `FutureReward` slot can carry effect-card ids (Handplow's deferred plow) that
-    name a card with a scheduled start-of-round effect for that round. Such a grant
-    is surfaced as an ordinary `start_of_round` trigger/auto whose eligibility checks
-    this schedule (CARD_IMPLEMENTATION_PLAN.md II.5) — so a deferred grant drives
-    preparation hosting on its own, independently of owning a start-of-round card
-    (the card may have been played rounds earlier, or be a minor that wouldn't
-    otherwise host every round). False for the Family game (future_rewards is all
-    the default `FutureReward()`)."""
-    slot = round_number - 1
-    fr = player_state.future_rewards
-    return 0 <= slot < len(fr) and bool(fr[slot].effect_card_ids)
-
-
-def should_host_preparation(state) -> bool:
-    """Should the preparation phase push PendingPreparation host frames (vs. run
-    straight to WORK)? True iff SOME player either owns a start-of-round card OR has
-    a deferred round-start effect scheduled for the round being entered. Reads PLAYED
-    cards + the per-player schedule only. A no-op in the Family game (no owned
-    start-of-round cards, every future_rewards slot default) → preparation stays
-    byte-identical."""
-    rn = state.round_number
-    return any(
-        owns_start_of_round_card(p) or has_scheduled_round_start_effect(p, rn)
-        for p in state.players
-    )
+# The pre-ladder engine hosted the whole preparation phase behind an ownership
+# index (`START_OF_ROUND_CARDS` / `register_start_of_round_hook` /
+# `owns_start_of_round_card` / `should_host_preparation`) and pushed one
+# PendingPreparation frame per owning player. The preparation ladder
+# (`agricola/cards/preparation.py`; walk: `engine._advance_preparation`) replaced
+# all of it with the harvest/round-end model: each window's autos fire
+# mechanically, and a per-player choice frame is pushed only for a player with an
+# ELIGIBLE trigger on that window (`_window_trigger_players`) — eligibility-driven
+# hosting, no ownership index. A schedule-driven grant (Handplow) hosts on its due
+# round because its own eligibility fn reads its `future_rewards` slot.
 
 
 # ---------------------------------------------------------------------------

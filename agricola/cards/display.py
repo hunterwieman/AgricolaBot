@@ -39,11 +39,12 @@ from agricola.scoring import SCORING_TERMS
 # classifying it FAILS the suite rather than silently going emblem-less.
 HISTORY_VP_CARDS: frozenset[str] = frozenset({
     "baking_sheet", "beaver_colony", "beer_keg", "beer_stein", "beer_table", "big_country",
-    "cookery_lesson",
+    "blighter", "clutterer", "cookery_lesson", "curator",
     "bucksaw", "clay_deposit", "craft_brewery", "cube_cutter", "elephantgrass_plant",
     "facades_carving",
     "furniture_carpenter", "home_brewer", "hook_knife", "loppers", "mantlepiece",
-    "paintbrush", "rod_collection", "rustic", "swimming_class",
+    "museum_caretaker", "paintbrush", "prodigy", "rod_collection", "rustic",
+    "sugar_baker", "swimming_class",
     "truffle_slicer", "tutor", "uncaring_parents", "upholstery", "wood_rake",
 })
 

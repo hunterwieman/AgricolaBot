@@ -6,7 +6,7 @@ Printed VPs: none. No cost / prerequisite / passing.
 
 Category 7 (start-of-round phase hook). The clause is a MANDATORY, choice-free
 income gated on a food threshold → an automatic effect (`register_auto` on the
-`start_of_round` event), fired at the PendingPreparation push for the owner. The
+`start_of_round` event), fired mechanically by the preparation walk for the owner. The
 condition is re-checked each round, so the income switches on/off as the player's
 food rises and falls relative to the advancing round number.
 
@@ -21,7 +21,7 @@ state.round_number` directly (no offset). See CARD_IMPLEMENTATION_PLAN.md Catego
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -48,4 +48,3 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, _on_play)
 register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)

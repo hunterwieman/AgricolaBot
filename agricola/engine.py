@@ -77,7 +77,6 @@ from agricola.pending import (
     PendingPlayOccupation,
     PendingCardChoice,
     PendingPlow,
-    PendingPreparation,
     PendingRenovate,
     PendingReveal,
     PendingSheepMarket,
@@ -138,6 +137,12 @@ from agricola.cards.round_end import (
     ROUND_END_STEPS,
     WORK_SEGMENT_END,
 )
+# The preparation ladder (ruling 54, 2026-07-14): the ordered step table walked
+# by _advance_preparation. Another leaf module — no load-order cycle.
+from agricola.cards.preparation import (
+    PREP_STEPS,
+    ROUND_SETUP,
+)
 from agricola.cards.harvest_windows import (
     BREED_BAND_START,
     FEED_BAND_END,
@@ -182,13 +187,15 @@ def step(state: GameState, action: Action) -> GameState:
     if state.phase == Phase.BEFORE_SCORING and not state.pending_stack:
         raise RuntimeError("step called on a terminated game")
 
-    # The start-of-round phase hook (II.6, card-only) resolves its
-    # PendingPreparation / PendingCardChoice frames while phase==WORK (they sit on
-    # the stack after `_complete_preparation` flips to WORK). Resolving one is NOT a
-    # worker-placement turn, so it must NOT trigger the worker alternation in step 2.
+    # A PendingCardChoice can empty the stack while phase==WORK (a boundary
+    # one-shot's choice after a placement completed). Resolving it is NOT a
+    # worker-placement turn, so it must NOT trigger the worker alternation in
+    # step 2 (the alternation for the placement already ran the step before).
     # Detect it from the PRE-action top frame (the frame is popped by the action).
+    # (Preparation-window frames need no guard: they resolve while
+    # phase==PREPARATION, where the alternation clause is already False.)
     _resolving_prep = bool(state.pending_stack) and isinstance(
-        state.pending_stack[-1], (PendingPreparation, PendingCardChoice)
+        state.pending_stack[-1], PendingCardChoice
     )
 
     # 1. Apply the agent's action.
@@ -208,7 +215,7 @@ def step(state: GameState, action: Action) -> GameState:
     #    being placed during RETURN_HOME. The clause guards against that.
     #
     #    `_resolving_prep` extends that guard to the start-of-round hook: a
-    #    PendingPreparation/PendingCardChoice resolution empties the stack in WORK
+    #    A PendingCardChoice resolution can empty the stack in WORK
     #    but is not a worker turn, so it must not alternate (the starting player must
     #    still take the round's first worker turn).
     if state.phase == Phase.WORK and not state.pending_stack and not _resolving_prep:
@@ -642,10 +649,11 @@ def _apply_proceed(state: GameState) -> GameState:
     "after-window opens" point the sub-action commits and the markets use); the
     derived event for an action-space host is `after_action_space`.
 
-    A third kind, the PendingPreparation start-of-round host (II.6, card-only), also
-    exits via Proceed — but it is a phase host with NO before/after `phase` flip and
-    no "after" clause, so Proceed simply POPS it (its `start_of_round` autos already
-    fired at push). Handled first, before the action-space-host assertion.
+    A third kind, the per-player timing-window choice hosts (PendingHarvestWindow —
+    serving the harvest, round-end, AND preparation ladders), also exits via
+    Proceed — a phase host with NO before/after `phase` flip and no "after"
+    clause, so Proceed simply POPS it (its window's autos fired mechanically in
+    the walk). Handled first, before the action-space-host assertion.
 
     A fourth kind, the multi-shot sub-action builders (PendingBuildRooms /
     PendingBuildStables / PendingBuildFences): the rooms/stables/pastures were
@@ -656,8 +664,6 @@ def _apply_proceed(state: GameState) -> GameState:
     that assertion.
     """
     top = state.pending_stack[-1]
-    if isinstance(top, PendingPreparation):
-        return pop(state)
     # A per-player harvest-window choice host (card-only, HARVEST_WINDOWS_DESIGN.md):
     # a phase host with no before/after flip — its window's autos fired mechanically in
     # the walk — so Proceed (the decline / work-complete boundary) simply pops; the
@@ -981,18 +987,14 @@ def _advance_until_decision(state: GameState) -> GameState:
                 ))
             continue
 
-        # Case 2: PREPARATION phase, around the round-card reveal. Two-state,
-        # discriminated by the `count == round_number` invariant (round_number
-        # still names the round just completed; the reveal is deferred to the
-        # RevealCard step, the increment to _complete_preparation):
-        #   - card not up yet (count == round_number): push the reveal nature
-        #     node; Case 1 returns on the non-empty stack next iteration.
-        #   - card up (count > round_number): finish the round setup.
+        # Case 2: PREPARATION phase — the preparation ladder (ruling 54,
+        # 2026-07-14; `agricola/cards/preparation.py`): round-space collection →
+        # the round-card reveal (the nature pause) → start_of_round →
+        # replenishment → before_work → start_of_work, then the WORK flip.
+        # Paused (a reveal or a window's choice frames) → Case 1 returns the
+        # frames next iteration; complete → phase is WORK → Case 3.
         if state.phase == Phase.PREPARATION:
-            if _count_revealed_stage_cards(state) == state.round_number:
-                state = push(state, PendingReveal())
-            else:
-                state = _complete_preparation(state)
+            state, _paused = _advance_preparation(state)
             continue
 
         # Case 3: WORK phase. If any player has workers, an agent decision
@@ -1242,23 +1244,119 @@ def _apply_reveal_card(state: GameState, action: RevealCard) -> GameState:
     return pop(fast_replace(state, board=new_board))
 
 
-def _complete_preparation(state: GameState) -> GameState:
-    """Finish setting up the round whose card has just been revealed.
+def _advance_preparation(state: GameState, *, assume_revealed: bool = False,
+                         force_start: bool = False):
+    """Walk the preparation ladder (ruling 54, 2026-07-14;
+    `preparation.PREP_STEPS`) from `state.prep_cursor` — or a position derived
+    from public state: the post-reveal resume (`__round_setup__`) exactly when
+    the revealed-count reads `round_number + 1` (the reveal fired, the
+    increment hasn't), else the top. Returns (state, paused): paused means a
+    frame is up (the reveal nature node, or a window's choice frames — for
+    those the cursor stores the resume point); otherwise the ladder completed
+    and the phase has flipped to WORK with the starting player active.
 
-    Runs in `_advance_until_decision` Case 2 once the round-card reveal has fired
-    (count > round_number). Increments round_number, refills every revealed
-    accumulation space, distributes future_resources for the new round, clears
-    newborns, and transitions to WORK with starting_player active. (Replaces the
-    old monolithic `_resolve_preparation`, whose implicit "refill where
-    round_revealed <= new_round" reveal is now the explicit RevealCard step;
-    this is the post-reveal remainder.)
+    Windows resolve window-major (`_process_simple_window`, both players SP
+    first) with the harvest SKIP guard OFF — ruling 14's whole-harvest skip
+    covers the harvest ladder only, and preparation is not part of any
+    harvest. The cursor is deliberately NOT set across the reveal pause: the
+    resume is derivable from public state, which keeps `prep_cursor`
+    Family-constant None (no C++ field — a Family walk pauses only at the
+    reveal). At the pre-reveal steps (`__collect__`, `round_space_collection`,
+    the reveal itself) `round_number` still names the just-completed round —
+    the round being entered is `round_number + 1` there — and names the new
+    round from `__round_setup__` onward.
+
+    `assume_revealed` / `force_start` serve the `_complete_preparation`
+    legacy-compat shape only (tests drive the round boundary by that name on
+    fixtures whose stage card was never physically revealed).
+
+    Family fast path: no registrations → every window is two empty dict
+    lookups; the mechanical sentinels apply exactly the pre-ladder effects,
+    reordered per the ruling (collection and the newborn clear now precede
+    the reveal — the 2026-07-14 C++ re-port mirrors this).
     """
-    # Future: card triggers fire here ("at the start of each round, may do X").
+    cur = state.prep_cursor
+    if cur is not None:
+        state = fast_replace(state, prep_cursor=None)
+    elif force_start:
+        cur = 0
+    else:
+        revealed = _count_revealed_stage_cards(state)
+        cur = ROUND_SETUP if revealed == state.round_number + 1 else 0
+    n = len(PREP_STEPS)
+    while cur < n:
+        step_id = PREP_STEPS[cur]
+        if step_id == "__collect__":
+            state = _enter_new_round(state)
+            cur += 1
+            continue
+        if step_id == "__reveal__":
+            if (not assume_revealed
+                    and _count_revealed_stage_cards(state) == state.round_number):
+                # The nature pause. No cursor across it (see the docstring);
+                # RevealCard pops the frame and the walk re-derives the
+                # post-reveal resume from the now-incremented revealed count.
+                return push(state, PendingReveal()), True
+            cur += 1
+            continue
+        if step_id == "__round_setup__":
+            state = fast_replace(state, round_number=state.round_number + 1)
+            cur += 1
+            continue
+        if step_id == "__replenish__":
+            state = _refill_accumulation_spaces(state)
+            cur += 1
+            continue
+        state, pushed = _process_simple_window(state, step_id,
+                                               skip_guarded=False)
+        cur += 1
+        if pushed:
+            return fast_replace(state, prep_cursor=cur), True
+    # Ladder complete: the work phase begins.
+    return fast_replace(
+        state, phase=Phase.WORK, current_player=state.starting_player), False
 
-    new_round = state.round_number + 1
 
-    # 1. Refill every revealed accumulation space (the just-revealed card
-    #    included — its `revealed` was set by _apply_reveal_card).
+def _enter_new_round(state: GameState) -> GameState:
+    """The `__collect__` sentinel — the new round begins (ruling 54's first
+    instant, BEFORE the reveal). `round_number` still names the just-completed
+    round, so the round being entered is slot `round_number` (0-based).
+
+    - Last round's newborns become plain adults (`newborns=0` — they survived
+      through the harvest for the 1-food feeding discount; nothing reads the
+      field between the harvest and here).
+    - The per-round / per-turn used-sets clear (II.3; Family no-op).
+    - The goods promised on this round's round space are collected
+      (`future_resources` — the Well and the Category-8 schedule cards; may
+      not be declined, RULES.md) and the consumed slot cleared.
+    - Scheduled ANIMALS (`future_rewards`) are granted via the accommodation
+      barrier (`_collect_future_rewards`); scheduled EFFECT grants stay in
+      the slot for the `start_of_round` window's triggers (Handplow).
+    """
+    slot = state.round_number     # 0-based slot of the round being entered
+    new_players = tuple(
+        fast_replace(
+            p,
+            resources=p.resources + p.future_resources[slot],
+            future_resources=(
+                p.future_resources[:slot]
+                + (Resources(),)
+                + p.future_resources[slot + 1:]
+            ),
+            newborns=0,
+        )
+        for p in state.players
+    )
+    state = fast_replace(state, players=new_players)
+    state = _clear(state, "used_this_round")
+    state = _clear(state, "used_this_turn")
+    return _collect_future_rewards(state, slot)
+
+
+def _refill_accumulation_spaces(state: GameState) -> GameState:
+    """The `__replenish__` sentinel — RULES.md's Preparation replenishment.
+    Refill every revealed accumulation space (the just-revealed round card
+    included — its `revealed` was set by _apply_reveal_card two steps back)."""
     new_spaces_list = list(state.board.action_spaces)
     for i, action_space in enumerate(new_spaces_list):
         if not action_space.revealed:
@@ -1281,59 +1379,23 @@ def _complete_preparation(state: GameState) -> GameState:
                 action_space,
                 accumulated_amount=action_space.accumulated_amount + rate,
             )
-    new_board = fast_replace(state.board, action_spaces=tuple(new_spaces_list))
+    return fast_replace(
+        state, board=fast_replace(state.board, action_spaces=tuple(new_spaces_list)))
 
-    # 2. Per-player: distribute future_resources (goods), clear the consumed slot,
-    #    clear newborns. future_rewards (animals + effect hooks) is distributed
-    #    separately in step 5 below — it is card-only and may push a decision frame
-    #    or fire an effect, so it cannot be folded into this mechanical comprehension.
-    idx = new_round - 1
-    new_players = tuple(
-        fast_replace(
-            p,
-            resources=p.resources + p.future_resources[idx],
-            future_resources=(
-                p.future_resources[:idx]
-                + (Resources(),)
-                + p.future_resources[idx + 1:]
-            ),
-            newborns=0,
-        )
-        for p in state.players
-    )
 
-    # 3. Transition to WORK with starting_player as the active player.
-    result = fast_replace(
-        state,
-        round_number=new_round,
-        players=new_players,
-        board=new_board,
-        phase=Phase.WORK,
-        current_player=state.starting_player,
-    )
-    # New round begins → clear the per-round and (fresh first turn) per-turn
-    # used-sets (II.3). No-op in the Family game (both always empty).
-    result = _clear(result, "used_this_round")
-    result = _clear(result, "used_this_turn")
-
-    # 4. Distribute the per-player future_rewards slot for the new round
-    #    (CARD_IMPLEMENTATION_PLAN.md II.5) — animals accommodated, effect-card
-    #    round-start hooks fired. A no-op in the Family game (every slot is the
-    #    default FutureReward(), so the falsy-slot guard skips both branches and
-    #    `result` is returned object-identical — byte-identical preparation).
-    result = _collect_future_rewards(result, idx)
-
-    # 5. Card-only start-of-round phase hook (CARD_IMPLEMENTATION_PLAN.md II.6):
-    #    push a PendingPreparation host frame for each player who owns a
-    #    start-of-round card, firing that player's `start_of_round` automatic
-    #    effects at push and surfacing its triggers as FireTrigger. The frames must
-    #    resolve (each Proceed pops one) before any worker placement, so they sit on
-    #    the stack while phase==WORK — _advance_until_decision Case 1 returns control
-    #    to the agent for them. Card-dependent (`should_host_preparation`), so the
-    #    Family game skips this entirely and _complete_preparation stays
-    #    byte-identical (no frame pushed → the C++ Family engine never sees it).
-    result = _fire_preparation_hook(result)
-    return result
+def _complete_preparation(state: GameState) -> GameState:
+    """LEGACY TEST/COMPAT shape — the pre-ladder "post-reveal round setup" in
+    one call. Many tests drive the round boundary by this name (fast_replace
+    round_number/phase, then call this); the ladder walk reproduces the old
+    contract: the whole ladder runs from the top with the reveal step assumed
+    done (legacy fixtures never physically reveal the stage card), collection
+    is slot-clearing so a re-entry is idempotent, and window frames pause the
+    walk exactly as the real Case-2 path (the returned state carries them).
+    The engine's own walk is `_advance_preparation`, driven from
+    `_advance_until_decision` Case 2."""
+    out, _paused = _advance_preparation(state, assume_revealed=True,
+                                        force_start=True)
+    return out
 
 
 def _collect_future_rewards(state: GameState, slot: int) -> GameState:
@@ -1350,11 +1412,11 @@ def _collect_future_rewards(state: GameState, slot: int) -> GameState:
 
     Effect-card round-start grants (`effect_card_ids`, e.g. Handplow's deferred plow)
     are deliberately NOT consumed here. They stay in the slot and are surfaced as
-    OPTIONAL `start_of_round` triggers at the PendingPreparation host (see
-    `_fire_preparation_hook`), because a granted sub-action is the player's to take
-    or decline — a granted plow can be strategically wrong (a new field consumes a
-    farmyard cell wanted for a pasture). Force-firing them here would remove that
-    choice, so the schedule is left for the host's trigger to consume on FIRE.
+    OPTIONAL triggers at the ladder's `start_of_round` window (their printed rung),
+    because a granted sub-action is the player's to take or decline — a granted
+    plow can be strategically wrong (a new field consumes a farmyard cell wanted
+    for a pasture). Force-firing them here would remove that choice, so the
+    schedule is left for the window's trigger to consume on FIRE.
 
     A no-op in the Family game: every slot is the default `FutureReward()` (no animals),
     so the guard skips and `state` is returned object-identical (preparation stays
@@ -1378,41 +1440,9 @@ def _collect_future_rewards(state: GameState, slot: int) -> GameState:
     return state
 
 
-def _fire_preparation_hook(state: GameState) -> GameState:
-    """Push a PendingPreparation frame for each owning player + fire their
-    `start_of_round` automatic effects (card game only).
-
-    A frame is pushed for a player who either owns a start-of-round card OR has a
-    deferred round-start effect scheduled for the round being entered (Handplow — the
-    schedule, not card ownership, drives hosting so a played Handplow doesn't host
-    every round, only the round its plow comes due). A no-op when neither holds for
-    either player — the Family fast path, so `_complete_preparation` stays
-    byte-identical. Push order mirrors the harvest FEED/BREED hooks: the non-starting
-    player is pushed first (bottom), the starting player second (top), so the starting
-    player resolves their start-of-round decisions first. Each player's
-    `start_of_round` autos fire at push (after the frame is on the stack, so an
-    auto/eligibility read can inspect `top.player_idx`); scheduled OPTIONAL grants
-    (Handplow) instead surface as FireTriggers in the host enumerator.
-    """
-    from agricola.cards.triggers import (
-        has_scheduled_round_start_effect,
-        owns_start_of_round_card,
-        should_host_preparation,
-    )
-
-    if not should_host_preparation(state):
-        return state
-
-    rn = state.round_number
-    sp = state.starting_player
-    # Non-starting player first (bottom of stack), starting player second (top).
-    for idx in ((sp + 1) % 2, sp):
-        p = state.players[idx]
-        if not (owns_start_of_round_card(p) or has_scheduled_round_start_effect(p, rn)):
-            continue
-        state = push(state, PendingPreparation(player_idx=idx))
-        state = apply_auto_effects(state, "start_of_round", idx)
-    return state
+# (_fire_preparation_hook is GONE — the preparation ladder, ruling 54,
+# 2026-07-14: start-of-round hosting is eligibility-driven per window via
+# _process_simple_window inside _advance_preparation; see cards/preparation.py.)
 
 
 # ---------------------------------------------------------------------------

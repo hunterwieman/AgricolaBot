@@ -4,28 +4,29 @@ Card text: "Each time 1 reed is placed on a non-empty 'Reed Bank' accumulation
 space during the preparation phase, you get 1 food."
 Printed VPs: none. Prerequisite: 1 Occupation. Not a passing minor.
 
-Category 7 (start-of-round phase hook). The Reed Bank accumulates +1 reed each
-preparation phase (its building-accumulation rate). The card pays its owner 1 food
-only when that reed lands on a Reed Bank that was ALREADY non-empty — i.e. when
-some reed was sitting on the space before this round's refill.
+"… placed on [the Reed Bank] during the preparation phase" → the preparation
+ladder's `replenishment` window (ruling 54, 2026-07-14), the reaction seam
+immediately after the `__replenish__` sentinel runs the mechanical refill. The
+Reed Bank accumulates +1 reed each preparation phase (its building-accumulation
+rate); the card pays its owner 1 food only when that reed lands on a Reed Bank
+that was ALREADY non-empty — i.e. when some reed was sitting on the space before
+this round's refill.
 
-`_complete_preparation` runs the refill (step 1) BEFORE firing `start_of_round`
-autos (step 5), so this auto sees the POST-refill board. The Reed Bank's reed count
-after the refill is (pre-refill reed) + 1:
+The window fires right after the refill, so this auto sees the POST-refill
+board. The Reed Bank's reed count after the refill is (pre-refill reed) + 1:
   - empty before refill  → post-refill reed == 1  → reed placed on an EMPTY bank → NO food.
   - non-empty before refill → post-refill reed >= 2 → reed placed on a NON-EMPTY bank → +1 food.
 So `accumulated.reed >= 2` is exactly the "placed on a non-empty Reed Bank" condition.
 It re-checks each round, so the income arms/disarms with the board automatically.
 
 Round 1 is naturally excluded: setup returns the first WORK state without ever
-running a preparation phase. A MANDATORY, choice-free income → `register_auto` on
-the `start_of_round` event, fired at the PendingPreparation push for the owner.
+running a preparation phase. A MANDATORY, choice-free income → `register_auto`.
 See CARD_IMPLEMENTATION_PLAN.md Category 7; scullery.py is the template.
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState, get_space
@@ -48,5 +49,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(food=1)), min_occupations=1)
-register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)
+register_auto("replenishment", CARD_ID, _eligible, _apply)

@@ -1112,3 +1112,30 @@ def _harvest_feed_clipped(grain, veg, sheep, boar, cattle, food_owed, rates):
 def _harvest_feed_cached(cg, cv, cs, cb, cc, food_owed, rates):
     # Cached over clipped supplies; tuple so the shared value is immutable.
     return tuple(_harvest_feed_compute(cg, cv, cs, cb, cc, food_owed, rates))
+
+
+# ---------------------------------------------------------------------------
+# The accumulation-space category (card wordings quantify over it)
+# ---------------------------------------------------------------------------
+
+def accumulation_spaces(state: GameState) -> frozenset:
+    """The accumulation-space ids of THIS game — the set that card wordings like
+    "accumulation space(s)" quantify over (Wood Pile, Hand Truck, Steam Machine,
+    Curator).
+
+    Mode-aware: in the CARD game Meeting Place gives no goods (become-SP + an
+    optional minor), so it is not an accumulation space there (user ruling
+    2026-07-02); in the FAMILY game it accumulates +1 food/round and IS one.
+    This accessor is deliberately the ONE definition of the category: when the
+    4-player board lands, its extra accumulation spaces (Grove, Hollow, Copse)
+    join here — keyed on the game's player count — and every category reader
+    updates at once. (The mechanical refill machinery iterates the rate dicts
+    in `constants` directly and never this category.)
+    """
+    from agricola.constants import (
+        ACCUMULATION_SPACES,
+        ACCUMULATION_SPACES_FAMILY,
+        GameMode,
+    )
+    return (ACCUMULATION_SPACES if state.mode is GameMode.CARDS
+            else ACCUMULATION_SPACES_FAMILY)

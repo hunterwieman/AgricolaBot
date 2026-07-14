@@ -629,6 +629,57 @@ machinery (e.g. Old Miser's per-person feeding discount, Game Provider's immedia
 field-crop discard, Champion Breeder's newborns-placed count), even though they aren't dealt
 at 2 players.
 
+54. **The preparation ladder** (ruled 2026-07-14). The start of the round IS the
+   start of the preparation phase (the pre-ladder engine's single
+   `start_of_round` event — fired at the END of preparation, after the WORK
+   flip, conflating "start of each round" with "start of each work phase" —
+   was wrong on both counts). The ruled order, each an explicitly DISTINCT
+   instant: **round-space goods collected → round card revealed →
+   start_of_round → replenishment → before the work phase → start of the work
+   phase.** Built as the third timing ladder (`agricola/cards/preparation.py`,
+   `engine._advance_preparation` — CARD_ENGINE_IMPLEMENTATION.md §5d);
+   re-tagged by printed text: Freemason / Cob / Trout Pool → `start_of_work`,
+   Nest Site → `replenishment`. The collection-before-reveal reordering is
+   Family-visible (the Well) and was re-ported to C++ the same day. NOTE for
+   future wording questions (not yet ruled): Pavior's "at the END of each
+   preparation phase", Small Animal Breeder / Civic Facade's "BEFORE the start
+   of each round", and whether the round-space schedule grants ("at the start
+   of these rounds, you can plow the field [on the round space]") belong at
+   the collection rung rather than `start_of_round` — all three groups
+   currently sit at `start_of_round`, preserving their pre-ladder observable
+   behavior, and each needs its own ruling before being moved.
+
+55. **Museum Caretaker fires as auto AND trigger at `start_of_work`** (ruled
+   2026-07-14): the mandatory "you get" is an automatic effect ordered AFTER
+   the window's other autos (the `register_auto(order=)` mechanism — Freemason
+   first), PLUS a trigger so same-window TRIGGER grants (Cob's exchange) that
+   newly complete the six-goods criterion still yield the point; hard cap 1
+   point per round (`used_this_round` latch shared by both paths).
+
+56. **Sugar Baker's deposited food is a CardStore debt, not board state**
+   (ruled 2026-07-14, option (b) of the two representations offered): the food
+   owed to Grain Utilization's next visitor rides the owner's CardStore and is
+   granted by an any_player `before_action_space` auto — rules-identical to
+   food physically on the space (the space maxes at 1 food: any next visit
+   collects in its before-phase), with no Grain Utilization machinery change.
+
+57. **Clutterer counts passed-away travelers** (ruled 2026-07-14): "each card
+   played after this one" includes a qualifying traveling minor (Wood Pile)
+   the owner played and passed on — so the count accrues AT PLAY TIME (the
+   `played_card_id` stamp on the play hosts), never as a scoring-time
+   tableau diff.
+
+58. **Blighter's "complete stage left to play" = 6 − stage_of_round(current
+   round)** (ruled 2026-07-14): the in-progress stage is not complete (stage-2
+   play banks 4; round 14 banks 0); and its "may not play any more
+   occupations" is the occupation-play blocker consulted at the
+   `playable_occupations` chokepoint (one gate, every route).
+
+59. **Prodigy** (ruled 2026-07-14): "improvement" = majors AND minors; "your
+   1st occupation" = literally the first occupation played all game, by any
+   route; the per-improvement point count freezes at play (the banked-VP
+   idiom), per the printed parenthetical.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

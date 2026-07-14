@@ -13,7 +13,7 @@ On play it unions the card id "handplow" into the round R+5 slot (`schedule_effe
 the player's to take or decline (a new field consumes a farmyard cell that may be
 wanted for a pasture/stable, so plowing is not always correct). So Handplow is
 modeled exactly like the other optional start-of-round plow grant, Plow Driver: an
-optional `start_of_round` trigger surfaced as a FireTrigger at the PendingPreparation
+optional `start_of_round` trigger surfaced as a FireTrigger at that window's choice
 host, with the host's Proceed as the decline. The difference from Plow Driver is the
 gate: instead of "owns the card + lives in stone", Handplow's eligibility checks the
 SCHEDULE — the card id sits in this round's `future_rewards` slot — plus a plowable
@@ -22,10 +22,9 @@ PendingPlow primitive and consumes the grant (removes "handplow" from the slot) 
 fires at most once.
 
 The schedule itself drives preparation hosting (see
-`triggers.has_scheduled_round_start_effect` / `engine._fire_preparation_hook`), so a
-played Handplow only hosts a preparation frame on the round its plow comes due — it is
-deliberately NOT registered via `register_start_of_round_hook` (which would host every
-round for the rest of the game).
+the trigger's own eligibility reads the slot), so a played Handplow only hosts a window
+frame on the round its plow comes due — hosting is eligibility-driven under the
+preparation ladder (ruling 54, 2026-07-14), with no ownership index.
 """
 from __future__ import annotations
 

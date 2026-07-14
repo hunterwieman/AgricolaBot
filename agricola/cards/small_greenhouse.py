@@ -16,18 +16,16 @@ OPTIONAL paid grant, not an automatic goods drop. The two ideas it fuses:
   Handplow's "Add 5" = R+5; NOT fixed rounds 4 and 7). Because the round-start effect
   is a *decision* (buy or not), it rides on `future_rewards` (the FutureReward
   effect-hook set) via `schedule_effect`, NOT on `future_resources`. The schedule
-  itself drives whether a preparation host is pushed
-  (`triggers.has_scheduled_round_start_effect`), so the card is deliberately NOT
-  registered via `register_start_of_round_hook` — it hosts a preparation frame only on
-  the rounds its vegetables come due. `schedule_effect` clamps to the 14-round game, so
+  itself drives hosting (the trigger's own eligibility reads the slot — the
+  preparation ladder's eligibility-driven model, ruling 54, 2026-07-14), so the card
+  hosts a window frame only on the rounds its vegetables come due. `schedule_effect` clamps to the 14-round game, so
   an offset past round 14 is silently dropped ("place on each corresponding round
   space" — there is no space past 14); played late enough that both offsets exceed 14
   it is a wasted but legal play.
 
 - **The paid optional pickup** (like Plow Driver, A90). "you CAN buy" is OPTIONAL — a
   granted paid action the player takes or declines. Surfaced as a FireTrigger on the
-  `start_of_round` event at the PendingPreparation host, with the host's Proceed as the
-  decline. The 1 food is paid through the shared food-payment path
+  `start_of_round` window's choice host, with the host's Proceed as the decline. The 1 food is paid through the shared food-payment path
   (FOOD_PAYMENT_DESIGN.md): `_apply` is the guard and `_buy_veg` the body. With the food
   on hand it runs directly; short, it pushes a raise-only PendingFoodPayment whose
   resume (registered under this card id) debits the raised food then grants the veg.

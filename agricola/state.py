@@ -413,13 +413,24 @@ class GameState:
     # byte-identical (default-skipped; the C++ engine needs no field).
     round_end_cursor: int | None = None
 
+    # Card-only preparation walk cursor (engine._advance_preparation): the index
+    # into preparation.PREP_STEPS the walk resumes at — set ONLY while a prep
+    # window's choice frame pauses the walk (ruling 54's ladder: round-space
+    # collection → the reveal → start_of_round → replenishment → before_work →
+    # start_of_work). Deliberately NOT set across the reveal pause — the
+    # post-reveal resume is derived from public state (revealed-count ==
+    # round_number + 1) — so a Family game carries None on every state and stays
+    # byte-identical (default-skipped; the C++ engine needs no field).
+    prep_cursor: int | None = None
+
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
         if h is None:
             h = hash((self.round_number, self.phase, self.current_player,
                       self.starting_player, self.players, self.board,
                       self.pending_stack, self.mode, self.draft_pools,
-                      self.harvest_cursor, self.round_end_cursor))
+                      self.harvest_cursor, self.round_end_cursor,
+                      self.prep_cursor))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

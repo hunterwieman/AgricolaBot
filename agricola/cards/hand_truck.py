@@ -36,7 +36,7 @@ This is exactly Potter Ceramics' situation, solved the same way: a
 
 Count = "each of YOUR people occupying an accumulation space": the OWNER's own
 workers (``ActionSpaceState.workers[idx]``) summed over the nine spaces in
-``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces and 4 food/animal
+``helpers.accumulation_spaces(state)`` (the 5 building-resource spaces and 4 food/animal
 spaces — meeting_place is excluded, as it accumulates nothing in the card game;
 user ruling 2026-07-02). The bake host (Grain Utilization / Side Job / the ovens) is
 not an accumulation space, so the worker that initiated this bake is correctly
@@ -46,7 +46,7 @@ worker-counting idiom for an immediate grant).
 """
 from __future__ import annotations
 
-from agricola.constants import ACCUMULATION_SPACES
+from agricola.helpers import accumulation_spaces
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_auto
 from agricola.legality import _owns_baker, register_bake_bread_extension
@@ -58,7 +58,8 @@ CARD_ID = "hand_truck"
 
 def _people_on_accumulation_spaces(state: GameState, idx: int) -> int:
     """Count the OWNER's workers currently on accumulation spaces."""
-    return sum(get_space(state.board, sid).workers[idx] for sid in ACCUMULATION_SPACES)
+    return sum(get_space(state.board, sid).workers[idx]
+               for sid in accumulation_spaces(state))
 
 
 def _eligible(state: GameState, idx: int) -> bool:

@@ -6,14 +6,14 @@ Printed VPs: none (null). Prerequisite: none. Not a passing minor.
 
 Category 7 (start-of-round phase hook). The clause is a MANDATORY, choice-free
 income gated on a wooden house → an automatic effect (`register_auto` on the
-`start_of_round` event), fired at the PendingPreparation push for the owner. The
+`start_of_round` event), fired mechanically by the preparation walk for the owner. The
 wooden-house condition is re-checked each round, so the income stops once the
 player renovates to clay/stone. See CARD_IMPLEMENTATION_PLAN.md Category 7.
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.constants import HouseMaterial
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -36,4 +36,3 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1, clay=1)))
 register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)

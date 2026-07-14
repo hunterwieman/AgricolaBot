@@ -19,7 +19,7 @@ grants a dead-end. See CARD_IMPLEMENTATION_PLAN.md Category 7 / FOOD_PAYMENT_DES
 from __future__ import annotations
 
 from agricola.cards.specs import register_food_payment_resume, register_occupation
-from agricola.cards.triggers import register, register_start_of_round_hook
+from agricola.cards.triggers import register
 from agricola.constants import HouseMaterial
 from agricola.legality import _can_plow, _liquidatable_to
 from agricola.pending import PendingFoodPayment, PendingPlow, push
@@ -66,4 +66,3 @@ def _apply(state: GameState, idx: int) -> GameState:
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("start_of_round", CARD_ID, _eligible, _apply)
 register_food_payment_resume(CARD_ID, _pay_and_plow)
-register_start_of_round_hook(CARD_ID)

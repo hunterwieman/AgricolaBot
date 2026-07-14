@@ -8,8 +8,10 @@ Cost: 2 Wood. Prerequisite: 1 Occupation. VPs: 1. Not passing.
 The paid sibling of Large Greenhouse (A69): the round-start vegetable is BOUGHT for 1
 food (an OPTIONAL paid grant), so this fuses Chain Float's per-slot effect scheduling
 (offsets R+4 / R+7 on `future_rewards`, per-round slot scoping) with Plow Driver's paid
-optional start-of-round grant + food-payment resume. Mirrors
-`tests/test_card_chain_float.py` (scheduling/scoping) and
+optional start-of-round grant + food-payment resume. The buy surfaces as a FireTrigger
+on the preparation ladder's start_of_round window frame (a PendingHarvestWindow,
+ruling 54, 2026-07-14), pushed exactly when the trigger is eligible; Proceed declines.
+Mirrors `tests/test_card_chain_float.py` (scheduling/scoping) and
 `tests/test_card_rocky_terrain.py` (the food-payment path).
 """
 from __future__ import annotations
@@ -22,7 +24,7 @@ from agricola.cards.triggers import TRIGGERS
 from agricola.constants import Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingFoodPayment, PendingPreparation
+from agricola.pending import PendingFoodPayment, PendingHarvestWindow
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Cost, Resources
 from agricola.setup import setup
@@ -125,7 +127,9 @@ def test_offers_optional_buy_at_round_start():
     s = _complete_preparation(s)
     assert s.round_number == entered          # round 4
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
+    assert top.window_id == "start_of_round"
+    assert s.phase is Phase.PREPARATION       # the ladder is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la
     assert Proceed() in la                    # optional → declinable
@@ -135,8 +139,8 @@ def test_direct_buy_veg_for_food():
     s, _ = _prep_with_scheduled(idx=0, prev_round=3, rounds=(4, 7), food=5)
     s = _complete_preparation(s)
     s = step(s, FireTrigger(card_id=CARD_ID))
-    # Food on hand: no food-payment frame; host PendingPreparation back on top.
-    assert isinstance(s.pending_stack[-1], PendingPreparation)
+    # Food on hand: no food-payment frame; the window frame stays on top.
+    assert isinstance(s.pending_stack[-1], PendingHarvestWindow)
     assert s.players[0].resources.food == 4   # 5 - 1
     assert s.players[0].resources.veg == 1    # +1 veg
     # Only the entered round's slot consumed; the later scheduled round keeps its grant.
@@ -158,7 +162,7 @@ def test_buy_via_liquidation():
     pay = CommitFoodPayment(grain=1, veg=0, sheep=0, boar=0, cattle=0)
     assert pay in legal_actions(s)
     s = step(s, pay)                          # 1 grain -> 1 food, resume buys the veg
-    assert isinstance(s.pending_stack[-1], PendingPreparation)
+    assert isinstance(s.pending_stack[-1], PendingHarvestWindow)
     assert s.players[0].resources.food == 0   # raised 1, paid 1
     assert s.players[0].resources.grain == 0  # the grain was liquidated
     assert s.players[0].resources.veg == 1    # +1 veg
@@ -188,27 +192,33 @@ def test_can_be_declined():
 
 
 def test_not_offered_when_unaffordable():
-    # 0 food and nothing convertible -> cannot pay the 1 food; host appears (schedule
-    # drives hosting) but the card is not eligible, so only Proceed is offered.
+    # 0 food and nothing convertible -> cannot pay the 1 food -> the trigger is not
+    # eligible, so NO window frame is pushed (frames appear exactly when a trigger
+    # is eligible) and the ladder runs straight through to WORK.
     s, _ = _prep_with_scheduled(idx=0, prev_round=3, rounds=(4, 7), food=0)
     s = with_resources(s, 0, food=0, grain=0, veg=0)
     s = _strip_animals(s, 0)
     s = _complete_preparation(s)
+    assert s.pending_stack == ()
+    assert s.phase is Phase.WORK
     assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
-    assert legal_actions(s) == [Proceed()]
 
 
 def test_owner_not_hosted_on_unscheduled_round():
-    # Owning the card does NOT host a preparation frame on a round its veg isn't due
-    # (hosting is gated on the schedule, not card ownership).
+    # Owning the card does NOT produce a window frame on a round its veg isn't due
+    # (eligibility is gated on the schedule, not card ownership).
     s, _ = _prep_with_scheduled(idx=0, prev_round=1, rounds=(4, 7), food=5)
     out = _complete_preparation(s)
     assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 def test_scoped_to_owner_only():
-    # The opponent (no schedule) is not hosted/offered the buy on the entered round.
+    # The opponent (no schedule) is not offered the buy on the entered round: the
+    # one window frame on the stack belongs to the owner.
     s, _ = _prep_with_scheduled(idx=0, prev_round=3, rounds=(4, 7), food=5)
     s = _complete_preparation(s)
+    frames = [f for f in s.pending_stack if isinstance(f, PendingHarvestWindow)]
+    assert len(frames) == 1 and frames[0].player_idx == 0
     for f in s.pending_stack:
         assert getattr(f, "player_idx", 0) == 0

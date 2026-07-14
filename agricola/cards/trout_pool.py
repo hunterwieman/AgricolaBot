@@ -4,20 +4,18 @@ Card text: "At the start of each work phase, if there are at least 3 food on the
 'Fishing' accumulation space, you get 1 food from the general supply."
 Printed VPs: 1. No prerequisite. Not a passing minor.
 
-Category 7 (start-of-round phase hook). A MANDATORY, choice-free income gated on
-the public Fishing accumulation bank → an automatic effect (`register_auto` on the
-`start_of_round` event), fired at the PendingPreparation push for the owner.
-
-"At the start of each work phase" is exactly the start-of-round hook: by the time
-these autos fire, `_complete_preparation` has already incremented `round_number`
-and run this round's accumulation-space refill (Fishing gains its +1 food). The
-threshold therefore reads the POST-refill board, which is precisely the board the
-player sees at the start of the work phase — so the literal
-`fishing.accumulated_amount >= 3` is correct as-written with no off-by-one
-adjustment (unlike Nest Site, whose condition was about the PRE-refill bank and so
-used `>= 2` to back out the +1). Fishing is a food/animal accumulation space, so
-its food count is the scalar `accumulated_amount` (not the `accumulated` Resources
-that only the building spaces use).
+"At the start of each work phase" → the preparation ladder's `start_of_work`
+window (ruling 54, 2026-07-14) — the ladder's last rung, after the
+`__replenish__` sentinel has run this round's accumulation-space refill (Fishing
+gains its +1 food). A MANDATORY, choice-free income gated on the public Fishing
+accumulation bank → an automatic effect (`register_auto`), fired mechanically by
+the walk for each owner. The threshold reads the POST-refill board, which is
+precisely the board the player sees at the start of the work phase — so the
+literal `fishing.accumulated_amount >= 3` is correct as-written with no
+off-by-one adjustment (unlike Nest Site, whose condition is about the PRE-refill
+bank and so uses `>= 2` to back out the +1). Fishing is a food/animal
+accumulation space, so its food count is the scalar `accumulated_amount` (not
+the `accumulated` Resources that only the building spaces use).
 
 The condition is re-checked each round, so the income arms/disarms automatically as
 the Fishing bank grows (when unharvested) or is emptied (when a worker fishes).
@@ -28,7 +26,7 @@ and pavior.py are the templates.
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState, get_space
@@ -53,5 +51,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(clay=2)), vps=1)
-register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)
+register_auto("start_of_work", CARD_ID, _eligible, _apply)

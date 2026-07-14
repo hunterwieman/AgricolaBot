@@ -3,24 +3,25 @@
 Card text: "Before the start of each round, if you have food equal to or higher
 than the current round number (e.g., 8+ food in round 8), you get 1 food."
 
-A Category-7 start-of-round automatic effect: at the PendingPreparation push for
-the owner, if their (post-distribution) food >= the round being entered, +1 food.
-Mandatory and choice-free (register_auto), and re-checked each round so the income
-turns on/off as food rises/falls relative to the advancing round number.
+A Category-7 start-of-round automatic effect (the preparation ladder's
+start_of_round window, ruling 54, 2026-07-14): fired frame-lessly for the owner —
+if their (post-distribution) food >= the round being entered, +1 food. Mandatory
+and choice-free (register_auto), and re-checked each round so the income turns
+on/off as food rises/falls relative to the advancing round number.
 
-Exercised by driving `_complete_preparation` (the engine seam that increments
-round_number, distributes the round's resources, then fires the start_of_round
-autos), mirroring tests/test_cards_category7.py's Scullery / Small-scale Farmer.
+Exercised by driving `_complete_preparation` (the compat seam that walks the whole
+ladder: distributes the round's resources at `__collect__`, increments
+round_number at `__round_setup__`, then fires the start_of_round window's autos),
+mirroring tests/test_cards_category7.py's Scullery / Small-scale Farmer.
 """
 from __future__ import annotations
 
 import agricola.cards.small_animal_breeder  # noqa: F401
 
 from agricola.cards.specs import OCCUPATIONS
-from agricola.cards.triggers import AUTO_EFFECTS, START_OF_ROUND_CARDS
+from agricola.cards.triggers import AUTO_EFFECTS
 from agricola.constants import Phase
 from agricola.engine import _complete_preparation
-from agricola.pending import PendingPreparation
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -63,15 +64,15 @@ def test_registered_as_occupation_with_no_cost_or_vps():
     assert getattr(spec, "vps", 0) == 0
 
 
-def test_registered_as_start_of_round_auto_and_hook():
+def test_registered_as_start_of_round_auto():
     auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     assert CARD_ID in auto_ids
-    # Auto effect is choice-free (not surfaced as a FireTrigger / mandatory tag).
+    # Auto effect is choice-free (not surfaced as a FireTrigger / mandatory tag);
+    # it fires mechanically at the window with no frame, so there is no separate
+    # hosting registration to assert.
     from agricola.cards.triggers import TRIGGERS
     trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
     assert CARD_ID not in trigger_ids
-    # And the owner gets a PendingPreparation host so the auto fires.
-    assert CARD_ID in START_OF_ROUND_CARDS
 
 
 def test_on_play_is_a_noop():
@@ -94,7 +95,9 @@ def test_income_when_food_equals_round_number():
     after = _complete_preparation(s)
     assert after.round_number == 3
     assert after.players[0].resources.food == before + 1
-    assert isinstance(after.pending_stack[-1], PendingPreparation)
+    # A choice-free auto pushes no frame: the ladder completed, straight to WORK.
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
 
 
 def test_income_when_food_above_round_number():

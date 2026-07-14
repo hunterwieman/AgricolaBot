@@ -4,11 +4,12 @@ Card text: "At the start of each work phase, if you have at least 1 clay in your
 supply, you can exchange exactly 1 grain for 2 clay and 1 food."
 Printed VPs: none. Prerequisite: none. Not a passing minor.
 
-Category 7 (start-of-round phase hook). The "start of each work phase" clause maps
-to the engine's `start_of_round` event, which fires when a player enters the WORK
-phase of a new round (the PendingPreparation host). The exchange is OPTIONAL
-("you can"), so it is surfaced as a FireTrigger the owner may take or decline — the
-host's Proceed is the decline path — NOT a choice-free automatic effect.
+"At the start of each work phase" → the preparation ladder's `start_of_work`
+window (ruling 54, 2026-07-14) — the ladder's last rung, post-replenishment,
+distinct from and later than `start_of_round`. The exchange is OPTIONAL
+("you can"), so it is surfaced as a FireTrigger on the window's choice host the
+owner may take or decline — the host's Proceed is the decline path — NOT a
+choice-free automatic effect.
 
 Firing applies the swap directly (no pending push): −1 grain, +2 clay, +1 food.
 Eligibility requires BOTH the verbatim "at least 1 clay" gate (a real have-check,
@@ -20,7 +21,7 @@ See CARD_IMPLEMENTATION_PLAN.md Category 7.
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register, register_start_of_round_hook
+from agricola.cards.triggers import register
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -48,5 +49,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(food=1)))
-register("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)
+register("start_of_work", CARD_ID, _eligible, _apply)

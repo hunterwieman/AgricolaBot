@@ -5,10 +5,11 @@ improvements in your hand, you get 1 food."
 
 Cost 1 clay; prerequisite 3 rooms.
 
-A choice-free `start_of_round` automatic effect (Category 7, the start-of-round
-phase hook). The income is driven through the real `_complete_preparation`
-round-boundary transition, mirroring tests/test_card_pavior.py. "Before the start
-of each round" is exactly the start-of-round hook.
+A choice-free `start_of_round` automatic effect fired mechanically (no frame) at
+the preparation ladder's `start_of_round` window (ruling 54, 2026-07-14). The
+income is driven through the real `_complete_preparation` round-boundary
+transition, mirroring tests/test_card_pavior.py. "Before the start of each
+round" is exactly the start-of-round window.
 
 The eligibility condition is unusual: it compares the player's UNPLAYED HAND —
 strictly more occupations than improvements IN HAND, i.e. `len(hand_occupations) >
@@ -21,13 +22,11 @@ import pytest
 
 import agricola.cards.civic_facade  # noqa: F401  (registers the card)
 
-from agricola.actions import Proceed
 from agricola.cards.specs import MINORS, prereq_met
-from agricola.cards.triggers import AUTO_EFFECTS, START_OF_ROUND_CARDS
+from agricola.cards.triggers import AUTO_EFFECTS, TRIGGERS
 from agricola.constants import CellType, NUM_ROUNDS, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingPreparation
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup, setup_env
@@ -101,12 +100,10 @@ def test_registered_as_minor():
     assert spec.cost == Cost(resources=Resources(clay=1))
 
 
-def test_registered_on_start_of_round_hook():
+def test_registered_on_start_of_round_window():
     auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     assert CARD_ID in auto_ids
-    assert CARD_ID in START_OF_ROUND_CARDS
     # Choice-free auto (no mandatory FireTrigger): it is in AUTO_EFFECTS, not TRIGGERS.
-    from agricola.cards.triggers import TRIGGERS
     trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
     assert CARD_ID not in trigger_ids
 
@@ -135,10 +132,10 @@ def test_food_income_when_more_occupations_in_hand(from_round):
     assert out.round_number == from_round + 1
     gained = out.players[0].resources - before
     assert gained == Resources(food=1)
-    # The start-of-round host frame is on the stack (owner of a start-of-round card);
-    # the auto already applied, so Proceed is the only legal action (singleton).
-    assert isinstance(out.pending_stack[-1], PendingPreparation)
-    assert legal_actions(out) == [Proceed()]
+    # The auto fired mechanically during the preparation walk — no window frame is
+    # pushed for an auto-only card, so the ladder completed straight into WORK.
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 def test_income_is_flat_one_food_regardless_of_margin():
@@ -161,7 +158,9 @@ def test_tie_grants_nothing():
     before = s.players[0].resources
     out = _enter_round(s, 0, from_round=4)
     assert out.players[0].resources == before
-    assert isinstance(out.pending_stack[-1], PendingPreparation)
+    # No eligible auto and no trigger → the ladder completes with no frame.
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 def test_fewer_occupations_grants_nothing():

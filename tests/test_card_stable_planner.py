@@ -6,9 +6,10 @@ the stable at no cost."
 
 Stable Planner schedules a deferred OPTIONAL free-stable grant onto rounds R+3, R+6,
 R+9 via `future_rewards` (the Handplow carrier), surfaced at each scheduled round start
-as a FireTrigger on the PendingPreparation host (Proceed = decline). The build is one
-free stable (cost Resources(), cap 1). Hosting is schedule-driven, so an owner is only
-hosted on the three scheduled rounds.
+as a FireTrigger on the preparation ladder's start_of_round window frame (a
+PendingHarvestWindow, ruling 54, 2026-07-14; Proceed = decline). The build is one
+free stable (cost Resources(), cap 1). The frame is eligibility-driven — the schedule
+slot gates the trigger — so an owner gets one only on the three scheduled rounds.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from agricola.cards.triggers import TRIGGERS
 from agricola.constants import CellType, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import _can_build_stable, legal_actions
-from agricola.pending import PendingBuildStables, PendingPreparation
+from agricola.pending import PendingBuildStables, PendingHarvestWindow
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -85,9 +86,12 @@ def _fill_grid(state, idx):
 def test_registered():
     assert CARD_ID in OCCUPATIONS
     assert any(t.card_id == CARD_ID for t in TRIGGERS.get("start_of_round", ()))
-    # Schedule-driven hosting: it must NOT register a blanket start-of-round host.
-    from agricola.cards.triggers import START_OF_ROUND_CARDS
-    assert CARD_ID not in START_OF_ROUND_CARDS
+    # An OPTIONAL trigger, gated by the schedule slot — never a blanket auto that
+    # would fire on every round.
+    entry = next(t for t in TRIGGERS["start_of_round"] if t.card_id == CARD_ID)
+    assert entry.mandatory is False
+    from agricola.cards.triggers import AUTO_EFFECTS
+    assert all(e.card_id != CARD_ID for e in AUTO_EFFECTS.get("start_of_round", ()))
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +129,9 @@ def test_offers_optional_free_stable_at_scheduled_round():
     s = _complete_preparation(s)
     assert s.round_number == entered
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
+    assert top.window_id == "start_of_round"
+    assert s.phase is Phase.PREPARATION   # the ladder is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id=CARD_ID) in la
     assert Proceed() in la                        # optional → declinable
@@ -147,7 +153,7 @@ def test_free_stable_build_completes_and_costs_nothing():
     # Drive the actual build: place one stable on an empty cell, then finish the action.
     s = step(s, CommitBuildStable(row=0, col=2))
     s = step(s, Proceed())   # flip PendingBuildStables to its after-phase
-    s = step(s, Stop())      # pop the build host (back to PendingPreparation)
+    s = step(s, Stop())      # pop the build host (back to the window frame)
     # A stable now sits on (0, 2) and no resources were spent.
     assert s.players[0].farmyard.grid[0][2].cell_type == CellType.STABLE
     assert s.players[0].resources.wood == before_wood
@@ -168,23 +174,27 @@ def test_can_be_declined():
 # ---------------------------------------------------------------------------
 
 def test_not_offered_when_unscheduled_round():
-    # Owning the card but with no grant due this round → not hosted at all
-    # (hosting is schedule-driven, not ownership-driven).
+    # Owning the card but with no grant due this round → no window frame at all
+    # (the frame is eligibility-driven, and the schedule slot gates eligibility).
     state = setup(0)
     state = _own_occ(state, 0)
     state = fast_replace(state, round_number=5, phase=Phase.PREPARATION)
     out = _complete_preparation(state)
-    assert out.pending_stack == ()   # no host pushed
+    assert out.pending_stack == ()   # no frame pushed
+    assert out.phase is Phase.WORK
 
 
 def test_not_offered_when_no_buildable_cell():
-    # Scheduled, but no empty cell remains → the host appears (schedule drives hosting)
-    # but the grant is not eligible, so only Proceed is offered.
+    # Scheduled, but no empty cell remains → the grant is not eligible, so NO
+    # window frame is pushed (frames appear exactly when a trigger is eligible)
+    # and the ladder runs straight through to WORK.
     s, _ = _prep_with_grant_scheduled(idx=0, prev_round=2)
     s = _fill_grid(s, 0)
     assert not _can_build_stable(s, s.players[0], Resources())
     s = _complete_preparation(s)
-    assert legal_actions(s) == [Proceed()]
+    assert s.pending_stack == ()
+    assert s.phase is Phase.WORK
+    assert FireTrigger(card_id=CARD_ID) not in legal_actions(s)
 
 
 # ---------------------------------------------------------------------------

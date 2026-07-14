@@ -20,7 +20,7 @@ machinery threaded between the windows:
 
 Every other entry is a *simple window*: its id doubles as the trigger/auto EVENT string
 (``register(<window_id>, …)`` / ``register_auto(<window_id>, …)`` — the
-``PendingPreparation``/"start_of_round" literal-event precedent), autos fire mechanically
+"start_of_round" literal-event precedent), autos fire mechanically
 inside the walk (starting player first), and a per-player ``PendingHarvestWindow`` choice
 frame is pushed only for a player with an eligible registered trigger. No registrations →
 no frames, no autos → a cardless harvest walks the ladder at a few dict lookups per

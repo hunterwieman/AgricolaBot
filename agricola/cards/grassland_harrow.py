@@ -32,15 +32,16 @@ play, distinct from the spent 2-wood cost).
 "At the start of the round, you **can** plow" is OPTIONAL — a granted sub-action is the
 player's to take or decline (a new field consumes a farmyard cell that may be wanted for a
 pasture/stable). So, exactly like Handplow: an optional `start_of_round` trigger surfaced
-as a FireTrigger at the PendingPreparation host, with the host's Proceed as the decline.
+as a FireTrigger at the start_of_round window's choice host, with the host's Proceed as
+the decline.
 Eligibility checks the SCHEDULE (the card id sits in this round's `future_rewards` slot)
 plus a plowable cell (`_can_plow`, so it never offers a dead-end). Firing pushes the
 reusable PendingPlow primitive and consumes the grant so it fires at most once.
 
-The schedule itself drives preparation hosting (`triggers.has_scheduled_round_start_effect`
-/ `engine._fire_preparation_hook`), so a played Grassland Harrow only hosts a preparation
-frame on the round its plow comes due — it is deliberately NOT registered via
-`register_start_of_round_hook` (which would host every round for the rest of the game).
+The schedule itself drives hosting (the trigger's own eligibility
+— the trigger's own eligibility reads the slot), so a played Grassland Harrow only hosts
+a window frame on the round its plow comes due: hosting is eligibility-driven under the
+preparation ladder (ruling 54, 2026-07-14), with no ownership index.
 """
 from __future__ import annotations
 

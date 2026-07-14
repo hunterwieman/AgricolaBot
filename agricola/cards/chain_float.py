@@ -20,8 +20,8 @@ wasted but legal play.
 "At the start of these rounds, you **can** plow" is OPTIONAL — a granted sub-action is
 the player's to take or decline (a new field consumes a farmyard cell that may be wanted
 for a pasture/stable). So, exactly like Handplow: an optional `start_of_round` trigger
-surfaced as a FireTrigger at the PendingPreparation host, with the host's Proceed as the
-decline. Eligibility checks the SCHEDULE (the card id sits in the entered round's
+surfaced as a FireTrigger at the start_of_round window's choice host, with the host's
+Proceed as the decline. Eligibility checks the SCHEDULE (the card id sits in the entered round's
 `future_rewards` slot) plus a plowable cell (`_can_plow`, so it never offers a dead-end).
 
 The three rounds are handled with NO three-round-specific code: `_apply` consumes ONLY
@@ -30,10 +30,9 @@ on round R+7 leaves the R+8 and R+9 slots intact for those later rounds. The per
 slot scoping makes each scheduled round fire its own grant independently, at most once.
 
 The schedule itself drives preparation hosting
-(`triggers.has_scheduled_round_start_effect` / `engine._fire_preparation_hook`), so a
-played Chain Float only hosts a preparation frame on the rounds its plows come due — it
-is deliberately NOT registered via `register_start_of_round_hook` (which would host every
-round for the rest of the game).
+(the trigger's own eligibility reads the slot), so a played Chain Float only hosts a
+window frame on the rounds its plows come due — hosting is eligibility-driven under the
+preparation ladder (ruling 54, 2026-07-14), with no ownership index.
 """
 from __future__ import annotations
 

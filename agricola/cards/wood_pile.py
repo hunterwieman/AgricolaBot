@@ -7,7 +7,7 @@ No cost, no prerequisite, no printed VPs. It is a TRAVELING (passing) card —
 after the immediate effect it is passed to the opponent rather than kept.
 
 Category 2 (on-play one-shot) + passing. "Accumulation spaces" are exactly the
-nine spaces in ``constants.ACCUMULATION_SPACES`` (the 5 building-resource spaces
+nine spaces in ``helpers.accumulation_spaces(state)`` (the 5 building-resource spaces
 — forest / clay_pit / reed_bank / western_quarry / eastern_quarry — and 4
 food/animal spaces — fishing / sheep_market / pig_market / cattle_market). In the
 card game meeting_place accumulates nothing, so it is excluded (user ruling
@@ -18,7 +18,7 @@ the worker that plays Wood Pile is correctly not self-counted.
 """
 from __future__ import annotations
 
-from agricola.constants import ACCUMULATION_SPACES
+from agricola.helpers import accumulation_spaces
 from agricola.cards.specs import register_minor
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -28,7 +28,8 @@ CARD_ID = "wood_pile"
 
 
 def _on_play(state: GameState, idx: int) -> GameState:
-    n = sum(get_space(state.board, sid).workers[idx] for sid in ACCUMULATION_SPACES)
+    n = sum(get_space(state.board, sid).workers[idx]
+            for sid in accumulation_spaces(state))
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources + Resources(wood=n))
     return fast_replace(

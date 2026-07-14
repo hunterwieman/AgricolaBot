@@ -35,7 +35,7 @@ going stale):
   the web-UI bot. (Model lineage + current champion: `nn_models/REGISTRY.md`; design:
   `SHARED_TRUNK.md`.)
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
-  Phase 2 agent process for the richer game. **The card engine is built; ~330 of the 840-card
+  Phase 2 agent process for the richer game. **The card engine is built; ~354 of the 840-card
   catalog are implemented and playable in the web UI; no card-game agent exists yet.**
   (Reference + live status: `CARD_ENGINE_IMPLEMENTATION.md`.)
 
@@ -357,12 +357,17 @@ top frame's legal sub-actions (a per-pending enumerator).
 **`_advance_until_decision(state)`**, called at the end of every `step`, walks *system*
 transitions — phase changes (WORK → RETURN_HOME → PREPARATION → WORK), terminal detection —
 until the state is at a real agent decision or game-over. It does not advance the current player
-and does not auto-resolve agent decisions. The **PREPARATION** phase hosts the round-card reveal
-as a nature step: a two-state walk pushes a `PendingReveal` for the round being entered (the
-nature decision pauses here), then on resume `_complete_preparation` increments `round_number`,
-refills every `revealed` accumulation space, and returns to WORK. `RevealCard` is dispatched in
-`_apply_action` (turning the named card's `revealed` to `True` and popping the frame) — a
-top-level transition like `PlaceWorker`, not a `CommitSubAction`.
+and does not auto-resolve agent decisions. The **PREPARATION** phase is a timing *ladder*
+(`_advance_preparation` walking `agricola/cards/preparation.py`'s step table — ruling 54,
+2026-07-14, the sibling of the harvest and round-end ladders): round-space goods are collected
+and newborns become adults, then the round-card reveal runs as a nature step (a `PendingReveal`
+for the round being entered pauses the walk), then `round_number` increments, the
+`start_of_round` card window fires, every `revealed` accumulation space refills, the
+`replenishment` / `before_work` / `start_of_work` card windows fire, and the phase flips to
+WORK. In the Family game every window is empty, so the walk is the mechanical steps plus the
+reveal pause. `RevealCard` is dispatched in `_apply_action` (turning the named card's `revealed`
+to `True` and popping the frame) — a top-level transition like `PlaceWorker`, not a
+`CommitSubAction`.
 
 **How the stack evolves.** Within a non-atomic turn:
 
@@ -716,7 +721,7 @@ food; the improvement spaces gain a play-minor branch), and played cards modify 
 a general firing system — host frames with before/after windows on every action, optional
 triggers / automatic effects / mandatory-with-choice, ~35 `register_*` seams (scoring, cost
 modifiers, food payment, capacity, schedules, legality extensions), per-card state (`CardStore`),
-and phase hooks (start-of-round, the harvest timing-window ladder). **~330 of the 840-card catalog** (Revised base
+and phase hooks (start-of-round, the harvest timing-window ladder). **~354 of the 840-card catalog** (Revised base
 + Artifex/Bubulcus/Corbarius/Dulcinaria/Ephipparius, decks A–E) are implemented, tested, and
 dealt in the web UI's Cards mode.
 
@@ -838,7 +843,7 @@ through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`).
 
 In **Cards** mode the seats are **human-vs-random or human-vs-human** (no trained bot exists for the card
 game yet, so MCTS/NN seats and the analysis overlay are disabled), and `setup_env(seed, card_pool=...)` is
-called with a pool of **all implemented cards** (~330; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
+called with a pool of **all implemented cards** (~354; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
 dealt a random non-overlapping 7-occupation + 7-minor hand. The snapshot serializes each player's hand
 under **hidden-information rules**: a hand is shown face-up only for a *human* seat, and among two human
 seats (pass-and-play) only the **active player's** hand is revealed (the inactive seat sees a face-down
@@ -1013,7 +1018,7 @@ AgricolaBot/
         fences.py               # fence universes + edge math
         fence_universe.py       # universe-swapping tools
         engine.py               # step + dispatch + the phase walk + the card firing seams
-        cards/                  # card framework (specs, triggers, cost_mods, capacity_mods, schedules, harvest_conversions, harvest_windows, display) + ~330 card modules
+        cards/                  # card framework (specs, triggers, cost_mods, capacity_mods, schedules, harvest_conversions, harvest_windows, round_end, preparation, display) + ~336 card modules
         agents/                 # base/play_game, random, heuristic (retired), the restricted wrappers, mcts.py (PUCT/UCT)
             nn/                 # the NN stack: schema/recording/encoder (torch-free) + datasets/models/training/policy + the joint shared-trunk model
     tests/                      # pytest suite; test_cpp_*.py = the C++ differential gates (coverage: TEST_DESCRIPTIONS.md)

@@ -15,7 +15,8 @@ latch, are covered in tests/test_cards_one_shot_latch.py.)
 Each card is exercised at the entry point that actually fires it: `on_play` for the
 play-time minors, `apply_auto_effects` for Wall Builder's after-build-rooms hook, a
 real `fishing` placement for Herring Pot's before-action-space hook, and the
-registered round-start effect for Handplow.
+registered `start_of_round` window trigger for Handplow (surfaced on a
+`PendingHarvestWindow` choice frame by the preparation ladder).
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from agricola.cards.triggers import TRIGGERS, apply_auto_effects
 from agricola.constants import CellType, HouseMaterial, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import _can_plow, legal_actions
-from agricola.pending import PendingPlow, PendingPreparation
+from agricola.pending import PendingHarvestWindow, PendingPlow
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup, setup_env
@@ -338,14 +339,16 @@ def _prep_with_handplow_scheduled(idx=0, prev_round=1):
 
 
 def test_handplow_offers_optional_plow_at_round_start():
-    # The scheduled round is entered → a PendingPreparation host surfaces the plow as
-    # an OPTIONAL FireTrigger alongside Proceed (the decline). Firing pushes the plow
-    # and consumes the grant.
+    # The scheduled round is entered → the start_of_round window's choice frame
+    # surfaces the plow as an OPTIONAL FireTrigger alongside Proceed (the decline).
+    # Firing pushes the plow and consumes the grant.
     s, entered = _prep_with_handplow_scheduled(idx=0, prev_round=1)
     s = _complete_preparation(s)
     assert s.round_number == entered
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
+    assert top.window_id == "start_of_round"
+    assert s.phase is Phase.PREPARATION   # the walk is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id="handplow") in la
     assert Proceed() in la                       # optional → declinable
@@ -355,30 +358,34 @@ def test_handplow_offers_optional_plow_at_round_start():
 
 
 def test_handplow_can_be_declined():
-    # Proceed declines the plow — no PendingPlow is pushed and the host resolves.
+    # Proceed declines the plow — no PendingPlow is pushed; the walk resumes past
+    # the window and completes to WORK.
     s, _ = _prep_with_handplow_scheduled(idx=0, prev_round=1)
     s = _complete_preparation(s)
     s = step(s, Proceed())
     assert all(not isinstance(f, PendingPlow) for f in s.pending_stack)
+    assert s.phase is Phase.WORK
 
 
 def test_handplow_not_offered_when_unplowable():
-    # Scheduled but the farm has no plowable cell → the host appears (the schedule
-    # drives hosting) but Handplow is not eligible, so only Proceed is offered.
+    # Scheduled but the farm has no plowable cell → Handplow is not eligible, so
+    # NO window frame is pushed at all and the ladder completes straight to WORK.
     s, _ = _prep_with_handplow_scheduled(idx=0, prev_round=1)
     s = _fill_grid_fields(s, 0)
     assert not _can_plow(s.players[0])
     s = _complete_preparation(s)
-    assert legal_actions(s) == [Proceed()]
+    assert s.pending_stack == ()
+    assert s.phase is Phase.WORK
 
 
 def test_handplow_owner_not_hosted_on_unscheduled_round():
-    # Owning Handplow does NOT host a preparation frame on rounds its plow isn't due
-    # (hosting is gated on the schedule, not card ownership).
+    # Owning Handplow does NOT surface a window frame on rounds its plow isn't due
+    # (the trigger's eligibility reads the schedule, not card ownership).
     state = setup(0)
     p = state.players[0]
     p = fast_replace(p, minor_improvements=p.minor_improvements | {"handplow"})
     state = fast_replace(state, players=(p, state.players[1]),
                          round_number=3, phase=Phase.PREPARATION)
     out = _complete_preparation(state)
-    assert out.pending_stack == ()   # no host pushed
+    assert out.pending_stack == ()   # no frame pushed
+    assert out.phase is Phase.WORK

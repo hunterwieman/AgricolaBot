@@ -10,12 +10,11 @@ TWO independent income effects, both governed by the same standing condition
 "as long as you have no minor improvements in front of you", each MANDATORY and
 choice-free ("you get", not "you can") -> two automatic effects:
 
-  1. `start_of_round` — +1 food at the start of each round (the start-of-round /
-     preparation phase hook: `register_auto("start_of_round", …)` +
-     `register_start_of_round_hook`, fired at the PendingPreparation push for the
-     owner, exactly as Freemason / Civic Facade). By the time it fires,
-     `_complete_preparation` has already incremented `round_number` to the round
-     being entered; the food grant is round-independent, so that is fine.
+  1. `start_of_round` — +1 food at the start of each round (the preparation ladder's
+     start_of_round window: `register_auto("start_of_round", …)`, fired mechanically
+     by the walk for the owner, exactly as Scullery / Civic Facade). By the time it
+     fires the walk has already incremented `round_number` to the round being
+     entered; the food grant is round-independent, so that is fine.
   2. `start_of_harvest` — +1 wood at the start of each harvest (harvest window #2,
      the window opening the whole harvest before the field phase:
      `register_auto("start_of_harvest", …)` + `register_harvest_window_hook`,
@@ -38,7 +37,7 @@ from __future__ import annotations
 
 from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -76,7 +75,6 @@ def _apply_wood(state: GameState, idx: int) -> GameState:
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 # Clause 1: +1 food at the start of each round.
 register_auto("start_of_round", CARD_ID, _eligible, _apply_food)
-register_start_of_round_hook(CARD_ID)
 # Clause 2: +1 wood at the start of each harvest.
 register_auto("start_of_harvest", CARD_ID, _eligible, _apply_wood)
 register_harvest_window_hook(CARD_ID, "start_of_harvest")

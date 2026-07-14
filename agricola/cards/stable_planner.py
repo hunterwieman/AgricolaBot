@@ -16,7 +16,7 @@ OPTIONAL granted sub-action: at each scheduled round start the owner MAY build e
 one free stable, or decline (a stable consumes a farmyard cell that may be wanted
 elsewhere, so it is not always correct). It is therefore modeled exactly like the
 optional start-of-round stable grant Groom uses, but schedule-gated like Handplow:
-an optional `start_of_round` FireTrigger surfaced at the PendingPreparation host, with
+an optional `start_of_round` FireTrigger surfaced at that window's choice host, with
 the host's Proceed as the decline. Eligibility checks (a) this round's `future_rewards`
 slot carries the grant and (b) a free stable is actually buildable (`_can_build_stable`
 with zero cost), so it never offers a dead-end. Firing consumes ONLY the entered
@@ -24,18 +24,17 @@ round's slot (so each of R+3 / R+6 / R+9 independently surfaces its own grant an
 at most once) and pushes the reusable PendingBuildStables primitive at cost
 `Resources()` (free), cap 1.
 
-Like Handplow, hosting is schedule-driven (`triggers.has_scheduled_round_start_effect`
-reads the `future_rewards` slots) — so Stable Planner is deliberately NOT registered via
-`register_start_of_round_hook` (which would host a preparation frame EVERY remaining
-round); it only hosts on R+3 / R+6 / R+9, the rounds its grant comes due.
+Like Handplow, hosting is schedule-driven (the trigger's own eligibility reads the
+`future_rewards` slots) — eligibility-driven under the preparation ladder (ruling 54,
+2026-07-14); it only hosts on R+3 / R+6 / R+9, the rounds its grant comes due.
 
 OFF-TURN NOTE for future implementers: the clarification says stables built this way are
 "not built on your turn" and must NOT trigger Stable Tree (A074) or Farmyard Manure
 (A043). Neither of those is implemented today, so there is no `after_build_stables`
 automatic effect that this card's PendingBuildStables push could spuriously fire — no
 live impact. When Stable Tree / Farmyard Manure are implemented, they MUST gate on
-on-turn vs off-turn (this push runs under a PendingPreparation host at the stack base,
-i.e. off-turn) and not fire on this card's stable build. (Sibling Groom, B89, named in
+on-turn vs off-turn (this push runs under a start_of_round window host at the stack
+base, i.e. off-turn) and not fire on this card's stable build. (Sibling Groom, B89, named in
 the same clarification, builds stables off-turn via the identical
 start_of_round → PendingBuildStables path.)
 """

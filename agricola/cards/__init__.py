@@ -156,14 +156,14 @@ from agricola.cards import shepherds_crook       # noqa: F401
 from agricola.cards import loom                  # noqa: F401
 from agricola.cards import butter_churn          # noqa: F401
 from agricola.cards import three_field_rotation  # noqa: F401
-# Category 7 (start-of-round phase hook) — the PendingPreparation host fires the
-# `start_of_round` event. Auto-effects (Small-scale Farmer +1 wood at exactly 2
-# rooms; Scullery +1 food in a wooden house — a minor) fire immediately at push;
-# OPTIONAL triggers (Plow Driver pay-1-food-plow, Groom build-a-stable) surface as
-# FireTrigger; the MANDATORY-with-choice Childless (+1 food + grain/veg pick) gates
-# the host's Proceed; Scholar is the collapsed play-variant trigger (play an
-# occupation OR a minor at round start). All but Scholar/Childless/Plow Driver/Groom
-# also register_start_of_round_hook so the host frame is pushed when owned.
+# Category 7 — the preparation ladder's start_of_round window (ruling 54,
+# 2026-07-14; agricola/cards/preparation.py). Auto-effects (Small-scale Farmer
+# +1 wood at exactly 2 rooms; Scullery +1 food in a wooden house — a minor) fire
+# mechanically in the walk; OPTIONAL triggers (Plow Driver pay-1-food-plow, Groom
+# build-a-stable) surface as FireTrigger on the window's choice host; the
+# MANDATORY-with-choice Childless (+1 food + grain/veg pick) gates the host's
+# Proceed; Scholar is the collapsed play-variant trigger (play an occupation OR a
+# minor at round start). Hosting is eligibility-driven — no ownership index.
 from agricola.cards import small_scale_farmer    # noqa: F401
 from agricola.cards import scullery              # noqa: F401
 from agricola.cards import plow_driver           # noqa: F401
@@ -634,3 +634,32 @@ from agricola.cards import ox_skull  # noqa: F401
 # cooking improvement — granted AT the cook (paying the occupation cost, an on-play-grant
 # overflow, or an explicit cook offered on the Lessons after-phase), never off a count-diff.
 from agricola.cards import cookery_lesson  # noqa: F401
+# The 2026-07-14 Points Provider batch — six bonus-point occupations, built on the
+# new preparation ladder (ruling 54; agricola/cards/preparation.py) and three small
+# additive seams:
+#   Curator A100        — returning_home window trigger: >=3 people returning from
+#                         accumulation spaces -> buy 1 point for 1 food (banked).
+#                         Reads the new player-count/mode-aware category accessor
+#                         helpers.accumulation_spaces (Wood Pile / Hand Truck /
+#                         Steam Machine migrated onto it).
+#   Clutterer B100      — counts the owner's qualifying plays AT PLAY TIME via the
+#                         new `played_card_id` stamp on the two play-host frames
+#                         (a scoring-time diff would miss the traveling Wood Pile).
+#   Sugar Baker D101    — after grain_utilization: buy 1 point for 1 food; the food
+#                         is owed to the space's next visitor (CardStore debt + an
+#                         any_player before_action_space grant — the Milk Jug shape).
+#   Prodigy E98         — 1st-occupation-only on-play bank: 1 point per improvement
+#                         held at that instant (majors + minors, frozen at play).
+#   Museum Caretaker E100 — start_of_work window: six-goods check as a LAST-ordered
+#                         auto (the new register_auto order=) PLUS a same-window
+#                         trigger for goods granted by other triggers (Cob);
+#                         max 1/round via used_this_round.
+#   Blighter E101       — banks 1 point per complete stage left at play; registers
+#                         the new occupation-play blocker consulted at the
+#                         playable_occupations chokepoint ("no more occupations").
+from agricola.cards import curator           # noqa: F401
+from agricola.cards import clutterer         # noqa: F401
+from agricola.cards import sugar_baker       # noqa: F401
+from agricola.cards import prodigy           # noqa: F401
+from agricola.cards import museum_caretaker  # noqa: F401
+from agricola.cards import blighter          # noqa: F401

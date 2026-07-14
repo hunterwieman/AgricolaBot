@@ -5,8 +5,9 @@ food at the start of each round and 1 wood at the start of each harvest."
 
 TWO choice-free automatic effects sharing one standing condition ("no minor
 improvements in front of you" = the PLAYED minor tableau is empty):
-  1. `start_of_round`  — +1 food each round (start-of-round / preparation hook,
-     driven through the real `_complete_preparation` boundary).
+  1. `start_of_round`  — +1 food each round (the preparation ladder's
+     start_of_round window, ruling 54, 2026-07-14 — fired frame-lessly, driven
+     through the real `_complete_preparation` boundary).
   2. `start_of_harvest` — +1 wood each harvest (harvest window #2, driven through
      the real harvest walk).
 Both are gated by the same `_eligible` predicate; playing any minor improvement
@@ -21,7 +22,7 @@ import pytest
 
 from agricola.cards.harvest_windows import HARVEST_WINDOW_CARDS
 from agricola.cards.specs import OCCUPATIONS
-from agricola.cards.triggers import AUTO_EFFECTS, START_OF_ROUND_CARDS, TRIGGERS
+from agricola.cards.triggers import AUTO_EFFECTS, TRIGGERS
 from agricola.constants import CellType, Phase
 from agricola.engine import _advance_until_decision, _complete_preparation, step
 from agricola.legality import legal_actions
@@ -92,10 +93,10 @@ def test_registered_as_occupation():
 
 
 def test_registered_on_both_windows():
-    # start_of_round auto + hook.
+    # start_of_round auto (the preparation ladder's window — autos fire
+    # frame-lessly, so no separate hosting registration exists).
     round_autos = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     assert CARD_ID in round_autos
-    assert CARD_ID in START_OF_ROUND_CARDS
     # start_of_harvest auto + hook.
     harvest_autos = {e.card_id for e in AUTO_EFFECTS.get("start_of_harvest", ())}
     assert CARD_ID in harvest_autos

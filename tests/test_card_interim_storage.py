@@ -8,9 +8,10 @@ Two halves are exercised through real engine flows:
   ACCUMULATE — a `before_action_space` automatic effect on the four building
     accumulation spaces; driven through the hosted-space lifecycle
     (PlaceWorker → Proceed → Stop), mirroring tests/test_cards_action_space_hook.py.
-  RELEASE — a `start_of_round` automatic effect; driven through the real
-    `_complete_preparation` round-boundary transition, mirroring
-    tests/test_cards_preparation_hook.py.
+  RELEASE — a `start_of_round` automatic effect, fired mechanically (no frame)
+    at the preparation ladder's `start_of_round` window (ruling 54, 2026-07-14);
+    driven through the real `_complete_preparation` round-boundary transition,
+    mirroring tests/test_cards_preparation_hook.py.
 """
 from __future__ import annotations
 
@@ -20,7 +21,6 @@ from agricola.actions import PlaceWorker, Proceed, Stop
 from agricola.cards.triggers import (
     AUTO_EFFECTS,
     OWN_ACTION_HOOK_CARDS,
-    START_OF_ROUND_CARDS,
     should_host_space,
 )
 from agricola.engine import _complete_preparation, step
@@ -104,10 +104,9 @@ def test_registered_on_both_hooks():
     assert CARD_ID in accum_ids
     for sid in ("clay_pit", "reed_bank", "western_quarry", "eastern_quarry"):
         assert CARD_ID in OWN_ACTION_HOOK_CARDS[sid]
-    # Release: start_of_round auto + the start-of-round ownership index.
+    # Release: an automatic effect on the ladder's start_of_round window.
     release_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     assert CARD_ID in release_ids
-    assert CARD_ID in START_OF_ROUND_CARDS
 
 
 # ---------------------------------------------------------------------------

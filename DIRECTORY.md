@@ -208,6 +208,10 @@ AgricolaBot/
 
             schedules.py            # Deferred-goods/effects helpers for "place on future round spaces" cards: schedule_resources (goods → future_resources), schedule_effect (round-start grant hooks → future_rewards; Handplow), schedule_animals (animals → future_rewards, auto-accommodated at round start; Acorns Basket).
 
+            round_end.py            # The round-end timing ladder's step table (rulings 49/50; CARD_ENGINE_IMPLEMENTATION.md §5c): ROUND_END_STEPS — six window ids doubling as event strings (end_of_work → after_work → start_of_returning_home → returning_home → __reset__ → after_returning_home → end_of_round) + the WORK/RETURN segment split constants. Walked by engine._advance_round_end.
+
+            preparation.py          # The preparation ladder's step table (ruling 54, 2026-07-14; CARD_ENGINE_IMPLEMENTATION.md §5d): PREP_STEPS — six window ids doubling as event strings (round_space_collection, reveal, start_of_round, replenishment, before_work, start_of_work) + four mechanical sentinels (__collect__, __reveal__, __round_setup__, __replenish__). Walked by engine._advance_preparation; the walk pauses ride GameState.prep_cursor (never across the reveal).
+
             display.py              # UI-only card surfacing for the web UI (the engine never reads it): live banked-VP emblems for history-derived scoring cards, state badges (Interim Storage's held goods, Moldboard Plow's uses left), and the per-card action-labeler registry (register_action_labeler / variant_label — maps a card's variant encoding to terse mechanical action labels; play_web.py consults it for FireTrigger variants, variant-bearing harvest conversions, and food-payment converter names).
 
         agents/                     # Agent implementations: random + heuristics. Built atop the engine's pure `step` / `legal_actions` interface.

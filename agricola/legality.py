@@ -90,7 +90,6 @@ from agricola.pending import (
     PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
-    PendingPreparation,
     PendingChooseCost,
     PendingRenovate,
     PendingReveal,
@@ -1273,9 +1272,22 @@ def playable_occupations(state: GameState, idx: int) -> list[str]:
     that affordability gate lives at the placement predicate, not here. Filtered to
     ids with a registered OccupationSpec so an as-yet-unimplemented card in hand is
     simply not offered (no KeyError) while the base set is being built out.
+
+    This is the single chokepoint every occupation-play route (Lessons, Scholar,
+    card grants) enumerates through, so an owned OCCUPATION-PLAY BLOCKER (Blighter:
+    "You may not play any more occupations") empties the set here — one gate covers
+    every route, present and future.
     """
-    from agricola.cards.specs import OCCUPATIONS  # local import: load-order safe
-    return sorted(state.players[idx].hand_occupations & OCCUPATIONS.keys())
+    from agricola.cards.specs import (  # local import: load-order safe
+        OCCUPATION_PLAY_BLOCKERS,
+        OCCUPATIONS,
+    )
+    p = state.players[idx]
+    if OCCUPATION_PLAY_BLOCKERS and (
+            OCCUPATION_PLAY_BLOCKERS
+            & (p.occupations | p.minor_improvements)):
+        return []
+    return sorted(p.hand_occupations & OCCUPATIONS.keys())
 
 
 def _legal_lessons_cards(state: GameState) -> bool:
@@ -2772,33 +2784,11 @@ def _enumerate_pending_food_payment(
     ]
 
 
-def _enumerate_pending_preparation(
-    state: GameState, pending: PendingPreparation,
-) -> list[Action]:
-    """Legal actions at a PendingPreparation start-of-round host (card game only).
-
-    The phase host for "at the start of each round, you can…" cards. Its event is
-    `start_of_round` (the autos already fired at push in `_fire_preparation_hook`);
-    this surfaces the remaining eligible, unfired `start_of_round` triggers (Plow
-    Driver, Groom, Scholar, and the mandatory Childless) as FireTrigger, then
-    `Proceed` — the work-complete boundary that pops the frame.
-
-    Proceed is GATED OFF (mandatory-with-choice, II.1) while an eligible, unfired
-    `mandatory` trigger remains for this player: Childless cannot be declined, so the
-    only legal exits are firing it (→ a PendingCardChoice crop pick) until it has
-    fired, after which Proceed reopens. With no mandatory trigger pending the host is
-    an ordinary optional-trigger phase: when no trigger is eligible this is a
-    singleton [Proceed] the agent auto-applies.
-    """
-    from agricola.cards.triggers import has_unfired_mandatory_trigger
-
-    base = _eligible_fire_triggers(state, pending, "start_of_round")
-    # Expand any play-variant trigger (Scholar) into per-variant FireTriggers — the
-    # route (occupation / minor) is chosen AT the fire, not via an intermediate node.
-    actions = _expand_variant_triggers(state, pending, base)
-    if not has_unfired_mandatory_trigger(state, pending, "start_of_round"):
-        actions.append(Proceed())
-    return actions
+# (_enumerate_pending_preparation is GONE — the preparation ladder, ruling 54,
+# 2026-07-14: start-of-round decisions ride PendingHarvestWindow frames whose
+# window_id is a prep window id — "start_of_round", "start_of_work", … — all
+# enumerated by the generic window enumerator below. Proceed gating for the
+# mandatory Childless and Scholar's variant expansion carry over unchanged.)
 
 
 def _enumerate_pending_harvest_window(
@@ -2905,7 +2895,6 @@ def _enumerate_pending_draft_pick(
 
 
 PENDING_ENUMERATORS: dict[type, Callable] = {
-    PendingPreparation:         _enumerate_pending_preparation,
     PendingHarvestWindow:       _enumerate_pending_harvest_window,
     PendingHarvestOccasion:     _enumerate_pending_harvest_occasion,
     PendingFieldPhase:          _enumerate_pending_field_phase,

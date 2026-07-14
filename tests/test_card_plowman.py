@@ -9,9 +9,11 @@ Plowman fuses Handplow's deferred-plow SCHEDULE (the three due rounds ride on
 Driver's pay-1-food-to-plow body (the 1 food flows through the shared food-payment
 path; eligibility is liquidation-aware). Verified here: registration, the on-play
 schedule (R+4/7/10, with rounds > 14 dropped), the optional FireTrigger at the
-PREPARATION host with Proceed as the decline, the 1-food debit + plow, eligibility
-boundaries (unplowable / unaffordable / unscheduled round), the liquidation path when
-food is short, and that firing consumes the slot so it never re-qualifies.
+preparation ladder's start_of_round window frame (a PendingHarvestWindow, ruling
+53, 2026-07-14) with Proceed as the decline, the 1-food debit + plow, eligibility
+boundaries (unplowable / unaffordable / unscheduled round — an ineligible trigger
+gets NO frame at all), the liquidation path when food is short, and that firing
+consumes the slot so it never re-qualifies.
 """
 import agricola.cards.plowman  # noqa: F401
 
@@ -21,7 +23,7 @@ from agricola.cards.triggers import TRIGGERS
 from agricola.constants import CellType, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import _can_plow, legal_actions
-from agricola.pending import PendingFoodPayment, PendingPlow, PendingPreparation
+from agricola.pending import PendingFoodPayment, PendingHarvestWindow, PendingPlow
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -128,15 +130,17 @@ def test_on_play_drops_rounds_past_14():
 # ---------------------------------------------------------------------------
 
 def test_offers_optional_plow_and_debits_food():
-    # The scheduled round is entered → a PendingPreparation host surfaces the plow as an
-    # OPTIONAL FireTrigger alongside Proceed (the decline). Firing debits 1 food, pushes
-    # the plow, and consumes the schedule slot.
+    # The scheduled round is entered → the start_of_round window pushes a choice
+    # frame surfacing the plow as an OPTIONAL FireTrigger alongside Proceed (the
+    # decline). Firing debits 1 food, pushes the plow, and consumes the slot.
     s, entered = _prep_with_plowman_scheduled(idx=0, prev_round=1)
     s = _give(s, 0, Resources(food=2))
     s = _complete_preparation(s)
     assert s.round_number == entered
     top = s.pending_stack[-1]
-    assert isinstance(top, PendingPreparation) and top.player_idx == 0
+    assert isinstance(top, PendingHarvestWindow) and top.player_idx == 0
+    assert top.window_id == "start_of_round"
+    assert s.phase is Phase.PREPARATION   # the ladder is paused at the window
     la = legal_actions(s)
     assert FireTrigger(card_id="plowman") in la
     assert Proceed() in la                       # optional → declinable
@@ -164,34 +168,41 @@ def test_can_be_declined():
 # ---------------------------------------------------------------------------
 
 def test_not_offered_when_unplowable():
-    # Scheduled + food on hand, but the farm has no plowable cell → the host appears
-    # (the schedule drives hosting) but Plowman is not eligible, so only Proceed.
+    # Scheduled + food on hand, but the farm has no plowable cell → Plowman is not
+    # eligible, so NO window frame is pushed (frames appear exactly when a trigger
+    # is eligible) and the ladder runs straight through to WORK.
     s, _ = _prep_with_plowman_scheduled(idx=0, prev_round=1)
     s = _give(s, 0, Resources(food=2))
     s = _fill_grid_fields(s, 0)
     assert not _can_plow(s.players[0])
     s = _complete_preparation(s)
-    assert legal_actions(s) == [Proceed()]
+    assert s.pending_stack == ()
+    assert s.phase is Phase.WORK
+    assert FireTrigger(card_id="plowman") not in legal_actions(s)
 
 
 def test_not_offered_when_food_short_and_no_fuel():
-    # 0 food, nothing convertible → truly unaffordable → not offered (regression guard).
+    # 0 food, nothing convertible → truly unaffordable → not offered (regression
+    # guard): no frame, straight to WORK.
     s, _ = _prep_with_plowman_scheduled(idx=0, prev_round=1)
     s = _set_resources(s, 0, Resources())   # 0 food, no liquidatable goods
     s = _complete_preparation(s)
-    assert legal_actions(s) == [Proceed()]
+    assert s.pending_stack == ()
+    assert s.phase is Phase.WORK
+    assert FireTrigger(card_id="plowman") not in legal_actions(s)
 
 
 def test_owner_not_hosted_on_unscheduled_round():
-    # Owning Plowman does NOT host a preparation frame on rounds its plow isn't due
-    # (hosting is gated on the schedule slot, not card ownership).
+    # Owning Plowman does NOT produce a window frame on rounds its plow isn't due
+    # (eligibility is gated on the schedule slot, not card ownership).
     state = setup(0)
     p = state.players[0]
     p = fast_replace(p, occupations=p.occupations | {"plowman"})
     state = fast_replace(state, players=(p, state.players[1]),
                          round_number=3, phase=Phase.PREPARATION)
     out = _complete_preparation(state)
-    assert out.pending_stack == ()   # no host pushed
+    assert out.pending_stack == ()   # no frame pushed
+    assert out.phase is Phase.WORK
 
 
 # ---------------------------------------------------------------------------

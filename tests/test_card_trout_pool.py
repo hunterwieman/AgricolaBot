@@ -4,34 +4,28 @@ Card text: "At the start of each work phase, if there are at least 3 food on the
 'Fishing' accumulation space, you get 1 food from the general supply."
 Cost 2 clay; no prereq; 1 VP; not passing.
 
-Trout Pool is a MANDATORY, choice-free start-of-round income (a `register_auto`
-on the `start_of_round` event, like Nest Site / Pavior): when the start-of-work-
-phase Fishing bank holds >= 3 food, the owner gets 1 food from the supply.
+Trout Pool is a MANDATORY, choice-free income (a `register_auto` on the
+preparation ladder's `start_of_work` event — its printed "at the start of each
+work phase" rung, ruling 54): when the start-of-work-phase Fishing bank holds
+>= 3 food, the owner gets 1 food from the supply.
 
-`_complete_preparation` runs this round's accumulation refill (Fishing +1 food)
-BEFORE firing the start-of-round autos, so the auto reads the POST-refill board —
-which is exactly the board the player faces at the start of the work phase. The
-literal threshold `fishing.accumulated_amount >= 3` is therefore correct as-written
-with no off-by-one adjustment (Fishing is a food/animal accumulation space, so its
-food lives in the scalar `accumulated_amount`). These tests drive
-`_complete_preparation` directly (mirroring
+The ladder runs this round's accumulation refill (`__replenish__`, Fishing +1
+food) BEFORE the `start_of_work` window, so the auto reads the POST-refill
+board — which is exactly the board the player faces at the start of the work
+phase. The literal threshold `fishing.accumulated_amount >= 3` is therefore
+correct as-written with no off-by-one adjustment (Fishing is a food/animal
+accumulation space, so its food lives in the scalar `accumulated_amount`).
+These tests drive `_complete_preparation` directly (mirroring
 tests/test_card_nest_site.py) and also run a real engine preparation step end-to-end.
 """
 from __future__ import annotations
 
-import agricola.cards.trout_pool  # noqa: F401  (registers the card — not in cards/__init__.py)
+import agricola.cards.trout_pool  # noqa: F401  (registers the card)
 
 from agricola.cards.specs import MINORS, prereq_met
-from agricola.cards.triggers import (
-    AUTO_EFFECTS,
-    START_OF_ROUND_CARDS,
-    owns_start_of_round_card,
-    should_host_preparation,
-)
+from agricola.cards.triggers import AUTO_EFFECTS, TRIGGERS
 from agricola.constants import Phase
 from agricola.engine import _complete_preparation
-from agricola.legality import legal_actions
-from agricola.pending import PendingPreparation
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.setup import setup, setup_env
@@ -82,13 +76,13 @@ def test_registered_as_minor():
     assert spec.min_occupations == 0
 
 
-def test_registered_on_start_of_round_hook():
-    assert CARD_ID in START_OF_ROUND_CARDS
+def test_registered_on_start_of_work_window():
+    # RE-TAGGED (ruling 54): "at the start of each work phase" is the preparation
+    # ladder's `start_of_work` window (after the refill), not `start_of_round`.
     # Registered as an AUTO effect (mandatory, choice-free) — not an optional trigger.
-    assert any(e.card_id == CARD_ID for e in AUTO_EFFECTS.get("start_of_round", ()))
-    state = _own_minor(setup(0), 0)
-    assert owns_start_of_round_card(state.players[0]) is True
-    assert should_host_preparation(state) is True
+    assert any(e.card_id == CARD_ID for e in AUTO_EFFECTS.get("start_of_work", ()))
+    assert all(e.card_id != CARD_ID for e in AUTO_EFFECTS.get("start_of_round", ()))
+    assert all(e.card_id != CARD_ID for e in TRIGGERS.get("start_of_work", []))
 
 
 def test_no_prerequisite():
@@ -109,8 +103,9 @@ def test_food_when_fishing_bank_at_threshold():
     after = _complete_preparation(s)
     assert get_space(after.board, "fishing").accumulated_amount == 3
     assert after.players[0].resources.food == before + 1
-    # The host frame is still on the stack (owner owns a start-of-round card).
-    assert isinstance(after.pending_stack[-1], PendingPreparation)
+    # Auto-only card → no frame: the ladder completes straight to WORK.
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
 
 
 def test_no_food_when_below_threshold():
@@ -145,13 +140,15 @@ def test_food_when_bank_well_stocked():
 # ---------------------------------------------------------------------------
 
 def test_no_firetrigger_surfaced_choicefree_auto():
-    # After the auto fires at push, the only legal action at the host is Proceed
-    # (a mandatory-with-choice trigger would withhold Proceed; an auto never does).
-    from agricola.actions import Proceed
+    # A choice-free auto never surfaces a FireTrigger: the ladder fires it
+    # mechanically with NO frame at all, so the returned state is already in
+    # WORK with an empty stack (and the food paid).
     s = _prep_state(0, food_before=2)
+    before = s.players[0].resources.food
     after = _complete_preparation(s)
-    la = legal_actions(after)
-    assert la == [Proceed()]
+    assert after.players[0].resources.food == before + 1
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +168,7 @@ def test_only_owner_is_paid():
 
 
 def test_non_owner_gets_nothing_even_on_stocked_bank():
-    # Player 1 owns it, player 0 does not. The hook hosts only for the owner.
+    # Player 1 owns it, player 0 does not. The auto fires only for the owner.
     s = _own_minor(setup(0), 1)
     s = fast_replace(s, phase=Phase.PREPARATION, round_number=1)
     s = _set_fishing(s, 4)  # → post-refill 5 → threshold met
@@ -192,8 +189,9 @@ def test_income_disarms_when_bank_drained():
     f = s.players[0].resources.food
     after_a = _complete_preparation(s)
     assert after_a.players[0].resources.food == f + 1
-    # Now simulate the next round with an emptied Fishing space.
-    s2 = fast_replace(after_a, phase=Phase.PREPARATION, pending_stack=())
+    # Now simulate the next round with an emptied Fishing space (after_a is
+    # already a WORK state with an empty stack — auto-only, no frame).
+    s2 = fast_replace(after_a, phase=Phase.PREPARATION)
     s2 = _set_fishing(s2, 0)  # drained → post-refill 1 → below threshold
     f2 = s2.players[0].resources.food
     after_b = _complete_preparation(s2)
@@ -206,12 +204,12 @@ def test_income_disarms_when_bank_drained():
 
 def test_round_one_excluded_no_food_at_game_start():
     # setup() returns the round-1 WORK state directly, never running preparation, so
-    # the start-of-round auto cannot fire in round 1 even with a stocked Fishing space.
+    # the start-of-work auto cannot fire in round 1 even with a stocked Fishing space.
     s, env = setup_env(0)
     s = _own_minor(s, 0)
     assert s.round_number == 1
     assert s.phase is Phase.WORK
-    assert all(not isinstance(f, PendingPreparation) for f in s.pending_stack)
+    assert s.pending_stack == ()
 
 
 # ---------------------------------------------------------------------------

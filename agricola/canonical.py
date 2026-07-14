@@ -144,6 +144,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # Family-constant None (no round-end cards → no frames), so omitting it keeps
     # the Family JSON byte-identical and needs no C++ change.
     "round_end_cursor",
+    # Card-only preparation walk cursor (engine._advance_preparation, ruling 54,
+    # 2026-07-14): set only while a prep window's choice frame pauses the walk —
+    # never across the reveal (the post-reveal resume is derived from public
+    # state), so Family-constant None and omitted; the C++ engine needs no field.
+    "prep_cursor",
     # QUALIFIED entries ("<Type>.<field>") skip a field on ONE dataclass only —
     # for a field whose NAME is emitted on other (Family) frames but whose value
     # is Family-constant-default on this one. PendingHarvestBreed exists in every

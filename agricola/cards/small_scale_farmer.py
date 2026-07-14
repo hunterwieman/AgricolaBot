@@ -5,7 +5,7 @@ each round, you get 1 wood."
 
 Category 7 (start-of-round phase hook). The clause is a MANDATORY, choice-free
 income gated on a 2-room house → an automatic effect (`register_auto` on the
-`start_of_round` event), fired at the PendingPreparation push for the owner. The
+`start_of_round` event), fired mechanically by the preparation walk for the owner. The
 condition (exactly 2 rooms) is re-checked each round in the eligibility, so the
 income stops once the player expands or contracts. See
 CARD_IMPLEMENTATION_PLAN.md Category 7.
@@ -13,7 +13,7 @@ CARD_IMPLEMENTATION_PLAN.md Category 7.
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.constants import CellType
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -45,4 +45,3 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)

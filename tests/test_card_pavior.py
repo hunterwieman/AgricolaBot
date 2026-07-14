@@ -3,13 +3,16 @@
 Card text: "At the end of each preparation phase, if you have at least 1 stone in
 your supply, you get 1 food. In round 14, you get 1 vegetable instead."
 
-A choice-free `start_of_round` automatic effect (Category 7, the start-of-round
-phase hook). The income is driven through the real `_complete_preparation`
-round-boundary transition, mirroring tests/test_card_interim_storage.py /
-tests/test_cards_category7.py (Scullery). "At the end of each preparation phase"
-is exactly the start-of-round hook: by the time these autos fire, round_number is
-already incremented to the round being entered, so `state.round_number` is the
-current round — and round 14 (NUM_ROUNDS, the final round) grants a vegetable.
+A choice-free `start_of_round` automatic effect (the preparation ladder's
+start_of_round window, ruling 54, 2026-07-14). The income is driven through the
+real `_complete_preparation` round-boundary transition, mirroring
+tests/test_card_interim_storage.py / tests/test_cards_category7.py (Scullery).
+By the time the start_of_round window fires, round_number is already incremented
+(the ladder's `__round_setup__` step) to the round being entered, so
+`state.round_number` is the current round — and round 14 (NUM_ROUNDS, the final
+round) grants a vegetable. As a choice-free auto it fires frame-lessly: with no
+eligible trigger for either player, `_complete_preparation` returns a
+phase==WORK state with an empty stack.
 """
 from __future__ import annotations
 
@@ -17,13 +20,11 @@ import pytest
 
 import agricola.cards.pavior  # noqa: F401  (registers the card)
 
-from agricola.actions import Proceed
 from agricola.cards.specs import OCCUPATIONS
-from agricola.cards.triggers import AUTO_EFFECTS, START_OF_ROUND_CARDS
+from agricola.cards.triggers import AUTO_EFFECTS
 from agricola.constants import NUM_ROUNDS, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingPreparation
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup, setup_env
@@ -71,10 +72,9 @@ def test_registered_as_occupation():
     assert s2.players[0].resources == before
 
 
-def test_registered_on_start_of_round_hook():
+def test_registered_on_start_of_round_window():
     auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
     assert CARD_ID in auto_ids
-    assert CARD_ID in START_OF_ROUND_CARDS
     # Choice-free auto (no mandatory FireTrigger): it is in AUTO_EFFECTS, not TRIGGERS.
     from agricola.cards.triggers import TRIGGERS
     trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
@@ -94,10 +94,11 @@ def test_food_income_with_stone(from_round):
     assert out.round_number == from_round + 1
     gained = out.players[0].resources - before
     assert gained == Resources(food=1)
-    # The start-of-round host frame is on the stack (owner of a start-of-round card);
-    # the auto already applied, so Proceed is the only legal action (singleton).
-    assert isinstance(out.pending_stack[-1], PendingPreparation)
-    assert legal_actions(out) == [Proceed()]
+    # The auto applied frame-lessly: no window frame is pushed for an auto-only
+    # owner, so the ladder completed and the state is at the new round's WORK.
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
+    assert len(legal_actions(out)) > 0  # ordinary worker placements are up
 
 
 def test_more_than_one_stone_still_one_food():
@@ -119,8 +120,9 @@ def test_no_income_without_stone():
     before = s.players[0].resources
     out = _enter_round(s, 0, from_round=4)
     assert out.players[0].resources == before  # nothing gained
-    # Host still pushed (owner of a start-of-round card), but the auto did nothing.
-    assert isinstance(out.pending_stack[-1], PendingPreparation)
+    # No frame either way — an auto (eligible or not) never produces one.
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 def test_eligibility_rechecked_each_round():
@@ -202,7 +204,8 @@ def test_fires_across_a_real_round_boundary():
             s = step(s, env.resolve(s))
         else:
             la = legal_actions(s)
-            # If a Pavior start-of-round host appears, Proceed is the only action.
+            # Pavior is a choice-free auto: no window frame ever appears for it,
+            # so every decision here is an ordinary game decision.
             s = step(s, la[int(rng.integers(len(la)))])
         # Snapshot the food on the latest state that is still in round 1; the next
         # iteration may cross into round 2 via the preparation transition.

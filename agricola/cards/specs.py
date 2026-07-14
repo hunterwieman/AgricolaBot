@@ -136,6 +136,20 @@ def register_occupation_food_source(card_id: str, source_fn: Callable) -> None:
     OCCUPATION_FOOD_SOURCES[card_id] = source_fn
 
 
+# Cards that FORBID their owner any further occupation plays (Blighter: "You may
+# not play any more occupations"). Consulted by `legality.playable_occupations` —
+# the single chokepoint every occupation-play route (Lessons, Scholar, card
+# grants) enumerates through — so an owned blocker empties the playable set at
+# the source. Ownership-gated: a blocker still in HAND blocks nothing. Family
+# fast path: the set is empty and the check is one truthiness test.
+OCCUPATION_PLAY_BLOCKERS: set[str] = set()
+
+
+def register_occupation_play_blocker(card_id: str) -> None:
+    """Register a played card as blocking its owner's future occupation plays."""
+    OCCUPATION_PLAY_BLOCKERS.add(card_id)
+
+
 @dataclass(frozen=True)
 class MinorSpec:
     """A minor improvement's static definition (CARD_IMPLEMENTATION_PLAN.md II.4).

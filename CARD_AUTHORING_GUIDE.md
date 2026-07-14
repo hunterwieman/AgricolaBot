@@ -556,14 +556,25 @@ A card registers an effect against an **event string**:
   `play_occupation`, `play_minor`, `family_growth`. (`build_fences` joined the uniform
   host model — it flips to its after-phase on `Proceed`, like the other multi-shot
   builders; Shepherd's Crook hooks `before_/after_build_fences`.)
-- **Phase hooks:** `start_of_round`, `harvest_field`.
-- (`end_of_turn` was removed with Firewood Collector — see §2 and §9.)
+- **The preparation ladder** (ruling 54, 2026-07-14 — CARD_ENGINE_IMPLEMENTATION.md §5d):
+  every prep window id is an event string, in firing order `round_space_collection` →
+  `reveal` → `start_of_round` → `replenishment` (post-refill) → `before_work` →
+  `start_of_work`. Classify by the printed wording: "at the start of each round" →
+  `start_of_round`; "at the start of each work phase" → `start_of_work` (Freemason, Cob,
+  Trout Pool, Museum Caretaker); "placed … during the preparation phase" → `replenishment`
+  (Nest Site). Hosting is eligibility-driven — no hook registration; an auto-only card never
+  makes a frame. Wordings NOT yet ruled onto a rung ("at the END of each preparation phase",
+  "BEFORE the start of each round"): ask (§0).
+- **The round-end ladder** (§5c) and **harvest ladder** (§5b) likewise use their window ids
+  as event strings (`returning_home`, `end_of_round`, `start_of_harvest`, …).
+- (`end_of_turn` was removed with Firewood Collector — see §2 and §9; the old
+  `harvest_field` event is deleted — harvest cards register on the window ladder.)
 
 ### The three firing kinds and how to register them
 
 | Kind | Register with | Eligibility fn | Apply fn | Surfaced as |
 |---|---|---|---|---|
-| Automatic effect | `register_auto(event, card_id, eligible, apply, *, any_player=False)` | `(state, idx) -> bool` | `(state, idx) -> state` | nothing (applied at the hook) |
+| Automatic effect | `register_auto(event, card_id, eligible, apply, *, any_player=False, order=0)` | `(state, idx) -> bool` | `(state, idx) -> state` | nothing (applied at the hook; `order` sorts within one event — an auto that must read its same-instant peers' output registers late, Museum Caretaker) |
 | Optional trigger | `register(event, card_id, eligible, apply)` | `(state, idx, triggers_resolved) -> bool` | `(state, idx) -> state` | a `FireTrigger` |
 | Mandatory-with-choice | `register(event, card_id, eligible, apply, *, mandatory=True)` + `register_card_choice_resolver(card_id, resolver)` | `(state, idx, triggers_resolved) -> bool` | `(state, idx) -> state` (pushes `PendingCardChoice`) | a `FireTrigger` that gates the host's Proceed/Stop until fired |
 
@@ -575,13 +586,10 @@ triggers take `(state, idx, triggers_resolved)`.
 - `register_action_space_hook(card_id, spaces, *, any_player=False)` — make an atomic space
   hosted when this card is owned (required for hooking atomic spaces; see §2).
   `any_player=True` hosts on *either* player's use (opponent hooks — Milk Jug).
-- `register_start_of_round_hook(card_id)` — make this card's owner get a `PendingPreparation`
-  host each round (so its `start_of_round` autos/triggers can fire). *Do not* use this for
-  a one-time scheduled effect — gate hosting on the schedule instead (see Handplow, §7).
-- `register_harvest_field_hook(card_id)` — fire during the harvest field phase. Pair with
-  `register_auto` for a mandatory effect (Scythe Worker, Loom) or `register` for an optional
-  trigger — field-phase triggers surface at the per-player `PendingHarvestField` choice host,
-  pushed before the mechanical crop take (Stable Manure; variant expansion supported).
+- (`register_start_of_round_hook` is **GONE** — the preparation ladder's hosting is
+  eligibility-driven: register on the window event and the frame appears exactly when your
+  trigger is eligible. `register_harvest_field_hook` is likewise gone — harvest cards
+  register on the harvest window ladder, §5b.)
 - `register_conditional(card_id, condition_fn, apply_fn)` — a one-shot level-triggered
   effect (`condition_fn(state, idx) -> bool`; fires once, latched in `fired_once`).
 - `register_play_variant_trigger(card_id, variants_fn)` — for a trigger that offers a

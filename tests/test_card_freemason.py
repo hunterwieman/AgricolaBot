@@ -3,9 +3,11 @@
 Card text: "As long as you live in a clay/stone house with exactly 2 rooms, at the
 start of each work phase, you get 2 clay/stone."
 
-A choice-free `start_of_round` automatic effect (Category 7, the start-of-round
-phase hook), material-conditioned: a CLAY house grants +2 clay, a STONE house
-grants +2 stone, a WOOD house nothing. Income is driven through the real
+A choice-free automatic effect on the preparation ladder's `start_of_work`
+window (ruling 54, 2026-07-14 — "at the start of each work phase" is the
+ladder's last rung, after replenishment), fired mechanically with no frame.
+Material-conditioned: a CLAY house grants +2 clay, a STONE house grants +2
+stone, a WOOD house nothing. Income is driven through the real
 `_complete_preparation` round-boundary transition, mirroring
 tests/test_card_pavior.py / tests/test_cards_category7.py.
 """
@@ -13,13 +15,11 @@ from __future__ import annotations
 
 import agricola.cards.freemason  # noqa: F401  (registers the card)
 
-from agricola.actions import Proceed
 from agricola.cards.specs import OCCUPATIONS
-from agricola.cards.triggers import AUTO_EFFECTS, START_OF_ROUND_CARDS, TRIGGERS
+from agricola.cards.triggers import AUTO_EFFECTS, TRIGGERS
 from agricola.constants import CellType, HouseMaterial, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingPreparation
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup, setup_env
@@ -67,7 +67,8 @@ def _set_rooms(state, idx, n):
 
 def _enter_round(state, idx, *, from_round: int):
     """Set round_number=from_round and run the real `_complete_preparation` to
-    enter round from_round+1, firing the player's start_of_round autos."""
+    enter round from_round+1, walking the whole preparation ladder (the
+    `start_of_work` window fires the player's autos mechanically)."""
     state = fast_replace(state, round_number=from_round, phase=Phase.PREPARATION)
     return _complete_preparation(state)
 
@@ -94,13 +95,14 @@ def test_registered_as_occupation():
     assert s2.players[0].resources == before
 
 
-def test_registered_on_start_of_round_hook():
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
+def test_registered_on_start_of_work_window():
+    # "At the start of each work phase" → the ladder's start_of_work window
+    # (re-tagged from the pre-ladder "start_of_round" event, ruling 54).
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("start_of_work", ())}
     assert CARD_ID in auto_ids
-    assert CARD_ID in START_OF_ROUND_CARDS
     # Choice-free auto (MANDATORY income, not a declinable FireTrigger): it lives in
     # AUTO_EFFECTS, not TRIGGERS.
-    trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_round", ())}
+    trigger_ids = {e.card_id for e in TRIGGERS.get("start_of_work", ())}
     assert CARD_ID not in trigger_ids
 
 
@@ -117,9 +119,10 @@ def test_clay_house_two_rooms_grants_two_clay():
     assert out.round_number == 3
     gained = out.players[0].resources - before
     assert gained == Resources(clay=2)
-    # Host frame on the stack, auto already applied -> Proceed is the only action.
-    assert isinstance(out.pending_stack[-1], PendingPreparation)
-    assert legal_actions(out) == [Proceed()]
+    # The auto fired mechanically during the walk — no window frame is pushed for
+    # an auto-only card, so the ladder completed straight into WORK.
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +153,9 @@ def test_wood_house_two_rooms_no_income():
     before = s.players[0].resources
     out = _enter_round(s, 0, from_round=4)
     assert out.players[0].resources == before  # nothing gained
-    # Host still pushed (owner of a start-of-round card), but the auto did nothing.
-    assert isinstance(out.pending_stack[-1], PendingPreparation)
+    # No eligible auto, no trigger → no frame; the ladder completes into WORK.
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 # ---------------------------------------------------------------------------

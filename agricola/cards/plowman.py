@@ -12,14 +12,14 @@ A FUSION of two existing patterns:
   the `future_rewards` schedule (`schedule_effect`, which silently drops rounds past
   the 14-round game — matching "place a field tile on each corresponding round space",
   the same physical-tile clause Handplow models as cosmetic since no field-tile supply
-  is tracked). The schedule alone drives PREPARATION hosting on exactly those three
-  rounds (`triggers.has_scheduled_round_start_effect`), so Plowman — like Handplow —
-  is deliberately NOT registered via `register_start_of_round_hook` (which would host
-  EVERY round).
+  is tracked). The schedule alone drives hosting on exactly those three rounds (the
+  trigger's own eligibility reads the slot) — eligibility-driven under the preparation
+  ladder (ruling 54, 2026-07-14), with no ownership index.
 
 - **Plow Driver's pay-1-food-to-plow body** (Category 7). "you **can** plow the field
   for 1 food" is an OPTIONAL granted sub-action carrying a 1-food price, surfaced as a
-  FireTrigger at the PendingPreparation host with the host's Proceed as the decline.
+  FireTrigger at the start_of_round window's choice host with the host's Proceed as the
+  decline.
   The 1 food is paid through the shared food-payment path (FOOD_PAYMENT_DESIGN.md): with
   the food on hand it runs directly; short, it pushes a raise-only PendingFoodPayment
   whose resume (`_pay_and_plow`, registered under this card id) debits the raised food

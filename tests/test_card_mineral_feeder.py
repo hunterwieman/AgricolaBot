@@ -20,7 +20,7 @@ from agricola.cards.mineral_feeder import CARD_ID, _options, _pastured_sheep_pos
 from agricola.constants import Phase
 from agricola.engine import _complete_preparation
 from agricola.legality import legal_actions
-from agricola.pending import PendingPreparation
+from agricola.pending import PendingHarvestWindow
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Cost, Resources
 from agricola.setup import setup
@@ -179,7 +179,8 @@ def test_case_b_fire_and_decline():
     g0 = state.players[0].resources.grain
     state = _enter_round(state, from_round=1)
     top = state.pending_stack[-1]
-    assert isinstance(top, PendingPreparation)
+    assert isinstance(top, PendingHarvestWindow)
+    assert top.window_id == "start_of_round" and top.player_idx == 0
     acts = legal_actions(state)
     fires = [a for a in acts if isinstance(a, FireTrigger) and a.card_id == CARD_ID]
     assert [a.variant for a in fires] == ["s1b1c0"]

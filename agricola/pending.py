@@ -694,6 +694,11 @@ class PendingPlayOccupation:
     cost: Resources = Resources()
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # The card just played — stamped by the executor at the commit, BEFORE the
+    # flip, so after_play_occupation autos/triggers can read WHICH card landed
+    # (Clutterer's text-filtered count). None during the before-phase. Card-only
+    # frame, so no canonical/C++ concern.
+    played_card_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -725,6 +730,12 @@ class PendingPlayMinor:
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # The card just played — stamped by the executor at the commit, BEFORE the
+    # flip, so after_play_minor autos/triggers can read WHICH card landed
+    # (Clutterer's text-filtered count; a traveling minor is stamped too, though
+    # it has already been passed on). None during the before-phase. Card-only
+    # frame, so no canonical/C++ concern.
+    played_card_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1024,7 +1035,9 @@ class PendingHarvestWindow:
     `window_id` names the window and doubles as the trigger event string — the
     enumerator surfaces the player's eligible, unfired triggers for that event
     (variant-expanded) plus `Proceed`, the decline / work-complete boundary that
-    pops (a phase host with no before/after flip, like `PendingPreparation`).
+    pops (a phase host with no before/after flip). Serves the harvest, round-end,
+    AND preparation ladders — a window frame is this class with the ladder's
+    window id.
     Mandatory-with-choice
     triggers gate Proceed off until fired, as everywhere else.
 
@@ -1170,36 +1183,10 @@ class PendingFieldPhase:
     triggers_resolved: frozenset = frozenset()
 
 
-@dataclass(frozen=True)
-class PendingPreparation:
-    """Phase host frame for the start-of-round (preparation) phase, one per OWNING
-    player (card game only).
-
-    Pushed in `_complete_preparation` — *after* the mechanical round setup
-    (increment round, refill spaces, distribute future_resources, clear newborns)
-    but *before* the → WORK transition — and ONLY for a player who owns a
-    start-of-round card (the `owns_start_of_round_card` index, the preparation-phase
-    analog of the atomic host's `should_host_space`). Hosts the `start_of_round`
-    event: automatic effects (Small-scale Farmer, Scullery) fire immediately at
-    push; triggers (Plow Driver, Groom, Scholar) and mandatory-with-choice triggers
-    (Childless) are surfaced as `FireTrigger`. `Proceed` is the work-complete
-    boundary — it pops the frame (no after-phase: start-of-round cards have no
-    "after" clause). Round-scoped budgets use `used_this_round`.
-
-    A space-host frame in the action_space PENDING-id bucket so it shares the coarse
-    event derivation — but its derived event is overridden to `start_of_round` by
-    the enumerator (it is a phase host, not a worker-placement host, and has no
-    before/after `phase` flip — Proceed pops directly).
-
-    Default-inert: in the Family game (no start-of-round card owned) the push is
-    skipped entirely, so this frame is never constructed, the preparation trace is
-    byte-identical, and the C++ Family-only engine never sees it.
-    See CARD_IMPLEMENTATION_PLAN.md II.6 / Category 7.
-    """
-    PENDING_ID: ClassVar[str] = "preparation"
-    player_idx: int
-    initiated_by_id: str = "phase:preparation"
-    triggers_resolved: frozenset = frozenset()
+# (PendingPreparation is GONE — the preparation ladder, ruling 54, 2026-07-14:
+# start-of-round decisions now ride per-window PendingHarvestWindow choice hosts
+# pushed by engine._advance_preparation, exactly like the harvest and round-end
+# ladders; see agricola/cards/preparation.py.)
 
 
 @dataclass(frozen=True)
@@ -1350,7 +1337,6 @@ PendingDecision = Union[
     PendingReveal,
     PendingHarvestWindow,
     PendingFieldPhase,
-    PendingPreparation,
     PendingCardChoice,
     PendingActionSpace,
     PendingDraftPick,

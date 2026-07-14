@@ -6,7 +6,7 @@ people, you get 1 food and 1 crop of your choice (grain or vegetable)"
 Category 7 (start-of-round phase hook), the MANDATORY-WITH-CHOICE firing kind
 (II.1): the income is not optional (you cannot decline it), but it carries a choice
 (grain or vegetable), so it is a `mandatory`-tagged trigger rather than a plain
-automatic effect. While eligible and unfired it gates the PendingPreparation host's
+automatic effect. While eligible and unfired it gates the window choice host's
 Proceed; firing it applies the +1 food immediately and pushes a PendingCardChoice for
 the crop (a forced pick, no decline). The crop resolver applies the chosen crop and
 pops the choice frame; the gate then reopens. Once-per-round via `used_this_round`
@@ -18,7 +18,6 @@ from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import (
     register,
     register_card_choice_resolver,
-    register_start_of_round_hook,
 )
 from agricola.constants import CellType
 from agricola.pending import PendingCardChoice, pop, push
@@ -70,5 +69,4 @@ def _resolve(state: GameState, idx: int, chosen: str) -> GameState:
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("start_of_round", CARD_ID, _eligible, _apply, mandatory=True)
-register_start_of_round_hook(CARD_ID)
 register_card_choice_resolver(CARD_ID, _resolve)

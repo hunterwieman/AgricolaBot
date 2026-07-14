@@ -18,7 +18,7 @@ pasture is exact, not a heuristic); the condition holds iff the remaining
 animals fit the remaining farm for some j. A Dolly's Mother sheep-slot strips
 from the leftover sheep (the parked sheep is not the pastured one).
 
-Three cases, at the start-of-round host (`PendingPreparation`), gated on the
+Three cases, at the preparation ladder's start_of_round window, gated on the
 round NOT ending with a harvest (rounds 4/7/9/11/13/14 end with harvests):
 
 - **Satisfiable with current animals** → +1 grain AUTOMATICALLY ("you get" —
@@ -61,7 +61,6 @@ from agricola.cards.triggers import (
     register,
     register_auto,
     register_play_variant_trigger,
-    register_start_of_round_hook,
 )
 from agricola.constants import HARVEST_ROUNDS
 from agricola.helpers import can_accommodate, cooking_rates, extract_slots
@@ -199,5 +198,4 @@ register_minor(CARD_ID, cost=Cost(resources=Resources(reed=1)), vps=1)
 register_auto("start_of_round", CARD_ID, _auto_eligible, _auto_apply)
 register("start_of_round", CARD_ID, _trig_eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
-register_start_of_round_hook(CARD_ID)
 register_action_labeler(CARD_ID, _action_label)

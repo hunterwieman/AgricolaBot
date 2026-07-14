@@ -1383,7 +1383,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Occupations
 
-**420 occupations** — ✅ 105 implemented · 🚫 2 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 311 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 occupations** — ✅ 111 implemented · 🚫 2 won't-fix/banned · ❓ 2 deferred-for-ambiguity · ⬜ 305 not yet · ⚖ 319 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -1437,7 +1437,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A99 Fellow Grazer** · [1+]
   - _During scoring, you get 2 bonus points of reach pasture you have covering at least 3 farmyard spaces._
   - `PASSIVE E-SCORE` — Pure text scoring rule (per-pasture size threshold = plain E-SCORE, not E-SCOREOPT, and size-counting is not L-GEOMFARM); the required ACTIVATION for an always-on scoring rule is PASSIVE.
-- ⬜ **A100 Curator** · [1+]
+- ✅ **A100 Curator** · [1+]
   - _In the returning home phase of each round, if you return at least 3 people from accumulation spaces, you can buy 1 bonus point for 1 food._
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-FOODCOST E-SCORE ST-PLACELOG ST-COUNTER` — Optional food-paid bonus point at returning home: a bonus point bought through an action is E-SCORE (bonus points are not goods, so not E-GOODS); needs which spaces the returning workers occupied (ST-PLACELOG) and a running bank of bought points (ST-COUNTER).
 - ✅ **A101 Cookery Outfitter** · [1+]
@@ -1692,7 +1692,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B99 Tutor** · [1+]
   - _During scoring, you get 1 bonus point for each occupation played after this one.  [CLARIFICATION: This card only refers to cards played by the owner.]_
   - `E-SCORE ST-COUNTER` — Pure end-game scoring rule: per the ruling E-SCORE is computed at scoring and never carries HOOK/S-PLAY/F-AUTO; the play-order bookkeeping is just per-card state (ST-COUNTER), not a fired mechanic.
-- ⬜ **B100 Clutterer** · [1+]
+- ✅ **B100 Clutterer** · [1+]
   - _During scoring, you get 1 bonus point for each card played after this on that has "accumulation space(s)" in its text.  [CLARIFICATION: This card only refers to cards played by the owner.]_
   - `PASSIVE E-SCORE ST-COUNTER` — End-game bonus: 1 pt per later-played own card with 'accumulation space(s)' text -> scoring rule, count of qualifying cards.
 - ✅ **B101 Furniture Carpenter** · [1+]
@@ -2205,7 +2205,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D100 Lord of the Manor** · [1+]
   - _During scoring, you get 1 bonus point for each scoring category in which you score the maximum 4 points. (The bonus point is also awarded for 4 fenced stables.)_
   - `PASSIVE E-SCORE` — Pure end-game bonus-point rule (threshold/count per category, no arrangement optimization) = E-SCORE; per the rulings it never carries HOOK/S-BEFORESCORE/F-AUTO, but the taxonomy requires >=1 ACTIVATION, and an always-on scoring rule change is PASSIVE.
-- ⬜ **D101 Sugar Baker** · [1+]
+- ✅ **D101 Sugar Baker** · [1+]
   - _Each time after you use the "Grain Utilization" action space, you can buy 1 bonus point for 1 food. Place the food on the action space (for the next visitor).  [CLARIFICATION: If this card is played by using the “Grain Utilization” space (e.g. with Freshman A097,) you may not immediately use this card.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-FOODCOST E-SCORE EXOTIC` — "Each time after you use" = T-AFTER own-space hook, optional bp purchase for 1 food (E-FOODCOST + E-SCORE). The paid food is deposited on the ACTION space for the next visitor — E-SCHED is defined only for future round spaces, and no code covers goods placed on an action space -> EXOTIC. Bonus points need no per-card counter.
 - ⬜ **D102 Sample Stable Maker** · [1+]
@@ -2451,16 +2451,16 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E97 Beneficiary** · [1+]
   - _If this is your 3rd occupation, you can immediately play another occupation for an occupation cost of 1 food and/or play 1 minor improvement by paying its cost._
   - `ONPLAY E-GRANTSUB E-FOODCOST` — One-time on-play grant of optional card-plays (play-a-card is a primitive sub-action per the S-SUB taxonomy, so E-GRANTSUB not E-GRANTACT); the occupation play costs 1 food (E-FOODCOST). The 1-food cost is the grant's own parameter, not a modification of an existing cost, so no E-COSTMOD; CAP-GAME is wrong since CAP-* only caps ATWILL frequency and this is a plain ONPLAY.
-- ⬜ **E98 Prodigy** · [1+]
+- ✅ **E98 Prodigy** · [1+]
   - _If this is your 1st occupation, you immediately get 1 bonus point for each improvement you have. (This will not apply to improvements played after this card.)_
   - `ONPLAY E-SCORE ST-STORE` — Bonus points (not goods, so E-GOODS is wrong) earned through the play action — E-SCORE legitimately combines with a non-scoring activation per the rulings; the improvement count must be snapshotted at play time since later improvements don't count (ST-STORE).
 - ✅ **E99 Uncaring Parents** · [1+]
   - _At the end of each harvest, if you live in a stone house, you get 1 bonus point._
   - `HOOK T-AFTER S-HBREED F-AUTO A-OWN E-SCORE ST-COUNTER` — 'End of each harvest' is after the breeding phase, not after feeding — S-HBREED + T-AFTER, not S-AFTERFEED (which precedes breeding). Mandatory bonus point on a stone-house state read; the points accrue across harvests, needing a running tally (ST-COUNTER).
-- ⬜ **E100 Museum Caretaker** · [1+]
+- ✅ **E100 Museum Caretaker** · [1+]
   - _At the start of each work phase, if you have at least 1 wood, 1 clay, 1 reed, 1 stone, 1 grain, and 1 vegetable in your supply, you get 1 bonus point._
   - `HOOK T-BEFORE S-SOR F-AUTO A-OWN E-SCORE ST-COUNTER` — Start-of-each-work-phase hook (S-SOR), mandatory state-read bonus point. Points accumulate over many rounds, so a running count is kept (ST-COUNTER) — consistent with E99.
-- ⬜ **E101 Blighter** · [1+]
+- ✅ **E101 Blighter** · [1+]
   - _When you play this card, you get 1 bonus point for each complete stage left to play. You may not play any more occupations._
   - `ONPLAY E-SCORE ST-STORE PASSIVE` — On-play bonus points scaled by stages remaining (value fixed at play time — ST-STORE snapshot, consistent with E98), plus a permanent always-on rule change forbidding further occupation plays (PASSIVE); labelA missed the standing restriction.
 - ⬜ **E102 Acquirer** · [1+]

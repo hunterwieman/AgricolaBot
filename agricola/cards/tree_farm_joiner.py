@@ -12,11 +12,10 @@ next two odd-numbered round spaces strictly after the current round:
 2. **A round-start "Minor Improvement" action** — riding on `future_rewards` via
    `schedule_effect` (the FutureReward effect-hook tuple), exactly like Handplow's
    deferred plow. The scheduled card id is what this card's OPTIONAL
-   `start_of_round` trigger checks for eligibility, and it also drives whether the
-   PendingPreparation host is pushed that round
-   (`triggers.has_scheduled_round_start_effect`) — so a played Tree Farm Joiner only
-   hosts a preparation frame on its two scheduled rounds, NOT every round. It is
-   therefore deliberately NOT registered via `register_start_of_round_hook`.
+   `start_of_round` trigger checks for eligibility, and that eligibility is also
+   what drives hosting (the preparation ladder's eligibility-driven model, ruling
+   53, 2026-07-14) — so a played Tree Farm Joiner only hosts a window frame on its
+   two scheduled rounds, NOT every round.
 
 "the next 2 odd-numbered round spaces" = the two smallest odd integers strictly
 greater than the current round. `schedule_resources` / `schedule_effect` silently
@@ -25,14 +24,15 @@ fewer than two.
 
 OPTIONALITY: "a Minor Improvement action" is the player's to take or decline (a
 granted action is optional unless the text says "you must"), so it is modeled as an
-OPTIONAL `start_of_round` trigger surfaced as a FireTrigger at the PendingPreparation
+OPTIONAL `start_of_round` trigger surfaced as a FireTrigger at that window's choice
 host — the host's Proceed IS the decline. `PendingPlayMinor` has no decline of its
 own (it forces exactly one minor once pushed), so eligibility ALSO requires at least
 one affordable hand minor (`legality.playable_minors`); otherwise a fired grant would
 dead-end on an empty legal set.
 
 WOOD-BEFORE-MINOR ORDERING is provided by `_complete_preparation`, which distributes
-`future_resources` (the +1 wood) BEFORE `_fire_preparation_hook` surfaces the minor
+`future_resources` (the +1 wood, at the `__collect__` sentinel) BEFORE the
+start_of_round window surfaces the minor
 trigger — so the wood is on hand to pay the minor, matching "you get the wood and,
 immediately afterward, a Minor Improvement action."
 

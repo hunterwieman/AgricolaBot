@@ -1,10 +1,12 @@
 """Tests for the Category-7 start-of-round cards + Seasonal Worker (Cat 3).
 
-Category 7 rides the start-of-round phase hook (II.6): `_complete_preparation` pushes
-a `PendingPreparation` host for each player who owns a start-of-round card and fires
-the `start_of_round` event. Auto-effects (Small-scale Farmer, Scullery) fire at push;
-optional triggers (Plow Driver, Groom) surface as FireTrigger; the mandatory-with-
-choice Childless gates Proceed; Scholar is the collapsed play-variant trigger.
+Category 7 rides the preparation ladder's `start_of_round` window (ruling 54,
+2026-07-14; `agricola/cards/preparation.py`): the window's auto-effects
+(Small-scale Farmer, Scullery) fire mechanically with NO frame; a
+`PendingHarvestWindow(window_id="start_of_round")` choice frame is pushed only
+for a player with an eligible registered TRIGGER — optional triggers (Plow
+Driver, Groom) surface as FireTrigger, the mandatory-with-choice Childless
+gates Proceed, and Scholar is the collapsed play-variant trigger.
 
 Seasonal Worker is the mandatory-with-choice trigger on the Day Laborer space-host.
 
@@ -13,7 +15,8 @@ timing has no correct anchor until "at any time" card effects define a post-acti
 turn-end window. See CARD_IMPLEMENTATION_PLAN.md.)
 
 Cards are exercised by driving the engine through a placement turn / a constructed
-PendingPreparation host (mirroring tests/test_cards_category6.py / _preparation_hook).
+start_of_round window host (mirroring tests/test_cards_category6.py /
+_preparation_hook).
 """
 from __future__ import annotations
 
@@ -26,17 +29,17 @@ from agricola.actions import (
     Proceed,
 )
 from agricola.cards.specs import MINORS, OCCUPATIONS
-from agricola.cards.triggers import PLAY_VARIANT_TRIGGERS, TRIGGERS
+from agricola.cards.triggers import AUTO_EFFECTS, PLAY_VARIANT_TRIGGERS, TRIGGERS
 from agricola.constants import CellType, HouseMaterial, Phase
 from agricola.engine import _complete_preparation, step
 from agricola.legality import legal_actions
 from agricola.pending import (
     PendingCardChoice,
     PendingFoodPayment,
+    PendingHarvestWindow,
     PendingPlayMinor,
     PendingPlayOccupation,
     PendingPlow,
-    PendingPreparation,
     push,
 )
 from agricola.replace import fast_replace
@@ -88,9 +91,12 @@ def _set_rooms(state, idx, n):
 
 
 def _host(state, idx):
-    """A WORK state with a PendingPreparation host for `idx` on top."""
+    """A WORK state with a start_of_round window choice host for `idx` on top —
+    the synthetic-frame idiom: constructed outside the ladder walk (no
+    prep_cursor), so popping the frame ends the turn instead of resuming a
+    preparation cursor."""
     return push(fast_replace(state, phase=Phase.WORK),
-                PendingPreparation(player_idx=idx))
+                PendingHarvestWindow(window_id="start_of_round", player_idx=idx))
 
 
 def _run_turn(state):
@@ -120,6 +126,9 @@ def test_category7_cards_registered():
     so = {e.card_id: e.mandatory for e in TRIGGERS.get("start_of_round", [])}
     assert so["childless"] is True
     assert so["plow_driver"] is False
+    # Small-scale Farmer / Scullery are choice-free AUTOS on start_of_round.
+    sor_autos = {e.card_id for e in AUTO_EFFECTS.get("start_of_round", ())}
+    assert {"small_scale_farmer", "scullery"} <= sor_autos
     # Seasonal Worker is a mandatory "each time you use [space]" grant → before-phase.
     bas = {e.card_id: e.mandatory for e in TRIGGERS.get("before_action_space", [])}
     assert bas["seasonal_worker"] is True
@@ -128,7 +137,7 @@ def test_category7_cards_registered():
 
 
 # ---------------------------------------------------------------------------
-# Small-scale Farmer — +1 wood at exactly 2 rooms (auto at push)
+# Small-scale Farmer — +1 wood at exactly 2 rooms (auto, fired mechanically)
 # ---------------------------------------------------------------------------
 
 def test_small_scale_farmer_two_rooms():
@@ -138,7 +147,9 @@ def test_small_scale_farmer_two_rooms():
     before = s.players[0].resources.wood
     after = _complete_preparation(s)
     assert after.players[0].resources.wood == before + 1
-    assert isinstance(after.pending_stack[-1], PendingPreparation)
+    # An auto-only card produces no frame: the ladder completes straight to WORK.
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
 
 
 def test_small_scale_farmer_not_two_rooms_no_income():
@@ -148,14 +159,13 @@ def test_small_scale_farmer_not_two_rooms_no_income():
     before = s.players[0].resources.wood
     after = _complete_preparation(s)
     assert after.players[0].resources.wood == before
-    # The host frame is still pushed (the player owns a start-of-round card), but the
-    # auto did nothing; Proceed is the only legal action (singleton).
-    assert isinstance(after.pending_stack[-1], PendingPreparation)
-    assert legal_actions(after) == [Proceed()]
+    # The auto did nothing and no trigger surfaced: no frame, straight to WORK.
+    assert after.pending_stack == ()
+    assert after.phase is Phase.WORK
 
 
 # ---------------------------------------------------------------------------
-# Scullery — +1 food in a wooden house (auto at push)
+# Scullery — +1 food in a wooden house (auto, fired mechanically)
 # ---------------------------------------------------------------------------
 
 def test_scullery_wooden_house():
@@ -164,6 +174,7 @@ def test_scullery_wooden_house():
     before = s.players[0].resources.food
     after = _complete_preparation(s)
     assert after.players[0].resources.food == before + 1
+    assert after.pending_stack == ()   # auto-only → no frame
 
 
 def test_scullery_non_wooden_no_income():

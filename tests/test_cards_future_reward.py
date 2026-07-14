@@ -1,6 +1,7 @@
 """Tests for FutureReward (CARD_IMPLEMENTATION_PLAN.md II.5) — the card-only sibling
 of `future_resources` that carries animals + round-start effect hooks, distributed
-at round start by `engine._collect_future_rewards`.
+by `engine._collect_future_rewards` at the preparation ladder's `__collect__` step
+(the new round's first instant, before any window — ruling 54).
 
 Goods/food schedules still ride on the Family-reachable `future_resources` (the
 Well's structure, untouched here); FutureReward adds only what a Resources slot
@@ -8,19 +9,16 @@ cannot — animals (collected + accommodated) and effect-card hooks (a card id w
 round-start effect fires). Card-only and default-empty, so the Family game is
 byte-identical and the C++ Family engine is untouched (no canonical churn).
 
-These tests drive `_complete_preparation` directly across a round boundary
+These tests drive `_collect_future_rewards` directly across a round boundary
 (mirroring tests/test_cards_preparation_hook.py) and check the FutureReward
 dataclass algebra in isolation.
 """
 from __future__ import annotations
 
 from agricola.canonical import dumps, loads
-from agricola.cards.triggers import (
-    has_scheduled_round_start_effect,
-    should_host_preparation,
-)
+from agricola.cards.triggers import TRIGGERS
 from agricola.constants import Phase
-from agricola.engine import _collect_future_rewards, _complete_preparation
+from agricola.engine import _collect_future_rewards
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Resources
 from agricola.setup import setup
@@ -38,10 +36,10 @@ def _set_future_rewards(state, idx, rewards):
 
 
 def _prep_state(round_number=1):
-    """A PREPARATION-phase state poised for `_complete_preparation`: increments to
-    `round_number+1` and distributes that round's slot. We move the game's
-    round-card count past `round_number` by setting round_number directly; the
-    refill/transition machinery doesn't depend on the count for this test."""
+    """A PREPARATION-phase state poised at a round boundary: the preparation
+    ladder's `__collect__` step would distribute the entered round's slot. We set
+    round_number directly; the collection machinery doesn't depend on the
+    revealed-card count for this test."""
     state = setup(0)
     return fast_replace(state, round_number=round_number, phase=Phase.PREPARATION)
 
@@ -173,15 +171,24 @@ def test_collect_future_rewards_keeps_effect_ids_when_clearing_animals():
     assert "handplow" in out.players[0].future_rewards[slot].effect_card_ids
 
 
-def test_scheduled_effect_drives_preparation_hosting():
-    # A scheduled effect id for the current round makes should_host_preparation True
-    # even though the player owns no start-of-round card — the schedule, not card
-    # ownership, gates hosting (so a played Handplow hosts only when its plow is due).
+def test_scheduled_effect_drives_window_surfacing():
+    # A scheduled effect id in the CURRENT round's slot is what makes the card's
+    # registered start_of_round trigger eligible — the schedule, not card ownership
+    # per se, gates the window frame (so a played Handplow surfaces only when its
+    # plow is due). The eligibility fn reads the slot directly:
+    entry = next(e for e in TRIGGERS["start_of_round"] if e.card_id == "handplow")
     state = setup(0)
-    assert should_host_preparation(state) is False
+    p = fast_replace(state.players[0],
+                     minor_improvements=state.players[0].minor_improvements
+                     | {"handplow"})
+    state = fast_replace(state, players=(p, state.players[1]))
+    # Owned but nothing scheduled → not eligible.
+    assert not entry.eligibility_fn(state, 0, frozenset())
     rewards = list(state.players[0].future_rewards)
     rewards[state.round_number - 1] = FutureReward(
         effect_card_ids=frozenset({"handplow"}))
     state = _set_future_rewards(state, 0, tuple(rewards))
-    assert has_scheduled_round_start_effect(state.players[0], state.round_number)
-    assert should_host_preparation(state) is True
+    # Scheduled for the current round → eligible (this is what drives the
+    # PendingHarvestWindow push in the preparation ladder — see
+    # tests/test_cards_category8.py for the end-to-end frame drive).
+    assert entry.eligibility_fn(state, 0, frozenset())

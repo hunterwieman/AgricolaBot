@@ -21,21 +21,22 @@ was your last placement this work phase." (In the 2-player Family-derived card g
 family size is fixed and no in-scope card grants extra workers, so the mapping is
 exact; a future extra-worker card would need to revisit this.)
 
-"ACCUMULATION SPACE" — the 9 goods-accumulating spaces (`_ACCUMULATION_SPACES`): the 6
-ATOMIC building/food spaces (forest / clay_pit / reed_bank / western_quarry /
+"ACCUMULATION SPACE" — the 9 goods-accumulating spaces, read at eligibility
+through the category accessor `helpers.accumulation_spaces(state)` (the one
+definition every "accumulation space" wording quantifies over): the 6 ATOMIC
+building/food spaces (forest / clay_pit / reed_bank / western_quarry /
 eastern_quarry / fishing) + the 3 NON-ATOMIC animal markets (sheep / pig / cattle).
 `meeting_place` is excluded: in the card game Meeting Place gives no food and
 accumulates nothing (it is become-start-player + an optional minor), so it is not
 functioning as an accumulation space and must not satisfy "the last action space you
-use is an accumulation space." `constants.ACCUMULATION_SPACES` already excludes it
-(it is the card-game accumulation set), so this falls out for free.
+use is an accumulation space" — the accessor's CARDS-mode set already excludes it.
 
 HOSTING — `register_action_space_hook` is needed ONLY for the 6 ATOMIC accumulation
 spaces, so that placing on them pushes a `PendingActionSpace` host whose after-phase can
 surface this trigger. The 3 markets are non-atomic and self-host their before/after
 lifecycle (the `PendingSheepMarket` / `PendingPigMarket` / `PendingCattleMarket` frames
 already surface `after_action_space`, verified against Claw Knife / Milk Jug), so they
-must NOT be added to the hook — but they ARE matched by the `_ACCUMULATION_SPACES`
+must NOT be added to the hook — but they ARE matched by the accumulation-space
 membership test, so they still grant the Bake Bread.
 
 OPTIONALITY — "you can" → an OPTIONAL `register` (declinable) trigger, not
@@ -61,17 +62,19 @@ from agricola.state import GameState
 
 CARD_ID = "steam_machine"
 
-# The 9 goods-accumulating spaces (ACCUMULATION_SPACES is the card-game set, so
-# meeting_place — no goods in the card game — is already excluded).
-_ACCUMULATION_SPACES = frozenset(ACCUMULATION_SPACES)
-# Of those, only the ATOMIC ones need an explicit host hook; the 3 markets self-host.
-_ACC_ATOMIC = frozenset(s for s in _ACCUMULATION_SPACES if s in ATOMIC_HANDLERS)
+# Hook registration is import-time and therefore static: of the card-game
+# accumulation set (constants.ACCUMULATION_SPACES — the CARDS-mode value of the
+# helpers.accumulation_spaces accessor eligibility reads), only the ATOMIC spaces
+# need an explicit host hook; the 3 markets self-host. (A 4-player board's extra
+# accumulation spaces would register here when its board lands.)
+_ACC_ATOMIC = frozenset(s for s in ACCUMULATION_SPACES if s in ATOMIC_HANDLERS)
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:                       # once per use
         return False
-    if state.pending_stack[-1].space_id not in _ACCUMULATION_SPACES:
+    from agricola.helpers import accumulation_spaces
+    if state.pending_stack[-1].space_id not in accumulation_spaces(state):
         return False
     p = state.players[idx]
     # "the LAST action space you use": this placement emptied the player's hand of

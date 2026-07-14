@@ -3268,3 +3268,60 @@ flag" claim (the JSON carries `passing_left='X'` — every deck's #9 travels).
 Catalog: **225 minors + 105 occupations (330)**; full suite 4,604 green twice (C++ gates
 untouched — `min_keep` lives on the card-only reconciliation frame). FRONTEND_FIXES gained
 item 14 (readable labels for Bartering Hut's tuple options).
+
+## Session — The preparation ladder + the Points Provider batch (2026-07-14)
+
+The session began as six Points Provider occupations and surfaced a foundational timing
+bug: the engine's single `start_of_round` event fired at the END of preparation (after
+the WORK flip), conflating "at the start of each round" with "at the start of each work
+phase" — wrong on both counts, since the start of the round IS the start of the
+preparation phase (RULES.md's phase order; the user caught the conflation while probing
+Museum Caretaker's auto-vs-trigger ordering). **Ruling 54** fixed the order — round-space
+collection → reveal → start_of_round → replenishment → before_work → start_of_work, each
+explicitly distinct — and the user chose the cursor-walk architecture (their "Idea 2")
+over a phase-spanning frame: preparation became the third timing ladder
+(`agricola/cards/preparation.py`, `engine._advance_preparation`,
+`GameState.prep_cursor` — deliberately NOT set across the reveal pause, which is what
+keeps the field Family-constant None with no C++ field; CARD_ENGINE_IMPLEMENTATION.md
+§5d). `PendingPreparation` + the ownership-hosting machinery (`START_OF_ROUND_CARDS`,
+`register_start_of_round_hook`, `should_host_preparation`) are deleted — prep windows
+ride `PendingHarvestWindow` frames with eligibility-driven hosting, so auto-only owners
+no longer get a singleton-Proceed frame. Every implemented start-of-round card was
+re-tagged by its printed text (Freemason / Cob / Trout Pool → `start_of_work`;
+Nest Site → `replenishment`; the rest verified staying `start_of_round`).
+`register_auto` gained `order=` (stable per-event sort) — the explicit mechanism for an
+auto that must read its same-instant peers' output. The one Family-observable change
+(collection + the newborn clear now precede the reveal, so the reveal state shows the
+Well's food settled) was re-ported to C++ the same day (`enter_new_round`,
+cpp/src/engine.cpp); all 139 differential gates green. ~20 test files migrated;
+`test_cards_preparation_hook.py` rewritten as the ladder machinery test.
+`_complete_preparation` survives as the legacy compat shape (ladder from the top, reveal
+assumed done — collection is slot-clearing, so re-entry is idempotent).
+
+On top of the corrected ladder, the six cards (rulings 54–59): **Curator** (returning_home
+window trigger — ≥3 people returning from accumulation spaces → buy 1 point for 1 food via
+the Plow Driver food-payment idiom; introduced `helpers.accumulation_spaces(state)`, the
+player-count/mode-aware category accessor, with Wood Pile / Hand Truck / Steam Machine
+migrated onto it for the 4-player future), **Clutterer** (counts the owner's qualifying
+plays AT PLAY TIME via the new `played_card_id` stamp on the two play-host frames — a
+scoring-time tableau diff would miss the traveling Wood Pile, ruling 57; the qualifying
+set is a catalog-text scan, 144 cards), **Sugar Baker** (ruling 56, representation (b):
+the deposited food is a CardStore debt granted to grain_utilization's next visitor by an
+any_player before_action_space auto — no Grain Utilization machinery change), **Prodigy**
+(1st-occupation-only on-play bank, majors + minors frozen at play, ruling 59),
+**Museum Caretaker** (ruling 55: a LAST-ordered start_of_work auto PLUS a same-window
+trigger so Cob-granted goods still yield the point; max 1/round via used_this_round), and
+**Blighter** (ruling 58: banks 6 − stage_of_round at play; introduced the
+occupation-play-blocker registry consulted at the `playable_occupations` chokepoint — one
+gate covers Lessons, Scholar, and every future grant).
+
+Wording groups deliberately NOT moved pending their own rulings (parked at
+`start_of_round`, preserving pre-ladder observable behavior; noted in ruling 54's ledger
+entry): Pavior's "at the END of each preparation phase", Small Animal Breeder / Civic
+Facade's "BEFORE the start of each round", and the round-space schedule grants' "at the
+start of these rounds, you can [take the thing on the round space]" (arguably the
+collection rung — pre-reveal — rather than start_of_round).
+
+Catalog: **243 minors + 111 occupations (354, per the live registries)**. Full suite green (4,6xx incl. the C++
+gates); the six cards' tests were written adversarially against the printed text by
+independent agents (no implementation bugs surfaced).

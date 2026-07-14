@@ -26,7 +26,7 @@ See CARD_IMPLEMENTATION_PLAN.md Category 7.
 from __future__ import annotations
 
 from agricola.cards.specs import register_minor
-from agricola.cards.triggers import register_auto, register_start_of_round_hook
+from agricola.cards.triggers import register_auto
 from agricola.constants import CellType
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
@@ -65,4 +65,3 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(clay=1)), prereq=_prereq)
 register_auto("start_of_round", CARD_ID, _eligible, _apply)
-register_start_of_round_hook(CARD_ID)
