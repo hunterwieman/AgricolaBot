@@ -113,6 +113,7 @@ from agricola.resolution import (
     _initiate_meeting_place_cards,
     _execute_renovate,
     _execute_sow,
+    _mark_effect_initiated,
     _update_player,
     field_take,
 )
@@ -717,14 +718,24 @@ def _apply_proceed(state: GameState) -> GameState:
     ), f"Proceed expected a before-phase action-space host, got {top!r}"
 
     if isinstance(top, PendingActionSpace):
-        # Atomic host: the primary effect has not run yet. (The hosted set is
+        # Atomic host: the primary effect has not run yet. Mark the work applied
+        # FIRST (the commit-executor pattern — the mark must land on the host
+        # while it is on top), then run the effect; the deferred flip (ruling 60)
+        # fires in _advance_until_decision after the barrier reconciles and after
+        # anything the effect pushed resolves. Today's atomic handlers push
+        # nothing and grant no animals, so the flip lands within this same step —
+        # observably identical to the old inline flip; the mark future-proofs the
+        # ordering the day a hosted atomic effect does either. (The hosted set is
         # true-atomic spaces only — never the card-mode handlers that themselves
-        # push, e.g. basic_wish / meeting_place — so no extra frame is interposed
-        # above the host and it remains on top after the effect.)
-        state = ATOMIC_HANDLERS[top.space_id](state)
+        # push, e.g. basic_wish / meeting_place.)
+        state = _mark_effect_initiated(state)
+        return ATOMIC_HANDLERS[top.space_id](state)
 
-    # Flip to the after-phase + fire after_action_space autos (no-op in Family;
-    # the after-phase enumerator then offers after-triggers + Stop).
+    # Proceed-host: flip to the after-phase + fire after_action_space autos
+    # (no-op in Family; the after-phase enumerator then offers after-triggers +
+    # Stop). The chosen sub-actions all resolved at earlier decision boundaries
+    # (each reconciled by the barrier there), so an inline flip is safe at the
+    # Proceed itself.
     return _enter_after_phase(state)
 
 

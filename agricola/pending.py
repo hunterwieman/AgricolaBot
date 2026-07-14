@@ -1245,8 +1245,12 @@ class PendingActionSpace:
 
     Lifecycle (CARD_IMPLEMENTATION_PLAN.md II.2): pushed in the "before" phase
     (before-automatic-effects fire at push, before-triggers are surfaced as
-    FireTrigger) → Proceed applies ATOMIC_HANDLERS[space_id] and flips to "after"
-    (after-automatic-effects fire, after-triggers are surfaced) → Stop pops.
+    FireTrigger) → Proceed marks `effect_initiated` and applies
+    ATOMIC_HANDLERS[space_id]; the DEFERRED flip (ruling 60) fires in
+    _advance_until_decision — after the barrier reconciles, and after anything
+    a future effect might push — flipping to "after" (after-automatic-effects
+    fire, after-triggers are surfaced) → Stop pops. Today no atomic effect
+    pushes or grants animals, so the flip lands within the same step.
 
     `space_id` is read off `initiated_by_id` ("space:forest" → "forest"), the
     same uniform accessor the non-atomic host frames will gain, so a card's
@@ -1262,6 +1266,7 @@ class PendingActionSpace:
     initiated_by_id: str                       # "space:<id>"
     phase: str = "before"                      # "before" | "after"
     triggers_resolved: frozenset = frozenset()  # frozenset[str], card_ids fired this host-visit
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
     @property
     def space_id(self) -> str:
