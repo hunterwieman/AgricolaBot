@@ -149,6 +149,14 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # never across the reveal (the post-reveal resume is derived from public
     # state), so Family-constant None and omitted; the C++ engine needs no field.
     "prep_cursor",
+    # The deferred after-flip signal on every commit-terminated host (user ruling
+    # 2026-07-14: "after you [do X]" fires after X's FULL effect): set by the
+    # commit executor, cleared when _advance_until_decision flips the host, so it
+    # is True only in states where the effect's own pushed frames are still up.
+    # Family-REACHABLE there — the ovens' free-bake wrapper over PendingBuildMajor
+    # — so mid-free-bake Family JSON EMITS it, mirrored by the C++ engine (the
+    # deferred-flip re-port). Every other state omits it at the default False.
+    "effect_initiated",
     # QUALIFIED entries ("<Type>.<field>") skip a field on ONE dataclass only —
     # for a field whose NAME is emitted on other (Family) frames but whose value
     # is Family-constant-default on this one. PendingHarvestBreed exists in every

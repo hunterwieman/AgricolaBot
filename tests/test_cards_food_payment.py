@@ -207,7 +207,10 @@ def test_grain_liquidation_pays_exact_and_resumes_plow():
     assert cs.players[cp].resources.grain == 0
     assert isinstance(cs.pending_stack[-1], PendingPlow)
     assert isinstance(cs.pending_stack[-2], PendingPlayMinor)
-    assert cs.pending_stack[-2].phase == "after"
+    # Deferred after-flip (user ruling 2026-07-14): the host flips only once the
+    # resumed plow resolves.
+    assert cs.pending_stack[-2].phase == "before"
+    assert cs.pending_stack[-2].effect_initiated
 
     cs = step(cs, legal_actions(cs)[0])   # commit the granted plow
     fields1 = sum(1 for r in range(3) for c in range(5)

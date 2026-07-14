@@ -210,10 +210,13 @@ def test_clay_oven_purchase_plus_free_bake():
         ChooseSubAction(name="build_major"),
         build_major(5),
     ])
-    # After commit: PendingClayOven on top of the now-after-phase PendingBuildMajor.
+    # After commit: PendingClayOven on top; PendingBuildMajor stays before-phase
+    # with `effect_initiated` set — the DEFERRED after-flip (user ruling
+    # 2026-07-14) fires only once the wrapper resolves.
     assert isinstance(state.pending_stack[-1], PendingClayOven)
     assert isinstance(state.pending_stack[-2], PendingBuildMajor)
-    assert state.pending_stack[-2].phase == "after"   # was build_chosen; now phase
+    assert state.pending_stack[-2].phase == "before"
+    assert state.pending_stack[-2].effect_initiated
 
     # Continue with the optional free bake.
     state = run_actions(state, [

@@ -96,6 +96,17 @@ class PendingSow:
     # "Sow" grant, capped or not (Chief Forester's clarification permits wood).
     # Family-constant False → canonical-skip field, no C++ change.
     crops_only: bool = False
+    # Work-complete signal for the DEFERRED after-flip (user ruling 2026-07-14:
+    # "after you [do X]" effects fire after X's FULL effect, pushed frames
+    # included). The commit executor sets this instead of flipping inline;
+    # _advance_until_decision flips the host to its after-phase (firing the
+    # after-autos) once the host is back on top — i.e. after every frame the
+    # effect pushed has resolved. Cleared at the flip, so True only survives a
+    # step while effect-pushed children are up. Family-REACHABLE there (the
+    # ovens' free bake on PendingBuildMajor), so it is emitted when True
+    # (canonical-skipped at the default False) and mirrored by the C++ engine.
+    # Carried by every commit-terminated host (this comment is the reference).
+    effect_initiated: bool = False
 
 
 @dataclass(frozen=True)
@@ -119,6 +130,7 @@ class PendingBakeBread:
     initiated_by_id: str   # mandatory
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()  # frozenset[str], card_ids
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)
@@ -152,6 +164,7 @@ class PendingPlow:
     # no C++ change.
     max_plows: int = 1
     num_plowed: int = 0
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)
@@ -249,13 +262,14 @@ class PendingBuildMajor:
     """Sub-action pending for Major Improvement purchase.
 
     A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
-    `phase` flips "before"->"after" at CommitBuildMajor (no auto-pop). For an
-    oven major the flip happens BEFORE the oven wrapper is pushed, so when the
-    free-bake wrapper pops back, this frame is already in its after-phase
-    (offering `after_build_major` triggers + Stop). For a non-oven major the
-    effect flips and leaves the frame for its trailing Stop. `phase=="after"`
-    therefore replaces the old `build_chosen` flag (they were exactly
-    redundant). Event derived `<phase>_build_major` — no per-frame TRIGGER_EVENT.
+    the commit sets `effect_initiated` and the DEFERRED flip (user ruling
+    2026-07-14) fires in _advance_until_decision once this frame is back on top
+    — so for an oven major the free-bake wrapper fully resolves BEFORE the flip
+    (and its `after_build_major` autos); the frame then offers its after-phase
+    triggers + Stop. For a non-oven major nothing is pushed, so the flip lands
+    within the same step. `phase=="after"` replaces the old `build_chosen` flag
+    (they were exactly redundant). Event derived `<phase>_build_major` — no
+    per-frame TRIGGER_EVENT.
 
     Cost is NOT on this pending — it's keyed off `commit.major_idx` and
     looked up in `MAJOR_IMPROVEMENT_COSTS`.
@@ -265,6 +279,7 @@ class PendingBuildMajor:
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)
@@ -289,6 +304,7 @@ class PendingRenovate:
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)
@@ -417,6 +433,7 @@ class PendingSheepMarket:
     gained: int
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
     @property
     def space_id(self) -> str:
@@ -432,6 +449,7 @@ class PendingPigMarket:
     gained: int
     phase: str = "before"
     triggers_resolved: frozenset = frozenset()
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
     @property
     def space_id(self) -> str:
@@ -447,6 +465,7 @@ class PendingCattleMarket:
     gained: int
     phase: str = "before"
     triggers_resolved: frozenset = frozenset()
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
     @property
     def space_id(self) -> str:
@@ -680,12 +699,12 @@ class PendingPlayOccupation:
     Scholar: 1 food); `_execute_play_occupation` reads it and debits.
 
     A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
-    `phase` flips "before"->"after" at CommitPlayOccupation (no auto-pop), firing
-    `after_play_occupation` automatic effects; the after-phase offers
-    `after_play_occupation` triggers (e.g. Bread Paddle's free bake) + Stop. The
-    flip happens BEFORE the occupation's on-play runs (which may itself push a
-    sub-decision), mirroring the granted-sub-action record-before-apply rule.
-    Card-only frame: never reaches the C++ (Family) engine. Event derived
+    the commit sets `effect_initiated` and the DEFERRED flip (user ruling
+    2026-07-14) fires in _advance_until_decision once this frame is back on top
+    — so the `after_play_occupation` autos fire only after the occupation's
+    on-play (and anything it pushed) has fully resolved; the after-phase then
+    offers `after_play_occupation` triggers (e.g. Bread Paddle's free bake) +
+    Stop. Card-only frame: never reaches the C++ (Family) engine. Event derived
     `<phase>_play_occupation`.
     """
     PENDING_ID: ClassVar[str] = "play_occupation"
@@ -699,6 +718,7 @@ class PendingPlayOccupation:
     # (Clutterer's text-filtered count). None during the before-phase. Card-only
     # frame, so no canonical/C++ concern.
     played_card_id: str | None = None
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)
@@ -719,11 +739,13 @@ class PendingPlayMinor:
     frame needs no optionality of its own.
 
     A uniform commit-terminated sub-action HOST (SUBACTION_HOOK_REFACTOR.md):
-    `phase` flips "before"->"after" at CommitPlayMinor (no auto-pop), firing
-    `after_play_minor` automatic effects; the after-phase offers
-    `after_play_minor` triggers + Stop. The flip happens BEFORE the minor's
-    on-play runs (which may push a sub-decision). Card-only frame: never reaches
-    the C++ (Family) engine. Event derived `<phase>_play_minor`.
+    the commit sets `effect_initiated` and the DEFERRED flip (user ruling
+    2026-07-14) fires in _advance_until_decision once this frame is back on top
+    — so the `after_play_minor` autos (and the coarse `after_build_improvement`)
+    fire only after the minor's on-play (and anything it pushed) has fully
+    resolved; the after-phase then offers `after_play_minor` triggers + Stop.
+    Card-only frame: never reaches the C++ (Family) engine. Event derived
+    `<phase>_play_minor`.
     """
     PENDING_ID: ClassVar[str] = "play_minor"
     player_idx: int
@@ -736,6 +758,7 @@ class PendingPlayMinor:
     # it has already been passed on). None during the before-phase. Card-only
     # frame, so no canonical/C++ concern.
     played_card_id: str | None = None
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)
@@ -849,6 +872,7 @@ class PendingFamilyGrowth:
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
     place_on_space: bool = True
+    effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
 @dataclass(frozen=True)

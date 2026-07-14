@@ -434,6 +434,21 @@ static GameState enter_after_phase(const GameState& state) {
   PendingDecision nt = state.pending_stack.back();
   std::visit([](auto& f) {
     if constexpr (requires { f.phase; }) { f.phase = "after"; }
+    if constexpr (requires { f.effect_initiated; }) { f.effect_initiated = false; }
+  }, nt);
+  return replace_top(state, nt);
+}
+
+// Deferred after-flip (user ruling 2026-07-14, mirroring Python's
+// _mark_effect_initiated): the commit executor marks the work applied; the
+// advance loop flips the host to its after-phase once it is back on top —
+// i.e. after anything the effect pushed (the ovens' free-bake wrapper) has
+// resolved. For an effect that pushes nothing the flip happens within the
+// same step, observably identical to the old inline flip.
+static GameState mark_effect_initiated(const GameState& state) {
+  PendingDecision nt = state.pending_stack.back();
+  std::visit([](auto& f) {
+    if constexpr (requires { f.effect_initiated; }) { f.effect_initiated = true; }
   }, nt);
   return replace_top(state, nt);
 }
@@ -460,7 +475,7 @@ GameState execute_sow(const GameState& state, int player_idx,
       }
     }
   p.farmyard.grid = grid;
-  return enter_after_phase(update_player(state, player_idx, p));
+  return mark_effect_initiated(update_player(state, player_idx, p));
 }
 
 GameState execute_bake(const GameState& state, int player_idx,
@@ -486,7 +501,7 @@ GameState execute_bake(const GameState& state, int player_idx,
   }
   PlayerState p = state.players[static_cast<size_t>(player_idx)];
   p.resources = p.resources + Resources{0, 0, 0, 0, food, -commit.grain, 0};
-  return enter_after_phase(update_player(state, player_idx, p));
+  return mark_effect_initiated(update_player(state, player_idx, p));
 }
 
 GameState execute_plow(const GameState& state, int player_idx,
@@ -496,7 +511,7 @@ GameState execute_plow(const GameState& state, int player_idx,
   field.cell_type = CellType::FIELD;
   p.farmyard.grid =
       grid_with_cell(p.farmyard.grid, commit.row, commit.col, field);
-  return enter_after_phase(update_player(state, player_idx, p));
+  return mark_effect_initiated(update_player(state, player_idx, p));
 }
 
 GameState execute_build_stable(const GameState& state, int player_idx,
@@ -544,7 +559,7 @@ GameState execute_renovate(const GameState& state, int player_idx,
   // Upgrade to the chosen target tier (Family: == the derived next tier).
   p.house_material = commit.to_material;
   p.resources = p.resources - commit.payment;
-  return enter_after_phase(update_player(state, player_idx, p));
+  return mark_effect_initiated(update_player(state, player_idx, p));
 }
 
 GameState execute_build_major(const GameState& state, int player_idx,
@@ -578,10 +593,13 @@ GameState execute_build_major(const GameState& state, int player_idx,
     s = update_player(s, player_idx, p);
   }
 
-  // 4. Pivot PendingBuildMajor to its after-phase (no pop) BEFORE pushing any
-  //    oven wrapper, so the wrapper's free bake pops back to an "after" frame.
-  //    `phase` carries what `build_chosen` used to.
-  s = enter_after_phase(s);
+  // 4. DEFER the after-flip (user ruling 2026-07-14): mark the work applied;
+  //    the advance loop flips this host once any oven wrapper pushed below has
+  //    fully resolved — mirroring Python. When the wrapper pops back, the flip
+  //    happens before the next enumeration, so the frame then offers its
+  //    after-phase Stop exactly as before. `phase=="after"` still carries what
+  //    `build_chosen` used to.
+  s = mark_effect_initiated(s);
 
   // 5. Oven wrappers, else leave the after-phase frame for its trailing Stop.
   if (commit.major_idx == 5)
@@ -657,10 +675,10 @@ GameState execute_accommodate(const GameState& state, int player_idx,
   p.animals = Animals{commit.sheep, commit.boar, commit.cattle};
   p.resources = p.resources + Resources{0, 0, 0, 0, food, 0, 0};
   GameState s = update_player(state, player_idx, p);
-  // Pivot to the after-phase (no pop), firing after_action_space autos at this
-  // work-complete boundary (a Family C++ no-op — no autos). The trailing Stop
-  // pops. (SPACE_HOST_REFACTOR.md §11; the firing now lives here, not at Stop.)
-  return enter_after_phase(s);
+  // Mark the work applied (no pop); the advance loop flips the frame within
+  // this same step (the accommodate pushes nothing) — the deferred after-flip,
+  // mirroring Python. The trailing Stop pops.
+  return mark_effect_initiated(s);
 }
 
 GameState execute_harvest_conversion(const GameState& state, int player_idx,

@@ -940,35 +940,48 @@ def _advance_until_decision(state: GameState) -> GameState:
     """
     while True:
         # Case 1: a pending frame is active. Decision is awaiting agent — UNLESS
-        # it is a Delegating space host whose single mandatory sub-action just
-        # completed (SPACE_HOST_REFACTOR.md §5): then auto-advance it to its
-        # after-phase (firing after_<event> autos) before returning. The flip
-        # makes phase=="after", so the guard is False next iteration — idempotent.
+        # the top host's work just completed, in which case auto-advance it to its
+        # after-phase (firing after_<event> autos) before returning. Two
+        # work-complete signals share the one flip rule:
+        #   - a Delegating space host whose single mandatory sub-action just
+        #     popped (SPACE_HOST_REFACTOR.md §5 — `subaction_complete`), and
+        #   - a commit-terminated host whose executor marked `effect_initiated`
+        #     (the DEFERRED after-flip, user ruling 2026-07-14: "after you [do X]"
+        #     fires after X's FULL effect — the executor no longer flips inline, so
+        #     anything the effect pushed (an on_play's primitive, an oven's
+        #     free-bake wrapper) resolves before the after-autos fire).
+        # The flip makes phase=="after", so the guard is False next iteration —
+        # idempotent.
         #
         # The flip is UNCONDITIONAL (SPACE_HOST_REFACTOR.md §5.1): taking the
         # mandatory sub-action closes the before-window and IMPLICITLY DECLINES any
         # unfired `before_<event>` trigger. before-triggers are surfaced only while
-        # subaction_complete == False, so a card whose "each time you use [space]"
-        # grant the player wants must fire it BEFORE using the space. The
-        # (subaction_complete && phase=="before") state is therefore purely
-        # transient — flipped here within the same step, before legal_actions is
-        # ever called on it. (A prior held-flip kept this window open after the main
-        # sub-action so grants could fire "in either order"; order is load-bearing
-        # per the rules, so that was a bug — see CARD_AUTHORING_GUIDE.md.) A no-op in
-        # the Family game (no triggers → nothing a hold would have changed anyway).
+        # the work-complete signal is unset, so a card whose "each time you use
+        # [space]" grant the player wants must fire it BEFORE using the space. The
+        # (work-complete && phase=="before") state is therefore never enumerated —
+        # flipped here before legal_actions is ever called on it; it survives a
+        # step only buried under the effect's own pushed frames (the oven free
+        # bake is the one Family-reachable case, mirrored in C++). (A prior
+        # held-flip kept this window open after the main sub-action so grants
+        # could fire "in either order"; order is load-bearing per the rules, so
+        # that was a bug — see CARD_AUTHORING_GUIDE.md.)
+        #
+        # The accommodation barrier runs FIRST (user-approved sequencing,
+        # 2026-07-14): a decision-free animal grant inside the effect may have put
+        # a player over capacity, and the keep-which choice is part of the effect
+        # settling — the after-autos must not fire (nor read transiently
+        # over-capacity animal counts) until it resolves. The accommodate frame
+        # stacks on top and resolves first; flag-gated no-op on the (usual)
+        # no-grant path.
         if state.pending_stack:
-            top = state.pending_stack[-1]
-            if (getattr(type(top), "DELEGATING", False)
-                    and top.subaction_complete
-                    and top.phase == "before"):
-                state = _enter_after_phase(state)
-                continue
-            # Accommodation barrier: a decision-free animal grant may have pushed a
-            # player over capacity mid-turn (an on-play gain). Reconcile before handing
-            # this frame's decision — the accommodate frame stacks on top and resolves
-            # first. Flag-gated no-op on the (usual) no-grant path.
             state, pushed = _reconcile_accommodation(state)
             if pushed:
+                continue
+            top = state.pending_stack[-1]
+            if (((getattr(type(top), "DELEGATING", False) and top.subaction_complete)
+                    or getattr(top, "effect_initiated", False))
+                    and top.phase == "before"):
+                state = _enter_after_phase(state)
                 continue
             state = _fire_boundary_one_shots(state)   # resource/animal-count one-shots
             return state

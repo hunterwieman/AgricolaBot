@@ -241,19 +241,23 @@ def test_pushing_occupation_on_play_flips_host_first():
         cs = step(cs, ChooseSubAction(name="play_occupation"))
         cs = step(cs, CommitPlayOccupation(card_id=_OCC))
 
-        # The host flipped to its after-phase BEFORE on_play ran, so the pushed plow
-        # sits on top of the already-"after" host (not: the plow got mis-flipped).
+        # DEFERRED after-flip (user ruling 2026-07-14): the host stays in its
+        # before-phase with `effect_initiated` set while the on_play-pushed plow
+        # resolves; the flip (and its after-autos) waits until the plow pops.
         plow = cs.pending_stack[-1]
         assert isinstance(plow, PendingPlow) and plow.phase == "before"
         host = cs.pending_stack[-2]
-        assert isinstance(host, PendingPlayOccupation) and host.phase == "after"
+        assert isinstance(host, PendingPlayOccupation)
+        assert host.phase == "before" and host.effect_initiated
         assert _OCC in cs.players[cp].occupations
 
         # The granted plow plays end-to-end.
         plows = [a for a in legal_actions(cs) if isinstance(a, CommitPlow)]
         assert plows
         cs = step(cs, plows[0])
-        cs = step(cs, Stop())   # pop the plow's after-phase
+        cs = step(cs, Stop())   # pop the plow's after-phase; the host now flips
+        host = cs.pending_stack[-1]
+        assert host.phase == "after" and not host.effect_initiated
         assert legal_actions(cs) == [Stop()]   # the host's after-phase
         cs = step(cs, Stop())   # pop the host; the Delegating space host auto-flips
         assert legal_actions(cs) == [Stop()]

@@ -41,8 +41,9 @@ def _on_play(state: GameState, idx: int) -> GameState:
     # Push the generic optional-grant wrapper for a renovate; its enumerator gates the
     # offer on _can_renovate (never a dead-end) and hosts the decline (Stop). Works even
     # though this passing card has already left the tableau — the wrapper isn't
-    # ownership-gated. on_play runs after the play host flips to its after-phase (the
-    # Shifting-Cultivation nesting), so the wrapper lands on the already-"after" host.
+    # ownership-gated. The wrapper lands on the marked, still-before-phase play host
+    # (the Shifting-Cultivation nesting), which flips once the wrapper pops — the
+    # deferred after-flip, user ruling 2026-07-14.
     return push(state, PendingGrantedSubAction(
         player_idx=idx, initiated_by_id="card:dwelling_plan", subaction="renovate"))
 

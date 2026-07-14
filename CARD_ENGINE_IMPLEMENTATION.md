@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-14 (the preparation ladder + the Points Provider batch).** A card batch is not integrated until this
+> **Last updated: 2026-07-14 (the preparation ladder + the Points Provider batch; the deferred after-flip — ruling 60 — landed the same day).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -203,6 +203,14 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   card-fields (ruling 45), while "field tile" readers stay grid-only (ruling 32). Field
   Cultivator is automatic-take-the-maximum (ruling 41). Cooking Hearth Extension is deferred
   alongside Gypsy's Crock (ruling 42).
+- **The deferred after-flip landed (2026-07-14; ruling 60)**: every commit-terminated
+  host's after-flip (and its after-autos, plus the coarse `after_build_improvement`)
+  now fires in `_advance_until_decision` once the host is back on top — after
+  everything the effect pushed has resolved — via the `effect_initiated` work-complete
+  signal set by the commit executors; the accommodation barrier reconciles before the
+  flip. Family-VISIBLE (the ovens' free bake) and re-ported to `cpp/` in the same
+  change — all 139 differential gates green. Ordering pins:
+  `tests/test_deferred_after_flip.py`; machinery: §2.
 - **Per-card status + mechanics classification:** `CARD_IMPLEMENTATION_PROGRESS.md` (the
   adjudicated two-pass taxonomy). **Deferred cards:** clustered with build proposals in
   `CARD_DEFERRED_PLANS.md` (+ the C/D/E triage's defers in `CARD_TRIAGE_CDE.md`); deferred
@@ -261,7 +269,7 @@ What differs between host kinds is only *what the work is* and *what signals wor
 | Host kind | Frames | Work | Work-complete signal |
 |---|---|---|---|
 | **Atomic host** | `PendingActionSpace` (generic, card-only) | the space's `ATOMIC_HANDLERS` effect, run at `Proceed` | `Proceed` (runs the effect, then flips) |
-| **Commit-terminated** | the sub-action leaves (`PendingSow`, `PendingBakeBread`, `PendingPlow`, `PendingRenovate`, `PendingBuildMajor`, `PendingPlayOccupation`, `PendingPlayMinor`, `PendingFamilyGrowth`) and the three animal markets | the single commit | the commit itself (its effect ends with `_enter_after_phase`) |
+| **Commit-terminated** | the sub-action leaves (`PendingSow`, `PendingBakeBread`, `PendingPlow`, `PendingRenovate`, `PendingBuildMajor`, `PendingPlayOccupation`, `PendingPlayMinor`, `PendingFamilyGrowth`) and the three animal markets | the single commit | the commit — its executor marks `effect_initiated` (never flips inline), and `_advance_until_decision` flips the host once it is back on top: the **deferred after-flip** (ruling 60, 2026-07-14 — "after you [do X]" fires after X's FULL effect, so everything the effect pushed — an on_play's primitive, an oven's free-bake wrapper — resolves before the after-autos). An effect that pushes nothing flips within the same step |
 | **Multi-shot** | `PendingBuildRooms` / `PendingBuildStables` / `PendingBuildFences` (and a multi-plow `PendingPlow` grant, §4) | one commit per room/stable/pasture, `replace_top` each | `Proceed`, legal once counter ≥ 1 |
 | **Delegating** | `PendingSubActionSpace` (Farmland, Fencing, Major Improvement, Lessons), `PendingMajorMinorImprovement` | exactly one mandatory child sub-action | the child's pop — detected by the engine (`DELEGATING` ClassVar + `subaction_complete`), flipped by an auto-advance in `_advance_until_decision`, never a player decision |
 | **Proceed-host** | the and/or and and-then space parents (`PendingGrainUtilization`, `PendingCultivation`, `PendingFarmExpansion`, `PendingHouseRedevelopment`, `PendingFarmRedevelopment`, and the card-only `PendingBasicWishForChildren`, `PendingMeetingPlace`) | the player's chosen sub-actions | `Proceed`, legal once the mandatory work is done (Meeting Place: from the start — Proceed *is* the decline of its one optional minor) |
@@ -428,7 +436,7 @@ Where each firing actually happens in the engine — the complete set of call si
 |---|---|---|
 | Space-host push | `before_action_space` autos | `_apply_place_worker` (atomic host), every non-atomic `_initiate_*` resolver except Family-only Side Job, `_initiate_lessons`, `_initiate_meeting_place_cards`, `_resolve_basic_wish_for_children`'s cards branch |
 | Sub-action-leaf push | `before_<PENDING_ID>` autos | `_fire_subaction_before_auto` (engine.py) — the single seam, called after a `_choose_subaction_*` handler runs, after a trigger's `apply_fn` runs, after a minor's or occupation's pushing `on_play`, and after a non-"rerun" food-payment resume; gated on `SUBACTION_PENDING_IDS` **and a depth guard** (fires only if the call actually pushed a new frame — a non-pushing trigger or goods-only `on_play` must not re-fire the leaf's before-autos) |
-| Work-complete flip | `after_<derived event>` autos | `_enter_after_phase` (resolution.py) — called by every commit-terminated effect at its commit, by the markets, by `_apply_proceed` for atomic/Proceed/multi-shot hosts, and by the Delegating auto-advance |
+| Work-complete flip | `after_<derived event>` autos (+ the coarse `after_build_improvement` for `PendingPlayMinor` / `PendingBuildMajor`) | `_enter_after_phase` (resolution.py) — called by `_apply_proceed` for atomic/Proceed/multi-shot hosts and by the `_advance_until_decision` flip, which serves BOTH work-complete signals: the Delegating `subaction_complete` and the commit-terminated `effect_initiated` (the deferred after-flip, ruling 60 — the executors only mark, so the effect's pushed frames resolve first; the accommodation barrier reconciles before the flip) |
 | Composite host | `before_/after_major_minor_improvement` autos | its choose-handler push / the Delegating auto-advance |
 | Any improvement built | `after_build_improvement` autos | `_execute_play_minor` / the major-build path |
 | Round entry | the prep window-id autos + triggers | `engine._advance_preparation` — the preparation ladder (§5d): per window, autos fire for both players SP-first, then a per-player `PendingHarvestWindow` choice host is pushed for each player with an eligible trigger (SP decides first) |
@@ -936,12 +944,14 @@ Major/Minor Improvement space, House Redevelopment's optional second step (both 
 `PendingMajorMinorImprovement`), Basic Wish for Children's optional second step, and Meeting
 Place.
 
-Both executors flip their host to the after-phase (firing the `after_play_*` autos) **before
-running the card's `on_play`** — load-bearing for an `on_play` that pushes a primitive frame
-(Shifting Cultivation → `PendingPlow`): the host must be flipped while it is still on top, so
-the pushed child lands on the already-"after" host. Because the hand→tableau move precedes the
-flip, an occupation-counting after-auto (Education Bonus) sees the new card; because after-
-*triggers* are surfaced later by the enumerator, they see the post-`on_play` state either way.
+Both executors mark `effect_initiated` **before running the card's `on_play`** (the mark must
+happen while the host is still on top); the DEFERRED flip (ruling 60) then fires the
+`after_play_*` autos in `_advance_until_decision` only once everything `on_play` pushed
+(Shifting Cultivation → `PendingPlow`) has resolved — so an after-play payout (Bonehead's
+wood) can never fund the played card's own effect. Because the hand→tableau move precedes the
+deferred flip too, an occupation-counting after-auto (Education Bonus) still sees the new
+card; after-*triggers* are surfaced later by the enumerator and see the post-`on_play` state
+either way.
 
 **Space hosts.** `PendingActionSpace` (the generic atomic host, §2), `PendingSubActionSpace`
 (the generic Delegating host — replaced the deleted per-space `PendingFarmland` /
@@ -1713,7 +1723,9 @@ examples; this is the reference list.
   window and implicitly declines unfired before-triggers — the enforce-first rule (§2). Never
   resolve a textual *silence* about ordering with a convenience assumption: resolve it by the
   rules default, or defer and ask.
-- **After-automatic effects fire once per action, at the work-complete flip** — never between
+- **After-automatic effects fire once per action, at the work-complete flip — which for a
+  commit-terminated host is DEFERRED until the effect's pushed frames resolve (ruling 60)** —
+  never between
   the pieces of a multi-shot build. A per-action quantity ("1 food per room built this action")
   is computed snapshot-before / compute-after, with the snapshot in CardStore (Shepherd's
   Crook; Millwright's budget reset).

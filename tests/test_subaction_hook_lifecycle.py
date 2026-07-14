@@ -102,10 +102,13 @@ def test_build_major_clay_oven_free_bake_nested_lifecycle():
     state = step(state, ChooseSubAction(name="build_major"))
     state = step(state, sole_build_major(state, 5))
 
-    # PendingBuildMajor already flipped to after; the oven wrapper is on top.
+    # DEFERRED after-flip (user ruling 2026-07-14): the oven wrapper is on top and
+    # PendingBuildMajor stays in its before-phase with `effect_initiated` set —
+    # the flip (and the after_build_major autos) waits until the wrapper resolves.
     assert isinstance(state.pending_stack[-1], PendingClayOven)
     bm = state.pending_stack[-2]
-    assert isinstance(bm, PendingBuildMajor) and bm.phase == "after"
+    assert isinstance(bm, PendingBuildMajor)
+    assert bm.phase == "before" and bm.effect_initiated
     assert legal_actions(state) != [Stop()]            # the free bake is still offered
 
     # Take the free bake: it runs its own before -> commit -> after lifecycle.
@@ -119,8 +122,10 @@ def test_build_major_clay_oven_free_bake_nested_lifecycle():
     # MajorMinorImprovement after (Delegating auto-advance) -> space host.
     state = step(state, Stop())                        # pop PendingBakeBread
     assert isinstance(state.pending_stack[-1], PendingClayOven)
-    state = step(state, Stop())                        # pop PendingClayOven
-    assert isinstance(state.pending_stack[-1], PendingBuildMajor)
+    state = step(state, Stop())                        # pop PendingClayOven; the deferred flip fires
+    bm = state.pending_stack[-1]
+    assert isinstance(bm, PendingBuildMajor)
+    assert bm.phase == "after" and not bm.effect_initiated
     state = step(state, Stop())                        # pop PendingBuildMajor; auto-advance MMI to after
     assert isinstance(state.pending_stack[-1], PendingMajorMinorImprovement)
     assert state.pending_stack[-1].phase == "after"

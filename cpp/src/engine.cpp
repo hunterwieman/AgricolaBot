@@ -271,18 +271,35 @@ std::string delegating_phase(const PendingDecision& top) {
 
 GameState advance_until_decision(GameState s) {
   while (true) {
-    // Case 1: a pending frame is active — decision awaits the agent, UNLESS it is
-    // a Delegating space host whose single mandatory sub-action just completed
-    // (SPACE_HOST_REFACTOR.md §5): flip it to its after-phase (firing
-    // after_<event> autos — a Family no-op) before returning. The flip makes
-    // phase=="after", so the guard is False next iteration — idempotent.
+    // Case 1: a pending frame is active — decision awaits the agent, UNLESS the
+    // top host's work just completed, in which case flip it to its after-phase
+    // (firing after_<event> autos — a Family no-op) before returning. Two
+    // work-complete signals share the one flip rule (mirroring Python):
+    //   - a Delegating space host whose single mandatory sub-action just popped
+    //     (SPACE_HOST_REFACTOR.md §5), and
+    //   - a commit-terminated host whose executor marked `effect_initiated`
+    //     (the DEFERRED after-flip, user ruling 2026-07-14 — the Family-reachable
+    //     case is the ovens' free-bake wrapper over PendingBuildMajor).
+    // The flip makes phase=="after" and clears the mark, so the guard is False
+    // next iteration — idempotent.
     if (!s.pending_stack.empty()) {
       const PendingDecision& top = s.pending_stack.back();
-      if (is_delegating(top) && delegating_subaction_complete(top) &&
-          delegating_phase(top) == "before") {
+      bool work_complete =
+          (is_delegating(top) && delegating_subaction_complete(top) &&
+           delegating_phase(top) == "before") ||
+          std::visit(
+              [](const auto& f) {
+                if constexpr (requires { f.effect_initiated; f.phase; })
+                  return f.effect_initiated && f.phase == "before";
+                else
+                  return false;
+              },
+              top);
+      if (work_complete) {
         PendingDecision nt = top;
         std::visit([](auto& f) {
           if constexpr (requires { f.phase; }) { f.phase = "after"; }
+          if constexpr (requires { f.effect_initiated; }) { f.effect_initiated = false; }
         }, nt);
         s = replace_top(s, nt);
         continue;

@@ -16,12 +16,12 @@ Stop (the plow cannot be declined), so pushing it with no legal cell would leave
 empty legal-action set. Gating playability on `_can_plow` guarantees the pushed plow
 always has a target.
 
-Sequencing (the subtle bit): PendingPlayMinor is a non-auto-pop host that pivots to
-its after-phase on commit. _execute_play_minor flips that host to "after" BEFORE
-running on_play (mirroring how _execute_build_major flips PendingBuildMajor before
-pushing its oven wrapper), so the PendingPlow this on_play pushes lands on top of the
-ALREADY-flipped host. When the plow resolves and pops, the host's after-phase Stop
-pops it cleanly. See CARD_IMPLEMENTATION_PLAN.md Category 2.
+Sequencing (the subtle bit): PendingPlayMinor is a non-auto-pop host. Under the
+DEFERRED after-flip (user ruling 2026-07-14) _execute_play_minor marks the host's
+work applied before running on_play, so the PendingPlow this on_play pushes lands on
+top of the still-before-phase host; when the plow resolves and pops, the host flips
+(firing the after_play_minor autos only then) and its after-phase Stop pops it
+cleanly. See CARD_IMPLEMENTATION_PLAN.md Category 2.
 """
 from __future__ import annotations
 

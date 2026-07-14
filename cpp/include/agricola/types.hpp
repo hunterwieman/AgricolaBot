@@ -141,6 +141,7 @@ struct PendingSow {
   std::string initiated_by_id;
   std::string phase = "before";  // "before" | "after" (SUBACTION_HOOK_REFACTOR)
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingSow&) const = default;
 };
 struct PendingBakeBread {
@@ -148,6 +149,7 @@ struct PendingBakeBread {
   std::string initiated_by_id;
   std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingBakeBread&) const = default;
 };
 struct PendingPlow {
@@ -155,6 +157,7 @@ struct PendingPlow {
   std::string initiated_by_id;
   std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingPlow&) const = default;
 };
 struct PendingFarmExpansion {
@@ -190,6 +193,7 @@ struct PendingBuildMajor {
   std::string initiated_by_id;
   std::string phase = "before";  // "before" | "after" (replaces old build_chosen)
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingBuildMajor&) const = default;
 };
 struct PendingRenovate {
@@ -197,6 +201,7 @@ struct PendingRenovate {
   std::string initiated_by_id;
   std::string phase = "before";  // "before" | "after"
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingRenovate&) const = default;
 };
 // Generic Delegating action-space host (SPACE_HOST_REFACTOR.md §4.2/§5):
@@ -239,6 +244,7 @@ struct PendingSheepMarket {
   int gained = 0;
   std::string phase = "before";  // "before" | "after" (4b: non-auto-pop market)
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingSheepMarket&) const = default;
 };
 struct PendingPigMarket {
@@ -247,6 +253,7 @@ struct PendingPigMarket {
   int gained = 0;
   std::string phase = "before";
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingPigMarket&) const = default;
 };
 struct PendingCattleMarket {
@@ -255,6 +262,7 @@ struct PendingCattleMarket {
   int gained = 0;
   std::string phase = "before";
   std::vector<std::string> triggers_resolved;
+  bool effect_initiated = false;  // deferred after-flip signal (ruling 2026-07-14)
   bool operator==(const PendingCattleMarket&) const = default;
 };
 struct PendingMajorMinorImprovement {

@@ -505,11 +505,12 @@ def _initiate_lessons(state: GameState) -> GameState:
 
 def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     """Play one occupation from hand: debit the frame's (route-supplied) cost, move the card
-    hand->tableau, pivot PendingPlayOccupation to its after-phase (firing after_play_occupation
-    autos), THEN run its (variant-aware) on_play and fire one-shots; the trailing Stop pops.
-    The flip happens BEFORE on_play — the same order as `_execute_play_minor`, load-bearing for
-    an on_play that PUSHES a frame (the host must be flipped while it is still on top; a
-    post-on_play flip would land on the pushed child). A play-variant occupation (Roof
+    hand->tableau, mark the host's work applied (`_mark_effect_initiated`), THEN run its
+    (variant-aware) on_play and fire one-shots; the trailing Stop pops. The DEFERRED flip
+    (user ruling 2026-07-14) — the same order as `_execute_play_minor` — happens in
+    _advance_until_decision once the host is back on top, so the after_play_occupation autos
+    fire only after on_play (and anything it pushed) has fully resolved. The mark must be set
+    while the host is still on top. A play-variant occupation (Roof
     Ballaster) folds its chosen variant's SURCHARGE into the cost — re-derived from the same
     variants_fn the enumerator used; the variant's BENEFIT (e.g. stone) is granted in its
     on_play, not debited there.
@@ -540,10 +541,12 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     # autos/triggers can read it (Clutterer's text-filtered count).
     state = replace_top(state, fast_replace(state.pending_stack[-1],
                                             played_card_id=cid))
-    # Pivot to the after-phase (firing after_play_occupation autos) BEFORE on_play, while the
-    # host is still on top — mirrors _execute_play_minor. The tableau add above precedes the
-    # flip, so an occupation-counting auto (Education Bonus) sees the new card either way.
-    state = _enter_after_phase(state)
+    # DEFER the after-flip (user ruling 2026-07-14): mark the work applied while the host
+    # is still on top; _advance_until_decision flips it (firing after_play_occupation
+    # autos) once everything on_play pushes has resolved — so a reaction's payout can
+    # never fund this card's own effect. Occupation-counting autos (Education Bonus)
+    # still see the new card: the tableau add above precedes the deferred flip too.
+    state = _mark_effect_initiated(state)
     prev_depth = len(state.pending_stack)
     # Variant-aware on-play: a card that registered a play-variant (Roof Ballaster) has its
     # on_play called with the chosen variant; every other occupation keeps (state, idx).
@@ -607,17 +610,16 @@ def _execute_play_minor(state: GameState, idx: int, action) -> GameState:
     # minor is stamped too, though it has already been passed on).
     state = replace_top(state, fast_replace(state.pending_stack[-1],
                                             played_card_id=cid))
-    # Pivot PendingPlayMinor to its after-phase (firing after_play_minor autos); the trailing
-    # Stop pops. Then fire the coarse "any improvement built" event (Category 5, Junk Room).
-    # Both happen BEFORE the card's on_play — load-bearing for on_plays that PUSH a frame
-    # (Shifting Cultivation pushes PendingPlow): the host must be flipped to "after" while it
-    # is still the top frame. Family no-ops (empty AUTO_EFFECTS).
-    from agricola.cards.triggers import apply_auto_effects
-    state = _enter_after_phase(state)
-    state = apply_auto_effects(state, "after_build_improvement", idx)
+    # DEFER the after-flip (user ruling 2026-07-14): mark the work applied while the host
+    # is still on top; _advance_until_decision flips it once everything on_play pushes
+    # (Shifting Cultivation's plow) has resolved — firing the after_play_minor autos AND
+    # the coarse "any improvement built" event (Junk Room) there, so neither payout can
+    # fund this card's own effect. Family no-ops (empty AUTO_EFFECTS).
+    state = _mark_effect_initiated(state)
     prev_depth = len(state.pending_stack)
     # Run the immediate effect (whether kept or passed). A pushing on_play lands its primitive
-    # on top of the already-"after" host. When the commit carries a `variant`, the chosen route
+    # on top of the marked (still-before-phase) host, which flips once it pops.
+    # When the commit carries a `variant`, the chosen route
     # is threaded as a 3rd arg — a play-variant minor (PLAY_MINOR_VARIANTS — Facades Carving),
     # whose surcharge was already debited (folded into `payment`), OR a labeled-alternative-cost
     # minor (`cost_labels` — Canvas Sack), whose real alternative cost was already debited via
@@ -1074,7 +1076,7 @@ def _execute_family_growth(state: GameState, idx: int, action) -> GameState:
         state = _resolve_wish_for_children(state, top.initiated_by_id)
     else:
         state = _grow_family(state, idx)
-    return _enter_after_phase(state)   # pivot PendingFamilyGrowth -> after; Stop pops
+    return _mark_effect_initiated(state)   # deferred flip → after; Stop pops
 
 
 CHOOSE_SUBACTION_HANDLERS: dict[type, Callable[[GameState, ChooseSubAction], GameState]] = {}
@@ -1113,19 +1115,53 @@ def _enter_after_phase(state: GameState) -> GameState:
     (no pop) and fire its after-automatic effects, then return.
 
     The single, uniform "after-window opens" point (SUBACTION_HOOK_REFACTOR.md).
-    Called by every commit-terminated sub-action effect at its commit, by the
-    animal markets, and (with the Proceed boundary) by the and/or-space parents.
+    Called by the Proceed boundaries (and/or-space parents, atomic hosts, the
+    multi-shot builders' settle) and — for the commit-terminated hosts — by
+    `_advance_until_decision` once the host's `effect_initiated` signal is set
+    and the host is back on top (the deferred flip: user ruling 2026-07-14,
+    "after you [do X]" fires after X's FULL effect, pushed frames included; the
+    commit executors call `_mark_effect_initiated` instead of flipping inline).
     The fired event is derived from the now-"after" frame via
     `legality.trigger_event` — `after_action_space` for an action-space host,
-    `after_<PENDING_ID>` for a sub-action host (e.g. `after_renovate`). A no-op
-    in the Family game (empty AUTO_EFFECTS); the after-phase enumerator then
-    surfaces any after-triggers + Stop, and Stop pops.
+    `after_<PENDING_ID>` for a sub-action host (e.g. `after_renovate`). For the
+    two improvement hosts the coarse "any improvement built" event
+    (`after_build_improvement` — Junk Room) fires here too, right after the
+    derived event, so it defers with the flip. A no-op in the Family game
+    (empty AUTO_EFFECTS); the after-phase enumerator then surfaces any
+    after-triggers + Stop, and Stop pops.
     """
     from agricola.cards.triggers import apply_auto_effects
     from agricola.legality import trigger_event
-    new_top = fast_replace(state.pending_stack[-1], phase="after")
+    top = state.pending_stack[-1]
+    if getattr(top, "effect_initiated", False):
+        new_top = fast_replace(top, phase="after", effect_initiated=False)
+    else:
+        new_top = fast_replace(top, phase="after")
     state = replace_top(state, new_top)
-    return apply_auto_effects(state, trigger_event(new_top), new_top.player_idx)
+    state = apply_auto_effects(state, trigger_event(new_top), new_top.player_idx)
+    from agricola.pending import PendingBuildMajor, PendingPlayMinor
+    if isinstance(new_top, (PendingBuildMajor, PendingPlayMinor)):
+        state = apply_auto_effects(state, "after_build_improvement", new_top.player_idx)
+    return state
+
+
+def _mark_effect_initiated(state: GameState) -> GameState:
+    """Signal that the top commit-terminated host's work has been applied: set
+    `effect_initiated` so `_advance_until_decision` flips the host to its
+    after-phase (firing the after-autos via `_enter_after_phase`) once the host
+    is next on top — i.e. after every frame the effect pushed (an on_play's
+    primitive, an oven's free-bake wrapper) has resolved.
+
+    Replaces the old inline `_enter_after_phase` call at each commit executor's
+    tail (user ruling 2026-07-14): firing after-autos before the effect's pushed
+    frames resolve let a reaction's payout (Bonehead's wood) fund the effect it
+    was reacting to (Established Person's fences). Must be called while the host
+    is still on top, BEFORE the executor pushes anything. For an executor whose
+    effect pushes nothing, the flip happens within the same `step` — observably
+    identical to the old inline flip.
+    """
+    return replace_top(
+        state, fast_replace(state.pending_stack[-1], effect_initiated=True))
 
 
 def _execute_sow(
@@ -1210,7 +1246,7 @@ def _execute_sow(
         card_state=new_store,
     )
     state = _update_player(state, player_idx, new_player)
-    return _enter_after_phase(state)   # pivot PendingSow -> after; Stop pops
+    return _mark_effect_initiated(state)   # deferred flip → after; Stop pops
 
 
 def _execute_bake(
@@ -1247,7 +1283,7 @@ def _execute_bake(
         resources=p.resources + Resources(food=food, grain=-commit.grain),
     )
     state = _update_player(state, player_idx, new_player)
-    return _enter_after_phase(state)   # pivot PendingBakeBread -> after; Stop pops
+    return _mark_effect_initiated(state)   # deferred flip → after; Stop pops
 
 
 def _execute_plow(
@@ -1284,7 +1320,7 @@ def _execute_plow(
     if not is_card_grant:
         # Base Farmland/Cultivation plow: single-shot, num_plowed untouched (default 0) →
         # byte-identical Family frame.
-        return _enter_after_phase(state)   # pivot PendingPlow -> after; Stop pops
+        return _mark_effect_initiated(state)   # deferred flip → after; Stop pops
     # Card grant: count this plow (for the per-grant CardStore tile debit at after_plow).
     num_plowed = top.num_plowed + 1
     state = replace_top(state, fast_replace(top, num_plowed=num_plowed))
@@ -1292,7 +1328,7 @@ def _execute_plow(
     # against the board this plow just produced — adjacency can open/close targets).
     if num_plowed < top.max_plows and _more_plows_available(state, state.pending_stack[-1]):
         return state
-    return _enter_after_phase(state)   # budget spent / no next cell → pivot to after
+    return _mark_effect_initiated(state)   # budget spent / no next cell → deferred flip
 
 
 def _more_plows_available(state: GameState, top) -> bool:
@@ -1489,7 +1525,7 @@ def _execute_renovate(
     # after-phase pivot. A no-op in the Family game (no conditional registered).
     from agricola.engine import _fire_ready_one_shots
     state = _fire_ready_one_shots(state, player_idx)
-    return _enter_after_phase(state)   # pivot PendingRenovate -> after; Stop pops
+    return _mark_effect_initiated(state)   # deferred flip → after; Stop pops
 
 
 def _execute_build_major(
@@ -1579,20 +1615,16 @@ def _execute_build_major(
         new_player = fast_replace(p, future_resources=tuple(new_future))
         state = _update_player(state, player_idx, new_player)
 
-    # 4. Pivot PendingBuildMajor to its after-phase (no pop), firing
-    #    after_build_major automatic effects. Done BEFORE pushing any oven
-    #    wrapper so that when the wrapper's free bake pops back, this frame is
-    #    already "after" (offering after_build_major triggers + Stop). `phase`
-    #    now carries what `build_chosen` used to — the after-gate keys on it.
-    state = _enter_after_phase(state)
-
-    # 4b. Coarse "any improvement built" event (Category 5, Junk Room): a major
-    #     improvement IS an improvement, so fire after_build_improvement here
-    #     (mirrored in _execute_play_minor for minors). +3-food/+1-food autos are
-    #     order-independent of any oven free-bake, so firing before the oven branch
-    #     is fine. A no-op in the Family game (empty AUTO_EFFECTS).
-    from agricola.cards.triggers import apply_auto_effects
-    state = apply_auto_effects(state, "after_build_improvement", player_idx)
+    # 4. DEFER the after-flip (user ruling 2026-07-14): mark the work applied while
+    #    this host is still on top. _advance_until_decision flips it — firing the
+    #    after_build_major autos AND the coarse "any improvement built" event
+    #    (Junk Room) — once any oven wrapper pushed below has fully resolved, so a
+    #    reaction's payout can never fund (or be read by) the oven's free bake.
+    #    When the wrapper's free bake pops back, the flip happens before the next
+    #    enumeration, so the frame then offers after_build_major triggers + Stop
+    #    exactly as before. `phase=="after"` still carries what `build_chosen`
+    #    used to — the after-gate keys on it.
+    state = _mark_effect_initiated(state)
 
     # 5. Branch on major_idx for the oven wrappers; otherwise leave the
     #    after-phase frame for its trailing Stop.
@@ -1789,10 +1821,10 @@ def _execute_accommodate(
         state = note_animal_cook(state, player_idx)   # excess animals cooked to food
     if isinstance(pending, PendingAccommodate):
         return pop(state)          # bare reconciliation: no host lifecycle, just pop
-    # Market: pivot to the after-phase (do NOT pop) and fire after_action_space autos at
-    # this work-complete boundary (before the after-triggers). _enter_after_phase flips
-    # the frame + fires the derived `after_action_space` event.
-    return _enter_after_phase(state)
+    # Market: mark the work applied (do NOT pop); _advance_until_decision flips the
+    # frame to its after-phase within this same step (the accommodate pushes nothing),
+    # firing the derived `after_action_space` autos before the after-triggers.
+    return _mark_effect_initiated(state)
 
 
 # ---------------------------------------------------------------------------

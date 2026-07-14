@@ -414,10 +414,15 @@ away on Cultivation.
 
 The uniform host lifecycle (every action space and sub-action; §3): **before-automatic
 effects fire when the host is pushed → before-triggers are surfaced alongside the work →
-the work happens → after-automatic effects fire at the work-complete boundary (the commit
-flip / Proceed / auto-advance) → after-triggers are surfaced → Stop pops.** After-autos
-fire at the *flip*, **not** at the trailing Stop (Stop is a pure pop). Getting this order
-wrong (firing after-autos at Stop) was a real regression.
+the work happens — INCLUDING everything the effect pushed → after-automatic effects fire at
+the work-complete boundary (the deferred commit flip / Proceed / auto-advance) →
+after-triggers are surfaced → Stop pops.** After-autos fire at the *flip*, **not** at the
+trailing Stop (Stop is a pure pop) — and for a commit-terminated host that flip is DEFERRED
+(ruling 60, 2026-07-14): the executor marks `effect_initiated` and the engine flips only once
+the effect's own pushed frames (an on_play's primitive, an oven's free bake) have resolved,
+so an "after you [do X]" payout can never fund X's own effect (Bonehead × Established
+Person). Getting this order wrong (firing after-autos at Stop, or before the effect) were
+real regressions/bugs.
 
 ### Build Rooms / Build Stables / Build Fences is ONE action, not a sequence
 
@@ -537,9 +542,11 @@ Several latches exist; choose deliberately:
 Action spaces and sub-actions are **before/after hosts**. A host carries a `phase`
 ("before"→"after") and a `triggers_resolved` set. When pushed, its before-automatic
 effects fire; its before-triggers are surfaced as `FireTrigger`s alongside the work
-options. When the work completes (a single-commit sub-action *flips* on its commit; a
-multi-shot builder — including `PendingBuildFences` — and an and/or space *flip* on an
-explicit `Proceed`; a delegating space auto-advances), the host enters its after-phase,
+options. When the work completes (a single-commit sub-action marks `effect_initiated` at its commit
+and the engine flips it once anything the effect pushed has resolved — the deferred
+after-flip, ruling 60; a multi-shot builder — including `PendingBuildFences` — and an and/or
+space *flip* on an explicit `Proceed`; a delegating space auto-advances), the host enters its
+after-phase,
 firing after-automatic effects; its after-triggers are surfaced alongside `Stop`; `Stop`
 pops. (Every sub-action host now carries a `phase`; the lone Stop-terminated holdout is
 `PendingSideJob`, a Family-only space that is never card-hooked.)

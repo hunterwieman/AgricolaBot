@@ -692,6 +692,30 @@ at 2 players.
    route; the per-improvement point count freezes at play (the banked-VP
    idiom), per the printed parenthetical.
 
+60. **The deferred after-flip** (ruled 2026-07-14): an "after you [do X]" card
+   effect fires after X's FULL effect — everything the effect pushed included
+   — never in the gap between X's commit and X's own effect resolving. The
+   motivating case: Bonehead's "immediately after each time you play a card
+   from your hand, you get 1 wood from this card" must NOT hand over the wood
+   in time to fund the played card's own effect (Established Person's granted
+   fences). Built as the user's own design: commit executors set an
+   `effect_initiated` work-complete signal on their host instead of flipping
+   it inline, and `_advance_until_decision` flips the host (firing the
+   after-autos, plus the coarse `after_build_improvement` for the two
+   improvement hosts) once the host is back on top — i.e. after every frame
+   the effect pushed (an on_play's primitive, an oven's free-bake wrapper) has
+   resolved. Two corollaries the user approved in the same discussion: the
+   **accommodation barrier resolves BEFORE the deferred flip** (a keep-which-
+   animals choice raised by the effect is part of the effect settling, so the
+   after-autos wait for it too), and the mechanism applies **uniformly to
+   every commit-terminated host** (play occupation/minor, sow, bake, plow,
+   renovate, build major, family growth, the three animal markets) — one flip
+   rule shared with the Delegating hosts' `subaction_complete`. This is a
+   Family-visible change (the ovens' free bake is the Family-reachable pushed
+   child), re-ported to `cpp/` in the same change with all 139 differential
+   gates green. Machinery reference: CARD_ENGINE_IMPLEMENTATION.md §2;
+   ordering pins: `tests/test_deferred_after_flip.py`.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

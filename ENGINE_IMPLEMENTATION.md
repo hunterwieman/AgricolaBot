@@ -193,10 +193,13 @@ Called at the end of every `step` (stage 3). A `while True` loop that returns as
 decision is pending, otherwise drives system transitions. **State-driven and idempotent** —
 re-running it on a returned state is a no-op. The cases, in order:
 
-1. **Pending stack non-empty** → return (agent decision awaiting). *Card-mode exception:* a
-   **Delegating** space host whose single mandatory sub-action just completed is first
-   auto-flipped to its after-phase (`_enter_after_phase`) within the same step — the engine, not
-   a player decision, is the work-complete signal for that host kind
+1. **Pending stack non-empty** → return (agent decision awaiting) — after the accommodation
+   barrier reconciles, and UNLESS the top host's work just completed, in which case it is first
+   auto-flipped to its after-phase (`_enter_after_phase`) — the engine, not a player decision,
+   is the work-complete signal. Two signals share the one flip rule: a **Delegating** space
+   host's `subaction_complete`, and a **commit-terminated** host's `effect_initiated` (the
+   deferred after-flip, ruling 60 — set by the commit executor, so the flip waits for anything
+   the effect pushed; the oven free-bake is the Family-reachable case)
    (CARD_ENGINE_IMPLEMENTATION.md §2).
 1.5. **DRAFT with empty stack** (card game, `draft=True` setups only) → push the next
    `PendingDraftPick`, or transition to PREPARATION once all four pools are empty
@@ -355,8 +358,11 @@ The `space:` / `phase:` / `card:` prefixes make the namespaces disjoint by const
 - `PlaceWorker(space=…)` pushes the space's parent frame.
 - `ChooseSubAction(name=…)` sets the parent's `<cat>_chosen` flag **and** pushes the category
   frame (one handler, both effects).
-- `CommitX(…)` flips its single-commit sub-action host to `phase="after"` (via
-  `_enter_after_phase`); the trailing `Stop` pops. **Multi-shot hosts:** for
+- `CommitX(…)` marks its single-commit sub-action host's work applied (`effect_initiated`);
+  `_advance_until_decision` flips it to `phase="after"` (via `_enter_after_phase`) once the
+  host is back on top — the **deferred after-flip** (ruling 60, 2026-07-14): anything the
+  effect pushed resolves before the after-autos fire. For the usual push-nothing effect the
+  flip lands within the same `step`. The trailing `Stop` pops. **Multi-shot hosts:** for
   `PendingBuildStables` / `PendingBuildRooms` / `PendingBuildFences`, the commit increments a
   counter and `replace_top`s, leaving the frame in its before-phase; **`Proceed`** (legal once the
   counter `>= 1`) flips it to after, and the trailing `Stop` pops. (The old per-commit
@@ -364,7 +370,8 @@ The `space:` / `phase:` / `card:` prefixes make the namespaces disjoint by const
   SUBACTION_HOOK_REFACTOR.md.)
 - `CommitBuildMajor` is the one commit that can *push* instead of pop: a plain major pops
   `PendingBuildMajor`, but a Clay/Stone Oven purchase pushes that oven's pending (which hosts a
-  free Bake) on top, extending the chain.
+  free Bake) on top, extending the chain — the build-major host stays in its before-phase
+  (with `effect_initiated` set) until the wrapper resolves, then flips.
 - `FireTrigger(card_id=…)` records the fire on the top frame; no push/pop.
 - `Stop` pops the top frame.
 

@@ -90,13 +90,13 @@ inline void hf(std::uint64_t& h, const PendingGrainUtilization& f) {
   hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingSow& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingBakeBread& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingPlow& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingFarmExpansion& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.room_chosen); hi(h, f.stable_chosen);
@@ -111,10 +111,10 @@ inline void hf(std::uint64_t& h, const PendingBuildRooms& f) {
   hi(h, f.phase); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingBuildMajor& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingRenovate& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingSubActionSpace& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.subaction_complete);
@@ -128,13 +128,13 @@ inline void hf(std::uint64_t& h, const PendingSideJob& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.stable_chosen); hi(h, f.bake_chosen); hi(h, f.triggers_resolved);
 }
 inline void hf(std::uint64_t& h, const PendingSheepMarket& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingPigMarket& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingCattleMarket& f) {
-  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved);
+  hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.gained); hi(h, f.phase); hi(h, f.triggers_resolved); hi(h, f.effect_initiated);
 }
 inline void hf(std::uint64_t& h, const PendingMajorMinorImprovement& f) {
   hpre(h, f.player_idx, f.initiated_by_id); hi(h, f.major_chosen); hi(h, f.minor_chosen);

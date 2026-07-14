@@ -438,11 +438,13 @@ def test_shifting_cultivation_nested_plow_walk():
     cs = step(cs, ChooseSubAction(name="play_minor"))
     cs = step(cs, sole_play_minor(cs, "shifting_cultivation"))
 
-    # The play frame flipped to "after" and on_play pushed PendingPlow ON TOP of it:
-    # the top is the plow, with the (after-phase) PendingPlayMinor host underneath.
+    # on_play pushed PendingPlow ON TOP of the play host, which stays in its
+    # before-phase with `effect_initiated` set — the DEFERRED after-flip (user
+    # ruling 2026-07-14) waits until the pushed plow resolves.
     assert isinstance(cs.pending_stack[-1], PendingPlow)
     assert isinstance(cs.pending_stack[-2], PendingPlayMinor)
-    assert cs.pending_stack[-2].phase == "after"
+    assert cs.pending_stack[-2].phase == "before"
+    assert cs.pending_stack[-2].effect_initiated
 
     # Commit the granted plow; +1 field. Cost (2 food) was paid; the card was passed.
     plows = legal_actions(cs)
