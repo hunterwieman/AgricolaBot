@@ -841,3 +841,101 @@ from agricola.cards import foreign_aid         # noqa: F401
 #   Asparagus Knife A58 — returning-home rounds 8/10/12: take 1 veg from a veg
 #                         field, optionally exchange for 3 food + 1 banked point.
 from agricola.cards import asparagus_knife     # noqa: F401
+
+# --- 2026-07-15 batch: 34 cards implementable on existing seams (no engine change) ---
+#   Income autos keyed on revealed_round / accumulation reads, and an exchange trigger:
+from agricola.cards import master_workman      # noqa: F401
+from agricola.cards import knapper             # noqa: F401
+from agricola.cards import silokeeper          # noqa: F401
+from agricola.cards import mattock             # noqa: F401
+from agricola.cards import barn_shed           # noqa: F401
+from agricola.cards import field_spade         # noqa: F401
+from agricola.cards import stone_axe           # noqa: F401
+#   On-play goods / scoring / cost / capacity / occupancy:
+from agricola.cards import farmers_market      # noqa: F401
+from agricola.cards import recount             # noqa: F401
+from agricola.cards import store_of_experience # noqa: F401
+from agricola.cards import baseboards          # noqa: F401
+from agricola.cards import almsbag             # noqa: F401
+from agricola.cards import mayor_candidate     # noqa: F401
+from agricola.cards import sheep_rug           # noqa: F401
+from agricola.cards import lawn_fertilizer     # noqa: F401
+from agricola.cards import wood_slide_hammer   # noqa: F401
+#   Schedules / after-bake / after-build-stables:
+from agricola.cards import granary             # noqa: F401
+from agricola.cards import grain_depot         # noqa: F401
+from agricola.cards import stable_tree         # noqa: F401
+from agricola.cards import farmyard_manure     # noqa: F401
+from agricola.cards import bookmark            # noqa: F401
+from agricola.cards import cheese_fondue       # noqa: F401
+#   Round-end / harvest / growth windows:
+from agricola.cards import ale_benches         # noqa: F401
+from agricola.cards import carrot_museum       # noqa: F401
+from agricola.cards import steam_plow          # noqa: F401
+from agricola.cards import storks_nest         # noqa: F401
+from agricola.cards import harvest_festival_planning  # noqa: F401
+from agricola.cards import iron_hoe            # noqa: F401
+from agricola.cards import apiary              # noqa: F401
+from agricola.cards import sundial             # noqa: F401
+#   Granted sub-actions / play-variants / before-round buy:
+from agricola.cards import chief_forester      # noqa: F401
+from agricola.cards import acquirer            # noqa: F401
+from agricola.cards import upscale_lifestyle   # noqa: F401
+from agricola.cards import new_purchase        # noqa: F401
+
+# --- 2026-07-15 seam-fit batch, Tier 2: 55 more cards on existing seams (3+/4 occupations) ---
+from agricola.cards import braggart  # noqa: F401
+from agricola.cards import potato_digger  # noqa: F401
+from agricola.cards import roof_examiner  # noqa: F401
+from agricola.cards import usufructuary  # noqa: F401
+from agricola.cards import pig_owner  # noqa: F401
+from agricola.cards import pastor  # noqa: F401
+from agricola.cards import estate_master  # noqa: F401
+from agricola.cards import champion_breeder  # noqa: F401
+from agricola.cards import wealthy_man  # noqa: F401
+from agricola.cards import stonecutter  # noqa: F401
+from agricola.cards import brushwood_collector  # noqa: F401
+from agricola.cards import rock_beater  # noqa: F401
+from agricola.cards import chimney_sweep  # noqa: F401
+from agricola.cards import greengrocer  # noqa: F401
+from agricola.cards import seed_seller  # noqa: F401
+from agricola.cards import storehouse_steward  # noqa: F401
+from agricola.cards import forest_clearer  # noqa: F401
+from agricola.cards import porter  # noqa: F401
+from agricola.cards import collier  # noqa: F401
+from agricola.cards import flax_farmer  # noqa: F401
+from agricola.cards import loudmouth  # noqa: F401
+from agricola.cards import tree_cutter  # noqa: F401
+from agricola.cards import carter  # noqa: F401
+from agricola.cards import chairman  # noqa: F401
+from agricola.cards import german_heath_keeper  # noqa: F401
+from agricola.cards import kelp_gatherer  # noqa: F401
+from agricola.cards import material_deliveryman  # noqa: F401
+from agricola.cards import animal_dealer  # noqa: F401
+from agricola.cards import turnip_farmer  # noqa: F401
+from agricola.cards import bohemian  # noqa: F401
+from agricola.cards import resource_analyzer  # noqa: F401
+from agricola.cards import animal_tamers_apprentice  # noqa: F401
+from agricola.cards import harpooner  # noqa: F401
+from agricola.cards import huntsman  # noqa: F401
+from agricola.cards import cattle_feeder  # noqa: F401
+from agricola.cards import night_school_student  # noqa: F401
+from agricola.cards import food_distributor  # noqa: F401
+from agricola.cards import pig_breeder  # noqa: F401
+from agricola.cards import pub_owner  # noqa: F401
+from agricola.cards import ropemaker  # noqa: F401
+from agricola.cards import animal_driver  # noqa: F401
+from agricola.cards import beer_tent_operator  # noqa: F401
+from agricola.cards import mountain_plowman  # noqa: F401
+from agricola.cards import sheep_whisperer  # noqa: F401
+from agricola.cards import trap_builder  # noqa: F401
+from agricola.cards import master_huntsman  # noqa: F401
+from agricola.cards import plumber  # noqa: F401
+from agricola.cards import stable_sergeant  # noqa: F401
+from agricola.cards import nutrition_expert  # noqa: F401
+from agricola.cards import parvenu  # noqa: F401
+from agricola.cards import livestock_expert  # noqa: F401
+from agricola.cards import bunny_breeder  # noqa: F401
+from agricola.cards import vegetable_vendor  # noqa: F401
+from agricola.cards import imitator  # noqa: F401
+from agricola.cards import field_caretaker  # noqa: F401

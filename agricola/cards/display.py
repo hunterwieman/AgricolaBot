@@ -38,6 +38,9 @@ from agricola.scoring import SCORING_TERMS
 # sets partition every registered scoring term, so adding a new scoring card without
 # classifying it FAILS the suite rather than silently going emblem-less.
 HISTORY_VP_CARDS: frozenset[str] = frozenset({
+    "ale_benches",
+    "beer_tent_operator", "champion_breeder", "estate_master", "nutrition_expert",
+    "pig_owner", "wealthy_man",
     "asparagus_knife",
     "baking_sheet", "beaver_colony", "beer_keg", "beer_stein", "beer_table", "bellfounder",
     "big_country",
@@ -65,9 +68,11 @@ PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler", "earthenware_potter
 # so NO emblem. Listed explicitly only so the partition test can catch an
 # unclassified new card; nothing consumes this set at runtime.
 PUBLIC_VP_CARDS: frozenset[str] = frozenset({
+    "braggart", "chimney_sweep",
     "artisan_district", "cookery_outfitter", "debt_security", "fellow_grazer",
     "fodder_chamber", "greening_plan", "land_register", "lantern_house", "loom",
-    "lord_of_the_manor", "manger", "milking_stool", "misanthropy", "nave", "ox_skull",
+    "lord_of_the_manor", "manger", "mayor_candidate", "milking_stool", "misanthropy",
+    "nave", "ox_skull",
     "pottery_yard", "schnapps_distillery", "soldier", "stable_architect", "storeroom",
     "summer_house", "wool_blankets",
 })

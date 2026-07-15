@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-15 (the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors, below); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-15 (the seam-fit batch — 89 cards on existing seams, no engine change, below; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,39 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-15 seam-fit batch landed: 89 cards on existing seams (no engine change, all
+  Family-inert).** 61 occupations + 28 minors, chosen via a catalog-wide fit analysis (every
+  unimplemented card classified against the machinery) as those mapping cleanly onto already-built
+  `register_*` seams with NO new seam/frame/event and NO Family-shape change. **Tier 1 — 34 cards
+  dealt in the 2-player game** (6 occ + 28 min), adversarially code-verified: revealed_round &
+  accumulation income autos (Master Workman, Knapper, Silokeeper, Mattock, Barn Shed [`any_player`],
+  Field Spade, Stone Axe); on-play goods / a NEGATIVE scoring term / cost / capacity / occupancy
+  (Farmers Market, Recount, Store of Experience, Baseboards, Almsbag, Mayor Candidate, Sheep Rug,
+  Lawn Fertilizer, Wood Slide Hammer); schedules + before-bake + after-build-stables (Granary, Grain
+  Depot [`cost_labels`], Stable Tree, Farmyard Manure, Bookmark [`schedule_effect`], Cheese Fondue);
+  round-end / harvest / growth windows incl. the `end_of_work` rung (Ale-Benches, Carrot Museum,
+  Steam Plow, Stork's Nest, Harvest Festival Planning, Iron Hoe, Apiary, Sundial); granted
+  sub-actions / play-variants / before-round buy (Chief Forester, Acquirer, Upscale Lifestyle, New
+  Purchase). **Tier 2 — 55 [3+]/[4] occupations** (first-pass classification; unit-tested but not
+  dealt at 2 players): cost reducers (Stonecutter, Brushwood Collector, Rock Beater, Chimney Sweep);
+  own-space & `any_player` income autos (Greengrocer, Seed Seller, Storehouse Steward, Forest
+  Clearer, Porter, Collier, Flax Farmer, Loudmouth, Tree Cutter, Carter, Chairman, German Heath
+  Keeper, Kelp Gatherer, Material Deliveryman); paid space triggers & market bump (Harpooner,
+  Huntsman, Cattle Feeder, Animal Dealer); on-play goods / scoring / one-shots (Braggart, Potato
+  Digger, Roof Examiner, Usufructuary, Pig Owner, Pastor, Estate Master, Champion Breeder, Wealthy
+  Man); prep & returning-home windows (Turnip Farmer, Bohemian, Resource Analyzer — the exact card
+  §8 lists as deferred, now unblocked by the `before_round` window — Animal Tamer's Apprentice,
+  Night-School Student, Food Distributor, Pig Breeder, Pub Owner); harvest & animal-schedule grants
+  (Ropemaker, Animal Driver, Beer Tent Operator, Mountain Plowman, Sheep Whisperer, Trap Builder,
+  Master Huntsman); play-variants / granted renovate / card-field / occupancy (Plumber, Stable
+  Sergeant, Nutrition Expert, Parvenu, Livestock Expert, Bunny Breeder, Vegetable Vendor, Imitator,
+  Field Caretaker). Full suite (6068) + C++ Family gates green, untouched. Eight new `display.py`
+  scoring classifications. Census after: **213 occupations + 291 minors**. DEFERRED from the attempt
+  (rules fidelity — not built): Grain Bag, Feed Fence, Wood Barterer, Renovation Company (Tier 1),
+  and Housemaster, Stone Buyer, Forest Scientist, Stockman (Tier 2) — each a genuine rules ambiguity
+  or a change that would need an engine/legality/enumerator edit. NOTE the §8 "no before-round-start
+  hook" boundary is now stale (the preparation ladder's `before_round` window covers it — Resource
+  Analyzer built here).
 - **The 2026-07-15 food-provider batch landed: 20 minor improvements** — schedule-food cards
   (Chicken Coop, Barn Cats, Fodder Beets, Fruit Ladder, Waterlily Pond), traveling on-play food
   (Pumpernickel, Wage — bottom-row-major read), space-use income autos (Comb and Cutter, Stone
