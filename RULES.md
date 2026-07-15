@@ -349,7 +349,13 @@ The primitives, by area:
 
 **Cards**
 - **Play an occupation** — put an occupation from your hand into play (paying its occupation cost).
-- **Build a major / play a minor improvement** — put an improvement into play (paying its cost).
+- **The "Major or Minor Improvement" action** — build **one** major improvement (from the shared
+  supply board) **or** play **one** minor improvement (from your hand), paying its cost. Offered by
+  the **Major Improvement** action space, by **House Redevelopment**'s optional second step, and by
+  some card effects.
+- **The "Minor Improvement" action** — play **one** minor improvement from your hand, paying its
+  cost. A **distinct** primitive that offers *only* the minor (never a major). Offered by **Meeting
+  Place**, by **Basic Wish for Children**'s optional second step, and by some card effects.
 
 **Goods**
 - **Take accumulated goods** — sweep all goods off an accumulation space.
@@ -365,6 +371,37 @@ The primitives, by area:
 
 Many placements bundle several primitives, and the *ordering* between them follows the
 "and/or" vs "and afterward" rule (see [Action Spaces](#andor-vs-and-afterward)).
+
+> **⚠️ Precise callout — the "Major or Minor Improvement" action is not the Major Improvement action
+> *space*, and it is a different action from the "Minor Improvement" action. This is genuinely
+> confusing, so read it carefully.** Three different things use the word "improvement," and card
+> text depends on telling them apart:
+>
+> - **The two named *actions* are distinct primitives.** The **"Major or Minor Improvement" action**
+>   lets you build a major *or* play a minor; the **"Minor Improvement" action** lets you play a
+>   minor *only*. They are **not** the same action even though both can put a minor into play.
+> - **An action is not the action space that offers it.** The action space this document calls
+>   "Major Improvement" (some card texts call it the "Major or Minor Improvement" space) is just
+>   *one* place the **"Major or Minor Improvement" action** is available — that same action is
+>   *also* granted by House Redevelopment and by certain cards. So a card keyed to *"the 'Major or
+>   Minor Improvement' action"* fires **every time you take that action, wherever it came from**,
+>   and does not care which space or card offered it.
+> - **Which space offers which action** (this is the crux):
+>   - **"Major or Minor Improvement" action** → Major Improvement space, House Redevelopment (second
+>     step), and card grants (e.g. Angler).
+>   - **"Minor Improvement" action** → Meeting Place, Basic Wish for Children (second step), and
+>     card grants. **Meeting Place and Basic Wish do NOT offer the "Major or Minor Improvement"
+>     action** — only the "Minor Improvement" action.
+>
+> **Why it matters (real cards).** *Small Trader* — "each time you take a 'Major or Minor
+> Improvement' action to play an improvement from your hand, +3 food" — fires when you play a minor
+> at the Major Improvement space, at House Redevelopment, or via a card that grants the "Major or
+> Minor Improvement" action; it does **not** fire at Meeting Place or Basic Wish (those give the
+> "Minor Improvement" action), and it does **not** fire when you build a *major* (that is not "an
+> improvement from your hand"). *Merchant* — "immediately after a 'Major or Minor Improvement' *or*
+> 'Minor Improvement' action, pay 1 food to take the action a second time" — offers a **type-matched
+> repeat**: a second "Major or Minor Improvement" action after the former, a second "Minor
+> Improvement" action after the latter.
 
 ---
 
@@ -570,10 +607,14 @@ occupation cost) or without placing a person at all.
 A minor improvement is always one branch of a larger action; there is no standalone "play a minor"
 space. You can play one when you take:
 
-- **Major Improvement** (build a major *or* play a minor),
-- **House Redevelopment** (renovate, then optionally a major *or* a minor),
-- **Basic Wish for Children** (family growth, then optionally a minor),
-- **Meeting Place** (become starting player, then optionally a minor).
+- **Major Improvement** (build a major *or* play a minor) — the **"Major or Minor Improvement" action**,
+- **House Redevelopment** (renovate, then optionally a major *or* a minor) — also the **"Major or Minor Improvement" action**,
+- **Basic Wish for Children** (family growth, then optionally a minor) — the **"Minor Improvement" action**,
+- **Meeting Place** (become starting player, then optionally a minor) — the **"Minor Improvement" action**.
+
+The first two offer a *different named action* from the last two, even though all four let you play
+a minor — a distinction some cards depend on (see the ⚠️ callout under
+[Primitive Sub-Actions](#primitive-sub-actions)).
 
 Two requirements gate a minor improvement:
 

@@ -116,14 +116,15 @@ def test_build_major_at_major_improvement_grants_no_food():
 
 
 # ---------------------------------------------------------------------------
-# NEGATIVE: reaching play-minor via House Redevelopment gives no food
-# ("does not work unless you literally get that action")
+# House Redevelopment's improvement step IS a 'Major or Minor Improvement'
+# action, so playing a minor there DOES grant the food (user ruling 2026-07-15:
+# Small Trader keys off the ACTION, not the action space).
 # ---------------------------------------------------------------------------
 
-def test_house_redev_play_minor_grants_no_food():
+def test_house_redev_play_minor_grants_food():
     # house_redevelopment revealed; renovate (clay 2 + reed 1) then play a minor
-    # (1 grain). The play-minor frame is reached via House Redev, whose parent
-    # carries initiated_by_id="house_redevelopment", so Small Trader does NOT fire.
+    # (1 grain). The play-minor is reached via the composite 'Major or Minor
+    # Improvement' action (PendingMajorMinorImprovement), so Small Trader fires.
     cs, cp = _state("house_redevelopment", occ=("small_trader",),
                     minors=("market_stall",),
                     res=Resources(clay=2, reed=1, grain=1))
@@ -138,5 +139,24 @@ def test_house_redev_play_minor_grants_no_food():
     cs = step(cs, sole_play_minor(cs, "market_stall"))
     cs = step(cs, Stop())   # pop PendingPlayMinor after-phase -> MMI flips to after
 
-    assert cs.players[cp].resources.food == before   # no Small Trader bonus
+    assert cs.players[cp].resources.food == before + 3   # Small Trader fires
+    assert cs.players[cp].resources.veg == 1             # market_stall still ran
+
+
+# ---------------------------------------------------------------------------
+# NEGATIVE: Meeting Place offers the 'Minor Improvement' action (a bare minor),
+# NOT the 'Major or Minor Improvement' action — so Small Trader does NOT fire.
+# ---------------------------------------------------------------------------
+
+def test_meeting_place_play_minor_grants_no_food():
+    cs, cp = _state("meeting_place", occ=("small_trader",),
+                    minors=("market_stall",), res=Resources(grain=1))
+    before = cs.players[cp].resources.food
+
+    cs = step(cs, PlaceWorker(space="meeting_place"))     # become SP (no food, Cards mode)
+    cs = step(cs, ChooseSubAction(name="play_minor"))     # the 'Minor Improvement' action
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
+    cs = step(cs, Stop())
+
+    assert cs.players[cp].resources.food == before   # bare minor -> no Small Trader
     assert cs.players[cp].resources.veg == 1         # market_stall still ran

@@ -138,6 +138,74 @@ def test_second_minor_at_major_improvement():
 
 
 # ---------------------------------------------------------------------------
+# The composite's CHILD minor must not itself offer Merchant on after_play_minor
+# — Merchant fires once, at the composite's own after (else it double-offers).
+# ---------------------------------------------------------------------------
+
+def test_composite_child_minor_does_not_offer_merchant():
+    cs, cp = _state("major_improvement", occ=("merchant",),
+                    minors=("market_stall", "corn_scoop"),
+                    res=Resources(grain=1, wood=1, food=1))
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="play_minor"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
+    # The child play-minor is in its after-phase now; it is a composite child
+    # (initiated_by_id "major_minor_improvement"), so Merchant is NOT offered here.
+    assert not _merchant_offered(cs)
+    cs = step(cs, Stop())                    # pop child -> composite flips to after
+    assert _merchant_offered(cs)             # NOW Merchant is offered, exactly once
+
+
+# ---------------------------------------------------------------------------
+# POSITIVE: a bare "Minor Improvement" action (Meeting Place) chains Merchant —
+# reachable at 2 players (2026-07-15); a second bare minor is offered.
+# ---------------------------------------------------------------------------
+
+def test_second_minor_at_meeting_place():
+    cs, cp = _state("meeting_place", occ=("merchant",),
+                    minors=("market_stall", "corn_scoop"),
+                    res=Resources(grain=1, wood=1, food=1))
+    cs = step(cs, PlaceWorker(space="meeting_place"))     # become SP (no food, Cards)
+    cs = step(cs, ChooseSubAction(name="play_minor"))     # the "Minor Improvement" action
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
+    # The bare play-minor's OWN after-phase offers Merchant (no composite here).
+    assert _merchant_offered(cs)
+    cs = step(cs, _FIRE)
+    assert cs.players[cp].resources.food == 0
+    # Merchant pushed a fresh bare PendingPlayMinor -> CommitPlayMinor directly
+    # (no ChooseSubAction — it is already the play-minor host).
+    cs = step(cs, sole_play_minor(cs, "corn_scoop"))
+    assert not _merchant_offered(cs)                     # ruling 3 (card:merchant)
+    assert cs.players[cp].resources.veg == 1             # market_stall ran
+    assert "corn_scoop" in cs.players[cp].minor_improvements
+
+
+# ---------------------------------------------------------------------------
+# The clause-2 provenance guard, unit level: a card-granted bare minor chains
+# Merchant (user 2026-07-15), but a composite child / a Merchant self-grant do not.
+# ---------------------------------------------------------------------------
+
+def test_bare_minor_eligibility_provenance_guard():
+    from agricola.cards.merchant import _eligible_bare_minor
+    from agricola.pending import PendingPlayMinor
+    from tests.factories import with_pending_stack
+
+    cs, cp = _state("major_improvement", occ=("merchant",),
+                    minors=("market_stall",), res=Resources(food=1, grain=1))
+
+    def _at(iby):
+        s = with_pending_stack(cs, (PendingPlayMinor(
+            player_idx=cp, initiated_by_id=iby, phase="after"),))
+        return _eligible_bare_minor(s, cp, frozenset())
+
+    assert _at("card:task_artisan")          # a card-granted bare minor chains
+    assert _at("meeting_place")              # Meeting Place's bare minor chains
+    assert not _at("major_minor_improvement")  # a composite child does not
+    assert not _at("card:merchant")          # no self-chain (ruling 3)
+
+
+# ---------------------------------------------------------------------------
 # POSITIVE: House Redevelopment's improvement step counts (ruling 1)
 # ---------------------------------------------------------------------------
 

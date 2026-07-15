@@ -1854,6 +1854,18 @@ examples; this is the reference list.
   Pottery 8, Basketmaker 9 (`agricola/constants.py`).
 - **A pasture is not a `CellType`** — an empty fenced cell reads `EMPTY`. Use
   `helpers.enclosed_cells(farmyard)` / `farmyard.pastures`, never `cell_type` alone.
+- **The "Major or Minor Improvement" action ≠ the Major Improvement *space*; and it is a different
+  action from the "Minor Improvement" action** (the RULES.md ⚠️ callout is the concept — read it;
+  this is the engine mapping). The **"Major or Minor Improvement" action** is the composite host
+  `PendingMajorMinorImprovement`, event `after_major_minor_improvement` — reached from the Major
+  Improvement space, from House Redevelopment, AND from card grants (Angler, a Merchant repeat).
+  The **"Minor Improvement" action** is a *bare* `PendingPlayMinor` (Meeting Place, Basic Wish,
+  bare card grants), event `after_play_minor`. So a card keyed to *"the 'Major or Minor Improvement'
+  action"* gates on the **event / frame type**, NEVER on `initiated_by_id == "space:major_improvement"`
+  — that space gate wrongly excludes House Redevelopment and card grants (it was Small Trader's
+  original bug, corrected 2026-07-15). `after_play_minor` fires on the composite's child minor too,
+  so a card keyed to the *bare* "Minor Improvement" action must exclude composite children
+  (`initiated_by_id == "major_minor_improvement"`).
 - **Space occupancy** = `get_space(state.board, sid).workers != (0, 0)` — *not*
   `not _is_available(...)`, which is also False for unrevealed spaces.
 - **Accumulation reads**: `get_space(board, sid).accumulated` (a `Resources`, building spaces)

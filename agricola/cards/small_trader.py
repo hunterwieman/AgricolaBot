@@ -9,23 +9,31 @@ Category 5 (income on a parent action). No on-play effect. A mandatory,
 choice-free grant -> an automatic effect (`register_auto`) on the composite
 "build a major OR play a minor" host's after-event, `after_major_minor_improvement`.
 
-The clarification is load-bearing: the +3 food only applies when you LITERALLY
-take the Major or Minor Improvement *action space* and play a minor (an
-"improvement from your hand"), never via a card-granted route to playing a minor
-(House Redevelopment's improvement step, Basic Wish for Children, Meeting Place).
-Two gates on the still-top parent frame (`PendingMajorMinorImprovement`, now in
-its "after" phase) express that exactly:
+USER RULING (2026-07-15 — the "action, not action space" distinction; RULES.md
+Primitive Sub-Actions, CARD_ENGINE_IMPLEMENTATION.md §6): Small Trader keys off
+the **'Major or Minor Improvement' action** — the primitive sub-action (build a
+major from the board OR play a minor from hand) — NOT the Major Improvement
+action *space*. That primitive is offered by the Major Improvement space, by
+House Redevelopment's optional step, and by card effects (Angler; a
+Merchant-granted repeat — so with Merchant it can fire twice). It is a DIFFERENT
+primitive from the **'Minor Improvement' action** (play a minor only), which
+Meeting Place and Basic Wish for Children offer — so Small Trader never fires
+there. The clarification "does not work unless you literally get that action"
+means you must actually TAKE the action and play the minor (it doesn't fire on a
+decline), not that only the physical space counts.
 
-  1. `initiated_by_id == "space:major_improvement"` — the host was reached via the
-     Major Improvement action space, NOT House Redevelopment ("house_redevelopment").
-     This is the only signal that distinguishes the two entry points
-     (`PendingPlayMinor.initiated_by_id` is "major_minor_improvement" for both), and
-     it is why we fire on the PARENT's after-event rather than `after_play_minor`
-     (which fires on EVERY minor play, including House Redev / Basic Wish / Meeting
-     Place).
-  2. `minor_chosen` (not `major_chosen`) — "play an improvement from your hand" = a
-     MINOR (majors come from the common board, not your hand), so building a major
-     at that space gives no food.
+So the engine gate is simply the composite host's after-event + `minor_chosen`:
+
+  - The event `after_major_minor_improvement` fires ONLY from
+    `PendingMajorMinorImprovement` (the 'Major or Minor Improvement' action) —
+    the Major Improvement space, House Redevelopment, and card grants all reach
+    it; Meeting Place / Basic Wish push a BARE `PendingPlayMinor` (the 'Minor
+    Improvement' action) and fire `after_play_minor` instead, which we do not
+    hook. So no `initiated_by_id` space check is needed (the prior "space only"
+    gate was wrong — un-ratified, corrected by this ruling).
+  - `minor_chosen` (not `major_chosen`) — "play an improvement from your hand" =
+    a MINOR (majors come from the common board, not your hand), so building a
+    major at the space gives no food.
 """
 from __future__ import annotations
 
@@ -39,11 +47,10 @@ CARD_ID = "small_trader"
 
 
 def _eligible(state: GameState, idx: int) -> bool:
-    top = state.pending_stack[-1]
-    return (
-        getattr(top, "initiated_by_id", "") == "space:major_improvement"
-        and getattr(top, "minor_chosen", False)
-    )
+    # The after_major_minor_improvement event already scopes to the composite
+    # 'Major or Minor Improvement' action (any entry point); a minor was played
+    # iff `minor_chosen`. No space gate (ruling 2026-07-15).
+    return getattr(state.pending_stack[-1], "minor_chosen", False)
 
 
 def _apply(state: GameState, idx: int) -> GameState:

@@ -813,6 +813,42 @@ at 2 players.
      guard only blocks its own provenance; textually consistent since the
      grant IS "a Major or Minor Improvement action".
 
+64. **The "Major or Minor Improvement" action vs the "Minor Improvement"
+   action vs the action *space*** (ruled 2026-07-15 — the recurring
+   confusion, now documented explicitly in RULES.md's Primitive Sub-Actions
+   ⚠️ callout + CARD_ENGINE_IMPLEMENTATION.md §6). There are two DISTINCT
+   primitive sub-actions: the **"Major or Minor Improvement" action** (build a
+   major OR play a minor — offered by the Major Improvement space, House
+   Redevelopment, and card grants; engine: `PendingMajorMinorImprovement` /
+   `after_major_minor_improvement`) and the **"Minor Improvement" action**
+   (play a minor only — offered by Meeting Place, Basic Wish for Children, and
+   card grants; engine: a bare `PendingPlayMinor` / `after_play_minor`). Card
+   text keys off the ACTION (the primitive), never the space. Consequences
+   this ruling corrected:
+   - **Small Trader** ("+3 food each time you take a 'Major or Minor
+     Improvement' action to play an improvement from your hand") keys off the
+     'Major or Minor Improvement' action — so it fires on House Redevelopment
+     and card grants (Angler; a Merchant repeat), NOT only the Major
+     Improvement space; and never on Meeting Place / Basic Wish (those are the
+     'Minor Improvement' action). Its prior `initiated_by_id ==
+     "space:major_improvement"` gate was an un-ratified narrow reading, removed
+     — the `after_major_minor_improvement` event already scopes to the
+     composite, so the gate is just `minor_chosen`. Still minors only
+     ("from your hand").
+   - **Merchant** ("after a 'Major or Minor Improvement' OR 'Minor
+     Improvement' action, pay 1 food to take the action a second time") was
+     incomplete — it only handled the composite. Now it fires on BOTH action
+     types with a TYPE-MATCHED repeat (composite → a second composite; bare
+     minor → a second bare minor), and — user-confirmed 2026-07-15 — chains off
+     **card-granted** bare minors too (Beneficiary / Task Artisan / Sample
+     Stable Maker), by symmetry with Angler firing it on the composite side.
+     Guards: no self-chain (`card:merchant`), and the bare-minor clause
+     excludes the composite's own child minor (`major_minor_improvement`,
+     handled by the composite clause). MACHINERY NOTE surfaced: a card firing
+     on two events shares ONE frame-dispatched `apply_fn` (fire dispatch is
+     id-keyed via `CARDS`); per-event eligibility is safe (the enumerator reads
+     event-keyed `TRIGGERS`).
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)
