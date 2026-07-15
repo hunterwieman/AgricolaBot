@@ -1207,11 +1207,27 @@ def _execute_sow(
     + 1 from general supply). Empty field cells are filled in canonical
     (row, col) order; grain is sown first if both are committed.
 
-    Preconditions: legality has verified grain + veg <= empty_fields and
-    grain <= p.resources.grain and veg <= p.resources.veg.
+    Sow boosts (Tinsmith Master; user ruling 2026-07-15 — the per-field
+    "+1 crop, you can" is declinable, carried as counts on the commit): the
+    first `boost_grain` grain-fields planted this commit hold 4 grain instead
+    of 3, the first `boost_veg` veg-fields 3 veg instead of 2 — "one extra
+    crop on top of the usual stack" (the card's clarification), taken from
+    the general supply like the stack's other non-seed crops, so the supply
+    debit is unchanged. Fields are interchangeable at sow time, so boosting
+    the first N in canonical order loses nothing. A boosted card-stack sow
+    (`boost_card_sows`, a sub-multiset of `card_sows`'s grain/veg entries)
+    likewise plants sow_amount + 1 on its stack. Family commits carry zero
+    boosts, so both paths are byte-identical there.
+
+    Preconditions: legality has verified grain + veg <= empty_fields,
+    grain <= p.resources.grain and veg <= p.resources.veg, boost_grain <=
+    grain, boost_veg <= veg, boost_card_sows a sub-multiset of card_sows'
+    crop entries, and boosts nonzero only for an owner of a SOW_BOOST_CARDS
+    member.
     """
     grain = commit.grain
     veg = commit.veg
+    boost_g, boost_v = commit.boost_grain, commit.boost_veg
     p = state.players[player_idx]
 
     # Subtract from supply.
@@ -1228,10 +1244,12 @@ def _execute_sow(
                     and cell.grain == 0 and cell.veg == 0):
                 # Empty field — fill grain first, then veg.
                 if g_remaining > 0:
-                    new_row.append(fast_replace(cell, grain=3))
+                    new_row.append(fast_replace(cell, grain=4 if boost_g else 3))
+                    boost_g = max(0, boost_g - 1)
                     g_remaining -= 1
                 elif v_remaining > 0:
-                    new_row.append(fast_replace(cell, veg=2))
+                    new_row.append(fast_replace(cell, veg=3 if boost_v else 2))
+                    boost_v = max(0, boost_v - 1)
                     v_remaining -= 1
                 else:
                     new_row.append(cell)
@@ -1242,6 +1260,10 @@ def _execute_sow(
     assert g_remaining == 0 and v_remaining == 0, (
         f"Sow targets exceeded empty field count; legality should have caught this. "
         f"grain remaining={g_remaining}, veg remaining={v_remaining}"
+    )
+    assert boost_g == 0 and boost_v == 0, (
+        f"Sow boosts exceeded sown field counts; legality should have caught this. "
+        f"boost_grain remaining={boost_g}, boost_veg remaining={boost_v}"
     )
 
     new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
@@ -1259,14 +1281,26 @@ def _execute_sow(
             stack_with,
             stacks_to_store,
         )
+        # Boosted card-stack sows (Tinsmith Master): each boost_card_sows entry
+        # marks one matching (card_id, good) sow as planting +1 on its stack.
+        boost_cs: dict[tuple, int] = {}
+        for pair in commit.boost_card_sows:
+            boost_cs[pair] = boost_cs.get(pair, 0) + 1
         probe = fast_replace(p, card_state=new_store)
         for cid, good in commit.card_sows:
+            amount = sow_amount(cid, good)
+            if boost_cs.get((cid, good), 0):
+                amount += 1
+                boost_cs[(cid, good)] -= 1
             stacks = list(card_field_stacks(probe, cid))
             slot = stacks.index(EMPTY_STACK)   # legality guaranteed an empty stack
-            stacks[slot] = stack_with(EMPTY_STACK, good, sow_amount(cid, good))
+            stacks[slot] = stack_with(EMPTY_STACK, good, amount)
             new_store = stacks_to_store(new_store, cid, stacks)
             probe = fast_replace(p, card_state=new_store)
             new_resources = new_resources - Resources(**{good: 1})
+        assert not any(boost_cs.values()), (
+            "boost_card_sows exceeded card_sows' matching entries; "
+            "legality should have caught this")
         assert min(
             new_resources.wood, new_resources.stone,
             new_resources.grain, new_resources.veg) >= 0, (

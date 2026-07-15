@@ -90,7 +90,7 @@
   "vps": 0,
   "text": "Each time after you use the \"Fishing\" Accumulation space while there are at most 2 food on that space, you get a \"Major or Minor Improvement\" action.",
   "slug": "angler",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -106,7 +106,7 @@
   "vps": 0,
   "text": "When you play this card and each time a stone accumulation space appears on a round space in the preparation phase, you get 1 wood and a \"Minor Improvement\" action.",
   "slug": "task_artisan",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -1930,7 +1930,7 @@
   "vps": 0,
   "text": "Immediately before the start of each round, if there are goods on the remaining round space that are promised to you, you get 1 food.",
   "slug": "moral_crusader",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -2010,7 +2010,7 @@
   "vps": 0,
   "text": "You can hold 1 additional animal in each pasture without a stable. Each time you sow in a field, you can place 1 additional crop of the respective type in that field.  [CLARIFICATION: This effect places one extra crop on top of the usual stack, not a second stack in each field.  You may not add anything except grain or vegetable.  This does not add a condition to sowing.]",
   "slug": "tinsmith_master",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -2026,7 +2026,7 @@
   "vps": 0,
   "text": "When you play this card and each time 1 reed is placed on an empty \"Reed Bank\" accumulation space in the preparation phase, you get 1 wood.",
   "slug": "shoreforester",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -3322,7 +3322,7 @@
   "vps": 0,
   "text": "Place 1 clay on each remaining space for rounds 6 to 14. At the start of these rounds, you get the clay.",
   "slug": "clay_deliveryman",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -3786,7 +3786,7 @@
   "vps": 0,
   "text": "When you play this card, you immediately get 1 wood. Each time you play an occupation after this one, you get 1 wood for each food paid as occupation cost.",
   "slug": "furniture_maker",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -4586,7 +4586,7 @@
   "vps": 0,
   "text": "At the start of each returning home phase, you can return a built stable to your supply to get 1 wood, 1 grain, 1 food, and a \"Minor Improvement\" action.",
   "slug": "sample_stable_maker",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5434,7 +5434,7 @@
   "vps": 0,
   "text": "Once you live in a stone house, at the start of each round, you can pay 2 or 3 wood to build up to 3 or 4 fences, respectively.",
   "slug": "master_fencer",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false
@@ -5978,7 +5978,7 @@
   "vps": 0,
   "text": "Each time you play or build an improvement, you get your choice of 1 wood or 1 clay immediately after paying its cost.",
   "slug": "cottar",
-  "implemented": false,
+  "implemented": true,
   "status": "todo",
   "players": "1+",
   "name_dup": false

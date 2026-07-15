@@ -170,11 +170,19 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     from agricola.cards.capacity_mods import (
         house_pet_capacity,
         pasture_capacity_bonus,
+        pasture_capacity_per_list,
         reserved_empty_pasture_indices,
     )
     bonus = pasture_capacity_bonus(player_state)
     if bonus:
         pasture_capacities = [c + bonus for c in pasture_capacities]
+    # Per-pasture CONDITIONED bonuses (Tinsmith Master: +1 only for a pasture with no
+    # stable) — a parallel list summed per pasture, None on the Family fast path. Applied
+    # like the flat bonus: after the stable doubling, before the reserved-empty drop (a
+    # reserved pasture's capacity comparison must see its true final capacity).
+    per = pasture_capacity_per_list(player_state, pastures)
+    if per is not None:
+        pasture_capacities = [c + b for c, b in zip(pasture_capacities, per)]
     num_flexible = standalone_stables + house_pet_capacity(player_state)
 
     # A card may FORBID animals in one pasture (Herbal Garden / Beaver Colony): drop the

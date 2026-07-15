@@ -777,6 +777,42 @@ at 2 players.
    constructed state via `step` (which doesn't verify legality), so it
    documents the card's behavior without contradicting the gate.
 
+63. **The 2026-07-15 follow-up-batch rulings** (each quoted in its card module):
+   - **Cottar E122**: "immediately after paying its cost" is implemented as the
+     improvement's ordinary AFTER window (after the improvement, its effect
+     included) — the official online implementation's instant, chosen by the
+     user for consistency despite the printed wording naming the payment
+     moment. Landing it also gave the play-minor and build-major hosts the
+     mandatory-Stop gate their after-phases lacked (the atomic-host pattern;
+     Family-inert — the gate is a no-op with no mandatory registrant).
+   - **Moral Crusader B106**: "immediately before the start of each round"
+     names the SAME instant as the preparation ladder's `before_round` window.
+   - **Tinsmith Master B115**: the per-field "+1 crop, you can" is MEANINGFULLY
+     DECLINABLE — the sow commit carries per-crop-type boost counts (how many
+     sown grain/veg fields take the +1), never an always-max simplification.
+   - **`ActionSpaceState.revealed_round`** (user decision): every space records
+     the round whose preparation revealed it (permanents 0; deliberately
+     redundant with `revealed` to avoid reworking its consumers) — built for
+     the reveal-order family (Task Artisan now; Master Workman, Sweep,
+     Outrider/Pioneer later). Task Artisan rides the preparation ladder's
+     `reveal` window with `revealed_round == round_number` as "appeared this
+     round".
+   - **Furniture Maker × Forest School — RULED (user, 2026-07-15)**:
+     wood-substituted occupation food does NOT count as "food paid as
+     occupation cost" (the player paid wood, not food), so Furniture Maker
+     grants nothing for a Forest-School-substituted play. Built as a card-only
+     guard (no engine change): Furniture Maker subtracts the substitution when
+     `"forest_school"` is in the host's `triggers_resolved`. Exact for today's
+     catalog because Forest School substitutes the WHOLE printed food cost in
+     one fire; a future PARTIAL food-substitution card would need the
+     substituted amount tracked. Pinned by
+     `test_forest_school_substituted_food_pays_no_wood`.
+   - **Emergent interaction noted (falls out of shared machinery, not coded)**:
+     an Angler-granted improvement action can be Merchant-doubled — the
+     granted composite fires the ordinary after window and Merchant's no-chain
+     guard only blocks its own provenance; textually consistent since the
+     grant IS "a Major or Minor Improvement action".
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

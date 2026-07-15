@@ -759,3 +759,38 @@ from agricola.cards import field_doctor        # noqa: F401
 #   Clay Deliveryman D120 — 1 clay on each remaining round space in 6..14
 #                         (the Well/Wood Collector band-schedule shape).
 from agricola.cards import clay_deliveryman    # noqa: F401
+# --- The 2026-07-15 follow-up batch (rulings 63+; revealed_round landed 9d5558c) ---
+#   Moral Crusader B106 — before_round auto: +1 food when the entering round's
+#                         slot holds goods promised to you (resources/animals).
+#   Shoreforester B116  — on-play +1 wood; replenishment auto: +1 wood when the
+#                         Reed Bank refill landed on an empty bank (reed == 1).
+from agricola.cards import moral_crusader      # noqa: F401
+from agricola.cards import shoreforester       # noqa: F401
+#   Angler A95          — after Fishing used at <=2 pre-take food: an optional
+#                         granted Major/Minor Improvement action (Merchant's
+#                         composite-push idiom + a pre-take CardStore snapshot).
+from agricola.cards import angler              # noqa: F401
+#   Furniture Maker C116 — on-play +1 wood; +1 wood per food paid as occupation
+#                         cost on later plays (played_card_id self-exclusion;
+#                         OPEN user question: Forest School's substituted food).
+from agricola.cards import furniture_maker     # noqa: F401
+#   Task Artisan A96    — reveal-window wood + optional minor play when a quarry
+#                         appears (revealed_round == the entering round); on-play
+#                         wood + optional minor via the granted wrapper.
+from agricola.cards import task_artisan        # noqa: F401
+#   Sample Stable Maker D102 — start_of_returning_home variants: return a built
+#                         stable (per cell) for wood+grain+food + an optional
+#                         minor (accommodation flag set; pasture cache recomputed).
+from agricola.cards import sample_stable_maker  # noqa: F401
+#   Master Fencer E88   — stone-house start_of_round variants: pay 2/3 wood for
+#                         up to 3/4 free fences (FenceRestrictions.max_edges).
+from agricola.cards import master_fencer       # noqa: F401
+#   Cottar E122         — mandatory wood-or-clay choice at each improvement's
+#                         after window (ruling: the online implementation's
+#                         instant; the two hosts gained the mandatory Stop gate).
+from agricola.cards import cottar              # noqa: F401
+#   Tinsmith Master B115 — +1 animal capacity per stable-less pasture (the
+#                         per-pasture capacity seam); +1 crop per sown field,
+#                         declinable per field (CommitSow boost counts + the
+#                         SOW_BOOST_CARDS enumeration seam).
+from agricola.cards import tinsmith_master     # noqa: F401

@@ -59,10 +59,29 @@ class CommitSow(CommitSubAction):
     goods include "wood"/"stone" on the cards that grow them. Family-constant
     `()` (no card-fields exist there), so it is skipped from the wire
     encoding at default (trace_replay.action_to_params) and the C++ engine
-    is untouched."""
+    is untouched.
+
+    `boost_grain`/`boost_veg`/`boost_card_sows` are the sow-BOOST counts
+    (Tinsmith Master, "Each time you sow in a field, you can place 1
+    additional crop of the respective type in that field"; user ruling
+    2026-07-15 — the boost is meaningfully declinable PER FIELD, so the
+    commit carries how many of the sown fields take the +1): the first
+    `boost_grain` grain-fields planted this commit hold 4 grain instead of 3,
+    the first `boost_veg` veg-fields 3 veg instead of 2 (fields are
+    interchangeable at sow time, so first-N in canonical order loses
+    nothing), and `boost_card_sows` is a sub-multiset of `card_sows`'s
+    grain/veg entries — each listed (card_id, good) pair plants +1 on its
+    stack (per the card's clarification, only grain/vegetable stacks may be
+    boosted, never wood/stone). Family-constant 0/0/`()` (no boost card
+    exists there), so all three are skipped from the wire encoding at
+    default and the C++ engine is untouched. Enumerated only when the sower
+    owns a registered sow-boost card (legality.SOW_BOOST_CARDS)."""
     grain: int
     veg: int
     card_sows: tuple = ()
+    boost_grain: int = 0
+    boost_veg: int = 0
+    boost_card_sows: tuple = ()
 
 
 @dataclass(frozen=True)

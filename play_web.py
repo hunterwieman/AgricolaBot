@@ -915,6 +915,14 @@ def _action_params(action: Action) -> dict:
         params = {"grain": action.grain, "veg": action.veg}
         if action.card_sows:   # card-field sows (Cards mode only)
             params["card_sows"] = [list(pair) for pair in action.card_sows]
+        # Tinsmith Master sow boosts (Cards mode only) — how many sown fields
+        # take the +1 crop; carried so a boosted commit renders distinctly.
+        if action.boost_grain:
+            params["boost_grain"] = action.boost_grain
+        if action.boost_veg:
+            params["boost_veg"] = action.boost_veg
+        if action.boost_card_sows:
+            params["boost_card_sows"] = [list(pair) for pair in action.boost_card_sows]
         return params
     if isinstance(action, CommitBake):
         return {"grain": action.grain}
@@ -1029,16 +1037,31 @@ def _web_action_display(action: Action) -> str:
         if variant:
             return f"{name}: {_trigger_variant_label(variant, action.card_id)}"
         return name
-    # A card-field sow (Cards mode): name the card(s) so distinct card sows
-    # read distinctly ("Sow grain=1, veg=0 + Wood Field: wood x2").
-    if isinstance(action, CommitSow) and action.card_sows:
-        counts: dict[tuple, int] = {}
-        for cid, good in action.card_sows:
-            counts[(cid, good)] = counts.get((cid, good), 0) + 1
-        cards = ", ".join(
-            f"{_card_info(cid)['name']}: {good}" + (f" x{n}" if n > 1 else "")
-            for (cid, good), n in sorted(counts.items()))
-        return f"Sow grain={action.grain}, veg={action.veg} + {cards}"
+    # A card-field sow or a Tinsmith-boosted sow (Cards mode): name the card(s)
+    # and the +1-crop boost so distinct sow options read distinctly ("Sow
+    # grain=1, veg=0 + Wood Field: wood x2"; "Sow grain=2, veg=0 (+1 on 1 grain)").
+    if isinstance(action, CommitSow) and (
+            action.card_sows or action.boost_grain or action.boost_veg
+            or action.boost_card_sows):
+        label = f"Sow grain={action.grain}, veg={action.veg}"
+        if action.card_sows:
+            counts: dict[tuple, int] = {}
+            for cid, good in action.card_sows:
+                counts[(cid, good)] = counts.get((cid, good), 0) + 1
+            cards = ", ".join(
+                f"{_card_info(cid)['name']}: {good}" + (f" x{n}" if n > 1 else "")
+                for (cid, good), n in sorted(counts.items()))
+            label += f" + {cards}"
+        boosts = []
+        if action.boost_grain:
+            boosts.append(f"{action.boost_grain} grain")
+        if action.boost_veg:
+            boosts.append(f"{action.boost_veg} veg")
+        if action.boost_card_sows:
+            boosts.append(f"{len(action.boost_card_sows)} card")
+        if boosts:
+            label += f" (+1 crop on {', '.join(boosts)})"
+        return label
     # The mandatory field-phase take at a hosted during-window (Cards mode).
     # A modifier-carrying variant names the take-modifier card(s) whose extras
     # fold into the event (e.g. Stable Manure's which-fields count vector).

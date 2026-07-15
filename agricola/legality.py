@@ -193,6 +193,25 @@ def register_renovate_target_extension(fn: Callable) -> None:
     RENOVATE_TARGET_EXTENSIONS.append(fn)
 
 
+# Cards that grant the per-field optional +1-crop sow boost — Tinsmith Master's
+# "Each time you sow in a field, you can place 1 additional crop of the
+# respective type in that field" (clarification: one extra crop on top of the
+# usual stack; grain/vegetable only). User ruling 2026-07-15: the "you can" is
+# meaningfully declinable PER FIELD, so when the sowing player owns a member,
+# `_enumerate_pending_sow` expands each commit over how many of its sown
+# grain-fields / veg-fields / crop card-stacks take the +1 (the bare all-zero
+# expansion = decline). The boost is +1 per field regardless of how many members
+# are owned (only Tinsmith Master exists; a second boost card would need a
+# stacking ruling before joining this registry). Empty registry / nothing owned
+# -> the enumeration is byte-identical to the pre-boost list (Family).
+SOW_BOOST_CARDS: set[str] = set()
+
+
+def register_sow_boost(card_id: str) -> None:
+    """Register a card granting the declinable per-field +1-crop sow boost."""
+    SOW_BOOST_CARDS.add(card_id)
+
+
 # Card-supplied baking sources. Each registered fn takes (state, player_idx)
 # and returns a list of (max_grain_per_action, food_per_grain) tuples for
 # baking sources the player owns from non-major-improvement origins
@@ -1005,9 +1024,16 @@ def _check_entry_legal(
     initiated_by_id: str | None = None,
     build_fences_action: bool = True,
     restrictions: FenceRestrictions = FenceRestrictions(),
+    edges_built: int = 0,
 ) -> tuple[bool, int, int]:
     """Apply the unified pasture-commit legality chain (TASK_6 §4.5) to one
     universe entry against precomputed per-call state.
+
+    `edges_built` is the new-edge running total already placed this Build Fences action
+    (the frame's `fences_built`; 0 at placement/probe time), read only by the
+    `restrictions.max_edges` filter below — a max_edges-capped grant (Master Fencer,
+    user-blessed 2026-07-15) admits a candidate only if `edges_built + its new edges`
+    fits the cap. Default (max_edges None, every Family build) = no-op.
 
     Returns (is_legal, h_new_bm, v_new_bm). h_new/v_new are 0 if not legal.
     Both callers (`_any_legal_pasture_commit` and
@@ -1092,6 +1118,13 @@ def _check_entry_legal(
     v_new = entry.v_boundary_bm & ~v_fences_bm
     new_count = h_new.bit_count() + v_new.bit_count()
     if new_count < 1:
+        return False, 0, 0
+    # 4b. Restricted grant: whole-action new-edge cap (Master Fencer's "build up to N
+    #     fences", user-blessed 2026-07-15). The edges already placed this action plus
+    #     this candidate's new edges must fit `max_edges`. Default (None) = unrestricted,
+    #     so the Family / normal path is unaffected.
+    if (restrictions.max_edges is not None
+            and edges_built + new_count > restrictions.max_edges):
         return False, 0, 0
     # WOOD affordability on the PAID edges: POSITIONAL per-edge frees (board-perimeter /
     # next-to-field cards) cover specific new edges by geometry, THEN the per-action
@@ -1583,6 +1616,16 @@ def _enumerate_pending_sow(
 
     Something must be sown: board + card sows >= 1 total.
 
+    Sow boosts (Tinsmith Master via `SOW_BOOST_CARDS`; user ruling 2026-07-15
+    — the per-field "+1 crop, you can" is meaningfully declinable, so the
+    enumeration counts not just grain/veg sowed but how many of them take the
+    boost): when the sowing player owns a member, each (grain, veg, bundle)
+    commit expands over boost_grain in 0..grain x boost_veg in 0..veg x every
+    sub-multiset of the bundle's grain/veg entries (wood/stone stacks are
+    never boostable — the card's clarification). The all-zero expansion is
+    the bare commit (decline). Unowned -> exactly the one bare commit per
+    option (the pre-boost, Family-byte-identical list).
+
     Order: card bundles in `enumerate_card_sows` order (the empty bundle
     first), then (grain, veg) ascending — the Family ordering is unchanged.
 
@@ -1606,6 +1649,8 @@ def _enumerate_pending_sow(
         and p.farmyard.grid[r][c].grain == 0
         and p.farmyard.grid[r][c].veg == 0
     )
+    boost = any(cid in p.occupations or cid in p.minor_improvements
+                for cid in SOW_BOOST_CARDS)
     for bundle in enumerate_card_sows(p, crops_only=pending.crops_only):
         spent: dict[str, int] = {}
         for _cid, good in bundle:
@@ -1614,6 +1659,10 @@ def _enumerate_pending_sow(
                 or spent.get("stone", 0) > p.resources.stone):
             continue
         cards_touched = len({cid for cid, _good in bundle})
+        # Boostable card-stack sub-multisets for this bundle (the boost never
+        # reaches a wood/stone stack). Computed once per bundle; `((),)` when
+        # unboosted or no crop entries, so the inner product degenerates.
+        crop_boosts = (_boost_sub_multisets(bundle) if boost else ((),))
         for g in range(p.resources.grain - spent.get("grain", 0) + 1):
             for v in range(p.resources.veg - spent.get("veg", 0) + 1):
                 if g + v == 0 and not bundle:
@@ -1623,8 +1672,30 @@ def _enumerate_pending_sow(
                 if (pending.max_fields
                         and g + v + cards_touched > pending.max_fields):
                     continue
-                actions.append(CommitSow(grain=g, veg=v, card_sows=bundle))
+                if not boost:
+                    actions.append(CommitSow(grain=g, veg=v, card_sows=bundle))
+                    continue
+                for bg in range(g + 1):
+                    for bv in range(v + 1):
+                        for bcs in crop_boosts:
+                            actions.append(CommitSow(
+                                grain=g, veg=v, card_sows=bundle,
+                                boost_grain=bg, boost_veg=bv,
+                                boost_card_sows=bcs))
     return actions
+
+
+def _boost_sub_multisets(bundle: tuple) -> tuple:
+    """Every sub-multiset of `bundle`'s grain/veg (card_id, good) entries, as
+    sorted tuples with `()` first — the per-card-stack expansion of the sow
+    boost (SOW_BOOST_CARDS; wood/stone entries are excluded, per Tinsmith
+    Master's clarification that only grain or vegetable may be added)."""
+    crop_pairs = sorted(pair for pair in bundle if pair[1] in ("grain", "veg"))
+    subs: list[tuple] = [()]
+    for pair in sorted(set(crop_pairs)):
+        n = crop_pairs.count(pair)
+        subs = [s + (pair,) * k for s in subs for k in range(n + 1)]
+    return tuple(sorted(subs))
 
 
 def _enumerate_pending_bake_bread(
@@ -1806,7 +1877,12 @@ def _enumerate_pending_build_major(
     """
     actions: list[Action] = _eligible_fire_triggers(state, pending, trigger_event(pending))
     if pending.phase == "after":
-        actions.append(Stop())
+        # Mandatory-with-choice gate (the atomic-host pattern): Stop is WITHHELD
+        # while an owned, eligible, unfired `mandatory` after-trigger remains
+        # (Cottar). A no-op with no mandatory registrant (every Family state).
+        from agricola.cards.triggers import has_unfired_mandatory_trigger
+        if not has_unfired_mandatory_trigger(state, pending, trigger_event(pending)):
+            actions.append(Stop())
         return actions
     owners = state.board.major_improvement_owners
     for idx in range(10):
@@ -2244,6 +2320,7 @@ def _enumerate_pending_build_fences(
         initiated_by_id=pending.initiated_by_id,  # provenance for positional gating (Field Fences)
         build_fences_action=pending.build_fences_action,
         restrictions=pending.restrictions,        # restricted-grant geometry (Mini Pasture, §9.8)
+        edges_built=pending.fences_built,         # running new-edge total for the max_edges cap (Master Fencer)
     )
 
     # before-window gate (see _enumerate_pending_build_stables): once the first pasture
@@ -2723,9 +2800,16 @@ def _enumerate_pending_play_minor(
     Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after the minor is
     played the frame is in its after-phase, offering after_play_minor triggers
     + Stop."""
+    from agricola.cards.triggers import has_unfired_mandatory_trigger
+
     actions = _eligible_fire_triggers(state, top, trigger_event(top))
     if top.phase == "after":
-        actions.append(Stop())
+        # Mandatory-with-choice gate (the atomic-host pattern above): Stop is
+        # WITHHELD while an owned, eligible, unfired `mandatory` after-trigger
+        # remains (Cottar's "you get your choice of 1 wood or 1 clay"). A no-op
+        # with no mandatory registrant (every Family state).
+        if not has_unfired_mandatory_trigger(state, top, trigger_event(top)):
+            actions.append(Stop())
         return actions
     # Wide over (card, alternative-cost, payment): one CommitPlayMinor per playable card,
     # per printed/"/"-alternative cost, per resource-cost frontier point (§3.4). The

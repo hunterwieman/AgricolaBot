@@ -578,10 +578,18 @@ class FenceRestrictions:
     Mini Pasture = `FenceRestrictions(exact_size=1, forbid_subdivision=True, max_pastures=1)`
     (a new 1×1 enclosure, never a subdivision, exactly one). "Adjacent to an existing pasture"
     needs no field — `_check_entry_legal`'s adjacency rule already requires a non-subdivision
-    new pasture to touch an existing one when any exist (owner ruling, §9.8)."""
+    new pasture to touch an existing one when any exist (owner ruling, §9.8).
+
+    Master Fencer = `FenceRestrictions(max_edges=N)` (user-blessed 2026-07-15): a cap on the
+    TOTAL new fence edges the whole build action may place — a candidate commit is legal only
+    if the edges already placed this action (the frame's existing `fences_built` counter, the
+    per-action running new-edge total) plus the candidate's NEW edges fit within `max_edges`.
+    Without it, an over-cap edge would merely accrue a wood bill through the Cards deferred
+    tally — wrong for a "build up to N fences" grant, which forbids the extra edge outright."""
     max_pastures: int | None = None       # cap the action's commit count (Mini Pasture = 1)
     exact_size:   int | None = None       # require this many cells per pasture (Mini Pasture = 1)
     forbid_subdivision: bool = False      # only NEW enclosures, never a split of an existing pasture
+    max_edges:    int | None = None       # cap the action's TOTAL new-edge count (Master Fencer = 3/4)
 
 
 @dataclass(frozen=True)

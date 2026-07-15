@@ -179,6 +179,70 @@ def test_breeding_frontier_equiv_non_canonical_caps():
         )
 
 
+# ---------------------------------------------------------------------------
+# PER-PASTURE non-canonical capacities (Tinsmith Master, 2026-07-15) — the
+# second red-team item. Unlike Drinking Trough's flat +2, Tinsmith adds +1 only
+# to STABLE-LESS pastures, so a farm with a mix carries pasture-specific
+# capacities (some 2*cells, some 2*cells+1). This exercises §5.4's "key on the
+# post-fold values" pattern for a bonus that varies BETWEEN pastures within one
+# farm — the caps_tuple the caches key on already reflects it, so the optimized
+# levels must match level 0 by construction.
+# ---------------------------------------------------------------------------
+
+def _tinsmith_states():
+    import dataclasses
+
+    import agricola.cards.tinsmith_master  # noqa: F401  (register the per-pasture fold)
+    from agricola.resources import Animals as _An
+
+    out = []
+    for name in ("mid_round_6_basic", "mid_round_8_animals"):
+        state = STATES[name]()
+        p = state.players[0]
+        p = dataclasses.replace(
+            p,
+            occupations=p.occupations | {"tinsmith_master"},
+            animals=_An(sheep=8, boar=6, cattle=6),   # exceed capacity -> frontier binds
+        )
+        state = dataclasses.replace(
+            state, players=tuple(p if i == 0 else state.players[i] for i in range(2)))
+        out.append((f"{name}+tinsmith_master", state))
+    return out
+
+
+@pytest.mark.parametrize("gained", GAINED)
+def test_pareto_frontier_equiv_tinsmith_per_pasture(gained):
+    from agricola.cards.capacity_mods import pasture_capacity_per_list
+    states = _tinsmith_states()
+    # Non-vacuous over the set: at least one farm has a stable-less pasture that
+    # actually takes the +1 (mid_round_6_basic's pastures are [stabled, plain] →
+    # per [0, 1] — a bonus that VARIES BETWEEN pastures, the red-team point).
+    # The all-stabled farm (per all-0) is a fine boundary: Tinsmith owned yet
+    # inert must still match level 0.
+    assert any(
+        any(b > 0 for b in (pasture_capacity_per_list(
+            s.players[0], s.players[0].farmyard.pastures) or []))
+        for _n, s in states)
+    for name, state in states:
+        ps = state.players[0]
+        assert pasture_capacity_per_list(ps, ps.farmyard.pastures) is not None, name
+        rates3 = helpers.cooking_rates(state, 0)[:3]
+        _assert_equiv(
+            lambda ps=ps, r=rates3, g=gained: helpers.pareto_frontier(ps, g, r),
+            _norm_animal,
+        )
+
+
+def test_breeding_frontier_equiv_tinsmith_per_pasture():
+    for name, state in _tinsmith_states():
+        ps = state.players[0]
+        rates3 = helpers.cooking_rates(state, 0)[:3]
+        _assert_equiv(
+            lambda ps=ps, r=rates3: helpers.breeding_frontier(ps, r),
+            _norm_animal,
+        )
+
+
 def test_default_opt_settings_are_on():
     """The caches default ON — they exist to speed up the engine and are used
     by default (changed 2026-06-05). FENCE_SCAN_CACHE is result-identical;

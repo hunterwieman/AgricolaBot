@@ -411,7 +411,16 @@ def _fmt_action_inline(action: Action) -> str:
         base = f"CommitSow(grain={action.grain}, veg={action.veg})"
         if action.card_sows:
             cards = ", ".join(f"{cid}: {good}" for cid, good in action.card_sows)
-            return f"{base} + {cards}"
+            base = f"{base} + {cards}"
+        boosts = []
+        if action.boost_grain:
+            boosts.append(f"{action.boost_grain} grain")
+        if action.boost_veg:
+            boosts.append(f"{action.boost_veg} veg")
+        if action.boost_card_sows:
+            boosts.append(f"{len(action.boost_card_sows)} card")
+        if boosts:
+            base += f" [+1 crop on {', '.join(boosts)}]"
         return base
     if isinstance(action, CommitBake):
         return f"CommitBake(grain={action.grain})"

@@ -50,6 +50,41 @@ def register_pasture_capacity(card_id: str, bonus_fn: Callable) -> None:
     PASTURE_CAPACITY_MODS.append((card_id, bonus_fn))
 
 
+# (card_id, fn(pasture) -> int): a PER-PASTURE CONDITIONED additive capacity bonus — the
+# card inspects each individual pasture and proposes that pasture's bonus (Tinsmith Master:
+# +1 for a pasture with NO stable, 0 otherwise). Distinct from PASTURE_CAPACITY_MODS above,
+# whose bonus is flat across every pasture and cannot condition on pasture shape. Summed
+# across owned cards per pasture, applied in extract_slots alongside the flat fold (also
+# after the stable doubling, to the FINAL capacity). Empty registry -> None from the fold
+# -> Family byte-identical. Cache safety: the accommodation caches (_animal_points_cached,
+# _phi_cached) key on extract_slots' OUTPUTS (caps_tuple, num_flexible), computed
+# downstream of this fold, so a conditioned bonus changes the key itself and staleness is
+# impossible by construction (CARD_ENGINE_IMPLEMENTATION.md §5.4's projection-key contract).
+PASTURE_CAPACITY_PER_MODS: list[tuple[str, Callable]] = []
+
+
+def register_pasture_capacity_per(card_id: str, bonus_fn: Callable) -> None:
+    """Register a per-pasture conditioned capacity bonus. `bonus_fn(pasture) -> int`
+    returns the amount added to THAT pasture's capacity (Tinsmith Master: 1 if the pasture
+    has no stable, else 0). Called at card-module import; ownership-gated in the fold
+    below."""
+    PASTURE_CAPACITY_PER_MODS.append((card_id, bonus_fn))
+
+
+def pasture_capacity_per_list(player_state, pastures) -> list | None:
+    """Per-pasture conditioned bonuses from owned cards, as a list parallel to
+    `pastures` (each entry the sum of every owned card's bonus for that pasture) — or
+    None when no registered card is owned (the Family fast path: empty registry /
+    nothing owned -> None -> extract_slots adds nothing, byte-identical)."""
+    if not PASTURE_CAPACITY_PER_MODS:
+        return None
+    owned = [fn for card_id, fn in PASTURE_CAPACITY_PER_MODS
+             if _owns(player_state, card_id)]
+    if not owned:
+        return None
+    return [sum(fn(p) for fn in owned) for p in pastures]
+
+
 def _owns(player_state, card_id: str) -> bool:
     return card_id in player_state.occupations or card_id in player_state.minor_improvements
 

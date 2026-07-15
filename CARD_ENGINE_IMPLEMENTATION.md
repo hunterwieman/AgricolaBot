@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-14 (the preparation ladder + the Points Provider batch; the deferred after-flip — ruling 60 — and the 31-occupation agreed batch — ruling 61 — landed the same day).** A card batch is not integrated until this
+> **Last updated: 2026-07-15 (the reveal-order stamp + the agreed follow-up batch — ruling 63; prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -203,6 +203,25 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   card-fields (ruling 45), while "field tile" readers stay grid-only (ruling 32). Field
   Cultivator is automatic-take-the-maximum (ruling 41). Cooking Hearth Extension is deferred
   alongside Gypsy's Crock (ruling 42).
+- **The 2026-07-15 follow-up batch landed (ruling 63): 10 more occupations** —
+  Clay Deliveryman, Cottar, Moral Crusader, Shoreforester, Furniture Maker,
+  Angler, Sample Stable Maker, Task Artisan, Master Fencer, Tinsmith Master —
+  taking the census to **152 occupations + 243 minors = 395**. New machinery,
+  each Family-inert unless noted: **`ActionSpaceState.revealed_round`** (the
+  reveal-order stamp — a Family-visible field, re-ported to C++; Task Artisan
+  is its first consumer via the preparation `reveal` window), the
+  **mandatory-Stop gate** on the play-minor and build-major after-phases
+  (Cottar — the pattern the atomic host already used), **`FenceRestrictions.
+  max_edges`** (Master Fencer's capped free build), the **per-pasture capacity
+  fold** `register_pasture_capacity_per` (Tinsmith Master's +1 on stable-less
+  pastures — cache-safe by keying on `extract_slots` outputs), and the
+  **`CommitSow` boost counts** + `SOW_BOOST_CARDS` enumeration seam (Tinsmith's
+  declinable-per-field +1 crop, ruling 63; the boost fields default-skip on the
+  action wire like `card_sows`, so no C++ change). Cottar reuses the
+  after-window instant (ruling 63, the online-implementation reading). The one
+  cross-card question — Furniture Maker × Forest School — was RULED (ruling 63):
+  wood-substituted occupation food is not "food paid", guarded card-only via the
+  host's `triggers_resolved`.
 - **The 2026-07-14 agreed batch landed (ruling 61): 31 occupations** — the wave
   batch built on the deferred after-flip (Bonehead, Sowing Master, Fir Cutter,
   Seed Servant, Young Farmer, Merchant, and 25 more; per-card rulings in
