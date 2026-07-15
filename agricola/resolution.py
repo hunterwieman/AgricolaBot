@@ -1036,6 +1036,9 @@ def _choose_subaction_granted_subaction(
     if action.name == "renovate":
         return push(state, PendingRenovate(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id))
+    if action.name == "bake_bread":
+        return push(state, PendingBakeBread(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id))
     if action.name == "build_fences":
         from agricola.cards.cost_mods import free_fence_budget_for
         return push(state, PendingBuildFences(

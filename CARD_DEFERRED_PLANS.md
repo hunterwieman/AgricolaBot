@@ -19,6 +19,31 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Food-provider batch — deferred members (2026-07-15)
+
+The 2026-07-15 food-provider batch (§1) implemented 20 minors and deferred three:
+
+- **Oriental Fireplace (A60, minor)** and **Earth Oven (D59, minor)** — both ARE cooking
+  improvements as minors: *"At any time: Vegetable / Sheep / (Wild boar) / Cattle → food; 'Bake
+  Bread' action: Grain → food."* **Deferred into the cooking-modifier cluster** (ruling 42 — the
+  Gypsy's Crock / Cooking Hearth Extension class): `helpers.cooking_rates` is hardcoded off the
+  major-owner array and has **no card-injection seam** (confirmed 2026-07-15), so a card cannot add
+  at-any-time animal/veg cooking rates without the seam that whole class is waiting on. Two extra
+  wrinkles for that design pass: the printed **cost is "return a Fireplace/Cooking Hearth"** (a
+  non-resource `play_minor` route — `register_base_route` could carry it, but no minor uses that
+  today) and the **"counts as 1 minor OR 1 major, whichever is convenient"** dual-classification.
+  The bake-only half is a trivial `register_baking_spec_extension` once the cooking-rate seam lands.
+
+- **Farmstead (C48, minor)** — *"After each turn in which you make at least one unused farmyard
+  space used, you get 1 food."* **Deferred: end-of-turn timing** — the deliberately-unbuilt boundary
+  (CARD_ENGINE_IMPLEMENTATION.md §8; the Firewood Collector case). "After each turn" needs a true
+  post-turn anchor that does not exist yet (the action-space pop lands one window too early once
+  at-any-time effects arrive). A per-sub-action approximation (autos on after_plow / after_build_* /
+  after_build_fences with a once-per-turn latch) fires on the same turns but is an *approximation* of
+  the end-of-turn semantics, so it stays deferred pending the end-of-turn / at-any-time design.
+
+---
+
 ## Deck-B/E scoring-and-timing batch — deferred/held members (2026-07-13)
 
 The batch that implemented Heirloom, Nave, Land Register, Misanthropy, Rod Collection, Upholstery,
@@ -988,16 +1013,16 @@ decline path.
 
 **Effort:** ~20 lines. **Risk:** low-medium.
 
-### A5. Bottom-row major classification
-**Card unblocked:** B7 Wage ("+1 food per owned bottom-row major improvement").
+### A5. Bottom-row major classification — IMPLEMENTED (2026-07-15, `wage.py`)
+**Card:** B7 Wage ("+1 food per owned bottom-row major improvement").
 
-**Blocker.** Needs a `BOTTOM_ROW_MAJORS` constant that doesn't exist; its membership is a rules fact.
+**Built:** `BOTTOM_ROW_MAJORS = frozenset({5, 6, 7, 8, 9})` (Clay Oven, Stone Oven, Joinery, Pottery,
+Basketmaker's Workshop); Wage's on-play read counts owned bottom-row majors off
+`board.major_improvement_owners`. Top row = {Fireplace ×2 (0,1), Cooking Hearth ×2 (2,3), Well (4)}.
 
-**Proposed build.** Add the constant + a ~10-line `register_scoring`/on-play read.
-**Question:** confirm the bottom-row set. My proposed reading of the Revised supply board:
-**bottom = {Clay Oven (5), Stone Oven (6), Joinery (7), Pottery (8), Basketmaker's Workshop (9)}**,
-**top = {Fireplace ×2 (0,1), Cooking Hearth ×2 (2,3), Well (4)}**. The only one I'm unsure of is the
-**Well (idx 4)** — top or bottom row? (≥1 other deferred/expansion card reuses this, so it's worth pinning.)
+**Confirmed (user, 2026-07-15):** the **Well (idx 4)** is TOP row — NOT counted by Wage; the
+implementation is correct as-is. This top/bottom classification is now pinned (Well = top) for the
+≥1 other card expected to reuse it.
 
 ### A6. `schedule_animals` helper + Acorns Basket
 **Cards unblocked:** B84 Acorns Basket (and the boar half of B41 Hauberg with A3).

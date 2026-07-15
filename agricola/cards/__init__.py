@@ -794,3 +794,50 @@ from agricola.cards import cottar              # noqa: F401
 #                         declinable per field (CommitSow boost counts + the
 #                         SOW_BOOST_CARDS enumeration seam).
 from agricola.cards import tinsmith_master     # noqa: F401
+
+# --- 2026-07-15 food-provider batch (20 minor improvements) ---
+#   Schedule food onto future round spaces (Pond Hut shape): Chicken Coop C44
+#   (next 8), Barn Cats E43 (next stables+1), Fodder Beets E44 (remaining odd),
+#   Fruit Ladder E45 (remaining even), Waterlily Pond E46 (next 2).
+from agricola.cards import chicken_coop        # noqa: F401
+from agricola.cards import barn_cats           # noqa: F401
+from agricola.cards import fodder_beets        # noqa: F401
+from agricola.cards import fruit_ladder        # noqa: F401
+from agricola.cards import waterlily_pond      # noqa: F401
+#   Traveling on-play food: Pumpernickel E7 (1 grain -> 4 food), Wage B7
+#   (+2 food, +1 per owned bottom-row major).
+from agricola.cards import pumpernickel        # noqa: F401
+from agricola.cards import wage                # noqa: F401
+#   "Each time you use [space]" income autos (atomic-space hooks): Comb and
+#   Cutter E59 (Day Laborer + sheep on Sheep Market, cap 4), Stone Weir E55
+#   (Fishing: +max(0, 4 - food on the space)).
+from agricola.cards import comb_and_cutter     # noqa: F401
+from agricola.cards import stone_weir          # noqa: F401
+#   Food held on the card (CardStore): Forest Stone B48 (wood-space -> draw 1,
+#   stone-space -> deposit 2), Whale Oil E51 (Fishing deposits; pays out before
+#   each occupation play, non-consuming), Roman Pot E56 (drips 1 to the last
+#   player each work phase).
+from agricola.cards import forest_stone        # noqa: F401
+from agricola.cards import whale_oil           # noqa: F401
+from agricola.cards import roman_pot           # noqa: F401
+#   Phase / reactive autos: Rolling Pin D52 (returning-home +1 food when
+#   clay > wood), Twibil E49 (any-player, after a wood-room build -> +1 food),
+#   Wild Greens E50 (+1 food per distinct good sown; card-field goods count,
+#   user ruling 2026-07-15).
+from agricola.cards import rolling_pin         # noqa: F401
+from agricola.cards import twibil              # noqa: F401
+from agricola.cards import wild_greens         # noqa: F401
+#   Baking-improvement ovens (baking spec + reachability + an optional free bake
+#   on build via the PendingGrantedSubAction("bake_bread") wrapper): Iron Oven
+#   E63 (1 grain -> 6 food), Simple Oven E64 (1 grain -> 3 food).
+from agricola.cards import iron_oven           # noqa: F401
+from agricola.cards import simple_oven         # noqa: F401
+#   Syrup Tap E47 — schedule 1 food when an action space itself supplies wood
+#                   (Kindling Gatherer detection; user ruling 2026-07-15).
+from agricola.cards import syrup_tap           # noqa: F401
+#   Foreign Aid D50 — on-play +6 food; forbids the owner the rounds-12-14
+#                     spaces (the new PLACEMENT_FORBID_EXTENSIONS seam).
+from agricola.cards import foreign_aid         # noqa: F401
+#   Asparagus Knife A58 — returning-home rounds 8/10/12: take 1 veg from a veg
+#                         field, optionally exchange for 3 food + 1 banked point.
+from agricola.cards import asparagus_knife     # noqa: F401

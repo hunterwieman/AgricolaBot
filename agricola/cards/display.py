@@ -38,6 +38,7 @@ from agricola.scoring import SCORING_TERMS
 # sets partition every registered scoring term, so adding a new scoring card without
 # classifying it FAILS the suite rather than silently going emblem-less.
 HISTORY_VP_CARDS: frozenset[str] = frozenset({
+    "asparagus_knife",
     "baking_sheet", "beaver_colony", "beer_keg", "beer_stein", "beer_table", "bellfounder",
     "big_country",
     "blighter", "clutterer", "cookery_lesson", "curator",

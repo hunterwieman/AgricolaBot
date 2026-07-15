@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-15 (the reveal-order stamp + the agreed follow-up batch — ruling 63; prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-15 (the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors, below); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,18 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-15 food-provider batch landed: 20 minor improvements** — schedule-food cards
+  (Chicken Coop, Barn Cats, Fodder Beets, Fruit Ladder, Waterlily Pond), traveling on-play food
+  (Pumpernickel, Wage — bottom-row-major read), space-use income autos (Comb and Cutter, Stone
+  Weir), CardStore food-store cards (Forest Stone, Whale Oil, Roman Pot), phase/reactive autos
+  (Rolling Pin, Twibil — the first `any_player` sub-action auto, Wild Greens), the baking-improvement
+  ovens (Iron Oven, Simple Oven), plus three new-machinery cards (Syrup Tap, Foreign Aid, Asparagus
+  Knife). Three additive Family-inert seams: the subtractive `PLACEMENT_FORBID_EXTENSIONS` placement
+  filter (Foreign Aid — legality.py), the `"bake_bread"` category on the `PendingGrantedSubAction`
+  dispatch (the ovens' optional free bake on build), and the §6 wide-vs-`PendingGrantedSubAction`
+  guideline it prompted. Wild Greens counts card-field goods ("good" not "crop", user ruling
+  2026-07-15). DEFERRED: Oriental Fireplace + Earth Oven (cooking-modifier cluster) and Farmstead
+  (end-of-turn) — see `CARD_DEFERRED_PLANS.md`. Full suite (5434) + C++ gates (139) green.
 - **The preparation ladder landed (2026-07-14; ruling 54)** — the third timing ladder
   (§5d is the machinery reference and the round-entry chronology of record): the mis-timed
   single `start_of_round` event became seven distinct instants (`before_round` through
@@ -136,8 +148,8 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   Curator (+ the `helpers.accumulation_spaces` category accessor), Clutterer (+ the
   `played_card_id` stamp on the play hosts), Sugar Baker, Prodigy, Museum Caretaker
   (+ auto ordering), Blighter (+ the occupation-play-blocker chokepoint gate).
-- **Implemented & registered: 354 cards — 111 occupations + 243 minors** (re-censused
-  2026-07-14 against the live registries). Earlier landmarks: (Heresy Teacher
+- **Implemented & registered: 415 cards — 152 occupations + 263 minors** (re-censused
+  2026-07-15 against the live registries). Earlier landmarks: (Heresy Teacher
   un-implemented 2026-07-13, ruling 53; the livestock-provider batch — Early Cattle,
   Pigswill, Automatic Water Trough, Bartering Hut — landed 2026-07-13, introducing
   `PendingAccommodate.min_keep`; the goods-provider batch — Vegetable Slicer, Canvas Sack,
@@ -1831,7 +1843,10 @@ examples; this is the reference list.
   trigger: that would let the granted action interleave with other after-play triggers in
   player-chosen order, which "when you play this card" does not license. The pushed primitive
   is committed once the variant is chosen (the variant WAS the decline moment — no per-frame
-  skip flag, per the standing optionality-at-the-parent invariant).
+  skip flag, per the standing optionality-at-the-parent invariant). The play-variant is the
+  **preferred (wide)** shape only when the grant's eligibility is exact *pre-play* and the card
+  creates no capability/discount of its own; when it does (Iron/Simple Oven), use the
+  `PendingGrantedSubAction` wrapper instead — the wide-vs-wrapper guideline in §6 Idioms.
 - **A card that REPLACES a convertible good it induced you to spend breaks the
   food-exclusion premise** (ruling 16 as amended — Shepherd's Whistle). The usual
   "food is never a frontier dimension" convention is a theorem whose premise is that
@@ -1896,7 +1911,7 @@ examples; this is the reference list.
   ```python
   from agricola.pending import PendingGrantedSubAction, push
   return push(state, PendingGrantedSubAction(
-      player_idx=idx, initiated_by_id="card:<id>", subaction="renovate"))
+      player_idx=idx, initiated_by_id="card:<id>", subactions=("renovate",)))
   ```
   The wrapper offers `ChooseSubAction(subaction)` (gated on the primitive being doable *now* — never
   a dead-end) or `Stop` (decline); choosing pushes the real primitive frame carrying the card's
@@ -1913,11 +1928,38 @@ examples; this is the reference list.
     Proceed/Stop) → a `before_/after_action_space` trigger whose `apply_fn` pushes the primitive;
     the host's Proceed/Stop *is* the decline (Assistant Tiller, Oven Firing Boy). No wrapper.
   - **Optional** grant with **no surrounding decline** — an `on_play` grant, or *any* grant on a
-    **passing (traveling) card** → `PendingGrantedSubAction`. This is the only correct home: an
-    ownership-gated `after_play_minor` trigger **cannot** host a passing card's grant (the
-    traveling card leaves the tableau before the after-phase, so `_owns` fails and the trigger
-    never fires — the Dwelling Plan bug, fixed 2026-07-13), and pushing the primitive directly
-    would force it (no decline).
+    **passing (traveling) card** → `PendingGrantedSubAction` **or a play-variant** (the fourth
+    shape — the wide-vs-wrapper guideline below). The wrapper is *always* a safe home here: against
+    its two rivals it is the only one that works — an ownership-gated `after_play_minor` trigger
+    **cannot** host a passing card's grant (the traveling card leaves the tableau before the
+    after-phase, so `_owns` fails and the trigger never fires — the Dwelling Plan bug, fixed
+    2026-07-13), and pushing the primitive directly would force it (no decline). But a **play-variant**
+    is often the *better* choice for a non-passing sub-action grant — see immediately below.
+
+  **Wide (play-variant) vs the wrapper for an on-play OPTIONAL sub-action grant — a strong default,
+  not a law.** Beyond the wrapper, a sub-action grant at play has a second shape: a **play-variant**
+  (`register_play_{minor,occupation}_variant`; ruling 17 — Baker) that fuses take-or-decline into the
+  play commit itself (one `CommitPlay…` per variant) rather than spending a separate ply. **Prefer
+  wide when it is safe** — fewer search plies to *play a card* is desirable once a card-game agent
+  trains on this engine (user preference, 2026-07-15) — by this guideline:
+  - **Surcharge** — pay extra goods at play for a bonus, with *no* sub-action frame (Roof Ballaster,
+    Facades Carving) → **play-variant**. Forced: there is no sub-action to push, and wide is natural.
+  - **Sub-action grant whose eligibility is already exact *before* the card is owned**, using no
+    capability or discount the card itself creates (Baker — grants a bake but is not itself a baking
+    improvement) → **either works; prefer wide** (one less ply, and safe — the pre-play `variants_fn`
+    already sees the true eligibility, so no proxy is needed).
+  - **Sub-action grant whose legality or economics the card *itself* creates** (Iron/Simple Oven
+    create the baking capability; Field Fences creates the free edges), **or any grant on a passing
+    card** (Dwelling Plan) → **the wrapper**. Wide would have to *anticipate* the post-play state in
+    `variants_fn` — the card isn't owned yet, so `_can_bake_bread` / `_any_legal_pasture_commit` read
+    the wrong world — a fragile proxy the wrapper sidesteps by evaluating eligibility post-play with
+    the real predicate. (`"bake_bread"` joined the wrapper's category dispatch for exactly the ovens.)
+
+  The dividing test is mechanical: **does the card itself change what the grant is allowed to do, or
+  what it costs?** Yes (or the card is passing) → wrapper; otherwise prefer wide. These are strong
+  defaults, not hard rules — a tier-2 card may still use the wrapper for standardization, and both
+  shapes resolve *before* the after-phase, so neither carries ruling 17's after-play-trigger
+  interleaving problem.
 
   **Adding a new granted primitive is NOT a new frame** — extend the two dispatches:
   - `legality._granted_subaction_eligible` — a `subaction` branch returning the primitive's
@@ -1926,7 +1968,7 @@ examples; this is the reference list.
   - `resolution._choose_subaction_granted_subaction` — a `subaction` branch pushing the primitive
     frame with `top.initiated_by_id` + any setup (e.g. `free_fence_budget_for` for fences).
 
-  The wrapper carries only `player_idx` / `initiated_by_id` / `subaction` / `chosen`; **all
+  The wrapper carries only `player_idx` / `initiated_by_id` / `subactions` / `chosen`; **all
   primitive-specific state lives on the pushed child**, which is what keeps it generic. Card-only:
   auto-registered in canonical, never in a Family state, no C++ change (§4 frame reference).
 - **"Nth person placed this round"** = `(people_total − newborns) − people_home` — subtract

@@ -179,6 +179,24 @@ def register_growth_room_override(card_id: str, fn: Callable) -> None:
     GROWTH_ROOM_OVERRIDE_EXTENSIONS.append((card_id, fn))
 
 
+# Cards may FORBID their owner a worker placement on specific spaces (Foreign Aid:
+# "you may no longer use the action spaces of rounds 12 to 14"). This is the sole
+# SUBTRACTIVE placement seam — the mirror of OCCUPANCY_OVERRIDE_EXTENSIONS, which
+# only ADDS placements. Each entry is `fn(state, owner_idx, space_id) -> bool` —
+# True DROPS that space from `owner_idx`'s legal placements. Consulted by
+# `legal_placements` as a post-filter, guarded by an emptiness check so the entire
+# Family game (and every non-owner) pays nothing and stays byte-identical. A forbid
+# fn self-gates on its own card's ownership. Not a GameState field / never
+# serialized, so no canonical.py or C++ change (legal_actions filtering is not part
+# of the differential contract). See CARD_AUTHORING_GUIDE.md.
+PLACEMENT_FORBID_EXTENSIONS: list[Callable] = []
+
+
+def register_placement_forbid(fn: Callable) -> None:
+    """Add a card-supplied predicate that FORBIDS its owner a worker placement."""
+    PLACEMENT_FORBID_EXTENSIONS.append(fn)
+
+
 # Card-supplied renovate-TARGET extensions. Renovation normally goes one tier
 # (WOOD→CLAY, CLAY→STONE); a card may make further targets legal — Conservator lets a
 # wood house renovate directly to STONE. Each fn takes (state, player_idx,
@@ -1541,11 +1559,18 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
     table = (
         FAMILY_GAME_LEGALITY if state.mode is GameMode.FAMILY else CARD_GAME_LEGALITY
     )
-    return [
+    placements = [
         PlaceWorker(space=s)
         for s, predicate in table.items()
         if predicate(state)
     ]
+    if PLACEMENT_FORBID_EXTENSIONS:  # empty in the Family game → byte-identical
+        ap = state.current_player
+        placements = [
+            pw for pw in placements
+            if not any(f(state, ap, pw.space) for f in PLACEMENT_FORBID_EXTENSIONS)
+        ]
+    return placements
 
 
 # ---------------------------------------------------------------------------
@@ -2386,6 +2411,11 @@ def _granted_subaction_eligible(
     p = state.players[pending.player_idx]
     if cat == "renovate":
         return _can_renovate(state, p)
+    if cat == "bake_bread":
+        # Iron/Simple Oven grant an optional free bake on build. Eligibility is exact here
+        # (unlike an anticipatory play-variant): the oven is already owned when its on_play
+        # pushes this wrapper, so `_can_bake_bread` sees it as a live baking improvement.
+        return _can_bake_bread(state, p)
     if cat == "build_fences":
         return _any_legal_pasture_commit(
             state, p, space_id=pending.initiated_by_id,

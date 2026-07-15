@@ -1330,8 +1330,9 @@ class PendingGrantedSubAction:
     Stop at any point — the and/or semantics fall out of the set shape.
 
     - `subactions`: the granted categories (`"build_fences"` | `"renovate"` |
-      `"play_occupation"` | `"play_minor"`), each matched by an offered
+      `"bake_bread"` | `"play_occupation"` | `"play_minor"`), each matched by an offered
       `ChooseSubAction(name=<category>)`. Single-category grants pass a 1-tuple.
+      (`"bake_bread"` — Iron/Simple Oven's optional free bake on build.)
     - `initiated_by_id`: the grant's provenance (e.g. `"card:field_fences"`).
     - `chosen`: the categories already entered — each is offered at most once (after every
       granted primitive has popped or been declined, only Stop remains).
