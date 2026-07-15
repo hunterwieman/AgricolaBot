@@ -656,32 +656,25 @@ def test_grain_utilization_illegal_neither_option(state, active):
     assert PlaceWorker(space="grain_utilization") not in legal_placements(state)
 
 
-# The animal markets carry NO emptiness gate (user ruling 2026-07-14): placing on
-# an available-but-empty market is LEGAL (gained=0; the accommodate step keeps the
-# current animals). Empty+available is unreachable in real play today — every
-# revealed accumulation space refills each preparation and a use occupies the
-# space — but the ruled behavior is pinned for the day a card creates the state.
-# (These three tests previously pinned the old > 0 gate.)
-
-def test_sheep_market_legal_zero_accumulation(state):
+def test_sheep_market_illegal_zero_accumulation(state):
     state = _set_space(state, "sheep_market",
                        revealed=True,
                        accumulated_amount=0)
-    assert PlaceWorker(space="sheep_market") in legal_placements(state)
+    assert PlaceWorker(space="sheep_market") not in legal_placements(state)
 
 
-def test_pig_market_legal_zero_accumulation(state):
+def test_pig_market_illegal_zero_accumulation(state):
     state = _set_space(state, "pig_market",
                        revealed=True,
                        accumulated_amount=0)
-    assert PlaceWorker(space="pig_market") in legal_placements(state)
+    assert PlaceWorker(space="pig_market") not in legal_placements(state)
 
 
-def test_cattle_market_legal_zero_accumulation(state):
+def test_cattle_market_illegal_zero_accumulation(state):
     state = _set_space(state, "cattle_market",
                        revealed=True,
                        accumulated_amount=0)
-    assert PlaceWorker(space="cattle_market") in legal_placements(state)
+    assert PlaceWorker(space="cattle_market") not in legal_placements(state)
 
 
 def test_major_improvement_illegal_cannot_afford_any(state):
