@@ -107,7 +107,8 @@ def _apply(state: GameState, idx: int) -> GameState:
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
     return push(state, PendingPlayMinor(
-        player_idx=idx, initiated_by_id="card:tree_farm_joiner"))
+        player_idx=idx, initiated_by_id="card:tree_farm_joiner",
+        minor_improvement_action=True))   # the named "Minor Improvement" action
 
 
 register_occupation(CARD_ID, _on_play)

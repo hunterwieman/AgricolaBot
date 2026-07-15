@@ -1053,7 +1053,8 @@ def _choose_subaction_granted_subaction(
     if action.name == "play_minor":
         from agricola.pending import PendingPlayMinor
         return push(state, PendingPlayMinor(
-            player_idx=p_idx, initiated_by_id=top.initiated_by_id))
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id,
+            minor_improvement_action=top.minor_is_action))
     raise ValueError(f"Unknown granted sub-action {action.name!r}")
 
 
@@ -1076,6 +1077,7 @@ def _choose_subaction_basic_wish_for_children(
         state = replace_top(state, fast_replace(top, minor_chosen=True))
         return push(state, PendingPlayMinor(
             player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
+            minor_improvement_action=True,   # Basic Wish grants the named action
         ))
     raise ValueError(f"Unknown sub-action {action.name!r} for Basic Wish for Children")
 
@@ -1091,6 +1093,7 @@ def _choose_subaction_meeting_place(
         state = replace_top(state, fast_replace(top, minor_chosen=True))
         return push(state, PendingPlayMinor(
             player_idx=top.player_idx, initiated_by_id=top.PENDING_ID,
+            minor_improvement_action=True,   # Meeting Place grants the named action
         ))
     raise ValueError(f"Unknown sub-action {action.name!r} for Meeting Place")
 

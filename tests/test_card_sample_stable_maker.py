@@ -249,7 +249,11 @@ def test_minor_rider_playable_end_to_end():
         state = _walk_to_window(_ssm_state(food=0, hand_minors=(_MINOR,)))
         state = step(state, FireTrigger(card_id=CARD_ID, variant="0,3"))
         state = step(state, ChooseSubAction(name="play_minor"))
-        assert isinstance(state.pending_stack[-1], PendingPlayMinor)
+        top = state.pending_stack[-1]
+        assert isinstance(top, PendingPlayMinor)
+        # SSM grants the named "Minor Improvement" action -> flag threaded True
+        # through the wrapper (so it chains Merchant / would enable Blueprint).
+        assert top.minor_improvement_action is True
 
         state = step(state, sole_play_minor(state, _MINOR))
         p = state.players[0]

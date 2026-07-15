@@ -758,6 +758,17 @@ class PendingPlayMinor:
     PENDING_ID: ClassVar[str] = "play_minor"
     player_idx: int
     initiated_by_id: str
+    # True when this frame IS the named "Minor Improvement" ACTION (Meeting Place,
+    # Basic Wish's 2nd step, and card grants of that action — Task Artisan, Tree
+    # Farm Joiner, Sample Stable Maker, a Merchant repeat). False when the frame
+    # merely lets the player "play a minor improvement" as a card's own effect
+    # (Scholar, Beneficiary, Equipper), or is the composite's child minor — those
+    # are NOT the named action. Cards keyed to the "Minor Improvement" action
+    # (Merchant's repeat, Blueprint's major-build extension) gate on THIS flag, not
+    # on the frame type (shared with the non-action plays) nor a provenance
+    # blocklist (which silently leaks as the catalog grows). Card-only frame, so no
+    # canonical/C++ concern (mirrors played_card_id).
+    minor_improvement_action: bool = False
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
     # The card just played — stamped by the executor at the commit, BEFORE the
@@ -1347,6 +1358,12 @@ class PendingGrantedSubAction:
     subactions: tuple[str, ...]
     chosen: frozenset = frozenset()
     occ_cost: Resources = Resources()
+    # For a granted `play_minor`: threaded into the child PendingPlayMinor's
+    # `minor_improvement_action`. True when the grant IS the named "Minor
+    # Improvement" action (Sample Stable Maker, Task Artisan's on-play half), False
+    # when it merely lets the player play a minor (Beneficiary). Ignored unless
+    # "play_minor" in subactions.
+    minor_is_action: bool = False
 
 
 # The PendingDecision union. New pending types are added here as the

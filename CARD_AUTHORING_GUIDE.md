@@ -410,6 +410,36 @@ loss-less because spending a *limited* granted plow on a cell the *free* base pl
 strictly dominated, and no card rewards declining the base plow. Do not "simplify" that guard
 away on Cultivation.
 
+### "Play a minor" ≠ the "Minor Improvement" action; "build a major" ≠ the "Major or Minor Improvement" action
+
+Two of the game's named *actions* — the **"Minor Improvement" action** (play one minor) and
+the **"Major or Minor Improvement" action** (build one major *or* play one minor) — are
+distinct primitives that some cards *repeat* or *extend*: Merchant takes a named action "a
+second time"; Blueprint lets you build certain majors "when taking a 'Minor Improvement'
+action"; Small Trader pays out "each time you take a 'Major or Minor Improvement' action." A
+card that merely lets you **"play a minor improvement"** or **"build a major improvement"** as
+its own effect is **NOT** taking one of those named actions, and those repeat/extend cards must
+not fire off it. (RULES.md ⚠️ "Primitive Sub-Actions" callout; CARD_ENGINE_IMPLEMENTATION.md §6.)
+
+Getting this right is a **push-site** decision, and the two sides work differently:
+
+- **Minor side — one frame, so a flag decides.** Both the named action and a bare "play a
+  minor" push a `PendingPlayMinor`, so the frame type can't tell them apart. Set
+  **`minor_improvement_action=True`** only when the card grants the *named action* (Meeting
+  Place, Basic Wish, Task Artisan, Tree Farm Joiner, Sample Stable Maker, a Merchant repeat);
+  leave it **`False`** (the default) for a card's own "you can play a minor improvement" effect
+  (Scholar, Beneficiary, Equipper). Through the `PendingGrantedSubAction` wrapper, thread this
+  via its **`minor_is_action`** field.
+- **Major side — two frames, so the frame decides.** The named "Major or Minor Improvement"
+  action is `PendingMajorMinorImprovement` (Major Improvement space, House Redevelopment, Angler,
+  Vegetable Vendor, Harvest Festival Planning, a Merchant repeat). A card's own "build a major
+  improvement" effect (Site Manager, Piggy Bank, Basket Weaver, Oven Site, Hollow Warden) is a
+  **bare `PendingBuildMajor`** — never the composite. Pushing the composite for such a card would
+  both wrongly offer a minor play *and* wrongly fire Merchant / Small Trader.
+
+**Rule of thumb:** name the action the card grants, then pick the frame/flag by that name —
+never by whichever frame is closest to reuse.
+
 ### before/after the host: what fires when
 
 The uniform host lifecycle (every action space and sub-action; §3): **before-automatic

@@ -193,6 +193,10 @@ def test_minor_then_occ_other_order():
         cs, cp = _state()
         cs = _play_beneficiary(cs)
         cs = step(cs, _CHOOSE_MINOR)
+        # Beneficiary lets you PLAY a minor; it is NOT the named "Minor Improvement"
+        # action, so the pushed frame carries the flag False (must not chain Merchant
+        # / enable Blueprint). User ruling 2026-07-15.
+        assert cs.pending_stack[-1].minor_improvement_action is False
         cs = step(cs, sole_play_minor(cs, _MINOR))
         cs = step(cs, Stop())
         top = cs.pending_stack[-1]

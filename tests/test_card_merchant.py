@@ -186,7 +186,13 @@ def test_second_minor_at_meeting_place():
 # Merchant (user 2026-07-15), but a composite child / a Merchant self-grant do not.
 # ---------------------------------------------------------------------------
 
-def test_bare_minor_eligibility_provenance_guard():
+def test_bare_minor_eligibility_uses_the_action_flag():
+    """Merchant's bare clause chains a frame iff it IS the named "Minor
+    Improvement" action (`minor_improvement_action=True`) — never a "play a minor"
+    effect (Scholar/Beneficiary, flag False) nor the composite's child minor (flag
+    False) — with the sole extra guard being no self-chain (ruling 3). This is the
+    flag-based replacement for the old provenance blocklist, which wrongly chained
+    Scholar (user ruling 2026-07-15)."""
     from agricola.cards.merchant import _eligible_bare_minor
     from agricola.pending import PendingPlayMinor
     from tests.factories import with_pending_stack
@@ -194,15 +200,21 @@ def test_bare_minor_eligibility_provenance_guard():
     cs, cp = _state("major_improvement", occ=("merchant",),
                     minors=("market_stall",), res=Resources(food=1, grain=1))
 
-    def _at(iby):
+    def _at(iby, is_action):
         s = with_pending_stack(cs, (PendingPlayMinor(
-            player_idx=cp, initiated_by_id=iby, phase="after"),))
+            player_idx=cp, initiated_by_id=iby,
+            minor_improvement_action=is_action, phase="after"),))
         return _eligible_bare_minor(s, cp, frozenset())
 
-    assert _at("card:task_artisan")          # a card-granted bare minor chains
-    assert _at("meeting_place")              # Meeting Place's bare minor chains
-    assert not _at("major_minor_improvement")  # a composite child does not
-    assert not _at("card:merchant")          # no self-chain (ruling 3)
+    # The named action chains, wherever granted from...
+    assert _at("card:task_artisan", True)      # a card grant of the action
+    assert _at("meeting_place", True)          # Meeting Place's bare minor
+    # ...but a "play a minor" effect (flag False) never does — the Scholar fix:
+    assert not _at("card:scholar", False)      # Scholar plays a minor, not the action
+    assert not _at("card:beneficiary", False)  # Beneficiary likewise
+    assert not _at("major_minor_improvement", False)  # a composite child
+    # ...and Merchant never chains off its OWN grant, though that IS the action:
+    assert not _at("card:merchant", True)      # ruling 3, no self-chain
 
 
 # ---------------------------------------------------------------------------

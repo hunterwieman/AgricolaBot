@@ -132,7 +132,7 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     if playable_minors(state, idx):
         state = push(state, PendingGrantedSubAction(
             player_idx=idx, initiated_by_id=FRAME_ID,
-            subactions=("play_minor",)))
+            subactions=("play_minor",), minor_is_action=True))
     return state
 
 

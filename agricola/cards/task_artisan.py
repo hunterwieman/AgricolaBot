@@ -101,7 +101,8 @@ def _fire_minor(state: GameState, idx: int) -> GameState:
     # eligibility guaranteed a playable minor, so the no-decline
     # PendingPlayMinor never dead-ends.
     return push(state, PendingPlayMinor(
-        player_idx=idx, initiated_by_id="card:task_artisan"))
+        player_idx=idx, initiated_by_id="card:task_artisan",
+        minor_improvement_action=True))   # the named "Minor Improvement" action
 
 
 def _on_play(state: GameState, idx: int) -> GameState:
@@ -110,7 +111,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
     if playable_minors(state, idx):
         state = push(state, PendingGrantedSubAction(
             player_idx=idx, initiated_by_id="card:task_artisan",
-            subactions=("play_minor",)))
+            subactions=("play_minor",), minor_is_action=True))
     return state
 
 
