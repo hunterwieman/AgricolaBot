@@ -1302,12 +1302,50 @@ def _card_choice_display(state: GameState, action: CommitCardChoice) -> str:
     return _web_action_display(action)
 
 
+def _action_group_key(action: Action, engine_index: int) -> str:
+    """Grouping key for the presentation-order sort in _legal_actions_to_dicts.
+
+    Card-scoped actions group by the card they belong to, so a wide card's many
+    variants count as ONE group: CommitPlayOccupation / CommitPlayMinor /
+    FireTrigger group by `card_id`; CommitHarvestConversion groups by its
+    conversion id's card root (the part before any ':variant' suffix). Every
+    other action is its own singleton group, keyed by its zero-padded engine
+    index — which preserves the engine's relative order among those singletons
+    (digits sort before the 'card:'/'conv:' prefixes on alphabetical ties).
+    """
+    if isinstance(action, (CommitPlayOccupation, CommitPlayMinor, FireTrigger)):
+        return f"card:{action.card_id}"
+    if isinstance(action, CommitHarvestConversion):
+        return f"conv:{action.conversion_id.split(':', 1)[0]}"
+    return f"{engine_index:05d}"
+
+
+def _grouped_action_order(actions: list[Action]) -> list[int]:
+    """Presentation order for the legal-actions array: engine indices, reordered.
+
+    Actions are grouped by _action_group_key, groups are sorted by ascending
+    size (so a card offering 1 option is never buried behind a wide card's
+    100+ variants), ties broken alphabetically by group key, and within a
+    group the engine's relative order is kept. Purely presentational — the
+    engine's `legal_actions` order (and each action's `index`) is untouched.
+    """
+    groups: dict[str, list[int]] = {}
+    for i, a in enumerate(actions):
+        groups.setdefault(_action_group_key(a, i), []).append(i)
+    ordered_keys = sorted(groups, key=lambda k: (len(groups[k]), k))
+    return [i for k in ordered_keys for i in groups[k]]
+
+
 def _legal_actions_to_dicts(state: GameState, actions: list[Action]) -> list[dict]:
     out = []
-    for i, a in enumerate(actions):
+    for i in _grouped_action_order(actions):
+        a = actions[i]
         display = (_card_choice_display(state, a)
                    if isinstance(a, CommitCardChoice) else _web_action_display(a))
         out.append({
+            # The engine index — the client submits by this, so it must stay
+            # the action's position in legal_actions(state), NOT the position
+            # in this (presentation-reordered) array.
             "index": i,
             "type": type(a).__name__,
             "display": display,

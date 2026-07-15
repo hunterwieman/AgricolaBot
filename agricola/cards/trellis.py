@@ -73,7 +73,7 @@ def _apply(state: GameState, idx: int) -> GameState:
     # pushes the real PendingBuildFences with this card's provenance — no free-fence budget,
     # so it pays the normal wood cost.
     return push(state, PendingGrantedSubAction(
-        player_idx=idx, initiated_by_id=FRAME_ID, subaction="build_fences"))
+        player_idx=idx, initiated_by_id=FRAME_ID, subactions=("build_fences",)))
 
 
 register_minor(CARD_ID, cost=Cost(), min_occupations=2)   # no on-play effect (default no-op)

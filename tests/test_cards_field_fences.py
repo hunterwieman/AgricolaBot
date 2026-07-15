@@ -154,7 +154,7 @@ def test_play_grants_optional_build_fences_then_build():
     # The OPTIONAL grant wrapper is on top of the after-flipped play host — NOT the build host.
     top = cs.pending_stack[-1]
     assert isinstance(top, PendingGrantedSubAction) and top.initiated_by_id == FRAME_ID
-    assert top.subaction == "build_fences"
+    assert top.subactions == ("build_fences",)
     assert cs.players[cp].resources.food == 0       # the 2-food cost was paid at play
     # Opt in: choose Build Fences -> the real build host (with the grant provenance).
     cs = step(cs, ChooseSubAction(name="build_fences"))

@@ -120,7 +120,7 @@ def test_fire_grants_optional_build_fences_wrapper():
     # The OPTIONAL grant wrapper lands on top of the (still-before-phase) market host.
     top = s.pending_stack[-1]
     assert isinstance(top, PendingGrantedSubAction) and top.initiated_by_id == FRAME_ID
-    assert top.subaction == "build_fences"
+    assert top.subactions == ("build_fences",)
     assert isinstance(s.pending_stack[-2], PendingPigMarket)
     # It offers both opt-in and decline.
     la = legal_actions(s)

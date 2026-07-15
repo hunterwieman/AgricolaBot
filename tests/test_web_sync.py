@@ -110,3 +110,38 @@ def test_cards_snapshot_renders(base_url):
     d = c.post("/api/reset", {"game_mode": "cards", "seed": 1, "hand_mode": "random"})
     assert d.get("ok") is True, f"cards reset failed: {d.get('error')}"
     _assert_full_render(d.get("state"))
+
+
+def test_legal_actions_grouped_small_groups_first():
+    """The snapshot's legal-actions array is presentation-reordered (user
+    directive 2026-07-14): actions group by card, groups sort by ascending
+    size, and each dict keeps its ORIGINAL engine index — so a wide card's
+    100+ variants never bury a 1-option card, and clicks still submit the
+    right engine index. Pure-function test; no server needed."""
+    from agricola.actions import CommitPlayOccupation, Stop
+    from agricola.setup import setup
+    import play_web
+
+    # A 3-variant wide card, a 1-option card, and a non-card singleton (Stop),
+    # in engine order.
+    actions = [
+        CommitPlayOccupation(card_id="wide_card", variant="a"),   # engine idx 0
+        CommitPlayOccupation(card_id="wide_card", variant="b"),   # engine idx 1
+        CommitPlayOccupation(card_id="wide_card", variant="c"),   # engine idx 2
+        CommitPlayOccupation(card_id="narrow_card"),              # engine idx 3
+        Stop(),                                                   # engine idx 4
+    ]
+
+    # Singletons first (non-card singleton keys sort before card keys), the
+    # size-3 group last, within-group engine order preserved.
+    assert play_web._grouped_action_order(actions) == [4, 3, 0, 1, 2]
+
+    dicts = play_web._legal_actions_to_dicts(setup(0), actions)
+    # Array order is the presentation order...
+    assert [d["type"] for d in dicts] == [
+        "Stop", "CommitPlayOccupation",
+        "CommitPlayOccupation", "CommitPlayOccupation", "CommitPlayOccupation"]
+    # ...but every index is still the action's position in the ENGINE list.
+    assert [d["index"] for d in dicts] == [4, 3, 0, 1, 2]
+    assert dicts[1]["params"]["card_id"] == "narrow_card"
+    assert [d["params"]["card_id"] for d in dicts[2:]] == ["wide_card"] * 3

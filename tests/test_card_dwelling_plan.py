@@ -89,7 +89,7 @@ def test_play_pushes_wrapper_and_passes_the_card():
     cs, cp = _play_dwelling_plan(Resources(food=1, clay=2, reed=1))
     top = cs.pending_stack[-1]
     assert isinstance(top, PendingGrantedSubAction)
-    assert top.subaction == "renovate" and top.initiated_by_id == "card:dwelling_plan"
+    assert top.subactions == ("renovate",) and top.initiated_by_id == "card:dwelling_plan"
     # Traveling: passed to the opponent's hand, not kept in the tableau.
     assert "dwelling_plan" not in cs.players[cp].minor_improvements
     assert "dwelling_plan" in cs.players[1 - cp].hand_minors
@@ -125,7 +125,7 @@ def test_choose_then_back_at_wrapper_and_once_only():
     cs = step(cs, sole_renovate(cs))
     cs = step(cs, Stop())   # pop PendingRenovate
     top = cs.pending_stack[-1]
-    assert isinstance(top, PendingGrantedSubAction) and top.chosen is True
+    assert isinstance(top, PendingGrantedSubAction) and top.chosen == frozenset({"renovate"})
     la = legal_actions(cs)
     assert _RENOVATE not in la   # already taken
     assert Stop() in la

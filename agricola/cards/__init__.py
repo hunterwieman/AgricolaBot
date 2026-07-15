@@ -663,3 +663,96 @@ from agricola.cards import sugar_baker       # noqa: F401
 from agricola.cards import prodigy           # noqa: F401
 from agricola.cards import museum_caretaker  # noqa: F401
 from agricola.cards import blighter          # noqa: F401
+
+# --- The 2026-07-14 agreed batch (waves; rulings recorded in CARD_DEFERRED_PLANS.md) ---
+#   Cultivator D104     — after_plow auto: +1 wood +1 food per new field tile (any
+#                         source; per-tile under multi-shot grants — the barrow_pusher
+#                         twin, both fixed 2026-07-14 to read num_plowed).
+#   Sculptor D105       — before-autos: clay accumulation (+1 food), stone
+#                         accumulation (+1 grain); hooks clay_pit + both quarries.
+#   Hill Cultivator E121 — before-autos on Grain/Vegetable Seeds: +2/+3 clay.
+#   Kindling Gatherer E118 — before-autos on day_laborer + fishing: +1 wood when
+#                         getting food from a space (card-provided food excluded
+#                         per the 2026-07-14 ruling; Sugar Baker interaction below).
+#   Fish Farmer D110    — before-autos on reed_bank/clay_pit/forest: +2 food when
+#                         Fishing holds exactly 1 / exactly 2 / 3+ food (ruling:
+#                         use-bonus reading; errata text Grove->Forest applied).
+#   Forest Trader D125  — before variant trigger on forest/clay_pit: buy exactly 1
+#                         building resource (wood/clay/reed 1 food, stone 2).
+#   Sowing Master D109  — on-play +1 wood; after_action_space auto on the two
+#                         sow-bearing spaces (+2 food, sow not required — ruled).
+#   Fir Cutter E116     — on-play +1 food; after-market auto: wood by the Nth-person
+#                         ordinal (1/1/2/2/3).
+#   Little Stick Knitter B92 — round>=5 before-trigger on Sheep Market: optional
+#                         room-only family growth (no space, place_on_space=False).
+#   Seed Servant E115   — after Grain/Vegetable Seeds: optional granted Bake/Sow.
+#   Young Farmer D112   — Major Improvement space: +1 grain before-auto + optional
+#                         afterward Sow trigger.
+#   Godmother E113      — before_family_growth auto +1 veg (+ the atomic Urgent
+#                         Wish path via its own hook).
+#   Interior Decorator D111 — before_renovate auto: 1 food on the next 6 round spaces.
+#   Renovation Preparer D123 — after_build_rooms auto: 2 clay per wood room / 2 stone
+#                         per clay room built this action.
+#   Blackberry Farmer E108 — build-fences snapshot pair: 1 food on the next
+#                         min(fences built, remaining) round spaces.
+#   Spice Trader E104   — played round<=4: 3 veg scheduled to round 11.
+#   Land Heir E119      — played round<=4: 4 wood + 4 clay scheduled to round 9.
+#   Scrap Collector E120 — wood/clay alternating on the next 6 round spaces.
+#   Beneficiary E97     — 3rd-occupation on-play grant: occupation (1 food) and/or
+#                         minor, DEEP via the multi-category PendingGrantedSubAction.
+from agricola.cards import cultivator          # noqa: F401
+from agricola.cards import sculptor            # noqa: F401
+from agricola.cards import hill_cultivator     # noqa: F401
+from agricola.cards import kindling_gatherer   # noqa: F401
+from agricola.cards import fish_farmer         # noqa: F401
+from agricola.cards import forest_trader       # noqa: F401
+from agricola.cards import sowing_master       # noqa: F401
+from agricola.cards import fir_cutter          # noqa: F401
+from agricola.cards import little_stick_knitter  # noqa: F401
+from agricola.cards import seed_servant        # noqa: F401
+from agricola.cards import young_farmer        # noqa: F401
+from agricola.cards import godmother           # noqa: F401
+from agricola.cards import interior_decorator  # noqa: F401
+from agricola.cards import renovation_preparer  # noqa: F401
+from agricola.cards import blackberry_farmer   # noqa: F401
+from agricola.cards import spice_trader        # noqa: F401
+from agricola.cards import land_heir           # noqa: F401
+from agricola.cards import scrap_collector     # noqa: F401
+from agricola.cards import beneficiary         # noqa: F401
+#   Informant B117      — on-play +1 wood; after_work round-end auto: +1 wood when
+#                         stone > clay.
+#   Stallwright E89     — after 2nd/3rd/5th/7th occupation: optional free stable.
+#   Emergency Seller E106 — on-play wide conversion: up to people_total building
+#                         resources at 2 food (wood/clay) / 3 food (reed/stone).
+#   Shed Builder E114   — after_build_stables auto: grain for lifetime stables 1-2,
+#                         veg for 3-4 (per action, no retro-pay).
+#   Bellfounder D107    — returning_home trigger: discard ALL clay for 3 food or
+#                         1 banked point (wide; also in display.HISTORY_VP_CARDS).
+#   Tax Collector E126  — stone-house start_of_round mandatory-with-choice:
+#                         2 wood / 2 clay / 1 reed / 1 stone.
+#   Green Grocer C103   — start_of_round wide variants: exactly one of the six
+#                         printed exchanges (gains via grant_animals).
+from agricola.cards import informant           # noqa: F401
+from agricola.cards import stallwright         # noqa: F401
+from agricola.cards import emergency_seller    # noqa: F401
+from agricola.cards import shed_builder        # noqa: F401
+from agricola.cards import bellfounder         # noqa: F401
+from agricola.cards import tax_collector       # noqa: F401
+from agricola.cards import green_grocer        # noqa: F401
+#   Bonehead D118       — 6 wood on the card; 1 wood per own hand-card play
+#                         (self-play paid inside on_play, ruling-60-aware guard).
+from agricola.cards import bonehead            # noqa: F401
+#   Merchant C96        — after the improvement ACTION (space or House Redev step):
+#                         pay 1 food to take it a second time (no self-chain).
+from agricola.cards import merchant            # noqa: F401
+#   Seed Researcher C97 — returning_home: both seed spaces occupied by ANY people
+#                         -> +2 food auto + optional free occupation play.
+from agricola.cards import seed_researcher     # noqa: F401
+#   Master Renovator E87 — end_of_work trigger, rounds 7/9: a personless renovate
+#                         paying 1 building resource of choice less (the
+#                         granted_by-scoped renovate conversion, seam 700d16a).
+from agricola.cards import master_renovator    # noqa: F401
+#   Field Doctor E92    — once per game, 2-room house surrounded (orth+diag) by
+#                         4 field tiles: a Wish-space growth even without room
+#                         (the growth room-gate override registry).
+from agricola.cards import field_doctor        # noqa: F401

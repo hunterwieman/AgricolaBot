@@ -33,8 +33,16 @@ def _always(state: GameState, idx: int) -> bool:
 
 
 def _apply(state: GameState, idx: int) -> GameState:
+    # PER-TILE payout: the after_plow flip fires ONCE per PendingPlow frame, but a
+    # multi-shot granted plow (Swing/Turnwrest/Wheel Plow, "plow up to N fields")
+    # commits several tiles under one frame. The frame is on top at the flip;
+    # its num_plowed counts card-grant commits (0 = the base single-shot plow,
+    # which is always exactly one tile). Fixed 2026-07-14 — the flat +1 underpaid
+    # a multi-tile grant.
+    top = state.pending_stack[-1]
+    tiles = max(getattr(top, "num_plowed", 0), 1)
     p = fast_replace(state.players[idx],
-                     resources=state.players[idx].resources + Resources(clay=1, food=1))
+                     resources=state.players[idx].resources + Resources(clay=tiles, food=tiles))
     return fast_replace(state, players=tuple(
         p if i == idx else state.players[i] for i in range(2)))
 

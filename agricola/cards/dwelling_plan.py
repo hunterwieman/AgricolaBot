@@ -45,7 +45,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
     # (the Shifting-Cultivation nesting), which flips once the wrapper pops — the
     # deferred after-flip, user ruling 2026-07-14.
     return push(state, PendingGrantedSubAction(
-        player_idx=idx, initiated_by_id="card:dwelling_plan", subaction="renovate"))
+        player_idx=idx, initiated_by_id="card:dwelling_plan", subactions=("renovate",)))
 
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(food=1)),

@@ -716,6 +716,56 @@ at 2 players.
    gates green. Machinery reference: CARD_ENGINE_IMPLEMENTATION.md §2;
    ordering pins: `tests/test_deferred_after_flip.py`.
 
+61. **The 2026-07-14 card-batch rulings** (all user-ruled in the batch's design
+   discussion; each is quoted in its card module's docstring):
+   - **Fish Farmer D110**: the use-bonus reading — using Reed Bank / Clay Pit /
+     Forest while Fishing holds exactly 1 / exactly 2 / 3+ food pays +2 food
+     from the CARD (general supply); no food ever sits on those spaces. The
+     misprint "Grove" is corrected to "Forest" in the data file's text (the
+     card's own errata), per the user's instruction that our displayed text
+     say Forest.
+   - **Kindling Gatherer E118**: only food the SPACE itself yields counts —
+     card-provided food (Fish Farmer, Brook) never triggers it. Implemented as
+     the fixed space list day_laborer + fishing (2p), with the one
+     user-anticipated exception hard-coded: a Sugar Baker deposit on Grain
+     Utilization IS food on a space, so collecting it pays the wood (the
+     order=-1 before-auto reads the deposit before Sugar Baker's collection
+     clears it). Traveling Players joins the list at 4 players.
+   - **Sowing Master D109**: "an action space with the 'Sow' action" ≡ Grain
+     Utilization or Cultivation today (the +2 food fires whether or not the
+     player sowed); the equivalence breaks if a future card creates a new
+     sow-bearing space — revisit the space list then.
+   - **Informant B117**: "after each work phase" = the round-end ladder's
+     `after_work` rung (the two wordings name one instant for this card).
+   - **Merchant C96**: House Redevelopment's optional improvement step COUNTS
+     ("the action is distinct from the action space"); "immediately after" is
+     the ordinary after seam on the composite host; "a second time" forbids
+     chaining off its own granted action (provenance-gated). OPEN LEAN parked
+     for the user: a Merchant-granted second take does NOT fire Small Trader's
+     space bonus (provenance ≠ the space) — matches Small Trader's own
+     clarification, not explicitly ruled.
+   - **Bonehead D118**: "immediately after each time you play a card" is the
+     ordinary after seam; "including this one" is paid inside its own on_play
+     (net 5 wood on the card, +1 to supply — the same instant), with a
+     played_card_id guard so the generic after-auto (which under ruling 60 now
+     runs post-on_play) cannot double-pay the self-play.
+   - **Optionality confirmations**: Little Stick Knitter's growth, Young
+     Farmer's sow, and Stallwright's stable are OPTIONS (triggers), and
+     Stallwright additionally requires stable pieces in supply.
+   - **Wide vs deep**: Green Grocer / Forest Trader / Bellfounder / Emergency
+     Seller surface WIDE (variant triggers / play-variants; Emergency Seller's
+     full multiset enumeration — worst case 126 — explicitly approved);
+     Beneficiary is DEEP (play the card → an occ/minor/proceed parent → the
+     chosen type's cards → the remaining type or proceed → end), built by
+     generalizing `PendingGrantedSubAction` to a category set + `occ_cost`.
+   - **Master Renovator E87**: "at the end of the work phases" = the round-end
+     ladder's `end_of_work` rung; the discount is a renovate cost conversion
+     scoped by the new `CostCtx.granted_by` provenance (seam 700d16a).
+   - **Field Doctor E92**: "surrounded by 4 field tiles" = ALL surrounding
+     cells of the 2-room house, orthogonal AND diagonal, on-board, are field
+     tiles (the starting domino has exactly 4 such cells); the data-file text
+     is corrected to "Wish for Children" per the card's clarification.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

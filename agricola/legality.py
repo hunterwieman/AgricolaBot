@@ -158,6 +158,27 @@ def register_occupancy_override(fn: Callable) -> None:
     OCCUPANCY_OVERRIDE_EXTENSIONS.append(fn)
 
 
+# Cards may waive the SPARE-ROOM gate on a room-gated "Wish for Children" growth
+# (user-approved extension, 2026-07-14). Basic Wish normally requires
+# `people_total < rooms`; a registered override lets its owner take that growth
+# even when rooms <= people (the `people_total < 5` family cap is NOT relaxed —
+# it is a game rule no override touches; Urgent Wish has no room gate and is
+# untouched). Each entry is a `(card_id, fn)` pair with `fn(state, idx) -> bool`
+# — True = player `idx` may currently take a room-gated wish growth without a
+# spare room. The pair shape exists for the CONSUME step: when a wish-space
+# growth commits while the normal room gate fails, `_resolve_wish_for_children`
+# (resolution.py) latches the permitting card's `card_id` into the owner's
+# `fired_once` — so a "once this game" override (Field Doctor) spends itself on
+# use. An override self-gates on its own ownership, geometry, and its unspent
+# latch. Empty registry (the entire Family game) → the gate is byte-identical.
+GROWTH_ROOM_OVERRIDE_EXTENSIONS: list[tuple[str, Callable]] = []
+
+
+def register_growth_room_override(card_id: str, fn: Callable) -> None:
+    """Add a card-supplied `(card_id, fn)` that may waive the wish-space room gate."""
+    GROWTH_ROOM_OVERRIDE_EXTENSIONS.append((card_id, fn))
+
+
 # Card-supplied renovate-TARGET extensions. Renovation normally goes one tier
 # (WOOD→CLAY, CLAY→STONE); a card may make further targets legal — Conservator lets a
 # wood house renovate directly to STONE. Each fn takes (state, player_idx,
@@ -808,10 +829,21 @@ def _legal_eastern_quarry(state: GameState) -> bool:
 
 
 def _legal_basic_wish_for_children(state: GameState) -> bool:
+    """Basic Wish placement gate (shared by BOTH game modes — FAMILY_GAME_LEGALITY
+    and CARD_GAME_LEGALITY reuse this predicate): the family cap (< 5 people,
+    never waived) AND a spare room — the room half may be waived by a registered
+    growth-room override (Field Doctor). Empty registry → byte-identical."""
     if not _is_available(state, "basic_wish_for_children"):
         return False
     p = state.players[state.current_player]
-    return p.people_total < 5 and p.people_total < _num_rooms(p)
+    if p.people_total >= 5:
+        return False
+    if p.people_total < _num_rooms(p):
+        return True
+    return any(
+        fn(state, state.current_player)
+        for _card_id, fn in GROWTH_ROOM_OVERRIDE_EXTENSIONS
+    )
 
 
 def _legal_urgent_wish_for_children(state: GameState) -> bool:
@@ -2267,32 +2299,48 @@ def _enumerate_pending_farm_redevelopment(
     return actions
 
 
-def _granted_subaction_eligible(state: GameState, pending: "PendingGrantedSubAction") -> bool:
-    """Is the granted sub-action doable RIGHT NOW (so the grant never offers a dead-end)?
-    Dispatches on `pending.subaction` to the primitive's own legality — anticipating the exact
-    frame the choose-handler will push (same provenance / free-fence budget for fences)."""
+def _granted_subaction_eligible(
+    state: GameState, pending: "PendingGrantedSubAction", cat: str,
+) -> bool:
+    """Is granted category `cat` doable RIGHT NOW (so the grant never offers a dead-end)?
+    Dispatches to the primitive's own legality — anticipating the exact frame the
+    choose-handler will push (same provenance / free-fence budget for fences; the frame's
+    `occ_cost` for an occupation play, with the Lessons gate's food-source fold)."""
     p = state.players[pending.player_idx]
-    if pending.subaction == "renovate":
+    if cat == "renovate":
         return _can_renovate(state, p)
-    if pending.subaction == "build_fences":
+    if cat == "build_fences":
         return _any_legal_pasture_commit(
             state, p, space_id=pending.initiated_by_id,
             initiated_by_id=pending.initiated_by_id)
-    raise ValueError(f"Unknown granted sub-action {pending.subaction!r}")
+    if cat == "play_occupation":
+        # Mirrors `_legal_lessons_cards`: a playable hand occupation exists AND the grant's
+        # play cost is payable (directly, via liquidation, or by first firing an owned
+        # occupation-cost food source — `_payable_occupation` folds all three), so the
+        # no-decline PendingPlayOccupation is never pushed as a dead-end.
+        return (bool(playable_occupations(state, pending.player_idx))
+                and _payable_occupation(state, pending.player_idx, p, pending.occ_cost))
+    if cat == "play_minor":
+        # Mirrors the Meeting Place / Basic Wish optional-minor gate: >=1 hand minor is
+        # currently playable (prereq met + printed/alternative cost affordable).
+        return bool(playable_minors(state, pending.player_idx))
+    raise ValueError(f"Unknown granted sub-action {cat!r}")
 
 
 def _enumerate_pending_granted_subaction(
     state: GameState, pending: "PendingGrantedSubAction",
 ) -> list[Action]:
     """Enumerate legal actions at PendingGrantedSubAction — an OPTIONAL granted sub-action
-    (Field Fences / Trellis → build_fences; Dwelling Plan → renovate). Offers
-    `ChooseSubAction(pending.subaction)` (only before it is taken AND when the primitive is
-    doable — so a fence grant's positional discount is anticipated, mirroring Farm Redev's
-    offer) plus Stop (decline before, or finish after). After the inner primitive pops, `chosen`
-    is True, so only Stop remains."""
+    set (Field Fences / Trellis → build_fences; Dwelling Plan → renovate; Beneficiary →
+    play_occupation and/or play_minor). Offers `ChooseSubAction(<cat>)` per granted category
+    (only before that category is taken AND when its primitive is doable — so a fence grant's
+    positional discount is anticipated, mirroring Farm Redev's offer) plus Stop (decline /
+    finish). Each taken category joins `chosen`; once all are taken or dead, only Stop
+    remains. A multi-category grant is thus taken in any order, at most once each."""
     actions: list[Action] = []
-    if not pending.chosen and _granted_subaction_eligible(state, pending):
-        actions.append(ChooseSubAction(name=pending.subaction))
+    for cat in pending.subactions:
+        if cat not in pending.chosen and _granted_subaction_eligible(state, pending, cat):
+            actions.append(ChooseSubAction(name=cat))
     actions.append(Stop())
     return actions
 

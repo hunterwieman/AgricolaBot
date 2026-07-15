@@ -54,7 +54,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
     # (decline). The wrapper's build_fences choice pushes the real PendingBuildFences with
     # initiated_by_id FRAME_ID, seeding any other card's free-fence budget at that point.
     return push(state, PendingGrantedSubAction(
-        player_idx=idx, initiated_by_id=FRAME_ID, subaction="build_fences"))
+        player_idx=idx, initiated_by_id=FRAME_ID, subactions=("build_fences",)))
 
 
 def _field_adjacent_edges(farmyard, h_new: int, v_new: int, *, initiated_by_id, **_kw):

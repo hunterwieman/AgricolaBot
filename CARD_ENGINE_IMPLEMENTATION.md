@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-14 (the preparation ladder + the Points Provider batch; the deferred after-flip — ruling 60 — landed the same day).** A card batch is not integrated until this
+> **Last updated: 2026-07-14 (the preparation ladder + the Points Provider batch; the deferred after-flip — ruling 60 — and the 31-occupation agreed batch — ruling 61 — landed the same day).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -203,6 +203,21 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   card-fields (ruling 45), while "field tile" readers stay grid-only (ruling 32). Field
   Cultivator is automatic-take-the-maximum (ruling 41). Cooking Hearth Extension is deferred
   alongside Gypsy's Crock (ruling 42).
+- **The 2026-07-14 agreed batch landed (ruling 61): 31 occupations** — the wave
+  batch built on the deferred after-flip (Bonehead, Sowing Master, Fir Cutter,
+  Seed Servant, Young Farmer, Merchant, and 25 more; per-card rulings in
+  CARD_DEFERRED_PLANS.md ruling 61), taking the census to **142 occupations +
+  243 minors = 385**. Alongside it: the multi-category
+  `PendingGrantedSubAction` (a category SET + `occ_cost` — Beneficiary's
+  deep and/or grant; play_occupation/play_minor joined the dispatch), the
+  growth room-gate override registry (`register_growth_room_override` —
+  Field Doctor's once-per-game Wish-space waiver, consumed at the shared wish
+  resolver), the `CostCtx.granted_by` renovate provenance (Master Renovator's
+  grant-scoped discount), the barrow_pusher/cultivator per-TILE plow-payout
+  fix (multi-shot grants underpaid at the single flip), the hard-coded Sugar
+  Baker × Kindling Gatherer deposit interaction (order=-1 auto), and the web
+  UI's smallest-group-first option sort. All Family-inert except what ruling
+  60 already re-ported; gates green.
 - **The deferred after-flip landed (2026-07-14; ruling 60)**: every commit-terminated
   host's after-flip (and its after-autos, plus the coarse `after_build_improvement`)
   now fires in `_advance_until_decision` once the host is back on top — after

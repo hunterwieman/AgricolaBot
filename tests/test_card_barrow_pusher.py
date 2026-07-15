@@ -150,3 +150,31 @@ def test_no_plow_no_reward():
 
     assert s.players[0].resources.clay == before.clay
     assert s.players[0].resources.food == before.food
+
+
+def test_multishot_granted_plow_pays_per_tile():
+    """A multi-shot granted plow (one PendingPlow, max_plows=2, ONE after_plow
+    flip) must pay per TILE, not per flip — the 2026-07-14 per-tile fix."""
+    from agricola.actions import CommitPlow
+    from agricola.pending import PendingPlow
+    from agricola.replace import fast_replace
+    from agricola.setup import setup
+    from agricola.engine import step
+    from agricola.legality import legal_actions
+    from tests.factories import with_pending_stack
+
+    s = setup(0)
+    p = fast_replace(s.players[0], occupations=frozenset({"barrow_pusher"}))
+    s = fast_replace(s, players=tuple(p if i == 0 else s.players[i] for i in range(2)))
+    s = with_pending_stack(s, (PendingPlow(
+        player_idx=0, initiated_by_id="card:test_grant", max_plows=2),))
+    clay0 = s.players[0].resources.clay
+    food0 = s.players[0].resources.food
+
+    plows = [a for a in legal_actions(s) if isinstance(a, CommitPlow)]
+    s = step(s, plows[0])
+    plows = [a for a in legal_actions(s) if isinstance(a, CommitPlow)]
+    s = step(s, plows[0])
+
+    assert s.players[0].resources.clay == clay0 + 2
+    assert s.players[0].resources.food == food0 + 2

@@ -261,6 +261,26 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
     )
     state = _update_space(state, space_id, workers=new_workers)
 
+    # Growth-room-override CONSUME (user-approved extension, 2026-07-14): Basic
+    # Wish is the room-gated wish space (Urgent Wish has no room gate, so an
+    # override is never load-bearing there). If this growth is committing while
+    # the normal spare-room gate FAILS right now (rooms <= people, pre-newborn),
+    # a registered override made it possible — latch the first permitting card's
+    # id into the owner's `fired_once`, spending its "once this game" use. A
+    # growth taken with a spare room consumes nothing. Empty registry (the
+    # entire Family game) → this block is a no-op and the path byte-identical.
+    if space_id == "basic_wish_for_children":
+        from agricola.legality import GROWTH_ROOM_OVERRIDE_EXTENSIONS, _num_rooms
+        if GROWTH_ROOM_OVERRIDE_EXTENSIONS:
+            p = state.players[ap]
+            if p.people_total >= _num_rooms(p):   # the normal room gate fails
+                for card_id, fn in GROWTH_ROOM_OVERRIDE_EXTENSIONS:
+                    if fn(state, ap):
+                        p = state.players[ap]
+                        state = _update_player(state, ap, fast_replace(
+                            p, fired_once=p.fired_once | {card_id}))
+                        break
+
     # Update player: people_total and newborns
     return _grow_family(state, ap)
 
@@ -999,28 +1019,39 @@ def _choose_subaction_farm_redevelopment(
 def _choose_subaction_granted_subaction(
     state: GameState, action: ChooseSubAction,
 ) -> GameState:
-    """Card-game choose handler for an OPTIONAL granted sub-action (Field Fences / Trellis →
-    build_fences; Dwelling Plan → renovate). Flips the wrapper's `chosen` and pushes the real
-    primitive frame carrying the grant's own provenance (so a fence grant's positional discount
-    + seeded free-fence budget apply). Declining is the wrapper's Stop, not handled here.
-    Dispatches on the wrapper's `subaction` (== `action.name`)."""
+    """Card-game choose handler for an OPTIONAL granted sub-action set (Field Fences /
+    Trellis → build_fences; Dwelling Plan → renovate; Beneficiary → play_occupation and/or
+    play_minor). Adds the chosen category to the wrapper's `chosen` and pushes the real
+    primitive frame carrying the grant's own provenance (so a fence grant's positional
+    discount + seeded free-fence budget apply; an occupation play carries the frame's
+    `occ_cost`, exactly as Lessons supplies its route cost at push). Declining is the
+    wrapper's Stop, not handled here. Dispatches on the chosen category (`action.name`)."""
     top = state.pending_stack[-1]
     p_idx = top.player_idx
-    if action.name != top.subaction:
+    if action.name not in top.subactions or action.name in top.chosen:
         raise ValueError(
-            f"sub-action {action.name!r} != granted {top.subaction!r}")
-    state = replace_top(state, fast_replace(top, chosen=True))
-    if top.subaction == "renovate":
+            f"sub-action {action.name!r} not an untaken granted category "
+            f"(granted {top.subactions!r}, taken {sorted(top.chosen)!r})")
+    state = replace_top(state, fast_replace(top, chosen=top.chosen | {action.name}))
+    if action.name == "renovate":
         return push(state, PendingRenovate(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id))
-    if top.subaction == "build_fences":
+    if action.name == "build_fences":
         from agricola.cards.cost_mods import free_fence_budget_for
         return push(state, PendingBuildFences(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id,
             free_fence_budget=free_fence_budget_for(
                 state, p_idx, build_fences_action=True, space_id=top.initiated_by_id),
         ))
-    raise ValueError(f"Unknown granted sub-action {top.subaction!r}")
+    if action.name == "play_occupation":
+        from agricola.pending import PendingPlayOccupation
+        return push(state, PendingPlayOccupation(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id, cost=top.occ_cost))
+    if action.name == "play_minor":
+        from agricola.pending import PendingPlayMinor
+        return push(state, PendingPlayMinor(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id))
+    raise ValueError(f"Unknown granted sub-action {action.name!r}")
 
 
 def _choose_subaction_basic_wish_for_children(

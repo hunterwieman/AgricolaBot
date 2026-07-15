@@ -1293,39 +1293,51 @@ class PendingDraftPick:
 
 @dataclass(frozen=True)
 class PendingGrantedSubAction:
-    """An OPTIONAL granted sub-action (a card grant — Field Fences / Trellis grant a
-    Build Fences; Dwelling Plan grants a Renovate).
+    """An OPTIONAL granted sub-action SET (a card grant — Field Fences / Trellis grant a
+    Build Fences; Dwelling Plan grants a Renovate; Beneficiary grants an occupation play
+    and/or a minor play, in either order).
 
     "You CAN take a '<sub-action>' action" — the optionality. This thin, generic PARENT host
-    offers the choice (`ChooseSubAction(<subaction>)`) OR a decline (`Stop`), instead of forcing
-    the sub-action (CARD_AUTHORING_GUIDE: granted sub-actions are optional; optionality lives at
-    the parent's choose+Stop, never a per-frame flag on the inner host — so the inner
-    primitive keeps its mandatory shape, and this wrapper is where declining lives). Choosing
-    pushes the real primitive frame (`PendingBuildFences` / `PendingRenovate`) carrying THIS
-    frame's `initiated_by_id`, so the grant's provenance — and any positional discount / seeded
-    free-fence budget — applies. `Stop` pops: declining if nothing was taken, or finishing after
-    the inner primitive has popped.
+    offers one choice (`ChooseSubAction(<category>)`) per not-yet-taken granted category, OR
+    a decline (`Stop`), instead of forcing the sub-action (CARD_AUTHORING_GUIDE: granted
+    sub-actions are optional; optionality lives at the parent's choose+Stop, never a per-frame
+    flag on the inner host — so the inner primitive keeps its mandatory shape, and this
+    wrapper is where declining lives). Choosing pushes the real primitive frame
+    (`PendingBuildFences` / `PendingRenovate` / `PendingPlayOccupation` / `PendingPlayMinor`)
+    carrying THIS frame's `initiated_by_id`, so the grant's provenance — and any positional
+    discount / seeded free-fence budget — applies. `Stop` pops: declining anything not yet
+    taken, or finishing after the last inner primitive has popped.
 
     This is the generic form of the pattern the delegating hosts already use — one frame with a
     discriminator (`PendingSubActionSpace` dispatches its child by `space_id`); here the
-    discriminator is `subaction`, and the per-primitive eligibility + push live in the
+    discriminator is the category name, and the per-primitive eligibility + push live in the
     enumerator / choose-handler dispatch (legality/resolution), NOT in bespoke per-primitive
     frame classes. All primitive-specific STATE lives on the pushed child frame, so this wrapper
-    stays field-free beyond the discriminator.
+    stays field-free beyond the discriminators (plus `occ_cost`, the one push-time parameter a
+    granted occupation play needs — a route-supplied cost, exactly as on Lessons' push).
 
-    - `subaction`: the granted primitive's id (`"build_fences"` | `"renovate"`), matched by the
-      offered `ChooseSubAction(name=subaction)`.
+    An "and/or" grant (Beneficiary: "play another occupation ... and/or play 1 minor
+    improvement") is a MULTI-category frame: each category is offered while unchosen and
+    currently doable, so the player takes them in either order, at most once each, and may
+    Stop at any point — the and/or semantics fall out of the set shape.
+
+    - `subactions`: the granted categories (`"build_fences"` | `"renovate"` |
+      `"play_occupation"` | `"play_minor"`), each matched by an offered
+      `ChooseSubAction(name=<category>)`. Single-category grants pass a 1-tuple.
     - `initiated_by_id`: the grant's provenance (e.g. `"card:field_fences"`).
-    - `chosen`: flips True when the sub-action is entered, so it is offered at most once (after
-      the inner primitive pops, only Stop remains).
+    - `chosen`: the categories already entered — each is offered at most once (after every
+      granted primitive has popped or been declined, only Stop remains).
+    - `occ_cost`: the food cost a granted `play_occupation` charges (rides onto the pushed
+      `PendingPlayOccupation.cost`; Beneficiary: 1 food). Ignored by the other categories.
 
     Card-only: never reaches the C++ (Family) engine.
     """
     PENDING_ID: ClassVar[str] = "granted_subaction"
     player_idx: int
     initiated_by_id: str
-    subaction: str
-    chosen: bool = False
+    subactions: tuple[str, ...]
+    chosen: frozenset = frozenset()
+    occ_cost: Resources = Resources()
 
 
 # The PendingDecision union. New pending types are added here as the
