@@ -62,7 +62,9 @@ def _make_action_spaces_family() -> tuple:
     """
     by_id: dict[str, ActionSpaceState] = {}
     for space_id in PERMANENT_ACTION_SPACES:
-        by_id[space_id] = ActionSpaceState(workers=(0, 0), revealed=True)
+        # Permanents are face-up before round 1 — revealed_round 0.
+        by_id[space_id] = ActionSpaceState(workers=(0, 0), revealed=True,
+                                           revealed_round=0)
     for cards in STAGE_CARDS.values():
         for card_id in cards:
             by_id[card_id] = ActionSpaceState(workers=(0, 0), revealed=False)

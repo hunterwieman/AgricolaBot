@@ -89,6 +89,9 @@ GameState apply_place_worker(const GameState& state, const PlaceWorker& a) {
 GameState apply_reveal_card(const GameState& state, const RevealCard& a) {
   ActionSpaceState ns = get_space_ref(state, a.card);
   ns.revealed = true;
+  // The revealed card belongs to the round being entered (the increment has
+  // not happened yet) — mirrors Python's _apply_reveal_card.
+  ns.revealed_round = state.round_number + 1;
   GameState s = with_space(state, a.card, ns);
   return pop(s);
 }

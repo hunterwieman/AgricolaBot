@@ -112,11 +112,23 @@ class ActionSpaceState:
 
     revealed: bool = False  # True once the card is turned up (permanents: True from setup)
 
+    # The round whose preparation revealed this stage card (user decision
+    # 2026-07-15, for the reveal-order card family — Task Artisan, Master
+    # Workman, Sweep, Outrider/Pioneer): permanents get 0 at setup, a stage
+    # card gets the round it belongs to (`round_number + 1` at the reveal —
+    # the increment happens after), and None means not yet revealed.
+    # Deliberately redundant with `revealed` (revealed ⟺ revealed_round is
+    # not None on engine-produced states) to avoid reworking every `revealed`
+    # consumer. Family-REACHABLE (every reveal sets it): serialized when not
+    # None and mirrored by the C++ twin.
+    revealed_round: int | None = None
+
     def __hash__(self):  # see "Lazily-cached __hash__" note above
         h = self.__dict__.get("_hash_cache")
         if h is None:
             h = hash((self.workers, self.accumulated,
-                      self.accumulated_amount, self.revealed))
+                      self.accumulated_amount, self.revealed,
+                      self.revealed_round))
             object.__setattr__(self, "_hash_cache", h)
         return h
 

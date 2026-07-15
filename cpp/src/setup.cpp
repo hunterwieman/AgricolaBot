@@ -47,6 +47,7 @@ std::vector<ActionSpaceState> make_action_spaces() {
     a.accumulated = Resources{};
     a.accumulated_amount = 0;
     a.revealed = !is_stage_card(sid);
+    if (a.revealed) a.revealed_round = 0;  // permanents: face-up before round 1
     spaces.push_back(a);
   }
   return spaces;

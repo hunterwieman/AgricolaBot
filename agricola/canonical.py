@@ -149,6 +149,13 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # never across the reveal (the post-reveal resume is derived from public
     # state), so Family-constant None and omitted; the C++ engine needs no field.
     "prep_cursor",
+    # The reveal-round stamp on ActionSpaceState (user decision 2026-07-15, the
+    # reveal-order card family): skipped only when None (an unrevealed stage
+    # card — matching the pre-change JSON for those); every REVEALED space
+    # emits it (permanents 0, stage cards their round), so this is
+    # Family-REACHABLE and the C++ twin mirrors the field, the stamp at the
+    # reveal, and the setup 0s.
+    "revealed_round",
     # The deferred after-flip signal on every commit-terminated host (user ruling
     # 2026-07-14: "after you [do X]" fires after X's FULL effect): set by the
     # commit executor, cleared when _advance_until_decision flips the host, so it

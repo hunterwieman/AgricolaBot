@@ -95,6 +95,10 @@ struct ActionSpaceState {
   Resources accumulated{};
   int accumulated_amount = 0;
   bool revealed = false;
+  // The round whose preparation revealed this stage card (user decision
+  // 2026-07-15; mirrors Python): permanents 0 at setup, stage cards
+  // round_number + 1 at the reveal, nullopt = not yet revealed.
+  std::optional<int> revealed_round{};
   bool operator==(const ActionSpaceState&) const = default;
 };
 

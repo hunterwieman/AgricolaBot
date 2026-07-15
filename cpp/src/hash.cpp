@@ -49,6 +49,7 @@ void hi(std::uint64_t& h, const Farmyard& f) {
 void hi(std::uint64_t& h, const ActionSpaceState& s) {
   hi(h, s.workers[0]); hi(h, s.workers[1]);
   hi(h, s.accumulated); hi(h, s.accumulated_amount); hi(h, s.revealed);
+  hi(h, s.revealed_round);
 }
 void hi(std::uint64_t& h, const PlayerState& p) {
   hi(h, p.resources); hi(h, p.animals); hi(h, p.farmyard); hi(h, p.house_material);

@@ -1264,7 +1264,11 @@ def _apply_reveal_card(state: GameState, action: RevealCard) -> GameState:
     HIDDEN_INFO_DESIGN.md §4.3–4.4.
     """
     sp = get_space(state.board, action.card)
-    new_board = with_space(state.board, action.card, fast_replace(sp, revealed=True))
+    # The revealed card belongs to the round being entered; at the reveal the
+    # increment has not happened yet, so that is round_number + 1 (uniform —
+    # setup's round-1 reveal runs at round_number 0).
+    new_board = with_space(state.board, action.card, fast_replace(
+        sp, revealed=True, revealed_round=state.round_number + 1))
     return pop(fast_replace(state, board=new_board))
 
 

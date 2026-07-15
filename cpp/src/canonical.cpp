@@ -166,6 +166,9 @@ json tc(const ActionSpaceState& s) {
   j["accumulated"] = tc(s.accumulated);
   j["accumulated_amount"] = s.accumulated_amount;
   j["revealed"] = s.revealed;
+  // Skipped when nullopt (an unrevealed stage card) — mirrors Python's
+  // default-skip; every revealed space emits it.
+  if (s.revealed_round.has_value()) j["revealed_round"] = *s.revealed_round;
   return j;
 }
 json tc(const PlayerState& p) {
@@ -438,6 +441,7 @@ ActionSpaceState action_space_from(const json& j) {
   s.accumulated = resources_from(j.at("accumulated"));
   s.accumulated_amount = j.at("accumulated_amount");
   s.revealed = j.at("revealed");
+  if (j.contains("revealed_round")) s.revealed_round = j.at("revealed_round").get<int>();
   return s;
 }
 PlayerState player_from(const json& j) {
