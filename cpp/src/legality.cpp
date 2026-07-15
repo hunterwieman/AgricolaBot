@@ -376,14 +376,14 @@ bool legal_non_atomic(const GameState& s, const std::string& space) {
     return can_sow(p) || can_bake_bread(s, p);
   }
   if (space == "sheep_market")
-    return is_available(s, "sheep_market") &&
-           get_space(s, "sheep_market").accumulated_amount > 0;
+    // No emptiness gate (user ruling 2026-07-14; unreachable today) — mirrors Python.
+    return is_available(s, "sheep_market");
   if (space == "pig_market")
-    return is_available(s, "pig_market") &&
-           get_space(s, "pig_market").accumulated_amount > 0;
+    // No emptiness gate (user ruling 2026-07-14; unreachable today) — mirrors Python.
+    return is_available(s, "pig_market");
   if (space == "cattle_market")
-    return is_available(s, "cattle_market") &&
-           get_space(s, "cattle_market").accumulated_amount > 0;
+    // No emptiness gate (user ruling 2026-07-14; unreachable today) — mirrors Python.
+    return is_available(s, "cattle_market");
   if (space == "major_improvement") {
     if (!is_available(s, "major_improvement")) return false;
     return can_afford_any_major(s, cur(s));

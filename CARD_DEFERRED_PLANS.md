@@ -766,6 +766,18 @@ at 2 players.
      tiles (the starting domino has exactly 4 such cells); the data-file text
      is corrected to "Wish for Children" per the card's clarification.
 
+62. **An available-but-empty animal market is LEGAL to place on** (ruled
+   2026-07-14, prompted by Fir Cutter's empty-market question): the take is 0
+   animals, the accommodate step trivially keeps the current herd, and the
+   host's card windows fire normally. The state is UNREACHABLE today (every
+   revealed accumulation space refills each preparation, and a use occupies
+   the space for the round), so the removed `accumulated_amount > 0` gates
+   never bound — removed in both engines so a future card that creates the
+   state gets the ruled behavior (differential gates green; pins flipped in
+   `tests/test_legality_non_atomic.py`). Scope: the three animal markets only
+   — Fishing / the building accumulation spaces keep their equivalent
+   (equally-unreachable) gates pending a ruling.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

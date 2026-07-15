@@ -887,25 +887,26 @@ def _legal_grain_utilization(state: GameState) -> bool:
     return _can_sow(p) or _can_bake_bread(state, p)
 
 
+# The animal markets carry NO emptiness gate (user ruling 2026-07-14): placing on
+# an available-but-empty market is legal (gained=0; the accommodate step trivially
+# keeps the current animals, and the host's card windows fire normally — Fir
+# Cutter). Empty+available is UNREACHABLE today — every revealed accumulation
+# space refills each preparation and a use occupies the space for the round — so
+# the old `accumulated_amount > 0` gates never bound; they are removed so a future
+# card that creates the state gets the ruled behavior. (Fishing/Forest/etc. keep
+# their equivalent gates — the ruling named the animal markets only.)
+
+
 def _legal_sheep_market(state: GameState) -> bool:
-    return (
-        _is_available(state, "sheep_market")
-        and get_space(state.board, "sheep_market").accumulated_amount > 0
-    )
+    return _is_available(state, "sheep_market")
 
 
 def _legal_pig_market(state: GameState) -> bool:
-    return (
-        _is_available(state, "pig_market")
-        and get_space(state.board, "pig_market").accumulated_amount > 0
-    )
+    return _is_available(state, "pig_market")
 
 
 def _legal_cattle_market(state: GameState) -> bool:
-    return (
-        _is_available(state, "cattle_market")
-        and get_space(state.board, "cattle_market").accumulated_amount > 0
-    )
+    return _is_available(state, "cattle_market")
 
 
 def _legal_major_improvement(state: GameState) -> bool:
