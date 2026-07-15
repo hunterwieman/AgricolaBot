@@ -756,3 +756,6 @@ from agricola.cards import master_renovator    # noqa: F401
 #                         4 field tiles: a Wish-space growth even without room
 #                         (the growth room-gate override registry).
 from agricola.cards import field_doctor        # noqa: F401
+#   Clay Deliveryman D120 — 1 clay on each remaining round space in 6..14
+#                         (the Well/Wood Collector band-schedule shape).
+from agricola.cards import clay_deliveryman    # noqa: F401
