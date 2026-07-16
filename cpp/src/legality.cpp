@@ -344,11 +344,11 @@ bool legal_atomic(const GameState& s, const std::string& space) {
   if (space == "basic_wish_for_children") {
     if (!is_available(s, "basic_wish_for_children")) return false;
     const auto& p = cur(s);
-    return p.people_total < 5 && p.people_total < num_rooms(p);
+    return p.workers_in_supply > 0 && p.people_total < num_rooms(p);
   }
   if (space == "urgent_wish_for_children") {
     if (!is_available(s, "urgent_wish_for_children")) return false;
-    return cur(s).people_total < 5;
+    return cur(s).workers_in_supply > 0;
   }
   return false;
 }

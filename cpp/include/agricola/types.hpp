@@ -123,6 +123,7 @@ struct PlayerState {
   std::vector<std::string> occupations;             // frozenset[str], sorted
   std::vector<std::string> harvest_conversions_used;  // frozenset[str], sorted
   int fences_in_supply = 15;  // fence-supply pile; 15 - (fences on board) in Family
+  int workers_in_supply = 3;  // family-meeple supply pile; 5 - people_total in Family (no eviction)
   bool operator==(const PlayerState&) const = default;
 };
 

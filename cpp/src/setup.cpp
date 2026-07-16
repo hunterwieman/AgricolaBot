@@ -72,6 +72,7 @@ PlayerState make_player(int food) {
   p.house_material = HouseMaterial::WOOD;
   p.people_total = 2;
   p.people_home = 2;
+  p.workers_in_supply = 3;   // 5 meeples total, 2 in play at start
   p.newborns = 0;
   p.begging_markers = 0;
   p.future_resources = std::vector<Resources>(NUM_ROUNDS, Resources{});  // 14 empty

@@ -210,10 +210,11 @@ def test_eastern_quarry_illegal_with_zero_accumulation(state):
 
 
 def test_basic_wish_illegal_at_max_family(state, active):
-    # people_total == 5 means the family is at maximum size.
+    # workers_in_supply == 0 means the family is at maximum size (5 people, no
+    # meeple left in supply to grow into).
     state2 = _reveal_space_no_goods(state, "basic_wish_for_children")
     state2 = _add_rooms(state2, active, num_extra_rooms=4)   # ensure plenty of rooms
-    state2 = _set_player(state2, active, people_total=5, people_home=5)
+    state2 = _set_player(state2, active, people_total=5, people_home=5, workers_in_supply=0)
     assert PlaceWorker(space="basic_wish_for_children") not in legal_placements(state2)
 
 
@@ -226,7 +227,7 @@ def test_basic_wish_illegal_without_room(state, active):
 
 def test_urgent_wish_illegal_at_max_family(state, active):
     state2 = _reveal_space_no_goods(state, "urgent_wish_for_children")
-    state2 = _set_player(state2, active, people_total=5, people_home=5)
+    state2 = _set_player(state2, active, people_total=5, people_home=5, workers_in_supply=0)
     assert PlaceWorker(space="urgent_wish_for_children") not in legal_placements(state2)
 
 

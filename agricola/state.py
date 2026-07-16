@@ -298,6 +298,19 @@ class PlayerState:
     # in Family and the C++ PlayerState mirrors it (decrement at the fence-build site).
     fences_in_supply: int = 15
 
+    # Family-member meeples in the player's SUPPLY: the pool a "Family Growth" draws from.
+    # A player owns 5 meeples total; 2 start in play (people_total=2), so 3 start in supply.
+    # `workers_in_supply` is the growth gate (a growth is legal only while it is > 0) and is
+    # DECREMENTED at the single growth chokepoint (_grow_family); it is NOT derived as
+    # `5 - people_total` because a card can REMOVE a meeple from the game (Lodger: the
+    # returning-home-of-round-9 eviction removes an in-play person WITHOUT returning it to
+    # supply, so total meeples — and thus the reachable family size — drops permanently).
+    # Exactly the `fences_in_supply` pattern: its value varies during a Family game (it drops
+    # on every growth), so it is NOT a canonical skip-field — it IS serialized in Family and
+    # the C++ PlayerState mirrors it (decrement at the growth site). Card code reads it via the
+    # `workers_in_supply` concept directly (Telegram et al. adjust the supply pile).
+    workers_in_supply: int = 3
+
     # Card-only reconciliation flag: set True when a DECISION-FREE animal grant is
     # applied (round-start collection, an on-play gain) via helpers.grant_animals. It
     # leaves the animals in `animals` even if that exceeds the farm's housing capacity;
@@ -327,7 +340,7 @@ class PlayerState:
                       self.hand_occupations, self.hand_minors,
                       self.used_this_turn, self.used_this_round,
                       self.fired_once, self.card_state,
-                      self.fences_in_supply,
+                      self.fences_in_supply, self.workers_in_supply,
                       self.animals_need_accommodation))
             object.__setattr__(self, "_hash_cache", h)
         return h

@@ -129,6 +129,7 @@ GameState resolve_wish_for_children(const GameState& state,
   PlayerState p = s.players[static_cast<size_t>(ap)];
   p.people_total += 1;
   p.newborns += 1;
+  p.workers_in_supply -= 1;   // the meeple leaves the supply pile (mirrors _grow_family)
   return update_player(s, ap, p);
 }
 

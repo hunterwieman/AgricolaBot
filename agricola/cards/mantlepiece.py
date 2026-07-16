@@ -53,3 +53,7 @@ register_minor(
     on_play=_on_play,
 )
 register_scoring(CARD_ID, _score)
+# "You may no longer renovate" — the renovate-forbid registry (legality) drives
+# _legal_renovate_targets to [] for the owner (was a hardcoded check in _can_renovate).
+from agricola.legality import register_renovate_forbid  # noqa: E402
+register_renovate_forbid(CARD_ID)

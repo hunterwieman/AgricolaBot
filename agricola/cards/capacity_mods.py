@@ -230,3 +230,44 @@ def pasture_capacity_bonus(player_state) -> int:
         if _owns(player_state, card_id):
             total += bonus_fn(player_state)
     return total
+
+
+# ===========================================================================
+# PEOPLE / HOUSING capacity  (distinct from the ANIMAL capacity registries above)
+# ===========================================================================
+# How many PEOPLE a player's house can hold — the ceiling on the "Family Growth
+# with room" action (legal iff people_total < housing capacity). The base is the
+# ROOM count (each room houses 1 person, the Family-game rule); a capacity card
+# adds a bonus here. Read ONLY by the two family-growth-with-room sites
+# (legality._housing_capacity, consumed by _legal_basic_wish_for_children and by
+# resolution._resolve_wish_for_children's override-consume).
+#
+# A capacity DECREASE never evicts an existing person — people_total is untouched;
+# a lower ceiling only forbids FUTURE growth, so legality stays a pure function of
+# current state (memoryless). The one card that DOES evict a person (Lodger) drives
+# its own removal via a schedule hook, NOT this registry.
+#
+# fn(state, player_idx) -> int: the extra people the owned card houses (may read
+# the round from `state` — e.g. a time-limited slot). Summed across owned cards.
+# Empty registry / nothing owned -> 0 -> the whole Family game is byte-identical
+# (housing capacity == room count).
+HOUSING_CAPACITY_MODS: list[tuple[str, Callable]] = []
+
+
+def register_housing_capacity(card_id: str, bonus_fn: Callable) -> None:
+    """Register a card's PEOPLE-capacity bonus. `bonus_fn(state, player_idx) -> int`
+    returns the extra people the card houses for that player (Homekeeper: 1 when a
+    clay/stone room touches both a field and a pasture; Bunk Beds: 1 at >=4 rooms).
+    Card-module import time; ownership-gated in the fold below."""
+    HOUSING_CAPACITY_MODS.append((card_id, bonus_fn))
+
+
+def housing_capacity_bonus(state, player_idx: int) -> int:
+    """Total PEOPLE-capacity bonus from owned cards (summed). Empty registry /
+    nothing owned -> 0 (Family byte-identity)."""
+    p = state.players[player_idx]
+    total = 0
+    for card_id, bonus_fn in HOUSING_CAPACITY_MODS:
+        if _owns(p, card_id):
+            total += bonus_fn(state, player_idx)
+    return total

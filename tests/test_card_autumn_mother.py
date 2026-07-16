@@ -228,7 +228,17 @@ def test_not_offered_at_the_family_cap():
     state = _harvest_state(food=20)
     state = with_grid(state, 0, {(0, c): Cell(cell_type=CellType.ROOM)
                                  for c in range(5)})   # 7 rooms total
-    state = _edit_player(state, 0, people_total=5)
+    state = _edit_player(state, 0, people_total=5, workers_in_supply=0)
+    state, seen, _ = _walk_to_window(state)
+    assert not seen
+
+
+def test_not_offered_when_no_meeple_in_supply():
+    """workers_in_supply == 0 with a free room and < 5 people (a Lodger-eviction state):
+    the granted growth is blocked — the migrated family cap is supply-based, not
+    people_total < 5."""
+    state = _harvest_state(food=10)                    # 3 rooms, 2 people, a free room
+    state = _edit_player(state, 0, workers_in_supply=0)
     state, seen, _ = _walk_to_window(state)
     assert not seen
 

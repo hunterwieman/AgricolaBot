@@ -264,16 +264,18 @@ def _resolve_wish_for_children(state: GameState, space_id: str) -> GameState:
     # Growth-room-override CONSUME (user-approved extension, 2026-07-14): Basic
     # Wish is the room-gated wish space (Urgent Wish has no room gate, so an
     # override is never load-bearing there). If this growth is committing while
-    # the normal spare-room gate FAILS right now (rooms <= people, pre-newborn),
-    # a registered override made it possible — latch the first permitting card's
-    # id into the owner's `fired_once`, spending its "once this game" use. A
-    # growth taken with a spare room consumes nothing. Empty registry (the
-    # entire Family game) → this block is a no-op and the path byte-identical.
+    # the normal spare-CAPACITY gate FAILS right now (capacity <= people,
+    # pre-newborn — where capacity = rooms + any capacity card), a registered
+    # override made it possible — latch the first permitting card's id into the
+    # owner's `fired_once`, spending its "once this game" use. A growth taken with
+    # spare capacity (a free room or a capacity card's slot) consumes nothing.
+    # Empty registry (the entire Family game) → this block is a no-op and the
+    # path byte-identical.
     if space_id == "basic_wish_for_children":
-        from agricola.legality import GROWTH_ROOM_OVERRIDE_EXTENSIONS, _num_rooms
+        from agricola.legality import GROWTH_ROOM_OVERRIDE_EXTENSIONS, _housing_capacity
         if GROWTH_ROOM_OVERRIDE_EXTENSIONS:
             p = state.players[ap]
-            if p.people_total >= _num_rooms(p):   # the normal room gate fails
+            if p.people_total >= _housing_capacity(state, ap):   # the normal capacity gate fails
                 for card_id, fn in GROWTH_ROOM_OVERRIDE_EXTENSIONS:
                     if fn(state, ap):
                         p = state.players[ap]
@@ -296,6 +298,7 @@ def _grow_family(state: GameState, idx: int) -> GameState:
         p,
         people_total=p.people_total + 1,
         newborns=p.newborns + 1,
+        workers_in_supply=p.workers_in_supply - 1,   # the meeple leaves the supply pile
     )
     return _update_player(state, idx, new_player)
 

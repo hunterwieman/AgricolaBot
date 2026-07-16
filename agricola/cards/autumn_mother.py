@@ -23,8 +23,9 @@ optional rule (CARD_AUTHORING_GUIDE.md "A granted sub-action is optional").
 
 "IF YOU HAVE ROOM IN YOUR HOUSE" — the printed condition, checked in
 ``_eligible`` (the primitive does not self-check; CARD_DEFERRED_PLANS.md §A1
-names the predicate): ``people_total < 5`` (the family cap — a game rule the
-card does not waive) AND ``people_total < _num_rooms(p)`` (a free room). This is
+names the predicate): ``workers_in_supply > 0`` (the family cap — a meeple left
+in supply, a game rule the card does not waive) AND ``people_total < _num_rooms(p)``
+(a free room). This is
 the same gate as the Basic Wish for Children space (``legality._legal_basic_
 wish_for_children``); the card does NOT waive the room requirement (contrast
 Urgent Wish, which drops only the room clause, never the 5-cap).
@@ -84,7 +85,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
     enumerator's ``_owns`` gate; once-per-window is the frame's
     ``triggers_resolved`` (checked by the enumerator, not here)."""
     p = state.players[idx]
-    if not (p.people_total < 5 and p.people_total < _num_rooms(p)):
+    if not (p.workers_in_supply > 0 and p.people_total < _num_rooms(p)):
         return False
     return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
 

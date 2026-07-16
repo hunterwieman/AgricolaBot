@@ -940,3 +940,8 @@ from agricola.cards import field_caretaker  # noqa: F401
 #     major-VP total) ---
 from agricola.cards import grain_bag  # noqa: F401
 from agricola.cards import housemaster  # noqa: F401
+from agricola.cards import homekeeper  # noqa: F401
+from agricola.cards import bunk_beds  # noqa: F401
+from agricola.cards import reader  # noqa: F401
+from agricola.cards import lodger  # noqa: F401
+from agricola.cards import wooden_shed  # noqa: F401

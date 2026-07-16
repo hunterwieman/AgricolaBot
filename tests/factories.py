@@ -149,14 +149,28 @@ def with_current_player(state, player_idx: int):
     return dataclasses.replace(state, current_player=player_idx)
 
 
-def with_people(state, player_idx, *, total=None, home=None, newborns=None):
-    """Set people counts for a player. Omitted args keep current value."""
+def with_people(state, player_idx, *, total=None, home=None, newborns=None, supply=None):
+    """Set people counts for a player. Omitted args keep current value.
+
+    When `total` is given (and `supply` is not), `workers_in_supply` is kept
+    consistent with the 5-meeple, no-eviction invariant (`5 - total`) — so a test
+    that sets `total=5` reaches the growth cap (`workers_in_supply == 0`), matching
+    the pre-`workers_in_supply` behaviour where the cap read `people_total < 5`. Pass
+    `supply` explicitly to model a Lodger-style eviction (meeples removed from play)."""
     p = state.players[player_idx]
+    new_total = total if total is not None else p.people_total
+    if supply is not None:
+        new_supply = supply
+    elif total is not None:
+        new_supply = 5 - new_total
+    else:
+        new_supply = p.workers_in_supply
     return _replace_player(state, player_idx, dataclasses.replace(
         p,
-        people_total=total if total is not None else p.people_total,
+        people_total=new_total,
         people_home=home if home is not None else p.people_home,
         newborns=newborns if newborns is not None else p.newborns,
+        workers_in_supply=new_supply,
     ))
 
 

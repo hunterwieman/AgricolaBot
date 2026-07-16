@@ -72,7 +72,8 @@ def _sn_state(*, owned=True, extra_rooms=1, people_total=None, **res):
         state = with_grid(state, 0, {
             (0, c): Cell(cell_type=CellType.ROOM) for c in range(extra_rooms)})
     if people_total is not None:
-        state = _edit_player(state, 0, people_total=people_total)
+        state = _edit_player(state, 0, people_total=people_total,
+                             workers_in_supply=5 - people_total)   # keep the 5-meeple invariant
     state = with_resources(state, 0, **res)
     return state
 

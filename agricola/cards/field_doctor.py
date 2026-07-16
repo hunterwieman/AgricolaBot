@@ -20,7 +20,8 @@ Children" growth even when rooms <= people. Registered via
 `_legal_basic_wish_for_children` (the placement gate shared by both game modes —
 Basic Wish is the only room-gated wish space; Urgent Wish never requires a spare
 room, so the card is never load-bearing there and that predicate is untouched).
-The `people_total < 5` family cap is a game rule the card does NOT waive.
+The `workers_in_supply > 0` family cap (a meeple left in supply) is a game rule the
+card does NOT waive — it stays enforced by `_legal_basic_wish_for_children`.
 
 "Once this game" — the latch is CONSUMED by the engine, not by this module: when
 a wish-space growth actually commits while the normal room gate fails (rooms <=

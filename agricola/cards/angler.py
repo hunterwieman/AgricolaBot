@@ -66,8 +66,10 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if top.taken.food > MAX_FOOD:                          # pre-take count 0/1/2
         return False
     # Never push a dead host: the granted composite must have a legal child now.
+    # Angler grants the "Major or Minor Improvement" action (composite) → composite-only
+    # minors (Wooden Shed) count as legal children.
     return (_can_afford_any_major_improvement(state, state.players[idx])
-            or bool(playable_minors(state, idx)))
+            or bool(playable_minors(state, idx, composite_only_ok=True)))
 
 
 def _apply(state: GameState, idx: int) -> GameState:

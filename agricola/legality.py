@@ -211,6 +211,37 @@ def register_renovate_target_extension(fn: Callable) -> None:
     RENOVATE_TARGET_EXTENSIONS.append(fn)
 
 
+# Cards whose owner may NO LONGER renovate — Mantlepiece ("you may no longer
+# renovate") and Wooden Shed ("You may no longer renovate"). Consulted by
+# `_legal_renovate_targets`, which returns [] for an owner: every renovate path is
+# gated on the target list (the House/Farm Redevelopment space legality via
+# `_can_renovate`, and a card-granted `PendingRenovate`'s enumerator), so an empty
+# list forbids renovation everywhere. Ownership-checked directly (a permanent effect,
+# no extra state). Empty in the Family game.
+RENOVATE_FORBID_CARDS: set[str] = set()
+
+
+def register_renovate_forbid(card_id: str) -> None:
+    """Register a card that permanently forbids its owner from renovating."""
+    RENOVATE_FORBID_CARDS.add(card_id)
+
+
+# Minors playable ONLY via the "Major or Minor Improvement" action (the composite
+# host `PendingMajorMinorImprovement` — the Major Improvement space, House
+# Redevelopment, and card grants like Angler; NOT the bare "Minor Improvement"
+# action of Meeting Place / Basic Wish / bare "play a minor" grants). Wooden Shed:
+# "This card can only be played via a 'Major Improvement' action." `playable_minors`
+# drops these unless its caller passes `composite_only_ok=True` (set at every
+# composite-origin call site; the generic PendingPlayMinor enumerator derives it from
+# the frame's `initiated_by_id == "major_minor_improvement"`). Empty in the Family game.
+COMPOSITE_ONLY_MINORS: set[str] = set()
+
+
+def register_composite_only_minor(card_id: str) -> None:
+    """Register a minor playable only via the 'Major or Minor Improvement' action."""
+    COMPOSITE_ONLY_MINORS.add(card_id)
+
+
 # Cards that grant the per-field optional +1-crop sow boost — Tinsmith Master's
 # "Each time you sow in a field, you can place 1 additional crop of the
 # respective type in that field" (clarification: one extra crop on top of the
@@ -317,6 +348,24 @@ def _num_rooms(player: PlayerState) -> int:
         for c in range(5)
         if player.farmyard.grid[r][c].cell_type == CellType.ROOM
     )
+
+
+def _housing_capacity(state: GameState, player_idx: int) -> int:
+    """People the player's house can currently hold — the ceiling on the "Family
+    Growth with room" action (legal iff people_total < this). Base is the ROOM count
+    (1 person each, the Family rule); capacity cards add a bonus via the
+    housing-capacity registry (capacity_mods). A capacity DECREASE never evicts an
+    existing person — people_total is untouched; a lower ceiling only forbids future
+    growth (legality stays memoryless). Empty registry (the entire Family game) ->
+    == _num_rooms, byte-identical."""
+    base = _num_rooms(state.players[player_idx])
+    from agricola.cards.capacity_mods import (  # local import: load-order safe
+        HOUSING_CAPACITY_MODS,
+        housing_capacity_bonus,
+    )
+    if not HOUSING_CAPACITY_MODS:
+        return base
+    return base + housing_capacity_bonus(state, player_idx)
 
 
 def _owns_baker(state: GameState, p: PlayerState) -> bool:
@@ -761,7 +810,12 @@ def _renovate_ctx(p: PlayerState, to_material: HouseMaterial,
 def _legal_renovate_targets(state: GameState, p: PlayerState) -> list:
     """The house materials player `p` may renovate to right now. Normally the single
     next tier (WOOD→[CLAY], CLAY→[STONE], STONE→[]); card extensions add more
-    (Conservator: a wood house may also go straight to STONE)."""
+    (Conservator: a wood house may also go straight to STONE). A renovate-forbid card
+    (Mantlepiece, Wooden Shed) drives this to [] for its owner — the single choke that
+    forbids renovation on every path (the space legality via `_can_renovate`, and any
+    card-granted `PendingRenovate`)."""
+    if RENOVATE_FORBID_CARDS & (p.minor_improvements | p.occupations):
+        return []
     mat = p.house_material
     if mat == HouseMaterial.WOOD:
         targets = [HouseMaterial.CLAY]
@@ -783,11 +837,9 @@ def _can_renovate(state: GameState, p: PlayerState) -> bool:
     reachable). In the Family game this reduces to "can afford the next tier's printed
     cost", i.e. the old inline check.
 
-    Mantlepiece permanently forbids renovation for its owner (card ownership is checked
-    directly — no extra state needed since it is a permanent effect).
+    A renovate-forbid card (Mantlepiece, Wooden Shed) makes `_legal_renovate_targets`
+    return [], so this returns False (any() over []) with no special-case here.
     """
-    if "mantlepiece" in p.minor_improvements:
-        return False
     idx = 0 if p is state.players[0] else 1
     return any(
         can_pay(state, idx, _renovate_ctx(p, t))
@@ -889,14 +941,16 @@ def _legal_eastern_quarry(state: GameState) -> bool:
 def _legal_basic_wish_for_children(state: GameState) -> bool:
     """Basic Wish placement gate (shared by BOTH game modes — FAMILY_GAME_LEGALITY
     and CARD_GAME_LEGALITY reuse this predicate): the family cap (< 5 people,
-    never waived) AND a spare room — the room half may be waived by a registered
-    growth-room override (Field Doctor). Empty registry → byte-identical."""
+    never waived) AND spare housing capacity (people_total < _housing_capacity —
+    ROOM count plus any capacity card, Homekeeper/Bunk Beds/...). The capacity half
+    may be waived by a registered growth-room override (Field Doctor). Empty
+    capacity/override registries (the entire Family game) → byte-identical."""
     if not _is_available(state, "basic_wish_for_children"):
         return False
     p = state.players[state.current_player]
-    if p.people_total >= 5:
+    if p.workers_in_supply <= 0:      # no meeple left in supply to grow (the "family cap")
         return False
-    if p.people_total < _num_rooms(p):
+    if p.people_total < _housing_capacity(state, state.current_player):
         return True
     return any(
         fn(state, state.current_player)
@@ -908,7 +962,7 @@ def _legal_urgent_wish_for_children(state: GameState) -> bool:
     if not _is_available(state, "urgent_wish_for_children"):
         return False
     p = state.players[state.current_player]
-    return p.people_total < 5
+    return p.workers_in_supply > 0      # a meeple left in supply (Urgent Wish has no room gate)
 
 
 # ---------------------------------------------------------------------------
@@ -1426,7 +1480,8 @@ def _legal_major_improvement_cards(state: GameState) -> bool:
         return False
     idx = state.current_player
     p = state.players[idx]
-    return _can_afford_any_major_improvement(state, p) or bool(playable_minors(state, idx))
+    return _can_afford_any_major_improvement(state, p) or bool(
+        playable_minors(state, idx, composite_only_ok=True))   # major space = composite action
 
 
 def _can_afford_cost(p: PlayerState, cost) -> bool:
@@ -1472,7 +1527,8 @@ def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
     return a.sheep >= animals.sheep and a.boar >= animals.boar and a.cattle >= animals.cattle
 
 
-def playable_minors(state: GameState, idx: int) -> list[str]:
+def playable_minors(state: GameState, idx: int, *,
+                    composite_only_ok: bool = False) -> list[str]:
     """Minor card ids in player `idx`'s hand that can currently be played:
     registered spec + prerequisite met + cost affordable. Filtered to registered
     MinorSpecs so an as-yet-unimplemented hand card is simply not offered.
@@ -1482,11 +1538,20 @@ def playable_minors(state: GameState, idx: int) -> list[str]:
     previously-unaffordable minor playable; the animal portion is checked directly.
 
     For a "/"-alternative-cost minor (Chophouse) the card is playable iff ANY one
-    alternative is fully affordable (resources via `can_pay` AND its own animals)."""
+    alternative is fully affordable (resources via `can_pay` AND its own animals).
+
+    `composite_only_ok`: pass True at a call site whose play-minor frame is (or will be)
+    the "Major or Minor Improvement" action (`initiated_by_id == "major_minor_improvement"`
+    — the Major Improvement space, House Redevelopment, Angler-style grants). When False
+    (the default, and every bare "Minor Improvement" route: Meeting Place, Basic Wish,
+    bare grants), a `COMPOSITE_ONLY_MINORS` card (Wooden Shed) is dropped. Empty registry
+    (the Family game) → no effect."""
     from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
     p = state.players[idx]
     result = []
     for cid in sorted(p.hand_minors & MINORS.keys()):
+        if cid in COMPOSITE_ONLY_MINORS and not composite_only_ok:
+            continue
         spec = MINORS[cid]
         if not prereq_met(spec, state, idx):
             continue
@@ -2035,7 +2100,8 @@ def _subactionspace_choice(state, pending) -> ChooseSubAction | None:
         return (ChooseSubAction(name="improvement")
                 if _can_afford_any_major_improvement(state, p)
                 or (state.mode is GameMode.CARDS
-                    and bool(playable_minors(state, pending.player_idx)))
+                    and bool(playable_minors(state, pending.player_idx,
+                                             composite_only_ok=True)))   # House Redev = composite
                 else None)
     if sid == "lessons":
         return ChooseSubAction(name="play_occupation")
@@ -2219,7 +2285,7 @@ def _enumerate_pending_major_minor_improvement(
     if neither and _can_afford_any_major_improvement(state, p):
         actions.append(ChooseSubAction(name="build_major"))
     if (neither and state.mode is GameMode.CARDS
-            and playable_minors(state, pending.player_idx)):
+            and playable_minors(state, pending.player_idx, composite_only_ok=True)):
         actions.append(ChooseSubAction(name="play_minor"))
     return actions
 
@@ -2269,7 +2335,8 @@ def _enumerate_pending_house_redevelopment(
     # offers both branches. Family is byte-identical (mode-gated; playable_minors
     # is empty there anyway).
     can_improve = _can_afford_any_major_improvement(state, p) or (
-        state.mode is GameMode.CARDS and bool(playable_minors(state, pending.player_idx))
+        state.mode is GameMode.CARDS
+        and bool(playable_minors(state, pending.player_idx, composite_only_ok=True))
     )
     if pending.renovate_chosen and not pending.improvement_chosen and can_improve:
         actions.append(ChooseSubAction(name="improvement"))
@@ -2872,7 +2939,10 @@ def _enumerate_pending_play_minor(
     # per-alternative inside `effective_payments` via the ctx's reserved_animals.
     from agricola.cards.specs import MINORS, PLAY_MINOR_VARIANTS  # load-order safe
     p = state.players[top.player_idx]
-    for cid in playable_minors(state, top.player_idx):
+    # Composite-only minors (Wooden Shed) are enumerable only when THIS play-minor frame
+    # is the "Major or Minor Improvement" action's child (Major space / House Redev / Angler).
+    composite = top.initiated_by_id == "major_minor_improvement"
+    for cid in playable_minors(state, top.player_idx, composite_only_ok=composite):
         spec = MINORS[cid]
         alternatives = _minor_cost_alternatives(spec, state, top.player_idx)
         variants_fn = PLAY_MINOR_VARIANTS.get(cid)

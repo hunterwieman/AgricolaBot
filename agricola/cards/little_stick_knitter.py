@@ -25,9 +25,9 @@ market's own accommodation. Once per use is the host frame's
 "FAMILY GROWTH WITH ROOM ONLY" — the Basic Wish for Children gate, checked in
 ``_eligible`` per the engine convention (the primitive does not self-check; the
 room gate is the CALLER's eligibility check — ``PendingFamilyGrowth`` docstring /
-CARD_DEFERRED_PLANS.md §A1): ``people_total < 5`` (the family cap — a game rule
-the card does not waive) AND ``people_total < _num_rooms(p)`` (a free room for
-the newborn).
+CARD_DEFERRED_PLANS.md §A1): ``workers_in_supply > 0`` (the family cap — a meeple
+left in supply, a game rule the card does not waive) AND
+``people_total < _num_rooms(p)`` (a free room for the newborn).
 
 THE GROWTH — the card-granted family-growth primitive (Group A1, built
 2026-07-03 with the user's ruling recorded in CARD_DEFERRED_PLANS.md §A1 / the
@@ -70,7 +70,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
     if state.round_number < 5:
         return False
     p = state.players[idx]
-    return p.people_total < 5 and p.people_total < _num_rooms(p)
+    return p.workers_in_supply > 0 and p.people_total < _num_rooms(p)
 
 
 def _apply(state: GameState, idx: int) -> GameState:

@@ -33,9 +33,9 @@ frame, declinable via ``Proceed``.
 
 "IF YOU HAVE ROOM FOR THE NEWBORN" — the printed condition, checked in
 ``_eligible`` (the primitive does not self-check; CARD_DEFERRED_PLANS.md §A1
-names the predicate): ``people_total < 5`` (the family cap — a game rule the
-card does not waive) AND ``people_total < _num_rooms(p)`` (a free room for the
-newborn) — the Basic Wish for Children gate.
+names the predicate): ``workers_in_supply > 0`` (the family cap — a meeple left
+in supply, a game rule the card does not waive) AND ``people_total < _num_rooms(p)``
+(a free room for the newborn) — the Basic Wish for Children gate.
 
 "THE NEWBORN MUST BE FED" (clarification) — the growth happens at window #2,
 before FEED, so the newborn is counted in THIS harvest's feeding bill as a
@@ -112,7 +112,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
     play_round = p.card_state.get(CARD_ID)
     if play_round is None or state.round_number != _next_harvest_round(play_round):
         return False
-    return p.people_total < 5 and p.people_total < _num_rooms(p)
+    return p.workers_in_supply > 0 and p.people_total < _num_rooms(p)
 
 
 def _apply(state: GameState, idx: int) -> GameState:

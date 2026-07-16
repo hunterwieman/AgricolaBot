@@ -16,8 +16,9 @@ window per round, a fresh frame each round).
 
 THE CONDITION — "if you have more rooms than people": ``people_total <
 _num_rooms(p)`` — a free room for the newborn. This IS the standard
-family-growth room gate; combined with the family cap ``people_total < 5`` (a
-game rule the card does not waive) it is exactly the Autumn Mother eligibility
+family-growth room gate; combined with the family cap ``workers_in_supply > 0``
+(a meeple left in supply, a game rule the card does not waive) it is exactly the
+Autumn Mother eligibility
 gate (and the Basic Wish for Children gate). The card does not waive the room
 requirement.
 
@@ -76,7 +77,7 @@ def _eligible(state: GameState, idx: int, _resolved: frozenset) -> bool:
     machinery's gate; once-per-round is the frame's ``triggers_resolved`` (the
     printed clarification)."""
     p = state.players[idx]
-    if not (p.people_total < 5 and p.people_total < _num_rooms(p)):
+    if not (p.workers_in_supply > 0 and p.people_total < _num_rooms(p)):
         return False
     return _liquidatable_to(state, idx, p, Resources(food=_FOOD_COST))
 
