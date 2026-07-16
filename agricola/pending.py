@@ -1286,6 +1286,12 @@ class PendingActionSpace:
     phase: str = "before"                      # "before" | "after"
     triggers_resolved: frozenset = frozenset()  # frozenset[str], card_ids fired this host-visit
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
+    # Goods the acting player obtained FROM this space's own effect — the Resources
+    # delta measured across the atomic take at Proceed (a swept accumulation pile, or
+    # a permanent's fixed grant like Day Laborer's 2 food; food lives in Resources).
+    # Read by `after_action_space` autos that key on "what you took from the space"
+    # (Refactor A). Card-only frame → Family-inert; canonical-default-skipped when empty.
+    taken: Resources = Resources()
 
     @property
     def space_id(self) -> str:

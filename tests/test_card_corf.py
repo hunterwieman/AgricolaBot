@@ -5,8 +5,9 @@ accumulation spaces).
 Mirrors test_card_hod.py (any-player opponent hook) + test_cards_action_space_hook.py
 (the Stone Tongs atomic-quarry case) — the two closest same-shape precedents. The
 quarries are ATOMIC, so the host frame is only pushed because Corf registers an
-action-space hook with any_player=True; the >=3 threshold is read off the stone
-still on the space at the before-phase (the full amount about to be taken).
+action-space hook with any_player=True; the >=3 threshold is read off the stone the
+acting player took (the host frame's `taken`, stamped at Proceed), so Corf's grant
+fires in the after-window — after the take, not at the host-frame push.
 """
 import agricola.cards.corf  # noqa: F401  (registers the card before cards/__init__)
 
@@ -69,9 +70,9 @@ def test_corf_registered():
     assert spec.cost.resources == Resources(reed=1)
     assert spec.vps == 0
     assert not spec.passing_left
-    # The any-player before-hook is registered, and it hooks BOTH quarries.
+    # The any-player after-hook is registered, and it hooks BOTH quarries.
     assert any(e.card_id == "corf" and e.any_player
-               for e in AUTO_EFFECTS.get("before_action_space", ()))
+               for e in AUTO_EFFECTS.get("after_action_space", ()))
     assert "corf" in ANY_PLAYER_HOOK_CARDS["western_quarry"]
     assert "corf" in ANY_PLAYER_HOOK_CARDS["eastern_quarry"]
 
@@ -93,14 +94,14 @@ def test_corf_fires_for_self_when_owner_takes_3_stone():
     s = _quarry_state(owner_of_corf=0, stone=3)
     s0, s1 = s.players[0].resources.stone, s.players[1].resources.stone
 
-    # The before-auto fires at PlaceWorker (the host-frame push).
+    # After-auto: nothing fires at the host-frame push (the take hasn't happened yet).
     s = step(s, PlaceWorker(space="western_quarry"))
-    assert s.players[0].resources.stone == s0 + 1   # owner gained 1 from Corf
-    assert s.players[1].resources.stone == s1       # opponent gains nothing
+    assert s.players[0].resources.stone == s0       # not yet — Corf fires after the take
+    assert s.players[1].resources.stone == s1
 
-    # Then the quarry's own 3 stone are taken by the active player at Proceed.
+    # At Proceed the active player takes the quarry's 3 stone, THEN Corf grants +1.
     s = _finish_quarry_turn(s)
-    assert s.players[0].resources.stone == s0 + 1 + 3
+    assert s.players[0].resources.stone == s0 + 3 + 1
     assert s.players[1].resources.stone == s1
 
 
@@ -109,13 +110,15 @@ def test_corf_fires_on_opponent_quarry_use():
     s = _quarry_state(owner_of_corf=1, space_id="eastern_quarry", stone=4)
     s0, s1 = s.players[0].resources.stone, s.players[1].resources.stone
 
+    # After-auto: nothing fires at the host-frame push.
     s = step(s, PlaceWorker(space="eastern_quarry"))
-    assert s.players[1].resources.stone == s1 + 1   # owner gained 1 from Corf
+    assert s.players[1].resources.stone == s1       # owner not paid until the take
     assert s.players[0].resources.stone == s0       # active player gains nothing yet
 
+    # At Proceed P0 takes the 4 stone, THEN Corf pays its owner (P1) +1.
     s = _finish_quarry_turn(s)
     assert s.players[0].resources.stone == s0 + 4   # active player took the 4 stone
-    assert s.players[1].resources.stone == s1 + 1   # owner still only +1 from Corf
+    assert s.players[1].resources.stone == s1 + 1   # owner +1 from Corf
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +129,8 @@ def test_corf_fires_at_exactly_three():
     s = _quarry_state(owner_of_corf=0, stone=3)
     s0 = s.players[0].resources.stone
     s = step(s, PlaceWorker(space="western_quarry"))
-    assert s.players[0].resources.stone == s0 + 1   # threshold met (>= 3)
+    s = _finish_quarry_turn(s)                          # take 3 stone, then Corf fires
+    assert s.players[0].resources.stone == s0 + 3 + 1   # threshold met (>= 3): +1 from Corf
 
 
 def test_corf_does_not_fire_below_three():
@@ -134,9 +138,9 @@ def test_corf_does_not_fire_below_three():
     s = _quarry_state(owner_of_corf=0, stone=2)
     s0 = s.players[0].resources.stone
     s = step(s, PlaceWorker(space="western_quarry"))
-    # The host frame is still pushed (Corf hooks the space), but the auto didn't fire.
-    assert s.players[0].resources.stone == s0       # no +1 from Corf
-    s = _finish_quarry_turn(s)
+    # Host frame pushed (Corf hooks the space); the after-auto has not run yet.
+    assert s.players[0].resources.stone == s0       # nothing before the take
+    s = _finish_quarry_turn(s)                       # take 2 stone; 2 < 3 → Corf inert
     assert s.players[0].resources.stone == s0 + 2   # only the quarry's 2 stone
 
 

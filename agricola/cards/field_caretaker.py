@@ -20,11 +20,11 @@ Two independent pieces, each an existing mechanism:
   pay 0 clay -> 1 grain, 1 clay -> 2 grain, 3 clay -> 3 grain. Each tier's clay
   is the variant SURCHARGE (folded into the play payment and debited by the
   executor, liquidation-aware); the variant-aware `on_play` grants the matching
-  grain. "you CAN exchange" is optional, so a zero-surcharge "decline" (grants
-  nothing) is always offered alongside the tiers — the 0-clay tier gives a free
-  grain and so dominates declining, but the decline honors the printed optionality
-  (a granted exchange is never forced). The enumerator drops a tier the player
-  cannot afford, so no dead-end is offered.
+  grain. All three exchange tiers are offered whenever affordable (the
+  play-occupation enumerator drops a tier the player cannot pay for) — there is no
+  separate grants-nothing decline and no privileged default: the player picks one
+  of the offered tiers. The 0-clay -> 1-grain tier is always affordable, so the
+  card is always playable; a distinct decline would just be strictly dominated.
 
 "immediately" is the ordinary on-play instant (the card-play moment), the same
 reading Roof Ballaster / Petrified Wood use. Played via Lessons; card-only (the
@@ -47,13 +47,12 @@ _GRAIN_OF = {name: grain for name, _clay, grain in _TIERS}
 
 
 def _variants(state: GameState, idx: int) -> list[tuple[str, Resources]]:
-    """A zero-surcharge decline (always) plus one route per exchange tier, its
-    clay as the surcharge (affordability filtered by the play-occupation
-    enumerator)."""
-    out = [("decline", Resources())]
-    for name, clay, _grain in _TIERS:
-        out.append((name, Resources(clay=clay)))
-    return out
+    """One route per exchange tier (0/1/3 clay -> 1/2/3 grain), its clay as the
+    surcharge; the play-occupation enumerator offers each that is affordable. All
+    three are ordinary options — no separate decline, no privileged default. The
+    0-clay tier is always affordable (so the card is always playable); a
+    grants-nothing decline would just be strictly dominated."""
+    return [(name, Resources(clay=clay)) for name, clay, _grain in _TIERS]
 
 
 def _on_play(state: GameState, idx: int, variant: str | None = None) -> GameState:

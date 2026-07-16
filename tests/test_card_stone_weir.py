@@ -4,9 +4,10 @@ import agricola.cards.stone_weir  # noqa: F401
 if there are 0/1/2/3 food on the space, you get an additional 4/3/2/1 food from
 the general supply." Prereq: 2 occupations. 1 VP.
 
-Fires as a before-window automatic on the atomic Fishing space (hosted via
-register_action_space_hook). Bonus = max(0, 4 - food on Fishing), read at the
-host push before Fishing is swept; the player also collects the Fishing food.
+Fires as an after-window automatic (Refactor A) on the atomic Fishing space (hosted
+via register_action_space_hook). Bonus = max(0, 4 - food that was on Fishing); the
+food swept into the player is the host frame's `taken.food`, so the inverse bonus
+reads that after the take. The player also collects the Fishing food itself.
 """
 import pytest
 
@@ -74,7 +75,7 @@ def test_registered():
     assert CARD in MINORS
     assert MINORS[CARD].cost == Cost(resources=Resources(stone=1))
     assert MINORS[CARD].vps == 1
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
     assert CARD in auto_ids
     assert CARD in OWN_ACTION_HOOK_CARDS["fishing"]        # subset check
 

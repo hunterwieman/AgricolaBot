@@ -26,9 +26,11 @@ Major Improvement action space's own after-window:
   so the "2 clay OR 2 stone" is fixed by which renovation is performed. That is a
   choice-free REDUCTION, scoped to THIS card's grant via `CostCtx.granted_by` (the
   PendingRenovate enumerator threads the frame's `initiated_by_id` into the cost
-  context; None for every space-initiated renovate). Reducing {clay:2, stone:2}
-  floored at 0 subtracts 2 only from the material actually in the cost. A House
-  Redevelopment / Farm Redevelopment renovate is never discounted.
+  context; None for every space-initiated renovate). The reduction subtracts 2 of
+  the RENOVATION-TARGET material — read off `ctx.to_material` (clay for a
+  wood->clay renovation, stone for a clay->stone one) — so it stays correct under
+  any future renovation cost formula, rather than blindly subtracting from both. A
+  House Redevelopment / Farm Redevelopment renovate is never discounted.
 
 ELIGIBILITY mirrors legality._can_renovate (a legal target exists; house not
 stone; Mantlepiece's permanent ban respected) but resolves affordability through
@@ -43,6 +45,7 @@ from __future__ import annotations
 from agricola.cards.cost_mods import register_reduction
 from agricola.cards.specs import _noop_on_play, register_occupation
 from agricola.cards.triggers import register
+from agricola.constants import HouseMaterial
 from agricola.legality import _legal_renovate_targets, _renovate_ctx, can_pay
 from agricola.pending import PendingRenovate, push
 from agricola.resources import Resources
@@ -80,13 +83,19 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 def _reduce(state, idx, ctx, cost: Resources) -> Resources:
-    """"pay 2 clay or 2 stone less": subtract 2 from BOTH clay and stone (the
-    fold floors at 0), so only the material actually in the renovate cost is
-    reduced. Scoped to this card's own grant via ctx.granted_by; every other
-    renovate passes through unchanged."""
+    """"pay 2 clay or 2 stone less": reduce 2 of the RENOVATION-TARGET material —
+    2 clay for a wood->clay renovation, 2 stone for a clay->stone one — read off
+    `ctx.to_material`, never a blind subtract from both (which would over-discount
+    a hypothetical renovation whose cost formula spans both materials). Scoped to
+    this card's own grant via ctx.granted_by; every other renovate passes through
+    unchanged."""
     if ctx.granted_by != _PROVENANCE:
         return cost
-    return cost - Resources(clay=2, stone=2)
+    if ctx.to_material is HouseMaterial.CLAY:
+        return cost - Resources(clay=2)
+    if ctx.to_material is HouseMaterial.STONE:
+        return cost - Resources(stone=2)
+    return cost
 
 
 register_occupation(CARD_ID, _noop_on_play)   # no on-play effect

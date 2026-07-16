@@ -32,14 +32,12 @@ from __future__ import annotations
 from agricola.cards.harvest_windows import register_harvest_window_hook
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_auto
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState, get_space
 
 CARD_ID = "wood_harvester"
-
-# 2-player: Forest is the only wood accumulation space.
-WOOD_SPACES = frozenset({"forest"})
 
 
 def _wood_income(state: GameState) -> Resources:
@@ -47,7 +45,7 @@ def _wood_income(state: GameState) -> Resources:
     each space holding exactly 2 wood and +1 food for each holding at least 3."""
     wood = 0
     food = 0
-    for sid in WOOD_SPACES:
+    for sid in WOOD_ACCUMULATION_SPACES:
         w = get_space(state.board, sid).accumulated.wood
         if w == 2:
             wood += 1

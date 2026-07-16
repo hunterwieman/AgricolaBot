@@ -6,9 +6,11 @@ Clarification: "This card's effect triggers before deciding to leave wood on the
 space (e.g. with Basket A056)."
 
 Category 3 (action-space hook, automatic income). A mandatory, choice-free bonus → an
-automatic effect (`register_auto`) on the BEFORE window — which the clarification confirms
-("before deciding to leave wood on the action space"): the pre-take wood count on the
-space is the amount you obtain. Banded by that amount: 2→+1 wood +1 food, 3→+1 wood
+automatic effect (`register_auto`) on the AFTER window: the wood the acting player actually
+obtained from the space (the host frame's `taken` — the Resources delta stamped across the
+take at Proceed) is the amount you obtain. Firing in the after-window still lands ahead of
+Basket-style goods-return after-triggers, honoring the clarification ("before deciding to
+leave wood on the action space"). Banded by that amount: 2→+1 wood +1 food, 3→+1 wood
 (+0 food), 4→+1 wood +1 food; nothing outside {2,3,4}.
 
 The only wood accumulation space in the 2-player game is Forest (Copse / Grove are
@@ -24,7 +26,7 @@ from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Resources
-from agricola.state import GameState, get_space
+from agricola.state import GameState
 
 CARD_ID = "forest_clearer"
 SPACES = frozenset({"forest"})
@@ -38,9 +40,9 @@ _BONUS = {
 
 
 def _wood_obtained(state: GameState) -> int:
-    """The wood about to be obtained from the hosted wood space (the pre-take amount)."""
-    space_id = getattr(state.pending_stack[-1], "space_id", None)
-    return get_space(state.board, space_id).accumulated.wood
+    """The wood the acting player obtained from the hosted wood space — the host
+    frame's `taken` (the Resources delta stamped across the take at Proceed)."""
+    return state.pending_stack[-1].taken.wood
 
 
 def _eligible(state: GameState, idx: int) -> bool:
@@ -57,5 +59,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register_auto("before_action_space", CARD_ID, _eligible, _apply)
+register_auto("after_action_space", CARD_ID, _eligible, _apply)
 register_action_space_hook(CARD_ID, SPACES)

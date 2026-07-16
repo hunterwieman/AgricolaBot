@@ -20,9 +20,11 @@ may buy (like Forest Trader's per-resource purchase variants).
   the player can afford one (`food >= people_total`), and nothing otherwise.
 
 - **"1 good of your choice from the general supply."** A *good* is any resource
-  token — including **food** (Emissary D124 clarifies "Food is also considered a
-  good.") — or an **animal** (sheep / wild boar / cattle). One variant per good.
-  Resource goods are a direct debit-and-grant; an animal good routes through
+  token (food included by definition — Emissary D124) or an **animal** (sheep /
+  wild boar / cattle). One variant per good, **except food**: the price is
+  `people_total` food (>= 1), so buying 1 food for >= 1 food is strictly
+  dominated and never offered (user ruling 2026-07-15). One variant per remaining
+  good. Resource goods are a direct debit-and-grant; an animal good routes through
   `helpers.grant_animals` so the accommodation barrier surfaces the keep-which
   choice on overflow (never a raw `p.animals + …`). Once per round comes from the
   window frame's `triggers_resolved` ("buy 1 good").
@@ -42,8 +44,10 @@ from agricola.state import GameState
 
 CARD_ID = "acquirer"
 
-# A "good" = any resource token (food included — Emissary D124) or any animal.
-_RESOURCE_GOODS = ("wood", "clay", "reed", "stone", "food", "grain", "veg")
+# A "good" = any resource token or any animal. Food is a good (Emissary D124) but
+# is NOT offered: the price is people_total food, so buying 1 food for >= 1 food is
+# strictly dominated (user ruling 2026-07-15).
+_RESOURCE_GOODS = ("wood", "clay", "reed", "stone", "grain", "veg")
 _ANIMAL_GOODS = ("sheep", "boar", "cattle")
 _GOODS = _RESOURCE_GOODS + _ANIMAL_GOODS
 

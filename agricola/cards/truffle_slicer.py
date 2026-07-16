@@ -40,15 +40,13 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.scoring import register_scoring
 from agricola.state import GameState
 
 CARD_ID = "truffle_slicer"
-
-# Wood accumulation spaces this card fires on. 2-player: Forest only.
-WOOD_SPACES = frozenset({"forest"})
 
 
 def _prereq(state: GameState, idx: int) -> bool:
@@ -62,7 +60,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     already fired this use. Never a dead-end."""
     if CARD_ID in triggers_resolved:                        # once per forest use
         return False
-    if state.pending_stack[-1].space_id not in WOOD_SPACES:
+    if state.pending_stack[-1].space_id not in WOOD_ACCUMULATION_SPACES:
         return False
     p = state.players[idx]
     return p.animals.boar >= 1 and p.resources.food >= 1
@@ -88,5 +86,5 @@ def _score(state: GameState, idx: int) -> int:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq, vps=0)
 register("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, WOOD_SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)
 register_scoring(CARD_ID, _score)

@@ -9,7 +9,7 @@ User rulings (2026-07-14):
    using a space (e.g. Fish Farmer's "+2 food on the Reed Bank/Clay Pit/
    Forest", Brook) does NOT trigger this card — "the card provides the 2
    extra food, not the space."
-2. Implemented as a fixed space list: at 2 players, `day_laborer` (2 food,
+2. Hooked as a fixed space list: at 2 players, `day_laborer` (2 food,
    permanent) and `fishing` (the food accumulation space). A catalog sweep
    (2026-07-14) confirmed Sugar Baker (D101, unimplemented) is the only card
    that places food on a non-food action space (Grain Utilization) — if
@@ -18,43 +18,46 @@ User rulings (2026-07-14):
    physically placed on Fishing by cards (Fishing Net) needs no special
    handling — Fishing is on the list and its take sweeps everything.
 
-Mandatory, choice-free automatic effect on the BEFORE window ("each time you
-get food from …" bundles with the get; a flat reward fires before, per the
-standing ruling): +1 wood when using Day Laborer or Fishing. Both spaces are
-atomic, so they must be explicitly hosted via `register_action_space_hook`.
-Eligibility gates on food actually being gotten: Day Laborer always yields
-2 food; Fishing only pays when it holds at least 1 food (it refills every
-preparation phase, so this is nearly always true). The reward is a flat
-1 wood per use, never per unit of food. Played via Lessons; its on-play is a
-no-op.
+Mandatory, choice-free automatic effect on the AFTER window (Refactor A):
+"each time you get food from an action space" keys on what the space actually
+yielded, so it reads the food swept into the player across the take. +1 wood
+when using Day Laborer or Fishing. Both spaces are atomic, so they must be
+explicitly hosted via `register_action_space_hook`; the food they yield is
+stamped on the host frame's `taken` at the Proceed take. Eligibility gates on
+food actually gotten — `taken.food >= 1`: Day Laborer always yields 2 food
+(`taken.food == 2`); Fishing only pays when it held food, so an empty Fishing
+sweeps 0 and pays nothing. Reading `taken.food` subsumes the old day_laborer/
+fishing space-id switch uniformly (no special-casing), and — because card-
+provided food is granted OUTSIDE the take and never enters `taken` — it also
+enforces ruling 1 (only food the SPACE ITSELF yields counts) for free. The
+reward is a flat 1 wood per use, never per unit of food. Played via Lessons;
+its on-play is a no-op.
+
+The separate Sugar Baker interaction below stays a BEFORE-window auto: that food
+is a deposit ON the (non-atomic) Grain Utilization space, collected during the
+before-window by Sugar Baker's own auto — it never flows through an atomic take,
+so there is no `taken` to read and the CardStore-deposit read is retained.
 """
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import FOOD_PROVIDING_ACTION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Resources
-from agricola.state import GameState, get_space
+from agricola.state import GameState
 
 CARD_ID = "kindling_gatherer"
 
-# The action spaces that themselves yield food in the 2-player game (ruling 2:
-# a fixed list — day_laborer is a permanent 2-food space, fishing is the food
-# accumulation space).
-FOOD_SPACES = frozenset({"day_laborer", "fishing"})
-
 
 def _eligible(state: GameState, idx: int) -> bool:
-    # Consulted at a before_action_space host frame; read the space via the
-    # host frame's `space_id`. Day Laborer always yields 2 food. Fishing only
-    # yields food when it holds some — gate on that, since the card pays only
-    # when food is actually gotten.
-    space_id = state.pending_stack[-1].space_id
-    if space_id == "day_laborer":
-        return True
-    if space_id == "fishing":
-        return get_space(state.board, "fishing").accumulated_amount >= 1
-    return False
+    # Consulted at an after_action_space host frame: the space's own food yield is
+    # the `taken.food` delta stamped across the take (Day Laborer's fixed 2, or
+    # Fishing's swept pile). Non-atomic hosts (e.g. Grain Utilization, reached via
+    # the Sugar Baker before-auto below) carry no `taken` → ineligible here. Gates
+    # on food actually gotten, so an empty Fishing (taken.food == 0) pays nothing.
+    taken = getattr(state.pending_stack[-1], "taken", None)
+    return taken is not None and taken.food >= 1
 
 
 def _apply(state: GameState, idx: int) -> GameState:
@@ -80,9 +83,10 @@ def _sugar_baker_deposit_eligible(state: GameState, idx: int) -> bool:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register_auto("before_action_space", CARD_ID, _eligible, _apply)
-# order=-1: must READ the deposit before Sugar Baker's collection auto (default
-# order 0) grants it to the visitor and clears the debt in the same window.
+register_auto("after_action_space", CARD_ID, _eligible, _apply)
+# The Sugar Baker deposit is collected in the BEFORE window (see the docstring): a
+# separate before-auto, order=-1 so it READS the deposit before Sugar Baker's own
+# collection auto (default order 0) grants it to the visitor and clears the debt.
 register_auto("before_action_space", CARD_ID, _sugar_baker_deposit_eligible, _apply,
               order=-1)
-register_action_space_hook(CARD_ID, FOOD_SPACES)
+register_action_space_hook(CARD_ID, FOOD_PROVIDING_ACTION_SPACES)

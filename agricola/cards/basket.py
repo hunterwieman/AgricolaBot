@@ -12,12 +12,12 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState, get_space, with_space
 
 CARD_ID = "basket"
-WOOD_SPACES = frozenset({"forest"})
 
 _WOOD_IN = 2
 _FOOD_OUT = 3
@@ -27,7 +27,7 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:
         return False
     top = state.pending_stack[-1]
-    return top.space_id in WOOD_SPACES and state.players[idx].resources.wood >= _WOOD_IN
+    return top.space_id in WOOD_ACCUMULATION_SPACES and state.players[idx].resources.wood >= _WOOD_IN
 
 
 def _apply(state: GameState, idx: int) -> GameState:
@@ -43,4 +43,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(reed=1)))
 register("after_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, WOOD_SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)

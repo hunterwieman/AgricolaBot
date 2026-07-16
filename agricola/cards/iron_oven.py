@@ -96,7 +96,7 @@ register_minor(
 )
 
 # Effect 1 — the (cap 1, rate 6) baking source for every Bake Bread action.
-register_baking_spec_extension(_baking_spec)
+register_baking_spec_extension(_baking_spec, CARD_ID)
 # Effect 2 — the action's reachability for a major-oven-less owner.
 register_bake_bread_extension(_can_bake_bread_extension)
 # Effect 3 (the free bake on build) is the wrapper `_on_play` pushes — no

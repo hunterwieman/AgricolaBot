@@ -24,21 +24,18 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "stone_axe"
 
-# 2-player wood accumulation space set: Forest only (Copse / Grove are 3–4-player
-# board extensions, never on the 2-player board).
-_WOOD_SPACES = frozenset({"forest"})
-
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     top = state.pending_stack[-1]
     return (CARD_ID not in triggers_resolved
-            and getattr(top, "space_id", None) in _WOOD_SPACES
+            and getattr(top, "space_id", None) in WOOD_ACCUMULATION_SPACES
             and state.players[idx].resources.stone >= 1)
 
 
@@ -53,4 +50,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1, clay=1)),
                min_occupations=2, vps=1)
 register("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, _WOOD_SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)

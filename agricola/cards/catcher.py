@@ -30,15 +30,15 @@ by 1 for every placement after a same-round birth; subtracting `newborns` cancel
 slots that grew `people_total` without consuming a `people_home` worker. (newborns is cleared
 at each round start, so it only ever reflects THIS round's births.)
 
-The five building resource accumulation spaces (BUILDING_ACCUMULATION_RATES) hold only
-building resources on `accumulated` (a Resources), never `accumulated_amount` (0 here),
+The five building resource accumulation spaces (BUILDING_RESOURCE_ACCUMULATION_SPACES)
+hold only building resources on `accumulated` (a Resources), never `accumulated_amount` (0 here),
 so the count is `acc.wood + acc.clay + acc.reed + acc.stone`. These spaces are ATOMIC,
 so the card must host them (register_action_space_hook) for a before-phase frame to
 exist. See CARD_IMPLEMENTATION_PLAN.md Category 3.
 """
 from __future__ import annotations
 
-from agricola.constants import BUILDING_ACCUMULATION_RATES
+from agricola.constants import BUILDING_RESOURCE_ACCUMULATION_SPACES
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
 from agricola.replace import fast_replace
@@ -47,10 +47,6 @@ from agricola.state import GameState, get_space
 
 CARD_ID = "catcher"
 
-# The five building resource accumulation spaces: forest, clay_pit, reed_bank,
-# western_quarry, eastern_quarry. Each accumulates ONLY building resources.
-BUILDING_SPACES = frozenset(BUILDING_ACCUMULATION_RATES)
-
 # Nth person placed this round -> the exact building-resource count that fires.
 # 1st->5, 2nd->4, 3rd->3. The 4th/5th person never trigger (no entry).
 REQUIRED_BY_PERSON = {1: 5, 2: 4, 3: 3}
@@ -58,7 +54,7 @@ REQUIRED_BY_PERSON = {1: 5, 2: 4, 3: 3}
 
 def _eligible(state: GameState, idx: int) -> bool:
     sid = state.pending_stack[-1].space_id
-    if sid not in BUILDING_SPACES:
+    if sid not in BUILDING_RESOURCE_ACCUMULATION_SPACES:
         return False
     p = state.players[idx]
     # before_action_space fires AFTER people_home was decremented for this placement.
@@ -83,4 +79,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_auto("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, BUILDING_SPACES)
+register_action_space_hook(CARD_ID, BUILDING_RESOURCE_ACCUMULATION_SPACES)

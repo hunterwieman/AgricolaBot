@@ -7,12 +7,13 @@ Clarification: "4 of the same building resource must already be on the accumulat
 space."
 
 Category 3 (action-space hook, automatic income) — the multi-space Geologist shape. A
-mandatory, choice-free bonus → an automatic effect (`register_auto`) on the BEFORE window
-— confirmed by the clarification (the 4 "must already be on the space", i.e. read the
-pre-take amount): each building-resource accumulation space accumulates exactly one type
-(forest→wood, clay_pit→clay, reed_bank→reed, western_quarry/eastern_quarry→stone), so
-"the accumulating type" is that space's type. If ≥4 of it are on the space, grant +1 of
-that same type and +1 food.
+mandatory, choice-free bonus → an automatic effect (`register_auto`) on the AFTER window:
+each building-resource accumulation space accumulates exactly one type (forest→wood,
+clay_pit→clay, reed_bank→reed, western_quarry/eastern_quarry→stone), so "the accumulating
+type" is that space's type. The amount TAKEN of it is read off the host frame's `taken`
+(the Resources delta stamped across the take at Proceed) — equal, at 2p, to the pre-take
+pile the clarification points at ("4 must already be on the space"). If ≥4 was taken, grant
++1 of that same type and +1 food.
 
 Every building-resource accumulation space is atomic, so `register_action_space_hook`
 hosts them when this card is owned.
@@ -22,34 +23,44 @@ unit-test now. Played via Lessons; on-play is a no-op.
 """
 from __future__ import annotations
 
+from agricola.constants import (
+    BUILDING_ACCUMULATION_RATES,
+    BUILDING_RESOURCE_ACCUMULATION_SPACES,
+)
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Resources
-from agricola.state import GameState, get_space
+from agricola.state import GameState
 
 CARD_ID = "porter"
 
-# space -> the single building resource it accumulates ("the accumulating type").
-_SPACE_FIELD = {
-    "forest": "wood",
-    "clay_pit": "clay",
-    "reed_bank": "reed",
-    "western_quarry": "stone",
-    "eastern_quarry": "stone",
-}
-SPACES = frozenset(_SPACE_FIELD)
-
 _THRESHOLD = 4   # "at least 4 of the same building resource"
+_BUILDING_FIELDS = ("wood", "clay", "reed", "stone")
+
+
+def _accumulating_field(space_id: str) -> str | None:
+    """The single building resource `space_id` accumulates ("the accumulating
+    type"), DERIVED from BUILDING_ACCUMULATION_RATES rather than a hard-coded
+    per-space map — so it is correct for any 4p building space the category hooks
+    (matches interim_storage's good-type derivation). Each building space has one
+    rate resource; returns its field, or None for a non-building space."""
+    rate = BUILDING_ACCUMULATION_RATES.get(space_id)
+    if rate is None:
+        return None
+    return next((f for f in _BUILDING_FIELDS if getattr(rate, f)), None)
 
 
 def _accumulating(state: GameState):
-    """(field, amount) of the accumulating resource on the hosted space."""
-    space_id = getattr(state.pending_stack[-1], "space_id", None)
-    field = _SPACE_FIELD.get(space_id)
+    """(field, amount) of the accumulating resource the acting player took: the field
+    is the hosted space's accumulation type, the amount is read off the host frame's
+    `taken` (the Resources delta stamped across the take at Proceed)."""
+    top = state.pending_stack[-1]
+    space_id = getattr(top, "space_id", None)
+    field = _accumulating_field(space_id) if space_id else None
     if field is None:
         return None, 0
-    return field, getattr(get_space(state.board, space_id).accumulated, field)
+    return field, getattr(top.taken, field)
 
 
 def _eligible(state: GameState, idx: int) -> bool:
@@ -67,5 +78,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
-register_auto("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, SPACES)
+register_auto("after_action_space", CARD_ID, _eligible, _apply)
+register_action_space_hook(CARD_ID, BUILDING_RESOURCE_ACCUMULATION_SPACES)

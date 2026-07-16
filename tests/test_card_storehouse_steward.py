@@ -5,9 +5,9 @@ also get 1 stone/reed/clay/wood. (If you take 6 or more food, you do not get a b
 good)."
 
 A Category-3 automatic-income hook on Fishing (the only food accumulation space in the
-2-player card game): the bonus good is banded by the pre-take food count (2→stone,
-3→reed, 4→clay, 5→wood; nothing at 6+). Driven end-to-end through the hosted-atomic
-lifecycle.
+2-player card game): an after_action_space auto whose bonus good is banded by the food
+taken (the host frame's `taken.food`; 2→stone, 3→reed, 4→clay, 5→wood; nothing at 6+).
+Driven end-to-end through the hosted-atomic lifecycle.
 """
 import pytest
 
@@ -61,7 +61,7 @@ def _play_hosted_space(state, space_id):
 
 def test_registration():
     assert "storehouse_steward" in OCCUPATIONS
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
     assert "storehouse_steward" in auto_ids
     assert "storehouse_steward" in OWN_ACTION_HOOK_CARDS["fishing"]
 

@@ -47,7 +47,7 @@ def test_registration():
     assert spec.vps == 1
     assert spec.cost.resources == Resources()             # no cost
     assert any(cid == CARD_ID for cid, _ in EMPTY_PASTURE_CARDS)
-    assert any(e.card_id == CARD_ID for e in AUTO_EFFECTS.get("before_action_space", ()))
+    assert any(e.card_id == CARD_ID for e in AUTO_EFFECTS.get("after_action_space", ()))
     assert CARD_ID in OWN_ACTION_HOOK_CARDS["reed_bank"]
     assert any(cid == CARD_ID for cid, _ in SCORING_TERMS)
 
@@ -77,10 +77,10 @@ def test_reed_bank_use_banks_a_point():
     s = with_space(s, "reed_bank", accumulated=Resources(reed=2))
     assert s.players[0].card_state.get(CARD_ID, 0) == 0
     s = step(s, PlaceWorker(space="reed_bank"))
-    # The before_action_space auto fires at the host push (flat +1, no "after").
+    # The after_action_space auto fires only after the take — nothing banked yet.
+    assert s.players[0].card_state.get(CARD_ID, 0) == 0
+    s = step(s, Proceed())                                # take the reed → +1 point
     assert s.players[0].card_state.get(CARD_ID, 0) == 1
-    # Finish the placement: take the reed, pop the host.
-    s = step(s, Proceed())
     s = step(s, Stop())
     assert s.players[0].card_state.get(CARD_ID, 0) == 1   # not double-counted
     assert s.players[0].resources.reed == 2               # the reed was taken

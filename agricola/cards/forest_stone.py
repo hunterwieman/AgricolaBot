@@ -39,16 +39,12 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import STONE_ACCUMULATION_SPACES, WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "forest_stone"
-
-# The game's wood accumulation space (only `forest`) and stone accumulation
-# spaces (only the two quarries) — the complete sets in the 2-player game.
-_WOOD_SPACES = frozenset({"forest"})
-_STONE_SPACES = frozenset({"western_quarry", "eastern_quarry"})
 
 
 def _on_play(state: GameState, idx: int) -> GameState:
@@ -63,7 +59,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
 def _eligible_wood(state: GameState, idx: int) -> bool:
     # A wood accumulation space, and there is at least 1 food on the card to move.
     return (
-        state.pending_stack[-1].space_id in _WOOD_SPACES
+        state.pending_stack[-1].space_id in WOOD_ACCUMULATION_SPACES
         and state.players[idx].card_state.get(CARD_ID, 0) > 0
     )
 
@@ -83,7 +79,7 @@ def _apply_wood(state: GameState, idx: int) -> GameState:
 
 
 def _eligible_stone(state: GameState, idx: int) -> bool:
-    return state.pending_stack[-1].space_id in _STONE_SPACES
+    return state.pending_stack[-1].space_id in STONE_ACCUMULATION_SPACES
 
 
 def _apply_stone(state: GameState, idx: int) -> GameState:
@@ -105,6 +101,6 @@ register_minor(
     on_play=_on_play,
 )
 # Host the wood + stone accumulation spaces so the before-phase autos can fire.
-register_action_space_hook(CARD_ID, _WOOD_SPACES | _STONE_SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES | STONE_ACCUMULATION_SPACES)
 register_auto("before_action_space", CARD_ID, _eligible_wood, _apply_wood)
 register_auto("before_action_space", CARD_ID, _eligible_stone, _apply_stone)

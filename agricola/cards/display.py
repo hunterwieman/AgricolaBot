@@ -68,7 +68,7 @@ PRIVATE_HISTORY_CARDS: frozenset[str] = frozenset({"butler", "earthenware_potter
 # so NO emblem. Listed explicitly only so the partition test can catch an
 # unclassified new card; nothing consumes this set at runtime.
 PUBLIC_VP_CARDS: frozenset[str] = frozenset({
-    "braggart", "chimney_sweep",
+    "braggart", "chimney_sweep", "housemaster",
     "artisan_district", "cookery_outfitter", "debt_security", "fellow_grazer",
     "fodder_chamber", "greening_plan", "land_register", "lantern_house", "loom",
     "lord_of_the_manor", "manger", "mayor_candidate", "milking_stool", "misanthropy",

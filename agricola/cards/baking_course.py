@@ -105,7 +105,7 @@ def _apply(state: GameState, idx: int) -> GameState:
 register_minor(CARD_ID, min_occupations=1)
 
 # Effect 1 — the standing rate-2 baking source + the action's reachability.
-register_baking_spec_extension(_baking_spec)
+register_baking_spec_extension(_baking_spec, CARD_ID)
 register_bake_bread_extension(_can_bake_bread_extension)
 
 # Effect 2 — the optional end-of-round bake (ruling 49's rung); once per round

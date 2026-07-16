@@ -199,6 +199,50 @@ ACCUMULATION_SPACES = (
 ) - {"meeting_place"}
 ACCUMULATION_SPACES_FAMILY = ACCUMULATION_SPACES | {"meeting_place"}
 
+# --- Accumulation spaces grouped by the GOOD they yield --------------------------
+# The single source of truth for cards that key on "a wood / stone / food / …
+# accumulation space" (Wood Cutter, Storehouse Steward, Porter, …). Cards reference
+# these names instead of hard-coding {"forest"} etc. They are DERIVED from the rate
+# dicts above, so they are correct for the current (2-player) board and extend
+# automatically once the 3-4-player accumulation spaces (Copse, Grove, Hollow, …)
+# are added to those dicts — the "active list" then follows in one place. (Making
+# them player-count-aware — a Family/2p set vs a 4p superset selected at runtime —
+# is the remaining step, deferred until the 4p board exists; the hook-registration
+# seam is static, so that step is where the 2p/4p split lands.)
+WOOD_ACCUMULATION_SPACES = frozenset(
+    s for s, r in BUILDING_ACCUMULATION_RATES.items() if r.wood
+)
+CLAY_ACCUMULATION_SPACES = frozenset(
+    s for s, r in BUILDING_ACCUMULATION_RATES.items() if r.clay
+)
+REED_ACCUMULATION_SPACES = frozenset(
+    s for s, r in BUILDING_ACCUMULATION_RATES.items() if r.reed
+)
+STONE_ACCUMULATION_SPACES = frozenset(
+    s for s, r in BUILDING_ACCUMULATION_RATES.items() if r.stone
+)
+# All building-resource accumulation spaces (wood | clay | reed | stone).
+BUILDING_RESOURCE_ACCUMULATION_SPACES = frozenset(BUILDING_ACCUMULATION_RATES)
+# Food accumulation spaces in the CARD game (excludes Family-only meeting_place,
+# mirroring ACCUMULATION_SPACES).
+FOOD_ACCUMULATION_SPACES = frozenset(
+    s for s, (good, _rate) in FOOD_ANIMAL_ACCUMULATION_RATES.items() if good == "food"
+) - {"meeting_place"}
+# Animal-market accumulation spaces.
+ANIMAL_ACCUMULATION_SPACES = frozenset(
+    s for s, (good, _rate) in FOOD_ANIMAL_ACCUMULATION_RATES.items()
+    if good in ("sheep", "boar", "cattle")
+)
+
+# Action spaces that PROVIDE food (broader than FOOD_ACCUMULATION_SPACES: includes
+# the permanent Day Laborer, not just accumulation spaces). Kindling Gatherer keys
+# on this ("each time you get food from an action space"). Per the implicit-
+# simplification model, a 3-4p board simply ADDS its food-yielding spaces here —
+# Traveling Players and Resource Market — and every space id that doesn't exist at
+# the current player count is inert (never placed on). Add them when the 4p board
+# lands with real space ids (user ruling 2026-07-15: grow at 4p, don't pre-list).
+FOOD_PROVIDING_ACTION_SPACES = frozenset({"day_laborer", "fishing"})
+
 PERMANENT_ACTION_SPACES_SET = frozenset(PERMANENT_ACTION_SPACES)
 
 HARVEST_ROUNDS = {4, 7, 9, 11, 13, 14}

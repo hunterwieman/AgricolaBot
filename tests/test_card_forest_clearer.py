@@ -4,9 +4,9 @@ Card text: "Each time you obtain exactly 2/3/4 wood from a wood accumulation spa
 get 1 additional wood and 1/0/1 food."
 
 A Category-3 automatic-income hook on Forest (the only wood accumulation space in the
-2-player game): banded by the pre-take wood count — 2→+1 wood +1 food, 3→+1 wood, 4→+1
-wood +1 food; nothing outside {2,3,4}. Driven end-to-end through the hosted-atomic
-lifecycle.
+2-player game): an after_action_space auto banded by the wood taken (the host frame's
+`taken`) — 2→+1 wood +1 food, 3→+1 wood, 4→+1 wood +1 food; nothing outside {2,3,4}.
+Driven end-to-end through the hosted-atomic lifecycle.
 """
 import pytest
 
@@ -61,7 +61,7 @@ def _play_hosted_space(state, space_id):
 
 def test_registration():
     assert "forest_clearer" in OCCUPATIONS
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
     assert "forest_clearer" in auto_ids
     assert "forest_clearer" in OWN_ACTION_HOOK_CARDS["forest"]
 

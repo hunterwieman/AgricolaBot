@@ -844,9 +844,6 @@ from agricola.cards import asparagus_knife     # noqa: F401
 
 # --- 2026-07-15 batch: 34 cards implementable on existing seams (no engine change) ---
 #   Income autos keyed on revealed_round / accumulation reads, and an exchange trigger:
-from agricola.cards import master_workman      # noqa: F401
-from agricola.cards import knapper             # noqa: F401
-from agricola.cards import silokeeper          # noqa: F401
 from agricola.cards import mattock             # noqa: F401
 from agricola.cards import barn_shed           # noqa: F401
 from agricola.cards import field_spade         # noqa: F401
@@ -871,7 +868,6 @@ from agricola.cards import cheese_fondue       # noqa: F401
 #   Round-end / harvest / growth windows:
 from agricola.cards import ale_benches         # noqa: F401
 from agricola.cards import carrot_museum       # noqa: F401
-from agricola.cards import steam_plow          # noqa: F401
 from agricola.cards import storks_nest         # noqa: F401
 from agricola.cards import harvest_festival_planning  # noqa: F401
 from agricola.cards import iron_hoe            # noqa: F401
@@ -895,14 +891,12 @@ from agricola.cards import champion_breeder  # noqa: F401
 from agricola.cards import wealthy_man  # noqa: F401
 from agricola.cards import stonecutter  # noqa: F401
 from agricola.cards import brushwood_collector  # noqa: F401
-from agricola.cards import rock_beater  # noqa: F401
 from agricola.cards import chimney_sweep  # noqa: F401
 from agricola.cards import greengrocer  # noqa: F401
 from agricola.cards import seed_seller  # noqa: F401
 from agricola.cards import storehouse_steward  # noqa: F401
 from agricola.cards import forest_clearer  # noqa: F401
 from agricola.cards import porter  # noqa: F401
-from agricola.cards import collier  # noqa: F401
 from agricola.cards import flax_farmer  # noqa: F401
 from agricola.cards import loudmouth  # noqa: F401
 from agricola.cards import tree_cutter  # noqa: F401
@@ -929,7 +923,6 @@ from agricola.cards import beer_tent_operator  # noqa: F401
 from agricola.cards import mountain_plowman  # noqa: F401
 from agricola.cards import sheep_whisperer  # noqa: F401
 from agricola.cards import trap_builder  # noqa: F401
-from agricola.cards import master_huntsman  # noqa: F401
 from agricola.cards import plumber  # noqa: F401
 from agricola.cards import stable_sergeant  # noqa: F401
 from agricola.cards import nutrition_expert  # noqa: F401
@@ -939,3 +932,8 @@ from agricola.cards import bunny_breeder  # noqa: F401
 from agricola.cards import vegetable_vendor  # noqa: F401
 from agricola.cards import imitator  # noqa: F401
 from agricola.cards import field_caretaker  # noqa: F401
+
+# --- 2026-07-15 ruling-resolved pair (Grain Bag baking-improvement count; Housemaster
+#     major-VP total) ---
+from agricola.cards import grain_bag  # noqa: F401
+from agricola.cards import housemaster  # noqa: F401

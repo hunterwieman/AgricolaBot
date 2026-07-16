@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_food_payment_resume, register_occupation
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.legality import _can_plow, _liquidatable_to
 from agricola.pending import PendingFoodPayment, PendingPlow, push
 from agricola.replace import fast_replace
@@ -37,7 +38,6 @@ from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "shifting_cultivator"
-SPACES = frozenset({"forest"})    # the only wood accumulation space in the 2-player engine
 _FOOD_COST = 3
 
 
@@ -54,7 +54,7 @@ def _pay_and_plow(state: GameState, idx: int) -> GameState:
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:                       # once per use
         return False
-    if state.pending_stack[-1].space_id not in SPACES:
+    if state.pending_stack[-1].space_id not in WOOD_ACCUMULATION_SPACES:
         return False
     p = state.players[idx]
     # Never a dead-end: the 3 food must be payable (with liquidation) AND a plow legal.
@@ -75,4 +75,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("before_action_space", CARD_ID, _eligible, _apply)
 register_food_payment_resume(CARD_ID, _pay_and_plow)
-register_action_space_hook(CARD_ID, SPACES)              # Forest is atomic → host it
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)              # Forest is atomic → host it

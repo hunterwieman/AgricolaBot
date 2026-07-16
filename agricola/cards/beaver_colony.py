@@ -17,12 +17,12 @@ Two clauses:
    fit under the reduction (the Milking Place idiom).
 
 2. "Each time you get reed from an action space, you get 1 bonus point." In the 2-player
-   game the Reed Bank is the ONLY action space that yields reed, so this is a
-   `before_action_space` automatic effect on the `reed_bank` host (flat +1 per use, banked
-   in CardStore; the trigger-timing ruling puts a flat, no-"after" reward BEFORE). Fishing
-   is atomic-hosted only when hooked, so `register_action_space_hook` hosts Reed Bank when
-   this card is owned. Eligibility also checks the space actually carries reed, so a
-   (defensively) empty Reed Bank grants nothing.
+   game the Reed Bank is the ONLY action space that yields reed, so this is an
+   `after_action_space` automatic effect on the `reed_bank` host (flat +1 per use, banked
+   in CardStore): keying on the reed actually TAKEN (Refactor A), it reads the host frame's
+   `taken.reed` stamped across the take. Reed Bank is atomic-hosted only when hooked, so
+   `register_action_space_hook` hosts it when this card is owned. Eligibility reads
+   `taken.reed >= 1`, so a (defensively) empty Reed Bank sweeps 0 and grants nothing.
 
 The banked reed points are scored by a term reading CardStore; the printed 1 VP rides
 `MinorSpec.vps`. Card-only state (the CardStore int) is empty in the Family game ->
@@ -36,7 +36,7 @@ from agricola.cards.triggers import register_action_space_hook, register_auto
 from agricola.replace import fast_replace
 from agricola.resources import Animals
 from agricola.scoring import register_scoring
-from agricola.state import GameState, get_space
+from agricola.state import GameState
 
 CARD_ID = "beaver_colony"
 REED_SPACES = frozenset({"reed_bank"})
@@ -59,12 +59,14 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 
 def _reed_eligible(state: GameState, idx: int) -> bool:
-    """Fires on using Reed Bank while it actually holds reed to give (auto eligibility
-    signature is (state, owner_idx))."""
+    """Fires after using Reed Bank when reed was actually taken (auto eligibility
+    signature is (state, owner_idx)). The `space_id in REED_SPACES` check pins to the
+    reed_bank host — atomic, so it carries a `taken` (a non-atomic frame never matches
+    the pin, so `taken` is always present here)."""
     top = state.pending_stack[-1]
     if getattr(top, "space_id", None) not in REED_SPACES:
         return False
-    return get_space(state.board, "reed_bank").accumulated.reed > 0
+    return top.taken.reed >= 1
 
 
 def _reed_apply(state: GameState, idx: int) -> GameState:
@@ -82,6 +84,6 @@ def _score(state: GameState, idx: int) -> int:
 
 register_minor(CARD_ID, prereq=_prereq, vps=1, on_play=_on_play)
 register_empty_pasture(CARD_ID, lambda pasture: pasture.num_stables >= 1)
-register_auto("before_action_space", CARD_ID, _reed_eligible, _reed_apply)
+register_auto("after_action_space", CARD_ID, _reed_eligible, _reed_apply)
 register_action_space_hook(CARD_ID, REED_SPACES)
 register_scoring(CARD_ID, _score)

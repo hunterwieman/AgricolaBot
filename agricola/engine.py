@@ -729,7 +729,17 @@ def _apply_proceed(state: GameState) -> GameState:
         # true-atomic spaces only — never the card-mode handlers that themselves
         # push, e.g. basic_wish / meeting_place.)
         state = _mark_effect_initiated(state)
-        return ATOMIC_HANDLERS[top.space_id](state)
+        before = state.players[top.player_idx].resources
+        state = ATOMIC_HANDLERS[top.space_id](state)
+        # Stamp the goods the acting player obtained from the space (Resources delta
+        # across the take) on the host, for after_action_space autos that key on
+        # "what you took from the space" (Refactor A). Today's atomic handlers push
+        # nothing, so the host is still on top; guard in case a future one does.
+        host = state.pending_stack[-1]
+        if isinstance(host, PendingActionSpace):
+            state = replace_top(state, fast_replace(
+                host, taken=state.players[top.player_idx].resources - before))
+        return state
 
     # Proceed-host: flip to the after-phase + fire after_action_space autos
     # (no-op in Family; the after-phase enumerator then offers after-triggers +

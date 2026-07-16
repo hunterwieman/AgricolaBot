@@ -4,7 +4,7 @@ Card text: "Each time you take 1/2/3+ food from a food accumulation space, you a
 get 1 vegetable/grain/reed." Banded / single-tier: take 1 → 1 veg, 2 → 1 grain,
 3+ → 1 reed.
 
-Implemented as a before_action_space automatic effect on the card-game food
+Implemented as an after_action_space automatic effect on the card-game food
 accumulation space (fishing only — Meeting Place pays no food in the card game),
 hosted via register_action_space_hook. Mirrors tests/test_cards_action_space_hook.py.
 """
@@ -68,7 +68,7 @@ def _play_hosted_space(state, space_id):
 def test_registration():
     from agricola.cards.specs import OCCUPATIONS
     assert "portmonger" in OCCUPATIONS
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
     assert "portmonger" in auto_ids
     assert "portmonger" in OWN_ACTION_HOOK_CARDS["fishing"]
     # meeting_place is NOT hooked: card-mode Meeting Place pays no food, so Portmonger

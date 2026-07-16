@@ -11,16 +11,16 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import STONE_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
 
 CARD_ID = "stone_tongs"
-STONE_SPACES = frozenset({"western_quarry", "eastern_quarry"})
 
 
 def _eligible(state: GameState, idx: int) -> bool:
-    return state.pending_stack[-1].space_id in STONE_SPACES
+    return state.pending_stack[-1].space_id in STONE_ACCUMULATION_SPACES
 
 
 def _apply(state: GameState, idx: int) -> GameState:
@@ -32,4 +32,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)))
 register_auto("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, STONE_SPACES)
+register_action_space_hook(CARD_ID, STONE_ACCUMULATION_SPACES)

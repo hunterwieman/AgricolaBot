@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-15 (the seam-fit batch — 89 cards on existing seams, no engine change, below; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-15 (the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,21 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-15 cross-session review + follow-up (on top of the seam-fit batch).** After the
+  89-card batch below, a review across sessions refined and corrected cards and resolved two
+  rulings. **Added:** Grain Bag (E67 — grain per baking improvement owned; introduced
+  `count_baking_improvements` + the `BAKING_SPEC_EXTENSION_CARD_IDS` id-recording seam so the count
+  is by ownership, Baking Course included) and Housemaster (B153 — major-VP total with the smallest
+  doubled, Joinery/Pottery/Basketmaker = printed 2). **Rebuilt:** Pig Breeder (A165) from an
+  auto-grant into a real round-12 boar breeding DECISION offered wide on the `end_of_round` window —
+  a boar-only make-room Pareto frontier (≤3 configs: reduce sheep / cook a boar / reduce cattle),
+  cook-a-boar offered only when it makes food, Proceed declines. **Corrected:** Plumber (discount
+  keyed to the renovation target material, composes with Conservator) and Field Caretaker (three
+  exchange tiers, no separate decline). **Deferred on review (modules archived):** Master Huntsman
+  (E165), plus Collier, Knapper, Master Workman, Rock Beater, Silokeeper, Steam Plow; the earlier
+  attempt-defers Feed Fence, Wood Barterer, Renovation Company, Stone Buyer, Forest Scientist,
+  Stockman remain deferred. Census now **208 occupations + 291 minors = 499**. Full suite (6026) +
+  the C++ Family differential gates green.
 - **The 2026-07-15 seam-fit batch landed: 89 cards on existing seams (no engine change, all
   Family-inert).** 61 occupations + 28 minors, chosen via a catalog-wide fit analysis (every
   unimplemented card classified against the machinery) as those mapping cleanly onto already-built

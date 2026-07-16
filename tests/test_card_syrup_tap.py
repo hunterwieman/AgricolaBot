@@ -5,10 +5,10 @@ space, place 1 food on the next round space. At the start of that round, you get
 the food." 1 VP.
 
 User ruling (2026-07-15): the action space ITSELF must supply the wood (like
-Kindling Gatherer detecting food supplied by the space). Implemented as a
-before-window automatic on the wood-bearing accumulation spaces, eligible only
-when the space's `accumulated` Resources hold wood >= 1; on a qualifying use it
-schedules a flat 1 food on the next round space, collected at that round's start.
+Kindling Gatherer detecting food supplied by the space). Implemented as an
+after-window automatic on the wood-bearing accumulation spaces, eligible only when
+the acting player's take (the host frame's `taken`) held wood >= 1; on a qualifying
+use it schedules a flat 1 food on the next round space, collected at that round's start.
 """
 from agricola.actions import PlaceWorker, Proceed, Stop
 from agricola.cards.specs import MINORS
@@ -73,7 +73,7 @@ def test_registered():
     assert CARD in MINORS
     assert MINORS[CARD].cost == Cost(resources=Resources(wood=1, stone=1))
     assert MINORS[CARD].vps == 1
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
     assert CARD in auto_ids
     # Hooks Forest + every other wood-capable accumulation space (subset checks).
     for sp in ("forest", "clay_pit", "reed_bank", "western_quarry", "eastern_quarry"):

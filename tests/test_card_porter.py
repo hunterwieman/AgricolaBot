@@ -5,9 +5,10 @@ accumulation space, you get 1 additional building resource of the accumulating t
 1 food."
 
 A Category-3 automatic-income hook on every building-resource accumulation space (forest,
-clay_pit, reed_bank, western_quarry, eastern_quarry): when ≥4 of that space's resource is
-on it (pre-take), grant +1 of that resource and +1 food. Driven end-to-end through the
-hosted-atomic lifecycle. Threshold is inclusive at 4; below 4 grants nothing.
+clay_pit, reed_bank, western_quarry, eastern_quarry): an after_action_space auto — when ≥4
+of that space's resource was taken (the host frame's `taken`), grant +1 of that resource
+and +1 food. Driven end-to-end through the hosted-atomic lifecycle. Threshold is inclusive
+at 4; below 4 grants nothing.
 """
 import pytest
 
@@ -64,7 +65,7 @@ def _play_hosted_space(state, space_id):
 
 def test_registration():
     assert "porter" in OCCUPATIONS
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
     assert "porter" in auto_ids
     for space in ("forest", "clay_pit", "reed_bank", "western_quarry", "eastern_quarry"):
         assert "porter" in OWN_ACTION_HOOK_CARDS[space]

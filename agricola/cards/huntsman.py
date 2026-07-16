@@ -31,20 +31,19 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.helpers import grant_animals
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Resources
 from agricola.state import GameState
 
 CARD_ID = "huntsman"
-# 2-player: Forest is the sole wood accumulation space.
-_SPACES = frozenset({"forest"})
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     if CARD_ID in triggers_resolved:                       # once per use
         return False
-    if getattr(state.pending_stack[-1], "space_id", None) not in _SPACES:
+    if getattr(state.pending_stack[-1], "space_id", None) not in WOOD_ACCUMULATION_SPACES:
         return False
     return state.players[idx].resources.grain >= 1
 
@@ -60,4 +59,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("after_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, _SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)

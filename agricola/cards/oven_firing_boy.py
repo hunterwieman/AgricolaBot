@@ -19,17 +19,17 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.legality import _can_bake_bread
 from agricola.pending import PendingBakeBread, push
 from agricola.state import GameState
 
 CARD_ID = "oven_firing_boy"
-WOOD_SPACES = frozenset({"forest"})
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     return (CARD_ID not in triggers_resolved
-            and state.pending_stack[-1].space_id in WOOD_SPACES
+            and state.pending_stack[-1].space_id in WOOD_ACCUMULATION_SPACES
             and _can_bake_bread(state, state.players[idx]))
 
 
@@ -39,4 +39,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, lambda state, idx: state)
 register("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, WOOD_SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)

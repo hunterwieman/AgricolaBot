@@ -38,20 +38,17 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register, register_action_space_hook
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.legality import _can_sow
 from agricola.pending import PendingSow, push
 from agricola.state import GameState
 
 CARD_ID = "chief_forester"
 
-# The only wood accumulation space at 2 players is Forest (the sole wood entry of
-# BUILDING_ACCUMULATION_RATES). Atomic -> hosted via register_action_space_hook.
-SPACES = frozenset({"forest"})
-
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
     top = state.pending_stack[-1]
-    return (getattr(top, "space_id", None) in SPACES
+    return (getattr(top, "space_id", None) in WOOD_ACCUMULATION_SPACES
             and _can_sow(state.players[idx]))
 
 
@@ -64,4 +61,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, SPACES)   # host atomic Forest when owned
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)   # host atomic Forest when owned

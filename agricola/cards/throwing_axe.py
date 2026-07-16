@@ -21,12 +21,12 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState, get_space
 
 CARD_ID = "throwing_axe"
-SPACES = frozenset({"forest"})  # the only wood accumulation space
 
 
 def _prereq(state: GameState, idx: int) -> bool:
@@ -34,7 +34,7 @@ def _prereq(state: GameState, idx: int) -> bool:
 
 
 def _eligible(state: GameState, idx: int) -> bool:
-    return (state.pending_stack[-1].space_id in SPACES
+    return (state.pending_stack[-1].space_id in WOOD_ACCUMULATION_SPACES
             and get_space(state.board, "pig_market").accumulated_amount >= 1)
 
 
@@ -47,4 +47,4 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, cost=Cost(resources=Resources(wood=1)), prereq=_prereq, vps=0)
 register_auto("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)

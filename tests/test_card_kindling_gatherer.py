@@ -3,10 +3,13 @@ import agricola.cards.kindling_gatherer  # noqa: F401
 """Kindling Gatherer (occupation, E118): "Each time you get food from an
 action space, you get 1 additional wood."
 
-Fires as a before-window automatic on the two food-yielding action spaces of
-the 2-player game — Day Laborer and Fishing (user ruling 2026-07-14: fixed
-space list; card-provided food never triggers it). Flat +1 wood per use, never
-per unit of food; Fishing must actually hold food.
+Fires as an after-window automatic (Refactor A) on the two food-yielding action
+spaces of the 2-player game — Day Laborer and Fishing (user ruling 2026-07-14:
+fixed hook list; card-provided food never triggers it). Eligibility reads the
+food swept into the player across the take (`taken.food >= 1`). Flat +1 wood per
+use, never per unit of food; Fishing must actually hold food. (The separate
+Sugar Baker deposit stays a before-window auto — that food is on the non-atomic
+Grain Utilization space, not an atomic take, so there is no `taken` to read.)
 """
 import pytest
 
@@ -71,8 +74,12 @@ def _play_hosted_space(state, space_id):
 def test_registered():
     from agricola.cards.specs import OCCUPATIONS
     assert CARD in OCCUPATIONS
-    auto_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
-    assert CARD in auto_ids
+    # The main "food from a space" reward is an AFTER-window auto (reads taken.food).
+    after_ids = {e.card_id for e in AUTO_EFFECTS.get("after_action_space", ())}
+    assert CARD in after_ids
+    # The Sugar Baker deposit interaction stays a BEFORE-window auto.
+    before_ids = {e.card_id for e in AUTO_EFFECTS.get("before_action_space", ())}
+    assert CARD in before_ids
     # Hooks both atomic food spaces (subset checks, never exact-set).
     assert CARD in OWN_ACTION_HOOK_CARDS["day_laborer"]
     assert CARD in OWN_ACTION_HOOK_CARDS["fishing"]

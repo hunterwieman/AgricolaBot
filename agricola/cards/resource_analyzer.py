@@ -38,11 +38,14 @@ _BUILDING = ("wood", "clay", "reed", "stone")
 
 
 def _types_ahead(state: GameState, idx: int) -> int:
-    """Count building-resource types where the owner strictly leads the (single)
-    opponent."""
+    """Count building-resource types where the owner strictly leads EVERY other
+    player ("more ... than all other players"). Iterates all seats, so it is
+    correct at 3-4 players; at 2 players this is the single opponent."""
     mine = state.players[idx].resources
-    theirs = state.players[1 - idx].resources
-    return sum(1 for t in _BUILDING if getattr(mine, t) > getattr(theirs, t))
+    others = [state.players[j].resources for j in range(len(state.players)) if j != idx]
+    return sum(
+        1 for t in _BUILDING if all(getattr(mine, t) > getattr(o, t) for o in others)
+    )
 
 
 def _eligible(state: GameState, idx: int) -> bool:
@@ -53,7 +56,10 @@ def _apply(state: GameState, idx: int) -> GameState:
     p = state.players[idx]
     p = fast_replace(p, resources=p.resources + Resources(food=1))
     return fast_replace(
-        state, players=tuple(p if i == idx else state.players[i] for i in range(2))
+        state,
+        players=tuple(
+            p if i == idx else state.players[i] for i in range(len(state.players))
+        ),
     )
 
 

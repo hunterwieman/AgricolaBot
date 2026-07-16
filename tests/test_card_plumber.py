@@ -201,3 +201,27 @@ def test_effective_payments_apply_the_floored_discount():
     ctx = _renovate_ctx(p, HouseMaterial.STONE, granted_by=_PROVENANCE)
     # 2-room clay->stone = 2 stone + 1 reed; -2 stone => 1 reed.
     assert effective_payments(cs, cp, ctx) == [Resources(reed=1)]
+
+
+def test_composes_with_conservator_wood_to_stone():
+    """Conservator makes STONE a legal target for a WOOD house (skipping clay);
+    Plumber's discount must land on the STONE cost (2 stone less), keyed off
+    ctx.to_material — never blindly on clay too."""
+    import agricola.cards.conservator  # noqa: F401  (registers the target extension)
+    from agricola.legality import _legal_renovate_targets
+
+    cs, cp = _base(house=HouseMaterial.WOOD, stone=2, reed=1)
+    p = fast_replace(cs.players[cp],
+                     occupations=cs.players[cp].occupations | {"conservator"})
+    cs = fast_replace(cs, players=tuple(p if i == cp else cs.players[i] for i in range(2)))
+
+    # Conservator adds the wood->stone target...
+    assert HouseMaterial.STONE in _legal_renovate_targets(cs, cs.players[cp])
+    # ...and Plumber's grant-scoped -2 stone applies to it: 2-room wood->stone is
+    # 2 stone + 1 reed, discounted to just 1 reed.
+    ctx = _renovate_ctx(cs.players[cp], HouseMaterial.STONE, granted_by=_PROVENANCE)
+    assert effective_payments(cs, cp, ctx) == [Resources(reed=1)]
+    # And the reduction is correctly stone-only: with the raw discount the clay
+    # component of any future dual-material cost would be untouched (unit-pinned by
+    # `_reduce` below), so a hypothetical clay in the cost is not over-discounted.
+    assert _reduce(cs, cp, ctx, Resources(clay=2, stone=2, reed=1)) == Resources(clay=2, reed=1)

@@ -76,8 +76,9 @@ def test_all_goods_offered_at_start_of_round():
     for good in _GOODS:
         assert FireTrigger(card_id=CARD_ID, variant=good) in la
     assert Proceed() in la                    # optional -> decline
-    # "Food is also considered a good" (Emissary D124).
-    assert FireTrigger(card_id=CARD_ID, variant="food") in la
+    # Food is a good, but NOT offered: paying people_total food for 1 food is
+    # strictly dominated (user ruling 2026-07-15).
+    assert FireTrigger(card_id=CARD_ID, variant="food") not in la
 
 
 def test_no_variants_when_food_below_cost():

@@ -13,12 +13,11 @@ This matches the codebase's own slash-tier precedent (Loom, Gift Basket, Milking
 Parlor all read "N/M/K → a/b/c" as a single-tier select, not an accumulation), and
 the open "3+" band implies one top-tier reward.
 
-Implemented as a `before_action_space` automatic effect on the food accumulation
-spaces, hosted via `register_action_space_hook`. Firing happens in the BEFORE
-phase, while the food is still sitting on the space, so `accumulated_amount` is the
-amount about to be taken (the atomic `fishing` handler zeroes it only later, at the
-host's Proceed). The eligibility `accumulated_amount >= 1` guard means an empty
-space yields nothing.
+Implemented as an `after_action_space` automatic effect on the food accumulation
+spaces, hosted via `register_action_space_hook`. Firing happens in the AFTER phase,
+reading the host frame's `taken.food` (the Resources delta stamped across the take at
+Proceed) — the food the acting player actually obtained from the space. The
+eligibility `taken.food >= 1` guard means an empty space yields nothing.
 
 In the card game (the only mode this occupation plays in) `fishing` is the sole
 food accumulation space — Meeting Place pays food ONLY in the Family game and
@@ -35,25 +34,22 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import FOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Resources
-from agricola.state import GameState, get_space
+from agricola.state import GameState
 
 CARD_ID = "portmonger"
-# The card-game food accumulation spaces: just `fishing` (meeting_place pays food
-# only in Family, which this occupation never sees — see the module docstring).
-SPACES = frozenset({"fishing"})
 
 
 def _eligible(state: GameState, idx: int) -> bool:
     top = state.pending_stack[-1]
-    return (top.space_id in SPACES
-            and get_space(state.board, top.space_id).accumulated_amount >= 1)
+    return (top.space_id in FOOD_ACCUMULATION_SPACES
+            and top.taken.food >= 1)
 
 
 def _apply(state: GameState, idx: int) -> GameState:
-    space_id = state.pending_stack[-1].space_id
-    n = get_space(state.board, space_id).accumulated_amount
+    n = state.pending_stack[-1].taken.food
     if n == 1:
         reward = Resources(veg=1)
     elif n == 2:
@@ -66,5 +62,5 @@ def _apply(state: GameState, idx: int) -> GameState:
 
 
 register_occupation(CARD_ID, lambda state, idx: state)  # no on-play; effect is the hook
-register_auto("before_action_space", CARD_ID, _eligible, _apply)
-register_action_space_hook(CARD_ID, SPACES)
+register_auto("after_action_space", CARD_ID, _eligible, _apply)
+register_action_space_hook(CARD_ID, FOOD_ACCUMULATION_SPACES)

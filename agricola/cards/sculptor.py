@@ -18,23 +18,18 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import CLAY_ACCUMULATION_SPACES, STONE_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
 
 CARD_ID = "sculptor"
 
-# 2-player board: the only clay accumulation space is Clay Pit (Hollow is a
-# 3-4-player board-extension space, never on the 2-player board).
-CLAY_SPACES = frozenset({"clay_pit"})
-# 2-player board: the stone accumulation spaces are the two quarries.
-STONE_SPACES = frozenset({"western_quarry", "eastern_quarry"})
-
 
 def _eligible_clay(state: GameState, idx: int) -> bool:
     # Consulted at a before_action_space host frame; read the space uniformly
     # via the host frame's `space_id`.
-    return state.pending_stack[-1].space_id in CLAY_SPACES
+    return state.pending_stack[-1].space_id in CLAY_ACCUMULATION_SPACES
 
 
 def _apply_clay(state: GameState, idx: int) -> GameState:
@@ -45,7 +40,7 @@ def _apply_clay(state: GameState, idx: int) -> GameState:
 
 
 def _eligible_stone(state: GameState, idx: int) -> bool:
-    return state.pending_stack[-1].space_id in STONE_SPACES
+    return state.pending_stack[-1].space_id in STONE_ACCUMULATION_SPACES
 
 
 def _apply_stone(state: GameState, idx: int) -> GameState:
@@ -58,4 +53,4 @@ def _apply_stone(state: GameState, idx: int) -> GameState:
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_auto("before_action_space", CARD_ID, _eligible_clay, _apply_clay)
 register_auto("before_action_space", CARD_ID, _eligible_stone, _apply_stone)
-register_action_space_hook(CARD_ID, CLAY_SPACES | STONE_SPACES)
+register_action_space_hook(CARD_ID, CLAY_ACCUMULATION_SPACES | STONE_ACCUMULATION_SPACES)

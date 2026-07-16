@@ -2,14 +2,15 @@
 only, grants +1 food for each building resource you take from a building-resource
 accumulation space.
 
-on_play snapshots the play round into the CardStore; a `before_action_space`
+on_play snapshots the play round into the CardStore; an `after_action_space`
 automatic effect fires only when `round_number == played + 1`, and grants food equal
-to the building-resource bank on the space (wood+clay+reed+stone), read at the
-before-phase. Owner-gated. Building spaces are atomic → hosted via the hook.
+to the building resources the acting player took from the space (wood+clay+reed+stone
+in the host frame's `taken`, stamped at Proceed). Owner-gated. Building spaces are
+atomic → hosted via the hook.
 """
 import agricola.cards.carter  # noqa: F401  (registers the card)
 
-from agricola.actions import PlaceWorker
+from agricola.actions import PlaceWorker, Proceed, Stop
 from agricola.cards.specs import OCCUPATIONS
 from agricola.engine import step
 from agricola.replace import fast_replace
@@ -47,8 +48,10 @@ def test_active_next_round_food_per_resource():
     s = with_round(s, 6)                                       # the "next round"
     s = with_space(s, "forest", revealed=True, accumulated=Resources(wood=3))
     f0 = s.players[0].resources.food
-    s = step(s, PlaceWorker(space="forest"))                  # 3 wood taken → +3 food
+    s = step(s, PlaceWorker(space="forest"))                  # host pushed (before-window)
+    s = step(s, Proceed())                                    # take 3 wood → after-auto: +3 food
     assert s.players[0].resources.food == f0 + 3
+    s = step(s, Stop())
 
 
 def test_one_resource_one_food():
@@ -58,8 +61,10 @@ def test_one_resource_one_food():
     s = with_round(s, 6)
     s = with_space(s, "clay_pit", revealed=True, accumulated=Resources(clay=1))
     f0 = s.players[0].resources.food
-    s = step(s, PlaceWorker(space="clay_pit"))                # 1 clay → +1 food
+    s = step(s, PlaceWorker(space="clay_pit"))                # host pushed (before-window)
+    s = step(s, Proceed())                                    # take 1 clay → after-auto: +1 food
     assert s.players[0].resources.food == f0 + 1
+    s = step(s, Stop())
 
 
 def test_inert_same_round():
@@ -69,7 +74,9 @@ def test_inert_same_round():
     s = with_space(s, "forest", revealed=True, accumulated=Resources(wood=3))
     f0 = s.players[0].resources.food
     s = step(s, PlaceWorker(space="forest"))                  # not yet "next round"
+    s = step(s, Proceed())                                    # take runs; after-auto inert
     assert s.players[0].resources.food == f0
+    s = step(s, Stop())
 
 
 def test_inert_two_rounds_later():
@@ -80,4 +87,6 @@ def test_inert_two_rounds_later():
     s = with_space(s, "forest", revealed=True, accumulated=Resources(wood=3))
     f0 = s.players[0].resources.food
     s = step(s, PlaceWorker(space="forest"))
+    s = step(s, Proceed())                                    # take runs; after-auto inert
     assert s.players[0].resources.food == f0
+    s = step(s, Stop())

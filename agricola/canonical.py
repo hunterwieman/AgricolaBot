@@ -128,6 +128,10 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # one-field sows): Family-constant 0 (= uncapped, every Family sow), so omitting
     # it keeps the Family JSON byte-identical and needs no C++ change.
     "max_fields",
+    # PendingActionSpace.taken (Refactor A): goods obtained from a hosted atomic
+    # space, for after-window autos. Card-only frame (never in a Family state),
+    # default Resources() → skip when empty; keeps the Family JSON byte-identical.
+    "taken",
     # PendingSow crops-only flag for crops-explicit sow grants (user ruling 48,
     # 2026-07-12 — "sow crops" cannot target wood/stone card-fields): Family-constant
     # False (no card-fields exist there), so omitting it keeps the Family JSON

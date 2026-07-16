@@ -2,17 +2,23 @@
 an accumulation space providing at least 3 goods of the same type EXCEPT wood (food
 counts).
 
-Bare "each time you use" + flat +1 wood → a `before_action_space` automatic effect.
-The gate reads the space at the before-phase: a non-wood building bank (clay/reed/
-stone ≥ 3), Fishing's food count (≥ 3), or a market's staged animal `gained` (≥ 3).
-Forest is not hooked (it provides only wood), and a space holding 3 WOOD does not
-qualify — the "except wood" clause. Owner-gated.
+Bare "each time you use" + flat +1 wood → an `after_action_space` automatic effect
+(Refactor A): the gate reads what was actually TAKEN — a non-wood building `taken`
+(clay/reed/stone ≥ 3), Fishing's `taken.food` (≥ 3), or a market's staged animal
+`gained` (≥ 3). Forest never qualifies (only wood, `taken` non-wood 0), and a space
+holding 3 WOOD does not qualify — the "except wood" clause. Owner-gated.
+
+Because the reward IS wood and the take may also be wood (a space stocked with wood),
+the helper drives through the take then subtracts the wood swept from the space,
+isolating the reward.
 """
 import agricola.cards.tree_cutter  # noqa: F401  (registers the card)
 
-from agricola.actions import PlaceWorker
+from agricola.actions import CommitAccommodate, PlaceWorker, Proceed
 from agricola.cards.specs import OCCUPATIONS
 from agricola.engine import step
+from agricola.legality import legal_actions
+from agricola.pending import PendingActionSpace
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import setup
@@ -28,6 +34,15 @@ def _give(state, idx, cid=CARD_ID):
         else state.players[i] for i in range(2)))
 
 
+def _drive_to_after(state):
+    """Drive the hosted lifecycle to the after-window, where the after-auto fires:
+    Proceed runs the take for an atomic host; CommitAccommodate flips a market host."""
+    if isinstance(state.pending_stack[-1], PendingActionSpace):
+        return step(state, Proceed())
+    accs = [a for a in legal_actions(state) if isinstance(a, CommitAccommodate)]
+    return step(state, accs[0])
+
+
 def _use(space, owner=0, **space_kwargs):
     s = setup(seed=0)
     s = with_current_player(s, owner)
@@ -35,7 +50,11 @@ def _use(space, owner=0, **space_kwargs):
     s = _give(s, owner)
     w0 = s.players[owner].resources.wood
     s = step(s, PlaceWorker(space=space))
-    return s.players[owner].resources.wood - w0   # wood delta from the before-auto
+    s = _drive_to_after(s)
+    # The take (for a building space) may itself add wood; subtract it so the return
+    # value is the Tree Cutter reward alone. Fishing/market takes carry no wood.
+    took_wood = space_kwargs.get("accumulated", Resources()).wood
+    return (s.players[owner].resources.wood - w0) - took_wood
 
 
 def test_registration():

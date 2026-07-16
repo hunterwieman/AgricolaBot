@@ -235,10 +235,18 @@ def register_sow_boost(card_id: str) -> None:
 # baking sources the player owns from non-major-improvement origins
 # (minor improvements, occupations, future card types).
 BAKING_SPEC_EXTENSIONS: list[Callable] = []
+# Card ids of baking IMPROVEMENTS registered above — a card that provides a baking
+# rate IS a baking improvement (Simple/Iron Oven, Baking Course, and future ones).
+# Used to COUNT owned baking improvements (Grain Bag) by OWNERSHIP, independently of
+# whether the rate is currently active (Baking Course bakes only at round-end, yet
+# still counts). Empty in the Family game.
+BAKING_SPEC_EXTENSION_CARD_IDS: set[str] = set()
 
 
-def register_baking_spec_extension(fn: Callable) -> None:
+def register_baking_spec_extension(fn: Callable, card_id: str | None = None) -> None:
     BAKING_SPEC_EXTENSIONS.append(fn)
+    if card_id is not None:
+        BAKING_SPEC_EXTENSION_CARD_IDS.add(card_id)
 
 
 def baking_specs_for_player(
@@ -265,6 +273,19 @@ def baking_specs_for_player(
     for ext in BAKING_SPEC_EXTENSIONS:
         specs.extend(ext(state, player_idx))
     return specs
+
+
+def count_baking_improvements(state: GameState, player_idx: int) -> int:
+    """Number of baking IMPROVEMENTS the player owns: the baking majors
+    (`BAKING_IMPROVEMENTS`) plus owned minor improvements that provide a baking rate
+    (`BAKING_SPEC_EXTENSION_CARD_IDS`). Counted by OWNERSHIP, not active capability,
+    so a Baking Course (bakes only at round-end) still counts. Occupations are
+    excluded — a baking improvement is a major or minor, never an occupation."""
+    owners = state.board.major_improvement_owners
+    majors = sum(1 for i in BAKING_IMPROVEMENTS if owners[i] == player_idx)
+    minors = len(BAKING_SPEC_EXTENSION_CARD_IDS
+                 & state.players[player_idx].minor_improvements)
+    return majors + minors
 
 
 # ---------------------------------------------------------------------------

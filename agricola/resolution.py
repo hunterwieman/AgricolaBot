@@ -2304,6 +2304,18 @@ def _execute_breed(
         # The fired-and-kept indicator, sheep threshold card-aware (a
         # single-parent card — Dolly's Mother — breeds from 1, so its newborn
         # must be reported too; the m=2 hardcoding here was the trap).
+        #
+        # WHY the test is `post >= threshold+1` and NOT `post > pre`: a species
+        # can cook itself down to the breeding threshold to make room, then
+        # breed back up, ENDING AT THE SAME COUNT it started with (e.g. 4 boar
+        # at capacity 4: cook 1 -> 3 boar, breed -> 4 boar). A newborn WAS
+        # placed, yet post == pre, so a `post > pre` test would silently miss
+        # it. `post >= threshold+1` (>=3 boar/cattle; >= sheep_min+1 sheep)
+        # counts that cook-and-breed correctly, which is the right reading for
+        # every breeding-outcome card (Champion Breeder, Slurry Spreader, ...).
+        # This has been mis-"fixed" to `post > pre` in multiple sessions — do
+        # NOT. (The `pre >= threshold` guard is redundant — the frontier gives
+        # post <= pre+1 — but harmless.)
         outcome = BreedingOutcome(
             sheep=int(pre.sheep >= sheep_min and chosen.sheep >= sheep_min + 1),
             boar=int(pre.boar >= 2 and chosen.boar >= 3),

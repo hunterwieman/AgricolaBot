@@ -4,7 +4,8 @@ Card text: "When you play this card, you can immediately exchange 0/1/3 clay for
 1/2/3 grain. This card is a field."
 
 Two pieces: a card-field registration (counts as 1 field, sowable grain/veg) and
-a tiered play-variant exchange (0/1/3 clay -> 1/2/3 grain, with a decline).
+a tiered play-variant exchange (0/1/3 clay -> 1/2/3 grain). All three tiers are
+offered when affordable — no separate decline variant and no privileged default.
 """
 import agricola.cards.field_caretaker  # noqa: F401  (registers the card)
 
@@ -72,14 +73,14 @@ def test_registered():
 
 def test_all_tiers_offered_with_enough_clay():
     cs, _cp = _state(res=Resources(clay=3))
-    assert _variants_offered(cs) == ["1", "2", "3", "decline"]
+    assert _variants_offered(cs) == ["1", "2", "3"]
 
 
 def test_expensive_tiers_gated_by_clay():
     cs, _cp = _state(res=Resources(clay=1))   # affords tier "2" (1 clay), not "3" (3 clay)
-    assert _variants_offered(cs) == ["1", "2", "decline"]
-    cs, _cp = _state(res=Resources())          # no clay: only the free tier + decline
-    assert _variants_offered(cs) == ["1", "decline"]
+    assert _variants_offered(cs) == ["1", "2"]
+    cs, _cp = _state(res=Resources())          # no clay: only the free 0-clay tier
+    assert _variants_offered(cs) == ["1"]
 
 
 # ---------------------------------------------------------------------------
@@ -110,12 +111,11 @@ def test_top_tier_pays_three_clay_for_three_grain():
     assert p.resources.clay == 0               # 3 - 3 surcharge
 
 
-def test_decline_grants_no_grain():
-    cs, cp = _state(res=Resources(clay=3))
-    out = step(cs, _commit(cs, "decline"))
-    p = out.players[cp]
-    assert p.resources.grain == 0 and p.resources.clay == 3
-    assert CARD_ID in p.occupations
+def test_no_decline_variant_offered():
+    # The 0-clay "1" tier is the pay-nothing default (grants 1 grain for free), so
+    # a separate grants-nothing decline is never offered (it would be dominated).
+    cs, _cp = _state(res=Resources(clay=3))
+    assert "decline" not in _variants_offered(cs)
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ def test_decline_grants_no_grain():
 
 def test_played_card_counts_as_a_field_and_is_sowable():
     cs, cp = _state(res=Resources(clay=0, grain=1))
-    out = step(cs, _commit(cs, "decline"))
+    out = step(cs, _commit(cs, "1"))           # the 0-clay default tier
     p = out.players[cp]
     assert card_field_count(p) == 1            # counts as exactly one field
     # The exchange grain (or supply grain) can be sown onto the empty card-field.

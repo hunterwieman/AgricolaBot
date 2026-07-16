@@ -35,15 +35,12 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_minor
 from agricola.cards.triggers import register_action_space_hook, register_auto
+from agricola.constants import WOOD_ACCUMULATION_SPACES
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
 
 CARD_ID = "maintenance_premium"
-
-# Wood accumulation spaces this card fires on. 2-player: Forest only (Copse /
-# Grove are 3–4-player board-extension spaces, never on the 2-player board).
-WOOD_SPACES = frozenset({"forest"})
 
 STARTING_FOOD = 3   # food placed on the card at play and restocked to on renovate
 
@@ -61,7 +58,7 @@ def _on_play(state: GameState, idx: int) -> GameState:
 def _eligible_wood_space(state: GameState, idx: int) -> bool:
     # Consulted at a before_action_space host frame; read the space uniformly via
     # the host frame's `space_id`. Pay out only while food remains on the card.
-    return (state.pending_stack[-1].space_id in WOOD_SPACES
+    return (state.pending_stack[-1].space_id in WOOD_ACCUMULATION_SPACES
             and state.players[idx].card_state.get(CARD_ID, 0) > 0)
 
 
@@ -93,5 +90,5 @@ def _apply_renovate(state: GameState, idx: int) -> GameState:
 
 register_minor(CARD_ID, min_occupations=2, on_play=_on_play)
 register_auto("before_action_space", CARD_ID, _eligible_wood_space, _apply_wood_space)
-register_action_space_hook(CARD_ID, WOOD_SPACES)
+register_action_space_hook(CARD_ID, WOOD_ACCUMULATION_SPACES)
 register_auto("after_renovate", CARD_ID, _eligible_renovate, _apply_renovate)
