@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-15 (the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-16 (the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,22 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-16 action/reward-replacement seam landed: 2 occupations + one new engine bit.**
+  The reward-suppression seam (`ACTION_REPLACEMENT_DESIGN.md`) that unblocks **Animal Catcher**
+  (C168 — Day Laborer: forgo the 2 food for 3 supply animals + a per-swap 1-food-per-harvest tax)
+  and **Pet Lover** (D138 — an animal market providing exactly 1 animal: leave it on the space,
+  take one from the general supply + 3 food + 1 grain). One helper,
+  **`helpers.suppress_space_reward(state)`**, suppresses the top action-space host's OWN reward,
+  host-aware: an **atomic** host (`PendingActionSpace`) sets the **new `suppressed: bool`** field
+  that `_apply_proceed` checks to SKIP the atomic handler (so the `taken` delta reads `Resources()`
+  and every "got food from a space" reactor — Kindling Gatherer — self-corrects with no
+  special-casing, the payoff of the delta-based `taken`); an **animal market** restores the swept
+  animals to the space (`accumulated_amount += gained`) and zeroes `gained` (the leave-on-space
+  override of the base "you must take all animals" rule). Each card's alternate reward is a
+  SEPARATE plain grant (`grant_animals` + resources), never through the suppressed channel. The one
+  new field is card-only (canonical-default-skipped, Family-inert): the full suite and the C++
+  Family gates (139) are green untouched. Both cards are [4]/[3+] (not dealt at 2 players) —
+  forward-compat, unit-tested. Census now **210 occupations + 291 minors = 501**.
 - **The 2026-07-15 cross-session review + follow-up (on top of the seam-fit batch).** After the
   89-card batch below, a review across sessions refined and corrected cards and resolved two
   rulings. **Added:** Grain Bag (E67 — grain per baking improvement owned; introduced
@@ -545,6 +561,34 @@ Where each firing actually happens in the engine — the complete set of call si
 
 `Stop` fires nothing (`_apply_stop` is a pure pop). There is deliberately **no end-of-turn
 event** — see §8.
+
+### Suppressing a host's own reward
+
+A card can let the player OPTIONALLY forgo an action space's normal reward for an alternate —
+Animal Catcher forgoes Day Laborer's 2 food for 3 supply animals; Pet Lover leaves an animal on
+a market and takes one from the general supply plus goods (`ACTION_REPLACEMENT_DESIGN.md`). The
+seam is one helper, **`helpers.suppress_space_reward(state)`**, called from the card's optional
+before-window trigger; the card then applies its alternate reward as a **separate plain grant**
+(`grant_animals` + resources), never routed through the suppressed channel. The helper is
+**host-aware**, because the two host kinds represent their reward differently:
+
+- **Atomic host** (`PendingActionSpace`): the reward is a function run at Proceed
+  (`ATOMIC_HANDLERS`), so suppression sets the frame's **`suppressed`** flag and `_apply_proceed`
+  **skips the handler**. The `taken` delta (§4) then reads `Resources()`, so every "got food/goods
+  from a space" reactor — Kindling Gatherer — self-corrects with **no special-casing**. This is the
+  payoff of the delta-based `taken` design: it reflects what really happened, replacement included.
+- **Animal market** (`PendingSheepMarket` / `PendingPigMarket` / `PendingCattleMarket`): the reward
+  is the `gained` animals swept off the space at initiate, so suppression **restores them to the
+  space** (`accumulated_amount += gained` — the deliberate leave-on-space override of RULES.md's
+  base "you must take all animals" rule) and **zeroes `gained`**. The now-trivial `CommitAccommodate`
+  just flips the host to its after-phase, and a future "took an animal from a market" reactor (which
+  would read `gained`) stays silent.
+
+The correctness property both halves buy: after the replacement, the space's own reward channel —
+`taken` for an atomic space, `gained` for a market — reads "nothing received from the space," while
+the alternate is a separate general-supply grant. Contrast the Cowherd / Animal Dealer idiom (§6),
+which instead **bumps** `gained` to add a genuine market take. Exemplars: `animal_catcher` (atomic),
+`pet_lover` (market).
 
 ---
 
@@ -1047,7 +1091,11 @@ deferred flip too, an occupation-counting after-auto (Education Bonus) still see
 card; after-*triggers* are surfaced later by the enumerator and see the post-`on_play` state
 either way.
 
-**Space hosts.** `PendingActionSpace` (the generic atomic host, §2), `PendingSubActionSpace`
+**Space hosts.** `PendingActionSpace` (the generic atomic host, §2 — carrying two card-only,
+canonical-skipped fields: `taken`, the `Resources` delta the space's effect yielded, read by
+after-window food reactors; and `suppressed`, the reward-replacement flag that makes
+`_apply_proceed` skip the atomic handler entirely — §2's "Suppressing a host's own reward"),
+`PendingSubActionSpace`
 (the generic Delegating host — replaced the deleted per-space `PendingFarmland` /
 `PendingFencing` classes; its child is dispatched by `space_id`: farmland → plow, fencing →
 build-fences, major_improvement → the composite, lessons → play-occupation),
@@ -2019,6 +2067,11 @@ examples; this is the reference list.
   The wrapper carries only `player_idx` / `initiated_by_id` / `subactions` / `chosen`; **all
   primitive-specific state lives on the pushed child**, which is what keeps it generic. Card-only:
   auto-registered in canonical, never in a Family state, no C++ change (§4 frame reference).
+- **Reward replacement — suppress a space's OWN reward, then grant an alternate SEPARATELY**:
+  `helpers.suppress_space_reward` from a before-window trigger, then a plain `grant_animals` +
+  resources grant. Full machinery (both host kinds, the correctness property) in **§2 —
+  "Suppressing a host's own reward"**; exemplars `animal_catcher` / `pet_lover`. Contrast the
+  Cowherd / Animal Dealer idiom, which *bumps* `gained` to add a genuine market take.
 - **"Nth person placed this round"** = `(people_total − newborns) − people_home` — subtract
   same-round newborns or the index inflates mid-round (the Catcher bug).
 - **Round arithmetic**: harvest rounds {4, 7, 9, 11, 13, 14}; post-harvest rounds
@@ -2092,6 +2145,7 @@ exact-set (§6).
 | restricted / optional fence grant | `mini_pasture` / `field_fences` |
 | harvest-conversion with VP | `beer_keg`, `furniture_carpenter` |
 | animal at a market | `cowherd` |
+| reward replacement (suppress a space's own reward for an alternate) | `animal_catcher` (atomic / Day Laborer), `pet_lover` (animal market) |
 | occupancy override | `sleeping_corner`, `forest_school` |
 
 **Integration checklist** (per batch): run the new card tests, wire `__init__.py`, archive any

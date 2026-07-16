@@ -2151,7 +2151,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C167 Cattle Buyer** · [4+]
   - _Each time another player uses the "Fencing" action space, you can buy exactly 1 sheep/wild boar/cattle from the general supply for 1/2/2 food._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OPP E-ANIMALS E-FOODCOST` — "uses the Fencing action space" is the 'use [space]' phrasing -> T-BEFORE; optional buy = F-TRIG on an opponent trigger; food payment for an animal = E-FOODCOST + E-ANIMALS (E-CONVERT would double-count the same payment).
-- ⬜ **C168 Animal Catcher** · [4+]
+- ✅ **C168 Animal Catcher** · [4+]
   - _Each time you use the "Day Laborer" action space, instead of 2 food, you can get 3 different animals from the general supply. If you do, you must pay 1 food each harvest left to play._
   - `HOOK T-BEFORE S-SPACE S-HFEED F-TRIG A-OWN E-SUBSTITUTE E-ANIMALS E-FOODCOST ST-COUNTER` — Optional substitution on each Day Laborer use (HOOK/S-SPACE/T-BEFORE/F-TRIG): 3 different animals instead of 2 food (E-SUBSTITUTE + E-ANIMALS). Each use adds a mandatory 1-food debt at every remaining harvest -> fires at feeding (S-HFEED) with a running uses-count (ST-COUNTER); it is a payment, not goods placed on round spaces -> E-FOODCOST, not E-SCHED.
 
@@ -2316,7 +2316,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D137 Trade Teacher** · [3+]
   - _Each time after you use a "Lesson" action space, you can buy up to 2 different goods: grain, stone, sheep, and wild boar for 1 food each; cattle and vegetable for 2 food each.  [CLARIFICATION: This effect may not be immediately triggered.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS E-FOODCOST E-ANIMALS` — Explicit after-hook on using a Lessons space; food-paid buys (E-FOODCOST, E-CONVERT) yielding goods (E-GOODS) including sheep/boar/cattle, which must be accommodated (E-ANIMALS).
-- ⬜ **D138 Pet Lover** · [3+]
+- ✅ **D138 Pet Lover** · [3+]
   - _Each time you use an accumulation space providing exactly 1 animal, you can leave it on the space and get one from the general supply instead, as well as 3 food and 1 grain.  [CLARIFICATION: You may use the Animal Dealer A147 to acquire a second animal of the taken type.]_
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-SUBSTITUTE E-ANIMALS E-GOODS` — Each-time-you-use hook (T-BEFORE) replacing the space's normal yield — leave the accumulated animal and take a supply animal plus 3 food/1 grain 'instead' (E-SUBSTITUTE); the animal needs accommodation.
 - ⬜ **D139 Chairman** · [3+]

@@ -132,6 +132,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # space, for after-window autos. Card-only frame (never in a Family state),
     # default Resources() → skip when empty; keeps the Family JSON byte-identical.
     "taken",
+    # PendingActionSpace.suppressed (reward-suppression seam,
+    # ACTION_REPLACEMENT_DESIGN.md): True only when a card's replace-trigger
+    # (Animal Catcher) suppressed a hosted atomic space's effect. Card-only frame,
+    # Family-constant False → skip at default; keeps the Family JSON byte-identical.
+    "suppressed",
     # PendingSow crops-only flag for crops-explicit sow grants (user ruling 48,
     # 2026-07-12 — "sow crops" cannot target wood/stone card-fields): Family-constant
     # False (no card-fields exist there), so omitting it keeps the Family JSON

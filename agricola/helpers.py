@@ -44,6 +44,49 @@ def grant_animals(state: GameState, idx: int, animals: Animals) -> GameState:
     )
 
 
+def suppress_space_reward(state: GameState) -> GameState:
+    """Suppress the TOP action-space host's OWN reward — the general half of the
+    reward-replacement seam (ACTION_REPLACEMENT_DESIGN.md). A card's optional
+    replace-trigger calls this in the space's before-window, then applies its own
+    alternate grant SEPARATELY (the two are independent — the alternate reward never
+    rides the suppressed channel).
+
+    Host-aware, because the two host kinds represent their reward differently:
+
+    - **Atomic host** (`PendingActionSpace` — Day Laborer / Animal Catcher): the
+      reward is a function run at Proceed (`ATOMIC_HANDLERS`), so the only way to
+      suppress it is to skip that function. Set ``suppressed=True``; ``_apply_proceed``
+      checks it, and the ``taken`` delta then reads ``Resources()`` — so "got food
+      from a space" reactors (Kindling Gatherer) self-correct with no special-casing.
+    - **Animal market** (`PendingSheepMarket` / `PendingPigMarket` /
+      `PendingCattleMarket` — Pet Lover): the reward is the ``gained`` animals swept
+      off the space at initiate. Suppress = leave them on the space (restore
+      ``accumulated_amount``) and zero ``gained`` — "took nothing from the space", so
+      the now-trivial ``CommitAccommodate`` just flips to the after-phase and any
+      future "took an animal from a market" reactor (which would read ``gained``)
+      stays silent.
+
+    Card-only: only ever called from a played card's trigger, so the Family game and
+    the C++ gates never reach it.
+    """
+    from agricola.pending import (
+        PendingActionSpace, PendingSheepMarket, PendingPigMarket,
+        PendingCattleMarket, replace_top,
+    )
+    from agricola.state import get_space, with_space
+
+    top = state.pending_stack[-1]
+    if isinstance(top, PendingActionSpace):
+        return replace_top(state, fast_replace(top, suppressed=True))
+    assert isinstance(top, (PendingSheepMarket, PendingPigMarket, PendingCattleMarket)), (
+        f"suppress_space_reward: unsupported host {type(top).__name__}")
+    space = get_space(state.board, top.space_id)
+    state = fast_replace(state, board=with_space(
+        state.board, top.space_id,
+        fast_replace(space, accumulated_amount=space.accumulated_amount + top.gained)))
+    return replace_top(state, fast_replace(top, gained=0))
+
+
 # ---------------------------------------------------------------------------
 # Part 1: Simple derived quantities
 # ---------------------------------------------------------------------------

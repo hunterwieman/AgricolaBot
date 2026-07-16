@@ -1292,6 +1292,14 @@ class PendingActionSpace:
     # Read by `after_action_space` autos that key on "what you took from the space"
     # (Refactor A). Card-only frame → Family-inert; canonical-default-skipped when empty.
     taken: Resources = Resources()
+    # Reward-suppression seam (ACTION_REPLACEMENT_DESIGN.md): a card's optional
+    # replace-trigger sets this True in the before-window (Animal Catcher on Day
+    # Laborer) so that _apply_proceed SKIPS the atomic effect entirely — the space
+    # then grants nothing, `taken` stays Resources(), and every "got food/goods from
+    # a space" reactor (Kindling Gatherer) self-corrects with no special-casing. The
+    # card's own alternate reward is a SEPARATE grant, never routed through here.
+    # Card-only frame → Family-inert; canonical-default-skipped at False.
+    suppressed: bool = False
 
     @property
     def space_id(self) -> str:

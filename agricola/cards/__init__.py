@@ -906,6 +906,9 @@ from agricola.cards import german_heath_keeper  # noqa: F401
 from agricola.cards import kelp_gatherer  # noqa: F401
 from agricola.cards import material_deliveryman  # noqa: F401
 from agricola.cards import animal_dealer  # noqa: F401
+# Action/reward replacement pair (ACTION_REPLACEMENT_DESIGN.md — the reward-suppression seam)
+from agricola.cards import pet_lover  # noqa: F401
+from agricola.cards import animal_catcher  # noqa: F401
 from agricola.cards import turnip_farmer  # noqa: F401
 from agricola.cards import bohemian  # noqa: F401
 from agricola.cards import resource_analyzer  # noqa: F401
