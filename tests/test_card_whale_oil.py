@@ -205,11 +205,12 @@ def test_payout_does_not_fire_for_non_owner():
 # --------------------------------------------------------------------------- affordability gate
 
 def test_occupation_source_reports_stored_amount():
+    # 3-arg cost-aware seam (ruling 65); Whale Oil ignores the route's cost.
     src = OCCUPATION_FOOD_SOURCES[CARD_ID]
     s, idx = _fishing_state(held=3)
-    assert src(s, idx) == (3, Resources())
+    assert src(s, idx, Resources(food=1)) == (3, Resources())
     s0, idx0 = _fishing_state(held=0)
-    assert src(s0, idx0) is None                   # nothing to offer -> None
+    assert src(s0, idx0, Resources(food=1)) is None   # nothing to offer -> None
 
 
 def test_lessons_offered_only_via_whale_oil_food():

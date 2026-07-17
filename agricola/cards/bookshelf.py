@@ -56,9 +56,10 @@ def _apply(state: GameState, idx: int) -> GameState:
     )
 
 
-def _food_source(state: GameState, idx: int):
+def _food_source(state: GameState, idx: int, cost: Resources):
     """For the occupation-affordability gate: 3 free food, no inputs consumed. Always available
-    once owned (it fires automatically), so it never returns None."""
+    once owned (it fires automatically), so it never returns None. The route's `cost` is
+    ignored — the payout is fixed."""
     return (_FOOD, Resources())
 
 

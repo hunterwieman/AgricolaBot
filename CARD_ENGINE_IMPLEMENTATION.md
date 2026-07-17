@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-16 (the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-17 (the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,17 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-17 Forest School rebuild (ruling 65) — a live-defect fix.** The clause-2
+  food→wood substitution re-derived its size from the Lessons ramp
+  (`occupation_cost(len(occupations))`) instead of the play-in-progress's
+  `PendingPlayOccupation.cost` — a phantom 1-wood swap on Seed Researcher's free granted play,
+  a mis-sized swap on Writing Desk's 2-food grant, and an under-recognizing affordability gate.
+  Ruled and rebuilt: **"each food" is a PER-UNIT license** (a play-variant trigger — one
+  FireTrigger per replacement count k, mixed payments legal, each k stranding-guarded via a
+  post-swap `_payable` check), and **`OCCUPATION_FOOD_SOURCES` is cost-aware**
+  (`source_fn(state, idx, cost)` — all five registrants migrated; only Forest School reads it)
+  so the gate simulates the route's real price. The play-occupation enumerator now expands
+  variant triggers (a no-op wrapper when nothing registers). Family-inert; census unchanged.
 - **The 2026-07-16 action/reward-replacement seam landed: 2 occupations + one new engine bit.**
   The reward-suppression seam (`ACTION_REPLACEMENT_DESIGN.md`) that unblocks **Animal Catcher**
   (C168 — Day Laborer: forgo the 2 food for 3 supply animals + a per-swap 1-food-per-harvest tax)
@@ -658,8 +669,11 @@ module-local `_owns(player_state, card_id)` helpers.
   A card that can *produce* food usable toward an occupation's play cost (Paper Maker: pay 1 wood
   → 1 food per occupation). The card itself is an ordinary `before_play_occupation` trigger; this
   registry additionally lets the affordability **gate** (`_payable_occupation`, §5) simulate
-  firing it — `source_fn(state, idx) -> (food_produced, inputs: Resources) | None` — so a play
-  payable only via the source is still offered.
+  firing it — `source_fn(state, idx, cost) -> (food_produced, inputs: Resources) | None` — so a
+  play payable only via the source is still offered. `cost` is the **route's actual play cost**
+  being gated (ruling 65, 2026-07-17): a cost-sized source (Forest School's per-food swap) must
+  simulate against the real price, never a re-derived Lessons-ramp cost; fixed-payout sources
+  (Paper Maker, Bookshelf, Tasting, Whale Oil) ignore it.
 - **`register_food_payment_resume(resume_kind, apply_fn)`** → `FOOD_PAYMENT_RESUMES`.
   A card-specific continuation after a `PendingFoodPayment` commits (§5): `resume_kind` is the
   card id the frame carries, `apply_fn(state, owner_idx) -> state` debits the food and applies the

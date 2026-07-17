@@ -874,6 +874,30 @@ at 2 players.
      id-keyed via `CARDS`); per-event eligibility is safe (the enumerator reads
      event-keyed `TRIGGERS`).
 
+65. **Forest School replaces the occupation's food cost PER FOOD, priced by the
+   route** (2026-07-17; a live-defect find during the tier triage — the card was
+   implemented, not deferred, so this is a fix ruling). Two halves:
+   - **"Each food that an occupation costs" is a per-unit license**: the player
+     may replace any subset — k wood → k food, k ≤ min(food cost, wood held) —
+     so MIXED payments are legal (1 wood + 1 food on Writing Desk's 2-food
+     granted play). Rebuilt as a play-variant trigger (one FireTrigger per k),
+     each k guarded so the play stays payable AFTER the swap (the play host has
+     no decline — the standing stranding rule; the same guard filters a k below
+     the shortfall).
+   - **The price is the frame's `PendingPlayOccupation.cost`**, never re-derived
+     from the Lessons ramp. The original implementation computed
+     `occupation_cost(len(occupations))` — right on Lessons (identical by
+     construction) and coincidentally on Scholar (owning Scholar forces the ramp
+     to 1, its flat price), wrong on every differently-priced granted route: a
+     phantom 1-wood → 1-food swap on Seed Researcher's FREE play, a mis-sized
+     swap on Writing Desk's 2-food play, and an under-recognizing affordability
+     gate (2 wood + 0 food could not reach Writing Desk's grant).
+   MACHINERY (both Family-inert): `OCCUPATION_FOOD_SOURCES` sources now receive
+   the route's actual cost — `source_fn(state, idx, cost)`, all five registrants
+   migrated (only Forest School reads it) — and the play-occupation enumerator
+   expands variant triggers (`_expand_variant_triggers`, the same
+   no-op-when-unregistered wrapper the atomic and delegating hosts use).
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

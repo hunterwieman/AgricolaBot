@@ -132,7 +132,12 @@ OCCUPATION_FOOD_SOURCES: dict[str, Callable] = {}
 
 
 def register_occupation_food_source(card_id: str, source_fn: Callable) -> None:
-    """Register a card that can produce food toward an occupation play cost (Paper Maker)."""
+    """Register a card that can produce food toward an occupation play cost (Paper Maker,
+    Forest School). `source_fn(state, idx, cost) -> (food_produced, inputs: Resources) | None`
+    — `cost` is the route's ACTUAL play cost being gated (the frame's, never re-derived from
+    the Lessons ramp; ruling 65, 2026-07-17), so a cost-sized source (Forest School's per-food
+    swap) simulates against the real price. Sources whose output doesn't depend on the price
+    (Paper Maker, Bookshelf, Tasting, Whale Oil) ignore the argument."""
     OCCUPATION_FOOD_SOURCES[card_id] = source_fn
 
 

@@ -76,9 +76,10 @@ def _apply_play_occupation(state: GameState, idx: int) -> GameState:
     )
 
 
-def _food_source(state: GameState, idx: int):
+def _food_source(state: GameState, idx: int, cost: Resources):
     """For the occupation-affordability gate: the card's stored amount, no inputs
-    consumed (the payout is free). None when the card holds nothing to offer."""
+    consumed (the payout is free). None when the card holds nothing to offer. The
+    route's `cost` is ignored — the payout is whatever the card holds."""
     amount = state.players[idx].card_state.get(CARD_ID, 0)
     if amount <= 0:
         return None

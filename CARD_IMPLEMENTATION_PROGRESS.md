@@ -110,6 +110,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A28 Forest School** · cost: 1 Wood,1 Clay
   - _You can consider the "Lessons" action spaces not occupied. You can replace each food that an occupation costs with wood._
   - `PASSIVE L-OCCUPY L-EXT E-COSTMOD` — Two always-on rules: treat Lessons as unoccupied (L-OCCUPY, and 'considering a space unoccupied' is an explicit L-EXT example) and pay occupation food costs in wood (currency substitution — E-COSTMOD, also an explicit L-EXT example), so L-EXT belongs alongside both.
+  - REBUILT 2026-07-17 (ruling 65): the substitution is PER FOOD (a play-variant trigger, one FireTrigger per replacement count k — mixed payments legal) and priced by the route's `PendingPlayOccupation.cost`, never the Lessons ramp (the original re-derivation mis-sized the swap on Writing Desk's 2-food grant and offered a phantom swap on Seed Researcher's free play).
 - ⬜ **A29 Ale-Benches** · cost: 1 Wood · prereq: 2 Occupations
   - _In the returning home phase of each round, you can pay exactly 1 grain from your supply to get 1 bonus point. If you do, each other player gets 1 food._
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-SCORE E-OPPTRANSFER ST-COUNTER` — Optional hook each returning-home phase (F-TRIG, A-OWN default); grain is an ordinary cost so A's E-FOODCOST is wrong (E-FOODCOST = food costs only); opponents gaining food = E-OPPTRANSFER; repeatedly-earned bonus points need a running count (ST-COUNTER).

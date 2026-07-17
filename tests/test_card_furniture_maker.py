@@ -239,9 +239,10 @@ def test_forest_school_substituted_food_pays_no_wood():
     cs = with_space(cs, "lessons", revealed=True)
     cs = step(cs, PlaceWorker(space="lessons"))
     cs = step(cs, ChooseSubAction(name="play_occupation"))
-    # Before the play, the commit is withheld (food short) — fire Forest School.
-    assert FireTrigger(card_id="forest_school") in legal_actions(cs)
-    cs = step(cs, FireTrigger(card_id="forest_school"))
+    # Before the play, the commit is withheld (food short) — fire Forest School
+    # (a play-variant trigger since ruling 65: variant = the replacement count k).
+    assert FireTrigger(card_id="forest_school", variant="1") in legal_actions(cs)
+    cs = step(cs, FireTrigger(card_id="forest_school", variant="1"))
     cs = step(cs, CommitPlayOccupation(card_id="consultant"))
 
     assert "consultant" in cs.players[0].occupations

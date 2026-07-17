@@ -83,9 +83,10 @@ def _apply(state: GameState, idx: int) -> GameState:
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
 
 
-def _food_source(state: GameState, idx: int):
+def _food_source(state: GameState, idx: int, cost: Resources):
     """For the occupation-affordability gate: (food produced, inputs consumed) when firing is
-    possible, else None. Used by `_payable_occupation` to simulate firing Tasting."""
+    possible, else None. Used by `_payable_occupation` to simulate firing Tasting. The route's
+    `cost` is ignored — the payout is fixed."""
     if state.players[idx].resources.grain < 1:
         return None
     return (4, Resources(grain=1))

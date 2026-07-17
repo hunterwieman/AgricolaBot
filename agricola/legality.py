@@ -626,10 +626,13 @@ def _payable_occupation(state: GameState, idx: int, p: PlayerState, cost: Resour
     This is the affordability GATE for offering an occupation play (Lessons / Scholar). A
     source is simulated by spending its inputs and adding its food, then re-running `_payable`,
     so the liquidation it competes with sees the reduced goods — the spent wood is reserved
-    automatically (forward-compatible with a future wood->food liquidation). The source itself
-    is a real `before_play_occupation` trigger; the play-occupation enumerator's commit gate
-    (`_payable(top.cost)`) then forces it to be fired before the commit unlocks, so there is no
-    empty-frontier dead state. (Single-source today; a multi-source future would need to
+    automatically (forward-compatible with a future wood->food liquidation). Each source
+    receives the ROUTE'S ACTUAL COST being gated (`source_fn(state, idx, cost)` — ruling 65,
+    2026-07-17: Forest School's swap is sized by the play's real price, so a re-derived
+    Lessons-ramp cost would mis-simulate every differently-priced granted play). The source
+    itself is a real `before_play_occupation` trigger; the play-occupation enumerator's commit
+    gate (`_payable(top.cost)`) then forces it to be fired before the commit unlocks, so there
+    is no empty-frontier dead state. (Single-source today; a multi-source future would need to
     consider firing combinations.)"""
     if _payable(state, idx, p, cost):
         return True
@@ -638,7 +641,7 @@ def _payable_occupation(state: GameState, idx: int, p: PlayerState, cost: Resour
     for source_card, source_fn in OCCUPATION_FOOD_SOURCES.items():
         if source_card not in owned:
             continue
-        result = source_fn(state, idx)          # (food_produced, inputs: Resources) | None
+        result = source_fn(state, idx, cost)    # (food_produced, inputs: Resources) | None
         if result is None:
             continue
         produced, inputs = result
@@ -2803,8 +2806,13 @@ def _enumerate_pending_play_occupation(
 
     Uniform sub-action host (SUBACTION_HOOK_REFACTOR.md): after the occupation is
     played the frame is in its after-phase, offering after_play_occupation
-    triggers (e.g. Bread Paddle) + Stop."""
-    actions = _eligible_fire_triggers(state, top, trigger_event(top))
+    triggers (e.g. Bread Paddle) + Stop.
+
+    Trigger surfacing goes through `_expand_variant_triggers` (a no-op when no owned
+    trigger is variant-registered) — Forest School's per-k food-for-wood swap is the
+    live consumer (ruling 65)."""
+    actions = _expand_variant_triggers(
+        state, top, _eligible_fire_triggers(state, top, trigger_event(top)))
     if top.phase == "after":
         actions.append(Stop())
         return actions
