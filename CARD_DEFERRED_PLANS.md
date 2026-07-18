@@ -898,6 +898,38 @@ at 2 players.
    expands variant triggers (`_expand_variant_triggers`, the same
    no-op-when-unregistered wrapper the atomic and delegating hosts use).
 
+66. **The 2026-07-17 tier-1 batch rulings** (each quoted in its card module; the
+   batch: Heart of Stone C21, Seed Almanac E18, Recycled Brick D77, Nail Basket
+   E15, Profiteering E82, Double-Turn Plow A20, Furrows D3, Pole Barns E1,
+   Lumber Pile E76, Thunderbolt E4, Night Loot E5 — 11 minors, all on existing
+   seams, no engine change):
+   - **"Immediately" adds nothing in this batch** (the standing per-instance
+     check, ruled for all seven occurrences at once): the six on-play uses
+     (Pole Barns, Furrows, Thunderbolt, Night Loot, Lumber Pile, Double-Turn
+     Plow) are the ordinary on-play instant, and Heart of Stone's is the reveal
+     window's instant. Triggers on the same instant fire in any player-chosen
+     order.
+   - **Pole Barns builds stables as a CARD EFFECT, not a "Build Stables"
+     action** — the pushed frame carries `build_stables_action=False`, so an
+     action-keyed card never fires on it (a verb-keyed "each time you build a
+     stable" card still does). Contrast Nail Basket, whose grant IS the literal
+     named "Build Fences" action (`build_fences_action=True`).
+   - **Double-Turn Plow may stop after 1 field** (the multi-shot plow's
+     Proceed-at-≥1; never forced to the second plow).
+   - **Thunderbolt enumerates board fields BY GRAIN COUNT** (equal-count board
+     fields are interchangeable — the fungible-board-field convention; the
+     executor strikes the deterministic lowest-(row, col) representative), while
+     each grain-bearing CARD field stays its own variant: card-crop removal
+     routes through the ruling-44 `remove_card_crop` chokepoint so its
+     registered reactions fire.
+   - **Night Loot is unplayable with fewer than 2 different building-resource
+     types on revealed accumulation spaces** (a prereq — never a dead-end and
+     never a partial take).
+   - **Nail Basket's "wood accumulation space" family is the
+     `WOOD_ACCUMULATION_SPACES` constant** (agricola/constants.py), hooked over
+     the whole set for 4-player forward-compatibility (only Forest is live at
+     2 players).
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

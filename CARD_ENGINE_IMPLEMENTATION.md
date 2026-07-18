@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-17 (the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-17 (the tier-1 batch — 11 minors on existing seams, ruling 66, census 213 occ + 304 min; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,25 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-17 tier-1 batch landed: 11 minors on existing seams (no engine change,
+  all Family-inert).** Chosen from the tier triage as clean fits, implemented by an
+  11-agent wave with each card fidelity-reviewed by the driver; zero defers. The cards:
+  **Heart of Stone** (the `reveal` window's FIRST member — a quarry reveal grants
+  no-space family growth via `PendingFamilyGrowth(place_on_space=False)`), **Seed
+  Almanac** (`after_play_minor` + the `played_card_id` self-exclusion + the Ox Goad
+  food-resume — §8's old "Seed Almanac deferral" example is superseded), **Recycled
+  Brick** (`any_player` `after_renovate` auto — target-is-stone is an outcome read),
+  **Nail Basket** (`after_action_space` over the hooked `WOOD_ACCUMULATION_SPACES`;
+  deposits the stone on the space; grants the literal Build Fences action), **Profiteering**
+  (hooked Day Laborer + an exchange variant trigger), **Double-Turn Plow** (`cost_fn`
+  round-scaled cost + wide variants + `PendingPlow(max_plows=2)`), **Furrows** (wide
+  variants + `PendingSow(max_fields=1)`, ruling 48 card-fields), **Pole Barns**
+  (`build_stables_action=False` — a card effect, not the named action), **Lumber Pile**
+  (wide stable-return subsets + the eviction barrier + a one-shot pasture-cache
+  recompute), **Thunderbolt** (count-keyed board variants; card fields via
+  `remove_card_crop`), **Night Loot** (mandatory pick variants + a <2-types prereq).
+  The batch rulings are `CARD_DEFERRED_PLANS.md` ruling 66. Census (live registry):
+  **213 occupations + 304 minors = 517**.
 - **The 2026-07-17 Forest School rebuild (ruling 65) — a live-defect fix.** The clause-2
   food→wood substitution re-derived its size from the Lessons ramp
   (`occupation_cost(len(occupations))`) instead of the play-in-progress's
@@ -2194,9 +2213,11 @@ defer (§7); building the missing piece is a design conversation with the user f
   are points (Sheep Walker) need a decision window between round 14 and scoring, coupled to
   arrangement-scoring questions (Organic Farmer). Flagged, unbuilt.
 - **The general firing system carries no event payload.** `after_play_minor` etc. name an
-  event, not the card played — so a card cannot distinguish *its own* play from a later one
-  (Seed Almanac's deferral), and there is no any-source newborns-gained event (Dung Collector —
-  markets included, deliberately out of scope). Adding payloads to the general system is a
+  event, not the card played — and there is no any-source newborns-gained event (Dung
+  Collector — markets included, deliberately out of scope). *(The narrow `played_card_id`
+  stamp on the play hosts — added for Clutterer — is the one own-play discriminator, and it
+  resolved this bullet's old Seed Almanac example: implemented 2026-07-17. The general
+  payload boundary stands.)* Adding payloads to the general system is a
   firing-API change; defer until a cluster justifies it. **The two deliberate exceptions**,
   both harvest-scoped registries rather than general events: the harvest OCCASION registries
   (the `HarvestOccasion` manifest) and the breeding-outcome registry (the `BreedingOutcome`

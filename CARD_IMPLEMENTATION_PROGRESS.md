@@ -83,7 +83,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A19 Handplow** · cost: 1 Wood
   - _Add 5 to the current round and place 1 field tile on the corresponding round space. At the start of that round, you can plow the field._
   - `ONPLAY E-SCHED HOOK T-AFTER S-SOR F-TRIG A-OWN E-GRANTSUB` — Places a field tile on a future round space; at start of that round may plow it.
-- ⬜ **A20 Double-Turn Plow** · cost: 1 Grain,(+1 Food) · prereq: Play in Round 3 (5) or Before
+- ✅ **A20 Double-Turn Plow** · cost: 1 Grain,(+1 Food) · prereq: Play in Round 3 (5) or Before
   - _When you play this card, you can immediately plow up to 2 fields.  [CLARIFICATION: The cost is 1 extra food if played in Round 4 or 5.]_
   - `ONPLAY E-GRANTSUB E-FOODCOST` — On play optionally plow up to 2 fields; the play-cost's +1 food (round-4/5 clause) is a food cost. Round restriction is a plain prereq.
 - ⬜ **A21 Family Friend Home** · prereq: 1 Occupation
@@ -597,7 +597,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C20 Mole Plow** · cost: 3 Wood,1 Food · prereq: Play in Round 9 or Later
   - _Each time you use the "Farmland" or "Cultivation" action space, you can plow 1 additional field._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB` — Each time using Farmland/Cultivation space, may plow 1 additional field -> T-BEFORE grant of plow sub-action.
-- ⬜ **C21 Heart of Stone** · cost: 4 Food
+- ✅ **C21 Heart of Stone** · cost: 4 Food
   - _Each time a "Quarry" accumulation space is revealed, if you have room in your house, you can immediately take a "Family Growth" action without placing a person._
   - `HOOK S-REVEAL T-AFTER F-TRIG A-OWN E-GROWTH E-NOPLACE` — Each time a Quarry space is revealed (S-REVEAL) you may immediately take a Family Growth without placing a person (E-GROWTH + E-NOPLACE, optional). Reveal-and-then-act reads as T-AFTER; E-PEOPLE is redundant with E-GROWTH.
 - ⬜ **C22 Basket Chair** · cost: 1 Reed
@@ -798,7 +798,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D2 Dwelling Plan** · cost: 1 Food · passing
   - _You can immediately take a "Renovation" action._
   - `ONPLAY E-GRANTSUB E-PASSING E-FOODCOST` — Grants the renovate primitive — explicitly listed under E-GRANTSUB (no standalone 'Renovation' action space exists), not a whole-action grant; passing minor; 1-Food play cost = E-FOODCOST per the cost ruling.
-- ⬜ **D3 Furrows** · passing
+- ✅ **D3 Furrows** · passing
   - _You can immediately sow in exactly 1 field._
   - `ONPLAY E-GRANTSUB E-PASSING` — On play grants an immediate sow in exactly 1 field; passing minor.
 - ✅ **D4 Cross-Cut Wood** · cost: 1 Food · prereq: 3 Occupations · passing
@@ -1020,7 +1020,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D76 Social Benefits** · cost: 1 Reed · prereq: At Most 1 Occupation
   - _Immediately after the feeding phase of each harvest, if you have no food left, you get 1 wood and 1 clay._
   - `HOOK T-AFTER S-AFTERFEED F-AUTO A-OWN E-GOODS` — After feeding phase, if no food left, auto get 1 wood + 1 clay; fires each harvest.
-- ⬜ **D77 Recycled Brick** · cost: 1 Food · prereq: 3 Occupations
+- ✅ **D77 Recycled Brick** · cost: 1 Food · prereq: 3 Occupations
   - _Each time any player (including you) renovates to stone, you get 1 clay for each newly renovated room._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN A-OPP E-GOODS` — Each time any player renovates to stone, get 1 clay per newly renovated room; fires on own and opponent renovate sub-action.
 - ✅ **D78 Reed Pond** · prereq: 3 Occupations
@@ -1047,7 +1047,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 ### Deck E
 
-- ⬜ **E1 Pole Barns** · cost: 2 Wood · prereq: 15 Fences Built · passing
+- ✅ **E1 Pole Barns** · cost: 2 Wood · prereq: 15 Fences Built · passing
   - _You can immediately build up to 3 stables at no cost. (You must pay the cost of this card though.)_
   - `ONPLAY E-GRANTSUB E-PASSING` — On-play grant of up to 3 stable builds; 'at no cost' is the grant's own (zero) push-time cost, not a modification of a standing cost rule, so no E-COSTMOD. The play cost is 2 Wood (ordinary resources) and '15 Fences Built' is a prereq, so labelA's E-PIECECOST is wrong. Passing minor (passing_left=X).
 - ⬜ **E2 Renovation Materials** · cost: 3 Clay,1 Reed · prereq: Wooden House · passing
@@ -1056,10 +1056,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E3 Tea Time** · cost: 1 Food · prereq: Own Person on "Grain Utilization" · passing
   - _Immediately return your person on the "Grain Utilization" action space home; you can place it again later this round._
   - `ONPLAY E-WORKERMANIP E-PASSING ST-PLACELOG` — Return your worker on Grain Utilization to reuse it this round.
-- ⬜ **E4 Thunderbolt** · prereq: 1 Grain Field · passing
+- ✅ **E4 Thunderbolt** · prereq: 1 Grain Field · passing
   - _Immediately remove all grain from one of your fields to the general supply. Gain 2 wood for each grain you just removed._
   - `ONPLAY E-CROPMANIP E-GOODS E-PASSING` — Remove all grain from one field; +2 wood per grain removed.
-- ⬜ **E5 Night Loot** · cost: 2 Food · passing
+- ✅ **E5 Night Loot** · cost: 2 Food · passing
   - _Immediately remove exactly 2 different building resources from accumulation spaces and place them in your supply._
   - `ONPLAY EXOTIC E-GOODS E-PASSING` — Strip 2 different building resources off board accumulation spaces.
 - ⬜ **E6 Recount** · passing
@@ -1089,7 +1089,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E14 Wood Saw** · cost: 1 Wood
   - _Each time all other players have more people than you, you can take a "Build Rooms" action without placing a person._
   - `ATWILL E-GRANTACT E-NOPLACE` — When all others have more people: Build Rooms without placing (computable condition).
-- ⬜ **E15 Nail Basket** · cost: 1 Reed
+- ✅ **E15 Nail Basket** · cost: 1 Reed
   - _Each time after you use a wood accumulation space, you can place 1 stone from your supply on that space (for the next visitor) to take a “Build Fences” action._
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT ST-PROV` — 'Each time after you use a wood accumulation space, you can...' = optional own-action after-space hook granting a full Build Fences action; the stone is a resource not a game piece (no E-PIECECOST), but the effect needs the fired space's identity to place the stone on it (ST-PROV).
 - ✅ **E16 Briar Hedge** · prereq: 1 Animal of Each Type
@@ -1098,7 +1098,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E17 Skimmer Plow** · cost: 1 Wood · prereq: 2 Occupations
   - _Each time you use the "Farmland" or "Cultivation" action space, you can plow 2 fields instead of 1. Each time you sow, you must place 1 fewer good on each field you sow._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB PASSIVE E-CROPMANIP` — Using Farmland/Cultivation grants plowing 2 fields (optional sub-action hook); the sow penalty ('each time you sow, place 1 fewer good') is an always-on rule change to the sow field-yield, so PASSIVE + E-CROPMANIP both apply.
-- ⬜ **E18 Seed Almanac** · cost: 1 Reed · prereq: 4 Occupations
+- ✅ **E18 Seed Almanac** · cost: 1 Reed · prereq: 4 Occupations
   - _Each time after you play a minor improvement after this one, you can pay 1 food to plow 1 field._
   - `HOOK T-AFTER S-PLAY F-TRIG A-OWN E-FOODCOST E-GRANTSUB` — After playing a later minor improvement, may pay 1 food to plow 1 field.
 - ✅ **E19 Ox Goad** · cost: 1 Wood · prereq: 3 Occupations
@@ -1272,7 +1272,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E75 Stone Axe** · cost: 1 Wood,1 Clay · prereq: 2 Occupations
   - _Each time you use a wood accumulation space, you can return 1 stone to the general supply to get an additional 3 wood._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-CONVERT E-GOODS` — Each time you use a wood accumulation space, optionally return 1 stone for +3 wood -- a conversion tied to that space.
-- ⬜ **E76 Lumber Pile**
+- ✅ **E76 Lumber Pile**
   - _When you play this card, you can immediately return up to 3 stables from your farmyard board to your supply and get 3 wood for each._
   - `ONPLAY E-RETURNCOMP E-GOODS` — On play, optionally return up to 3 stables to supply for 3 wood each = E-RETURNCOMP + E-GOODS. E-PIECECOST dropped: the stable is being returned FOR benefit (return-component), not spent as a piece-cost to pay for something.
 - ⬜ **E77 Mattock** · cost: 1 Wood
@@ -1290,7 +1290,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E81 Alchemists Lab** · prereq: 3 Occupations
   - _This card is an action space for all. A player who uses it gets 1 building resource of each type they already have. If another player uses it, they must first pay you 1 food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN A-OPP L-CARDSPACE E-GOODS E-OPPTRANSFER` — Card-as-action-space usable by either player (A-OWN + A-OPP); the resource grant is automatic on use and the opponent toll is 'must FIRST pay 1 food' → T-BEFORE; nothing lets anyone use an occupied space (drop L-OCCUPY) and nothing resolves once at play time (drop ONPLAY — L-CARDSPACE covers the structural setup).
-- ⬜ **E82 Profiteering**
+- ✅ **E82 Profiteering**
   - _When you play this card, you immediately get 1 food. Each time after you use the "Day Laborer" action space, you can exchange 1 building resource for another building resource._
   - `ONPLAY E-GOODS HOOK T-AFTER S-SPACE F-TRIG A-OWN E-CONVERT` — On play +1 food; then after using Day Laborer space, optionally exchange 1 building resource for another.
 - ✅ **E83 Shepherd's Whistle** · cost: 1 Wood

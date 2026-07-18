@@ -945,3 +945,17 @@ from agricola.cards import bunk_beds  # noqa: F401
 from agricola.cards import reader  # noqa: F401
 from agricola.cards import lodger  # noqa: F401
 from agricola.cards import wooden_shed  # noqa: F401
+
+# --- 2026-07-17 tier-1 batch (11 minors on existing seams; rulings 66 + the batch
+#     rulings in CARD_DEFERRED_PLANS.md) ---
+from agricola.cards import heart_of_stone  # noqa: F401
+from agricola.cards import seed_almanac  # noqa: F401
+from agricola.cards import recycled_brick  # noqa: F401
+from agricola.cards import nail_basket  # noqa: F401
+from agricola.cards import profiteering  # noqa: F401
+from agricola.cards import double_turn_plow  # noqa: F401
+from agricola.cards import furrows  # noqa: F401
+from agricola.cards import pole_barns  # noqa: F401
+from agricola.cards import lumber_pile  # noqa: F401
+from agricola.cards import thunderbolt  # noqa: F401
+from agricola.cards import night_loot  # noqa: F401
