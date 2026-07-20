@@ -13,10 +13,16 @@ USER RULINGS (2026-07-20) — the load-bearing scope questions:
 1. "Takes at least N X" scope = ACCUMULATION-SPACE acquisitions only (a player
    sweeping a building-resource accumulation space by placing a worker there). No
    other gain occasion (card grants, bonus income, on-play goods, harvest) counts.
-2. Count ONLY the resources gained from the space's OWN native accumulation. A
-   resource some card deposited onto the space (e.g. a stone placed on a wood space
-   by a future card) does NOT count toward any threshold, and card-trigger bonus
-   income earned alongside the use does not count either.
+2. Count ONLY the resources of the space's NATIVE accumulation type swept off the
+   space. A FOREIGN-type resource a card deposited onto the space (e.g. Nail
+   Basket's stone placed on a wood space) does NOT count toward any threshold, and
+   card-trigger bonus income earned alongside the use does not count either.
+   CLARIFIED (user, 2026-07-20, second ruling the same day): a NATIVE-type good a
+   card returned onto the space (Forest Plow B17's wood back onto Forest, when
+   built) DOES count for the next visitor — once on the space, native-type goods
+   are simply "wood taken from the space," origin irrelevant. The native-type
+   filter is therefore the complete, final semantics — no deposit provenance is
+   ever needed.
 3. "You get 1 of that building resource" is MANDATORY -> an automatic effect, and
    it fires for its owner on EVERY player's qualifying take ("each time any player
    (including you)"), so `any_player=True`.
@@ -33,21 +39,16 @@ goods the acting player swept across the take, stamped at Proceed).
 
 Ruling 2 is implemented by filtering `taken` to the space's NATIVE building type
 (forest->wood, clay pit->clay, reed bank->reed, quarries->stone) and comparing
-against that type's threshold (wood 5 / clay 4 / reed 3 / stone 3). This is EXACT
-today because the only off-native goods that can sit on a space are card deposits,
-and `taken` never includes card-trigger bonus income (that income is granted in the
-before/after windows OUTSIDE the atomic take, so it is not part of the measured
-delta). Each space has exactly one native type, so at most one threshold fires per
-take.
-
-FORWARD-COMPAT NOTE: the native-type filter is exact ONLY while no card returns a
-space's OWN native building type back onto that space. A future card that does so
-(e.g. Forest Plow B17, unimplemented, which would place wood back onto Forest)
-would let a card-deposited wood be swept into `taken.wood` and wrongly count toward
-the threshold. Per user ruling 2026-07-20 the INTENT is that card deposits never
-count; supporting such a card will need deposit provenance on the space (a way to
-tell native-accumulation goods from card-placed goods) — the native-type filter
-alone cannot then distinguish them.
+against that type's threshold (wood 5 / clay 4 / reed 3 / stone 3). `taken` never
+includes card-trigger bonus income (that income is granted in the before/after
+windows OUTSIDE the atomic take, so it is not part of the measured delta), and the
+type filter drops any foreign-type deposit. Native-type goods in the sweep count
+regardless of how they reached the space (the 2026-07-20 clarification above) —
+`taken`'s value is exactly the intended quantity, so this filter is complete and
+final, not an approximation. Each space has exactly one native type, so at most
+one threshold fires per take. (A depositing card that fires in the AFTER window —
+Forest Plow's ruled timing — also cannot disturb the depositing player's own
+`taken`: the stamp happens at the atomic take, before after-triggers run.)
 
 STOCK: the "2 of each building resource on this card" come from the GENERAL SUPPLY,
 not the player's goods — the on-play only sets the card's CardStore stock, never

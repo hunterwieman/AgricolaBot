@@ -153,8 +153,11 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   disjoint-support canonical exchanges, give-side as the variant surcharge), Material Hub
   C81 (`any_player` after-space auto over the five building-resource accumulation spaces,
   reading the host's `taken` delta filtered to the space's NATIVE type — ruled: sweeps
-  only, card deposits/bonuses never count; deposit provenance flagged for a future
-  same-type returner like Forest Plow B17). Census **213 occupations + 315 minors = 528**.
+  only; foreign-type card deposits and trigger bonus income never count; CLARIFIED same
+  day: native-type goods a card returns onto the space — Forest Plow B17's wood, ruled an
+  AFTER-window trigger — DO count for the next visitor, so the native-type filter is the
+  complete final semantics, no deposit provenance needed). Census **213 occupations +
+  315 minors = 528**.
 - **The 2026-07-20 play_occupation cost-conversion chokepoint landed (ruling 67): Working
   Gloves E60 added, Forest School migrated, one new action kind — all card-only/Family-inert.**
   Occupation plays now resolve their cost through `effective_payments`/`can_pay` under

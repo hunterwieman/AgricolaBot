@@ -233,6 +233,18 @@ def test_foreign_resource_on_space_counts_toward_no_threshold():
     assert _stock(out, 0) == _FULL_STOCK
 
 
+def test_native_type_deposit_on_space_counts_toward_threshold():
+    # CLARIFIED user ruling 2026-07-20 (second same-day ruling): NATIVE-type goods
+    # a card returned onto the space (Forest Plow's wood back onto Forest, when
+    # built) DO count for the next visitor — origin is irrelevant once the good is
+    # on the space. Simulate: 3 natural + 2 returned wood on Forest = a 5-wood
+    # sweep -> the threshold fires and Material Hub pays.
+    s = _stock_space(_own(with_current_player(_state(), 0), 0), "forest",
+                     Resources(wood=5))
+    out = _play_hosted_space(s, "forest")
+    assert _stock(out, 0) == Resources(wood=1, clay=2, reed=2, stone=2)
+
+
 # ---------------------------------------------------------------------------
 # Stock exhaustion: once the native type reaches 0, further takes pay nothing
 # ---------------------------------------------------------------------------

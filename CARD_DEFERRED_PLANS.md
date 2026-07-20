@@ -1247,8 +1247,12 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   Woolgrower (A148 [4], sheep per completed feeding phase). Special Food (B34) separately needs an
   accommodation event.
 - **Per-card goods stack (beyond a CardStore scalar):** Hayloft Barn (B21), Muddy Puddles (B83),
-  Forest Plow (B17, return-wood-to-space + partial-take legality), Forest Stone (B48 — also an
-  alternative cost), Maintenance Premium (**note:** B55 was *rescued* — it needs only a scalar).
+  Forest Plow (B17, return-wood-to-space + partial-take legality — two 2026-07-20 rulings for its
+  eventual build: it is an AFTER-window trigger, so the deposit lands after the sweeping player's
+  `taken` stamp; and its returned wood on the space DOES count toward Material Hub's threshold for
+  the next visitor — no deposit provenance needed, the native-type filter is final), Forest Stone
+  (B48 — also an alternative cost), Maintenance Premium (**note:** B55 was *rescued* — it needs
+  only a scalar).
 - **Alternative printed cost ("A OR B" for the card's own play):** Baseboards (A4), Barley Mill (A64),
   Forest Stone (B48). `MinorSpec.cost` is a single `Cost`; no OR-alternation, and you don't own the card
   while playing it (so the cost-formula registry can't help). A small `alt_costs` list on `MinorSpec` +
