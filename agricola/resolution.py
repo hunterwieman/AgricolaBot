@@ -1069,6 +1069,11 @@ def _choose_subaction_granted_subaction(
         return push(state, PendingPlayMinor(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id,
             minor_improvement_action=top.minor_is_action))
+    if action.name == "build_major":
+        from agricola.pending import PendingBuildMajor
+        return push(state, PendingBuildMajor(
+            player_idx=p_idx, initiated_by_id=top.initiated_by_id,
+            allowed_majors=top.major_allowed))
     raise ValueError(f"Unknown granted sub-action {action.name!r}")
 
 

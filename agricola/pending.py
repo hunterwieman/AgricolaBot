@@ -24,6 +24,7 @@ from agricola.resources import Animals, Cost, Resources
 
 if TYPE_CHECKING:
     from agricola.actions import Action
+    from agricola.constants import HouseMaterial
     from agricola.state import GameState
 
 
@@ -96,6 +97,15 @@ class PendingSow:
     # "Sow" grant, capped or not (Chief Forester's clarification permits wood).
     # Family-constant False → canonical-skip field, no C++ change.
     crops_only: bool = False
+    # Card-only (Fern Seeds D8; user ruling 2026-07-20): a granted sow that must
+    # plant a SPECIFIC crop ("you get ... 1 grain, which you must sow immediately")
+    # names it here, and the enumerator offers only commits sowing exactly that
+    # crop — board fields or matching card-field stacks (the granted good may go
+    # onto a grain-capable card field, per the same ruling); the other crop and
+    # wood/stone stacks are excluded. None = unrestricted — every Family sow and
+    # every generic grant — so it is a Family-constant default → canonical-skip
+    # field, no C++ change.
+    required_crop: str | None = None
     # Work-complete signal for the DEFERRED after-flip (user ruling 2026-07-14:
     # "after you [do X]" effects fire after X's FULL effect, pushed frames
     # included). The commit executor sets this instead of flipping inline;
@@ -164,6 +174,12 @@ class PendingPlow:
     # no C++ change.
     max_plows: int = 1
     num_plowed: int = 0
+    # Card-only (Newly-Plowed Field C17; user ruling 2026-07-20): a granted plow
+    # whose target "needs not be adjacent to another field" — the enumerator
+    # offers every empty, non-enclosed cell (adjacent cells stay included; the
+    # card relaxes the constraint, it does not forbid adjacency). Family-constant
+    # False → canonical-skip field, no C++ change.
+    ignore_adjacency: bool = False
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
@@ -230,6 +246,13 @@ class PendingBuildStables:
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
     build_stables_action: bool = True   # literal Build Stables action vs a card effect that builds (§9.6); default-True canonical skip-field → Family byte-identical, no C++
+    # Card-only (Shelter A1): a granted stable build restricted to specific cells
+    # ("only if you place it in a pasture covering exactly 1 farmyard space") — the
+    # enumerator intersects the legal stable cells with this tuple of (row, col)
+    # pairs, computed at push time (farm geometry cannot change while the grant is
+    # up). None = unrestricted (every Family build and unrestricted grants).
+    # Family-constant default → canonical-skip field, no C++ change.
+    allowed_cells: tuple | None = None
 
 
 @dataclass(frozen=True)
@@ -279,6 +302,12 @@ class PendingBuildMajor:
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # Card-only (Oven Site A27): a card-granted build restricted to a menu of
+    # specific majors ("the 'Clay Oven' or 'Stone Oven' major improvement") — the
+    # enumerator offers only these major indices. None = the full board (every
+    # Family build and the Major Improvement space). Family-constant default →
+    # canonical-skip field, no C++ change.
+    allowed_majors: tuple | None = None
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
@@ -304,6 +333,21 @@ class PendingRenovate:
     initiated_by_id: str
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # Card-only (Renovation Materials E2; user ruling 2026-07-20): a card-granted
+    # renovate with a push-time price and/or a pinned target.
+    # `cost_override` is the PendingBuildStables.cost pattern — push-time intent,
+    # not a derivable cost — and bypasses the cost-modifier pipeline entirely (its
+    # one consumer is a zero-cost grant, where reductions/conversions have nothing
+    # to act on). It is a frame field rather than a register_formula because the
+    # granting card TRAVELS: a traveling card is never in the tableau, so it could
+    # never pass the cost fold's ownership gate — the frame's provenance is the
+    # authorization instead.
+    # `forced_target` pins the renovation target ("Immediately renovate to clay"),
+    # replacing the usual next-tier + extensions enumeration — the granting card is
+    # the authority for that target's legality (its own prereq guarantees the step
+    # is valid). Family-constant defaults → canonical-skip fields, no C++ change.
+    cost_override: Resources | None = None
+    forced_target: HouseMaterial | None = None
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
@@ -1362,9 +1406,10 @@ class PendingGrantedSubAction:
     Stop at any point — the and/or semantics fall out of the set shape.
 
     - `subactions`: the granted categories (`"build_fences"` | `"renovate"` |
-      `"bake_bread"` | `"play_occupation"` | `"play_minor"`), each matched by an offered
-      `ChooseSubAction(name=<category>)`. Single-category grants pass a 1-tuple.
-      (`"bake_bread"` — Iron/Simple Oven's optional free bake on build.)
+      `"bake_bread"` | `"play_occupation"` | `"play_minor"` | `"build_major"`), each
+      matched by an offered `ChooseSubAction(name=<category>)`. Single-category grants
+      pass a 1-tuple. (`"bake_bread"` — Iron/Simple Oven's optional free bake on build;
+      `"build_major"` — Oven Site's discounted oven build, menu on `major_allowed`.)
     - `initiated_by_id`: the grant's provenance (e.g. `"card:field_fences"`).
     - `chosen`: the categories already entered — each is offered at most once (after every
       granted primitive has popped or been declined, only Stop remains).
@@ -1385,6 +1430,11 @@ class PendingGrantedSubAction:
     # when it merely lets the player play a minor (Beneficiary). Ignored unless
     # "play_minor" in subactions.
     minor_is_action: bool = False
+    # For a granted `build_major` (Oven Site): the menu of major indices the
+    # grant may build, threaded onto the pushed PendingBuildMajor's
+    # `allowed_majors` (None = the full board). A push-time parameter exactly
+    # like `occ_cost`. Ignored unless "build_major" in subactions.
+    major_allowed: tuple | None = None
 
 
 # The PendingDecision union. New pending types are added here as the

@@ -142,6 +142,17 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # False (no card-fields exist there), so omitting it keeps the Family JSON
     # byte-identical and needs no C++ change.
     "crops_only",
+    # The 2026-07-20 granted-primitive parameter fields (all Family-constant
+    # defaults — each exists only on card-granted frames, so omitting them keeps
+    # the Family JSON byte-identical and needs no C++ change):
+    # PendingSow.required_crop (Fern Seeds' forced grain sow),
+    # PendingPlow.ignore_adjacency (Newly-Plowed Field),
+    # PendingBuildStables.allowed_cells (Shelter's 1-cell-pasture restriction),
+    # PendingBuildMajor.allowed_majors + PendingGrantedSubAction.major_allowed
+    # (Oven Site's oven menu), and PendingRenovate.cost_override / forced_target
+    # (Renovation Materials' free renovate-to-clay).
+    "required_crop", "ignore_adjacency", "allowed_cells",
+    "allowed_majors", "major_allowed", "cost_override", "forced_target",
     # The play-occupation cost-conversion chokepoint (ruling 67, 2026-07-20): the
     # commit's chosen payment (None on the singleton-frontier path — qualified so
     # CommitPlayMinor.payment keeps serializing) and the host's paid-cost stamp

@@ -487,11 +487,16 @@ def _can_build_stable(state: GameState, p: PlayerState, cost: Resources) -> bool
     )
 
 
-def _legal_plow_cells(p: PlayerState) -> list:
+def _legal_plow_cells(p: PlayerState, ignore_adjacency: bool = False) -> list:
     """Enumerate every (row, col) that is a legal plow target.
 
     Same conditions as `_can_plow`'s existence check, but returns the
     set of cells. Used by `_enumerate_pending_plow`.
+
+    `ignore_adjacency=True` (a card-granted plow whose target "needs not be
+    adjacent to another field" — PendingPlow.ignore_adjacency, Newly-Plowed
+    Field C17) waives the adjacent-to-a-field narrowing: every empty,
+    non-enclosed cell is a target, adjacent cells included.
     """
     grid = p.farmyard.grid
     enclosed = enclosed_cells(p.farmyard)
@@ -506,8 +511,8 @@ def _legal_plow_cells(p: PlayerState) -> list:
         if grid[r][c].cell_type == CellType.EMPTY
         and (r, c) not in enclosed
     ]
-    if not field_cells:
-        # First field: any empty, non-enclosed cell.
+    if ignore_adjacency or not field_cells:
+        # First field (or an adjacency-waived grant): any empty, non-enclosed cell.
         return empty_unenclosed
     # Subsequent fields: orthogonally adjacent to an existing field.
     adjacent_to_field = {
@@ -866,11 +871,15 @@ def _can_renovate(state: GameState, p: PlayerState) -> bool:
     )
 
 
-def _build_major_ctx(idx: int) -> CostCtx:
+def _build_major_ctx(idx: int, granted_by: str | None = None) -> CostCtx:
     """Cost-resolution context for building major improvement `idx` (base = its printed
     `MAJOR_IMPROVEMENT_COSTS` entry; `major_idx` lets cost cards / the built-in
-    Cooking-Hearth Fireplace-return route dispatch on which major)."""
-    return CostCtx("build_major", MAJOR_IMPROVEMENT_COSTS[idx], major_idx=idx)
+    Cooking-Hearth Fireplace-return route dispatch on which major). `granted_by` is the
+    provenance of a CARD-GRANTED build ("card:<id>", parsed off the pushed frame's
+    `initiated_by_id` — the renovate-ctx pattern), so a grant-scoped cost formula
+    (Oven Site's 1-clay-1-stone ovens) applies to exactly that frame's builds."""
+    return CostCtx("build_major", MAJOR_IMPROVEMENT_COSTS[idx], major_idx=idx,
+                   granted_by=granted_by)
 
 
 def _can_afford_major(state: GameState, p: PlayerState, idx: int) -> bool:
@@ -1782,6 +1791,13 @@ def _enumerate_pending_sow(
     boost = any(cid in p.occupations or cid in p.minor_improvements
                 for cid in SOW_BOOST_CARDS)
     for bundle in enumerate_card_sows(p, crops_only=pending.crops_only):
+        # A crop-specific grant (PendingSow.required_crop — Fern Seeds' "1 grain,
+        # which you must sow immediately"; user ruling 2026-07-20) sows ONLY that
+        # crop: bundles touching any other good are excluded here, and the g/v
+        # loops below zero out the other crop.
+        if pending.required_crop and any(
+                good != pending.required_crop for _cid, good in bundle):
+            continue
         spent: dict[str, int] = {}
         for _cid, good in bundle:
             spent[good] = spent.get(good, 0) + 1
@@ -1797,6 +1813,10 @@ def _enumerate_pending_sow(
             for v in range(p.resources.veg - spent.get("veg", 0) + 1):
                 if g + v == 0 and not bundle:
                     continue   # must sow something
+                if pending.required_crop == "grain" and v:
+                    continue
+                if pending.required_crop == "veg" and g:
+                    continue
                 if g + v > empty_fields:
                     continue
                 if (pending.max_fields
@@ -1903,7 +1923,8 @@ def _enumerate_pending_plow(
     # recomputed here from the CURRENT state, so the second plow of a multi-shot grant is
     # re-checked against the board left by the first.
     if pending.num_plowed < pending.max_plows:
-        cells = safe_plow_cells(p) if pending.must_preserve_base else _legal_plow_cells(p)
+        cells = (safe_plow_cells(p) if pending.must_preserve_base
+                 else _legal_plow_cells(p, ignore_adjacency=pending.ignore_adjacency))
         actions.extend(CommitPlow(row=r, col=c) for (r, c) in cells)
     if pending.num_plowed >= 1:
         actions.append(Proceed())   # finish a multi-shot grant early (never reached at max_plows=1)
@@ -1942,7 +1963,14 @@ def _enumerate_pending_build_stables(
 
     cap_ok = pending.max_builds is None or pending.num_built < pending.max_builds
     if cap_ok and _can_build_stable(state, p, pending.cost):
-        for (r, c) in _legal_stable_cells(p):
+        cells = _legal_stable_cells(p)
+        # A cell-restricted grant (PendingBuildStables.allowed_cells — Shelter's
+        # "only in a pasture covering exactly 1 farmyard space") intersects here;
+        # the pusher guarantees a qualifying cell existed at push (same instant).
+        if pending.allowed_cells is not None:
+            allowed = set(pending.allowed_cells)
+            cells = [cell for cell in cells if cell in allowed]
+        for (r, c) in cells:
             actions.append(CommitBuildStable(row=r, col=c))
 
     if pending.num_built >= 1:
@@ -2015,10 +2043,18 @@ def _enumerate_pending_build_major(
             actions.append(Stop())
         return actions
     owners = state.board.major_improvement_owners
+    # A card-granted build carries its granting card as provenance, so a
+    # grant-scoped cost formula (Oven Site) applies to exactly this frame; a
+    # menu-restricted grant (`allowed_majors`) offers only its named majors.
+    granted_by = (pending.initiated_by_id
+                  if pending.initiated_by_id.startswith("card:") else None)
     for idx in range(10):
         if owners[idx] is not None:
             continue
-        for payment in effective_payments(state, pending.player_idx, _build_major_ctx(idx)):
+        if pending.allowed_majors is not None and idx not in pending.allowed_majors:
+            continue
+        for payment in effective_payments(state, pending.player_idx,
+                                          _build_major_ctx(idx, granted_by=granted_by)):
             actions.append(CommitBuildMajor(major_idx=idx, payment=payment))
     return actions
 
@@ -2047,7 +2083,19 @@ def _enumerate_pending_renovate(
     # grant-scoped cost modifier (Master Renovator) applies to exactly this frame.
     granted_by = (pending.initiated_by_id
                   if pending.initiated_by_id.startswith("card:") else None)
-    for target in _legal_renovate_targets(state, p):
+    # A pinned-target grant (PendingRenovate.forced_target — Renovation Materials'
+    # "Immediately renovate to clay") replaces the target enumeration: the granting
+    # card is the authority for that step's legality (its prereq guarantees it), and
+    # a co-owned target extension (Conservator's wood→stone) must NOT widen it.
+    targets = ([pending.forced_target] if pending.forced_target is not None
+               else _legal_renovate_targets(state, p))
+    for target in targets:
+        # A push-time price (PendingRenovate.cost_override — the zero-cost grant)
+        # bypasses the cost pipeline: the override IS the single payment.
+        if pending.cost_override is not None:
+            actions.append(CommitRenovate(payment=pending.cost_override,
+                                          to_material=target))
+            continue
         ctx = _renovate_ctx(p, target, granted_by=granted_by)
         for payment in effective_payments(state, pending.player_idx, ctx):
             actions.append(CommitRenovate(payment=payment, to_material=target))
@@ -2538,6 +2586,20 @@ def _granted_subaction_eligible(
         # Mirrors the Meeting Place / Basic Wish optional-minor gate: >=1 hand minor is
         # currently playable (prereq met + printed/alternative cost affordable).
         return bool(playable_minors(state, pending.player_idx))
+    if cat == "build_major":
+        # A card-granted major build (Oven Site): doable iff a major on the grant's
+        # menu is unbuilt AND payable through the grant-scoped ctx — the same
+        # provenance the pushed frame will carry, so a granted-by cost formula
+        # participates in this gate exactly as at the commit (never a dead-end).
+        owners = state.board.major_improvement_owners
+        allowed = (pending.major_allowed if pending.major_allowed is not None
+                   else tuple(range(10)))
+        granted_by = (pending.initiated_by_id
+                      if pending.initiated_by_id.startswith("card:") else None)
+        return any(
+            owners[i] is None and can_pay(
+                state, pending.player_idx, _build_major_ctx(i, granted_by=granted_by))
+            for i in allowed)
     raise ValueError(f"Unknown granted sub-action {cat!r}")
 
 
