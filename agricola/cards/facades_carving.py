@@ -51,6 +51,7 @@ Family game is byte-identical and the C++ gates are untouched.
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.specs import register_minor, register_play_minor_variant
 from agricola.constants import HARVEST_ROUNDS
 from agricola.replace import fast_replace
@@ -108,6 +109,18 @@ def _score(state: GameState, idx: int) -> int:
     return state.players[idx].card_state.get(CARD_ID, 0)
 
 
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for a food-exchange variant (mechanical, terse — the web
+    layer prepends the card name): "f2" -> "Facades Carving [exchange 2 food
+    → 2 bonus points]". "f0" is the no-exchange play. Otherwise None."""
+    if not (variant.startswith("f") and variant[1:].isdigit()):
+        return None
+    n = int(variant[1:])
+    if n == 0:
+        return "no exchange"
+    return f"exchange {n} food → {n} bonus point{'' if n == 1 else 's'}"
+
+
 # Cost 2 clay + 1 reed; prereq wood >= current round; no printed VP (points
 # are earned at play and banked).
 register_minor(
@@ -123,3 +136,6 @@ register_minor(
 register_play_minor_variant(CARD_ID, _variants)
 
 register_scoring(CARD_ID, _score)
+
+# Web-UI labels so the wide play variants read as their exchange, not "[f1]".
+register_action_labeler(CARD_ID, _action_label)

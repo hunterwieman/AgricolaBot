@@ -149,6 +149,14 @@ _MAX_GAMES: int = int(os.environ.get("AGRICOLA_MAX_GAMES", "200"))
 # next game creation. Override with AGRICOLA_GAME_IDLE_TTL.
 _GAME_IDLE_TTL: float = float(os.environ.get("AGRICOLA_GAME_IDLE_TTL", str(2 * 3600)))
 
+# The git commit this build was made from, baked into the image by ./deploy.sh
+# (Dockerfile GIT_COMMIT build-arg -> AGRICOLA_GIT_COMMIT). Recorded in every
+# downloaded action trace as `code_version` so a reported game can be reproduced
+# by checking out that commit (the deal is a function of seed + card pool, and
+# the pool is fixed once the code version is). "unknown" for a local dev run
+# started outside the deploy path.
+_CODE_VERSION: str = os.environ.get("AGRICOLA_GIT_COMMIT", "unknown")
+
 # Name of the cookie that keys a browser to its game session.
 _GID_COOKIE = "agricola_gid"
 
@@ -1749,10 +1757,17 @@ class Session:
         c_uct, and the NN checkpoint + MCTS seat settings — so a downloaded
         trace is self-describing (e.g. "this game was played at 1600 sims")
         rather than leaving the reader to guess the search budget.
+
+        `code_version` is the git commit the server was built from (baked in at
+        deploy time). With it, {seed + code_version} reproduces the exact game:
+        check out that commit and the card pool — hence the deal — matches, so
+        the reported bug can be replayed on the code that actually ran and diffed
+        against today's.
         """
         with self.lock:
             return {
                 "seed": self.seed,
+                "code_version": _CODE_VERSION,
                 "seats": list(self.seats),
                 "current_round": self.current_round,
                 "phase": self.state.phase.name,

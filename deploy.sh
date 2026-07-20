@@ -32,5 +32,20 @@ if [[ ! -f "nn_models/${EXPORT_DIR}/weights_manifest.json" ]]; then
   exit 1
 fi
 
-echo "deploy.sh: deploying champion export '${EXPORT_DIR}'"
-exec flyctl deploy --build-arg "EXPORT_DIR=${EXPORT_DIR}" "$@"
+# Provenance: stamp the image with the exact commit it is built from, so every
+# downloaded action trace records its code version (play_web.py -> the trace's
+# `code_version` field) and a reported game can be reproduced by checking out that
+# commit. We only ever deploy committed code, so refuse a dirty tree — that keeps
+# the stamp an EXACT description of what runs, not an approximation.
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "deploy.sh: working tree is dirty — commit or stash changes before deploying" >&2
+  echo "           (the trace's code-version stamp must match the code that runs)." >&2
+  exit 1
+fi
+GIT_COMMIT="$(git rev-parse HEAD)"
+
+echo "deploy.sh: deploying champion export '${EXPORT_DIR}' at commit ${GIT_COMMIT}"
+exec flyctl deploy \
+  --build-arg "EXPORT_DIR=${EXPORT_DIR}" \
+  --build-arg "GIT_COMMIT=${GIT_COMMIT}" \
+  "$@"

@@ -257,3 +257,19 @@ def test_both_cards_in_hand_coexist():
     assert _variants_offered(state) == {"f0", "f1", "f2"}
     sb = _plays(state, SOCIAL_BENEFITS)
     assert len(sb) == 1 and sb[0].variant is None
+
+
+# ---------------------------------------------------------------------------
+# Web-UI variant labels (so the buttons read as the exchange, not "[f1]")
+# ---------------------------------------------------------------------------
+
+def test_variant_labels():
+    """The wide play variants carry mechanical, terse web-UI labels: the
+    exchange amount and points (singular/plural), with "f0" the no-exchange
+    play. Unknown encodings fall through (None)."""
+    from agricola.cards.display import variant_label
+    assert variant_label(CARD_ID, "f0") == "no exchange"
+    assert variant_label(CARD_ID, "f1") == "exchange 1 food → 1 bonus point"
+    assert variant_label(CARD_ID, "f2") == "exchange 2 food → 2 bonus points"
+    assert variant_label(CARD_ID, "f5") == "exchange 5 food → 5 bonus points"
+    assert variant_label(CARD_ID, "bogus") is None

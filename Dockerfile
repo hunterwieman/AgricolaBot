@@ -82,6 +82,15 @@ COPY templates/ templates/
 RUN python -c "import play_web" \
     && test -x cpp/build/selfplay
 
+# Provenance stamp: the exact git commit this image was built from, passed in by
+# `./deploy.sh` (git rev-parse HEAD) and read by play_web.py into each downloaded
+# action trace (the `code_version` field), so a reported game can be reproduced by
+# checking out that commit. The container has no .git (.dockerignore excludes it),
+# so the value must be baked in here. Placed last so it never invalidates the
+# cached layers above — only this cheap layer rebuilds when the commit changes.
+ARG GIT_COMMIT=unknown
+ENV AGRICOLA_GIT_COMMIT=${GIT_COMMIT}
+
 EXPOSE 8000
 
 CMD ["python", "play_web.py", "--host", "0.0.0.0", "--port", "8000", "--seats", "human", "mcts", "--no-browser"]
