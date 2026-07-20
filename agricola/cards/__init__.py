@@ -969,3 +969,18 @@ from agricola.cards import working_gloves  # noqa: F401
 from agricola.cards import ceilings  # noqa: F401
 from agricola.cards import sleight_of_hand  # noqa: F401
 from agricola.cards import material_hub  # noqa: F401
+
+# --- 2026-07-20 tier-2 batch, second wave (the granted-primitive parameter seams:
+#     plow adjacency waiver, forced-crop sow, renovate cost_override/forced_target,
+#     stable cell restriction — user rulings 2026-07-20) ---
+from agricola.cards import newly_plowed_field  # noqa: F401
+from agricola.cards import fern_seeds  # noqa: F401
+from agricola.cards import renovation_materials  # noqa: F401
+from agricola.cards import shelter  # noqa: F401
+from agricola.cards import oven_site  # noqa: F401
+
+# --- 2026-07-20 tier-2 batch, animal-holder pair (the two capacity folds:
+#     register_animal_cap_slots / register_flexible_slots; Petting Zoo ruled
+#     mixed-type 2026-07-20) ---
+from agricola.cards import stockyard  # noqa: F401
+from agricola.cards import petting_zoo  # noqa: F401

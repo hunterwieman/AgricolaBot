@@ -114,7 +114,10 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-20 (the play_occupation cost-conversion chokepoint — ruling 67: occupation costs resolve through `effective_payments`, substitution cards are conversions, Working Gloves added + Forest School migrated, the `paid_cost` stamp; census 213 occ + 305 min; below. Prior, 2026-07-17: the tier-1 batch — 11 minors on existing seams, ruling 66; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-20 (the tier-2 batch — ruling 68: 10 minors implemented via
+> parallel delegation, on two seam families built the same day — the granted-primitive
+> parameter fields and the animal-holder capacity folds; census 213 occ + 315 min = 528;
+> below. Earlier same day: the play_occupation cost-conversion chokepoint — ruling 67: occupation costs resolve through `effective_payments`, substitution cards are conversions, Working Gloves added + Forest School migrated, the `paid_cost` stamp; census 213 occ + 305 min; below. Prior, 2026-07-17: the tier-1 batch — 11 minors on existing seams, ruling 66; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +129,32 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-20 tier-2 batch landed (ruling 68): 10 minors + two seam families, all
+  card-only/Family-inert (full suite + C++ gates green untouched).** Built via parallel
+  per-card delegation on same-day user rulings. **The granted-primitive parameter fields**
+  (canonical-skipped, each a push-time parameter on an existing frame): `PendingPlow.
+  ignore_adjacency` (Newly-Plowed Field C17 — adjacency-waived plow), `PendingSow.
+  required_crop` (Fern Seeds D8 — forced single-crop sow, card-fields eligible per the
+  ruling; its prereq carries a no-dead-end conjunct: a grain-sowable empty field must
+  exist), `PendingRenovate.cost_override` + `forced_target` (Renovation Materials E2 — a
+  TRAVELING card's free renovate-to-clay: an ownership-gated formula can never serve a card
+  that leaves the tableau, so the frame carries the push-time price/target; ruled
+  unplayable when a renovate-forbid card is in play), `PendingBuildStables.allowed_cells`
+  (Shelter A1 — the 1-cell-pasture restriction), and `PendingBuildMajor.allowed_majors` +
+  `PendingGrantedSubAction.major_allowed` + `granted_by` on the build-major ctx + the
+  wrapper's `build_major` category (Oven Site A27 — menu-restricted oven build priced by a
+  grant-scoped formula; ruled: other reductions/conversions stack on the 1c+1s).
+  **The animal-holder capacity folds** (§3 capacity_mods; cache-safe — the frontier caches
+  key on `extract_slots` outputs): `register_animal_cap_slots` (anonymous single-type bins
+  appended after every pasture-only fold — Stockyard B12) and `register_flexible_slots`
+  (any-type mixable slots — Petting Zoo E11, ruled mixed-type). **On existing seams:**
+  Ceilings B76 (deferred-plans cluster B5 executed as written — CardStore slot record +
+  mandatory `after_renovate` take-back), Sleight of Hand E78 (wide one-shot play-variants;
+  disjoint-support canonical exchanges, give-side as the variant surcharge), Material Hub
+  C81 (`any_player` after-space auto over the five building-resource accumulation spaces,
+  reading the host's `taken` delta filtered to the space's NATIVE type — ruled: sweeps
+  only, card deposits/bonuses never count; deposit provenance flagged for a future
+  same-type returner like Forest Plow B17). Census **213 occupations + 315 minors = 528**.
 - **The 2026-07-20 play_occupation cost-conversion chokepoint landed (ruling 67): Working
   Gloves E60 added, Forest School migrated, one new action kind — all card-only/Family-inert.**
   Occupation plays now resolve their cost through `effective_payments`/`can_pay` under
@@ -864,6 +893,17 @@ Read by `helpers.extract_slots` (the accommodation decomposition every frontier 
   is not asked to express. Playing a negation card also sets `animals_need_accommodation`, so a
   currently-housed animal is evicted through the standard keep-or-cook frame (§4's
   accommodation barrier).
+- **`register_animal_cap_slots(card_id, caps_fn)`** → `ANIMAL_CAP_SLOT_CARDS`. A pasture-LIKE
+  card holder — up to N animals of ONE type without being a pasture (Stockyard B12's 3).
+  `caps_fn(player_state) -> tuple[int, ...]` of extra anonymous single-type bins, appended by
+  `extract_slots` AFTER every pasture-only fold (per-pasture bonuses, the reserved-empty drop),
+  so pasture-referencing effects and scoring — which read `farmyard.pastures` geometry — never
+  see them (user direction 2026-07-20: anonymous to the solver, distinct to the rules layer).
+- **`register_flexible_slots(card_id, count_fn)`** → `FLEXIBLE_SLOT_CARDS`. Extra FLEXIBLE
+  slots — 1 animal each, any type, mixable, the standalone-stable/house-pet shape —
+  `count_fn(player_state) -> int`, summed into `num_flexible` (Petting Zoo E11: one per room
+  while a pasture is orthogonally adjacent to the house; ruled mixed-type 2026-07-20).
+  Independent of the house-pet negation (Milking Place forbids the HOUSE, not a card).
 - **`register_pasture_capacity(card_id, bonus_fn)`** → `PASTURE_CAPACITY_MODS`. A flat additive
   bonus applied to **every pasture's** final capacity (after the stable doubling — the card adds
   to the finished pasture, not inside the `2·cells·2^stables` formula). Fold: **sum over owned

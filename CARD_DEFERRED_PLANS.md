@@ -1166,12 +1166,13 @@ zeroed by the resolver, so the ≤2 test needs a **before**-snapshot (CardStore)
 optional trigger gated on stored catch ≤2 → push the improvement. **Verify** a card can push
 `PendingMajorMinorImprovement`. **Medium.**
 
-### B5. Scheduled-goods provenance — B76 Ceilings
+### B5. Scheduled-goods provenance — B76 Ceilings — BUILT 2026-07-20
 "On next renovate, remove the wood **this card** still has promised on round spaces." `future_resources`
 is a flat additive tuple with no per-card provenance, so a blind subtract is wrong when another scheduler
-wrote the same slots. **Plan:** a CardStore record of which round slots Ceilings seeded + amounts;
-`after_renovate` subtracts only its own remaining wood. **Medium** (generalizes to any "take back promised
-goods" card).
+wrote the same slots. **Plan (executed as written, user-approved 2026-07-20):** a CardStore record of
+which round slots Ceilings seeded; the mandatory `after_renovate` auto subtracts only its own
+still-future wood and clears the record (the once-only latch). `ceilings.py` is the exemplar for any
+future "take back promised goods" card.
 
 ---
 
@@ -1222,7 +1223,9 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
 
 - **Grid/adjacency geometry:** Homekeeper (A85), Farm Hand (B85), Future Building Site (B38),
   Love for Agriculture (B72), Pottery-Yard-style orthogonal adjacency (**note:** B31 Pottery Yard was
-  *rescued* — its adjacency is computed inline, no API needed), Shelter (A1, 1-cell-pasture restriction).
+  *rescued* — its adjacency is computed inline, no API needed). (**Shelter A1 was rescued and BUILT
+  2026-07-20** — its 1-cell-pasture restriction is `PendingBuildStables.allowed_cells`, computed
+  inline from `farmyard.pastures`, no geometry subsystem needed.)
 - **Return-home / end-of-round / after-work-phase hook (no such phase event):** Curator (A100),
   Asparagus Knife (A58), Lifting Machine (A70), Silage (A84), Ale-Benches, Credit (A54),
   Sculpture Course (B53), Informant (B117), Toolbox (B27, turn-end build detection).
@@ -1232,8 +1235,17 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   Walking Boots (B22), Lazy Sowman (A94, also needs a "declined sub-action" event).
 - **Hidden round-space identity (reveal order is in the Environment, not GameState):** Knapper (A124),
   Master Workman (A126), Silokeeper (B112), Sweep (B120), Telegram's round-space half.
-- **Card-as-animal-holder / new capacity slot:** Truffle Searcher (B86), Feedyard (B11), Stockyard (B12),
-  Mud Patch (A11), Special Food (B34, needs an accommodation event).
+- **Card-as-animal-holder / new capacity slot:** the two ANONYMOUS-slot shapes were BUILT 2026-07-20
+  (user direction: fold holders into the solver's capacity list, keep them distinct wherever card
+  effects distinguish them) — `register_animal_cap_slots` (a pasture-like single-type bin; **Stockyard
+  B12 implemented**) and `register_flexible_slots` (any-type mixable slots; **Petting Zoo E11
+  implemented**, ruled mixed-type 2026-07-20; Feedyard B11's slot shape is now buildable — its
+  after-breeding food payout is the remaining piece). Still blocked, needing TYPED (per-species) slots
+  — the natural build is generalizing the Dolly's-Mother sheep-slot greedy strip to a per-type triple:
+  Truffle Searcher (B86, boar), Mud Patch (A11, boar per unplanted field — also a capacity DROP on sow,
+  needs the eviction flag), Wildlife Reserve (C11, 1/1/1), Cattle Farm (C12, cattle per pasture),
+  Woolgrower (A148 [4], sheep per completed feeding phase). Special Food (B34) separately needs an
+  accommodation event.
 - **Per-card goods stack (beyond a CardStore scalar):** Hayloft Barn (B21), Muddy Puddles (B83),
   Forest Plow (B17, return-wood-to-space + partial-take legality), Forest Stone (B48 — also an
   alternative cost), Maintenance Premium (**note:** B55 was *rescued* — it needs only a scalar).
@@ -1242,9 +1254,10 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   while playing it (so the cost-formula registry can't help). A small `alt_costs` list on `MinorSpec` +
   an affordability/choice at play would unblock all three — a candidate Group-A item if you want it.
 - **Legality / sub-action-menu changes:** Wooden Shed (A10), Forest School (**rescued** via the existing
-  occupancy-override registry), Agrarian Fences (B26), Oven Site (A27, constrained build-major),
-  Stone Company (A23), Carpenter's Hammer (A14, per-action build-count discount), Chief Forester (A115,
-  capped sow).
+  occupancy-override registry), Agrarian Fences (B26) (**Oven Site A27 was rescued and BUILT
+  2026-07-20** — `PendingBuildMajor.allowed_majors` + `granted_by` on the build-major ctx + a
+  grant-scoped cost formula), Stone Company (A23), Carpenter's Hammer (A14, per-action build-count
+  discount), Chief Forester (A115, capped sow).
 - **Misc one-offs:** Shaving Horse (A48, "after you obtain wood" event), Winnowing Fan (A61, state-dependent
   baking-rate conversion), Potato Ridger (A59, optional-at-harvest-field — the field hook is auto-only),
   Reclamation Plow (A17) / Wheel/Double-Turn plows, Grain Depot (B65, reads which resource paid),

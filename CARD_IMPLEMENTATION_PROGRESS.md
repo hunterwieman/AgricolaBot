@@ -26,7 +26,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 ### Deck A
 
-- ⬜ **A1 Shelter** · passing
+- ✅ **A1 Shelter** · passing
   - _You can immediately build a stable at no cost, but only if you place it in a pasture covering exactly 1 farmyard space._
   - `ONPLAY E-GRANTSUB E-PASSING` — Optional on-play grant of a build-stable sub-action; 'at no cost' is a parameter of the grant (like Side Job's priced stable), not standing cost-mod machinery, so no E-COSTMOD; no piece is paid so no E-PIECECOST; 'pasture covering exactly 1 space' is a per-pasture size restriction, which the taxonomy explicitly excludes from L-GEOMFARM; passing_left confirmed in data.
 - ✅ **A2 Shifting Cultivation** · cost: 2 Food · passing
@@ -104,7 +104,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A26 Sleeping Corner** · cost: 1 Wood · prereq: 2 Grain Fields
   - _You can use any "Wish for Children" action space even if it is occupied by one other player's person.  [CLARIFICATION: But not if occupied by 2+ other player’s people.]_
   - `PASSIVE L-OCCUPY` — Always-on continuous rule change letting you use an occupied Wish for Children space (PASSIVE + L-OCCUPY). No firing event, no goods.
-- ⬜ **A27 Oven Site** · prereq: Both Fireplace and Cooking Hearth
+- ✅ **A27 Oven Site** · prereq: Both Fireplace and Cooking Hearth
   - _When you play this card, you get 2 wood and you can immediately build the "Clay Oven" or "Stone Oven" major improvement. Either way, it only costs you 1 clay and 1 stone._
   - `ONPLAY E-GOODS E-GRANTACT E-COSTMOD` — On play +2 wood and may immediately build Clay/Stone Oven major at reduced cost (1 clay + 1 stone).
 - ✅ **A28 Forest School** · cost: 1 Wood,1 Clay
@@ -316,7 +316,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B11 Feedyard** · cost: 1 Clay,1 Grain
   - _This card can hold 1 animal for each pasture you have, even different types. After the breeding phase of each harvest, you get 1 food for each unused spot on this card._
   - `PASSIVE HOOK T-AFTER S-HBREED F-AUTO A-OWN E-CAPNEW E-GOODS` — The holder capacity is a continuous rule (PASSIVE, like the pasture-capacity example), not a one-shot ONPLAY effect; the food fires 'after the breeding phase' — that is S-HBREED+T-AFTER, not S-AFTERFEED (feeding is a different phase). Mandatory gain -> F-AUTO, A-OWN.
-- ⬜ **B12 Stockyard** · cost: 1 Wood,1 Stone
+- ✅ **B12 Stockyard** · cost: 1 Wood,1 Stone
   - _This card can hold up to 3 animals of the same type. (It is not considered a pasture)._
   - `PASSIVE E-CAPNEW` — Pure capacity holder: nothing happens once at play; 'can hold up to 3 animals' is an always-on rule change, matching the PASSIVE definition ('your pastures can hold 2 more animals').
 - ✅ **B13 Carpenter's Parlor** · cost: 1 Wood,1 Stone
@@ -508,7 +508,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B75 Wood Workshop** · cost: 1 Clay · prereq: 1 Occupation
   - _Each time before you play or build an improvement, you get 1 wood.  [CLARIFICATION: You are able to pay for the improvement with just the wood given by this card.]_
   - `HOOK T-BEFORE S-PLAY S-MAJMIN F-AUTO A-OWN E-GOODS` — You simply receive 1 wood before playing/building any improvement — the improvement's cost is unchanged (the clarification only confirms the wood arrives in time to pay), so E-COSTMOD is wrong; the trigger covers both minor plays (S-PLAY) and major builds (S-MAJMIN).
-- ⬜ **B76 Ceilings** · cost: 1 Clay · prereq: 1 Occupation
+- ✅ **B76 Ceilings** · cost: 1 Clay · prereq: 1 Occupation
   - _Place 1 wood on the next 5 round spaces. At the start of these rounds, you get the wood. Remove the wood promised by this card from future round spaces the next time you renovate._
   - `ONPLAY E-SCHED HOOK T-AFTER S-SUB F-AUTO A-OWN E-TAKEBACK CAP-GAME ST-PROV` — Union is correct: 'the NEXT time you renovate' is a one-time action trigger → HOOK on the renovate sub-action + CAP-GAME (per the LATCH ruling), and removing 'the wood promised by THIS card' requires tracking which scheduled wood is the card's → ST-PROV.
 - ✅ **B77 Loam Pit** · cost: 1 Food · prereq: 3 Occupations
@@ -586,7 +586,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C16 Field Fences** · cost: 2 Food
   - _You can immediately take a "Build Fences" action, during which you do not have to pay wood for fences that you build next to field tiles._
   - `ONPLAY E-GRANTACT E-FREEFENCE E-FOODCOST L-GEOMFARM` — On play grants a full optional Build Fences action (E-GRANTACT) with a positional discount — fences adjacent to field tiles are free (E-FREEFENCE + L-GEOMFARM, tile adjacency); the 2-Food play cost gets E-FOODCOST per the cost rulings.
-- ⬜ **C17 Newly-Plowed Field** · prereq: Exactly 3 Field Tiles
+- ✅ **C17 Newly-Plowed Field** · prereq: Exactly 3 Field Tiles
   - _When you play this card, you can immediately plow 1 field, which needs not be adjacent to another field._
   - `ONPLAY E-GRANTSUB L-EXT` — On play, may plow 1 field that need not be adjacent (grants plow sub-action + relaxes adjacency legality).
 - ⬜ **C18 Roll-Over Plow** · cost: 2 Wood
@@ -778,7 +778,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C80 Rocky Terrain** · cost: 1 Food
   - _Each time you plow a field (tile or card), you can also buy 1 stone for 1 food.  [CLARIFICATION: Playing field cards counts as plowing a field.]_
   - `HOOK T-AFTER S-SUB S-PLAY F-TRIG A-OWN E-CONVERT E-FOODCOST E-GOODS` — Optional buy alongside each plow: food-for-stone exchange (E-CONVERT + E-FOODCOST + gained stone E-GOODS, matching the agreed C82 shape). Clarification makes field-card plays trigger it too, so S-PLAY joins the plow S-SUB seam.
-- ⬜ **C81 Material Hub** · cost: 1 Wood,1 Clay · prereq: 1 Reed and 1 Stone in Your Supply
+- ✅ **C81 Material Hub** · cost: 1 Wood,1 Clay · prereq: 1 Reed and 1 Stone in Your Supply
   - _Immediately place 2 of each building resource on this card. Each time any player (including you) takes at least 5 wood, 4 clay, 3 reed, or 3 stone, you get 1 of that building resource from this card._
   - `ONPLAY HOOK T-AFTER S-OBTAIN F-AUTO A-OWN A-OPP E-GOODS ST-STACK ST-PROV` — On-play stocks the card (ST-STACK); auto hook on ANY player obtaining resources (A-OWN + A-OPP, S-OBTAIN) that must read the event payload — which resource and how many — to test the 5/4/3/3 thresholds, hence ST-PROV.
 - ✅ **C82 Hardware Store** · cost: 1 Wood,1 Clay
@@ -814,7 +814,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D7 Trident** · cost: 1 Wood · prereq: Play in Round 3, 6, 9, or 12 · passing
   - _If you play this card in round 3/6/9/12, you immediately get 3/4/5/6 food._
   - `ONPLAY E-GOODS E-PASSING` — On play gain food scaled by round (plain goods, round-conditional read is just a prerequisite/state read); passing minor. NONE is wrong since it is not the sole tag when E-GOODS/E-PASSING apply.
-- ⬜ **D8 Fern Seeds** · prereq: 1 Empty and 2 Planted Fields · passing
+- ✅ **D8 Fern Seeds** · prereq: 1 Empty and 2 Planted Fields · passing
   - _You get 2 food and 1 grain, which you must sow immediately._
   - `ONPLAY E-GOODS E-GRANTSUB E-PASSING` — Gain 2 food + 1 grain that must be sown immediately (mandatory grant of sow sub-action); passing.
 - ✅ **D9 Game Trade** · cost: 2 Sheep · passing
@@ -1051,7 +1051,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E1 Pole Barns** · cost: 2 Wood · prereq: 15 Fences Built · passing
   - _You can immediately build up to 3 stables at no cost. (You must pay the cost of this card though.)_
   - `ONPLAY E-GRANTSUB E-PASSING` — On-play grant of up to 3 stable builds; 'at no cost' is the grant's own (zero) push-time cost, not a modification of a standing cost rule, so no E-COSTMOD. The play cost is 2 Wood (ordinary resources) and '15 Fences Built' is a prereq, so labelA's E-PIECECOST is wrong. Passing minor (passing_left=X).
-- ⬜ **E2 Renovation Materials** · cost: 3 Clay,1 Reed · prereq: Wooden House · passing
+- ✅ **E2 Renovation Materials** · cost: 3 Clay,1 Reed · prereq: Wooden House · passing
   - _Immediately renovate to clay at no cost. (You must pay the cost of this card though.)_
   - `ONPLAY E-GRANTSUB E-PASSING` — On-play granted renovate-to-clay; the free-ness is the grant's zero cost parameter, not a cost-modifier mechanic (no E-COSTMOD). Ordinary resource play cost; Wooden House is a prereq. Passing minor.
 - ⬜ **E3 Tea Time** · cost: 1 Food · prereq: Own Person on "Grain Utilization" · passing
@@ -1078,7 +1078,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E10 Straw Hat** · cost: 1 Reed
   - _At the end of the work phases of rounds 3 and 6, you can move your person from the "Farmland" action space to an unoccupied action space and take that action, or get 1 food._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-WORKERMANIP E-GRANTACT E-GOODS ST-PLACELOG` — At end of work phase rounds 3&6, move person from Farmland to unoccupied space and take that action, or 1 food; needs placement log.
-- ⬜ **E11 Petting Zoo** · cost: 1 Wood
+- ✅ **E11 Petting Zoo** · cost: 1 Wood
   - _As long as you have a pasture orthogonally adjacent to your house, you can keep animals of any type on this card, up to the number of rooms in your house._
   - `PASSIVE E-CAPNEW L-GEOMFARM` — Kept L-GEOMFARM: requires a pasture orthogonally adjacent to the house.
 - ⬜ **E12 Animal Bedding** · prereq: 1 Grain Field
@@ -1279,7 +1279,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E77 Mattock** · cost: 1 Wood
   - _Each time you get reed and/or stone from an action space, you get 1 additional clay._
   - `HOOK T-AFTER S-OBTAIN F-AUTO A-OWN E-GOODS ST-PROV` — Obtain-keyed auto gain of clay; S-OBTAIN fires on gains from ANY source, so the 'from an action space' restriction requires the event's provenance (where the reed/stone came from) — exactly ST-PROV's payload case.
-- ⬜ **E78 Sleight of Hand** · prereq: 3 Occupations
+- ✅ **E78 Sleight of Hand** · prereq: 3 Occupations
   - _When you play this card, you can immediately exchange up to 4 building resources for an equal number of other building resources.  [CLARIFICATION: It is a single exchange.  You can’t trade wood-for-wood, for example.]_
   - `ONPLAY E-CONVERT` — On play single exchange up to 4 building resources for equal number of different building resources.
 - ⬜ **E79 Field Spade** · cost: 1 Wood
