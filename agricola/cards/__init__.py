@@ -962,3 +962,10 @@ from agricola.cards import night_loot  # noqa: F401
 
 # --- 2026-07-20 the play_occupation cost-conversion chokepoint (ruling 67) ---
 from agricola.cards import working_gloves  # noqa: F401
+
+# --- 2026-07-20 tier-2 batch, first wave (user rulings 2026-07-20: Ceilings per
+#     deferred-plans cluster B5; Sleight of Hand wide one-shot, disjoint-support
+#     exchanges; Material Hub scoped to accumulation-space sweeps, native-type only) ---
+from agricola.cards import ceilings  # noqa: F401
+from agricola.cards import sleight_of_hand  # noqa: F401
+from agricola.cards import material_hub  # noqa: F401
