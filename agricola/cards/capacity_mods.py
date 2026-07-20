@@ -144,6 +144,70 @@ def sheep_slot_count(player_state) -> int:
                if _owns(player_state, cid))
 
 
+# Cards that are pasture-LIKE animal holders — a card holding up to N animals of
+# ONE type without being a pasture (Stockyard B12: "up to 3 animals of the same
+# type. (It is not considered a pasture)"). Folded into `extract_slots`' capacity
+# list as extra ANONYMOUS single-type bins, appended AFTER every pasture-only fold
+# (the per-pasture bonuses, Tinsmith's conditioned list, Herbal Garden's
+# reserved-empty drop) — so nothing that treats real pastures as distinct can ever
+# touch a card bin, and the rules layer (pasture scoring, pasture-referencing card
+# effects) keeps reading farmyard geometry, never this list (user design direction
+# 2026-07-20: fold holders into the solver's list, keep them distinct wherever
+# card effects distinguish them). The accommodation solver already treats capacity
+# entries as an anonymous one-type-per-bin multiset, and the frontier caches key
+# on `extract_slots` OUTPUTS, so the fold is cache-safe by construction.
+# caps_fn(player_state) -> tuple[int, ...] (the card's extra bin capacities; may
+# read the farm — e.g. a count scaled by pastures). Empty registry / nothing
+# owned -> () (Family byte-identity).
+ANIMAL_CAP_SLOT_CARDS: list[tuple[str, Callable]] = []
+
+
+def register_animal_cap_slots(card_id: str, caps_fn: Callable) -> None:
+    """Register a pasture-like card holder's extra capacity bins (import time).
+    `caps_fn(player_state) -> tuple[int, ...]`; ownership-gated in the fold."""
+    ANIMAL_CAP_SLOT_CARDS.append((card_id, caps_fn))
+
+
+def extra_animal_caps(player_state) -> tuple:
+    """Extra anonymous single-type capacity bins from owned holder cards, in
+    registration order. Empty registry / nothing owned -> () (Family)."""
+    if not ANIMAL_CAP_SLOT_CARDS:
+        return ()
+    out: list[int] = []
+    for card_id, caps_fn in ANIMAL_CAP_SLOT_CARDS:
+        if _owns(player_state, card_id):
+            out.extend(caps_fn(player_state))
+    return tuple(out)
+
+
+# Cards granting extra FLEXIBLE slots — 1 animal each, any type, mixable across
+# slots, exactly the standalone-stable/house-pet shape (Petting Zoo E11: one per
+# room while a pasture is orthogonally adjacent to the house — ruled MIXED-type
+# 2026-07-20, the Feedyard "even different types" family, unlike Stockyard's
+# same-type bin). Summed into `num_flexible` beside standalone stables + the
+# house-pet fold. Deliberately independent of HOUSE_CAPACITY_MODS and the
+# house-pet negation: Milking Place forbids animals in the HOUSE, and a holder
+# card is not the house. count_fn(player_state) -> int. Empty registry / nothing
+# owned -> 0 (Family byte-identity; cache-safe for the same reason as above).
+FLEXIBLE_SLOT_CARDS: list[tuple[str, Callable]] = []
+
+
+def register_flexible_slots(card_id: str, count_fn: Callable) -> None:
+    """Register a card's extra flexible-slot count (import time).
+    `count_fn(player_state) -> int`; ownership-gated in the fold."""
+    FLEXIBLE_SLOT_CARDS.append((card_id, count_fn))
+
+
+def extra_flexible_slots(player_state) -> int:
+    """Extra flexible (any-type, capacity-1) slots from owned cards, summed.
+    Empty registry / nothing owned -> 0 (Family)."""
+    total = 0
+    for card_id, count_fn in FLEXIBLE_SLOT_CARDS:
+        if _owns(player_state, card_id):
+            total += count_fn(player_state)
+    return total
+
+
 # Cards that let SHEEP breed from a single parent — Dolly's Mother E84's "You
 # only require 1 sheep to breed sheep during the breeding phase of a harvest."
 # Read by `helpers.breeding_frontier` / `breeding_food_gained` (the

@@ -211,6 +211,8 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     # load-order-safe pattern legality.py uses for cost_mods. Empty registries -> +0 / 1, so
     # this stays byte-identical (and the frontier caches key on these outputs, so no staleness).
     from agricola.cards.capacity_mods import (
+        extra_animal_caps,
+        extra_flexible_slots,
         house_pet_capacity,
         pasture_capacity_bonus,
         pasture_capacity_per_list,
@@ -226,7 +228,8 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     per = pasture_capacity_per_list(player_state, pastures)
     if per is not None:
         pasture_capacities = [c + b for c, b in zip(pasture_capacities, per)]
-    num_flexible = standalone_stables + house_pet_capacity(player_state)
+    num_flexible = (standalone_stables + house_pet_capacity(player_state)
+                    + extra_flexible_slots(player_state))
 
     # A card may FORBID animals in one pasture (Herbal Garden / Beaver Colony): drop the
     # reserved (smallest-capacity qualifying) pasture from the list entirely. Empty registry
@@ -236,6 +239,16 @@ def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
     if reserved:
         pasture_capacities = [c for i, c in enumerate(pasture_capacities)
                               if i not in reserved]
+
+    # Pasture-LIKE card holders (Stockyard: one anonymous single-type bin of 3)
+    # append LAST — after the per-pasture bonuses and the reserved-empty drop —
+    # so no pasture-only fold can ever touch a card bin, and the rules layer
+    # (pasture scoring, pasture-referencing effects) keeps reading farmyard
+    # geometry rather than this anonymous list. Empty registry -> () ->
+    # byte-identical (and the frontier caches key on these outputs).
+    extra = extra_animal_caps(player_state)
+    if extra:
+        pasture_capacities = pasture_capacities + list(extra)
 
     return pasture_capacities, num_flexible
 
