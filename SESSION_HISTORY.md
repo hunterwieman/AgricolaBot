@@ -3355,3 +3355,46 @@ Stable Planner, Tree Farm Joiner) resolve at COLLECTION time — re-tagged from
 same instant their scheduled goods land. Tree Farm Joiner's "immediately
 afterward" became literal (the minor-improvement action surfaces at the very
 window that just delivered its wood). No rung question remains open.
+
+## Session — The tier-2 batch via parallel delegation (2026-07-20)
+
+Ten minor improvements landed in one day (ruling 68), chosen from a 45-card
+classification pass as the "small, self-contained new machinery" tier: Ceilings,
+Sleight of Hand, Material Hub, Newly-Plowed Field, Fern Seeds, Renovation
+Materials, Shelter, Oven Site, Stockyard, Petting Zoo. Census 213 occupations +
+315 minors = 528; full suite 6320 green, C++ gates untouched.
+
+**Process.** The driver session landed the shared engine seams first (one
+writer for shared files), then delegated each card to a parallel Opus subagent
+writing only its module + test file, with the rules-fidelity block and the
+day's dated rulings verbatim in every prompt; the driver wired `__init__.py`,
+ran the sweeps, and updated the docs. Zero defers; two agent-caught issues were
+fixed at integration (Shelter's `build_stables_action=False` classification per
+the Pole Barns precedent; the Renovation Materials × renovate-forbid
+interaction, ruled blocking).
+
+**The seams.** (1) Granted-primitive parameter fields, all canonical-skipped
+push-time parameters: `PendingPlow.ignore_adjacency`, `PendingSow.
+required_crop`, `PendingRenovate.cost_override`/`forced_target` (a traveling
+card's grant can never pass the cost fold's ownership gate — the frame carries
+the price), `PendingBuildStables.allowed_cells`, `PendingBuildMajor.
+allowed_majors` + `granted_by` threaded into the build-major ctx + the
+wrapper's `build_major` category. (2) The animal-holder capacity folds:
+`register_animal_cap_slots` (anonymous single-type bins appended after every
+pasture-only fold — Stockyard) and `register_flexible_slots` (any-type slots
+summed into `num_flexible` — Petting Zoo, ruled mixed-type). Both cache-safe by
+construction (the frontier caches key on `extract_slots` outputs); the typed
+(per-species) holder family remains deferred on generalizing the
+Dolly's-Mother strip.
+
+**Rulings of note.** Material Hub's "takes at least N X" = accumulation-space
+sweeps only, counted as the host's `taken` delta filtered to the space's
+native type — clarified the same day (after a wrong forward-compat caveat
+briefly shipped in the docs) that native-type goods a card returns onto a
+space DO count for the next visitor, so the filter is the final semantics and
+no deposit provenance is ever needed; Forest Plow (B17) was ruled an
+after-window trigger in the same exchange. Sleight of Hand enumerates
+disjoint-support exchanges wide (~309 variants max — lossless: overlapping
+types cancel to smaller exchanges). Fern Seeds carries a no-dead-end prereq
+conjunct (a grain-sowable empty field must exist). Oven Site's fixed 1c+1s is
+a granted-by-scoped pipeline formula, so other discounts stack.

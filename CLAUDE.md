@@ -35,7 +35,7 @@ going stale):
   the web-UI bot. (Model lineage + current champion: `nn_models/REGISTRY.md`; design:
   `SHARED_TRUNK.md`.)
 - **Phase 3 — Cards (and maybe 4-player).** Implement the full card system, then repeat the
-  Phase 2 agent process for the richer game. **The card engine is built; ~354 of the 840-card
+  Phase 2 agent process for the richer game. **The card engine is built; ~528 of the 840-card
   catalog are implemented and playable in the web UI; no card-game agent exists yet.**
   (Reference + live status: `CARD_ENGINE_IMPLEMENTATION.md`.)
 
@@ -721,7 +721,7 @@ food; the improvement spaces gain a play-minor branch), and played cards modify 
 a general firing system — host frames with before/after windows on every action, optional
 triggers / automatic effects / mandatory-with-choice, ~35 `register_*` seams (scoring, cost
 modifiers, food payment, capacity, schedules, legality extensions), per-card state (`CardStore`),
-and phase hooks (start-of-round, the harvest timing-window ladder). **~354 of the 840-card catalog** (Revised base
+and phase hooks (start-of-round, the harvest timing-window ladder). **~528 of the 840-card catalog** (Revised base
 + Artifex/Bubulcus/Corbarius/Dulcinaria/Ephipparius, decks A–E) are implemented, tested, and
 dealt in the web UI's Cards mode.
 
@@ -843,7 +843,7 @@ through `selfplay --move`'s `--leaf-mode` / `--mix-alpha`).
 
 In **Cards** mode the seats are **human-vs-random or human-vs-human** (no trained bot exists for the card
 game yet, so MCTS/NN seats and the analysis overlay are disabled), and `setup_env(seed, card_pool=...)` is
-called with a pool of **all implemented cards** (~354; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
+called with a pool of **all implemented cards** (~528; live census via the `OCCUPATIONS`/`MINORS` registries) so each player is
 dealt a random non-overlapping 7-occupation + 7-minor hand. The snapshot serializes each player's hand
 under **hidden-information rules**: a hand is shown face-up only for a *human* seat, and among two human
 seats (pass-and-play) only the **active player's** hand is revealed (the inactive seat sees a face-down

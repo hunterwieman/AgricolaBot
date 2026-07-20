@@ -123,6 +123,15 @@ def _moldboard_plow(ps) -> str | None:
     return f"{uses} field-plow{'' if uses == 1 else 's'} left"
 
 
+def _material_hub(ps) -> str | None:
+    from agricola.cards.material_hub import CARD_ID
+
+    stock = ps.card_state.get(CARD_ID)
+    if not stock:  # None, or an empty Resources() (fully paid out)
+        return None
+    return "Holding: " + _fmt_resources(stock)
+
+
 # --- Per-card action-variant labelers (the web-UI label pass, 2026-07-12) ---
 # The user's style directive: MECHANICAL and terse — "the player can interpret
 # meaning from the card description" — with the card name prepended by the web
@@ -164,6 +173,7 @@ def _card_field_badge(card_id: str, ps) -> str | None:
 
 _STATE_FORMATTERS = {
     "interim_storage": _interim_storage,
+    "material_hub": _material_hub,
     "moldboard_plow": _moldboard_plow,
 }
 

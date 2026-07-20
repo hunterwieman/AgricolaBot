@@ -59,6 +59,7 @@ byte-identical and the C++ gates are untouched.
 """
 from __future__ import annotations
 
+from agricola.cards.display import register_action_labeler
 from agricola.cards.specs import register_minor, register_play_minor_variant
 from agricola.replace import fast_replace
 from agricola.resources import Resources
@@ -165,3 +166,29 @@ register_minor(CARD_ID, min_occupations=3, on_play=_on_play)
 # The wide on-play exchange (user ruling 2026-07-20): one play variant per
 # canonical exchange (GIVE surcharge folded into the payment) plus the decline.
 register_play_minor_variant(CARD_ID, _variants)
+
+
+def _fmt_side(ms: dict[str, int]) -> str:
+    """Canonical-order human form of one exchange side: {wood:2, clay:1} ->
+    "2 wood, 1 clay"."""
+    return ", ".join(f"{ms[t]} {t}" for t in BUILDING_RESOURCES if ms.get(t, 0))
+
+
+def _action_label(variant: str) -> str | None:
+    """Web-UI label for an exchange variant (mechanical and terse per the label
+    pass's style — the web layer prepends the card name): "w2c1>r3" -> "give
+    2 wood, 1 clay → get 3 reed"; the decline route reads "no exchange". None
+    (the generic fallback) on anything unrecognized."""
+    if variant == DECLINE:
+        return "no exchange"
+    give_s, sep, get_s = variant.partition(">")
+    if not sep or not give_s or not get_s:
+        return None
+    try:
+        give, get = _parse_side(give_s), _parse_side(get_s)
+    except (KeyError, ValueError):
+        return None
+    return f"give {_fmt_side(give)} → get {_fmt_side(get)}"
+
+
+register_action_labeler(CARD_ID, _action_label)
