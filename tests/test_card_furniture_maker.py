@@ -224,28 +224,57 @@ def test_each_later_play_pays_again():
 
 
 def test_forest_school_substituted_food_pays_no_wood():
-    """User ruling 2026-07-15: food replaced with wood by Forest School is paid
-    in WOOD, not food, so Furniture Maker grants nothing for that play."""
+    """User ruling 2026-07-15 (structural since ruling 67): food replaced with wood by
+    Forest School is paid in WOOD, not food — the play's `paid_cost` stamp carries the
+    wood payment, so Furniture Maker grants nothing for that play."""
     import agricola.cards.forest_school  # noqa: F401
     cs = _card_state()
     cs = _give_tableau_occ(cs, 0, "furniture_maker")
     cs = _edit_player(cs, 0,
                       minor_improvements=cs.players[0].minor_improvements | {"forest_school"})
     cs = _give_hand_occ(cs, 0, "consultant")
-    # 0 food + 1 wood: the 1-food occupation cost is payable ONLY by firing
-    # Forest School (wood -> food), forcing the substitution path.
+    # 0 food + 1 wood: the 1-food occupation cost is payable ONLY via the wood
+    # substitution — the frontier is the single payment-carrying commit (ruling 67:
+    # the trigger step is gone; the substitution IS the payment).
     cs = with_resources(cs, 0, wood=1, food=0)
     cs = with_current_player(cs, 0)
     cs = with_space(cs, "lessons", revealed=True)
     cs = step(cs, PlaceWorker(space="lessons"))
     cs = step(cs, ChooseSubAction(name="play_occupation"))
-    # Before the play, the commit is withheld (food short) — fire Forest School
-    # (a play-variant trigger since ruling 65: variant = the replacement count k).
-    assert FireTrigger(card_id="forest_school", variant="1") in legal_actions(cs)
-    cs = step(cs, FireTrigger(card_id="forest_school", variant="1"))
-    cs = step(cs, CommitPlayOccupation(card_id="consultant"))
+    wood_pay = CommitPlayOccupation(card_id="consultant", payment=Resources(wood=1))
+    assert wood_pay in legal_actions(cs)
+    cs = step(cs, wood_pay)
 
     assert "consultant" in cs.players[0].occupations
-    assert cs.players[0].resources.food == 0    # 1 produced from wood, 1 paid
-    # Wood: started 1, Forest School spent it, Furniture Maker granted 0.
+    assert cs.players[0].resources.food == 0
+    # Wood: started 1, spent on the substitution, Furniture Maker granted 0.
     assert cs.players[0].resources.wood == 0
+
+
+def test_partial_substitution_pays_for_remaining_food():
+    """Ruling 65's MIXED payment x ruling 67's `paid_cost` stamp: on Writing Desk's
+    2-food granted play paid 1 wood + 1 food, Furniture Maker pays exactly 1 wood —
+    the 1 food actually paid in food. (The old all-or-nothing `triggers_resolved`
+    guard would have undercounted this to 0.)"""
+    import agricola.cards.forest_school  # noqa: F401
+    import agricola.cards.writing_desk  # noqa: F401
+    cs = _card_state()
+    cs = _give_tableau_occ(cs, 0, "furniture_maker")
+    cs = _edit_player(cs, 0, minor_improvements=(cs.players[0].minor_improvements
+                                                 | {"forest_school", "writing_desk"}))
+    cs = _give_hand_occ(cs, 0, "consultant")
+    cs = _give_hand_occ(cs, 0, "stable_architect")   # Writing Desk needs >= 2 playable
+    cs = with_resources(cs, 0, wood=1, food=1)
+    cs = with_current_player(cs, 0)
+    cs = with_space(cs, "lessons", revealed=True)
+    cs = step(cs, PlaceWorker(space="lessons"))
+    cs = step(cs, FireTrigger(card_id="writing_desk"))            # the 2-food granted play
+    mixed = CommitPlayOccupation(card_id="consultant",
+                                 payment=Resources(wood=1, food=1))
+    assert mixed in legal_actions(cs)
+    cs = step(cs, mixed)
+
+    p = cs.players[0]
+    assert "consultant" in p.occupations
+    assert p.resources.food == 0          # the 1 food actually paid in food
+    assert p.resources.wood == 1          # 1 - 1 (payment) + 1 (Furniture Maker's payout)

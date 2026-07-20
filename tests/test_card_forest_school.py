@@ -4,16 +4,16 @@
     Lessons even when one opponent already occupies it; with boundaries (no ownership, owner
     already holds it, non-lessons spaces, 2+ other players).
 
-  CLAUSE 2 — replace the occupation's food cost with wood, PER FOOD (user ruling 2026-07-17,
-    ruling 65): a play-variant trigger — one FireTrigger(variant=str(k)) per replacement
-    count k — priced by the FRAME's `PendingPlayOccupation.cost` (never the Lessons ramp),
-    doubling as a cost-aware occupation food source (`source_fn(state, idx, cost)`). Covers:
-    registration; the substitution firing (Lessons, k=1); the affordability gate; the commit
-    gate withholding until fired; the free-play no-op (the free first Lessons play AND a
-    granted free play — the Seed Researcher shape, where the old ramp-derived need offered a
-    phantom wood->food swap); once-per-play; and the 2-food granted route (Writing Desk):
-    the full-wood swap, the MIXED 1-wood + 1-food payment, and the stranding filter (a k
-    below the shortfall is never offered).
+  CLAUSE 2 — replace the occupation's food cost with wood, PER FOOD, as a play_occupation
+    COST CONVERSION (rulings 65 + 67): the ways to pay surface as payment-carrying
+    CommitPlayOccupations from the `effective_payments` frontier — one per (k wood,
+    need−k food) point — never as triggers. Covers: registration (a CONVERSIONS entry; no
+    trigger, no food source); the wood payment (Lessons); the affordability gate; the
+    free-play legacy shape (the free first Lessons play AND a granted free play — the Seed
+    Researcher shape); the frontier capped at the cost's food; the `paid_cost` stamp; and
+    the 2-food granted route (Writing Desk): the full-wood payment, the MIXED 1-wood +
+    1-food payment, and the automatic pruning of an unpayable partial (the old stranding
+    filter, now structural).
 
   Plus registration / cost / vps and Family byte-identity (no card -> occupied lessons illegal).
 """
@@ -29,9 +29,10 @@ from agricola.actions import (
     PlaceWorker,
     Stop,
 )
+from agricola.cards.cost_mods import CONVERSIONS
 from agricola.cards.forest_school import CARD_ID, _occupancy_override
 from agricola.cards.specs import MINORS, OCCUPATION_FOOD_SOURCES
-from agricola.cards.triggers import PLAY_VARIANT_TRIGGERS, TRIGGERS
+from agricola.cards.triggers import TRIGGERS
 from agricola.pending import PendingPlayOccupation, push
 from agricola.engine import step
 from agricola.legality import (
@@ -61,10 +62,13 @@ def test_registered():
     assert spec.vps == 1
     assert spec.cost.resources.wood == 1
     assert spec.cost.resources.clay == 1
-    assert CARD_ID in OCCUPATION_FOOD_SOURCES
-    assert any(e.card_id == CARD_ID
-               for e in TRIGGERS.get("before_play_occupation", []))
-    assert CARD_ID in PLAY_VARIANT_TRIGGERS      # per-k replacement counts (ruling 65)
+    # Ruling 67: the substitution is a play_occupation COST CONVERSION — not a
+    # trigger and not an occupation food source (both old registrations are gone).
+    assert any(cid == CARD_ID
+               for _o, cid, _fn, _rec in CONVERSIONS.get("play_occupation", ()))
+    assert CARD_ID not in OCCUPATION_FOOD_SOURCES
+    assert not any(e.card_id == CARD_ID
+                   for e in TRIGGERS.get("before_play_occupation", []))
     assert _occupancy_override in OCCUPANCY_OVERRIDE_EXTENSIONS
 
 
@@ -167,28 +171,25 @@ def _to_play_occupation(cs):
     return cs
 
 
-def test_substitution_fires_and_pays_in_wood():
-    # 0 food, 1 wood, own Forest School, play a 2nd occupation (cost 1 food). The commit is
-    # withheld (food short) — only the substitution is offered; firing it converts 1 wood -> 1
-    # food, then the commit unlocks and the occupation is paid for in food (raised from wood).
+def test_substitution_pays_in_wood():
+    # 0 food, 1 wood, own Forest School, play a 2nd occupation (cost 1 food). The food
+    # payment is unaffordable, so the frontier is exactly the wood substitution — ONE
+    # payment-carrying commit (ruling 67: no trigger step, no legacy commit).
     cs, cp = _play_state(occupations=("priest",), hand=("consultant",), food=0, wood=1)
     cs = _to_play_occupation(cs)
     la = legal_actions(cs)
-    assert CommitPlayOccupation(card_id="consultant") not in la   # withheld: food short
-    assert FireTrigger(card_id=CARD_ID, variant="1") in la
+    assert CommitPlayOccupation(card_id="consultant") not in la   # food payment unaffordable
+    wood_pay = CommitPlayOccupation(card_id="consultant", payment=Resources(wood=1))
+    assert wood_pay in la
 
-    cs = step(cs, FireTrigger(card_id=CARD_ID, variant="1"))       # 1 wood -> 1 food
-    p = cs.players[cp]
-    assert p.resources.wood == 0
-    assert p.resources.food == 1
-    assert CommitPlayOccupation(card_id="consultant") in legal_actions(cs)   # now unlocked
-
-    cs = step(cs, CommitPlayOccupation(card_id="consultant"))
+    cs = step(cs, wood_pay)
     p = cs.players[cp]
     assert "consultant" in p.occupations
-    assert p.resources.food == 0          # raised 1 from wood, paid the 1-food cost
-    assert p.resources.wood == 0
+    assert p.resources.wood == 0          # the occupation was paid in wood
+    assert p.resources.food == 0
     assert p.resources.clay == 3          # consultant's on-play ran
+    # The host stamped the actual payment (the "food paid" ground truth — ruling 67).
+    assert cs.pending_stack[-1].paid_cost == Resources(wood=1)
 
 
 def test_lessons_offered_only_via_forest_school():
@@ -207,51 +208,52 @@ def test_not_offered_for_free_first_occupation():
     cs, _cp = _play_state(occupations=(), hand=("consultant",), food=0, wood=2)
     cs = _to_play_occupation(cs)
     la = legal_actions(cs)
-    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID for a in la)
-    assert CommitPlayOccupation(card_id="consultant") in la   # free, immediately committable
+    # Free play: the frontier is the singleton empty cost -> the legacy commit shape,
+    # and no wood-substitution payments exist (nothing to replace).
+    assert CommitPlayOccupation(card_id="consultant") in la
+    assert not any(getattr(a, "payment", None) for a in la)
 
 
 def test_substitution_optional_when_food_on_hand():
-    # With food already on hand the player may decline (pay food) OR substitute. Both the commit
-    # and the FireTrigger are offered; the commit alone pays food and leaves wood untouched.
+    # With food on hand BOTH ways to pay surface as payment-carrying commits — the food
+    # payment and the wood substitution, Pareto-incomparable. Paying food leaves the
+    # wood untouched (declining is picking the food payment; no trigger, no extra ply).
     cs, cp = _play_state(occupations=("priest",), hand=("consultant",), food=5, wood=2)
     cs = _to_play_occupation(cs)
     la = legal_actions(cs)
-    assert FireTrigger(card_id=CARD_ID, variant="1") in la
-    assert CommitPlayOccupation(card_id="consultant") in la
-    cs = step(cs, CommitPlayOccupation(card_id="consultant"))   # decline: pay food
+    food_pay = CommitPlayOccupation(card_id="consultant", payment=Resources(food=1))
+    wood_pay = CommitPlayOccupation(card_id="consultant", payment=Resources(wood=1))
+    assert food_pay in la
+    assert wood_pay in la
+    assert CommitPlayOccupation(card_id="consultant") not in la   # no legacy shape here
+    cs = step(cs, food_pay)                                       # decline: pay food
     p = cs.players[cp]
     assert p.resources.food == 4          # 5 - 1, paid in food
     assert p.resources.wood == 2          # untouched
 
 
-def test_substitution_once_per_play():
-    # The Lessons cost is 1 food -> only k=1 exists (never a k beyond the cost, whatever the
-    # wood pile); firing consumes the trigger (host `triggers_resolved`) for this play.
+def test_frontier_capped_at_the_costs_food():
+    # A 1-food cost never yields a payment beyond 1 wood, whatever the wood pile — the
+    # conversion replaces AT MOST cost.food (and an over-replacement would be dominated
+    # and pruned regardless).
     cs, cp = _play_state(occupations=("priest",), hand=("consultant",), food=0, wood=3)
     cs = _to_play_occupation(cs)
-    la = legal_actions(cs)
-    assert FireTrigger(card_id=CARD_ID, variant="1") in la
-    assert FireTrigger(card_id=CARD_ID, variant="2") not in la     # capped at the cost's food
-    cs = step(cs, FireTrigger(card_id=CARD_ID, variant="1"))
-    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID
-                   for a in legal_actions(cs))   # consumed for this play
+    pays = {a.payment for a in legal_actions(cs)
+            if isinstance(a, CommitPlayOccupation)}
+    assert pays == {Resources(wood=1)}
+    cs = step(cs, CommitPlayOccupation(card_id="consultant", payment=Resources(wood=1)))
     assert cs.players[cp].resources.wood == 2   # only one wood spent
 
 
-@pytest.mark.parametrize("wood,cost,expected", [
-    (0, Resources(food=1), None),                       # no wood -> no swap
-    (1, Resources(food=1), (1, Resources(wood=1))),     # the plain Lessons case
-    (1, Resources(food=2), (1, Resources(wood=1))),     # partial: 1 of the 2 replaceable
-    (3, Resources(food=2), (2, Resources(wood=2))),     # capped at the cost's food
-    (2, Resources(), None),                             # free play: nothing to replace
-])
-def test_food_source_contract(wood, cost, expected):
-    # The food source reports the MAX swap against the ROUTE'S actual cost (the 3-arg,
-    # cost-aware seam — ruling 65), else None.
-    from agricola.cards.forest_school import _food_source
-    cs, _cp = _play_state(occupations=("priest",), hand=("consultant",), food=0, wood=wood)
-    assert _food_source(cs, cs.current_player, cost) == expected
+def test_conversion_expands_per_food():
+    # The conversion emits the unchanged cost + one variant per replacement count k,
+    # UNFILTERED (the expand1 contract — the chokepoint's affordability filter and
+    # Pareto prune decide what actually surfaces).
+    from agricola.cards.forest_school import _expand
+    cs, _cp = _play_state()
+    assert _expand(cs, cs.current_player, None, Resources(food=2)) == [
+        Resources(food=2), Resources(food=1, wood=1), Resources(wood=2)]
+    assert _expand(cs, cs.current_player, None, Resources()) == [Resources()]
 
 
 # ===========================================================================
@@ -273,24 +275,29 @@ def _writing_desk_grant(*, food, wood):
 
 
 def test_granted_two_food_play_full_wood_and_mixed_menu():
-    # Writing Desk's granted play costs 2 food (the FRAME's price, not the Lessons ramp —
-    # the old ramp-derived need swapped only 1). With 1 food + 2 wood BOTH counts are
-    # legal: k=1 (the mixed payment) and k=2 (all wood). Fire k=2, complete the turn.
+    # Writing Desk's granted play costs 2 food (the FRAME's price — ruling 65). With
+    # 1 food + 2 wood the frontier holds BOTH substitutions — the mixed (1 wood +
+    # 1 food) and the full-wood (2 wood) payments, Pareto-incomparable — while the
+    # pure 2-food payment is unaffordable. Pay all-wood, complete the whole turn.
     cs, cp = _writing_desk_grant(food=1, wood=2)
     la = legal_actions(cs)
-    assert FireTrigger(card_id=CARD_ID, variant="1") in la
-    assert FireTrigger(card_id=CARD_ID, variant="2") in la
-    assert CommitPlayOccupation(card_id="consultant") not in la   # withheld: 1 food < 2
+    mixed = CommitPlayOccupation(card_id="consultant",
+                                 payment=Resources(wood=1, food=1))
+    all_wood = CommitPlayOccupation(card_id="consultant", payment=Resources(wood=2))
+    assert mixed in la
+    assert all_wood in la
+    assert not any(isinstance(a, CommitPlayOccupation)
+                   and a.payment == Resources(food=2) for a in la)   # 1 food < 2
 
-    cs = step(cs, FireTrigger(card_id=CARD_ID, variant="2"))      # 2 wood -> 2 food
+    cs = step(cs, all_wood)                                       # the 2-food cost, in wood
     p = cs.players[cp]
     assert p.resources.wood == 0
-    assert p.resources.food == 3
-    cs = step(cs, CommitPlayOccupation(card_id="consultant"))     # pays the 2-food cost
-    assert cs.players[cp].resources.food == 1
+    assert p.resources.food == 1
+    assert cs.pending_stack[-1].paid_cost == Resources(wood=2)
     cs = step(cs, Stop())                                         # pop the granted play
 
-    # The mandatory Lessons play completes normally with the remaining 1 food.
+    # The mandatory Lessons play completes normally with the remaining 1 food (its
+    # frontier is the food payment alone — no wood left — so the legacy shape).
     cs = step(cs, ChooseSubAction(name="play_occupation"))
     cs = step(cs, CommitPlayOccupation(card_id="stable_architect"))
     p = cs.players[cp]
@@ -300,37 +307,40 @@ def test_granted_two_food_play_full_wood_and_mixed_menu():
 
 def test_granted_two_food_play_mixed_payment():
     # The MIXED payment (ruling 65): replace only 1 of the 2 food — pay 1 wood + 1 food.
+    # With exactly 1 wood + 1 food it is the ONLY way to pay.
     cs, cp = _writing_desk_grant(food=1, wood=1)
-    assert FireTrigger(card_id=CARD_ID, variant="1") in legal_actions(cs)   # the only k
-    cs = step(cs, FireTrigger(card_id=CARD_ID, variant="1"))
+    mixed = CommitPlayOccupation(card_id="consultant",
+                                 payment=Resources(wood=1, food=1))
+    assert mixed in legal_actions(cs)
+    cs = step(cs, mixed)
     p = cs.players[cp]
     assert p.resources.wood == 0
-    assert p.resources.food == 2
-    cs = step(cs, CommitPlayOccupation(card_id="consultant"))
-    assert cs.players[cp].resources.food == 0                     # paid 1 wood + 1 food
+    assert p.resources.food == 0                                  # paid 1 wood + 1 food
+    assert cs.pending_stack[-1].paid_cost == Resources(wood=1, food=1)
 
 
-def test_granted_two_food_play_filters_k_below_shortfall():
-    # With 0 food, k=1 raises only 1 of the 2 food — the play would stay unpayable and the
-    # host has no decline, so k=1 must NOT be offered (the stranding filter); k=2 is.
-    # (The turn is deliberately left mid-Lessons: the post-grant state is not under test.)
+def test_granted_two_food_play_prunes_unpayable_partial():
+    # With 0 food, the mixed (1 wood + 1 food) payment is unaffordable and drops out of
+    # the frontier automatically — the old stranding filter, now structural; only the
+    # full-wood payment surfaces. (The turn is deliberately left mid-Lessons: the
+    # post-grant state is not under test.)
     cs, _cp = _writing_desk_grant(food=0, wood=2)
-    la = legal_actions(cs)
-    assert FireTrigger(card_id=CARD_ID, variant="2") in la
-    assert FireTrigger(card_id=CARD_ID, variant="1") not in la
+    pays = {a.payment for a in legal_actions(cs)
+            if isinstance(a, CommitPlayOccupation) and a.card_id == "consultant"}
+    assert pays == {Resources(wood=2)}
 
 
 def test_granted_free_play_offers_no_substitution():
-    # A granted play at NO occupation cost (Seed Researcher's shape) has nothing to replace:
-    # the swap must not be offered. The old ramp-derived need offered a phantom 1-wood ->
-    # 1-food conversion here. (Direct frame push: the real Seed Researcher flow spans the
-    # round-end ladder; what the trigger reads is the frame's cost.)
+    # A granted play at NO occupation cost (Seed Researcher's shape) has nothing to
+    # replace: the frontier is the singleton empty cost -> the legacy commit shape with
+    # no substitution payments. (Direct frame push: the real Seed Researcher flow spans
+    # the round-end ladder; what the conversion reads is the frame's cost.)
     cs, cp = _play_state(occupations=("priest",), hand=("consultant",), food=0, wood=3)
     cs = push(cs, PendingPlayOccupation(
         player_idx=cp, initiated_by_id="card:seed_researcher", cost=Resources()))
     la = legal_actions(cs)
-    assert not any(isinstance(a, FireTrigger) and a.card_id == CARD_ID for a in la)
     assert CommitPlayOccupation(card_id="consultant") in la       # free, committable
+    assert not any(getattr(a, "payment", None) for a in la)
 
 
 def test_gate_covers_multi_food_cost_via_wood():

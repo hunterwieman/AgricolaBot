@@ -726,6 +726,13 @@ class PendingPlayOccupation:
     # (Clutterer's text-filtered count). None during the before-phase. Card-only
     # frame, so no canonical/C++ concern.
     played_card_id: str | None = None
+    # The resource vector ACTUALLY debited for the occupation cost proper — the
+    # commit's chosen payment (or the frame's `cost` on the singleton path),
+    # EXCLUDING any play-variant surcharge. Stamped by the executor alongside
+    # `played_card_id`, so after-window readers of "food paid as occupation cost"
+    # (Furniture Maker) see ground truth even under a partial wood-substitution
+    # (rulings 65/67). None during the before-phase.
+    paid_cost: Resources | None = None
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 

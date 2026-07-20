@@ -17,30 +17,27 @@ Two design decisions, recorded per the spec:
    is already in the tableau by then.
 
 2. "1 WOOD FOR EACH FOOD PAID AS OCCUPATION COST" — read the play host frame's
-   `cost.food`. `PendingPlayOccupation.cost` is the route-supplied occupation
-   cost (Lessons' ramp — free first, 1 food after; Scholar's flat 1 food), set
-   at push time; the host is on top when the after-autos fire, so the read is
-   direct. DELIBERATE SCOPING: a play-variant SURCHARGE (Roof Ballaster's
+   `paid_cost.food`. Since ruling 67 (2026-07-20) the executor stamps
+   `PendingPlayOccupation.paid_cost` with the resource vector it actually
+   debited for the OCCUPATION COST PROPER (the chosen payment from the
+   play_occupation cost-conversion frontier, or the route cost on the plain
+   path); the host is on top when the after-autos fire, so the read is direct
+   ground truth. DELIBERATE SCOPING: a play-variant SURCHARGE (Roof Ballaster's
    optional 1-food payment) is an effect price, NOT "occupation cost" —
    RULES.md: an individual printed cost "is paid in addition to the occupation
-   cost" — and it is correctly excluded here because the frame's `cost` field
-   never includes surcharges (`_execute_play_occupation` folds the variant
-   surcharge into a LOCAL cost for the debit and never writes it back to the
-   frame). Food raised through the shared food-payment path (liquidation) is
-   genuinely paid — the frame's cost is still debited in food — so it counts.
+   cost" — and it is correctly excluded because the executor stamps only the
+   base-cost payment, never the surcharge. Food raised through the shared
+   food-payment path (liquidation) is genuinely paid — the debit is still in
+   food — so it counts.
 
-FOREST SCHOOL — RULED (user, 2026-07-15): wood-substituted food does NOT count
-as "food paid as occupation cost". Forest School ("You can replace each food
-that an occupation costs with wood") is an optional `before_play_occupation`
-trigger that converts wood -> food to pay the cost; when it fires, the player
-paid WOOD, not food, so Furniture Maker grants nothing for that play. The guard
-needs no engine change: Forest School's fire is recorded in the host frame's
-`triggers_resolved`, which survives the after-flip, so eligibility/apply
-subtract the substituted food. Forest School substitutes the WHOLE printed food
-cost in one fire (it is not partial), so "fired -> 0 food actually paid in
-food" is exact for today's catalog; a future PARTIAL food-substitution card
-would need the substituted amount tracked rather than this all-or-nothing
-check.
+FOREST SCHOOL / WORKING GLOVES — RULED (user, 2026-07-15): wood-substituted
+food does NOT count as "food paid as occupation cost". Both substitution cards
+are play_occupation cost CONVERSIONS (ruling 67), so a substituted play's
+`paid_cost` simply carries wood/resources instead of food and the count is
+structural — including a PARTIAL substitution (ruling 65's mixed payments,
+e.g. 1 wood + 1 food on Writing Desk's 2-food granted play pays out exactly 1
+wood here). The old all-or-nothing `triggers_resolved` guard is gone with the
+trigger it read.
 
 Opponent plays never fire (own-action routing; ownership additionally requires
 Furniture Maker in the acting player's tableau — a copy still in HAND is
@@ -72,18 +69,19 @@ def _on_play(state: GameState, idx: int) -> GameState:
 
 
 def _food_paid_in_food(top) -> int:
-    """Food ACTUALLY paid in food toward the occupation cost. The frame's
-    `cost.food` is the charged food, MINUS any wood-substituted by Forest School
-    (user ruling 2026-07-15 — substituted food is paid in wood, not food).
-    Forest School substitutes the whole printed food cost when it fires, and its
-    fire is stamped in the host's `triggers_resolved` (surviving the after-flip),
-    so a fired Forest School zeroes the count exactly for today's catalog."""
+    """Food ACTUALLY paid in food toward the occupation cost. Since ruling 67
+    (2026-07-20) the play host carries a `paid_cost` stamp — the resource vector
+    the executor really debited for the occupation cost proper (a substitution
+    card's converted payment included, the play-variant surcharge excluded) — so
+    the read is ground truth: a Forest School / Working Gloves substitution pays
+    wood/resources, not food (user ruling 2026-07-15), and a PARTIAL substitution
+    (ruling 65's mixed payments) counts its remaining food exactly. Falls back to
+    the frame's charged `cost` when no stamp is present (a hand-built frame)."""
+    paid = getattr(top, "paid_cost", None)
+    if paid is not None:
+        return paid.food
     cost = getattr(top, "cost", None)
-    if cost is None:
-        return 0
-    if "forest_school" in getattr(top, "triggers_resolved", frozenset()):
-        return 0
-    return cost.food
+    return cost.food if cost is not None else 0
 
 
 def _eligible(state: GameState, idx: int) -> bool:

@@ -538,17 +538,25 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
     variants_fn the enumerator used; the variant's BENEFIT (e.g. stone) is granted in its
     on_play, not debited there.
 
-    Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §5): if the cost's food exceeds food on hand,
+    Food-shortfall guard (FOOD_PAYMENT_DESIGN.md §5): if the debit's food exceeds food on hand,
     push a PendingFoodPayment to RAISE the shortfall into supply (no debit) and re-run this exact
     play. The guard is re-entrant — on the re-run the food is sufficient, so it debits and plays
-    normally. Occupation costs are food-only today, so there is nothing to reserve."""
+    normally. A converted payment's non-food components (ruling 67 — a substitution card's wood)
+    are reserved from liquidation via the `reserved` cost."""
     from agricola.cards.specs import OCCUPATIONS, PLAY_OCCUPATION_VARIANTS
     cid = action.card_id
     top = state.pending_stack[-1]   # PendingPlayOccupation — the play cost lives here
     p = state.players[idx]
-    cost = top.cost                 # Resources (food-only for Lessons / Scholar)
+    # The occupation cost proper: the commit's chosen payment from the play_occupation
+    # chokepoint frontier (ruling 67 — a substitution card's converted vector), or the
+    # frame's route-supplied cost on the legacy singleton path (payment=None).
+    base_pay = action.payment if action.payment is not None else top.cost
+    cost = base_pay
     variants_fn = PLAY_OCCUPATION_VARIANTS.get(cid)
     if variants_fn is not None and action.variant is not None:
+        # The variant SURCHARGE is an effect price outside the modifier pipeline (user
+        # ruling 2026-07-20) — added on top of the chosen base-cost payment, never
+        # substituted or reduced.
         cost = cost + dict(variants_fn(state, idx))[action.variant]
     if p.resources.food < cost.food:                 # raise the shortfall, then re-run
         return push(state, PendingFoodPayment(
@@ -560,10 +568,13 @@ def _execute_play_occupation(state: GameState, idx: int, action) -> GameState:
         occupations=p.occupations | {cid},
     )
     state = _update_player(state, idx, p)
-    # Stamp WHICH card landed on the host before the flip, so after_play_occupation
-    # autos/triggers can read it (Clutterer's text-filtered count).
+    # Stamp WHICH card landed and WHAT was actually paid for the occupation cost
+    # proper (`base_pay` — the surcharge is deliberately excluded) on the host before
+    # the flip, so after_play_occupation autos/triggers can read both (Clutterer's
+    # text-filtered count; Furniture Maker's "food paid as occupation cost", exact
+    # under a partial wood-substitution — rulings 65/67).
     state = replace_top(state, fast_replace(state.pending_stack[-1],
-                                            played_card_id=cid))
+                                            played_card_id=cid, paid_cost=base_pay))
     # DEFER the after-flip (user ruling 2026-07-14): mark the work applied while the host
     # is still on top; _advance_until_decision flips it (firing after_play_occupation
     # autos) once everything on_play pushes has resolved — so a reaction's payout can

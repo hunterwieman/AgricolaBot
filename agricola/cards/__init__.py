@@ -959,3 +959,6 @@ from agricola.cards import pole_barns  # noqa: F401
 from agricola.cards import lumber_pile  # noqa: F401
 from agricola.cards import thunderbolt  # noqa: F401
 from agricola.cards import night_loot  # noqa: F401
+
+# --- 2026-07-20 the play_occupation cost-conversion chokepoint (ruling 67) ---
+from agricola.cards import working_gloves  # noqa: F401

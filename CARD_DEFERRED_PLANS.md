@@ -930,6 +930,43 @@ at 2 players.
      the whole set for 4-player forward-compatibility (only Forest is live at
      2 players).
 
+67. **Occupation-cost substitutions are COST CONVERSIONS under
+   `action_kind="play_occupation"`** (2026-07-20; Working Gloves E60 built on it,
+   Forest School migrated onto it). The rulings:
+   - **"Pay X in place of food" cards resolve through the `effective_payments`
+     chokepoint**, never as triggers or food sources: one
+     `CommitPlayOccupation(payment=...)` per Pareto-minimal way to pay the
+     OCCUPATION COST PROPER (the frame's route-supplied cost). Consequences, all
+     structural: dominated offers are pruned (the user's requirement — Working
+     Gloves' 1-wood payment suppresses Forest School's 2-wood on a 2-food cost;
+     identical vectors de-duplicate), double-replacement is inexpressible (a
+     payment replaces each food unit at most once), and ruling 65's mixed
+     payments are ordinary frontier points. The no-substitution path keeps the
+     legacy `payment=None` commit shape.
+   - **Surcharges and individual printed costs are SEPARATE from the occupation
+     cost and may never be reduced or modified** (user, 2026-07-20) — even when
+     the code debits them simultaneously. A play-variant surcharge (Roof
+     Ballaster) is added to the debit on top of the chosen payment, outside the
+     pipeline; each (variant, payment) commit is gated on the COMBINED debit
+     being payable.
+   - **Working Gloves always replaces min(2, cost.food)** — "(up to) 2" never
+     makes a smaller replacement a real choice (same 1-resource price, strictly
+     dominated). The 2026-07-17 catalog scan backs the design: the occupation
+     cost proper never exceeds 2 food anywhere (base ramps cap at 2 at 3-4
+     players; Moonshine/Writing Desk grant at 2; nothing raises it), so Forest
+     School is weakly dominated whenever Working Gloves is co-owned — enforced
+     by the prune, not by card logic.
+   - **The executor stamps `PendingPlayOccupation.paid_cost`** (base-cost payment
+     only, surcharge excluded) alongside `played_card_id`, so "food paid as
+     occupation cost" readers (Furniture Maker, ruling 63) are exact under
+     partial substitution — the old all-or-nothing `triggers_resolved` guard is
+     gone with the trigger it read.
+   MACHINERY (all card-only/Family-inert): the `play_occupation` ctx +
+   `can_pay`-based `_payable_occupation` (food sources simulate on top),
+   payment-carrying wide commits, `CommitPlayOccupation.payment` +
+   `PendingPlayOccupation.paid_cost` (both canonical-default-skipped), and the
+   occupation-food-source seam re-scoped to PRODUCERS only.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)

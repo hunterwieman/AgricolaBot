@@ -111,6 +111,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
   - _You can consider the "Lessons" action spaces not occupied. You can replace each food that an occupation costs with wood._
   - `PASSIVE L-OCCUPY L-EXT E-COSTMOD` — Two always-on rules: treat Lessons as unoccupied (L-OCCUPY, and 'considering a space unoccupied' is an explicit L-EXT example) and pay occupation food costs in wood (currency substitution — E-COSTMOD, also an explicit L-EXT example), so L-EXT belongs alongside both.
   - REBUILT 2026-07-17 (ruling 65): the substitution is PER FOOD (a play-variant trigger, one FireTrigger per replacement count k — mixed payments legal) and priced by the route's `PendingPlayOccupation.cost`, never the Lessons ramp (the original re-derivation mis-sized the swap on Writing Desk's 2-food grant and offered a phantom swap on Seed Researcher's free play).
+  - MIGRATED 2026-07-20 (ruling 67): the substitution is now a `play_occupation` COST CONVERSION resolved by `effective_payments` (wide payment-carrying commits, Pareto-pruned beside Working Gloves E60) — the trigger and food-source registrations are gone; ruling-65 semantics preserved as frontier points.
 - ⬜ **A29 Ale-Benches** · cost: 1 Wood · prereq: 2 Occupations
   - _In the returning home phase of each round, you can pay exactly 1 grain from your supply to get 1 bonus point. If you do, each other player gets 1 food._
   - `HOOK T-AFTER S-ROUNDEND F-TRIG A-OWN E-SCORE E-OPPTRANSFER ST-COUNTER` — Optional hook each returning-home phase (F-TRIG, A-OWN default); grain is an ordinary cost so A's E-FOODCOST is wrong (E-FOODCOST = food costs only); opponents gaining food = E-OPPTRANSFER; repeatedly-earned bonus points need a running count (ST-COUNTER).
@@ -1224,7 +1225,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E59 Comb and Cutter** · cost: 1 Wood
   - _Each time you use the "Day Laborer" action space, you get 1 additional food for each sheep on the "Sheep Market" accumulation space, up to a maximum of 4 additional food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — Each time you use Day Laborer, gain food per sheep on the Sheep Market space (capped 4); reads another space's goods.
-- ⬜ **E60 Working Gloves**
+- ✅ **E60 Working Gloves**
   - _When you play this card, you get 1 food. Each time you pay an occupation cost, you can pay 1 building resource of your choice in place of (up to) 2 food._
   - `ONPLAY E-GOODS PASSIVE E-COSTMOD L-EXT` — On-play 1 food (ONPLAY+E-GOODS); the standing option to pay 1 building resource in place of up to 2 food of any occupation cost is an always-on payment-substitution rule -> PASSIVE cost modifier (E-COSTMOD) + L-EXT ('changing what currency a cost is paid in'), not a fired HOOK (B right).
 - ✅ **E61 Raised Bed** · cost: 2 Clay,2 Stone · prereq: 2 Grain Fields

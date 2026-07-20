@@ -619,22 +619,36 @@ def _payable(
     )
 
 
-def _payable_occupation(state: GameState, idx: int, p: PlayerState, cost: Resources) -> bool:
-    """Can `idx` pay an occupation play cost — directly, via liquidation, OR by first firing
-    an owned occupation-cost FOOD SOURCE (Paper Maker: 1 wood -> N food)?
+def _play_occupation_ctx(cost: Resources) -> CostCtx:
+    """Cost-resolution context for playing one occupation at the route-supplied `cost`
+    (the frame's `PendingPlayOccupation.cost` — the OCCUPATION COST PROPER). Ruling 67
+    (2026-07-20): occupation-cost substitution cards (Forest School, Working Gloves) are
+    cost CONVERSIONS under `action_kind="play_occupation"`, so the ways to pay resolve
+    through the same `effective_payments`/`can_pay` chokepoint as every other
+    cost-modified action. A play-variant SURCHARGE / an individual printed cost is NEVER
+    in this ctx — it is added at the debit, outside the pipeline (user ruling
+    2026-07-20: those costs are separate from the occupation cost and may never be
+    reduced or modified)."""
+    return CostCtx("play_occupation", cost)
 
-    This is the affordability GATE for offering an occupation play (Lessons / Scholar). A
-    source is simulated by spending its inputs and adding its food, then re-running `_payable`,
-    so the liquidation it competes with sees the reduced goods — the spent wood is reserved
-    automatically (forward-compatible with a future wood->food liquidation). Each source
-    receives the ROUTE'S ACTUAL COST being gated (`source_fn(state, idx, cost)` — ruling 65,
-    2026-07-17: Forest School's swap is sized by the play's real price, so a re-derived
-    Lessons-ramp cost would mis-simulate every differently-priced granted play). The source
-    itself is a real `before_play_occupation` trigger; the play-occupation enumerator's commit
-    gate (`_payable(top.cost)`) then forces it to be fired before the commit unlocks, so there
-    is no empty-frontier dead state. (Single-source today; a multi-source future would need to
-    consider firing combinations.)"""
-    if _payable(state, idx, p, cost):
+
+def _payable_occupation(state: GameState, idx: int, p: PlayerState, cost: Resources) -> bool:
+    """Can `idx` pay an occupation play cost — through the play-occupation chokepoint
+    (base / conversions / liquidation — `can_pay`), OR by first firing an owned
+    occupation-cost FOOD SOURCE (Paper Maker: 1 wood -> N food)?
+
+    This is the affordability GATE for offering an occupation play (Lessons / Scholar /
+    grants). A source is simulated by spending its inputs and adding its food, then
+    re-running `can_pay` on the fired supply, so the liquidation/conversions it competes
+    with see the reduced goods. Each source receives the ROUTE'S ACTUAL COST being gated
+    (`source_fn(state, idx, cost)` — ruling 65). The source itself is a real
+    `before_play_occupation` trigger; the play-occupation enumerator's commit gate (the
+    non-empty payment frontier) then forces it to be fired before a commit unlocks, so
+    there is no empty-frontier dead state. (Single-source today; a multi-source future
+    would need to consider firing combinations.) Substitution cards are NOT sources —
+    they are conversions inside `can_pay` (ruling 67)."""
+    ctx = _play_occupation_ctx(cost)
+    if can_pay(state, idx, ctx):
         return True
     from agricola.cards.specs import OCCUPATION_FOOD_SOURCES
     owned = p.occupations | p.minor_improvements
@@ -647,7 +661,9 @@ def _payable_occupation(state: GameState, idx: int, p: PlayerState, cost: Resour
         produced, inputs = result
         p_fired = fast_replace(
             p, resources=p.resources - inputs + Resources(food=produced))
-        if _payable(state, idx, p_fired, cost):
+        state_fired = fast_replace(state, players=tuple(
+            p_fired if i == idx else state.players[i] for i in range(len(state.players))))
+        if can_pay(state_fired, idx, ctx):
             return True
     return False
 
@@ -2818,25 +2834,43 @@ def _enumerate_pending_play_occupation(
         return actions
     from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
     p = state.players[top.player_idx]
+    # The ways to pay the occupation cost proper, through the play_occupation
+    # chokepoint (ruling 67, 2026-07-20): base / substitution-card conversions /
+    # liquidation, Pareto-pruned — so a dominated way to pay (Forest School's 2-wood
+    # against Working Gloves' 1-wood) is never offered, and replacing the same food
+    # twice is inexpressible. Occupation costs admit no non-resource routes.
+    # Empty frontier -> every commit withheld (the gate<->frontier guard: a food
+    # source like Paper Maker must be fired first, so committing never pushes an
+    # empty-frontier PendingFoodPayment). On the common no-substitution-card path
+    # the frontier is exactly [top.cost] and the commits keep their legacy
+    # payment=None shape.
+    payments = effective_payments(state, top.player_idx, _play_occupation_ctx(top.cost))
+    assert all(isinstance(pm, Resources) for pm in payments), payments
+    legacy = payments == [top.cost]
     for cid in playable_occupations(state, top.player_idx):
         variants_fn = PLAY_OCCUPATION_VARIANTS.get(cid)
         if variants_fn is None:
-            # Ordinary occupation: a single variant-less commit — offered only when its play
-            # cost is CURRENTLY payable (liquidation-aware). This is the gate↔frontier guard:
-            # if the cost is short and not liquidatable, the commit is withheld (a `before_
-            # play_occupation` food source like Paper Maker must be fired first to raise the
-            # food), so committing never pushes an empty-frontier PendingFoodPayment.
-            if _payable(state, top.player_idx, p, top.cost):
+            # Ordinary occupation: one commit per frontier payment (a single legacy
+            # commit when the frontier is just the printed cost).
+            if legacy:
                 actions.append(CommitPlayOccupation(card_id=cid))
+            else:
+                actions.extend(CommitPlayOccupation(card_id=cid, payment=pm)
+                               for pm in payments)
             continue
-        # Play-variant occupation (Roof Ballaster): one commit per variant whose
-        # base-play-cost + declared SURCHARGE is payable (liquidation-aware). The base play
-        # cost lives on the frame (`top.cost`); the surcharge rides on the variant (§8). This
-        # is the single affordability gate for the surcharge — `_payable` here folds in food
-        # liquidation, so the latent "pay then go negative" bug cannot recur.
+        # Play-variant occupation (Roof Ballaster): the SURCHARGE is an effect price,
+        # never modifier-visible (user ruling 2026-07-20 — surcharges/individual
+        # printed costs are separate from the occupation cost even when debited
+        # together). It is added ON TOP of the chosen base-cost payment, and each
+        # (variant, payment) pair is gated on the COMBINED debit being payable
+        # (liquidation-aware) — a payment that survived the frontier alone may not
+        # cover payment + surcharge.
         for v, surcharge in variants_fn(state, top.player_idx):
-            if _payable(state, top.player_idx, p, top.cost + surcharge):
-                actions.append(CommitPlayOccupation(card_id=cid, variant=v))
+            for pm in payments:
+                if _payable(state, top.player_idx, p, pm + surcharge):
+                    actions.append(CommitPlayOccupation(
+                        card_id=cid, variant=v,
+                        payment=None if legacy else pm))
     return actions
 
 

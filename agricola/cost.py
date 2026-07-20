@@ -46,6 +46,7 @@ class CostCtx:
     card might read. One flat type for every action — modifiers dispatch on
     `action_kind` and read whatever fields they need (COST_MODIFIER_DESIGN.md §2.2)."""
     action_kind: str                 # "renovate" | "build_room" | "build_major" | "play_minor"
+    #                                  | "build_stable" | "build_fence" | "play_occupation"
     base: Resources                  # the base (printed) cost, computed by the action's adapter
     to_material: object | None = None    # renovate target material (Clay Plasterer, Chimney Sweep)
     num_rooms: int | None = None         # Master Bricklayer ("by rooms built")

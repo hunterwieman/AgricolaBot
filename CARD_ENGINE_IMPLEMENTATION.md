@@ -114,7 +114,7 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-17 (the tier-1 batch — 11 minors on existing seams, ruling 66, census 213 occ + 304 min; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
+> **Last updated: 2026-07-20 (the play_occupation cost-conversion chokepoint — ruling 67: occupation costs resolve through `effective_payments`, substitution cards are conversions, Working Gloves added + Forest School migrated, the `paid_cost` stamp; census 213 occ + 305 min; below. Prior, 2026-07-17: the tier-1 batch — 11 minors on existing seams, ruling 66; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
 > section is updated (§7's maintenance contract). Numbers move in both directions (batches land,
 > cards get un/re-deferred) — **always re-census before trusting them**:
 >
@@ -126,6 +126,24 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-20 play_occupation cost-conversion chokepoint landed (ruling 67): Working
+  Gloves E60 added, Forest School migrated, one new action kind — all card-only/Family-inert.**
+  Occupation plays now resolve their cost through `effective_payments`/`can_pay` under
+  `action_kind="play_occupation"` (§5.1): substitution cards ("pay X in place of food") are
+  ordinary `register_conversion` entries, so the ways to pay surface WIDE — one
+  `CommitPlayOccupation(payment=...)` per Pareto-minimal payment (one FEWER ply than the old
+  fire-then-commit trigger), dominated offers are pruned structurally (Working Gloves' 1-wood
+  payment kills Forest School's 2-wood on a 2-food cost; identical 1-food-cost vectors
+  de-duplicate), and double-replacement is inexpressible (a payment replaces each food unit at
+  most once — no shared counter needed). The legacy `payment=None` commit shape survives
+  unchanged on the no-substitution path. Surcharges / individual printed costs stay OUTSIDE
+  the pipeline (user ruling 2026-07-20 — never modifiable), added at the debit; the executor
+  stamps the base-cost payment on the new card-only `PendingPlayOccupation.paid_cost`, making
+  Furniture Maker's "food paid as occupation cost" exact even under ruling 65's mixed
+  payments (its old all-or-nothing `triggers_resolved` guard undercounted those). Forest
+  School keeps ruling 65's semantics as frontier points and drops its trigger + food-source
+  registrations (`OCCUPATION_FOOD_SOURCES` remains for the four producers — Paper Maker,
+  Bookshelf, Tasting, Whale Oil). Census **213 occupations + 305 minors = 518**.
 - **The 2026-07-17 tier-1 batch landed: 11 minors on existing seams (no engine change,
   all Family-inert).** Chosen from the tier triage as clean fits, implemented by an
   11-agent wave with each card fidelity-reviewed by the driver; zero defers. The cards:
@@ -690,9 +708,10 @@ module-local `_owns(player_state, card_id)` helpers.
   registry additionally lets the affordability **gate** (`_payable_occupation`, §5) simulate
   firing it — `source_fn(state, idx, cost) -> (food_produced, inputs: Resources) | None` — so a
   play payable only via the source is still offered. `cost` is the **route's actual play cost**
-  being gated (ruling 65, 2026-07-17): a cost-sized source (Forest School's per-food swap) must
-  simulate against the real price, never a re-derived Lessons-ramp cost; fixed-payout sources
-  (Paper Maker, Bookshelf, Tasting, Whale Oil) ignore it.
+  being gated (ruling 65, 2026-07-17). This seam is for food **producers** (payouts that bank
+  overshoot — Paper Maker, Bookshelf, Tasting, Whale Oil); a cost **substitution** ("pay X in
+  place of food" — Forest School, Working Gloves) is instead a `register_conversion` under
+  `action_kind="play_occupation"` (ruling 67, §5.1), never a source.
 - **`register_food_payment_resume(resume_kind, apply_fn)`** → `FOOD_PAYMENT_RESUMES`.
   A card-specific continuation after a `PendingFoodPayment` commits (§5): `resume_kind` is the
   card id the frame carries, `apply_fn(state, owner_idx) -> state` debits the food and applies the
@@ -782,8 +801,9 @@ module-local `_owns(player_state, card_id)` helpers.
 ### `agricola/cards/cost_mods.py` — cost modifiers + free fences
 
 The registries behind the `effective_payments` chokepoint (§5). All keyed by `action_kind`
-(`"renovate" | "build_room" | "build_stable" | "build_major" | "play_minor" | "build_fence"`)
-except the fence-specific three.
+(`"renovate" | "build_room" | "build_stable" | "build_major" | "play_minor" | "build_fence" |
+"play_occupation"` — the last added by ruling 67, 2026-07-20: occupation-cost substitution
+cards are conversions here) except the fence-specific three.
 
 - **`register_formula(action_kind, card_id, applies, formula)`** — replaces the whole printed
   cost with a fixed alternative; each owned, applicable formula seeds its own base (the player
@@ -1345,7 +1365,17 @@ vector, the ruling-consistent reading.
 
 **Wide commits vs the two-step.** Where the payment is the action's only degree of freedom, the
 chosen `payment` rides on the commit itself (a *wide* commit): `CommitRenovate(payment,
-to_material)`, `CommitBuildMajor(major_idx, payment)`, `CommitPlayMinor(card_id, payment, cost)`.
+to_material)`, `CommitBuildMajor(major_idx, payment)`, `CommitPlayMinor(card_id, payment, cost)`,
+and — since ruling 67 (2026-07-20) — `CommitPlayOccupation(card_id, variant, payment)`: the
+occupation cost proper resolves through the chokepoint under `action_kind="play_occupation"`
+(substitution cards — Forest School, Working Gloves — are conversions, so dominated ways to pay
+are Pareto-pruned and double-replacement is inexpressible), one commit per frontier payment. On
+the no-substitution-card path the frontier is the singleton route cost and the commit keeps its
+legacy `payment=None` shape. A play-variant SURCHARGE and an individual printed cost are NEVER
+pipeline-visible (user ruling 2026-07-20 — separate from the occupation cost, never modifiable):
+the surcharge is added to the debit on top of the chosen payment, and the executor stamps the
+base-cost payment on `PendingPlayOccupation.paid_cost` (the "food paid as occupation cost"
+ground truth — Furniture Maker), surcharge excluded.
 Where geometry and payment are independent (rooms, stables), committing the cell resolves the
 frontier and — only when a cost card makes it non-singleton — pushes **`PendingChooseCost`**
 (the frozen payment menu; `CommitChooseCost(payment)` debits and pops back to the build host).

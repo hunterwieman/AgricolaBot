@@ -142,6 +142,12 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # False (no card-fields exist there), so omitting it keeps the Family JSON
     # byte-identical and needs no C++ change.
     "crops_only",
+    # The play-occupation cost-conversion chokepoint (ruling 67, 2026-07-20): the
+    # commit's chosen payment (None on the singleton-frontier path — qualified so
+    # CommitPlayMinor.payment keeps serializing) and the host's paid-cost stamp
+    # (None pre-commit). Both card-only (the play-occupation frame/commit never
+    # occur in Family states); skipped at their None defaults.
+    "CommitPlayOccupation.payment", "paid_cost",
     # The harvest-window walk cursor (engine._advance_harvest): skipped when None
     # (any non-harvest state, and every pre-ruling-40 Family state). Since the
     # FEED/BREED banding (ruling 40, 2026-07-12) the FAMILY game carries it while a

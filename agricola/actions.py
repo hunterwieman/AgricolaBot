@@ -5,6 +5,7 @@ from typing import Union
 
 from agricola.constants import HouseMaterial
 from agricola.cost import PaymentOption
+from agricola.resources import Resources
 
 
 # ---------------------------------------------------------------------------
@@ -232,9 +233,22 @@ class CommitPlayOccupation(CommitSubAction):
     None for every ordinary occupation — the common, variant-less play — so two
     CommitPlayOccupations for the same card with different variants are distinct
     actions only when the card opts into the variant mechanism.
+
+    `payment` is the chosen resource payment for the OCCUPATION COST PROPER (the
+    frame's `cost`), from the `effective_payments` frontier under
+    `action_kind="play_occupation"` (ruling 67, 2026-07-20 — occupation-cost
+    substitution cards like Forest School / Working Gloves are cost CONVERSIONS, so
+    the ways to pay surface wide, one commit per Pareto-minimal payment). It is None
+    on the common singleton-frontier path (no substitution card owned), where the
+    executor debits the frame's `cost` directly — so the pre-chokepoint action shape
+    is unchanged whenever no cost card is in play. A play-variant SURCHARGE is never
+    part of `payment`: it is added at the debit, outside the modifier pipeline
+    (user ruling 2026-07-20 — surcharges and individual printed costs are separate
+    from the occupation cost and may never be reduced or modified).
     """
     card_id: str
     variant: str | None = None
+    payment: Resources | None = None
 
 
 @dataclass(frozen=True)
