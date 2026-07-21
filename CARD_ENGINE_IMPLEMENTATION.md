@@ -1049,6 +1049,21 @@ Read by `helpers.extract_slots` (the accommodation decomposition every frontier 
   is not asked to express. Playing a negation card also sets `animals_need_accommodation`, so a
   currently-housed animal is evicted through the standard keep-or-cook frame (§4's
   accommodation barrier).
+- **`register_typed_slots(card_id, slots_fn)`** → `TYPED_SLOT_CARDS`. TYPED (per-species)
+  card slots — capacity for one specific animal type on the card. `slots_fn(state,
+  player_state) -> Animals` (the §5.4 signature contract: game-time facts off `state` —
+  Truffle Searcher / Woolgrower's `completed_feeding_phases` — farm/tableau facts off the
+  possibly-doctored `player_state`), summed over owned cards by `typed_slot_counts` and
+  realized via the greedy strip at the accommodation entry points (§5.4). Members: Dolly's
+  Mother (1 sheep), Wildlife Reserve (1/1/1), Cattle Farm (cattle per pasture), Mud Patch
+  (boar per unplanted field tile — with eviction re-arm autos, since its count can DROP),
+  Sheep Agent (sheep per qualifying occupation), Truffle Searcher / Woolgrower (per
+  completed feeding phase). `sheep_slot_count` survives as the derived sheep view
+  (Mineral Feeder reads it).
+- **`animal_holder_card_ids()`** — every REGISTERED card id "able to hold animals" (typed +
+  cap-bin + flexible registries; registration-time identity, deliberately not
+  ownership-gated). The predicate behind wording like Sheep Agent's "unless it is already
+  able to hold animals" — a holder occupation excludes itself just by registering.
 - **`register_animal_cap_slots(card_id, caps_fn)`** → `ANIMAL_CAP_SLOT_CARDS`. A pasture-LIKE
   card holder — up to N animals of ONE type without being a pasture (Stockyard B12's 3).
   `caps_fn(player_state) -> tuple[int, ...]` of extra anonymous single-type bins, appended by
@@ -1078,6 +1093,25 @@ Read by `helpers.extract_slots` (the accommodation decomposition every frontier 
 The three folds are the first mechanism to make pasture capacities non-canonical (dependent on
 owned cards, not just geometry) — which is exactly the situation the frontier-cache
 projection-key contract warns about; see §5's closing note.
+
+### `agricola/cards/cooking_mods.py` — cooking rates
+
+Read by `helpers.cooking_rates` (the at-any-time goods→food conversion table every cook site —
+the feed/liquidation/overflow/breeding frontiers and the work-phase cook executors — resolves
+rates through):
+
+- **`register_cooking_rate_bonus(card_id, bonus_fn)`** → `COOKING_RATE_BONUSES`.
+  `bonus_fn(state, owner_idx, base_rates) -> (d_sheep, d_boar, d_cattle, d_veg)`, receiving the
+  BASE tuple (post best-improvement selection) so a card can gate its delta on a conversion
+  existing. Fold: **sum over owned cards' deltas**, applied at the end of `cooking_rates`
+  (empty registry → the base tuple unchanged — the Family no-op). Cache-safe by construction:
+  every memoized frontier takes the rates as explicit key *arguments* (§5.4's first pattern),
+  so a card-modified rate is a different key. Exemplar: `fatstock_stretcher` (+1 sheep/boar,
+  each only where the base rate > 0 — user ruling 2026-07-21, ruling 72). This is the
+  *additive* half of the ruling-42 cooking-modifier class; a card that IS a cooking
+  improvement contributing base rates (Oriental Fireplace, Earth Oven) needs the still-
+  undesigned improvement-injection shape and stays deferred (§8-adjacent;
+  `CARD_DEFERRED_PLANS.md`).
 
 ### `agricola/scoring.py` — end-game points
 
@@ -1461,24 +1495,62 @@ the Family-constant value and is canonical-skipped:
   `PendingPlow` the fourth multi-shot host.
 - **`PendingSow`**: `max_fields: int = 0` — a card-granted PARTIAL sow caps the commit at
   `grain + veg <= max_fields` ("for each newborn, sow crops in exactly 1 field"); `0` =
-  uncapped, every Family sow and the full granted Sow action.
+  uncapped, every Family sow and the full granted Sow action. `required_crop: str | None`
+  — a forced single-crop sow (Fern Seeds' "1 grain, which you must sow immediately"): the
+  enumerator offers only commits sowing exactly that crop, card-field stacks included.
+- **The granted-primitive parameter fields (the 2026-07-20 tier-2 seams)** — each a
+  push-time parameter on an existing frame, Family-constant default, canonical-skipped:
+  `PendingPlow.ignore_adjacency` (adjacency-waived plow — Newly-Plowed Field);
+  `PendingBuildStables.allowed_cells` (a cell-restricted granted build — Shelter's
+  1-cell-pasture rule); `PendingBuildMajor.allowed_majors` +
+  `PendingGrantedSubAction.major_allowed` (a menu-restricted granted major build — Oven
+  Site, priced by a `granted_by`-scoped formula); and `PendingRenovate.cost_override` /
+  `forced_target` (a TRAVELING card's free pinned renovate — Renovation Materials: an
+  ownership-gated cost formula can never serve a card that leaves the tableau, so the
+  frame carries the push-time price/target).
 - **`PendingHarvestBreed`**: `triggers_resolved: frozenset` — the breed frame hosts card
   triggers in both of its stretches (§5b), but the frame itself is pushed in every Family
   harvest, so the field is skipped via a **qualified** canonical entry (below).
 - The seven Proceed-host space parents (five Family + Basic Wish + Meeting Place) carry the
   derived `subaction_started` property (§2 — not a field, so nothing to skip).
+- **The 2026-07-20 granted-primitive parameter fields** (rulings 68/69 — each a push-time
+  parameter on a Family-live primitive frame, Family-constant default, canonical-skipped):
+  `PendingPlow.ignore_adjacency` (adjacency-waived plow — Newly-Plowed Field) and
+  `PendingPlow.allowed_cells` (a cell-MENU restriction — Zigzag Harrow's zigzag completion,
+  mirroring the stables field); `PendingSow.required_crop` (forced single-crop sow — Fern
+  Seeds); `PendingBuildStables.allowed_cells` (cell-restricted granted build — Shelter);
+  `PendingRenovate.cost_override` + `forced_target` (a traveling card's push-time-priced
+  renovate — Renovation Materials); `PendingBuildMajor.allowed_majors` (a menu-restricted
+  granted build — Oven Site) and `PendingBuildMajor.built_major_idx` (the ownership-gated
+  identity stamp — Brick Hammer; registry in §3).
+- **`Cell.stone`** (Stone Clearing C6; ruling 70, 2026-07-20) — the one card-only field on a
+  farmyard CELL: stone placed on a field tile, harvested normally by the take (§5b). With it
+  came the single-definition predicates **`Cell.field_empty` / `Cell.field_planted`** — a
+  stone-holding field is planted and never empty, for sowing and for every card prerequisite
+  and effect (§6 Idioms has the never-inline-checks rule). The skip entry is QUALIFIED
+  (`"Cell.stone"`) because a bare `"stone"` would also skip the Family-live
+  `Resources.stone`.
+- **The 2026-07-21 granted-improvement constraint fields** (ruling 72, all Family-constant
+  `None`, canonical-skipped): **`PendingMajorMinorImprovement.min_spend`** (Stone Company's
+  "must spend at least 1 stone" on its granted composite — the choose-handler copies it onto
+  whichever child is pushed) and the mirrored **`min_spend`** on both children,
+  `PendingBuildMajor` and the card-only `PendingPlayMinor`, whose ctx adapters carry it into
+  the §5.1 payment filter as `CostCtx.min_spend`; and **`PendingPlayMinor.allowed_cards`**
+  (the `allowed_majors` sibling — a hand-minor MENU restriction; Firewood's post-fire
+  oven/fireplace menu).
 
 ### The canonical default-skip mechanism
 
 `canonical._DEFAULT_SKIP_FIELDS` lists every card-only field name; the serializer omits a listed
 field **when it equals its dataclass default**. A Family state never sets any of them, so its
 JSON is byte-identical to the pre-card engine — which is what the C++ differential gates
-consume. A Cards state that sets one simply emits it. Current set: `mode`, `hand_occupations`,
-`hand_minors`, `used_this_turn`, `used_this_round`, `fired_once`, `card_state`,
-`future_rewards`, `draft_pools`, `animals_need_accommodation`, the three `build_*_action`
-flags, `accrued_cost`, `free_fence_budget`, `restrictions`, `must_preserve_base`, `max_plows`,
-`num_plowed`, `max_fields`, `harvest_cursor`, and the qualified
-`PendingHarvestBreed.triggers_resolved`. A **qualified entry** (`"<Type>.<field>"`) skips a
+consume. A Cards state that sets one simply emits it. **The authoritative list is
+`canonical._DEFAULT_SKIP_FIELDS` itself** — per-field commented in place, and long past the
+point where duplicating it here stays accurate (it spans the mode/hands/latch fields, the
+frame flags (`build_*_action`, `must_preserve_base`, `taken`, `suppressed`, …), the three
+ladder cursors, and the granted-primitive parameters (`required_crop`, `ignore_adjacency`,
+`allowed_cells`, `allowed_majors`, `major_allowed`, `cost_override`, `forced_target`, …) —
+read the module when you need the census. A **qualified entry** (`"<Type>.<field>"`) skips a
 field on ONE dataclass only — for a field whose *name* is emitted on other, Family-live frames
 (the sow/bake/plow frames keep emitting their `triggers_resolved`) but whose value is
 Family-constant-default on this one.
@@ -1527,7 +1599,11 @@ the pipeline and enter the frontier directly, Pareto-incomparable to every resou
 
 A **`CostCtx`** is everything the action contributes: `action_kind` (the registry key), `base`
 (the printed cost, computed by the action's adapter), and the discriminators a modifier might
-read — `to_material`, `num_rooms`, `major_idx`, `card_id`, `space_id`, `build_index`, and
+read — `to_material`, `num_rooms`, `major_idx`, `card_id`, `space_id`, `build_index`,
+`granted_by` (a card-GRANTED action's provenance, from the frame's `initiated_by_id` — lets a
+granting card scope a cost modifier to its own grant: Master Renovator's renovate, Oven Site's
+build-major formula), `min_spend` (a granted action's minimum-spend constraint — Stone Company's
+"must spend at least 1 stone"; the pipeline's 3b filter below, ruling 72), and
 `reserved_animals` (the cost's own animal portion, read only by the food layer — 5.3). One flat
 type for every action; per-action adapters build it: `_renovate_ctx`, `_build_room_ctx`,
 `_build_stable_ctx` (base caller-supplied — the one cost still stored on a frame,
@@ -1547,8 +1623,17 @@ push-time intent, not derivable), `_build_major_ctx`, `_play_minor_ctx`, `_build
    decks-A–E-only verification of the chaining claim (§8).
 3. **Reductions** — every owned reduction folded over each candidate as a signed delta, floored
    at 0 per component after each.
+3b. **Minimum-spend filter** (ruling 72, 2026-07-21 — `ctx.min_spend`, None everywhere outside
+   a Stone-Company-granted action): drop candidates spending less than the constraint in any
+   component (`cost.meets_min_spend`). Deliberately POST-modifier (an *automatic* discount that
+   strips the stone simply disqualifies the improvement — the printed Stonecutter clarification,
+   emergent) and PRE-Pareto (dominance then runs among *qualifying* payments only, so an
+   *optional* conversion's stone-free variant cannot prune away the stone-spending one). Under a
+   constraint, step 4's non-resource routes are excluded outright (a `ReturnImprovement` spends
+   nothing). `can_pay` applies the same filter to every candidate it probes — gate↔frontier
+   agreement, as with liquidation.
 4. **Filter + frontier** — keep the payable candidates (payable, not merely affordable — see
-   5.3's gate↔frontier agreement) plus the takeable routes, then
+   5.3's gate↔frontier agreement) plus the takeable routes (when no min-spend constraint), then
    **`pareto_min_over_goods`**: prune resource payments dominated component-wise over the seven
    goods *and nothing else* (never an attached reward, never the route tag), de-duplicate, keep
    all routes.
@@ -1704,12 +1789,33 @@ bug.
 
 ### 5.4 Capacity modifiers
 
-`helpers.extract_slots` — the capacity decomposition under every accommodation frontier
-(markets, breeding, harvest feed, scheduled-animal collection) — reads the two `capacity_mods`
-folds (§3): `num_flexible = standalone_stables + house_pet_capacity(p)` (max-fold, Family
-default 1) and each pasture's capacity + `pasture_capacity_bonus(p)` (sum-fold, Family
-default 0, applied after the stable doubling). Every frontier consumer inherits card capacity
-automatically.
+**The signature contract (the 2026-07-21 widening, user-approved).** The whole capacity chain
+carries the GameState alongside an EXPLICIT PlayerState: `extract_slots(state, player_state)`,
+`accommodates(state, player_state, s, b, c)`, `pareto_frontier(state, player_state, gained,
+rates)`, `breeding_frontier(state, player_state, rates)`, and every registered capacity fn of
+the typed-slot registry (`slots_fn(state, player_state)`). `state` exists so a capacity source
+can read game-global facts (`completed_feeding_phases`); the separate `player_state` exists
+because callers routinely pass DOCTORED players (Shepherd's Whistle's blanked stable, Mineral
+Feeder's arrangement tests, the strip's reduced animals) — farm/tableau reads come off the
+explicit player object, never `state.players[idx]`.
+
+`helpers.extract_slots(state, player_state)` — the capacity decomposition under every
+accommodation frontier (markets, breeding, scheduled-animal collection, the barrier) — folds,
+in order: each pasture's geometric capacity + the flat per-pasture bonus (`pasture_capacity_
+bonus`, sum-fold) + the conditioned per-pasture list (`pasture_capacity_per_list`); the
+reserved-empty drop (`reserved_empty_pasture_indices`); then the pasture-LIKE card bins
+appended LAST (`extra_animal_caps` — so no pasture-only fold can touch a card bin); and
+`num_flexible = standalone_stables + house_pet_capacity + extra_flexible_slots`. Every
+frontier consumer inherits card capacity automatically.
+
+**The typed-slot strip sits ABOVE `extract_slots`, at the ownership-aware entry points**
+(`accommodates` / `pareto_frontier` / `breeding_frontier`): per-species card slots
+(`typed_slot_counts`) park each species first and the standard (caps, flexible) problem runs
+on the reduced demands, the parked animals added back to every result — exact by dominance,
+per type independently (a typed slot holds only its own species, so filling it never
+constrains anything else; the sheep-only original was user-proposed 2026-07-06, generalized
+2026-07-21). The strip doctors the memoized internals' ARGUMENTS, so it needs no cache
+machinery of its own.
 
 **The projection-key contract (live, not hypothetical).** The Pareto/feeding/fence helpers have
 default-on projection-keyed caches (ENGINE_IMPLEMENTATION.md §4-note / §5;
@@ -2184,6 +2290,21 @@ examples; this is the reference list.
   instant), but the equivalence does **not** generalize: each future occurrence is a
   per-instance rules question, never a unilateral call (the standing instruction, also in
   CARD_AUTHORING_GUIDE.md §2).
+- **"Completed feeding phases" is a GLOBAL, game-time count** (user rulings 2026-07-21 —
+  `helpers.completed_feeding_phases`): "the feeding phase" is a phase of the GAME, not a
+  per-player activity (the per-player feed bands are engine sequencing of a simultaneous
+  phase), so there is ONE shared count; and it ticks when the harvest's feeding resolves
+  regardless of participation — a harvest-skip card (Layabout) does not stall it, even if
+  every player skipped. Derived on demand from round arithmetic + the walk position, never
+  stored. Reference for any future "completed [phase]" wording.
+- **A holder card whose capacity can DROP re-arms the accommodation barrier itself** (the Mud
+  Patch idiom, 2026-07-21): the barrier only re-checks players whose
+  `animals_need_accommodation` flag is set, so a card whose slot count can shrink while
+  animals sit on it (Mud Patch's unplanted-tile count drops on a sow or a Stone Clearing
+  placement) registers automatic effects at each count-reducing seam that set the owner's
+  flag — over-triggering is harmless (the barrier clears a fitting player cheaply), a missed
+  seam is a silent over-capacity state. Monotone counts (Cattle Farm, Sheep Agent, the
+  feeding-phase pair) need nothing.
 - **An in-breeding-phase effect fires BEFORE the breed decision, never after** (ruling 20) —
   unless it reacts to the outcome itself, in which case it lives on the post-commit
   `"breeding_outcome"` event (§5b). The breed frame's `breed_chosen` flag is the phase
@@ -2310,7 +2431,9 @@ examples; this is the reference list.
     card** (Dwelling Plan) → **the wrapper**. Wide would have to *anticipate* the post-play state in
     `variants_fn` — the card isn't owned yet, so `_can_bake_bread` / `_any_legal_pasture_commit` read
     the wrong world — a fragile proxy the wrapper sidesteps by evaluating eligibility post-play with
-    the real predicate. (`"bake_bread"` joined the wrapper's category dispatch for exactly the ovens.)
+    the real predicate. (`"bake_bread"` joined the wrapper's category dispatch for exactly the ovens;
+    `"build_major"` joined 2026-07-20 for Oven Site — the menu rides `major_allowed`, the price a
+    `granted_by`-scoped formula, so wide anticipation would price the build before the card is owned.)
 
   The dividing test is mechanical: **does the card itself change what the grant is allowed to do, or
   what it costs?** Yes (or the card is passing) → wrapper; otherwise prefer wide. These are strong
