@@ -59,7 +59,7 @@ from agricola.state import PlayerState
 CARD_ID = "cattle_farm"
 
 
-def _slots(player_state: PlayerState) -> Animals:
+def _slots(state, player_state: PlayerState) -> Animals:
     """One cattle slot per pasture the player currently has (from the cached
     pasture decomposition, never `cell_type`)."""
     return Animals(cattle=len(player_state.farmyard.pastures))

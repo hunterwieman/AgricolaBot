@@ -66,7 +66,7 @@ def _unplanted_field_tiles(p: PlayerState) -> int:
     return sum(1 for r in range(3) for c in range(5) if grid[r][c].field_empty)
 
 
-def _slots(p: PlayerState) -> Animals:
+def _slots(state, p: PlayerState) -> Animals:
     """One boar slot per unplanted field tile (recomputed per call — dynamic; the
     greedy strip re-reads it each accommodation question, so no cache staleness)."""
     return Animals(boar=_unplanted_field_tiles(p))

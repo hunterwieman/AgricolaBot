@@ -66,15 +66,15 @@ def test_fold_both_owned_no_stable_pasture_herbal_still_applies():
 
 def test_herbal_drops_a_pasture_from_extract_slots():
     state = STATES["mid_round_6_basic"]()
-    base_caps, base_flex = extract_slots(state.players[0])
+    base_caps, base_flex = extract_slots(state, state.players[0])
     assert len(base_caps) == 2                       # two pastures
     owned = _own(state, 0, "herbal_garden")
-    caps, flex = extract_slots(owned.players[0])
+    caps, flex = extract_slots(owned, owned.players[0])
     assert flex == base_flex                          # house/standalone slots unchanged
     assert len(caps) == len(base_caps) - 1            # one pasture reserved empty
     assert sorted(caps) == sorted(base_caps)[1:]      # dropped the smallest
     # The opponent (no card) is unaffected.
-    assert extract_slots(owned.players[1]) == extract_slots(state.players[1])
+    assert extract_slots(owned, owned.players[1]) == extract_slots(state, state.players[1])
 
 
 def test_beaver_drops_the_stabled_pasture():
@@ -86,13 +86,13 @@ def test_beaver_drops_the_stabled_pasture():
     caps = [p.capacity for p in pastures]
     reserved = reserved_empty_pasture_indices(owned.players[0], pastures, caps)
     assert reserved <= stabled                        # only a stabled pasture reserved
-    assert len(extract_slots(owned.players[0])[0]) == len(caps) - 1
+    assert len(extract_slots(owned, owned.players[0])[0]) == len(caps) - 1
 
 
 def test_family_extract_slots_unchanged():
     # No card owned -> extract_slots is byte-identical to the base (Family byte-identity).
     state = STATES["mid_round_6_basic"]()
-    assert extract_slots(state.players[0]) == extract_slots(state.players[0])
+    assert extract_slots(state, state.players[0]) == extract_slots(state, state.players[0])
     # And owning neither card leaves it untouched vs a fresh copy.
     owned_other = _own(state, 0, "drinking_trough")   # a different, additive capacity card
-    assert len(extract_slots(owned_other.players[0])[0]) == 2   # no pasture dropped
+    assert len(extract_slots(owned_other, owned_other.players[0])[0]) == 2   # no pasture dropped

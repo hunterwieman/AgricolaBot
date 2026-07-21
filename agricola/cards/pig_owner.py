@@ -44,7 +44,7 @@ def _condition(state: GameState, idx: int) -> bool:
     p = state.players[idx]
     if p.animals.boar < _BOAR_THRESHOLD:
         return False
-    return accommodates(p, p.animals.sheep, p.animals.boar, p.animals.cattle)
+    return accommodates(state, p, p.animals.sheep, p.animals.boar, p.animals.cattle)
 
 
 def _apply(state: GameState, idx: int) -> GameState:

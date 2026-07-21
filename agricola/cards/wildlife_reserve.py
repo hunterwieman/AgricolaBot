@@ -52,4 +52,4 @@ register_minor(
     min_occupations=2,
     vps=1,
 )
-register_typed_slots(CARD_ID, lambda p: Animals(sheep=1, boar=1, cattle=1))
+register_typed_slots(CARD_ID, lambda state, p: Animals(sheep=1, boar=1, cattle=1))

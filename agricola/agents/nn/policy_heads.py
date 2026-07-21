@@ -611,7 +611,7 @@ def _animal_frontier_enumerate(state) -> list:
         return [
             (CommitBreed(sheep=cfg.sheep, boar=cfg.boar, cattle=cfg.cattle),
              _animal_feats(cfg.sheep, cfg.boar, cfg.cattle, food))
-            for (cfg, food) in breeding_frontier(p, rates3)
+            for (cfg, food) in breeding_frontier(state, p, rates3)
         ]
 
     if isinstance(top, PendingSheepMarket):
@@ -625,7 +625,7 @@ def _animal_frontier_enumerate(state) -> list:
     return [
         (CommitAccommodate(sheep=cfg.sheep, boar=cfg.boar, cattle=cfg.cattle),
          _animal_feats(cfg.sheep, cfg.boar, cfg.cattle, food))
-        for (cfg, food) in pareto_frontier(p, gained, rates3)
+        for (cfg, food) in pareto_frontier(state, p, gained, rates3)
     ]
 
 

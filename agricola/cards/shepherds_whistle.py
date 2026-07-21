@@ -89,7 +89,7 @@ def _stable_is_free(state: GameState, idx: int) -> bool:
     if reduced is None:
         return False
     a = state.players[idx].animals
-    return accommodates(reduced, a.sheep, a.boar, a.cattle)
+    return accommodates(state, reduced, a.sheep, a.boar, a.cattle)
 
 
 # --- Case A: a stable is free -> automatic sheep --------------------------
@@ -127,7 +127,7 @@ def _options(state: GameState, idx: int) -> list:
     rates = cooking_rates(state, idx)[:3]
     sheep_convertible = rates[0] > 0
     out = []
-    for kept, food in pareto_frontier(reduced, Animals(), rates):
+    for kept, food in pareto_frontier(state, reduced, Animals(), rates):
         opt = kept + Animals(sheep=1)
         adds_animals = (opt.sheep > cur.sheep or opt.boar > cur.boar
                         or opt.cattle > cur.cattle)

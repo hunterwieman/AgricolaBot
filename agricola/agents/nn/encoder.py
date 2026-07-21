@@ -192,7 +192,7 @@ def _player_features(
     feats += [("grain_supply", float(r.grain)), ("veg_supply", float(r.veg))]
 
     # --- Pasture capacities (5, sorted desc, pad 0) + wildcards (1) ---
-    caps, flex = extract_slots(p)
+    caps, flex = extract_slots(state, p)
     caps_sorted = sorted(caps, reverse=True)[:5]
     caps_padded = (caps_sorted + [0, 0, 0, 0, 0])[:5]
     feats += [(f"pasture_cap_{i}", float(caps_padded[i])) for i in range(5)]
@@ -568,7 +568,7 @@ def _write_player_block(out, base: int, state, p, player_idx: int) -> None:
     out[base + 11] = r.grain
     out[base + 12] = r.veg
 
-    caps, flex = extract_slots(p)
+    caps, flex = extract_slots(state, p)
     caps_sorted = sorted(caps, reverse=True)
     for i in range(5):
         out[base + 13 + i] = caps_sorted[i] if i < len(caps_sorted) else 0

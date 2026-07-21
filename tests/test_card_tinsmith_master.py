@@ -129,13 +129,13 @@ def test_stableless_pasture_holds_one_more():
     # A single 1x1 stable-less pasture (cap 2) + the default house pet (1 flexible).
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0)])                    # 1x1, 0 stables -> capacity 2
-    caps0, flex0 = helpers.extract_slots(s.players[0])
+    caps0, flex0 = helpers.extract_slots(s, s.players[0])
     assert caps0 == [2]
     assert helpers.can_accommodate(caps0, flex0, 3, 0, 0)       # 2 in pasture + 1 pet
     assert not helpers.can_accommodate(caps0, flex0, 4, 0, 0)
 
     s2 = _own_occ(s, 0)
-    caps1, flex1 = helpers.extract_slots(s2.players[0])
+    caps1, flex1 = helpers.extract_slots(s2, s2.players[0])
     assert caps1 == [3]                                  # 2 -> 3
     assert flex1 == flex0                                # house pet / stables unchanged
     assert helpers.can_accommodate(caps1, flex1, 4, 0, 0)        # 3 in pasture + 1 pet
@@ -148,18 +148,18 @@ def test_stabled_pasture_unchanged_stableless_boosted():
     state = STATES["mid_round_6_basic"]()
     pastures = state.players[0].farmyard.pastures
     assert sorted(p.num_stables for p in pastures) == [0, 1]
-    base_caps, base_flex = helpers.extract_slots(state.players[0])
+    base_caps, base_flex = helpers.extract_slots(state, state.players[0])
 
     state2 = _own_occ(state, 0)
-    caps, flex = helpers.extract_slots(state2.players[0])
+    caps, flex = helpers.extract_slots(state2, state2.players[0])
     assert flex == base_flex
     # Parallel to `pastures`: +1 exactly where num_stables == 0.
     expected = [c + (1 if p.num_stables == 0 else 0)
                 for c, p in zip(base_caps, pastures)]
     assert caps == expected
     # The other (non-owner) player is unaffected.
-    assert (helpers.extract_slots(state2.players[1])
-            == helpers.extract_slots(state.players[1]))
+    assert (helpers.extract_slots(state2, state2.players[1])
+            == helpers.extract_slots(state, state.players[1]))
 
 
 def test_pasture_that_gains_a_stable_loses_the_bonus():
@@ -167,14 +167,14 @@ def test_pasture_that_gains_a_stable_loses_the_bonus():
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0)], num_stables=1)
     s = _own_occ(s, 0)
-    caps, _flex = helpers.extract_slots(s.players[0])
+    caps, _flex = helpers.extract_slots(s, s.players[0])
     assert caps == [4]
 
 
 def test_unowned_unchanged():
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0)])
-    caps, flex = helpers.extract_slots(s.players[0])
+    caps, flex = helpers.extract_slots(s, s.players[0])
     assert caps == [2]                                   # no card -> no bonus
 
 
@@ -185,7 +185,7 @@ def test_stacks_with_drinking_trough():
     state = _own_occ(state, 0)
     state = _own_minor(state, 0, "drinking_trough")
     pastures = state.players[0].farmyard.pastures
-    caps, _flex = helpers.extract_slots(state.players[0])
+    caps, _flex = helpers.extract_slots(state, state.players[0])
     expected = [4 + 2 + (1 if p.num_stables == 0 else 0) for p in pastures]
     assert caps == expected
     assert sorted(caps) == [6, 7]
@@ -205,7 +205,7 @@ def test_cross_level_frontier_equivalence_with_tinsmith():
         opt_config.PARETO_OPT_LEVEL = lvl
         norms[lvl] = sorted(
             ((a.sheep, a.boar, a.cattle), f)
-            for a, f in helpers.pareto_frontier(p, Animals(), (2, 2, 3)))
+            for a, f in helpers.pareto_frontier(state, p, Animals(), (2, 2, 3)))
     assert norms[1] == norms[2] == norms[3]              # optimized levels: identical
     assert set(norms[0]) == set(norms[1])                # level 0: set-identical
 

@@ -147,7 +147,7 @@ def _breedable_types(state: GameState, idx: int) -> list:
         threshold = 2
         if getattr(a, animal) < threshold:
             continue
-        if not accommodates(p,
+        if not accommodates(state, p,
                             a.sheep + (animal == "sheep"),
                             a.boar + (animal == "boar"),
                             a.cattle + (animal == "cattle")):

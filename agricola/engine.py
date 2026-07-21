@@ -932,7 +932,7 @@ def _reconcile_accommodation(state: GameState) -> tuple[GameState, bool]:
         p = fast_replace(p, animals_need_accommodation=False)
         state = _update_player(state, idx, p)
         if not accommodates(
-            p, p.animals.sheep, p.animals.boar, p.animals.cattle
+            state, p, p.animals.sheep, p.animals.boar, p.animals.cattle
         ):
             state = push(state, PendingAccommodate(player_idx=idx))
             pushed = True
@@ -950,7 +950,7 @@ def _assert_animals_accommodated(state: GameState) -> None:
     from agricola.helpers import accommodates
     for idx, p in enumerate(state.players):
         assert accommodates(
-            p, p.animals.sheep, p.animals.boar, p.animals.cattle
+            state, p, p.animals.sheep, p.animals.boar, p.animals.cattle
         ), (
             f"player {idx} reached scoring over animal capacity: {p.animals} — a "
             f"decision-free grant was not reconciled (see grant_animals / "

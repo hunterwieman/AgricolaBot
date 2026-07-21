@@ -488,7 +488,7 @@ def _basic_wish_revealed_round(state: GameState) -> float:
     return sum(future) / len(future)
 
 
-def _num_breeding_opportunities_from_farm(p: PlayerState) -> int:
+def _num_breeding_opportunities_from_farm(state: GameState, p: PlayerState) -> int:
     """Max number of animal types where the farm could host 3 of each.
 
     Each pasture holds one type (up to its capacity). Flex slots (house
@@ -505,7 +505,7 @@ def _num_breeding_opportunities_from_farm(p: PlayerState) -> int:
     standalone-flex group needing ≥3, and supporting two distinct types
     is always better than supporting one.
     """
-    caps, flex = extract_slots(p)
+    caps, flex = extract_slots(state, p)
     caps = sorted(caps)
     types = 0
     for cap in caps:
@@ -744,7 +744,7 @@ def _hubris_breeding_value(state: GameState, p: PlayerState, player_idx: int, cf
     not future-projected. A player without animals today still gets
     `passive` value per opportunity, reflecting future potential.
     """
-    farm_opps = _num_breeding_opportunities_from_farm(p)
+    farm_opps = _num_breeding_opportunities_from_farm(state, p)
     if farm_opps == 0:
         return 0.0
 
@@ -1901,11 +1901,11 @@ def _v3_crop_field_pair_counts(p: PlayerState) -> tuple[int, int]:
     return grain_pairs, veg_pairs
 
 
-def _v3_breeding_pair_counts(p: PlayerState) -> tuple[int, int, int]:
+def _v3_breeding_pair_counts(state: GameState, p: PlayerState) -> tuple[int, int, int]:
     """Return (cattle_pair, boar_pair, sheep_pair), each 0 or 1.
     Priority: cattle > boar > sheep when distributing breeding-capacity slots.
     """
-    cap = _num_breeding_opportunities_from_farm(p)
+    cap = _num_breeding_opportunities_from_farm(state, p)
     cattle = 1 if (cap > 0 and p.animals.cattle >= 2) else 0
     if cattle:
         cap -= 1
@@ -2176,7 +2176,7 @@ def evaluate_hubris_v3(
     pts += config.veg_pair_weight_by_stage[stage_idx] * \
         config.veg_pair_value[_v3_clip_index(veg_pair_n, len(config.veg_pair_value))]
 
-    cattle_pair, boar_pair, sheep_pair = _v3_breeding_pair_counts(p)
+    cattle_pair, boar_pair, sheep_pair = _v3_breeding_pair_counts(state, p)
     if cattle_pair:
         pts += config.cattle_breeding_pair_weight_by_stage[stage_idx] * config.cattle_breeding_pair_value
     if boar_pair:

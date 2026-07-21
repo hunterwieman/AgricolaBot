@@ -71,7 +71,7 @@ from agricola.state import GameState, PlayerState
 CARD_ID = "mineral_feeder"
 
 
-def _pastured_sheep_possible(player: PlayerState, a: Animals) -> bool:
+def _pastured_sheep_possible(state: GameState, player: PlayerState, a: Animals) -> bool:
     """Can `a` be arranged on this player's farm with >= 1 sheep in a pasture?
 
     The user's per-pasture construction: dedicate pasture j to sheep,
@@ -82,8 +82,8 @@ def _pastured_sheep_possible(player: PlayerState, a: Animals) -> bool:
     """
     if a.sheep < 1:
         return False
-    caps, flex = extract_slots(player)
-    strip = sheep_slot_count(player)
+    caps, flex = extract_slots(state, player)
+    strip = sheep_slot_count(state, player)
     for j in range(len(caps)):
         rest = caps[:j] + caps[j + 1:]
         s_left = max(0, a.sheep - caps[j])            # j absorbs min(cap, sheep)
@@ -102,7 +102,7 @@ def _round_qualifies(state: GameState) -> bool:
 
 def _auto_eligible(state: GameState, idx: int) -> bool:
     p = state.players[idx]
-    return _round_qualifies(state) and _pastured_sheep_possible(p, p.animals)
+    return _round_qualifies(state) and _pastured_sheep_possible(state, p, p.animals)
 
 
 def _auto_apply(state: GameState, idx: int) -> GameState:
@@ -131,7 +131,7 @@ def _options(state: GameState, idx: int) -> list:
         for s in range(cur.sheep + 1)
         for b in range(cur.boar + 1)
         for c in range(cur.cattle + 1)
-        if _pastured_sheep_possible(p, Animals(sheep=s, boar=b, cattle=c))
+        if _pastured_sheep_possible(state, p, Animals(sheep=s, boar=b, cattle=c))
     ]
 
     def dominates(x: Animals, y: Animals) -> bool:
@@ -152,7 +152,7 @@ def _options(state: GameState, idx: int) -> list:
 def _trig_eligible(state: GameState, idx: int, triggers_resolved: frozenset) -> bool:
     p = state.players[idx]
     return (_round_qualifies(state)
-            and not _pastured_sheep_possible(p, p.animals)
+            and not _pastured_sheep_possible(state, p, p.animals)
             and bool(_options(state, idx)))
 
 

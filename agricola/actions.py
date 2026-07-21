@@ -392,7 +392,7 @@ class CommitBreed(CommitSubAction):
 
     Fields hold POST-BREED animal counts (matches the convention of
     CommitAccommodate). The triple must match a Pareto-optimal point from
-    `breeding_frontier(player_state, rates[:3])`; the legality enumerator
+    `breeding_frontier(state, player_state, rates[:3])`; the legality enumerator
     only emits frontier points.
 
     The dispatcher never pops: the effect sets the chosen counts and

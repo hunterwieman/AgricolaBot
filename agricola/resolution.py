@@ -2307,7 +2307,7 @@ def _execute_breed(
     """Apply the chosen post-breed configuration on PendingHarvestBreed.
 
     `commit.(sheep, boar, cattle)` is a Pareto-optimal point from
-    `breeding_frontier(p, rates[:3])` (the legality enumerator guarantees this;
+    `breeding_frontier(state, p, rates[:3])` (the legality enumerator guarantees this;
     per the engine's "step does not verify legality" rule we do not re-check it).
     Sets the player's animals to the chosen counts and adds the breeding food to
     supply, computed via `breeding_food_gained` — the same formula

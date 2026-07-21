@@ -21,6 +21,11 @@ from agricola.setup import setup
 from agricola.resources import Animals, Resources
 from agricola.state import BoardState, Cell, Farmyard, GameState, PlayerState
 
+# A throwaway Family-game state to satisfy the (state, player_state) signature of
+# the accommodation helpers. These tests build bare PlayerStates owning no
+# state-reading cards, so the state-keyed registries are inert and any state works.
+_S = setup(0)
+
 
 # ---------------------------------------------------------------------------
 # Farmyard / PlayerState construction helpers
@@ -259,7 +264,7 @@ def test_extract_slots_standalone_stable():
     grid = _set_grid_cell(_empty_grid(), 1, 3, Cell(cell_type=CellType.STABLE))
     farmyard = _make_farmyard(grid=grid)
     player = _make_player(farmyard)
-    caps, flex = extract_slots(player)
+    caps, flex = extract_slots(_S, player)
     assert caps == []
     assert flex == 2
 
@@ -327,7 +332,7 @@ def test_empty_farm():
     # No fences, no stables → only house pet slot (num_flexible=1)
     player = _fresh_player_no_stables()
     gained = Animals(sheep=1, boar=1, cattle=1)
-    frontier = pareto_frontier(player, gained)
+    frontier = pareto_frontier(_S, player, gained)
     frontier_set = set((a.sheep, a.boar, a.cattle) for a, _ in frontier)
     # Can keep exactly 1 animal total (one flexible slot); all single-animal configs are Pareto
     assert (1, 0, 0) in frontier_set
@@ -344,7 +349,7 @@ def test_worked_example():
     # current=(0, 4, 0), gained=(4, 0, 0) → s_max=4, b_max=4, c_max=0
     player = _player_with_two_pastures(animals=Animals(boar=4))
     gained = Animals(sheep=4)
-    frontier = pareto_frontier(player, gained)
+    frontier = pareto_frontier(_S, player, gained)
     frontier_set = set((a.sheep, a.boar, a.cattle) for a, _ in frontier)
     assert (4, 3, 0) in frontier_set
     assert (3, 4, 0) in frontier_set
@@ -356,7 +361,7 @@ def test_inventory_constraint():
     # b_max = 4, so (2, 5, 0) can never be returned
     player = _player_with_two_pastures(animals=Animals(boar=4))
     gained = Animals(sheep=4)
-    frontier = pareto_frontier(player, gained)
+    frontier = pareto_frontier(_S, player, gained)
     assert all(a.boar <= 4 for a, _ in frontier)
 
 
@@ -364,7 +369,7 @@ def test_discard_to_gain():
     # Player has 4 boar. Gains 4 sheep. Can discard boar to keep more sheep.
     player = _player_with_two_pastures(animals=Animals(boar=4))
     gained = Animals(sheep=4)
-    frontier = pareto_frontier(player, gained)
+    frontier = pareto_frontier(_S, player, gained)
     frontier_set = set((a.sheep, a.boar, a.cattle) for a, _ in frontier)
     assert (4, 0, 0) not in frontier_set  # dominated by (4, 3, 0)
     assert (4, 3, 0) in frontier_set
@@ -374,7 +379,7 @@ def test_no_gained_no_change():
     # Player has 1 sheep, gains nothing → frontier contains only (1, 0, 0)
     player = _player_with_1x1_pasture(animals=Animals(sheep=1))
     gained = Animals()
-    frontier = pareto_frontier(player, gained)
+    frontier = pareto_frontier(_S, player, gained)
     assert len(frontier) == 1
     animals, food = frontier[0]
     assert animals == Animals(sheep=1)
@@ -427,7 +432,7 @@ def test_pareto_food_no_improvement():
     # rates (0,0,0) → food always 0 regardless of what's discarded
     player = _player_with_1x1_pasture()
     gained = Animals(sheep=4)
-    frontier = pareto_frontier(player, gained, rates=(0, 0, 0))
+    frontier = pareto_frontier(_S, player, gained, rates=(0, 0, 0))
     assert all(food == 0 for _, food in frontier)
 
 
@@ -436,7 +441,7 @@ def test_pareto_food_with_fireplace():
     # rates (2,2,3): keeping all 4 sheep → food = 0
     player = _player_with_two_pastures()  # has cap-4 and cap-2 pastures + house
     gained = Animals(sheep=4)
-    frontier = pareto_frontier(player, gained, rates=(2, 2, 3))
+    frontier = pareto_frontier(_S, player, gained, rates=(2, 2, 3))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert (4, 0, 0) in frontier_dict
     assert frontier_dict[(4, 0, 0)] == 0  # kept all 4, nothing cooked
@@ -452,7 +457,7 @@ def test_pareto_food_partial_keep():
     # num_flexible=1, no pastures → max=1 sheep.
     player = _fresh_player_no_stables()
     gained = Animals(sheep=4)
-    frontier = pareto_frontier(player, gained, rates=(2, 2, 3))
+    frontier = pareto_frontier(_S, player, gained, rates=(2, 2, 3))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     # Can keep at most 1 sheep (house pet slot only); 3 sheep cooked at rate 2
     assert (1, 0, 0) in frontier_dict
@@ -467,7 +472,7 @@ def test_pareto_food_existing_animals_eaten():
     # or: boar in pasture (2), sheep in house (1) → (1,2,0), food=(2-1)*2=2 from sheep
     player = _player_with_1x1_pasture(animals=Animals(boar=2))
     gained = Animals(sheep=2)
-    frontier = pareto_frontier(player, gained, rates=(2, 2, 3))
+    frontier = pareto_frontier(_S, player, gained, rates=(2, 2, 3))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     # (2,1,0): kept 2 sheep + 1 boar, cooked 1 boar → food = 1*2 = 2
     assert (2, 1, 0) in frontier_dict
@@ -483,7 +488,7 @@ def test_pareto_food_existing_animals_eaten():
 
 def test_breeding_no_animals():
     player = _fresh_player_no_stables()
-    frontier = breeding_frontier(player)
+    frontier = breeding_frontier(_S, player)
     assert len(frontier) == 1
     animals, food = frontier[0]
     assert animals == Animals()
@@ -493,7 +498,7 @@ def test_breeding_no_animals():
 def test_breeding_one_of_each():
     # 1 sheep, 1 boar, 1 cattle → no type has ≥ 2, so no breeding
     player = _fresh_player_no_stables(animals=Animals(sheep=1, boar=1, cattle=1))
-    frontier = breeding_frontier(player)
+    frontier = breeding_frontier(_S, player)
     # Only the house slot (1 flexible) → can only keep 1 animal total
     # So frontier has single-animal configs; current state (1,1,1) doesn't fit
     frontier_set = {(a.sheep, a.boar, a.cattle) for a, _ in frontier}
@@ -509,7 +514,7 @@ def test_breeding_sheep_only_breeds():
     # sF=1 < 3 → food_s = (s-sF)*sR = (2-1)*0 = 0.
     # Frontier is exactly {(1,0,0): 0}.
     player = _fresh_player_no_stables(animals=Animals(sheep=2))
-    frontier = breeding_frontier(player)
+    frontier = breeding_frontier(_S, player)
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {(1, 0, 0): 0}
 
@@ -519,7 +524,7 @@ def test_breeding_sheep_breeds_with_room():
     # (3,0,0) dominates everything. sF=3>=3 and s=2>=2 → food=(2+1-3)*0=0.
     # Frontier is exactly {(3,0,0): 0}.
     player = _player_with_two_pastures(animals=Animals(sheep=2))
-    frontier = breeding_frontier(player)
+    frontier = breeding_frontier(_S, player)
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {(3, 0, 0): 0}
 
@@ -548,7 +553,7 @@ def test_breeding_food_from_excess():
         people_total=2,
         people_home=2,
     )
-    frontier = breeding_frontier(player, rates=(2, 0, 0))
+    frontier = breeding_frontier(_S, player, rates=(2, 0, 0))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {
         (5, 0, 0): 0,   # kept newborn sheep, released cattle (cR=0 → no food)
@@ -563,7 +568,7 @@ def test_breeding_worked_example():
     # bF=5 ≥ 3 and b=4 ≥ 2 → food=(4+1-5)*2=0.
     # Frontier is exactly {(0,5,0): 0}.
     player = _player_with_two_pastures(animals=Animals(boar=4))
-    frontier = breeding_frontier(player, rates=(2, 2, 3))
+    frontier = breeding_frontier(_S, player, rates=(2, 2, 3))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {(0, 5, 0): 0}
 
@@ -575,7 +580,7 @@ def test_breeding_formula_sF_ge_3():
     # sF=3 ≥ 3 and s=3 ≥ 2 → food=(3+1-3)*2=2.
     # Frontier is exactly {(3,0,0): 2}.
     player = _player_with_1x1_pasture(animals=Animals(sheep=3))
-    frontier = breeding_frontier(player, rates=(2, 0, 0))
+    frontier = breeding_frontier(_S, player, rates=(2, 0, 0))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {(3, 0, 0): 2}
 
@@ -586,7 +591,7 @@ def test_breeding_formula_sF_lt_3():
     # sF=1 < 3 → food = (s-sF)*sR = (3-1)*2 = 4.
     # Frontier is exactly {(1,0,0): 4}.
     player = _fresh_player_no_stables(animals=Animals(sheep=3))
-    frontier = breeding_frontier(player, rates=(2, 0, 0))
+    frontier = breeding_frontier(_S, player, rates=(2, 0, 0))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {(1, 0, 0): 4}
 
@@ -613,7 +618,7 @@ def test_breeding_two_pastures_two_sheep_two_boar():
         people_total=2,
         people_home=2,
     )
-    frontier = breeding_frontier(player, rates=(2, 2, 3))
+    frontier = breeding_frontier(_S, player, rates=(2, 2, 3))
     frontier_dict = {(a.sheep, a.boar, a.cattle): food for a, food in frontier}
     assert frontier_dict == {
         (3, 2, 0): 0,   # sheep bred, all boar kept

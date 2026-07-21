@@ -144,11 +144,21 @@ TYPED_SLOT_CARDS: list[tuple[str, Callable]] = []
 
 def register_typed_slots(card_id: str, slots_fn: Callable) -> None:
     """Register a card's per-species slot counts (card-module import time).
-    `slots_fn(player_state) -> Animals`; ownership-gated in the fold."""
+    `slots_fn(state, player_state) -> Animals`; ownership-gated in the fold.
+
+    SIGNATURE NOTE (the 2026-07-21 widening, user-approved): the fn takes BOTH
+    the GameState and an explicit PlayerState — `state` because a count may
+    depend on game-global facts (Truffle Searcher / Woolgrower's completed
+    feeding phases, `helpers.completed_feeding_phases`), and a separate
+    `player_state` (never `state.players[idx]` inside the fold) because the
+    accommodation helpers are routinely handed DOCTORED players (Shepherd's
+    Whistle's blanked stable, the strip's reduced animals) that differ from
+    any player on `state`. Farm/tableau reads come off `player_state`;
+    game-time reads off `state`."""
     TYPED_SLOT_CARDS.append((card_id, slots_fn))
 
 
-def typed_slot_counts(player_state) -> Animals:
+def typed_slot_counts(state, player_state) -> Animals:
     """Summed per-species card-slot counts over owned cards. Empty registry /
     nothing owned -> Animals() (Family byte-identity)."""
     if not TYPED_SLOT_CARDS:
@@ -156,17 +166,17 @@ def typed_slot_counts(player_state) -> Animals:
     s = b = c = 0
     for card_id, slots_fn in TYPED_SLOT_CARDS:
         if _owns(player_state, card_id):
-            a = slots_fn(player_state)
+            a = slots_fn(state, player_state)
             s += a.sheep
             b += a.boar
             c += a.cattle
     return Animals(sheep=s, boar=b, cattle=c)
 
 
-def sheep_slot_count(player_state) -> int:
+def sheep_slot_count(state, player_state) -> int:
     """The sheep component of `typed_slot_counts` — kept as the
     pre-generalization view (Mineral Feeder's arrangement strip reads it)."""
-    return typed_slot_counts(player_state).sheep
+    return typed_slot_counts(state, player_state).sheep
 
 
 def animal_holder_card_ids() -> frozenset:

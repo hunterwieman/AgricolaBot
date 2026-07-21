@@ -5,7 +5,7 @@ import math
 from itertools import product as iproduct
 
 from agricola import opt_config
-from agricola.constants import CellType
+from agricola.constants import CellType, HARVEST_ROUNDS, Phase
 from agricola.replace import fast_replace
 from agricola.resources import Animals
 from agricola.state import Farmyard, GameState, PlayerState
@@ -137,6 +137,46 @@ def stables_in_supply(player_state) -> int:
             - stables_removed_from_supply(player_state))
 
 
+def completed_feeding_phases(state: GameState) -> int:
+    """The number of feeding phases COMPLETED so far in the game — the GLOBAL,
+    game-time count (user rulings 2026-07-21, for the typed-slot capacity
+    cards Truffle Searcher B86 / Woolgrower A148).
+
+    Two rulings define it:
+    - "The feeding phase" is a phase of the GAME, not a per-player activity
+      (the per-player feed bands are the engine's sequencing of a phase that
+      is simultaneous in the physical game), so there is ONE count, shared.
+    - It ticks on game time regardless of participation: a harvest-skip card
+      (Layabout) exempts its owner from feeding but does not erase the phase —
+      the count increments even if EVERY player skipped.
+
+    Derived on demand, never stored (a stored counter would be Family-visible
+    varying state → canonical/C++ churn for pure round arithmetic):
+    - every harvest at a round < round_number has fully resolved → its feeding
+      phase is complete;
+    - the current round's harvest (round_number in HARVEST_ROUNDS) adds 1 once
+      its feeding has resolved: during HARVEST_BREED or at/after
+      BEFORE_SCORING it has; during HARVEST_FEED it has exactly when the walk
+      is PAST the final feed band's payment sentinel (the frames pause the
+      cursor AT the sentinel while payment is up, and the walk advances past
+      it only once the payment resolves — so `>` is the completed test);
+      during WORK / RETURN_HOME / HARVEST_FIELD it has not. PREPARATION never
+      needs the +1: round_number has already incremented, so the just-finished
+      harvest is in the `< round_number` base.
+    """
+    base = sum(1 for h in HARVEST_ROUNDS if h < state.round_number)
+    if state.round_number not in HARVEST_ROUNDS:
+        return base
+    if state.phase in (Phase.HARVEST_BREED, Phase.BEFORE_SCORING):
+        return base + 1
+    if state.phase is Phase.HARVEST_FEED:
+        from agricola.cards.harvest_windows import sentinel_position
+        cur = state.harvest_cursor
+        if cur is not None and cur > sentinel_position("feeding", 1):
+            return base + 1
+    return base
+
+
 def cooking_rates(state: GameState, player_idx: int) -> tuple[int, int, int, int]:
     """Return (sheep_rate, boar_rate, cattle_rate, veg_rate) for at-any-time food conversion.
 
@@ -197,8 +237,16 @@ def enclosed_cells(farmyard: Farmyard) -> frozenset:
 # Part 3: Farm slots, can_accommodate, pareto_frontier
 # ---------------------------------------------------------------------------
 
-def extract_slots(player_state: PlayerState) -> tuple[list[int], int]:
+def extract_slots(state: GameState, player_state: PlayerState) -> tuple[list[int], int]:
     """Return (pasture_capacities, num_flexible_slots).
+
+    Takes BOTH the GameState and an explicit PlayerState (the 2026-07-21
+    signature widening): `state` because a capacity source may read game-global
+    facts (a typed-slot count keyed to completed feeding phases), and a
+    separate `player_state` because callers routinely pass DOCTORED players
+    (Shepherd's Whistle's blanked stable, the strip's reduced animals) that
+    differ from any player on `state` — farm/tableau reads must come off the
+    doctored object, never `state.players[idx]`.
 
     pasture_capacities: list of ints, one per pasture.
     num_flexible_slots: standalone stables + the house-pet capacity (1 by default; raised
@@ -293,7 +341,7 @@ def can_accommodate(
     return False
 
 
-def _typed_slot_strip(player_state: PlayerState, gained: Animals):
+def _typed_slot_strip(state: GameState, player_state: PlayerState, gained: Animals):
     """The GREEDY STRIP for typed (per-species) card slots (originally the
     sheep-only Dolly's Mother strip, user-proposed 2026-07-06; generalized to
     the per-species registry 2026-07-21 — Wildlife Reserve, Cattle Farm, Mud
@@ -308,7 +356,7 @@ def _typed_slot_strip(player_state: PlayerState, gained: Animals):
     counts are differences)."""
     from agricola.cards.capacity_mods import typed_slot_counts
 
-    slots = typed_slot_counts(player_state)
+    slots = typed_slot_counts(state, player_state)
     strips = {}
     g_new = {}
     p_new = {}
@@ -333,7 +381,8 @@ def _typed_slot_strip(player_state: PlayerState, gained: Animals):
     return Animals(**strips), player_state, gained
 
 
-def accommodates(player_state: PlayerState, sheep: int, boar: int, cattle: int) -> bool:
+def accommodates(state: GameState, player_state: PlayerState,
+                 sheep: int, boar: int, cattle: int) -> bool:
     """Can this player's farm house (sheep, boar, cattle)? THE ownership-aware
     accommodation check: `extract_slots` + the typed card-slot strip (Dolly's
     Mother's sheep slot, the 2026-07-21 per-species holders) +
@@ -342,8 +391,8 @@ def accommodates(player_state: PlayerState, sheep: int, boar: int, cattle: int) 
     primitive."""
     from agricola.cards.capacity_mods import typed_slot_counts
 
-    caps, num_flexible = extract_slots(player_state)
-    slots = typed_slot_counts(player_state)
+    caps, num_flexible = extract_slots(state, player_state)
+    slots = typed_slot_counts(state, player_state)
     return can_accommodate(caps, num_flexible,
                            max(0, sheep - slots.sheep),
                            max(0, boar - slots.boar),
@@ -351,6 +400,7 @@ def accommodates(player_state: PlayerState, sheep: int, boar: int, cattle: int) 
 
 
 def pareto_frontier(
+    state: GameState,
     player_state: PlayerState,
     gained: Animals,
     rates: tuple[int, int, int] = (0, 0, 0),
@@ -376,17 +426,18 @@ def pareto_frontier(
 
     Returns list of (Animals, food_gained) tuples.
     """
-    strip, player_state, gained = _typed_slot_strip(player_state, gained)
+    strip, player_state, gained = _typed_slot_strip(state, player_state, gained)
     if strip != Animals():
-        base = _pareto_frontier_dispatch(player_state, gained, rates)
+        base = _pareto_frontier_dispatch(state, player_state, gained, rates)
         return [(fast_replace(a, sheep=a.sheep + strip.sheep,
                               boar=a.boar + strip.boar,
                               cattle=a.cattle + strip.cattle), food)
                 for a, food in base]
-    return _pareto_frontier_dispatch(player_state, gained, rates)
+    return _pareto_frontier_dispatch(state, player_state, gained, rates)
 
 
 def _pareto_frontier_dispatch(
+    state: GameState,
     player_state: PlayerState,
     gained: Animals,
     rates: tuple[int, int, int],
@@ -394,9 +445,9 @@ def _pareto_frontier_dispatch(
     """The standard (slot-strip-free) frontier: the opt path or the readable
     level-0 oracle below."""
     if opt_config.PARETO_OPT_LEVEL >= 1:
-        return _pareto_frontier_opt(player_state, gained, rates)
+        return _pareto_frontier_opt(state, player_state, gained, rates)
 
-    pasture_capacities, num_flexible = extract_slots(player_state)
+    pasture_capacities, num_flexible = extract_slots(state, player_state)
 
     s_available = player_state.animals.sheep  + gained.sheep
     b_available = player_state.animals.boar   + gained.boar
@@ -498,6 +549,7 @@ def breeding_food_gained(
 
 
 def breeding_frontier(
+    state: GameState,
     player_state: PlayerState,
     rates: tuple[int, int, int] = (0, 0, 0),
 ) -> list[tuple[Animals, int]]:
@@ -528,10 +580,10 @@ def breeding_frontier(
     from agricola.cards.capacity_mods import sheep_min_parents, typed_slot_counts
 
     sheep_min = sheep_min_parents(player_state)
-    slots = typed_slot_counts(player_state)
+    slots = typed_slot_counts(state, player_state)
 
     if opt_config.PARETO_OPT_LEVEL >= 1:
-        return _breeding_frontier_opt(player_state, rates, sheep_min, slots)
+        return _breeding_frontier_opt(state, player_state, rates, sheep_min, slots)
 
     s = player_state.animals.sheep
     b = player_state.animals.boar
@@ -541,7 +593,7 @@ def breeding_frontier(
     b_desired = b + 1 if b >= 2 else b
     c_desired = c + 1 if c >= 2 else c
 
-    pasture_capacities, num_flexible = extract_slots(player_state)
+    pasture_capacities, num_flexible = extract_slots(state, player_state)
 
     feasible = [
         Animals(sheep=sF, boar=bF, cattle=cF)
@@ -1026,8 +1078,8 @@ def _frontier_from_phi(phi, s_cap, b_cap, c_cap):
     return _pareto_max_3d(clipped)
 
 
-def _pareto_frontier_opt(player_state, gained, rates):
-    pasture_capacities, num_flexible = extract_slots(player_state)
+def _pareto_frontier_opt(state, player_state, gained, rates):
+    pasture_capacities, num_flexible = extract_slots(state, player_state)
     s_av = player_state.animals.sheep + gained.sheep
     b_av = player_state.animals.boar + gained.boar
     c_av = player_state.animals.cattle + gained.cattle
@@ -1042,14 +1094,14 @@ def _pareto_frontier_opt(player_state, gained, rates):
     ]
 
 
-def _breeding_frontier_opt(player_state, rates, sheep_min=2, typed_slots=None):
+def _breeding_frontier_opt(state, player_state, rates, sheep_min=2, typed_slots=None):
     s = player_state.animals.sheep
     b = player_state.animals.boar
     c = player_state.animals.cattle
     s_des = s + 1 if s >= sheep_min else s
     b_des = b + 1 if b >= 2 else b
     c_des = c + 1 if c >= 2 else c
-    pasture_capacities, num_flexible = extract_slots(player_state)
+    pasture_capacities, num_flexible = extract_slots(state, player_state)
     # Typed card slots ride the greedy strip: the frontier over strip-aware
     # feasibility (`fits(max(0, sF - strip_s), ...)` per type) equals the
     # standard frontier computed with each type's bound reduced by its strip,

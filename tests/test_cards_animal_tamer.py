@@ -108,8 +108,8 @@ def test_extract_slots_reflects_capacity():
     cs, cp = _card_state_with_hand(occupations=frozenset({"animal_tamer"}))
     owner = cs.players[cp]
     nonowner = cs.players[1 - cp]
-    _caps_o, flex_o = extract_slots(owner)      # 2 rooms, 0 stables
-    _caps_n, flex_n = extract_slots(nonowner)
+    _caps_o, flex_o = extract_slots(cs, owner)      # 2 rooms, 0 stables
+    _caps_n, flex_n = extract_slots(cs, nonowner)
     assert flex_o == 2
     assert flex_n == 1
 
@@ -119,12 +119,12 @@ def test_house_holds_two_different_types_when_owned():
     # pastures/stables, 1 sheep + 1 boar fit (2 flexible slots, any type each); without the
     # card only one animal fits.
     cs, cp = _card_state_with_hand(occupations=frozenset({"animal_tamer"}))
-    caps, flex = extract_slots(cs.players[cp])
+    caps, flex = extract_slots(cs, cs.players[cp])
     assert caps == []  # no pastures
     assert can_accommodate(caps, flex, 1, 1, 0)   # sheep + boar
     assert not can_accommodate(caps, flex, 1, 1, 1)  # 3 different types > 2 rooms
 
     # Non-owner: the lone house pet holds at most one animal.
-    caps_n, flex_n = extract_slots(cs.players[1 - cp])
+    caps_n, flex_n = extract_slots(cs, cs.players[1 - cp])
     assert can_accommodate(caps_n, flex_n, 1, 0, 0)
     assert not can_accommodate(caps_n, flex_n, 1, 1, 0)

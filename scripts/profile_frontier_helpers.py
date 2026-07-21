@@ -51,14 +51,14 @@ from agricola.resources import Animals
 # Projection-key functions — mirror the cache keys in FRONTIER_OPT_DESIGN.md.
 # ---------------------------------------------------------------------------
 
-def _slots(ps):
-    caps, flex = extract_slots(ps)
+def _slots(state, ps):
+    caps, flex = extract_slots(state, ps)
     return tuple(sorted(caps)), flex
 
 
-def _animal_key(ps, gained):
+def _animal_key(state, ps, gained):
     """Rates-free key for pareto/breeding (§2.1): farm shape + available caps."""
-    caps, flex = _slots(ps)
+    caps, flex = _slots(state, ps)
     a = ps.animals
     return (caps, flex,
             a.sheep + gained.sheep, a.boar + gained.boar, a.cattle + gained.cattle)
@@ -103,9 +103,9 @@ def microbench(iters: int) -> None:
             need = max(1, 2 * ps.people_total - ps.newborns)
             cases = [
                 ("pareto_frontier",
-                 lambda ps=ps, r=rates3: pareto_frontier(ps, Animals(sheep=1), r)),
+                 lambda ps=ps, r=rates3, s=state: pareto_frontier(s, ps, Animals(sheep=1), r)),
                 ("breeding_frontier",
-                 lambda ps=ps, r=rates3: breeding_frontier(ps, r)),
+                 lambda ps=ps, r=rates3, s=state: breeding_frontier(s, ps, r)),
                 ("harvest_feed_frontier",
                  lambda ps=ps, r=rates4, fo=need: harvest_feed_frontier(ps, fo, r)),
                 ("food_payment_frontier",
@@ -151,13 +151,13 @@ def _install_wrappers() -> None:
     _orig_pay = H.food_payment_frontier
     _orig_fence = L._any_legal_pasture_commit
 
-    def w_pareto(player_state, gained, rates=(0, 0, 0)):
-        _counters["pareto_frontier"][_animal_key(player_state, gained)] += 1
-        return _orig_pareto(player_state, gained, rates)
+    def w_pareto(state, player_state, gained, rates=(0, 0, 0)):
+        _counters["pareto_frontier"][_animal_key(state, player_state, gained)] += 1
+        return _orig_pareto(state, player_state, gained, rates)
 
-    def w_breed(player_state, rates=(0, 0, 0)):
-        _counters["breeding_frontier"][_animal_key(player_state, Animals())] += 1
-        return _orig_breed(player_state, rates)
+    def w_breed(state, player_state, rates=(0, 0, 0)):
+        _counters["breeding_frontier"][_animal_key(state, player_state, Animals())] += 1
+        return _orig_breed(state, player_state, rates)
 
     def w_feed(player_state, food_owed, rates):
         _counters["harvest_feed (clipped key)"][

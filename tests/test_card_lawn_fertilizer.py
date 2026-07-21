@@ -46,11 +46,11 @@ def test_fold_none_by_default():
 def test_size1_stableless_pasture_two_to_three():
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0)])                 # 1x1, 0 stables -> capacity 2
-    caps0, flex0 = helpers.extract_slots(s.players[0])
+    caps0, flex0 = helpers.extract_slots(s, s.players[0])
     assert caps0 == [2]
 
     s2 = _own_minor(s, 0)
-    caps1, flex1 = helpers.extract_slots(s2.players[0])
+    caps1, flex1 = helpers.extract_slots(s2, s2.players[0])
     assert caps1 == [3]                               # 2 -> 3
     assert flex1 == flex0                             # house pet unchanged
     assert helpers.can_accommodate(caps1, flex1, 4, 0, 0)   # 3 in pasture + 1 pet
@@ -60,29 +60,29 @@ def test_size1_stableless_pasture_two_to_three():
 def test_size1_pasture_with_stable_four_to_six():
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0)], num_stables=1)   # 1x1 + stable -> capacity 4
-    caps0, _flex0 = helpers.extract_slots(s.players[0])
+    caps0, _flex0 = helpers.extract_slots(s, s.players[0])
     assert caps0 == [4]
 
     s2 = _own_minor(s, 0)
-    caps1, _flex1 = helpers.extract_slots(s2.players[0])
+    caps1, _flex1 = helpers.extract_slots(s2, s2.players[0])
     assert caps1 == [6]                               # 4 -> 6
 
 
 def test_larger_pasture_unaffected():
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0), (0, 1)])          # 2x1, 0 stables -> capacity 4
-    caps0, _f0 = helpers.extract_slots(s.players[0])
+    caps0, _f0 = helpers.extract_slots(s, s.players[0])
     assert caps0 == [4]
 
     s2 = _own_minor(s, 0)
-    caps1, _f1 = helpers.extract_slots(s2.players[0])
+    caps1, _f1 = helpers.extract_slots(s2, s2.players[0])
     assert caps1 == [4]                               # size 2 -> no bonus
 
 
 def test_unowned_unchanged():
     s = setup(0)
     s = _add_pasture(s, 0, [(0, 0)])
-    caps, _flex = helpers.extract_slots(s.players[0])
+    caps, _flex = helpers.extract_slots(s, s.players[0])
     assert caps == [2]                                # no card -> no bonus
 
 
@@ -90,5 +90,5 @@ def test_non_owner_unaffected():
     s = setup(0)
     s = _add_pasture(s, 1, [(0, 0)])                  # opponent's size-1 pasture
     s = _own_minor(s, 0)                              # only p0 owns the card
-    caps, _flex = helpers.extract_slots(s.players[1])
+    caps, _flex = helpers.extract_slots(s, s.players[1])
     assert caps == [2]                                # opponent gets no bonus

@@ -2329,7 +2329,7 @@ def _enumerate_pending_animal_market(
         gained = Animals(cattle=pending.gained)
     else:
         raise AssertionError(f"Unexpected animal market pending: {type(pending).__name__}")
-    frontier = pareto_frontier(p, gained, rates)
+    frontier = pareto_frontier(state, p, gained, rates)
     actions.extend(
         CommitAccommodate(sheep=a.sheep, boar=a.boar, cattle=a.cattle)
         for (a, _food) in frontier
@@ -2360,7 +2360,7 @@ def _enumerate_pending_accommodate(
 
     p = state.players[pending.player_idx]
     rates = cooking_rates(state, pending.player_idx)[:3]
-    frontier = pareto_frontier(p, Animals(), rates)
+    frontier = pareto_frontier(state, p, Animals(), rates)
     mk = pending.min_keep
     options = [
         CommitAccommodate(sheep=a.sheep, boar=a.boar, cattle=a.cattle)
@@ -2788,7 +2788,7 @@ def _enumerate_pending_harvest_breed(
     actions = _expand_variant_triggers(
         state, pending, _eligible_fire_triggers(state, pending, "breeding"))
     rates_3 = cooking_rates(state, pending.player_idx)[:3]
-    for (cfg, _food) in breeding_frontier(p, rates_3):
+    for (cfg, _food) in breeding_frontier(state, p, rates_3):
         actions.append(CommitBreed(sheep=cfg.sheep, boar=cfg.boar, cattle=cfg.cattle))
 
     return actions

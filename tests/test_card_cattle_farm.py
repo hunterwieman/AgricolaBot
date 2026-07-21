@@ -33,6 +33,10 @@ from agricola.setup import setup
 
 from tests.factories import with_phase, with_resources
 
+# Throwaway state for the (state, player_state) accommodation-helper signature;
+# these tests own no game-global-fact cards, so any state is inert there.
+_S = setup(0)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -114,10 +118,10 @@ def test_registration():
     slot_fns = [fn for cid, fn in TYPED_SLOT_CARDS if cid == CARD_ID]
     assert len(slot_fns) == 1
     base = setup(seed=0).players[0]
-    assert slot_fns[0](base) == Animals(cattle=0)          # 0 pastures -> 0 cattle
+    assert slot_fns[0](_S, base) == Animals(cattle=0)          # 0 pastures -> 0 cattle
     owner_2p = _set_pastures(_own(setup(seed=0), 0), 0,
                              [[(0, 0)], [(0, 1)]]).players[0]
-    assert slot_fns[0](owner_2p) == Animals(cattle=2)      # 2 pastures -> 2 cattle
+    assert slot_fns[0](_S, owner_2p) == Animals(cattle=2)      # 2 pastures -> 2 cattle
 
     rows = json.load(open("agricola/cards/data/revised_minor_improvements.json"))
     row = next(r for r in rows if r["name"] == "Cattle Farm")
@@ -137,20 +141,20 @@ def test_typed_slot_counts_scale_with_pastures():
 
     # Not owned: no card slot even with pastures present.
     with_pastures = _set_pastures(base, 0, [[(0, 0)], [(0, 1)]])
-    assert typed_slot_counts(with_pastures.players[0]) == Animals()
+    assert typed_slot_counts(with_pastures, with_pastures.players[0]) == Animals()
 
     # Card merely HELD in hand: still not owned -> no slot.
-    assert typed_slot_counts(_in_hand(with_pastures, 0).players[0]) == Animals()
+    assert typed_slot_counts(with_pastures, _in_hand(with_pastures, 0).players[0]) == Animals()
 
     # Owned, zero pastures -> zero card cattle capacity.
     owner0 = _own(base, 0)
-    assert typed_slot_counts(owner0.players[0]) == Animals(cattle=0)
+    assert typed_slot_counts(owner0, owner0.players[0]) == Animals(cattle=0)
 
     # Owned, N pastures -> +N cattle slots.
     owner1 = _set_pastures(_own(base, 0), 0, [[(0, 0)]])
-    assert typed_slot_counts(owner1.players[0]) == Animals(cattle=1)
+    assert typed_slot_counts(owner1, owner1.players[0]) == Animals(cattle=1)
     owner3 = _set_pastures(_own(base, 0), 0, [[(0, 0)], [(0, 1)], [(0, 2)]])
-    assert typed_slot_counts(owner3.players[0]) == Animals(cattle=3)
+    assert typed_slot_counts(owner3, owner3.players[0]) == Animals(cattle=3)
 
 
 def test_zero_pastures_no_card_capacity():
@@ -158,9 +162,9 @@ def test_zero_pastures_no_card_capacity():
     holds a cattle, exactly like a bare farm."""
     owner0 = _own(setup(seed=0), 0).players[0]
     plain = setup(seed=0).players[0]
-    assert accommodates(owner0, 0, 0, 1)          # the house pet
-    assert not accommodates(owner0, 0, 0, 2)      # card gives nothing at 0 pastures
-    assert not accommodates(plain, 0, 0, 2)       # same as the non-owner
+    assert accommodates(_S, owner0, 0, 0, 1)          # the house pet
+    assert not accommodates(_S, owner0, 0, 0, 2)      # card gives nothing at 0 pastures
+    assert not accommodates(_S, plain, 0, 0, 2)       # same as the non-owner
 
 
 # ---------------------------------------------------------------------------
@@ -175,16 +179,16 @@ def test_card_capacity_on_top_of_pasture():
 
     # extract_slots itself is unchanged by a typed holder — the strip applies at
     # the accommodation entry points, not in extract_slots.
-    caps, flex = extract_slots(owner)
+    caps, flex = extract_slots(_S, owner)
     assert caps == [2] and flex == 1              # the real pasture + house pet only
 
-    assert accommodates(owner, 0, 0, 4)           # 2 pasture + 1 card + 1 pet
-    assert not accommodates(owner, 0, 0, 5)       # one cattle too many
+    assert accommodates(_S, owner, 0, 0, 4)           # 2 pasture + 1 card + 1 pet
+    assert not accommodates(_S, owner, 0, 0, 5)       # one cattle too many
 
     # Non-owner control: the same 1x1 pasture holds only 2 + the 1 pet = 3.
     plain = _set_pastures(setup(seed=0), 0, [[(0, 0)]]).players[0]
-    assert accommodates(plain, 0, 0, 3)
-    assert not accommodates(plain, 0, 0, 4)
+    assert accommodates(_S, plain, 0, 0, 3)
+    assert not accommodates(_S, plain, 0, 0, 4)
 
 
 def test_card_slot_is_cattle_only():
@@ -193,12 +197,12 @@ def test_card_slot_is_cattle_only():
     but never the cattle-only card slot -> the 4th sheep overflows."""
     owner = _set_pastures(_own(setup(seed=0), 0), 0, [[(0, 0)]]).players[0]
 
-    assert accommodates(owner, 0, 0, 4)           # 4 cattle fit (card slot usable)
-    assert not accommodates(owner, 4, 0, 0)       # 4 sheep do NOT (card slot unusable)
-    assert accommodates(owner, 3, 0, 0)           # 3 sheep fit (pasture 2 + pet 1)
+    assert accommodates(_S, owner, 0, 0, 4)           # 4 cattle fit (card slot usable)
+    assert not accommodates(_S, owner, 4, 0, 0)       # 4 sheep do NOT (card slot unusable)
+    assert accommodates(_S, owner, 3, 0, 0)           # 3 sheep fit (pasture 2 + pet 1)
     # boar is likewise excluded from the cattle slot.
-    assert not accommodates(owner, 0, 4, 0)
-    assert accommodates(owner, 0, 3, 0)
+    assert not accommodates(_S, owner, 0, 4, 0)
+    assert accommodates(_S, owner, 0, 3, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +214,7 @@ def test_breeding_frontier_houses_newborn_cattle():
     (2 in the pasture, the 3rd on the card slot)."""
     owner = _animals(_set_pastures(_own(setup(seed=0), 0), 0, [[(0, 0)]]),
                      0, cattle=2).players[0]
-    frontier = breeding_frontier(owner)
+    frontier = breeding_frontier(_S, owner)
     assert any(a.cattle == 3 for a, _ in frontier)
 
     # Non-owner control: pasture holds only 2 cattle, the pet is the sole extra
@@ -219,10 +223,10 @@ def test_breeding_frontier_houses_newborn_cattle():
     # needs the card slot.
     owner4 = _animals(_set_pastures(_own(setup(seed=0), 0), 0, [[(0, 0)]]),
                       0, cattle=3).players[0]
-    assert any(a.cattle == 4 for a, _ in breeding_frontier(owner4))
+    assert any(a.cattle == 4 for a, _ in breeding_frontier(_S, owner4))
     plain4 = _animals(_set_pastures(setup(seed=0), 0, [[(0, 0)]]),
                       0, cattle=3).players[0]
-    assert all(a.cattle < 4 for a, _ in breeding_frontier(plain4))
+    assert all(a.cattle < 4 for a, _ in breeding_frontier(_S, plain4))
 
 
 def test_breed_flow_offers_fourth_cattle():

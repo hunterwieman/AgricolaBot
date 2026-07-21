@@ -91,8 +91,8 @@ def test_no_pasture_gives_no_slots():
     is unchanged whether or not the card is owned."""
     s = setup(0)
     assert _slots(s.players[0]) == 0
-    base = extract_slots(s.players[0])
-    owned = extract_slots(_own_minor(s, 0).players[0])
+    base = extract_slots(s, s.players[0])
+    owned = extract_slots(s, _own_minor(s, 0).players[0])
     assert owned == base                              # num_flexible unchanged
     assert extra_flexible_slots(_own_minor(s, 0).players[0]) == 0
 
@@ -108,7 +108,7 @@ def test_diagonal_pasture_does_not_qualify():
     assert _slots(p) == 0
     owned = _own_minor(s, 0).players[0]
     assert extra_flexible_slots(owned) == 0
-    assert extract_slots(owned) == extract_slots(p)  # unchanged
+    assert extract_slots(s, owned) == extract_slots(s, p)  # unchanged
 
 
 def test_orthogonal_pasture_qualifies():
@@ -117,14 +117,14 @@ def test_orthogonal_pasture_qualifies():
     s = _add_pasture(setup(0), 0, [(0, 0)])          # orthogonal to room (1,0)
     p = s.players[0]
     assert _slots(p) == 2                             # 2 starting rooms
-    base_caps, base_flex = extract_slots(p)
+    base_caps, base_flex = extract_slots(s, p)
     owned = _own_minor(s, 0).players[0]
     assert extra_flexible_slots(owned) == 2
-    caps, flex = extract_slots(owned)
+    caps, flex = extract_slots(s, owned)
     assert caps == base_caps                          # pasture capacities unchanged
     assert flex == base_flex + 2                      # +num_rooms flexible slots
     # The other (non-owner) player is unaffected.
-    assert extract_slots(_own_minor(s, 0).players[1]) == extract_slots(s.players[1])
+    assert extract_slots(s, _own_minor(s, 0).players[1]) == extract_slots(s, s.players[1])
 
 
 def test_pasture_touching_second_room_also_qualifies():
@@ -150,8 +150,8 @@ def test_mixed_types_housable():
     owner = _own_minor(s, 0).players[0]
     # 3 sheep + 1 boar + 1 cattle: pasture holds 2 sheep; the overflow of
     # (1 sheep, 1 boar, 1 cattle) — all different types — needs 3 flexible slots.
-    assert not accommodates(p, 3, 1, 1)              # non-owner: pet(1) only -> no
-    assert accommodates(owner, 3, 1, 1)             # owner: pet + 3 card slots -> yes
+    assert not accommodates(s, p, 3, 1, 1)              # non-owner: pet(1) only -> no
+    assert accommodates(s, owner, 3, 1, 1)             # owner: pet + 3 card slots -> yes
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ def test_card_in_hand_contributes_nothing():
     s = _add_pasture(setup(0), 0, [(0, 0)])          # qualifying pasture
     held = _hand_minor(s, 0).players[0]
     assert extra_flexible_slots(held) == 0
-    assert extract_slots(held) == extract_slots(s.players[0])
+    assert extract_slots(s, held) == extract_slots(s, s.players[0])
 
 
 # ---------------------------------------------------------------------------

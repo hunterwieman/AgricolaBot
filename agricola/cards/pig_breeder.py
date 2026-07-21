@@ -95,7 +95,7 @@ def _frontier(state: GameState, idx: int) -> list[tuple[Animals, int]]:
     if b < 2:
         return []
     sR, bR, cR = cooking_rates(state, idx)[:3]
-    caps, flex = extract_slots(p)
+    caps, flex = extract_slots(state, p)
     feasible = [
         (Animals(sheep=sF, boar=bF, cattle=cF),
          (s - sF) * sR + (b + 1 - bF) * bR + (c - cF) * cR)

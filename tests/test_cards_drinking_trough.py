@@ -49,13 +49,13 @@ def test_bonus_two_when_owned():
 def test_each_pasture_gets_plus_two():
     # mid_round_6_basic: player 0 has two pastures (1x1 + 1 stable -> cap 4; 2x1 -> cap 4).
     state = STATES["mid_round_6_basic"]()
-    base_caps, base_flex = extract_slots(state.players[0])
+    base_caps, base_flex = extract_slots(state, state.players[0])
     state2 = _own_minor(state, 0, "drinking_trough")
-    caps, flex = extract_slots(state2.players[0])
+    caps, flex = extract_slots(state2, state2.players[0])
     assert flex == base_flex                         # house/stable slots unchanged
     assert sorted(caps) == sorted(c + 2 for c in base_caps)
     # The other (non-owner) player is unaffected.
-    assert extract_slots(state2.players[1]) == extract_slots(state.players[1])
+    assert extract_slots(state2, state2.players[1]) == extract_slots(state, state.players[1])
 
 
 def test_bonus_is_flat_not_doubled_by_stable():
@@ -63,7 +63,7 @@ def test_bonus_is_flat_not_doubled_by_stable():
     # (4 + 2), NOT 8 (no extra doubling) and NOT (2*1+2)*2 = 8 either.
     state = STATES["mid_round_6_basic"]()
     state = _own_minor(state, 0, "drinking_trough")
-    caps, _flex = extract_slots(state.players[0])
+    caps, _flex = extract_slots(state, state.players[0])
     assert 6 in caps          # the stabled pasture: 4 -> 6
     assert 8 not in caps
 
@@ -76,13 +76,13 @@ def test_capacity_lets_player_keep_more_animals():
     # build a 1x1 pasture at (0,0) by fencing all four edges (reuse the profile helper).
     from scripts.profile_states import _add_pasture
     s = _add_pasture(s, 0, [(0, 0)])           # 1x1, 0 stables -> capacity 2
-    caps0, flex0 = extract_slots(s.players[0])
+    caps0, flex0 = extract_slots(s, s.players[0])
     assert caps0 == [2]
     assert can_accommodate(caps0, flex0, 3, 0, 0)       # 2 in pasture + 1 pet
     assert not can_accommodate(caps0, flex0, 4, 0, 0)
 
     s2 = _own_minor(s, 0, "drinking_trough")
-    caps1, flex1 = extract_slots(s2.players[0])
+    caps1, flex1 = extract_slots(s2, s2.players[0])
     assert caps1 == [4]                                  # 2 -> 4
     assert can_accommodate(caps1, flex1, 5, 0, 0)        # 4 in pasture + 1 pet
     assert not can_accommodate(caps1, flex1, 6, 0, 0)

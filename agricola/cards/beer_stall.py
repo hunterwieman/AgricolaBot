@@ -105,7 +105,7 @@ def _options(state: GameState, idx: int) -> list:
             for s in range(cur.sheep + 1)
             for b in range(cur.boar + 1)
             for c in range(cur.cattle + 1)
-            if accommodates(reduced, s, b, c)
+            if accommodates(state, reduced, s, b, c)
         ]
 
         def dominates(x: Animals, y: Animals) -> bool:

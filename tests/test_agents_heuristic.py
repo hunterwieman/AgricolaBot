@@ -34,6 +34,11 @@ from agricola.setup import setup, setup_env
 from agricola.state import Farmyard, PlayerState
 from agricola.pasture import Pasture
 
+# Throwaway state for the (state, player_state) signature of
+# `_num_breeding_opportunities_from_farm`; these tests build bare PlayerStates
+# that own no state-reading cards, so any state is inert as the state arg.
+_S = setup(0)
+
 
 # ---------------------------------------------------------------------------
 # Evaluators return finite floats
@@ -263,7 +268,7 @@ def _player_with_pastures(pastures: tuple) -> PlayerState:
 def test_breeding_opportunities_single_1x1_pasture():
     """1×1 pasture + house flex = 3-capacity for one type → 1 breed."""
     p = _player_with_pastures((Pasture(cells=frozenset({(0, 0)}), num_stables=0, capacity=2),))
-    assert _num_breeding_opportunities_from_farm(p) == 1
+    assert _num_breeding_opportunities_from_farm(_S, p) == 1
 
 
 def test_breeding_opportunities_two_1x1_pastures():
@@ -273,7 +278,7 @@ def test_breeding_opportunities_two_1x1_pastures():
         Pasture(cells=frozenset({(0, 0)}), num_stables=0, capacity=2),
         Pasture(cells=frozenset({(0, 1)}), num_stables=0, capacity=2),
     ))
-    assert _num_breeding_opportunities_from_farm(p) == 1
+    assert _num_breeding_opportunities_from_farm(_S, p) == 1
 
 
 def test_breeding_opportunities_1x1_and_2x1():
@@ -283,7 +288,7 @@ def test_breeding_opportunities_1x1_and_2x1():
         Pasture(cells=frozenset({(0, 0)}), num_stables=0, capacity=2),
         Pasture(cells=frozenset({(0, 1), (0, 2)}), num_stables=0, capacity=4),
     ))
-    assert _num_breeding_opportunities_from_farm(p) == 2
+    assert _num_breeding_opportunities_from_farm(_S, p) == 2
 
 
 def test_breeding_opportunities_two_2x2():
@@ -292,7 +297,7 @@ def test_breeding_opportunities_two_2x2():
         Pasture(cells=frozenset({(0, 0), (0, 1), (1, 0), (1, 1)}), num_stables=0, capacity=8),
         Pasture(cells=frozenset({(0, 3), (0, 4), (1, 3), (1, 4)}), num_stables=0, capacity=8),
     ))
-    assert _num_breeding_opportunities_from_farm(p) == 2
+    assert _num_breeding_opportunities_from_farm(_S, p) == 2
 
 
 def test_breeding_opportunities_three_2x1():
@@ -302,10 +307,10 @@ def test_breeding_opportunities_three_2x1():
         Pasture(cells=frozenset({(1, 0), (1, 1)}), num_stables=0, capacity=4),
         Pasture(cells=frozenset({(2, 0), (2, 1)}), num_stables=0, capacity=4),
     ))
-    assert _num_breeding_opportunities_from_farm(p) == 3
+    assert _num_breeding_opportunities_from_farm(_S, p) == 3
 
 
 def test_breeding_opportunities_no_pastures():
     """No pastures + house flex 1: not enough flex for 3 of one type → 0 breeds."""
     p = _player_with_pastures(())
-    assert _num_breeding_opportunities_from_farm(p) == 0
+    assert _num_breeding_opportunities_from_farm(_S, p) == 0

@@ -52,7 +52,7 @@ def _can_accommodate_all_three(state: GameState, idx: int) -> bool:
     (Displacing/cooking other animals to make room is allowed.)"""
     p = state.players[idx]
     rates = cooking_rates(state, idx)[:3]
-    frontier = pareto_frontier(p, _GAINED, rates)
+    frontier = pareto_frontier(state, p, _GAINED, rates)
     return any(a.sheep >= 1 and a.boar >= 1 and a.cattle >= 1 for a, _food in frontier)
 
 
@@ -75,7 +75,7 @@ def _on_play(state: GameState, idx: int, variant: str | None = None) -> GameStat
     p = fast_replace(p, animals=p.animals + _GAINED)
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
-    if accommodates(p, p.animals.sheep, p.animals.boar, p.animals.cattle):
+    if accommodates(state, p, p.animals.sheep, p.animals.boar, p.animals.cattle):
         return state
     return push(state, PendingAccommodate(
         player_idx=idx, initiated_by_id=f"card:{CARD_ID}", min_keep=_GAINED))

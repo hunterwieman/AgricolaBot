@@ -59,7 +59,7 @@ def _can_house_one_more(state: GameState, idx: int, animal: str) -> bool:
     (Displacing/cooking other animals to make room is allowed.)"""
     p = state.players[idx]
     rates = cooking_rates(state, idx)[:3]
-    frontier = pareto_frontier(p, Animals(**{animal: 1}), rates)
+    frontier = pareto_frontier(state, p, Animals(**{animal: 1}), rates)
     return any(getattr(a, animal) >= 1 for a, _food in frontier)
 
 
@@ -87,7 +87,7 @@ def _on_play(state: GameState, idx: int, variant: str) -> GameState:
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2))
     )
-    if accommodates(p, p.animals.sheep, p.animals.boar, p.animals.cattle):
+    if accommodates(state, p, p.animals.sheep, p.animals.boar, p.animals.cattle):
         return state
     return push(state, PendingAccommodate(
         player_idx=idx, initiated_by_id=f"card:{CARD_ID}", min_keep=gained))

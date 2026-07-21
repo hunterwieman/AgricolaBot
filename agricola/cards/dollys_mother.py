@@ -54,5 +54,5 @@ def _prereq(state: GameState, idx: int) -> bool:
 
 
 register_minor(CARD_ID, prereq=_prereq, vps=1)
-register_typed_slots(CARD_ID, lambda p: Animals(sheep=1))
+register_typed_slots(CARD_ID, lambda state, p: Animals(sheep=1))
 register_single_parent_sheep(CARD_ID)

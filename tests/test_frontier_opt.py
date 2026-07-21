@@ -82,7 +82,7 @@ def test_pareto_frontier_equiv(gained):
         for pidx, ps in enumerate(state.players):
             rates3 = helpers.cooking_rates(state, pidx)[:3]
             _assert_equiv(
-                lambda ps=ps, r=rates3, g=gained: helpers.pareto_frontier(ps, g, r),
+                lambda ps=ps, r=rates3, g=gained, s=state: helpers.pareto_frontier(s, ps, g, r),
                 _norm_animal,
             )
 
@@ -92,7 +92,7 @@ def test_breeding_frontier_equiv():
         for pidx, ps in enumerate(state.players):
             rates3 = helpers.cooking_rates(state, pidx)[:3]
             _assert_equiv(
-                lambda ps=ps, r=rates3: helpers.breeding_frontier(ps, r),
+                lambda ps=ps, r=rates3, s=state: helpers.breeding_frontier(s, ps, r),
                 _norm_animal,
             )
 
@@ -164,7 +164,7 @@ def test_pareto_frontier_equiv_non_canonical_caps(gained):
         from agricola.cards.capacity_mods import pasture_capacity_bonus
         assert pasture_capacity_bonus(ps) == 2
         _assert_equiv(
-            lambda ps=ps, r=rates3, g=gained: helpers.pareto_frontier(ps, g, r),
+            lambda ps=ps, r=rates3, g=gained, s=state: helpers.pareto_frontier(s, ps, g, r),
             _norm_animal,
         )
 
@@ -174,7 +174,7 @@ def test_breeding_frontier_equiv_non_canonical_caps():
         ps = state.players[0]
         rates3 = helpers.cooking_rates(state, 0)[:3]
         _assert_equiv(
-            lambda ps=ps, r=rates3: helpers.breeding_frontier(ps, r),
+            lambda ps=ps, r=rates3, s=state: helpers.breeding_frontier(s, ps, r),
             _norm_animal,
         )
 
@@ -228,7 +228,7 @@ def test_pareto_frontier_equiv_tinsmith_per_pasture(gained):
         assert pasture_capacity_per_list(ps, ps.farmyard.pastures) is not None, name
         rates3 = helpers.cooking_rates(state, 0)[:3]
         _assert_equiv(
-            lambda ps=ps, r=rates3, g=gained: helpers.pareto_frontier(ps, g, r),
+            lambda ps=ps, r=rates3, g=gained, s=state: helpers.pareto_frontier(s, ps, g, r),
             _norm_animal,
         )
 
@@ -238,7 +238,7 @@ def test_breeding_frontier_equiv_tinsmith_per_pasture():
         ps = state.players[0]
         rates3 = helpers.cooking_rates(state, 0)[:3]
         _assert_equiv(
-            lambda ps=ps, r=rates3: helpers.breeding_frontier(ps, r),
+            lambda ps=ps, r=rates3, s=state: helpers.breeding_frontier(s, ps, r),
             _norm_animal,
         )
 

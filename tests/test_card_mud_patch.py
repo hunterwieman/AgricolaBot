@@ -44,6 +44,10 @@ from agricola.resources import Animals, Cost, Resources
 from agricola.setup import CardPool, setup, setup_env
 from agricola.state import Cell
 
+# Throwaway state for the (state, player_state) accommodation-helper signature;
+# this card reads only the player's farm, so any state is inert as the state arg.
+_S = setup(0)
+
 from tests.factories import (
     with_animals,
     with_fields,
@@ -92,7 +96,7 @@ def test_registration():
     # The boar-only typed slot is registered.
     slot_fns = [fn for cid, fn in TYPED_SLOT_CARDS if cid == CARD_ID]
     assert len(slot_fns) == 1
-    assert slot_fns[0](setup(0).players[0]) == Animals()  # bare farm: no fields
+    assert slot_fns[0](_S, _S.players[0]) == Animals()  # bare farm: no fields
 
     # Both eviction autos are registered.
     assert CARD_ID in {e.card_id for e in AUTO_EFFECTS.get("after_sow", [])}
@@ -122,17 +126,17 @@ def test_slots_count_unplanted_board_tiles_only():
     })
     p = state.players[0]
     assert _unplanted_field_tiles(p) == 2
-    assert _slots(p) == Animals(boar=2)
+    assert _slots(state, p) == Animals(boar=2)
 
     # A card-field never counts as a field TILE — the count is grid-only, so it
     # is unchanged by anything off the grid (nothing added here beyond the grid).
-    assert typed_slot_counts(_own(state).players[0]) == Animals(boar=2)
+    assert typed_slot_counts(state, _own(state).players[0]) == Animals(boar=2)
 
 
 def test_slots_hold_boar_only():
     """The card grants boar slots only — never sheep or cattle."""
     state = _own(with_fields(setup(0), 0, [(0, 0), (0, 1)]))
-    counts = typed_slot_counts(state.players[0])
+    counts = typed_slot_counts(state, state.players[0])
     assert counts == Animals(boar=2)
     assert counts.sheep == 0 and counts.cattle == 0
 
@@ -140,8 +144,8 @@ def test_slots_hold_boar_only():
     # 1 house pet, 2 boar + 1 sheep fits (boar on the card, sheep as pet) but
     # 2 boar + 2 sheep does not (only one flexible pet slot for the sheep).
     p = state.players[0]
-    assert accommodates(p, 1, 2, 0)
-    assert not accommodates(p, 2, 2, 0)
+    assert accommodates(state, p, 1, 2, 0)
+    assert not accommodates(state, p, 2, 2, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +155,7 @@ def test_slots_hold_boar_only():
 def test_tableau_only():
     state = with_fields(setup(0), 0, [(0, 0), (0, 1)])
     # Not owned (setup deals nothing into minor_improvements): no boar slots.
-    assert typed_slot_counts(state.players[0]) == Animals()
+    assert typed_slot_counts(state, state.players[0]) == Animals()
     # Merely in hand is still not owned.
     p = state.players[0]
     in_hand = dataclasses.replace(
@@ -159,9 +163,9 @@ def test_tableau_only():
         players=tuple(
             fast_replace(p, hand_minors=p.hand_minors | {CARD_ID}) if i == 0
             else state.players[i] for i in range(2)))
-    assert typed_slot_counts(in_hand.players[0]) == Animals()
+    assert typed_slot_counts(in_hand, in_hand.players[0]) == Animals()
     # In the tableau: 2 boar slots.
-    assert typed_slot_counts(_own(state).players[0]) == Animals(boar=2)
+    assert typed_slot_counts(state, _own(state).players[0]) == Animals(boar=2)
 
 
 # ---------------------------------------------------------------------------
@@ -172,15 +176,15 @@ def test_capacity_rises_when_field_plowed():
     state = _own(with_fields(setup(0), 0, [(0, 0), (0, 1)]))
     p = state.players[0]
     # 2 field slots + 1 house pet: 2 boar fit; a 3rd boar does not.
-    assert typed_slot_counts(p) == Animals(boar=2)
-    assert accommodates(p, 0, 3, 0)     # 2 on card, 1 house pet
-    assert not accommodates(p, 0, 4, 0)
+    assert typed_slot_counts(state, p) == Animals(boar=2)
+    assert accommodates(state, p, 0, 3, 0)     # 2 on card, 1 house pet
+    assert not accommodates(state, p, 0, 4, 0)
 
     # Plow a 3rd field -> 3 boar slots -> a 4th boar now fits.
     state = with_fields(state, 0, [(0, 0), (0, 1), (0, 2)])
     p2 = state.players[0]
-    assert typed_slot_counts(p2) == Animals(boar=3)
-    assert accommodates(p2, 0, 4, 0)
+    assert typed_slot_counts(state, p2) == Animals(boar=3)
+    assert accommodates(state, p2, 0, 4, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +248,7 @@ def test_eviction_via_sow_forces_accommodation():
     the barrier surfaces the keep-or-cook choice."""
     state = _eviction_setup(own=True)
     # Pre-sow: the 2 boar fit (card slot + house pet), so no barrier is armed.
-    assert accommodates(state.players[0], 0, 2, 0)
+    assert accommodates(state, state.players[0], 0, 2, 0)
 
     state = _sow_last_field(state)
     # The sow really ran (the field now holds grain).

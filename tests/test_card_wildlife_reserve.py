@@ -37,6 +37,10 @@ from agricola.state import Cell, Farmyard
 
 from tests.factories import with_phase, with_resources
 
+# Throwaway state for the (state, player_state) accommodation-helper signature;
+# these tests own no game-global-fact cards, so any state is inert there.
+_S = setup(0)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -124,7 +128,7 @@ def test_registration():
     # one typed-slot row: 1 of each species, tableau-independent of the player.
     slot_fns = [fn for cid, fn in TYPED_SLOT_CARDS if cid == CARD_ID]
     assert len(slot_fns) == 1
-    assert slot_fns[0](setup(seed=0).players[0]) == Animals(sheep=1, boar=1, cattle=1)
+    assert slot_fns[0](_S, _S.players[0]) == Animals(sheep=1, boar=1, cattle=1)
 
     rows = json.load(open("agricola/cards/data/revised_minor_improvements.json"))
     row = next(r for r in rows if r["name"] == "Wildlife Reserve")
@@ -144,21 +148,21 @@ def test_typed_slots_tableau_only():
 
     # Not owned: no typed slots -> bare farm holds only the 1 house pet.
     plain = base.players[0]
-    assert typed_slot_counts(plain) == Animals()
-    assert extract_slots(plain) == ([], 1)
-    assert not accommodates(plain, 1, 1, 1)      # 3 animals, 1 pet -> overflow
-    assert accommodates(plain, 1, 0, 0)          # 1 animal on the pet
+    assert typed_slot_counts(base, plain) == Animals()
+    assert extract_slots(base, plain) == ([], 1)
+    assert not accommodates(base, plain, 1, 1, 1)      # 3 animals, 1 pet -> overflow
+    assert accommodates(base, plain, 1, 0, 0)          # 1 animal on the pet
 
     # Held in hand only: still not in the tableau -> still no slots.
     hand = _in_hand(base, 0).players[0]
-    assert typed_slot_counts(hand) == Animals()
-    assert not accommodates(hand, 1, 1, 1)
+    assert typed_slot_counts(base, hand) == Animals()
+    assert not accommodates(base, hand, 1, 1, 1)
 
     # In the tableau: exactly 1 slot per species (extract_slots is unaffected —
     # typed slots ride the strip, not the pasture/flexible-slot list).
     owner = _own(base, 0).players[0]
-    assert typed_slot_counts(owner) == Animals(sheep=1, boar=1, cattle=1)
-    assert extract_slots(owner) == ([], 1)
+    assert typed_slot_counts(base, owner) == Animals(sheep=1, boar=1, cattle=1)
+    assert extract_slots(base, owner) == ([], 1)
 
 
 # ---------------------------------------------------------------------------
@@ -178,18 +182,18 @@ def test_accommodates_per_species_slots():
         * 2 sheep + 2 boar + 1 cattle (5 animals) does NOT fit either."""
     p = _own(setup(seed=0), 0).players[0]
 
-    assert accommodates(p, 1, 1, 1)          # one of each on its species slot
-    assert accommodates(p, 2, 1, 1)          # extra sheep on the house pet
-    assert accommodates(p, 1, 2, 1)          # symmetric: extra boar on the pet
+    assert accommodates(_S, p, 1, 1, 1)          # one of each on its species slot
+    assert accommodates(_S, p, 2, 1, 1)          # extra sheep on the house pet
+    assert accommodates(_S, p, 1, 2, 1)          # symmetric: extra boar on the pet
 
-    assert not accommodates(p, 2, 2, 0)      # two species overflow, one pet
-    assert not accommodates(p, 2, 2, 1)      # ditto, with the cattle slot filled
+    assert not accommodates(_S, p, 2, 2, 0)      # two species overflow, one pet
+    assert not accommodates(_S, p, 2, 2, 1)      # ditto, with the cattle slot filled
 
     # Non-owner control: the bare farm holds only the 1 house pet.
     q = setup(seed=0).players[0]
-    assert not accommodates(q, 1, 1, 1)
-    assert not accommodates(q, 2, 1, 1)
-    assert accommodates(q, 1, 0, 0)
+    assert not accommodates(_S, q, 1, 1, 1)
+    assert not accommodates(_S, q, 2, 1, 1)
+    assert accommodates(_S, q, 1, 0, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -205,8 +209,8 @@ def test_pareto_frontier_uses_card_capacity():
     plain = base.players[0]
 
     gain = Animals(sheep=1, boar=1, cattle=1)
-    carded = pareto_frontier(owner, gain, rates=(2, 3, 4))
-    bare = pareto_frontier(plain, gain, rates=(2, 3, 4))
+    carded = pareto_frontier(base, owner, gain, rates=(2, 3, 4))
+    bare = pareto_frontier(base, plain, gain, rates=(2, 3, 4))
 
     # Owner can keep the full one-of-each haul; the non-owner cannot.
     assert (Animals(sheep=1, boar=1, cattle=1), 0) in carded
@@ -233,12 +237,12 @@ def test_breeding_frontier_houses_newborn():
 
     owner = _animals(_with_pasture(_own(base, 0), 0, capacity=2), 0,
                      sheep=2, boar=1).players[0]
-    of = breeding_frontier(owner)
+    of = breeding_frontier(base, owner)
     assert any(a == Animals(sheep=3, boar=1, cattle=0) for a, _ in of)
 
     plain = _animals(_with_pasture(base, 0, capacity=2), 0,
                      sheep=2, boar=1).players[0]
-    pf = breeding_frontier(plain)
+    pf = breeding_frontier(base, plain)
     assert not any(a == Animals(sheep=3, boar=1, cattle=0) for a, _ in pf)
     assert all(a.boar == 0 for a, _ in pf if a.sheep == 3)   # breeding cooks the boar
 

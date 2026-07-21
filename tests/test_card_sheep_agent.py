@@ -32,6 +32,10 @@ from agricola.setup import setup
 
 from tests.factories import with_phase, with_resources
 
+# Throwaway state for the (state, player_state) accommodation-helper signature;
+# Sheep Agent's count reads only the player's tableau, so any state is inert here.
+_S = setup(0)
+
 
 # ---------------------------------------------------------------------------
 # Helpers (mirroring tests/test_card_dollys_mother.py)
@@ -108,14 +112,14 @@ def test_registration():
 def test_self_only_one_slot():
     """Only Sheep Agent played → 1 sheep slot (itself, via "(including this one)")."""
     p = _own_occ(setup(seed=0), 0, {CARD_ID}).players[0]
-    assert _slots(p) == Animals(sheep=1)
+    assert _slots(_S, p) == Animals(sheep=1)
 
 
 def test_each_nonholder_occupation_adds_one():
     """Each additional non-holder occupation adds one sheep slot."""
     base = setup(seed=0)
-    assert _slots(_own_occ(base, 0, {CARD_ID, OCC_A}).players[0]) == Animals(sheep=2)
-    assert _slots(_own_occ(base, 0, {CARD_ID, OCC_A, OCC_B}).players[0]) \
+    assert _slots(base, _own_occ(base, 0, {CARD_ID, OCC_A}).players[0]) == Animals(sheep=2)
+    assert _slots(base, _own_occ(base, 0, {CARD_ID, OCC_A, OCC_B}).players[0]) \
         == Animals(sheep=3)
 
 
@@ -127,12 +131,12 @@ def test_holder_occupation_excluded_self_still_counts():
         TYPED_SLOT_CARDS, animal_holder_card_ids)
 
     THROWAWAY = "test_throwaway_holder_occ"
-    TYPED_SLOT_CARDS.append((THROWAWAY, lambda p: Animals(boar=1)))
+    TYPED_SLOT_CARDS.append((THROWAWAY, lambda state, p: Animals(boar=1)))
     try:
         assert THROWAWAY in animal_holder_card_ids()
         p = _own_occ(setup(seed=0), 0, {CARD_ID, THROWAWAY, OCC_A}).players[0]
         # sheep_agent (itself) + OCC_A (non-holder) count; THROWAWAY excluded.
-        assert _slots(p) == Animals(sheep=2)
+        assert _slots(_S, p) == Animals(sheep=2)
     finally:
         TYPED_SLOT_CARDS[:] = [e for e in TYPED_SLOT_CARDS if e[0] != THROWAWAY]
 
@@ -142,7 +146,7 @@ def test_minors_add_nothing():
     p = _edit_player(setup(seed=0), 0,
                      occupations=frozenset({CARD_ID}),
                      minor_improvements=frozenset({OCC_A, OCC_B, "some_minor"}))
-    assert _slots(p.players[0]) == Animals(sheep=1)
+    assert _slots(p, p.players[0]) == Animals(sheep=1)
 
 
 def test_hand_occupations_add_nothing():
@@ -150,7 +154,7 @@ def test_hand_occupations_add_nothing():
     p = _edit_player(setup(seed=0), 0,
                      occupations=frozenset({CARD_ID}),
                      hand_occupations=frozenset({OCC_A, OCC_B}))
-    assert _slots(p.players[0]) == Animals(sheep=1)
+    assert _slots(p, p.players[0]) == Animals(sheep=1)
 
 
 # ---------------------------------------------------------------------------
@@ -163,15 +167,15 @@ def test_accommodates_uses_the_slots():
     from agricola.cards.capacity_mods import typed_slot_counts
 
     owner = _own_occ(setup(seed=0), 0, {CARD_ID, OCC_A, OCC_B}).players[0]
-    assert typed_slot_counts(owner) == Animals(sheep=3)   # 3 slots
-    assert accommodates(owner, 4, 0, 0)     # 3 card slots + 1 house pet
-    assert not accommodates(owner, 5, 0, 0)
-    assert accommodates(owner, 0, 1, 0)     # 1 boar still fits the house pet
+    assert typed_slot_counts(_S, owner) == Animals(sheep=3)   # 3 slots
+    assert accommodates(_S, owner, 4, 0, 0)     # 3 card slots + 1 house pet
+    assert not accommodates(_S, owner, 5, 0, 0)
+    assert accommodates(_S, owner, 0, 1, 0)     # 1 boar still fits the house pet
     # The slots are sheep-only: 2 boar do NOT fit (only the 1 pet).
-    assert not accommodates(owner, 0, 2, 0)
+    assert not accommodates(_S, owner, 0, 2, 0)
     # Non-owner control: 2 sheep do not fit the bare farm.
     q = setup(seed=0).players[0]
-    assert not accommodates(q, 2, 0, 0)
+    assert not accommodates(_S, q, 2, 0, 0)
 
 
 def test_pareto_frontier_houses_extra_sheep():
@@ -180,8 +184,8 @@ def test_pareto_frontier_houses_extra_sheep():
     capacity allows, so the frontier is a single all-kept point.)"""
     base = setup(seed=0)
     owner = _animals(_own_occ(base, 0, {CARD_ID, OCC_A, OCC_B}), 0, sheep=3)
-    carded = pareto_frontier(owner.players[0], Animals(sheep=1), rates=(2, 0, 0))
-    plain = pareto_frontier(_animals(base, 0, sheep=3).players[0],
+    carded = pareto_frontier(owner, owner.players[0], Animals(sheep=1), rates=(2, 0, 0))
+    plain = pareto_frontier(base, _animals(base, 0, sheep=3).players[0],
                             Animals(sheep=1), rates=(2, 0, 0))
     # Bare farm keeps at most 1 sheep; the owner keeps all 4 (3 slots + pet).
     assert max(a.sheep for a, _ in plain) == 1
@@ -242,6 +246,6 @@ def test_stacks_with_dollys_mother_minor():
                      occupations=frozenset({CARD_ID}),
                      minor_improvements=frozenset({DOLLY})).players[0]
     # Sheep Agent's own count ignores the minor (1 = itself only).
-    assert _slots(p) == Animals(sheep=1)
+    assert _slots(_S, p) == Animals(sheep=1)
     # Both stack: Sheep Agent's 1 + Dolly's Mother's 1 = 2 sheep slots total.
-    assert typed_slot_counts(p) == Animals(sheep=2)
+    assert typed_slot_counts(_S, p) == Animals(sheep=2)

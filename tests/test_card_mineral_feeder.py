@@ -89,15 +89,15 @@ def test_pastured_sheep_possible():
     base = setup(seed=0)
     pastured = _set_pasture_1x1(base, 0)
     # No sheep -> no; sheep but no pasture -> no; sheep + pasture -> yes.
-    assert not _pastured_sheep_possible(base.players[0], Animals(sheep=0))
-    assert not _pastured_sheep_possible(base.players[0], Animals(sheep=1))
-    assert _pastured_sheep_possible(pastured.players[0], Animals(sheep=1))
+    assert not _pastured_sheep_possible(base, base.players[0], Animals(sheep=0))
+    assert not _pastured_sheep_possible(base, base.players[0], Animals(sheep=1))
+    assert _pastured_sheep_possible(pastured, pastured.players[0], Animals(sheep=1))
     # The forced-out case: 1 sheep + 2 boar, one 2-space pasture + the pet —
     # the boars must take the pasture, so no arrangement pastures the sheep.
-    assert not _pastured_sheep_possible(pastured.players[0],
+    assert not _pastured_sheep_possible(pastured, pastured.players[0],
                                         Animals(sheep=1, boar=2))
     # 1 sheep + 1 boar: sheep in the pasture, boar in the house.
-    assert _pastured_sheep_possible(pastured.players[0],
+    assert _pastured_sheep_possible(pastured, pastured.players[0],
                                     Animals(sheep=1, boar=1))
 
 
@@ -110,9 +110,9 @@ def test_dollys_mother_strip_composes():
 
     state = _set_pasture_1x1(setup(seed=0), 0)
     a = Animals(sheep=3, boar=1)
-    assert not _pastured_sheep_possible(state.players[0], a)
+    assert not _pastured_sheep_possible(state, state.players[0], a)
     owned = _own(state, 0, DOLLY)
-    assert _pastured_sheep_possible(owned.players[0], a)
+    assert _pastured_sheep_possible(owned, owned.players[0], a)
 
 
 # ---------------------------------------------------------------------------

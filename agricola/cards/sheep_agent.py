@@ -53,7 +53,7 @@ from agricola.state import PlayerState
 CARD_ID = "sheep_agent"
 
 
-def _slots(player_state: PlayerState) -> Animals:
+def _slots(state, player_state: PlayerState) -> Animals:
     """One sheep slot per qualifying PLAYED occupation (see module docstring):
     every occupation not already able to hold animals, plus Sheep Agent itself
     ("(including this one)")."""

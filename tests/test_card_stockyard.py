@@ -32,6 +32,10 @@ from agricola.setup import setup
 
 from tests.factories import with_phase, with_resources
 
+# Throwaway state for the (state, player_state) accommodation-helper signature;
+# these tests own no game-global-fact cards, so any state is inert there.
+_S = setup(0)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -115,15 +119,15 @@ def test_extract_slots_adds_bin_only_when_owned():
     base = setup(seed=0)
 
     # Not owned at all: bare farm has no pastures and 1 flexible slot (house pet).
-    caps, flex = extract_slots(base.players[0])
+    caps, flex = extract_slots(base, base.players[0])
     assert caps == [] and flex == 1
 
     # Card merely HELD in hand: still not owned -> no bin.
-    caps, flex = extract_slots(_in_hand(base, 0).players[0])
+    caps, flex = extract_slots(base, _in_hand(base, 0).players[0])
     assert caps == [] and flex == 1
 
     # Card in the tableau: exactly one extra single-type bin of capacity 3.
-    caps, flex = extract_slots(_own(base, 0).players[0])
+    caps, flex = extract_slots(base, _own(base, 0).players[0])
     assert caps == [3] and flex == 1
 
 
@@ -138,13 +142,13 @@ def test_accommodates_single_type_bin():
       so whichever type sits in the bin, 2 of the other type overflow into a
       single house slot."""
     p = _own(setup(seed=0), 0).players[0]
-    assert accommodates(p, 3, 1, 0)          # 3 sheep in bin, boar as house pet
-    assert not accommodates(p, 2, 2, 0)      # single-type bin -> 2 of a type overflow
+    assert accommodates(_S, p, 3, 1, 0)          # 3 sheep in bin, boar as house pet
+    assert not accommodates(_S, p, 2, 2, 0)      # single-type bin -> 2 of a type overflow
 
     # Non-owner control: the bare farm holds only the 1 house pet.
     q = setup(seed=0).players[0]
-    assert not accommodates(q, 3, 1, 0)
-    assert not accommodates(q, 2, 0, 0)
+    assert not accommodates(_S, q, 3, 1, 0)
+    assert not accommodates(_S, q, 2, 0, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -159,8 +163,8 @@ def test_pareto_frontier_uses_card_capacity():
     owner = _own(base, 0).players[0]
     plain = base.players[0]
 
-    carded = pareto_frontier(owner, Animals(sheep=4), rates=(2, 0, 0))
-    bare = pareto_frontier(plain, Animals(sheep=4), rates=(2, 0, 0))
+    carded = pareto_frontier(base, owner, Animals(sheep=4), rates=(2, 0, 0))
+    bare = pareto_frontier(base, plain, Animals(sheep=4), rates=(2, 0, 0))
 
     assert max(a.sheep for a, _ in carded) == 4
     assert (Animals(sheep=4, boar=0, cattle=0), 0) in carded
@@ -175,13 +179,13 @@ def test_breeding_frontier_houses_newborn():
     """Owner with 2 sheep and no pastures: the newborn (2 -> 3) fits on the
     bin (capacity 3)."""
     owner = _animals(_own(setup(seed=0), 0), 0, sheep=2).players[0]
-    frontier = breeding_frontier(owner)
+    frontier = breeding_frontier(_S, owner)
     assert any(a.sheep == 3 for a, _ in frontier)
 
     # Non-owner control: 2 sheep don't even fit the bare farm, and there is
     # nowhere to put a 3rd -> no sheep=3 outcome.
     plain = _animals(setup(seed=0), 0, sheep=2).players[0]
-    assert all(a.sheep < 3 for a, _ in breeding_frontier(plain))
+    assert all(a.sheep < 3 for a, _ in breeding_frontier(_S, plain))
 
 
 def test_breed_flow_offers_third_sheep():

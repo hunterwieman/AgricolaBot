@@ -115,7 +115,7 @@ def test_registration():
     assert spec.vps == 1
     assert spec.prereq is not None
     entry = next(fn for cid, fn in TYPED_SLOT_CARDS if cid == CARD_ID)
-    assert entry(None) == Animals(sheep=1)   # a static count; ignores the player
+    assert entry(None, None) == Animals(sheep=1)   # a static count; ignores state and player
     assert CARD_ID in SINGLE_PARENT_SHEEP_CARDS
     rows = json.load(open("agricola/cards/data/revised_minor_improvements.json"))
     row = next(r for r in rows if r["name"] == "Dolly's Mother")
@@ -138,13 +138,13 @@ def test_slot_holds_one_sheep_only():
     slot is sheep-only) and not 3 sheep (one slot each, nothing left)."""
     state = _own(setup(seed=0), 0)
     p = state.players[0]
-    assert accommodates(p, 2, 0, 0)
-    assert accommodates(p, 1, 1, 0)
-    assert not accommodates(p, 0, 2, 0)
-    assert not accommodates(p, 3, 0, 0)
+    assert accommodates(state, p, 2, 0, 0)
+    assert accommodates(state, p, 1, 1, 0)
+    assert not accommodates(state, p, 0, 2, 0)
+    assert not accommodates(state, p, 3, 0, 0)
     # Non-owner control: 2 sheep do NOT fit the bare farm.
     q = setup(seed=0).players[0]
-    assert not accommodates(q, 2, 0, 0)
+    assert not accommodates(state, q, 2, 0, 0)
 
 
 def test_barrier_uses_the_slot():
@@ -170,9 +170,9 @@ def test_pareto_frontier_shifts_by_the_slot():
     never forces keeping it)."""
     base = setup(seed=0)
     owner = _own(base, 0)
-    plain = pareto_frontier(_animals(base, 0, sheep=1).players[0],
+    plain = pareto_frontier(base, _animals(base, 0, sheep=1).players[0],
                             Animals(sheep=1), rates=(2, 0, 0))
-    carded = pareto_frontier(_animals(owner, 0, sheep=1).players[0],
+    carded = pareto_frontier(owner, _animals(owner, 0, sheep=1).players[0],
                              Animals(sheep=1), rates=(2, 0, 0))
     # Bare farm: keep at most 1 (cook the other -> 2 food). Owner: keep both.
     assert max(a.sheep for a, _ in plain) == 1
@@ -191,14 +191,14 @@ def test_cross_level_equivalence():
     try:
         opt_config.PARETO_OPT_LEVEL = 0
         slow_p = sorted((a.sheep, a.boar, a.cattle, f)
-                        for a, f in pareto_frontier(p, Animals(sheep=1), (2, 2, 3)))
+                        for a, f in pareto_frontier(state, p, Animals(sheep=1), (2, 2, 3)))
         slow_b = sorted((a.sheep, a.boar, a.cattle, f)
-                        for a, f in breeding_frontier(p, (2, 2, 3)))
+                        for a, f in breeding_frontier(state, p, (2, 2, 3)))
         opt_config.PARETO_OPT_LEVEL = saved if saved >= 1 else 1
         fast_p = sorted((a.sheep, a.boar, a.cattle, f)
-                        for a, f in pareto_frontier(p, Animals(sheep=1), (2, 2, 3)))
+                        for a, f in pareto_frontier(state, p, Animals(sheep=1), (2, 2, 3)))
         fast_b = sorted((a.sheep, a.boar, a.cattle, f)
-                        for a, f in breeding_frontier(p, (2, 2, 3)))
+                        for a, f in breeding_frontier(state, p, (2, 2, 3)))
     finally:
         opt_config.PARETO_OPT_LEVEL = saved
     assert slow_p == fast_p

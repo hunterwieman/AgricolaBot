@@ -1050,7 +1050,7 @@ def test_animal_frontier_accommodate_matches_legality_and_food():
     rates3 = cooking_rates(s, top.player_idx)[:3]
     food_by_cfg = {
         (c.sheep, c.boar, c.cattle): f
-        for c, f in pareto_frontier(s.players[top.player_idx],
+        for c, f in pareto_frontier(s, s.players[top.player_idx],
                                     Animals(sheep=top.gained), rates3)
     }
     foods = [row[3] for _, row in H.enumerate_candidates(s)]
