@@ -146,9 +146,10 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   **Work Certificate** (A82 — an `after_action_space` play-variant trigger on every own space
   use, hooked over the full `SPACE_IDS`; typeless ≥4-total threshold, any building type present
   takeable; per its clarification the very use that plays it may fire it) and **Handcart**
-  (B81 — a `before_work` prep-window play-variant trigger; 6/5/4/4 thresholds and the take
-  follow the space's NATIVE type — the Material Hub-analog reading, flagged for user
-  confirmation; the post-refill stock counts, proven through a real round boundary). The
+  (B81 — a `before_work` prep-window play-variant trigger; the space FAMILY sets the 6/5/4/4
+  threshold NUMBER, but ANY single type reaching it qualifies and any present type is
+  takeable — user ruling 2026-07-20, which corrected the driver's first-pass native-type
+  reading; the post-refill stock counts, proven through a real round boundary). The
   **Stone Clearing (C6) engine layer** (user go-ahead + the never-reads-as-empty instruction,
   2026-07-20): `Cell.stone` (qualified canonical skip "Cell.stone" — unqualified would wrongly
   skip `Resources.stone`), the **`Cell.field_empty` / `Cell.field_planted`** properties as the

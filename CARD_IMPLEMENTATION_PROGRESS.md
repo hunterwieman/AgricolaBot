@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 243 implemented · 🚫 3 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 173 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 243 implemented · 🚫 4 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 172 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -86,7 +86,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A20 Double-Turn Plow** · cost: 1 Grain,(+1 Food) · prereq: Play in Round 3 (5) or Before
   - _When you play this card, you can immediately plow up to 2 fields.  [CLARIFICATION: The cost is 1 extra food if played in Round 4 or 5.]_
   - `ONPLAY E-GRANTSUB E-FOODCOST` — On play optionally plow up to 2 fields; the play-cost's +1 food (round-4/5 clause) is a food cost. Round restriction is a plain prereq.
-- ✅ **A21 Family Friendly Home** · prereq: 1 Occupation *(name corrected 2026-07-20 — the data JSON's "Family Friend Home" was wrong; implemented 2026-07-20, ruling 69: the rooms>people measure is BEFORE the action — `before_build_rooms` food auto + optional growth trigger, food unconditional on the condition; named-action gate on `build_rooms_action`)*
+- ✅ **A21 Family Friendly Home** · prereq: 1 Occupation *(name corrected 2026-07-20 — the data JSON's "Family Friend Home" was wrong; implemented 2026-07-20, ruling 69: the rooms>people measure is BEFORE the action — `before_build_rooms` food auto + optional growth trigger, food unconditional on the condition; named-action gate on `build_rooms_action` [user-confirmed 2026-07-20])*
   - _Each time you take a "Build Rooms" action while having more rooms than people already, you also get a "Family Growth" action and 1 food.  [CLARIFICATION: This card allows exactly 1 growth action regardless of how many rooms are built.]_
   - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS E-GRANTSUB E-GROWTH` — 'Each time you take a Build Rooms action' → default T-BEFORE (no 'immediately after' wording), and the rooms-vs-people condition is checked with 'already' at initiation; grants an optional Family Growth (E-GRANTSUB + E-GROWTH, exactly 1 per clarification) plus 1 food (E-GOODS).
 - ⬜ **A22 Telegram** · cost: 2 Food · prereq: At Least 1 Fence in Supply
@@ -271,7 +271,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A81 Interim Storage** · cost: 2 Food
   - _Each time you use a clay/reed/stone accumulation space, place 1 wood/clay/reed on this card. At the start of rounds 7, 11, and 14, move all the goods on this card to your supply._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN ST-STACK E-SCHED` — The good placed is fixed by which accumulation space was used — no choice, so F-AUTO not F-MANDCHOICE; the fixed-round (7/11/14) release is scheduled collection (E-SCHED) off the on-card pile (ST-STACK), not an immediate E-GOODS or a separate S-SOR hook.
-- ✅ **A82 Work Certificate** · prereq: 3 Occupations *(implemented 2026-07-20, ruling 70: the C3 mechanism approved; `after_action_space` play-variant trigger on every own space use, TYPELESS ≥4 threshold, any building type present takeable; "Can be immediately triggered" = the playing use itself may fire it)*
+- ✅ **A82 Work Certificate** · prereq: 3 Occupations *(implemented 2026-07-20, ruling 70: the C3 mechanism approved; `after_action_space` play-variant trigger on every own space use, TYPELESS ≥4 threshold [user-confirmed 2026-07-20], any building type present takeable; "Can be immediately triggered" = the playing use itself may fire it)*
   - _Each time after you use an action space, you can take 1 building resource from a building resource accumulation space with at least 4 building resources on it.  [CLARIFICATION: Can be immediately triggered.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS` — After using an action space, optionally take a building resource from a space with >=4 on it.
 - ✅ **A83 Shepherd's Crook** · cost: 1 Wood
@@ -325,9 +325,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B14 Hawktower** · cost: 2 Clay · prereq: Play in Round 7 or Before
   - _Place a stone room on round space 12. If you live in a stone house at the start of the round, you can build the stone room at no cost. Otherwise, discard the stone room._
   - `ONPLAY HOOK T-AFTER S-SOR F-TRIG A-OWN E-SCHED E-GRANTSUB` — On play it schedules a piece onto round space 12 (E-SCHED); at start of that round the player MAY build the room (granted sub-action -> optional -> F-TRIG, E-GRANTSUB). 'At no cost' is the grant's own push-time cost parameter, not a cost-modifier on normal builds, so no E-COSTMOD; E-SCHED already carries the round-space piece, so no ST-STORE. SOR hooks fire as the round begins (T-AFTER; the timing dim is nominal for a phase seam).
-- ⬜ **B15 Carpenter's Bench** · cost: 1 Wood
+- 🚫 **B15 Carpenter's Bench** · cost: 1 Wood
   - _Immediately after each time you use a wood accumulation space, you can use the taken wood (and only that) to build exactly 1 pasture. If you do, one of the fences is free.  [CLARIFICATION: Subdividing a pasture does not qualify as building.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTSUB E-FREEFENCE ST-PROV` — 'Immediately after each time you use a wood accumulation space' -> HOOK T-AFTER S-SPACE, optional -> F-TRIG. Building exactly 1 pasture is a restricted fence-building primitive (E-GRANTSUB), not a full Build Fences action (E-GRANTACT). One free fence -> E-FREEFENCE; payment restricted to 'the taken wood (and only that)' needs the event's payload -> ST-PROV.
+  - **WONTFIX — user ruling 2026-07-21:** will not be implemented. Its payment must come from *the wood taken this action and only that* — a payment-**source** restriction, the CARD_ENGINE_IMPLEMENTATION.md §8 cost-model gap (`effective_payments` has no concept of where goods came from). The user ruled the card not worth building goods-provenance machinery for.
 - ✅ **B16 Mining Hammer** · cost: 1 Wood
   - _When you play this card, you immediately get 1 food. Each time you renovate, you can also build a stable without paying wood._
   - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB` — On-play +1 food; each renovate (a sub-action) optionally grants a free stable build ('can also' -> T-AFTER, F-TRIG). A stable is not a fence (no E-FREEFENCE) and E-PIECECOST is for play-costs paid with a piece, not a free grant.
@@ -523,7 +524,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B80 Hard Porcelain** · cost: 1 Clay
   - _At any time, you can exchange 2/3/4 clay for 1/2/3 stone._
   - `ATWILL E-CONVERT` — At any time exchange clay for stone at 2/3/4->1/2/3 rate.
-- ✅ **B81 Handcart** · cost: 1 Wood *(implemented 2026-07-20, ruling 70: the C3 mechanism approved; `before_work` prep-window play-variant trigger, NATIVE-type 6/5/4/4 thresholds and native-type take — the Material Hub analog, flagged for user confirmation; post-refill stocks count)*
+- ✅ **B81 Handcart** · cost: 1 Wood *(implemented 2026-07-20, ruling 70: the C3 mechanism approved; `before_work` prep-window play-variant trigger; thresholds 6/5/4/4 keyed to the space FAMILY but satisfiable by ANY single type, and any present type takeable — user ruling 2026-07-20, correcting the first-pass native-type reading; post-refill stocks count)*
   - _Before each work phase, you can take 1 building resource from at most one wood/clay/reed/stone accumulation space containing at least 6/5/4/4 building resources of the same type._
   - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GOODS` — Removed L-GEOMBOARD: it reads good-counts on named accumulation spaces (wood/clay/reed/stone), not board position/order/adjacency.
 - ✅ **B82 Value Assets**
@@ -553,7 +554,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C5 Remodeling** · cost: 1 Food · passing
   - _You immediately get 1 clay for each clay room and for each major improvement you have._
   - `ONPLAY E-GOODS E-PASSING` — Gain 1 clay per clay room + major improvement; passing minor. Plain count-based goods.
-- ✅ **C6 Stone Clearing** · cost: 1 Food · passing *(implemented 2026-07-20, ruling 70 — `Cell.stone`, the `field_empty`/`field_planted` predicates, the full emptiness/planted sweep, the take's stone branch; scope RULED same day: card-fields included, exactly 1 stone per card whatever its stack count, sow restrictions never restrict the placement; flagged reading: a stoned Wood Field's other stack stays wood-sowable)*
+- ✅ **C6 Stone Clearing** · cost: 1 Food · passing *(implemented 2026-07-20, ruling 70 — `Cell.stone`, the `field_empty`/`field_planted` predicates, the full emptiness/planted sweep, the take's stone branch; scope RULED same day: card-fields included, exactly 1 stone per card whatever its stack count, sow restrictions never restrict the placement; per-stack reading — a stoned Wood Field's other stack stays wood-sowable — TENTATIVELY agreed by the user 2026-07-20, provisional)*
   - _Immediately place 1 stone on each of your empty fields. Harvest them during the next field phase. These fields are considered planted until then.  [ERRATA: ERRATA: harvest the fields with stone normally, and the fields are considered planted until the stone is gone.]_
   - `ONPLAY E-CROPMANIP E-FOODCOST E-PASSING` — One-time placement of stone onto empty fields, harvested normally per the errata, is field-content manipulation (E-CROPMANIP) — the state lives on the fields, so no per-card ST-STORE; the 1-Food play cost is flagged E-FOODCOST per the cost rulings; traveling card (E-PASSING).
 - ✅ **C7 Blade Shears** · cost: 1 Wood · prereq: 1 Pasture · passing

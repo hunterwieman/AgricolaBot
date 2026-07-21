@@ -7,16 +7,21 @@ most one wood/clay/reed/stone accumulation space containing at least 6/5/4/4
 building resources of the same type."
 
 An OPTIONAL play-variant trigger on the preparation ladder's `before_work`
-window (ruling 54, 2026-07-14; the C3-cluster mechanism approval + NATIVE-TYPE
-threshold semantics: user rulings 2026-07-20). Covers: registration/spec; the
-eligibility-driven window hosting (no qualifying space → no frame at all);
-threshold boundaries per family counting NATIVE units only (foreign deposits
-never count and are never takeable); the debit/credit arithmetic; the
-structural "at most one" (one fire per window even with two qualifying
-quarries); decline via Proceed; the post-refill sequencing (`before_work` runs
-AFTER `__replenish__`, so just-refilled goods count) driven across a REAL
-round boundary with the RevealCard nature step; unowned/hand-only inertness;
-and the 1-wood play cost paid through the real play-minor flow.
+window (ruling 54, 2026-07-14; the C3-cluster mechanism approval + the
+threshold/take semantics ruling of 2026-07-20: the same-type count that
+qualifies a space may be ANY building-resource type — not just the space's
+native one — and once a space qualifies, ANY building resource present on it
+is takeable). Covers: registration/spec; the eligibility-driven window hosting
+(no qualifying space → no frame at all); threshold boundaries per family
+(same-type count — a mixed pile whose no single type reaches the number does
+NOT qualify); a foreign type reaching the number DOES qualify, with every
+present type takeable (including the mixed take: qualify via stone, take
+wood); the debit/credit arithmetic; the structural "at most one" (one take per
+window even with two qualifying quarries); decline via Proceed; the
+post-refill sequencing (`before_work` runs AFTER `__replenish__`, so
+just-refilled goods count) driven across a REAL round boundary with the
+RevealCard nature step; unowned/hand-only inertness; and the 1-wood play cost
+paid through the real play-minor flow.
 """
 from agricola.actions import ChooseSubAction, FireTrigger, PlaceWorker, Proceed
 from agricola.cards.specs import MINORS, prereq_met
@@ -85,7 +90,7 @@ def test_registered_minor_spec():
 
 def test_registered_on_before_work_window():
     # "Before each work phase" -> the before_work window; an OPTIONAL
-    # play-variant trigger (one FireTrigger per qualifying space), not an auto.
+    # play-variant trigger (one FireTrigger per (space, type)), not an auto.
     entries = [e for e in TRIGGERS.get("before_work", ()) if e.card_id == CARD_ID]
     assert len(entries) == 1
     assert entries[0].mandatory is False
@@ -130,10 +135,11 @@ def test_wood_threshold_six_qualifies_and_fires():
     out = _enter_round(s, from_round=1)
     assert _at_before_work(out)
     assert out.pending_stack[-1].player_idx == 0
-    assert _fires(out) == [FireTrigger(card_id=CARD_ID, variant="forest")]
+    # Only wood is present on the Forest, so wood is the one takeable type.
+    assert _fires(out) == [FireTrigger(card_id=CARD_ID, variant="forest:wood")]
     assert Proceed() in legal_actions(out)
     # Fire: 1 wood moves from the Forest's stock to the owner's supply.
-    out = step(out, FireTrigger(card_id=CARD_ID, variant="forest"))
+    out = step(out, FireTrigger(card_id=CARD_ID, variant="forest:wood"))
     assert _acc(out, "forest") == Resources(wood=5)
     assert out.players[0].resources.wood == wood_before + 1
     # The trigger is consumed for this window: only Proceed remains.
@@ -167,8 +173,9 @@ def test_stone_threshold_four_qualifies_and_fires():
     stone_before = s.players[0].resources.stone
     out = _enter_round(s, from_round=7)
     assert _at_before_work(out)
-    assert _fires(out) == [FireTrigger(card_id=CARD_ID, variant="western_quarry")]
-    out = step(out, FireTrigger(card_id=CARD_ID, variant="western_quarry"))
+    assert _fires(out) == [
+        FireTrigger(card_id=CARD_ID, variant="western_quarry:stone")]
+    out = step(out, FireTrigger(card_id=CARD_ID, variant="western_quarry:stone"))
     assert _acc(out, "western_quarry") == Resources(stone=3)
     assert out.players[0].resources.stone == stone_before + 1
     out = step(out, Proceed())
@@ -188,22 +195,23 @@ def test_clay_threshold_boundary():
     s = with_space(s, "clay_pit", accumulated=Resources(clay=4))    # +1 refill -> 5
     out = _enter_round(s, from_round=1)
     assert _at_before_work(out)
-    assert _fires(out) == [FireTrigger(card_id=CARD_ID, variant="clay_pit")]
-    out = step(out, FireTrigger(card_id=CARD_ID, variant="clay_pit"))
+    assert _fires(out) == [FireTrigger(card_id=CARD_ID, variant="clay_pit:clay")]
+    out = step(out, FireTrigger(card_id=CARD_ID, variant="clay_pit:clay"))
     assert _acc(out, "clay_pit") == Resources(clay=4)
     assert out.players[0].resources.clay == 1
 
 
 # ---------------------------------------------------------------------------
-# Native-type counting: foreign goods on a space neither count nor are takeable
+# Same-type counting (2026-07-20 ruling): a mixed pile with no single type at
+# the number does NOT qualify; a foreign type at the number DOES, and every
+# present type is takeable
 # ---------------------------------------------------------------------------
 
-def test_foreign_goods_do_not_count_toward_threshold():
+def test_mixed_pile_no_single_type_at_threshold_no_frame():
     s = _own(setup(0))
-    # Direct board edit simulating a card's foreign-type deposit (Nail Basket's
-    # stone placed on the Forest): 3 stone sit on the wood space. Post-refill
-    # the space holds 5 wood + 3 stone = 8 goods, but only the 5 NATIVE wood
-    # count -> below the wood threshold of 6 -> no window frame.
+    # Direct board edit simulating a card's deposit (Nail Basket's stone placed
+    # on the Forest): post-refill the space holds 5 wood + 3 stone = 8 goods,
+    # but NO single type reaches the Forest's number of 6 -> no window frame.
     s = with_space(s, "forest", accumulated=Resources(wood=2, stone=3))
     out = _enter_round(s, from_round=1)
     assert out.pending_stack == ()
@@ -211,23 +219,46 @@ def test_foreign_goods_do_not_count_toward_threshold():
     assert _acc(out, "forest") == Resources(wood=5, stone=3)
 
 
-def test_foreign_goods_not_takeable():
+def test_foreign_type_at_threshold_qualifies_and_all_present_types_takeable():
     s = _own(setup(0))
-    # Foreign stone on a QUALIFYING Forest (6 native wood post-refill): the
-    # take is 1 of the space's NATIVE type — the stone is untouched.
-    s = with_space(s, "forest", accumulated=Resources(wood=3, stone=2))
+    # Direct board edit simulating card deposits: 6 stone sit on the Forest
+    # (a wood space, number 6). Post-refill the pile is 3 wood + 6 stone: the
+    # STONE count reaches 6, so the space qualifies — and BOTH present types
+    # are takeable variants (the take is not limited to the qualifying type).
+    s = with_space(s, "forest", accumulated=Resources(stone=6))     # +3 wood refill
     res_before = s.players[0].resources
     out = _enter_round(s, from_round=1)
     assert _at_before_work(out)
-    assert _fires(out) == [FireTrigger(card_id=CARD_ID, variant="forest")]
-    out = step(out, FireTrigger(card_id=CARD_ID, variant="forest"))
-    assert _acc(out, "forest") == Resources(wood=5, stone=2)   # stone untouched
-    gained = out.players[0].resources - res_before
-    assert gained == Resources(wood=1)                          # wood, never stone
+    assert _acc(out, "forest") == Resources(wood=3, stone=6)
+    assert _fires(out) == [
+        FireTrigger(card_id=CARD_ID, variant="forest:wood"),
+        FireTrigger(card_id=CARD_ID, variant="forest:stone"),
+    ]
+    # Take the stone (the type that met the number).
+    out = step(out, FireTrigger(card_id=CARD_ID, variant="forest:stone"))
+    assert _acc(out, "forest") == Resources(wood=3, stone=5)        # wood untouched
+    assert out.players[0].resources - res_before == Resources(stone=1)
+    assert legal_actions(out) == [Proceed()]
+
+
+def test_mixed_take_qualify_via_stone_take_wood():
+    s = _own(setup(0))
+    # Qualify via type A (6 stone on the Forest), take type B (a wood): the
+    # 2026-07-20 ruling's "can take any resource from the space".
+    s = with_space(s, "forest", accumulated=Resources(stone=6))     # +3 wood refill
+    res_before = s.players[0].resources
+    out = _enter_round(s, from_round=1)
+    assert _at_before_work(out)
+    out = step(out, FireTrigger(card_id=CARD_ID, variant="forest:wood"))
+    assert _acc(out, "forest") == Resources(wood=2, stone=6)        # stone untouched
+    assert out.players[0].resources - res_before == Resources(wood=1)
+    out = step(out, Proceed())
+    assert out.pending_stack == ()
+    assert out.phase is Phase.WORK
 
 
 # ---------------------------------------------------------------------------
-# "At most one" space: one fire per window even with two qualifying quarries
+# "At most one" space: one take per window even with two qualifying quarries
 # ---------------------------------------------------------------------------
 
 def test_at_most_one_space_per_window():
@@ -240,12 +271,12 @@ def test_at_most_one_space_per_window():
     out = _enter_round(s, from_round=7)
     assert _at_before_work(out)
     assert _fires(out) == [
-        FireTrigger(card_id=CARD_ID, variant="western_quarry"),
-        FireTrigger(card_id=CARD_ID, variant="eastern_quarry"),
+        FireTrigger(card_id=CARD_ID, variant="western_quarry:stone"),
+        FireTrigger(card_id=CARD_ID, variant="eastern_quarry:stone"),
     ]
-    out = step(out, FireTrigger(card_id=CARD_ID, variant="western_quarry"))
+    out = step(out, FireTrigger(card_id=CARD_ID, variant="western_quarry:stone"))
     # The eastern quarry still qualifies (4 stone), but the trigger is consumed
-    # for this window — no second fire is surfaced, only Proceed.
+    # for this window — one take total, no second fire, only Proceed.
     assert _acc(out, "eastern_quarry") == Resources(stone=4)
     assert legal_actions(out) == [Proceed()]
     assert out.players[0].resources.stone == 1                  # exactly one taken
@@ -361,7 +392,7 @@ def test_post_refill_goods_count_across_real_round_boundary():
     assert s.round_number == 2
     assert _acc(s, "forest") == Resources(wood=6)
     wood_before = s.players[0].resources.wood
-    s = step(s, FireTrigger(card_id=CARD_ID, variant="forest"))
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="forest:wood"))
     assert _acc(s, "forest") == Resources(wood=5)
     assert s.players[0].resources.wood == wood_before + 1
     s = step(s, Proceed())

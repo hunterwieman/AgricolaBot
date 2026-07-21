@@ -34,7 +34,9 @@ western_quarry, eastern_quarry at 2p — derived from the rate table, so future 
 building spaces join automatically) whose ``accumulated`` stock holds at least 4
 building resources IN TOTAL (wood+clay+reed+stone, any mix) — the printed
 threshold is typeless ("at least 4 building resources on it"), unlike Material
-Hub's per-type thresholds ("5 wood, 4 clay, …"). The taken resource may be ANY
+Hub's per-type thresholds ("5 wood, 4 clay, …"). USER-CONFIRMED (2026-07-20):
+"typless total is correct, and the player can take any resource type that
+exists on the relevant space." The taken resource may be ANY
 building-resource type present on the qualifying space (a card deposit — e.g.
 Nail Basket's stone on Forest — can put a foreign type there; it both counts
 toward the 4 and may be taken). Non-building goods on a space neither count nor

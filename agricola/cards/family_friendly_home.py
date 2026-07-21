@@ -12,8 +12,10 @@ USER RULINGS (2026-07-20):
    the first room is built)."
 2. "If rooms>people, the food is given whether or not the family growth is
    accepted."
-3. (Driver decision per the §9.6 flag contract + RULES.md's named-action
-   doctrine, flagged as such:) "take a 'Build Rooms' action" means the NAMED
+3. (USER-CONFIRMED 2026-07-20 — originally the driver's application of the
+   §9.6 flag contract + RULES.md's named-action doctrine: "'take a 'Build
+   Rooms' action' gated to the named action only - this is correct".)
+   "take a 'Build Rooms' action" means the NAMED
    action only — gate on ``PendingBuildRooms.build_rooms_action == True``.
    Farm Expansion's rooms category is the named action; a card effect that
    builds a room (Cottager's "build exactly 1 room", which sets

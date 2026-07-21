@@ -37,7 +37,9 @@ effect / reader), and `resolution.field_take` harvesting the stone normally —
 board fields and card stacks alike (`stack_take_good` covers stone). This
 module is ONLY the registration + the on-play placement.
 
-DRIVER-ADOPTED READING, FLAGGED FOR USER CONFIRMATION (not a dated ruling):
+DRIVER-ADOPTED READING, TENTATIVELY AGREED BY THE USER (2026-07-20 — "this is
+an interesting question. I will tentatively agree"; may be revisited, so treat
+as provisional rather than settled):
 stone in one of Wood Field's stacks leaves its OTHER stack sowable exactly as
 a half-wood-planted Wood Field's is — the machinery's established per-stack
 sowability (empty stacks enumerate, non-empty don't). The errata's

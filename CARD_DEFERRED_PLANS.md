@@ -980,8 +980,9 @@ at 2 players.
      optional growth trigger). "Take a 'Build Rooms' action" is read as the NAMED
      action only — gated on `PendingBuildRooms.build_rooms_action`, with Cottager's
      granted build-1-room corrected to set it False per the §9.6 flag contract.
-     (The named-action gate is the driver's application of the RULES.md doctrine,
-     flagged for user confirmation, not itself a dated ruling.)
+     (The named-action gate — originally the driver's application of the RULES.md
+     doctrine — was USER-CONFIRMED 2026-07-20: "gated to the named action only -
+     this is correct".)
    - **B17 Forest Plow**: fires AFTER the take — an explicit per-card override of
      the "each time you use = before" default (the deposit is "for the next
      visitor"; before-timing would let the player's own sweep scoop the deposited
@@ -1024,14 +1025,19 @@ at 2 players.
      every own space use; its printed threshold "at least 4 building resources
      on it" is read as the TYPELESS total on the space, any mix — contrast
      Material Hub's typed wording — and any building-resource type present is
-     takeable; its clarification "Can be immediately triggered" means the very
+     takeable (USER-CONFIRMED 2026-07-20: "typless total is correct, and the
+     player can take any resource type that exists on the relevant space");
+     its clarification "Can be immediately triggered" means the very
      use that plays the card may fire it, the machinery's natural
      ownership-at-fire-time behavior) and **B81 Handcart** (a `before_work`
-     prep-window play-variant trigger; the 6/5/4/4 thresholds and the taken
-     resource follow the space's NATIVE type — the driver's adopted analog of
-     the same-day Material Hub native-type ruling, FLAGGED for user
-     confirmation — so foreign goods deposited on a space neither count toward
-     its threshold nor are takeable via this card).
+     prep-window play-variant trigger; the space's FAMILY sets the threshold
+     NUMBER — wood 6 / clay 5 / reed 4 / stone 4 — but per the user's ruling,
+     2026-07-20 verbatim: "the X resources of the same type do not need to be
+     the native type of the action space. Additionally, the player can take
+     any resource from the space, not just the resource that has a count of
+     X+." — so ANY single type reaching the number qualifies the space, and
+     any building-resource type present is takeable. This CORRECTED the
+     driver's first-pass native-type analog of the Material Hub ruling).
    - **C6 Stone Clearing — the engine layer** (user go-ahead 2026-07-20, with
      the explicit instruction that stone-holding fields must never read as
      empty for sowing, card prerequisites, or card effects): `Cell.stone` +
@@ -1051,7 +1057,9 @@ at 2 players.
      stone not 2)" — so every empty card-field gets exactly 1 stone per CARD
      (into one stack), sow-goods restrictions never restrict the placement,
      and the module is IMPLEMENTED. One driver-adopted reading rides along,
-     flagged for confirmation: stone in one Wood Field stack leaves the other
+     TENTATIVELY AGREED by the user (2026-07-20 — "this is an interesting
+     question. I will tentatively agree"; provisional, may be revisited):
+     stone in one Wood Field stack leaves the other
      stack wood-sowable (the machinery's established per-stack sowability —
      the same behavior as a half-wood-planted Wood Field; the errata's
      "considered planted" is the field-level reader status).
@@ -1292,7 +1300,8 @@ is designed with you.
 You flagged this exact mechanism as a blocker; on 2026-07-20 you approved it. Both members are
 IMPLEMENTED (ruling 70): **A82 Work Certificate** (`after_action_space` play-variant trigger,
 typeless ≥4 threshold) and **B81 Handcart** (`before_work` prep-window play-variant trigger,
-native-type 6/5/4/4 thresholds — the Material Hub analog, flagged for confirmation). Kept for
+6/5/4/4 thresholds keyed to the space family but satisfiable by ANY single type, any present
+type takeable — ruled 2026-07-20, correcting the first-pass native-type analog). Kept for
 provenance; no longer a blocker for future cards of this shape.
 
 ### C4. Multi-plow chain — A18 Wheel Plow (rescued)
@@ -1359,7 +1368,9 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   Reclamation Plow (A17) / Wheel/Double-Turn plows, Grain Depot (B65, reads which resource paid),
   Moral Crusader (B106) / Shoreforester (B116) (pre-refill round-space read), Clutterer (B100, fragile
   static "accumulation-space text" card set + exact scoring rule), Wood Palisades (B30, alt fence piece +
-  supply-cap bypass), Hawktower (B14), Carpenter's Bench (B15), Grassland Harrow was **rescued**.
+  supply-cap bypass), Hawktower (B14), Carpenter's Bench (B15 — 🚫 **WONTFIX, user ruling 2026-07-21**:
+  its "the taken wood (and only that)" payment-source restriction is the §8 goods-provenance cost gap,
+  ruled not worth building for this card), Grassland Harrow was **rescued**.
 
 ---
 
