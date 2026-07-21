@@ -1341,11 +1341,14 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   effects distinguish them) — `register_animal_cap_slots` (a pasture-like single-type bin; **Stockyard
   B12 implemented**) and `register_flexible_slots` (any-type mixable slots; **Petting Zoo E11
   implemented**, ruled mixed-type 2026-07-20; Feedyard B11's slot shape is now buildable — its
-  after-breeding food payout is the remaining piece). Still blocked, needing TYPED (per-species) slots
-  — the natural build is generalizing the Dolly's-Mother sheep-slot greedy strip to a per-type triple:
-  Truffle Searcher (B86, boar), Mud Patch (A11, boar per unplanted field — also a capacity DROP on sow,
-  needs the eviction flag), Wildlife Reserve (C11, 1/1/1), Cattle Farm (C12, cattle per pasture),
-  Woolgrower (A148 [4], sheep per completed feeding phase). Special Food (B34) separately needs an
+  after-breeding food payout is the remaining piece). TYPED (per-species) slots were BUILT 2026-07-21
+  (`register_typed_slots` — the Dolly's-Mother greedy strip generalized to a per-type triple, plus
+  `animal_holder_card_ids()` for "able to hold animals" wording): **Wildlife Reserve C11, Cattle Farm
+  C12, Mud Patch A11 (eviction flags at after_sow / after_play_minor for the unplanted-count drops),
+  and Sheep Agent D86 implemented**. Still deferred: Truffle Searcher (B86, boar per completed feeding
+  phase) and Woolgrower (A148 [4], sheep likewise) — their counts need GAME state (round arithmetic),
+  but `slots_fn` and the whole `extract_slots`/strip chain are player-state-only; widening those hot
+  signatures is an open design question for the user. Special Food (B34) separately needs an
   accommodation event.
 - **Per-card goods stack (beyond a CardStore scalar):** Hayloft Barn (B21), Muddy Puddles (B83),
   Forest Plow (B17, return-wood-to-space + partial-take legality — two 2026-07-20 rulings for its

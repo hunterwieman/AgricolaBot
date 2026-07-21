@@ -56,7 +56,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A10 Wooden Shed** · cost: 2 Wood,1 Reed · prereq: Still in Wooden House
   - _This card can only be played via a "Major Improvement" action. It provides room for one person. You may no longer renovate.  [CLARIFICATION: May not be played on the “House Redevelopment” action space, as the “Renovate” action is mandatory and comes before the improvement action.  May be played through the effect of a card, such as Angler A095.]_
   - `ONPLAY PASSIVE E-CAPNEW L-EXT` — Provides a person slot on play (E-CAPNEW); 'can only be played via a Major Improvement action' changes play eligibility (L-EXT); 'you may no longer renovate' is an always-on rule change (PASSIVE) — E-CAPNEG is animal-capacity-specific and wrong here.
-- ⬜ **A11 Mud Patch**
+- ✅ **A11 Mud Patch**
   - _When you play this card, you immediately get 1 wild boar. You can hold 1 wild boar on each of your unplanted field tiles._
   - `ONPLAY PASSIVE E-ANIMALS E-CAPNEW` — On-play boar is an animal needing accommodation (E-ANIMALS, not E-GOODS — animals are separated from goods); 1 boar per unplanted field is a new always-on holder type (E-CAPNEW + PASSIVE).
 - ✅ **A12 Drinking Trough** · cost: 1 Clay
@@ -569,10 +569,10 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C10 Bunk Beds** · cost: 1 Wood · prereq: 2 Major Improvements
   - _Once you have 4 rooms, your house can hold 5 people._
   - `PASSIVE E-PEOPLE` — 'Your house can hold 5 people' is a continuous capacity rule gated on a plain state read (4 rooms), not a one-shot fired effect -- LATCH/ST-LATCH is for effects that fire once and are done; this is a conditional PASSIVE person-capacity change (E-PEOPLE).
-- ⬜ **C11 Wildlife Reserve** · cost: 2 Wood · prereq: 2 Occupations
+- ✅ **C11 Wildlife Reserve** · cost: 2 Wood · prereq: 2 Occupations
   - _This card can hold up to 1 sheep, 1 wild boar, and 1 cattle.  [CLARIFICATION: This card does not count as a pasture.]_
   - `PASSIVE E-CAPNEW` — A pure always-on holder — the card is a new animal slot (E-CAPNEW) with no on-play event and it provides no animals (E-ANIMALS is for cards that GIVE animals, not ones that merely hold them); continuous rule → PASSIVE.
-- ⬜ **C12 Cattle Farm** · cost: 1 Wood
+- ✅ **C12 Cattle Farm** · cost: 1 Wood
   - _For each pasture you have, you can keep 1 cattle on this card._
   - `PASSIVE E-CAPNEW` — The card itself holds cattle (a new holder -> E-CAPNEW) as an always-on rule; it is not an action space, so L-CARDSPACE is wrong, and counting pastures is explicitly not L-GEOMFARM.
 - ⬜ **C13 Wood Slide Hammer** · cost: 1 Wood
@@ -2163,7 +2163,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D85 Reader** · [1+]
   - _As soon as you have 6 occupations in front of you (including this one), this cards provides room for one person. In the draft variant, you need 7 occupations to play this.  [CLARIFICATION: IMPLEMENTATION NOTE (this project): assume the draft variant is always in play — hardcode the play prerequisite as 7 occupations. The 'room for one person' benefit still activates once you have 6 occupations in front of you (always satisfied once the card is played).]_
   - `PASSIVE E-CAPNEW` — The clarification overrides: with the 7-occupation play prereq hardcoded, the 6-occupation condition is always satisfied once played, so no latch fires — the card is simply an always-on person slot (E-CAPNEW) from play; prereqs get no tags.
-- ⬜ **D86 Sheep Agent** · [1+]
+- ✅ **D86 Sheep Agent** · [1+]
   - _You can keep 1 sheep on each occupation card in front of you (including this one), unless it is already able to hold animals._
   - `PASSIVE E-CAPNEW` — A continuous rule creating new animal slots (1 sheep per occupation card). The card never PROVIDES sheep — it only lets you keep them — so E-ANIMALS (labelA) is wrong.
 - ⬜ **D87 Master Builder** · [1+]

@@ -114,7 +114,15 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-20 (the approvals batch — ruling 70: cluster C3 approved and both
+> **Last updated: 2026-07-21 (the typed-slot batch — ruling 71: `register_typed_slots`
+> generalizes the Dolly's-Mother sheep strip to per-species card slots, exact by the same
+> dominance argument per type independently, plus `animal_holder_card_ids()` for
+> "able to hold animals" wording; Wildlife Reserve C11, Cattle Farm C12, Mud Patch A11
+> (unplanted-tile boar slots + eviction flags at the count-dropping seams; stone-planted
+> fields excluded per Stone Clearing's errata), and Sheep Agent D86 implemented; Truffle
+> Searcher / Woolgrower stay deferred on the player-state-only `slots_fn` signature —
+> their counts need game state; census 214 occ + 327 min. Prior, 2026-07-20: the
+> approvals batch — ruling 70: cluster C3 approved and both
 > members built — Work Certificate A82 + Handcart B81; plus Stone Clearing C6 COMPLETE —
 > `Cell.stone`, the `field_empty`/`field_planted` single-definition predicates, the full
 > emptiness/planted sweep, the take's stone branch, and the card module (scope RULED same day:
@@ -140,6 +148,23 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-21 typed-slot batch landed (ruling 71): the per-species slot generalization +
+  4 cards, all card-only/Family-inert.** `register_typed_slots(card_id, fn)` (capacity_mods §3)
+  generalizes the sheep-only Dolly's-Mother slot to `fn(player) -> Animals`, consumed by the
+  per-type greedy strip in `accommodates` / `pareto_frontier` / `breeding_frontier` — the same
+  dominance argument, per type independently; strips doctor the memoized internals' arguments,
+  so every cache keys honestly. `animal_holder_card_ids()` exposes registration-time holder
+  identity (typed + cap-bin + flexible) — the predicate behind "unless it is already able to
+  hold animals". Cards: **Wildlife Reserve** (C11 — 1/1/1), **Cattle Farm** (C12 — cattle per
+  pasture, monotone), **Mud Patch** (A11 — boar per UNPLANTED board field tile, stone-planted
+  fields excluded per Stone Clearing's errata; on-play boar via the barrier; eviction flags at
+  `after_sow` / `after_play_minor` because the count DROPS when fields become planted), and
+  **Sheep Agent** (D86 — sheep per qualifying occupation, itself always included per the
+  printed "(including this one)"). Dolly's Mother migrated onto the registry
+  (`sheep_slot_count` survives as the derived view — Mineral Feeder untouched). Deferred:
+  Truffle Searcher / Woolgrower — "completed feeding phases" needs game state, and the
+  `slots_fn` / `extract_slots` chain is player-state-only (an open signature question).
+  Census **214 occupations + 327 minors**.
 - **The 2026-07-20 approvals batch landed (ruling 70): 2 minors on the newly-approved C3
   mechanism + the Stone Clearing engine layer.** The user approved deferred-plans cluster C3
   (take-from-accumulation-without-placement — an optional trigger editing `sp.accumulated`):
