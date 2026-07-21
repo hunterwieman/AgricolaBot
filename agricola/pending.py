@@ -1206,12 +1206,16 @@ class BreedingOutcome:
     `resolution._execute_breed` with the engine's own kept-newborn indicator
     (pre >= 2 and post >= 3, the `breeding_food_gained` test) and handed to
     the `register_breeding_outcome_auto` consumers (Fodder Planter, Slurry
-    Spreader C71, Champion Breeder [3+]). The clarification both consumer
-    cards print — "You must be able to accommodate each newborn in order to
-    get it" — is inherent here: an unaccommodated newborn is never placed, so
-    it never appears in the outcome. NOT for Dung Collector ("each time you
-    get 2+ newborn animals" counts ANY-source gains, markets included — the
-    deliberately-out-of-scope wider event, HARVEST_HANDOFF.md §12)."""
+    Spreader C71, Champion Breeder [3+], Dung Collector). The clarification
+    the consumer cards print — "You must be able to accommodate each newborn
+    in order to get it" — is inherent here: an unaccommodated newborn is never
+    placed, so it never appears in the outcome. Dung Collector ("each time you
+    get 2+ newborn animals") is scoped to exactly this payload by user ruling
+    74 (2026-07-21): harvest breeding is the only current source of 2+
+    newborns in one event (the Pig Breeder / Pure Breeder round-12 card
+    breeds are ruled sequential-and-distinct, 1 newborn each) — any future
+    card breeding 2+ newborns outside `_execute_breed` must emit this payload
+    or the consumers under-fire."""
     sheep: int
     boar: int
     cattle: int
@@ -1474,6 +1478,17 @@ class PendingGrantedSubAction:
     # `allowed_majors` (None = the full board). A push-time parameter exactly
     # like `occ_cost`. Ignored unless "build_major" in subactions.
     major_allowed: tuple | None = None
+    # Multi-use grants (ruling 74, 2026-07-21 — Furnisher D96: after a build-rooms
+    # action, up to N consecutive improvement plays, N = rooms built). `max_uses = 0`
+    # is the legacy shape: each category offered at most once (via `chosen`).
+    # `max_uses > 0` switches the wrapper to a USE BUDGET: every granted category
+    # stays offered (chosen is not consulted) while `uses_done < max_uses` and the
+    # category is doable; each choose increments `uses_done`. Stop remains the exit
+    # at any point. Because the wrapper sits on top of the stack until it pops, the
+    # uses resolve consecutively — nothing else can interleave (the "without
+    # interruption" ruling).
+    max_uses: int = 0
+    uses_done: int = 0
 
 
 # The PendingDecision union. New pending types are added here as the

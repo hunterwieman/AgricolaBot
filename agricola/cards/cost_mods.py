@@ -312,3 +312,40 @@ def _cooking_hearth_fireplace_routes(state, idx: int, ctx) -> list:
 
 
 register_base_route("build_major", None, _cooking_hearth_fireplace_routes)
+
+
+# Free-fence source 1b — ORDINAL frees (ruling 74, 2026-07-21; first member
+# Carpenter's Apprentice C88: "Your 13th to 15th fence each cost you nothing").
+# A card frees fence PIECES by their cumulative build ordinal (1-indexed over
+# pieces placed on the board — derived from the farmyard fence popcount, which
+# is exact because fences are never demolished and even pool pieces land on the
+# board when built). NON-CONSUMING like the positional edges (source 1): a free
+# ordinal waives the wood, never a budget or pool piece, and the piece still
+# draws from supply (§9.7). Applied player-optimally alongside positional frees
+# (ordinal frees cover non-positional pieces first — within one commit the
+# player chooses placement order, so this is rules-true, and all pieces cost 1
+# wood so only the count matters). Empty registry -> 0 -> byte-identical.
+FREE_FENCE_ORDINALS: dict[str, Callable] = {}
+
+
+def register_free_fence_ordinals(card_id: str, ordinals_fn: Callable) -> None:
+    """Register a card's free fence ordinals. `ordinals_fn(state, idx) ->
+    frozenset[int]` — the 1-indexed cumulative piece ordinals the owned card makes
+    wood-free (Carpenter's Apprentice: frozenset({13, 14, 15}))."""
+    FREE_FENCE_ORDINALS[card_id] = ordinals_fn
+
+
+def ordinal_free_count(state, idx: int, built_before: int, count: int) -> int:
+    """How many of the pieces with ordinals (built_before, built_before + count] are
+    free under the player's owned ordinal cards. `built_before` = fences already on
+    the board (the pre-commit farmyard popcount). Empty registry / nothing owned -> 0."""
+    if not FREE_FENCE_ORDINALS:
+        return 0
+    p = state.players[idx]
+    free: set = set()
+    for card_id, fn in FREE_FENCE_ORDINALS.items():
+        if _owns(p, card_id):
+            free |= fn(state, idx)
+    if not free:
+        return 0
+    return sum(1 for n in range(built_before + 1, built_before + count + 1) if n in free)

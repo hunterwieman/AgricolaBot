@@ -1025,3 +1025,11 @@ from agricola.cards import renovation_company  # noqa: F401
 #     helpers.completed_feeding_phases; Woolgrower is [4] forward-compat) ---
 from agricola.cards import truffle_searcher  # noqa: F401
 from agricola.cards import woolgrower  # noqa: F401
+
+# --- 2026-07-21 ruling-74 triage batch, Wave 1 (existing seams; per-card
+#     rulings in CARD_DEFERRED_PLANS.md ruling 74) ---
+from agricola.cards import bed_maker  # noqa: F401
+from agricola.cards import site_manager  # noqa: F401
+from agricola.cards import sheep_inspector  # noqa: F401
+from agricola.cards import dung_collector  # noqa: F401
+from agricola.cards import henpecked_husband  # noqa: F401

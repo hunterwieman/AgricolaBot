@@ -1046,11 +1046,20 @@ def _choose_subaction_granted_subaction(
     wrapper's Stop, not handled here. Dispatches on the chosen category (`action.name`)."""
     top = state.pending_stack[-1]
     p_idx = top.player_idx
-    if action.name not in top.subactions or action.name in top.chosen:
-        raise ValueError(
-            f"sub-action {action.name!r} not an untaken granted category "
-            f"(granted {top.subactions!r}, taken {sorted(top.chosen)!r})")
-    state = replace_top(state, fast_replace(top, chosen=top.chosen | {action.name}))
+    if top.max_uses > 0:
+        # Use-budget shape (ruling 74 — Furnisher): categories are repeatable; each
+        # choose spends one use. `chosen` is not consulted in this shape.
+        if action.name not in top.subactions or top.uses_done >= top.max_uses:
+            raise ValueError(
+                f"sub-action {action.name!r} not a granted category with uses left "
+                f"(granted {top.subactions!r}, used {top.uses_done}/{top.max_uses})")
+        state = replace_top(state, fast_replace(top, uses_done=top.uses_done + 1))
+    else:
+        if action.name not in top.subactions or action.name in top.chosen:
+            raise ValueError(
+                f"sub-action {action.name!r} not an untaken granted category "
+                f"(granted {top.subactions!r}, taken {sorted(top.chosen)!r})")
+        state = replace_top(state, fast_replace(top, chosen=top.chosen | {action.name}))
     if action.name == "renovate":
         return push(state, PendingRenovate(
             player_idx=p_idx, initiated_by_id=top.initiated_by_id))
@@ -1815,14 +1824,23 @@ def _execute_build_pasture(
         supply_drawn = wood_cost                          # Family: every piece from supply
     else:  # CARDS: deferred accrue, no debit (settled at the Proceed flip).
         from agricola.cards.cost_mods import (
-            positional_free_edge_count, spend_fence_pools)
+            ordinal_free_count, positional_free_edge_count, spend_fence_pools)
+        from agricola.helpers import fences_built as _fences_built
         positional_free = positional_free_edge_count(
             state, player_idx, farmyard, h_new, v_new,
             initiated_by_id=top.initiated_by_id,
             build_fences_action=top.build_fences_action)
         after_positional = wood_cost - positional_free      # source 1: positional edges
-        free_used = min(after_positional, top.free_fence_budget)  # source 2: per-action budget
-        after_budget = after_positional - free_used
+        # Source 1b: ORDINAL frees (ruling 74 — Carpenter's Apprentice's 13th–15th
+        # fence). Non-consuming; window computed against the PRE-commit board popcount;
+        # applied to non-positional pieces first (player-optimal, rules-true — the
+        # player orders pieces within a commit).
+        ordinal_used = min(
+            ordinal_free_count(state, player_idx, _fences_built(farmyard), wood_cost),
+            after_positional)
+        after_ordinal = after_positional - ordinal_used
+        free_used = min(after_ordinal, top.free_fence_budget)  # source 2: per-action budget
+        after_budget = after_ordinal - free_used
         pool_used, new_card_state = spend_fence_pools(p, after_budget)  # source 3: persistent pool
         paid = after_budget - pool_used
         new_budget = top.free_fence_budget - free_used

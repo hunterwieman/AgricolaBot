@@ -918,24 +918,36 @@ def _reconcile_accommodation(state: GameState) -> tuple[GameState, bool]:
     FEED/BREED hooks: non-starting player first (bottom), starting player last (top), so
     the starting player accommodates first.
     """
+    from agricola.cards.capacity_mods import VOLATILE_CAPACITY_CARDS
+
     p0, p1 = state.players
-    if not (p0.animals_need_accommodation or p1.animals_need_accommodation):
-        return state, False   # hot path: no decision-free grant outstanding
+    if not (p0.animals_need_accommodation or p1.animals_need_accommodation) \
+            and not VOLATILE_CAPACITY_CARDS:
+        return state, False   # hot path: no grant outstanding, no volatile-capacity card
 
     from agricola.helpers import accommodates
 
     pushed = False
     for idx in (1 - state.starting_player, state.starting_player):
         p = state.players[idx]
-        if not p.animals_need_accommodation:
-            continue
-        p = fast_replace(p, animals_need_accommodation=False)
-        state = _update_player(state, idx, p)
-        if not accommodates(
-            state, p, p.animals.sheep, p.animals.boar, p.animals.cattle
-        ):
-            state = push(state, PendingAccommodate(player_idx=idx))
-            pushed = True
+        needs_check = p.animals_need_accommodation
+        if needs_check:
+            p = fast_replace(p, animals_need_accommodation=False)
+            state = _update_player(state, idx, p)
+        # Volatile-capacity re-check (ruling 74, 2026-07-21 — capacity_mods.py has the
+        # rationale): each registered fn self-gates on ownership, refreshes its own
+        # watermark, and reports whether its capacity input fell since the last
+        # boundary. Runs at EVERY boundary (not just flagged ones) — that is the point.
+        for _card_id, dropped_fn in VOLATILE_CAPACITY_CARDS:
+            state, dropped = dropped_fn(state, idx)
+            needs_check = needs_check or dropped
+        if needs_check:
+            p = state.players[idx]   # re-read: a dropped_fn may have written CardStore
+            if not accommodates(
+                state, p, p.animals.sheep, p.animals.boar, p.animals.cattle
+            ):
+                state = push(state, PendingAccommodate(player_idx=idx))
+                pushed = True
     return state, pushed
 
 

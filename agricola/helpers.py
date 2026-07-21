@@ -269,6 +269,7 @@ def extract_slots(state: GameState, player_state: PlayerState) -> tuple[list[int
     from agricola.cards.capacity_mods import (
         extra_animal_caps,
         extra_flexible_slots,
+        flexible_to_bin_caps,
         house_pet_capacity,
         pasture_capacity_bonus,
         pasture_capacity_per_list,
@@ -286,6 +287,14 @@ def extract_slots(state: GameState, player_state: PlayerState) -> tuple[list[int
         pasture_capacities = [c + b for c, b in zip(pasture_capacities, per)]
     num_flexible = (standalone_stables + house_pet_capacity(player_state)
                     + extra_flexible_slots(player_state))
+
+    # Flexible-slot -> single-type-bin upgrades (ruling 74 — Stable Master: one
+    # unfenced stable's slot becomes a 3-cap single-type bin). Each upgrade consumes
+    # one flexible slot (the stable's own) and appends an anonymous bin below, with
+    # the Stockyard-family cap slots. Empty registry -> () -> byte-identical.
+    upgrade_bins = flexible_to_bin_caps(player_state, standalone_stables)
+    if upgrade_bins:
+        num_flexible -= len(upgrade_bins)
 
     # A card may FORBID animals in one pasture (Herbal Garden / Beaver Colony): drop the
     # reserved (smallest-capacity qualifying) pasture from the list entirely. Empty registry
@@ -305,6 +314,8 @@ def extract_slots(state: GameState, player_state: PlayerState) -> tuple[list[int
     extra = extra_animal_caps(player_state)
     if extra:
         pasture_capacities = pasture_capacities + list(extra)
+    if upgrade_bins:
+        pasture_capacities = pasture_capacities + list(upgrade_bins)
 
     return pasture_capacities, num_flexible
 

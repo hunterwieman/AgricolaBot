@@ -381,3 +381,76 @@ def housing_capacity_bonus(state, player_idx: int) -> int:
         if _owns(p, card_id):
             total += bonus_fn(state, player_idx)
     return total
+
+
+# ---------------------------------------------------------------------------
+# Volatile capacity — cards whose capacity contribution can DROP outside the
+# animal-granting paths (ruling 74, 2026-07-21; first member Livestock Feeder
+# C86: one flexible slot per grain in supply, and grain is spent at many
+# seam-less sites — sow, bake, feeding, card costs, liquidation). Rather than
+# flagging every grain-spend seam (the Mud Patch pattern does not scale to an
+# open-ended site list), the accommodation barrier
+# (`engine._reconcile_accommodation`) consults this registry at EVERY agent-
+# decision boundary: each registered fn self-gates on ownership, maintains its
+# own last-confirmed watermark (CardStore), and reports whether its capacity
+# input fell since the last boundary. Soundness: capacity through such a card
+# only drops when its input drops, and every animal INCREASE already reconciles
+# through its own path (grant_animals' flag, the market frames, the breeding
+# frontier) — so "input has not fallen since the last boundary" implies no new
+# violation. Empty registry -> zero cost (the Family game and every card game
+# with no member card owned).
+# ---------------------------------------------------------------------------
+
+VOLATILE_CAPACITY_CARDS: list[tuple[str, Callable]] = []
+
+
+def register_volatile_capacity(card_id: str, dropped_fn: Callable) -> None:
+    """Register a volatile-capacity re-check. `dropped_fn(state, player_idx) ->
+    (state, dropped)` is called for BOTH players at every decision boundary; it must
+    self-gate on ownership (return (state, False) unchanged for a non-owner), refresh
+    its watermark to the current input value at every call (write only when changed),
+    and return dropped=True iff the input fell since the previous boundary."""
+    VOLATILE_CAPACITY_CARDS.append((card_id, dropped_fn))
+
+
+# ---------------------------------------------------------------------------
+# Flexible-slot -> single-type-bin upgrades (ruling 74, 2026-07-21; first
+# member Stable Master C89: "Exactly one of your unfenced stables can hold up
+# to 3 animals of one type"). The upgrade converts ONE standalone (unfenced)
+# stable's 1-capacity flexible slot into an anonymous single-type bin of the
+# card's stated capacity — a strict upgrade (any single animal that fit the
+# flexible slot fits the bin, which adds room for more of that type), so no
+# player choice is surfaced. Consumed by `helpers.extract_slots`: each owned
+# card's bin, while an unconverted standalone stable remains, decrements
+# num_flexible by 1 and appends the bin to the cap-slot list (the Stockyard
+# family — appended after every pasture-only fold, invisible to pasture
+# geometry readers). Cache-safe: the frontier caches key on extract_slots'
+# outputs. Empty registry -> no-op (Family byte-identical).
+# ---------------------------------------------------------------------------
+
+FLEX_TO_BIN_CARDS: list[tuple[str, Callable]] = []
+
+
+def register_flexible_to_bin(card_id: str, bin_fn: Callable) -> None:
+    """Register a stable-slot upgrade. `bin_fn(player_state) -> int` returns the
+    single-type bin capacity the owned card provides (Stable Master: 3), or 0 when the
+    card's own condition is not met. The fold applies at most one upgrade per standalone
+    stable and never converts more flexible slots than exist."""
+    FLEX_TO_BIN_CARDS.append((card_id, bin_fn))
+
+
+def flexible_to_bin_caps(player_state, standalone_stables: int) -> tuple[int, ...]:
+    """The bin capacities of the owned, applicable upgrades, capped at the number of
+    standalone stables (each upgrade converts a distinct stable's slot). The caller
+    (`extract_slots`) decrements num_flexible by len(result) and appends the bins."""
+    if not FLEX_TO_BIN_CARDS or standalone_stables <= 0:
+        return ()
+    bins: list[int] = []
+    for card_id, bin_fn in FLEX_TO_BIN_CARDS:
+        if len(bins) >= standalone_stables:
+            break
+        if _owns(player_state, card_id):
+            cap = bin_fn(player_state)
+            if cap > 0:
+                bins.append(cap)
+    return tuple(bins)

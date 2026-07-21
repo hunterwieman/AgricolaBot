@@ -1275,14 +1275,21 @@ def _check_entry_legal(
     # separately on FULL edge count — free fences still use pieces (§9.7).
     positional_free = 0
     pool_free = 0
+    ordinal_free = 0
     if state is not None and idx is not None:
         from agricola.cards.cost_mods import (
-            free_fence_pool_remaining, positional_free_edge_count)
+            free_fence_pool_remaining, ordinal_free_count,
+            positional_free_edge_count)
         positional_free = positional_free_edge_count(
             state, idx, state.players[idx].farmyard, h_new, v_new,
             initiated_by_id=initiated_by_id, build_fences_action=build_fences_action)
         pool_free = free_fence_pool_remaining(state.players[idx])   # source 3 (Ash Trees)
-    paid = max(0, new_count - positional_free - free_budget - pool_free)
+        # Source 1b: ordinal frees (ruling 74 — Carpenter's Apprentice). Plain
+        # subtraction is exact here: positional+ordinal can exceed new_count only
+        # when paid is already 0 (the max(0, ·) floor).
+        ordinal_free = ordinal_free_count(
+            state, idx, fences_built(state.players[idx].farmyard), new_count)
+    paid = max(0, new_count - positional_free - ordinal_free - free_budget - pool_free)
     running = accrued_wood + paid   # whole-action running paid-edge total (§9.2)
     if state is not None and idx is not None:
         if not can_pay(state, idx, _build_fence_ctx(state.players[idx], running)):
@@ -2659,9 +2666,17 @@ def _enumerate_pending_granted_subaction(
     finish). Each taken category joins `chosen`; once all are taken or dead, only Stop
     remains. A multi-category grant is thus taken in any order, at most once each."""
     actions: list[Action] = []
-    for cat in pending.subactions:
-        if cat not in pending.chosen and _granted_subaction_eligible(state, pending, cat):
-            actions.append(ChooseSubAction(name=cat))
+    if pending.max_uses > 0:
+        # Use-budget shape (ruling 74 — Furnisher): every granted category stays
+        # offered while uses remain and it is doable; `chosen` is not consulted.
+        if pending.uses_done < pending.max_uses:
+            for cat in pending.subactions:
+                if _granted_subaction_eligible(state, pending, cat):
+                    actions.append(ChooseSubAction(name=cat))
+    else:
+        for cat in pending.subactions:
+            if cat not in pending.chosen and _granted_subaction_eligible(state, pending, cat):
+                actions.append(ChooseSubAction(name=cat))
     actions.append(Stop())
     return actions
 

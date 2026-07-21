@@ -166,6 +166,10 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # oven/fireplace menu — the allowed_majors sibling). Card-only frames or
     # card-only values; omitting keeps Family JSON byte-identical, no C++ change.
     "min_spend", "allowed_cards",
+    # PendingGrantedSubAction.max_uses / uses_done (ruling 74, 2026-07-21 —
+    # Furnisher's use-budget grant): the wrapper frame is card-only, so both are
+    # Family-constant 0; omitting them at default keeps the JSON stable.
+    "max_uses", "uses_done",
     # Cell.stone (Stone Clearing C6, user ruling 2026-07-20): stone placed on a
     # field tile — only that card writes it, so it is Family-constant 0. MUST
     # stay qualified: an unqualified "stone" would also skip Resources.stone,

@@ -1419,7 +1419,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A92 Adoptive Parents** · [1+]
   - _For 1 food, you can take an action with offspring in the same round you get it. If you do, the offspring does not count as "newborn".  [CLARIFICATION: This card may be played and triggered any time after growth in the same round’s work phase.  If this effect is used in a Harvest round, the person must be fed 2 food in the Harvest (3 for solo game.)]_
   - `ATWILL E-EXTRAPLACE E-FOODCOST E-PEOPLE` — Clarification says it can be 'triggered any time after growth in the same round' — deferrable at the player's chosen moment, so ATWILL, not an at-the-growth-event HOOK. Effects: pay food (E-FOODCOST), place the offspring this round (an additional placement, E-EXTRAPLACE), and strip 'newborn' classification (E-PEOPLE). No CAP-ROUND (limit is intrinsic per-offspring, not a stated once-per-round cap); no ST-PROV — the engine already tracks which person is this round's unplaceable newborn.
-- ⬜ **A93 Bed Maker** · [1+]
+- ✅ **A93 Bed Maker** · [1+] · ruling 74 (after_build_rooms growth trigger)
   - _Each time you add rooms to your house, you can also pay 1 wood and 1 grain to immediately get a "Family Growth with Room Only" action.  [CLARIFICATION: This card allows exactly 1 growth action regardless of how many rooms are built.]_
   - `HOOK S-SUB T-AFTER F-TRIG A-OWN E-GRANTSUB E-GROWTH` — After adding rooms (S-SUB build-room, T-AFTER) an optional pay-1-wood-1-grain grants a family growth (E-GRANTSUB/E-GROWTH); the 'exactly 1 regardless of rooms' clarification is inherent to one firing per build-rooms action, so no CAP tag and not CAP-GAME.
 - ⬜ **A94 Lazy Sowman** · [1+]
@@ -2184,13 +2184,13 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D92 Child Ombudsman** · [1+]
   - _From round 5 on, if you have room in your house, at the end of each person action, you can take a "Family Growth" action with that person. If you do, you get 2 negative points._
   - `HOOK T-AFTER S-TURNEND F-TRIG A-OWN E-GRANTSUB E-GROWTH E-SCORE ST-COUNTER` — Optional Family Growth at the end of each person action ('from round 5' is a plain state read); each use accrues 2 negative points, so the card must keep a running use count over the game — ST-COUNTER (labelB) is needed.
-- ⬜ **D93 Sheep Inspector** · [1+]
+- ✅ **D93 Sheep Inspector** · [1+] · ruling 74 (after_action_space return; newborns excluded)
   - _Once per work phase, after you complete a person action, you can pay 1 sheep and 2 food to return another person you placed home._
   - `HOOK S-TURNEND T-AFTER F-TRIG A-OWN CAP-ROUND E-FOODCOST E-WORKERMANIP ST-PLACELOG` — After completing a person action, once per work phase, pay 1 sheep + 2 food to return another placed worker home to reuse it — worker manipulation needing to know which space that worker was on; food cost payable via conversion. Once-per-work-phase = CAP-ROUND.
-- ⬜ **D94 Henpecked Husband** · [1+]
+- ✅ **D94 Henpecked Husband** · [1+] · ruling 74 (after_build_rooms auto; named-action + 2nd-placement-turn gate)
   - _Each time you take a "Build Rooms" action with the second person you place, return the first person you placed home, unless it is on the "Meeting Place" action space._
   - `HOOK T-BEFORE S-SUB F-AUTO A-OWN E-WORKERMANIP ST-PLACELOG` — 'Each time you take a Build Rooms action' is the 'each time you use' pattern, which defaults to T-BEFORE (only 'immediately after'/'at the end of' gets T-AFTER); mandatory return-home of the first-placed worker needs ST-PLACELOG.
-- ⬜ **D95 Site Manager** · [1+]
+- ✅ **D95 Site Manager** · [1+] · ruling 74 (optional granted major build; grant-scoped food substitution)
   - _When you play this card, immediately build a major improvement. When paying its cost, you can replace up to 1 building resource of each type with 1 food each._
   - `ONPLAY E-GRANTACT E-COSTMOD E-FOODCOST` — One-time on-play grant of a major-improvement build with a food-for-resource substitution: the substitution is E-COSTMOD, and since the payment may be made in food (potentially via crop/animal conversion) E-FOODCOST also applies (labelB).
 - ⬜ **D96 Furnisher** · [1+]
@@ -2430,7 +2430,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E89 Stallwright** · [1+]
   - _After you play your 2nd, 3rd, 5th, and 7th occupation (including this one), you can build 1 stable at no cost._
   - `HOOK S-PLAY T-AFTER F-TRIG A-OWN E-GRANTSUB E-COSTMOD` — "After you play your Nth occupation" is an explicit after-play hook granting an optional free stable build. The 2nd/3rd/5th/7th check reads the player's already-tracked occupation count from game state, so no card-local ST-COUNTER is needed — labelB is right.
-- ⬜ **E90 Dung Collector** · [1+]
+- ✅ **E90 Dung Collector** · [1+] · ruling 74 (breeding-outcome trigger, Champion Breeder read)
   - _Each time you get 2 or more newborn animals, you can pay 1 food to plow 1 field.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.]_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Each time you get 2+ newborns, optionally pay 1 food to plow a field.
 - ⬜ **E91 Plow Builder** · [1+]
