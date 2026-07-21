@@ -19,6 +19,119 @@ summarized at the end — those need substantial new subsystems and are correctl
 
 ---
 
+## Ruling 74 (2026-07-21) — the 24-occupation triage batch
+
+A triage of 24 unimplemented occupations (Bed Maker → Braid Maker) was walked with the user;
+this entry is the rulings-of-record for the implementing waves. Every item below marked
+**(user)** is a dated user ruling quotable verbatim in module docstrings; items marked
+**(plan, flagged)** are driver readings the user saw in the plan but did not individually
+rule — each is also flagged in its module docstring.
+
+**Implementing now — per-card rulings:**
+
+- **Bed Maker (A93)** — an **`after_build_rooms` trigger** (user; overrides the bare-"each
+  time"-fires-before default: the growth is intended to use the just-built rooms, since
+  "Family Growth with Room Only" requires rooms > people; the room-gate reads post-build
+  state). Growth via `PendingFamilyGrowth(place_on_space=False)` (the standing card-granted-
+  growth ruling); newborn feeds the standard 1 food. Once per action (printed clarification:
+  exactly 1 growth regardless of rooms built) via the host's `triggers_resolved`. Fires on any
+  rooms addition, flag-irrelevant **(plan, flagged** — by analogy to Furnisher's every-room
+  ruling below; "add rooms to your house" is not the named-action wording**)**.
+- **Site Manager (D95)** — the on-play major build is **OPTIONAL** (user: "let's not make it
+  mandatory"). Shape: `PendingGrantedSubAction` wrapper (build_major category), bare
+  `PendingBuildMajor` — never the composite. The ≤1-per-type→1-food-each substitution is a
+  `register_conversion("build_major", …)` gated on `granted_by == "card:site_manager"` (the
+  Oven Site grant-scoped-pricing pattern).
+- **Sheep Inspector (D93)** — "after you complete a person action" = the **`after_action_space`
+  window** (user). **Newborns do not count** as "another person you placed" (user). Once per
+  work phase = `used_this_round`. Return semantics mirror Tea Time (person home, space OPEN).
+- **Henpecked Husband (D94)** — an **`after_build_rooms` AUTO** (mandatory). Gate: a **named**
+  Build Rooms action (`build_rooms_action == True`) taken on the turn initiated by the owner's
+  **second placement** this round. Card-granted named actions riding that turn are **included**
+  (user, on House Artist A149 × Traveling Players); personless builds (Wood Saw E14's "without
+  placing a person") are **excluded via an explicit exclusion list** of personless-build card
+  ids (user) — the list is EMPTY today; **any future personless-build card must add its id**
+  (breadcrumb: this entry + the module docstring). Room-effect builds (flag False — the
+  Cottager shape) never count. The first placement's space is recorded per-round in CardStore
+  (an every-space hook); no return if that space is Meeting Place (printed).
+- **Furnisher (D96)** — triggers on **every room build**, not just named Build Rooms actions
+  (user). The grants resolve **without interruption** (user): one trigger; firing opens up to
+  N consecutive improvement plays (N = rooms built that action; build-major or play-minor,
+  each −1 wood via `granted_by`-scoped reductions), then the card is done for that action.
+  The improvement need not cost wood (printed clarification). Needs the multi-use counter on
+  `PendingGrantedSubAction`.
+- **Livestock Feeder (C86)** — capacity = `register_flexible_slots` over the grain count.
+  Eviction is **structural, not per-seam** (user approved): a volatile-capacity ownership
+  check at the accommodation barrier, optimized by a CardStore **grain watermark** — refreshed
+  at every owner decision boundary, `can_accommodate` run only when grain dropped since the
+  last boundary, written only when changed (user: "I trust you will think carefully about how
+  and when to update this watermark").
+- **Stable Master (C89)** — on-play optional build-1-stable-for-1-wood; clause 2 converts ONE
+  unfenced stable's 1-cap flexible slot into a **3-cap single-type bin** — a strict upgrade,
+  so no player choice **(plan, flagged**; needs the extract_slots flexible→bin transformation;
+  check the Shepherd's Whistle arrangement interplay at build**)**.
+- **Confidant (B93)** — the C5 hold is **released** (user: "seems straightforward"). Build:
+  play-occupation variants N ∈ {2,3,4} (gated food ≥ N, debiting N food) + `schedule_resources`
+  (the food back) + `schedule_effect` (the per-round grant), resolved at the
+  `round_space_collection` window as a variant trigger ["sow", "build_fences"] (named actions —
+  full-width frames), window Proceed = decline.
+- **Dung Collector (E90)** — fires **only on harvest breeding outcomes** (`BreedingOutcome`,
+  ≥2 newborns placed — the Champion Breeder read). Pig Breeder (A165) + Pure Breeder (D167)
+  end-of-round-12 breeds are **sequential and distinct** (user) — 1 newborn each, never
+  triggering. Caveat (record in module): any future card breeding 2+ newborns outside
+  `_execute_breed` must emit the payload or this card and Champion Breeder under-fire. A forum
+  query on the simultaneity question is outstanding; revisit if it rules simultaneous.
+- **Canal Boatman (D103)** — implemented as an **`after_action_space` trigger** (user-
+  authorized deviation from the before-default: "slightly incorrect, but easier to
+  implement"). **Multiple workers** may be parked on the card in one round (user) — each
+  qualifying Fishing/Reed Bank use is a fresh trigger. Sheep Inspector **can** return the
+  on-card worker (user). Needs the on-card-worker bookkeeping (shared with the card-space
+  machinery).
+- **Miller (E95)** — the buildable menu is **baking majors + baking minors in hand** (user:
+  Baking Course + the ovens + Oriental Fireplace when implemented). The owner's granted bake
+  on the opponent's Grain Seeds use resolves **before all of the acting player's
+  before-action triggers** (user). Mechanism (user-approved): an `any_player` before-auto
+  pushing `PendingGrantedSubAction(player_idx=owner, subactions=("bake_bread",))` on top of
+  the just-pushed host — the out-of-turn decision rides the decider rule.
+- **Field Merchant (B103)** — corrected reading (user): declining a **"Minor Improvement"
+  action** → 1 food; declining a **"Major or Minor Improvement" action** → 1 vegetable.
+  Detection keys on the NAMED actions wherever they occur — spaces and declinable card grants
+  (Sample Stable Maker, Angler); **Equipper is excluded** per its printed clarification
+  ("This effect is not a 'Minor Improvement' action") (user). Exiting an improvement action
+  you **could not use counts as declining** (user) — Meeting Place with no playable minor
+  pays, and placing on the Major Improvement space with nothing affordable must be legal
+  (ownership-gated placement extension + a decline route on the composite host).
+- **Braid Maker (E109)** — **un-deferred**. The 1-reed-1-stone Basketmaker's cost applies to
+  major builds too (user) — a formula — and at "Minor Improvement" actions via the approved
+  `register_minor_action_major_build` seam. The reed→2-food exchange is a **harvest-span
+  conversion** (user): available in any harvest-time `PendingFoodPayment`, at feeding, and at
+  a final `end_of_harvest` offering. **General pattern (user):** every resource→food
+  conversion printed without a specific harvest phase — **Joinery / Pottery / Basketmaker's
+  included** — follows the span pattern. The `end_of_harvest` offering is **unconditional but
+  Cards-mode-only** (user approved the lean; Family keeps its FEED-only surface, lossless
+  there since nothing can change between the feed offering and end_of_harvest in Family).
+- **Plow Builder (E91)** — clause 1 rides the same minor-action-major-build seam as Braid
+  Maker; clause 2 (reacting to a Joinery use during the harvest with a pay-1-food plow)
+  returns to the user as a concrete proposal during the span-machinery wave.
+- **Collector (C104) / Tree Inspector (D116)** — **card-as-action-space approved**; card
+  spaces **count as action spaces for other cards' hooks** (user: both texts literally say
+  "action space"). Collector surfaces **wide at PlaceWorker** (user) via a picks payload —
+  the goods menu is the 10 good types (food included), so the maxima are C(10,6)=210 /
+  C(10,7)=120 / C(10,8)=45 / C(10,9)=10, none Pareto-comparable. Tree Inspector accumulates
+  +1 wood at the prep refill — the quarry-reveal discard (`reveal` window) precedes the
+  refill on the preparation ladder, matching the user's stated ordering.
+- **Motivator (E93)** — its own session; `design_docs/cards/TEMP_WORKER_DESIGN.md` is the
+  jump-start doc (loaner semantics + the `workers_in_supply` borrow ruled 2026-07-21; five
+  open questions in its §10).
+
+**Still deferred, with today's context:** Agricultural Labourer (C120) and Wolf (E103) — the
+any-source "obtain" event family (decide as a family with the reactive-trigger design);
+Child Ombudsman (D92) — end-of-turn; Pen Builder (E86) — at-any-time; Wood Barterer (D119) —
+placement-legality anticipation (reachability, ON HOLD); Master Tanner (E85) — feed-phase
+cook reactions against the no-FEED-triggers boundary.
+
+---
+
 ## Food-provider batch — deferred members (2026-07-15)
 
 The 2026-07-15 food-provider batch (§1) implemented 20 minors and deferred three:
