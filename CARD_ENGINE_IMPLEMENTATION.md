@@ -929,6 +929,15 @@ module-local `_owns(player_state, card_id)` helpers.
   hook would wrap its pushing handler in a generic `PendingActionSpace`, whose `Proceed` would
   then flip the *pushed child* instead of the host — a latent misfire guarded only by this
   convention.
+- **`register_build_major_identity(card_id)`** → `BUILD_MAJOR_IDENTITY_CARDS`. A card whose
+  after-build hook must know WHICH major the frame just built (Brick Hammer's printed-cost
+  check — ruling 69, 2026-07-20): when any player OWNS a member, `_execute_build_major`
+  stamps `PendingBuildMajor.built_major_idx` at the commit, readable off the top frame when
+  the deferred after-flip fires `after_build_major` / `after_build_improvement`. The
+  ownership-gated-stamp pattern (the `should_host_space` shape): empty set → the Family game
+  never stamps and the field stays at its canonical-skipped default (§4). The minor-side
+  sibling needs no registry — the play hosts always stamp `played_card_id` (card-only
+  frames).
 - **`register_harvest_field_hook` is GONE** (2026-07-05, with the whole legacy `harvest_field`
   seam — `HARVEST_FIELD_CARDS`, `should_host_harvest_field`, `PendingHarvestField`). Harvest
   cards now register on the timing-window ladder: the printed instant's window id is the event
@@ -2356,6 +2365,20 @@ examples; this is the reference list.
   Pottery 8, Basketmaker 9 (`agricola/constants.py`).
 - **A pasture is not a `CellType`** — an empty fenced cell reads `EMPTY`. Use
   `helpers.enclosed_cells(farmyard)` / `farmyard.pastures`, never `cell_type` alone.
+- **Field emptiness/plantedness = the `Cell` predicates, never inline grain/veg checks.**
+  `cell.field_empty` (sowable / "unplanted field") and `cell.field_planted` are the single
+  definitions — a stone-holding field (Stone Clearing; ruling 70, 2026-07-20) has
+  `grain == veg == 0` yet is planted and NOT empty, so a hand-rolled
+  `grain == 0 and veg == 0` silently miscounts it. Every pre-existing read site was swept
+  onto the predicates 2026-07-20; new code must use them.
+- **Accumulation WRITES are plain board edits.** A card may deposit goods onto a space
+  ("for the next visitor" — Forest Plow, Nail Basket) or take goods off one with no worker
+  placed (the user-approved C3 mechanism, ruling 70 — Work Certificate, Handcart): rebuild
+  the space with `accumulated` / `accumulated_amount` adjusted and move the goods to/from
+  the player. Consequence: a space can hold FOREIGN types, so any threshold/take wording
+  must state whether they count — Work Certificate: typeless total, any present type
+  takeable; Handcart: family-numbered threshold met by ANY single type, any present type
+  takeable; Material Hub: native type only (each user-ruled 2026-07-20).
 - **The "Major or Minor Improvement" action ≠ the Major Improvement *space*; and it is a different
   action from the "Minor Improvement" action** (the RULES.md ⚠️ callout is the concept — read it;
   this is the engine mapping). The **"Major or Minor Improvement" action** is the composite host
@@ -2540,6 +2563,8 @@ exact-set (§6).
 | animal at a market | `cowherd` |
 | reward replacement (suppress a space's own reward for an alternate) | `animal_catcher` (atomic / Day Laborer), `pet_lover` (animal market) |
 | occupancy override | `sleeping_corner`, `forest_school` |
+| take-from-accumulation without a placement (the approved C3 mechanism) | `work_certificate` (after any own space use), `handcart` (prep-window) |
+| named-action-gated sub-action trigger | `family_friendly_home` (the `build_rooms_action` gate) |
 
 **Integration checklist** (per batch): run the new card tests, wire `__init__.py`, archive any
 deferred card's files to `archive/deferred_cards/` (archive, never delete), full suite
