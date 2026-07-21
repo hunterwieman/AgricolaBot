@@ -114,7 +114,13 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-21 (the boundary-buster batch — ruling 72: four previously
+> **Last updated: 2026-07-21 (the accommodation-chain state widening — ruling 73: the
+> capacity chain carries GameState (`slots_fn(state, player_state)` with the doctored-player
+> argument kept explicit; every call site swept, encoder values bit-identical, full suite +
+> C++ gates green), `helpers.completed_feeding_phases` added (the GLOBAL game-time count —
+> one shared count, ticking on harvest feeding regardless of participation, harvest-skips
+> included), and Truffle Searcher B86 + Woolgrower A148 [4] implemented — the typed-holder
+> family is closed; below. Earlier same day: the boundary-buster batch — ruling 72: four previously
 > hard-bucket cards on three small engine seams — the `CostCtx.min_spend` payment filter
 > (Stone Company A23), the `PendingPlayMinor.allowed_cards` menu restriction + take-max
 > withdrawal (Firewood C75), the `cooking_mods.py` cooking-rate bonus fold (Fatstock
@@ -155,6 +161,24 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-21 accommodation-chain state widening landed (ruling 73): the typed-holder
+  family is CLOSED.** The capacity chain now carries GameState — `slots_fn(state,
+  player_state)`, `typed_slot_counts` / `sheep_slot_count` / `extract_slots` /
+  `accommodates` / `pareto_frontier` / `breeding_frontier` all take state first, with the
+  explicit player argument KEPT (doctored-player callers — Shepherd's Whistle, Mineral
+  Feeder, the strip — pass their doctored object; state is never substituted via
+  `state.players[idx]`). Every call site swept (engine, legality, the NN encoder — plumbing
+  only, values bit-identical — policy heads, heuristic, nine card modules, the profiler,
+  the tests); full suite + the C++ gates green (Python-signature-only change).
+  **`helpers.completed_feeding_phases(state)`**: the GLOBAL game-time feeding-phase count,
+  derived on demand, never stored (a stored counter would be Family-visible state). The two
+  defining rulings (2026-07-21): "the feeding phase" is a phase of the GAME (one shared
+  count — the per-player feed bands are engine sequencing), and it ticks when the harvest's
+  feeding resolves regardless of participation (a Layabout-style skip, even by every player,
+  does not stall it). Mid-harvest edge exact via the final feed band's payment sentinel;
+  unit pins in `tests/test_completed_feeding_phases.py`. Cards: **Truffle Searcher** (B86
+  [1+] — boar per completed feeding phase) and **Woolgrower** (A148 [4], forward-compat —
+  sheep likewise), each a one-line `slots_fn` over the counter.
 - **The 2026-07-21 boundary-buster batch landed (ruling 72): 4 minors off the hard bucket,
   on three small engine seams + one zero-engine-change build.** (1) **The min-spend payment
   filter** — `CostCtx.min_spend` + a qualify-filter in `effective_payments`/`can_pay` applied

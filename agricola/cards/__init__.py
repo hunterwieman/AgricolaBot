@@ -1020,3 +1020,8 @@ from agricola.cards import stone_company  # noqa: F401
 from agricola.cards import firewood  # noqa: F401
 from agricola.cards import fatstock_stretcher  # noqa: F401
 from agricola.cards import renovation_company  # noqa: F401
+
+# --- 2026-07-21 completed-feeding-phases pair (the state-widened typed slots +
+#     helpers.completed_feeding_phases; Woolgrower is [4] forward-compat) ---
+from agricola.cards import truffle_searcher  # noqa: F401
+from agricola.cards import woolgrower  # noqa: F401

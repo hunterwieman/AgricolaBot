@@ -1584,7 +1584,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A147 Animal Dealer** · [3+]
   - _Each time you use the "Sheep Market", "Pig Market", "or "Cattle Market" accumulation space, you can buy 1 additional animal of the respective type for 1 food._
   - `A-OWN E-ANIMALS E-FOODCOST F-TRIG HOOK S-SPACE T-BEFORE` — 'Each time you use [animal market]' -> HOOK/S-SPACE/T-BEFORE, optional buy -> F-TRIG. Provides an animal -> E-ANIMALS. Cost is 1 food that may be paid via conversion -> E-FOODCOST; it is a purchase not a rate exchange so E-CONVERT is not preferred.
-- ⬜ **A148 Woolgrower** · [4+]
+- ✅ **A148 Woolgrower** · [4+]
   - _This card can hold a number of sheep equal to the number of completed feeding phases._
   - `PASSIVE E-CAPNEW` — The card is a new animal holder (E-CAPNEW) whose capacity is a continuous rule (PASSIVE); 'completed feeding phases' is derivable from the fixed harvest schedule / round number — a plain state read, not per-card ST-COUNTER state.
 - ⬜ **A149 House Artist** · [4+]
@@ -1653,7 +1653,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B85 Farm Hand** · [1+]
   - _Once you have 4 field tiles arranged in a 2x2, you can use a "Build Stables" action to build a stable in the center of the 2x2. This stable provides room for a person but no animal.  [CLARIFICATION: You may only build one such stable.  《You may build additional stables as normal with the same “Build Stables” action.》]_
   - `PASSIVE L-EXT L-GEOMFARM E-CAPNEW E-CAPNEG ST-STORE` — Passive legality extension of the normal Build Stables action (no sub-action granted, so no E-GRANTSUB) gated on 2x2 field geometry; the special stable holds a person (E-CAPNEW) but overrides normal stable animal capacity (E-CAPNEG); 'only one such stable' needs a built-flag (ST-STORE; CAP-GAME is ATWILL-only).
-- ⬜ **B86 Truffle Searcher** · [1+]
+- ✅ **B86 Truffle Searcher** · [1+]
   - _This card can hold a number of wild boar equal to the number of completed feeding phases._
   - `PASSIVE E-CAPNEW` — Always-on card-held boar capacity; the completed-feeding-phase count is derivable from the round number (fixed harvest schedule), a plain state read needing no ST-COUNTER.
 - ✅ **B87 Cottager** · [1+]

@@ -1383,11 +1383,12 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
   (`register_typed_slots` — the Dolly's-Mother greedy strip generalized to a per-type triple, plus
   `animal_holder_card_ids()` for "able to hold animals" wording): **Wildlife Reserve C11, Cattle Farm
   C12, Mud Patch A11 (eviction flags at after_sow / after_play_minor for the unplanted-count drops),
-  and Sheep Agent D86 implemented**. Still deferred: Truffle Searcher (B86, boar per completed feeding
-  phase) and Woolgrower (A148 [4], sheep likewise) — their counts need GAME state (round arithmetic),
-  but `slots_fn` and the whole `extract_slots`/strip chain are player-state-only; widening those hot
-  signatures is an open design question for the user. Special Food (B34) separately needs an
-  accommodation event.
+  and Sheep Agent D86 implemented**. The signature question resolved same day (user-approved): the
+  whole chain was widened to carry GameState (`slots_fn(state, player_state)`; the doctored-player
+  argument stays explicit), `helpers.completed_feeding_phases(state)` provides the GLOBAL game-time
+  count (rulings: one shared count; ticks on harvest feeding regardless of participation, even if
+  every player skipped), and **Truffle Searcher B86 + Woolgrower A148 [4] are implemented** — the
+  typed-holder family is CLOSED. Special Food (B34) separately needs an accommodation event.
 - **Per-card goods stack (beyond a CardStore scalar):** Hayloft Barn (B21), Muddy Puddles (B83),
   Forest Plow (B17, return-wood-to-space + partial-take legality — two 2026-07-20 rulings for its
   eventual build: it is an AFTER-window trigger, so the deposit lands after the sweeping player's
