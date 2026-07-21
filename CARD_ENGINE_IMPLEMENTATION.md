@@ -874,8 +874,11 @@ module-local `_owns(player_state, card_id)` helpers.
   For an occupation whose play carries an optional all-or-nothing choice (Roof Ballaster: "you
   may pay 1 food to get 1 stone per room"): `variants_fn(state, idx) -> list[(variant_str,
   surcharge: Resources)]` (must be non-empty — include a zero-surcharge decline variant). The
-  enumerator offers one `CommitPlayOccupation(card_id, variant=v)` per payable variant, the
-  executor folds the chosen surcharge into the debited cost, and `on_play` becomes
+  enumerator offers one `CommitPlayOccupation(card_id, variant=v, payment=…)` per (variant ×
+  frontier payment) pair whose COMBINED debit — chosen base-cost payment + surcharge — is
+  payable (ruling 67); the executor folds the chosen surcharge into the debit on top of the
+  payment, outside the modifier pipeline (user ruling 2026-07-20 — a surcharge is never
+  substituted or reduced, and never in the `paid_cost` stamp), and `on_play` becomes
   `(state, idx, variant)`. **The cost lives on the option that surfaces it**, not a side table —
   the "paid option" principle (FOOD_PAYMENT_DESIGN.md §8).
 - **`register_play_minor_variant(card_id, variants_fn)`** → `PLAY_MINOR_VARIANTS` — the minor
@@ -1356,8 +1359,11 @@ whose pusher identity is either irrelevant (a draft pick) or already encoded in 
 
 **Playing cards.** `PendingPlayOccupation` (a commit-terminated host; `cost: Resources` is the
 route-supplied play cost, set at push — Lessons computes `occupation_cost`, a granting card sets
-its own; one `CommitPlayOccupation` per playable hand card, no decline — placement legality
-guaranteed one) and `PendingPlayMinor` (one `CommitPlayMinor` per playable hand minor ×
+its own; one `CommitPlayOccupation` per playable hand card × payment-frontier point of the
+`play_occupation` chokepoint (ruling 67 — a single legacy `payment=None` commit on the
+no-substitution-card path), no decline — placement legality guaranteed one; the executor stamps
+`played_card_id` + `paid_cost`, the base-cost payment actually debited, surcharge excluded) and
+`PendingPlayMinor` (one `CommitPlayMinor` per playable hand minor ×
 "/"-alternative × payment-frontier point; also no decline — *optionality lives at the parent*:
 the frame is pushed only after the player chose the minor branch, exactly as `PendingSow` is
 pushed only after choosing sow). Minors reach `PendingPlayMinor` from four entry points: the
@@ -1498,16 +1504,6 @@ the Family-constant value and is canonical-skipped:
   uncapped, every Family sow and the full granted Sow action. `required_crop: str | None`
   — a forced single-crop sow (Fern Seeds' "1 grain, which you must sow immediately"): the
   enumerator offers only commits sowing exactly that crop, card-field stacks included.
-- **The granted-primitive parameter fields (the 2026-07-20 tier-2 seams)** — each a
-  push-time parameter on an existing frame, Family-constant default, canonical-skipped:
-  `PendingPlow.ignore_adjacency` (adjacency-waived plow — Newly-Plowed Field);
-  `PendingBuildStables.allowed_cells` (a cell-restricted granted build — Shelter's
-  1-cell-pasture rule); `PendingBuildMajor.allowed_majors` +
-  `PendingGrantedSubAction.major_allowed` (a menu-restricted granted major build — Oven
-  Site, priced by a `granted_by`-scoped formula); and `PendingRenovate.cost_override` /
-  `forced_target` (a TRAVELING card's free pinned renovate — Renovation Materials: an
-  ownership-gated cost formula can never serve a card that leaves the tableau, so the
-  frame carries the push-time price/target).
 - **`PendingHarvestBreed`**: `triggers_resolved: frozenset` — the breed frame hosts card
   triggers in both of its stretches (§5b), but the frame itself is pushed in every Family
   harvest, so the field is skipped via a **qualified** canonical entry (below).
@@ -1518,11 +1514,14 @@ the Family-constant value and is canonical-skipped:
   `PendingPlow.ignore_adjacency` (adjacency-waived plow — Newly-Plowed Field) and
   `PendingPlow.allowed_cells` (a cell-MENU restriction — Zigzag Harrow's zigzag completion,
   mirroring the stables field); `PendingSow.required_crop` (forced single-crop sow — Fern
-  Seeds); `PendingBuildStables.allowed_cells` (cell-restricted granted build — Shelter);
-  `PendingRenovate.cost_override` + `forced_target` (a traveling card's push-time-priced
-  renovate — Renovation Materials); `PendingBuildMajor.allowed_majors` (a menu-restricted
-  granted build — Oven Site) and `PendingBuildMajor.built_major_idx` (the ownership-gated
-  identity stamp — Brick Hammer; registry in §3).
+  Seeds; detailed on the `PendingSow` bullet above); `PendingBuildStables.allowed_cells`
+  (cell-restricted granted build — Shelter's 1-cell-pasture rule);
+  `PendingRenovate.cost_override` + `forced_target` (a TRAVELING card's free pinned renovate —
+  Renovation Materials: an ownership-gated cost formula can never serve a card that leaves the
+  tableau, so the frame carries the push-time price/target); `PendingBuildMajor.allowed_majors`
+  + `PendingGrantedSubAction.major_allowed` (a menu-restricted granted major build — Oven Site,
+  priced by a `granted_by`-scoped formula) and `PendingBuildMajor.built_major_idx` (the
+  ownership-gated identity stamp — Brick Hammer; registry in §3).
 - **`Cell.stone`** (Stone Clearing C6; ruling 70, 2026-07-20) — the one card-only field on a
   farmyard CELL: stone placed on a field tile, harvested normally by the take (§5b). With it
   came the single-definition predicates **`Cell.field_empty` / `Cell.field_planted`** — a
@@ -1747,8 +1746,9 @@ non-food component on hand outright (liquidation only produces food), sets the c
 animal portion (`reserved_animals`, from the `CostCtx`) aside before counting animals as fuel,
 and checks max-producible food at the player's `cooking_rates` against the shortfall. A
 `food == 0` cost takes the `_can_afford` fast path — every Family build cost, so Family never
-touches this layer. `_payable_occupation` additionally simulates firing an owned
-occupation-food-source (§3) before re-checking.
+touches this layer. `_payable_occupation` gates through `can_pay` on the `play_occupation`
+ctx (ruling 67 — so a substitution card's conversions count toward affordability), and
+additionally simulates firing an owned occupation-food-source (§3) before re-checking.
 
 **The execution frame.** When a chosen cost's food exceeds food on hand, the executor
 (`_execute_play_occupation` / `_execute_play_minor` / the build-major path) pushes
@@ -2272,6 +2272,15 @@ examples; this is the reference list.
   earlier batch-era ruling that any "/" cost is an automatic defer — commit a8e1ee2.)* Still
   unsupported: a minor whose "/" is in the *effect* (Canvas Sack's choose-a-reward) — no
   `PLAY_MINOR_VARIANTS` registry exists; defer (§8).
+- **An occupation-cost SUBSTITUTION is a conversion; a food PRODUCER is a source** (ruling
+  67, 2026-07-20 — the classification rule for every future "occupation cost" card). "Pay X
+  in place of food" → `register_conversion("play_occupation", …)`: the ways to pay surface
+  wide through `effective_payments`, dominated offers are Pareto-pruned, double-replacement
+  is inexpressible. "Get/produce N food (usable toward the play)" with bankable overshoot →
+  a `before_play_occupation` trigger + `register_occupation_food_source` (Paper Maker).
+  Surcharges and individual printed costs are SEPARATE from the occupation cost and never
+  reduced or modified, even when debited in the same commit; "food paid as occupation cost"
+  readers use the host's `paid_cost` stamp, never the charged `cost` field.
 - **A one-shot's sweep matches its condition's reachability.** A house-material condition
   ("once you live in a stone house") fires on the `register_conditional` sweep at the renovate /
   card-play seams (`_fire_ready_one_shots`). A **resource/animal-count** condition (Hook Knife's

@@ -2932,8 +2932,9 @@ def _enumerate_pending_play_occupation(
     triggers (e.g. Bread Paddle) + Stop.
 
     Trigger surfacing goes through `_expand_variant_triggers` (a no-op when no owned
-    trigger is variant-registered) — Forest School's per-k food-for-wood swap is the
-    live consumer (ruling 65)."""
+    trigger is variant-registered; no play-occupation card registers one today —
+    Forest School, its former consumer, migrated to a play_occupation cost
+    conversion under ruling 67)."""
     actions = _expand_variant_triggers(
         state, top, _eligible_fire_triggers(state, top, trigger_event(top)))
     if top.phase == "after":
