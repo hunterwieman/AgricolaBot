@@ -34,15 +34,15 @@ _BANDS: tuple[tuple[int, int], ...] = (
 
 
 def _unplanted_field_tiles(state: GameState, idx: int) -> int:
-    """FIELD cells with no crop sown on them (grain == 0 and veg == 0)."""
+    """FIELD cells holding nothing (`Cell.field_empty`) — a stone-holding field
+    (Stone Clearing) is "considered planted until the stone is gone" (its
+    errata; user ruling 2026-07-20) and does NOT count as unplanted."""
     grid = state.players[idx].farmyard.grid
     return sum(
         1
         for r in range(3)
         for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-        and grid[r][c].grain == 0
-        and grid[r][c].veg == 0
+        if grid[r][c].field_empty
     )
 
 

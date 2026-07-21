@@ -52,7 +52,33 @@ class Cell:
     cell_type: CellType = CellType.EMPTY
     grain:     int = 0  # populated iff cell_type == FIELD
     veg:       int = 0  # populated iff cell_type == FIELD
+    # Card-only (Stone Clearing C6; user ruling 2026-07-20): stone placed on a
+    # field tile. Per the card's errata the field is harvested normally and is
+    # "considered planted until the stone is gone" — so a stone-holding field
+    # is NOT empty (not sowable, not an "unplanted field" for any card
+    # prerequisite or effect) and IS planted for "planted field" readers; the
+    # single definition of both lives in the `field_empty` / `field_planted`
+    # properties below, which every emptiness/planted read consults.
+    # Family-constant 0 → qualified canonical-skip field ("Cell.stone" —
+    # "stone" alone would wrongly skip Resources.stone), no C++ change.
+    stone:     int = 0  # populated iff cell_type == FIELD
     # Note: a STABLE cell may also be enclosed by fences (derived from fence arrays)
+
+    @property
+    def field_empty(self) -> bool:
+        """An EMPTY field: a FIELD cell holding nothing — no grain, no veg, and
+        no stone. The single sowability / "unplanted field" predicate (user
+        ruling 2026-07-20: a stone-holding field must never read as empty)."""
+        return (self.cell_type == CellType.FIELD and self.grain == 0
+                and self.veg == 0 and self.stone == 0)
+
+    @property
+    def field_planted(self) -> bool:
+        """A PLANTED field: a FIELD cell holding any content — grain, veg, or
+        stone (Stone Clearing's errata: "considered planted until the stone is
+        gone"). The single "planted field" predicate."""
+        return (self.cell_type == CellType.FIELD
+                and (self.grain > 0 or self.veg > 0 or self.stone > 0))
 
 
 @dataclass(frozen=True)

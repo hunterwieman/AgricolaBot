@@ -1406,10 +1406,12 @@
   const PAD = 10;
   const ROWS = 3, COLS = 5;
 
-  // Crop-token colors. Yellow for grain, orange for vegetables — sized to
-  // match the digit they sit next to (r=5 ≈ the 11px digit's visual height).
+  // Crop-token colors. Yellow for grain, orange for vegetables, grey for
+  // stone (Stone Clearing places stone on field tiles) — sized to match the
+  // digit they sit next to (r=5 ≈ the 11px digit's visual height).
   const GRAIN_COLOR = '#E8C547';
   const VEG_COLOR   = '#E67E22';
+  const STONE_COLOR = '#9BA1A6';
 
   function appendCellGlyph(svg, x, y, cell) {
     const cx = x + CELL_W / 2;
@@ -1431,8 +1433,10 @@
       return;
     }
     if (t === 'FIELD') {
+      const stone = cell.stone || 0;
       const count = cell.grain > 0 ? cell.grain
                   : cell.veg   > 0 ? cell.veg
+                  : stone      > 0 ? stone
                   : 0;
       if (!count) {
         svg.appendChild(svgEl('text', {
@@ -1440,7 +1444,9 @@
         })).textContent = 'F';
         return;
       }
-      const color = cell.grain > 0 ? GRAIN_COLOR : VEG_COLOR;
+      const color = cell.grain > 0 ? GRAIN_COLOR
+                  : cell.veg   > 0 ? VEG_COLOR
+                  : STONE_COLOR;
       // Digit on the left of cell center; colored disc on the right.
       svg.appendChild(svgEl('text', {
         x: cx - 6, y: cy + 4, 'text-anchor': 'middle', class: 'cell-label',

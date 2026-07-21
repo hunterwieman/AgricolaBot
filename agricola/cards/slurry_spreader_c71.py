@@ -70,8 +70,7 @@ def _sow_committable(state: GameState, idx: int) -> bool:
     board_ok = (
         (p.resources.grain >= 1 or p.resources.veg >= 1)
         and any(
-            cell.cell_type == CellType.FIELD
-            and cell.grain == 0 and cell.veg == 0
+            cell.field_empty   # stone-holding fields excluded (Stone Clearing)
             for row in p.farmyard.grid for cell in row))
     return board_ok or can_sow_card_fields(p)
 

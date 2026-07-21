@@ -73,9 +73,7 @@ CARD_ID = "fern_seeds"
 def _empty_board_field_exists(p) -> bool:
     grid = p.farmyard.grid
     return any(
-        grid[r][c].cell_type == CellType.FIELD
-        and grid[r][c].grain == 0
-        and grid[r][c].veg == 0
+        grid[r][c].field_empty   # stone-holding fields excluded (Stone Clearing)
         for r in range(3) for c in range(5)
     )
 
@@ -107,15 +105,15 @@ def _prereq(state: GameState, idx: int) -> bool:
     )
     p = state.players[idx]
     grid = p.farmyard.grid
+    # Stone-holding fields (Stone Clearing; user ruling 2026-07-20) are planted,
+    # not empty — the Cell predicates are the single definition of both.
     empty_board = sum(
         1 for r in range(3) for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-        and grid[r][c].grain == 0 and grid[r][c].veg == 0
+        if grid[r][c].field_empty
     )
     planted_board = sum(
         1 for r in range(3) for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-        and (grid[r][c].grain > 0 or grid[r][c].veg > 0)
+        if grid[r][c].field_planted
     )
     empty_fields = empty_board + unplanted_card_field_count(p)
     planted_fields = planted_board + planted_card_field_count(p)

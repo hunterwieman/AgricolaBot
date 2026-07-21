@@ -600,9 +600,7 @@ def _filter_grain_utilization_veggie(
     grid = p.farmyard.grid
     empty_fields = sum(
         1 for r in range(3) for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-        and grid[r][c].grain == 0
-        and grid[r][c].veg == 0
+        if grid[r][c].field_empty   # stone-holding fields excluded (Stone Clearing)
     )
     veggies = p.resources.veg
     kept = []

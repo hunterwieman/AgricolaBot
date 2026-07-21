@@ -47,10 +47,11 @@ def _planted_fields(state: GameState, idx: int) -> int:
     )
     p = state.players[idx]
     grid = p.farmyard.grid
+    # A stone-holding field (Stone Clearing) IS planted — "considered planted
+    # until the stone is gone" (its errata; user ruling 2026-07-20).
     return sum(
         1 for r in range(3) for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-        and (grid[r][c].grain > 0 or grid[r][c].veg > 0)
+        if grid[r][c].field_planted
     ) + planted_card_field_count(p)
 
 

@@ -1015,6 +1015,39 @@ at 2 players.
      "used this round" block, so either player may use Grain Utilization again
      that round after the return.
 
+70. **The 2026-07-20 approvals batch** (user approvals + the Stone Clearing
+    engine layer; each card ruling quoted in its module):
+   - **Cluster C3 is APPROVED** (user, 2026-07-20): "take a good off an
+     accumulation space without placing a worker" is a sanctioned mechanism —
+     an optional trigger that edits `sp.accumulated`. Both members built:
+     **A82 Work Certificate** (an `after_action_space` play-variant trigger on
+     every own space use; its printed threshold "at least 4 building resources
+     on it" is read as the TYPELESS total on the space, any mix — contrast
+     Material Hub's typed wording — and any building-resource type present is
+     takeable; its clarification "Can be immediately triggered" means the very
+     use that plays the card may fire it, the machinery's natural
+     ownership-at-fire-time behavior) and **B81 Handcart** (a `before_work`
+     prep-window play-variant trigger; the 6/5/4/4 thresholds and the taken
+     resource follow the space's NATIVE type — the driver's adopted analog of
+     the same-day Material Hub native-type ruling, FLAGGED for user
+     confirmation — so foreign goods deposited on a space neither count toward
+     its threshold nor are takeable via this card).
+   - **C6 Stone Clearing — the engine layer** (user go-ahead 2026-07-20, with
+     the explicit instruction that stone-holding fields must never read as
+     empty for sowing, card prerequisites, or card effects): `Cell.stone` +
+     the `Cell.field_empty` / `Cell.field_planted` single-definition
+     predicates; every emptiness/planted read swept onto them (sow legality,
+     the sow executor, the restricted wrapper, and the reader cards —
+     Greening Plan, Potato Digger, Asparagus Gift, Fern Seeds, Fodder
+     Planter, Slurry Spreader C71 now exclude stone fields from
+     empty/unplanted; Field Clay, Garden Claw, Ash Trees count them as
+     planted per the errata "considered planted until the stone is gone");
+     the field-phase take harvests stone normally (1/phase to supply, a
+     `crop="stone"` manifest entry). The CARD MODULE is held on one open
+     scope question: does "each of your empty fields" also cover empty
+     CARD-fields (Beanfield / Wood Field / …) per the RULES.md collective
+     term ("Fields = field tiles plus field cards"), or board tiles only?
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)
@@ -1247,12 +1280,12 @@ time you get a Bake Bread action" — only Grain Utilization's bake, or every gr
 Bread Paddle / the ovens)? And does its once-per-turn cap span sources? Defer until the substitution model
 is designed with you.
 
-### C3. Take-from-accumulation-without-placement — A82 Work Certificate (rescued), B81 Handcart
-You flagged this exact mechanism as a blocker. The rescue pass argued it's just editing `sp.accumulated`
-(as Basket/Mushroom Collector do). **Decision needed:** are you comfortable surfacing an optional "take 1
-building resource off an accumulation space holding ≥N, no worker placed" as an `after_action_space` /
-`start_of_round` trigger? If yes, both are ~clean (PendingCardChoice over the qualifying spaces). I deferred
-to your call since you named it.
+### C3. Take-from-accumulation-without-placement — RESOLVED: APPROVED (user, 2026-07-20; ruling 70)
+You flagged this exact mechanism as a blocker; on 2026-07-20 you approved it. Both members are
+IMPLEMENTED (ruling 70): **A82 Work Certificate** (`after_action_space` play-variant trigger,
+typeless ≥4 threshold) and **B81 Handcart** (`before_work` prep-window play-variant trigger,
+native-type 6/5/4/4 thresholds — the Material Hub analog, flagged for confirmation). Kept for
+provenance; no longer a blocker for future cards of this shape.
 
 ### C4. Multi-plow chain — A18 Wheel Plow (rescued)
 The rescue proposed chaining `PendingPlow` via an `after_plow` re-arm (a 2-plow grant, once per game). It's

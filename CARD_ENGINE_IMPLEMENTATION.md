@@ -114,7 +114,12 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-20 (the tier-3 batch — ruling 69: 6 minors implemented via
+> **Last updated: 2026-07-20 (the approvals batch — ruling 70: cluster C3 approved and both
+> members built — Work Certificate A82 + Handcart B81; plus the Stone Clearing C6 ENGINE layer —
+> `Cell.stone`, the `field_empty`/`field_planted` single-definition predicates, the full
+> emptiness/planted sweep, and the take's stone branch (the card module waits on one scope
+> question: card-fields included or board tiles only?); census 213 occ + 323 min = 536; below.
+> Earlier same day: the tier-3 batch — ruling 69: 6 minors implemented via
 > parallel delegation on same-day user rulings, with three small driver seams —
 > `PendingPlow.allowed_cells`, the ownership-gated `PendingBuildMajor.built_major_idx`
 > identity stamp + `register_build_major_identity`, and the sow after-phase
@@ -134,6 +139,26 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-20 approvals batch landed (ruling 70): 2 minors on the newly-approved C3
+  mechanism + the Stone Clearing engine layer.** The user approved deferred-plans cluster C3
+  (take-from-accumulation-without-placement — an optional trigger editing `sp.accumulated`):
+  **Work Certificate** (A82 — an `after_action_space` play-variant trigger on every own space
+  use, hooked over the full `SPACE_IDS`; typeless ≥4-total threshold, any building type present
+  takeable; per its clarification the very use that plays it may fire it) and **Handcart**
+  (B81 — a `before_work` prep-window play-variant trigger; 6/5/4/4 thresholds and the take
+  follow the space's NATIVE type — the Material Hub-analog reading, flagged for user
+  confirmation; the post-refill stock counts, proven through a real round boundary). The
+  **Stone Clearing (C6) engine layer** (user go-ahead + the never-reads-as-empty instruction,
+  2026-07-20): `Cell.stone` (qualified canonical skip "Cell.stone" — unqualified would wrongly
+  skip `Resources.stone`), the **`Cell.field_empty` / `Cell.field_planted`** properties as the
+  single definition of field emptiness/plantedness, a sweep of every read site onto them
+  (sow legality + executor, the restricted wrapper, and nine reader cards — unplanted readers
+  exclude stone fields, planted readers count them per the errata), and a stone branch in
+  `field_take` (1 stone/phase to supply, a `crop="stone"` manifest entry — joining
+  card-fields' "wood" as a non-crop `HarvestEntry.crop` value). The card MODULE is held on
+  one open scope question (ruling 70's tail): empty card-fields included, or board tiles
+  only? Engine tests: `tests/test_stone_fields.py`. Census after: **213 occupations +
+  323 minors = 536**.
 - **The 2026-07-20 tier-3 batch landed (ruling 69): 6 minors + three small driver seams,
   all card-only/Family-inert (full suite + C++ gates green untouched).** Built via parallel
   per-card delegation on same-day user rulings (each quoted in its module; the ruling-69
@@ -1678,7 +1703,9 @@ extra harvesting **folds into it**. A full-catalog sweep found no sequential wor
 *modifier* of the singular event, never a second harvesting occasion.
 
 **The take.** `resolution.field_take(state, idx, *, source="take", extra_takes=None)` is the
-shared bare take: 1 crop per planted field (grain vs veg by what the field holds), plus the
+shared bare take: 1 crop per planted field (grain vs veg vs stone by what the field holds —
+stone via Stone Clearing C6, harvested normally per its errata with a `crop="stone"` manifest
+entry; ruling 70, 2026-07-20), plus the
 `extra_takes` per-cell fold-in map; returns `(state, HarvestOccasion)`. Manifest entries
 carry the **combined** base+fold-in amounts and **net** emptied flags — so every consumer
 sees one event with everything in it — and assertions guarantee fold-ins never over-harvest.
@@ -2317,8 +2344,9 @@ defer (§7); building the missing piece is a design conversation with the user f
   event, not the card played — and there is no any-source newborns-gained event (Dung
   Collector — markets included, deliberately out of scope). *(The narrow `played_card_id`
   stamp on the play hosts — added for Clutterer — is the one own-play discriminator, and it
-  resolved this bullet's old Seed Almanac example: implemented 2026-07-17. The general
-  payload boundary stands.)* Adding payloads to the general system is a
+  resolved this bullet's old Seed Almanac example: implemented 2026-07-17. Its sibling is the
+  ownership-gated `PendingBuildMajor.built_major_idx` stamp — ruling 69, Brick Hammer. The
+  general payload boundary stands.)* Adding payloads to the general system is a
   firing-API change; defer until a cluster justifies it. **The two deliberate exceptions**,
   both harvest-scoped registries rather than general events: the harvest OCCASION registries
   (the `HarvestOccasion` manifest) and the breeding-outcome registry (the `BreedingOutcome`

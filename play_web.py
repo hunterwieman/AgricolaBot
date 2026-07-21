@@ -1161,11 +1161,14 @@ def _owed_future(p, round_number: int) -> list[dict]:
 
 
 def _cell_to_dict(cell) -> dict:
-    return {
+    d = {
         "type": cell.cell_type.name,
         "grain": cell.grain,
         "veg": cell.veg,
     }
+    if cell.stone:
+        d["stone"] = cell.stone   # Stone Clearing (C6): stone on a field tile
+    return d
 
 
 def _farmyard_to_dict(fy) -> dict:

@@ -413,9 +413,7 @@ def _can_sow(p: PlayerState) -> bool:
 
     grid = p.farmyard.grid
     has_empty_field = any(
-        grid[r][c].cell_type == CellType.FIELD
-        and grid[r][c].grain == 0
-        and grid[r][c].veg == 0
+        grid[r][c].field_empty   # excludes stone-holding fields (Stone Clearing)
         for r in range(3) for c in range(5)
     )
     has_seed = p.resources.grain >= 1 or p.resources.veg >= 1
@@ -1791,9 +1789,7 @@ def _enumerate_pending_sow(
     p = state.players[pending.player_idx]
     empty_fields = sum(
         1 for r in range(3) for c in range(5)
-        if p.farmyard.grid[r][c].cell_type == CellType.FIELD
-        and p.farmyard.grid[r][c].grain == 0
-        and p.farmyard.grid[r][c].veg == 0
+        if p.farmyard.grid[r][c].field_empty   # stone-holding fields excluded
     )
     boost = any(cid in p.occupations or cid in p.minor_improvements
                 for cid in SOW_BOOST_CARDS)

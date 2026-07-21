@@ -62,10 +62,10 @@ def _one_unplanted_field(state: GameState, idx: int) -> bool:
     from agricola.cards.card_fields import unplanted_card_field_count
     p = state.players[idx]
     grid = p.farmyard.grid
+    # Stone-holding fields (Stone Clearing) are NOT unplanted — "considered
+    # planted until the stone is gone" (its errata; user ruling 2026-07-20).
     return unplanted_card_field_count(p) >= 1 or any(
-        grid[r][c].cell_type is CellType.FIELD
-        and grid[r][c].grain == 0
-        and grid[r][c].veg == 0
+        grid[r][c].field_empty
         for r in range(3)
         for c in range(5)
     )

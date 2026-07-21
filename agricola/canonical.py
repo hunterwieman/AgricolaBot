@@ -160,6 +160,11 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # (`allowed_cells` above is unqualified, so it also covers
     # PendingPlow.allowed_cells — Zigzag Harrow's zigzag menu, same ruling.)
     "built_major_idx",
+    # Cell.stone (Stone Clearing C6, user ruling 2026-07-20): stone placed on a
+    # field tile — only that card writes it, so it is Family-constant 0. MUST
+    # stay qualified: an unqualified "stone" would also skip Resources.stone,
+    # which is Family-live and must keep serializing.
+    "Cell.stone",
     # The play-occupation cost-conversion chokepoint (ruling 67, 2026-07-20): the
     # commit's chosen payment (None on the singleton-frontier path — qualified so
     # CommitPlayMinor.payment keeps serializing) and the host's paid-cost stamp

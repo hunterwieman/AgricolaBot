@@ -22,10 +22,11 @@ linear formula would be wrong.
 Clarifications (from the card text) that do not affect the implementable scope:
 Garden Designer (C099) plants FOOD on fields, so a food-planted field would not
 count — but Garden Designer is not implemented and food-on-field is not
-representable (`Cell` only has grain/veg). Boar held on unplanted field tiles
-(Mud Patch A011) do not affect this card's scoring — also not implemented.
-Neither edge card exists in the engine, so the plain `grain == 0 and veg == 0`
-test is exact here.
+representable — UPDATE 2026-07-20: it now is (`Cell.stone`, the Stone Clearing
+implementation), and per its errata a stone-holding field is "considered
+planted until the stone is gone", so `Cell.field_empty` (which excludes stone)
+is the exact test. Boar held on unplanted field tiles (Mud Patch A011) do not
+affect this card's scoring — still not implemented.
 """
 from __future__ import annotations
 
@@ -39,15 +40,15 @@ CARD_ID = "greening_plan"
 
 
 def count_unplanted_fields(farmyard: Farmyard) -> int:
-    """FIELD cells sown to nothing (grain == 0 AND veg == 0)."""
+    """FIELD cells holding nothing (`Cell.field_empty`). A stone-holding field
+    (Stone Clearing C6) is "considered planted until the stone is gone" (its
+    errata; user ruling 2026-07-20) and does NOT count as unplanted."""
     grid = farmyard.grid
     return sum(
         1
         for r in range(3)
         for c in range(5)
-        if grid[r][c].cell_type == CellType.FIELD
-        and grid[r][c].grain == 0
-        and grid[r][c].veg == 0
+        if grid[r][c].field_empty
     )
 
 

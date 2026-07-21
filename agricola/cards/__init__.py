@@ -995,3 +995,8 @@ from agricola.cards import seaweed_fertilizer  # noqa: F401
 from agricola.cards import brick_hammer  # noqa: F401
 from agricola.cards import zigzag_harrow  # noqa: F401
 from agricola.cards import tea_time  # noqa: F401
+
+# --- 2026-07-20 approved-mechanism pair (ruling 70; user approval 2026-07-20 of
+#     deferred-plans cluster C3 — take-from-accumulation-without-placement) ---
+from agricola.cards import work_certificate  # noqa: F401
+from agricola.cards import handcart  # noqa: F401

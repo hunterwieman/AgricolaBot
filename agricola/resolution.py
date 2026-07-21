@@ -1265,8 +1265,7 @@ def _execute_sow(
         new_row = []
         for c in range(5):
             cell = p.farmyard.grid[r][c]
-            if (cell.cell_type == CellType.FIELD
-                    and cell.grain == 0 and cell.veg == 0):
+            if cell.field_empty:   # stone-holding fields are NOT sowable (Stone Clearing)
                 # Empty field — fill grain first, then veg.
                 if g_remaining > 0:
                     new_row.append(fast_replace(cell, grain=4 if boost_g else 3))
@@ -1991,6 +1990,7 @@ def field_take(
     entries = []
     grain_gain = 0
     veg_gain = 0
+    stone_gain = 0
     new_grid_rows = []
     for r in range(3):
         new_row = []
@@ -1998,7 +1998,7 @@ def field_take(
             cell = p.farmyard.grid[r][c]
             if cell.cell_type == CellType.FIELD:
                 if (r, c) in skip_cells:
-                    assert cell.grain > 0 or cell.veg > 0, (
+                    assert cell.field_planted, (
                         f"replace-kind skip names unplanted field ({r},{c})")
                     new_row.append(cell)   # replaced: untouched, no entry
                     continue
@@ -2023,6 +2023,20 @@ def field_take(
                     entries.append(HarvestEntry(
                         source=f"cell:{r},{c}", crop="veg", amount=n,
                         emptied=cell.veg == n))
+                elif cell.stone > 0:
+                    # Stone Clearing (C6; user ruling 2026-07-20): per the
+                    # card's errata the stone-holding field is harvested
+                    # NORMALLY — 1 stone per field phase, to supply, with a
+                    # manifest entry like any crop ("stone" joins card-fields'
+                    # "wood" as a non-crop HarvestEntry.crop value). No
+                    # fold-in card targets stone, so `extra` must be 0 here.
+                    assert not extra, (
+                        f"take fold-in targets stone field ({r},{c})")
+                    stone_gain += 1
+                    new_row.append(fast_replace(cell, stone=cell.stone - 1))
+                    entries.append(HarvestEntry(
+                        source=f"cell:{r},{c}", crop="stone", amount=1,
+                        emptied=cell.stone == 1))
                 else:
                     assert not extra, (
                         f"take fold-in names empty field ({r},{c})")
@@ -2077,7 +2091,8 @@ def field_take(
     # Fields cannot lie inside pastures, so the pasture cache is preserved
     # via fast_replace's natural ride-along.
     new_farmyard = fast_replace(p.farmyard, grid=tuple(new_grid_rows))
-    new_resources = (p.resources + Resources(grain=grain_gain, veg=veg_gain)
+    new_resources = (p.resources
+                     + Resources(grain=grain_gain, veg=veg_gain, stone=stone_gain)
                      + card_gain)
     if bonus is not None:
         new_resources = new_resources + bonus

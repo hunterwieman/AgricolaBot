@@ -271,7 +271,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A81 Interim Storage** · cost: 2 Food
   - _Each time you use a clay/reed/stone accumulation space, place 1 wood/clay/reed on this card. At the start of rounds 7, 11, and 14, move all the goods on this card to your supply._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN ST-STACK E-SCHED` — The good placed is fixed by which accumulation space was used — no choice, so F-AUTO not F-MANDCHOICE; the fixed-round (7/11/14) release is scheduled collection (E-SCHED) off the on-card pile (ST-STACK), not an immediate E-GOODS or a separate S-SOR hook.
-- ⬜ **A82 Work Certificate** · prereq: 3 Occupations
+- ✅ **A82 Work Certificate** · prereq: 3 Occupations *(implemented 2026-07-20, ruling 70: the C3 mechanism approved; `after_action_space` play-variant trigger on every own space use, TYPELESS ≥4 threshold, any building type present takeable; "Can be immediately triggered" = the playing use itself may fire it)*
   - _Each time after you use an action space, you can take 1 building resource from a building resource accumulation space with at least 4 building resources on it.  [CLARIFICATION: Can be immediately triggered.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GOODS` — After using an action space, optionally take a building resource from a space with >=4 on it.
 - ✅ **A83 Shepherd's Crook** · cost: 1 Wood
@@ -523,7 +523,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **B80 Hard Porcelain** · cost: 1 Clay
   - _At any time, you can exchange 2/3/4 clay for 1/2/3 stone._
   - `ATWILL E-CONVERT` — At any time exchange clay for stone at 2/3/4->1/2/3 rate.
-- ⬜ **B81 Handcart** · cost: 1 Wood
+- ✅ **B81 Handcart** · cost: 1 Wood *(implemented 2026-07-20, ruling 70: the C3 mechanism approved; `before_work` prep-window play-variant trigger, NATIVE-type 6/5/4/4 thresholds and native-type take — the Material Hub analog, flagged for user confirmation; post-refill stocks count)*
   - _Before each work phase, you can take 1 building resource from at most one wood/clay/reed/stone accumulation space containing at least 6/5/4/4 building resources of the same type._
   - `HOOK T-BEFORE S-SOR F-TRIG A-OWN E-GOODS` — Removed L-GEOMBOARD: it reads good-counts on named accumulation spaces (wood/clay/reed/stone), not board position/order/adjacency.
 - ✅ **B82 Value Assets**
@@ -553,7 +553,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C5 Remodeling** · cost: 1 Food · passing
   - _You immediately get 1 clay for each clay room and for each major improvement you have._
   - `ONPLAY E-GOODS E-PASSING` — Gain 1 clay per clay room + major improvement; passing minor. Plain count-based goods.
-- ⬜ **C6 Stone Clearing** · cost: 1 Food · passing
+- ⬜ **C6 Stone Clearing** · cost: 1 Food · passing *(ENGINE LAYER LANDED 2026-07-20, ruling 70 — `Cell.stone`, the `field_empty`/`field_planted` predicates, the full emptiness/planted sweep, the take's stone branch; the card MODULE is held on one scope question: do empty CARD-fields also receive stone, or board tiles only?)*
   - _Immediately place 1 stone on each of your empty fields. Harvest them during the next field phase. These fields are considered planted until then.  [ERRATA: ERRATA: harvest the fields with stone normally, and the fields are considered planted until the stone is gone.]_
   - `ONPLAY E-CROPMANIP E-FOODCOST E-PASSING` — One-time placement of stone onto empty fields, harvested normally per the errata, is field-content manipulation (E-CROPMANIP) — the state lives on the fields, so no per-card ST-STORE; the 1-Food play cost is flagged E-FOODCOST per the cost rulings; traveling card (E-PASSING).
 - ✅ **C7 Blade Shears** · cost: 1 Wood · prereq: 1 Pasture · passing
