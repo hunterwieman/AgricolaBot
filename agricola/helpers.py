@@ -285,47 +285,61 @@ def can_accommodate(
     return False
 
 
-def _sheep_slot_strip(player_state: PlayerState, gained: Animals):
-    """The GREEDY STRIP for sheep-only card slots (Dolly's Mother — user-
-    proposed 2026-07-06, exact by dominance: parking a sheep on a sheep-only
-    slot never constrains the other animals, so the owner's accommodation
-    problem equals the standard one with the parked sheep removed). Returns
-    (strip, doctored_player, doctored_gained): `strip` sheep removed — taken
-    from `gained` first, then the player's animals — or (0, unchanged,
-    unchanged) for the Family fast path. Callers add the stripped sheep back
-    to every result; food math is unchanged (cooked counts are differences).
-    """
-    from agricola.cards.capacity_mods import sheep_slot_count
+def _typed_slot_strip(player_state: PlayerState, gained: Animals):
+    """The GREEDY STRIP for typed (per-species) card slots (originally the
+    sheep-only Dolly's Mother strip, user-proposed 2026-07-06; generalized to
+    the per-species registry 2026-07-21 — Wildlife Reserve, Cattle Farm, Mud
+    Patch, Sheep Agent). Exact by dominance, per type INDEPENDENTLY: a typed
+    slot can hold only its own species, so parking that species there never
+    constrains any other animal — the owner's accommodation problem equals the
+    standard one with the parked animals removed. Returns
+    (strip: Animals, doctored_player, doctored_gained): per-species strips
+    taken from `gained` first, then the player's animals — or
+    (Animals(), unchanged, unchanged) for the Family fast path. Callers add
+    the stripped animals back to every result; food math is unchanged (cooked
+    counts are differences)."""
+    from agricola.cards.capacity_mods import typed_slot_counts
 
-    slots = sheep_slot_count(player_state)
-    if not slots:
-        return 0, player_state, gained
-    strip = min(slots, player_state.animals.sheep + gained.sheep)
-    if not strip:
-        return 0, player_state, gained
-    from_gained = min(strip, gained.sheep)
-    if from_gained:
-        gained = fast_replace(gained, sheep=gained.sheep - from_gained)
-    rest = strip - from_gained
-    if rest:
+    slots = typed_slot_counts(player_state)
+    strips = {}
+    g_new = {}
+    p_new = {}
+    for t in ("sheep", "boar", "cattle"):
+        have = getattr(player_state.animals, t) + getattr(gained, t)
+        strip = min(getattr(slots, t), have)
+        strips[t] = strip
+        if not strip:
+            continue
+        from_gained = min(strip, getattr(gained, t))
+        if from_gained:
+            g_new[t] = getattr(gained, t) - from_gained
+        rest = strip - from_gained
+        if rest:
+            p_new[t] = getattr(player_state.animals, t) - rest
+    if g_new:
+        gained = fast_replace(gained, **g_new)
+    if p_new:
         player_state = fast_replace(
             player_state,
-            animals=fast_replace(player_state.animals,
-                                 sheep=player_state.animals.sheep - rest))
-    return strip, player_state, gained
+            animals=fast_replace(player_state.animals, **p_new))
+    return Animals(**strips), player_state, gained
 
 
 def accommodates(player_state: PlayerState, sheep: int, boar: int, cattle: int) -> bool:
     """Can this player's farm house (sheep, boar, cattle)? THE ownership-aware
-    accommodation check: `extract_slots` + the sheep-only card-slot strip
-    (Dolly's Mother) + `can_accommodate`. Player-level callers (the
-    accommodation barrier, card conditions) use this; `can_accommodate` stays
-    the pure slots-level primitive."""
-    from agricola.cards.capacity_mods import sheep_slot_count
+    accommodation check: `extract_slots` + the typed card-slot strip (Dolly's
+    Mother's sheep slot, the 2026-07-21 per-species holders) +
+    `can_accommodate`. Player-level callers (the accommodation barrier, card
+    conditions) use this; `can_accommodate` stays the pure slots-level
+    primitive."""
+    from agricola.cards.capacity_mods import typed_slot_counts
 
     caps, num_flexible = extract_slots(player_state)
-    strip = min(sheep_slot_count(player_state), sheep)
-    return can_accommodate(caps, num_flexible, sheep - strip, boar, cattle)
+    slots = typed_slot_counts(player_state)
+    return can_accommodate(caps, num_flexible,
+                           max(0, sheep - slots.sheep),
+                           max(0, boar - slots.boar),
+                           max(0, cattle - slots.cattle))
 
 
 def pareto_frontier(
@@ -343,19 +357,23 @@ def pareto_frontier(
     not affect which configurations are Pareto-optimal (frontier is over animal
     counts only).
 
-    A sheep-only card slot (Dolly's Mother) is applied here via the greedy
-    strip: compute the standard frontier with the parked sheep removed, then
-    add them back to every point (`_sheep_slot_strip` — exact by dominance;
-    the food values carry over unchanged because cooked counts are
-    differences). The strip changes the ARGUMENTS of the memoized internals,
-    so every cache keys honestly — no staleness.
+    A typed card slot (Dolly's Mother's sheep slot; the 2026-07-21 per-species
+    holders — Wildlife Reserve, Cattle Farm, Mud Patch, Sheep Agent) is
+    applied here via the greedy strip: compute the standard frontier with the
+    parked animals removed, then add them back to every point
+    (`_typed_slot_strip` — exact by dominance, per type independently; the
+    food values carry over unchanged because cooked counts are differences).
+    The strip changes the ARGUMENTS of the memoized internals, so every cache
+    keys honestly — no staleness.
 
     Returns list of (Animals, food_gained) tuples.
     """
-    strip, player_state, gained = _sheep_slot_strip(player_state, gained)
-    if strip:
+    strip, player_state, gained = _typed_slot_strip(player_state, gained)
+    if strip != Animals():
         base = _pareto_frontier_dispatch(player_state, gained, rates)
-        return [(fast_replace(a, sheep=a.sheep + strip), food)
+        return [(fast_replace(a, sheep=a.sheep + strip.sheep,
+                              boar=a.boar + strip.boar,
+                              cattle=a.cattle + strip.cattle), food)
                 for a, food in base]
     return _pareto_frontier_dispatch(player_state, gained, rates)
 
@@ -485,10 +503,12 @@ def breeding_frontier(
 
     Card modifiers are read off `player_state` HERE and threaded as plain
     ARGUMENTS into the memoized internals (so every cache keys honestly):
-    `sheep_min` shifts the sheep parent threshold; a sheep-only card slot
-    (also Dolly's Mother) relaxes the capacity test by the greedy strip —
-    a post-config (sF, bF, cF) must fit with `strip` sheep parked on the card,
-    i.e. `can_accommodate(max(0, sF - strip), bF, cF)`.
+    `sheep_min` shifts the sheep parent threshold; typed card slots (Dolly's
+    Mother's sheep slot, the 2026-07-21 per-species holders) relax the
+    capacity test by the greedy strip — a post-config (sF, bF, cF) must fit
+    with the parked animals on their cards, i.e.
+    `can_accommodate(max(0, sF - slots.sheep), max(0, bF - slots.boar),
+    max(0, cF - slots.cattle))`.
 
     Algorithm:
     1. Compute desired post-breed upper bounds (n+1 for each type at/over its
@@ -497,10 +517,10 @@ def breeding_frontier(
     3. Keep only Pareto-optimal configurations (over animal counts).
     4. Compute food for each via `breeding_food_gained` (the shared formula).
     """
-    from agricola.cards.capacity_mods import sheep_min_parents, sheep_slot_count
+    from agricola.cards.capacity_mods import sheep_min_parents, typed_slot_counts
 
     sheep_min = sheep_min_parents(player_state)
-    slots = sheep_slot_count(player_state)
+    slots = typed_slot_counts(player_state)
 
     if opt_config.PARETO_OPT_LEVEL >= 1:
         return _breeding_frontier_opt(player_state, rates, sheep_min, slots)
@@ -521,7 +541,9 @@ def breeding_frontier(
         for bF in range(b_desired + 1)
         for cF in range(c_desired + 1)
         if can_accommodate(pasture_capacities, num_flexible,
-                           max(0, sF - slots), bF, cF)
+                           max(0, sF - slots.sheep),
+                           max(0, bF - slots.boar),
+                           max(0, cF - slots.cattle))
     ]
 
     def dominates(a: Animals, b_: Animals) -> bool:
@@ -1012,7 +1034,7 @@ def _pareto_frontier_opt(player_state, gained, rates):
     ]
 
 
-def _breeding_frontier_opt(player_state, rates, sheep_min=2, sheep_slots=0):
+def _breeding_frontier_opt(player_state, rates, sheep_min=2, typed_slots=None):
     s = player_state.animals.sheep
     b = player_state.animals.boar
     c = player_state.animals.cattle
@@ -1020,23 +1042,29 @@ def _breeding_frontier_opt(player_state, rates, sheep_min=2, sheep_slots=0):
     b_des = b + 1 if b >= 2 else b
     c_des = c + 1 if c >= 2 else c
     pasture_capacities, num_flexible = extract_slots(player_state)
-    # The sheep-only card slot rides the greedy strip: the frontier over
-    # strip-aware feasibility (`fits(max(0, sF - strip), ...)`) equals the
-    # standard frontier computed with the sheep bound reduced by the strip,
-    # every point then shifted back up — exact because the feasible sheep
+    # Typed card slots ride the greedy strip: the frontier over strip-aware
+    # feasibility (`fits(max(0, sF - strip_s), ...)` per type) equals the
+    # standard frontier computed with each type's bound reduced by its strip,
+    # every point then shifted back up — exact because each type's feasible
     # range is downward-closed and the shifted point dominates its unshifted
-    # sibling (the same dominance argument as `_sheep_slot_strip`). The
-    # reduced bound changes the memo key, so the cache stays honest.
-    strip = min(sheep_slots, s_des)
+    # sibling (the `_typed_slot_strip` dominance argument, per type
+    # independently). The reduced bounds change the memo key, so the cache
+    # stays honest.
+    slots = typed_slots if typed_slots is not None else Animals()
+    strip_s = min(slots.sheep, s_des)
+    strip_b = min(slots.boar, b_des)
+    strip_c = min(slots.cattle, c_des)
     pts = _animal_frontier_points(
         tuple(sorted(pasture_capacities)), num_flexible,
-        s_des - strip, b_des, c_des,
+        s_des - strip_s, b_des - strip_b, c_des - strip_c,
     )
     pre = player_state.animals
     return [
-        (Animals(sheep=ss + strip, boar=bb, cattle=cc),
-         breeding_food_gained(pre, Animals(sheep=ss + strip, boar=bb, cattle=cc),
-                              rates, sheep_min))
+        (Animals(sheep=ss + strip_s, boar=bb + strip_b, cattle=cc + strip_c),
+         breeding_food_gained(
+             pre, Animals(sheep=ss + strip_s, boar=bb + strip_b,
+                          cattle=cc + strip_c),
+             rates, sheep_min))
         for (ss, bb, cc) in pts
     ]
 

@@ -16,7 +16,7 @@ Two independent effects, both registered as plain modifier rows
   computation, so a from-one-sheep newborn is correctly REPORTED to the
   outcome-reactive cards (Fodder Planter's sow fires on it).
 
-- **The sheep-only card slot** (`register_sheep_slot`, 1): "this card can
+- **The sheep-only card slot** (`register_typed_slots`, 1 sheep): "this card can
   hold 1 sheep" is pure capacity — animals are not location-tracked, so the
   slot is realized by the GREEDY STRIP (user-proposed and ruled 2026-07-06):
   parking a sheep on a sheep-only slot never constrains the other animals,
@@ -38,10 +38,11 @@ and the C++ gates are untouched.
 from __future__ import annotations
 
 from agricola.cards.capacity_mods import (
-    register_sheep_slot,
     register_single_parent_sheep,
+    register_typed_slots,
 )
 from agricola.cards.specs import register_minor
+from agricola.resources import Animals
 from agricola.state import GameState
 
 CARD_ID = "dollys_mother"
@@ -53,5 +54,5 @@ def _prereq(state: GameState, idx: int) -> bool:
 
 
 register_minor(CARD_ID, prereq=_prereq, vps=1)
-register_sheep_slot(CARD_ID, 1)
+register_typed_slots(CARD_ID, lambda p: Animals(sheep=1))
 register_single_parent_sheep(CARD_ID)

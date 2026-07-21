@@ -107,13 +107,15 @@ def _harvest_state():
 def test_registration():
     import json
     from agricola.cards.capacity_mods import (
-        SHEEP_SLOT_CARDS, SINGLE_PARENT_SHEEP_CARDS)
+        SINGLE_PARENT_SHEEP_CARDS, TYPED_SLOT_CARDS)
     from agricola.cards.specs import MINORS, prereq_met
+    from agricola.resources import Animals
 
     spec = MINORS[CARD_ID]
     assert spec.vps == 1
     assert spec.prereq is not None
-    assert SHEEP_SLOT_CARDS.get(CARD_ID) == 1
+    entry = next(fn for cid, fn in TYPED_SLOT_CARDS if cid == CARD_ID)
+    assert entry(None) == Animals(sheep=1)   # a static count; ignores the player
     assert CARD_ID in SINGLE_PARENT_SHEEP_CARDS
     rows = json.load(open("agricola/cards/data/revised_minor_improvements.json"))
     row = next(r for r in rows if r["name"] == "Dolly's Mother")

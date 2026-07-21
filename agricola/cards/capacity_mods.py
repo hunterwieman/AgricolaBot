@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from agricola.resources import Animals
+
 # (card_id, fn(player_state) -> int): each owned modifier proposes a house-pet-slot count;
 # the fold takes the max (starting from the default 1). Capacity-raising only — see the
 # module docstring on the future negation case.
@@ -123,25 +125,59 @@ def house_pet_capacity(player_state) -> int:
 # cannot ride `num_flexible`; instead the accommodation entry points apply the
 # GREEDY STRIP (user-proposed, 2026-07-06, exact by dominance: parking a sheep
 # on a sheep-only slot never hurts the other animals, so an owner's frontier
-# equals the standard frontier computed with `sheep_slot_count` fewer sheep,
-# the parked sheep added back). Consumers: `helpers.accommodates`,
-# `helpers.pareto_frontier`, `helpers.breeding_frontier`. Empty in the Family
-# game.
-SHEEP_SLOT_CARDS: dict[str, int] = {}
+# equals the standard frontier computed with the parked animals removed and
+# added back). Consumers: `helpers.accommodates`, `helpers.pareto_frontier`,
+# `helpers.breeding_frontier` (via the `_typed_slot_strip` family). Originally
+# sheep-only (Dolly's Mother, user-proposed 2026-07-06); generalized to a
+# per-species registry 2026-07-21 for the typed-holder family (Wildlife
+# Reserve 1/1/1, Cattle Farm's cattle-per-pasture, Mud Patch's
+# boar-per-unplanted-field-tile, Sheep Agent's sheep-per-qualifying-
+# occupation). The dominance argument holds per type INDEPENDENTLY: a typed
+# slot can hold only its own species, so filling it with that species never
+# constrains any other animal. slots_fn(player_state) -> Animals (may read
+# the farm — a dynamic count like Mud Patch's is recomputed per call; the
+# strip changes the memoized internals' ARGUMENTS, so every cache keys
+# honestly). Empty registry / nothing owned -> Animals() (Family
+# byte-identity).
+TYPED_SLOT_CARDS: list[tuple[str, Callable]] = []
 
 
-def register_sheep_slot(card_id: str, slots: int) -> None:
-    """Register a card that holds `slots` sheep (card-module import time)."""
-    SHEEP_SLOT_CARDS[card_id] = slots
+def register_typed_slots(card_id: str, slots_fn: Callable) -> None:
+    """Register a card's per-species slot counts (card-module import time).
+    `slots_fn(player_state) -> Animals`; ownership-gated in the fold."""
+    TYPED_SLOT_CARDS.append((card_id, slots_fn))
+
+
+def typed_slot_counts(player_state) -> Animals:
+    """Summed per-species card-slot counts over owned cards. Empty registry /
+    nothing owned -> Animals() (Family byte-identity)."""
+    if not TYPED_SLOT_CARDS:
+        return Animals()
+    s = b = c = 0
+    for card_id, slots_fn in TYPED_SLOT_CARDS:
+        if _owns(player_state, card_id):
+            a = slots_fn(player_state)
+            s += a.sheep
+            b += a.boar
+            c += a.cattle
+    return Animals(sheep=s, boar=b, cattle=c)
 
 
 def sheep_slot_count(player_state) -> int:
-    """Sheep-only card slots this player owns (Dolly's Mother: 1). Empty
-    registry / nothing owned -> 0 (Family byte-identity)."""
-    if not SHEEP_SLOT_CARDS:
-        return 0
-    return sum(n for cid, n in SHEEP_SLOT_CARDS.items()
-               if _owns(player_state, cid))
+    """The sheep component of `typed_slot_counts` — kept as the
+    pre-generalization view (Mineral Feeder's arrangement strip reads it)."""
+    return typed_slot_counts(player_state).sheep
+
+
+def animal_holder_card_ids() -> frozenset:
+    """Every REGISTERED card id that is 'able to hold animals' — typed slots,
+    pasture-like capacity bins, or flexible slots. Registration-time identity
+    (deliberately not ownership-gated): this is the predicate behind wording
+    like Sheep Agent's "unless it is already able to hold animals"."""
+    return frozenset(
+        [cid for cid, _ in TYPED_SLOT_CARDS]
+        + [cid for cid, _ in ANIMAL_CAP_SLOT_CARDS]
+        + [cid for cid, _ in FLEXIBLE_SLOT_CARDS])
 
 
 # Cards that are pasture-LIKE animal holders — a card holding up to N animals of
