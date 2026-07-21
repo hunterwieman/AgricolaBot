@@ -55,6 +55,23 @@ def implemented_slugs(registry_name: str) -> set[str]:
     return set(getattr(specs, registry_name))
 
 
+def _row_id_candidates(row: dict) -> tuple[str, str]:
+    """The registry ids a catalog row could be implemented under.
+
+    Usually a card's id is just slug(name). But when a name is ambiguous — two
+    printings of the same name, or a cross-registry clash like the occupation and the
+    minor both named "Slurry Spreader" — the implementation disambiguates with a
+    `slug_<deck><number>` id (e.g. `slurry_spreader_c71`). Checking only the base slug
+    would then miss the card and falsely report it unimplemented, so we accept either
+    form."""
+    base = card_slug(row["name"])
+    return base, f"{base}_{row['deck'].lower()}{row['number']}"
+
+
+def _is_implemented(row: dict, impl: set[str]) -> bool:
+    return any(cand in impl for cand in _row_id_candidates(row))
+
+
 def unimplemented(json_filename: str, registry_name: str) -> list[dict]:
     """Catalog rows that are neither implemented (in the registry) nor marked wontfix,
     sorted by (deck, number). Each row keeps the raw catalog fields."""
@@ -62,7 +79,7 @@ def unimplemented(json_filename: str, registry_name: str) -> list[dict]:
     impl = implemented_slugs(registry_name)
     rows = [
         r for r in catalog
-        if r.get("status") != "wontfix" and card_slug(r["name"]) not in impl
+        if r.get("status") != "wontfix" and not _is_implemented(r, impl)
     ]
     rows.sort(key=lambda r: (r["deck"], r["number"]))
     return rows
