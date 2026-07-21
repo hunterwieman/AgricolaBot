@@ -60,6 +60,20 @@ class CostCtx:
     #                                      scope a cost modifier to its own grant only (Master
     #                                      Renovator's discounted renovate). Wired for renovate;
     #                                      other action kinds pass None until a card needs it.
+    min_spend: Resources | None = None   # a MINIMUM-SPEND constraint on the payment (Stone
+    #                                      Company A23's granted improvement action "during
+    #                                      which you must spend at least 1 stone"): only
+    #                                      payments >= this vector componentwise qualify, and
+    #                                      non-resource ReturnImprovement routes (which spend
+    #                                      no resources) never qualify. Applied POST-modifier
+    #                                      (after conversions + reductions) and BEFORE the
+    #                                      Pareto prune — dominance runs among qualifying
+    #                                      payments only, so an optional conversion's stone-
+    #                                      free variant cannot prune away the stone-spending
+    #                                      one, while an AUTOMATIC discount that removes the
+    #                                      stone simply disqualifies the improvement (the
+    #                                      printed Stonecutter clarification). None = no
+    #                                      constraint (every non-Stone-Company action).
     reserved_animals: Animals = Animals()  # animal portion of THIS cost — reserved before
     #                                        counting animals as food-liquidation fuel, so
     #                                        liquidation never double-spends an animal the cost
@@ -70,6 +84,17 @@ class CostCtx:
 
 def _goods_key(r: Resources) -> tuple:
     return tuple(getattr(r, f) for f in RESOURCE_FIELDS)
+
+
+def meets_min_spend(payment: Resources, min_spend: Resources | None) -> bool:
+    """Whether a resource payment satisfies a `CostCtx.min_spend` constraint —
+    spends at least the constraint's amount in every component. `None` (no
+    constraint — the default everywhere outside a Stone-Company-granted action)
+    accepts every payment. Non-resource routes never reach this helper: the
+    chokepoint excludes them outright under a constraint (they spend nothing)."""
+    if min_spend is None:
+        return True
+    return all(x >= y for x, y in zip(_goods_key(payment), _goods_key(min_spend)))
 
 
 def _dominates(a: Resources, b: Resources) -> bool:

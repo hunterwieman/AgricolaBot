@@ -316,6 +316,11 @@ class PendingBuildMajor:
     # Family build and the Major Improvement space). Family-constant default →
     # canonical-skip field, no C++ change.
     allowed_majors: tuple | None = None
+    # Card-only: a granted build's MINIMUM-SPEND constraint (Stone Company —
+    # threaded from the composite parent; see PendingMajorMinorImprovement.
+    # min_spend). Only payments spending >= this vector qualify, and the
+    # Fireplace-return route never does. None everywhere else.
+    min_spend: object | None = None     # Resources | None
     # Card-only (Brick Hammer D80; user ruling 2026-07-20): WHICH major the
     # commit built, stamped by `_execute_build_major` for "after you build an
     # improvement" readers that need the improvement's identity (the printed-
@@ -561,6 +566,12 @@ class PendingMajorMinorImprovement:
     minor_chosen: bool = False
     phase: str = "before"               # "before" | "after"
     triggers_resolved: frozenset = frozenset()
+    # Card-only: a granted composite's MINIMUM-SPEND constraint (Stone Company A23 —
+    # "a 'Major or Minor Improvement' action during which you must spend at least
+    # 1 stone"): the choose-handler copies it onto the pushed child, whose ctx
+    # carries it into the `effective_payments`/`can_pay` filter (`CostCtx.min_spend`).
+    # None on every space-initiated composite; canonical-skipped, Family-inert.
+    min_spend: object | None = None     # Resources | None
 
     @property
     def subaction_complete(self) -> bool:
@@ -845,6 +856,18 @@ class PendingPlayMinor:
     # frame, so no canonical/C++ concern.
     played_card_id: str | None = None
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
+    # Card-only: a granted play's MINIMUM-SPEND constraint (Stone Company — threaded
+    # from the composite parent; see PendingMajorMinorImprovement.min_spend). Only
+    # payments spending >= this vector qualify. None everywhere else.
+    min_spend: object | None = None     # Resources | None
+    # Card-only: a hand-card MENU RESTRICTION (the PendingBuildMajor.allowed_majors
+    # sibling): when set, only the named hand minors may be committed. Firewood's
+    # before_play_minor trigger sets it to the oven/fireplace minors after moving
+    # its wood ("each time before you build a Fireplace, Cooking Hearth, or oven"
+    # — firing the withdrawal licenses only those builds); the trigger's
+    # eligibility guarantees one is playable, so the no-decline frame never
+    # strands. None = the full playable hand.
+    allowed_cards: tuple | None = None
 
 
 @dataclass(frozen=True)

@@ -1009,3 +1009,14 @@ from agricola.cards import wildlife_reserve  # noqa: F401
 from agricola.cards import cattle_farm  # noqa: F401
 from agricola.cards import mud_patch  # noqa: F401
 from agricola.cards import sheep_agent  # noqa: F401
+
+# --- 2026-07-21 boundary-buster batch (user rulings 2026-07-21): the min-spend
+#     payment filter (CostCtx.min_spend — Stone Company), the allowed_cards
+#     play-menu restriction + take-max withdrawal (Firewood), the cooking-rate
+#     bonus fold (cooking_mods.py — Fatstock Stretcher), and the free-renovate
+#     play-variant (Renovation Company, un-deferred: its 2026-07-15 blocker was
+#     the then-missing cost_override, since built for Renovation Materials) ---
+from agricola.cards import stone_company  # noqa: F401
+from agricola.cards import firewood  # noqa: F401
+from agricola.cards import fatstock_stretcher  # noqa: F401
+from agricola.cards import renovation_company  # noqa: F401

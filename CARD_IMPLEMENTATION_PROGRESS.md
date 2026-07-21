@@ -18,7 +18,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 # Part — Minors
 
-**420 minors** — ✅ 243 implemented · 🚫 4 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 172 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing).
+**420 minors** — ✅ 281 implemented · 🚫 4 won't-fix/banned · ❓ 1 deferred-for-ambiguity · ⬜ 134 not yet · ⚖ 274 high-effort adjudicated · 🔶 0 residual (low-confidence) · ⚠ 0 revisit (unsettled — think harder before implementing). *(Marker counts re-derived 2026-07-21 — the line had gone stale during the tier batches.)*
 
 ### ❓ Deferred for AMBIGUITY — the user must pick a reading first (CARD_DEFERRED_PLANS.md)
 
@@ -62,7 +62,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A12 Drinking Trough** · cost: 1 Clay
   - _Each of your pastures (with or without a stable) can hold up to 2 more animals.  [CLARIFICATION: Cards holding animals are not pastures unless explicitly stated.]_
   - `PASSIVE E-CAPGROW` — Continuous +2 capacity to each existing pasture.
-- ⬜ **A13 Renovation Company** · cost: 4 Wood · prereq: In Wooden House with Exactly 2 Rooms
+- ✅ **A13 Renovation Company** · cost: 4 Wood · prereq: In Wooden House with Exactly 2 Rooms
   - _When you play this card, you immediately get 3 clay. Immediately after, you can renovate without paying any building resources.  [CLARIFICATION: The renovation can be declined, but the free cost cannot be applied later.]_
   - `ONPLAY E-GOODS E-GRANTSUB` — On-play +3 clay plus an optional, declinable renovate grant; 'without paying building resources' is the grant's own cost parameter (clarification: cannot be applied later), not a standing E-COSTMOD; CAP-GAME is wrong — ONPLAY is inherently once and CAP-* only caps ATWILL frequency.
 - ⬜ **A14 Carpenter's Hammer** · cost: 1 Wood
@@ -92,7 +92,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **A22 Telegram** · cost: 2 Food · prereq: At Least 1 Fence in Supply
   - _Add 1 to the current round for each fence in your supply and mark the corresponding round space. In that round only, you can place a person from your supply.  [CLARIFICATION: The person is returned to your supply in the “returning home” phase.]_
   - `ONPLAY E-EXTRAPLACE E-PEOPLE E-FOODCOST ST-STORE` — On-play marks a computed future round (ST-STORE) in which you place a person FROM SUPPLY that returns to supply at round end — a temporary worker (E-PEOPLE) giving an additional placement (E-EXTRAPLACE); the 2-Food play cost is E-FOODCOST per the cost ruling; nothing is placed on round spaces as goods, so no E-SCHED.
-- ⬜ **A23 Stone Company** · cost: 2 Clay,1 Reed
+- ✅ **A23 Stone Company** · cost: 2 Clay,1 Reed
   - _Immediately after each time you use a "Quarry" accumulation space, you get a "Major or Minor Improvement" action during which you must spend at least 1 stone.  [CLARIFICATION: You may not decline an automatic stone discount in order to trigger this card’s effect, e.g. from Stonecutter A143.  Improvement action is not declinable in order to use Field Merchant B103.]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-GRANTACT` — 'Immediately after each time you use a Quarry space' → HOOK T-AFTER S-SPACE A-OWN, granting a full Major-or-Minor Improvement action (E-GRANTACT, optional per the granted-action rule; the must-spend-1-stone clause constrains the granted action, it is no separate code); labelA's E-FOODCOST is wrong (cost is clay+reed) and A-OWN was missing.
 - ✅ **A24 Threshing Board** · cost: 1 Wood · prereq: 2 Occupations
@@ -761,7 +761,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C74 Private Forest** · cost: 2 Food · prereq: 1 Occupation
   - _Place 1 wood on each remaining even-numbered round space. At the start of these rounds, you get the wood._
   - `ONPLAY E-SCHED` — Wood on remaining even round spaces, collected at start.
-- ⬜ **C75 Firewood** · cost: 2 Food
+- ✅ **C75 Firewood** · cost: 2 Food
   - _In the returning home phase of each round, place 1 wood on this card. Each time before you build a Fireplace, Cooking Hearth, or oven, move up to 4 wood from this card to your supply._
   - `HOOK T-BEFORE T-AFTER S-ROUNDEND S-MAJMIN F-AUTO F-TRIG A-OWN E-GOODS ST-STACK E-FOODCOST` — Two hooks: auto wood-to-card each returning-home (S-ROUNDEND/F-AUTO) and optional 'up to 4' wood-to-supply before building an improvement (T-BEFORE/F-TRIG). Moving wood to supply is a goods gain, not a cost change (E-GOODS, not E-COSTMOD); improvement-building is not in the S-SUB primitive list, so S-MAJMIN. 2-Food play cost = E-FOODCOST.
 - ✅ **C76 Wood Cart** · cost: 3 Wood · prereq: 3 Occupations
@@ -959,7 +959,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D55 New Market** · cost: 1 Wood,1 Clay
   - _Each time you use an action space card on round spaces 8 to 11, you get 1 additional food._
   - `HOOK T-BEFORE S-SPACE F-AUTO A-OWN E-GOODS` — 'Each time you use [a space]' fires T-BEFORE by explicit ruling; round spaces 8-11 is a fixed band, not board geometry — labelB correct.
-- ⬜ **D56 Fatstock Stretcher** · cost: 1 Wood
+- ✅ **D56 Fatstock Stretcher** · cost: 1 Wood
   - _Each time you turn a sheep or wild boar into food using a cooking improvement, you get 1 additional food._
   - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-GOODS ST-PROV` — Cooking-improvement conversion hook needs a seam (labelB omitted one) — S-SUB per the near-identical C53, which also establishes ST-PROV for the conversion payload (which animal, via a cooking improvement); mandatory +1 food after.
 - ✅ **D57 Wholesale Market** · cost: 2 Wood,2 Vegetable

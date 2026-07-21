@@ -905,9 +905,12 @@ def _choose_subaction_major_minor_improvement(
     top = state.pending_stack[-1]
     p_idx = top.player_idx
     if action.name == "build_major":
+        # A granted composite's minimum-spend constraint (Stone Company) rides
+        # onto the child, whose ctx threads it into the payment filter.
         state = replace_top(state, fast_replace(top, major_chosen=True))
         return push(state, PendingBuildMajor(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
+            min_spend=top.min_spend,
         ))
     if action.name == "play_minor":
         # Card game: the OR-alternative. Mark minor_chosen (so the parent won't
@@ -918,6 +921,7 @@ def _choose_subaction_major_minor_improvement(
         state = replace_top(state, fast_replace(top, minor_chosen=True))
         return push(state, PendingPlayMinor(
             player_idx=p_idx, initiated_by_id=top.PENDING_ID,
+            min_spend=top.min_spend,
         ))
     raise ValueError(f"Unknown sub-action {action.name!r} for Major/Minor Improvement")
 

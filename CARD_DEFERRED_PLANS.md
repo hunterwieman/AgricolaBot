@@ -26,9 +26,11 @@ The 2026-07-15 food-provider batch (§1) implemented 20 minors and deferred thre
 - **Oriental Fireplace (A60, minor)** and **Earth Oven (D59, minor)** — both ARE cooking
   improvements as minors: *"At any time: Vegetable / Sheep / (Wild boar) / Cattle → food; 'Bake
   Bread' action: Grain → food."* **Deferred into the cooking-modifier cluster** (ruling 42 — the
-  Gypsy's Crock / Cooking Hearth Extension class): `helpers.cooking_rates` is hardcoded off the
-  major-owner array and has **no card-injection seam** (confirmed 2026-07-15), so a card cannot add
-  at-any-time animal/veg cooking rates without the seam that whole class is waiting on. Two extra
+  Gypsy's Crock / Cooking Hearth Extension class): `helpers.cooking_rates` was hardcoded off the
+  major-owner array with **no card-injection seam** *(no longer true as of 2026-07-21 — ruling 72
+  built the additive-bonus fold, `cooking_mods.register_cooking_rate_bonus`, for Fatstock
+  Stretcher; these two cards need the stronger improvement-INJECTION shape — a card that IS a
+  cooking improvement contributing base rates — which remains undesigned)*. Two extra
   wrinkles for that design pass: the printed **cost is "return a Fireplace/Cooking Hearth"** (a
   non-resource `play_minor` route — `register_base_route` could carry it, but no minor uses that
   today) and the **"counts as 1 minor OR 1 major, whichever is convenient"** dual-classification.
@@ -1064,6 +1066,41 @@ at 2 players.
      the same behavior as a half-wood-planted Wood Field; the errata's
      "considered planted" is the field-level reader status).
 
+72. **The 2026-07-21 boundary-buster batch** (user rulings 2026-07-21; each
+    quoted in its card module):
+   - **Carpenter's Bench B15 is 🚫 WONTFIX** — its "the taken wood (and only
+     that)" payment-source restriction is the §8 goods-provenance cost gap,
+     ruled not worth building for this card.
+   - **Stone Company A23**: "immediately after each time you use a Quarry
+     space" = the quarry host's after window; the grant is the NAMED composite
+     with the new `CostCtx.min_spend=Resources(stone=1)` filter (post-modifier,
+     pre-Pareto — the printed Stonecutter clarification is emergent); the
+     Fireplace-return route never satisfies the constraint; a Merchant repeat
+     is a fresh, unconstrained composite.
+   - **Firewood C75**: "Fireplace / Cooking Hearth / oven" are the RULES.md
+     collective terms INCLUDING the minor improvements whose name's second
+     word is Oven/Fireplace (slug suffix `_oven`/`_fireplace` — iron_oven,
+     simple_oven today; `oven_site` excluded); the deposit wood is from the
+     general supply; "up to 4" is offered take-max only (min(4, stock) — the
+     ruling-41 dominance shape); firing restricts the pending build/play to
+     the qualifying targets (`allowed_majors` ∩ / the new
+     `PendingPlayMinor.allowed_cards`).
+   - **Fatstock Stretcher D56**: implemented as +1 to the sheep and boar
+     cooking rates, per-component ONLY where the base conversion exists —
+     (2,2,3)→(3,3,3), (0,0,0) stays (0,0,0), (3,0,5)→(4,0,5); flows through
+     `cooking_rates` into every cook site; card-driven exchanges (not via a
+     cooking improvement) get nothing. This builds the cooking-rate injection
+     seam (`cooking_mods.py`) — the ruling-42 cluster's additive member may
+     proceed ahead of the full cooking-modifier design pass.
+   - **Renovation Company A13** (un-deferred — its 2026-07-15 blocker was the
+     then-missing zero-cost grant parameter, since built as `cost_override`):
+     "immediately after" = within the card's play; the free renovate keeps
+     the NORMAL target menu (Conservator's wood→stone composes, free either
+     way); the decline is the play-variant choice (the clarification's
+     non-bankable decline); under a renovate-forbid card the renovate variant
+     is withheld (the never-offer-a-dead-end rule) and the card stays playable
+     for its unconditional +3 clay.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)
@@ -1194,7 +1231,8 @@ policy (see C-note). B41 Hauberg, by contrast, **schedules** its boar (sound per
 fully unblocked by A3 + A6.
 
 ### A4. Optional renovate grant (declinable)
-**Cards unblocked:** B1 Upscale Lifestyle; partially Renovation Company (A13), Established Person (B88).
+**Cards unblocked:** B1 Upscale Lifestyle; partially Renovation Company (A13 — **BUILT 2026-07-21**,
+ruling 72, as a `cost_override` play-variant), Established Person (B88).
 
 **Blocker.** A card that grants an **optional** renovation ("if you take the action…") can't use a bare
 `PendingRenovate` — its before-phase enumerator emits only `CommitRenovate`, no `Stop`, so there's no
@@ -1364,7 +1402,8 @@ These are correctly deferred; grouped by the missing subsystem, for visibility (
 - **Legality / sub-action-menu changes:** Wooden Shed (A10), Forest School (**rescued** via the existing
   occupancy-override registry), Agrarian Fences (B26) (**Oven Site A27 was rescued and BUILT
   2026-07-20** — `PendingBuildMajor.allowed_majors` + `granted_by` on the build-major ctx + a
-  grant-scoped cost formula), Stone Company (A23), Carpenter's Hammer (A14, per-action build-count
+  grant-scoped cost formula; **Stone Company A23 likewise BUILT 2026-07-21** — the
+  `CostCtx.min_spend` payment filter, ruling 72), Carpenter's Hammer (A14, per-action build-count
   discount), Chief Forester (A115, capped sow).
 - **Misc one-offs:** Shaving Horse (A48, "after you obtain wood" event), Winnowing Fan (A61, state-dependent
   baking-rate conversion), Potato Ridger (A59, optional-at-harvest-field — the field hook is auto-only),

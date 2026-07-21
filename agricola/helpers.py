@@ -155,17 +155,25 @@ def cooking_rates(state: GameState, player_idx: int) -> tuple[int, int, int, int
 
     Callers that only need the animal triple (e.g. pareto_frontier,
     breeding_frontier) slice the first three elements: cooking_rates(...)[:3].
-    """
+
+    Card seam: the base tuple is folded through the owned cooking-rate bonuses
+    (`agricola/cards/cooking_mods.py` — Fatstock Stretcher's +1 sheep/boar).
+    Empty registry (the Family game) → the base tuple unchanged. Cache-safe:
+    every memoized frontier takes the rates as explicit key arguments, so a
+    card-modified rate is a different key by construction (§5.4). The local
+    import is the load-order-safe idiom (see `stables_in_supply`)."""
     owners = state.board.major_improvement_owners
     has_hearth    = any(owners[i] == player_idx for i in (2, 3))
     has_fireplace = any(owners[i] == player_idx for i in (0, 1))
 
     if has_hearth:
-        return (2, 3, 4, 3)
+        base = (2, 3, 4, 3)
     elif has_fireplace:
-        return (2, 2, 3, 2)
+        base = (2, 2, 3, 2)
     else:
-        return (0, 0, 0, 1)
+        base = (0, 0, 0, 1)
+    from agricola.cards.cooking_mods import apply_cooking_rate_bonuses
+    return apply_cooking_rate_bonuses(state, player_idx, base)
 
 
 # ---------------------------------------------------------------------------

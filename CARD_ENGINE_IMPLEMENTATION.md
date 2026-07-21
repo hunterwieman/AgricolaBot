@@ -114,7 +114,14 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-21 (the typed-slot batch — ruling 71: `register_typed_slots`
+> **Last updated: 2026-07-21 (the boundary-buster batch — ruling 72: four previously
+> hard-bucket cards on three small engine seams — the `CostCtx.min_spend` payment filter
+> (Stone Company A23), the `PendingPlayMinor.allowed_cards` menu restriction + take-max
+> withdrawal (Firewood C75), the `cooking_mods.py` cooking-rate bonus fold (Fatstock
+> Stretcher D56 — +1 sheep/boar only where the base rate exists), and Renovation Company
+> A13 un-deferred via the existing `cost_override` play-variant; Carpenter's Bench B15
+> ruled WONTFIX (its payment-source restriction stays a §8 gap); census 214 occ +
+> 331 min = 545; below. Earlier same day: the typed-slot batch — ruling 71: `register_typed_slots`
 > generalizes the Dolly's-Mother sheep strip to per-species card slots, exact by the same
 > dominance argument per type independently, plus `animal_holder_card_ids()` for
 > "able to hold animals" wording; Wildlife Reserve C11, Cattle Farm C12, Mud Patch A11
@@ -148,6 +155,44 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-21 boundary-buster batch landed (ruling 72): 4 minors off the hard bucket,
+  on three small engine seams + one zero-engine-change build.** (1) **The min-spend payment
+  filter** — `CostCtx.min_spend` + a qualify-filter in `effective_payments`/`can_pay` applied
+  POST-modifier and BEFORE the Pareto prune (dominance runs among qualifying payments only, so
+  an optional conversion's stone-free variant can't prune away the qualifying one, while an
+  automatic discount that strips the stone simply disqualifies — the printed Stonecutter
+  clarification falls out for free); `ReturnImprovement` routes never qualify. Threaded
+  `PendingMajorMinorImprovement.min_spend` → both children → the ctx adapters + branch gates
+  (`_can_afford_any_major_improvement` / `playable_minors` take `min_spend=`). Consumer:
+  **Stone Company** (A23 — quarry `after_action_space` trigger granting the NAMED composite
+  with `min_spend=Resources(stone=1)`; a Merchant repeat is a fresh unconstrained composite).
+  This retires §8's "minimum-spend filter" cost-model gap. (2) **`PendingPlayMinor.
+  allowed_cards`** — the `allowed_majors` sibling: a card-restricted play menu. Consumer:
+  **Firewood** (C75 — `returning_home` auto banks 1 wood/round in CardStore; one shared
+  trigger on `before_build_major` + `before_play_minor` — the Merchant dual-event pattern —
+  moves min(4, stock) wood card→supply (take-max, the ruling-41 dominance shape) and
+  intersects the frame's menu down to the collective-term targets: major indices
+  {0,1,2,3,5,6} / hand minors whose slug ends `_oven`/`_fireplace` (user ruling 2026-07-21:
+  the RULES.md name rule includes the minor ovens/fireplaces; `oven_site` correctly excluded);
+  eligibility checks the DOCTORED +wood state so the no-decline frames never strand). (3)
+  **The cooking-rate bonus fold** — `agricola/cards/cooking_mods.py`,
+  `register_cooking_rate_bonus(card_id, fn(state, idx, base) -> deltas)`, folded at the end of
+  `helpers.cooking_rates`; cache-safe because every memoized frontier takes the rates as
+  explicit key arguments. Consumer: **Fatstock Stretcher** (D56 — +1 sheep/boar per animal
+  cooked via a cooking improvement, gated per-component on base rate > 0: (2,2,3)→(3,3,3),
+  (0,0,0) stays, (3,0,5)→(4,0,5) — user ruling 2026-07-21; this opens the ruling-42
+  cooking-modifier pass with its additive member; Oriental Fireplace / Earth Oven stay parked
+  on the improvement-injection design). (4) **Renovation Company** (A13, un-deferred: its
+  2026-07-15 blocker was the then-missing zero-cost grant parameter, since built as
+  `PendingRenovate.cost_override` for Renovation Materials) — a play-variant minor
+  (renovate/decline, both zero-surcharge); the free renovate keeps the NORMAL target menu
+  (Conservator's wood→stone composes, free either way), and the renovate variant is withheld
+  under a renovate-forbid card (the never-offer-a-dead-end rule via `_legal_renovate_targets`).
+  Also: **Carpenter's Bench** (B15) ruled 🚫 WONTFIX (user, 2026-07-21) — its "the taken wood
+  (and only that)" payment-source restriction stays a deliberate §8 gap, now with no waiting
+  consumer. All four cards Family-inert (min_spend/allowed_cards canonical-skipped; the
+  cooking fold is an empty-registry no-op); full suite + the C++ Family gates green untouched.
+  Census after: **214 occupations + 331 minors = 545**.
 - **The 2026-07-21 typed-slot batch landed (ruling 71): the per-species slot generalization +
   4 cards, all card-only/Family-inert.** `register_typed_slots(card_id, fn)` (capacity_mods §3)
   generalizes the sheep-only Dolly's-Mother slot to `fn(player) -> Animals`, consumed by the
@@ -2394,9 +2439,11 @@ defer (§7); building the missing piece is a design conversation with the user f
   list — the §5c ladder and §5b's `after_feeding` window exist now.)
 - **Cost-model gaps** (each flagged so the model isn't mistaken for complete): a
   payment-*source* restriction (Carpenter's Bench "use only the taken wood") — `effective_
-  payments` has no concept of where goods came from; a *minimum-spend* filter (Stone Company);
-  a per-game Nth-fence ordinal (Carpenter's Apprentice — needs a cumulative cross-action
-  segment counter); raze-and-rebuild (Overhaul — a new primitive). And a scope caveat: the
+  payments` has no concept of where goods came from (Carpenter's Bench itself is 🚫 WONTFIX,
+  user ruling 2026-07-21, so this gap currently has no waiting consumer); a per-game
+  Nth-fence ordinal (Carpenter's Apprentice — needs a cumulative cross-action segment
+  counter); raze-and-rebuild (Overhaul — a new primitive). *(The minimum-spend filter is no
+  longer a gap — built 2026-07-21 as `CostCtx.min_spend` for Stone Company, ruling 72.)* And a scope caveat: the
   conversion-chaining claims (§5.1 step 2) were verified against decks A–E only; the §4.7
   closure-equality guard is the backstop as new conversion cards land — promote it to the full
   multi-card form then.

@@ -57,7 +57,7 @@ from agricola.fences import (
     pack_fences_h,
     pack_fences_v,
 )
-from agricola.cost import CostCtx
+from agricola.cost import CostCtx, meets_min_spend
 from agricola.replace import fast_replace
 from agricola.resources import Animals, Resources
 from agricola.helpers import (
@@ -695,13 +695,22 @@ def effective_payments(state, idx: int, ctx) -> list:
     cands = [c for b in resource_bases
              for c in expand_conversions(ctx.action_kind, state, idx, ctx, b)]
     cands = [apply_reductions(ctx.action_kind, state, idx, ctx, c) for c in cands]
+    # 3b. Minimum-spend constraint (Stone Company's "must spend at least 1 stone" —
+    #     `CostCtx.min_spend`): drop non-qualifying candidates POST-modifier and BEFORE
+    #     the Pareto prune, so dominance runs among qualifying payments only (an optional
+    #     conversion's stone-free variant must not prune away the stone-spending one).
+    #     A None min_spend (every other action) keeps every candidate.
+    cands = [c for c in cands if meets_min_spend(c, ctx.min_spend)]
     # 4. Keep affordable (resource payments + non-resource routes), then Pareto-min over goods.
     #    `_payable` accepts a food-short-but-liquidatable payment (food raised at execution via
     #    PendingFoodPayment) so it must agree with `can_pay`'s gate — else a card the gate marks
     #    playable would emit zero pay buttons (FOOD_PAYMENT_DESIGN.md §4 gate↔frontier agreement).
     affordable: list = [c for c in cands if _payable(state, idx, p, c, ctx.reserved_animals)]
-    affordable += [r for r in base_routes(ctx.action_kind, state, idx, ctx)
-                   if _route_affordable(state, idx, r)]
+    if ctx.min_spend is None:
+        # A ReturnImprovement route spends no resources, so it can never satisfy a
+        # min-spend constraint; under one, routes are excluded outright.
+        affordable += [r for r in base_routes(ctx.action_kind, state, idx, ctx)
+                       if _route_affordable(state, idx, r)]
     return pareto_min_over_goods(affordable)
 
 
@@ -711,17 +720,22 @@ def can_pay(state, idx: int, ctx) -> bool:
     (the common / Family case), then any formula base / conversion path / non-resource
     route, stopping at the first affordable one."""
     p = state.players[idx]
-    if _payable(state, idx, p, ctx.base, ctx.reserved_animals):
+    if (meets_min_spend(ctx.base, ctx.min_spend)
+            and _payable(state, idx, p, ctx.base, ctx.reserved_animals)):
         return True
     from agricola.cards.cost_mods import (
         apply_reductions, base_routes, expand_conversions, formula_mods,
     )
     for b in [ctx.base] + formula_mods(ctx.action_kind, state, idx, ctx):
         for c in expand_conversions(ctx.action_kind, state, idx, ctx, b):
-            if _payable(state, idx, p,
-                        apply_reductions(ctx.action_kind, state, idx, ctx, c),
-                        ctx.reserved_animals):
+            reduced = apply_reductions(ctx.action_kind, state, idx, ctx, c)
+            # The min-spend constraint reads the POST-modifier payment (mirrors
+            # effective_payments' 3b — gate↔frontier agreement).
+            if (meets_min_spend(reduced, ctx.min_spend)
+                    and _payable(state, idx, p, reduced, ctx.reserved_animals)):
                 return True
+    if ctx.min_spend is not None:
+        return False    # routes spend no resources — never qualify under a constraint
     return any(_route_affordable(state, idx, r)
                for r in base_routes(ctx.action_kind, state, idx, ctx))
 
@@ -869,34 +883,42 @@ def _can_renovate(state: GameState, p: PlayerState) -> bool:
     )
 
 
-def _build_major_ctx(idx: int, granted_by: str | None = None) -> CostCtx:
+def _build_major_ctx(idx: int, granted_by: str | None = None,
+                     min_spend=None) -> CostCtx:
     """Cost-resolution context for building major improvement `idx` (base = its printed
     `MAJOR_IMPROVEMENT_COSTS` entry; `major_idx` lets cost cards / the built-in
     Cooking-Hearth Fireplace-return route dispatch on which major). `granted_by` is the
     provenance of a CARD-GRANTED build ("card:<id>", parsed off the pushed frame's
     `initiated_by_id` — the renovate-ctx pattern), so a grant-scoped cost formula
-    (Oven Site's 1-clay-1-stone ovens) applies to exactly that frame's builds."""
+    (Oven Site's 1-clay-1-stone ovens) applies to exactly that frame's builds.
+    `min_spend` is a granted action's minimum-spend constraint (Stone Company's
+    "must spend at least 1 stone"), threaded from the pushed frame into the ctx."""
     return CostCtx("build_major", MAJOR_IMPROVEMENT_COSTS[idx], major_idx=idx,
-                   granted_by=granted_by)
+                   granted_by=granted_by, min_spend=min_spend)
 
 
-def _can_afford_major(state: GameState, p: PlayerState, idx: int) -> bool:
+def _can_afford_major(state: GameState, p: PlayerState, idx: int,
+                      min_spend=None) -> bool:
     """Whether the given player can afford the major improvement at index `idx`.
 
     Routes through the cost-modifier chokepoint `can_pay`, which covers the printed
     cost (`MAJOR_IMPROVEMENT_COSTS[idx]`), any owned cost-card variant, AND the built-in
     Cooking-Hearth Fireplace-return route (idx 2/3 are payable by returning an owned
     Fireplace — §4.5). In the Family game this reduces to the printed cost-or-Fireplace
-    check. The player's index is derived from `p` by identity (not `current_player`)."""
+    check. Under a `min_spend` constraint (Stone Company), only qualifying payments —
+    and never the Fireplace-return route — count. The player's index is derived from
+    `p` by identity (not `current_player`)."""
     player_idx = 0 if p is state.players[0] else 1
-    return can_pay(state, player_idx, _build_major_ctx(idx))
+    return can_pay(state, player_idx, _build_major_ctx(idx, min_spend=min_spend))
 
 
-def _can_afford_any_major_improvement(state: GameState, p: PlayerState) -> bool:
-    """Whether at least one unowned major improvement is affordable."""
+def _can_afford_any_major_improvement(state: GameState, p: PlayerState,
+                                      min_spend=None) -> bool:
+    """Whether at least one unowned major improvement is affordable (under the
+    optional minimum-spend constraint — Stone Company's granted action)."""
     owners = state.board.major_improvement_owners
     return any(
-        owners[i] is None and _can_afford_major(state, p, i)
+        owners[i] is None and _can_afford_major(state, p, i, min_spend=min_spend)
         for i in range(10)
     )
 
@@ -1534,16 +1556,18 @@ def _minor_cost_alternatives(spec, state: GameState, idx: int) -> tuple:
     return (spec.cost,) + spec.alt_costs
 
 
-def _play_minor_ctx(card_id: str, cost, state: GameState, idx: int) -> CostCtx:
+def _play_minor_ctx(card_id: str, cost, state: GameState, idx: int,
+                    min_spend=None) -> CostCtx:
     """Cost-resolution context for playing minor `card_id` with a SPECIFIC alternative
     `cost` (a `Cost`, one member of `_minor_cost_alternatives`).
 
     The resource portion is the cost-modifier `base`; the animal portion is NOT
     modifiable by cost cards and rides on `reserved_animals` so food-liquidation
-    affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4)."""
+    affordability sets it aside (FOOD_PAYMENT_DESIGN.md §4). `min_spend` is a granted
+    action's minimum-spend constraint (Stone Company), threaded from the frame."""
     return CostCtx(
         "play_minor", cost.resources, card_id=card_id,
-        reserved_animals=cost.animals,
+        reserved_animals=cost.animals, min_spend=min_spend,
     )
 
 
@@ -1554,7 +1578,8 @@ def _can_afford_minor_animals(p: PlayerState, animals) -> bool:
 
 
 def playable_minors(state: GameState, idx: int, *,
-                    composite_only_ok: bool = False) -> list[str]:
+                    composite_only_ok: bool = False,
+                    min_spend=None) -> list[str]:
     """Minor card ids in player `idx`'s hand that can currently be played:
     registered spec + prerequisite met + cost affordable. Filtered to registered
     MinorSpecs so an as-yet-unimplemented hand card is simply not offered.
@@ -1571,7 +1596,11 @@ def playable_minors(state: GameState, idx: int, *,
     — the Major Improvement space, House Redevelopment, Angler-style grants). When False
     (the default, and every bare "Minor Improvement" route: Meeting Place, Basic Wish,
     bare grants), a `COMPOSITE_ONLY_MINORS` card (Wooden Shed) is dropped. Empty registry
-    (the Family game) → no effect."""
+    (the Family game) → no effect.
+
+    `min_spend`: a granted action's minimum-spend constraint (Stone Company's "must
+    spend at least 1 stone") — a minor is playable under it only via a qualifying
+    payment (threaded into `can_pay` through the ctx)."""
     from agricola.cards.specs import MINORS, prereq_met  # local import: load-order safe
     p = state.players[idx]
     result = []
@@ -1582,7 +1611,8 @@ def playable_minors(state: GameState, idx: int, *,
         if not prereq_met(spec, state, idx):
             continue
         if any(
-            can_pay(state, idx, _play_minor_ctx(cid, cost, state, idx))
+            can_pay(state, idx, _play_minor_ctx(cid, cost, state, idx,
+                                                min_spend=min_spend))
             and _can_afford_minor_animals(p, cost.animals)
             for cost in _minor_cost_alternatives(spec, state, idx)
         ):
@@ -2062,8 +2092,10 @@ def _enumerate_pending_build_major(
             continue
         if pending.allowed_majors is not None and idx not in pending.allowed_majors:
             continue
-        for payment in effective_payments(state, pending.player_idx,
-                                          _build_major_ctx(idx, granted_by=granted_by)):
+        for payment in effective_payments(
+                state, pending.player_idx,
+                _build_major_ctx(idx, granted_by=granted_by,
+                                 min_spend=pending.min_spend)):
             actions.append(CommitBuildMajor(major_idx=idx, payment=payment))
     return actions
 
@@ -2358,10 +2390,14 @@ def _enumerate_pending_major_minor_improvement(
     # NEITHER has been chosen. (In the Family game minor_chosen is never set and
     # the play_minor branch is gated off by mode, so this is byte-identical.)
     neither = not pending.major_chosen and not pending.minor_chosen
-    if neither and _can_afford_any_major_improvement(state, p):
+    # A min-spend-constrained composite (Stone Company's grant) offers a branch only
+    # when that branch has a QUALIFYING payment — never a dead-end child frame.
+    if neither and _can_afford_any_major_improvement(
+            state, p, min_spend=pending.min_spend):
         actions.append(ChooseSubAction(name="build_major"))
     if (neither and state.mode is GameMode.CARDS
-            and playable_minors(state, pending.player_idx, composite_only_ok=True)):
+            and playable_minors(state, pending.player_idx, composite_only_ok=True,
+                                min_spend=pending.min_spend)):
         actions.append(ChooseSubAction(name="play_minor"))
     return actions
 
@@ -3055,12 +3091,20 @@ def _enumerate_pending_play_minor(
     # Composite-only minors (Wooden Shed) are enumerable only when THIS play-minor frame
     # is the "Major or Minor Improvement" action's child (Major space / House Redev / Angler).
     composite = top.initiated_by_id == "major_minor_improvement"
-    for cid in playable_minors(state, top.player_idx, composite_only_ok=composite):
+    for cid in playable_minors(state, top.player_idx, composite_only_ok=composite,
+                               min_spend=top.min_spend):
+        # A card-restricted play (Firewood's post-fire "a Fireplace, Cooking Hearth,
+        # or oven" menu — `allowed_cards`): only the named hand minors are offered.
+        # The restricting trigger's eligibility guarantees one is playable, so the
+        # no-decline frame is never stranded.
+        if top.allowed_cards is not None and cid not in top.allowed_cards:
+            continue
         spec = MINORS[cid]
         alternatives = _minor_cost_alternatives(spec, state, top.player_idx)
         variants_fn = PLAY_MINOR_VARIANTS.get(cid)
         for i, cost in enumerate(alternatives):
-            ctx = _play_minor_ctx(cid, cost, state, top.player_idx)
+            ctx = _play_minor_ctx(cid, cost, state, top.player_idx,
+                                  min_spend=top.min_spend)
             # `cost` rides on the commit ONLY when it is a genuine alternative (not the
             # printed `spec.cost`, i.e. index > 0), so ordinary single-cost minors keep
             # the default `cost=None` and their commits are unchanged (existing cards +
