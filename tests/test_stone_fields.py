@@ -136,6 +136,16 @@ def test_unplanted_readers_exclude_stone_fields():
     assert count_unplanted_fields(state.players[0].farmyard) == 1  # only the bare one
 
 
+def test_web_cell_dict_carries_stone():
+    # The web UI's cell serialization emits stone only when present, so
+    # Family/no-stone payloads are unchanged and a stone field renders.
+    from play_web import _cell_to_dict
+
+    assert "stone" not in _cell_to_dict(Cell(cell_type=CellType.FIELD))
+    d = _cell_to_dict(Cell(cell_type=CellType.FIELD, stone=1))
+    assert d["stone"] == 1
+
+
 def test_planted_readers_count_stone_fields():
     import agricola.cards.field_clay as field_clay
 

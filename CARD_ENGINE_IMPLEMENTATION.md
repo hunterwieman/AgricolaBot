@@ -115,10 +115,11 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 ## 1. Status
 
 > **Last updated: 2026-07-20 (the approvals batch — ruling 70: cluster C3 approved and both
-> members built — Work Certificate A82 + Handcart B81; plus the Stone Clearing C6 ENGINE layer —
+> members built — Work Certificate A82 + Handcart B81; plus Stone Clearing C6 COMPLETE —
 > `Cell.stone`, the `field_empty`/`field_planted` single-definition predicates, the full
-> emptiness/planted sweep, and the take's stone branch (the card module waits on one scope
-> question: card-fields included or board tiles only?); census 213 occ + 323 min = 536; below.
+> emptiness/planted sweep, the take's stone branch, and the card module (scope RULED same day:
+> card-fields included, exactly 1 stone per card, sow restrictions never restrict placement);
+> census 213 occ + 324 min = 537; below.
 > Earlier same day: the tier-3 batch — ruling 69: 6 minors implemented via
 > parallel delegation on same-day user rulings, with three small driver seams —
 > `PendingPlow.allowed_cells`, the ownership-gated `PendingBuildMajor.built_major_idx`
@@ -155,10 +156,14 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   (sow legality + executor, the restricted wrapper, and nine reader cards — unplanted readers
   exclude stone fields, planted readers count them per the errata), and a stone branch in
   `field_take` (1 stone/phase to supply, a `crop="stone"` manifest entry — joining
-  card-fields' "wood" as a non-crop `HarvestEntry.crop` value). The card MODULE is held on
-  one open scope question (ruling 70's tail): empty card-fields included, or board tiles
-  only? Engine tests: `tests/test_stone_fields.py`. Census after: **213 occupations +
-  323 minors = 536**.
+  card-fields' "wood" as a non-crop `HarvestEntry.crop` value). The card MODULE landed the
+  same day once the scope was RULED (ruling 70's tail): empty CARD-fields are included —
+  exactly 1 stone per card whatever its stack count (Wood Field gets 1, not 2), placed into
+  one stack via the card-fields store, with sow-goods restrictions never restricting the
+  placement (veg-only Beanfield still receives stone); one flagged driver reading: a stoned
+  Wood Field's other stack stays wood-sowable (established per-stack sowability). Engine
+  tests: `tests/test_stone_fields.py`; card tests: `tests/test_card_stone_clearing.py`.
+  Census after: **213 occupations + 324 minors = 537**.
 - **The 2026-07-20 tier-3 batch landed (ruling 69): 6 minors + three small driver seams,
   all card-only/Family-inert (full suite + C++ gates green untouched).** Built via parallel
   per-card delegation on same-day user rulings (each quoted in its module; the ruling-69

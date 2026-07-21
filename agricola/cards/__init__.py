@@ -1000,3 +1000,4 @@ from agricola.cards import tea_time  # noqa: F401
 #     deferred-plans cluster C3 — take-from-accumulation-without-placement) ---
 from agricola.cards import work_certificate  # noqa: F401
 from agricola.cards import handcart  # noqa: F401
+from agricola.cards import stone_clearing  # noqa: F401  (ruling 70 scope resolved: card-fields included)

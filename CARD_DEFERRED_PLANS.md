@@ -1043,10 +1043,18 @@ at 2 players.
      empty/unplanted; Field Clay, Garden Claw, Ash Trees count them as
      planted per the errata "considered planted until the stone is gone");
      the field-phase take harvests stone normally (1/phase to supply, a
-     `crop="stone"` manifest entry). The CARD MODULE is held on one open
-     scope question: does "each of your empty fields" also cover empty
-     CARD-fields (Beanfield / Wood Field / …) per the RULES.md collective
-     term ("Fields = field tiles plus field cards"), or board tiles only?
+     `crop="stone"` manifest entry). **The scope question was RULED same day**
+     (user, 2026-07-20, verbatim): ""place 1 stone on each of your empty
+     fields" cover[s] empty card-fields too … Stone Clearing should place 1
+     stone on all fields, including cards like beanfield and wood field that
+     have restrictions on what can be sowed on them (wood field would get 1
+     stone not 2)" — so every empty card-field gets exactly 1 stone per CARD
+     (into one stack), sow-goods restrictions never restrict the placement,
+     and the module is IMPLEMENTED. One driver-adopted reading rides along,
+     flagged for confirmation: stone in one Wood Field stack leaves the other
+     stack wood-sowable (the machinery's established per-stack sowability —
+     the same behavior as a half-wood-planted Wood Field; the errata's
+     "considered planted" is the field-level reader status).
 
 ---
 
