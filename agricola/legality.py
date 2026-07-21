@@ -1778,7 +1778,14 @@ def _enumerate_pending_sow(
 
     if pending.phase == "after":
         actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
-        actions.append(Stop())
+        # Mandatory-with-choice gate (the atomic-host pattern, mirrored from the
+        # build-major after-phase): Stop is WITHHELD while an owned, eligible,
+        # unfired `mandatory` after_sow trigger remains (Seaweed Fertilizer's
+        # forced post-sow crop gain). A no-op with no mandatory registrant
+        # (every Family state).
+        from agricola.cards.triggers import has_unfired_mandatory_trigger
+        if not has_unfired_mandatory_trigger(state, pending, trigger_event(pending)):
+            actions.append(Stop())
         return actions
     actions = _eligible_fire_triggers(state, pending, trigger_event(pending))
     p = state.players[pending.player_idx]
@@ -1925,6 +1932,12 @@ def _enumerate_pending_plow(
     if pending.num_plowed < pending.max_plows:
         cells = (safe_plow_cells(p) if pending.must_preserve_base
                  else _legal_plow_cells(p, ignore_adjacency=pending.ignore_adjacency))
+        # A cell-restricted grant (PendingPlow.allowed_cells — Zigzag Harrow's
+        # zigzag-completing plow; user ruling 2026-07-20) intersects the legal
+        # set with the grant's menu, mirroring PendingBuildStables.allowed_cells.
+        if pending.allowed_cells is not None:
+            allowed = set(pending.allowed_cells)
+            cells = [rc for rc in cells if rc in allowed]
         actions.extend(CommitPlow(row=r, col=c) for (r, c) in cells)
     if pending.num_plowed >= 1:
         actions.append(Proceed())   # finish a multi-shot grant early (never reached at max_plows=1)

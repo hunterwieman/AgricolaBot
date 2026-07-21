@@ -86,7 +86,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **A20 Double-Turn Plow** · cost: 1 Grain,(+1 Food) · prereq: Play in Round 3 (5) or Before
   - _When you play this card, you can immediately plow up to 2 fields.  [CLARIFICATION: The cost is 1 extra food if played in Round 4 or 5.]_
   - `ONPLAY E-GRANTSUB E-FOODCOST` — On play optionally plow up to 2 fields; the play-cost's +1 food (round-4/5 clause) is a food cost. Round restriction is a plain prereq.
-- ⬜ **A21 Family Friend Home** · prereq: 1 Occupation
+- ✅ **A21 Family Friendly Home** · prereq: 1 Occupation *(name corrected 2026-07-20 — the data JSON's "Family Friend Home" was wrong; implemented 2026-07-20, ruling 69: the rooms>people measure is BEFORE the action — `before_build_rooms` food auto + optional growth trigger, food unconditional on the condition; named-action gate on `build_rooms_action`)*
   - _Each time you take a "Build Rooms" action while having more rooms than people already, you also get a "Family Growth" action and 1 food.  [CLARIFICATION: This card allows exactly 1 growth action regardless of how many rooms are built.]_
   - `HOOK T-BEFORE S-SUB F-TRIG A-OWN E-GOODS E-GRANTSUB E-GROWTH` — 'Each time you take a Build Rooms action' → default T-BEFORE (no 'immediately after' wording), and the rooms-vs-people condition is checked with 'already' at initiation; grants an optional Family Growth (E-GRANTSUB + E-GROWTH, exactly 1 per clarification) plus 1 food (E-GOODS).
 - ⬜ **A22 Telegram** · cost: 2 Food · prereq: At Least 1 Fence in Supply
@@ -331,7 +331,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B16 Mining Hammer** · cost: 1 Wood
   - _When you play this card, you immediately get 1 food. Each time you renovate, you can also build a stable without paying wood._
   - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-TRIG A-OWN E-GRANTSUB` — On-play +1 food; each renovate (a sub-action) optionally grants a free stable build ('can also' -> T-AFTER, F-TRIG). A stable is not a fence (no E-FREEFENCE) and E-PIECECOST is for play-costs paid with a piece, not a free grant.
-- ⬜ **B17 Forest Plow** · cost: 1 Wood
+- ✅ **B17 Forest Plow** · cost: 1 Wood *(implemented 2026-07-20, ruling 69: fires AFTER the take — a per-card override of the T-BEFORE default; the EXOTIC deposit is a plain board edit of the space's `accumulated`, Nail Basket's idiom)*
   - _Each time you use a wood accumulation space, you can pay 2 wood to plow 1 field. Place the paid wood on the accumulation space (for the next visitor).  [CLARIFICATION: You may take less than 2 wood from the space and still use this card’s effect.]_
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB EXOTIC` — 'Each time you use' -> T-BEFORE by ruling; optional pay-2-wood-to-plow is a granted sub-action with an ordinary resource cost (no E-COSTMOD — nothing about a build's cost changes; and the wood is paid from supply per the clarification, so no ST-PROV). The one uncaptured mechanic is depositing the paid wood ONTO the accumulation space for the next visitor (goods added to a board space) -> EXOTIC.
 - ✅ **B18 Grassland Harrow** · cost: 2 Wood · prereq: 2 Occupations, 1 Building Resource in Your Supply
@@ -754,7 +754,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C72 Harvest Festival Planning** · cost: 1 Food · prereq: 2 Occupations
   - _When you play this card, immediately carry out the field phase of the harvest. Afterwards, you get a "Major or Minor Improvement" action.  [CLARIFICATION: This is not a harvest and is for you only.]_
   - `ONPLAY E-FOODCOST E-CROPMANIP E-GOODS E-GRANTACT` — One-shot on play: invokes the field-harvest rule out of schedule (E-CROPMANIP) which delivers crops to the supply (E-GOODS), then grants a full Major-or-Minor Improvement action (E-GRANTACT); the 1-Food play cost is explicitly flaggable per the rulings -> E-FOODCOST.
-- ⬜ **C73 Seaweed Fertilizer** · cost: 2 Food
+- ✅ **C73 Seaweed Fertilizer** · cost: 2 Food *(implemented 2026-07-20, ruling 69: "unconditional" = max_fields 0, crops_only False, required_crop None; one mandatory `after_sow` trigger with round-gated options — the Seasonal Worker shape; the sow after-phase gained the standard mandatory-Stop gate)*
   - _Each time after you take an unconditional "Sow" action, you get 1 grain from the general supply. From round 11 on, you can get 1 vegetable instead._
   - `HOOK T-AFTER S-SUB F-AUTO F-MANDCHOICE A-OWN E-GOODS E-FOODCOST` — Mandatory post-sow gain (F-AUTO); from round 11 it is 'grain OR vegetable' with no decline = the F-MANDCHOICE exemplar; 2-Food play cost flagged E-FOODCOST per the cost ruling.
 - ✅ **C74 Private Forest** · cost: 2 Food · prereq: 1 Occupation
@@ -793,7 +793,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 
 ### Deck D
 
-- ⬜ **D1 Zigzag Harrow** · cost: 1 Wood · prereq: 3 Fields in an "L" Shape · passing
+- ✅ **D1 Zigzag Harrow** · cost: 1 Wood · prereq: 3 Fields in an "L" Shape · passing *(implemented 2026-07-20, ruling 69: the four S/Z-tetromino templates verbatim; `PendingPlow.allowed_cells` menu + wide play-variant decline)*
   - _You can immediately plow 1 field such that it completes a "zigzag" pattern._
   - `ONPLAY E-GRANTSUB E-PASSING L-GEOMFARM` — Kept L-GEOMFARM: the plowed field must complete a 'zigzag' pattern — a shape constraint on farm tiles.
 - ✅ **D2 Dwelling Plan** · cost: 1 Food · passing
@@ -1030,7 +1030,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **D79 Carrot Museum** · cost: 1 Wood,2 Clay · prereq: Play in Round 8 or Before
   - _At the end of rounds 8, 10, and 12, you get 1 stone for each vegetable field you have and a number of wood equal to the number of vegetables in your supply._
   - `HOOK T-AFTER S-ROUNDEND F-AUTO A-OWN E-GOODS` — At end of rounds 8/10/12 auto-gain stone per veg field + wood per veg in supply; end-of-round hook per state count.
-- ⬜ **D80 Brick Hammer** · cost: 1 Wood/1 Food
+- ✅ **D80 Brick Hammer** · cost: 1 Wood/1 Food *(implemented 2026-07-20, ruling 69: reads the PRINTED cost, any >=2-clay alternative qualifies regardless of payment — the ST-PROV need became the ownership-gated `built_major_idx` identity stamp, not a paid-cost payload)*
   - _Each time after you build an improvement costing at least 2 clay, you get 1 stone._
   - `HOOK T-AFTER S-SUB F-AUTO A-OWN E-GOODS E-ALTCOST E-FOODCOST ST-PROV` — Alt play cost 1 Wood / 1 Food → E-ALTCOST plus E-FOODCOST for the food branch (may need conversion); fires after the build-improvement sub-action and needs the improvement's clay cost paid → ST-PROV.
 - ✅ **D81 Roof Ladder** · cost: 1 Wood
@@ -1054,7 +1054,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E2 Renovation Materials** · cost: 3 Clay,1 Reed · prereq: Wooden House · passing
   - _Immediately renovate to clay at no cost. (You must pay the cost of this card though.)_
   - `ONPLAY E-GRANTSUB E-PASSING` — On-play granted renovate-to-clay; the free-ness is the grant's zero cost parameter, not a cost-modifier mechanic (no E-COSTMOD). Ordinary resource play cost; Wooden House is a prereq. Passing minor.
-- ⬜ **E3 Tea Time** · cost: 1 Food · prereq: Own Person on "Grain Utilization" · passing
+- ✅ **E3 Tea Time** · cost: 1 Food · prereq: Own Person on "Grain Utilization" · passing *(implemented 2026-07-20, ruling 69: the vacated space is OPEN — occupancy is solely worker presence, no residual block, either player may reuse it; no ST-PLACELOG needed)*
   - _Immediately return your person on the "Grain Utilization" action space home; you can place it again later this round._
   - `ONPLAY E-WORKERMANIP E-PASSING ST-PLACELOG` — Return your worker on Grain Utilization to reuse it this round.
 - ✅ **E4 Thunderbolt** · prereq: 1 Grain Field · passing

@@ -1705,6 +1705,17 @@ def _execute_build_major(
         new_player = fast_replace(p, future_resources=tuple(new_future))
         state = _update_player(state, player_idx, new_player)
 
+    # 3c. Identity stamp for "which improvement was just built" readers (Brick
+    #     Hammer's printed-cost check — user ruling 2026-07-20): ownership-gated
+    #     on the registration-time index, so the Family game NEVER sets the field
+    #     and the frame's canonical JSON stays byte-identical (no C++ change).
+    from agricola.cards.triggers import BUILD_MAJOR_IDENTITY_CARDS
+    if BUILD_MAJOR_IDENTITY_CARDS and any(
+            cid in pl.minor_improvements or cid in pl.occupations
+            for pl in state.players for cid in BUILD_MAJOR_IDENTITY_CARDS):
+        state = replace_top(state, fast_replace(
+            state.pending_stack[-1], built_major_idx=commit.major_idx))
+
     # 4. DEFER the after-flip (user ruling 2026-07-14): mark the work applied while
     #    this host is still on top. _advance_until_decision flips it — firing the
     #    after_build_major autos AND the coarse "any improvement built" event

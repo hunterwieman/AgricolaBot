@@ -114,7 +114,12 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-20 (the tier-2 batch — ruling 68: 10 minors implemented via
+> **Last updated: 2026-07-20 (the tier-3 batch — ruling 69: 6 minors implemented via
+> parallel delegation on same-day user rulings, with three small driver seams —
+> `PendingPlow.allowed_cells`, the ownership-gated `PendingBuildMajor.built_major_idx`
+> identity stamp + `register_build_major_identity`, and the sow after-phase
+> mandatory-Stop gate; census 213 occ + 321 min = 534; below. Earlier same day:
+> the tier-2 batch — ruling 68: 10 minors implemented via
 > parallel delegation, on two seam families built the same day — the granted-primitive
 > parameter fields and the animal-holder capacity folds; census 213 occ + 315 min = 528;
 > below. Earlier same day: the play_occupation cost-conversion chokepoint — ruling 67: occupation costs resolve through `effective_payments`, substitution cards are conversions, Working Gloves added + Forest School migrated, the `paid_cost` stamp; census 213 occ + 305 min; below. Prior, 2026-07-17: the tier-1 batch — 11 minors on existing seams, ruling 66; and the Forest School per-food rebuild — ruling 65: the swap is priced by the route's frame cost and replaces per food, mixed payments legal; the cost-aware `source_fn(state, idx, cost)` seam; both below. Prior, 2026-07-16: the action/reward-replacement seam — Animal Catcher C168 + Pet Lover D138, built on the new `helpers.suppress_space_reward`; census 210 occ + 291 min; below. Prior, 2026-07-15: the cross-session review + follow-up — Grain Bag & Housemaster added, Pig Breeder rebuilt as a breeding decision, several cards deferred; then census 208 occ + 291 min; below — on top of the seam-fit batch of 89 cards; earlier same day: the reveal-order stamp + the agreed follow-up batch — ruling 63 — and the food-provider batch (20 minors); prior same-arc landmarks: the preparation ladder, the deferred after-flip — ruling 60 — and the 31-occupation batch — ruling 61 — on 2026-07-14).** A card batch is not integrated until this
@@ -129,6 +134,29 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > `status` fields in `agricola/cards/data/*.json` are a lagging tracker — two differing counts
 > are expected, never reconcile them by hand.
 
+- **The 2026-07-20 tier-3 batch landed (ruling 69): 6 minors + three small driver seams,
+  all card-only/Family-inert (full suite + C++ gates green untouched).** Built via parallel
+  per-card delegation on same-day user rulings (each quoted in its module; the ruling-69
+  summary lives in `CARD_DEFERRED_PLANS.md`). The cards: **Family Friendly Home** (A21 —
+  name corrected from the JSON's "Family Friend Home"; a `before_build_rooms` food auto +
+  optional no-space growth trigger, rooms>people measured pre-action, food unconditional
+  on the condition, gated on the named action via `build_rooms_action` — Cottager's
+  granted room build corrected to set it False per the §9.6 flag contract), **Forest
+  Plow** (B17 — after-the-take per-card override of the before default; pays 2 supply
+  wood, deposits them on the space via the Nail Basket board-edit idiom, grants a plow),
+  **Seaweed Fertilizer** (C73 — one mandatory `after_sow` trigger with round-gated
+  options, the Seasonal Worker shape; "unconditional" = `max_fields==0`,
+  `crops_only==False`, `required_crop is None`), **Brick Hammer** (D80 — printed-cost
+  check, any >=2-clay alternative qualifies regardless of payment; first consumer of the
+  identity stamp), **Zigzag Harrow** (D1 — the four verbatim S/Z-tetromino templates;
+  first consumer of `PendingPlow.allowed_cells`; wide play-variant decline), and **Tea
+  Time** (E3 — returns the Grain Utilization worker home; the vacated space is OPEN,
+  occupancy being solely worker presence). The three seams: `PendingPlow.allowed_cells`
+  (a cell-menu restriction mirroring the stables one), the ownership-gated
+  `built_major_idx` stamp (`register_build_major_identity` — the Family game never
+  stamps, canonical-skipped), and the sow after-phase mandatory-Stop gate (mirroring the
+  build-major after-phase's Cottar gate). Census after: **213 occupations + 321 minors
+  = 534**.
 - **The 2026-07-20 tier-2 batch landed (ruling 68): 10 minors + two seam families, all
   card-only/Family-inert (full suite + C++ gates green untouched).** Built via parallel
   per-card delegation on same-day user rulings. **The granted-primitive parameter fields**

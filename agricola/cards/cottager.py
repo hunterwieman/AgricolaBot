@@ -67,6 +67,11 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
             player_idx=idx,
             initiated_by_id="card:cottager",
             max_builds=1,                       # "exactly 1 room"
+            # A card effect that builds a room, NOT the named "Build Rooms"
+            # action (the §9.6 flag contract / the RULES.md named-action
+            # doctrine) — so named-action readers (Family Friendly Home's
+            # "each time you take a 'Build Rooms' action") do not fire on it.
+            build_rooms_action=False,
         ))
     # renovate: cost is resolved through the cost-modifier chokepoint at the pushed
     # frame's enumerator (COST_MODIFIER_DESIGN.md §3.3), exactly like House

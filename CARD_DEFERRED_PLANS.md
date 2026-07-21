@@ -967,6 +967,54 @@ at 2 players.
    `PendingPlayOccupation.paid_cost` (both canonical-default-skipped), and the
    occupation-food-source seam re-scoped to PRODUCERS only.
 
+68. **The 2026-07-20 tier-2 batch rulings** are recorded in
+   `CARD_ENGINE_IMPLEMENTATION.md` §1 (the batch entry) and quoted per-card in the
+   ten tier-2 modules — the number is reserved here so the sequence stays navigable.
+
+69. **The 2026-07-20 tier-3 batch rulings** (each quoted in its card module):
+   - **A21 Family Friendly Home** (name corrected from the data JSON's erroneous
+     "Family Friend Home"): the rooms>people measure occurs BEFORE the Build Rooms
+     action — before the first room is built — so the card lives on
+     `before_build_rooms`; and if rooms>people at that instant, the 1 food is given
+     whether or not the family growth is accepted (an automatic effect beside the
+     optional growth trigger). "Take a 'Build Rooms' action" is read as the NAMED
+     action only — gated on `PendingBuildRooms.build_rooms_action`, with Cottager's
+     granted build-1-room corrected to set it False per the §9.6 flag contract.
+     (The named-action gate is the driver's application of the RULES.md doctrine,
+     flagged for user confirmation, not itself a dated ruling.)
+   - **B17 Forest Plow**: fires AFTER the take — an explicit per-card override of
+     the "each time you use = before" default (the deposit is "for the next
+     visitor"; before-timing would let the player's own sweep scoop the deposited
+     wood straight back). The 2 wood is paid from the player's supply whatever its
+     origin, the just-taken wood included — the clarification decouples the effect
+     from how much wood the space actually yielded.
+   - **C73 Seaweed Fertilizer**: an "unconditional" Sow action = one with no
+     constraint on the number of fields sown or the types of crops/goods sown —
+     i.e. a `PendingSow` with `max_fields == 0`, `crops_only == False`, and
+     `required_crop is None`. Modeled Seasonal-Worker-style (one mandatory
+     `after_sow` trigger whose options are round-gated: grain-only before round 11,
+     grain-or-vegetable from round 11); the sow host's after-phase gained the
+     standard mandatory-Stop gate (mirroring the build-major after-phase).
+   - **D80 Brick Hammer**: "costing at least 2 clay" reads the PRINTED cost, never
+     the payment actually made; for an improvement with multiple printed
+     alternative costs, ANY >=2-clay alternative qualifies even when the player
+     paid the alternative without clay (so a Cooking Hearth bought by returning a
+     Fireplace qualifies — printed 4/5 clay). Machinery: the ownership-gated
+     `PendingBuildMajor.built_major_idx` identity stamp
+     (`register_build_major_identity` in `cards/triggers.py`).
+   - **D1 Zigzag Harrow**: "zigzag" means, verbatim, a pattern like
+     {(x, y), (x+1, y), (x+1, y+1), (x+2, y+1)},
+     {(x, y), (x, y+1), (x+1, y+1), (x+1, y+2)},
+     {(x, y), (x+1, y-1), (x+1, y), (x+2, y-1)}, or
+     {(x, y), (x-1, y+1), (x, y+1), (x-1, y+2)} — the four orientations of the
+     S/Z tetromino; the plowed field plus 3 existing field TILES must form one,
+     translated anywhere on the farmyard. Machinery: `PendingPlow.allowed_cells`
+     (mirroring `PendingBuildStables.allowed_cells`).
+   - **E3 Tea Time**: the vacated space is OPEN — what makes a space illegal to
+     place on is solely the presence of a worker on it; there is no residual
+     "used this round" block, so either player may use Grain Utilization again
+     that round after the return.
+
 ---
 
 ## Deferred for AMBIGUITY (the printed text is unclear — distinct from the power bans)
@@ -1028,7 +1076,8 @@ shared-infra proposals.
 > (HARVEST_WINDOWS_DESIGN.md); A93 / B92 / A21 below still await their own batch, and the
 > A21 question (room-count timing + food coupling) is still open.
 
-**Cards unblocked:** A93 Bed Maker, B92 Little Stick Knitter, A21 Family Friend Home (rescued).
+**Cards unblocked:** A93 Bed Maker, B92 Little Stick Knitter, A21 Family Friendly Home (rescued;
+name corrected 2026-07-20 — the data JSON's "Family Friend Home" was wrong).
 
 **Blocker.** Per the rules (your ruling), a card-granted "Family Growth" places the newborn on **no
 action space**. But the engine's only growth primitive, `PendingFamilyGrowth`, resolves through
@@ -1047,10 +1096,12 @@ gated on the room predicate `people_total < 5 and people_total < _num_rooms(p)` 
 **not** self-check this) and, for A93, the 1-wood-1-grain cost.
 
 **Effort:** ~15 lines engine + 3 thin card modules. **Risk:** low.
-**Question (A21 Family Friend Home only):** "if you have more rooms than people" — measured **before**
-or **after** the just-built rooms? (`after_build_rooms` naturally reads the post-build count.) And does
-its **+1 food** couple to firing the growth, or is it unconditional on the build? I'll default to
-post-build count + food-bundled-with-growth unless you say otherwise.
+**Question (A21 Family Friendly Home only) — RESOLVED (user ruling 2026-07-20, ruling 69):**
+"if you have more rooms than people" is measured **before** the Build Rooms action (before the first
+room is built) — the note above proposing `after_build_rooms` / a post-build default is superseded;
+the card lives on `before_build_rooms`. And the **+1 food is unconditional on the condition**: if
+rooms>people at that instant, the food is given whether or not the family growth is accepted.
+(Implemented 2026-07-20 as `family_friendly_home.py`.)
 
 ### A2. "On your turn" build exclusion (off-turn builds don't trigger)
 **Cards unblocked:** A43 Farmyard Manure, A74 Stable Tree.

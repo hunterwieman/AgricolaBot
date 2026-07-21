@@ -153,6 +153,13 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # (Renovation Materials' free renovate-to-clay).
     "required_crop", "ignore_adjacency", "allowed_cells",
     "allowed_majors", "major_allowed", "cost_override", "forced_target",
+    # PendingBuildMajor.built_major_idx (Brick Hammer's improvement-identity
+    # stamp, user ruling 2026-07-20): stamped ONLY when a player owns a
+    # BUILD_MAJOR_IDENTITY_CARDS member, so it is Family-constant None —
+    # omitting it keeps the Family JSON byte-identical and needs no C++ change.
+    # (`allowed_cells` above is unqualified, so it also covers
+    # PendingPlow.allowed_cells — Zigzag Harrow's zigzag menu, same ruling.)
+    "built_major_idx",
     # The play-occupation cost-conversion chokepoint (ruling 67, 2026-07-20): the
     # commit's chosen payment (None on the singleton-frontier path — qualified so
     # CommitPlayMinor.payment keeps serializing) and the host's paid-cost stamp

@@ -196,6 +196,21 @@ def register_action_space_hook(card_id: str, spaces, *, any_player: bool = False
         index.setdefault(space_id, set()).add(card_id)
 
 
+# Cards whose after-build hook needs the IDENTITY of the major just built (Brick
+# Hammer's "improvement costing at least 2 clay" printed-cost check — user ruling
+# 2026-07-20). When any player OWNS a member, `_execute_build_major` stamps
+# `PendingBuildMajor.built_major_idx` at the commit so the after-flip's autos can
+# read which major the frame built. Empty set → the Family game never stamps and
+# the field stays at its canonical-skipped default (the should_host_space
+# pattern: an ownership-gated control-flow index, O(1) on the Family fast path).
+BUILD_MAJOR_IDENTITY_CARDS: set[str] = set()
+
+
+def register_build_major_identity(card_id: str) -> None:
+    """Index `card_id` as needing `PendingBuildMajor.built_major_idx` stamped."""
+    BUILD_MAJOR_IDENTITY_CARDS.add(card_id)
+
+
 def should_host_space(state, space_id: str, acting_player: int) -> bool:
     """Should `space_id`'s placement by `acting_player` be hosted (vs. atomic)?
 

@@ -984,3 +984,14 @@ from agricola.cards import oven_site  # noqa: F401
 #     mixed-type 2026-07-20) ---
 from agricola.cards import stockyard  # noqa: F401
 from agricola.cards import petting_zoo  # noqa: F401
+
+# --- 2026-07-20 tier-3 batch (ruling 69; user rulings 2026-07-20: A21 pre-action
+#     rooms>people measure + unconditional food, B17 after-the-take override,
+#     C73 "unconditional Sow" definition, D80 printed-cost/any-alternative,
+#     D1 the four zigzag templates, E3 the vacated space is open) ---
+from agricola.cards import family_friendly_home  # noqa: F401
+from agricola.cards import forest_plow  # noqa: F401
+from agricola.cards import seaweed_fertilizer  # noqa: F401
+from agricola.cards import brick_hammer  # noqa: F401
+from agricola.cards import zigzag_harrow  # noqa: F401
+from agricola.cards import tea_time  # noqa: F401

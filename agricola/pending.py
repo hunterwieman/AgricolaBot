@@ -180,6 +180,14 @@ class PendingPlow:
     # card relaxes the constraint, it does not forbid adjacency). Family-constant
     # False → canonical-skip field, no C++ change.
     ignore_adjacency: bool = False
+    # Card-only (Zigzag Harrow D1; user ruling 2026-07-20): a granted plow
+    # restricted to a MENU of cells ("plow 1 field such that it completes a
+    # 'zigzag' pattern") — the enumerator intersects the legal plow cells with
+    # this (row, col) tuple, mirroring PendingBuildStables.allowed_cells
+    # (Shelter). None = unrestricted — every Family plow and every unrestricted
+    # grant — so it is a Family-constant default → canonical-skip field
+    # (the unqualified "allowed_cells" entry already covers it), no C++ change.
+    allowed_cells: tuple | None = None
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
@@ -308,6 +316,14 @@ class PendingBuildMajor:
     # Family build and the Major Improvement space). Family-constant default →
     # canonical-skip field, no C++ change.
     allowed_majors: tuple | None = None
+    # Card-only (Brick Hammer D80; user ruling 2026-07-20): WHICH major the
+    # commit built, stamped by `_execute_build_major` for "after you build an
+    # improvement" readers that need the improvement's identity (the printed-
+    # cost check). The stamp is OWNERSHIP-GATED on the registration-time
+    # `BUILD_MAJOR_IDENTITY_CARDS` index, so the Family game never sets it —
+    # the field stays at its canonical-skipped None default (byte-identical
+    # JSON, no C++ change), the should_host_space pattern.
+    built_major_idx: int | None = None
     effect_initiated: bool = False      # deferred after-flip signal (see PendingSow)
 
 
