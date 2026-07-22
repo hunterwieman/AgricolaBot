@@ -70,12 +70,14 @@ Basket Weaver category; the contrast is Established Person, whose printed "You m
 this card if you cannot renovate" DOES gate playability. So `_variants` always returns at
 least one route, and Confidant is never excluded from `playable_occupations`.
 
-The `agricola/legality.py` committability guard (`playable_occupations` dropping a
-zero-variant occupation, and `_any_occupation_committable` gating Lessons / Scholar / a
-granted play) is therefore INERT for Confidant — the `place_0` variant is always
-committable. It survives as a defensive safety net (a route must never push an empty
-`PendingPlayOccupation`); the fate of that guard vs. a printed-prerequisite mechanism for a
-future gated card (Established Person) is an open design question for the user.
+The `place_0` waste variant is what makes this correct with NO engine change: because
+`_variants` is never empty, the occupation-play routes (Lessons / Scholar / a granted play)
+push a non-empty `PendingPlayOccupation` off the ordinary base-cost gate alone. (An earlier
+follow-up added a committability guard to `agricola/legality.py` to gate playability on the
+placement being affordable; it was REVERTED, user 2026-07-21 — playability is base cost plus
+any printed prerequisite, and an effect *wastes* rather than gates, so the guard conflated
+the two. A future gated card — Established Person's "you may not play if you cannot renovate"
+— wants a real occupation-prerequisite mechanism, not a committability check.)
 """
 from __future__ import annotations
 

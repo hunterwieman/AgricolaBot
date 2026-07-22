@@ -23,9 +23,9 @@ from agricola.cards.triggers import (
     register_play_variant_trigger,
 )
 from agricola.constants import HouseMaterial
-from agricola.legality import playable_minors
+from agricola.legality import playable_minors, playable_occupations
 from agricola.pending import PendingPlayMinor, PendingPlayOccupation, push
-from agricola.legality import _any_occupation_committable
+from agricola.legality import _payable_occupation
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState
@@ -42,11 +42,10 @@ def _legal_variants(state: GameState, idx: int) -> list[str]:
 
     The food itself is raised, when short, by `_execute_play_occupation` (the pushed
     PendingPlayOccupation carries `cost=1 food`, and its food-shortfall guard handles the
-    liquidation), so the only fix here is the committability gate: a mandatory-choice
-    play-variant occupation (Confidant) needs a legal (variant, payment) at the 1-food
-    cost, not just a payable base — `_any_occupation_committable` mirrors the enumerator."""
+    liquidation), so the only fix here is the liquidation-aware eligibility gate."""
+    p = state.players[idx]
     variants: list[str] = []
-    if _any_occupation_committable(state, idx, _OCC_COST):
+    if playable_occupations(state, idx) and _payable_occupation(state, idx, p, _OCC_COST):
         variants.append("occupation")
     if playable_minors(state, idx):
         variants.append("minor")
