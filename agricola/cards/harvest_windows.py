@@ -279,8 +279,12 @@ def available_span_converters(state, idx: int) -> tuple:
     generalized raise frame RIGHT NOW (rulings 34/37): each registered
     `frontier_fire` entry that is owned, in-span, and budget-unused (the
     once-per-harvest budget is SHARED with the feed-seam offer via
-    `harvest_conversions_used`). Sorted by id; () — the Family fast path —
-    whenever out of span or nothing qualifies."""
+    `harvest_conversions_used`). Elements are
+    ``(conversion_id, (wood, clay, reed, stone) input, food_out,
+    frontier_group)`` — the group (ruling 76 item 1: a bundle fires at most
+    one member of a group; None = ungrouped) rides along for
+    `_food_payment_generalized`'s subset enumeration. Sorted by id; () — the
+    Family fast path — whenever out of span or nothing qualifies."""
     if not in_conversion_span(state, idx):
         return ()
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
@@ -294,7 +298,7 @@ def available_span_converters(state, idx: int) -> tuple:
         if not spec.is_owned_fn(state, idx):
             continue
         inp, food_out = spec.frontier_fire
-        out.append((cid, inp, food_out))
+        out.append((cid, inp, food_out, spec.frontier_group))
     return tuple(out)
 
 

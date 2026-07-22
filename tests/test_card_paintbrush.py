@@ -268,7 +268,7 @@ def _in_span_state(*, clay=0, grain=0, food=0, owe=2, used=frozenset()):
 def test_span_converter_derivation():
     s = _in_span_state(clay=1)
     assert in_conversion_span(s, 0)
-    assert available_span_converters(s, 0) == ((CARD_ID, (0, 1, 0, 0), 2),)
+    assert available_span_converters(s, 0) == ((CARD_ID, (0, 1, 0, 0), 2, None),)
 
 
 def test_raise_frame_fire_is_the_food_branch():

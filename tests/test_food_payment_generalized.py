@@ -17,8 +17,11 @@ from agricola.resources import Resources
 from agricola.setup import setup
 
 RATES = (2, 2, 3, 2)   # sheep 2, boar 2, cattle 3, veg 2
-JOINERY = ("joinery", (1, 0, 0, 0), 2)
-STONE_CARVER = ("stone_carver", (0, 0, 0, 1), 3)
+# (conversion_id, (w, c, r, s) input, food_out, frontier_group) — the group
+# (ruling 76 item 1: a bundle fires at most one member of a non-None group;
+# None = ungrouped single-conversion card/major).
+JOINERY = ("joinery", (1, 0, 0, 0), 2, None)
+STONE_CARVER = ("stone_carver", (0, 0, 0, 1), 3, None)
 
 
 def _player(**kw):
@@ -103,6 +106,63 @@ def test_floors_and_converters_compose():
     assert rows == [((0, 0, 3, 0, 0, 0, 0, 0, 0), ("joinery",))]
 
 
+def test_group_excludes_within_bundle_cofire():
+    """Ruling 76 item 1 (2026-07-21, Studio): variants of ONE card share ONE
+    once-per-harvest budget, so a bundle fires at most one member of a
+    frontier_group. The scenario is chosen so the co-fire would SURVIVE the
+    Pareto pass if enumerated (owe 3 with grain on hand: firing both keeps
+    all 3 grain — incomparable with every single fire), proving the group
+    skip is doing the work, not dominance."""
+    w = ("studio_wood", (1, 0, 0, 0), 2, "studio")
+    c = ("studio_clay", (0, 1, 0, 0), 2, "studio")
+    p = _player(grain=3, wood=1, clay=1)
+    rows = food_payment_frontier(p, 3, RATES, span_converters=(w, c))
+    assert all(len(fired) <= 1 for _vec, fired in rows)
+    # Each variant is still offered as THE single fire (a choice, not a ban).
+    fired_sets = {fired for _vec, fired in rows}
+    assert ("studio_wood",) in fired_sets
+    assert ("studio_clay",) in fired_sets
+
+
+def test_ungrouped_cofire_still_offered():
+    """Control for the group skip: DIFFERENT cards (group None) co-fire in
+    one bundle exactly as before — only same-group pairs are excluded."""
+    p = _player(grain=3, wood=1, stone=1)
+    rows = food_payment_frontier(
+        p, 4, RATES, span_converters=(JOINERY, STONE_CARVER))
+    assert ("joinery", "stone_carver") in {fired for _vec, fired in rows}
+
+
+def test_grouped_with_ungrouped_cofire_offered():
+    """A grouped variant co-fires with an UNGROUPED same-type converter: the
+    greedy sequence's second wood conversion ("joinery first, then Studio")
+    must stay expressible in one bundle — ruling 76 item 1's guidance is an
+    ordering preference, never a ban on using both."""
+    w = ("studio_wood", (1, 0, 0, 0), 2, "studio")
+    p = _player(grain=2, wood=2)
+    rows = food_payment_frontier(p, 4, RATES, span_converters=(JOINERY, w))
+    assert ("joinery", "studio_wood") in {fired for _vec, fired in rows}
+
+
+def test_tiebreak_prefers_ungrouped_on_exact_vec_ties():
+    """The STRUCTURAL greedy-restricted-first tie-break (ruling 76 item 1,
+    user verbatim: "a player who chooses to convert a wood to food should
+    use the joinery over the studio if they have both and both are
+    available"): on an identical remaining-goods vector, the bundle firing
+    the ungrouped (restricted single-type) converter wins over the grouped
+    (flexible multi-variant) one. The ids are ADVERSARIAL — the grouped id
+    sorts lexicographically first — so id ordering cannot produce the pass
+    (the pre-hardening rank would have kept the grouped fire)."""
+    grouped = ("aaa_flex_wood", (1, 0, 0, 0), 2, "aaa_flex")
+    restricted = ("zzz_restricted_wood", (1, 0, 0, 0), 2, None)
+    p = _player(grain=2, wood=1)
+    rows = food_payment_frontier(
+        p, 2, RATES, span_converters=(grouped, restricted))
+    fired_sets = {fired for _vec, fired in rows}
+    assert ("zzz_restricted_wood",) in fired_sets
+    assert ("aaa_flex_wood",) not in fired_sets
+
+
 def test_cross_level_equivalence(monkeypatch):
     """The converter wrap + floor translation sit OUTSIDE the level-dispatched
     core, so the generalized frontier must be SET-identical across opt levels
@@ -169,7 +229,7 @@ def _in_span_state(*, sheep=0, wood=0, stone=0, food=0, owe=2,
 def test_span_derivations():
     s = _in_span_state()
     assert in_conversion_span(s, 0)
-    assert available_span_converters(s, 0) == ((("joinery"), (1, 0, 0, 0), 2),)
+    assert available_span_converters(s, 0) == (("joinery", (1, 0, 0, 0), 2, None),)
     # WORK phase: never in span.
     s2 = with_phase(s, Phase.WORK)
     assert not in_conversion_span(s2, 0)

@@ -701,20 +701,32 @@ def food_payment_frontier(
 
     **`span_converters` (rulings 34/37 — pure building-resource converters
     in the raise frame)** — a tuple of (conversion_id, (wood, clay, reed,
-    stone) input, food_out) for each once-per-harvest BINARY converter
-    currently available to the player (owned + in-span + budget-unused —
-    the CALLER derives this from state; the budget is shared with the
-    feed-phase craft seam via `harvest_conversions_used`). Non-empty input
+    stone) input, food_out, frontier_group) for each once-per-harvest
+    BINARY converter currently available to the player (owned + in-span +
+    budget-unused — the CALLER derives this from state; the budget is
+    shared with the feed-phase craft seam via `harvest_conversions_used`).
+    `frontier_group` (ruling 76 item 1, 2026-07-21 — Studio) marks the
+    variants of ONE multi-variant card sharing ONE once-per-harvest budget:
+    a subset firing two members of the same non-None group is never
+    enumerated (it would use that card twice in one harvest); None =
+    ungrouped (every single-conversion card/major). Non-empty input
     CHANGES THE RETURN SHAPE: each element becomes
     ``((g, v, s, b, c, wood_rem, clay_rem, reed_rem, stone_rem), fired)``
     with `fired` a sorted tuple of the conversion_ids this config fires —
     the Pareto space gains the four building-resource remaining dims (fired
     is NOT a dim; on an exact 9-dim tie the SMALLER fired set wins — fewer
-    burned once-per-harvest budgets dominates). Subsets are enumerated
-    OUTSIDE the cached core (each subset's food offsets the owed amount and
-    its inputs debit the building supplies). With ``food_owed == 0`` no
-    fires are offered — deferring a budget preserves optionality, the span
-    continues (Foundations' preserving-optionality rule).
+    burned once-per-harvest budgets dominates — then the set firing FEWER
+    GROUPED converters, then lexicographic). The grouped-count tie-break is
+    the structural form of the user's greedy-restricted-first guidance
+    (ruling 76 item 1, verbatim): "a player who chooses to convert a wood
+    to food should use the joinery over the studio if they have both and
+    both are available" — on identical remaining goods, burn the restricted
+    single-type budget and keep the flexible multi-variant one. Subsets are
+    enumerated OUTSIDE the cached core (each subset's food offsets the owed
+    amount and its inputs debit the building supplies). With
+    ``food_owed == 0`` no fires are offered — deferring a budget preserves
+    optionality, the span continues (Foundations' preserving-optionality
+    rule).
     """
     sp_, bp_, cp_ = (
         animal_floors[0] if player_state.animals.sheep >= animal_floors[0] else 0,
@@ -835,30 +847,42 @@ def _food_payment_generalized(
                 in _food_payment_counts(g, v, s2, b2, c2, food_owed, rates)]
 
     build = (r.wood, r.clay, r.reed, r.stone)
-    best: dict = {}   # 9-dim remaining vector -> fired ids (smaller set wins)
+    # 9-dim remaining vector -> (len(fired), n_grouped, fired): the tie-break
+    # rank for the fired set producing that exact vector. Smaller wins at each
+    # level: fewer burned once-per-harvest budgets, then fewer GROUPED (multi-
+    # variant, flexible) budgets, then lexicographic. The grouped level is the
+    # structural form of ruling 76 item 1's greedy-restricted-first guidance
+    # (user, verbatim): "a player who chooses to convert a wood to food should
+    # use the joinery over the studio if they have both and both are
+    # available" — on identical remaining goods, prefer burning the restricted
+    # single-type budget and keep the flexible one.
+    best: dict = {}
     n = len(span_converters)
     for mask in range(1 << n):
         chosen = [span_converters[i] for i in range(n) if mask & (1 << i)]
         if chosen and food_owed == 0:
             continue   # no fires at owe 0 — deferring preserves optionality
+        groups = [grp for _cid, _inp, _out, grp in chosen if grp is not None]
+        if len(groups) != len(set(groups)):
+            continue   # two variants of one card = one budget fired twice
         need = [0, 0, 0, 0]
         food_s = 0
-        for _cid, inp, out in chosen:
+        for _cid, inp, out, _grp in chosen:
             for k in range(4):
                 need[k] += inp[k]
             food_s += out
         if any(need[k] > build[k] for k in range(4)):
             continue
         build_rem = tuple(build[k] - need[k] for k in range(4))
-        fired = tuple(sorted(cid for cid, _inp, _out in chosen))
+        fired = tuple(sorted(cid for cid, _inp, _out, _grp in chosen))
+        rank = (len(fired), len(groups), fired)
         owe2 = max(0, food_owed - food_s)
         for (rg, rv, rs, rb, rc) in _food_payment_counts(
                 g, v, s2, b2, c2, owe2, rates):
             vec = (rg, rv, rs + sp_, rb + bp_, rc + cp_) + build_rem
             old = best.get(vec)
-            if old is None or len(fired) < len(old) or (
-                    len(fired) == len(old) and fired < old):
-                best[vec] = fired
+            if old is None or rank < old:
+                best[vec] = rank
 
     def _dom(x, y):
         return (all(ax >= bx for ax, bx in zip(x, y))
@@ -866,7 +890,7 @@ def _food_payment_generalized(
 
     vecs = list(best)
     frontier = [
-        (vec, best[vec]) for i, vec in enumerate(vecs)
+        (vec, best[vec][2]) for i, vec in enumerate(vecs)
         if not any(_dom(vecs[j], vec) for j in range(len(vecs)) if j != i)
     ]
     return sorted(frontier)

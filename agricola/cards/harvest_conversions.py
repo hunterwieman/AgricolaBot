@@ -62,6 +62,20 @@ class HarvestConversionSpec:
       feed-seam-only). None (the default) = feed-seam-only. The raise-frame
       fire shares this entry's once-per-harvest budget
       (`harvest_conversions_used`) with the feed-seam offer (ruling 34).
+    - frontier_group: the raise-frame mutual-exclusion group (ruling 76
+      item 1, 2026-07-21 — Studio, the first multi-variant card to join the
+      payment frontier). A multi-variant converter registers one entry per
+      variant, all carrying the same frontier_group (Studio: "studio"); a
+      single payment bundle may fire AT MOST ONE member of a group, because
+      the variants are one card with one once-per-harvest budget (Studio's
+      printed "exactly 1 wood/clay/stone" is a CHOICE of resource, not three
+      independent fires — co-firing two variants in one bundle would use the
+      card twice in one harvest). Enforced by `_food_payment_generalized`'s
+      subset enumeration (helpers.py); the cross-FRAME once-per-harvest
+      budget is separately enforced by is_owned_fn reading
+      `harvest_conversions_used` (the prefix-guard convention), exactly as
+      before. None (the default — every single-conversion card/major) = no
+      group.
     """
     conversion_id: str
     input_cost:    Resources
@@ -70,6 +84,7 @@ class HarvestConversionSpec:
     side_effect_fn: Optional[Callable] = None
     variants_fn:   Optional[Callable[["GameState", int], list]] = None
     frontier_fire: Optional[tuple] = None
+    frontier_group: Optional[str] = None
 
 
 # Conversion-id-keyed registry. Mutable at import time only; treated as
