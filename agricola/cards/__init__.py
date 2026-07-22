@@ -1044,3 +1044,4 @@ from agricola.cards import furnisher  # noqa: F401
 # --- 2026-07-21 ruling-74 triage batch, Wave 3 ---
 from agricola.cards import field_merchant  # noqa: F401
 from agricola.cards import braid_maker  # noqa: F401
+from agricola.cards import miller  # noqa: F401

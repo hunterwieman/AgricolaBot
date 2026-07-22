@@ -2445,7 +2445,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **E94 Prophet** · [1+]
   - _When you play this card, immediately take a "Renovation" action. Afterward, you can take a "Build Fences" action. (Both actions require their usual cost.)_
   - `ONPLAY E-GRANTACT E-GRANTSUB` — On-play grants both a Renovation — renovate is a listed sub-action primitive (E-GRANTSUB) — and an optional full Build Fences action (E-GRANTACT per that code's own definition), so both grant codes apply; labelB is right.
-- ⬜ **E95 Miller** · [1+]
+- ✅ **E95 Miller** · [1+] · ruling 74 (baking-improvement menu grant; out-of-turn bake on opponent's Grain Seeds)
   - _You can immediately build a baking improvement by paying its cost. Each time another player uses the "Grain Seeds" action space, you can take a “Bake Bread” action._
   - `ONPLAY HOOK S-SPACE T-BEFORE F-TRIG A-OPP E-GRANTACT E-GRANTSUB` — On play: build a baking improvement at its normal cost = a granted (restricted) Major-Improvement-style action → E-GRANTACT, not E-BAKESPEC (the card adds/changes no baking improvement or rate). Hook: each time ANOTHER player uses Grain Seeds (S-SPACE, A-OPP) you may take a Bake Bread action — bake bread is a primitive → E-GRANTSUB; "each time ... uses" defaults to T-BEFORE per the ruling.
 - ⬜ **E96 Elder** · [1+]
