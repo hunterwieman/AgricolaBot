@@ -449,18 +449,20 @@ def test_ruling76_grant_registrations():
             ("vegetable_vendor", "major_or_minor"),
             ("sample_stable_maker", "minor"),
             ("task_artisan", "minor"),
-            ("tree_farm_joiner", "minor"),
-            ("merchant", "major_or_minor"),
-            ("merchant", "minor")} <= entries          # subset — the registry grows
+            ("tree_farm_joiner", "minor")} <= entries  # subset — the registry grows
     ids = {e.card_id for e in NAMED_ACTION_GRANTS}
     assert "stone_company" not in ids                  # not declinable (clarifications)
     assert "harvest_festival_planning" not in ids      # on-play grant, no trigger
+    # Merchant is EXCLUDED (user ruling 77 item 3, 2026-07-21): "Merchant
+    # requires the player to pay 1 food and then take the relevant action. I
+    # don't think declining this bundle counts as declining the action."
+    assert "merchant" not in ids
     # The window-hosted grants carry their window ids for the walk extension.
     windows = {e.card_id: e.window for e in NAMED_ACTION_GRANTS}
     assert windows["sample_stable_maker"] == "start_of_returning_home"
     assert windows["task_artisan"] == "reveal"
     assert windows["tree_farm_joiner"] == "round_space_collection"
-    assert windows["angler"] is None and windows["merchant"] is None
+    assert windows["angler"] is None
 
 
 # --- Angler (frame-hosted, "major_or_minor") --------------------------------
@@ -820,12 +822,15 @@ def test_tree_farm_joiner_unscheduled_round_no_frame_no_pay():
     assert state.players[0].resources.food == food0
 
 
-# --- Merchant: the user-flagged consequence (both kinds) ---------------------
+# --- Merchant: EXCLUDED from the seam (user ruling 77 item 3, 2026-07-21) ----
+# "Merchant requires the player to pay 1 food and then take the relevant
+# action. I don't think declining this bundle counts as declining the action."
+# Leaving the pay-and-repeat bundle unfired pays NOTHING; a FIRED repeat's
+# pushed composite stays on the frames' own decline seams as before.
 
-def test_merchant_unfired_repeat_pays_veg_on_every_taken_composite():
-    # The flagged, user-accepted consequence: with Merchant + Field Merchant in
-    # play, a TAKEN "Major or Minor Improvement" action whose repeat goes
-    # unfired pays the decline income for the declined repeat.
+def test_merchant_unfired_repeat_pays_nothing():
+    # A TAKEN composite whose Merchant repeat goes unfired (declined-to-fire):
+    # no decline income (ruling 77 item 3).
     cs, cp = _card_state(res=Resources(clay=2, food=1), occ=("merchant",))
     cs = with_space(cs, "major_improvement", revealed=True, workers=(0, 0))
     cs = step(cs, PlaceWorker(space="major_improvement"))
@@ -834,16 +839,15 @@ def test_merchant_unfired_repeat_pays_veg_on_every_taken_composite():
     cs = step(cs, sole_build_major(cs, FIREPLACE_0))
     cs = step(cs, Stop())                              # pop build-major after-phase
     assert FireTrigger(card_id="merchant") in legal_actions(cs)   # repeat offered
-    cs = step(cs, Stop())                              # decline-to-fire the repeat
-    assert cs.players[cp].resources.veg == 1           # the declined repeat pays
-    assert cs.players[cp].resources.food == 1          # the fee was never paid
+    cs = step(cs, Stop())                              # decline-to-fire the bundle
     cs = step(cs, Stop())                              # pop the space wrapper
-    assert cs.players[cp].resources.veg == 1
+    assert cs.players[cp].resources.veg == 0           # no decline income
+    assert cs.players[cp].resources.food == 1          # the fee was never paid
 
 
-def test_merchant_repeat_withheld_unaffordable_still_pays():
-    # 0 food: the repeat trigger is withheld (can't pay the fee) — the grant
-    # condition (a composite just completed) held, so it still pays.
+def test_merchant_repeat_withheld_unaffordable_pays_nothing():
+    # 0 food: the repeat trigger is withheld (can't pay the fee) — still no
+    # decline income (the bundle is not a bare grant of the named action).
     cs, cp = _card_state(res=Resources(clay=2), occ=("merchant",))
     cs = with_space(cs, "major_improvement", revealed=True, workers=(0, 0))
     cs = step(cs, PlaceWorker(space="major_improvement"))
@@ -853,13 +857,12 @@ def test_merchant_repeat_withheld_unaffordable_still_pays():
     cs = step(cs, Stop())
     assert FireTrigger(card_id="merchant") not in legal_actions(cs)
     cs = step(cs, Stop())
-    assert cs.players[cp].resources.veg == 1
+    cs = step(cs, Stop())                              # pop the space wrapper
+    assert cs.players[cp].resources.veg == 0
 
 
 def test_merchant_fired_repeat_taken_pays_nothing():
-    # Fired and TAKEN repeat: no decline anywhere — the base composite has
-    # "merchant" in triggers_resolved, and Merchant's own repeat (card:merchant)
-    # grants no further repeat (ruling 3), so its completion pays nothing.
+    # Fired and TAKEN repeat: no decline anywhere, no income anywhere.
     cs, cp = _card_state(res=Resources(clay=5, food=1), occ=("merchant",))
     cs = with_space(cs, "major_improvement", revealed=True, workers=(0, 0))
     cs = step(cs, PlaceWorker(space="major_improvement"))
@@ -878,20 +881,20 @@ def test_merchant_fired_repeat_taken_pays_nothing():
     assert cs.players[cp].resources.food == 0          # the fee was paid
 
 
-def test_merchant_bare_minor_unfired_repeat_pays_food():
-    # The "minor" kind of the consequence: a taken named Minor Improvement
-    # action (Meeting Place's minor) whose Merchant repeat goes unfired pays
-    # 1 food at the play frame's exit.
+def test_merchant_bare_minor_unfired_repeat_pays_nothing():
+    # The "minor" kind: a taken named Minor Improvement action (Meeting
+    # Place's minor) whose Merchant repeat goes unfired pays nothing either
+    # (ruling 77 item 3 covers both of Merchant's bundles).
     cs, cp = _card_state(hand=("market_stall",), res=Resources(grain=1),
                          occ=("merchant",))
     cs = step(cs, PlaceWorker(space="meeting_place"))
     cs = step(cs, ChooseSubAction(name="play_minor"))
     cs = step(cs, sole_play_minor(cs, "market_stall"))
-    cs = step(cs, Stop())                              # play frame exit: repeat declined
-    assert cs.players[cp].resources.food == 1
+    cs = step(cs, Stop())                              # play frame exit: no income
+    assert cs.players[cp].resources.food == 0
     cs = step(cs, Proceed())                           # minor_chosen — no MP decline
     cs = step(cs, Stop())
-    assert cs.players[cp].resources.food == 1          # exactly once
+    assert cs.players[cp].resources.food == 0
 
 
 def test_family_house_redev_proceed_unchanged():

@@ -488,12 +488,17 @@ def owns_improvement_decline_income(state, idx: int) -> bool:
 # effect, and hosting is unchanged). None = a frame-hosted grant (the host frame
 # exists independently of the trigger's eligibility).
 #
-# Deliberate exclusions (ruling 76): **Stone Company** — its granted composite
+# Deliberate exclusions: **Stone Company** (ruling 76) — its granted composite
 # is NOT declinable ("Improvement action is not declinable in order to use
 # Field Merchant B103"), so it registers nothing; **Harvest Festival Planning**
-# — its composite is pushed by its own on-play resolution, not by a trigger, so
-# there is no declining-to-fire moment for this seam to read (its pushed
-# composite, when declinable, is governed by the frame's own decline route).
+# (ruling 76) — its composite is pushed by its own on-play resolution, not by a
+# trigger, so there is no declining-to-fire moment for this seam to read (its
+# pushed composite, when declinable, is governed by the frame's own decline
+# route); **Merchant** (ruling 77 item 3, 2026-07-21 — the user, verbatim:
+# "Merchant requires the player to pay 1 food and then take the relevant
+# action. I don't think declining this bundle counts as declining the action")
+# — its pay-and-repeat bundle is not a bare grant of the named action, so
+# leaving it unfired pays nothing.
 #
 # condition_fn signature: (state, owner_idx, host_frame) -> bool.
 @dataclass(frozen=True)

@@ -187,6 +187,32 @@ cook reactions against the no-FEED-triggers boundary.
    used this harvest (the `"joinery"` budget-used boolean), once per harvest; the fused
    use-Joinery-and-plow trigger is kept as well.
 
+**Ruling 77 (2026-07-21) — the greedy-conversion principle + two corrections:**
+
+1. **The greedy conversion principle (user, the governing statement):** "The broad point
+   is that we should convert goods to food greedily. For each good type, convert at the
+   highest rate until you hit the max conversions count. Then convert at the next
+   highest rate until you hit a limit, and so on. This is particularly relevant in the
+   harvest, but not exclusively. For example, it is how we calculate bake bread income.
+   So if we have Schnapps Distiller and are converting N>1 veggies to food during the
+   feeding phase, we should use Schnapps Distiller for the first veggie and our smaller
+   rate for the remaining N-1." Consequence: the feeding-phase crop-input food
+   converters (Schnapps Distiller C109, Schnapps Distillery C59, the grain/beer
+   converter family) join feeding-phase `PendingFoodPayment` frames at their premium
+   rates — the Studio pattern (phase-gated frontier participation; single-input cards
+   need no frontier_group; the tiering falls out of the Pareto enumeration + each
+   card's own budget). Combined-good combos (Veggie Lover's grain+veg pair) explicitly
+   deferred: "We don't need to worry about combined good combos like veggie lover yet."
+2. **Studio reading CONFIRMED** (user): "offered at the same time the craft majors'
+   conversions are offered" = the feed offering plus feeding-phase payment frames —
+   exactly the driver reading recorded at ruling 76 item 1.
+3. **Merchant CORRECTION** (user — supersedes the ruling-76 Merchant note): "Merchant
+   requires the player to pay 1 food and then take the relevant action. I don't think
+   declining this bundle counts as declining the action." Merchant is REMOVED from the
+   named-action-grant decline-income seam (both kinds); declining its pay-and-take
+   repeat bundle pays nothing. (The interim implementation had registered it on a
+   consequence the driver flagged but the user had not accepted — corrected.)
+
 **Open questions surfaced DURING the ruling-74 implementation (answered above as
 ruling 75; kept for the record):**
 

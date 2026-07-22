@@ -6,16 +6,19 @@ time."
 
 Clarification: "Does not combo with Field Merchant B103." Encoded (now that
 Field Merchant exists) per Field Merchant's own clarification "Merchant C096
-does not double a decline" and USER RULING 76 (2026-07-21): a decline is never
-doubled — each decline event pays decline income exactly once, and Merchant's
-repeat of a declined action is never offered (a declined composite pops
-without opening its after-window). What DOES exist, per ruling 76's
-unfired-granting-triggers-are-declines rule with the consequence explicitly
-flagged to and accepted by the user: **Merchant's repeat grant is itself a
-declinable named-action grant**, so with Merchant + Field Merchant both in
-play, EVERY taken improvement action whose repeat goes unfired (declined-to-
-fire or unaffordable) pays the decline income for the declined repeat — see
-`register_named_action_grant` at the bottom.
+does not double a decline" and USER RULING 77 item 3 (2026-07-21,
+CARD_DEFERRED_PLANS.md — verbatim): "Merchant requires the player to pay 1
+food and then take the relevant action. I don't think declining this bundle
+counts as declining the action." So Merchant registers NOTHING on the
+named-action-grant decline-income seam: leaving its pay-1-food-and-repeat
+bundle unfired (declined-to-fire or unaffordable) pays no decline income —
+the bundle is not a bare grant of the named action. And a decline is never
+doubled: Merchant's repeat is only offered off a TAKEN action (a declined
+composite pops without opening its after-window, so no repeat trigger ever
+surfaces there), and each decline event pays decline income exactly once at
+its own seam. (An interim build had registered Merchant's repeat as a
+declinable grant on a consequence the driver flagged during ruling 76; the
+user had not accepted it and ruling 77 ruled the opposite — corrected.)
 
 User rulings (2026-07-14, refined 2026-07-15 — the "action, not action space"
 distinction; RULES.md Primitive Sub-Actions ⚠️ callout, CARD_ENGINE_IMPLEMENTATION.md §6):
@@ -87,11 +90,7 @@ eligibility; the single shared `_apply` dispatches on the top frame type
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import (
-    apply_auto_effects,
-    register,
-    register_named_action_grant,
-)
+from agricola.cards.triggers import apply_auto_effects, register
 from agricola.legality import _can_afford_any_major_improvement, playable_minors
 from agricola.pending import PendingMajorMinorImprovement, PendingPlayMinor, push
 from agricola.replace import fast_replace
@@ -168,37 +167,9 @@ def _apply(state: GameState, idx: int) -> GameState:
     return _apply_bare_minor(state, idx)
 
 
-def _grant_condition_composite(state: GameState, idx: int, host) -> bool:
-    """The composite-repeat grant's CONDITION for the unfired-decline seam
-    (user ruling 76, 2026-07-21): a 'Major or Minor Improvement' action just
-    completed (the composite host reached its after-phase — a declined
-    composite pops un-flipped and never satisfies this) and is not Merchant's
-    own repeat (ruling 3's self-chain exclusion: no repeat is granted there,
-    so there is nothing to decline). Deliberately WITHOUT the 1-food fee and
-    affordable-child gates — those are DOABILITY, and a repeat withheld as
-    unaffordable still counts as declined per the ruling (the user-flagged,
-    user-accepted consequence in the module docstring)."""
-    return (isinstance(host, PendingMajorMinorImprovement)
-            and getattr(host, "phase", None) == "after"
-            and host.initiated_by_id != "card:merchant")
-
-
-def _grant_condition_bare_minor(state: GameState, idx: int, host) -> bool:
-    """The bare-minor-repeat grant's CONDITION (user ruling 76, 2026-07-21):
-    a named 'Minor Improvement' action just completed (`minor_improvement_action`
-    — False for composite children and 'play a minor' effects, exactly as the
-    trigger's own eligibility reads it), excluding Merchant's own repeat
-    (ruling 3). Fee/playability gates deliberately omitted (doability)."""
-    return (isinstance(host, PendingPlayMinor)
-            and getattr(host, "phase", None) == "after"
-            and host.minor_improvement_action
-            and host.initiated_by_id != "card:merchant")
-
-
 register_occupation(CARD_ID, lambda state, idx: state)  # no on-play effect
 register("after_major_minor_improvement", CARD_ID, _eligible_composite, _apply)
 register("after_play_minor", CARD_ID, _eligible_bare_minor, _apply)
-# The repeat grants' conditions, for decline income (ruling 76, 2026-07-21):
-# Merchant grants BOTH named actions, one condition per kind.
-register_named_action_grant(CARD_ID, "major_or_minor", _grant_condition_composite)
-register_named_action_grant(CARD_ID, "minor", _grant_condition_bare_minor)
+# Deliberately NOT registered on the named-action-grant decline-income seam
+# (user ruling 77 item 3, 2026-07-21 — see the module docstring): declining
+# the pay-1-food-and-repeat bundle is not declining the named action.
