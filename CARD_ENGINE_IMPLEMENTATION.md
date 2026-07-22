@@ -32,6 +32,8 @@ Contents:
 5. Costs, food & capacity — the three resolution layers
 5b. The harvest timing windows — the ladder, the take & its manifest, take-modifiers, skips
 5c. The round-end timing ladder — the seven-step walk between the last placement and the round transition
+5d. The preparation ladder — the round-entry chronology
+5e. Card-as-action-space — a played card as a private worker-placement target
 6. Rulings & idioms
 7. Implementing a card (process pointer)
 8. Boundaries — what deliberately does not exist
@@ -114,9 +116,10 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 
 ## 1. Status
 
-> **Last updated: 2026-07-21 (the ruling-74 triage batch — fourteen occupations + eight
-> seams across four waves; per-card rulings in CARD_DEFERRED_PLANS.md ruling 74, which
-> also carries the batch's seven open follow-up questions. Wave 1, existing seams:
+> **Last updated: 2026-07-21 (the ruling-74→78 occupation arc — a 24-occupation triage
+> batch (ruling 74, four implementing waves) plus four follow-up rulings (75–78) that
+> resolved its open questions; per-card rulings in CARD_DEFERRED_PLANS.md rulings 74–78.
+> Census after: **232 occupations + 331 minors = 563**. Wave 1, existing seams:
 > Bed Maker A93, Sheep Inspector D93, Henpecked Husband D94, Site Manager D95,
 > Dung Collector E90 (the §5b any-source note is resolved — the breeding-outcome payload
 > is Dung Collector's ruled scope). Wave 2, four new seams + their cards: the
@@ -140,7 +143,37 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
 > with card: space ids — card spaces count as action spaces for hooks) → Collector C104
 > (wide, C(10,6..9) picks) + Tree Inspector D116 (+ Canal Boatman D103 on the marker
 > namespace). Family byte-identity pinned by SHA-256 game-trace fingerprints
-> (tests/test_card_spaces.py) and the craft-span trace-identity negative. Earlier same
+> (tests/test_card_spaces.py) and the craft-span trace-identity negative.
+> **The follow-up rulings 75–78** added five more seams. The (variant × payment)
+> stranding pair-gate (specs.register_play_occupation_variant's pair_ok_fn →
+> PLAY_OCCUPATION_PAIR_GATES; §5.3) — a wide occupation variant whose grant a chosen
+> payment would strand is filtered per (variant, payment) pair on the simulated
+> post-debit state, and per liquidation bundle at the food-payment frame → Site
+> Manager / Stable Master (the Working Gloves × Stable Master stranding), Baker ×
+> liquidation. The named-action-grant unfired-decline sweep
+> (triggers.register_named_action_grant / NamedActionGrantEntry;
+> engine._sweep_unfired_named_action_grants + the _window_grant_decline_players window
+> extension; ruling 76) — declining-to-fire (or being unable to afford) a trigger that
+> would grant a named improvement action counts as declining it for Field Merchant's
+> income → Angler, Sample Stable Maker, Task Artisan's reveal grant; a FIRED grant
+> stays on its own frame seams (no double pay); Stone Company (non-declinable), Harvest
+> Festival Planning (on-play composite — ruling 78 item 4, DEFERRED), and Merchant
+> (pay-and-take bundle — ruling 77) are excluded. Field Merchant income on an unusable
+> GRANTED named minor (no playable minor in hand;
+> triggers.grant_named_minor_or_pay_decline; ruling 78 item 3) → Sample Stable Maker /
+> Task Artisan. The crop-input payment-frontier widening
+> (HarvestConversionSpec.frontier_fire widened to a 6-tuple carrying grain/veg +
+> frontier_group; helpers.food_payment_frontier's greedy composition; rulings 76/77;
+> §5.3) — feeding-phase crop→food converters join PendingFoodPayment frames at their
+> premium rate, REVERSING ruling 37's crop-input exclusion for the feeding phase only
+> (phase-gated via is_owned_fn) → Schnapps Distiller / Schnapps Distillery + Studio
+> (the multi-variant frontier_group member); Beer Tap's super-linear tiers stay
+> feed-seam-only, an OPEN boundary (ruling 78 item 1, §8). The harvest-span converter
+> family (ruling 74's general pattern — every resource→food conversion printed without
+> a specific harvest phase gets span windows + the payment frontier): the craft majors
+> (craft_major_span.py — non-tableau ownership via is_owned_fn), Stone Carver, Braid
+> Maker (fused with the minor-action-major-build seam), and Plow Builder (the fused
+> use-Joinery-and-pay-1-food-plow trigger). Earlier same
 > day: the accommodation-chain state widening — ruling 73: the
 > capacity chain carries GameState (`slots_fn(state, player_state)` with the doctored-player
 > argument kept explicit; every call site swept, encoder values bit-identical, full suite +
@@ -516,11 +549,15 @@ exemplars of a mechanism or as genuinely unique cases), and the batch-workflow t
   subsets and ruling 39's post-breed cooking floors as memo-safe arguments (both applied
   OUTSIDE the cached core); `HarvestConversionSpec.frontier_fire` marks pure
   building-resource converters (the craft majors, Stone Carver, Paintbrush's food
-  branch); `register_free_span_trigger` covers ruling 36's whole span in one call (the
+  branch) *(the "building-resource" restriction was later widened — ruling 77,
+  2026-07-21 reversed the crop-input exclusion for feeding-phase crop converters, so
+  `frontier_fire` is now a 6-tuple that can carry grain/veg; §3/§5.3)*;
+  `register_free_span_trigger` covers ruling 36's whole span in one call (the
   feed payment frame rides the card's own conversion entry — one shared
   once-per-harvest budget across every surface). Braid Maker E109 deferred (the
-  play-minor major-build gap). Feeding itself stays UN-generalized (ruling 34) and
-  Gypsy's Crock / Cooking Hearth Extension stay parked (rulings 35/42).
+  play-minor major-build gap) *(un-deferred 2026-07-21, ruling 74 — the
+  `register_minor_action_major_build` seam)*. Feeding itself stays UN-generalized
+  (ruling 34) and Gypsy's Crock / Cooking Hearth Extension stay parked (rulings 35/42).
 - **FEED/BREED banding landed (2026-07-12; ruling 40, `479135e`)**: the harvest walk's
   three phase segments each resolve whole-phase-per-player (the 26-position virtual walk;
   one payment/breeding frame per band pass, per-pass feeding income, the cursor carried
@@ -758,6 +795,29 @@ player cannot decline, only choose *how* to resolve: the trigger's `apply_fn` pu
 registered resolver (`CARD_CHOICE_RESOLVERS`, keyed on the card id parsed off the frame's
 `initiated_by_id`). Exemplars: Childless, Seasonal Worker (round 6+).
 
+**Trigger ownership: the `is_owned_fn` override.** A `TriggerEntry` carries an optional
+`is_owned_fn(state, player_idx) -> bool` (`register(..., is_owned_fn=…)`; default `None` →
+tableau ownership via `_owns`). BOTH surfacing gates — `legality._eligible_fire_triggers` and
+`engine._has_window_trigger` — consult it in place of `_owns` when set. This is what lets a
+**non-card own a trigger**: the three craft **majors** are once-per-harvest converters owned via
+the board's major-owner array, not a tableau card, so their harvest-span window triggers
+(`craft_major_span.py`, registered under collision-safe pseudo-ids) supply their own predicate
+reading `state.board.major_improvement_owners`. `None` everywhere in the Family game.
+
+**Out-of-turn owner decisions — the decider rule at work.** An `any_player` auto usually does
+choice-free work for its owner on the opponent's turn (Milk Jug pays out). But an auto's `apply_fn`
+may instead *push a frame carrying the OWNER's `player_idx`* onto the acting player's hosted space;
+the decider rule (non-empty stack → `pending_stack[-1].player_idx` is the decider) then routes the
+resulting decision to the OWNER, mid-opponent-turn. Miller is the first such case: its `any_player`
+`before_action_space` auto, on the opponent's Grain Seeds use, pushes a
+`PendingGrantedSubAction(player_idx=owner, subactions=("bake_bread",))` on top of the just-pushed
+host, so the owner's optional bake resolves *before* any of the acting player's own before-triggers —
+the host's enumerator can't surface those until the owner's wrapper on top has popped. (The auto
+registers `order=10` so its frame-push lands after the event's peer autos have read the host off the
+stack top — an auto-vs-auto sequencing detail, separate from the trigger ordering.) This is the first
+owner-side **optional** decision on an opponent's turn (contrast Milk Jug's choice-free `any_player`
+auto).
+
 **Play-variant triggers.** A trigger offering alternative *routes* ("play an occupation OR a
 minor" — Scholar; "build a room OR renovate" — Cottager) collapses the route choice into the
 fire: `register_play_variant_trigger(card_id, variants_fn)` makes the enumerator expand the
@@ -804,7 +864,7 @@ Where each firing actually happens in the engine — the complete set of call si
 
 | Seam | Fires | Where |
 |---|---|---|
-| Space-host push | `before_action_space` autos | `_apply_place_worker` (atomic host), every non-atomic `_initiate_*` resolver except Family-only Side Job, `_initiate_lessons`, `_initiate_meeting_place_cards`, `_resolve_basic_wish_for_children`'s cards branch |
+| Space-host push | `before_action_space` autos | `_apply_place_worker` (atomic host), every non-atomic `_initiate_*` resolver except Family-only Side Job, `_initiate_lessons`, `_initiate_meeting_place_cards`, `_resolve_basic_wish_for_children`'s cards branch, and `_apply_place_card_space_worker` (a card action space, §5e — `space_id = "card:<id>"`) |
 | Sub-action-leaf push | `before_<PENDING_ID>` autos | `_fire_subaction_before_auto` (engine.py) — the single seam, called after a `_choose_subaction_*` handler runs, after a trigger's `apply_fn` runs, after a minor's or occupation's pushing `on_play`, and after a non-"rerun" food-payment resume; gated on `SUBACTION_PENDING_IDS` **and a depth guard** (fires only if the call actually pushed a new frame — a non-pushing trigger or goods-only `on_play` must not re-fire the leaf's before-autos) |
 | Work-complete flip | `after_<derived event>` autos (+ the coarse `after_build_improvement` for `PendingPlayMinor` / `PendingBuildMajor`) | `_enter_after_phase` (resolution.py) — called by `_apply_proceed` for atomic/Proceed/multi-shot hosts and by the `_advance_until_decision` flip, which serves BOTH work-complete signals: the Delegating `subaction_complete` and the commit-terminated `effect_initiated` (the deferred after-flip, ruling 60 — the executors only mark, so the effect's pushed frames resolve first; the accommodation barrier reconciles before the flip) |
 | Composite host | `before_/after_major_minor_improvement` autos | its choose-handler push / the Delegating auto-advance |
@@ -817,9 +877,13 @@ Where each firing actually happens in the engine — the complete set of call si
 | Round-end windows | the six round-end window ids (autos + triggers) | `engine._advance_round_end` — the seven-step walk of §5c (window-major, no banding, harvest-skip guard OFF), reusing `_process_simple_window` + the `PendingHarvestWindow` choice host |
 | Renovate / card play | the one-shot conditional sweep | `_fire_ready_one_shots` (§3), called after a renovate applies and after any card is played |
 | Decision boundary | the boundary one-shot sweep | `engine._fire_boundary_one_shots` (§3), at both `_advance_until_decision` return points, after `_reconcile_accommodation` settles — resource/animal-count one-shots (Hook Knife) |
+| Improvement-action decline | the decline-income payout + the unfired-grant sweep | `note_improvement_action_declined` at the four decline seams (`_apply_stop`'s named-minor-wrapper branch, `_apply_proceed`'s Meeting Place / Basic Wish / House Redevelopment exits, the composite's `decline_improvement` route), and `_sweep_unfired_named_action_grants` at the Stop pop / window Proceed for named-action grants (§2 — "Paying the owner on an improvement-action decline") |
 | Triggers (all events) | `FireTrigger` surfacing | each host enumerator via `_eligible_fire_triggers` + `_expand_variant_triggers` |
 
-`Stop` fires nothing (`_apply_stop` is a pure pop). There is deliberately **no end-of-turn
+`Stop` is a pure pop with **one registry-gated exception** — it pays Field Merchant's decline
+income for an untaken named-minor wrapper and runs the unfired-named-action-grant sweep (both
+short-circuit on an empty registry, so the Family `_apply_stop` is exactly the pure pop; §2 —
+"Paying the owner on an improvement-action decline"). There is deliberately **no end-of-turn
 event** — see §8.
 
 ### Suppressing a host's own reward
@@ -849,6 +913,68 @@ The correctness property both halves buy: after the replacement, the space's own
 the alternate is a separate general-supply grant. Contrast the Cowherd / Animal Dealer idiom (§6),
 which instead **bumps** `gained` to add a genuine market take. Exemplars: `animal_catcher` (atomic),
 `pet_lover` (market).
+
+### Paying the owner on an improvement-action decline
+
+A card can pay its owner when the owner *declines* one of the two named improvement actions —
+Field Merchant: declining a "Minor Improvement" action → 1 food, declining a "Major or Minor
+Improvement" action → 1 vegetable (ruling 74, 2026-07-21). Detection lives at the engine's decline
+seams, not in the card; each seam calls **`triggers.note_improvement_action_declined(state,
+decliner_idx, kind)`** once per decline event (`kind ∈ {"minor", "major_or_minor"}`), which pays
+every owned `IMPROVEMENT_DECLINE_INCOME` card of the *declining* player (its own cards only — "you
+decline") and is a same-object no-op on the empty registry (the Family path).
+
+**The "could not use counts as declining" principle** (user ruling 74): exiting a named improvement
+action you were offered but never took IS a decline, whether or not it was *usable* — Meeting Place
+with no playable minor still pays. The four decline seams:
+
+- **The `_apply_stop` guarded exception** — the ONE break in `_apply_stop`'s pure-pop invariant
+  (guarded so the empty registry short-circuits back to the pure pop). A `PendingGrantedSubAction`
+  with `minor_is_action=True` (a granted *named* "Minor Improvement" action — Sample Stable Maker,
+  Task Artisan; never the flag-False "play a minor" grants of Scholar / Beneficiary / Equipper,
+  whose printed "not a 'Minor Improvement' action" the flag excludes structurally) popped via Stop
+  with its `play_minor` branch never entered pays the "minor" income. Entering the branch is a
+  *taken* action even when Braid Maker's swap converts it to a major build (the swap fires only
+  after the branch was chosen). (For a use-budget wrapper, "never entered" is `uses_done == 0`.)
+- **The Proceed-host exits** (`_apply_proceed`) — Meeting Place / Basic Wish for Children Proceeding
+  with the optional minor branch unchosen → "minor"; House Redevelopment Proceeding with its
+  composite step not entered → "major_or_minor". An *entered*-then-declined composite already paid
+  through its own decline route; the `*_chosen` flag stops the Proceed seam double-paying.
+- **The composite host's decline route** — `resolution._choose_subaction_major_minor_improvement`'s
+  `ChooseSubAction("decline_improvement")`, enumerated only for an owner of a decline-income card,
+  on an *unconstrained* (`min_spend is None`) `PendingMajorMinorImprovement` with neither branch
+  chosen; taking it pays "major_or_minor" and pops the composite with neither branch performed (no
+  `after_major_minor_improvement` autos, no after-triggers — a declined action was never taken).
+- **The place-just-to-decline placement extension** — `legality._legal_major_improvement_cards`
+  OR-s in `owns_improvement_decline_income(...)`, so an owner may place on the Major Improvement
+  space with *nothing affordable*, purely to reach that decline route (Field Merchant's printed
+  clarification).
+
+**The named-action-grant unfired-decline sweep** (ruling 76). Declining-to-*fire* a trigger that
+would GRANT a named improvement action also counts as declining it — including when the trigger was
+withheld as *unaffordable*. The **condition-vs-doability split** is the crux: a card registers only
+its grant CONDITION (`register_named_action_grant(card_id, kind, condition_fn, *, window=None)` →
+`NamedActionGrantEntry` in `NAMED_ACTION_GRANTS`) — "this card's grant is live at this host" (Angler:
+the space is Fishing and pre-take food ≤ 2), never "the granted action is currently doable". At a
+host's terminal exit — the Stop pop for a frame-hosted grant, the window frame's Proceed for a
+window-hosted one — **`engine._sweep_unfired_named_action_grants(state, frame)`** pays the owner's
+decline income once per owned entry whose condition held and whose id is NOT in the frame's
+`triggers_resolved`. **The no-double-pay invariant:** a FIRED grant is in `triggers_resolved` and is
+skipped here — its pushed frame's own decline seams (the wrapper Stop, the composite decline route)
+govern it. Frames without `triggers_resolved` (the wrapper, closed decision frames) host no triggers
+and are skipped whole. Window-hosted grants need one extra wire: a window hosts its choice frame only
+per ELIGIBLE trigger, so a withheld (unaffordable) grant would never see a host exit —
+**`engine._window_grant_decline_players`** therefore *also* owes the frame (via
+`_window_trigger_players`) to a player whose grant condition holds when they own a decline-income
+card, gated so a no-Field-Merchant game hosts exactly as before; that Proceed-only singleton's
+sweep pays. A granted named *minor* action that is unusable (no playable minor in hand) likewise
+pays at its push site via **`grant_named_minor_or_pay_decline`** (ruling 78 item 3 — the "could not
+use" rule extended to a grant): a playable minor pushes the wrapper (whose Stop is then the decline
+seam, so no double pay), else pay the "minor" income directly. **Exclusions:** Stone Company (its
+granted composite is non-declinable — the `min_spend` constraint is the structural marker), Harvest
+Festival Planning (its composite is pushed by on-play resolution, not a trigger, so there is no
+declining-to-fire moment — ruling 78 item 4 leaves the *played-but-unusable* HFP composite an open
+§8 boundary), and Merchant (its pay-and-take *bundle* is not a bare grant — ruling 77 removed it).
 
 ---
 
@@ -943,11 +1069,15 @@ module-local `_owns(player_state, card_id)` helpers.
 
 ### `agricola/cards/triggers.py` — firing + hosting
 
-- **`register(event, card_id, eligibility_fn, apply_fn, *, mandatory=False)`** →
+- **`register(event, card_id, eligibility_fn, apply_fn, *, mandatory=False,
+  is_owned_fn=None)`** →
   `TRIGGERS` (event-keyed, read by enumerators) + `CARDS` (id-keyed, read by
   `_apply_fire_trigger`) — both hold the same `TriggerEntry`. The optional-trigger kind (§2);
   `mandatory=True` is mandatory-with-choice. Eligibility signature
-  `(state, player_idx, triggers_resolved)`.
+  `(state, player_idx, triggers_resolved)`. `is_owned_fn(state, player_idx) -> bool` (default
+  `None` → tableau `_owns`) is the per-entry ownership override both surfacing gates
+  (`legality._eligible_fire_triggers`, `engine._has_window_trigger`) consult — the craft majors'
+  board-owned span triggers supply their own (§2 — "Trigger ownership").
 - **`register_auto(event, card_id, eligibility_fn, apply_fn, *, any_player=False)`** →
   `AUTO_EFFECTS`. The automatic-effect kind (§2). Eligibility signature `(state, owner_idx)` —
   **note the difference from triggers**. Exemplars: `wood_cutter` (own-action goods),
@@ -1030,6 +1160,19 @@ module-local `_owns(player_state, card_id)` helpers.
   cooking improvement" is detected as the ACTUAL cook, never an animal-count change (an animal spent as
   a card cost / discarded / exchanged is not a cook). Cookery Lesson uses it to award its point for
   cooking on a Lessons turn, wherever the cook happens. Exemplar: `cookery_lesson`.
+- **`register_improvement_decline_income(card_id, payout_fn)`** → `IMPROVEMENT_DECLINE_INCOME`
+  (ruling 74, 2026-07-21 — Field Merchant B103). A card paying its owner when the owner DECLINES a
+  named improvement action; `payout_fn(state, owner_idx, kind) -> state`, `kind ∈ {"minor",
+  "major_or_minor"}`. The DETECTION is not here — it lives at the engine's decline seams, which call
+  `note_improvement_action_declined` (§2 — "Paying the owner on an improvement-action decline");
+  `owns_improvement_decline_income(state, idx)` gates the decline affordances (place-just-to-decline,
+  the composite decline route). Exemplar: `field_merchant`.
+- **`register_named_action_grant(card_id, kind, condition_fn, *, window=None)`** →
+  `NAMED_ACTION_GRANTS` (a list — one card may grant both kinds; ruling 76, 2026-07-21). Registers
+  the grant CONDITION of a card whose TRIGGER grants a named improvement action ("this grant is live
+  at this host", independent of the granted action's doability), so declining-to-fire it pays the
+  owner's decline income (§2). `window` names the ladder window id for a window-hosted grant.
+  Exemplars: Angler, Sample Stable Maker, Task Artisan.
 
 ### `agricola/cards/cost_mods.py` — cost modifiers + free fences
 
@@ -1072,6 +1215,18 @@ cards are conversions here) except the fence-specific three.
   `register_free_fence_pool(card_id, store_key)` → `FREE_FENCE_POOLS` — a *persistent pool* of
   fence pieces held ON the card in CardStore (Ash Trees moved them from the 15-supply at play):
   counts toward `buildable_fences` AND waives wood, spent greedily by `spend_fence_pools`.
+- **`register_free_fence_ordinals(card_id, ordinals_fn)`** → `FREE_FENCE_ORDINALS` — **free-fence
+  source 1b**, the *ORDINAL* frees (ruling 74, 2026-07-21; first member Carpenter's Apprentice
+  C88, "your 13th–15th fence each cost nothing"). `ordinals_fn(state, idx) -> frozenset[int]` are
+  the 1-indexed *cumulative build ordinals* the owned card makes wood-free (`{13, 14, 15}`); the
+  ordinal is derived from the farmyard fence popcount (exact — fences are never demolished, and
+  even pool pieces land on the board when built). Like the positional edges (source 1), an ordinal
+  free is **non-consuming** — it waives the wood but not a budget or pool piece, and the piece
+  still draws a supply piece (§5.2). `ordinal_free_count(state, idx, built_before, count)` counts
+  how many of a commit's pieces fall in the free ordinal band; it is threaded through the same
+  agreeing fence cost sites as the seed source (the `_check_entry_legal` legality helper —
+  placement anticipation + during-build enumeration — and `_execute_build_pasture`'s accrue), so
+  all three agree. Empty registry → 0 → byte-identical (§5.2 cross-ref).
 - **`register_stable_supply_removal(card_id, store_key)`** → `STABLE_SUPPLY_REMOVALS` — a card
   that removes stable pieces from its owner's supply *without building them* (Market Stall
   C54's play cost, "1 Stable from Your Supply"). The supply stays **derived**:
@@ -1137,9 +1292,29 @@ Read by `helpers.extract_slots` (the accommodation decomposition every frontier 
   both are owned, ONE empty pasture-with-stable satisfies both (the fold shares it); a member with
   no qualifying pasture imposes nothing. Owning one sets `animals_need_accommodation` on play
   (eviction, the Milking Place idiom). Exemplars: `herbal_garden`, `beaver_colony`.
+- **`register_flexible_to_bin(card_id, bin_fn)`** → `FLEX_TO_BIN_CARDS` (ruling 74, 2026-07-21 —
+  Stable Master C89: "exactly one of your unfenced stables can hold up to 3 animals of one type").
+  Converts ONE standalone (unfenced) stable's 1-capacity FLEXIBLE slot into a single-type bin of
+  the card's capacity — a strict upgrade (anything that fit the flexible slot fits the bin, plus
+  more of that type), so no player choice is surfaced. `bin_fn(player_state) -> int` returns the
+  bin capacity (Stable Master: 3), or 0 when the card's condition is unmet. `flexible_to_bin_caps`
+  applies at most one upgrade per standalone stable; `extract_slots` decrements `num_flexible` by
+  the count and appends the bins to the cap-slot list (the Stockyard family — invisible to pasture
+  geometry). Cache-safe: the frontier caches key on `extract_slots`' outputs (§5.4).
+- **`register_volatile_capacity(card_id, dropped_fn)`** → `VOLATILE_CAPACITY_CARDS` (ruling 74,
+  2026-07-21 — Livestock Feeder C86, whose flexible-slot count is `register_flexible_slots` over
+  the grain count). The accommodation-barrier re-check for a card whose capacity can DROP *outside*
+  the animal-grant paths (grain spent at a seam-less site — sow, bake, a card cost). Rather than
+  flag every such site (the Mud Patch per-seam idiom does not scale to an open-ended list),
+  `engine._reconcile_accommodation` calls each registered `dropped_fn(state, player_idx) -> (state,
+  dropped)` for BOTH players at EVERY decision boundary: it self-gates on ownership, refreshes its
+  own CardStore **watermark** (writing only on change), and reports whether its capacity input fell
+  since the last boundary — a `True` forces the boundary's `can_accommodate` scan. Sound because
+  capacity through such a card drops only when its input drops, and every animal INCREASE already
+  reconciles through its own path (§5.4 cross-ref). Empty list → zero cost (Family byte-identical).
 
-The three folds are the first mechanism to make pasture capacities non-canonical (dependent on
-owned cards, not just geometry) — which is exactly the situation the frontier-cache
+The pasture folds above are the first mechanism to make pasture capacities non-canonical (dependent
+on owned cards, not just geometry) — which is exactly the situation the frontier-cache
 projection-key contract warns about; see §5's closing note.
 
 **People (housing) capacity lives in the same file, kept entirely separate from the animal
@@ -1191,10 +1366,11 @@ how the web UI surfaces those live.
 ### `agricola/cards/harvest_conversions.py` — feed-phase conversions
 
 **`register_harvest_conversion(HarvestConversionSpec(conversion_id, input_cost, food_out,
-is_owned_fn, side_effect_fn=None))`** — a discrete, optional, once-per-harvest
+is_owned_fn, side_effect_fn=None, variants_fn=None, frontier_fire=None, frontier_group=None))`** —
+a discrete, optional, once-per-harvest
 `CommitHarvestConversion` in HARVEST_FEED, alongside the three built-in craft majors
 (ENGINE_IMPLEMENTATION.md §4.3). `is_owned_fn(state, idx)` gates it; the fired id lands in
-`PlayerState.harvest_conversions_used` (per-harvest scope). Two card-era extensions of the
+`PlayerState.harvest_conversions_used` (per-harvest scope). The card-era extensions of the
 original shape:
 
 - **`side_effect_fn(state, idx) -> state`** runs after the food/resource accounting — it supports
@@ -1204,6 +1380,19 @@ original shape:
   `not any(cid.startswith("<card_id>") for cid in used)` — firing any variant blocks the rest.
   An *output* choice ("3 food OR 1 point") is likewise just two entries — not an unsupported
   cost-side "/".
+- **`frontier_fire`** marks a PURE good→food converter also reachable through the generalized
+  in-harvest raise frame (a `PendingFoodPayment` frontier) — `(input, food_out)` where `input` is
+  the **6-tuple** `(grain, veg, wood, clay, reed, stone)` the converter consumes at its premium
+  rate. Ruling 34/37 (2026-07-12) originally restricted it to *building*-resource converters (the
+  craft majors, Stone Carver, Paintbrush's food branch — grain/veg positions always 0); ruling 77
+  (2026-07-21) **widened the tuple to carry crop inputs**, so feeding-phase crop converters (Schnapps
+  Distiller/Distillery) join the frontier too. The raise-frame fire shares this entry's
+  once-per-harvest budget with the feed-seam offer (§5.3). `None` = feed-seam-only.
+- **`frontier_group`** (ruling 76 item 1, 2026-07-21 — Studio) is the raise-frame mutual-exclusion
+  group for a multi-variant converter: one card registers one entry per variant, all carrying the
+  same group string, and a single payment bundle may fire AT MOST ONE member (the variants are one
+  card with one once-per-harvest budget). `None` = ungrouped (every single-conversion card/major).
+  The grouped count is also the payment frontier's tie-break (§5.3).
 
 Scope (re-drawn 2026-07-05 with the window system): the registry holds **only conversions the
 card prints in the feeding phase**. Three cards that had been shoehorned into it despite other
@@ -1315,6 +1504,43 @@ These live in `legality.py` (not `cards/`) because they extend its predicates in
   it from `top.initiated_by_id == "major_minor_improvement"`). Exemplar: `wooden_shed` ("can only
   be played via a Major Improvement action"). The two-actions distinction is the RULES.md ⚠️
   callout (Small Trader / Merchant's provenance gating is the same seam).
+- **`register_minor_action_major_build(card_id, major_idx)`** → `MINOR_ACTION_MAJOR_BUILDS`
+  (ruling 74, 2026-07-21 — Braid Maker E109's "build the Basketmaker's Workshop even when taking a
+  'Minor Impr.' action"; Plow Builder E91's Joinery). Lets its owner build ONE specific major at a
+  NAMED "Minor Improvement" action instead of playing a minor. `minor_action_major_build_options(
+  state, idx) -> list[(card_id, major_idx)]` is the shared predicate — card owned, major unbuilt,
+  payable through the build-major chokepoint (an owned formula participates — Braid Maker's 1 reed +
+  1 stone). **The gate↔trigger agreement contract:** three consumers all read that predicate — (1)
+  the named-action branch gates (Meeting Place / Basic Wish / the wrapper's `minor_is_action` branch)
+  OR-in "a registered build is available", so the branch is takeable with NO playable minor in hand;
+  (2) the card's own `before_play_minor` trigger surfaces the swap at the frame, its eligibility the
+  SAME predicate (or a gated-in branch could reach a zero-action frame); (3) firing calls
+  **`helpers.swap_play_minor_to_build_major(state, major_idx)`**, which pops the `PendingPlayMinor`
+  and pushes a menu-restricted bare `PendingBuildMajor` (`allowed_majors=(major_idx,)`) carrying the
+  same provenance, then fires the build-major before-autos. Pricing is NOT carried here — a special
+  cost is the card's own `register_formula`, applying to every build of that major (ruling 74). Empty
+  registry → every gate reads exactly as before (Family byte-identical). Exemplars: `braid_maker`,
+  `plow_builder`.
+
+### `agricola/cards/card_spaces.py` — card action spaces
+
+The registry module behind the played-card-as-action-space subsystem (ruling 74, 2026-07-21;
+mechanics in **§5e**). Two registries, both empty in the Family game (every consuming seam an O(1)
+no-op):
+
+- **`register_card_action_space(card_id, use_fn, *, placeable_fn=None)`** → `CARD_ACTION_SPACES`.
+  A played card that is a private worker-placement target "for you only" (Collector C104, Tree
+  Inspector D116). `use_fn(state, owner_idx, picks) -> state` is the space's work, run at the hosted
+  use's Proceed (the `ATOMIC_HANDLERS` slot of a card space); `placeable_fn(state, owner_idx) ->
+  list[picks | None]` returns the legal placement variants now (`[None]` = one plain placement; a
+  list of picks tuples = the wide variants; `[]` = not placeable). Consumed by
+  `legality._card_space_placements` (§5e) and `engine._apply_place_card_space_worker`.
+- **`register_card_accumulation(card_id, resource_kind, count_fn, remove_fn)`** →
+  `CARD_ACCUMULATIONS`. A card space that stockpiles one resource on itself round over round (Tree
+  Inspector's "1 Wood" stack) — a true accumulation space, so a cross-player scanner reaches it: a
+  consumer (Work Certificate's source enumeration) treats every registered card accumulation of
+  EITHER player as one more accumulation space, `count_fn(state, owner_idx)` against its threshold and
+  `remove_fn(state, owner_idx, n)` on a take (taker and card owner may differ — ruling 75).
 
 ---
 
@@ -1518,7 +1744,23 @@ wrapper stays field-free beyond the discriminator — the same one-frame-with-a-
 `PendingSubActionSpace` uses for delegating hosts (it generalized the deleted per-primitive
 `PendingGrantedBuildFences`). A passing card's optional grant *requires* this wrapper: an
 ownership-gated `after_play_minor` trigger can't host it, because a traveling card leaves the
-tableau before the after-phase (Dwelling Plan — §6).
+tableau before the after-phase (Dwelling Plan — §6). The wrapper now carries a small family of
+push-time parameters, each ignored unless its category is granted and each card-only:
+- **`max_uses` / `uses_done`** (ruling 74, 2026-07-21 — Furnisher D96) — the use-BUDGET shape.
+  The legacy shape (`max_uses == 0`) offers each granted category *at most once* (via the `chosen`
+  set). `max_uses > 0` switches the wrapper to a budget: every granted category stays offered
+  (`chosen` is not consulted) while `uses_done < max_uses` and the category is doable, and each
+  choose increments `uses_done` — N consecutive uses across the granted category set (Furnisher's
+  N = rooms built; Miller's `max_uses=1` makes build-major-OR-play-minor a one-of). Stop is the exit
+  at any point; because the wrapper sits on top until it pops, the uses resolve consecutively with
+  nothing interleaving (the "without interruption" ruling).
+- **`minor_allowed`** (ruling 74 — Miller E95's baking-minors menu) — the `major_allowed` sibling:
+  the hand-minor card ids a granted `play_minor` may play, threaded onto the pushed
+  `PendingPlayMinor.allowed_cards` (`None` = the whole hand).
+- **`minor_is_action`** — True when a granted `play_minor` IS the named "Minor Improvement" action
+  (Sample Stable Maker, Task Artisan), False when it merely lets the player play a minor
+  (Beneficiary). This is the flag the `_apply_stop` decline seam keys on (§2 — a named-minor wrapper
+  Stopped untaken pays Field Merchant's income; a bare "play a minor" grant does not).
 
 **Reconciliation.** `PendingAccommodate` — a bare per-player frame (no before/after lifecycle)
 hosting one `CommitAccommodate`: the player chooses which animals to KEEP (one option per
@@ -1619,6 +1861,13 @@ the Family-constant value and is canonical-skipped:
   the §5.1 payment filter as `CostCtx.min_spend`; and **`PendingPlayMinor.allowed_cards`**
   (the `allowed_majors` sibling — a hand-minor MENU restriction; Firewood's post-fire
   oven/fireplace menu).
+- **`PlaceWorker.picks`** (ruling 74, 2026-07-21 — the one card-only field on an *action*, not a
+  frame): the WIDE card-space placement payload — the chosen goods combination for a card space
+  that surfaces wide at `PlaceWorker` (Collector's `C(10, 6..9)` distinct-good-name combinations,
+  one placement each), and `None` for every board placement and every plain card placement.
+  Family-constant `None` (no card space exists there), so it is skipped both from the wire encoding
+  (`trace_replay.action_to_params`) and from canonical, keeping the Family action contract and the
+  C++ gates untouched (§5e).
 
 ### The canonical default-skip mechanism
 
@@ -1683,7 +1932,10 @@ A **`CostCtx`** is everything the action contributes: `action_kind` (the registr
 read — `to_material`, `num_rooms`, `major_idx`, `card_id`, `space_id`, `build_index`,
 `granted_by` (a card-GRANTED action's provenance, from the frame's `initiated_by_id` — lets a
 granting card scope a cost modifier to its own grant: Master Renovator's renovate, Oven Site's
-build-major formula), `min_spend` (a granted action's minimum-spend constraint — Stone Company's
+build-major formula, and — since ruling 74, 2026-07-21 — the **`play_minor`** path too, so a
+granting card can scope a play-minor reduction to its own grant (Furnisher's −1 wood per improvement
+it opens; `_play_minor_ctx` now threads `granted_by` off the pushed frame like the renovate/
+build-major adapters do)), `min_spend` (a granted action's minimum-spend constraint — Stone Company's
 "must spend at least 1 stone"; the pipeline's 3b filter below, ruling 72), and
 `reserved_animals` (the cost's own animal portion, read only by the food layer — 5.3). One flat
 type for every action; per-action adapters build it: `_renovate_ctx`, `_build_room_ctx`,
@@ -1864,6 +2116,47 @@ play-occupation enumerator withholds a commit whose cost isn't currently payable
 food-source trigger like Paper Maker to fire first), so committing never pushes an
 empty-frontier frame.
 
+**The (variant × payment) pair-gate — never-offer-a-dead-end at pair granularity** (ruling 75,
+2026-07-21). A wide play-occupation variant (Site Manager / Stable Master — "play, and optionally
+build a stable for 1 wood") is filtered pre-play by `variants_fn`, but the occupation cost DEBITS
+before the grant's frame is pushed — so a *payment* can strand the grant: Working Gloves pays the
+2-food cost with the exact wood a chosen Stable Master build needs, reaching a `PendingBuildStables`
+with no legal action (a hard dead state); Baker has the sibling gap when a food-shortfall
+liquidation cooks its grain. The optional `pair_ok_fn(state, idx, variant, payment) -> bool`
+(registered beside `variants_fn` → `PLAY_OCCUPATION_PAIR_GATES`, §3) closes it: the play-occupation
+enumerator consults it per (variant, payment) pair on the SIMULATED post-debit state, and the
+food-payment frame filters each liquidation bundle by the same predicate for a gated stored commit —
+withholding any pair whose granted effect would no longer be doable. A decline variant's gate returns
+True unconditionally. (A variant card whose output can shrink under liquidation and does NOT register
+the gate keeps a rerun `KeyError` exposure — register the gate.)
+
+**The crop-input frontier widening** (rulings 76/77, 2026-07-21). The raise frame's span-converter
+inputs used to be a `(wood, clay, reed, stone)` 4-tuple, so only building-resource converters (the
+craft majors, Stone Carver) could join — ruling 37 had EXCLUDED crop-input converters. Ruling 77's
+greedy-conversion principle reverses that for **feeding-phase crop converters** (Schnapps Distiller/
+Distillery): the input widened to a **6-tuple `(grain, veg, wood, clay, reed, stone)`**, so a crop
+converter joins any harvest-time `PendingFoodPayment` at its premium rate. What keeps it cheap is the
+GREEDY COMPOSITION: the converter's crop inputs are subtracted from the supply BEFORE the base
+crop/animal core runs, so the core's `grain_rem`/`veg_rem` already net out BOTH the converter's
+premium draw AND the base cooking of what is left — exactly ruling 77's tiering ("Schnapps Distiller
+for the first veggie, the smaller rate for the remaining N−1"). Crops therefore stay in the existing
+`grain_rem`/`veg_rem` dims — **no new Pareto dimension** (only building resources, which the base
+core never touches, carry their own remaining dims). `frontier_group` handles a multi-variant
+converter: a subset firing two members of one group is never enumerated (one card, one
+once-per-harvest budget — Studio's "exactly 1 wood/clay/stone" is a choice, not three fires), and on
+an exact 9-dim tie the grouped-count tie-break prefers burning a restricted single-type budget over a
+flexible multi-variant one — the **structural greedy-restricted-first rule** (the user's guidance:
+"use the Joinery over the Studio when both are available"). The whole reversal is **phase-gated via
+`is_owned_fn`**: Schnapps' predicate returns False outside `Phase.HARVEST_FEED`, so a FIELD/BREED-phase
+raise frame never offers it, and the widening applies to feeding-phase converters only. **The OPEN
+boundary** (ruling 78 item 1; §8): a SUPER-LINEAR multi-tier converter (Beer Tap — 2/3/4 grain →
+3/6/9 food) does NOT fit. It converts grain (the good base cooking also uses) at a better-than-base
+rate, so firing a tier dominates base-cooking in the grain dim and the frontier PRUNES "don't fire,
+save the budget" — but the once-per-harvest budget is not a Pareto dim, so the forced fire commits it
+at the smallest covering tier and forecloses a bigger-tier use at a later payment. Harmless for a
+fixed single-tier converter (Schnapps: early vs late is value-neutral), lossy for Beer Tap — so Beer
+Tap stays feed-seam-only, deferred.
+
 **Accepted incompleteness** (FOOD_PAYMENT_DESIGN.md §10): a food-*rich* player is never offered
 "spend grain anyway to preserve food" — liquidation only surfaces when food is short. Judged a
 non-issue strategically (food is the most liquid good), recorded so it isn't rediscovered as a
@@ -1903,8 +2196,11 @@ in order: each pasture's geometric capacity + the flat per-pasture bonus (`pastu
 bonus`, sum-fold) + the conditioned per-pasture list (`pasture_capacity_per_list`); the
 reserved-empty drop (`reserved_empty_pasture_indices`); then the pasture-LIKE card bins
 appended LAST (`extra_animal_caps` — so no pasture-only fold can touch a card bin); and
-`num_flexible = standalone_stables + house_pet_capacity + extra_flexible_slots`. Every
-frontier consumer inherits card capacity automatically.
+`num_flexible = standalone_stables + house_pet_capacity + extra_flexible_slots`, from which the
+**flexible→bin upgrade** (`flexible_to_bin_caps`, ruling 74 — Stable Master) converts one
+standalone stable's flexible slot per owned card into an appended single-type bin (decrement
+`num_flexible`, append the bin — a strict upgrade, no player choice). Every frontier consumer
+inherits card capacity automatically.
 
 **The typed-slot strip sits ABOVE `extract_slots`, at the ownership-aware entry points**
 (`accommodates` / `pareto_frontier` / `breeding_frontier`): per-species card slots
@@ -1924,7 +2220,12 @@ two available patterns:
 - **Capacity mods: key on the post-fold values.** The accommodation caches
   (`_animal_points_cached`, `_phi_cached`) are keyed on `extract_slots`' *outputs*
   (`caps_tuple`, `num_flexible`) — computed downstream of the capacity folds — so a capacity
-  card changes the key itself and staleness is impossible by construction.
+  card changes the key itself and staleness is impossible by construction. The ruling-74
+  additions ride this same pattern: the **flexible→bin** fold changes `extract_slots`' outputs
+  (fewer flexible slots, one more cap bin), so a Stable Master board keys honestly; and the
+  **volatile-capacity re-check** (`register_volatile_capacity`, Livestock Feeder) reconciles by
+  re-running `accommodates` — itself keyed on `extract_slots`' outputs — at each boundary, so its
+  watermark only decides *whether* to re-scan, never what the (already honestly-keyed) scan reads.
 - **The fence budget: gate the cache to Family.** The fence-scan key `(farmyard, wood,
   subdivision_started)` cannot see budgets or restrictions, so the cached path is guarded to
   Family mode (5.2) and Cards computes fresh.
@@ -2128,7 +2429,11 @@ payment frame is pushed — "in the feeding phase, you get X food" must be payab
 Dentist (a two-window card — wood banked at its `start_of_harvest` trigger, per-wood food
 paid out here), Town Hall,
 Milking Place. Choice-free income only; in-feeding *conversions* stay on
-`HARVEST_CONVERSIONS` (§3). Cards that change **what feeding costs** (Child's Toy's "your
+`HARVEST_CONVERSIONS` (§3) — and, since rulings 76/77 (2026-07-21), a converter marked
+`frontier_fire` also surfaces in any harvest-time `PendingFoodPayment` raise frame (the
+craft majors + Stone Carver + Braid Maker via the span, and the feeding-phase crop
+converters Schnapps Distiller/Distillery via the crop-input widening; the greedy-composition
+frontier is §5.3). Cards that change **what feeding costs** (Child's Toy's "your
 newborns require 2 food") fold at the single computation chokepoint,
 `helpers.feeding_requirement` (base `2·people_total − newborns`, owned
 `register_feeding_requirement` folds applied in order, floored at 0). Cache safety: the
@@ -2309,6 +2614,68 @@ clay/stone lands first. Import order is never load-bearing.
 exactly the mechanical sentinels plus the reveal pause — the same states, in the same order, as
 the C++ twin's preparation code computes. Nothing here required a C++ change, and `prep_cursor`
 never appears on a Family state.
+
+---
+
+## 5e. Card-as-action-space
+
+Two cards turn their own tableau card into a worker-placement target — Collector C104 ("this card is
+an action space for you only") and Tree Inspector D116 ("this card is a '1 Wood' accumulation space
+for you only"). Ruling 74 (2026-07-21) approved the subsystem, with the load-bearing consequence
+that **card spaces count as action spaces for other cards' hooks** (both texts literally say "action
+space"). The machinery is `agricola/cards/card_spaces.py` (§3 has its two registries) plus a handful
+of engine/legality seams, every one an O(1) no-op on the empty registry — so the Family game is
+byte-identical, **pinned by a SHA-256 game-trace fingerprint** (`tests/test_card_spaces.py` hashes
+every step's canonical state JSON + sorted wire actions over full random Family games and asserts the
+pre-change fingerprints reproduce exactly), alongside a craft-span trace-identity negative.
+
+**Registration and the wide placement.** `register_card_action_space(card_id, use_fn, *,
+placeable_fn=None)` makes a played card a private action space: `placeable_fn(state, owner_idx) ->
+list[picks | None]` returns the legal placement variants right now, and `use_fn(state, owner_idx,
+picks) -> state` is the space's work. `legality._card_space_placements` offers one
+`PlaceWorker(space="card:<id>", picks=…)` per variant of each card space that is registered, OWNED by
+the current player ("for you only" — the opponent never sees the placement at all), un-occupied this
+round, and currently placeable. The `picks` payload (§4) is what lets a space surface **WIDE at
+PlaceWorker**: Collector's reward is a combination of distinct good types, so its `placeable_fn`
+returns every `C(10, 6..9)` goods-name combination (210 / 120 / 45 / 10 — none Pareto-comparable, so
+nothing prunes), one placement each. `[None]` is a single plain placement; `[]` (an empty
+accumulation card) prunes the placement, mirroring the board's prune of an empty accumulation space.
+
+**Occupancy, `people_home`, and the return-home sweep.** A card-space placement is a real worker
+placement: `engine._apply_place_card_space_worker` decrements `people_home` exactly like a board
+placement (so alternation and all-placed detection — both keyed on `people_home` — just work) and
+records occupancy as an on-card worker MARKER, a per-card count in the OWNER's CardStore under the
+machinery-owned key `"card_space_worker:<id>"` (no card id contains `:`, so it can never collide with
+the card's own entry — Collector keeps its use counter there). "An occupied action space cannot be
+used again that round" is enforced by the placement enumerator reading the marker; per the Tea Time
+occupancy ruling, occupancy is *solely* worker presence, so a card effect that returns the on-card
+worker home mid-round (`return_card_space_worker` — Henpecked Husband) re-opens the space. The
+return-home reset drops every marker via **`clear_card_space_workers`** (the meeples themselves go
+home under the reset's blanket `people_home = people_total`). These marker helpers are reused by a
+card that merely PARKS a worker on itself with no action-space work of its own (Canal Boatman banks
+a worker on the card, returnable by Sheep Inspector).
+
+**Hosting — the "counts as an action space for hooks" consequence.** A card-space use is HOSTED with
+the generic atomic-host lifecycle: `_apply_place_card_space_worker` pushes a `PendingActionSpace` with
+`space_id = "card:<id>"` (before-autos at the push), `_apply_proceed` runs the registered `use_fn` as
+the space's work (the `ATOMIC_HANDLERS` slot of a card space, carrying the placement's `picks`), the
+after-window opens, Stop pops. So a card-space use fires `before_/after_action_space` with a
+`card:<id>` space id, and any space-hooking card (Material Hub, a decline-income card, a placement
+forbid) sees it as one more action space — the ruling's stated consequence. The hazard this creates:
+a *pre-existing* space-hooking card must not crash on an unknown `card:` id. The audit made those
+reads structurally safe — a `board_space_or_none`-style guard / early-False on the `card:` prefix
+before any `get_space` lookup (Foreign Aid's round-space forbid does exactly this), so a card that
+only targets named board spaces filters card spaces out uniformly rather than dereferencing them.
+
+**Card accumulation spaces.** A card space that stockpiles a resource on itself round over round
+(Tree Inspector's "1 Wood" stack, grown at the prep refill) is a true ACCUMULATION space, so cards
+that read or raid accumulation-space stocks reach it too. `register_card_accumulation(card_id,
+resource_kind, count_fn, remove_fn)` is that seam: a cross-player scanner (Work Certificate's source
+enumeration) treats every registered card accumulation of EITHER player as one more accumulation
+space, reading `count_fn(state, owner_idx)` against its own threshold and calling `remove_fn(state,
+owner_idx, n)` on a take — the taker and the card owner may differ (ruling 75: a Work Certificate
+owner CAN take 1 wood from a 4+-stack Tree Inspector card space, regardless of which player played
+Tree Inspector).
 
 ---
 
@@ -2692,8 +3059,12 @@ defer (§7); building the missing piece is a design conversation with the user f
   are points (Sheep Walker) need a decision window between round 14 and scoring, coupled to
   arrangement-scoring questions (Organic Farmer). Flagged, unbuilt.
 - **The general firing system carries no event payload.** `after_play_minor` etc. name an
-  event, not the card played — and there is no any-source newborns-gained event (Dung
-  Collector — markets included, deliberately out of scope). *(The narrow `played_card_id`
+  event, not the card played — and there is still no ANY-SOURCE newborns-gained event (a
+  markets-included "each time you get newborns" trigger). *(Dung Collector is no longer the
+  example of a card blocked on this: ruling 74, 2026-07-21 scoped its "2+ newborn animals" to
+  exactly the harvest breeding-outcome payload — the only current source of 2+ newborns in one
+  event — and implemented it on the `BreedingOutcome` registry below; the any-source event
+  itself remains out of scope.)* *(The narrow `played_card_id`
   stamp on the play hosts — added for Clutterer — is the one own-play discriminator, and it
   resolved this bullet's old Seed Almanac example: implemented 2026-07-17. Its sibling is the
   ownership-gated `PendingBuildMajor.built_major_idx` stamp — ruling 69, Brick Hammer. The
@@ -2715,13 +3086,34 @@ defer (§7); building the missing piece is a design conversation with the user f
 - **Cost-model gaps** (each flagged so the model isn't mistaken for complete): a
   payment-*source* restriction (Carpenter's Bench "use only the taken wood") — `effective_
   payments` has no concept of where goods came from (Carpenter's Bench itself is 🚫 WONTFIX,
-  user ruling 2026-07-21, so this gap currently has no waiting consumer); a per-game
-  Nth-fence ordinal (Carpenter's Apprentice — needs a cumulative cross-action segment
-  counter); raze-and-rebuild (Overhaul — a new primitive). *(The minimum-spend filter is no
-  longer a gap — built 2026-07-21 as `CostCtx.min_spend` for Stone Company, ruling 72.)* And a scope caveat: the
+  user ruling 2026-07-21, so this gap currently has no waiting consumer); raze-and-rebuild
+  (Overhaul — a new primitive). *(The minimum-spend filter is no
+  longer a gap — built 2026-07-21 as `CostCtx.min_spend` for Stone Company, ruling 72; the
+  per-game Nth-fence ordinal is no longer a gap either — built 2026-07-21 as the "source 1b"
+  ordinal free-fence source for Carpenter's Apprentice, ruling 74, §5.2.)* And a scope caveat: the
   conversion-chaining claims (§5.1 step 2) were verified against decks A–E only; the §4.7
   closure-equality guard is the backstop as new conversion cards land — promote it to the full
   multi-card form then.
+- **No super-linear multi-tier converter in the payment frontier** (ruling 78 item 1,
+  2026-07-21). The generalized in-harvest raise frame now admits feeding-phase crop→food converters
+  (§5.3, reversing ruling 37 for that phase), but only *fixed-rate* ones. A SUPER-LINEAR multi-tier
+  converter — Beer Tap's 2/3/4 grain → 3/6/9 food — does not fit: it converts grain (the good base
+  cooking also uses) at a better-than-base rate, so any tier fired dominates base-cooking in the
+  grain dim and the frontier prunes "don't fire, save the budget"; but the once-per-harvest budget
+  is not a Pareto dimension, so the forced fire commits it at the smallest covering tier and
+  forecloses a bigger-tier use at a later feeding payment (a legal option silently removed). Harmless
+  for a single-tier converter (early vs late is value-neutral), lossy here — so Beer Tap stays
+  feed-seam-only and the correct handling (make the budget a Pareto dim? offer only the held-grain
+  tier? protect the save-for-later config?) is an OPEN design question, deferred.
+- **No decline income for a played-but-unusable COMPOSITE** (ruling 78 item 4, 2026-07-21). The
+  improvement-decline income seams (§2) pay when a named improvement action is *declined* — including
+  a granted named MINOR action the owner cannot use (ruling 78 item 3). Harvest Festival Planning is
+  the unresolved sibling: it pushes the "Major or Minor Improvement" composite from its own on-play
+  resolution (not a trigger), so when a legal child exists the composite's own decline route pays
+  normally — but when HFP has NO legal child it pushes nothing and pays nothing. Whether that
+  played-but-unusable COMPOSITE should pay under the "could not use counts as declining" principle
+  (which item 3 applied only to granted minor actions) is left an explicit, deliberate decision for
+  the user, not folded into item 3's pass.
 - **Grocer / conversion-reachability legality** (CARD_SYSTEM_DESIGN.md §15 — the full analysis,
   with a verified 7-step worked fixture and seven candidate approaches; read it before touching
   this). The unique problem: Grocer's goods-on-the-card make *affordability* a reachability
