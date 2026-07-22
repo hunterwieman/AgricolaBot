@@ -2214,7 +2214,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D102 Sample Stable Maker** · [1+]
   - _At the start of each returning home phase, you can return a built stable to your supply to get 1 wood, 1 grain, 1 food, and a "Minor Improvement" action._
   - `HOOK T-BEFORE S-ROUNDEND F-TRIG A-OWN E-RETURNCOMP E-GOODS E-GRANTACT` — Optional hook at the start of each returning-home phase; the cost is returning a BUILT stable (a placed component -> E-RETURNCOMP), not a piece from supply, so E-PIECECOST is wrong; yields goods plus a granted Minor Improvement action (E-GRANTACT).
-- ⬜ **D103 Canal Boatman** · [1+]
+- ✅ **D103 Canal Boatman** · [1+] · ruling 74 (after-window park-a-person trigger — user-authorized deviation; multi-park; SI-returnable)
   - _Each time you use "Fishing" or "Reed Bank", you can pay 1 food to immediately place another person on this card. If you do, you get your choice of 3 stone or 1 grain plus 1 vegetable.  [CLARIFICATION: The choices are (3 stone) or (grain+vegetable).]_
   - `HOOK T-AFTER S-SPACE F-TRIG A-OWN E-EXTRAPLACE E-FOODCOST E-GOODS` — Fishing/Reed Bank: pay 1 food -> extra placement + choose 3 stone or grain+veg.
 - ✅ **D104 Cultivator** · [1+]

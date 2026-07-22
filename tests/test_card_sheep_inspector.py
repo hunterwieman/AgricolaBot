@@ -293,3 +293,41 @@ def test_hand_card_does_not_host():
     assert should_host_space(s, "grain_seeds", 0) is False
     s = step(s, PlaceWorker(space="grain_seeds"))    # atomic
     assert not any(isinstance(f, PendingActionSpace) for f in s.pending_stack)
+
+
+# ---------------------------------------------------------------------------
+# Card-space return: the worker parked on Canal Boatman (ruling 74)
+# ---------------------------------------------------------------------------
+
+def test_returns_canal_boatman_parked_worker():
+    """USER RULING (2026-07-21, ruling 74, CARD_DEFERRED_PLANS.md): Sheep
+    Inspector CAN return the worker parked on Canal Boatman. Surfaced as the
+    "card:canal_boatman" variant; returning = on-card marker -1,
+    people_home +1 (the Tea Time semantics via return_card_space_worker)."""
+    import agricola.cards.canal_boatman  # noqa: F401  (registers the card)
+    from agricola.cards.canal_boatman import CARD_ID as CB
+    from agricola.cards.card_spaces import card_space_worker_count
+
+    s = _state(sheep=1, food=3)          # 1 food for the park + 2 for the return
+    s = _own(s, 0, card_id=CB)           # P0 also owns Canal Boatman
+    acc = get_space(s.board, "fishing").accumulated_amount
+    s = _use_space(s, "fishing")         # both cards hook Fishing -> hosted
+    # Before the park there is no return target (the only own person on a
+    # space is on the just-used host itself) -> Sheep Inspector is silent.
+    assert _si_triggers(legal_actions(s)) == set()
+    # Park a person on Canal Boatman (pay 1 food, take 3 stone).
+    s = step(s, FireTrigger(card_id=CB, variant="3_stone"))
+    assert card_space_worker_count(s.players[0], CB) == 1
+    assert s.players[0].people_home == 0
+    # The parked worker is now the one legal return target, in card form.
+    assert _si_triggers(legal_actions(s)) == {"card:canal_boatman"}
+    s = step(s, FireTrigger(card_id=CARD_ID, variant="card:canal_boatman"))
+    p = s.players[0]
+    assert p.animals.sheep == 0                       # 1 sheep paid
+    assert p.resources.food == acc                    # 3 + take - 1 (park) - 2
+    assert card_space_worker_count(p, CB) == 0        # marker off the card
+    assert p.people_home == 1                         # the parked person is home
+    assert p.people_total == 2                        # nobody gained or lost
+    assert CARD_ID in p.used_this_round               # once per work phase
+    # Both triggers spent for this host visit: Stop ends the turn.
+    assert [type(a).__name__ for a in legal_actions(s)] == ["Stop"]

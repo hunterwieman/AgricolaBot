@@ -130,6 +130,46 @@ Child Ombudsman (D92) — end-of-turn; Pen Builder (E86) — at-any-time; Wood B
 placement-legality anticipation (reachability, ON HOLD); Master Tanner (E85) — feed-phase
 cook reactions against the no-FEED-triggers boundary.
 
+**Open questions surfaced DURING the ruling-74 implementation (each awaiting the user;
+none blocks a shipped card):**
+
+1. **The (variant × payment) stranding pair-gate.** A wide play-occupation variant's gate
+   runs at enumeration, but the occupation cost is debited before the variant's on_play
+   pushes its frame — so Working Gloves paying the cost with the exact wood a chosen
+   Stable Master build-variant needs reaches a `PendingBuildStables` with no legal action
+   (a hard dead state; Baker has the sibling gap via food-shortfall liquidation consuming
+   its grain). Proposed fix: an optional per-variant post-payment predicate on the variant
+   registries, consulted per (variant, payment) pair by the enumerator.
+2. **`build_stables_action` flag inconsistency.** Groom, Stable Planner, and Stablehand
+   leave the flag default-True on granted builds, against the §9.6 name-the-action
+   contract (Stable Master's grant sets False per the contract). Latent — nothing reads
+   the flag on those paths yet — but worth a sweep + per-card adjudication.
+3. **Stone Carver and the span pattern.** Under the ruling-74 general pattern ("every
+   resource→food conversion printed without a specific harvest phase follows the span"),
+   Stone Carver has feed + payment-frontier surfaces but no span-window triggers — same
+   classification as Braid Maker's clause 1. Needs a user-confirmed sweep of the
+   converter cluster.
+4. **Partially-used multi-use named-action grants.** The decline-income seam treats a
+   `max_uses > 0` named-action wrapper as declined only when wholly untaken; whether a
+   partially-used one "declines" its remaining uses at Stop is unsettled (no such card
+   exists — Furnisher's wrapper is flag-False).
+5. **Card spaces × source-scanning cards.** Does Tree Inspector's "1 Wood accumulation
+   space" qualify as a Work Certificate take-source (its scan is board-only today)?
+   Sheep Inspector's return-target scan was extended to card-parked workers per the
+   explicit Canal Boatman ruling; Work Certificate awaits its own ruling.
+6. **Web UI labels for the craft-span triggers.** The pseudo-id FireTriggers render via
+   play_web's title-case fallback ("Craft Span Joinery"); a proper label needs a
+   synthetic `_CARD_META` row (play_web.py owned by a parallel session at the time).
+7. **Plow Builder (E91) clause 2 — the concrete proposal.** "If you use the Joinery (or
+   an upgrade thereof) during the harvest, you can pay 1 food to plow 1 field": now that
+   craft conversions fire on every span surface, the natural seam is a
+   `register_conversion_reaction(card_id, conversion_id_prefix, react_fn)` fired at the
+   three places a harvest conversion executes (the feed commit, the payment-frontier
+   bundle, the span-window fire), offering the optional pay-and-plow right after the
+   reacting conversion resolves. Clause 1 (the Joinery at a named Minor Improvement
+   action) is already expressible via `register_minor_action_major_build`. The card
+   stays deferred-whole until this seam is approved.
+
 ---
 
 ## Food-provider batch — deferred members (2026-07-15)

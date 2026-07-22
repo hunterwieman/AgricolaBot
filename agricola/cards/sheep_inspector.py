@@ -21,12 +21,24 @@ GOVERNING RULINGS (all dated):
   the target space's worker marker for the owner decrements, and the vacated
   space is OPEN — per the USER RULING (2026-07-20, Tea Time): what makes a
   space illegal to place on is the presence of a worker on it, nothing else.
+- USER RULING (2026-07-21, ruling 74, CARD_DEFERRED_PLANS.md): the worker
+  parked on Canal Boatman CAN be returned by this card. Implemented as the
+  card-space extension below: the return targets also cover the owner's
+  ``card_space_worker:`` markers (``agricola/cards/card_spaces.py``) — the one
+  namespace recording every of the owner's workers sitting on a card, whether
+  PLACED there (a registered card action space — Collector, Tree Inspector) or
+  PARKED there by a card effect (Canal Boatman). A card holds no newborns (a
+  wish-space growth puts its meeple on the BOARD), so every on-card marker is
+  a returnable person; returning one is marker -1 + ``people_home`` +1
+  (``card_spaces.return_card_space_worker`` — the same Tea Time semantics, and
+  the vacated card space is OPEN).
 
 MECHANICS. An OPTIONAL play-variant trigger (the Work Certificate idiom) on
 ``after_action_space``: one ``FireTrigger("sheep_inspector", variant=
-"<space_id>")`` per legal return target. A target is a space OTHER than the one
-just used (the host frame's ``space_id`` — "another person") where the owner
-has at least one returnable PLACED person (newborns excluded, below).
+"<space_id>")`` per legal return target (a board space id, or
+``"card:<card_id>"`` for an on-card worker). A target is a space OTHER than the
+one just used (the host frame's ``space_id`` — "another person") where the
+owner has at least one returnable PLACED person (newborns excluded, below).
 Eligibility: not latched this round, sheep >= 1 (on the farm) AND food >= 2 on
 hand AND >= 1 legal target. Firing debits 1 sheep + 2 food, latches
 ``used_this_round``, credits ``people_home`` +1, and decrements the owner's
@@ -72,6 +84,10 @@ CARD_ENGINE_IMPLEMENTATION.md §2 and CARD_AUTHORING_GUIDE.md.
 """
 from __future__ import annotations
 
+from agricola.cards.card_spaces import (
+    card_space_worker_count,
+    return_card_space_worker,
+)
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import (
     register,
@@ -105,15 +121,34 @@ def _returnable_count(state: GameState, idx: int, space_id: str) -> int:
 
 
 def _variants(state: GameState, idx: int) -> list[str]:
-    """The currently-legal return targets, one ``"<space_id>"`` per space OTHER
-    than the just-used one (the host frame's space — "another person") where the
-    owner has >= 1 returnable placed person. Canonical SPACE_IDS order."""
+    """The currently-legal return targets, one variant per space OTHER than
+    the just-used one (the host frame's space — "another person") where the
+    owner has >= 1 returnable person. Board targets first (canonical
+    SPACE_IDS order), then card-space targets — ``"card:<card_id>"`` for each
+    of the owner's on-card workers (USER RULING 2026-07-21, ruling 74: the
+    worker parked on Canal Boatman can be returned; the same markers cover a
+    worker placed on a Collector / Tree Inspector card space). The host
+    exclusion is uniform because a card-space host's ``space_id`` is
+    ``"card:<id>"`` — the exact card-variant format."""
     host_space = getattr(state.pending_stack[-1], "space_id", None)
-    return [
+    board = [
         space_id
         for space_id in SPACE_IDS
         if space_id != host_space and _returnable_count(state, idx, space_id) >= 1
     ]
+    # A ``card_space_worker:`` marker can exist only for a card in the OWNER's
+    # own tableau: a card-space placement is enumerated only for an owned,
+    # played, registered card, and Canal Boatman parks on itself (it must be
+    # played to fire). Scanning the played-card ids through card_spaces'
+    # public counter is therefore a complete enumeration of the marker
+    # namespace. Sorted for a deterministic variant order.
+    p = state.players[idx]
+    cards = [
+        f"card:{cid}"
+        for cid in sorted(p.occupations | p.minor_improvements)
+        if f"card:{cid}" != host_space and card_space_worker_count(p, cid) >= 1
+    ]
+    return board + cards
 
 
 def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
@@ -137,18 +172,24 @@ def _eligible(state: GameState, idx: int, triggers_resolved) -> bool:
 
 def _apply(state: GameState, idx: int, variant: str) -> GameState:
     """Fire one return: pay 1 sheep + 2 food, latch the round, and bring the
-    placed person on the chosen space home (board worker off; people_home +1 —
-    the Tea Time return idiom; the vacated space is open, occupancy being
-    solely worker presence)."""
-    space_id = variant
-    # The player edit: pay the cost, latch once-per-work-phase, person home.
+    chosen person home. Two target kinds share the payment (both are the Tea
+    Time return idiom — person home, marker off, the vacated space OPEN,
+    occupancy being solely worker presence):
+
+    - board target (variant = a space id): the owner's worker marker on that
+      space decrements; ``people_home`` +1.
+    - card target (variant = ``"card:<card_id>"`` — USER RULING 2026-07-21,
+      ruling 74: the worker parked on Canal Boatman can be returned): the
+      on-card worker marker decrements and ``people_home`` +1, both via
+      ``card_spaces.return_card_space_worker``.
+    """
+    # The payment edit: pay the cost, latch once-per-work-phase.
     p = state.players[idx]
     p = fast_replace(
         p,
         animals=p.animals - Animals(sheep=1),
         resources=p.resources - Resources(food=2),
         used_this_round=p.used_this_round | {CARD_ID},
-        people_home=p.people_home + 1,
     )
     state = fast_replace(
         state,
@@ -156,7 +197,20 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
             p if i == idx else state.players[i] for i in range(len(state.players))
         ),
     )
-    # The board edit: the owner's worker marker on the target space decrements.
+    if variant.startswith("card:"):
+        # Card target: marker -1 + people_home +1 in the one helper.
+        return return_card_space_worker(state, idx, variant.split(":", 1)[1])
+    # Board target: the person home + the owner's worker marker off the space.
+    space_id = variant
+    p = state.players[idx]
+    state = fast_replace(
+        state,
+        players=tuple(
+            fast_replace(p, people_home=p.people_home + 1) if i == idx
+            else state.players[i]
+            for i in range(len(state.players))
+        ),
+    )
     sp = get_space(state.board, space_id)
     workers = tuple(n - 1 if i == idx else n for i, n in enumerate(sp.workers))
     return fast_replace(
