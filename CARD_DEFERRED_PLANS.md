@@ -158,6 +158,35 @@ cook reactions against the no-FEED-triggers boundary.
    (Confirmed premise: the free-span converter family already exists — Basket Carrier,
    Paintbrush, Furniture Carpenter, now Braid Maker + the craft majors.)
 
+**Ruling 76 (2026-07-21) — the post-investigation answers:**
+
+1. **Studio (C55):** its 3 conversions are offered at the same time the craft majors'
+   conversions are offered, and additionally any `PendingFoodPayment` frame resolved
+   DURING the feeding phase can and should offer Studio's conversions. (Driver reading,
+   stated for confirmation: Studio stays feeding-phase-scoped per its printed text —
+   the feed offering it already has, plus feeding-phase payment-frontier participation;
+   it does NOT gain span windows outside the feeding phase.) Action-shaping guidance
+   (user, verbatim): "At the moment Studio's rates are less than or equal to the rates
+   offered by all other conversion cards …, so a strategy of greedily converting with
+   the restricted cards (meaning the cards that offer conversions for only one
+   resource type) before converting with studio preserves optionality. Concretely this
+   means that a player who chooses to convert a wood to food should use the joinery
+   over the studio if they have both and both are available."
+2. **Unfired granting triggers ARE declines** (user: "yes it does"): declining-to-fire
+   a trigger that would grant a named improvement action counts as declining the
+   action for decline income — including when the trigger was withheld as unaffordable
+   (the can't-use-counts-as-declining ruling extends to grants). Requires the
+   grant-condition-held-but-unfired seam at host exits; fired-then-declined stays on
+   the existing frame seams (no double pay). Stone Company stays excluded
+   (non-declinable). NOTE the Merchant consequence flagged to the user: every taken
+   improvement action with Merchant + Field Merchant in play pays for the declined
+   repeat.
+3. **Plow Builder (E91) revised:** the plow effect does not need to follow the Joinery
+   use immediately — it is available at any later point in the harvest. Offer the
+   standalone pay-1-food-plow trigger throughout the harvest iff the Joinery has been
+   used this harvest (the `"joinery"` budget-used boolean), once per harvest; the fused
+   use-Joinery-and-plow trigger is kept as well.
+
 **Open questions surfaced DURING the ruling-74 implementation (answered above as
 ruling 75; kept for the record):**
 

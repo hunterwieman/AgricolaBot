@@ -4,30 +4,40 @@ Card text (verbatim): "You can build the Joinery when taking a "Minor
 Improvement" action. If you use the Joinery (or an upgrade thereof) during the
 harvest, you can pay 1 food to plow 1 field."
 
-Ruling 75 item 7 (user, 2026-07-21): no Joinery upgrades exist today; clause 2
-is a FUSED trigger — the Joinery conversion AND the pay-1-food plow as one
-fired action, available throughout the harvest (every span window), sharing
-the Joinery's once-per-harvest budget ("joinery" in
-`harvest_conversions_used`) with the plain surfaces.
+Ruling 75 item 7 (user, 2026-07-21): no Joinery upgrades exist today; the
+FUSED trigger — the Joinery conversion AND the pay-1-food plow as one fired
+action — is available throughout the harvest (every span window), sharing the
+Joinery's once-per-harvest budget ("joinery" in `harvest_conversions_used`)
+with the plain surfaces. Ruling 76 item 3 (user, 2026-07-21): the plow need
+not follow the Joinery use immediately — a STANDALONE pay-1-food-plow fire is
+offered throughout the harvest iff the Joinery has been used this harvest,
+once per harvest (the shared plow latch, the card's own id in
+`harvest_conversions_used`); the fused fire is kept.
 
 Coverage:
 
-- Registration on every surface: occupation spec, the free-span trigger set,
-  the minor-action major-build seam row, the before_play_minor swap trigger —
-  and the NEGATIVES the design demands: no cost formula (the Joinery builds at
-  its NORMAL printed cost) and no conversion row of its own (the fused trigger
-  consumes the Joinery's).
+- Registration on every surface: occupation spec, the free-span trigger set
+  (exactly ONE entry per event — both fires ride one state-dispatched
+  trigger), the minor-action major-build seam row, the before_play_minor swap
+  trigger — and the NEGATIVES the design demands: no cost formula (the
+  Joinery builds at its NORMAL printed cost) and no conversion row of its own
+  (the fused fire consumes the Joinery's).
 - Clause 1 end-to-end in CARDS mode: Meeting Place -> the minor branch
   takeable with NO playable minor in hand (the seam's gate) -> the swap
   trigger -> the Joinery built at the printed 2 wood + 2 stone; the decline
   path (playing a hand minor normally); the branch-gate negatives.
-- The fused trigger at a real span window through the REAL banded harvest
-  walk: wood -1, net food +1 (the +2 conversion covers the 1-food plow), a
-  plow committed onto a real cell, the Joinery budget consumed — and the
-  plain craft_span_joinery trigger then blocked, and vice versa (a plain
-  window or feed use blocks the fused trigger and grants NO plow).
-- Eligibility negatives: card not owned / Joinery not this player's / no wood
-  / no plowable cell (each verified at the real surface).
+- The fused fire at a real span window through the REAL banded harvest walk:
+  wood -1, net food +1 (the +2 conversion covers the 1-food plow), a plow
+  committed onto a real cell, BOTH latches consumed — the plain
+  craft_span_joinery trigger and the standalone plow then blocked.
+- The standalone fire (ruling 76): a plain Joinery use (the craft-span window
+  trigger, and the feed surface) grants no plow but unlocks the standalone at
+  any LATER point in the harvest — the 1-food debit, the plow, the once-per-
+  harvest latch (standalone-then-anything blocked); never offered before a
+  Joinery use, nor in a later harvest without a fresh Joinery use, nor
+  without the food or a plowable cell.
+- Eligibility negatives for the fused fire: card not owned / Joinery not this
+  player's / no wood / no plowable cell (each verified at the real surface).
 - The early-harvest value case (the ruled point of the span availability):
   firing at start_of_feeding nets +1 food that then pays the feeding —
   begging-free where the no-fire walk begs.
@@ -185,6 +195,11 @@ def _top_is_p0_start_of_feeding(state):
         state.pending_stack[-1].window_id == "start_of_feeding"
 
 
+def _top_is_p0_end_of_harvest(state):
+    return _top_is_p0_window(state) and \
+        state.pending_stack[-1].window_id == "end_of_harvest"
+
+
 def _num_fields(player_state):
     grid = player_state.farmyard.grid
     return sum(1 for r in range(3) for c in range(5)
@@ -246,10 +261,13 @@ def test_registered_on_every_surface():
     state = setup(seed=0)
     assert OCCUPATIONS[CARD_ID].on_play(state, 0) is state
 
-    # The fused trigger: on EVERY free-span event, with the window hooks
-    # indexed for the non-sentinel windows (ruling 75 item 7).
+    # The span trigger: on EVERY free-span event, with the window hooks
+    # indexed for the non-sentinel windows (rulings 75 item 7 + 76 item 3).
+    # Exactly ONE entry per event — the fused and standalone fires are
+    # mutually exclusive in time, so both ride one state-dispatched trigger.
     for event in FREE_SPAN_EVENTS:
-        assert any(e.card_id == CARD_ID for e in TRIGGERS.get(event, ())), event
+        entries = [e for e in TRIGGERS.get(event, ()) if e.card_id == CARD_ID]
+        assert len(entries) == 1, event
         if event not in SENTINEL_WINDOWS:
             assert CARD_ID in HARVEST_WINDOW_CARDS.get(event, set()), event
 
@@ -359,11 +377,12 @@ def test_meeting_place_branch_stays_gated_without_the_build():
 
 # --- Clause 2: the fused trigger at a real span window -----------------------
 
-def test_fused_fire_plows_and_consumes_the_joinery_budget():
+def test_fused_fire_plows_and_consumes_both_latches():
     """The one fired action (ruling 75 item 7): wood -1, net food +1 (the +2
     conversion covers the 1-food plow), a plow committed onto a real cell,
-    the SHARED Joinery budget marked — the plain craft_span_joinery trigger
-    and the feed offer are then blocked for the rest of the harvest."""
+    BOTH latches marked — the plain craft_span_joinery trigger, the feed
+    offer, AND the ruling-76 standalone plow are then blocked for the rest of
+    the harvest (fused-then-standalone blocked)."""
     state = _cards_harvest_state(wood=2)
     state, _ = _walk_until(state, _top_is_p0_window)
     assert _top_is_p0_window(state)
@@ -380,13 +399,16 @@ def test_fused_fire_plows_and_consumes_the_joinery_budget():
     res1 = state.players[0].resources
     assert res1.wood == res0.wood - 1
     assert res1.food == res0.food + 1      # +2 conversion, -1 plow cost
-    assert "joinery" in state.players[0].harvest_conversions_used
+    used = state.players[0].harvest_conversions_used
+    assert "joinery" in used               # the Joinery budget
+    assert CARD_ID in used                 # the plow latch (ruling 76)
 
     state = _commit_the_plow(state)
     assert _num_fields(state.players[0]) == fields0 + 1
 
-    # Back on the window frame: the budget is spent, so the plain craft-span
-    # trigger is blocked despite the second wood — only the decline remains.
+    # Back on the window frame: both latches spent, so neither the plain
+    # craft-span trigger (despite the second wood) nor the standalone plow
+    # (despite the food) is offered — only the decline remains.
     assert _top_is_p0_window(state)
     assert legal_actions(state) == [Proceed()]
     # ... and no later surface (feed offer included) fires this harvest.
@@ -395,10 +417,12 @@ def test_fused_fire_plows_and_consumes_the_joinery_budget():
     assert offers_after == []
 
 
-def test_plain_window_use_grants_no_plow_and_blocks_the_fused_trigger():
-    """The plain Joinery use is a SEPARATE surface: firing craft_span_joinery
-    performs the bare exchange (no plow), and the shared budget then blocks
-    the fused trigger for the rest of the harvest."""
+def test_plain_window_use_unlocks_the_standalone_plow_later():
+    """Ruling 76 item 3: the plain craft_span_joinery use grants no plow but
+    unlocks the standalone pay-1-food plow at any LATER point in the harvest.
+    Fire it at end_of_harvest: -1 food, wood untouched (no second
+    conversion), the plow committed, the once-per-harvest latch marked
+    (standalone-then-anything blocked)."""
     state = _cards_harvest_state(wood=2)
     state, _ = _walk_until(state, _top_is_p0_window)
     res0 = state.players[0].resources
@@ -407,19 +431,40 @@ def test_plain_window_use_grants_no_plow_and_blocks_the_fused_trigger():
     assert res1.wood == res0.wood - 1
     assert res1.food == res0.food + 2      # the bare exchange, no plow cost
     assert "joinery" in state.players[0].harvest_conversions_used
-    # No plow was granted by the plain use.
+    # No plow was granted by the plain use...
     assert not any(isinstance(f, PendingPlow) for f in state.pending_stack)
-    # The fused trigger is blocked on this frame (budget) — only the decline.
+    # ...but the standalone offer appears at once (the Joinery has now been
+    # used this harvest) — ruling 76's "any later point" includes right here.
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+
+    # Decline here; take it at the span's LAST window instead.
+    state = step(state, Proceed())
+    state, _ = _walk_until(state, _top_is_p0_end_of_harvest)
+    assert _top_is_p0_end_of_harvest(state)
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+
+    res2 = state.players[0].resources
+    fields0 = _num_fields(state.players[0])
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    res3 = state.players[0].resources
+    assert res3.food == res2.food - 1      # the paid plow, nothing else
+    assert res3.wood == res2.wood          # NO second conversion
+    state = _commit_the_plow(state)
+    assert _num_fields(state.players[0]) == fields0 + 1
+    assert CARD_ID in state.players[0].harvest_conversions_used
+
+    # Once per harvest: the latch blocks any further offer.
     assert legal_actions(state) == [Proceed()]
     state, offers_after = _walk_until(state, lambda s: False)
     assert state.phase not in _HARVEST_PHASES
     assert offers_after == []
 
 
-def test_plain_feed_use_grants_no_plow_and_blocks_the_fused_trigger():
+def test_plain_feed_use_unlocks_the_standalone_plow():
     """Same in the feed direction: the FEED offering performs the bare
-    exchange (no plow) and its fire blocks the fused trigger."""
-    state = _cards_harvest_state(wood=2)
+    exchange (no plow) and unlocks the standalone plow at the next span
+    window (after_feeding), which debits 1 food and plows."""
+    state = _cards_harvest_state(wood=1)
     state, _ = _walk_until(state, _top_is_p0_feed)
     assert _top_is_p0_feed(state)
     assert CommitHarvestConversion(conversion_id="joinery") in legal_actions(state)
@@ -430,9 +475,59 @@ def test_plain_feed_use_grants_no_plow_and_blocks_the_fused_trigger():
     assert res1.food == res0.food + 2
     assert "joinery" in state.players[0].harvest_conversions_used
     assert not any(isinstance(f, PendingPlow) for f in state.pending_stack)
+
+    # The next window frame the walk hosts for P0 offers the standalone.
+    state, _ = _walk_until(state, _top_is_p0_window)
+    assert _top_is_p0_window(state)
+    assert FireTrigger(card_id=CARD_ID) in legal_actions(state)
+
+    res2 = state.players[0].resources
+    fields0 = _num_fields(state.players[0])
+    state = step(state, FireTrigger(card_id=CARD_ID))
+    res3 = state.players[0].resources
+    assert res3.food == res2.food - 1
+    assert res3.wood == res2.wood          # 0 — no conversion happened
+    state = _commit_the_plow(state)
+    assert _num_fields(state.players[0]) == fields0 + 1
+
     state, offers_after = _walk_until(state, lambda s: False)
     assert state.phase not in _HARVEST_PHASES
-    assert offers_after == []              # despite the second wood
+    assert offers_after == []
+
+
+def test_no_standalone_next_harvest_without_a_fresh_joinery_use():
+    """The per-harvest reset clears BOTH ids: a Joinery use last harvest does
+    not carry the standalone offer into the next harvest."""
+    state = _cards_harvest_state(wood=1)
+    state, _ = _walk_until(state, _top_is_p0_feed)
+    state = step(state, CommitHarvestConversion(conversion_id="joinery"))
+    # Decline the unlocked standalone for the rest of harvest 1.
+    state, _ = _walk_until(state, lambda s: False)
+    assert state.phase not in _HARVEST_PHASES
+    assert "joinery" in state.players[0].harvest_conversions_used
+
+    # Harvest 2: synthesize a fresh FIELD entry (the walk resets the budget
+    # at a None-cursor HARVEST_FIELD entry). Wood is spent, so no fused /
+    # craft / feed offer can appear either — the walk must surface NOTHING.
+    state = dataclasses.replace(
+        state, phase=Phase.HARVEST_FIELD, pending_stack=(), harvest_cursor=None)
+    state, offers = _walk_until(state, lambda s: False)
+    assert state.phase not in _HARVEST_PHASES
+    assert offers == []
+
+
+def test_standalone_needs_the_food():
+    """The standalone's own food gate (no conversion covers it): a Joinery
+    feed use whose proceeds are fully consumed by the feeding leaves food 0 —
+    no standalone offer for the rest of the harvest."""
+    state = _cards_harvest_state(wood=1, food=2)
+    state, _ = _walk_until(state, _top_is_p0_feed)
+    state = step(state, CommitHarvestConversion(conversion_id="joinery"))
+    assert state.players[0].resources.food == 4    # 2 + 2, exactly the bill
+    state, offers = _walk_until(state, lambda s: False)
+    assert state.phase not in _HARVEST_PHASES
+    assert state.players[0].resources.food == 0
+    assert offers == []
 
 
 # --- Eligibility negatives (each at the real surface) ------------------------
@@ -458,7 +553,10 @@ def test_no_joinery_never_offered():
 
 def test_no_wood_never_offered():
     """No conversion input on hand: no surface offers anything, no window
-    frame is ever hosted."""
+    frame is ever hosted. This is also the ruling-76 precondition negative:
+    the Joinery is never used this harvest, so the standalone pay-1-food plow
+    is never offered either — food and a plowable cell alone do not unlock a
+    bare plow."""
     state = _cards_harvest_state(wood=0)
     saw_window_frame = False
     state = _advance_until_decision(state)
@@ -477,13 +575,18 @@ def test_no_wood_never_offered():
 def test_no_plowable_cell_not_offered():
     """Every empty cell filled: the plow half is undoable, so the fused
     trigger is withheld (never a dead end) while the plain craft-span
-    trigger still surfaces."""
+    trigger still surfaces — and after the plain use, the ruling-76
+    standalone plow stays withheld on the same gate."""
     state = _cards_harvest_state(wood=2)
     state = _fill_empty_cells_with_fields(state, 0)
     state, _ = _walk_until(state, _top_is_p0_window)
     acts = legal_actions(state)
     assert FireTrigger(card_id=_CRAFT_SPAN_JOINERY) in acts
     assert FireTrigger(card_id=CARD_ID) not in acts
+    # A plain use makes the Joinery "used this harvest", but the standalone
+    # still needs a plowable cell — nothing but the decline remains.
+    state = step(state, FireTrigger(card_id=_CRAFT_SPAN_JOINERY))
+    assert legal_actions(state) == [Proceed()]
 
 
 # --- The early-harvest value case (the ruled point of the span) --------------

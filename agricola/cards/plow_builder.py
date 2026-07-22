@@ -20,6 +20,13 @@ a no-op). Governing rulings — **rulings 74 + 75, 2026-07-21**
 > early; it shares the Joinery's once-per-harvest budget with the plain
 > surfaces."
 
+> **Ruling 76 item 3 (user, 2026-07-21):** "Plow Builder (E91) revised: the
+> plow effect does not need to follow the Joinery use immediately — it is
+> available at any later point in the harvest. Offer the standalone
+> pay-1-food-plow trigger throughout the harvest iff the Joinery has been
+> used this harvest (the `"joinery"` budget-used boolean), once per harvest;
+> the fused use-Joinery-and-plow trigger is kept as well."
+
 **"(or an upgrade thereof)" — future-expansion scope.** No Joinery upgrade
 exists in the implemented catalog (ruling 75); the fused trigger below keys on
 the Joinery (major 7) alone. If an upgrade card ever lands, its use during the
@@ -45,46 +52,76 @@ the card grants no price, so NO formula is registered; contrast Braid Maker's
 printed 1-reed-1-stone price). Declining is implicit (play a hand minor
 normally, or never enter the branch).
 
-**Clause 2 — the FUSED use-with-plow trigger (ruling 75's design).** One
-optional trigger on every free-span surface (``register_free_span_trigger`` —
-the player's field band through ``end_of_harvest``, the FIELD during-window
-and the breed frame's pre-commit stretch included), so the plow can be taken
-EARLY in the harvest (e.g. at ``start_of_feeding``, where the net food gain
-can pay the feeding). ONE fire performs both halves:
+**Clause 2 — the harvest plow, two offers (rulings 75 item 7 + 76 item 3).**
+Both live on every free-span surface (``register_free_span_trigger`` — the
+player's field band through ``end_of_harvest``, the FIELD during-window and
+the breed frame's pre-commit stretch included):
 
-- the Joinery conversion — debit its input (1 wood), add its food_out
-  (2 food), and mark the Joinery's SHARED once-per-harvest budget (the
-  built-in conversion id ``"joinery"`` in ``harvest_conversions_used`` — the
-  same id the feed executor, the payment-frontier fire, and the
-  ``craft_span_joinery`` window fire mark and check, so any plain use blocks
-  the fused trigger for the rest of that harvest and vice versa). The
-  exchange amounts are READ from the registered spec, never duplicated, so
-  this surface cannot drift from the feed surface.
-- the paid plow — debit the printed 1 food and push
-  ``PendingPlow(initiated_by_id="card:plow_builder")`` (frame triggers carry
-  no cost layer — the direct-debit Stone Importer idiom; the pushed primitive
-  composes mid-harvest, the Autumn Mother / Dung Collector precedent).
+- **The FUSED use-Joinery-and-plow fire** (ruling 75's design, kept per
+  ruling 76), so the plow can be taken EARLY in the harvest (e.g. at
+  ``start_of_feeding``, where the net food gain can pay the feeding). ONE
+  fire performs both halves: the Joinery conversion — debit its input
+  (1 wood), add its food_out (2 food), and mark the Joinery's SHARED
+  once-per-harvest budget (the built-in conversion id ``"joinery"`` in
+  ``harvest_conversions_used`` — the same id the feed executor, the
+  payment-frontier fire, and the ``craft_span_joinery`` window fire mark and
+  check; the exchange amounts are READ from the registered spec, never
+  duplicated, so this surface cannot drift from the feed surface) — AND the
+  paid plow (below). Eligibility: owns Plow Builder (tableau — no mode gate
+  needed, Family players own no cards), the player owns the Joinery (the
+  spec's own owner-array predicate — the "(or an upgrade thereof)" seam
+  above), the Joinery budget unused, the plow latch unused, the conversion
+  input on hand (wood >= 1), and a plowable cell exists (``legality.
+  _can_plow`` — a fired trigger is never a dead end). NO separate food gate:
+  the conversion's +2 food always covers the 1-food plow cost (food_out
+  2 >= 1, so the fire nets food +1 and can never drive food negative).
 
-Eligibility: owns Plow Builder (tableau — no mode gate needed, Family players
-own no cards), the player owns the Joinery (the spec's own owner-array
-predicate — the "(or an upgrade thereof)" seam above), the Joinery budget
-unused, the conversion input on hand (wood >= 1), and a plowable cell exists
-(``legality._can_plow`` — a fired trigger is never a dead end). NO separate
-food gate: the conversion's +2 food always covers the 1-food plow cost
-(food_out 2 >= 1, so the fire nets food +1 and can never drive food
-negative).
+- **The STANDALONE pay-1-food-plow fire** (ruling 76 item 3): after a PLAIN
+  Joinery use — the FEED offering, the payment-frontier fire, or the
+  ``craft_span_joinery`` window trigger, none of which grants a plow — the
+  plow may still come at ANY later point in the harvest. Eligibility: owns
+  Plow Builder, the ``"joinery"`` budget IS used this harvest (the ruling's
+  budget-used boolean), the plow latch unused, food >= 1 (no conversion
+  covers the cost here), and a plowable cell exists.
 
-The PLAIN Joinery use stays entirely separate and grants no plow: the FEED
-offering, the payment-frontier fire, and the ``craft_span_joinery`` window
-trigger (``craft_major_span.py``) all perform the bare exchange — the fused
-trigger here is the one use-with-plow surface. "You can pay 1 food to plow"
-is optional; declining is simply not firing (the host frame's Proceed/Stop is
-always available alongside it). Once fired, the plow is part of the fired
-action (optionality lives at the FireTrigger, the standard granted-sub-action
-shape).
+**The paid plow** (both fires): debit the printed 1 food and push
+``PendingPlow(initiated_by_id="card:plow_builder")`` (frame triggers carry no
+cost layer — the direct-debit Stone Importer idiom; the pushed primitive
+composes mid-harvest, the Autumn Mother / Dung Collector precedent).
 
-One card, triggers on several events — the two surfaces share ONE apply fn
-dispatching on the host frame (the firewood / Merchant / Braid Maker pattern:
+**The once-per-harvest plow latch** — "you can pay 1 food to plow 1 field"
+is once per harvest, shared between the two fires (a fused fire consumes it;
+a standalone fire requires it unused): the card's own id ``"plow_builder"``
+in ``harvest_conversions_used``. That set is the codebase's native store for
+exactly this scope — per ``state.py``, "per-card budgets that span events
+live on PlayerState", with the walk's fresh-FIELD-entry reset giving the
+per-harvest lifetime with no clearing step — and an extra non-conversion id
+is inert to every other reader (the feed enumerator and the payment frontier
+iterate the ``HARVEST_CONVERSIONS`` registry's ids and only test membership;
+the Family encoder tests the three craft ids by name). A round-keyed
+CardStore latch would hand-replicate the same scope with round arithmetic
+for no benefit. The reset also gives ruling 76's cross-harvest shape for
+free: a new harvest clears BOTH ids, so the standalone needs a fresh Joinery
+use.
+
+"You can …" on both fires: declining is simply not firing (the host frame's
+Proceed/Stop is always available alongside). Once fired, the plow is part of
+the fired action (optionality lives at the FireTrigger, the standard
+granted-sub-action shape).
+
+**One trigger entry serves both fires.** The two offers are mutually
+exclusive in time — the fused fire requires the ``"joinery"`` budget UNUSED,
+the standalone requires it USED — so a single registered span trigger
+(eligibility = fused-eligible OR standalone-eligible; the apply dispatches
+on the same budget boolean) is total and unambiguous: any offered
+``FireTrigger(card_id="plow_builder")`` means exactly one thing in its
+state. Registering the standalone as a second entry under the same card id
+would collide in the card-id-keyed ``triggers.CARDS`` dispatch, and a
+craft-span-style pseudo-id would need an ownership override and a web label
+for no gain.
+
+One card, triggers on several events — every surface shares ONE apply fn
+dispatching on context (the firewood / Merchant / Braid Maker pattern:
 ``triggers.CARDS`` is card-id-keyed, so each ``register`` call overwrites
 ``CARDS[CARD_ID]``, benign only because every entry carries this same fn).
 
@@ -132,20 +169,27 @@ assert _JOINERY_SPEC.side_effect_fn is None and _JOINERY_SPEC.variants_fn is Non
 assert _JOINERY_SPEC.food_out >= _PLOW_FOOD_COST
 
 
-# --- Clause 2: the fused Joinery-use + paid-plow span trigger ----------------
+# --- Clause 2: the harvest plow — the fused and standalone span fires --------
 
-def _fused_eligible(state: "GameState", idx: int, triggers_resolved) -> bool:
-    """Fused-trigger eligibility: owns the card (tableau), owns the Joinery
-    (the spec's owner-array predicate), the Joinery's shared once-per-harvest
-    budget unused, the conversion input (1 wood) on hand, and a plowable cell
-    exists. No separate food gate — the conversion's +2 food covers the
-    1-food plow cost (see the import-time assertion)."""
+# The once-per-harvest plow latch (shared by both fires): the card's own id in
+# `harvest_conversions_used` — the native per-harvest budget store, reset at
+# the walk's fresh FIELD entry, inert to every other reader (see docstring).
+PLOW_LATCH_ID = CARD_ID
+
+
+def _fused_eligible(state: "GameState", idx: int) -> bool:
+    """The fused use-Joinery-and-plow fire: owns the Joinery (the spec's
+    owner-array predicate), the Joinery's shared once-per-harvest budget
+    unused, the plow latch unused, the conversion input (1 wood) on hand, and
+    a plowable cell exists. No separate food gate — the conversion's +2 food
+    covers the 1-food plow cost (see the import-time assertion). Tableau
+    ownership is checked by the caller (_span_eligible)."""
     p = state.players[idx]
-    if CARD_ID not in p.occupations:
-        return False
     if not _JOINERY_SPEC.is_owned_fn(state, idx):
         return False
     if JOINERY_CONVERSION_ID in p.harvest_conversions_used:
+        return False
+    if PLOW_LATCH_ID in p.harvest_conversions_used:
         return False
     if not all(getattr(p.resources, f) >= getattr(_JOINERY_SPEC.input_cost, f)
                for f in RESOURCE_FIELDS):
@@ -153,21 +197,61 @@ def _fused_eligible(state: "GameState", idx: int, triggers_resolved) -> bool:
     return _can_plow(p)
 
 
-def _fused_fire(state: "GameState", idx: int) -> "GameState":
-    """The one fired action, both halves (ruling 75 item 7): the Joinery
-    conversion exactly as the feed surface performs it — debit the spec's
-    input, add its food_out, mark the SHARED budget id — then the plow's
-    printed 1 food debited directly (frame triggers carry no cost layer) and
-    the plow primitive pushed."""
+def _standalone_eligible(state: "GameState", idx: int) -> bool:
+    """The standalone pay-1-food-plow fire (ruling 76 item 3): the Joinery
+    HAS been used this harvest (the budget-used boolean — any surface: feed,
+    frontier, craft-span window, or the fused fire), the plow latch unused,
+    the 1 food on hand (no conversion covers it here), and a plowable cell
+    exists. Tableau ownership is checked by the caller (_span_eligible)."""
     p = state.players[idx]
-    p = fast_replace(
-        p,
-        resources=(p.resources - _JOINERY_SPEC.input_cost
-                   + Resources(food=_JOINERY_SPEC.food_out)
-                   - Resources(food=_PLOW_FOOD_COST)),
-        harvest_conversions_used=(
-            p.harvest_conversions_used | {JOINERY_CONVERSION_ID}),
-    )
+    if JOINERY_CONVERSION_ID not in p.harvest_conversions_used:
+        return False
+    if PLOW_LATCH_ID in p.harvest_conversions_used:
+        return False
+    return p.resources.food >= _PLOW_FOOD_COST and _can_plow(p)
+
+
+def _span_eligible(state: "GameState", idx: int, triggers_resolved) -> bool:
+    """The one span-trigger eligibility: owns the card (tableau), and either
+    fire is available. The two are mutually exclusive in time (the
+    ``"joinery"`` budget boolean discriminates), so the offered FireTrigger
+    is always unambiguous."""
+    if CARD_ID not in state.players[idx].occupations:
+        return False
+    return _fused_eligible(state, idx) or _standalone_eligible(state, idx)
+
+
+def _span_fire(state: "GameState", idx: int) -> "GameState":
+    """The span fire, dispatching on the same boolean the eligibilities
+    discriminate on. Joinery budget unused -> the FUSED fire (ruling 75 item
+    7): the Joinery conversion exactly as the feed surface performs it —
+    debit the spec's input, add its food_out, mark the SHARED budget id —
+    plus the plow. Joinery budget used -> the STANDALONE fire (ruling 76 item
+    3): just the paid plow. Both debit the plow's printed 1 food directly
+    (frame triggers carry no cost layer), mark the shared plow latch, and
+    push the plow primitive."""
+    p = state.players[idx]
+    if JOINERY_CONVERSION_ID in p.harvest_conversions_used:
+        # Standalone (ruling 76 item 3): pay 1 food, plow — the Joinery was
+        # used earlier this harvest by a plain surface.
+        p = fast_replace(
+            p,
+            resources=p.resources - Resources(food=_PLOW_FOOD_COST),
+            harvest_conversions_used=(
+                p.harvest_conversions_used | {PLOW_LATCH_ID}),
+        )
+    else:
+        # Fused (ruling 75 item 7): the Joinery conversion + the paid plow as
+        # one fired action, consuming BOTH latches.
+        p = fast_replace(
+            p,
+            resources=(p.resources - _JOINERY_SPEC.input_cost
+                       + Resources(food=_JOINERY_SPEC.food_out)
+                       - Resources(food=_PLOW_FOOD_COST)),
+            harvest_conversions_used=(
+                p.harvest_conversions_used
+                | {JOINERY_CONVERSION_ID, PLOW_LATCH_ID}),
+        )
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
     return push(state, PendingPlow(
@@ -206,17 +290,18 @@ def _fire_apply(state: "GameState", idx: int) -> "GameState":
         # PendingBuildMajor for the Joinery (the seam owns the pop+push and
         # the before_build_major autos), priced normally by the chokepoint.
         return swap_play_minor_to_build_major(state, JOINERY_IDX)
-    return _fused_fire(state, idx)
+    return _span_fire(state, idx)
 
 
 # Pure recurring-effect occupation: played via Lessons, its on-play is a no-op.
 register_occupation(CARD_ID, lambda state, idx: state)
 
-# Clause 2 — the fused trigger on every free-span surface (ruling 75 item 7),
-# on the Joinery's shared once-per-harvest budget. Eligibility is per-event
-# (the enumerator reads the event-keyed TRIGGERS entries); the apply is the
-# card's ONE shared dispatch fn (see _fire_apply).
-register_free_span_trigger(CARD_ID, _fused_eligible, _fire_apply)
+# Clause 2 — the ONE span trigger serving both fires (rulings 75 item 7 + 76
+# item 3): the fused use-Joinery-and-plow while the Joinery budget is unused,
+# the standalone pay-1-food-plow once it is used, on the shared plow latch.
+# Eligibility is per-event (the enumerator reads the event-keyed TRIGGERS
+# entries); the apply is the card's ONE shared dispatch fn (see _fire_apply).
+register_free_span_trigger(CARD_ID, _span_eligible, _fire_apply)
 
 # Clause 1 — the named-minor-action build: the branch gate registration + the
 # swap trigger (eligibility == the seam's options predicate, per its contract;

@@ -2433,7 +2433,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E90 Dung Collector** · [1+] · ruling 74 (breeding-outcome trigger, Champion Breeder read)
   - _Each time you get 2 or more newborn animals, you can pay 1 food to plow 1 field.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.]_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Each time you get 2+ newborns, optionally pay 1 food to plow a field.
-- ✅ **E91 Plow Builder** · [1+] · rulings 74+75 (Joinery at the minor action; the fused use-Joinery-and-plow span trigger)
+- ✅ **E91 Plow Builder** · [1+] · rulings 74+75+76 (Joinery at the minor action; fused use-Joinery-and-plow + standalone post-Joinery plow, once per harvest)
   - _You can build the Joinery when taking a "Minor Improvement" action. If you use the Joinery (or an upgrade thereof) during the harvest, you can pay 1 food to plow 1 field._
   - `PASSIVE L-EXT HOOK S-HFEED T-BEFORE F-TRIG A-OWN E-GRANTSUB E-FOODCOST` — Plow Builder: Joinery buildable via Minor Improvement (PASSIVE+L-EXT); using Joinery during harvest is a feeding-phase conversion -> S-HFEED (user ruling), pay 1 food to plow.
 - ✅ **E92 Field Doctor** · [1+]
