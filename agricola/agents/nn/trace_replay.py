@@ -120,6 +120,14 @@ def action_to_params(action: Action) -> dict[str, Any]:
             continue
         if f.name == "boost_card_sows" and v == ():
             continue
+        # Same idiom for PlaceWorker.picks (user ruling 74, 2026-07-21 — the
+        # played-card-as-action-space machinery): Family placements never carry
+        # a card-space goods payload, so the None default is omitted and the
+        # Family wire encoding — and the C++ gates — are unchanged. A non-None
+        # value is a tuple of good-name strings, emitted as a JSON list;
+        # `action_from_params` re-tuples it.
+        if f.name == "picks" and v is None:
+            continue
         if isinstance(v, frozenset):
             params[f.name] = [list(t) for t in sorted(v)]
         elif isinstance(v, (Resources, ReturnImprovement)):
@@ -140,6 +148,8 @@ def action_from_params(type_name: str, params: dict[str, Any]) -> Action:
             kwargs[k] = frozenset(tuple(c) for c in v)
         elif k in ("card_sows", "boost_card_sows"):
             kwargs[k] = tuple(tuple(pair) for pair in v)
+        elif k == "picks":
+            kwargs[k] = tuple(v) if v is not None else None
         elif isinstance(v, dict) and "route" in v:
             kwargs[k] = _payment_from_json(v)
         elif k == "to_material":

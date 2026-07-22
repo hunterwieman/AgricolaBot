@@ -24,8 +24,22 @@ class PlaceWorker:
 
     For atomic spaces this is the entire action.
     For non-atomic spaces this initiates a chain of pending sub-decisions.
+
+    `space` may also be a CARD action space id, ``"card:<card_id>"`` (user
+    ruling 74, 2026-07-21 — played-card-as-action-space; the registry is
+    `agricola.cards.card_spaces.CARD_ACTION_SPACES`): a placement on the
+    owner's own tableau card (Collector C104, Tree Inspector D116). `picks`
+    is that placement's payload — the chosen goods combination for a card
+    space that surfaces WIDE at PlaceWorker (Collector: one placement action
+    per C(10, 6/7/8/9) combination of distinct good names, per the ruling) —
+    and None for every board placement and every plain card placement.
+    Family-constant None (no card space exists there), so it is skipped from
+    the wire encoding at default (trace_replay.action_to_params) and
+    canonical-skipped, keeping the Family action contract and the C++ gates
+    untouched.
     """
-    space: str   # action space ID, e.g. "forest", "grain_utilization"
+    space: str   # action space ID, e.g. "forest", "grain_utilization", "card:collector"
+    picks: tuple | None = None   # card-space placement payload (ruling 74)
 
 
 @dataclass(frozen=True)

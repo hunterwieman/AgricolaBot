@@ -1394,6 +1394,15 @@ class PendingActionSpace:
     # card's own alternate reward is a SEPARATE grant, never routed through here.
     # Card-only frame → Family-inert; canonical-default-skipped at False.
     suppressed: bool = False
+    # CARD action spaces (user ruling 74, 2026-07-21 — played-card-as-action-space;
+    # agricola/cards/card_spaces.py): when this frame hosts a card-space use
+    # (initiated_by_id "space:card:<id>", so `space_id` reads "card:<id>"), `picks`
+    # carries the placement's payload — PlaceWorker.picks, the chosen goods
+    # combination of a wide card space (Collector) — from the placement to the
+    # Proceed work step, where _apply_proceed hands it to the registered use_fn.
+    # None for every board-space host and every plain card placement.
+    # Card-only frame → Family-inert; canonical-default-skipped at None.
+    picks: tuple | None = None
 
     @property
     def space_id(self) -> str:

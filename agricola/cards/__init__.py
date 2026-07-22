@@ -1045,3 +1045,7 @@ from agricola.cards import furnisher  # noqa: F401
 from agricola.cards import field_merchant  # noqa: F401
 from agricola.cards import braid_maker  # noqa: F401
 from agricola.cards import miller  # noqa: F401
+
+# --- 2026-07-21 ruling-74 triage batch, Wave 4 (card-as-action-space) ---
+from agricola.cards import collector  # noqa: F401
+from agricola.cards import tree_inspector  # noqa: F401

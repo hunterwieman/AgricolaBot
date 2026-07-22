@@ -152,6 +152,15 @@ def _return_eligible(state: GameState, idx: int) -> bool:
         return False                    # the printed exception
     # If the first person already went home some other way, there is nothing
     # to return — silently don't fire.
+    if first_space.startswith("card:"):
+        # The first placement was on a CARD action space (ruling 74,
+        # 2026-07-21 — card spaces count as action spaces for other cards'
+        # hooks; Collector / Tree Inspector). That person is a placed person
+        # like any other and Collector is not Meeting Place, so the printed
+        # return applies; the worker record is the on-card marker, not a
+        # board `workers` tuple.
+        from agricola.cards.card_spaces import card_space_worker_count
+        return card_space_worker_count(p, first_space.split(":", 1)[1]) >= 1
     return get_space(state.board, first_space).workers[idx] >= 1
 
 
@@ -159,6 +168,12 @@ def _return_apply(state: GameState, idx: int) -> GameState:
     """Return the first person placed this round home (Tea Time's semantics:
     the space's owner worker count −1, ``people_home`` +1, the space OPEN)."""
     _rec_round, first_space = state.players[idx].card_state.get(CARD_ID)
+    if first_space.startswith("card:"):
+        # A CARD action space (ruling 74): the machinery's return helper —
+        # marker cleared, people_home +1, and the vacated card space is OPEN
+        # (occupancy is solely worker presence, the Tea Time ruling).
+        from agricola.cards.card_spaces import return_card_space_worker
+        return return_card_space_worker(state, idx, first_space.split(":", 1)[1])
     sp = get_space(state.board, first_space)
     workers = tuple(
         n - 1 if i == idx else n for i, n in enumerate(sp.workers))

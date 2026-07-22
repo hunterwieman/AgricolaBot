@@ -1962,7 +1962,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **C103 Green Grocer** · [1+]
   - _At the start of each round, you can make exactly one of the following exchanges: 1 Cattle → 1 Vegetable; 1 Vegetable → 1 Cattle; 2 Sheep → 1 Vegetable; 1 Vegetable → 2 Sheep; 2 Food → 1 Grain; 1 Grain → 2 Food_
   - `HOOK S-SOR T-BEFORE F-TRIG A-OWN E-CONVERT E-ANIMALS` — Optional start-of-round exchange menu → HOOK/S-SOR/F-TRIG/A-OWN/T-BEFORE. All outputs ride on E-CONVERT (no separate E-GOODS, consistent with exchange tagging); cattle/sheep outputs need accommodation → E-ANIMALS.
-- ⬜ **C104 Collector** · [1+]
+- ✅ **C104 Collector** · [1+] · ruling 74 (private card action space; wide picks at PlaceWorker)
   - _This card is an action space for you only. When you use it for the 1st/2nd/3rd/4th time, you get 1 begging marker and 6/7/8/9 different good of your choice._
   - `HOOK T-AFTER S-SPACE F-MANDCHOICE A-OWN E-GOODS E-ANIMALS L-CARDSPACE ST-COUNTER` — A personal action space whose use pays out (goods of your choice + a begging marker) — a mandatory-with-choice payout on using the space, not PASSIVE. 8/9 different goods is only reachable if animals count among the choices, so keep E-ANIMALS. The 1st–4th use scaling and exhaustion is the ST-COUNTER; dropped labelA's CAP-GAME since it means once-ever, not four uses.
 - ✅ **C105 Basket Carrier** · [1+]
@@ -2253,7 +2253,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D115 Fodder Planter** · [1+]
   - _In the breeding phase of each harvest, for each newborn animal you get, you can sow crops in exactly 1 field.  [CLARIFICATION: You must be able to accommodate each newborn in order to get it.  You may not plant onto Wood Field D075 this way.]_
   - `HOOK T-AFTER S-HBREED F-TRIG A-OWN E-GRANTSUB` — During breeding, per newborn gained may sow crops in exactly 1 field — grants a sow sub-action per newborn.
-- ⬜ **D116 Tree Inspector** · [1+]
+- ✅ **D116 Tree Inspector** · [1+] · ruling 74 (private wood accumulation space; quarry-reveal discard)
   - _This card is a "1 Wood" accumulation space for you only. Each time the newly revealed action space card is a "Quarry" accumulation space, you must discard all wood from this card._
   - `PASSIVE L-CARDSPACE ST-STACK E-GOODS HOOK T-AFTER S-REVEAL F-AUTO A-OWN E-TAKEBACK` — Personal 1-wood accumulation space = PASSIVE accumulation + L-CARDSPACE + ST-STACK, wood gained when used (E-GOODS); the mandatory discard fires on the reveal event filtered by the revealed card being a Quarry (S-REVEAL/T-AFTER/F-AUTO) — the identity is public at fire time, so L-HIDDEN is unwarranted, and the seam is the reveal itself, not start-of-round, so S-SOR is wrong.
 - ✅ **D117 Wood Expert** · [1+]

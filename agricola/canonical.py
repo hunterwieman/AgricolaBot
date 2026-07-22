@@ -173,6 +173,15 @@ _DEFAULT_SKIP_FIELDS = frozenset({
     # PendingGrantedSubAction.minor_allowed (ruling 74 — Miller's baking-minor
     # menu, the major_allowed sibling): card-only frame, Family-constant None.
     "minor_allowed",
+    # Card-action-space placement payload (ruling 74, 2026-07-21 — the
+    # played-card-as-action-space machinery, agricola/cards/card_spaces.py):
+    # PlaceWorker.picks (the wide goods combination of a Collector placement)
+    # and PendingActionSpace.picks (the same payload carried on the host frame
+    # from the placement to the Proceed work step). Family-constant None — no
+    # card space exists there (PendingActionSpace is card-only anyway, and a
+    # Family PlaceWorker never sets picks) — so omitting at default keeps the
+    # Family JSON byte-identical and needs no C++ change.
+    "picks",
     # Cell.stone (Stone Clearing C6, user ruling 2026-07-20): stone placed on a
     # field tile — only that card writes it, so it is Family-constant 0. MUST
     # stay qualified: an unqualified "stone" would also skip Resources.stone,

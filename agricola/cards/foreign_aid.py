@@ -64,6 +64,12 @@ def _forbid(state: GameState, owner_idx: int, space_id: str) -> bool:
     on Foreign Aid ownership so non-owners (and the whole Family game) are
     untouched; permanents (``revealed_round == 0``) and unrevealed spaces
     (``revealed_round is None``) are never in the set, so they stay placeable."""
+    if space_id.startswith("card:"):
+        # A CARD action space (ruling 74 — card_spaces.py; the forbid seam
+        # filters them uniformly): never a rounds-12–14 stage space, so the
+        # prohibition structurally cannot apply — and it is not a board id,
+        # so it must not reach get_space.
+        return False
     if CARD_ID not in state.players[owner_idx].minor_improvements:
         return False
     return get_space(state.board, space_id).revealed_round in _FORBIDDEN_ROUNDS

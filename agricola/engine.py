@@ -377,6 +377,15 @@ COMMIT_SUBACTION_HANDLERS: dict[type, tuple] = {
 
 
 def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
+    # CARD action spaces (user ruling 74, 2026-07-21 — played-card-as-action-space,
+    # agricola/cards/card_spaces.py): a "card:<card_id>" placement targets the
+    # owner's own tableau card, not the board, so it takes its own path — the
+    # worker marker lives on the card (CardStore), never in board state. The
+    # Family game never generates such an action (empty registry → the space id
+    # is never surfaced), so this branch is Family-inert.
+    if action.space.startswith("card:"):
+        return _apply_place_card_space_worker(state, action)
+
     # Cross-cutting bookkeeping: workers, people_home.
     state = _apply_worker_placement(state, action.space)
 
@@ -416,6 +425,46 @@ def _apply_place_worker(state: GameState, action: PlaceWorker) -> GameState:
     raise NotImplementedError(
         f"No handler registered for space {action.space!r}"
     )
+
+
+def _apply_place_card_space_worker(state: GameState, action: PlaceWorker) -> GameState:
+    """Place a worker on a CARD action space (user ruling 74, 2026-07-21 —
+    played-card-as-action-space; registry: `agricola/cards/card_spaces.py`).
+
+    Mirrors a board placement exactly where the rules are shared, and diverges
+    only in where the worker marker lives:
+
+    - `people_home` decrements exactly like any placement (the
+      `_apply_worker_placement` step-2 accounting), so player alternation and
+      the round's all-placed detection — both keyed on `people_home` — just
+      work.
+    - The occupancy record is the on-card worker marker (a CardStore count via
+      `place_card_space_worker`), not a board `workers` tuple: "an occupied
+      action space cannot be used again that round" is enforced by the
+      placement enumerator reading that marker, and `_return_home_reset`
+      clears it.
+    - The use is HOSTED with the generic atomic-host lifecycle (the
+      `PendingActionSpace` shape — before-autos at the push here, the work at
+      Proceed via the registered `use_fn`, the after-window, Stop), so a
+      card-space use fires `before_/after_action_space` with
+      `space_id = "card:<id>"` — the ruling's "card spaces count as action
+      spaces for other cards' hooks" consequence. `picks` (the wide
+      placement's payload — Collector's goods combination) rides the host
+      frame from the placement to the Proceed work step.
+    """
+    from agricola.cards.card_spaces import place_card_space_worker
+
+    card_id = action.space.split(":", 1)[1]
+    ap = state.current_player
+    p = state.players[ap]
+    p = place_card_space_worker(
+        fast_replace(p, people_home=p.people_home - 1), card_id)
+    state = fast_replace(state, players=tuple(
+        p if i == ap else state.players[i] for i in range(len(state.players))))
+    state = push(state, PendingActionSpace(
+        player_idx=ap, initiated_by_id=f"space:{action.space}",
+        picks=action.picks))
+    return apply_auto_effects(state, "before_action_space", ap)
 
 
 def _fire_subaction_before_auto(state: GameState, prev_depth: int) -> GameState:
@@ -769,7 +818,17 @@ def _apply_proceed(state: GameState) -> GameState:
         # Resources() and the card's own alternate reward is a separate grant, so
         # "got food from a space" reactors (Kindling Gatherer) never fire.
         if not top.suppressed:
-            state = ATOMIC_HANDLERS[top.space_id](state)
+            if top.space_id.startswith("card:"):
+                # CARD action space (ruling 74 — card_spaces.py): the space's
+                # work is the registered use_fn, the ATOMIC_HANDLERS slot of a
+                # card space. It receives the host's owner and the placement's
+                # `picks` payload carried on the frame. Family-inert (the frame
+                # is card-only and the id shape only arises from the registry).
+                from agricola.cards.card_spaces import CARD_ACTION_SPACES
+                spec = CARD_ACTION_SPACES[top.space_id.split(":", 1)[1]]
+                state = spec.use_fn(state, top.player_idx, top.picks)
+            else:
+                state = ATOMIC_HANDLERS[top.space_id](state)
         # Stamp the goods the acting player obtained from the space (Resources delta
         # across the take) on the host, for after_action_space autos that key on
         # "what you took from the space" (Refactor A). Today's atomic handlers push
@@ -1245,8 +1304,15 @@ def _return_home_reset(state: GameState) -> GameState:
         fast_replace(p, people_home=p.people_total)
         for p in state.players
     )
+    state = fast_replace(state, players=new_players, board=new_board)
 
-    return fast_replace(state, players=new_players, board=new_board)
+    # 3. CARD action spaces (user ruling 74, 2026-07-21 — card_spaces.py):
+    #    clear the on-card worker markers so the card spaces are placeable
+    #    next round (the meeples themselves went home in step 2's blanket
+    #    people_home reset). Registry empty → O(1) no-op, the Family fast
+    #    path — byte-identical states.
+    from agricola.cards.card_spaces import clear_card_space_workers
+    return clear_card_space_workers(state)
 
 
 def _round_transition(state: GameState) -> GameState:

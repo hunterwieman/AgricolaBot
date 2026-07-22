@@ -193,7 +193,14 @@ PLACEMENT_FORBID_EXTENSIONS: list[Callable] = []
 
 
 def register_placement_forbid(fn: Callable) -> None:
-    """Add a card-supplied predicate that FORBIDS its owner a worker placement."""
+    """Add a card-supplied predicate that FORBIDS its owner a worker placement.
+
+    ``fn(state, owner_idx, space_id) -> bool``. `space_id` may also be a CARD
+    action space id, ``"card:<card_id>"`` (user ruling 74, 2026-07-21 — card
+    spaces count as action spaces for other cards' hooks, so the forbid seam
+    filters them uniformly): a predicate that only targets named board spaces
+    must early-False on the ``card:`` prefix before any ``get_space`` lookup
+    (Foreign Aid's round-space check does)."""
     PLACEMENT_FORBID_EXTENSIONS.append(fn)
 
 
@@ -1768,6 +1775,7 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
         for s, predicate in table.items()
         if predicate(state)
     ]
+    placements += _card_space_placements(state)   # ruling 74; Family: O(1) no-op
     if PLACEMENT_FORBID_EXTENSIONS:  # empty in the Family game → byte-identical
         ap = state.current_player
         placements = [
@@ -1775,6 +1783,42 @@ def legal_placements(state: GameState) -> list[PlaceWorker]:
             if not any(f(state, ap, pw.space) for f in PLACEMENT_FORBID_EXTENSIONS)
         ]
     return placements
+
+
+def _card_space_placements(state: GameState) -> list[PlaceWorker]:
+    """Placements on CARD action spaces (user ruling 74, 2026-07-21 — the
+    played-card-as-action-space machinery, `agricola/cards/card_spaces.py`):
+    one ``PlaceWorker(space="card:<card_id>", picks=…)`` per placement variant
+    of each card space that is
+
+    - REGISTERED (`CARD_ACTION_SPACES`),
+    - OWNED by the current player — "for you only": the opponent never sees
+      the placement at all,
+    - UN-OCCUPIED this round (the on-card worker marker — "an occupied action
+      space cannot be used again that round"), and
+    - currently placeable (`placeable_fn` non-empty; `[None]` is one plain
+      placement, a list of picks tuples the WIDE variants — Collector's
+      C(10, 6/7/8/9) goods combinations surface one placement each, per the
+      ruling: none are Pareto-comparable, so there is no pruning).
+
+    Card spaces then flow through `PLACEMENT_FORBID_EXTENSIONS` like any other
+    action space (card spaces count as action spaces for other cards' hooks).
+    Empty registry → O(1) no-op list, the Family fast path."""
+    from agricola.cards.card_spaces import CARD_ACTION_SPACES, card_space_occupied
+    if not CARD_ACTION_SPACES:
+        return []
+    ap = state.current_player
+    p = state.players[ap]
+    out: list[PlaceWorker] = []
+    for card_id in sorted(CARD_ACTION_SPACES):
+        if card_id not in p.occupations and card_id not in p.minor_improvements:
+            continue                         # "for you only" — owner-only, played only
+        if card_space_occupied(p, card_id):
+            continue                         # occupied this round
+        spec = CARD_ACTION_SPACES[card_id]
+        for picks in spec.placeable_fn(state, ap):
+            out.append(PlaceWorker(space=f"card:{card_id}", picks=picks))
+    return out
 
 
 # ---------------------------------------------------------------------------
