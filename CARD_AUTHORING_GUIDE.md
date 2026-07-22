@@ -103,6 +103,39 @@ Therefore:
     accommodation barrier can surface the keep-which choice on overflow (§ below); counts
     ("Nth person", "in hand") must exclude same-turn artifacts.
 
+### 0.2 Don't ship the easy part and call the hard part done — an honest gap beats a disguised one
+
+Many cards and mechanisms split into a tractable part and a hard part. The failure this
+section exists to stop is **building the tractable part and then making the hard part
+disappear** — by dropping it, approximating it, or quietly recording a partial solution as a
+finished decision. A hard part is not *done* until it is either solved correctly or
+**explicitly recorded as OPEN, with its reason**. An honestly-flagged gap is fine and expected;
+a gap disguised as a settled decision is the problem — it reads as "handled" to the next
+session and silently isn't.
+
+This is broader than the defer-whole rule (§0), which is about a card that doesn't fit. This is
+about the temptation, once you *have* the workable 80%, to make the remaining 20% vanish rather
+than name it. Three shapes it takes, each easy to rationalize in the moment:
+
+- **Reverting the hard part and calling the reduced state "the decision."** A converter that
+  didn't fit the payment frontier gets removed from it, and the reduced *feed-seam-only* state
+  is written up as *the ruling* — when the real question (how that converter *should* behave in
+  the frontier) is an unsolved design problem. Correct move: record it as OPEN/unresolved, and
+  distinguish "reverted to an interim state, still unresolved" from "decided."
+- **Over-engineering a subproblem instead of the right fix.** A dead-end gets patched with an
+  elaborate guard that suppresses the symptom while encoding the wrong model; the correct fix is
+  smaller and different. Solving *a* problem is not solving *the* problem — re-check that your
+  fix matches the actual rule, not just that the failure stopped.
+- **Delegating the part whose whole value is care.** Comprehensive documentation, a subtle
+  correctness fix — work that lives or dies on the implementer's judgment and context — handed
+  off because it is tedious. That offloads exactly the part that most needed you.
+
+How to apply: when you reach something you can't fully or correctly solve, **say so in the
+artifact** (the module docstring, the deferred-plans doc, the status section) — mark it OPEN
+with the reason, never let "this is hard" quietly become "this is done." If you are unsure
+whether what you have is complete or a papered-over partial, that uncertainty is itself the
+signal to flag it and ask (§0).
+
 Everything below helps you decide *whether* a card fits — and if it clearly does, *how*.
 If it does not clearly fit: §0.
 
