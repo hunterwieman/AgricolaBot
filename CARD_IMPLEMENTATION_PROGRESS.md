@@ -1908,16 +1908,16 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ⬜ **C85 Den Builder** · [1+]
   - _When you live in a clay or stone house, you can pay 1 grain and 2 food. If you do, for the rest of the game, this card provides room for exactly one person._
   - `ATWILL CAP-GAME E-FOODCOST E-CAPNEW ST-STORE` — 'You can pay' while the house condition holds is a player-timed, deferrable option (once ever), not a LATCH — LATCH is an effect that fires automatically the first moment a condition turns true, with no decline. The paid state persists as a flag (ST-STORE); the card then houses one person (E-CAPNEW); 2 food = E-FOODCOST (grain is an ordinary cost).
-- ⬜ **C86 Livestock Feeder** · [1+]
+- ✅ **C86 Livestock Feeder** · [1+] · ruling 74 (grain flexible slots; volatile-capacity watermark eviction)
   - _When you play this card, you immediately get 1 grain. Each grain in your supply can hold 1 animal of any type. (these animals count as accommodated on your farm.)_
   - `ONPLAY PASSIVE E-GOODS E-CAPNEW` — On play gain 1 grain; each grain becomes a continuous new holder for 1 animal of any type.
 - ⬜ **C87 Mason** · [1+]
   - _Place a stone room on this card. Once you have a stone house with at least 4 rooms, at any time, you can add that room without paying any building resources._
   - `ATWILL CAP-GAME E-GRANTSUB ST-STORE` — 'At any time, you can' once the stone-house-4-rooms condition holds = ATWILL grant of a build-room sub-action, usable once (one room on the card) → CAP-GAME + ST-STORE. The card holds a room piece, not an action space (no L-CARDSPACE), and a free granted build is a grant, not a cost modification (no E-COSTMOD).
-- ⬜ **C88 Carpenter's Apprentice** · [1+]
+- ✅ **C88 Carpenter's Apprentice** · [1+] · ruling 74 (wood-room/stable-ordinal reductions; 13th–15th fence ordinal frees)
   - _Wood rooms cost you 2 woods less. Your 3rd and 4th stable each cost you 1 wood less. Your 13th to 15th fence each cost you nothing._
   - `PASSIVE E-COSTMOD E-FREEFENCE` — Continuous cost reductions: wood rooms -2 wood, 3rd/4th stable -1 wood, 13th-15th fences free.
-- ⬜ **C89 Stable Master** · [1+]
+- ✅ **C89 Stable Master** · [1+] · ruling 74 (wide on-play stable build; flexible→3-bin upgrade fold)
   - _When you play this card, you can immediately build exactly 1 stable for 1 wood. Exactly one of your unfenced stables can hold up to 3 animals of one type._
   - `ONPLAY E-GRANTSUB PASSIVE E-CAPGROW` — On play, optionally build 1 stable for 1 wood (ONPLAY grant of a build-stable sub-action, E-GRANTSUB). Passive ongoing rule that exactly one unfenced stable holds up to 3 animals (PASSIVE + E-CAPGROW). The 'exactly one stable' is a passive capacity override, not a per-use game cap, so no CAP-GAME.
 - ✅ **C90 Field Watchman** · [1+]
@@ -2193,7 +2193,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **D95 Site Manager** · [1+] · ruling 74 (optional granted major build; grant-scoped food substitution)
   - _When you play this card, immediately build a major improvement. When paying its cost, you can replace up to 1 building resource of each type with 1 food each._
   - `ONPLAY E-GRANTACT E-COSTMOD E-FOODCOST` — One-time on-play grant of a major-improvement build with a food-for-resource substitution: the substitution is E-COSTMOD, and since the payment may be made in food (potentially via crop/animal conversion) E-FOODCOST also applies (labelB).
-- ⬜ **D96 Furnisher** · [1+]
+- ✅ **D96 Furnisher** · [1+] · ruling 74 (every-room-build trigger; max_uses grant wrapper; grant-scoped −1 wood)
   - _When you play this card, you immediately get 2 wood. After each new room you build, you can build or play 1 improvement for 1 wood less.  [CLARIFICATION: The improvement does not need to cost any wood.]_
   - `ONPLAY E-GOODS HOOK T-AFTER S-SUB F-TRIG A-OWN E-COSTMOD E-GRANTACT` — On-play +2 wood (ONPLAY/E-GOODS); after each room built (HOOK/S-SUB/T-AFTER/A-OWN, optional F-TRIG) you may build-or-play an improvement (grants the build/play action E-GRANTACT) at 1 wood less (E-COSTMOD). Include A-OWN per convention; keep E-GRANTACT (pass2 dropped it).
 - 🚫 **D97 Begging Student** · [1+]

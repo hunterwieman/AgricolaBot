@@ -1033,3 +1033,10 @@ from agricola.cards import site_manager  # noqa: F401
 from agricola.cards import sheep_inspector  # noqa: F401
 from agricola.cards import dung_collector  # noqa: F401
 from agricola.cards import henpecked_husband  # noqa: F401
+
+# --- 2026-07-21 ruling-74 triage batch, Wave 2 (the four new seams; per-card
+#     rulings in CARD_DEFERRED_PLANS.md ruling 74) ---
+from agricola.cards import livestock_feeder  # noqa: F401
+from agricola.cards import stable_master  # noqa: F401
+from agricola.cards import carpenters_apprentice  # noqa: F401
+from agricola.cards import furnisher  # noqa: F401
