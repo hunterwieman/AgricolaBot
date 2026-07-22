@@ -28,19 +28,30 @@ import dataclasses
 
 from agricola.cards.card_fields import stacks_to_store
 
-from agricola.actions import CommitConvert, CommitHarvestConversion
+from agricola.actions import (
+    CommitConvert,
+    CommitFoodPayment,
+    CommitHarvestConversion,
+)
 from agricola.cards.schnapps_distillery import CARD_ID
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
-from agricola.cards.specs import MINORS
+from agricola.cards.harvest_windows import (
+    available_span_converters,
+    sentinel_position,
+)
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, MINORS
 from agricola.constants import Phase
 from agricola.engine import _initiate_harvest_feed, step
 from agricola.legality import legal_actions
-from agricola.resources import Animals, Resources
+from agricola.pending import PendingFoodPayment
+from agricola.replace import fast_replace
+from agricola.resources import Animals, Cost, Resources
 from agricola.scoring import SCORING_TERMS
 from agricola.state import GameState
 from agricola.setup import setup
 
 from tests.factories import (
+    with_majors,
     with_minors,
     with_phase,
     with_resources,
@@ -230,3 +241,60 @@ def test_opponent_without_card_unaffected():
     score_fn = _score_fn()
     state = setup(seed=0)
     assert score_fn(state, 1) == 0
+
+
+# ---------------------------------------------------------------------------
+# The payment-frontier surface (ruling 77 item 1) — effect 1 (the veg->food
+# conversion) joins any PendingFoodPayment frame in the feeding phase. Effect 2
+# (the scoring term) is independent and untouched by ruling 77.
+# ---------------------------------------------------------------------------
+
+FOOD_PAYMENT_RESUMES["_test_distillery_resume"] = lambda state, idx: state
+FIREPLACE_IDX = 0
+
+
+def test_frontier_fire_registered():
+    """The veg->food conversion carries the ruling-77 6-tuple frontier_fire
+    (1 veg -> 5 food); single-input, so no frontier_group."""
+    spec = HARVEST_CONVERSIONS[CARD_ID]
+    assert spec.frontier_fire == ((0, 1, 0, 0, 0, 0), 5)
+    assert spec.frontier_group is None
+
+
+def _payment_state(*, owe, veg=0, phase=Phase.HARVEST_FEED, cursor=None,
+                   fireplace=False) -> GameState:
+    state = setup(seed=0)
+    state = dataclasses.replace(state, starting_player=0)
+    state = with_minors(state, 0, frozenset({CARD_ID}))
+    if fireplace:
+        state = with_majors(state, owner_by_idx={FIREPLACE_IDX: 0})
+    p = state.players[0]
+    p = fast_replace(p, resources=Resources(veg=veg))
+    frame = PendingFoodPayment(
+        player_idx=0, food_needed=owe,
+        resume_kind="_test_distillery_resume", reserved=Cost())
+    return dataclasses.replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2)),
+        phase=phase, pending_stack=(frame,), harvest_cursor=cursor)
+
+
+def test_feeding_frame_offers_distillery_greedy_tiering():
+    """owe 8, 5 veg, Fireplace (veg rate 2): Schnapps Distillery (1 veg -> 5)
+    plus base-cooking 2 veg (-> 4) keeps 2 veg, dominating the all-base config —
+    the base `veg` field is the cooked remainder only."""
+    s = _payment_state(owe=8, veg=5, fireplace=True)
+    commits = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert commits and all(a.conversions == (CARD_ID,) for a in commits)
+    assert commits[0].veg == 2
+    p = step(s, commits[0]).players[0]
+    assert p.resources.veg == 2               # 5 - (1 premium + 2 base)
+    assert p.resources.food == 9              # 2*2 base + 5 premium
+    assert CARD_ID in p.harvest_conversions_used
+
+
+def test_field_frame_does_not_offer_distillery():
+    """Phase scoping: an in-span FIELD raise frame does not offer the
+    feeding-phase conversion."""
+    s = _payment_state(owe=2, veg=3, phase=Phase.HARVEST_FIELD,
+                       cursor=sentinel_position("end_of_field_phase", 0))
+    assert available_span_converters(s, 0) == ()

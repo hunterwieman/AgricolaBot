@@ -300,7 +300,7 @@ def test_field_band_in_span_frame_offers_majors_not_studio():
                        phase=Phase.HARVEST_FIELD,
                        cursor=sentinel_position("end_of_field_phase", 0))
     assert available_span_converters(s, 0) == (
-        ("joinery", (1, 0, 0, 0), 2, None),)
+        ("joinery", (0, 0, 1, 0, 0, 0), 2, None),)
     fired = _fired_sets(s)
     assert ("joinery",) in fired
     assert not any(any(c.startswith(CARD_ID) for c in f) for f in fired)

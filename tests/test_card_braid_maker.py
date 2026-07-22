@@ -217,7 +217,7 @@ def test_registered_on_every_surface():
     assert spec.food_out == 2
     assert spec.side_effect_fn is None
     assert spec.variants_fn is None
-    assert spec.frontier_fire == ((0, 0, 1, 0), 2)
+    assert spec.frontier_fire == ((0, 0, 0, 0, 1, 0), 2)
 
     # The free span: a trigger on EVERY free-span event, with the window hooks
     # indexed for the non-sentinel windows.
@@ -525,7 +525,7 @@ def _in_span_state(*, reed=0, grain=0, food=0, owe=2, owned=True):
 
 def test_raise_frame_offers_and_fires_the_exchange():
     s = _in_span_state(reed=1, owe=2)
-    assert available_span_converters(s, 0) == ((CARD_ID, (0, 0, 1, 0), 2, None),)
+    assert available_span_converters(s, 0) == ((CARD_ID, (0, 0, 0, 0, 1, 0), 2, None),)
     assert legal_actions(s) == [CommitFoodPayment(
         grain=0, veg=0, sheep=0, boar=0, cattle=0, conversions=(CARD_ID,))]
     nxt = step(s, legal_actions(s)[0])

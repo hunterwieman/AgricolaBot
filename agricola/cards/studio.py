@@ -98,12 +98,13 @@ from agricola.state import GameState
 
 CARD_ID = "studio"
 
-# (resource name, input Resources, (w,c,r,s) frontier input, food produced)
-# for the three conversion variants.
+# (resource name, input Resources, (grain,veg,wood,clay,reed,stone) frontier
+# input, food produced) for the three conversion variants. The 6-tuple carries
+# crop inputs too (ruling 77); Studio is building-only, so grain=veg=0.
 _VARIANTS = (
-    ("wood", Resources(wood=1), (1, 0, 0, 0), 2),
-    ("clay", Resources(clay=1), (0, 1, 0, 0), 2),
-    ("stone", Resources(stone=1), (0, 0, 0, 1), 3),
+    ("wood", Resources(wood=1), (0, 0, 1, 0, 0, 0), 2),
+    ("clay", Resources(clay=1), (0, 0, 0, 1, 0, 0), 2),
+    ("stone", Resources(stone=1), (0, 0, 0, 0, 0, 1), 3),
 )
 
 

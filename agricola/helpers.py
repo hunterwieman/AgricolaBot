@@ -699,12 +699,18 @@ def food_payment_frontier(
     (`_food_payment_points`) is untouched: no new cache key, no cache hazard.
     The default (0, 0, 0) clips nothing (every pre-existing caller).
 
-    **`span_converters` (rulings 34/37 — pure building-resource converters
-    in the raise frame)** — a tuple of (conversion_id, (wood, clay, reed,
-    stone) input, food_out, frontier_group) for each once-per-harvest
-    BINARY converter currently available to the player (owned + in-span +
-    budget-unused — the CALLER derives this from state; the budget is
-    shared with the feed-phase craft seam via `harvest_conversions_used`).
+    **`span_converters` (rulings 34/37/77 — pure good->food converters
+    in the raise frame)** — a tuple of (conversion_id, (grain, veg, wood,
+    clay, reed, stone) input, food_out, frontier_group) for each once-per-
+    harvest BINARY converter currently available to the player (owned +
+    in-span + budget-unused — the CALLER derives this from state; the budget
+    is shared with the feed-phase craft seam via `harvest_conversions_used`).
+    The input is a 6-tuple: ruling 77 item 1 (2026-07-21) widened it from the
+    original building-only 4-tuple to carry CROP inputs (grain/veg), REVERSING
+    ruling 37's crop-input exclusion for the feeding-phase crop converters
+    (Schnapps Distiller/Distillery, Beer Tap) — "convert goods to food
+    greedily … use Schnapps Distiller for the first veggie and our smaller
+    rate for the remaining N-1". Building converters leave grain=veg=0.
     `frontier_group` (ruling 76 item 1, 2026-07-21 — Studio) marks the
     variants of ONE multi-variant card sharing ONE once-per-harvest budget:
     a subset firing two members of the same non-None group is never
@@ -716,7 +722,14 @@ def food_payment_frontier(
     the Pareto space gains the four building-resource remaining dims (fired
     is NOT a dim; on an exact 9-dim tie the SMALLER fired set wins — fewer
     burned once-per-harvest budgets dominates — then the set firing FEWER
-    GROUPED converters, then lexicographic). The grouped-count tie-break is
+    GROUPED converters, then lexicographic). A CROP-input converter's grain/
+    veg consumption is folded into dims 0-1 (grain_rem/veg_rem) rather than
+    getting its own dim: its crop inputs are subtracted from the supply BEFORE
+    the base crop/animal core runs, so the core's grain_rem/veg_rem already
+    reflect BOTH the converter's premium draw AND the base cooking of what is
+    left — exactly ruling 77's greedy tiering (premium rate for the first
+    unit, base rate for the rest). Building resources need their own dims
+    only because the base core never touches them. The grouped-count tie-break is
     the structural form of the user's greedy-restricted-first guidance
     (ruling 76 item 1, verbatim): "a player who chooses to convert a wood
     to food should use the joinery over the studio if they have both and
@@ -865,20 +878,39 @@ def _food_payment_generalized(
         groups = [grp for _cid, _inp, _out, grp in chosen if grp is not None]
         if len(groups) != len(set(groups)):
             continue   # two variants of one card = one budget fired twice
-        need = [0, 0, 0, 0]
+        # need6 = the subset's total converter inputs, (grain, veg, wood, clay,
+        # reed, stone); food_s = the premium food it produces. Ruling 77
+        # widened frontier_fire to a 6-tuple so a converter can consume crops
+        # (Schnapps: 1 veg -> 5 food) alongside building resources.
+        need6 = [0, 0, 0, 0, 0, 0]
         food_s = 0
         for _cid, inp, out, _grp in chosen:
-            for k in range(4):
-                need[k] += inp[k]
+            for k in range(6):
+                need6[k] += inp[k]
             food_s += out
-        if any(need[k] > build[k] for k in range(4)):
+        # Sufficiency: crops drawn from the player's supply the base core will
+        # ALSO draw from (g, v); building resources from `build`.
+        if need6[0] > g or need6[1] > v:
             continue
-        build_rem = tuple(build[k] - need[k] for k in range(4))
+        if any(need6[2 + k] > build[k] for k in range(4)):
+            continue
+        build_rem = tuple(build[k] - need6[2 + k] for k in range(4))
         fired = tuple(sorted(cid for cid, _inp, _out, _grp in chosen))
         rank = (len(fired), len(groups), fired)
         owe2 = max(0, food_owed - food_s)
+        # THE CROP COMPOSITION (ruling 77's greedy tiering, verified): subtract
+        # the converters' crop inputs from the supply the base core sees
+        # (g - need6[0], v - need6[1]), so the converter consumes its crops at
+        # its PREMIUM rate (already in food_s) and the core cooks only the
+        # REMAINING crops at the base rate. The core's returned rg/rv are
+        # remaining relative to the reduced supply, i.e. they already net out
+        # BOTH the premium draw and the base cook — total remaining grain/veg.
+        # So crops need NO extra Pareto dim (they land in dims 0-1 like always);
+        # only building resources, which the base core never touches, carry the
+        # separate build_rem dims. (need6[0]<=g and need6[1]<=v guaranteed by
+        # the skip above, so the reduced supply is never negative.)
         for (rg, rv, rs, rb, rc) in _food_payment_counts(
-                g, v, s2, b2, c2, owe2, rates):
+                g - need6[0], v - need6[1], s2, b2, c2, owe2, rates):
             vec = (rg, rv, rs + sp_, rb + bp_, rc + cp_) + build_rem
             old = best.get(vec)
             if old is None or rank < old:

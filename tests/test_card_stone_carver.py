@@ -173,7 +173,7 @@ def test_registration():
     assert spec.food_out == 3
     assert spec.side_effect_fn is None
     assert spec.variants_fn is None
-    assert spec.frontier_fire == ((0, 0, 0, 1), 3)
+    assert spec.frontier_fire == ((0, 0, 0, 0, 0, 1), 3)
     # The free span (ruling 75): a trigger on EVERY free-span event, with the
     # window hooks indexed for the non-sentinel windows.
     for event in FREE_SPAN_EVENTS:
@@ -337,7 +337,7 @@ def _in_span_state(*, stone=0, grain=0, food=0, owe=2, owned=True):
 
 def test_raise_frame_offers_the_fire():
     s = _in_span_state(stone=1, owe=2)
-    assert available_span_converters(s, 0) == ((CARD_ID, (0, 0, 0, 1), 3, None),)
+    assert available_span_converters(s, 0) == ((CARD_ID, (0, 0, 0, 0, 0, 1), 3, None),)
     assert legal_actions(s) == [CommitFoodPayment(
         grain=0, veg=0, sheep=0, boar=0, cattle=0, conversions=(CARD_ID,))]
 

@@ -37,10 +37,26 @@ single use.) Without this guard, the player could fire all three (2+3+4 grain ->
 18 food) in one harvest, which the "turn 2/3/4 grain into 3/6/9 food" tiered
 wording forbids.
 
+THE PAYMENT-FRONTIER SURFACE — ruling 77 item 1 (2026-07-21), verbatim: "we
+should convert goods to food greedily. For each good type, convert at the
+highest rate until you hit the max conversions count. Then convert at the next
+highest rate until you hit a limit …". Beer Tap is a feeding-phase CROP
+converter, so it joins any `PendingFoodPayment` frame resolved DURING the
+feeding phase (the Studio pattern, reversing ruling 37's crop-input exclusion):
+each of the three tiers carries a `frontier_fire` (grain -> food) so the raise
+frame can pay through it. As a MULTI-VARIANT card (three tiers of one card,
+ONE once-per-harvest budget), all three carry `frontier_group="beer_tap"` — a
+single payment bundle fires AT MOST ONE tier (co-firing two would use the card
+twice in one harvest; the Studio group mechanism). The cross-FRAME budget stays
+the prefix guard above (is_owned_fn reads harvest_conversions_used), so the feed
+seam and the payment frontier share one use in both directions. is_owned_fn also
+gates on `state.phase is Phase.HARVEST_FEED` (printed "in the feeding phase"):
+an in-span FIELD/BREED raise frame never offers it; the feed seam is unaffected.
+
 Card-only state (the harvest_conversions_used variants) is empty in the Family
 game, so it stays byte-identical and the C++ gates are untouched.
 See CARD_AUTHORING_GUIDE.md and harvest_conversions.py / beer_keg.py /
-market_stall.py.
+studio.py / market_stall.py.
 """
 from __future__ import annotations
 
@@ -49,6 +65,7 @@ from agricola.cards.harvest_conversions import (
     register_harvest_conversion,
 )
 from agricola.cards.specs import register_minor
+from agricola.constants import Phase
 from agricola.replace import fast_replace
 from agricola.resources import Cost, Resources
 from agricola.state import GameState
@@ -78,10 +95,16 @@ def _make_is_owned(grain: int) -> "object":
     three registry entries.
     """
     def fn(state: GameState, idx: int) -> bool:
+        # Phase gate (ruling 77 / the Studio pattern): the payment-frontier
+        # surface is feeding-phase-scoped (printed "in the feeding phase"). The
+        # feed seam is unaffected — its enumerator only runs under HARVEST_FEED.
+        if state.phase is not Phase.HARVEST_FEED:
+            return False
         p = state.players[idx]
         if CARD_ID not in p.minor_improvements:
             return False
-        # Once per harvest across all three variants.
+        # Once per harvest across all three variants (the cross-FRAME budget,
+        # shared by the feed seam and the payment frontier).
         return not any(cid.startswith(CARD_ID) for cid in p.harvest_conversions_used)
     return fn
 
@@ -95,4 +118,9 @@ for _grain, _food in _VARIANTS:
         food_out=_food,
         is_owned_fn=_make_is_owned(_grain),
         side_effect_fn=None,
+        # Ruling 77: the grain->food tier on the payment frontier. The 6-tuple
+        # is (grain,veg,wood,clay,reed,stone). frontier_group ties the three
+        # tiers to ONE budget within a single bundle (the Studio mechanism).
+        frontier_fire=((_grain, 0, 0, 0, 0, 0), _food),
+        frontier_group=CARD_ID,
     ))

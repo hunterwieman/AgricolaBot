@@ -17,11 +17,15 @@ from agricola.resources import Resources
 from agricola.setup import setup
 
 RATES = (2, 2, 3, 2)   # sheep 2, boar 2, cattle 3, veg 2
-# (conversion_id, (w, c, r, s) input, food_out, frontier_group) — the group
+# (conversion_id, (grain, veg, wood, clay, reed, stone) input, food_out,
+# frontier_group) — ruling 77 widened the input to a 6-tuple (crop inputs
+# live in positions 0-1; building converters leave grain=veg=0). The group
 # (ruling 76 item 1: a bundle fires at most one member of a non-None group;
 # None = ungrouped single-conversion card/major).
-JOINERY = ("joinery", (1, 0, 0, 0), 2, None)
-STONE_CARVER = ("stone_carver", (0, 0, 0, 1), 3, None)
+JOINERY = ("joinery", (0, 0, 1, 0, 0, 0), 2, None)
+STONE_CARVER = ("stone_carver", (0, 0, 0, 0, 0, 1), 3, None)
+# A crop-input converter (ruling 77): Schnapps Distiller — 1 veg -> 5 food.
+SCHNAPPS = ("schnapps_distiller", (0, 1, 0, 0, 0, 0), 5, None)
 
 
 def _player(**kw):
@@ -113,8 +117,8 @@ def test_group_excludes_within_bundle_cofire():
     Pareto pass if enumerated (owe 3 with grain on hand: firing both keeps
     all 3 grain — incomparable with every single fire), proving the group
     skip is doing the work, not dominance."""
-    w = ("studio_wood", (1, 0, 0, 0), 2, "studio")
-    c = ("studio_clay", (0, 1, 0, 0), 2, "studio")
+    w = ("studio_wood", (0, 0, 1, 0, 0, 0), 2, "studio")
+    c = ("studio_clay", (0, 0, 0, 1, 0, 0), 2, "studio")
     p = _player(grain=3, wood=1, clay=1)
     rows = food_payment_frontier(p, 3, RATES, span_converters=(w, c))
     assert all(len(fired) <= 1 for _vec, fired in rows)
@@ -138,7 +142,7 @@ def test_grouped_with_ungrouped_cofire_offered():
     greedy sequence's second wood conversion ("joinery first, then Studio")
     must stay expressible in one bundle — ruling 76 item 1's guidance is an
     ordering preference, never a ban on using both."""
-    w = ("studio_wood", (1, 0, 0, 0), 2, "studio")
+    w = ("studio_wood", (0, 0, 1, 0, 0, 0), 2, "studio")
     p = _player(grain=2, wood=2)
     rows = food_payment_frontier(p, 4, RATES, span_converters=(JOINERY, w))
     assert ("joinery", "studio_wood") in {fired for _vec, fired in rows}
@@ -153,8 +157,8 @@ def test_tiebreak_prefers_ungrouped_on_exact_vec_ties():
     (flexible multi-variant) one. The ids are ADVERSARIAL — the grouped id
     sorts lexicographically first — so id ordering cannot produce the pass
     (the pre-hardening rank would have kept the grouped fire)."""
-    grouped = ("aaa_flex_wood", (1, 0, 0, 0), 2, "aaa_flex")
-    restricted = ("zzz_restricted_wood", (1, 0, 0, 0), 2, None)
+    grouped = ("aaa_flex_wood", (0, 0, 1, 0, 0, 0), 2, "aaa_flex")
+    restricted = ("zzz_restricted_wood", (0, 0, 1, 0, 0, 0), 2, None)
     p = _player(grain=2, wood=1)
     rows = food_payment_frontier(
         p, 2, RATES, span_converters=(grouped, restricted))
@@ -163,16 +167,96 @@ def test_tiebreak_prefers_ungrouped_on_exact_vec_ties():
     assert ("aaa_flex_wood",) not in fired_sets
 
 
+# ---------------------------------------------------------------------------
+# Crop-input converters (ruling 77 item 1, 2026-07-21) — the greedy tiering
+# ---------------------------------------------------------------------------
+
+def test_crop_converter_greedy_tiering():
+    """Ruling 77 item 1 (user, verbatim): "if we have Schnapps Distiller and are
+    converting N>1 veggies to food during the feeding phase, we should use
+    Schnapps Distiller for the first veggie and our smaller rate for the
+    remaining N-1." owe 8 at veg rate 2, veg the only fuel: firing Schnapps
+    (1 veg -> 5 premium) then base-cooking 2 more veg (-> 4) pays 9 with 3 veg
+    total, leaving 2 — strictly better than all-base (4 veg -> 8, leaving 1). The
+    Schnapps config DOMINATES the all-base one, so the frontier surfaces exactly
+    it: premium first, base rate for the rest."""
+    p = _player(veg=5)   # grain 0, no animals
+    rows = food_payment_frontier(p, 8, RATES, span_converters=(SCHNAPPS,))
+    assert ((0, 2, 0, 0, 0, 0, 0, 0, 0), ("schnapps_distiller",)) in rows
+    # The all-base config (veg_rem 1) is dominated and dropped; every surviving
+    # config fires Schnapps.
+    assert all(fired == ("schnapps_distiller",) for _v, fired in rows)
+    assert not any(vec[1] <= 1 for vec, _f in rows)
+
+
+def test_crop_converter_optionality_at_exact_owe():
+    """At an owe met by ONE base-cooked veg, firing Schnapps overshoots (5 vs 2)
+    for the SAME veg spend, so both configs share the remaining-goods vector and
+    the grouped-count/size tie-break keeps the UNFIRED one — the once-per-harvest
+    budget is preserved (Foundations' optionality rule; ruling 77's greedy is
+    about N>1)."""
+    p = _player(veg=3)
+    rows = food_payment_frontier(p, 2, RATES, span_converters=(SCHNAPPS,))
+    fired_sets = {fired for _v, fired in rows}
+    assert () in fired_sets
+    assert ("schnapps_distiller",) not in fired_sets
+
+
+def test_crop_converter_infeasible_without_veg():
+    """A veg converter needing 1 veg is never fired when the player has none —
+    the crop sufficiency check (need6[1] > v) skips the subset, exactly as the
+    building check skips an unaffordable wood converter."""
+    p = _player(grain=5)   # grain only, no veg
+    rows = food_payment_frontier(p, 2, RATES, span_converters=(SCHNAPPS,))
+    assert all(fired == () for _v, fired in rows)
+
+
+def test_beer_tap_group_excludes_cofire():
+    """Beer Tap's three grain tiers are ONE card / ONE budget (ruling 77 uses
+    the Studio group mechanism): a single payment bundle fires at most one tier
+    — co-firing two would use the card twice in one harvest.
+
+    owe 9 with 9 grain and span (beer_tap_2, beer_tap_3) is DISCRIMINATING: the
+    co-fire (2+3 grain -> 3+6 = 9 food, owe fully covered) keeps 4 grain, which
+    strictly DOMINATES every single fire (beer_tap_3 alone leaves only 3: 3 grain
+    to the tier + 3 base-cooked). If the group did nothing, the co-fire would win
+    the Pareto pass; its absence — the best config keeps only 3 grain — is the
+    group skip doing the work, not dominance. (beer_tap_2 alone, less grain-
+    efficient, is itself dominated by beer_tap_3 and never surfaces — an
+    efficiency fact, unrelated to the group.)"""
+    t2 = ("beer_tap_2", (2, 0, 0, 0, 0, 0), 3, "beer_tap")
+    t3 = ("beer_tap_3", (3, 0, 0, 0, 0, 0), 6, "beer_tap")
+    p = _player(grain=9)
+    rows = food_payment_frontier(p, 9, RATES, span_converters=(t2, t3))
+    assert all(sum(1 for c in fired if c.startswith("beer_tap")) <= 1
+               for _v, fired in rows)
+    assert ("beer_tap_3",) in {fired for _v, fired in rows}
+    # The excluded co-fire would have kept 4 grain; the best surviving keeps 3.
+    assert max(vec[0] for vec, _f in rows) == 3
+
+
+def test_crop_and_building_converters_compose():
+    """A crop converter (Schnapps, veg) and a building converter (Joinery,
+    wood) co-fire in one bundle — their inputs land in different Pareto dims
+    (veg in dim 1, wood_rem in dim 5) and both fire together with no group
+    conflict."""
+    p = _player(veg=3, wood=1)
+    rows = food_payment_frontier(
+        p, 7, RATES, span_converters=(SCHNAPPS, JOINERY))
+    assert ("joinery", "schnapps_distiller") in {fired for _v, fired in rows}
+
+
 def test_cross_level_equivalence(monkeypatch):
     """The converter wrap + floor translation sit OUTSIDE the level-dispatched
     core, so the generalized frontier must be SET-identical across opt levels
-    (the FRONTIER_OPT_DESIGN.md cross-level pattern)."""
-    p = _player(grain=2, veg=1, sheep=4, wood=2, stone=1)
+    (the FRONTIER_OPT_DESIGN.md cross-level pattern). A crop converter (Schnapps)
+    is included so the ruling-77 crop-fold path is exercised at both levels."""
+    p = _player(grain=2, veg=3, sheep=4, wood=2, stone=1)
     results = {}
     for level in (0, 1):
         monkeypatch.setattr(opt_config, "PARETO_OPT_LEVEL", level)
         results[level] = sorted(food_payment_frontier(
-            p, 3, RATES, span_converters=(JOINERY, STONE_CARVER),
+            p, 3, RATES, span_converters=(JOINERY, STONE_CARVER, SCHNAPPS),
             animal_floors=(3, 0, 0)))
     assert results[0] == results[1]
     assert all(vec[2] >= 3 for vec, _f in results[0])    # sheep floor holds
@@ -229,7 +313,7 @@ def _in_span_state(*, sheep=0, wood=0, stone=0, food=0, owe=2,
 def test_span_derivations():
     s = _in_span_state()
     assert in_conversion_span(s, 0)
-    assert available_span_converters(s, 0) == (("joinery", (1, 0, 0, 0), 2, None),)
+    assert available_span_converters(s, 0) == (("joinery", (0, 0, 1, 0, 0, 0), 2, None),)
     # WORK phase: never in span.
     s2 = with_phase(s, Phase.WORK)
     assert not in_conversion_span(s2, 0)

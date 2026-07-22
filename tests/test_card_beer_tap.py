@@ -15,14 +15,24 @@ import agricola.cards.beer_tap  # noqa: F401
 
 import dataclasses
 
-from agricola.actions import CommitConvert, CommitHarvestConversion
+from agricola.actions import (
+    CommitConvert,
+    CommitFoodPayment,
+    CommitHarvestConversion,
+)
 from agricola.cards.beer_tap import CARD_ID
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
-from agricola.cards.specs import MINORS
+from agricola.cards.harvest_windows import (
+    available_span_converters,
+    sentinel_position,
+)
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, MINORS
 from agricola.constants import Phase
 from agricola.engine import _initiate_harvest_feed, step
 from agricola.legality import legal_actions
-from agricola.resources import Resources
+from agricola.pending import PendingFoodPayment
+from agricola.replace import fast_replace
+from agricola.resources import Cost, Resources
 from agricola.state import GameState
 from agricola.setup import setup
 
@@ -172,3 +182,89 @@ def test_optional_decline_via_commit():
     p = state.players[0]
     assert p.resources.grain == 4
     assert not any(c.startswith(CARD_ID) for c in p.harvest_conversions_used)
+
+
+# ---------------------------------------------------------------------------
+# The payment-frontier surface (ruling 77 item 1): the three grain->food tiers
+# join any PendingFoodPayment frame in the feeding phase, as ONE budget
+# (frontier_group="beer_tap" — at most one tier per bundle; the Studio
+# mechanism). grain cooks at 1:1, so no Fireplace is needed.
+# ---------------------------------------------------------------------------
+
+FOOD_PAYMENT_RESUMES["_test_beer_tap_resume"] = lambda state, idx: state
+
+
+def test_frontier_fire_and_group_registered():
+    """Each tier carries the ruling-77 6-tuple frontier_fire (grain->food) and
+    the shared frontier_group so a single bundle fires at most one tier."""
+    expected = {2: 3, 3: 6, 4: 9}
+    for grain, food in expected.items():
+        spec = HARVEST_CONVERSIONS[f"{CARD_ID}_{grain}"]
+        assert spec.frontier_fire == ((grain, 0, 0, 0, 0, 0), food)
+        assert spec.frontier_group == CARD_ID
+
+
+def _payment_state(*, owe, grain=0, phase=Phase.HARVEST_FEED, cursor=None,
+                   used=frozenset()) -> GameState:
+    state = setup(seed=0)
+    state = dataclasses.replace(state, starting_player=0)
+    state = with_minors(state, 0, frozenset({CARD_ID}))
+    p = state.players[0]
+    p = fast_replace(p, resources=Resources(grain=grain),
+                     harvest_conversions_used=used)
+    frame = PendingFoodPayment(
+        player_idx=0, food_needed=owe,
+        resume_kind="_test_beer_tap_resume", reserved=Cost())
+    return dataclasses.replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2)),
+        phase=phase, pending_stack=(frame,), harvest_cursor=cursor)
+
+
+def test_feeding_frame_fires_best_tier_plus_base_cook():
+    """Greedy tiering with the tier + base cooking (ruling 77): owe 12, 10 grain.
+    The best affordable tier (beer_tap_4: 4 grain -> 9) fires, then 3 grain base-
+    cook at 1:1 (-> 3) covers the rest, keeping 3 grain — dominating every lower
+    tier. The commit's `grain` field is the base-cooked remainder (3); the tier's
+    4 grain is debited separately via the conversion."""
+    s = _payment_state(owe=12, grain=10)
+    commits = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)
+               and a.conversions == (f"{CARD_ID}_4",)]
+    assert commits, "beer_tap_4 tier should be offered"
+    target = commits[0]
+    assert target.grain == 3                   # base-cooked remainder only
+    p = step(s, target).players[0]
+    assert p.resources.grain == 3              # 10 - (4 tier + 3 base)
+    assert p.resources.food == 12              # 3 base + 9 premium
+    assert f"{CARD_ID}_4" in p.harvest_conversions_used
+
+
+def test_no_bundle_fires_two_tiers():
+    """The frontier_group invariant: no CommitFoodPayment fires more than one
+    beer_tap tier (one card, one once-per-harvest budget)."""
+    s = _payment_state(owe=9, grain=9)
+    for a in legal_actions(s):
+        if isinstance(a, CommitFoodPayment):
+            assert sum(1 for c in a.conversions if c.startswith(CARD_ID)) <= 1
+
+
+def test_field_frame_does_not_offer_beer_tap():
+    """Phase scoping: an in-span FIELD raise frame does not offer the
+    feeding-phase tiers."""
+    s = _payment_state(owe=3, grain=4, phase=Phase.HARVEST_FIELD,
+                       cursor=sentinel_position("end_of_field_phase", 0))
+    assert available_span_converters(s, 0) == ()
+
+
+def test_frontier_budget_shared_with_feed_seam_both_ways():
+    """One once-per-harvest budget across surfaces: a recorded fire (any tier)
+    suppresses the payment frontier, and a frontier fire marks the shared id."""
+    spent = _payment_state(owe=3, grain=4, used=frozenset({f"{CARD_ID}_2"}))
+    assert available_span_converters(spent, 0) == ()
+    assert all(a.conversions == ()
+               for a in legal_actions(spent) if isinstance(a, CommitFoodPayment))
+    s = _payment_state(owe=6, grain=6)
+    fired = next(a for a in legal_actions(s)
+                 if isinstance(a, CommitFoodPayment) and a.conversions)
+    nxt = step(s, fired)
+    assert any(c.startswith(CARD_ID)
+               for c in nxt.players[0].harvest_conversions_used)

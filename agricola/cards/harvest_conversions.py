@@ -54,14 +54,21 @@ class HarvestConversionSpec:
       currently-legal variant, still once per harvest total. An empty list =
       no legal use right now (the conversion is withheld). None (the default,
       all pre-existing entries) = the ordinary single-commit conversion.
-    - frontier_fire: ((wood, clay, reed, stone), food_out) when this entry
-      (or one branch of it — Paintbrush's food branch) is a PURE
-      building-resource -> food converter reachable through the generalized
-      in-harvest raise frame (ruling 37, 2026-07-12: rider outputs — points,
-      goods — and crop-input converters are NOT frontier-eligible; they stay
-      feed-seam-only). None (the default) = feed-seam-only. The raise-frame
-      fire shares this entry's once-per-harvest budget
-      (`harvest_conversions_used`) with the feed-seam offer (ruling 34).
+    - frontier_fire: ((grain, veg, wood, clay, reed, stone), food_out) when
+      this entry (or one branch of it — Paintbrush's food branch) is a PURE
+      good -> food converter reachable through the generalized in-harvest
+      raise frame. The 6-tuple input carries the goods consumed at the
+      converter's premium rate. Ruling 37 (2026-07-12) originally excluded
+      crop-input converters (grain/veg positions always 0); ruling 77 item 1
+      (2026-07-21) REVERSES that for FEEDING-PHASE crop converters — "we
+      convert goods to food greedily … use Schnapps Distiller for the first
+      veggie and our smaller rate for the remaining N-1" — so the grain/veg
+      positions are now live (Schnapps Distiller/Distillery, Beer Tap). What
+      ruling 37 still excludes stays out: rider outputs (points, goods) and
+      field-input converters are NOT frontier-eligible and stay feed-seam-only.
+      None (the default) = feed-seam-only. The raise-frame fire shares this
+      entry's once-per-harvest budget (`harvest_conversions_used`) with the
+      feed-seam offer (ruling 34).
     - frontier_group: the raise-frame mutual-exclusion group (ruling 76
       item 1, 2026-07-21 — Studio, the first multi-variant card to join the
       payment frontier). A multi-variant converter registers one entry per
@@ -114,13 +121,15 @@ def _owns_major(idx: int) -> Callable[["GameState", int], bool]:
 
 # The three craft majors are pure building-resource converters, so they are
 # also reachable through the generalized in-harvest raise frame (rulings
-# 34/37, 2026-07-12) — frontier_fire mirrors their input/output.
+# 34/37, 2026-07-12) — frontier_fire mirrors their input/output. The 6-tuple
+# is (grain, veg, wood, clay, reed, stone); building converters leave
+# grain=veg=0 (ruling 77 widened the tuple to carry crop inputs too).
 register_harvest_conversion(HarvestConversionSpec(
     conversion_id="joinery",
     input_cost=Resources(wood=1),
     food_out=2,
     is_owned_fn=_owns_major(7),
-    frontier_fire=((1, 0, 0, 0), 2),
+    frontier_fire=((0, 0, 1, 0, 0, 0), 2),
 ))
 
 register_harvest_conversion(HarvestConversionSpec(
@@ -128,7 +137,7 @@ register_harvest_conversion(HarvestConversionSpec(
     input_cost=Resources(clay=1),
     food_out=2,
     is_owned_fn=_owns_major(8),
-    frontier_fire=((0, 1, 0, 0), 2),
+    frontier_fire=((0, 0, 0, 1, 0, 0), 2),
 ))
 
 register_harvest_conversion(HarvestConversionSpec(
@@ -136,5 +145,5 @@ register_harvest_conversion(HarvestConversionSpec(
     input_cost=Resources(reed=1),
     food_out=3,
     is_owned_fn=_owns_major(9),
-    frontier_fire=((0, 0, 1, 0), 3),
+    frontier_fire=((0, 0, 0, 0, 1, 0), 3),
 ))

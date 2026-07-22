@@ -23,8 +23,9 @@ surfaces, each fire carrying the food-vs-point choice as a variant:
 2. **The generalized in-harvest raise frame** (user rulings 34 + 37,
    2026-07-12: a raise-frame fire IS the food branch — rider outputs like the
    bonus point are NOT frontier-eligible, so only the pure clay→2-food
-   converter joins the payment frontier): `frontier_fire=((0, 1, 0, 0), 2)`
-   on the same spec. `_execute_food_payment` debits the clay, adds the 2 food,
+   converter joins the payment frontier): `frontier_fire=((0, 0, 0, 1, 0, 0),
+   2)` (the 6-tuple (grain,veg,wood,clay,reed,stone); 1 clay) on the same spec.
+   `_execute_food_payment` debits the clay, adds the 2 food,
    and marks the SAME budget — no side effect runs there (pure fire).
 
 3. **The free span** (user ruling 36, 2026-07-12: the anytime exchanges are
@@ -155,7 +156,7 @@ register_harvest_conversion(HarvestConversionSpec(
     is_owned_fn=_owns,
     side_effect_fn=_side_effect,
     variants_fn=_variants,
-    frontier_fire=((0, 1, 0, 0), 2),
+    frontier_fire=((0, 0, 0, 1, 0, 0), 2),   # (grain,veg,wood,clay,reed,stone): clay->2 food
 ))
 
 # Surface 3 — the free span (ruling 36, 2026-07-12): a variant-expanded

@@ -35,8 +35,9 @@ shape):
    frame's offer list; the seam's executor debits the reed, adds the food, and
    marks the budget.
 2. **The generalized in-harvest raise frame** (rulings 34/37, 2026-07-12: a
-   pure converter joins the payment frontier) — ``frontier_fire=((0, 0, 1, 0),
-   2)`` on the same spec, so any harvest-time ``PendingFoodPayment`` frontier
+   pure converter joins the payment frontier) — ``frontier_fire=((0, 0, 0, 0,
+   1, 0), 2)`` (the 6-tuple (grain,veg,wood,clay,reed,stone); 1 reed) on the
+   same spec, so any harvest-time ``PendingFoodPayment`` frontier
    offers the fire. ``_execute_food_payment`` debits the reed, adds the food,
    and marks the SAME budget.
 3. **The free span** (ruling 36, 2026-07-12, extended to this card by ruling
@@ -214,7 +215,7 @@ register_harvest_conversion(HarvestConversionSpec(
     input_cost=Resources(reed=1),
     food_out=2,
     is_owned_fn=_owns_occupation,
-    frontier_fire=((0, 0, 1, 0), 2),   # (wood, clay, reed, stone) -> food
+    frontier_fire=((0, 0, 0, 0, 1, 0), 2),   # (grain,veg,wood,clay,reed,stone) -> food
 ))
 
 # Clause 1, surface 3 — the free span (rulings 36 + 74): an optional trigger on

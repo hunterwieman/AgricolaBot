@@ -175,7 +175,7 @@ def test_registration_spec_row():
     assert conv.food_out == 0                                 # outputs ride the side effect
     assert conv.side_effect_fn is not None
     assert conv.variants_fn is not None
-    assert conv.frontier_fire == ((0, 1, 0, 0), 2)            # the pure food branch
+    assert conv.frontier_fire == ((0, 0, 0, 1, 0, 0), 2)     # the pure food branch (1 clay)
     assert any(cid == CARD_ID for cid, _ in SCORING_TERMS)
 
 
@@ -268,7 +268,7 @@ def _in_span_state(*, clay=0, grain=0, food=0, owe=2, used=frozenset()):
 def test_span_converter_derivation():
     s = _in_span_state(clay=1)
     assert in_conversion_span(s, 0)
-    assert available_span_converters(s, 0) == ((CARD_ID, (0, 1, 0, 0), 2, None),)
+    assert available_span_converters(s, 0) == ((CARD_ID, (0, 0, 0, 1, 0, 0), 2, None),)
 
 
 def test_raise_frame_fire_is_the_food_branch():

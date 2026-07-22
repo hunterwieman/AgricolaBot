@@ -276,13 +276,15 @@ def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
 
 def available_span_converters(state, idx: int) -> tuple:
     """The frontier-eligible converters player `idx` can fire through the
-    generalized raise frame RIGHT NOW (rulings 34/37): each registered
+    generalized raise frame RIGHT NOW (rulings 34/37/77): each registered
     `frontier_fire` entry that is owned, in-span, and budget-unused (the
     once-per-harvest budget is SHARED with the feed-seam offer via
     `harvest_conversions_used`). Elements are
-    ``(conversion_id, (wood, clay, reed, stone) input, food_out,
-    frontier_group)`` — the group (ruling 76 item 1: a bundle fires at most
-    one member of a group; None = ungrouped) rides along for
+    ``(conversion_id, (grain, veg, wood, clay, reed, stone) input, food_out,
+    frontier_group)`` — the 6-tuple input (ruling 77 widened it from the
+    building-only 4-tuple to carry crop inputs; grain=veg=0 for building
+    converters) and the group (ruling 76 item 1: a bundle fires at most one
+    member of a group; None = ungrouped) ride along for
     `_food_payment_generalized`'s subset enumeration. Sorted by id; () — the
     Family fast path — whenever out of span or nothing qualifies."""
     if not in_conversion_span(state, idx):

@@ -37,9 +37,20 @@ Two independent effects, both off existing machinery:
    engine via MINORS[card_id].vps, so this term must NOT re-add it (no double
    count).
 
+Effect 1 also joins the payment frontier — ruling 77 item 1 (2026-07-21): this
+is a feeding-phase CROP converter (1 veg -> 5 food), so it gains a
+`frontier_fire` and any `PendingFoodPayment` frame resolved DURING the feeding
+phase can raise food through it at the premium rate, the base rate cooking any
+further vegetables (the greedy tiering falls out of the Pareto enumeration). A
+single-input card needs no `frontier_group`; the once-per-harvest budget is
+shared across the feed seam and the payment frontier. is_owned_fn gates on
+`state.phase is Phase.HARVEST_FEED` (the Studio scoping) — the card is printed
+"in each feeding phase", so an in-span FIELD/BREED raise frame never offers it.
+The scoring clause (effect 2) is independent and untouched by ruling 77.
+
 Card-only state (the single harvest_conversions_used entry) is empty in the
 Family game, so it stays byte-identical and the C++ gates are untouched.
-See CARD_AUTHORING_GUIDE.md, harvest_conversions.py, and beer_keg.py.
+See CARD_AUTHORING_GUIDE.md, harvest_conversions.py, studio.py, and beer_keg.py.
 """
 from __future__ import annotations
 
@@ -48,7 +59,7 @@ from agricola.cards.harvest_conversions import (
     register_harvest_conversion,
 )
 from agricola.cards.specs import register_minor
-from agricola.constants import CellType
+from agricola.constants import CellType, Phase
 from agricola.resources import Cost, Resources
 from agricola.scoring import register_scoring
 from agricola.state import GameState
@@ -57,13 +68,18 @@ CARD_ID = "schnapps_distillery"
 
 
 def _is_owned(state: GameState, idx: int) -> bool:
-    """The conversion is offered iff the player owns Schnapps Distillery.
+    """The conversion is offered iff the state is in the feeding phase and the
+    player owns Schnapps Distillery.
 
     The engine's once-per-harvest accounting (harvest_conversions_used, reset at
     the start of every FEED phase; the enumerator skips already-used ids) handles
     the "exactly once per feeding phase" rule on top of this, so no further guard
-    is needed.
+    is needed. The `Phase.HARVEST_FEED` gate (ruling 77 / the Studio pattern)
+    scopes the payment-frontier surface to the feeding phase; the feed seam is
+    unaffected (its enumerator only runs under HARVEST_FEED anyway).
     """
+    if state.phase is not Phase.HARVEST_FEED:
+        return False
     return CARD_ID in state.players[idx].minor_improvements
 
 
@@ -102,6 +118,7 @@ register_harvest_conversion(HarvestConversionSpec(
     input_cost=Resources(veg=1),
     food_out=5,
     is_owned_fn=_is_owned,
+    frontier_fire=((0, 1, 0, 0, 0, 0), 5),   # (grain,veg,wood,clay,reed,stone): 1 veg -> 5 food
 ))
 
 register_scoring(CARD_ID, _score)

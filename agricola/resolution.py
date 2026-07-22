@@ -700,10 +700,15 @@ def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
     now-sufficient supply. `action` holds CONSUMED amounts (the enumerator inverted the frontier
     over goods MINUS the frame's reserved cost goods, so nothing here touches a reserved good).
 
-    `action.conversions` (rulings 34/37, 2026-07-12): each named once-per-harvest converter
-    fires as part of the bundle — its building-resource input is debited, its food added, and
-    its SHARED budget marked in `harvest_conversions_used` (the same entry the feed-phase
-    craft seam checks). Pure converters only (ruling 37), so no side effects run here."""
+    `action.conversions` (rulings 34/37/77): each named once-per-harvest converter fires as
+    part of the bundle — its input is debited, its (premium) food added, and its SHARED budget
+    marked in `harvest_conversions_used` (the same entry the feed-phase craft seam checks). The
+    input is now a 6-tuple `(grain, veg, wood, clay, reed, stone)` (ruling 77 widened it to carry
+    crop inputs — Schnapps Distiller's 1 veg -> 5 food). `action.{grain,veg,...}` hold the goods
+    cooked at the BASE rate ONLY; a converter's crop input is debited HERE via `conv_cost` and
+    its food comes from `conv_food` at the premium rate — so `produced` (base cooking) must not
+    include it, and it does not (the enumerator kept action.grain/veg base-only). Pure converters
+    only (ruling 37's rider exclusion still stands), so no side effects run here."""
     from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
 
     top = state.pending_stack[-1]   # PendingFoodPayment
@@ -715,7 +720,7 @@ def _execute_food_payment(state: GameState, idx: int, action) -> GameState:
     for cid in action.conversions:
         inp, food_out = HARVEST_CONVERSIONS[cid].frontier_fire
         conv_cost = conv_cost + Resources(
-            wood=inp[0], clay=inp[1], reed=inp[2], stone=inp[3])
+            grain=inp[0], veg=inp[1], wood=inp[2], clay=inp[3], reed=inp[4], stone=inp[5])
         conv_food += food_out
     p = state.players[idx]
     p = fast_replace(

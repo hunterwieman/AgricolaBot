@@ -13,16 +13,28 @@ import agricola.cards.schnapps_distiller  # noqa: F401  (register the card)
 
 import dataclasses
 
-from agricola.actions import CommitConvert, CommitHarvestConversion, Stop
+from agricola.actions import (
+    CommitConvert,
+    CommitFoodPayment,
+    CommitHarvestConversion,
+    Stop,
+)
 from agricola.constants import Phase
 from agricola.engine import _initiate_harvest_feed, step
 from agricola.legality import legal_actions
-from agricola.pending import PendingHarvestFeed
+from agricola.pending import PendingFoodPayment, PendingHarvestFeed
 from agricola.cards.harvest_conversions import HARVEST_CONVERSIONS
-from agricola.cards.specs import OCCUPATIONS
+from agricola.cards.harvest_windows import (
+    available_span_converters,
+    sentinel_position,
+)
+from agricola.cards.specs import FOOD_PAYMENT_RESUMES, OCCUPATIONS
+from agricola.replace import fast_replace
+from agricola.resources import Cost, Resources
+from agricola.state import GameState
 from agricola.setup import setup
 
-from tests.factories import with_resources, with_phase
+from tests.factories import with_majors, with_resources, with_phase
 
 CARD_ID = "schnapps_distiller"
 
@@ -167,3 +179,108 @@ def test_not_offered_to_non_owner():
 
     assert saw_p0       # the owner IS offered the conversion
     assert not saw_p1   # the non-owner is NOT
+
+
+# ---------------------------------------------------------------------------
+# The payment-frontier surface (ruling 77 item 1, 2026-07-21): a crop-input
+# converter joins any PendingFoodPayment frame resolved DURING the feeding
+# phase, at its premium rate, the base rate cooking the rest (greedy tiering).
+# ---------------------------------------------------------------------------
+
+# A synthetic resume so hand-built raise frames step through the executor
+# (mirrors test_food_payment_generalized / test_card_studio).
+FOOD_PAYMENT_RESUMES["_test_schnapps_resume"] = lambda state, idx: state
+
+FIREPLACE_IDX = 0   # a Fireplace gives veg the base cooking rate 2
+
+
+def test_frontier_fire_registered():
+    """Ruling 77 widened frontier_fire to the 6-tuple (grain,veg,wood,clay,
+    reed,stone); Schnapps is 1 veg -> 5 food (a crop-input converter)."""
+    assert HARVEST_CONVERSIONS[CARD_ID].frontier_fire == ((0, 1, 0, 0, 0, 0), 5)
+    assert HARVEST_CONVERSIONS[CARD_ID].frontier_group is None
+
+
+def _payment_state(*, owe, veg=0, grain=0, phase=Phase.HARVEST_FEED,
+                   cursor=None, fireplace=False, used=frozenset()) -> GameState:
+    """A hand-built harvest state with a raise-only PendingFoodPayment for P0
+    (food 0, so the shortfall equals `owe`), P0 owning Schnapps Distiller and
+    optionally a Fireplace (veg base rate 2). None cursor = the legacy bare
+    mid-phase shape (in span for FEED/BREED)."""
+    state = setup(seed=0)
+    state = dataclasses.replace(state, starting_player=0)
+    state = _give_occupation(state, 0)
+    if fireplace:
+        state = with_majors(state, owner_by_idx={FIREPLACE_IDX: 0})
+    p = state.players[0]
+    p = fast_replace(p, resources=Resources(veg=veg, grain=grain),
+                     harvest_conversions_used=used)
+    frame = PendingFoodPayment(
+        player_idx=0, food_needed=owe,
+        resume_kind="_test_schnapps_resume", reserved=Cost())
+    return dataclasses.replace(
+        state, players=tuple(p if i == 0 else state.players[i] for i in range(2)),
+        phase=phase, pending_stack=(frame,), harvest_cursor=cursor)
+
+
+def test_feeding_frame_offers_schnapps_greedy_tiering():
+    """The N>1 greedy tiering (ruling 77): owe 8, 5 veg, Fireplace (veg rate 2).
+    Firing Schnapps (1 veg -> 5) then base-cooking 2 veg (-> 4) pays 9 keeping
+    2 veg — dominating the all-base config (4 veg -> 8, keeping 1), which is
+    therefore not offered. The offered CommitFoodPayment fires Schnapps and its
+    `veg` field holds ONLY the base-cooked remainder (2), the premium veg being
+    debited separately via the conversion."""
+    s = _payment_state(owe=8, veg=5, fireplace=True)
+    commits = [a for a in legal_actions(s) if isinstance(a, CommitFoodPayment)]
+    assert commits and all(a.conversions == (CARD_ID,) for a in commits)
+    target = commits[0]
+    assert target.veg == 2                     # base-cooked remainder only
+    nxt = step(s, target)
+    p = nxt.players[0]
+    assert p.resources.veg == 2                # 5 - (1 premium + 2 base)
+    assert p.resources.food == 9               # 2*2 base + 5 premium (resume debits 0)
+    assert CARD_ID in p.harvest_conversions_used
+
+
+def test_feeding_frame_schnapps_single_veg():
+    """The single-veg case (owe 5): Schnapps alone covers the owe, no base
+    cooking — 1 veg -> 5 food, crops otherwise kept."""
+    s = _payment_state(owe=5, veg=3)
+    target = next(a for a in legal_actions(s)
+                  if isinstance(a, CommitFoodPayment) and a.conversions == (CARD_ID,))
+    assert target.veg == 0                      # no base cooking needed
+    p = step(s, target).players[0]
+    assert p.resources.veg == 2                 # only the 1 premium veg spent
+    assert p.resources.food == 5
+    assert CARD_ID in p.harvest_conversions_used
+
+
+def test_field_and_breed_frames_do_not_offer_schnapps():
+    """Phase scoping (the Studio pattern): an in-span FIELD/BREED raise frame is
+    outside the feeding phase, so Schnapps (printed "in the feeding phase") is
+    never offered — available_span_converters returns () and no commit fires it."""
+    for phase, cursor in (
+        (Phase.HARVEST_FIELD, sentinel_position("end_of_field_phase", 0)),
+        (Phase.HARVEST_BREED, sentinel_position("after_breeding", 1)),
+    ):
+        s = _payment_state(owe=2, veg=3, phase=phase, cursor=cursor)
+        assert available_span_converters(s, 0) == ()
+        assert all(a.conversions == ()
+                   for a in legal_actions(s) if isinstance(a, CommitFoodPayment))
+
+
+def test_frontier_budget_shared_with_feed_seam_both_ways():
+    """The once-per-harvest budget is shared across surfaces (the prefix guard):
+    a recorded fire suppresses the payment frontier, and vice versa."""
+    # Feed seam -> frontier: budget already spent this harvest.
+    spent = _payment_state(owe=2, veg=3, used=frozenset({CARD_ID}))
+    assert available_span_converters(spent, 0) == ()
+    assert all(a.conversions == ()
+               for a in legal_actions(spent) if isinstance(a, CommitFoodPayment))
+    # Frontier -> feed seam: firing at the raise frame marks the shared id, so a
+    # subsequent HARVEST_FEED frame offers no Schnapps conversion.
+    s = _payment_state(owe=5, veg=3)
+    nxt = step(s, next(a for a in legal_actions(s)
+                       if isinstance(a, CommitFoodPayment)
+                       and a.conversions == (CARD_ID,)))
+    assert CARD_ID in nxt.players[0].harvest_conversions_used

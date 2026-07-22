@@ -3370,9 +3370,12 @@ def _post_liquidation_variant_state(
     conv_cost = Resources()
     conv_food = 0
     for conv_id in commit.conversions:
+        # 6-tuple input (ruling 77): (grain, veg, wood, clay, reed, stone). The
+        # converter's crop input is debited here (commit.grain/veg are base-cook
+        # only), mirroring _execute_food_payment exactly.
         inp, food_out = HARVEST_CONVERSIONS[conv_id].frontier_fire
         conv_cost = conv_cost + Resources(
-            wood=inp[0], clay=inp[1], reed=inp[2], stone=inp[3])
+            grain=inp[0], veg=inp[1], wood=inp[2], clay=inp[3], reed=inp[4], stone=inp[5])
         conv_food += food_out
     p = state.players[idx]
     p = fast_replace(
@@ -3523,17 +3526,28 @@ def _food_payment_commits(
             )
             for (g_rem, v_rem, s_rem, b_rem, c_rem) in frontier
         ]
-    return [
-        CommitFoodPayment(
-            grain  = grain_pre  - vec[0],
-            veg    = veg_pre    - vec[1],
+    # A converter's CROP input (ruling 77's 6-tuple) is debited separately by
+    # _execute_food_payment via `conversions`, so CommitFoodPayment.grain/veg
+    # must hold only the BASE-cooked crops. The frontier's vec[0]/vec[1] are
+    # TOTAL remaining grain/veg (the converter's premium draw is folded into
+    # them — see _food_payment_generalized), so `grain_pre - vec[0]` is TOTAL
+    # grain consumed; subtract the fired converters' grain/veg input to leave
+    # the base-cooked amount. Building converters have grain=veg=0, so this is
+    # a no-op for them (byte-identical to the pre-ruling-77 inversion).
+    conv_crop = {cid: (inp[0], inp[1]) for cid, inp, _out, _grp in converters}
+    commits = []
+    for (vec, fired) in frontier:
+        cg = sum(conv_crop[c][0] for c in fired)
+        cv = sum(conv_crop[c][1] for c in fired)
+        commits.append(CommitFoodPayment(
+            grain  = grain_pre  - vec[0] - cg,
+            veg    = veg_pre    - vec[1] - cv,
             sheep  = sheep_pre  - vec[2],
             boar   = boar_pre   - vec[3],
             cattle = cattle_pre - vec[4],
             conversions = fired,
-        )
-        for (vec, fired) in frontier
-    ]
+        ))
+    return commits
 
 
 def _enumerate_pending_food_payment(
