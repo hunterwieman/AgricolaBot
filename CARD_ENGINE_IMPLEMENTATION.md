@@ -2817,6 +2817,24 @@ examples; this is the reference list.
   goods-only dominance stays exact (the food difference equals the deferred cook-value of the
   goods difference) — re-derive that identity before trusting any new frontier design. Full
   derivation with the counterexamples: HARVEST_HANDOFF.md §8.
+- **A mandatory occupation effect that can't be carried out — playable-and-wasted, or
+  unplayable? (An open question with a current ruling — keep asking it.)** Several
+  occupations carry a mandatory immediate effect with a cost or a precondition: Confidant
+  (*"place 1 food on each of the next 2/3/4 round spaces"*), Prophet (*"immediately take a
+  Renovation action; afterward you can take a Build Fences action"*), Basket Weaver
+  (*"immediately build the Basketmaker's Workshop"*). Sometimes the player can't carry that
+  effect out — can't afford it (Confidant with too little food, Basket Weaver without the
+  1 stone + 1 reed) or fails its precondition (Prophet's renovate when already in a stone
+  house). Is the occupation then unplayable, or do they play it and the effect is wasted?
+  **Current ruling (user, 2026-07-21): it is still playable and the effect is wasted** — you
+  play the occupation and the effect does what it can (for Prophet, no renovate means no
+  "afterward" build-fences either). **The one exception: a card whose printed text forbids
+  its own play.** Established Person prints *"You may not play this card if you cannot
+  renovate,"* so there the play is blocked when the renovate is impossible. The working
+  discriminator today is exactly that — does the card print such a clause? **This is a live
+  area, not a settled one:** treat the printed-clause discriminator as the current reading,
+  keep checking each new card's exact wording against it, and surface anything that doesn't
+  fit cleanly rather than forcing it under this ruling.
 
 ### Idioms
 
@@ -2956,6 +2974,15 @@ examples; this is the reference list.
   clear used-sets → collect `future_rewards` animals → push the start-of-round hosts.
 - **Registry test assertions must be subset checks**, never exact-set — the next batch extends
   every registry (`HARVEST_FIELD_CARDS == {...}` breaks on unrelated work).
+- **The last-resort waste variant** (Confidant). A mandatory-effect play-variant occupation
+  realizes the played-and-wasted ruling (§6 Rulings) by offering a zero-cost do-nothing
+  variant — but as a **last resort only**: it is surfaced *solely when carrying out the
+  mandatory action is impossible* (no affordable/legal real variant remains), never alongside
+  a real one. A player who *can* do the mandatory action must (the real variants are the only
+  options); the waste ("place nothing") appears only when they can't. This is the opposite of
+  a *genuine-decline* play-variant (Roof Ballaster / Baker), whose zero-surcharge decline is
+  always available because the effect is truly optional. In Confidant, `place_0` is offered
+  only when no `place_N` is affordable.
 
 ---
 
