@@ -355,7 +355,17 @@ def test_deliberate_zero_via_payment_frame_buy_fires_social_benefits():
         top_buy = [a for a in acts
                    if isinstance(a, CommitHarvestConversion)
                    and a.conversion_id == "furniture_carpenter"]
-        return top_buy[0] if top_buy else acts[0]
+        if top_buy:
+            return top_buy[0]
+        # Decline the Joinery's craft-span window offers (the Cards-only span
+        # surfaces, ruling 74 2026-07-21): this test's Joinery exists only as
+        # Furniture Carpenter's condition, and firing its span conversion would
+        # refill food past the deliberate zero this test constructs.
+        from agricola.actions import FireTrigger
+        non_span = [a for a in acts
+                    if not (isinstance(a, FireTrigger)
+                            and a.card_id.startswith("craft_span_"))]
+        return (non_span or acts)[0]
 
     state = _run_harvest(state, pick)
     p = state.players[0]
