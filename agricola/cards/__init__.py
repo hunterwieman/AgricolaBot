@@ -1049,3 +1049,5 @@ from agricola.cards import miller  # noqa: F401
 # --- 2026-07-21 ruling-74 triage batch, Wave 4 (card-as-action-space) ---
 from agricola.cards import collector  # noqa: F401
 from agricola.cards import tree_inspector  # noqa: F401
+# The craft majors' harvest-span windows (ruling 74's general pattern; Cards-only)
+from agricola.cards import craft_major_span  # noqa: F401

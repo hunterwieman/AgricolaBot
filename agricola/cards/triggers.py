@@ -40,6 +40,13 @@ class TriggerEntry:
     eligibility_fn: Callable
     apply_fn: Callable
     mandatory: bool = False
+    # Ownership predicate override (ruling 74, 2026-07-21 — the craft majors'
+    # harvest-span triggers): `(state, player_idx) -> bool`. None (every card
+    # module's default) = tableau ownership via `_owns`. A non-tableau source —
+    # Joinery/Pottery/Basketmaker's, owned via the board's major-owner array —
+    # supplies its own predicate; BOTH surfacing gates (the trigger enumerator
+    # in legality.py and engine._has_window_trigger) consult it.
+    is_owned_fn: Callable | None = None
 
 
 # Event-keyed registry — for "what eligible cards fire on event X?" queries.
@@ -56,6 +63,7 @@ def register(
     apply_fn: Callable,
     *,
     mandatory: bool = False,
+    is_owned_fn: Callable | None = None,
 ) -> None:
     """Called at import time by each card module.
 
@@ -71,6 +79,7 @@ def register(
         eligibility_fn=eligibility_fn,
         apply_fn=apply_fn,
         mandatory=mandatory,
+        is_owned_fn=is_owned_fn,
     )
     TRIGGERS.setdefault(event, []).append(entry)
     CARDS[card_id] = entry

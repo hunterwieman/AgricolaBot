@@ -243,7 +243,7 @@ FREE_SPAN_EVENTS: tuple[str, ...] = (
 
 
 def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
-                               *, variants_fn=None) -> None:
+                               *, variants_fn=None, is_owned_fn=None) -> None:
     """Register an optional trigger on EVERY free-span surface (ruling 36,
     2026-07-12: the anytime food→resources/points buys are available
     throughout the harvest span, field phase through end_of_harvest — the
@@ -256,11 +256,18 @@ def register_free_span_trigger(card_id: str, eligibility_fn, apply_fn,
     HarvestConversionSpec entry, which covers the payment surface). A card
     with a per-fire CHOICE (Paintbrush's food-vs-point) passes `variants_fn`
     — registered once in the play-variant registry (event-independent), so
-    every surface expands the trigger into per-variant FireTriggers."""
+    every surface expands the trigger into per-variant FireTriggers.
+
+    `is_owned_fn` (`(state, player_idx) -> bool`, default None = tableau
+    ownership) is threaded onto every registered entry — the ruling-74
+    ownership-predicate override for NON-tableau span sources (the craft
+    majors' harvest-span exchanges in `craft_major_span.py`, owned via the
+    board's major-owner array; both surfacing gates consult it)."""
     from agricola.cards.triggers import register, register_play_variant_trigger
 
     for event in FREE_SPAN_EVENTS:
-        register(event, card_id, eligibility_fn, apply_fn)
+        register(event, card_id, eligibility_fn, apply_fn,
+                 is_owned_fn=is_owned_fn)
         if event not in SENTINEL_WINDOWS:
             register_harvest_window_hook(card_id, event)
     if variants_fn is not None:

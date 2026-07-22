@@ -2974,7 +2974,12 @@ def _eligible_fire_triggers(state, pending, event: str) -> list:
     p = state.players[pending.player_idx]
     entries = []
     for entry in TRIGGERS.get(event, ()):
-        if not _owns(p, entry.card_id):
+        # Ownership: the per-entry predicate when set (non-tableau sources —
+        # the craft majors' span triggers, ruling 74), else tableau _owns.
+        if entry.is_owned_fn is not None:
+            if not entry.is_owned_fn(state, pending.player_idx):
+                continue
+        elif not _owns(p, entry.card_id):
             continue
         if entry.card_id in pending.triggers_resolved:
             continue

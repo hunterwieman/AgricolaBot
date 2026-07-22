@@ -1736,9 +1736,11 @@ def _has_window_trigger(state: GameState, idx: int, event: str) -> bool:
     entries = TRIGGERS.get(event, ())
     if not entries:
         return False
-    return any(_owns(state.players[idx], e.card_id)
-               and e.eligibility_fn(state, idx, frozenset())
-               for e in entries)
+    return any(
+        (e.is_owned_fn(state, idx) if e.is_owned_fn is not None
+         else _owns(state.players[idx], e.card_id))
+        and e.eligibility_fn(state, idx, frozenset())
+        for e in entries)
 
 
 def _window_trigger_players(state: GameState, window_id: str,
