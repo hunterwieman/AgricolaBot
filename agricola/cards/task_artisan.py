@@ -53,12 +53,13 @@ from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import (
+    grant_named_minor_or_pay_decline,
     register,
     register_auto,
     register_named_action_grant,
 )
 from agricola.legality import playable_minors
-from agricola.pending import PendingGrantedSubAction, PendingPlayMinor, push
+from agricola.pending import PendingPlayMinor, push
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.state import GameState, get_space
@@ -112,11 +113,13 @@ def _fire_minor(state: GameState, idx: int) -> GameState:
 def _on_play(state: GameState, idx: int) -> GameState:
     # Wood first — it may itself make a hand minor affordable for the grant.
     state = _grant_wood(state, idx)
-    if playable_minors(state, idx):
-        state = push(state, PendingGrantedSubAction(
-            player_idx=idx, initiated_by_id="card:task_artisan",
-            subactions=("play_minor",), minor_is_action=True))
-    return state
+    # The optional named "Minor Improvement" action: push the wrapper when a
+    # minor is playable, else — the granted named action being UNUSABLE — pay
+    # Field Merchant's "minor" decline income (user ruling 78 item 3, 2026-07-21:
+    # could-not-use counts as declining, matching Meeting Place / Basic Wish).
+    # The helper never double-pays (wrapper-push XOR pay). The reveal half's
+    # unusable case is handled separately by the ruling-76 window seam.
+    return grant_named_minor_or_pay_decline(state, idx, "card:task_artisan")
 
 
 def _grant_condition(state: GameState, idx: int, host) -> bool:

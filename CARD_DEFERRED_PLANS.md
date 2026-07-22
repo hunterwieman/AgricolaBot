@@ -232,11 +232,13 @@ cook reactions against the no-FEED-triggers boundary.
    it"). HFP (C72) IS implemented and pushes the composite `PendingMajorMinorImprovement`
    on-play (field phase, then the Major-or-Minor action). Its composite is NOT registered on
    the named-action-grant (unfired-trigger) seam — it comes from on-play resolution, not a
-   trigger. OPEN for an explicit decision: whether HFP pays Field Merchant via the composite's
-   own decline route (which is offered to a decline-income owner regardless of affordability —
-   current behavior to be verified), and whether the played-but-unusable case pays under
-   item 3's principle. Do not fold HFP into item 3's pass; decide it deliberately with the
-   user.
+   trigger. VERIFIED behavior (2026-07-21, by trace): (a) when HFP's composite IS pushed (a
+   legal child exists), a decline-income owner IS offered the composite's `decline_improvement`
+   route and declining pays 1 veg — already works via the composite's own seam; (b) when HFP
+   has NO legal child it pushes nothing and pays nothing. OPEN for an explicit decision: whether
+   case (b) — the played-but-unusable COMPOSITE — should pay under item 3's could-not-use
+   principle (item 3 applied it only to granted MINOR actions, not composites). Do not fold HFP
+   into item 3's pass; decide it deliberately with the user.
 
 **Ruling 77 (2026-07-21) — the greedy-conversion principle + two corrections:**
 

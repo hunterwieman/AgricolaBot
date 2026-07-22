@@ -602,21 +602,22 @@ def test_vegetable_vendor_fired_then_declined_pays_exactly_once():
 
 # --- Sample Stable Maker (window-hosted, "minor") ----------------------------
 
-def _ssm_drained_state(*, fm=True, stable=True):
-    """A drained Family-setup WORK state (the round-end ladder runs next); P0
-    owns Sample Stable Maker (+ Field Merchant when fm) with an (optional)
-    standalone stable and an empty hand."""
+def _ssm_drained_state(*, fm=True, stable=True, owner=0, hand=()):
+    """A drained Family-setup WORK state (the round-end ladder runs next);
+    player `owner` owns Sample Stable Maker (+ Field Merchant when fm) with an
+    (optional) standalone stable and the given hand minors."""
     state = setup(0)
     state = fast_replace(state, phase=Phase.WORK, round_number=1,
                          starting_player=0)
-    p = state.players[0]
+    p = state.players[owner]
     occs = p.occupations | {"sample_stable_maker"} | ({CARD_ID} if fm else set())
     state = fast_replace(state, players=tuple(
         fast_replace(state.players[i], people_home=0,
-                     **({"occupations": occs} if i == 0 else {}))
+                     **({"occupations": occs, "hand_minors": frozenset(hand)}
+                        if i == owner else {}))
         for i in range(2)))
     if stable:
-        state = with_grid(state, 0, {(0, 4): Cell(cell_type=CellType.STABLE)})
+        state = with_grid(state, owner, {(0, 4): Cell(cell_type=CellType.STABLE)})
     return state
 
 
@@ -644,15 +645,65 @@ def test_ssm_no_stable_is_no_grant_no_pay():
     assert state.players[0].resources.food == food0
 
 
-def test_ssm_fired_pays_no_decline_income():
-    state = _ssm_drained_state()
+def test_ssm_fired_no_playable_minor_pays_decline_income():
+    # RULING 78 item 3: SSM fired (returns a stable, +1 wood/grain/food) with no
+    # playable minor -> the granted named minor is UNUSABLE, so the push site
+    # pays the "minor" decline income directly (matching Meeting Place's
+    # no-playable-minor payment). +1 food goods + +1 food income = +2.
+    state = _ssm_drained_state()                       # empty hand
     food0 = state.players[0].resources.food
     state = _advance_until_decision(state)
     state = step(state, FireTrigger(card_id="sample_stable_maker", variant="0,4"))
-    # Goods landed (+1 food among them); empty hand -> no wrapper; back at the
-    # window. Proceeding pays NO decline income (the grant was fired).
-    state = step(state, Proceed())
-    assert state.players[0].resources.food == food0 + 1   # the goods' food only
+    # The decline income is paid AT THE FIRE (no wrapper pushed).
+    assert state.players[0].resources.food == food0 + 2
+    # No wrapper on the stack — back at the window, only Proceed remains.
+    assert not any(isinstance(f, PendingGrantedSubAction) for f in state.pending_stack)
+    state = step(state, Proceed())                     # SSM latched -> no re-pay
+    assert state.players[0].resources.food == food0 + 2
+
+
+def test_ssm_fired_with_playable_minor_pays_exactly_once():
+    # No-double check: SSM fired WITH a playable minor -> the wrapper is pushed
+    # (helper does NOT pay), and Stopping the wrapper pays once via the existing
+    # ruling-74 wrapper-Stop seam. The granted +1 grain makes Market Stall (1
+    # grain) playable, so the wrapper appears.
+    state = _ssm_drained_state(hand=("market_stall",))
+    food0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    state = step(state, FireTrigger(card_id="sample_stable_maker", variant="0,4"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingGrantedSubAction) and top.minor_is_action
+    assert state.players[0].resources.food == food0 + 1   # goods only — helper didn't pay
+    state = step(state, Stop())                        # decline the minor via the wrapper
+    assert state.players[0].resources.food == food0 + 2   # wrapper-Stop pays once
+    state = step(state, Proceed())                     # window: SSM latched -> no third pay
+    assert state.players[0].resources.food == food0 + 2
+
+
+def test_ssm_fired_no_minor_without_decline_income_pays_nothing():
+    # The new push-site pay is registry/owner-gated: no Field Merchant -> only
+    # the goods land.
+    state = _ssm_drained_state(fm=False)               # empty hand, no FM
+    food0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    state = step(state, FireTrigger(card_id="sample_stable_maker", variant="0,4"))
+    assert state.players[0].resources.food == food0 + 1   # goods only, no income
+
+
+def test_ssm_fired_no_minor_opponent_owner_pays_fm_owner_nothing():
+    # "YOU decline": P1 owns SSM and fires with no playable minor; P0 owns Field
+    # Merchant but was not the granting/declining player -> nobody is paid.
+    state = _ssm_drained_state(fm=False, owner=1)
+    o = state.players[0]
+    state = fast_replace(state, players=tuple(
+        fast_replace(o, occupations=o.occupations | {CARD_ID}) if i == 0
+        else state.players[i] for i in range(2)))
+    food_fm = state.players[0].resources.food
+    food_ssm = state.players[1].resources.food
+    state = _advance_until_decision(state)
+    state = step(state, FireTrigger(card_id="sample_stable_maker", variant="0,4"))
+    assert state.players[0].resources.food == food_fm         # FM owner unpaid
+    assert state.players[1].resources.food == food_ssm + 1    # SSM owner: goods only
 
 
 def test_ssm_without_decline_income_unchanged():
@@ -663,6 +714,46 @@ def test_ssm_without_decline_income_unchanged():
     assert isinstance(top, PendingHarvestWindow)       # trigger-eligible hosting
     state = step(state, Proceed())
     assert state.players[0].resources.food == food0
+
+
+# --- Task Artisan, on-play grant (push site — ruling 78 item 3) --------------
+
+def test_task_artisan_on_play_no_playable_minor_pays_food():
+    # RULING 78 item 3: Task Artisan's ON-PLAY grant (+1 wood + a named "Minor
+    # Improvement" action) with no playable minor -> the named action is
+    # unusable, so the push site pays +1 food decline income (matching Meeting
+    # Place). Driven directly via on_play (the Task Artisan suite's own idiom),
+    # with Field Merchant already owned so the income has a payee.
+    cs, cp = _card_state(occ=("task_artisan",))        # owns FM + TA, empty hand
+    food0 = cs.players[cp].resources.food
+    wood0 = cs.players[cp].resources.wood
+    out = OCCUPATIONS["task_artisan"].on_play(cs, cp)
+    assert out.players[cp].resources.wood == wood0 + 1     # the grant's wood
+    assert out.players[cp].resources.food == food0 + 1     # the decline income
+    assert not any(isinstance(f, PendingGrantedSubAction) for f in out.pending_stack)
+
+
+def test_task_artisan_on_play_with_playable_minor_pushes_wrapper_no_pay():
+    # With a playable minor the wrapper is pushed and the helper does NOT pay
+    # (the wrapper-Stop seam would, if declined) — the no-double invariant.
+    cs, cp = _card_state(occ=("task_artisan",), hand=("market_stall",),
+                         res=Resources(grain=1))
+    food0 = cs.players[cp].resources.food
+    out = OCCUPATIONS["task_artisan"].on_play(cs, cp)
+    top = out.pending_stack[-1]
+    assert isinstance(top, PendingGrantedSubAction) and top.minor_is_action
+    assert out.players[cp].resources.food == food0         # helper didn't pay
+
+
+def test_task_artisan_on_play_no_fm_pays_nothing():
+    # Owner-gated: without Field Merchant, the unusable on-play grant pays no
+    # income (only the wood lands).
+    cs, cp = _card_state(occ=("task_artisan",), played=False)   # FM in hand, not owned
+    food0 = cs.players[cp].resources.food
+    wood0 = cs.players[cp].resources.wood
+    out = OCCUPATIONS["task_artisan"].on_play(cs, cp)
+    assert out.players[cp].resources.wood == wood0 + 1
+    assert out.players[cp].resources.food == food0             # no income
 
 
 # --- Task Artisan, reveal path (window-hosted, "minor") ----------------------

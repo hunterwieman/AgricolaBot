@@ -93,13 +93,15 @@ def _variants(state: GameState, idx: int) -> list:
 def _apply(state: GameState, idx: int, variant: str) -> GameState:
     """One fire: return the chosen stable (cell -> EMPTY), flag the
     accommodation barrier (the removal can shrink housing — Milking Place
-    idiom), grant 1 wood + 1 grain + 1 food, then — if a hand minor is
-    playable on the post-goods state — push the optional play-minor wrapper
-    (the Dwelling Plan idiom; Stop declines the minor alone)."""
-    # local imports: card modules can't import legality/pending at module load
+    idiom), grant 1 wood + 1 grain + 1 food, then hand the optional
+    "Minor Improvement" action to `grant_named_minor_or_pay_decline`: it
+    pushes the play-minor wrapper (the Dwelling Plan idiom; Stop declines the
+    minor alone) when a hand minor is playable on the post-goods state, else —
+    the named action being unusable — pays Field Merchant's decline income
+    (user ruling 78 item 3)."""
+    # local import: card modules can't import legality at module load
     # (load-order), matching the Beneficiary idiom.
-    from agricola.legality import playable_minors
-    from agricola.pending import PendingGrantedSubAction, push
+    from agricola.cards.triggers import grant_named_minor_or_pay_decline
 
     r_s, c_s = variant.split(",")
     r, c = int(r_s), int(c_s)
@@ -130,14 +132,15 @@ def _apply(state: GameState, idx: int, variant: str) -> GameState:
     state = fast_replace(
         state, players=tuple(p if i == idx else state.players[i] for i in range(2)))
 
-    # The optional "Minor Improvement" action rider — gated on a hand minor
-    # being playable RIGHT NOW (post-goods), so the wrapper is never a
-    # dead-end; skipped entirely otherwise (the goods above still landed).
-    if playable_minors(state, idx):
-        state = push(state, PendingGrantedSubAction(
-            player_idx=idx, initiated_by_id=FRAME_ID,
-            subactions=("play_minor",), minor_is_action=True))
-    return state
+    # The optional "Minor Improvement" action rider — push the choose-or-decline
+    # wrapper when a hand minor is playable RIGHT NOW (post-goods, so the granted
+    # goods can enable one), so it is never a dead-end. When none is playable the
+    # named action is UNUSABLE — pay Field Merchant's "minor" decline income
+    # (user ruling 78 item 3, 2026-07-21: could-not-use counts as declining a
+    # granted named minor, matching Meeting Place / Basic Wish). The goods above
+    # landed regardless. The helper never double-pays: it either pushes the
+    # wrapper (whose own Stop is the decline seam) or pays, never both.
+    return grant_named_minor_or_pay_decline(state, idx, FRAME_ID)
 
 
 def _action_label(variant: str) -> str | None:

@@ -544,3 +544,38 @@ def note_improvement_action_declined(state, idx: int, kind: str):
         if _owns(p, cid):
             state = IMPROVEMENT_DECLINE_INCOME[cid](state, idx, kind)
     return state
+
+
+def grant_named_minor_or_pay_decline(state, idx: int, initiated_by_id: str):
+    """A card's PUSH SITE for an OPTIONAL granted NAMED "Minor Improvement"
+    action (`minor_is_action=True`): push the standard choose-or-decline
+    wrapper when the owner has a playable hand minor, ELSE pay the "minor"-kind
+    decline income for the unusable named action (user ruling 78 item 3,
+    2026-07-21 — "I lean towards granting Field Merchant income even when the
+    player has no minors in hand": the ruling-74 "could not use counts as
+    declining" rule, already live at Meeting Place / Basic Wish, extends to a
+    GRANTED named minor the owner cannot use).
+
+    - **Playable minor exists** → push `PendingGrantedSubAction(subactions=
+      ("play_minor",), minor_is_action=True)` carrying `initiated_by_id`. The
+      wrapper's own Stop is then the decline seam (`engine._apply_stop` pays the
+      "minor" income when the wrapper is Stopped untaken), so this path must NOT
+      pay too — no double.
+    - **No playable minor** → the wrapper would offer only Stop (a dead grant),
+      so it is not pushed; instead pay the decline income directly. Registry-
+      gated / owner-only via `note_improvement_action_declined` — a no-op for a
+      non-owner and for the Family game (no card push happens either way).
+
+    Callers: Sample Stable Maker's fire, Task Artisan's on-play grant. (Task
+    Artisan's REVEAL grant's unusable case is already covered by the ruling-76
+    unfired-trigger WINDOW seam — its trigger is withheld when no minor is
+    playable, and the window frame pays via
+    `engine._sweep_unfired_named_action_grants`; that path never reaches a push
+    site, so it does not use this helper.)"""
+    from agricola.legality import playable_minors
+    from agricola.pending import PendingGrantedSubAction, push
+    if playable_minors(state, idx):
+        return push(state, PendingGrantedSubAction(
+            player_idx=idx, initiated_by_id=initiated_by_id,
+            subactions=("play_minor",), minor_is_action=True))
+    return note_improvement_action_declined(state, idx, "minor")
