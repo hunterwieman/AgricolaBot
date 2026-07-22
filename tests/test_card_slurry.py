@@ -1,7 +1,7 @@
 """Tests for Slurry (minor improvement, C71; Corbarius Expansion) —
-card_id `slurry_spreader_c71`. The id is legacy: the card's JSON name used to
-read "Slurry Spreader" (matching the Artifex A106 occupation, which owns the
-`slurry_spreader` slug) and was later corrected to just "Slurry".
+card_id `slurry` (== the name slug). The unrelated Artifex A106 occupation
+"Slurry Spreader" owns the distinct `slurry_spreader` slug, so there is no
+collision and no (slug, deck) alias is needed.
 
 Card text: "In the breeding phase of each harvest, if you get newborn animals
 of at least two types, you also get a "Sow" action."
@@ -25,7 +25,7 @@ import dataclasses
 import json
 from pathlib import Path
 
-import agricola.cards.slurry_spreader_c71  # noqa: F401  (registers the card)
+import agricola.cards.slurry              # noqa: F401  (registers the card)
 import agricola.cards.slurry_spreader      # noqa: F401  (the A106 occupation)
 
 from agricola.actions import CommitBreed, CommitSow, FireTrigger, Stop
@@ -45,7 +45,7 @@ from agricola.setup import setup
 
 from tests.factories import with_phase, with_resources
 
-CARD_ID = "slurry_spreader_c71"
+CARD_ID = "slurry"
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ def test_registered_and_spec_matches_json_row():
     assert row["prerequisites"] is None
     assert row["vps"] is None
     # The module docstring quotes the printed text verbatim.
-    import agricola.cards.slurry_spreader_c71 as mod
+    import agricola.cards.slurry as mod
     assert row["text"] in " ".join(mod.__doc__.split())
 
     spec = MINORS[CARD_ID]
@@ -171,7 +171,7 @@ def test_registered_and_spec_matches_json_row():
 
 def test_coexists_with_the_a106_occupation():
     """The A106 occupation "Slurry Spreader" (slug `slurry_spreader`) and this
-    minor (`slurry_spreader_c71`) are distinct registrations side by side."""
+    minor "Slurry" (card_id/slug `slurry`) are distinct registrations side by side."""
     assert "slurry_spreader" in OCCUPATIONS
     assert "slurry_spreader" not in MINORS
     assert CARD_ID in MINORS

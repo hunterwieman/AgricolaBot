@@ -59,11 +59,10 @@ def _row_id_candidates(row: dict) -> tuple[str, str]:
     """The registry ids a catalog row could be implemented under.
 
     Usually a card's id is just slug(name). But when a name is ambiguous — two
-    printings of the same name, or a cross-registry clash like the occupation and the
-    minor both named "Slurry Spreader" — the implementation disambiguates with a
-    `slug_<deck><number>` id (e.g. `slurry_spreader_c71`). Checking only the base slug
-    would then miss the card and falsely report it unimplemented, so we accept either
-    form."""
+    printings of the same name, like the B8 and C54 minors both named "Market Stall" —
+    the implementation disambiguates with a `slug_<deck><number>` id (e.g.
+    `market_stall_c54`). Checking only the base slug would then miss the card and
+    falsely report it unimplemented, so we accept either form."""
     base = card_slug(row["name"])
     return base, f"{base}_{row['deck'].lower()}{row['number']}"
 

@@ -519,7 +519,7 @@ from agricola.cards import treegardener  # noqa: F401
 # replace-kind take-modifier, and the feeding-requirement fold.
 from agricola.cards import stone_importer  # noqa: F401
 from agricola.cards import fodder_planter  # noqa: F401
-from agricola.cards import slurry_spreader_c71  # noqa: F401
+from agricola.cards import slurry  # noqa: F401
 from agricola.cards import grain_thief  # noqa: F401
 from agricola.cards import potato_ridger  # noqa: F401
 from agricola.cards import food_merchant  # noqa: F401

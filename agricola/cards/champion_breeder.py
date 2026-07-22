@@ -14,7 +14,7 @@ nothing. Points accumulate across the game's six harvests and are read at scorin
   with the `BreedingOutcome` payload — the newborns actually PLACED (0/1 per type,
   so 0..3 total in the 2-player game). The printed accommodation clarification is
   inherent in the payload: an unaccommodated newborn is never placed, so it never
-  appears in `outcome.total` (the `fodder_planter.py` / `slurry_spreader_c71.py`
+  appears in `outcome.total` (the `fodder_planter.py` / `slurry.py`
   precedent). Eligibility is `outcome.total >= 2` (fewer than 2 earns nothing).
 
 - **Banking, round-keyed.** The apply accumulates into a

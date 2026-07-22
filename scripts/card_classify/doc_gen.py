@@ -15,9 +15,10 @@ NORMALIZE = {"COST-GAME": "CAP-GAME", "T-DURING": "S-HFEED",
              "ALTCOST-NONE": "E-ALTCOST", "CAP-NEW": "E-CAPNEW"}
 # C54 "Market Stall" shares B8's name-slug; it is implemented under the
 # distinct card_id `market_stall_c54` (2026-07-05), which the slug-based
-# implemented-check can't see — force True. Same for the C71 "Slurry
-# Spreader" minor (card_id `slurry_spreader_c71`; the A-deck occupation of
-# the same name owns the plain slug).
+# implemented-check can't see — force True. C71 (the minor now named "Slurry",
+# live card_id `slurry`) is force-True too: this pipeline's local catalog
+# snapshot still records its old name "Slurry Spreader", whose base slug no
+# longer matches the live registry.
 IMPL_FIX = {"C54": True, "C71": True}
 
 # DEFERRED FOR AMBIGUITY (rulings 50/53 — CARD_DEFERRED_PLANS.md's category):

@@ -6,12 +6,9 @@ Clarification (printed): "You must be able to accommodate each newborn in order
 to get it."
 No cost, no prerequisite, no printed VPs.
 
-**card_id `slurry_spreader_c71`, not the name slug** — legacy id: this card's
-JSON name once read "Slurry Spreader" (matching the unrelated Artifex A106
-occupation, a last-crop-from-a-field income card that owns the `slurry_spreader`
-slug), and was later corrected to "Slurry". The id was kept, so the web UI's
-card-metadata join carries an explicit (slug, deck) alias mapping this id to the
-renamed ("slurry", "C") row (the Market Stall C54 precedent).
+card_id `slurry` (== the name slug). NOTE: the unrelated Artifex A106 occupation
+is named "Slurry Spreader" (a last-crop-from-a-field income card) and owns the
+distinct `slurry_spreader` slug — no collision, so no (slug, deck) alias is needed.
 
 TIMING — the breed frame's post-commit stretch (user ruling 20, 2026-07-05:
 an outcome-reactive breeding grant surfaces AFTER CommitBreed, before Stop,
@@ -56,7 +53,7 @@ from agricola.pending import PendingSow, push
 from agricola.replace import fast_replace
 from agricola.state import GameState
 
-CARD_ID = "slurry_spreader_c71"
+CARD_ID = "slurry"
 
 
 def _sow_committable(state: GameState, idx: int) -> bool:

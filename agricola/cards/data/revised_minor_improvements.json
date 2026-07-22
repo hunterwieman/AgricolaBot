@@ -3769,7 +3769,7 @@
     "deck": "C",
     "number": 71,
     "type": "Minor Improvement",
-    "status": "todo",
+    "status": "implemented",
     "name": "Slurry",
     "cost": null,
     "vps": null,
