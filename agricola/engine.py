@@ -131,6 +131,7 @@ import agricola.cards  # noqa: F401
 # to import here without a load-order cycle.
 from agricola.cards.triggers import (
     IMPROVEMENT_DECLINE_INCOME,
+    NAMED_ACTION_GRANTS,
     apply_auto_effects,
     note_improvement_action_declined,
     should_host_space,
@@ -609,6 +610,37 @@ def _apply_commit_card_choice(
     return resolver(state, top.player_idx, chosen)
 
 
+def _sweep_unfired_named_action_grants(state: GameState, frame) -> GameState:
+    """The grant-condition-held-but-unfired decline seam (user ruling 76,
+    2026-07-21): at a host's terminal exit — the Stop pop for frame-hosted
+    grants, the window frame's Proceed for window-hosted ones — pay the host
+    player's decline income once per registered named-action grant they OWN
+    whose CONDITION held at this host and whose trigger was never fired.
+    Declining-to-fire (or being unable to afford the fire — the trigger's
+    doability gates are deliberately NOT part of the condition) counts as
+    declining the granted named action.
+
+    No double pay: a FIRED grant is in the frame's `triggers_resolved` and is
+    skipped — its pushed frame's own decline seams (the composite decline
+    route, the wrapper Stop) govern it from there. Frames without
+    `triggers_resolved` (closed decision frames, the granted-sub-action
+    wrapper) host no triggers and are skipped whole. Family-inert: no Family
+    player owns a granting card, so `_owns` fails before any condition runs
+    (and `note_improvement_action_declined` would pay nothing regardless)."""
+    from agricola.cards.triggers import _owns
+    resolved = getattr(frame, "triggers_resolved", None)
+    if resolved is None:
+        return state
+    idx = frame.player_idx
+    p = state.players[idx]
+    for e in NAMED_ACTION_GRANTS:
+        if (e.card_id not in resolved
+                and _owns(p, e.card_id)
+                and e.condition_fn(state, idx, frame)):
+            state = note_improvement_action_declined(state, idx, e.kind)
+    return state
+
+
 def _apply_stop(state: GameState) -> GameState:
     assert state.pending_stack, "Stop called with empty pending_stack"
     # Improvement-decline income seam (user ruling 74, 2026-07-21 — Field
@@ -638,6 +670,14 @@ def _apply_stop(state: GameState) -> GameState:
                 and (top.uses_done == 0 if top.max_uses > 0
                      else "play_minor" not in top.chosen)):
             state = note_improvement_action_declined(state, top.player_idx, "minor")
+    # Unfired named-action GRANTS on the popping host (user ruling 76,
+    # 2026-07-21; registry-gated — empty registry short-circuits): this Stop is
+    # the host's terminal exit, so any owned grant whose condition held here and
+    # whose trigger was never fired (whether declined-to-fire or withheld as
+    # unaffordable) was declined — pay the decline income. Disjoint from the
+    # wrapper branch above (the wrapper carries no `triggers_resolved`).
+    if NAMED_ACTION_GRANTS:
+        state = _sweep_unfired_named_action_grants(state, state.pending_stack[-1])
     # Pure pop (SPACE_HOST_REFACTOR.md §11). Every host's after-automatic effects
     # fire at its own work-complete boundary (Proceed for atomic/Proceed-hosts and
     # the multi-shot builders, the commit for the markets, the auto-advance for
@@ -752,6 +792,14 @@ def _apply_proceed(state: GameState) -> GameState:
     # the walk — so Proceed (the decline / work-complete boundary) simply pops; the
     # walk resumes at GameState.harvest_cursor.
     if isinstance(top, PendingHarvestWindow):
+        # Unfired named-action GRANTS this window hosted (user ruling 76,
+        # 2026-07-21; registry-gated): Proceed is the window frame's terminal
+        # exit, so an owned window grant whose condition held and whose trigger
+        # was never fired — including a frame hosted ONLY for this seam because
+        # the trigger was withheld as unaffordable (`_window_trigger_players`'
+        # grant-decline extension) — was declined; pay the decline income.
+        if NAMED_ACTION_GRANTS:
+            state = _sweep_unfired_named_action_grants(state, top)
         return pop(state)
     # A per-occasion choice host (card-only, HARVEST_WINDOWS_DESIGN.md §4d): the
     # occasion's autos fired before the push, so Proceed declines whatever
@@ -1743,18 +1791,51 @@ def _has_window_trigger(state: GameState, idx: int, event: str) -> bool:
         for e in entries)
 
 
+def _window_grant_decline_players(state: GameState, window_id: str) -> frozenset:
+    """Players owed a window choice frame ONLY for the unfired-grant decline
+    seam (user ruling 76, 2026-07-21): a window hosts its frame per ELIGIBLE
+    trigger, so a named-action grant whose trigger was withheld (unaffordable —
+    e.g. Tree Farm Joiner's scheduled round with no playable minor) would never
+    see a host exit, and per the ruling that withheld grant still counts as
+    declined. So the frame is also owed to a player who OWNS a registered
+    named-action grant of THIS window whose CONDITION holds — gated on the
+    player also owning a decline-income card, because without decline income
+    the extra frame would have no observable effect (a no-FM game hosts exactly
+    as before). The frame then offers just Proceed (a singleton the agent
+    auto-applies), and the Proceed sweep pays. Condition is evaluated on the
+    prototype of the frame that will be pushed. Empty registry / no relevant
+    window entries / no decline-income owner -> frozenset() (the fast path)."""
+    from agricola.cards.triggers import _owns, owns_improvement_decline_income
+    entries = [e for e in NAMED_ACTION_GRANTS if e.window == window_id]
+    if not entries:
+        return frozenset()
+    out = set()
+    for idx in range(len(state.players)):
+        if not owns_improvement_decline_income(state, idx):
+            continue
+        proto = PendingHarvestWindow(window_id=window_id, player_idx=idx)
+        if any(_owns(state.players[idx], e.card_id)
+               and e.condition_fn(state, idx, proto) for e in entries):
+            out.add(idx)
+    return frozenset(out)
+
+
 def _window_trigger_players(state: GameState, window_id: str,
                             *, skip_guarded: bool = True) -> list[int]:
     """The players owed a PendingHarvestWindow choice frame for a WINDOW-MAJOR
     window, in resolve order (starting player first): each non-skipped player
-    owning an eligible trigger registered on the window's event. Empty — the
-    Family fast path and the autos-only path — when no trigger would surface.
+    owning an eligible trigger registered on the window's event — or owed the
+    frame by the unfired-grant decline seam (`_window_grant_decline_players`,
+    ruling 76; empty in every no-decline-income game). Empty — the Family fast
+    path and the autos-only path — when no trigger would surface.
     `skip_guarded=False` — the round-end ladder — bypasses the harvest skip
     guard (see _advance_round_end)."""
     sp = state.starting_player
+    grant_decliners = _window_grant_decline_players(state, window_id)
     return [idx for idx in (sp, (sp + 1) % 2)
             if (not skip_guarded or not window_skipped(state, idx, window_id))
-            and _has_window_trigger(state, idx, window_id)]
+            and (_has_window_trigger(state, idx, window_id)
+                 or idx in grant_decliners)]
 
 
 def _process_simple_window(state: GameState, window_id: str,

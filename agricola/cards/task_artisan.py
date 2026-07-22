@@ -52,7 +52,11 @@ reveal was a quarry, and only while a hand minor is playable.
 from __future__ import annotations
 
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register, register_auto
+from agricola.cards.triggers import (
+    register,
+    register_auto,
+    register_named_action_grant,
+)
 from agricola.legality import playable_minors
 from agricola.pending import PendingGrantedSubAction, PendingPlayMinor, push
 from agricola.replace import fast_replace
@@ -115,9 +119,24 @@ def _on_play(state: GameState, idx: int) -> GameState:
     return state
 
 
+def _grant_condition(state: GameState, idx: int, host) -> bool:
+    """The recurring half's grant CONDITION for the unfired-decline seam (user
+    ruling 76, 2026-07-21): a quarry appeared this round, read at the `reveal`
+    window. Deliberately WITHOUT the playable-minor gate — that is DOABILITY,
+    and a grant withheld as unaffordable still counts as declined per the
+    ruling. (The ON-PLAY half is outside this seam — like Harvest Festival
+    Planning, an on-play grant has no trigger to decline; its wrapper, when
+    pushed, carries its own decline seam.)"""
+    return (getattr(host, "window_id", None) == "reveal"
+            and _quarry_appeared_this_round(state))
+
+
 register_occupation(CARD_ID, _on_play)
 # "each time a stone accumulation space appears on a round space in the
 # preparation phase" — the preparation ladder's `reveal` window (ruling 54,
 # 2026-07-14 as revised), read off `revealed_round` (user decision 2026-07-15).
 register_auto("reveal", CARD_ID, _wood_eligible, _grant_wood)
 register("reveal", CARD_ID, _minor_eligible, _fire_minor)
+# The reveal-path granted named action's condition, for decline income
+# (ruling 76, 2026-07-21).
+register_named_action_grant(CARD_ID, "minor", _grant_condition, window="reveal")

@@ -38,6 +38,7 @@ from __future__ import annotations
 from agricola.cards.specs import register_occupation
 from agricola.cards.triggers import (
     apply_auto_effects, register, register_action_space_hook, register_auto,
+    register_named_action_grant,
 )
 from agricola.legality import _can_afford_any_major_improvement, playable_minors
 from agricola.pending import PendingMajorMinorImprovement, push
@@ -83,7 +84,20 @@ def _grant_improvement(state: GameState, idx: int) -> GameState:
     return apply_auto_effects(state, "before_major_minor_improvement", idx)
 
 
+def _grant_condition(state: GameState, idx: int, host) -> bool:
+    """The grant CONDITION for the unfired-decline seam (user ruling 76,
+    2026-07-21): the host is the Vegetable Seeds space — the whole of clause
+    2's own condition. Deliberately WITHOUT the affordable-child gate (a grant
+    withheld as unaffordable still counts as declined per the ruling). Read at
+    the host's terminal Stop; the trigger's before-window closed earlier, but
+    `triggers_resolved` is frame-lifetime, so fired-vs-unfired reads true
+    there."""
+    return getattr(host, "space_id", None) == _VEG_SEEDS
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register_auto("before_action_space", CARD_ID, _on_major, _grant_veg)
 register("before_action_space", CARD_ID, _on_veg_seeds, _grant_improvement)
 register_action_space_hook(CARD_ID, frozenset({_VEG_SEEDS}))
+# The granted named action's condition, for decline income (ruling 76, 2026-07-21).
+register_named_action_grant(CARD_ID, "major_or_minor", _grant_condition)

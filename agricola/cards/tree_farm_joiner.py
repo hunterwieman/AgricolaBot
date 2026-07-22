@@ -45,7 +45,7 @@ from __future__ import annotations
 
 from agricola.cards.schedules import schedule_effect, schedule_resources
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register
+from agricola.cards.triggers import register, register_named_action_grant
 from agricola.legality import playable_minors
 from agricola.pending import PendingPlayMinor, push
 from agricola.replace import fast_replace
@@ -111,9 +111,24 @@ def _apply(state: GameState, idx: int) -> GameState:
         minor_improvement_action=True))   # the named "Minor Improvement" action
 
 
+def _grant_condition(state: GameState, idx: int, host) -> bool:
+    """The grant CONDITION for the unfired-decline seam (user ruling 76,
+    2026-07-21): this round's collection window carries this card's scheduled
+    grant. Deliberately WITHOUT the playable-minor gate — that is DOABILITY,
+    and a grant withheld as unaffordable still counts as declined per the
+    ruling. A FIRED grant consumed its slot AND latched `triggers_resolved`,
+    so the seam's unfired check never re-pays it."""
+    return (getattr(host, "window_id", None) == "round_space_collection"
+            and _scheduled_slot(state.players[idx], state.round_number) is not None)
+
+
 register_occupation(CARD_ID, _on_play)
 # "At the start of these rounds, you can [take the thing on the round
 # space]" — the round_space_collection window (user ruling 2026-07-14:
 # round-space schedule grants resolve at COLLECTION time, immediately
 # after the mechanical collect, not at the start_of_round rung).
 register("round_space_collection", CARD_ID, _eligible, _apply)
+# The scheduled granted named action's condition, for decline income
+# (ruling 76, 2026-07-21).
+register_named_action_grant(CARD_ID, "minor", _grant_condition,
+                            window="round_space_collection")

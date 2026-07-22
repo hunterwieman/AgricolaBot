@@ -43,6 +43,7 @@ from agricola.cards.triggers import (
     apply_auto_effects,
     register,
     register_action_space_hook,
+    register_named_action_grant,
 )
 from agricola.legality import _can_afford_any_major_improvement, playable_minors
 from agricola.pending import PendingMajorMinorImprovement, push
@@ -81,6 +82,19 @@ def _apply(state: GameState, idx: int) -> GameState:
     return apply_auto_effects(state, "before_major_minor_improvement", idx)
 
 
+def _grant_condition(state: GameState, idx: int, host) -> bool:
+    """The grant CONDITION for the unfired-decline seam (user ruling 76,
+    2026-07-21): the host is the Fishing space and its pre-take food was <= 2
+    (the stamped `taken` delta, read exactly as the trigger's own eligibility
+    reads it). Deliberately WITHOUT the affordable-child gate — a grant
+    withheld as unaffordable still counts as declined per the ruling."""
+    return (getattr(host, "space_id", None) in SPACES
+            and getattr(host, "taken", None) is not None
+            and host.taken.food <= MAX_FOOD)
+
+
 register_occupation(CARD_ID, lambda state, idx: state)  # no on-play; effect is the hook
 register("after_action_space", CARD_ID, _eligible, _apply)
 register_action_space_hook(CARD_ID, SPACES)
+# The granted named action's condition, for decline income (ruling 76, 2026-07-21).
+register_named_action_grant(CARD_ID, "major_or_minor", _grant_condition)

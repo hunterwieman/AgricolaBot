@@ -58,7 +58,11 @@ from __future__ import annotations
 
 from agricola.cards.display import register_action_labeler
 from agricola.cards.specs import register_occupation
-from agricola.cards.triggers import register, register_play_variant_trigger
+from agricola.cards.triggers import (
+    register,
+    register_named_action_grant,
+    register_play_variant_trigger,
+)
 from agricola.constants import CellType
 from agricola.helpers import stables_built
 from agricola.pasture import compute_pastures_from_arrays
@@ -147,6 +151,23 @@ def _action_label(variant: str) -> str | None:
             f"→ 1 wood, 1 grain, 1 food (+ minor)")
 
 
+def _grant_condition(state: GameState, idx: int, host) -> bool:
+    """The grant CONDITION for the unfired-decline seam (user ruling 76,
+    2026-07-21): >= 1 built stable at the start_of_returning_home window.
+
+    Condition-vs-doability decision (recorded per the ruling's instruction):
+    the named "Minor Improvement" action is a REWARD of the return-a-stable
+    exchange, and a built stable is that exchange's ENABLING CONDITION — with
+    no built stable there is no exchange and no improvement action on offer,
+    so nothing is declined. The stable requirement is therefore CONDITION
+    (identical to the trigger's own eligibility — the goods half is
+    unconditional), not an affordability gate the ruling would wave through.
+    Minor-playability is NOT checked anywhere in this card's eligibility, so
+    the withheld-as-unaffordable branch cannot arise for it."""
+    return (getattr(host, "window_id", None) == "start_of_returning_home"
+            and stables_built(state.players[idx].farmyard) >= 1)
+
+
 register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 
 # The optional once-per-round return on the round-end ladder's
@@ -154,3 +175,6 @@ register_occupation(CARD_ID, lambda state, idx: state)   # no on-play effect
 register("start_of_returning_home", CARD_ID, _eligible, _apply)
 register_play_variant_trigger(CARD_ID, _variants)
 register_action_labeler(CARD_ID, _action_label)
+# The granted named action's condition, for decline income (ruling 76, 2026-07-21).
+register_named_action_grant(CARD_ID, "minor", _grant_condition,
+                            window="start_of_returning_home")

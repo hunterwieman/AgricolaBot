@@ -1,6 +1,11 @@
 import agricola.cards.field_merchant  # noqa: F401  (registers the card — must be first)
 import agricola.cards.market_stall  # noqa: F401  (a cheap minor for the play/decline branches)
 import agricola.cards.merchant      # noqa: F401  (the repeat, for the no-double clarification)
+import agricola.cards.angler        # noqa: F401  (ruling-76 granting cards below)
+import agricola.cards.vegetable_vendor      # noqa: F401
+import agricola.cards.sample_stable_maker   # noqa: F401
+import agricola.cards.task_artisan          # noqa: F401
+import agricola.cards.tree_farm_joiner      # noqa: F401
 
 """Tests for Field Merchant (occupation, Bubulcus Expansion; deck B #103).
 
@@ -27,20 +32,27 @@ from agricola.actions import (
     Stop,
 )
 from agricola.cards.specs import OCCUPATIONS
-from agricola.cards.triggers import IMPROVEMENT_DECLINE_INCOME
-from agricola.constants import CellType
-from agricola.engine import step
+from agricola.cards.triggers import (
+    IMPROVEMENT_DECLINE_INCOME,
+    NAMED_ACTION_GRANTS,
+)
+from agricola.constants import CellType, Phase, STAGE_CARDS, stage_of_round
+from agricola.engine import _advance_until_decision, _complete_preparation, step
 from agricola.legality import legal_actions, legal_placements
 from agricola.pending import (
+    PendingActionSpace,
     PendingGrantedSubAction,
+    PendingHarvestWindow,
     PendingMajorMinorImprovement,
+    PendingReveal,
     PendingSubActionSpace,
     push,
 )
+from agricola.actions import RevealCard
 from agricola.replace import fast_replace
 from agricola.resources import Resources
 from agricola.setup import CardPool, setup, setup_env
-from agricola.state import Cell
+from agricola.state import Cell, FutureReward, get_space
 from tests.factories import (
     with_current_player,
     with_grid,
@@ -423,6 +435,464 @@ def test_decline_of_repeat_never_offered_off_a_declined_action():
 # Family inertness: the seams are ownership-gated, so the one Family frame a
 # seam touches (House Redevelopment's Proceed) pays nothing
 # ---------------------------------------------------------------------------
+
+# ===========================================================================
+# RULING 76 (2026-07-21): declining-to-fire a trigger that would GRANT a named
+# improvement action counts as declining the action — including when the
+# trigger was withheld as unaffordable. Fired grants stay on the frames' own
+# decline seams (no double pay).
+# ===========================================================================
+
+def test_ruling76_grant_registrations():
+    entries = {(e.card_id, e.kind) for e in NAMED_ACTION_GRANTS}
+    assert {("angler", "major_or_minor"),
+            ("vegetable_vendor", "major_or_minor"),
+            ("sample_stable_maker", "minor"),
+            ("task_artisan", "minor"),
+            ("tree_farm_joiner", "minor"),
+            ("merchant", "major_or_minor"),
+            ("merchant", "minor")} <= entries          # subset — the registry grows
+    ids = {e.card_id for e in NAMED_ACTION_GRANTS}
+    assert "stone_company" not in ids                  # not declinable (clarifications)
+    assert "harvest_festival_planning" not in ids      # on-play grant, no trigger
+    # The window-hosted grants carry their window ids for the walk extension.
+    windows = {e.card_id: e.window for e in NAMED_ACTION_GRANTS}
+    assert windows["sample_stable_maker"] == "start_of_returning_home"
+    assert windows["task_artisan"] == "reveal"
+    assert windows["tree_farm_joiner"] == "round_space_collection"
+    assert windows["angler"] is None and windows["merchant"] is None
+
+
+# --- Angler (frame-hosted, "major_or_minor") --------------------------------
+
+def _fishing_used(cs, *, food_on_space=2):
+    """Drive the hosted Fishing lifecycle to its after-phase (take included)."""
+    cs = with_space(cs, "fishing", workers=(0, 0), accumulated_amount=food_on_space)
+    cs = step(cs, PlaceWorker(space="fishing"))
+    assert isinstance(cs.pending_stack[-1], PendingActionSpace)
+    cs = step(cs, Proceed())                          # the take
+    assert cs.pending_stack[-1].phase == "after"
+    return cs
+
+
+def test_angler_unfired_offered_pays_veg():
+    cs, cp = _card_state(res=Resources(clay=2), occ=("angler",))
+    cs = _fishing_used(cs)
+    assert FireTrigger(card_id="angler") in legal_actions(cs)   # affordable, offered
+    cs = step(cs, Stop())                              # decline-to-fire
+    assert cs.players[cp].resources.veg == 1
+    assert cs.players[cp].resources.food == 2          # the take only
+
+
+def test_angler_withheld_unaffordable_still_pays():
+    # Nothing buildable/playable -> the trigger is never offered; the grant's
+    # CONDITION (fishing, pre-take food <= 2) still held -> declined -> pays.
+    cs, cp = _card_state(occ=("angler",))              # zero resources, no hand
+    cs = _fishing_used(cs)
+    assert FireTrigger(card_id="angler") not in legal_actions(cs)
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.veg == 1
+
+
+def test_angler_condition_false_pays_nothing():
+    cs, cp = _card_state(res=Resources(clay=2), occ=("angler",))
+    cs = _fishing_used(cs, food_on_space=3)            # pre-take food > 2
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.veg == 0
+
+
+def test_angler_fired_and_taken_pays_nothing():
+    cs, cp = _card_state(res=Resources(clay=2), occ=("angler",))
+    cs = _fishing_used(cs)
+    cs = step(cs, FireTrigger(card_id="angler"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, FIREPLACE_0))
+    cs = step(cs, Stop())                              # pop build-major after-phase
+    cs = step(cs, Stop())                              # pop the granted composite
+    cs = step(cs, Stop())                              # pop the fishing host
+    assert cs.players[cp].resources.veg == 0           # taken, not declined
+    assert cs.board.major_improvement_owners[FIREPLACE_0] == cp
+
+
+def test_angler_fired_then_declined_pays_exactly_once():
+    # Fired-then-frame-declined: the composite's own decline route pays; the
+    # fishing host's exit must NOT pay again ("angler" is in triggers_resolved).
+    cs, cp = _card_state(res=Resources(clay=2), occ=("angler",))
+    cs = _fishing_used(cs)
+    cs = step(cs, FireTrigger(card_id="angler"))
+    cs = step(cs, _DECLINE)
+    assert cs.players[cp].resources.veg == 1
+    cs = step(cs, Stop())                              # pop the fishing host
+    assert cs.players[cp].resources.veg == 1           # exactly once
+
+
+def test_angler_without_decline_income_pays_nothing():
+    cs, cp = _card_state(res=Resources(clay=2), occ=("angler",), played=False)
+    cs = _fishing_used(cs)
+    cs = step(cs, Stop())                              # decline-to-fire
+    assert cs.players[cp].resources.veg == 0           # FM is hand-only
+
+
+def test_opponent_granting_card_decline_pays_fm_owner_nothing():
+    # "YOU decline": the opponent owns Angler (no decline income) and declines;
+    # the Field Merchant owner was not the decliner — nobody is paid.
+    cs, cp = _card_state()                             # cp owns FM only
+    opp = 1 - cp
+    o = cs.players[opp]
+    cs = fast_replace(cs, players=tuple(
+        fast_replace(o, occupations=o.occupations | {"angler"}) if i == opp
+        else cs.players[i] for i in range(2)))
+    cs = fast_replace(cs, current_player=opp)
+    cs = _fishing_used(cs)
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.veg == 0
+    assert cs.players[opp].resources.veg == 0
+
+
+# --- Vegetable Vendor (frame-hosted before-window, "major_or_minor") --------
+
+def _veg_seeds_state(**kw):
+    cs, cp = _card_state(occ=("vegetable_vendor",), **kw)
+    return with_space(cs, "vegetable_seeds", revealed=True, workers=(0, 0)), cp
+
+
+def test_vegetable_vendor_unfired_offered_pays_veg():
+    cs, cp = _veg_seeds_state(res=Resources(clay=2))
+    cs = step(cs, PlaceWorker(space="vegetable_seeds"))
+    assert FireTrigger(card_id="vegetable_vendor") in legal_actions(cs)
+    cs = step(cs, Proceed())                           # the take closes the window
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.veg == 2           # 1 take + 1 decline income
+
+
+def test_vegetable_vendor_withheld_unaffordable_still_pays():
+    cs, cp = _veg_seeds_state()                        # zero resources, no hand
+    cs = step(cs, PlaceWorker(space="vegetable_seeds"))
+    assert FireTrigger(card_id="vegetable_vendor") not in legal_actions(cs)
+    cs = step(cs, Proceed())
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.veg == 2           # 1 take + 1 decline income
+
+
+def test_vegetable_vendor_fired_and_taken_pays_nothing():
+    cs, cp = _veg_seeds_state(res=Resources(clay=2))
+    cs = step(cs, PlaceWorker(space="vegetable_seeds"))
+    cs = step(cs, FireTrigger(card_id="vegetable_vendor"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, FIREPLACE_0))
+    cs = step(cs, Stop())                              # pop build-major after-phase
+    cs = step(cs, Stop())                              # pop the granted composite
+    cs = step(cs, Proceed())                           # the space's own take
+    cs = step(cs, Stop())                              # pop the host — no decline pay
+    assert cs.players[cp].resources.veg == 1           # the take only
+
+
+def test_vegetable_vendor_fired_then_declined_pays_exactly_once():
+    cs, cp = _veg_seeds_state(res=Resources(clay=2))
+    cs = step(cs, PlaceWorker(space="vegetable_seeds"))
+    cs = step(cs, FireTrigger(card_id="vegetable_vendor"))
+    cs = step(cs, _DECLINE)                            # the composite's own seam
+    assert cs.players[cp].resources.veg == 1
+    cs = step(cs, Proceed())                           # take: +1 veg
+    cs = step(cs, Stop())                              # host exit: no second pay
+    assert cs.players[cp].resources.veg == 2           # 1 take + exactly 1 income
+
+
+# --- Sample Stable Maker (window-hosted, "minor") ----------------------------
+
+def _ssm_drained_state(*, fm=True, stable=True):
+    """A drained Family-setup WORK state (the round-end ladder runs next); P0
+    owns Sample Stable Maker (+ Field Merchant when fm) with an (optional)
+    standalone stable and an empty hand."""
+    state = setup(0)
+    state = fast_replace(state, phase=Phase.WORK, round_number=1,
+                         starting_player=0)
+    p = state.players[0]
+    occs = p.occupations | {"sample_stable_maker"} | ({CARD_ID} if fm else set())
+    state = fast_replace(state, players=tuple(
+        fast_replace(state.players[i], people_home=0,
+                     **({"occupations": occs} if i == 0 else {}))
+        for i in range(2)))
+    if stable:
+        state = with_grid(state, 0, {(0, 4): Cell(cell_type=CellType.STABLE)})
+    return state
+
+
+def test_ssm_unfired_window_decline_pays_food():
+    state = _ssm_drained_state()
+    food0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestWindow)
+    assert top.window_id == "start_of_returning_home" and top.player_idx == 0
+    state = step(state, Proceed())                     # decline the whole package
+    assert state.players[0].resources.food == food0 + 1
+
+
+def test_ssm_no_stable_is_no_grant_no_pay():
+    # Condition-vs-doability (recorded in the card module): a built stable is
+    # the exchange's ENABLING CONDITION — without one no improvement action was
+    # on offer, so no window frame is hosted and nothing pays.
+    state = _ssm_drained_state(stable=False)
+    food0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    assert not any(isinstance(f, PendingHarvestWindow)
+                   and f.window_id == "start_of_returning_home"
+                   for f in state.pending_stack)
+    assert state.players[0].resources.food == food0
+
+
+def test_ssm_fired_pays_no_decline_income():
+    state = _ssm_drained_state()
+    food0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    state = step(state, FireTrigger(card_id="sample_stable_maker", variant="0,4"))
+    # Goods landed (+1 food among them); empty hand -> no wrapper; back at the
+    # window. Proceeding pays NO decline income (the grant was fired).
+    state = step(state, Proceed())
+    assert state.players[0].resources.food == food0 + 1   # the goods' food only
+
+
+def test_ssm_without_decline_income_unchanged():
+    state = _ssm_drained_state(fm=False)
+    food0 = state.players[0].resources.food
+    state = _advance_until_decision(state)
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestWindow)       # trigger-eligible hosting
+    state = step(state, Proceed())
+    assert state.players[0].resources.food == food0
+
+
+# --- Task Artisan, reveal path (window-hosted, "minor") ----------------------
+
+def _mark_revealed(state, card_id, round_number):
+    return with_space(state, card_id, revealed=True, revealed_round=round_number)
+
+
+def _reveal_pause(state, prev_round):
+    """Advance to the reveal nature pause entering round prev_round+1 (the
+    Task Artisan test-file idiom): mark rounds 2..prev_round's stage cards
+    revealed, then run the preparation walk to the PendingReveal."""
+    for r in range(2, prev_round + 1):
+        stage = stage_of_round(r)
+        cid = next(c for c in STAGE_CARDS[stage]
+                   if not get_space(state.board, c).revealed)
+        state = _mark_revealed(state, cid, r)
+    state = fast_replace(state, phase=Phase.PREPARATION, round_number=prev_round)
+    state = _advance_until_decision(state)
+    assert isinstance(state.pending_stack[-1], PendingReveal)
+    return state
+
+
+def _ta_state(*, fm=True, hand=()):
+    state = setup(0)
+    p = state.players[0]
+    occs = p.occupations | {"task_artisan"} | ({CARD_ID} if fm else set())
+    p = fast_replace(p, occupations=occs, hand_minors=frozenset(hand))
+    state = fast_replace(state, players=(p,) + state.players[1:])
+    return _reveal_pause(state, prev_round=4)
+
+
+def test_task_artisan_withheld_no_playable_minor_pays_food():
+    # The withheld-as-unaffordable case THROUGH THE WALK EXTENSION: no hand
+    # minor -> the trigger is ineligible and would host no frame; the grant
+    # condition (a quarry appeared) held and P0 owns decline income, so the
+    # frame IS hosted for the decline alone and Proceed pays.
+    state = _ta_state()                                # empty hand
+    food0 = state.players[0].resources.food
+    state = step(state, RevealCard(card="western_quarry"))
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestWindow) and top.window_id == "reveal"
+    assert legal_actions(state) == [Proceed()]         # nothing to fire — decline only
+    state = step(state, Proceed())
+    assert state.players[0].resources.food == food0 + 1
+    assert state.phase is Phase.WORK
+
+
+def test_task_artisan_offered_unfired_pays_food():
+    # Handplow costs exactly the granted wood, so the trigger IS offered;
+    # proceeding past it declines the named action -> +1 food.
+    state = _ta_state(hand=("handplow",))
+    food0 = state.players[0].resources.food
+    state = step(state, RevealCard(card="western_quarry"))
+    assert FireTrigger(card_id="task_artisan") in legal_actions(state)
+    state = step(state, Proceed())
+    assert state.players[0].resources.food == food0 + 1
+
+
+def test_task_artisan_fired_and_played_pays_nothing():
+    state = _ta_state(hand=("handplow",))
+    food0 = state.players[0].resources.food
+    state = step(state, RevealCard(card="western_quarry"))
+    state = step(state, FireTrigger(card_id="task_artisan"))
+    state = step(state, sole_play_minor(state, "handplow"))
+    state = step(state, Stop())                        # pop the play-minor after-phase
+    state = step(state, Proceed())                     # window exit — grant was fired
+    assert state.players[0].resources.food == food0
+    assert "handplow" in state.players[0].minor_improvements
+
+
+def test_task_artisan_no_fm_reveals_straight_to_work():
+    # Without decline income the walk extension is off: ineligible trigger,
+    # no frame, no pay — the pre-ruling hosting exactly.
+    state = _ta_state(fm=False)                        # empty hand
+    food0 = state.players[0].resources.food
+    state = step(state, RevealCard(card="western_quarry"))
+    assert state.pending_stack == ()
+    assert state.phase is Phase.WORK
+    assert state.players[0].resources.food == food0
+
+
+def test_task_artisan_non_quarry_reveal_no_frame_no_pay():
+    state = _ta_state()                                # FM owned, empty hand
+    food0 = state.players[0].resources.food
+    reveal = next(a for a in legal_actions(state)
+                  if isinstance(a, RevealCard)
+                  and a.card not in ("western_quarry", "eastern_quarry"))
+    state = step(state, reveal)
+    assert not any(isinstance(f, PendingHarvestWindow)
+                   and f.window_id == "reveal" for f in state.pending_stack)
+    assert state.players[0].resources.food == food0
+
+
+# --- Tree Farm Joiner (window-hosted, "minor") -------------------------------
+
+def _tfj_prep_state(*, fm=True, scheduled=True, hand=(), grain=0):
+    """A PREPARATION state about to enter round 2, with the Tree Farm Joiner
+    grant (wood + named minor action) scheduled for round 2 (slot 1)."""
+    state = setup(0)
+    p = state.players[0]
+    occs = p.occupations | {"tree_farm_joiner"} | ({CARD_ID} if fm else set())
+    rewards = list(p.future_rewards)
+    resources = list(p.future_resources)
+    if scheduled:
+        rewards[1] = FutureReward(effect_card_ids=frozenset({"tree_farm_joiner"}))
+        resources[1] = resources[1] + Resources(wood=1)
+    p = fast_replace(p, occupations=occs, hand_minors=frozenset(hand),
+                     future_rewards=tuple(rewards),
+                     future_resources=tuple(resources),
+                     resources=p.resources + Resources(grain=grain))
+    return fast_replace(state, players=(p,) + state.players[1:],
+                        round_number=1, phase=Phase.PREPARATION)
+
+
+def test_tree_farm_joiner_withheld_no_playable_minor_pays_food():
+    # Scheduled round, empty hand: the trigger is ineligible (no playable
+    # minor), so only the walk extension hosts the frame; Proceed pays.
+    state = _tfj_prep_state()
+    food0 = state.players[0].resources.food
+    state = _complete_preparation(state)
+    top = state.pending_stack[-1]
+    assert isinstance(top, PendingHarvestWindow)
+    assert top.window_id == "round_space_collection" and top.player_idx == 0
+    assert legal_actions(state) == [Proceed()]
+    state = step(state, Proceed())
+    assert state.players[0].resources.food == food0 + 1
+
+
+def test_tree_farm_joiner_offered_unfired_pays_food():
+    state = _tfj_prep_state(hand=("market_stall",), grain=1)
+    food0 = state.players[0].resources.food
+    state = _complete_preparation(state)
+    assert FireTrigger(card_id="tree_farm_joiner") in legal_actions(state)
+    state = step(state, Proceed())                     # decline the named action
+    assert state.players[0].resources.food == food0 + 1
+
+
+def test_tree_farm_joiner_fired_and_played_pays_nothing():
+    state = _tfj_prep_state(hand=("market_stall",), grain=1)
+    food0 = state.players[0].resources.food
+    state = _complete_preparation(state)
+    state = step(state, FireTrigger(card_id="tree_farm_joiner"))
+    state = step(state, sole_play_minor(state, "market_stall"))
+    state = step(state, Stop())                        # pop the play-minor after-phase
+    state = step(state, Proceed())                     # window exit — grant was fired
+    assert state.players[0].resources.food == food0
+
+
+def test_tree_farm_joiner_unscheduled_round_no_frame_no_pay():
+    state = _tfj_prep_state(scheduled=False)           # FM owned, nothing due
+    food0 = state.players[0].resources.food
+    state = _complete_preparation(state)
+    assert not any(isinstance(f, PendingHarvestWindow)
+                   and f.window_id == "round_space_collection"
+                   for f in state.pending_stack)
+    assert state.players[0].resources.food == food0
+
+
+# --- Merchant: the user-flagged consequence (both kinds) ---------------------
+
+def test_merchant_unfired_repeat_pays_veg_on_every_taken_composite():
+    # The flagged, user-accepted consequence: with Merchant + Field Merchant in
+    # play, a TAKEN "Major or Minor Improvement" action whose repeat goes
+    # unfired pays the decline income for the declined repeat.
+    cs, cp = _card_state(res=Resources(clay=2, food=1), occ=("merchant",))
+    cs = with_space(cs, "major_improvement", revealed=True, workers=(0, 0))
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, FIREPLACE_0))
+    cs = step(cs, Stop())                              # pop build-major after-phase
+    assert FireTrigger(card_id="merchant") in legal_actions(cs)   # repeat offered
+    cs = step(cs, Stop())                              # decline-to-fire the repeat
+    assert cs.players[cp].resources.veg == 1           # the declined repeat pays
+    assert cs.players[cp].resources.food == 1          # the fee was never paid
+    cs = step(cs, Stop())                              # pop the space wrapper
+    assert cs.players[cp].resources.veg == 1
+
+
+def test_merchant_repeat_withheld_unaffordable_still_pays():
+    # 0 food: the repeat trigger is withheld (can't pay the fee) — the grant
+    # condition (a composite just completed) held, so it still pays.
+    cs, cp = _card_state(res=Resources(clay=2), occ=("merchant",))
+    cs = with_space(cs, "major_improvement", revealed=True, workers=(0, 0))
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, FIREPLACE_0))
+    cs = step(cs, Stop())
+    assert FireTrigger(card_id="merchant") not in legal_actions(cs)
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.veg == 1
+
+
+def test_merchant_fired_repeat_taken_pays_nothing():
+    # Fired and TAKEN repeat: no decline anywhere — the base composite has
+    # "merchant" in triggers_resolved, and Merchant's own repeat (card:merchant)
+    # grants no further repeat (ruling 3), so its completion pays nothing.
+    cs, cp = _card_state(res=Resources(clay=5, food=1), occ=("merchant",))
+    cs = with_space(cs, "major_improvement", revealed=True, workers=(0, 0))
+    cs = step(cs, PlaceWorker(space="major_improvement"))
+    cs = step(cs, ChooseSubAction(name="improvement"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, FIREPLACE_0))   # 2 clay
+    cs = step(cs, Stop())
+    cs = step(cs, FireTrigger(card_id="merchant"))
+    cs = step(cs, ChooseSubAction(name="build_major"))
+    cs = step(cs, sole_build_major(cs, 1))             # the second Fireplace (3 clay)
+    cs = step(cs, Stop())                              # pop build-major after-phase
+    cs = step(cs, Stop())                              # pop the repeat composite
+    cs = step(cs, Stop())                              # pop the base composite
+    cs = step(cs, Stop())                              # pop the space wrapper
+    assert cs.players[cp].resources.veg == 0
+    assert cs.players[cp].resources.food == 0          # the fee was paid
+
+
+def test_merchant_bare_minor_unfired_repeat_pays_food():
+    # The "minor" kind of the consequence: a taken named Minor Improvement
+    # action (Meeting Place's minor) whose Merchant repeat goes unfired pays
+    # 1 food at the play frame's exit.
+    cs, cp = _card_state(hand=("market_stall",), res=Resources(grain=1),
+                         occ=("merchant",))
+    cs = step(cs, PlaceWorker(space="meeting_place"))
+    cs = step(cs, ChooseSubAction(name="play_minor"))
+    cs = step(cs, sole_play_minor(cs, "market_stall"))
+    cs = step(cs, Stop())                              # play frame exit: repeat declined
+    assert cs.players[cp].resources.food == 1
+    cs = step(cs, Proceed())                           # minor_chosen — no MP decline
+    cs = step(cs, Stop())
+    assert cs.players[cp].resources.food == 1          # exactly once
+
 
 def test_family_house_redev_proceed_unchanged():
     assert IMPROVEMENT_DECLINE_INCOME            # the registry IS populated...

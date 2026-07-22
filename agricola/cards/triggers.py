@@ -456,6 +456,71 @@ def owns_improvement_decline_income(state, idx: int) -> bool:
     return any(_owns(p, cid) for cid in IMPROVEMENT_DECLINE_INCOME)
 
 
+# --- Named-action GRANTS and the unfired-trigger decline (user ruling 76,
+# 2026-07-21, CARD_DEFERRED_PLANS.md item 2) -----------------------------------
+#
+# Ruling (quoted): "Unfired granting triggers ARE declines (user: 'yes it
+# does'): declining-to-fire a trigger that would grant a named improvement
+# action counts as declining the action for decline income — including when the
+# trigger was withheld as unaffordable (the can't-use-counts-as-declining ruling
+# extends to grants). Requires the grant-condition-held-but-unfired seam at host
+# exits; fired-then-declined stays on the existing frame seams (no double pay)."
+#
+# Each card whose TRIGGER grants a named improvement action registers its grant
+# CONDITION here — the part of its eligibility that says "this card's grant is
+# live at this host", independent of whether the granted action is currently
+# doable/affordable (Angler: the space is Fishing and its pre-take food was
+# <= 2; NOT "a composite child is affordable"). At the host's terminal exit
+# (`engine._sweep_unfired_named_action_grants` — the Stop pop for frame-hosted
+# grants, the window frame's Proceed for window-hosted ones), every owned entry
+# whose condition held and whose trigger was NOT fired (the host's
+# `triggers_resolved`) pays the owner's decline income once. A FIRED grant is
+# skipped here — its pushed frame's own decline seams govern it (the composite
+# decline route, the wrapper Stop), so nothing pays twice.
+#
+# `window` names the ladder window id for a window-hosted grant (Sample Stable
+# Maker / Task Artisan's reveal half / Tree Farm Joiner): those windows host a
+# choice frame only for players with an ELIGIBLE trigger, so a withheld
+# (unaffordable) grant would never see a host exit — `engine.
+# _window_trigger_players` therefore also hosts the frame for a player whose
+# registered grant CONDITION holds when they own a decline-income card (gated
+# exactly so: without decline income the extra frame would have no observable
+# effect, and hosting is unchanged). None = a frame-hosted grant (the host frame
+# exists independently of the trigger's eligibility).
+#
+# Deliberate exclusions (ruling 76): **Stone Company** — its granted composite
+# is NOT declinable ("Improvement action is not declinable in order to use
+# Field Merchant B103"), so it registers nothing; **Harvest Festival Planning**
+# — its composite is pushed by its own on-play resolution, not by a trigger, so
+# there is no declining-to-fire moment for this seam to read (its pushed
+# composite, when declinable, is governed by the frame's own decline route).
+#
+# condition_fn signature: (state, owner_idx, host_frame) -> bool.
+@dataclass(frozen=True)
+class NamedActionGrantEntry:
+    card_id: str
+    kind: str                    # "minor" | "major_or_minor"
+    condition_fn: Callable       # (state, owner_idx, host_frame) -> bool
+    window: str | None = None    # ladder window id for window-hosted grants
+
+
+# A list, not a dict: one card may grant BOTH kinds (Merchant's two repeats).
+NAMED_ACTION_GRANTS: list[NamedActionGrantEntry] = []
+
+
+def register_named_action_grant(card_id: str, kind: str, condition_fn: Callable,
+                                *, window: str | None = None) -> None:
+    """Register a trigger-granted named improvement action's grant CONDITION
+    (user ruling 76, 2026-07-21 — called at card-module import). `kind` in
+    {"minor", "major_or_minor"}; `condition_fn(state, owner_idx, host_frame)`
+    tests the grant's own condition at the host, independent of the granted
+    action's doability; `window` = the ladder window id when the granting
+    trigger is window-hosted."""
+    assert kind in ("minor", "major_or_minor"), kind
+    NAMED_ACTION_GRANTS.append(
+        NamedActionGrantEntry(card_id, kind, condition_fn, window))
+
+
 def note_improvement_action_declined(state, idx: int, kind: str):
     """Player `idx` just DECLINED a named improvement action of `kind`
     ("minor" = the "Minor Improvement" action; "major_or_minor" = the "Major or
