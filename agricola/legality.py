@@ -1553,13 +1553,67 @@ def playable_occupations(state: GameState, idx: int) -> list[str]:
     from agricola.cards.specs import (  # local import: load-order safe
         OCCUPATION_PLAY_BLOCKERS,
         OCCUPATIONS,
+        PLAY_OCCUPATION_VARIANTS,
     )
     p = state.players[idx]
     if OCCUPATION_PLAY_BLOCKERS and (
             OCCUPATION_PLAY_BLOCKERS
             & (p.occupations | p.minor_improvements)):
         return []
-    return sorted(p.hand_occupations & OCCUPATIONS.keys())
+    result = []
+    for cid in sorted(p.hand_occupations & OCCUPATIONS.keys()):
+        # A play-variant occupation with NO legal variant right now is not playable:
+        # pushing a PendingPlayOccupation for it would strand an empty frame. This bites
+        # only a MANDATORY-choice variant card — one with no zero-surcharge decline route
+        # (Confidant: "place 1 food on each of the next 2/3/4 round spaces", so `_variants`
+        # is empty when the player can't afford any placement). Roof Ballaster / Baker
+        # always carry a decline variant, so this never excludes them; ordinary
+        # occupations (no variant fn) are unaffected. The residual base+surcharge
+        # affordability is checked at the cost-bearing gates via
+        # `_any_occupation_committable`.
+        vf = PLAY_OCCUPATION_VARIANTS.get(cid)
+        if vf is not None and not vf(state, idx):
+            continue
+        result.append(cid)
+    return result
+
+
+def _any_occupation_committable(state: GameState, idx: int, cost: Resources) -> bool:
+    """Does pushing `PendingPlayOccupation(cost=cost)` here yield a NON-EMPTY frame?
+
+    The occupation-play routes (Lessons, Scholar, a granted play, a free-play card)
+    must not strand the player on an empty play-occupation frame. This mirrors
+    `_enumerate_pending_play_occupation`'s per-card filter EXACTLY, so `gate ⟹
+    enumerator non-empty` holds by construction:
+
+    - an **ordinary** occupation (no variant fn) is committable iff the base `cost` is
+      payable — the enumerator then offers its commit unconditionally;
+    - a **play-variant** occupation is committable iff some `(variant, payment)` pair
+      covers the COMBINED `payment + surcharge` (liquidation-aware) and passes the
+      pair gate — a mandatory-choice card (Confidant) can have every pair unaffordable
+      even when the base cost alone is payable, which is the dead-end this closes.
+    """
+    from agricola.cards.specs import PLAY_OCCUPATION_VARIANTS
+    playable = playable_occupations(state, idx)
+    if not playable:
+        return False
+    p = state.players[idx]
+    base_payable = _payable_occupation(state, idx, p, cost)
+    payments = None   # computed lazily — only variant cards need it
+    for cid in playable:
+        vf = PLAY_OCCUPATION_VARIANTS.get(cid)
+        if vf is None:
+            if base_payable:
+                return True
+            continue
+        if payments is None:
+            payments = effective_payments(state, idx, _play_occupation_ctx(cost))
+        for v, surcharge in vf(state, idx):
+            if any(_payable(state, idx, p, pm + surcharge)
+                   and _variant_pair_ok(state, idx, cid, v, pm, surcharge)
+                   for pm in payments):
+                return True
+    return False
 
 
 def _legal_lessons_cards(state: GameState) -> bool:
@@ -1569,13 +1623,14 @@ def _legal_lessons_cards(state: GameState) -> bool:
         return False
     idx = state.current_player
     p = state.players[idx]
-    if not playable_occupations(state, idx):
-        return False
-    # The 2nd+ occupation's 1-food cost may be raised by liquidation at execution
-    # (FOOD_PAYMENT_DESIGN.md §4.1) OR by firing an owned occupation-cost food source first
-    # (Paper Maker). `_payable_occupation` folds in both; occupations carry no animal cost and
-    # stay off `effective_payments` (no cost card touches occupation play cost).
-    return _payable_occupation(state, idx, p, occupation_cost(len(p.occupations)))
+    # At least one hand occupation must be actually COMMITTABLE at the Lessons cost — for
+    # an ordinary occupation the base cost being payable suffices (raisable by liquidation
+    # / an owned food source, `_payable_occupation` folds both in), but a mandatory-choice
+    # play-variant card (Confidant) needs a legal (variant, payment) pair, or the pushed
+    # PendingPlayOccupation would be a dead-end (`_any_occupation_committable` mirrors the
+    # enumerator).
+    return _any_occupation_committable(
+        state, idx, occupation_cost(len(p.occupations)))
 
 
 def _legal_major_improvement_cards(state: GameState) -> bool:
@@ -2755,12 +2810,11 @@ def _granted_subaction_eligible(
             state, p, space_id=pending.initiated_by_id,
             initiated_by_id=pending.initiated_by_id)
     if cat == "play_occupation":
-        # Mirrors `_legal_lessons_cards`: a playable hand occupation exists AND the grant's
-        # play cost is payable (directly, via liquidation, or by first firing an owned
-        # occupation-cost food source — `_payable_occupation` folds all three), so the
-        # no-decline PendingPlayOccupation is never pushed as a dead-end.
-        return (bool(playable_occupations(state, pending.player_idx))
-                and _payable_occupation(state, pending.player_idx, p, pending.occ_cost))
+        # Mirrors `_legal_lessons_cards`: at least one hand occupation must be committable
+        # at the grant's play cost (base payable for an ordinary card; a legal (variant,
+        # payment) pair for a mandatory-choice variant card — Confidant), so the no-decline
+        # PendingPlayOccupation is never pushed as a dead-end.
+        return _any_occupation_committable(state, pending.player_idx, pending.occ_cost)
     if cat == "play_minor":
         # Mirrors the Meeting Place / Basic Wish optional-minor gate: >=1 hand minor is
         # currently playable (prereq met + printed/alternative cost affordable) — under

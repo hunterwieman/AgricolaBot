@@ -70,11 +70,21 @@ rule — each is also flagged in its module docstring.
   unfenced stable's 1-cap flexible slot into a **3-cap single-type bin** — a strict upgrade,
   so no player choice **(plan, flagged**; needs the extract_slots flexible→bin transformation;
   check the Shepherd's Whistle arrangement interplay at build**)**.
-- **Confidant (B93)** — the C5 hold is **released** (user: "seems straightforward"). Build:
-  play-occupation variants N ∈ {2,3,4} (gated food ≥ N, debiting N food) + `schedule_resources`
-  (the food back) + `schedule_effect` (the per-round grant), resolved at the
-  `round_space_collection` window as a variant trigger ["sow", "build_fences"] (named actions —
-  full-width frames), window Proceed = decline.
+- **Confidant (B93)** — **IMPLEMENTED 2026-07-21** (C5 hold released, user: "seems
+  straightforward"). Built as: play-occupation variants N ∈ {2,3,4} (gated food ≥ N, debiting
+  N food) + `schedule_resources` (the food back) + `schedule_effect` (the per-round grant),
+  resolved at the `round_space_collection` window as a variant trigger ["sow", "build_fences"]
+  (named actions — full-width frames), window Proceed = decline. Two follow-ups: (a) it is the
+  first play-variant occupation that can be UNPLAYABLE (mandatory placement, no decline
+  variant), which motivated a general engine fix — `playable_occupations` drops a variant
+  occupation with no legal variant, and `_any_occupation_committable` (mirroring the
+  play-occupation enumerator's per-(variant, payment) filter over base + surcharge) gates
+  Lessons / Scholar / a granted play, so a route never strands an empty `PendingPlayOccupation`;
+  (b) OPEN near-end rules question — played with fewer than 2 round spaces remaining (round 13:
+  1 left; round 14: 0), does the printed "2, 3, or 4" minimum forbid the play, or does
+  RULES.md's general "place only on the remaining spaces" allow it on 1/0 spaces? Implemented on
+  the general-rule lean (allow, capping at what remains, deduping collapsed variants);
+  **awaiting the user's ruling.**
 - **Dung Collector (E90)** — fires **only on harvest breeding outcomes** (`BreedingOutcome`,
   ≥2 newborns placed — the Champion Breeder read). Pig Breeder (A165) + Pure Breeder (D167)
   end-of-round-12 breeds are **sequential and distinct** (user) — 1 newborn each, never

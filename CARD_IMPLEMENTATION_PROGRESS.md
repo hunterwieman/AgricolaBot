@@ -1674,7 +1674,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **B92 Little Stick Knitter** · [1+]
   - _From Round 5 on, each time you use the "sheep Market" accumulation space, you can also take a "Family Growth with Room Only" action._
   - `HOOK T-BEFORE S-SPACE F-TRIG A-OWN E-GRANTSUB E-GROWTH` — Each time you use sheep Market (from R5), optional Family Growth with room only sub-action -> hook on space, T-BEFORE default, granted growth (optional). Round-5 gate is a computable condition.
-- ⬜ **B93 Confidant** · [1+]
+- ✅ **B93 Confidant** · [1+] · ruling 74 (play-occ N-variant + scheduled food return + round_space_collection sow/fences grant; motivated the play-occupation committability fix)
   - _Place 1 food from your supply on each of the next 2, 3, or 4 round spaces. At the start of these rounds, you get the food back and your choice of a "sow" or "Build Fences" action.  [CLARIFICATION: For example, if played in Round 9, you must place 1 food on each of Rounds 10-11, 10-12, or 10-13.]_
   - `ONPLAY E-SCHED E-FOODCOST HOOK S-SOR T-AFTER F-TRIG A-OWN E-GRANTSUB E-GRANTACT` — On play you front 2-4 food from supply onto future round spaces (E-FOODCOST + E-SCHED, whose collection semantics cover the food-back so no separate E-GOODS); at start of those rounds a start-of-round hook grants your choice of a sow sub-action (E-GRANTSUB) or full Build Fences action (E-GRANTACT) - granted actions are optional, so F-TRIG not F-MANDCHOICE.
 - ⬜ **B94 Stock Protector** · [1+]

@@ -1053,3 +1053,5 @@ from agricola.cards import tree_inspector  # noqa: F401
 from agricola.cards import craft_major_span  # noqa: F401
 from agricola.cards import canal_boatman  # noqa: F401
 from agricola.cards import plow_builder  # noqa: F401
+# Confidant (B93) — the C5 hold released (ruling 74); play-occ variant + schedule + window grant
+from agricola.cards import confidant  # noqa: F401
