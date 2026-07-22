@@ -2487,7 +2487,7 @@ _Markers: ✅ implemented (slug registered in `agricola/cards`) · 🚫 won't-fi
 - ✅ **E108 Blackberry Farmer** · [1+]
   - _Each time you build fences, place 1 food on each remaining round space, up to the number of fences just built. At the start of these rounds, you get the food._
   - `HOOK S-SUB T-AFTER F-AUTO A-OWN E-SCHED ST-PROV` — Each time you build fences, place 1 food on each remaining round space up to the number just built. Build-fences sub-action hook, resolved after (T-AFTER), mandatory; schedules food on future rounds (E-SCHED). ST-PROV needed for the count of fences just built.
-- ⬜ **E109 Braid Maker** · [1+]
+- ✅ **E109 Braid Maker** · [1+] · ruling 74 (harvest-span reed→2f; 1r+1s Basketmaker's formula; minor-action major build)
   - _Each harvest, you can use this card to exchange 1 reed for 2 food. You can build the Basketmaker's Workshop for 1 reed and 1 stone even when taking a "Minor Impr." action._
   - `ATWILL CAP-HARVEST E-CONVERT PASSIVE E-COSTMOD L-EXT` — Reed→food exchange is ATWILL+CAP-HARVEST+E-CONVERT (it PRODUCES food, so E-FOODCOST is wrong); the Basketmaker's-Workshop clause is an always-on rule change — PASSIVE activation with a replacement cost (E-COSTMOD) plus building a major via the Minor-Impr. action (L-EXT).
 - ✅ **E110 Dentist** · [1+]
