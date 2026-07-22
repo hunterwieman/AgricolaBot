@@ -189,14 +189,31 @@ cook reactions against the no-FEED-triggers boundary.
 
 **Ruling 78 (2026-07-21) — the greedy-pass scope pullback + Field Merchant follow-ups:**
 
-1. **Beer Tap is OUT of the frontier — feed-seam-only** (user). Its super-linear
-   bundle pricing (2/3/4 grain → 3/6/9 food = 1.5/2/2.25 per grain) rewards clumping,
-   and the once-per-harvest budget means an early incremental fire in a `PendingFoodPayment`
-   frame forecloses a better big-clump use later — the pay-as-you-go frontier can't see
-   that, so it interacts badly. The ruling-77 greedy pass was over-scoped: the user wanted
-   only the ARCHITECTURE (the crop-input frontier widening) plus **Schnapps Distiller /
-   Distillery** (clean single-veg binary fires — firing early vs late doesn't change their
-   value). Beer Tap's frontier participation was reverted; it keeps its feed-seam offering.
+1. **Beer Tap's frontier participation is an OPEN, UNRESOLVED problem — NOT a settled
+   feed-seam-only decision.** The ruling-77 greedy pass over-scoped it into the frontier
+   as three grouped tiers; that was reverted so the greedy pass ships only the ARCHITECTURE
+   (crop-input widening) + **Schnapps Distiller / Distillery** (clean single-tier fixed
+   fires). But the interim feed-seam-only state **leaves a real rules gap**: Beer Tap is
+   usable in the feeding phase, so a card cost raised mid-feeding (reachable via Plow
+   Builder × Rocky Terrain) SHOULD be payable through it and currently is not.
+   **The hard part — why the frontier can't just offer it:** the once-per-harvest budget
+   is NOT a Pareto dimension of the frontier (only goods-remaining are; `fired` is a
+   tie-break, not a dim). Beer Tap converts GRAIN — the same good base cooking uses — at a
+   better-than-base rate, so firing a tier strictly dominates base-cooking in the grain
+   dimension and the frontier PRUNES "don't fire, save the budget." For a fixed single-tier
+   converter (Schnapps: always 1 veg → 5 food) that forced fire is harmless — early vs late
+   is value-neutral. For Beer Tap's SUPER-LINEAR multi-tier pricing (1.5/2/2.25 food per
+   grain), the forced fire commits the once-per-harvest budget at the SMALLEST tier covering
+   the current small cost, foreclosing a bigger-tier use at the later feeding payment — a
+   strategically-valid option the frontier silently removes. (Studio / the craft majors have
+   a BENIGN version: they convert building resources base cooking ignores, so firing is a
+   goods tradeoff — incomparable, both surface — never a forced fire; worth confirming that
+   holds.) **Neither interim option is correct:** feed-seam-only under-offers (denies a legal
+   option); the 3-tier frontier over-forces (prunes save-for-later). The correct handling
+   (make the budget a Pareto dim? only offer the tier matching held grain? offer it but
+   protect the save-for-later config? a different converter shape for super-linear cards?) is
+   a genuine design question — DEFERRED until the user and driver are sure, tracked here as
+   open, not closed.
 2. **Beer Stall is NOT a gap** (correction of a driver mischaracterization): C49 is already
    implemented elegantly (ruling 30, 2026-07-06) as a joint Pareto frontier over (animals
    kept, k stables emptied for conversions) via the k-stable doctored-farm technique,
